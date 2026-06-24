@@ -6,7 +6,6 @@ import { ShareProfileLink } from "@/components/share/ShareProfileLink";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon, type IconName } from "@/components/ui/Icon";
-import { PetAvatar } from "@/components/ui/PetAvatar";
 import { getPublicPetMoments } from "@/services/momentService";
 import { getPublicPetProfile } from "@/services/petService";
 import { getPetRecords } from "@/services/recordService";
@@ -145,34 +144,7 @@ export function PublicSharePetProfile({
             </div>
           </div>
 
-          <div className="brand-card overflow-hidden rounded-[2rem]">
-            <div
-              className={`brand-paw-dots flex min-h-60 items-end justify-between gap-4 p-6 ${coverToneClasses[coverTone]}`}
-            >
-              <div className="rounded-3xl bg-white/90 px-4 py-3 text-sm font-extrabold text-pet-ink shadow-sm">
-                {profile.coverPhotoLabel || `${profile.name}'s cover photo`}
-              </div>
-              <span className="grid h-14 w-14 place-items-center rounded-2xl bg-white text-pet-coral shadow-sm">
-                <Icon name="heart" className="h-6 w-6" />
-              </span>
-            </div>
-            <div className="px-6 pb-6">
-              <div className="-mt-16 flex flex-col gap-5 sm:flex-row sm:items-end">
-                <PetAvatar pet={profile} size="xl" />
-                <div className="rounded-[1.5rem] bg-white/95 p-4 shadow-sm">
-                  <p className="text-sm font-bold text-pet-muted">
-                    {profile.profilePhotoLabel || "Profile photo"}
-                  </p>
-                  <p className="mt-1 text-2xl font-black text-pet-ink">
-                    {profile.species} - {profile.breed}
-                  </p>
-                  <p className="mt-1 text-sm font-bold text-pet-muted">
-                    {profile.gender} - {profile.ageLabel}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
+          <PublicHeroCard coverTone={coverTone} profile={profile} />
         </div>
       </section>
 
@@ -186,8 +158,8 @@ export function PublicSharePetProfile({
           <InfoTile label="Birthday" value={profile.birthday} />
           <InfoTile label="Adoption Day" value={profile.adoptionDay} />
           <InfoTile label="Favourite Food" value={profile.favoriteFood} />
-              <InfoTile label="Favourite Toy" value={profile.favoriteToy} />
-              <InfoTile label="Contact" value={contactPreference} />
+          <InfoTile label="Favourite Toy" value={profile.favoriteToy} />
+          <InfoTile label="Contact" value={contactPreference} />
         </div>
       </section>
 
@@ -370,6 +342,101 @@ export function PublicSharePetProfile({
   );
 }
 
+function PublicHeroCard({
+  profile,
+  coverTone,
+}: {
+  profile: PublicPetProfile;
+  coverTone: Pet["coverTone"];
+}) {
+  const featuredTags = profile.personalityTags.slice(0, 3);
+
+  return (
+    <aside className="brand-card overflow-hidden rounded-[2rem] p-4">
+      <div
+        className={`relative min-h-72 overflow-hidden rounded-[1.75rem] ${coverToneClasses[coverTone]}`}
+      >
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_22%,rgba(255,255,255,0.55),transparent_24%),radial-gradient(circle_at_85%_18%,rgba(255,122,110,0.18),transparent_20%),radial-gradient(circle_at_78%_80%,rgba(21,112,239,0.14),transparent_24%)]" />
+        <div className="absolute left-5 top-5 rounded-full bg-white/88 px-4 py-2 text-xs font-black uppercase text-pet-teal shadow-sm">
+          MyPetLink
+        </div>
+        <span
+          aria-hidden="true"
+          className="absolute right-7 top-7 grid h-12 w-12 rotate-6 place-items-center rounded-2xl bg-white/82 text-pet-coral shadow-sm"
+        >
+          <Icon name="heart" className="h-5 w-5" />
+        </span>
+        <span
+          aria-hidden="true"
+          className="absolute bottom-8 left-8 grid h-10 w-10 -rotate-6 place-items-center rounded-2xl bg-white/65 text-pet-teal"
+        >
+          <Icon name="paw" className="h-5 w-5" />
+        </span>
+      </div>
+
+      <div className="px-2 pb-2">
+        <div className="-mt-12 flex flex-col items-center gap-4 sm:flex-row sm:items-end sm:px-2">
+          <div className="relative z-10 grid h-28 w-28 shrink-0 place-items-center rounded-[2rem] border-[6px] border-white bg-white text-pet-coral shadow-xl shadow-[#0d1b3d]/12">
+            <div
+              className={`absolute inset-2 rounded-[1.55rem] ${avatarToneClasses[profile.photoTone]}`}
+            />
+            <div className="relative z-10 grid place-items-center text-center">
+              <Icon name="paw" className="h-8 w-8" />
+              <span className="mt-1 text-xl font-black leading-none">
+                {profile.photoInitial}
+              </span>
+            </div>
+          </div>
+
+          <div className="w-full rounded-[1.5rem] bg-white/96 p-5 text-center shadow-sm sm:text-left">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="text-3xl font-black leading-tight text-pet-ink">
+                  {profile.name}
+                </h2>
+                <p className="mt-2 text-sm font-bold text-pet-muted">
+                  {profile.species} · {profile.breed}
+                </p>
+                <p className="mt-1 text-sm font-bold text-pet-muted">
+                  {profile.gender} · {profile.ageLabel}
+                </p>
+              </div>
+              <span className="inline-flex items-center justify-center gap-2 rounded-full bg-pet-apricot px-4 py-2 text-xs font-black text-pet-coral">
+                <Icon name="heart" className="h-4 w-4" />
+                Loved pet
+              </span>
+            </div>
+
+            <div className="mt-4 flex flex-wrap justify-center gap-2 sm:justify-start">
+              {featuredTags.map((tag) => (
+                <Badge key={tag} tone="mint">
+                  {tag}
+                </Badge>
+              ))}
+            </div>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <MiniDetail label="Birthday" value={profile.birthday} />
+              <MiniDetail label="Favourite" value={profile.favoriteToy} />
+            </div>
+          </div>
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+function MiniDetail({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[1.1rem] bg-pet-cream px-4 py-3">
+      <p className="text-xs font-bold uppercase text-pet-muted">{label}</p>
+      <p className="mt-1 break-words text-sm font-black text-pet-ink">
+        {value}
+      </p>
+    </div>
+  );
+}
+
 function InfoTile({ label, value }: { label: string; value: string }) {
   return (
     <div className="brand-soft-card rounded-[1.5rem] p-5">
@@ -400,9 +467,15 @@ function SafetyTile({
 }
 
 const coverToneClasses: Record<Pet["coverTone"], string> = {
-  apricot: "bg-pet-apricot",
-  mint: "bg-[#e8f8f0]",
-  sky: "bg-[#e8f3ff]",
+  apricot: "bg-gradient-to-br from-[#fff4ee] via-pet-apricot to-[#ffd3c5]",
+  mint: "bg-gradient-to-br from-[#f2fff8] via-[#ddf4e7] to-[#bfead7]",
+  sky: "bg-gradient-to-br from-[#f8fbff] via-[#e8f3ff] to-[#bde4ff]",
+};
+
+const avatarToneClasses: Record<Pet["photoTone"], string> = {
+  apricot: "bg-pet-apricot text-pet-coral",
+  mint: "bg-[#ddf4e7] text-pet-sage",
+  sky: "bg-[#e8f3ff] text-pet-teal",
 };
 
 function mergeVisibility(

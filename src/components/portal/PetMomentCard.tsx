@@ -16,9 +16,9 @@ const visibilityTone = {
 export function PetMomentCard({ moment, publicView }: PetMomentCardProps) {
   const mediaTitle =
     moment.mediaKind === "Video"
-      ? "Video memory"
+      ? "Memory clip"
       : moment.mediaKind === "Image"
-        ? "Photo memory"
+        ? "Photo moment"
         : "Memory note";
 
   return (
