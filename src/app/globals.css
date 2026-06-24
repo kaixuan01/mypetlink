@@ -1,26 +1,118 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fff8f2;
+  --foreground: #0d1b3d;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-pet-cream: #fff8f2;
+  --color-pet-vanilla: #ffffff;
+  --color-pet-apricot: #ffe9de;
+  --color-pet-coral: #ff7a6e;
+  --color-pet-mint: #bfead7;
+  --color-pet-sage: #1d7b53;
+  --color-pet-teal: #1570ef;
+  --color-pet-sky: #7cc6f4;
+  --color-pet-ink: #0d1b3d;
+  --color-pet-muted: #44506a;
+  --color-pet-border: #f0dcd0;
+  --font-sans: var(--font-noto-sans);
+  --font-display: var(--font-poppins);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 88px;
 }
 
 body {
-  background: var(--background);
+  background: linear-gradient(180deg, #fff8f2 0%, #ffffff 42%, #eef8ff 100%);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-noto-sans), Arial, Helvetica, sans-serif;
+}
+
+h1,
+h2,
+h3,
+.brand-heading {
+  font-family: var(--font-poppins), var(--font-noto-sans), Arial, sans-serif;
+  letter-spacing: 0;
+}
+
+a {
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.2em;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+.soft-grid {
+  background-image:
+    radial-gradient(circle at 12% 18%, rgba(255, 122, 110, 0.12) 0 8px, transparent 9px),
+    radial-gradient(circle at 86% 14%, rgba(21, 112, 239, 0.11) 0 9px, transparent 10px),
+    linear-gradient(rgba(21, 112, 239, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(21, 112, 239, 0.055) 1px, transparent 1px);
+  background-size: 240px 180px, 210px 170px, 38px 38px, 38px 38px;
+}
+
+.brand-card {
+  border: 1px solid #f0dcd0;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 18px 45px rgba(13, 27, 61, 0.08);
+}
+
+.brand-soft-card {
+  border: 1px solid #f0dcd0;
+  background: linear-gradient(145deg, #ffffff 0%, #fff8f2 100%);
+  box-shadow: 0 14px 36px rgba(13, 27, 61, 0.07);
+}
+
+.brand-peach-section {
+  background: linear-gradient(135deg, #fff8f2 0%, #ffe9de 100%);
+}
+
+.brand-blue-section {
+  background: linear-gradient(135deg, #f1f9ff 0%, #ffffff 100%);
+}
+
+.brand-paw-dots {
+  background-image:
+    radial-gradient(circle at 18px 14px, rgba(255, 122, 110, 0.22) 0 6px, transparent 7px),
+    radial-gradient(circle at 35px 8px, rgba(255, 122, 110, 0.16) 0 5px, transparent 6px),
+    radial-gradient(circle at 51px 15px, rgba(255, 122, 110, 0.16) 0 5px, transparent 6px),
+    radial-gradient(circle at 35px 34px, rgba(255, 122, 110, 0.18) 0 13px, transparent 14px);
+  background-size: 140px 120px;
+}
+
+.brand-input {
+  min-height: 3rem;
+  border-radius: 1rem;
+  border: 1px solid #f0dcd0;
+  background: #fff8f2;
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  color: #0d1b3d;
+  outline: none;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease;
+}
+
+.brand-input:focus {
+  border-color: #1570ef;
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(21, 112, 239, 0.12);
 }

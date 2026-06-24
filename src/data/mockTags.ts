@@ -1,0 +1,45 @@
+import type { PetTag } from "@/types";
+
+export const mockTags: PetTag[] = [
+  {
+    id: "tag_001",
+    petId: "pet_milo",
+    tagType: "MyPetLink QR Pet Tag",
+    tagCode: "8KX29A",
+    status: "Active",
+    design: "Round Tag",
+    orderedDate: "02 May 2026",
+    deliveredDate: "06 May 2026",
+    lastScannedDate: "21 Jun 2026",
+  },
+  {
+    id: "tag_002",
+    petId: "pet_milo",
+    tagType: "MyPetLink QR + NFC Smart Tag",
+    tagCode: "MILO-NFC-002",
+    status: "Delivered",
+    design: "Cute Paw Tag",
+    orderedDate: "12 Jun 2026",
+    deliveredDate: "18 Jun 2026",
+  },
+  {
+    id: "tag_003",
+    petId: "pet_luna",
+    tagType: "MyPetLink QR Pet Tag",
+    tagCode: "LUNA-QR-001",
+    status: "Pending",
+    design: "Bone Shape",
+    orderedDate: "20 Jun 2026",
+  },
+  {
+    id: "tag_004",
+    petId: "pet_milo",
+    tagType: "MyPetLink QR Pet Tag",
+    tagCode: "MILO-OLD-001",
+    status: "Replaced",
+    design: "Minimal Tag",
+    orderedDate: "04 Jan 2025",
+    deliveredDate: "09 Jan 2025",
+    lastScannedDate: "14 Mar 2026",
+  },
+];

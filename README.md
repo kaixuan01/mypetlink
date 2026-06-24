@@ -1,36 +1,118 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# MyPetLink
 
-## Getting Started
+MyPetLink is a Malaysia-focused frontend MVP for safe and shareable pet profiles. It helps pet owners create a QR safety profile, manage care records, save meaningful pet memories, and order optional MyPetLink QR or QR + NFC smart tags.
 
-First, run the development server:
+Preferred tagline: "A safe and shareable profile for your pet."
+
+Primary domain examples:
+
+- `https://mypetlink.com.my`
+- `https://mypetlink.com.my/p/milo`
+- `https://mypetlink.com.my/t/8KX29A`
+
+This project is frontend-only. It uses local data and localStorage-backed demo authentication. There is no backend, database, Supabase integration, payment gateway, OAuth, OTP, email/password registration, real file storage, NFC writing, GPS tracking, or supplier integration yet.
+
+## Tech Stack
+
+- Next.js App Router
+- TypeScript
+- Tailwind CSS
+- ESLint
+- Local data and mock service layer
+
+## Run Locally
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Cloudflare Pages Deployment
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Use Cloudflare Pages as a static site deployment for this frontend-only staging build.
 
-## Learn More
+- Framework preset: `Next.js`
+- Root directory: leave blank when the repository root is this app; use `mypetlink` only if the app sits inside a parent repository folder
+- Build command: `npm run build`
+- Build output directory: `out`
+- Node.js version: use Cloudflare Pages default Node 20 or newer
 
-To learn more about Next.js, take a look at the following resources:
+This project is configured with Next.js static export, so `npm run build` writes the deployable site to the `out` folder. The staging build includes `noindex,nofollow` metadata and a restrictive `robots.txt`.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Public Website Routes
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `/` - Marketing landing page
+- `/sample` - Sample finder safety page
+- `/pricing` - Free, Premium, Smart Tag Add-ons, and GPS Safety pricing
+- `/privacy` - Privacy guidance
+- `/terms` - Terms guidance
+- `/login` - Owner login
+- `/p/milo` - Public share pet profile
+- `/t/8KX29A` - Finder safety page for scanned tags
 
-## Deploy on Vercel
+## Owner Portal Routes
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Owner routes are protected by localStorage auth. Use `/login`, then click `Continue with Google` or `Try Demo Account`.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `/dashboard`
+- `/pets`
+- `/pets/new`
+- `/pets/pet_milo`
+- `/pets/pet_milo/edit`
+- `/pets/pet_milo/records`
+- `/pets/pet_milo/qr`
+- `/pets/pet_milo/moments`
+- `/pets/pet_milo/moments/new`
+- `/pets/pet_milo/timeline`
+- `/pets/pet_milo/tags`
+- `/pets/pet_milo/tags/order`
+- `/tags`
+- `/orders`
+- `/settings`
+
+## Admin Portal Routes
+
+Admin routes are protected by localStorage auth. Use `/admin/login`, then click `Continue as Admin`.
+
+- `/admin`
+- `/admin/pets`
+- `/admin/users`
+- `/admin/qr-profiles`
+- `/admin/plans`
+
+## Service Layer
+
+The local services are shaped like future API calls and return response envelopes:
+
+- `src/services/authService.ts`
+- `src/services/petService.ts`
+- `src/services/recordService.ts`
+- `src/services/momentService.ts`
+- `src/services/tagService.ts`
+- `src/services/adminService.ts`
+
+Local data lives in:
+
+- `src/data/mockPets.ts`
+- `src/data/mockUsers.ts`
+- `src/data/mockRecords.ts`
+- `src/data/mockPlans.ts`
+- `src/data/mockMoments.ts`
+- `src/data/mockTags.ts`
+- `src/data/mockOrders.ts`
+
+## Future Planned Features
+
+- Real authentication and route protection
+- Persisted pet profiles, care records, moments, tags, and orders
+- Real payment and delivery workflow for MyPetLink Smart Tags
+- Reminder notifications
+- Admin role and permission controls
+- Family sharing controls
+- Data deletion and privacy controls
+
+## Environment Variables
+
+Copy `.env.example` to `.env.local` when real integrations are added. The current frontend MVP does not require environment variables to run.

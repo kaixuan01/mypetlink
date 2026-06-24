@@ -1,0 +1,61 @@
+import type { PetMoment } from "@/types";
+
+export const mockMoments: PetMoment[] = [
+  {
+    id: "moment_001",
+    petId: "pet_milo",
+    title: "Milo's First Day Home",
+    date: "18 Aug 2021",
+    type: "First Day Home",
+    caption:
+      "He walked in carefully, sniffed every corner, then fell asleep beside the sofa.",
+    mediaKind: "Image",
+    mediaLabel: "Warm homecoming photo",
+    visibility: "Public",
+  },
+  {
+    id: "moment_002",
+    petId: "pet_luna",
+    title: "Luna's Grooming Day",
+    date: "29 May 2026",
+    type: "Grooming Day",
+    caption: "Fresh fur, clean paws, and a very serious post-grooming pose.",
+    mediaKind: "Image",
+    mediaLabel: "Fresh grooming photo",
+    visibility: "Public",
+  },
+  {
+    id: "moment_003",
+    petId: "pet_milo",
+    title: "Milo's Funny Sleeping Pose",
+    date: "07 Jun 2026",
+    type: "Funny Moment",
+    caption: "Somehow comfortable, somehow upside down, completely happy.",
+    mediaKind: "Image",
+    mediaLabel: "Funny nap photo",
+    visibility: "Public",
+  },
+  {
+    id: "moment_004",
+    petId: "pet_milo",
+    title: "Vet Checkup Memory",
+    date: "12 Apr 2026",
+    type: "Vet Visit",
+    caption:
+      "A brave little checkup day with extra cuddles after the clinic visit.",
+    mediaKind: "None",
+    mediaLabel: "Care memory",
+    visibility: "Private",
+  },
+  {
+    id: "moment_005",
+    petId: "pet_milo",
+    title: "Adoption Anniversary",
+    date: "18 Aug 2025",
+    type: "Adoption Day",
+    caption: "Four years of Milo being the heart of the house.",
+    mediaKind: "Video",
+    mediaLabel: "Short celebration clip",
+    visibility: "Public",
+  },
+];
