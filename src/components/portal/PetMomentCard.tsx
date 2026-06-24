@@ -14,6 +14,13 @@ const visibilityTone = {
 } as const;
 
 export function PetMomentCard({ moment, publicView }: PetMomentCardProps) {
+  const mediaTitle =
+    moment.mediaKind === "Video"
+      ? "Video memory"
+      : moment.mediaKind === "Image"
+        ? "Photo memory"
+        : "Memory note";
+
   return (
     <article className="brand-card rounded-[1.5rem] p-5">
       <div className="flex items-start justify-between gap-3">
@@ -35,18 +42,20 @@ export function PetMomentCard({ moment, publicView }: PetMomentCardProps) {
         )}
       </div>
 
-      <div className="brand-paw-dots mt-5 grid min-h-36 place-items-center rounded-[1.25rem] bg-pet-cream p-5 text-center">
+      <div className="brand-paw-dots mt-5 grid min-h-40 place-items-center overflow-hidden rounded-[1.25rem] bg-pet-cream p-5 text-center">
         <div>
-          <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-white text-pet-coral shadow-sm">
+          <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-white text-pet-coral shadow-sm">
             <Icon
               name={moment.mediaKind === "Video" ? "record" : "heart"}
-              className="h-5 w-5"
+              className="h-6 w-6"
             />
           </span>
-          <p className="mt-3 text-sm font-bold text-pet-ink">
+          <p className="mt-3 text-base font-black text-pet-ink">
             {moment.mediaLabel}
           </p>
-          <p className="mt-1 text-xs text-pet-muted">{moment.mediaKind}</p>
+          <p className="mt-1 text-xs font-bold uppercase text-pet-muted">
+            {mediaTitle}
+          </p>
         </div>
       </div>
 

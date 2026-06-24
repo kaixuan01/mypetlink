@@ -79,9 +79,6 @@ export function PublicLayout({ children }: { children: React.ReactNode }) {
             <Link href="/terms" className="hover:text-pet-teal">
               Terms
             </Link>
-            <Link href="/admin/login" className="hover:text-pet-teal">
-              Admin
-            </Link>
           </nav>
         </div>
       </footer>

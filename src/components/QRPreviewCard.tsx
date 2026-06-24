@@ -88,7 +88,7 @@ export function QRPreviewCard({ pet, compact }: QRPreviewCardProps) {
       </div>
       {!compact ? (
         <CTAButton
-          href={pet?.finderProfileUrl ?? "/t/MILO-QR-001"}
+          href={pet?.finderProfileUrl ?? "/t/8KX29A"}
           icon="qr"
           variant="secondary"
           fullWidth

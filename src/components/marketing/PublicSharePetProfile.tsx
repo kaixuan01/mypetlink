@@ -104,7 +104,7 @@ export function PublicSharePetProfile({
           <div>
             <Badge tone="warm">Shareable pet page</Badge>
             <h1 className="mt-5 text-4xl font-black leading-tight text-pet-ink sm:text-5xl">
-              {profile.name}&apos;s MyPetLink Profile
+              {profile.name}&apos;s little corner on MyPetLink
             </h1>
             <p className="mt-4 max-w-2xl text-lg font-semibold leading-8 text-pet-ink">
               A little page for {profile.name}&apos;s photos, moments, care
@@ -123,6 +123,10 @@ export function PublicSharePetProfile({
                 </Badge>
               ))}
             </div>
+            <p className="mt-5 rounded-[1.25rem] bg-white/80 p-4 text-sm font-semibold leading-6 text-pet-muted">
+              Only owner-approved public details are shown here. Full addresses
+              and private care records stay out of this profile.
+            </p>
             <div className="mt-8 grid gap-3">
               <ShareProfileLink
                 path={profilePath}
@@ -143,7 +147,7 @@ export function PublicSharePetProfile({
 
           <div className="brand-card overflow-hidden rounded-[2rem]">
             <div
-              className={`brand-paw-dots flex min-h-52 items-end justify-between gap-4 p-6 ${coverToneClasses[coverTone]}`}
+              className={`brand-paw-dots flex min-h-60 items-end justify-between gap-4 p-6 ${coverToneClasses[coverTone]}`}
             >
               <div className="rounded-3xl bg-white/90 px-4 py-3 text-sm font-extrabold text-pet-ink shadow-sm">
                 {profile.coverPhotoLabel || `${profile.name}'s cover photo`}
@@ -163,7 +167,7 @@ export function PublicSharePetProfile({
                     {profile.species} - {profile.breed}
                   </p>
                   <p className="mt-1 text-sm font-bold text-pet-muted">
-                    {profile.ageLabel}
+                    {profile.gender} - {profile.ageLabel}
                   </p>
                 </div>
               </div>
@@ -182,8 +186,8 @@ export function PublicSharePetProfile({
           <InfoTile label="Birthday" value={profile.birthday} />
           <InfoTile label="Adoption Day" value={profile.adoptionDay} />
           <InfoTile label="Favourite Food" value={profile.favoriteFood} />
-          <InfoTile label="Favourite Toy" value={profile.favoriteToy} />
-          <InfoTile label="Contact" value={contactPreference} />
+              <InfoTile label="Favourite Toy" value={profile.favoriteToy} />
+              <InfoTile label="Contact" value={contactPreference} />
         </div>
       </section>
 
@@ -277,15 +281,21 @@ export function PublicSharePetProfile({
                 <p className="text-sm font-bold uppercase text-pet-coral">
                   Life timeline
                 </p>
+                <h2 className="mt-2 text-2xl font-black text-pet-ink">
+                  Little milestones from {profile.name}&apos;s life
+                </h2>
                 {timelineMoments.length ? (
                   <div className="mt-5 grid gap-3">
                     {timelineMoments.map((moment, index) => (
                       <div
-                        className="grid gap-3 rounded-[1.25rem] bg-white p-4 sm:grid-cols-[48px_1fr]"
+                        className="grid gap-3 rounded-[1.25rem] bg-white p-4 shadow-sm sm:grid-cols-[48px_1fr]"
                         key={moment.id}
                       >
                         <span className="grid h-12 w-12 place-items-center rounded-2xl bg-pet-apricot text-sm font-black text-pet-coral">
-                          {index + 1}
+                          <Icon
+                            name={index === 0 ? "heart" : "paw"}
+                            className="h-5 w-5"
+                          />
                         </span>
                         <div>
                           <p className="text-xs font-bold text-pet-muted">

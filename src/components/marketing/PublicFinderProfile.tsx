@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon } from "@/components/ui/Icon";
 import { PetAvatar } from "@/components/ui/PetAvatar";
@@ -8,14 +11,55 @@ type PublicFinderProfileProps = {
 };
 
 export function PublicFinderProfile({ pet }: PublicFinderProfileProps) {
+  const [locationStatus, setLocationStatus] = useState("");
   const visibility = mergeVisibility(pet.visibility);
   const message = encodeURIComponent(
     `Hi ${pet.owner.name}, I found ${pet.name} from the MyPetLink safety profile.`
   );
-  const locationMessage = encodeURIComponent(
-    `Hi ${pet.owner.name}, I found ${pet.name}. I can share the found location here.`
-  );
   const contactPreference = pet.contactPreference ?? "WhatsApp preferred";
+  const whatsappBaseUrl = `https://wa.me/${pet.owner.whatsapp}`;
+
+  function openWhatsappWithMessage(text: string) {
+    window.location.href = `${whatsappBaseUrl}?text=${encodeURIComponent(text)}`;
+  }
+
+  function handleSendFoundLocation() {
+    if (!pet.owner.whatsapp) {
+      return;
+    }
+
+    setLocationStatus("Asking your browser for location permission...");
+
+    if (!navigator.geolocation) {
+      setLocationStatus(
+        "Location is not available here. A WhatsApp message is ready for you to type the location."
+      );
+      openWhatsappWithMessage(
+        `Hi ${pet.owner.name}, I found ${pet.name}. I can describe the found location here.`
+      );
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        const mapsUrl = `https://www.google.com/maps?q=${latitude},${longitude}`;
+        setLocationStatus("Location ready. Opening WhatsApp...");
+        openWhatsappWithMessage(
+          `Hi ${pet.owner.name}, I found ${pet.name}. Found location: ${mapsUrl}`
+        );
+      },
+      () => {
+        setLocationStatus(
+          "Location was not shared. A WhatsApp message is ready for you to type the location."
+        );
+        openWhatsappWithMessage(
+          `Hi ${pet.owner.name}, I found ${pet.name}. I can describe the found location here.`
+        );
+      },
+      { enableHighAccuracy: true, maximumAge: 60000, timeout: 10000 }
+    );
+  }
 
   return (
     <article className="brand-card mx-auto max-w-xl rounded-[2rem] p-5 sm:p-6">
@@ -84,38 +128,45 @@ export function PublicFinderProfile({ pet }: PublicFinderProfileProps) {
       <div className="mt-5 grid gap-3">
         {visibility.showWhatsapp && pet.owner.whatsapp ? (
           <CTAButton
-            href={`https://wa.me/${pet.owner.whatsapp}?text=${message}`}
+            href={`${whatsappBaseUrl}?text=${message}`}
             icon="phone"
             target="_blank"
             rel="noopener noreferrer"
             fullWidth
+            className="min-h-14 text-base"
           >
             WhatsApp Owner
           </CTAButton>
         ) : null}
         {visibility.showPhone && pet.owner.phone ? (
           <CTAButton
-            href={`tel:${pet.owner.phone}`}
+            href={`tel:${pet.owner.phone.replace(/\s/g, "")}`}
             icon="phone"
             variant="coral"
             fullWidth
+            className="min-h-14 text-base"
           >
             Call Owner
           </CTAButton>
         ) : null}
         {visibility.showWhatsapp && pet.owner.whatsapp ? (
           <CTAButton
-            href={`https://wa.me/${pet.owner.whatsapp}?text=${locationMessage}`}
             icon="pin"
-            target="_blank"
-            rel="noopener noreferrer"
+            onClick={handleSendFoundLocation}
             variant="outline"
             fullWidth
+            className="min-h-14 bg-white text-base"
           >
             Send Found Location
           </CTAButton>
         ) : null}
       </div>
+
+      {locationStatus ? (
+        <p className="mt-3 rounded-[1.25rem] bg-[#e8f3ff] p-4 text-center text-sm font-bold leading-6 text-pet-ink">
+          {locationStatus}
+        </p>
+      ) : null}
 
       <p className="mt-5 rounded-[1.25rem] bg-pet-cream p-4 text-center text-xs font-semibold leading-5 text-pet-muted">
         For safety, this profile only shows selected public information. The

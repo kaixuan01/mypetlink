@@ -16,15 +16,19 @@ export default function LoginPage() {
           <div>
             <Badge tone="warm">Pet owner portal</Badge>
             <h1 className="mt-5 text-4xl font-black leading-tight text-pet-ink sm:text-5xl">
-              Welcome to MyPetLink
+              Keep your pet&apos;s little world in one safe place.
             </h1>
             <p className="mt-5 max-w-xl text-base leading-7 text-pet-muted">
-              Create and manage your pet&apos;s QR profile, care records, and
-              memories.
+              Manage QR safety profiles, care records, pet memories, and smart
+              tags from a warm owner workspace built for everyday pet care.
             </p>
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
-              {["Fast QR profile setup", "Care records and memories"].map(
-                (item) => (
+              {[
+                "Create QR safety profiles",
+                "Manage care records",
+                "Save pet memories",
+                "Order QR/NFC tags later",
+              ].map((item) => (
                   <div
                     className="brand-card flex items-center gap-3 rounded-[1.25rem] p-4 text-sm font-bold text-pet-ink"
                     key={item}
@@ -32,8 +36,7 @@ export default function LoginPage() {
                     <Icon name="shield" className="h-5 w-5 text-pet-teal" />
                     {item}
                   </div>
-                )
-              )}
+                ))}
             </div>
           </div>
           <LoginPanel />

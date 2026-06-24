@@ -7,6 +7,7 @@ type ShareProfileLinkProps = {
   path: string;
   petName?: string;
   className?: string;
+  label?: string;
   showShareButton?: boolean;
 };
 
@@ -14,6 +15,7 @@ export function ShareProfileLink({
   path,
   petName = "this pet",
   className = "",
+  label = "Share profile link",
   showShareButton = false,
 }: ShareProfileLinkProps) {
   const origin = useSyncExternalStore(
@@ -73,7 +75,7 @@ export function ShareProfileLink({
     >
       <label className="grid gap-2">
         <span className="text-xs font-bold uppercase text-pet-muted">
-          Share profile link
+          {label}
         </span>
         <div className="flex flex-col gap-3 sm:flex-row">
           <input

@@ -44,7 +44,7 @@ This project is configured with Next.js static export, so `npm run build` writes
 ## Public Website Routes
 
 - `/` - Marketing landing page
-- `/sample` - Sample finder safety page
+- `/sample` - Sample public profile and finder safety experiences
 - `/pricing` - Free, Premium, Smart Tag Add-ons, and GPS Safety pricing
 - `/privacy` - Privacy guidance
 - `/terms` - Terms guidance

@@ -48,6 +48,11 @@ export default function PricingPage() {
             title="Start free, add more care when you need it"
             description="Free keeps basic safety contact available. Premium adds multi-pet care, reminders, lost mode, scan history, documents, family access, and richer memories."
           />
+          <div className="mb-6 rounded-[1.5rem] border border-pet-border bg-white/80 p-5 text-sm font-semibold leading-6 text-pet-muted">
+            Basic finder contact stays free. Physical QR and QR + NFC tags are
+            optional one-time add-ons and can be ordered after a pet profile is
+            created.
+          </div>
           <div className="mb-6">
             <h2 className="text-2xl font-black text-pet-ink">
               Free Plan and Premium Plan

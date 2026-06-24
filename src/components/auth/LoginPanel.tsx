@@ -17,10 +17,10 @@ export function LoginPanel() {
     <div className="brand-card rounded-[2rem] p-6">
       <BrandLogo markOnly className="h-16 w-16" />
       <h1 className="mt-5 text-3xl font-black text-pet-ink">
-        Welcome to MyPetLink
+        Welcome back
       </h1>
       <p className="mt-3 text-sm leading-6 text-pet-muted">
-        Create and manage your pet&apos;s QR profile, care records, and memories.
+        Sign in to manage your pet profiles.
       </p>
       <div className="mt-6 grid gap-3">
         <button
@@ -41,8 +41,8 @@ export function LoginPanel() {
         </button>
       </div>
       <p className="mt-5 rounded-2xl bg-pet-cream p-4 text-xs leading-5 text-pet-muted">
-        You can explore Milo and Luna&apos;s profiles, records, memories, and
-        smart tags from this owner space.
+        Explore a sample owner workspace with pet profiles, records, memories,
+        and smart tags.
       </p>
     </div>
   );

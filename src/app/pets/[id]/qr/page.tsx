@@ -72,16 +72,15 @@ export default async function QRPage({ params }: QRPageProps) {
                 qrStatus={pet.data.qrStatus}
               />
             </div>
-            <div className="mt-5 rounded-[1.25rem] bg-pet-cream p-4">
-              <p className="text-xs font-bold uppercase text-pet-muted">
-                QR profile URL
-              </p>
-              <p className="mt-2 break-words font-black text-pet-teal">
-                {pet.data.finderProfileUrl}
-              </p>
-            </div>
+            <ShareProfileLink
+              className="mt-5"
+              label="Finder safety page link"
+              path={pet.data.finderProfileUrl}
+              petName={pet.data.name}
+            />
             <div className="mt-3 rounded-[1.25rem] bg-[#e8f3ff] p-4">
               <ShareProfileLink
+                label="Public share profile link"
                 path={pet.data.publicProfileUrl}
                 petName={pet.data.name}
               />
@@ -170,7 +169,7 @@ export default async function QRPage({ params }: QRPageProps) {
 
           <section className="rounded-[1.5rem] border border-pet-mint bg-[#e8f8f0] p-5">
             <h2 className="text-lg font-black text-pet-ink">
-              Safe public data explanation
+              Public safety details
             </h2>
             <p className="mt-2 text-sm leading-6 text-pet-muted">
               The finder page should show only pet identity, general area,

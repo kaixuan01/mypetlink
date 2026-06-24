@@ -1,4 +1,5 @@
 import type { Pet, PublicPetProfile } from "@/types";
+import { Icon } from "@/components/ui/Icon";
 
 type PetAvatarProps = {
   pet: Pick<Pet | PublicPetProfile, "photoInitial" | "photoTone" | "species">;
@@ -34,7 +35,9 @@ export function PetAvatar({ pet, size = "md" }: PetAvatarProps) {
         earClass,
       ].join(" ")}
     >
-      <span className="relative z-10">{pet.photoInitial}</span>
+      <span className="relative z-10 grid place-items-center">
+        <Icon name="paw" className="h-[0.62em] w-[0.62em]" />
+      </span>
     </div>
   );
 }

@@ -2,14 +2,15 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { PublicLayout } from "@/components/layouts/PublicLayout";
 import { FeatureTile } from "@/components/marketing/FeatureTile";
-import { QRPreviewCard } from "@/components/QRPreviewCard";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { PetAvatar } from "@/components/ui/PetAvatar";
 import { StatCard } from "@/components/ui/StatCard";
 import { getPets } from "@/services/petService";
 import { mockPlans } from "@/data/mockPlans";
+import type { Pet } from "@/types";
 
 export const metadata: Metadata = {
   title: "Safe Pet Profiles, Care Records & Memories",
@@ -182,7 +183,7 @@ export default async function Home() {
               <Icon name="shield" className="h-4 w-4 text-pet-sky" />
               QR Active
             </div>
-            <QRPreviewCard pet={samplePet} />
+            <LandingPetProfilePreview pet={samplePet} />
           </div>
         </div>
       </section>
@@ -304,19 +305,19 @@ export default async function Home() {
         <div className="mx-auto grid max-w-7xl gap-8 px-4 py-16 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:px-8">
           <div>
             <PageHeader
-              eyebrow="Sample QR profile"
+              eyebrow="Finder safety page preview"
               title="The finder page stays calm and focused."
               description="It does not look like a dashboard. It gives the finder safe public details and immediate contact actions."
             />
-            <CTAButton href="/sample" icon="qr">
-              Open Sample
+            <CTAButton href="/t/8KX29A" icon="qr">
+              Open Safety Page
             </CTAButton>
           </div>
           <div className="relative">
             <div className="pointer-events-none absolute -right-2 -top-4 hidden rounded-full bg-white px-4 py-2 text-xs font-extrabold text-pet-coral shadow-lg sm:block">
               Finder-safe view
             </div>
-            <QRPreviewCard pet={samplePet} compact />
+            <FinderSafetyPreview pet={samplePet} />
           </div>
         </div>
       </section>
@@ -416,5 +417,118 @@ export default async function Home() {
         </div>
       </section>
     </PublicLayout>
+  );
+}
+
+function LandingPetProfilePreview({ pet }: { pet: Pet }) {
+  return (
+    <article className="brand-card overflow-hidden rounded-[2rem]">
+      <div className="brand-paw-dots min-h-56 bg-[#e8f3ff] p-6">
+        <div className="flex items-start justify-between gap-4">
+          <Badge tone="mint">Shareable pet profile</Badge>
+          <span className="grid h-11 w-11 place-items-center rounded-2xl bg-white text-pet-coral shadow-sm">
+            <Icon name="heart" className="h-5 w-5" />
+          </span>
+        </div>
+      </div>
+      <div className="px-6 pb-6">
+        <div className="-mt-16 flex flex-col gap-5 sm:flex-row sm:items-end">
+          <PetAvatar pet={pet} size="xl" />
+          <div className="rounded-[1.5rem] bg-white/95 p-4 shadow-sm">
+            <p className="text-sm font-bold text-pet-muted">
+              {pet.profilePhotoLabel}
+            </p>
+            <h2 className="mt-1 text-3xl font-black text-pet-ink">
+              {pet.name}
+            </h2>
+            <p className="mt-1 text-sm font-bold text-pet-muted">
+              {pet.species} - {pet.breed} - {pet.ageLabel}
+            </p>
+          </div>
+        </div>
+        <p className="mt-5 text-sm leading-6 text-pet-muted">{pet.bio}</p>
+        <div className="mt-5 flex flex-wrap gap-2">
+          {pet.personalityTags.slice(0, 4).map((tag) => (
+            <Badge key={tag} tone="warm">
+              {tag}
+            </Badge>
+          ))}
+        </div>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-[1.25rem] bg-pet-cream p-4">
+            <p className="text-xs font-bold uppercase text-pet-muted">
+              Favourite food
+            </p>
+            <p className="mt-1 font-black text-pet-ink">{pet.favoriteFood}</p>
+          </div>
+          <div className="rounded-[1.25rem] bg-pet-cream p-4">
+            <p className="text-xs font-bold uppercase text-pet-muted">
+              Favourite toy
+            </p>
+            <p className="mt-1 font-black text-pet-ink">{pet.favoriteToy}</p>
+          </div>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function FinderSafetyPreview({ pet }: { pet: Pet }) {
+  return (
+    <article className="brand-card rounded-[2rem] p-5">
+      <div className="rounded-[1.5rem] bg-white p-5 shadow-sm">
+        <div className="flex items-center gap-4">
+          <PetAvatar pet={pet} size="md" />
+          <div>
+            <p className="text-sm font-bold uppercase text-pet-teal">
+              Found {pet.name}?
+            </p>
+            <h2 className="mt-1 text-2xl font-black text-pet-ink">
+              Contact the owner quickly
+            </h2>
+          </div>
+        </div>
+        <div className="mt-5 grid gap-3">
+          {["WhatsApp Owner", "Call Owner", "Send Found Location"].map(
+            (action, index) => (
+              <div
+                className={`flex min-h-12 items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-extrabold ${
+                  index === 0
+                    ? "bg-pet-teal text-white"
+                    : index === 1
+                      ? "bg-pet-coral text-white"
+                      : "border border-pet-border bg-pet-cream text-pet-ink"
+                }`}
+                key={action}
+              >
+                <Icon
+                  name={action.includes("Location") ? "pin" : "phone"}
+                  className="h-4 w-4"
+                />
+                {action}
+              </div>
+            )
+          )}
+        </div>
+        <div className="mt-5 grid gap-3">
+          <div className="rounded-[1.25rem] bg-[#e8f3ff] p-4">
+            <p className="text-xs font-bold uppercase text-pet-muted">
+              General area
+            </p>
+            <p className="mt-1 text-sm font-bold text-pet-ink">
+              {pet.generalArea}
+            </p>
+          </div>
+          <div className="rounded-[1.25rem] bg-pet-apricot p-4">
+            <p className="text-xs font-bold uppercase text-pet-muted">
+              Safety note
+            </p>
+            <p className="mt-1 text-sm leading-6 text-pet-muted">
+              {pet.safetyNote}
+            </p>
+          </div>
+        </div>
+      </div>
+    </article>
   );
 }
