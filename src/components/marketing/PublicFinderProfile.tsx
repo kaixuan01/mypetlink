@@ -14,8 +14,8 @@ export function PublicFinderProfile({ pet }: PublicFinderProfileProps) {
   const [locationStatus, setLocationStatus] = useState("");
   const visibility = mergeVisibility(pet.visibility);
   const ownerDisplayName = visibility.showOwnerName
-    ? getPublicOwnerName(pet.owner.name)
-    : "Owner";
+    ? getPublicOwnerName(pet.owner.name, pet.name)
+    : `${pet.name}'s owner`;
   const message = encodeURIComponent(
     `Hi, I found ${pet.name} from the MyPetLink safety profile.`
   );
@@ -189,8 +189,8 @@ function normalizePhoneHref(value: string) {
   return value.replace(/[^\d+]/g, "");
 }
 
-function getPublicOwnerName(name: string) {
-  return name.trim().split(/\s+/)[0] || "Owner";
+function getPublicOwnerName(name: string, petName: string) {
+  return name.trim() || `${petName}'s owner`;
 }
 
 function mergeVisibility(
@@ -205,6 +205,8 @@ function mergeVisibility(
     showCareBadges: true,
     showMoments: true,
     showTimeline: true,
+    showBirthdayOnTimeline: true,
+    showAdoptionDayOnTimeline: true,
     showHealthSummary: false,
     ...visibility,
   };

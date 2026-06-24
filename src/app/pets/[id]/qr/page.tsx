@@ -153,7 +153,15 @@ export default async function QRPage({ params }: QRPageProps) {
                 ["Show public moments", pet.data.visibility.showMoments],
                 ["Show life timeline", pet.data.visibility.showTimeline],
                 [
-                  "Show health summary publicly",
+                  "Show birthday in Life Timeline",
+                  pet.data.visibility.showBirthdayOnTimeline,
+                ],
+                [
+                  "Show adoption day in Life Timeline",
+                  pet.data.visibility.showAdoptionDayOnTimeline,
+                ],
+                [
+                  "Allow public care record details",
                   pet.data.visibility.showHealthSummary,
                 ],
               ].map(([label, checked]) => (
@@ -188,13 +196,41 @@ export default async function QRPage({ params }: QRPageProps) {
 
           <section className="rounded-[1.5rem] border border-pet-mint bg-[#e8f8f0] p-5">
             <h2 className="text-lg font-black text-pet-ink">
-              Public safety details
+              Safety details shown to finders
             </h2>
             <p className="mt-2 text-sm leading-6 text-pet-muted">
               The finder page should show only pet identity, general area,
               safety note, and contact actions. Full address and private health
               records remain owner-only by default.
             </p>
+            <div className="mt-4 grid gap-3">
+              <StatusBox label="General area" value={pet.data.generalArea} />
+              <StatusBox label="Safety note" value={pet.data.safetyNote} />
+              <StatusBox
+                label="Emergency note"
+                value={pet.data.emergencyNote}
+              />
+              <StatusBox
+                label="Contact preference"
+                value={pet.data.contactPreference}
+              />
+              <StatusBox
+                label="Owner display"
+                value={
+                  pet.data.visibility.showOwnerName
+                    ? pet.data.owner.name || `${pet.data.name}'s owner`
+                    : `${pet.data.name}'s owner`
+                }
+              />
+            </div>
+            <CTAButton
+              href={`/pets/${pet.data.id}/edit`}
+              className="mt-5"
+              icon="settings"
+              variant="secondary"
+            >
+              Edit Safety Info
+            </CTAButton>
           </section>
         </div>
       </div>

@@ -12,6 +12,7 @@ export const mockMoments: PetMoment[] = [
     mediaKind: "Image",
     mediaLabel: "Warm homecoming photo",
     visibility: "Public",
+    showOnTimeline: true,
   },
   {
     id: "moment_002",
@@ -23,6 +24,7 @@ export const mockMoments: PetMoment[] = [
     mediaKind: "Image",
     mediaLabel: "Fresh grooming photo",
     visibility: "Public",
+    showOnTimeline: true,
   },
   {
     id: "moment_003",
@@ -34,6 +36,7 @@ export const mockMoments: PetMoment[] = [
     mediaKind: "Image",
     mediaLabel: "Funny nap photo",
     visibility: "Public",
+    showOnTimeline: true,
   },
   {
     id: "moment_004",
@@ -46,6 +49,7 @@ export const mockMoments: PetMoment[] = [
     mediaKind: "None",
     mediaLabel: "Care memory",
     visibility: "Private",
+    showOnTimeline: false,
   },
   {
     id: "moment_005",
@@ -57,5 +61,6 @@ export const mockMoments: PetMoment[] = [
     mediaKind: "Video",
     mediaLabel: "Short celebration clip",
     visibility: "Public",
+    showOnTimeline: true,
   },
 ];

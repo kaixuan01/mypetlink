@@ -28,6 +28,8 @@ const fallbackVisibility: Pet["visibility"] = {
   showCareBadges: true,
   showMoments: true,
   showTimeline: true,
+  showBirthdayOnTimeline: true,
+  showAdoptionDayOnTimeline: true,
   showHealthSummary: false,
 };
 
@@ -40,9 +42,18 @@ export function PublicSharePetProfile({
   const [moments, setMoments] = useState(initialMoments);
   const [records, setRecords] = useState(initialRecords);
   const visibility = mergeVisibility(profile.visibility);
-  const publicMoments = visibility.showMoments ? moments : [];
-  const timelineMoments = visibility.showTimeline ? moments.slice(0, 3) : [];
-  const careRecords = visibility.showCareBadges ? records.slice(0, 3) : [];
+  const ownerApprovedMoments = moments.filter(
+    (moment) => moment.visibility === "Public"
+  );
+  const publicMoments = visibility.showMoments ? ownerApprovedMoments : [];
+  const timelineItems = visibility.showTimeline
+    ? buildTimelineItems(profile, ownerApprovedMoments, visibility).slice(0, 4)
+    : [];
+  const careRecords = visibility.showCareBadges
+    ? records
+        .filter((record) => record.publicVisibility !== "Private")
+        .slice(0, 3)
+    : [];
   const profilePath = profile.publicProfileUrl || `/p/${profile.slug}`;
   const contactPreference = profile.contactPreference ?? "WhatsApp preferred";
   const coverTone = profile.coverTone ?? "sky";
@@ -191,7 +202,10 @@ export function PublicSharePetProfile({
                 <SafetyTile
                   icon="heart"
                   label="Owner"
-                  value={`Cared for by ${getPublicOwnerName(profile.owner.name)}`}
+                  value={`Cared for by ${getPublicOwnerName(
+                    profile.owner.name,
+                    profile.name
+                  )}`}
                 />
               ) : null}
               {visibility.showGeneralArea ? (
@@ -226,6 +240,9 @@ export function PublicSharePetProfile({
                   <h2 className="mt-2 text-2xl font-black text-pet-ink">
                     Care notes saved by the owner
                   </h2>
+                  <p className="mt-2 text-sm leading-6 text-pet-muted">
+                    Only owner-approved care badges are shown.
+                  </p>
                 </div>
                 {visibility.showHealthSummary ? (
                   <Badge tone="teal">{records.length} records</Badge>
@@ -244,10 +261,24 @@ export function PublicSharePetProfile({
                           {record.date}
                         </span>
                       </div>
-                      <p className="mt-2 font-black text-pet-ink">
-                        {record.title}
-                      </p>
-                      {visibility.showHealthSummary ? (
+                      {record.dueDate ? (
+                        <p className="mt-2 text-sm font-bold text-pet-muted">
+                          Next due {record.dueDate}
+                        </p>
+                      ) : null}
+                      {record.publicVisibility === "Public details" &&
+                      visibility.showHealthSummary ? (
+                        <>
+                          <p className="mt-2 font-black text-pet-ink">
+                            {record.title}
+                          </p>
+                          <p className="mt-1 text-xs font-bold text-pet-muted">
+                            {record.provider}
+                          </p>
+                        </>
+                      ) : null}
+                      {record.publicVisibility === "Public details" &&
+                      visibility.showHealthSummary ? (
                         <p className="mt-1 text-sm leading-6 text-pet-muted">
                           {record.notes}
                         </p>
@@ -270,25 +301,25 @@ export function PublicSharePetProfile({
                 <h2 className="mt-2 text-2xl font-black text-pet-ink">
                   Little milestones from {profile.name}&apos;s life
                 </h2>
-                {timelineMoments.length ? (
+                {timelineItems.length ? (
                   <div className="mt-5 grid gap-3">
-                    {timelineMoments.map((moment, index) => (
+                    {timelineItems.map((item, index) => (
                       <div
                         className="grid gap-3 rounded-[1.25rem] bg-white p-4 shadow-sm sm:grid-cols-[48px_1fr]"
-                        key={moment.id}
+                        key={item.id}
                       >
                         <span className="grid h-12 w-12 place-items-center rounded-2xl bg-pet-apricot text-sm font-black text-pet-coral">
                           <Icon
-                            name={index === 0 ? "heart" : "paw"}
+                            name={index === 0 ? "heart" : item.icon}
                             className="h-5 w-5"
                           />
                         </span>
                         <div>
                           <p className="text-xs font-bold text-pet-muted">
-                            {moment.date}
+                            {item.date}
                           </p>
                           <p className="mt-1 font-black text-pet-ink">
-                            {moment.title}
+                            {item.title}
                           </p>
                         </div>
                       </div>
@@ -314,7 +345,7 @@ export function PublicSharePetProfile({
                   Pet Moments
                 </p>
                 <h2 className="mt-2 text-3xl font-black text-pet-ink">
-                  Save the little moments that make {profile.name} special.
+                  Little moments from {profile.name}&apos;s life.
                 </h2>
               </div>
             </div>
@@ -496,6 +527,53 @@ function mergeVisibility(
   };
 }
 
-function getPublicOwnerName(name: string) {
-  return name.trim().split(/\s+/)[0] || "Owner";
+function getPublicOwnerName(name: string, petName: string) {
+  return name.trim() || `${petName}'s owner`;
+}
+
+function buildTimelineItems(
+  profile: PublicPetProfile,
+  publicMoments: PetMoment[],
+  visibility: Pet["visibility"]
+) {
+  const items: {
+    date: string;
+    icon: "heart" | "paw";
+    id: string;
+    title: string;
+  }[] = [];
+
+  if (visibility.showBirthdayOnTimeline && profile.birthday !== "Not set") {
+    items.push({
+      date: profile.birthday,
+      icon: "paw",
+      id: `${profile.id}-birthday`,
+      title: `${profile.name}'s birthday`,
+    });
+  }
+
+  if (
+    visibility.showAdoptionDayOnTimeline &&
+    profile.adoptionDay !== "Not set"
+  ) {
+    items.push({
+      date: profile.adoptionDay,
+      icon: "heart",
+      id: `${profile.id}-adoption`,
+      title: `${profile.name}'s adoption day`,
+    });
+  }
+
+  publicMoments
+    .filter((moment) => moment.showOnTimeline)
+    .forEach((moment) => {
+      items.push({
+        date: moment.date,
+        icon: "paw",
+        id: moment.id,
+        title: moment.title,
+      });
+    });
+
+  return items;
 }

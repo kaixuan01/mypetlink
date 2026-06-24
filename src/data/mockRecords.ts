@@ -10,6 +10,7 @@ export const mockRecords: CareRecord[] = [
     dueDate: "15 Feb 2027",
     provider: "Happy Paws Vet",
     notes: "Core vaccine completed. Booster due next year.",
+    publicVisibility: "Public badge only",
     status: "complete",
   },
   {
@@ -21,6 +22,7 @@ export const mockRecords: CareRecord[] = [
     dueDate: "02 Jul 2026",
     provider: "Owner recorded",
     notes: "Routine tablet given after dinner.",
+    publicVisibility: "Public badge only",
     status: "due-soon",
   },
   {
@@ -32,6 +34,7 @@ export const mockRecords: CareRecord[] = [
     dueDate: "29 Jul 2026",
     provider: "Bukit Jalil Grooming",
     notes: "Bath, nail trim, ear cleaning.",
+    publicVisibility: "Public badge only",
     status: "upcoming",
   },
   {
@@ -42,6 +45,7 @@ export const mockRecords: CareRecord[] = [
     date: "12 Apr 2026",
     provider: "Happy Paws Vet",
     notes: "Mild irritation monitored. No urgent issue found.",
+    publicVisibility: "Private",
     status: "complete",
   },
   {
@@ -52,6 +56,7 @@ export const mockRecords: CareRecord[] = [
     date: "18 Apr 2026",
     provider: "Owner recorded",
     notes: "No daily medication. Avoid chicken-based treats.",
+    publicVisibility: "Private",
     status: "complete",
   },
   {
@@ -63,6 +68,7 @@ export const mockRecords: CareRecord[] = [
     dueDate: "04 Mar 2027",
     provider: "Subang Cat Clinic",
     notes: "Booster completed without reaction.",
+    publicVisibility: "Public badge only",
     status: "complete",
   },
   {
@@ -73,6 +79,7 @@ export const mockRecords: CareRecord[] = [
     date: "11 Jan 2026",
     provider: "Owner recorded",
     notes: "Monitor seafood treats. No confirmed allergy.",
+    publicVisibility: "Private",
     status: "complete",
   },
 ];

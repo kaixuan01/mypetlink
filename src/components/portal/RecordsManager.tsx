@@ -5,7 +5,11 @@ import { RecordCard } from "@/components/portal/RecordCard";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
-import { createRecord } from "@/services/recordService";
+import {
+  createRecord,
+  deleteRecord,
+  updateRecord,
+} from "@/services/recordService";
 import type { CareRecord, RecordType } from "@/types";
 
 const recordTypes: RecordType[] = [
@@ -27,6 +31,7 @@ type FormState = {
   provider: string;
   dueDate: string;
   notes: string;
+  publicVisibility: CareRecord["publicVisibility"];
 };
 
 type FormErrors = Partial<Record<keyof FormState, string>>;
@@ -43,11 +48,13 @@ const emptyForm: FormState = {
   provider: "",
   dueDate: "",
   notes: "",
+  publicVisibility: "Public badge only",
 };
 
 export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
   const [records, setRecords] = useState(initialRecords);
   const [isOpen, setIsOpen] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<CareRecord | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState("");
   const [form, setForm] = useState<FormState>(emptyForm);
@@ -65,6 +72,30 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
   function updateField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
     setErrors((current) => ({ ...current, [key]: undefined }));
+  }
+
+  function openAddForm() {
+    setEditingRecord(null);
+    setForm(emptyForm);
+    setErrors({});
+    setSuccess("");
+    setIsOpen(true);
+  }
+
+  function openEditForm(record: CareRecord) {
+    setEditingRecord(record);
+    setForm({
+      type: record.type,
+      title: record.title,
+      date: parseDisplayDate(record.date),
+      provider: record.provider,
+      dueDate: record.dueDate ? parseDisplayDate(record.dueDate) : "",
+      notes: record.notes,
+      publicVisibility: record.publicVisibility,
+    });
+    setErrors({});
+    setSuccess("");
+    setIsOpen(true);
   }
 
   function validate() {
@@ -107,21 +138,57 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
 
     setIsSubmitting(true);
 
-    const response = await createRecord(petId, {
+    const payload = {
       type: form.type || "Other",
       title: form.title.trim(),
       date: formatDisplayDate(form.date),
       provider: form.provider.trim() || "Owner recorded",
       dueDate: form.dueDate ? formatDisplayDate(form.dueDate) : undefined,
       notes: form.notes.trim() || "No notes added.",
-    });
+      publicVisibility: form.publicVisibility,
+    };
 
-    setRecords((current) => [response.data, ...current]);
+    const response = editingRecord
+      ? await updateRecord(editingRecord.id, payload)
+      : await createRecord(petId, payload);
+
+    const savedRecord = response.data;
+
+    if (savedRecord) {
+      setRecords((current) =>
+        editingRecord
+          ? current.map((record) =>
+              record.id === editingRecord.id ? savedRecord : record
+            )
+          : [savedRecord, ...current]
+      );
+    }
+
     setForm(emptyForm);
     setErrors({});
     setIsOpen(false);
+    setEditingRecord(null);
     setSuccess("Record saved. Your care history has been updated.");
     setIsSubmitting(false);
+  }
+
+  async function handleDelete(record: CareRecord) {
+    const confirmed = window.confirm(
+      `Delete "${record.title}" from this pet's care records?`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    const response = await deleteRecord(record.id);
+
+    if (response.data.deleted) {
+      setRecords((current) =>
+        current.filter((item) => item.id !== record.id)
+      );
+      setSuccess("Record deleted.");
+    }
   }
 
   return (
@@ -134,7 +201,7 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
             allergy notes as your pet&apos;s care changes.
           </p>
         </div>
-        <CTAButton icon="plus" onClick={() => setIsOpen(true)} variant="coral">
+        <CTAButton icon="plus" onClick={openAddForm} variant="coral">
           Add Record
         </CTAButton>
       </div>
@@ -159,7 +226,12 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
               {group.length ? (
                 <div className="grid gap-4 lg:grid-cols-2">
                   {group.map((record) => (
-                    <RecordCard key={record.id} record={record} />
+                    <RecordCard
+                      key={record.id}
+                      onDelete={() => handleDelete(record)}
+                      onEdit={() => openEditForm(record)}
+                      record={record}
+                    />
                   ))}
                 </div>
               ) : (
@@ -182,10 +254,10 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-sm font-bold uppercase text-pet-coral">
-                  Add Record
+                  {editingRecord ? "Edit Record" : "Add Record"}
                 </p>
                 <h2 className="mt-2 text-2xl font-black text-pet-ink">
-                  Save a care record
+                  {editingRecord ? "Update care record" : "Save a care record"}
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-pet-muted">
                   Keep the details short and useful so they are easy to find
@@ -262,7 +334,30 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
                     value={form.dueDate}
                   />
                 </Field>
+
+                <Field label="Public visibility" error={errors.publicVisibility}>
+                  <select
+                    className="brand-input"
+                    onChange={(event) =>
+                      updateField(
+                        "publicVisibility",
+                        event.target.value as CareRecord["publicVisibility"]
+                      )
+                    }
+                    value={form.publicVisibility}
+                  >
+                    <option value="Private">Private</option>
+                    <option value="Public badge only">Public badge only</option>
+                    <option value="Public details">Public details</option>
+                  </select>
+                </Field>
               </div>
+
+              <p className="rounded-[1.25rem] bg-pet-cream p-4 text-sm leading-6 text-pet-muted">
+                Public badge only shows the record type and date. Public details
+                can show the title and notes when public care details are
+                allowed for this pet.
+              </p>
 
               <Field label="Notes" error={errors.notes}>
                 <textarea
@@ -276,7 +371,10 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
               <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
                 <button
                   className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
-                  onClick={() => setIsOpen(false)}
+                  onClick={() => {
+                    setIsOpen(false);
+                    setEditingRecord(null);
+                  }}
                   type="button"
                 >
                   Cancel
@@ -286,7 +384,11 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
                   disabled={isSubmitting}
                   type="submit"
                 >
-                  {isSubmitting ? "Saving..." : "Save Record"}
+                  {isSubmitting
+                    ? "Saving..."
+                    : editingRecord
+                      ? "Save Changes"
+                      : "Save Record"}
                 </button>
               </div>
             </form>
@@ -328,4 +430,42 @@ function formatDisplayDate(value: string) {
     month: "short",
     year: "numeric",
   }).format(new Date(`${value}T00:00:00`));
+}
+
+function parseDisplayDate(value: string) {
+  if (!value) {
+    return "";
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
+
+  const match = value.match(/^(\d{2}) ([A-Za-z]{3}) (\d{4})$/);
+
+  if (!match) {
+    return "";
+  }
+
+  const [, day, month, year] = match;
+  const monthIndex = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ].indexOf(month);
+
+  if (monthIndex < 0) {
+    return "";
+  }
+
+  return `${year}-${String(monthIndex + 1).padStart(2, "0")}-${day}`;
 }

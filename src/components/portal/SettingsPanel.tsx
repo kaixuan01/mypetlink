@@ -50,7 +50,7 @@ const defaultSettings: SettingsState = {
 const privacyDefaults: { key: PrivacyKey; label: string }[] = [
   {
     key: "ownerName",
-    label: "Show owner display name on public profiles",
+    label: "Show owner display name publicly",
   },
   {
     key: "generalArea",
@@ -142,7 +142,7 @@ export function SettingsPanel() {
       >
         <div className="grid gap-4 md:grid-cols-2">
           <TextField
-            label="Name"
+            label="Owner display name"
             onChange={(value) => updateField("name", value)}
             value={settings.name}
           />
@@ -178,6 +178,11 @@ export function SettingsPanel() {
         title="Privacy defaults"
         description="Choose what new pet profiles should show unless you change it for a specific pet."
       >
+        <p className="mb-4 rounded-[1.25rem] bg-pet-cream p-4 text-sm leading-6 text-pet-muted">
+          Public owner name setting: use your display name when you want it
+          shown, or leave pet profiles set to show labels such as Milo&apos;s
+          owner.
+        </p>
         <div className="grid gap-3">
           {privacyDefaults.map((option) => (
             <Checkbox

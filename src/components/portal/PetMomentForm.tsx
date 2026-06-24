@@ -41,6 +41,7 @@ type FormState = {
   caption: string;
   mediaKind: PetMomentPayload["mediaKind"];
   visibility: MomentVisibility;
+  showOnTimeline: boolean;
 };
 
 type FormErrors = Partial<Record<keyof FormState, string>>;
@@ -52,6 +53,7 @@ const emptyForm: FormState = {
   caption: "",
   mediaKind: "Image",
   visibility: "Public",
+  showOnTimeline: true,
 };
 
 export function PetMomentForm({ pet }: { pet: Pet }) {
@@ -107,6 +109,7 @@ export function PetMomentForm({ pet }: { pet: Pet }) {
             ? "Photo moment"
             : "Memory note",
       visibility: form.visibility,
+      showOnTimeline: form.showOnTimeline,
     });
 
     setCreatedMoment(response.data);
@@ -217,6 +220,24 @@ export function PetMomentForm({ pet }: { pet: Pet }) {
           </div>
         </fieldset>
 
+        <label className="flex items-start justify-between gap-4 rounded-[1.25rem] bg-pet-cream p-4 text-sm font-bold text-pet-ink">
+          <span>
+            <span className="block">Show this moment in Life Timeline</span>
+            <span className="mt-1 block text-xs font-semibold leading-5 text-pet-muted">
+              Only public moments with this checked appear on the public pet
+              profile.
+            </span>
+          </span>
+          <input
+            checked={form.showOnTimeline}
+            className="mt-1 h-4 w-4 shrink-0 accent-pet-teal"
+            onChange={(event) =>
+              updateField("showOnTimeline", event.target.checked)
+            }
+            type="checkbox"
+          />
+        </label>
+
         <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
           <Link
             className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
@@ -260,7 +281,8 @@ export function PetMomentForm({ pet }: { pet: Pet }) {
               More pets, more memories
             </h2>
             <p className="mt-2 text-sm leading-6 text-pet-muted">
-              More pets, more memories, and complete care records in one place.
+              Public memories can also be shown in {pet.name}&apos;s Life
+              Timeline when you choose.
             </p>
           </div>
         )}

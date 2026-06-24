@@ -14,6 +14,7 @@ type PetTimelineProps = {
 
 export function PetTimeline({ pet, initialMoments }: PetTimelineProps) {
   const [moments, setMoments] = useState(initialMoments);
+  const timelineMoments = moments.filter((moment) => moment.showOnTimeline);
 
   useEffect(() => {
     let active = true;
@@ -29,12 +30,12 @@ export function PetTimeline({ pet, initialMoments }: PetTimelineProps) {
     };
   }, [pet.id]);
 
-  if (!moments.length) {
+  if (!timelineMoments.length) {
     return (
       <EmptyState
         icon="heart"
         title="No timeline yet"
-        description="Add pet moments to build this life timeline."
+        description="Add pet moments and choose which ones should appear in this life timeline."
         actionHref={`/pets/${pet.id}/moments/new`}
         actionLabel="Add Moment"
       />
@@ -49,7 +50,8 @@ export function PetTimeline({ pet, initialMoments }: PetTimelineProps) {
             {pet.name}&apos;s life timeline
           </h2>
           <p className="mt-1 text-sm leading-6 text-pet-muted">
-            Milestones, memories, care days, and little stories in one place.
+            Moments appear here when you select Show this moment in Life
+            Timeline from the moments manager.
           </p>
         </div>
         <CTAButton href={`/pets/${pet.id}/moments/new`} icon="plus">
@@ -58,7 +60,7 @@ export function PetTimeline({ pet, initialMoments }: PetTimelineProps) {
       </div>
 
       <div className="mt-8 grid gap-4">
-        {moments.map((moment, index) => (
+        {timelineMoments.map((moment, index) => (
           <article
             className="grid gap-4 rounded-[1.25rem] bg-pet-cream p-4 sm:grid-cols-[72px_1fr]"
             key={moment.id}

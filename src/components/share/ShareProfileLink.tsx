@@ -49,17 +49,16 @@ export function ShareProfileLink({
   async function copyLink() {
     setStatus(null);
 
-    try {
-      await navigator.clipboard.writeText(fullUrl);
+    if (await writeTextToClipboard(fullUrl)) {
       setStatus({ message: "Profile link copied.", url: fullUrl });
       return true;
-    } catch {
-      setStatus({
-        message: "Unable to copy automatically. Please copy the link manually.",
-        url: fullUrl,
-      });
-      return false;
     }
+
+    setStatus({
+      message: "Unable to copy automatically. Please copy the link manually.",
+      url: fullUrl,
+    });
+    return false;
   }
 
   async function shareProfile() {
@@ -148,4 +147,38 @@ function getBrowserOrigin() {
 
 function getDefaultOrigin() {
   return "https://mypetlink.pages.dev";
+}
+
+async function writeTextToClipboard(text: string) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await Promise.race([
+        navigator.clipboard.writeText(text),
+        new Promise((_, reject) =>
+          window.setTimeout(() => reject(new Error("Clipboard timed out")), 800)
+        ),
+      ]);
+      return true;
+    } catch {
+      // Try the textarea copy path below.
+    }
+  }
+
+  const textArea = document.createElement("textarea");
+  textArea.value = text;
+  textArea.setAttribute("readonly", "true");
+  textArea.style.position = "fixed";
+  textArea.style.left = "-9999px";
+  textArea.style.top = "0";
+  document.body.appendChild(textArea);
+  textArea.focus();
+  textArea.select();
+
+  try {
+    return document.execCommand("copy");
+  } catch {
+    return false;
+  } finally {
+    document.body.removeChild(textArea);
+  }
 }

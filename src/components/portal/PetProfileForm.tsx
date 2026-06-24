@@ -58,6 +58,8 @@ type FormState = {
   showCareBadges: boolean;
   showMoments: boolean;
   showTimeline: boolean;
+  showBirthdayOnTimeline: boolean;
+  showAdoptionDayOnTimeline: boolean;
   showHealthSummary: boolean;
 };
 
@@ -102,6 +104,8 @@ const emptyForm: FormState = {
   showCareBadges: true,
   showMoments: true,
   showTimeline: true,
+  showBirthdayOnTimeline: true,
+  showAdoptionDayOnTimeline: true,
   showHealthSummary: false,
 };
 
@@ -285,7 +289,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
             icon="tag"
             variant="outline"
           >
-            Order Physical Tag
+            Preview Tag Options
           </CTAButton>
           <CTAButton href="/dashboard" variant="outline">
             Go to Dashboard
@@ -622,7 +626,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
         <div className="mt-5 grid gap-3 md:grid-cols-2">
           <Checkbox
             checked={form.showOwnerName}
-            label="Show owner display name"
+            label="Show owner display name publicly"
             onChange={(value) => updateField("showOwnerName", value)}
           />
           <Checkbox
@@ -661,8 +665,18 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
             onChange={(value) => updateField("showTimeline", value)}
           />
           <Checkbox
+            checked={form.showBirthdayOnTimeline}
+            label="Show birthday in Life Timeline"
+            onChange={(value) => updateField("showBirthdayOnTimeline", value)}
+          />
+          <Checkbox
+            checked={form.showAdoptionDayOnTimeline}
+            label="Show adoption day in Life Timeline"
+            onChange={(value) => updateField("showAdoptionDayOnTimeline", value)}
+          />
+          <Checkbox
             checked={form.showHealthSummary}
-            label="Show health summary publicly"
+            label="Allow public care record details"
             onChange={(value) => updateField("showHealthSummary", value)}
           />
         </div>
@@ -670,7 +684,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
 
       <FormSection
         title="Owner Contact"
-        description="These details power safe contact buttons. Your full address is never shown on public pages."
+        description="These details power safe contact buttons. Your full address is not shown publicly."
       >
         <div className="grid gap-4 md:grid-cols-3">
           <TextInput
@@ -678,7 +692,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
             label="Owner display name"
             maxLength={80}
             onChange={(value) => updateField("ownerName", value)}
-            placeholder="Aina Rahman"
+            placeholder={`${form.name || "Your pet"}'s owner`}
             value={form.ownerName}
           />
           <TextInput
@@ -796,8 +810,8 @@ function toFormState(pet?: Pet): FormState {
     color: pet.color,
     birthdayDate: parseDisplayDate(pet.birthday),
     estimatedAge: pet.ageLabel === "Age not set" ? "" : pet.ageLabel,
-    profilePhotoLabel: pet.profilePhotoLabel ?? "",
-    coverPhotoLabel: pet.coverPhotoLabel ?? "",
+    profilePhotoLabel: cleanMediaLabel(pet.profilePhotoLabel),
+    coverPhotoLabel: cleanMediaLabel(pet.coverPhotoLabel),
     coverTone: pet.coverTone ?? "sky",
     bio: pet.bio,
     personalityTags: pet.personalityTags.join(", "),
@@ -820,6 +834,8 @@ function toFormState(pet?: Pet): FormState {
     showCareBadges: visibility.showCareBadges,
     showMoments: visibility.showMoments,
     showTimeline: visibility.showTimeline,
+    showBirthdayOnTimeline: visibility.showBirthdayOnTimeline,
+    showAdoptionDayOnTimeline: visibility.showAdoptionDayOnTimeline,
     showHealthSummary: visibility.showHealthSummary,
   };
 }
@@ -846,8 +862,8 @@ function buildPayload(form: FormState): PetPayload {
     generalArea: form.generalArea.trim() || "Malaysia",
     photoInitial: getInitial(name),
     photoTone: form.species === "Cat" ? "mint" : "apricot",
-    profilePhotoLabel: form.profilePhotoLabel.trim() || "Profile photo not added",
-    coverPhotoLabel: form.coverPhotoLabel.trim() || "Cover photo not added",
+    profilePhotoLabel: form.profilePhotoLabel.trim(),
+    coverPhotoLabel: form.coverPhotoLabel.trim(),
     coverTone: form.coverTone,
     bio:
       form.bio.trim() ||
@@ -861,7 +877,7 @@ function buildPayload(form: FormState): PetPayload {
       form.emergencyNote.trim() || "Keep calm and contact the owner first.",
     contactPreference: form.contactPreference,
     owner: {
-      name: form.ownerName.trim() || "Pet owner",
+      name: form.ownerName.trim() || `${name}'s owner`,
       whatsapp: form.whatsapp.trim(),
       phone: form.phone.trim(),
       emergencyContact: form.phone.trim() || form.whatsapp.trim(),
@@ -875,6 +891,8 @@ function buildPayload(form: FormState): PetPayload {
       showCareBadges: form.showCareBadges,
       showMoments: form.showMoments,
       showTimeline: form.showTimeline,
+      showBirthdayOnTimeline: form.showBirthdayOnTimeline,
+      showAdoptionDayOnTimeline: form.showAdoptionDayOnTimeline,
       showHealthSummary: form.showHealthSummary,
     },
   };
@@ -1067,6 +1085,14 @@ function getInitial(name: string) {
   return name.trim().charAt(0).toUpperCase() || "P";
 }
 
+function cleanMediaLabel(value: string) {
+  if (!value || /not added/i.test(value)) {
+    return "";
+  }
+
+  return value;
+}
+
 const coverToneClasses: Record<Pet["coverTone"], string> = {
   apricot: "bg-pet-apricot",
   mint: "bg-[#e8f8f0]",
@@ -1085,6 +1111,8 @@ function mergeVisibility(
     showCareBadges: true,
     showMoments: true,
     showTimeline: true,
+    showBirthdayOnTimeline: true,
+    showAdoptionDayOnTimeline: true,
     showHealthSummary: false,
     ...visibility,
   };

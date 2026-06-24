@@ -19,6 +19,8 @@ const defaultVisibility: Pet["visibility"] = {
   showCareBadges: true,
   showMoments: true,
   showTimeline: true,
+  showBirthdayOnTimeline: true,
+  showAdoptionDayOnTimeline: true,
   showHealthSummary: false,
 };
 
@@ -32,6 +34,14 @@ export function slugifyPetSlug(value: string) {
 
 function getPetInitial(name: string) {
   return name.trim().charAt(0).toUpperCase() || "P";
+}
+
+function cleanMediaLabel(value: string) {
+  if (!value || /not added/i.test(value)) {
+    return "";
+  }
+
+  return value;
 }
 
 function createTagCode(slug: string) {
@@ -65,8 +75,8 @@ function normalizePet(pet: Pet): Pet {
     adoptionDay: pet.adoptionDay ?? "Not set",
     photoInitial: pet.photoInitial ?? getPetInitial(pet.name),
     photoTone: pet.photoTone ?? "apricot",
-    profilePhotoLabel: pet.profilePhotoLabel ?? "Profile photo not added",
-    coverPhotoLabel: pet.coverPhotoLabel ?? "Cover photo not added",
+    profilePhotoLabel: cleanMediaLabel(pet.profilePhotoLabel),
+    coverPhotoLabel: cleanMediaLabel(pet.coverPhotoLabel),
     coverTone: pet.coverTone ?? "sky",
     publicProfileUrl: pet.publicProfileUrl ?? `/p/${pet.slug}`,
     bio:
@@ -116,8 +126,8 @@ function createFallbackPetFromSlug(slug: string): Pet {
     ageLabel: "Age not set",
     generalArea: "Malaysia",
     photoInitial: getPetInitial(name),
-    profilePhotoLabel: "Profile photo not added",
-    coverPhotoLabel: "Cover photo not added",
+    profilePhotoLabel: "",
+    coverPhotoLabel: "",
     coverTone: "sky",
     qrStatus: "draft",
     finderProfileUrl: `/t/${tagCode}`,
@@ -230,8 +240,8 @@ export async function createPet(payload: PetPayload) {
     generalArea: payload.generalArea ?? "Malaysia",
     photoInitial: payload.photoInitial ?? getPetInitial(petName),
     photoTone: payload.photoTone ?? "apricot",
-    profilePhotoLabel: payload.profilePhotoLabel ?? "Profile photo not added",
-    coverPhotoLabel: payload.coverPhotoLabel ?? "Cover photo not added",
+    profilePhotoLabel: payload.profilePhotoLabel ?? "",
+    coverPhotoLabel: payload.coverPhotoLabel ?? "",
     coverTone: payload.coverTone ?? "sky",
     finderProfileUrl: `/t/${tagCode}`,
     publicProfileUrl: `/p/${slug}`,

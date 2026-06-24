@@ -55,6 +55,8 @@ export type Pet = {
     showCareBadges: boolean;
     showMoments: boolean;
     showTimeline: boolean;
+    showBirthdayOnTimeline: boolean;
+    showAdoptionDayOnTimeline: boolean;
     showHealthSummary: boolean;
   };
   allergies: string[];
@@ -112,6 +114,7 @@ export type CareRecord = {
   dueDate?: string;
   provider: string;
   notes: string;
+  publicVisibility: "Private" | "Public badge only" | "Public details";
   status: "complete" | "due-soon" | "upcoming";
 };
 
@@ -163,6 +166,7 @@ export type PetMoment = {
   mediaKind: "Image" | "Video" | "None";
   mediaLabel: string;
   visibility: MomentVisibility;
+  showOnTimeline: boolean;
 };
 
 export type TagType = "MyPetLink QR Pet Tag" | "MyPetLink QR + NFC Smart Tag";
@@ -231,13 +235,23 @@ export type PetPayload = Partial<
 >;
 
 export type RecordPayload = Partial<
-  Pick<CareRecord, "type" | "title" | "date" | "dueDate" | "provider" | "notes">
+  Pick<
+    CareRecord,
+    "type" | "title" | "date" | "dueDate" | "provider" | "notes" | "publicVisibility"
+  >
 >;
 
 export type PetMomentPayload = Partial<
   Pick<
     PetMoment,
-    "title" | "date" | "type" | "caption" | "mediaKind" | "mediaLabel" | "visibility"
+    | "title"
+    | "date"
+    | "type"
+    | "caption"
+    | "mediaKind"
+    | "mediaLabel"
+    | "visibility"
+    | "showOnTimeline"
   >
 >;
 

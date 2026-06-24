@@ -1,15 +1,68 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { PetMomentCard } from "@/components/portal/PetMomentCard";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { getPetMoments } from "@/services/momentService";
-import type { Pet, PetMoment } from "@/types";
+import { Icon } from "@/components/ui/Icon";
+import {
+  deletePetMoment,
+  getPetMoments,
+  updatePetMoment,
+} from "@/services/momentService";
+import type { MomentType, MomentVisibility, Pet, PetMoment } from "@/types";
 
 type PetMomentsManagerProps = {
   pet: Pet;
   initialMoments: PetMoment[];
+};
+
+const momentTypes: MomentType[] = [
+  "Photo",
+  "Video",
+  "Birthday",
+  "Adoption Day",
+  "First Day Home",
+  "Grooming Day",
+  "Vet Visit",
+  "Funny Moment",
+  "Achievement",
+  "Memory",
+  "Other",
+];
+
+const visibilityOptions: MomentVisibility[] = [
+  "Public",
+  "Private",
+  "Family Only",
+];
+
+type FormState = {
+  title: string;
+  date: string;
+  type: "" | MomentType;
+  caption: string;
+  mediaKind: PetMoment["mediaKind"];
+  visibility: MomentVisibility;
+  showOnTimeline: boolean;
+};
+
+type FormErrors = Partial<Record<keyof FormState, string>>;
+
+const emptyForm: FormState = {
+  title: "",
+  date: "",
+  type: "",
+  caption: "",
+  mediaKind: "Image",
+  visibility: "Public",
+  showOnTimeline: true,
 };
 
 export function PetMomentsManager({
@@ -17,12 +70,20 @@ export function PetMomentsManager({
   initialMoments,
 }: PetMomentsManagerProps) {
   const [moments, setMoments] = useState(initialMoments);
+  const [editingMoment, setEditingMoment] = useState<PetMoment | null>(null);
+  const [form, setForm] = useState<FormState>(emptyForm);
+  const [errors, setErrors] = useState<FormErrors>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [success, setSuccess] = useState("");
   const counts = useMemo(
     () => ({
       public: moments.filter((moment) => moment.visibility === "Public").length,
       private: moments.filter((moment) => moment.visibility === "Private").length,
       family: moments.filter((moment) => moment.visibility === "Family Only")
         .length,
+      timeline: moments.filter(
+        (moment) => moment.visibility === "Public" && moment.showOnTimeline
+      ).length,
     }),
     [moments]
   );
@@ -41,9 +102,111 @@ export function PetMomentsManager({
     };
   }, [pet.id]);
 
+  function updateField<K extends keyof FormState>(key: K, value: FormState[K]) {
+    setForm((current) => ({ ...current, [key]: value }));
+    setErrors((current) => ({ ...current, [key]: undefined }));
+    setSuccess("");
+  }
+
+  function openEditForm(moment: PetMoment) {
+    setEditingMoment(moment);
+    setForm({
+      title: moment.title,
+      date: parseDisplayDate(moment.date),
+      type: moment.type,
+      caption: moment.caption,
+      mediaKind: moment.mediaKind,
+      visibility: moment.visibility,
+      showOnTimeline: moment.showOnTimeline,
+    });
+    setErrors({});
+    setSuccess("");
+  }
+
+  function validate() {
+    const nextErrors: FormErrors = {};
+
+    if (!form.title.trim()) {
+      nextErrors.title = "Add a moment title.";
+    }
+
+    if (!form.date) {
+      nextErrors.date = "Choose a moment date.";
+    } else if (!isValidDate(form.date)) {
+      nextErrors.date = "Choose a valid date.";
+    }
+
+    if (!form.type) {
+      nextErrors.type = "Choose a moment type.";
+    }
+
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  }
+
+  async function handleEditSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!editingMoment || !validate()) {
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    const response = await updatePetMoment(editingMoment.id, {
+      title: form.title.trim(),
+      date: formatDisplayDate(form.date),
+      type: form.type || "Other",
+      caption: form.caption.trim(),
+      mediaKind: form.mediaKind,
+      mediaLabel:
+        form.mediaKind === "Video"
+          ? "Memory clip"
+          : form.mediaKind === "Image"
+            ? "Photo moment"
+            : "Memory note",
+      visibility: form.visibility,
+      showOnTimeline: form.showOnTimeline,
+    });
+
+    const savedMoment = response.data;
+
+    if (savedMoment) {
+      setMoments((current) =>
+        current.map((moment) =>
+          moment.id === editingMoment.id ? savedMoment : moment
+        )
+      );
+      setSuccess("Moment updated.");
+    }
+
+    setEditingMoment(null);
+    setErrors({});
+    setIsSubmitting(false);
+  }
+
+  async function handleDelete(moment: PetMoment) {
+    const confirmed = window.confirm(
+      `Delete "${moment.title}" from ${pet.name}'s moments?`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    const response = await deletePetMoment(moment.id);
+
+    if (response.data.deleted) {
+      setMoments((current) =>
+        current.filter((item) => item.id !== moment.id)
+      );
+      setSuccess("Moment deleted.");
+    }
+  }
+
   return (
     <>
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-4 md:grid-cols-4">
         <div className="brand-card rounded-[1.5rem] p-5">
           <p className="text-sm font-bold text-pet-muted">Recent moments</p>
           <p className="mt-2 text-3xl font-black text-pet-ink">
@@ -54,6 +217,12 @@ export function PetMomentsManager({
           <p className="text-sm font-bold text-pet-muted">Public moments</p>
           <p className="mt-2 text-3xl font-black text-pet-ink">
             {counts.public}
+          </p>
+        </div>
+        <div className="brand-card rounded-[1.5rem] p-5">
+          <p className="text-sm font-bold text-pet-muted">Life Timeline</p>
+          <p className="mt-2 text-3xl font-black text-pet-ink">
+            {counts.timeline}
           </p>
         </div>
         <div className="brand-card rounded-[1.5rem] p-5">
@@ -68,23 +237,52 @@ export function PetMomentsManager({
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-xl font-black text-pet-ink">
-              Save the little moments
+              Moments and Life Timeline
             </h2>
             <p className="mt-1 text-sm leading-6 text-pet-muted">
-              Save the little moments that make {pet.name} special.
+              Life Timeline is managed from pet moments. Only public moments
+              with the Life Timeline checkbox selected appear on the public
+              profile.
             </p>
           </div>
-          <CTAButton href={`/pets/${pet.id}/moments/new`} icon="plus" variant="coral">
-            Add Moment
-          </CTAButton>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <CTAButton
+              href={`/pets/${pet.id}/timeline`}
+              icon="heart"
+              variant="secondary"
+            >
+              View Life Timeline
+            </CTAButton>
+            <CTAButton
+              href={`/pets/${pet.id}/moments/new`}
+              icon="plus"
+              variant="coral"
+            >
+              Add Moment
+            </CTAButton>
+          </div>
         </div>
       </section>
+
+      {success ? (
+        <div
+          className="mt-6 rounded-[1.25rem] border border-pet-mint bg-[#e8f8f0] p-4 text-sm font-bold text-pet-sage"
+          role="status"
+        >
+          {success}
+        </div>
+      ) : null}
 
       <section className="mt-6">
         {moments.length ? (
           <div className="grid gap-4 lg:grid-cols-2">
             {moments.map((moment) => (
-              <PetMomentCard key={moment.id} moment={moment} />
+              <PetMomentCard
+                key={moment.id}
+                moment={moment}
+                onDelete={() => handleDelete(moment)}
+                onEdit={() => openEditForm(moment)}
+              />
             ))}
           </div>
         ) : (
@@ -97,6 +295,245 @@ export function PetMomentsManager({
           />
         )}
       </section>
+
+      {editingMoment ? (
+        <div
+          aria-modal="true"
+          className="fixed inset-0 z-50 grid place-items-end bg-pet-ink/35 p-0 backdrop-blur-sm sm:place-items-center sm:p-4"
+          role="dialog"
+        >
+          <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-[2rem] bg-white p-5 shadow-2xl sm:rounded-[2rem] sm:p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-bold uppercase text-pet-coral">
+                  Edit Moment
+                </p>
+                <h2 className="mt-2 text-2xl font-black text-pet-ink">
+                  Update this memory
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-pet-muted">
+                  Control what appears publicly and whether this moment belongs
+                  in the Life Timeline.
+                </p>
+              </div>
+              <button
+                aria-label="Cancel"
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-pet-cream text-pet-muted transition hover:text-pet-ink"
+                onClick={() => setEditingMoment(null)}
+                type="button"
+              >
+                <Icon name="plus" className="h-5 w-5 rotate-45" />
+              </button>
+            </div>
+
+            <form className="mt-6 grid gap-4" onSubmit={handleEditSubmit}>
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field label="Title" error={errors.title}>
+                  <input
+                    className="brand-input"
+                    onChange={(event) =>
+                      updateField("title", event.target.value)
+                    }
+                    type="text"
+                    value={form.title}
+                  />
+                </Field>
+
+                <Field label="Date" error={errors.date}>
+                  <input
+                    className="brand-input"
+                    onChange={(event) =>
+                      updateField("date", event.target.value)
+                    }
+                    type="date"
+                    value={form.date}
+                  />
+                </Field>
+
+                <Field label="Moment type" error={errors.type}>
+                  <select
+                    className="brand-input"
+                    onChange={(event) =>
+                      updateField("type", event.target.value as FormState["type"])
+                    }
+                    value={form.type}
+                  >
+                    <option value="">Select type</option>
+                    {momentTypes.map((type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+
+                <Field label="Visibility" error={errors.visibility}>
+                  <select
+                    className="brand-input"
+                    onChange={(event) =>
+                      updateField(
+                        "visibility",
+                        event.target.value as MomentVisibility
+                      )
+                    }
+                    value={form.visibility}
+                  >
+                    {visibilityOptions.map((visibility) => (
+                      <option key={visibility} value={visibility}>
+                        {visibility}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
+
+              <Field label="Caption" error={errors.caption}>
+                <textarea
+                  className="brand-input min-h-28"
+                  onChange={(event) =>
+                    updateField("caption", event.target.value)
+                  }
+                  value={form.caption}
+                />
+              </Field>
+
+              <fieldset className="rounded-[1.25rem] bg-pet-cream p-4">
+                <legend className="text-sm font-bold text-pet-ink">
+                  Moment media
+                </legend>
+                <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                  {(["Image", "Video", "None"] as const).map((mediaKind) => (
+                    <button
+                      className={`min-h-20 rounded-2xl border px-4 py-3 text-sm font-bold transition ${
+                        form.mediaKind === mediaKind
+                          ? "border-pet-coral bg-white text-pet-coral"
+                          : "border-pet-border bg-white text-pet-muted"
+                      }`}
+                      key={mediaKind}
+                      onClick={() => updateField("mediaKind", mediaKind)}
+                      type="button"
+                    >
+                      {mediaKind === "Video"
+                        ? "Memory clip"
+                        : mediaKind === "Image"
+                          ? "Photo moment"
+                          : "Note only"}
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+
+              <label className="flex items-start justify-between gap-4 rounded-[1.25rem] bg-pet-cream p-4 text-sm font-bold text-pet-ink">
+                <span>
+                  <span className="block">
+                    Show this moment in Life Timeline
+                  </span>
+                  <span className="mt-1 block text-xs font-semibold leading-5 text-pet-muted">
+                    Only public moments with this checked appear on the public
+                    pet profile.
+                  </span>
+                </span>
+                <input
+                  checked={form.showOnTimeline}
+                  className="mt-1 h-4 w-4 shrink-0 accent-pet-teal"
+                  onChange={(event) =>
+                    updateField("showOnTimeline", event.target.checked)
+                  }
+                  type="checkbox"
+                />
+              </label>
+
+              <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
+                <button
+                  className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
+                  onClick={() => setEditingMoment(null)}
+                  type="button"
+                >
+                  Cancel
+                </button>
+                <button
+                  className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-coral bg-pet-coral px-5 py-3 text-sm font-bold text-white shadow-lg shadow-[#ff7a6e]/20 transition hover:bg-[#f26155] disabled:cursor-wait disabled:opacity-70"
+                  disabled={isSubmitting}
+                  type="submit"
+                >
+                  {isSubmitting ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
     </>
   );
+}
+
+function Field({
+  label,
+  error,
+  children,
+}: {
+  label: string;
+  error?: string;
+  children: ReactNode;
+}) {
+  return (
+    <label className="grid gap-2">
+      <span className="text-sm font-bold text-pet-ink">{label}</span>
+      {children}
+      {error ? (
+        <span className="text-xs font-bold text-[#a63c2e]">{error}</span>
+      ) : null}
+    </label>
+  );
+}
+
+function isValidDate(value: string) {
+  const date = new Date(`${value}T00:00:00`);
+  return !Number.isNaN(date.getTime());
+}
+
+function formatDisplayDate(value: string) {
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(`${value}T00:00:00`));
+}
+
+function parseDisplayDate(value: string) {
+  if (!value) {
+    return "";
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
+
+  const match = value.match(/^(\d{2}) ([A-Za-z]{3}) (\d{4})$/);
+
+  if (!match) {
+    return "";
+  }
+
+  const [, day, month, year] = match;
+  const monthIndex = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ].indexOf(month);
+
+  if (monthIndex < 0) {
+    return "";
+  }
+
+  return `${year}-${String(monthIndex + 1).padStart(2, "0")}-${day}`;
 }

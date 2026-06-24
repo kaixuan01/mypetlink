@@ -4,6 +4,8 @@ import type { PetMoment } from "@/types";
 
 type PetMomentCardProps = {
   moment: PetMoment;
+  onDelete?: () => void;
+  onEdit?: () => void;
   publicView?: boolean;
 };
 
@@ -13,7 +15,12 @@ const visibilityTone = {
   "Family Only": "teal",
 } as const;
 
-export function PetMomentCard({ moment, publicView }: PetMomentCardProps) {
+export function PetMomentCard({
+  moment,
+  onDelete,
+  onEdit,
+  publicView,
+}: PetMomentCardProps) {
   const mediaTitle =
     moment.mediaKind === "Video"
       ? "Short clip"
@@ -59,9 +66,14 @@ export function PetMomentCard({ moment, publicView }: PetMomentCardProps) {
           </p>
         </div>
         {publicView ? null : (
-          <Badge tone={visibilityTone[moment.visibility]}>
-            {moment.visibility}
-          </Badge>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Badge tone={visibilityTone[moment.visibility]}>
+              {moment.visibility}
+            </Badge>
+            {moment.showOnTimeline ? (
+              <Badge tone="teal">Life Timeline</Badge>
+            ) : null}
+          </div>
         )}
       </div>
 
@@ -69,6 +81,28 @@ export function PetMomentCard({ moment, publicView }: PetMomentCardProps) {
         <p className="mt-4 text-sm leading-6 text-pet-muted">
           {moment.caption}
         </p>
+      ) : null}
+      {onEdit || onDelete ? (
+        <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+          {onEdit ? (
+            <button
+              className="inline-flex min-h-10 items-center justify-center rounded-full border border-pet-border bg-white px-4 py-2 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
+              onClick={onEdit}
+              type="button"
+            >
+              Edit
+            </button>
+          ) : null}
+          {onDelete ? (
+            <button
+              className="inline-flex min-h-10 items-center justify-center rounded-full border border-pet-coral bg-white px-4 py-2 text-sm font-bold text-pet-coral transition hover:bg-pet-apricot"
+              onClick={onDelete}
+              type="button"
+            >
+              Delete
+            </button>
+          ) : null}
+        </div>
       ) : null}
       </div>
     </article>
