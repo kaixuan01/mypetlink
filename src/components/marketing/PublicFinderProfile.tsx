@@ -17,14 +17,16 @@ export function PublicFinderProfile({ pet }: PublicFinderProfileProps) {
     `Hi ${pet.owner.name}, I found ${pet.name} from the MyPetLink safety profile.`
   );
   const contactPreference = pet.contactPreference ?? "WhatsApp preferred";
-  const whatsappBaseUrl = `https://wa.me/${pet.owner.whatsapp}`;
+  const whatsappNumber = normalizeWhatsappNumber(pet.owner.whatsapp);
+  const phoneHref = normalizePhoneHref(pet.owner.phone);
+  const whatsappBaseUrl = `https://wa.me/${whatsappNumber}`;
 
   function openWhatsappWithMessage(text: string) {
     window.location.href = `${whatsappBaseUrl}?text=${encodeURIComponent(text)}`;
   }
 
   function handleSendFoundLocation() {
-    if (!pet.owner.whatsapp) {
+    if (!whatsappNumber) {
       return;
     }
 
@@ -85,15 +87,43 @@ export function PublicFinderProfile({ pet }: PublicFinderProfileProps) {
       </div>
 
       <div className="mt-5 grid gap-3">
-        {visibility.showGeneralArea ? (
-          <div className="rounded-[1.25rem] bg-[#e8f3ff] p-4">
-            <div className="flex items-center gap-2 text-sm font-black text-pet-ink">
-              <Icon name="pin" className="h-4 w-4 text-pet-teal" />
-              General area
-            </div>
-            <p className="mt-2 text-sm text-pet-muted">{pet.generalArea}</p>
-          </div>
+        {visibility.showWhatsapp && whatsappNumber ? (
+          <CTAButton
+            href={`${whatsappBaseUrl}?text=${message}`}
+            icon="phone"
+            target="_blank"
+            rel="noopener noreferrer"
+            fullWidth
+            className="min-h-14 text-base"
+          >
+            WhatsApp Owner
+          </CTAButton>
         ) : null}
+        {visibility.showPhone && phoneHref ? (
+          <CTAButton
+            href={`tel:${phoneHref}`}
+            icon="phone"
+            variant="coral"
+            fullWidth
+            className="min-h-14 text-base"
+          >
+            Call Owner
+          </CTAButton>
+        ) : null}
+        {visibility.showWhatsapp && whatsappNumber ? (
+          <CTAButton
+            icon="pin"
+            onClick={handleSendFoundLocation}
+            variant="outline"
+            fullWidth
+            className="min-h-14 bg-white text-base"
+          >
+            Send Found Location
+          </CTAButton>
+        ) : null}
+      </div>
+
+      <div className="mt-5 grid gap-3">
         <div className="rounded-[1.25rem] bg-pet-apricot p-4">
           <div className="flex items-center gap-2 text-sm font-black text-pet-ink">
             <Icon name="shield" className="h-4 w-4 text-pet-coral" />
@@ -114,6 +144,15 @@ export function PublicFinderProfile({ pet }: PublicFinderProfileProps) {
             </p>
           </div>
         ) : null}
+        {visibility.showGeneralArea ? (
+          <div className="rounded-[1.25rem] bg-[#e8f3ff] p-4">
+            <div className="flex items-center gap-2 text-sm font-black text-pet-ink">
+              <Icon name="pin" className="h-4 w-4 text-pet-teal" />
+              General area
+            </div>
+            <p className="mt-2 text-sm text-pet-muted">{pet.generalArea}</p>
+          </div>
+        ) : null}
         <div className="rounded-[1.25rem] bg-white p-4">
           <div className="flex items-center gap-2 text-sm font-black text-pet-ink">
             <Icon name="phone" className="h-4 w-4 text-pet-teal" />
@@ -123,43 +162,6 @@ export function PublicFinderProfile({ pet }: PublicFinderProfileProps) {
             {contactPreference}
           </p>
         </div>
-      </div>
-
-      <div className="mt-5 grid gap-3">
-        {visibility.showWhatsapp && pet.owner.whatsapp ? (
-          <CTAButton
-            href={`${whatsappBaseUrl}?text=${message}`}
-            icon="phone"
-            target="_blank"
-            rel="noopener noreferrer"
-            fullWidth
-            className="min-h-14 text-base"
-          >
-            WhatsApp Owner
-          </CTAButton>
-        ) : null}
-        {visibility.showPhone && pet.owner.phone ? (
-          <CTAButton
-            href={`tel:${pet.owner.phone.replace(/\s/g, "")}`}
-            icon="phone"
-            variant="coral"
-            fullWidth
-            className="min-h-14 text-base"
-          >
-            Call Owner
-          </CTAButton>
-        ) : null}
-        {visibility.showWhatsapp && pet.owner.whatsapp ? (
-          <CTAButton
-            icon="pin"
-            onClick={handleSendFoundLocation}
-            variant="outline"
-            fullWidth
-            className="min-h-14 bg-white text-base"
-          >
-            Send Found Location
-          </CTAButton>
-        ) : null}
       </div>
 
       {locationStatus ? (
@@ -174,6 +176,14 @@ export function PublicFinderProfile({ pet }: PublicFinderProfileProps) {
       </p>
     </article>
   );
+}
+
+function normalizeWhatsappNumber(value: string) {
+  return value.replace(/[^\d]/g, "");
+}
+
+function normalizePhoneHref(value: string) {
+  return value.replace(/[^\d+]/g, "");
 }
 
 function mergeVisibility(

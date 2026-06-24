@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 const sections = [
   {
     title: "What is shown publicly",
-    body: "A public pet profile can show your pet's name, photo placeholder, type, breed, colour, age, bio, personality tags, favourite things, general area, public moments, and owner-approved safety notes.",
+    body: "A public pet profile can show your pet's name, photos, type, breed, colour, age, bio, personality tags, favourite things, general area, public moments, and owner-approved safety notes.",
   },
   {
     title: "What stays private",
@@ -47,6 +47,10 @@ const sections = [
   {
     title: "Not veterinary advice",
     body: "MyPetLink helps with records and safety profiles, but it does not replace advice from a qualified veterinarian.",
+  },
+  {
+    title: "Contact and support",
+    body: "For help with profile details, privacy settings, or tag questions, pet owners can contact MyPetLink support when support channels are available.",
   },
 ];
 

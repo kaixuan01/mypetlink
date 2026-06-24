@@ -102,8 +102,10 @@ export function PetMomentForm({ pet }: { pet: Pet }) {
       mediaKind: form.mediaKind,
       mediaLabel:
         form.mediaKind === "Video"
-          ? "Short video placeholder"
-          : "Photo placeholder",
+          ? "Memory clip"
+          : form.mediaKind === "Image"
+            ? "Photo moment"
+            : "Memory note",
       visibility: form.visibility,
     });
 
@@ -205,7 +207,11 @@ export function PetMomentForm({ pet }: { pet: Pet }) {
                   name={mediaKind === "Video" ? "record" : "heart"}
                   className="mx-auto mb-2 h-5 w-5"
                 />
-                {mediaKind === "None" ? "Note only" : `${mediaKind} placeholder`}
+                {mediaKind === "Video"
+                  ? "Memory clip"
+                  : mediaKind === "Image"
+                    ? "Photo moment"
+                    : "Note only"}
               </button>
             ))}
           </div>

@@ -37,7 +37,7 @@ export const mockPlans: Plan[] = [
       "Medication and allergy records",
       "Lost Mode",
       "Scan history and found location reports",
-      "Document upload",
+      "Document notes and important files checklist",
       "Family access",
       "Unlimited pet moments",
       "Photo and video stories",

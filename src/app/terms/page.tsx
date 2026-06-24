@@ -11,6 +11,9 @@ const terms = [
   "MyPetLink does not guarantee recovery of lost pets.",
   "MyPetLink does not provide veterinary advice.",
   "Users are responsible for keeping contact information updated.",
+  "Users should only publish information they are comfortable sharing publicly.",
+  "Physical tag availability, pricing, and delivery may vary while the product is being tested.",
+  "GPS Safety is Coming Later and is not currently available.",
 ];
 
 export default function TermsPage() {

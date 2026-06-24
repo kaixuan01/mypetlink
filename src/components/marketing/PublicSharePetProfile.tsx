@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 import { PetMomentCard } from "@/components/portal/PetMomentCard";
 import { ShareProfileLink } from "@/components/share/ShareProfileLink";
 import { Badge } from "@/components/ui/Badge";
@@ -98,6 +100,25 @@ export function PublicSharePetProfile({
 
   return (
     <article className="min-h-screen overflow-hidden bg-pet-cream">
+      <header className="border-b border-pet-border bg-white/92 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8">
+          <Link href="/" className="flex items-center">
+            <BrandLogo className="h-11 w-auto max-w-[190px]" priority />
+          </Link>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <CTAButton
+              href={profile.finderProfileUrl}
+              icon="qr"
+              variant="secondary"
+            >
+              Open Safety Page
+            </CTAButton>
+            <CTAButton href="/login" icon="paw" variant="coral">
+              Create Your Pet Profile
+            </CTAButton>
+          </div>
+        </div>
+      </header>
       <section className="brand-peach-section relative">
         <div className="relative mx-auto grid max-w-6xl gap-8 px-4 pb-12 pt-10 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:items-end lg:px-8">
           <div>

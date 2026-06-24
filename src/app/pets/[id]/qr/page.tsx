@@ -6,6 +6,7 @@ import {
   ProfileAccessBadges,
   ProfileAccessStatus,
 } from "@/components/portal/ProfileAccessStatus";
+import { QRDownloadButton } from "@/components/portal/QRDownloadButton";
 import { QRPreviewCard } from "@/components/QRPreviewCard";
 import { ShareProfileLink } from "@/components/share/ShareProfileLink";
 import { CTAButton } from "@/components/ui/CTAButton";
@@ -72,6 +73,26 @@ export default async function QRPage({ params }: QRPageProps) {
                 qrStatus={pet.data.qrStatus}
               />
             </div>
+            <div className="mt-5 grid gap-3 md:grid-cols-2">
+              <div className="rounded-[1.25rem] bg-pet-cream p-4">
+                <p className="text-sm font-black text-pet-ink">
+                  Public profile
+                </p>
+                <p className="mt-2 text-sm leading-6 text-pet-muted">
+                  A cute profile for friends and family, with approved moments,
+                  favourite things, and public-safe care badges.
+                </p>
+              </div>
+              <div className="rounded-[1.25rem] bg-[#e8f3ff] p-4">
+                <p className="text-sm font-black text-pet-ink">
+                  Safety tag page
+                </p>
+                <p className="mt-2 text-sm leading-6 text-pet-muted">
+                  A focused QR/NFC page for finders, with contact buttons and
+                  safety notes only.
+                </p>
+              </div>
+            </div>
             <ShareProfileLink
               className="mt-5"
               label="Finder safety page link"
@@ -98,9 +119,7 @@ export default async function QRPage({ params }: QRPageProps) {
               NFC smart tags open the same safe profile with a simple tap.
             </p>
             <div className="mt-5 grid gap-3 sm:grid-cols-3">
-              <CTAButton icon="qr" variant="secondary" fullWidth>
-                Download QR
-              </CTAButton>
+              <QRDownloadButton pet={pet.data} />
               <CTAButton
                 href={`/pets/${pet.data.id}/tags/order?type=qr`}
                 icon="tag"

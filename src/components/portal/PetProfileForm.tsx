@@ -273,15 +273,22 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
           <CTAButton href={createdPet.publicProfileUrl} icon="heart">
             View Public Profile
           </CTAButton>
-          <CTAButton href={`/pets/${createdPet.id}/qr`} icon="qr" variant="secondary">
-            Manage QR / Safety Profile
+          <CTAButton
+            href={createdPet.finderProfileUrl}
+            icon="qr"
+            variant="secondary"
+          >
+            View QR Safety Page
           </CTAButton>
           <CTAButton
-            href={`/pets/${createdPet.id}/moments/new`}
-            icon="plus"
+            href={`/pets/${createdPet.id}/tags/order`}
+            icon="tag"
             variant="outline"
           >
-            Add Pet Moment
+            Order Physical Tag
+          </CTAButton>
+          <CTAButton href="/dashboard" variant="outline">
+            Go to Dashboard
           </CTAButton>
         </div>
       </section>
@@ -415,7 +422,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
                   {form.name || "Your pet"}
                 </p>
                 <p className="mt-1 text-sm text-pet-muted">
-                  {form.profilePhotoLabel || "Profile photo not added yet"}
+                  {form.profilePhotoLabel ? "Portrait ready" : "Add a portrait when you are ready"}
                 </p>
               </div>
             </div>
@@ -467,7 +474,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
                 Cover preview
               </p>
               <p className="mt-2 text-sm font-black text-pet-ink">
-                {form.coverPhotoLabel || "Cover photo not added yet"}
+                {form.coverPhotoLabel ? "Cover ready" : "Choose a cover style or photo"}
               </p>
             </div>
           </div>

@@ -435,9 +435,6 @@ function LandingPetProfilePreview({ pet }: { pet: Pet }) {
         <div className="-mt-16 flex flex-col gap-5 sm:flex-row sm:items-end">
           <PetAvatar pet={pet} size="xl" />
           <div className="rounded-[1.5rem] bg-white/95 p-4 shadow-sm">
-            <p className="text-sm font-bold text-pet-muted">
-              {pet.profilePhotoLabel}
-            </p>
             <h2 className="mt-1 text-3xl font-black text-pet-ink">
               {pet.name}
             </h2>

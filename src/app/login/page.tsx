@@ -16,11 +16,11 @@ export default function LoginPage() {
           <div>
             <Badge tone="warm">Pet owner portal</Badge>
             <h1 className="mt-5 text-4xl font-black leading-tight text-pet-ink sm:text-5xl">
-              Keep your pet&apos;s little world in one safe place.
+              Pet owner portal
             </h1>
             <p className="mt-5 max-w-xl text-base leading-7 text-pet-muted">
-              Manage QR safety profiles, care records, pet memories, and smart
-              tags from a warm owner workspace built for everyday pet care.
+              Keep your pet profiles, care records, moments, and smart tags in
+              one warm and safe place.
             </p>
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
               {[

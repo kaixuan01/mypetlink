@@ -33,7 +33,7 @@ export default async function NewMomentPage({ params }: NewMomentPageProps) {
       <PageHeader
         eyebrow="Add moment"
         title={`Save a moment for ${pet.data.name}`}
-        description="Add a memory, milestone, photo placeholder, or short video placeholder."
+        description="Add a memory, milestone, photo moment, or short clip for your pet."
       />
 
       <PetMomentForm pet={pet.data} />

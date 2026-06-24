@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { ProfileAccessBadges } from "@/components/portal/ProfileAccessStatus";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { PetAvatar } from "@/components/ui/PetAvatar";
@@ -26,32 +25,32 @@ export function PetCard({ pet }: PetCardProps) {
           </p>
         </div>
       </div>
-      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <CTAButton href={`/pets/${pet.id}`} variant="secondary" fullWidth>
           Details
+        </CTAButton>
+        <CTAButton href={`/pets/${pet.id}/edit`} variant="outline" fullWidth>
+          Edit
         </CTAButton>
         <CTAButton href={`/pets/${pet.id}/records`} variant="outline" fullWidth>
           Records
         </CTAButton>
-        <CTAButton href={`/pets/${pet.id}/qr`} variant="outline" fullWidth>
-          QR
-        </CTAButton>
         <CTAButton href={`/pets/${pet.id}/moments`} variant="outline" fullWidth>
           Moments
         </CTAButton>
+        <CTAButton href={`/pets/${pet.id}/qr`} variant="outline" fullWidth>
+          QR Profile
+        </CTAButton>
         <CTAButton href={`/pets/${pet.id}/tags`} variant="outline" fullWidth>
-          Tags
+          Smart Tags
         </CTAButton>
         <CTAButton href={`/pets/${pet.id}/tags/order`} variant="outline" fullWidth>
           Order Tag
         </CTAButton>
+        <CTAButton href={pet.publicProfileUrl} variant="outline" fullWidth>
+          Public Profile
+        </CTAButton>
       </div>
-      <Link
-        href={pet.publicProfileUrl}
-        className="mt-4 block text-xs font-bold text-pet-teal underline"
-      >
-        Share profile: {pet.publicProfileUrl}
-      </Link>
     </article>
   );
 }

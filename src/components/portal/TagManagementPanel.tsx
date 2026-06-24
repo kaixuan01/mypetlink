@@ -37,6 +37,7 @@ export function TagManagementPanel({
 }: TagManagementPanelProps) {
   const [tags, setTags] = useState(initialTags);
   const [lostTag, setLostTag] = useState<PetTag | null>(null);
+  const [disableTagTarget, setDisableTagTarget] = useState<PetTag | null>(null);
   const petMap = useMemo(
     () => new Map(pets.map((pet) => [pet.id, pet])),
     [pets]
@@ -57,14 +58,22 @@ export function TagManagementPanel({
     };
   }, [petId]);
 
-  async function handleDisable(tagId: string) {
-    const response = await disableTag(tagId);
+  async function handleDisable() {
+    if (!disableTagTarget) {
+      return;
+    }
+
+    const response = await disableTag(disableTagTarget.id);
 
     if (response.data) {
       setTags((current) =>
-        current.map((tag) => (tag.id === tagId ? response.data! : tag))
+        current.map((tag) =>
+          tag.id === disableTagTarget.id ? response.data! : tag
+        )
       );
     }
+
+    setDisableTagTarget(null);
   }
 
   async function handleReportLost() {
@@ -157,7 +166,7 @@ export function TagManagementPanel({
                 <button
                   className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-transparent px-5 py-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={tag.status === "Disabled"}
-                  onClick={() => handleDisable(tag.id)}
+                  onClick={() => setDisableTagTarget(tag)}
                   type="button"
                 >
                   Disable Tag
@@ -212,6 +221,40 @@ export function TagManagementPanel({
             >
               Order Replacement Tag
             </Link>
+          </div>
+        </div>
+      ) : null}
+
+      {disableTagTarget ? (
+        <div
+          aria-modal="true"
+          className="fixed inset-0 z-50 grid place-items-end bg-pet-ink/35 p-0 backdrop-blur-sm sm:place-items-center sm:p-4"
+          role="dialog"
+        >
+          <div className="w-full max-w-lg rounded-t-[2rem] bg-white p-5 shadow-2xl sm:rounded-[2rem] sm:p-6">
+            <h2 className="text-2xl font-black text-pet-ink">
+              Disable this tag?
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-pet-muted">
+              This tag will stop opening {petMap.get(disableTagTarget.petId)?.name ?? "your pet"}&apos;s safety page.
+              You can order a replacement tag anytime.
+            </p>
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
+                onClick={() => setDisableTagTarget(null)}
+                type="button"
+              >
+                Keep Tag Active
+              </button>
+              <button
+                className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#ffd2c9] bg-[#ffe8e3] px-5 py-3 text-sm font-bold text-[#a63c2e] transition hover:bg-[#ffd8cf]"
+                onClick={handleDisable}
+                type="button"
+              >
+                Disable Tag
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
