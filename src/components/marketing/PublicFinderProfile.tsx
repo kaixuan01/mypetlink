@@ -13,8 +13,11 @@ type PublicFinderProfileProps = {
 export function PublicFinderProfile({ pet }: PublicFinderProfileProps) {
   const [locationStatus, setLocationStatus] = useState("");
   const visibility = mergeVisibility(pet.visibility);
+  const ownerDisplayName = visibility.showOwnerName
+    ? getPublicOwnerName(pet.owner.name)
+    : "Owner";
   const message = encodeURIComponent(
-    `Hi ${pet.owner.name}, I found ${pet.name} from the MyPetLink safety profile.`
+    `Hi, I found ${pet.name} from the MyPetLink safety profile.`
   );
   const contactPreference = pet.contactPreference ?? "WhatsApp preferred";
   const whatsappNumber = normalizeWhatsappNumber(pet.owner.whatsapp);
@@ -37,7 +40,7 @@ export function PublicFinderProfile({ pet }: PublicFinderProfileProps) {
         "Location is not available here. A WhatsApp message is ready for you to type the location."
       );
       openWhatsappWithMessage(
-        `Hi ${pet.owner.name}, I found ${pet.name}. I can describe the found location here.`
+        `Hi ${ownerDisplayName}, I found ${pet.name}. I can describe the found location here.`
       );
       return;
     }
@@ -48,7 +51,7 @@ export function PublicFinderProfile({ pet }: PublicFinderProfileProps) {
         const mapsUrl = `https://www.google.com/maps?q=${latitude},${longitude}`;
         setLocationStatus("Location ready. Opening WhatsApp...");
         openWhatsappWithMessage(
-          `Hi ${pet.owner.name}, I found ${pet.name}. Found location: ${mapsUrl}`
+          `Hi ${ownerDisplayName}, I found ${pet.name}. Found location: ${mapsUrl}`
         );
       },
       () => {
@@ -56,7 +59,7 @@ export function PublicFinderProfile({ pet }: PublicFinderProfileProps) {
           "Location was not shared. A WhatsApp message is ready for you to type the location."
         );
         openWhatsappWithMessage(
-          `Hi ${pet.owner.name}, I found ${pet.name}. I can describe the found location here.`
+          `Hi ${ownerDisplayName}, I found ${pet.name}. I can describe the found location here.`
         );
       },
       { enableHighAccuracy: true, maximumAge: 60000, timeout: 10000 }
@@ -81,7 +84,7 @@ export function PublicFinderProfile({ pet }: PublicFinderProfileProps) {
         </p>
         {visibility.showOwnerName ? (
           <p className="mt-2 text-sm font-bold text-pet-ink">
-            Owner: {pet.owner.name}
+            Owner: {ownerDisplayName}
           </p>
         ) : null}
       </div>
@@ -184,6 +187,10 @@ function normalizeWhatsappNumber(value: string) {
 
 function normalizePhoneHref(value: string) {
   return value.replace(/[^\d+]/g, "");
+}
+
+function getPublicOwnerName(name: string) {
+  return name.trim().split(/\s+/)[0] || "Owner";
 }
 
 function mergeVisibility(

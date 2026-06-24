@@ -24,13 +24,18 @@ export function LoginPanel() {
       </p>
       <div className="mt-6 grid gap-3">
         <button
-          className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-pet-teal bg-pet-teal px-5 py-3 text-sm font-extrabold text-white shadow-lg shadow-[#1570ef]/20 transition hover:bg-[#0f5fd0]"
+          className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-extrabold text-pet-ink shadow-sm transition hover:bg-pet-cream"
           onClick={handleLogin}
           type="button"
         >
           <Icon name="shield" className="h-4 w-4" />
           Continue with Google
         </button>
+        <div className="flex items-center gap-3 text-xs font-bold uppercase text-pet-muted">
+          <span className="h-px flex-1 bg-pet-border" />
+          or
+          <span className="h-px flex-1 bg-pet-border" />
+        </div>
         <button
           className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-pet-coral bg-pet-coral px-5 py-3 text-sm font-extrabold text-white shadow-lg shadow-[#ff7a6e]/20 transition hover:bg-[#f26155]"
           onClick={handleLogin}
@@ -41,8 +46,7 @@ export function LoginPanel() {
         </button>
       </div>
       <p className="mt-5 rounded-2xl bg-pet-cream p-4 text-xs leading-5 text-pet-muted">
-        Explore a sample owner workspace with pet profiles, records, memories,
-        and smart tags.
+        Explore a sample owner workspace.
       </p>
     </div>
   );

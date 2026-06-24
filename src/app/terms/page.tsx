@@ -26,16 +26,13 @@ export default function TermsPage() {
             title="Simple terms for pet owners"
             description="Helpful guidance for using MyPetLink safely and responsibly."
           />
-          <ol className="grid list-none gap-4">
-            {terms.map((term, index) => (
+          <ol className="list-decimal space-y-4 pl-6 marker:font-black marker:text-pet-coral">
+            {terms.map((term) => (
               <li
-                className="brand-card flex gap-3 rounded-[1.5rem] p-5 text-sm leading-6 text-pet-muted"
+                className="brand-card rounded-[1.5rem] py-5 pl-4 pr-5 text-sm leading-6 text-pet-muted"
                 key={term}
               >
-                <span className="shrink-0 font-black text-pet-coral">
-                  {index + 1}.
-                </span>
-                <span>{term}</span>
+                {term}
               </li>
             ))}
           </ol>

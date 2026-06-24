@@ -26,7 +26,7 @@ export const mockPlans: Plan[] = [
     tier: "Premium",
     name: "Premium Plan",
     price: "RM19.90 / month",
-    billingNote: "Monthly care and memories plan. Yearly plan can be added later.",
+    billingNote: "Monthly care and memories plan. Yearly billing option coming soon.",
     description:
       "For pet owners who want to manage multiple pets, complete care records, and precious memories.",
     features: [

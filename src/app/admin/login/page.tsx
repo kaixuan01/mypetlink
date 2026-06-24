@@ -23,8 +23,7 @@ export default function AdminLoginPage() {
             Admin Sign In
           </h1>
           <p className="mt-5 text-base leading-7 text-slate-500">
-            Manage users, pet profiles, smart tags, QR profiles, and plans from
-            the MyPetLink admin workspace.
+            Manage users, pet profiles, smart tags, and plans.
           </p>
         </div>
         <AdminLoginPanel />

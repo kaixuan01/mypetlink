@@ -423,12 +423,25 @@ export default async function Home() {
 function LandingPetProfilePreview({ pet }: { pet: Pet }) {
   return (
     <article className="brand-card overflow-hidden rounded-[2rem]">
-      <div className="brand-paw-dots min-h-56 bg-[#e8f3ff] p-6">
+      <div className="brand-paw-dots relative min-h-56 bg-[#e8f3ff] p-6">
         <div className="flex items-start justify-between gap-4">
           <Badge tone="mint">Shareable pet profile</Badge>
           <span className="grid h-11 w-11 place-items-center rounded-2xl bg-white text-pet-coral shadow-sm">
             <Icon name="heart" className="h-5 w-5" />
           </span>
+        </div>
+        <div className="absolute inset-x-6 bottom-6 rounded-[1.5rem] bg-white/90 p-4 shadow-xl shadow-[#0d1b3d]/10">
+          <div className="flex items-center gap-4">
+            <PetAvatar pet={pet} size="md" />
+            <div>
+              <p className="text-xs font-bold uppercase text-pet-coral">
+                Safe profile ready
+              </p>
+              <p className="mt-1 text-lg font-black text-pet-ink">
+                {pet.name}&apos;s favourite things, care notes, and memories.
+              </p>
+            </div>
+          </div>
         </div>
       </div>
       <div className="px-6 pb-6">

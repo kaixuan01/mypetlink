@@ -1,7 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, type ReactNode } from "react";
+import {
+  useMemo,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -91,12 +96,23 @@ export function TagOrderFlow({
 }: TagOrderFlowProps) {
   const [step, setStep] = useState(0);
   const [petId, setPetId] = useState(preselectedPetId ?? pets[0]?.id ?? "");
-  const [tagType, setTagType] = useState<TagType>(initialTagType);
   const [design, setDesign] = useState<TagDesign>("Round Tag");
   const [delivery, setDelivery] = useState<DeliveryDetails>(emptyDelivery);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [createdOrder, setCreatedOrder] = useState<TagOrder | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedTagType, setSelectedTagType] = useState<TagType | null>(null);
+  const orderPrefsKey = useSyncExternalStore(
+    subscribeToOrderPrefs,
+    getBrowserOrderPrefsKey,
+    getDefaultOrderPrefsKey
+  );
+  const orderPrefs = useMemo(
+    () => parseOrderPrefs(orderPrefsKey),
+    [orderPrefsKey]
+  );
+  const tagType = selectedTagType ?? orderPrefs.tagType ?? initialTagType;
+  const replacementFor = orderPrefs.replacementForTagId ?? replacementForTagId;
 
   const selectedPet = useMemo(
     () => pets.find((pet) => pet.id === petId),
@@ -190,7 +206,7 @@ export function TagOrderFlow({
       tagType,
       design,
       delivery,
-      replacementForTagId,
+      replacementForTagId: replacementFor,
     });
     setCreatedOrder(response.data.order);
     setIsSubmitting(false);
@@ -354,7 +370,7 @@ export function TagOrderFlow({
                     : "border-pet-border bg-pet-cream"
                 }`}
                 key={option.type}
-                onClick={() => setTagType(option.type)}
+                onClick={() => setSelectedTagType(option.type)}
                 type="button"
               >
                 <div className="flex items-center justify-between gap-3">
@@ -607,4 +623,34 @@ function ErrorText({ message }: { message?: string }) {
   return message ? (
     <span className="text-xs font-bold text-[#a63c2e]">{message}</span>
   ) : null;
+}
+
+function subscribeToOrderPrefs() {
+  return () => {};
+}
+
+function getDefaultOrderPrefsKey() {
+  return "";
+}
+
+function getBrowserOrderPrefsKey() {
+  const params = new URLSearchParams(window.location.search);
+  return `${params.get("type") ?? ""}|${params.get("replacementFor") ?? ""}`;
+}
+
+function parseOrderPrefs(value: string): {
+  tagType?: TagType;
+  replacementForTagId?: string;
+} {
+  const [queryType, replacementForTagId] = value.split("|");
+
+  return {
+    tagType:
+      queryType === "nfc"
+        ? "MyPetLink QR + NFC Smart Tag"
+        : queryType === "qr"
+          ? "MyPetLink QR Pet Tag"
+          : undefined,
+    replacementForTagId: replacementForTagId || undefined,
+  };
 }

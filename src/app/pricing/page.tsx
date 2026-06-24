@@ -109,7 +109,7 @@ export default function PricingPage() {
                 >
                   {plan.id === "plan_free"
                     ? "Start Free Profile"
-                    : "Choose Premium"}
+                    : "Preview Premium"}
                 </CTAButton>
               </article>
             ))}
@@ -161,7 +161,7 @@ export default function PricingPage() {
                   ))}
                 </ul>
                 <CTAButton href={tag.href} fullWidth className="mt-6">
-                  Order Physical Tag
+                  Preview Tag Options
                 </CTAButton>
               </article>
             ))}

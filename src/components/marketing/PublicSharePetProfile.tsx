@@ -54,12 +54,12 @@ export function PublicSharePetProfile({
     },
     {
       label: "Care records",
-      value: `${records.length} owner-managed records`,
+      value: `${careRecords.length} public-safe badges`,
       icon: "record",
     },
     {
       label: "Public moments",
-      value: `${moments.length} public memories`,
+      value: `${publicMoments.length} public memories`,
       icon: "heart",
     },
     {
@@ -106,13 +106,6 @@ export function PublicSharePetProfile({
             <BrandLogo className="h-11 w-auto max-w-[190px]" priority />
           </Link>
           <div className="flex flex-col gap-2 sm:flex-row">
-            <CTAButton
-              href={profile.finderProfileUrl}
-              icon="qr"
-              variant="secondary"
-            >
-              Open Safety Page
-            </CTAButton>
             <CTAButton href="/login" icon="paw" variant="coral">
               Create Your Pet Profile
             </CTAButton>
@@ -198,7 +191,7 @@ export function PublicSharePetProfile({
                 <SafetyTile
                   icon="heart"
                   label="Owner"
-                  value={`Cared for by ${profile.owner.name}`}
+                  value={`Cared for by ${getPublicOwnerName(profile.owner.name)}`}
                 />
               ) : null}
               {visibility.showGeneralArea ? (
@@ -415,10 +408,14 @@ function PublicHeroCard({
           {profile.name}
         </h2>
         <p className="mt-2 text-sm font-bold text-pet-muted">
-          {profile.species} · {profile.breed}
+          {profile.species}
+          {" \u00b7 "}
+          {profile.breed}
         </p>
         <p className="mt-1 text-sm font-bold text-pet-muted">
-          {profile.gender} · {profile.ageLabel}
+          {profile.gender}
+          {" \u00b7 "}
+          {profile.ageLabel}
         </p>
 
         <div className="mt-4 flex flex-wrap justify-center gap-2">
@@ -497,4 +494,8 @@ function mergeVisibility(
     ...fallbackVisibility,
     ...visibility,
   };
+}
+
+function getPublicOwnerName(name: string) {
+  return name.trim().split(/\s+/)[0] || "Owner";
 }

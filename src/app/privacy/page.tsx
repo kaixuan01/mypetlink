@@ -50,7 +50,7 @@ const sections = [
   },
   {
     title: "Contact and support",
-    body: "For help with profile details, privacy settings, or tag questions, pet owners can contact MyPetLink support when support channels are available.",
+    body: "Need help updating or removing a profile? Contact MyPetLink support.",
   },
 ];
 

@@ -16,17 +16,40 @@ const visibilityTone = {
 export function PetMomentCard({ moment, publicView }: PetMomentCardProps) {
   const mediaTitle =
     moment.mediaKind === "Video"
-      ? "Memory clip"
+      ? "Short clip"
       : moment.mediaKind === "Image"
-        ? "Photo moment"
+        ? "Photo memory"
         : "Memory note";
+  const momentType = formatMomentType(moment.type);
 
   return (
-    <article className="brand-card rounded-[1.5rem] p-5">
+    <article className="brand-card overflow-hidden rounded-[1.5rem] p-0">
+      <div className="brand-paw-dots relative min-h-44 bg-pet-cream p-5">
+        <div className="absolute inset-x-5 bottom-5 rounded-[1.25rem] bg-white/92 p-4 shadow-lg shadow-[#0d1b3d]/10">
+          <div className="flex items-center gap-3">
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-pet-apricot text-pet-coral">
+              <Icon
+                name={moment.mediaKind === "Video" ? "record" : "heart"}
+                className="h-5 w-5"
+              />
+            </span>
+            <div className="min-w-0">
+              <p className="text-xs font-bold uppercase text-pet-muted">
+                {mediaTitle}
+              </p>
+              <p className="mt-1 truncate text-base font-black text-pet-ink">
+                {moment.mediaLabel}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="p-5">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-bold uppercase text-pet-coral">
-            {moment.type}
+            {momentType}
           </p>
           <h3 className="mt-2 text-xl font-black text-pet-ink">
             {moment.title}
@@ -42,28 +65,24 @@ export function PetMomentCard({ moment, publicView }: PetMomentCardProps) {
         )}
       </div>
 
-      <div className="brand-paw-dots mt-5 grid min-h-40 place-items-center overflow-hidden rounded-[1.25rem] bg-pet-cream p-5 text-center">
-        <div>
-          <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-white text-pet-coral shadow-sm">
-            <Icon
-              name={moment.mediaKind === "Video" ? "record" : "heart"}
-              className="h-6 w-6"
-            />
-          </span>
-          <p className="mt-3 text-base font-black text-pet-ink">
-            {moment.mediaLabel}
-          </p>
-          <p className="mt-1 text-xs font-bold uppercase text-pet-muted">
-            {mediaTitle}
-          </p>
-        </div>
-      </div>
-
       {moment.caption ? (
         <p className="mt-4 text-sm leading-6 text-pet-muted">
           {moment.caption}
         </p>
       ) : null}
+      </div>
     </article>
   );
+}
+
+function formatMomentType(type: PetMoment["type"]) {
+  if (type === "Video") {
+    return "Clip";
+  }
+
+  if (type === "Photo") {
+    return "Photo memory";
+  }
+
+  return type;
 }
