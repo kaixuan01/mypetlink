@@ -31,7 +31,7 @@ export const mockPets: Pet[] = [
       "If Milo looks distressed, keep him shaded and avoid feeding unfamiliar treats.",
     contactPreference: "WhatsApp preferred",
     owner: {
-      name: "Aina Rahman",
+      name: "Milo's owner",
       phone: "+60123456789",
       whatsapp: "60123456789",
       emergencyContact: "+60199887766",
@@ -81,7 +81,7 @@ export const mockPets: Pet[] = [
     emergencyNote: "Indoor cat. May hide under cars or drains when frightened.",
     contactPreference: "WhatsApp preferred",
     owner: {
-      name: "Aina Rahman",
+      name: "Luna's owner",
       phone: "+60123456789",
       whatsapp: "60123456789",
       emergencyContact: "+60199887766",
