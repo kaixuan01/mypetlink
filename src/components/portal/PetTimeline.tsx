@@ -14,7 +14,7 @@ type PetTimelineProps = {
 
 export function PetTimeline({ pet, initialMoments }: PetTimelineProps) {
   const [moments, setMoments] = useState(initialMoments);
-  const timelineMoments = moments.filter((moment) => moment.showOnTimeline);
+  const timelineMoments = moments.filter((moment) => moment.showInLifeTimeline);
 
   useEffect(() => {
     let active = true;
@@ -35,7 +35,7 @@ export function PetTimeline({ pet, initialMoments }: PetTimelineProps) {
       <EmptyState
         icon="heart"
         title="No timeline yet"
-        description="Add pet moments and choose which ones should appear in this life timeline."
+        description="Add pet moments and choose which milestones should appear in this life timeline."
         actionHref={`/pets/${pet.id}/moments/new`}
         actionLabel="Add Moment"
       />
@@ -50,8 +50,8 @@ export function PetTimeline({ pet, initialMoments }: PetTimelineProps) {
             {pet.name}&apos;s life timeline
           </h2>
           <p className="mt-1 text-sm leading-6 text-pet-muted">
-            Moments appear here when you select Show this moment in Life
-            Timeline from the moments manager.
+            Moments appear here when you select Show in Life Timeline from the
+            moments manager.
           </p>
         </div>
         <CTAButton href={`/pets/${pet.id}/moments/new`} icon="plus">

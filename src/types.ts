@@ -13,6 +13,13 @@ export type QrStatus = "active" | "draft" | "paused";
 
 export type PetSpecies = "Dog" | "Cat" | "Rabbit" | "Bird" | "Other";
 
+export type PetProfileThemeId =
+  | "default"
+  | "mint"
+  | "peach"
+  | "sky"
+  | "lavender";
+
 export type Pet = {
   id: string;
   slug: string;
@@ -30,6 +37,7 @@ export type Pet = {
   profilePhotoLabel: string;
   coverPhotoLabel: string;
   coverTone: "apricot" | "mint" | "sky";
+  profileTheme: PetProfileThemeId;
   qrStatus: QrStatus;
   finderProfileUrl: string;
   publicProfileUrl: string;
@@ -81,6 +89,7 @@ export type PublicPetProfile = Pick<
   | "profilePhotoLabel"
   | "coverPhotoLabel"
   | "coverTone"
+  | "profileTheme"
   | "finderProfileUrl"
   | "publicProfileUrl"
   | "bio"
@@ -166,7 +175,8 @@ export type PetMoment = {
   mediaKind: "Image" | "Video" | "None";
   mediaLabel: string;
   visibility: MomentVisibility;
-  showOnTimeline: boolean;
+  showOnPublicProfile: boolean;
+  showInLifeTimeline: boolean;
 };
 
 export type TagType = "MyPetLink QR Pet Tag" | "MyPetLink QR + NFC Smart Tag";
@@ -251,7 +261,8 @@ export type PetMomentPayload = Partial<
     | "mediaKind"
     | "mediaLabel"
     | "visibility"
-    | "showOnTimeline"
+    | "showOnPublicProfile"
+    | "showInLifeTimeline"
   >
 >;
 

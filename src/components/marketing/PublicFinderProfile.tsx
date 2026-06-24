@@ -4,6 +4,7 @@ import { useState } from "react";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon } from "@/components/ui/Icon";
 import { PetAvatar } from "@/components/ui/PetAvatar";
+import { getPetProfileTheme } from "@/lib/petProfileThemes";
 import type { Pet, PublicPetProfile } from "@/types";
 
 type PublicFinderProfileProps = {
@@ -13,6 +14,7 @@ type PublicFinderProfileProps = {
 export function PublicFinderProfile({ pet }: PublicFinderProfileProps) {
   const [locationStatus, setLocationStatus] = useState("");
   const visibility = mergeVisibility(pet.visibility);
+  const theme = getPetProfileTheme(pet.profileTheme);
   const ownerDisplayName = visibility.showOwnerName
     ? getPublicOwnerName(pet.owner.name, pet.name)
     : `${pet.name}'s owner`;
@@ -67,10 +69,21 @@ export function PublicFinderProfile({ pet }: PublicFinderProfileProps) {
   }
 
   return (
-    <article className="brand-card mx-auto max-w-xl rounded-[2rem] p-5 sm:p-6">
-      <div className="brand-blue-section rounded-[1.75rem] p-6 text-center">
+    <article
+      className="brand-card mx-auto max-w-xl rounded-[2rem] p-5 sm:p-6"
+      style={{ borderColor: theme.colors.border }}
+    >
+      <div
+        className="brand-blue-section rounded-[1.75rem] p-6 text-center"
+        style={{
+          background: `linear-gradient(135deg, ${theme.colors.primarySoft}, #ffffff)`,
+        }}
+      >
         <PetAvatar pet={pet} size="xl" />
-        <p className="mt-5 text-sm font-bold uppercase text-pet-teal">
+        <p
+          className="mt-5 text-sm font-bold uppercase text-pet-teal"
+          style={{ color: theme.colors.primary }}
+        >
           MyPetLink safety page
         </p>
         <h1 className="mt-2 text-4xl font-black text-pet-ink">
@@ -127,9 +140,16 @@ export function PublicFinderProfile({ pet }: PublicFinderProfileProps) {
       </div>
 
       <div className="mt-5 grid gap-3">
-        <div className="rounded-[1.25rem] bg-pet-apricot p-4">
+        <div
+          className="rounded-[1.25rem] bg-pet-apricot p-4"
+          style={{ background: theme.colors.accentSoft }}
+        >
           <div className="flex items-center gap-2 text-sm font-black text-pet-ink">
-            <Icon name="shield" className="h-4 w-4 text-pet-coral" />
+            <Icon
+              name="shield"
+              className="h-4 w-4 text-pet-coral"
+              style={{ color: theme.colors.accent }}
+            />
             Safety note
           </div>
           <p className="mt-2 text-sm leading-6 text-pet-muted">
@@ -137,9 +157,16 @@ export function PublicFinderProfile({ pet }: PublicFinderProfileProps) {
           </p>
         </div>
         {visibility.showEmergencyNote ? (
-          <div className="rounded-[1.25rem] bg-pet-cream p-4">
+          <div
+            className="rounded-[1.25rem] bg-pet-cream p-4"
+            style={{ background: theme.colors.surfaceAlt }}
+          >
             <div className="flex items-center gap-2 text-sm font-black text-pet-ink">
-              <Icon name="record" className="h-4 w-4 text-pet-coral" />
+              <Icon
+                name="record"
+                className="h-4 w-4 text-pet-coral"
+                style={{ color: theme.colors.accent }}
+              />
               Emergency note
             </div>
             <p className="mt-2 text-sm leading-6 text-pet-muted">
@@ -148,15 +175,25 @@ export function PublicFinderProfile({ pet }: PublicFinderProfileProps) {
           </div>
         ) : null}
         {visibility.showGeneralArea ? (
-          <div className="rounded-[1.25rem] bg-[#e8f3ff] p-4">
+          <div
+            className="rounded-[1.25rem] bg-[#e8f3ff] p-4"
+            style={{ background: theme.colors.primarySoft }}
+          >
             <div className="flex items-center gap-2 text-sm font-black text-pet-ink">
-              <Icon name="pin" className="h-4 w-4 text-pet-teal" />
+              <Icon
+                name="pin"
+                className="h-4 w-4 text-pet-teal"
+                style={{ color: theme.colors.primary }}
+              />
               General area
             </div>
             <p className="mt-2 text-sm text-pet-muted">{pet.generalArea}</p>
           </div>
         ) : null}
-        <div className="rounded-[1.25rem] bg-white p-4">
+        <div
+          className="rounded-[1.25rem] bg-white p-4"
+          style={{ borderColor: theme.colors.border }}
+        >
           <div className="flex items-center gap-2 text-sm font-black text-pet-ink">
             <Icon name="phone" className="h-4 w-4 text-pet-teal" />
             Contact preference

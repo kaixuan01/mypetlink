@@ -13,6 +13,7 @@ import { CTAButton } from "@/components/ui/CTAButton";
 import { FormSection } from "@/components/ui/FormSection";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { staticPetIdParams } from "@/data/staticRouteParams";
+import { getPetProfileTheme } from "@/lib/petProfileThemes";
 import { getPetById } from "@/services/petService";
 import { getPetTags } from "@/services/tagService";
 
@@ -41,6 +42,7 @@ export default async function QRPage({ params }: QRPageProps) {
   const tags = await getPetTags(pet.data.id);
   const activeTags = tags.data.filter((tag) => tag.status === "Active");
   const pendingTags = tags.data.filter((tag) => tag.status === "Pending");
+  const publicProfileTheme = getPetProfileTheme(pet.data.profileTheme);
 
   return (
     <AppLayout>
@@ -112,6 +114,10 @@ export default async function QRPage({ params }: QRPageProps) {
             <h2 className="text-lg font-black text-pet-ink">Tag status</h2>
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
               <StatusBox label="QR status" value={getQrStatusLabel(pet.data.qrStatus)} />
+              <StatusBox
+                label="Public profile theme"
+                value={publicProfileTheme.name}
+              />
               <StatusBox label="Active tags" value={activeTags.length} />
               <StatusBox label="Pending tags" value={pendingTags.length} />
             </div>

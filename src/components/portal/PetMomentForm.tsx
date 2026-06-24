@@ -41,7 +41,8 @@ type FormState = {
   caption: string;
   mediaKind: PetMomentPayload["mediaKind"];
   visibility: MomentVisibility;
-  showOnTimeline: boolean;
+  showOnPublicProfile: boolean;
+  showInLifeTimeline: boolean;
 };
 
 type FormErrors = Partial<Record<keyof FormState, string>>;
@@ -53,7 +54,8 @@ const emptyForm: FormState = {
   caption: "",
   mediaKind: "Image",
   visibility: "Public",
-  showOnTimeline: true,
+  showOnPublicProfile: true,
+  showInLifeTimeline: false,
 };
 
 export function PetMomentForm({ pet }: { pet: Pet }) {
@@ -109,7 +111,8 @@ export function PetMomentForm({ pet }: { pet: Pet }) {
             ? "Photo moment"
             : "Memory note",
       visibility: form.visibility,
-      showOnTimeline: form.showOnTimeline,
+      showOnPublicProfile: form.showOnPublicProfile,
+      showInLifeTimeline: form.showInLifeTimeline,
     });
 
     setCreatedMoment(response.data);
@@ -220,23 +223,34 @@ export function PetMomentForm({ pet }: { pet: Pet }) {
           </div>
         </fieldset>
 
-        <label className="flex items-start justify-between gap-4 rounded-[1.25rem] bg-pet-cream p-4 text-sm font-bold text-pet-ink">
-          <span>
-            <span className="block">Show this moment in Life Timeline</span>
-            <span className="mt-1 block text-xs font-semibold leading-5 text-pet-muted">
-              Only public moments with this checked appear on the public pet
-              profile.
-            </span>
-          </span>
-          <input
-            checked={form.showOnTimeline}
-            className="mt-1 h-4 w-4 shrink-0 accent-pet-teal"
-            onChange={(event) =>
-              updateField("showOnTimeline", event.target.checked)
-            }
-            type="checkbox"
+        <div className="grid gap-3 md:grid-cols-2">
+          <MomentCheckbox
+            checked={form.showOnPublicProfile}
+            description="Public memories appear in the Pet Memories gallery."
+            label="Show on Public Profile"
+            onChange={(value) => updateField("showOnPublicProfile", value)}
           />
-        </label>
+          <MomentCheckbox
+            checked={form.showInLifeTimeline}
+            description="Use this for milestones and special dates."
+            label="Show in Life Timeline"
+            onChange={(value) => updateField("showInLifeTimeline", value)}
+          />
+        </div>
+
+        <div className="rounded-[1.25rem] border border-pet-border bg-white p-4 text-sm leading-6 text-pet-muted">
+          {form.visibility === "Public" ? (
+            <>
+              This moment will appear where you select it: Pet Memories,
+              Life Timeline, or both.
+            </>
+          ) : (
+            <>
+              Private and family-only memories stay inside the owner workspace
+              until family access is available.
+            </>
+          )}
+        </div>
 
         <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
           <Link
@@ -307,6 +321,35 @@ function Field({
       {error ? (
         <span className="text-xs font-bold text-[#a63c2e]">{error}</span>
       ) : null}
+    </label>
+  );
+}
+
+function MomentCheckbox({
+  checked,
+  description,
+  label,
+  onChange,
+}: {
+  checked: boolean;
+  description: string;
+  label: string;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <label className="flex items-start justify-between gap-4 rounded-[1.25rem] bg-pet-cream p-4 text-sm font-bold text-pet-ink">
+      <span>
+        <span className="block">{label}</span>
+        <span className="mt-1 block text-xs font-semibold leading-5 text-pet-muted">
+          {description}
+        </span>
+      </span>
+      <input
+        checked={checked}
+        className="mt-1 h-4 w-4 shrink-0 accent-pet-teal"
+        onChange={(event) => onChange(event.target.checked)}
+        type="checkbox"
+      />
     </label>
   );
 }

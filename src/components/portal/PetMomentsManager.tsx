@@ -50,7 +50,8 @@ type FormState = {
   caption: string;
   mediaKind: PetMoment["mediaKind"];
   visibility: MomentVisibility;
-  showOnTimeline: boolean;
+  showOnPublicProfile: boolean;
+  showInLifeTimeline: boolean;
 };
 
 type FormErrors = Partial<Record<keyof FormState, string>>;
@@ -62,7 +63,8 @@ const emptyForm: FormState = {
   caption: "",
   mediaKind: "Image",
   visibility: "Public",
-  showOnTimeline: true,
+  showOnPublicProfile: true,
+  showInLifeTimeline: false,
 };
 
 export function PetMomentsManager({
@@ -77,12 +79,16 @@ export function PetMomentsManager({
   const [success, setSuccess] = useState("");
   const counts = useMemo(
     () => ({
-      public: moments.filter((moment) => moment.visibility === "Public").length,
+      publicProfile: moments.filter(
+        (moment) =>
+          moment.visibility === "Public" && moment.showOnPublicProfile
+      ).length,
       private: moments.filter((moment) => moment.visibility === "Private").length,
       family: moments.filter((moment) => moment.visibility === "Family Only")
         .length,
       timeline: moments.filter(
-        (moment) => moment.visibility === "Public" && moment.showOnTimeline
+        (moment) =>
+          moment.visibility === "Public" && moment.showInLifeTimeline
       ).length,
     }),
     [moments]
@@ -117,7 +123,8 @@ export function PetMomentsManager({
       caption: moment.caption,
       mediaKind: moment.mediaKind,
       visibility: moment.visibility,
-      showOnTimeline: moment.showOnTimeline,
+      showOnPublicProfile: moment.showOnPublicProfile,
+      showInLifeTimeline: moment.showInLifeTimeline,
     });
     setErrors({});
     setSuccess("");
@@ -166,7 +173,8 @@ export function PetMomentsManager({
             ? "Photo moment"
             : "Memory note",
       visibility: form.visibility,
-      showOnTimeline: form.showOnTimeline,
+      showOnPublicProfile: form.showOnPublicProfile,
+      showInLifeTimeline: form.showInLifeTimeline,
     });
 
     const savedMoment = response.data;
@@ -214,9 +222,11 @@ export function PetMomentsManager({
           </p>
         </div>
         <div className="brand-card rounded-[1.5rem] p-5">
-          <p className="text-sm font-bold text-pet-muted">Public moments</p>
+          <p className="text-sm font-bold text-pet-muted">
+            Public memories
+          </p>
           <p className="mt-2 text-3xl font-black text-pet-ink">
-            {counts.public}
+            {counts.publicProfile}
           </p>
         </div>
         <div className="brand-card rounded-[1.5rem] p-5">
@@ -240,9 +250,8 @@ export function PetMomentsManager({
               Moments and Life Timeline
             </h2>
             <p className="mt-1 text-sm leading-6 text-pet-muted">
-              Life Timeline is managed from pet moments. Only public moments
-              with the Life Timeline checkbox selected appear on the public
-              profile.
+              Pet Memories are the public gallery. Life Timeline is built from
+              public moments you mark as milestones.
             </p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">
@@ -312,8 +321,8 @@ export function PetMomentsManager({
                   Update this memory
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-pet-muted">
-                  Control what appears publicly and whether this moment belongs
-                  in the Life Timeline.
+                  Control whether this appears in Pet Memories, Life Timeline,
+                  or stays private in the owner workspace.
                 </p>
               </div>
               <button
@@ -423,25 +432,38 @@ export function PetMomentsManager({
                 </div>
               </fieldset>
 
-              <label className="flex items-start justify-between gap-4 rounded-[1.25rem] bg-pet-cream p-4 text-sm font-bold text-pet-ink">
-                <span>
-                  <span className="block">
-                    Show this moment in Life Timeline
-                  </span>
-                  <span className="mt-1 block text-xs font-semibold leading-5 text-pet-muted">
-                    Only public moments with this checked appear on the public
-                    pet profile.
-                  </span>
-                </span>
-                <input
-                  checked={form.showOnTimeline}
-                  className="mt-1 h-4 w-4 shrink-0 accent-pet-teal"
-                  onChange={(event) =>
-                    updateField("showOnTimeline", event.target.checked)
+              <div className="grid gap-3 md:grid-cols-2">
+                <MomentCheckbox
+                  checked={form.showOnPublicProfile}
+                  description="Public memories appear in the Pet Memories gallery."
+                  label="Show on Public Profile"
+                  onChange={(value) =>
+                    updateField("showOnPublicProfile", value)
                   }
-                  type="checkbox"
                 />
-              </label>
+                <MomentCheckbox
+                  checked={form.showInLifeTimeline}
+                  description="Use this for milestones and special dates."
+                  label="Show in Life Timeline"
+                  onChange={(value) =>
+                    updateField("showInLifeTimeline", value)
+                  }
+                />
+              </div>
+
+              <div className="rounded-[1.25rem] border border-pet-border bg-white p-4 text-sm leading-6 text-pet-muted">
+                {form.visibility === "Public" ? (
+                  <>
+                    Preview: this moment will appear where you selected it:
+                    Pet Memories, Life Timeline, or both.
+                  </>
+                ) : (
+                  <>
+                    Private and family-only memories stay inside the owner
+                    workspace until family access is available.
+                  </>
+                )}
+              </div>
 
               <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
                 <button
@@ -483,6 +505,35 @@ function Field({
       {error ? (
         <span className="text-xs font-bold text-[#a63c2e]">{error}</span>
       ) : null}
+    </label>
+  );
+}
+
+function MomentCheckbox({
+  checked,
+  description,
+  label,
+  onChange,
+}: {
+  checked: boolean;
+  description: string;
+  label: string;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <label className="flex items-start justify-between gap-4 rounded-[1.25rem] bg-pet-cream p-4 text-sm font-bold text-pet-ink">
+      <span>
+        <span className="block">{label}</span>
+        <span className="mt-1 block text-xs font-semibold leading-5 text-pet-muted">
+          {description}
+        </span>
+      </span>
+      <input
+        checked={checked}
+        className="mt-1 h-4 w-4 shrink-0 accent-pet-teal"
+        onChange={(event) => onChange(event.target.checked)}
+        type="checkbox"
+      />
     </label>
   );
 }

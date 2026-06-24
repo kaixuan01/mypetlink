@@ -6,7 +6,12 @@ import {
   readStoredCollection,
   writeStoredCollection,
 } from "@/services/mockApi";
-import type { Pet, PetPayload, PublicPetProfile } from "@/types";
+import type {
+  Pet,
+  PetPayload,
+  PetProfileThemeId,
+  PublicPetProfile,
+} from "@/types";
 
 const PET_STORAGE_KEY = "mypetlink_pets";
 
@@ -44,6 +49,22 @@ function cleanMediaLabel(value: string) {
   return value;
 }
 
+function getThemeFromCoverTone(coverTone?: Pet["coverTone"]): PetProfileThemeId {
+  if (coverTone === "mint") {
+    return "mint";
+  }
+
+  if (coverTone === "apricot") {
+    return "peach";
+  }
+
+  if (coverTone === "sky") {
+    return "sky";
+  }
+
+  return "default";
+}
+
 function createTagCode(slug: string) {
   return `${slug.toUpperCase().replace(/-/g, "").slice(0, 8)}-QR`;
 }
@@ -78,6 +99,7 @@ function normalizePet(pet: Pet): Pet {
     profilePhotoLabel: cleanMediaLabel(pet.profilePhotoLabel),
     coverPhotoLabel: cleanMediaLabel(pet.coverPhotoLabel),
     coverTone: pet.coverTone ?? "sky",
+    profileTheme: pet.profileTheme ?? getThemeFromCoverTone(pet.coverTone),
     publicProfileUrl: pet.publicProfileUrl ?? `/p/${pet.slug}`,
     bio:
       pet.bio ??
@@ -129,6 +151,7 @@ function createFallbackPetFromSlug(slug: string): Pet {
     profilePhotoLabel: "",
     coverPhotoLabel: "",
     coverTone: "sky",
+    profileTheme: "default",
     qrStatus: "draft",
     finderProfileUrl: `/t/${tagCode}`,
     publicProfileUrl: `/p/${slug}`,
@@ -199,6 +222,7 @@ export async function getPublicPetProfile(slug: string) {
     profilePhotoLabel: "",
     coverPhotoLabel: "",
     coverTone: pet.coverTone,
+    profileTheme: pet.profileTheme,
     finderProfileUrl: pet.finderProfileUrl,
     publicProfileUrl: pet.publicProfileUrl,
     bio: pet.bio,
@@ -243,6 +267,7 @@ export async function createPet(payload: PetPayload) {
     profilePhotoLabel: payload.profilePhotoLabel ?? "",
     coverPhotoLabel: payload.coverPhotoLabel ?? "",
     coverTone: payload.coverTone ?? "sky",
+    profileTheme: payload.profileTheme ?? "default",
     finderProfileUrl: `/t/${tagCode}`,
     publicProfileUrl: `/p/${slug}`,
     bio:

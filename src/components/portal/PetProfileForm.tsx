@@ -14,12 +14,22 @@ import { CTAButton } from "@/components/ui/CTAButton";
 import { FormSection } from "@/components/ui/FormSection";
 import { PetAvatar } from "@/components/ui/PetAvatar";
 import {
+  getPetProfileTheme,
+  petProfileThemes,
+  type PetProfileTheme,
+} from "@/lib/petProfileThemes";
+import {
   createPet,
   getPetById,
   slugifyPetSlug,
   updatePet,
 } from "@/services/petService";
-import type { Pet, PetPayload, PetSpecies } from "@/types";
+import type {
+  Pet,
+  PetPayload,
+  PetProfileThemeId,
+  PetSpecies,
+} from "@/types";
 
 type PetProfileFormProps = {
   mode: "create" | "edit";
@@ -37,6 +47,7 @@ type FormState = {
   profilePhotoLabel: string;
   coverPhotoLabel: string;
   coverTone: Pet["coverTone"];
+  profileTheme: PetProfileThemeId;
   bio: string;
   personalityTags: string;
   favoriteFood: string;
@@ -83,6 +94,7 @@ const emptyForm: FormState = {
   profilePhotoLabel: "",
   coverPhotoLabel: "",
   coverTone: "sky",
+  profileTheme: "default",
   bio: "",
   personalityTags: "",
   favoriteFood: "",
@@ -117,6 +129,9 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
   const [savedPet, setSavedPet] = useState<Pet | null>(null);
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitIntent, setSubmitIntent] = useState<"profile" | "theme">(
+    "profile"
+  );
   const [success, setSuccess] = useState("");
 
   useEffect(() => {
@@ -246,7 +261,11 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
           setCurrentPet(response.data);
           setSavedPet(response.data);
           setForm(toFormState(response.data));
-          setSuccess("Changes saved. Your public profile preview is updated.");
+          setSuccess(
+            submitIntent === "theme"
+              ? "Public profile theme updated."
+              : "Changes saved. Your public profile preview is updated."
+          );
           router.refresh();
         }
       }
@@ -306,14 +325,17 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
         species: form.species,
         photoInitial: getInitial(form.name || currentPet.name),
         coverTone: form.coverTone,
+        profileTheme: form.profileTheme,
       }
     : {
         species: form.species,
         photoInitial: getInitial(form.name),
         photoTone: "apricot" as const,
         coverTone: form.coverTone,
+        profileTheme: form.profileTheme,
       };
   const profilePath = `/${["p", slugifyPetSlug(form.slug) || "pet-profile"].join("/")}`;
+  const selectedTheme = getPetProfileTheme(form.profileTheme);
   const saveLabel = mode === "create" ? "Save Pet" : "Save Changes";
 
   return (
@@ -558,6 +580,52 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
             />
           </Field>
         </div>
+
+        <div className="mt-6 grid gap-4">
+          <div>
+            <h3 className="text-base font-black text-pet-ink">
+              Profile Theme
+            </h3>
+            <p className="mt-1 text-sm leading-6 text-pet-muted">
+              This theme will be applied to {form.name || "your pet"}&apos;s
+              public share profile. The QR safety page will only use a small
+              accent so finders can contact you quickly.
+            </p>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            {petProfileThemes.map((theme) => (
+              <ThemeOptionCard
+                key={theme.id}
+                name={form.name || "Milo"}
+                onSelect={() => updateField("profileTheme", theme.id)}
+                selected={form.profileTheme === theme.id}
+                theme={theme}
+              />
+            ))}
+          </div>
+
+          <ThemePreviewPanel
+            petName={form.name || "Your pet"}
+            theme={selectedTheme}
+          />
+
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <CTAButton
+              disabled={isSubmitting}
+              onClick={() => setSubmitIntent("theme")}
+              type="submit"
+              variant="coral"
+            >
+              {isSubmitting && submitIntent === "theme"
+                ? "Saving..."
+                : "Save Theme"}
+            </CTAButton>
+            <CTAButton href={profilePath} icon="heart" variant="secondary">
+              Preview Public Profile
+            </CTAButton>
+          </div>
+        </div>
       </FormSection>
 
       <FormSection
@@ -779,7 +847,12 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
           <CTAButton href={profilePath} icon="heart" variant="secondary">
             View Public Profile
           </CTAButton>
-          <CTAButton disabled={isSubmitting} type="submit" variant="coral">
+          <CTAButton
+            disabled={isSubmitting}
+            onClick={() => setSubmitIntent("profile")}
+            type="submit"
+            variant="coral"
+          >
             {isSubmitting ? "Saving..." : saveLabel}
           </CTAButton>
         </div>
@@ -813,6 +886,7 @@ function toFormState(pet?: Pet): FormState {
     profilePhotoLabel: cleanMediaLabel(pet.profilePhotoLabel),
     coverPhotoLabel: cleanMediaLabel(pet.coverPhotoLabel),
     coverTone: pet.coverTone ?? "sky",
+    profileTheme: pet.profileTheme ?? "default",
     bio: pet.bio,
     personalityTags: pet.personalityTags.join(", "),
     favoriteFood: pet.favoriteFood === "Not set" ? "" : pet.favoriteFood,
@@ -865,6 +939,7 @@ function buildPayload(form: FormState): PetPayload {
     profilePhotoLabel: form.profilePhotoLabel.trim(),
     coverPhotoLabel: form.coverPhotoLabel.trim(),
     coverTone: form.coverTone,
+    profileTheme: form.profileTheme,
     bio:
       form.bio.trim() ||
       `${name} is loved dearly and has a safe profile for family and friends.`,
@@ -971,6 +1046,222 @@ function Checkbox({
         type="checkbox"
       />
     </label>
+  );
+}
+
+function ThemeOptionCard({
+  name,
+  onSelect,
+  selected,
+  theme,
+}: {
+  name: string;
+  onSelect: () => void;
+  selected: boolean;
+  theme: PetProfileTheme;
+}) {
+  return (
+    <button
+      aria-pressed={selected}
+      className={`min-h-[220px] rounded-[1.25rem] border p-4 text-left transition ${
+        selected
+          ? "border-pet-coral bg-white shadow-lg shadow-[#0d1b3d]/10"
+          : "border-pet-border bg-white hover:-translate-y-0.5 hover:shadow-md"
+      }`}
+      onClick={onSelect}
+      type="button"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-black text-pet-ink">{theme.name}</p>
+        {selected ? (
+          <span className="rounded-full bg-[#e8f8f0] px-2 py-1 text-[10px] font-black uppercase text-pet-sage">
+            Selected
+          </span>
+        ) : null}
+      </div>
+      <p className="mt-2 min-h-10 text-xs leading-5 text-pet-muted">
+        {theme.description}
+      </p>
+      <div className="mt-3 flex gap-1.5">
+        {theme.swatches.map((swatch) => (
+          <span
+            aria-hidden="true"
+            className="h-5 w-5 rounded-full border border-white shadow-sm"
+            key={swatch}
+            style={{ background: swatch }}
+          />
+        ))}
+      </div>
+      <div
+        className="mt-4 overflow-hidden rounded-2xl border"
+        style={{
+          background: theme.gradients.cover,
+          borderColor: theme.colors.border,
+        }}
+      >
+        <div className="p-3">
+          <div
+            className="h-8 rounded-xl"
+            style={{ background: theme.gradients.decorative }}
+          />
+          <div className="-mt-3 grid place-items-center">
+            <span
+              className="grid h-9 w-9 place-items-center rounded-xl border-2 text-xs font-black"
+              style={{
+                background: theme.colors.accentSoft,
+                borderColor: theme.colors.surface,
+                color: theme.colors.accent,
+              }}
+            >
+              {getInitial(name)}
+            </span>
+          </div>
+          <div className="mt-2 text-center">
+            <p
+              className="truncate text-xs font-black"
+              style={{ color: theme.colors.text }}
+            >
+              {name}
+            </p>
+            <span
+              className="mt-2 inline-flex rounded-full px-2 py-1 text-[10px] font-black"
+              style={{
+                background: theme.colors.badgeBackground,
+                color: theme.colors.primary,
+              }}
+            >
+              Gentle
+            </span>
+          </div>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function ThemePreviewPanel({
+  petName,
+  theme,
+}: {
+  petName: string;
+  theme: PetProfileTheme;
+}) {
+  return (
+    <div
+      className="overflow-hidden rounded-[1.5rem] border"
+      style={{
+        background: theme.colors.surface,
+        borderColor: theme.colors.border,
+      }}
+    >
+      <div
+        className="grid gap-5 p-5 lg:grid-cols-[0.9fr_1.1fr]"
+        style={{ background: theme.gradients.page }}
+      >
+        <div>
+          <p
+            className="text-sm font-black text-pet-ink"
+            style={{ color: theme.colors.text }}
+          >
+            Preview how {petName}&apos;s public profile will look
+          </p>
+          <p
+            className="mt-2 text-sm leading-6 text-pet-muted"
+            style={{ color: theme.colors.mutedText }}
+          >
+            {theme.description}
+          </p>
+          <button
+            className="mt-4 inline-flex min-h-10 items-center rounded-full px-4 py-2 text-sm font-black"
+            style={{
+              background: theme.colors.buttonBackground,
+              color: theme.colors.buttonText,
+            }}
+            type="button"
+          >
+            View profile
+          </button>
+        </div>
+
+        <div
+          className="rounded-[1.25rem] border p-3"
+          style={{
+            background: theme.colors.surface,
+            borderColor: theme.colors.border,
+          }}
+        >
+          <div
+            className="relative h-24 rounded-2xl"
+            style={{ background: theme.gradients.cover }}
+          >
+            <span
+              className="absolute bottom-3 left-3 h-3 w-3 rounded-full"
+              style={{ background: theme.colors.timelineDot }}
+            />
+            <span
+              className="absolute right-3 top-3 rounded-full px-3 py-1 text-xs font-black"
+              style={{
+                background: theme.colors.badgeBackground,
+                color: theme.colors.primary,
+              }}
+            >
+              Gentle
+            </span>
+          </div>
+          <div className="grid gap-3 pt-4 sm:grid-cols-[88px_1fr]">
+            <div
+              className="grid h-20 w-20 place-items-center rounded-[1.25rem] text-xl font-black"
+              style={{
+                background: theme.colors.accentSoft,
+                color: theme.colors.accent,
+              }}
+            >
+              {getInitial(petName)}
+            </div>
+            <div>
+              <p
+                className="text-lg font-black"
+                style={{ color: theme.colors.text }}
+              >
+                {petName}
+              </p>
+              <div className="mt-3 flex items-center gap-3">
+                <span
+                  className="h-10 w-2 rounded-full"
+                  style={{ background: theme.colors.timelineLine }}
+                />
+                <div
+                  className="rounded-2xl p-3 text-sm"
+                  style={{
+                    background: theme.colors.surfaceAlt,
+                    color: theme.colors.mutedText,
+                  }}
+                >
+                  First day home
+                </div>
+              </div>
+            </div>
+          </div>
+          <div
+            className="mt-3 rounded-2xl p-4"
+            style={{ background: theme.colors.surfaceAlt }}
+          >
+            <p
+              className="text-xs font-black uppercase"
+              style={{ color: theme.colors.accent }}
+            >
+              Pet Memory
+            </p>
+            <p
+              className="mt-1 text-sm font-black"
+              style={{ color: theme.colors.text }}
+            >
+              Park walk after breakfast
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 

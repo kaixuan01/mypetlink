@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { Icon } from "@/components/ui/Icon";
+import type { PetProfileTheme } from "@/lib/petProfileThemes";
 
 type ShareProfileLinkProps = {
   path: string;
@@ -9,6 +10,7 @@ type ShareProfileLinkProps = {
   className?: string;
   label?: string;
   showShareButton?: boolean;
+  theme?: PetProfileTheme;
 };
 
 export function ShareProfileLink({
@@ -17,6 +19,7 @@ export function ShareProfileLink({
   className = "",
   label = "Share profile link",
   showShareButton = false,
+  theme,
 }: ShareProfileLinkProps) {
   const origin = useSyncExternalStore(
     subscribeToOrigin,
@@ -91,13 +94,35 @@ export function ShareProfileLink({
       ]
         .filter(Boolean)
         .join(" ")}
+      style={
+        theme
+          ? {
+              background: theme.colors.surface,
+              borderColor: theme.colors.border,
+            }
+          : undefined
+      }
     >
       <div className="grid gap-3">
-        <p className="text-xs font-bold uppercase text-pet-muted">{label}</p>
+        <p
+          className="text-xs font-bold uppercase text-pet-muted"
+          style={theme ? { color: theme.colors.mutedText } : undefined}
+        >
+          {label}
+        </p>
         <div
           aria-label={label}
           aria-readonly="true"
           className="select-all break-all rounded-[1.25rem] border border-pet-border bg-pet-cream px-4 py-3 text-sm font-bold leading-6 text-pet-ink shadow-inner shadow-[#0d1b3d]/5 sm:text-base"
+          style={
+            theme
+              ? {
+                  background: theme.colors.surfaceAlt,
+                  borderColor: theme.colors.border,
+                  color: theme.colors.text,
+                }
+              : undefined
+          }
           role="textbox"
           tabIndex={0}
         >
@@ -106,6 +131,15 @@ export function ShareProfileLink({
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
           <button
             className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-pet-teal bg-pet-teal px-5 py-3 text-sm font-extrabold text-white shadow-lg shadow-[#1570ef]/20 transition hover:bg-[#0f5fd0] sm:w-auto"
+            style={
+              theme
+                ? {
+                    background: theme.colors.buttonBackground,
+                    borderColor: theme.colors.buttonBackground,
+                    color: theme.colors.buttonText,
+                  }
+                : undefined
+            }
             onClick={copyLink}
             type="button"
           >
@@ -115,6 +149,15 @@ export function ShareProfileLink({
           {showShareButton ? (
             <button
               className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-pet-coral bg-pet-coral px-5 py-3 text-sm font-extrabold text-white shadow-lg shadow-[#ff7a6e]/20 transition hover:bg-[#f26155] sm:w-auto"
+              style={
+                theme
+                  ? {
+                      background: theme.colors.accent,
+                      borderColor: theme.colors.accent,
+                      color: theme.colors.buttonText,
+                    }
+                  : undefined
+              }
               onClick={shareProfile}
               type="button"
             >
@@ -128,6 +171,14 @@ export function ShareProfileLink({
         <p
           aria-live="polite"
           className="mt-3 rounded-2xl bg-[#e8f8f0] px-4 py-3 text-sm font-bold text-pet-sage"
+          style={
+            theme
+              ? {
+                  background: theme.colors.badgeBackground,
+                  color: theme.colors.primary,
+                }
+              : undefined
+          }
           role="status"
         >
           {visibleStatus}

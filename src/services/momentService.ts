@@ -9,6 +9,10 @@ import type { PetMoment, PetMomentPayload } from "@/types";
 
 const MOMENT_STORAGE_KEY = "mypetlink_moments";
 
+type LegacyPetMoment = PetMoment & {
+  showOnTimeline?: boolean;
+};
+
 function getMomentCollection() {
   return readStoredCollection(MOMENT_STORAGE_KEY, mockMoments).map(
     normalizeMoment
@@ -16,10 +20,15 @@ function getMomentCollection() {
 }
 
 function normalizeMoment(moment: PetMoment): PetMoment {
+  const legacyMoment = moment as LegacyPetMoment;
+  const isPublic = moment.visibility === "Public";
+
   return {
     ...moment,
-    showOnTimeline:
-      moment.showOnTimeline ?? moment.visibility === "Public",
+    showOnPublicProfile:
+      legacyMoment.showOnPublicProfile ?? isPublic,
+    showInLifeTimeline:
+      legacyMoment.showInLifeTimeline ?? legacyMoment.showOnTimeline ?? false,
   };
 }
 
@@ -63,7 +72,9 @@ export async function createPetMoment(
     mediaKind: payload.mediaKind ?? "None",
     mediaLabel: payload.mediaLabel?.trim() || "Pet moment",
     visibility: payload.visibility ?? "Private",
-    showOnTimeline: payload.showOnTimeline ?? false,
+    showOnPublicProfile:
+      payload.showOnPublicProfile ?? payload.visibility === "Public",
+    showInLifeTimeline: payload.showInLifeTimeline ?? false,
   };
 
   writeStoredCollection(MOMENT_STORAGE_KEY, [moment, ...moments]);
