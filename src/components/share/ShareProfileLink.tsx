@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { Icon } from "@/components/ui/Icon";
 
 type ShareProfileLinkProps = {
@@ -23,7 +23,10 @@ export function ShareProfileLink({
     getBrowserOrigin,
     getDefaultOrigin
   );
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState<{
+    message: string;
+    url: string;
+  } | null>(null);
 
   const fullUrl = useMemo(() => {
     if (path.startsWith("http")) {
@@ -32,27 +35,44 @@ export function ShareProfileLink({
 
     return `${origin}${path.startsWith("/") ? path : `/${path}`}`;
   }, [origin, path]);
+  const visibleStatus = status?.url === fullUrl ? status.message : "";
+
+  useEffect(() => {
+    if (!visibleStatus) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => setStatus(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [visibleStatus]);
 
   async function copyLink() {
+    setStatus(null);
+
     try {
       await navigator.clipboard.writeText(fullUrl);
-      setStatus("Profile link copied.");
+      setStatus({ message: "Profile link copied.", url: fullUrl });
       return true;
     } catch {
-      setStatus("Copy is not available here. Select the link and copy it manually.");
+      setStatus({
+        message: "Unable to copy automatically. Please copy the link manually.",
+        url: fullUrl,
+      });
       return false;
     }
   }
 
   async function shareProfile() {
+    setStatus(null);
+
     if (navigator.share) {
       try {
         await navigator.share({
           title: `${petName}'s MyPetLink Profile`,
-          text: `Meet ${petName} on MyPetLink.`,
+          text: `View ${petName}'s pet profile on MyPetLink.`,
           url: fullUrl,
         });
-        setStatus("Profile link shared.");
+        setStatus({ message: "Profile shared.", url: fullUrl });
         return;
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") {
@@ -67,25 +87,26 @@ export function ShareProfileLink({
   return (
     <section
       className={[
-        "rounded-[1.5rem] border border-pet-border bg-white/90 p-4 shadow-sm",
+        "rounded-[1.75rem] border border-pet-border bg-white/95 p-5 shadow-lg shadow-[#0d1b3d]/5",
         className,
       ]
         .filter(Boolean)
         .join(" ")}
     >
-      <label className="grid gap-2">
-        <span className="text-xs font-bold uppercase text-pet-muted">
-          {label}
-        </span>
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <input
-            className="brand-input min-w-0 flex-1 bg-white"
-            readOnly
-            type="text"
-            value={fullUrl}
-          />
+      <div className="grid gap-3">
+        <p className="text-xs font-bold uppercase text-pet-muted">{label}</p>
+        <div
+          aria-label={label}
+          aria-readonly="true"
+          className="select-all break-all rounded-[1.25rem] border border-pet-border bg-pet-cream px-4 py-3 text-sm font-bold leading-6 text-pet-ink shadow-inner shadow-[#0d1b3d]/5 sm:text-base"
+          role="textbox"
+          tabIndex={0}
+        >
+          {fullUrl}
+        </div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
           <button
-            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-pet-teal bg-pet-teal px-5 py-3 text-sm font-extrabold text-white shadow-lg shadow-[#1570ef]/20 transition hover:bg-[#0f5fd0]"
+            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-pet-teal bg-pet-teal px-5 py-3 text-sm font-extrabold text-white shadow-lg shadow-[#1570ef]/20 transition hover:bg-[#0f5fd0] sm:w-auto"
             onClick={copyLink}
             type="button"
           >
@@ -94,7 +115,7 @@ export function ShareProfileLink({
           </button>
           {showShareButton ? (
             <button
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-pet-coral bg-pet-coral px-5 py-3 text-sm font-extrabold text-white shadow-lg shadow-[#ff7a6e]/20 transition hover:bg-[#f26155]"
+              className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-pet-coral bg-pet-coral px-5 py-3 text-sm font-extrabold text-white shadow-lg shadow-[#ff7a6e]/20 transition hover:bg-[#f26155] sm:w-auto"
               onClick={shareProfile}
               type="button"
             >
@@ -103,9 +124,15 @@ export function ShareProfileLink({
             </button>
           ) : null}
         </div>
-      </label>
-      {status ? (
-        <p className="mt-3 text-sm font-bold text-pet-sage">{status}</p>
+      </div>
+      {visibleStatus ? (
+        <p
+          aria-live="polite"
+          className="mt-3 rounded-2xl bg-[#e8f8f0] px-4 py-3 text-sm font-bold text-pet-sage"
+          role="status"
+        >
+          {visibleStatus}
+        </p>
       ) : null}
     </section>
   );
@@ -120,5 +147,5 @@ function getBrowserOrigin() {
 }
 
 function getDefaultOrigin() {
-  return "https://mypetlink.com.my";
+  return "https://mypetlink.pages.dev";
 }
