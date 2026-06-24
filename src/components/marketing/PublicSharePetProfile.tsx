@@ -352,74 +352,65 @@ function PublicHeroCard({
   const featuredTags = profile.personalityTags.slice(0, 3);
 
   return (
-    <aside className="brand-card overflow-hidden rounded-[2rem] p-4">
-      <div
-        className={`relative min-h-72 overflow-hidden rounded-[1.75rem] ${coverToneClasses[coverTone]}`}
-      >
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_22%,rgba(255,255,255,0.55),transparent_24%),radial-gradient(circle_at_85%_18%,rgba(255,122,110,0.18),transparent_20%),radial-gradient(circle_at_78%_80%,rgba(21,112,239,0.14),transparent_24%)]" />
-        <div className="absolute left-5 top-5 rounded-full bg-white/88 px-4 py-2 text-xs font-black uppercase text-pet-teal shadow-sm">
-          MyPetLink
+    <aside className="brand-card w-full max-w-[520px] justify-self-center overflow-hidden rounded-[1.75rem] p-3 sm:p-4 lg:justify-self-end">
+      <div className="relative">
+        <div
+          className={`relative h-[150px] overflow-hidden rounded-[1.45rem] sm:h-[180px] ${coverToneClasses[coverTone]}`}
+        >
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_20%,rgba(255,255,255,0.56),transparent_25%),radial-gradient(circle_at_82%_24%,rgba(255,122,110,0.16),transparent_22%)]" />
+          <span
+            aria-hidden="true"
+            className="absolute left-6 top-7 grid h-9 w-9 -rotate-6 place-items-center rounded-2xl bg-white/55 text-pet-coral"
+          >
+            <Icon name="heart" className="h-4 w-4" />
+          </span>
+          <span
+            aria-hidden="true"
+            className="absolute bottom-6 right-8 grid h-10 w-10 rotate-6 place-items-center rounded-2xl bg-white/55 text-pet-teal"
+          >
+            <Icon name="paw" className="h-5 w-5" />
+          </span>
+          <span className="absolute right-4 top-4 inline-flex items-center gap-2 rounded-full bg-white/92 px-3 py-2 text-xs font-black text-pet-coral shadow-sm">
+            <Icon name="heart" className="h-4 w-4" />
+            Loved
+          </span>
         </div>
-        <span
-          aria-hidden="true"
-          className="absolute right-7 top-7 grid h-12 w-12 rotate-6 place-items-center rounded-2xl bg-white/82 text-pet-coral shadow-sm"
-        >
-          <Icon name="heart" className="h-5 w-5" />
-        </span>
-        <span
-          aria-hidden="true"
-          className="absolute bottom-8 left-8 grid h-10 w-10 -rotate-6 place-items-center rounded-2xl bg-white/65 text-pet-teal"
-        >
-          <Icon name="paw" className="h-5 w-5" />
-        </span>
+
+        <div className="absolute -bottom-10 left-1/2 z-10 grid h-20 w-20 -translate-x-1/2 place-items-center rounded-[1.55rem] border-[5px] border-white bg-white text-pet-coral shadow-lg shadow-[#0d1b3d]/12 sm:h-24 sm:w-24 sm:rounded-[1.75rem]">
+          <div
+            className={`absolute inset-2 rounded-[1.15rem] sm:rounded-[1.35rem] ${avatarToneClasses[profile.photoTone]}`}
+          />
+          <div className="relative z-10 grid place-items-center text-center">
+            <Icon name="paw" className="h-6 w-6 sm:h-7 sm:w-7" />
+            <span className="mt-0.5 text-lg font-black leading-none sm:text-xl">
+              {profile.photoInitial}
+            </span>
+          </div>
+        </div>
       </div>
 
-      <div className="px-2 pb-2">
-        <div className="-mt-12 flex flex-col items-center gap-4 sm:flex-row sm:items-end sm:px-2">
-          <div className="relative z-10 grid h-28 w-28 shrink-0 place-items-center rounded-[2rem] border-[6px] border-white bg-white text-pet-coral shadow-xl shadow-[#0d1b3d]/12">
-            <div
-              className={`absolute inset-2 rounded-[1.55rem] ${avatarToneClasses[profile.photoTone]}`}
-            />
-            <div className="relative z-10 grid place-items-center text-center">
-              <Icon name="paw" className="h-8 w-8" />
-              <span className="mt-1 text-xl font-black leading-none">
-                {profile.photoInitial}
-              </span>
-            </div>
-          </div>
+      <div className="px-2 pb-3 pt-14 text-center sm:px-4 sm:pt-16">
+        <h2 className="text-3xl font-black leading-tight text-pet-ink">
+          {profile.name}
+        </h2>
+        <p className="mt-2 text-sm font-bold text-pet-muted">
+          {profile.species} · {profile.breed}
+        </p>
+        <p className="mt-1 text-sm font-bold text-pet-muted">
+          {profile.gender} · {profile.ageLabel}
+        </p>
 
-          <div className="w-full rounded-[1.5rem] bg-white/96 p-5 text-center shadow-sm sm:text-left">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <h2 className="text-3xl font-black leading-tight text-pet-ink">
-                  {profile.name}
-                </h2>
-                <p className="mt-2 text-sm font-bold text-pet-muted">
-                  {profile.species} · {profile.breed}
-                </p>
-                <p className="mt-1 text-sm font-bold text-pet-muted">
-                  {profile.gender} · {profile.ageLabel}
-                </p>
-              </div>
-              <span className="inline-flex items-center justify-center gap-2 rounded-full bg-pet-apricot px-4 py-2 text-xs font-black text-pet-coral">
-                <Icon name="heart" className="h-4 w-4" />
-                Loved pet
-              </span>
-            </div>
+        <div className="mt-4 flex flex-wrap justify-center gap-2">
+          {featuredTags.map((tag) => (
+            <Badge key={tag} tone="mint">
+              {tag}
+            </Badge>
+          ))}
+        </div>
 
-            <div className="mt-4 flex flex-wrap justify-center gap-2 sm:justify-start">
-              {featuredTags.map((tag) => (
-                <Badge key={tag} tone="mint">
-                  {tag}
-                </Badge>
-              ))}
-            </div>
-
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <MiniDetail label="Birthday" value={profile.birthday} />
-              <MiniDetail label="Favourite" value={profile.favoriteToy} />
-            </div>
-          </div>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <MiniDetail label="Birthday" value={profile.birthday} />
+          <MiniDetail label="Favourite" value={profile.favoriteToy} />
         </div>
       </div>
     </aside>
