@@ -46,7 +46,6 @@ type FormState = {
   estimatedAge: string;
   profilePhotoLabel: string;
   coverPhotoLabel: string;
-  coverTone: Pet["coverTone"];
   profileTheme: PetProfileThemeId;
   bio: string;
   personalityTags: string;
@@ -93,7 +92,6 @@ const emptyForm: FormState = {
   estimatedAge: "",
   profilePhotoLabel: "",
   coverPhotoLabel: "",
-  coverTone: "sky",
   profileTheme: "default",
   bio: "",
   personalityTags: "",
@@ -129,9 +127,6 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
   const [savedPet, setSavedPet] = useState<Pet | null>(null);
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitIntent, setSubmitIntent] = useState<"profile" | "theme">(
-    "profile"
-  );
   const [success, setSuccess] = useState("");
 
   useEffect(() => {
@@ -261,11 +256,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
           setCurrentPet(response.data);
           setSavedPet(response.data);
           setForm(toFormState(response.data));
-          setSuccess(
-            submitIntent === "theme"
-              ? "Public profile theme updated."
-              : "Changes saved. Your public profile preview is updated."
-          );
+          setSuccess("Changes saved. Your public profile preview is updated.");
           router.refresh();
         }
       }
@@ -324,14 +315,12 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
         name: form.name || currentPet.name,
         species: form.species,
         photoInitial: getInitial(form.name || currentPet.name),
-        coverTone: form.coverTone,
         profileTheme: form.profileTheme,
       }
     : {
         species: form.species,
         photoInitial: getInitial(form.name),
         photoTone: "apricot" as const,
-        coverTone: form.coverTone,
         profileTheme: form.profileTheme,
       };
   const profilePath = `/${["p", slugifyPetSlug(form.slug) || "pet-profile"].join("/")}`;
@@ -436,7 +425,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
 
       <FormSection
         title="Photos"
-        description="Set the public avatar and cover style for the shareable profile."
+        description="Add the pet photos you want saved with this profile. Profile Theme controls the public page colors."
       >
         <div className="grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
           <div className="brand-soft-card rounded-[1.5rem] p-5">
@@ -470,7 +459,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
 
             <Field
               error={errors.coverPhotoLabel}
-              helper="Choose a warm cover photo for the top of the profile."
+              helper="Choose a warm cover photo when you are ready."
               label="Cover photo"
             >
               <input
@@ -480,35 +469,56 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
                 type="file"
               />
             </Field>
-
-            <Field label="Cover style">
-              <select
-                className="brand-input"
-                onChange={(event) =>
-                  updateField("coverTone", event.target.value as Pet["coverTone"])
-                }
-                value={form.coverTone}
-              >
-                <option value="sky">Sky blue</option>
-                <option value="apricot">Warm peach</option>
-                <option value="mint">Mint green</option>
-              </select>
-            </Field>
-
-            <div className={`${coverToneClasses[form.coverTone]} rounded-[1.25rem] p-4`}>
-              <p className="text-xs font-bold uppercase text-pet-muted">
-                Cover preview
-              </p>
-              <p className="mt-2 text-sm font-black text-pet-ink">
-                {form.coverPhotoLabel ? "Cover ready" : "Choose a cover style or photo"}
-              </p>
-            </div>
           </div>
         </div>
       </FormSection>
 
       <FormSection
-        title="Public Profile"
+        title="Profile Theme"
+        description="Used on your pet's public share profile and QR safety page."
+      >
+        <div className="grid gap-4">
+          <p className="text-sm leading-6 text-pet-muted">
+            Choose the color style used for your pet&apos;s public profile and
+            QR safety page.
+          </p>
+
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            {petProfileThemes.map((theme) => (
+              <ThemeOptionCard
+                key={theme.id}
+                name={form.name || "Milo"}
+                onSelect={() => updateField("profileTheme", theme.id)}
+                selected={form.profileTheme === theme.id}
+                theme={theme}
+              />
+            ))}
+          </div>
+
+          <ThemePreviewPanel
+            petName={form.name || "Your pet"}
+            theme={selectedTheme}
+          />
+
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <CTAButton href={profilePath} icon="heart" variant="secondary">
+              Preview Public Profile
+            </CTAButton>
+            {mode === "edit" && currentPet ? (
+              <CTAButton
+                href={currentPet.finderProfileUrl}
+                icon="qr"
+                variant="outline"
+              >
+                Preview QR Safety Page
+              </CTAButton>
+            ) : null}
+          </div>
+        </div>
+      </FormSection>
+
+      <FormSection
+        title="Public Share Profile"
         description="Add a short intro so friends and family can know your pet better."
       >
         <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
@@ -580,57 +590,11 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
             />
           </Field>
         </div>
-
-        <div className="mt-6 grid gap-4">
-          <div>
-            <h3 className="text-base font-black text-pet-ink">
-              Profile Theme
-            </h3>
-            <p className="mt-1 text-sm leading-6 text-pet-muted">
-              This theme will be applied to {form.name || "your pet"}&apos;s
-              public share profile. The QR safety page will only use a small
-              accent so finders can contact you quickly.
-            </p>
-          </div>
-
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-            {petProfileThemes.map((theme) => (
-              <ThemeOptionCard
-                key={theme.id}
-                name={form.name || "Milo"}
-                onSelect={() => updateField("profileTheme", theme.id)}
-                selected={form.profileTheme === theme.id}
-                theme={theme}
-              />
-            ))}
-          </div>
-
-          <ThemePreviewPanel
-            petName={form.name || "Your pet"}
-            theme={selectedTheme}
-          />
-
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <CTAButton
-              disabled={isSubmitting}
-              onClick={() => setSubmitIntent("theme")}
-              type="submit"
-              variant="coral"
-            >
-              {isSubmitting && submitIntent === "theme"
-                ? "Saving..."
-                : "Save Theme"}
-            </CTAButton>
-            <CTAButton href={profilePath} icon="heart" variant="secondary">
-              Preview Public Profile
-            </CTAButton>
-          </div>
-        </div>
       </FormSection>
 
       <FormSection
-        title="Safety Info"
-        description="This general area helps finders understand where your pet is usually from. Your full address is never shown."
+        title="QR Safety Page"
+        description="Contact details, safety notes, emergency note, and general area for finders. Your full address is not shown publicly."
       >
         <div className="grid gap-4 lg:grid-cols-2">
           <TextInput
@@ -689,9 +653,41 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
               value={form.emergencyNote}
             />
           </Field>
-        </div>
 
-        <div className="mt-5 grid gap-3 md:grid-cols-2">
+          <TextInput
+            error={errors.ownerName}
+            label="Owner display name"
+            maxLength={80}
+            onChange={(value) => updateField("ownerName", value)}
+            placeholder={`${form.name || "Your pet"}'s owner`}
+            value={form.ownerName}
+          />
+          <TextInput
+            error={errors.whatsapp}
+            helper="Optional, but useful for quick finder contact."
+            label="WhatsApp number"
+            maxLength={24}
+            onChange={(value) => updateField("whatsapp", value)}
+            placeholder="60123456789"
+            value={form.whatsapp}
+          />
+          <TextInput
+            error={errors.phone}
+            helper="Optional. Add country code when possible."
+            label="Phone number"
+            maxLength={24}
+            onChange={(value) => updateField("phone", value)}
+            placeholder="+60123456789"
+            value={form.phone}
+          />
+        </div>
+      </FormSection>
+
+      <FormSection
+        title="Privacy"
+        description="Choose which owner-approved details appear on the public profile and QR safety page."
+      >
+        <div className="grid gap-3 md:grid-cols-2">
           <Checkbox
             checked={form.showOwnerName}
             label="Show owner display name publicly"
@@ -724,12 +720,12 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
           />
           <Checkbox
             checked={form.showMoments}
-            label="Show public moments"
+            label="Show public memories"
             onChange={(value) => updateField("showMoments", value)}
           />
           <Checkbox
             checked={form.showTimeline}
-            label="Show life timeline"
+            label="Show Life Timeline"
             onChange={(value) => updateField("showTimeline", value)}
           />
           <Checkbox
@@ -746,40 +742,6 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
             checked={form.showHealthSummary}
             label="Allow public care record details"
             onChange={(value) => updateField("showHealthSummary", value)}
-          />
-        </div>
-      </FormSection>
-
-      <FormSection
-        title="Owner Contact"
-        description="These details power safe contact buttons. Your full address is not shown publicly."
-      >
-        <div className="grid gap-4 md:grid-cols-3">
-          <TextInput
-            error={errors.ownerName}
-            label="Owner display name"
-            maxLength={80}
-            onChange={(value) => updateField("ownerName", value)}
-            placeholder={`${form.name || "Your pet"}'s owner`}
-            value={form.ownerName}
-          />
-          <TextInput
-            error={errors.whatsapp}
-            helper="Optional, but useful for quick finder contact."
-            label="WhatsApp number"
-            maxLength={24}
-            onChange={(value) => updateField("whatsapp", value)}
-            placeholder="60123456789"
-            value={form.whatsapp}
-          />
-          <TextInput
-            error={errors.phone}
-            helper="Optional. Add country code when possible."
-            label="Phone number"
-            maxLength={24}
-            onChange={(value) => updateField("phone", value)}
-            placeholder="+60123456789"
-            value={form.phone}
           />
         </div>
       </FormSection>
@@ -845,14 +807,18 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
             </Link>
           )}
           <CTAButton href={profilePath} icon="heart" variant="secondary">
-            View Public Profile
+            Preview Public Profile
           </CTAButton>
-          <CTAButton
-            disabled={isSubmitting}
-            onClick={() => setSubmitIntent("profile")}
-            type="submit"
-            variant="coral"
-          >
+          {mode === "edit" && currentPet ? (
+            <CTAButton
+              href={currentPet.finderProfileUrl}
+              icon="qr"
+              variant="outline"
+            >
+              Preview QR Safety Page
+            </CTAButton>
+          ) : null}
+          <CTAButton disabled={isSubmitting} type="submit" variant="coral">
             {isSubmitting ? "Saving..." : saveLabel}
           </CTAButton>
         </div>
@@ -885,7 +851,6 @@ function toFormState(pet?: Pet): FormState {
     estimatedAge: pet.ageLabel === "Age not set" ? "" : pet.ageLabel,
     profilePhotoLabel: cleanMediaLabel(pet.profilePhotoLabel),
     coverPhotoLabel: cleanMediaLabel(pet.coverPhotoLabel),
-    coverTone: pet.coverTone ?? "sky",
     profileTheme: pet.profileTheme ?? "default",
     bio: pet.bio,
     personalityTags: pet.personalityTags.join(", "),
@@ -938,7 +903,6 @@ function buildPayload(form: FormState): PetPayload {
     photoTone: form.species === "Cat" ? "mint" : "apricot",
     profilePhotoLabel: form.profilePhotoLabel.trim(),
     coverPhotoLabel: form.coverPhotoLabel.trim(),
-    coverTone: form.coverTone,
     profileTheme: form.profileTheme,
     bio:
       form.bio.trim() ||
@@ -1383,12 +1347,6 @@ function cleanMediaLabel(value: string) {
 
   return value;
 }
-
-const coverToneClasses: Record<Pet["coverTone"], string> = {
-  apricot: "bg-pet-apricot",
-  mint: "bg-[#e8f8f0]",
-  sky: "bg-[#e8f3ff]",
-};
 
 function mergeVisibility(
   visibility?: Partial<Pet["visibility"]>

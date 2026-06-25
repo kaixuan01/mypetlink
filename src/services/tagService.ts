@@ -197,7 +197,6 @@ export async function getFinderPetProfile(tagCode: string) {
     photoTone: pet.photoTone,
     profilePhotoLabel: "",
     coverPhotoLabel: "",
-    coverTone: pet.coverTone,
     profileTheme: pet.profileTheme,
     finderProfileUrl: pet.finderProfileUrl,
     publicProfileUrl: pet.publicProfileUrl,

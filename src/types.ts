@@ -36,7 +36,6 @@ export type Pet = {
   photoTone: "apricot" | "mint" | "sky";
   profilePhotoLabel: string;
   coverPhotoLabel: string;
-  coverTone: "apricot" | "mint" | "sky";
   profileTheme: PetProfileThemeId;
   qrStatus: QrStatus;
   finderProfileUrl: string;
@@ -88,7 +87,6 @@ export type PublicPetProfile = Pick<
   | "photoTone"
   | "profilePhotoLabel"
   | "coverPhotoLabel"
-  | "coverTone"
   | "profileTheme"
   | "finderProfileUrl"
   | "publicProfileUrl"
