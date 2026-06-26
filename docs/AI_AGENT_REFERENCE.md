@@ -171,6 +171,11 @@ Note: owner-ordered tags are created with a `petId` already set (status
 7. **Don't break existing pages.** Run `npm run build` before considering a task
    done; a static-export build fails on any unrendered dynamic param or type
    error.
+8. **Keep owner portal and public profile distinct.** The owner portal is for
+   *management* (`/pets` is an overview list; `/pets/{petId}` is the tabbed
+   management page — see `OWNER_PORTAL_FLOW.md` §3). The public profile (`/p/...`)
+   is *finder-first*: pet identity + important notes + contact owner, never an
+   owner dashboard (see `PUBLIC_PROFILE_ROUTING.md` §4). Don't mix the two.
 
 ---
 
@@ -188,6 +193,8 @@ Note: owner-ordered tags are created with a `petId` already set (status
 | Tag / finder / activation    | `src/services/tagService.ts`                  |
 | Mock auth                    | `src/services/authService.ts`                 |
 | Owner portal shell           | `src/components/layouts/AppLayout.tsx`        |
+| Pet list card (overview)     | `src/components/portal/PetCard.tsx`           |
+| Pet management tabs          | `src/components/portal/PetManagementTabs.tsx` |
 | Public tag finder            | `src/app/t/[tagCode]/` + `TagFinderView`      |
 | Activation flow              | `src/app/activate/[tagCode]/` + `TagActivationFlow` |
 | Public share profile         | `src/app/p/[slug]/` + `PublicSharePetProfile` |

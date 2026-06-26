@@ -341,9 +341,15 @@ Do not use:
 ```text
 /p/{petId}
 /p/{petName}
+/p/{petSlug}
 /t/{internalId}
 /t/{sequentialId}
 ```
+
+`/t/{tagCode}` is the **physical tag** route (QR/NFC). The shareable public
+profile is a **separate** route, `/p/{petSlug}-{publicCode}` (e.g. `/p/milo-k7q2`).
+`/p/{petSlug}` alone (e.g. `/p/milo`) is **deprecated** — never display, copy, or
+link to it. See `PUBLIC_PROFILE_ROUTING.md`.
 
 The URL must not expose:
 

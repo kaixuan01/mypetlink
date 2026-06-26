@@ -97,6 +97,29 @@ finder safety page). It is **looked up by `publicCode`, never by slug**:
 - It renders `PublicSharePetProfile` with the profile, public moments, and
   records.
 
+### Finder-first layout
+
+`PublicSharePetProfile` is **finder-first and mobile-first** — it must not look
+like the owner dashboard. The first screen is a single centered card: large pet
+photo, name, species/breed/age, a short description, and the **contact actions
+near the top** (a strong primary "I found this pet - Contact Owner" plus
+WhatsApp / Call / Send Found Location, gated by `visibility.showWhatsapp` /
+`showPhone`). Do not stack many cards before the contact action.
+
+Secondary information sits behind three simple tabs:
+
+| Tab     | Shows                                                                  |
+| ------- | --------------------------------------------------------------------- |
+| About   | breed, color, gender, age, favourite, personality, description        |
+| Notes   | owner-approved public notes: safety note, emergency note (gated), general area (gated), public care badges (gated by `showCareBadges`) |
+| Moments | public memories only (`visibility === "Public"` + `showOnPublicProfile`, gated by `showMoments`) |
+
+Keep it clean: minimal badges, no large decorative backgrounds competing with
+the contact CTA, plenty of whitespace, one strong primary action. The pet's
+`profileTheme` still themes colors, but lightly. When adding public fields,
+route them through `toPublicProfile` and gate them behind a `visibility` flag —
+the share page never reads raw `Pet` fields or shows private owner info.
+
 ### Why `publicCode`, not slug
 
 `publicCode` is a **stable, lowercase 4-char public key** per pet
@@ -107,6 +130,13 @@ slug in the URL is cosmetic.
 
 `publicCode` (pet share key) is **not** the same as `tagCode` (physical tag id).
 Keep them distinct.
+
+> **Deprecated:** `/p/{petSlug}` alone (e.g. `/p/milo`) must never be displayed,
+> copied, or navigated to. Every public profile link is `/p/{petSlug}-{publicCode}`.
+> Build it with `publicProfilePath(slug, publicCode)` (or `pet.publicProfilePath`),
+> never by concatenating the slug by itself. The QR/NFC safety page is a separate
+> route, `/t/{tagCode}` using the official `MPL-XXXX-XXXX` TagCode — never an old
+> short token.
 
 ---
 

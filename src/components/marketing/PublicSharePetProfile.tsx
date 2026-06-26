@@ -7,6 +7,7 @@ import { PetMomentCard } from "@/components/portal/PetMomentCard";
 import { ShareProfileLink } from "@/components/share/ShareProfileLink";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon, type IconName } from "@/components/ui/Icon";
+import { PetAvatar } from "@/components/ui/PetAvatar";
 import {
   getPetProfileTheme,
   type PetProfileTheme,
@@ -21,6 +22,8 @@ type PublicSharePetProfileProps = {
   initialMoments: PetMoment[];
   initialRecords: CareRecord[];
 };
+
+type TabId = "about" | "notes" | "moments";
 
 const fallbackVisibility: Pet["visibility"] = {
   showOwnerName: true,
@@ -44,48 +47,33 @@ export function PublicSharePetProfile({
   const [profile, setProfile] = useState(initialProfile);
   const [moments, setMoments] = useState(initialMoments);
   const [records, setRecords] = useState(initialRecords);
+  const [activeTab, setActiveTab] = useState<TabId>("about");
+  const [locationStatus, setLocationStatus] = useState("");
+
   const visibility = mergeVisibility(profile.visibility);
   const theme = getPetProfileTheme(profile.profileTheme);
-  const publicTimelineMoments = moments.filter(
-    (moment) =>
-      moment.visibility === "Public" && moment.showInLifeTimeline
+
+  const ownerDisplayName = visibility.showOwnerName
+    ? getPublicOwnerName(profile.owner.name, profile.name)
+    : `${profile.name}'s owner`;
+  const whatsappNumber = normalizeWhatsappNumber(profile.owner.whatsapp);
+  const phoneHref = normalizePhoneHref(profile.owner.phone);
+  const whatsappBaseUrl = `https://wa.me/${whatsappNumber}`;
+  const introMessage = encodeURIComponent(
+    `Hi, I found ${profile.name} from the MyPetLink profile.`
   );
-  const publicMemoryMoments = moments.filter(
-    (moment) =>
-      moment.visibility === "Public" && moment.showOnPublicProfile
-  );
-  const publicMoments = visibility.showMoments ? publicMemoryMoments : [];
-  const timelineItems = visibility.showTimeline
-    ? buildTimelineItems(profile, publicTimelineMoments, visibility).slice(0, 5)
+  const canWhatsapp = visibility.showWhatsapp && Boolean(whatsappNumber);
+  const canCall = visibility.showPhone && Boolean(phoneHref);
+
+  const publicMoments = visibility.showMoments
+    ? moments.filter(
+        (moment) =>
+          moment.visibility === "Public" && moment.showOnPublicProfile
+      )
     : [];
   const careRecords = visibility.showCareBadges
-    ? records
-        .filter((record) => record.publicVisibility !== "Private")
-        .slice(0, 3)
+    ? records.filter((record) => record.publicVisibility !== "Private").slice(0, 4)
     : [];
-  const profilePath = profile.publicProfilePath;
-  const summaryCards: { label: string; value: string; icon: IconName }[] = [
-    {
-      label: "Profile visibility",
-      value: "Owner controls what appears publicly",
-      icon: "shield",
-    },
-    {
-      label: "Care records",
-      value: `${careRecords.length} public-safe badges`,
-      icon: "record",
-    },
-    {
-      label: "Public moments",
-      value: `${publicMoments.length} public memories`,
-      icon: "heart",
-    },
-    {
-      label: "QR safety",
-      value: "Scan tag to contact owner",
-      icon: "qr",
-    },
-  ];
 
   useEffect(() => {
     let active = true;
@@ -118,656 +106,475 @@ export function PublicSharePetProfile({
     };
   }, [initialProfile]);
 
+  function openWhatsappWithMessage(text: string) {
+    window.location.href = `${whatsappBaseUrl}?text=${encodeURIComponent(text)}`;
+  }
+
+  function handleSendFoundLocation() {
+    if (!whatsappNumber) {
+      return;
+    }
+
+    setLocationStatus("Asking your browser for location permission...");
+
+    if (!navigator.geolocation) {
+      setLocationStatus(
+        "Location is not available here. A WhatsApp message is ready for you to type the location."
+      );
+      openWhatsappWithMessage(
+        `Hi ${ownerDisplayName}, I found ${profile.name}. I can describe the found location here.`
+      );
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        const mapsUrl = `https://www.google.com/maps?q=${latitude},${longitude}`;
+        setLocationStatus("Location ready. Opening WhatsApp...");
+        openWhatsappWithMessage(
+          `Hi ${ownerDisplayName}, I found ${profile.name}. Found location: ${mapsUrl}`
+        );
+      },
+      () => {
+        setLocationStatus(
+          "Location was not shared. A WhatsApp message is ready for you to type the location."
+        );
+        openWhatsappWithMessage(
+          `Hi ${ownerDisplayName}, I found ${profile.name}. I can describe the found location here.`
+        );
+      },
+      { enableHighAccuracy: true, maximumAge: 60000, timeout: 10000 }
+    );
+  }
+
+  const tabs: { id: TabId; label: string }[] = [
+    { id: "about", label: "About" },
+    { id: "notes", label: "Notes" },
+    { id: "moments", label: "Moments" },
+  ];
+
   return (
     <article
-      className="min-h-screen overflow-hidden bg-pet-cream"
-      style={{
-        background: theme.gradients.page,
-        color: theme.colors.text,
-      }}
+      className="min-h-screen bg-pet-cream"
+      style={{ background: theme.gradients.page, color: theme.colors.text }}
     >
       <header
         className="border-b border-pet-border bg-white/92 backdrop-blur"
         style={{ borderColor: theme.colors.border }}
       >
-        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8">
+        <div className="mx-auto flex max-w-xl items-center justify-between px-4 py-3">
           <Link href="/" className="flex items-center">
-            <BrandLogo className="h-11 w-auto max-w-[190px]" priority />
+            <BrandLogo className="h-9 w-auto max-w-[160px]" priority />
           </Link>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <CTAButton href="/login" icon="paw" variant="coral">
-              Create Your Pet Profile
-            </CTAButton>
-          </div>
+          <span
+            className="text-xs font-bold uppercase text-pet-muted"
+            style={{ color: theme.colors.mutedText }}
+          >
+            Pet profile
+          </span>
         </div>
       </header>
-      <section
-        className="relative"
-        style={{ background: theme.gradients.page }}
-      >
-        <div className="relative mx-auto grid max-w-6xl gap-8 px-4 pb-12 pt-10 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:items-end lg:px-8">
-          <div>
-            <ThemedBadge theme={theme}>Shareable pet page</ThemedBadge>
-            <h1
-              className="mt-5 text-4xl font-black leading-tight text-pet-ink sm:text-5xl"
-              style={{ color: theme.colors.text }}
-            >
-              {profile.name}&apos;s little corner on MyPetLink
-            </h1>
-            <p
-              className="mt-4 max-w-2xl text-lg font-semibold leading-8 text-pet-ink"
-              style={{ color: theme.colors.text }}
-            >
-              A little page for {profile.name}&apos;s photos, moments, care
-              notes, and favourite things.
-            </p>
-            <p
-              className="mt-4 max-w-2xl text-lg leading-8 text-pet-muted"
-              style={{ color: theme.colors.mutedText }}
-            >
-              {profile.bio}
-            </p>
-            <p
-              className="mt-6 text-xs font-bold uppercase text-pet-coral"
-              style={{ color: theme.colors.accent }}
-            >
-              Personality
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {profile.personalityTags.map((tag) => (
-                <ThemedBadge key={tag} theme={theme}>
-                  {tag}
-                </ThemedBadge>
-              ))}
-            </div>
-            <p
-              className="mt-5 rounded-[1.25rem] border bg-white/80 p-4 text-sm font-semibold leading-6 text-pet-muted"
-              style={{
-                background: theme.colors.surface,
-                borderColor: theme.colors.border,
-                color: theme.colors.mutedText,
-              }}
-            >
-              Only owner-approved public details are shown here. Full addresses
-              and private care records stay out of this profile.
-            </p>
-            <div className="mt-8 grid gap-3">
-              <ShareProfileLink
-                path={profilePath}
-                petName={profile.name}
-                showShareButton
-                theme={theme}
-              />
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <ThemedLinkButton
-                  href={profile.finderProfileUrl}
-                  icon="qr"
-                  theme={theme}
-                >
-                  QR Safety Page
-                </ThemedLinkButton>
-              </div>
-            </div>
+
+      <div className="mx-auto max-w-xl px-4 pb-16 pt-6 sm:pt-8">
+        {/* Identity + contact: the first thing a finder sees. */}
+        <section
+          className="brand-card rounded-[2rem] p-6 text-center"
+          style={{
+            background: theme.colors.surface,
+            borderColor: theme.colors.border,
+          }}
+        >
+          <div className="flex justify-center">
+            <PetAvatar pet={profile} size="xl" />
           </div>
-
-          <PublicHeroCard profile={profile} theme={theme} />
-        </div>
-      </section>
-
-      <section style={{ background: theme.colors.surface }}>
-        <div className="mx-auto grid max-w-6xl gap-4 px-4 py-10 sm:px-6 md:grid-cols-3 lg:grid-cols-5 lg:px-8">
-          <InfoTile label="Pet Type" theme={theme} value={profile.species} />
-          <InfoTile label="Breed" theme={theme} value={profile.breed} />
-          <InfoTile label="Gender" theme={theme} value={profile.gender} />
-          <InfoTile label="Color" theme={theme} value={profile.color} />
-          <InfoTile label="Age" theme={theme} value={profile.ageLabel} />
-          <InfoTile label="Birthday" theme={theme} value={profile.birthday} />
-          <InfoTile
-            label="Adoption Day"
-            theme={theme}
-            value={profile.adoptionDay}
-          />
-          <InfoTile
-            label="Favourite Food"
-            theme={theme}
-            value={profile.favoriteFood}
-          />
-          <InfoTile
-            label="Favourite Toy"
-            theme={theme}
-            value={profile.favoriteToy}
-          />
-        </div>
-      </section>
-
-      <section style={{ background: theme.colors.pageBackground }}>
-        <div className="mx-auto grid max-w-6xl gap-5 px-4 py-12 sm:px-6 lg:grid-cols-[0.85fr_1.15fr] lg:px-8">
-          <div
-            className="brand-card rounded-[1.75rem] p-6"
-            style={{
-              background: theme.colors.surface,
-              borderColor: theme.colors.border,
-            }}
+          <h1
+            className="mt-5 text-3xl font-black text-pet-ink"
+            style={{ color: theme.colors.text }}
           >
-            <p
-              className="text-sm font-bold uppercase text-pet-coral"
-              style={{ color: theme.colors.accent }}
-            >
-              About and safety
-            </p>
-            <h2
-              className="mt-2 text-3xl font-black text-pet-ink"
-              style={{ color: theme.colors.text }}
-            >
-              Helpful details for people who care about {profile.name}.
-            </h2>
-            <div className="mt-6 grid gap-3">
-              {visibility.showOwnerName ? (
-                <SafetyTile
-                  icon="heart"
-                  label="Owner"
-                  theme={theme}
-                  value={`Cared for by ${getPublicOwnerName(
-                    profile.owner.name,
-                    profile.name
-                  )}`}
-                />
+            {profile.name}
+          </h1>
+          <p
+            className="mt-2 text-sm font-bold text-pet-muted"
+            style={{ color: theme.colors.mutedText }}
+          >
+            {profile.species}
+            {" · "}
+            {profile.breed}
+            {" · "}
+            {profile.ageLabel}
+          </p>
+          <p
+            className="mx-auto mt-3 max-w-sm text-sm leading-6 text-pet-muted"
+            style={{ color: theme.colors.mutedText }}
+          >
+            {profile.bio}
+          </p>
+
+          <div className="mt-6 grid gap-3">
+            {canWhatsapp ? (
+              <CTAButton
+                href={`${whatsappBaseUrl}?text=${introMessage}`}
+                icon="phone"
+                target="_blank"
+                rel="noopener noreferrer"
+                variant="coral"
+                fullWidth
+                className="min-h-14 text-base"
+              >
+                I found this pet - Contact Owner
+              </CTAButton>
+            ) : canCall ? (
+              <CTAButton
+                href={`tel:${phoneHref}`}
+                icon="phone"
+                variant="coral"
+                fullWidth
+                className="min-h-14 text-base"
+              >
+                I found this pet - Call Owner
+              </CTAButton>
+            ) : null}
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              {canWhatsapp ? (
+                <CTAButton
+                  href={`${whatsappBaseUrl}?text=${introMessage}`}
+                  icon="phone"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  fullWidth
+                  className="min-h-12"
+                >
+                  WhatsApp
+                </CTAButton>
               ) : null}
-              {visibility.showGeneralArea ? (
-                <SafetyTile
-                  icon="pin"
-                  label="General area"
-                  theme={theme}
-                  value={profile.generalArea}
-                />
-              ) : null}
-              <SafetyTile
-                icon="shield"
-                label="Safety note"
-                theme={theme}
-                value={profile.safetyNote}
-              />
-              {visibility.showEmergencyNote ? (
-                <SafetyTile
-                  icon="record"
-                  label="Emergency note"
-                  theme={theme}
-                  value={profile.emergencyNote}
-                />
+              {canCall ? (
+                <CTAButton
+                  href={`tel:${phoneHref}`}
+                  icon="phone"
+                  variant="secondary"
+                  fullWidth
+                  className="min-h-12"
+                >
+                  Call
+                </CTAButton>
               ) : null}
             </div>
-          </div>
 
-          <div className="grid gap-5">
-            <section
-              className="brand-card rounded-[1.75rem] p-6"
-              style={{
-                background: theme.colors.surface,
-                borderColor: theme.colors.border,
-              }}
-            >
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <p
-                    className="text-sm font-bold uppercase text-pet-coral"
-                    style={{ color: theme.colors.accent }}
-                  >
-                    Care badges
-                  </p>
-                  <h2
-                    className="mt-2 text-2xl font-black text-pet-ink"
-                    style={{ color: theme.colors.text }}
-                  >
-                    Care notes saved by the owner
-                  </h2>
-                  <p
-                    className="mt-2 text-sm leading-6 text-pet-muted"
-                    style={{ color: theme.colors.mutedText }}
-                  >
-                    Only owner-approved care badges are shown.
-                  </p>
-                </div>
-                {visibility.showHealthSummary ? (
-                  <ThemedBadge theme={theme}>{records.length} records</ThemedBadge>
-                ) : null}
-              </div>
-              {careRecords.length ? (
-                <div className="mt-5 grid gap-3">
-                  {careRecords.map((record) => (
-                    <div
-                      className="rounded-[1.25rem] bg-pet-cream p-4"
-                      style={{ background: theme.colors.surfaceAlt }}
-                      key={record.id}
-                    >
-                      <div className="flex flex-wrap items-center gap-2">
-                        <ThemedBadge theme={theme}>{record.type}</ThemedBadge>
-                        <span
-                          className="text-xs font-bold text-pet-muted"
-                          style={{ color: theme.colors.mutedText }}
-                        >
-                          {record.date}
-                        </span>
-                      </div>
-                      {record.dueDate ? (
-                        <p
-                          className="mt-2 text-sm font-bold text-pet-muted"
-                          style={{ color: theme.colors.mutedText }}
-                        >
-                          Next due {record.dueDate}
-                        </p>
-                      ) : null}
-                      {record.publicVisibility === "Public details" &&
-                      visibility.showHealthSummary ? (
-                        <>
-                          <p
-                            className="mt-2 font-black text-pet-ink"
-                            style={{ color: theme.colors.text }}
-                          >
-                            {record.title}
-                          </p>
-                          <p
-                            className="mt-1 text-xs font-bold text-pet-muted"
-                            style={{ color: theme.colors.mutedText }}
-                          >
-                            {record.provider}
-                          </p>
-                        </>
-                      ) : null}
-                      {record.publicVisibility === "Public details" &&
-                      visibility.showHealthSummary ? (
-                        <p
-                          className="mt-1 text-sm leading-6 text-pet-muted"
-                          style={{ color: theme.colors.mutedText }}
-                        >
-                          {record.notes}
-                        </p>
-                      ) : null}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div
-                  className="mt-5 rounded-[1.25rem] border border-dashed border-pet-border bg-pet-cream p-5 text-sm text-pet-muted"
-                  style={{
-                    background: theme.colors.surfaceAlt,
-                    borderColor: theme.colors.border,
-                    color: theme.colors.mutedText,
-                  }}
-                >
-                  Care badges will appear when care records are added.
-                </div>
-              )}
-            </section>
-
-            {visibility.showTimeline ? (
-              <section
-                className="brand-soft-card rounded-[1.75rem] p-6"
-                style={{
-                  background: theme.colors.surfaceAlt,
-                  borderColor: theme.colors.border,
-                }}
+            {canWhatsapp ? (
+              <CTAButton
+                icon="pin"
+                onClick={handleSendFoundLocation}
+                variant="outline"
+                fullWidth
+                className="min-h-12 bg-white"
               >
-                <p
-                  className="text-sm font-bold uppercase text-pet-coral"
-                  style={{ color: theme.colors.accent }}
-                >
-                  Life Timeline
-                </p>
-                <h2
-                  className="mt-2 text-2xl font-black text-pet-ink"
-                  style={{ color: theme.colors.text }}
-                >
-                  {profile.name}&apos;s life milestones
-                </h2>
-                <p
-                  className="mt-1 text-sm leading-6 text-pet-muted"
-                  style={{ color: theme.colors.mutedText }}
-                >
-                  Milestones and special dates from {profile.name}&apos;s life.
-                </p>
-                {timelineItems.length ? (
-                  <div
-                    className="mt-5 grid gap-3 border-l-2 pl-4"
-                    style={{ borderColor: theme.colors.timelineLine }}
-                  >
-                    {timelineItems.map((item, index) => (
-                      <div
-                        className="grid gap-3 rounded-[1.25rem] bg-white p-4 shadow-sm sm:grid-cols-[48px_1fr]"
-                        style={{ background: theme.colors.surface }}
-                        key={item.id}
-                      >
-                        <span
-                          className="grid h-12 w-12 place-items-center rounded-2xl bg-pet-apricot text-sm font-black text-pet-coral"
-                          style={{
-                            background: theme.colors.accentSoft,
-                            color: theme.colors.timelineDot,
-                          }}
-                        >
-                          <Icon
-                            name={index === 0 ? "heart" : item.icon}
-                            className="h-5 w-5"
-                          />
-                        </span>
-                        <div>
-                          <p
-                            className="text-xs font-bold text-pet-muted"
-                            style={{ color: theme.colors.mutedText }}
-                          >
-                            {item.date}
-                          </p>
-                          <p
-                            className="mt-1 font-black text-pet-ink"
-                            style={{ color: theme.colors.text }}
-                          >
-                            {item.title}
-                          </p>
-                          {item.description ? (
-                            <p
-                              className="mt-1 text-xs leading-5 text-pet-muted"
-                              style={{ color: theme.colors.mutedText }}
-                            >
-                              {item.description}
-                            </p>
-                          ) : null}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p
-                    className="mt-4 text-sm leading-6 text-pet-muted"
-                    style={{ color: theme.colors.mutedText }}
-                  >
-                    Public milestones will appear when moments are added.
-                  </p>
-                )}
-              </section>
+                Send Found Location
+              </CTAButton>
             ) : null}
           </div>
-        </div>
-      </section>
 
-      {visibility.showMoments ? (
-        <section style={{ background: theme.colors.surface }}>
-          <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:px-8">
-            <div className="mb-6 flex items-end justify-between gap-4">
-              <div>
-                <p
-                  className="text-sm font-bold uppercase text-pet-coral"
-                  style={{ color: theme.colors.accent }}
-                >
-                  Pet Memories
-                </p>
-                <h2
-                  className="mt-2 text-3xl font-black text-pet-ink"
-                  style={{ color: theme.colors.text }}
-                >
-                  Photos, videos, and little stories shared by{" "}
-                  {profile.name}&apos;s owner.
-                </h2>
-              </div>
-            </div>
-            {publicMoments.length ? (
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {publicMoments.map((moment) => (
-                  <PetMomentCard
-                    key={moment.id}
-                    moment={moment}
-                    publicView
-                    theme={theme}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div
-                className="rounded-[1.5rem] border border-dashed border-[#dfc9b3] bg-pet-cream p-8 text-center text-sm text-pet-muted"
-                style={{
-                  background: theme.colors.surfaceAlt,
-                  borderColor: theme.colors.border,
-                  color: theme.colors.mutedText,
-                }}
-              >
-                {profile.name}&apos;s public memories will appear here.
-              </div>
-            )}
-          </div>
+          {locationStatus ? (
+            <p className="mt-3 rounded-[1.25rem] bg-[#e8f3ff] p-3 text-sm font-bold leading-6 text-pet-ink">
+              {locationStatus}
+            </p>
+          ) : null}
+
+          {visibility.showOwnerName ? (
+            <p
+              className="mt-4 text-sm font-bold text-pet-ink"
+              style={{ color: theme.colors.text }}
+            >
+              Cared for by {ownerDisplayName}
+            </p>
+          ) : null}
         </section>
-      ) : null}
 
-      <section style={{ background: theme.colors.primarySoft }}>
-        <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:px-8">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {summaryCards.map((card) => (
-              <div
-                className="brand-card rounded-[1.5rem] p-5"
-                key={card.label}
-                style={{
-                  background: theme.colors.surface,
-                  borderColor: theme.colors.border,
-                }}
-              >
-                <span
-                  className="grid h-10 w-10 place-items-center rounded-2xl bg-pet-apricot text-pet-coral"
-                  style={{
-                    background: theme.colors.accentSoft,
-                    color: theme.colors.accent,
-                  }}
-                >
-                  <Icon name={card.icon} className="h-5 w-5" />
-                </span>
-                <p
-                  className="mt-4 text-sm font-bold uppercase text-pet-muted"
-                  style={{ color: theme.colors.mutedText }}
-                >
-                  {card.label}
-                </p>
-                <p
-                  className="mt-1 text-lg font-black text-pet-ink"
-                  style={{ color: theme.colors.text }}
-                >
-                  {card.value}
-                </p>
-              </div>
-            ))}
-          </div>
+        {/* Secondary info grouped behind simple tabs. */}
+        <div
+          className="mt-6 flex gap-1 rounded-full border border-pet-border bg-white p-1"
+          style={{
+            background: theme.colors.surface,
+            borderColor: theme.colors.border,
+          }}
+        >
+          {tabs.map((tab) => (
+            <button
+              className="min-h-10 flex-1 rounded-full px-4 py-2 text-sm font-bold transition"
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              style={
+                activeTab === tab.id
+                  ? {
+                      background: theme.colors.buttonBackground,
+                      color: theme.colors.buttonText,
+                    }
+                  : { color: theme.colors.mutedText }
+              }
+              type="button"
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
-      </section>
+
+        <div className="mt-5">
+          {activeTab === "about" ? (
+            <AboutTab profile={profile} theme={theme} />
+          ) : null}
+          {activeTab === "notes" ? (
+            <NotesTab
+              profile={profile}
+              theme={theme}
+              visibility={visibility}
+              careRecords={careRecords}
+            />
+          ) : null}
+          {activeTab === "moments" ? (
+            <MomentsTab
+              petName={profile.name}
+              publicMoments={publicMoments}
+              theme={theme}
+            />
+          ) : null}
+        </div>
+
+        <div className="mt-6">
+          <ShareProfileLink
+            path={profile.publicProfilePath}
+            petName={profile.name}
+            showShareButton
+            theme={theme}
+          />
+        </div>
+
+        <p
+          className="mt-4 text-center text-xs font-semibold leading-5 text-pet-muted"
+          style={{ color: theme.colors.mutedText }}
+        >
+          For safety, this profile only shows owner-approved public information.
+          The owner&apos;s full address is never shared.
+        </p>
+      </div>
     </article>
   );
 }
 
-function PublicHeroCard({
+function AboutTab({
   profile,
   theme,
 }: {
   profile: PublicPetProfile;
   theme: PetProfileTheme;
 }) {
-  const featuredTags = profile.personalityTags.slice(0, 3);
+  const details: { label: string; value: string }[] = [
+    { label: "Breed", value: profile.breed },
+    { label: "Color", value: profile.color },
+    { label: "Gender", value: profile.gender },
+    { label: "Age", value: profile.ageLabel },
+    { label: "Birthday", value: profile.birthday },
+    { label: "Favourite", value: profile.favoriteToy },
+  ];
 
   return (
-    <aside
-      className="brand-card w-full max-w-[520px] justify-self-center overflow-hidden rounded-[1.75rem] p-3 sm:p-4 lg:justify-self-end"
+    <section
+      className="brand-card rounded-[1.75rem] p-6"
       style={{
         background: theme.colors.surface,
         borderColor: theme.colors.border,
       }}
     >
-      <div className="relative">
-        <div
-          className="relative h-[150px] overflow-hidden rounded-[1.45rem] sm:h-[180px]"
-          style={{ background: theme.gradients.cover }}
-        >
+      <h2
+        className="text-lg font-black text-pet-ink"
+        style={{ color: theme.colors.text }}
+      >
+        About {profile.name}
+      </h2>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        {details.map((detail) => (
           <div
-            className="absolute inset-0"
-            style={{ background: theme.gradients.decorative }}
-          />
-          <span
-            aria-hidden="true"
-            className="absolute left-6 top-7 grid h-9 w-9 -rotate-6 place-items-center rounded-2xl bg-white/55 text-pet-coral"
-            style={{ color: theme.colors.accent }}
+            className="rounded-[1.25rem] bg-pet-cream p-4"
+            key={detail.label}
+            style={{ background: theme.colors.surfaceAlt }}
           >
-            <Icon name="heart" className="h-4 w-4" />
-          </span>
-          <span
-            aria-hidden="true"
-            className="absolute bottom-6 right-8 grid h-10 w-10 rotate-6 place-items-center rounded-2xl bg-white/55 text-pet-teal"
-            style={{ color: theme.colors.primary }}
-          >
-            <Icon name="paw" className="h-5 w-5" />
-          </span>
-          <span
-            className="absolute right-4 top-4 inline-flex items-center gap-2 rounded-full bg-white/92 px-3 py-2 text-xs font-black text-pet-coral shadow-sm"
-            style={{ color: theme.colors.accent }}
-          >
-            <Icon name="heart" className="h-4 w-4" />
-            Loved
-          </span>
-        </div>
+            <p
+              className="text-xs font-bold uppercase text-pet-muted"
+              style={{ color: theme.colors.mutedText }}
+            >
+              {detail.label}
+            </p>
+            <p
+              className="mt-1 break-words font-black text-pet-ink"
+              style={{ color: theme.colors.text }}
+            >
+              {detail.value}
+            </p>
+          </div>
+        ))}
+      </div>
 
+      {profile.personalityTags.length ? (
+        <>
+          <p
+            className="mt-5 text-xs font-bold uppercase text-pet-muted"
+            style={{ color: theme.colors.mutedText }}
+          >
+            Personality
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {profile.personalityTags.map((tag) => (
+              <ThemedBadge key={tag} theme={theme}>
+                {tag}
+              </ThemedBadge>
+            ))}
+          </div>
+        </>
+      ) : null}
+    </section>
+  );
+}
+
+function NotesTab({
+  profile,
+  theme,
+  visibility,
+  careRecords,
+}: {
+  profile: PublicPetProfile;
+  theme: PetProfileTheme;
+  visibility: Pet["visibility"];
+  careRecords: CareRecord[];
+}) {
+  return (
+    <section className="grid gap-4">
+      <NoteCard
+        icon="shield"
+        label="Safety note"
+        theme={theme}
+        value={profile.safetyNote}
+      />
+      {visibility.showEmergencyNote ? (
+        <NoteCard
+          icon="record"
+          label="Emergency note"
+          theme={theme}
+          value={profile.emergencyNote}
+        />
+      ) : null}
+      {visibility.showGeneralArea ? (
+        <NoteCard
+          icon="pin"
+          label="General area"
+          theme={theme}
+          value={profile.generalArea}
+        />
+      ) : null}
+
+      {careRecords.length ? (
         <div
-          className="absolute -bottom-10 left-1/2 z-10 grid h-20 w-20 -translate-x-1/2 place-items-center rounded-[1.55rem] border-[5px] border-white bg-white text-pet-coral shadow-lg shadow-[#0d1b3d]/12 sm:h-24 sm:w-24 sm:rounded-[1.75rem]"
+          className="brand-card rounded-[1.75rem] p-6"
           style={{
-            borderColor: theme.colors.surface,
-            color: theme.colors.accent,
+            background: theme.colors.surface,
+            borderColor: theme.colors.border,
           }}
         >
-          <div
-            className="absolute inset-2 rounded-[1.15rem] sm:rounded-[1.35rem]"
-            style={{ background: theme.colors.accentSoft }}
-          />
-          <div className="relative z-10 grid place-items-center text-center">
-            <Icon name="paw" className="h-6 w-6 sm:h-7 sm:w-7" />
-            <span className="mt-0.5 text-lg font-black leading-none sm:text-xl">
-              {profile.photoInitial}
-            </span>
+          <h2
+            className="text-lg font-black text-pet-ink"
+            style={{ color: theme.colors.text }}
+          >
+            Care badges
+          </h2>
+          <div className="mt-4 grid gap-3">
+            {careRecords.map((record) => (
+              <div
+                className="rounded-[1.25rem] bg-pet-cream p-4"
+                key={record.id}
+                style={{ background: theme.colors.surfaceAlt }}
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <ThemedBadge theme={theme}>{record.type}</ThemedBadge>
+                  <span
+                    className="text-xs font-bold text-pet-muted"
+                    style={{ color: theme.colors.mutedText }}
+                  >
+                    {record.date}
+                  </span>
+                </div>
+                {record.publicVisibility === "Public details" &&
+                visibility.showHealthSummary ? (
+                  <p
+                    className="mt-2 font-bold text-pet-ink"
+                    style={{ color: theme.colors.text }}
+                  >
+                    {record.title}
+                  </p>
+                ) : null}
+              </div>
+            ))}
           </div>
         </div>
-      </div>
-
-      <div className="px-2 pb-3 pt-14 text-center sm:px-4 sm:pt-16">
-        <h2
-          className="text-3xl font-black leading-tight text-pet-ink"
-          style={{ color: theme.colors.text }}
-        >
-          {profile.name}
-        </h2>
-        <p
-          className="mt-2 text-sm font-bold text-pet-muted"
-          style={{ color: theme.colors.mutedText }}
-        >
-          {profile.species}
-          {" \u00b7 "}
-          {profile.breed}
-        </p>
-        <p
-          className="mt-1 text-sm font-bold text-pet-muted"
-          style={{ color: theme.colors.mutedText }}
-        >
-          {profile.gender}
-          {" \u00b7 "}
-          {profile.ageLabel}
-        </p>
-
-        <div className="mt-4 flex flex-wrap justify-center gap-2">
-          {featuredTags.map((tag) => (
-            <ThemedBadge key={tag} theme={theme}>
-              {tag}
-            </ThemedBadge>
-          ))}
-        </div>
-
-        <div className="mt-5 grid gap-3 sm:grid-cols-2">
-          <MiniDetail label="Birthday" theme={theme} value={profile.birthday} />
-          <MiniDetail
-            label="Favourite"
-            theme={theme}
-            value={profile.favoriteToy}
-          />
-        </div>
-      </div>
-    </aside>
+      ) : null}
+    </section>
   );
 }
 
-function MiniDetail({
-  label,
+function MomentsTab({
+  petName,
+  publicMoments,
   theme,
-  value,
 }: {
-  label: string;
+  petName: string;
+  publicMoments: PetMoment[];
   theme: PetProfileTheme;
-  value: string;
 }) {
+  if (!publicMoments.length) {
+    return (
+      <div
+        className="rounded-[1.5rem] border border-dashed border-pet-border bg-pet-cream p-8 text-center text-sm text-pet-muted"
+        style={{
+          background: theme.colors.surfaceAlt,
+          borderColor: theme.colors.border,
+          color: theme.colors.mutedText,
+        }}
+      >
+        {petName}&apos;s public memories will appear here.
+      </div>
+    );
+  }
+
   return (
-    <div
-      className="rounded-[1.1rem] bg-pet-cream px-4 py-3"
-      style={{ background: theme.colors.surfaceAlt }}
-    >
-      <p
-        className="text-xs font-bold uppercase text-pet-muted"
-        style={{ color: theme.colors.mutedText }}
-      >
-        {label}
-      </p>
-      <p
-        className="mt-1 break-words text-sm font-black text-pet-ink"
-        style={{ color: theme.colors.text }}
-      >
-        {value}
-      </p>
+    <div className="grid gap-4 sm:grid-cols-2">
+      {publicMoments.map((moment) => (
+        <PetMomentCard
+          key={moment.id}
+          moment={moment}
+          publicView
+          theme={theme}
+        />
+      ))}
     </div>
   );
 }
 
-function InfoTile({
-  label,
-  theme,
-  value,
-}: {
-  label: string;
-  theme: PetProfileTheme;
-  value: string;
-}) {
-  return (
-    <div
-      className="brand-soft-card rounded-[1.5rem] p-5"
-      style={{
-        background: theme.colors.surfaceAlt,
-        borderColor: theme.colors.border,
-      }}
-    >
-      <p
-        className="text-xs font-bold uppercase text-pet-muted"
-        style={{ color: theme.colors.mutedText }}
-      >
-        {label}
-      </p>
-      <p
-        className="mt-2 text-lg font-black text-pet-ink"
-        style={{ color: theme.colors.text }}
-      >
-        {value}
-      </p>
-    </div>
-  );
-}
-
-function SafetyTile({
+function NoteCard({
   icon,
   label,
   theme,
   value,
 }: {
-  icon: "heart" | "pin" | "shield" | "record";
+  icon: IconName;
   label: string;
   theme: PetProfileTheme;
   value: string;
 }) {
   return (
     <div
-      className="rounded-[1.25rem] bg-pet-cream p-4"
-      style={{ background: theme.colors.surfaceAlt }}
+      className="brand-card rounded-[1.5rem] p-5"
+      style={{
+        background: theme.colors.surface,
+        borderColor: theme.colors.border,
+      }}
     >
       <div
         className="flex items-center gap-2 text-sm font-black text-pet-ink"
@@ -810,33 +617,6 @@ function ThemedBadge({
   );
 }
 
-function ThemedLinkButton({
-  children,
-  href,
-  icon,
-  theme,
-}: {
-  children: ReactNode;
-  href: string;
-  icon: IconName;
-  theme: PetProfileTheme;
-}) {
-  return (
-    <Link
-      className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border px-5 py-3 text-sm font-extrabold shadow-lg shadow-[#0d1b3d]/10 transition"
-      href={href}
-      style={{
-        background: theme.colors.buttonBackground,
-        borderColor: theme.colors.buttonBackground,
-        color: theme.colors.buttonText,
-      }}
-    >
-      <Icon name={icon} className="h-4 w-4" />
-      {children}
-    </Link>
-  );
-}
-
 function mergeVisibility(
   visibility?: Partial<Pet["visibility"]>
 ): Pet["visibility"] {
@@ -850,51 +630,10 @@ function getPublicOwnerName(name: string, petName: string) {
   return name.trim() || `${petName}'s owner`;
 }
 
-function buildTimelineItems(
-  profile: PublicPetProfile,
-  publicMoments: PetMoment[],
-  visibility: Pet["visibility"]
-) {
-  const items: {
-    date: string;
-    description?: string;
-    icon: "heart" | "paw";
-    id: string;
-    title: string;
-  }[] = [];
+function normalizeWhatsappNumber(value: string) {
+  return value.replace(/[^\d]/g, "");
+}
 
-  if (visibility.showBirthdayOnTimeline && profile.birthday !== "Not set") {
-    items.push({
-      date: profile.birthday,
-      icon: "paw",
-      id: `${profile.id}-birthday`,
-      title: `${profile.name}'s birthday`,
-    });
-  }
-
-  if (
-    visibility.showAdoptionDayOnTimeline &&
-    profile.adoptionDay !== "Not set"
-  ) {
-    items.push({
-      date: profile.adoptionDay,
-      icon: "heart",
-      id: `${profile.id}-adoption`,
-      title: `${profile.name}'s adoption day`,
-    });
-  }
-
-  publicMoments
-    .filter((moment) => moment.showInLifeTimeline)
-    .forEach((moment) => {
-      items.push({
-        date: moment.date,
-        description: moment.caption || undefined,
-        icon: "paw",
-        id: moment.id,
-        title: moment.title,
-      });
-    });
-
-  return items;
+function normalizePhoneHref(value: string) {
+  return value.replace(/[^\d+]/g, "");
 }

@@ -51,7 +51,38 @@ highlight **Moments**.
 
 ---
 
-## 3. Per-pet pages
+## 3. Pet list vs. pet management page
+
+`/pets` is an **overview list only**. Each pet renders a `PetCard`
+(`src/components/portal/PetCard.tsx`) that shows summary info (avatar, name,
+species/breed/age, QR/profile status, smart tag status, a short emergency-note
+preview) and exactly three controls: a primary **Manage** button
+(`ownerRoutes.petProfile`), a secondary **Public Profile** button, and a
+**More** menu (Edit, Records, Moments, Smart Tags, Order Tag). Do **not** add a
+grid of equal action buttons back onto the card.
+
+The **Public Profile** button (and any owner-facing public profile link) must use
+`pet.publicProfilePath` / `publicProfilePath(slug, publicCode)` →
+`/p/{petSlug}-{publicCode}`. The slug-only `/p/{petSlug}` form is **deprecated**;
+never display or copy it. See `PUBLIC_PROFILE_ROUTING.md`.
+
+`/pets/{petId}` (`src/app/pets/[id]/page.tsx`) is the **main management page**
+for a single pet. The server page loads the pet, records, moments, and tags,
+then renders a pet header (photo, name, species/breed/age, QR + smart tag
+status) plus **`PetManagementTabs`** (client) with five tabs:
+
+| Tab        | Content                                                                 |
+| ---------- | ----------------------------------------------------------------------- |
+| Overview   | Public profile status + share link, smart tag status, emergency note, contact privacy summary, recent records, recent moments |
+| Records    | `RecordsManager` for this pet                                            |
+| Moments    | `PetMomentsManager` (memories + life timeline)                           |
+| Smart Tag  | `TagManagementPanel` scoped to this pet (TagCode, status, view/disable/report lost/order replacement) |
+| Settings   | Links to edit profile, privacy, public profile theme, contact preferences |
+
+Tabs are in-page client state (static export has no server). The per-pet
+sub-routes below still exist for deep links, the `MobileBottomNav`, and the
+`PetSwitcher`; the tabs reuse the **same** manager components, so behaviour stays
+consistent.
 
 All owner pet pages key off the **`petId`** (`ownerRoutes.*` helpers):
 

@@ -1,55 +1,105 @@
-import { ProfileAccessBadges } from "@/components/portal/ProfileAccessStatus";
+"use client";
+
+import Link from "next/link";
+import { useState } from "react";
+import { getQrStatusLabel } from "@/components/portal/ProfileAccessStatus";
+import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
+import { Icon } from "@/components/ui/Icon";
 import { PetAvatar } from "@/components/ui/PetAvatar";
-import type { Pet } from "@/types";
+import { ownerRoutes } from "@/lib/routes";
+import type { Pet, TagStatus } from "@/types";
 
 type PetCardProps = {
   pet: Pet;
+  tagStatus?: TagStatus;
+  tagCount?: number;
 };
 
-export function PetCard({ pet }: PetCardProps) {
+const moreLinks = (petId: string) => [
+  { label: "Edit profile", href: ownerRoutes.petEdit(petId) },
+  { label: "Care records", href: ownerRoutes.petRecords(petId) },
+  { label: "Moments", href: ownerRoutes.petMoments(petId) },
+  { label: "Smart tags", href: ownerRoutes.petTags(petId) },
+  { label: "Order tag", href: ownerRoutes.petTagOrder(petId) },
+];
+
+export function PetCard({ pet, tagStatus, tagCount = 0 }: PetCardProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const tagLabel = tagCount
+    ? `Smart tag: ${tagStatus ?? "Active"}`
+    : "No smart tag yet";
+
   return (
-    <article className="brand-card rounded-[1.75rem] p-5">
+    <article className="brand-card flex flex-col rounded-[1.75rem] p-5">
       <div className="flex items-start gap-4">
         <PetAvatar pet={pet} size="md" />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-xl font-black text-pet-ink">{pet.name}</h3>
-            <ProfileAccessBadges qrStatus={pet.qrStatus} />
+            <Badge tone={pet.qrStatus === "active" ? "mint" : "warm"}>
+              {getQrStatusLabel(pet.qrStatus)}
+            </Badge>
           </div>
           <p className="mt-1 text-sm text-pet-muted">
             {pet.species} - {pet.breed} - {pet.ageLabel}
           </p>
-          <p className="mt-3 text-sm leading-6 text-pet-muted">
-            {pet.safetyNote}
-          </p>
+          <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-pet-cream px-3 py-1 text-xs font-bold text-pet-muted">
+            <Icon name="tag" className="h-3.5 w-3.5 text-pet-teal" />
+            {tagLabel}
+          </div>
+          {pet.emergencyNote ? (
+            <p className="mt-3 line-clamp-2 text-sm leading-6 text-pet-muted">
+              {pet.emergencyNote}
+            </p>
+          ) : null}
         </div>
       </div>
-      <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <CTAButton href={`/pets/${pet.id}`} variant="secondary" fullWidth>
-          Details
+
+      <div className="relative mt-5 flex items-center gap-3">
+        <CTAButton href={ownerRoutes.petProfile(pet.id)} fullWidth>
+          Manage
         </CTAButton>
-        <CTAButton href={`/pets/${pet.id}/edit`} variant="outline" fullWidth>
-          Edit
-        </CTAButton>
-        <CTAButton href={`/pets/${pet.id}/records`} variant="outline" fullWidth>
-          Records
-        </CTAButton>
-        <CTAButton href={`/pets/${pet.id}/moments`} variant="outline" fullWidth>
-          Moments
-        </CTAButton>
-        <CTAButton href={`/pets/${pet.id}/qr`} variant="outline" fullWidth>
-          QR Profile
-        </CTAButton>
-        <CTAButton href={`/pets/${pet.id}/tags`} variant="outline" fullWidth>
-          Smart Tags
-        </CTAButton>
-        <CTAButton href={`/pets/${pet.id}/tags/order`} variant="outline" fullWidth>
-          Order Tag
-        </CTAButton>
-        <CTAButton href={pet.publicProfilePath} variant="outline" fullWidth>
+        <CTAButton
+          href={pet.publicProfilePath}
+          variant="secondary"
+          fullWidth
+        >
           Public Profile
         </CTAButton>
+        <button
+          aria-expanded={menuOpen}
+          aria-label="More actions"
+          className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-pet-border bg-white text-pet-muted transition hover:bg-pet-cream"
+          onClick={() => setMenuOpen((open) => !open)}
+          type="button"
+        >
+          <Icon name="settings" className="h-5 w-5" />
+        </button>
+
+        {menuOpen ? (
+          <>
+            <button
+              aria-hidden="true"
+              className="fixed inset-0 z-20 cursor-default"
+              onClick={() => setMenuOpen(false)}
+              tabIndex={-1}
+              type="button"
+            />
+            <div className="absolute bottom-14 right-0 z-30 w-52 overflow-hidden rounded-[1.25rem] border border-pet-border bg-white p-1 shadow-xl shadow-[#0d1b3d]/10">
+              {moreLinks(pet.id).map((link) => (
+                <Link
+                  className="block rounded-[0.9rem] px-4 py-2.5 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
+                  href={link.href}
+                  key={link.href}
+                  onClick={() => setMenuOpen(false)}
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </div>
+          </>
+        ) : null}
       </div>
     </article>
   );

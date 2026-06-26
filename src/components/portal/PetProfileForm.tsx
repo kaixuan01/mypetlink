@@ -18,6 +18,7 @@ import {
   petProfileThemes,
   type PetProfileTheme,
 } from "@/lib/petProfileThemes";
+import { publicProfilePath } from "@/lib/routes";
 import {
   createPet,
   getPetById,
@@ -322,10 +323,13 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
         profileTheme: form.profileTheme,
       };
   const profileSlug = slugifyPetSlug(form.slug) || "pet-profile";
-  const profilePath = `/p/${profileSlug}`;
-  const publicProfileFullUrl = origin
-    ? `${origin}/p/${profileSlug}`
-    : profilePath;
+  // Public profiles are addressed by {slug}-{publicCode}; the publicCode is
+  // generated on save, so a live preview link only exists when editing.
+  const profilePath = currentPet
+    ? publicProfilePath(profileSlug, currentPet.publicCode)
+    : "";
+  const publicProfileFullUrl =
+    profilePath && origin ? `${origin}${profilePath}` : profilePath;
   const finderFullUrl =
     origin && currentPet
       ? `${origin}${currentPet.finderProfileUrl}`
@@ -773,10 +777,17 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
 
       <div className="brand-card flex flex-col gap-4 rounded-[1.5rem] p-5 lg:flex-row lg:items-center lg:justify-between">
         <div className="grid gap-2">
-          <UrlDisplay
-            label="Public Profile URL"
-            url={publicProfileFullUrl}
-          />
+          {publicProfileFullUrl ? (
+            <UrlDisplay
+              label="Public Profile URL"
+              url={publicProfileFullUrl}
+            />
+          ) : (
+            <p className="text-sm font-semibold leading-6 text-pet-muted">
+              Your public profile link will be ready right after you save this
+              pet.
+            </p>
+          )}
           {mode === "edit" && currentPet && finderFullUrl ? (
             <UrlDisplay
               label="QR Safety Page URL"
@@ -800,9 +811,11 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
               Cancel
             </Link>
           )}
-          <CTAButton href={profilePath} icon="heart" variant="secondary">
-            View Public Profile
-          </CTAButton>
+          {profilePath ? (
+            <CTAButton href={profilePath} icon="heart" variant="secondary">
+              View Public Profile
+            </CTAButton>
+          ) : null}
           {mode === "edit" && currentPet ? (
             <CTAButton
               href={currentPet.finderProfileUrl}
