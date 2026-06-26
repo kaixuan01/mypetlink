@@ -71,12 +71,26 @@ export function PublicLayout({ children }: { children: React.ReactNode }) {
               records, optional MyPetLink QR and QR + NFC smart tags, and fast
               WhatsApp contact when a pet is found.
             </p>
+            <div className="mt-5 grid gap-1 text-xs leading-5 text-pet-muted">
+              <p className="font-bold text-pet-ink">
+                MyPetLink by GBB Software Solutions
+              </p>
+              <p>Malaysia &middot; Reg. No. AS0515813-P</p>
+              <p>
+                <a
+                  href="mailto:support@gbbsoftwaresolutions.com"
+                  className="hover:text-pet-teal transition"
+                >
+                  support@gbbsoftwaresolutions.com
+                </a>
+              </p>
+            </div>
           </div>
-          <nav className="flex flex-wrap gap-4 text-sm font-bold text-pet-muted md:justify-end">
-            <Link href="/privacy" className="hover:text-pet-teal">
+          <nav className="flex flex-wrap items-start gap-4 text-sm font-bold text-pet-muted md:justify-end">
+            <Link href="/privacy" className="hover:text-pet-teal transition">
               Privacy
             </Link>
-            <Link href="/terms" className="hover:text-pet-teal">
+            <Link href="/terms" className="hover:text-pet-teal transition">
               Terms
             </Link>
           </nav>

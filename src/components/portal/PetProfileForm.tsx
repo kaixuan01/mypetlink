@@ -56,7 +56,6 @@ type FormState = {
   generalArea: string;
   safetyNote: string;
   emergencyNote: string;
-  contactPreference: Pet["contactPreference"];
   ownerName: string;
   whatsapp: string;
   phone: string;
@@ -76,11 +75,6 @@ type FormState = {
 type FormErrors = Partial<Record<keyof FormState, string>>;
 
 const speciesOptions: PetSpecies[] = ["Dog", "Cat", "Rabbit", "Bird", "Other"];
-const contactPreferenceOptions: Pet["contactPreference"][] = [
-  "WhatsApp preferred",
-  "Call preferred",
-  "WhatsApp or call",
-];
 
 const emptyForm: FormState = {
   name: "",
@@ -102,7 +96,6 @@ const emptyForm: FormState = {
   generalArea: "",
   safetyNote: "",
   emergencyNote: "",
-  contactPreference: "WhatsApp preferred",
   ownerName: "",
   whatsapp: "",
   phone: "",
@@ -128,6 +121,11 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState("");
+  const [origin, setOrigin] = useState("");
+
+  useEffect(() => {
+    setOrigin(window.location.origin);
+  }, []);
 
   useEffect(() => {
     if (mode !== "edit" || !initialPet?.id) {
@@ -256,7 +254,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
           setCurrentPet(response.data);
           setSavedPet(response.data);
           setForm(toFormState(response.data));
-          setSuccess("Changes saved. Your public profile preview is updated.");
+          setSuccess("Changes saved. Public profile and QR safety page are updated.");
           router.refresh();
         }
       }
@@ -323,9 +321,21 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
         photoTone: "apricot" as const,
         profileTheme: form.profileTheme,
       };
-  const profilePath = `/${["p", slugifyPetSlug(form.slug) || "pet-profile"].join("/")}`;
+  const profileSlug = slugifyPetSlug(form.slug) || "pet-profile";
+  const profilePath = `/p/${profileSlug}`;
+  const publicProfileFullUrl = origin
+    ? `${origin}/p/${profileSlug}`
+    : profilePath;
+  const finderFullUrl =
+    origin && currentPet
+      ? `${origin}${currentPet.finderProfileUrl}`
+      : currentPet?.finderProfileUrl ?? "";
   const selectedTheme = getPetProfileTheme(form.profileTheme);
   const saveLabel = mode === "create" ? "Save Pet" : "Save Changes";
+  const hasUnsavedThemeChange =
+    mode === "edit" &&
+    currentPet &&
+    form.profileTheme !== currentPet.profileTheme;
 
   return (
     <form className="grid gap-5" onSubmit={handleSubmit}>
@@ -475,15 +485,10 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
 
       <FormSection
         title="Profile Theme"
-        description="Used on your pet's public share profile and QR safety page."
+        description={`Used on ${form.name || "your pet"}'s public share profile and QR safety page.`}
       >
         <div className="grid gap-4">
-          <p className="text-sm leading-6 text-pet-muted">
-            Choose the color style used for your pet&apos;s public profile and
-            QR safety page.
-          </p>
-
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             {petProfileThemes.map((theme) => (
               <ThemeOptionCard
                 key={theme.id}
@@ -495,25 +500,16 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
             ))}
           </div>
 
+          {hasUnsavedThemeChange ? (
+            <p className="rounded-[1rem] bg-[#fffbea] px-4 py-3 text-xs font-bold text-[#856a00]">
+              Save changes to update {form.name || "your pet"}&apos;s public profile and QR safety page.
+            </p>
+          ) : null}
+
           <ThemePreviewPanel
             petName={form.name || "Your pet"}
             theme={selectedTheme}
           />
-
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <CTAButton href={profilePath} icon="heart" variant="secondary">
-              Preview Public Profile
-            </CTAButton>
-            {mode === "edit" && currentPet ? (
-              <CTAButton
-                href={currentPet.finderProfileUrl}
-                icon="qr"
-                variant="outline"
-              >
-                Preview QR Safety Page
-              </CTAButton>
-            ) : null}
-          </div>
         </div>
       </FormSection>
 
@@ -594,7 +590,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
 
       <FormSection
         title="QR Safety Page"
-        description="Contact details, safety notes, emergency note, and general area for finders. Your full address is not shown publicly."
+        description="Contact details, safety notes, and general area for finders. Your full address is never shown publicly."
       >
         <div className="grid gap-4 lg:grid-cols-2">
           <TextInput
@@ -606,25 +602,6 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
             placeholder="Petaling Jaya, Selangor"
             value={form.generalArea}
           />
-
-          <Field label="Contact preference">
-            <select
-              className="brand-input"
-              onChange={(event) =>
-                updateField(
-                  "contactPreference",
-                  event.target.value as Pet["contactPreference"]
-                )
-              }
-              value={form.contactPreference}
-            >
-              {contactPreferenceOptions.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </Field>
 
           <Field
             error={errors.safetyNote}
@@ -685,64 +662,77 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
 
       <FormSection
         title="Privacy"
-        description="Choose which owner-approved details appear on the public profile and QR safety page."
+        description="Choose which details appear publicly. Your full address is never shown."
       >
-        <div className="grid gap-3 md:grid-cols-2">
-          <Checkbox
-            checked={form.showOwnerName}
-            label="Show owner display name publicly"
-            onChange={(value) => updateField("showOwnerName", value)}
-          />
-          <Checkbox
-            checked={form.showGeneralArea}
-            label="Show general area"
-            onChange={(value) => updateField("showGeneralArea", value)}
-          />
-          <Checkbox
-            checked={form.showWhatsapp}
-            label="Show WhatsApp contact"
-            onChange={(value) => updateField("showWhatsapp", value)}
-          />
-          <Checkbox
-            checked={form.showPhone}
-            label="Show call contact"
-            onChange={(value) => updateField("showPhone", value)}
-          />
-          <Checkbox
-            checked={form.showEmergencyNote}
-            label="Show emergency note"
-            onChange={(value) => updateField("showEmergencyNote", value)}
-          />
-          <Checkbox
-            checked={form.showCareBadges}
-            label="Show care badges"
-            onChange={(value) => updateField("showCareBadges", value)}
-          />
-          <Checkbox
-            checked={form.showMoments}
-            label="Show public memories"
-            onChange={(value) => updateField("showMoments", value)}
-          />
-          <Checkbox
-            checked={form.showTimeline}
-            label="Show Life Timeline"
-            onChange={(value) => updateField("showTimeline", value)}
-          />
-          <Checkbox
-            checked={form.showBirthdayOnTimeline}
-            label="Show birthday in Life Timeline"
-            onChange={(value) => updateField("showBirthdayOnTimeline", value)}
-          />
-          <Checkbox
-            checked={form.showAdoptionDayOnTimeline}
-            label="Show adoption day in Life Timeline"
-            onChange={(value) => updateField("showAdoptionDayOnTimeline", value)}
-          />
-          <Checkbox
-            checked={form.showHealthSummary}
-            label="Allow public care record details"
-            onChange={(value) => updateField("showHealthSummary", value)}
-          />
+        <div className="grid gap-4">
+          <PrivacyGroup title="Public Share Profile">
+            <Checkbox
+              checked={form.showOwnerName}
+              label="Show owner display name"
+              onChange={(value) => updateField("showOwnerName", value)}
+            />
+            <Checkbox
+              checked={form.showCareBadges}
+              label="Show care badges"
+              onChange={(value) => updateField("showCareBadges", value)}
+            />
+            <Checkbox
+              checked={form.showMoments}
+              label="Show public memories"
+              onChange={(value) => updateField("showMoments", value)}
+            />
+            <Checkbox
+              checked={form.showTimeline}
+              label="Show Life Timeline"
+              onChange={(value) => updateField("showTimeline", value)}
+            />
+            <Checkbox
+              checked={form.showBirthdayOnTimeline}
+              label="Show birthday in Life Timeline"
+              onChange={(value) => updateField("showBirthdayOnTimeline", value)}
+            />
+            <Checkbox
+              checked={form.showAdoptionDayOnTimeline}
+              label="Show adoption day in Life Timeline"
+              onChange={(value) => updateField("showAdoptionDayOnTimeline", value)}
+            />
+          </PrivacyGroup>
+
+          <PrivacyGroup title="QR Safety Page">
+            <Checkbox
+              checked={form.showWhatsapp}
+              label="Show WhatsApp contact"
+              onChange={(value) => updateField("showWhatsapp", value)}
+            />
+            <Checkbox
+              checked={form.showPhone}
+              label="Show call contact"
+              onChange={(value) => updateField("showPhone", value)}
+            />
+            <Checkbox
+              checked={form.showEmergencyNote}
+              label="Show emergency note"
+              onChange={(value) => updateField("showEmergencyNote", value)}
+            />
+            <Checkbox
+              checked={form.showGeneralArea}
+              label="Show general area"
+              onChange={(value) => updateField("showGeneralArea", value)}
+            />
+          </PrivacyGroup>
+
+          <details className="rounded-[1.5rem] border border-pet-border bg-white">
+            <summary className="cursor-pointer px-5 py-4 text-sm font-bold text-pet-muted select-none">
+              Advanced
+            </summary>
+            <div className="grid gap-3 px-5 pb-5">
+              <Checkbox
+                checked={form.showHealthSummary}
+                label="Allow public care record details"
+                onChange={(value) => updateField("showHealthSummary", value)}
+              />
+            </div>
+          </details>
         </div>
       </FormSection>
 
@@ -782,13 +772,17 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
       ) : null}
 
       <div className="brand-card flex flex-col gap-4 rounded-[1.5rem] p-5 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <p className="text-sm font-bold text-pet-ink">
-            Share profile preview
-          </p>
-          <p className="mt-1 break-words text-sm text-pet-muted">
-            {profilePath}
-          </p>
+        <div className="grid gap-2">
+          <UrlDisplay
+            label="Public Profile URL"
+            url={publicProfileFullUrl}
+          />
+          {mode === "edit" && currentPet && finderFullUrl ? (
+            <UrlDisplay
+              label="QR Safety Page URL"
+              url={finderFullUrl}
+            />
+          ) : null}
         </div>
         <div className="flex flex-col gap-3 sm:flex-row">
           {mode === "edit" && currentPet ? (
@@ -807,7 +801,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
             </Link>
           )}
           <CTAButton href={profilePath} icon="heart" variant="secondary">
-            Preview Public Profile
+            View Public Profile
           </CTAButton>
           {mode === "edit" && currentPet ? (
             <CTAButton
@@ -815,7 +809,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
               icon="qr"
               variant="outline"
             >
-              Preview QR Safety Page
+              View QR Safety Page
             </CTAButton>
           ) : null}
           <CTAButton disabled={isSubmitting} type="submit" variant="coral">
@@ -831,6 +825,33 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
         />
       ) : null}
     </form>
+  );
+}
+
+function UrlDisplay({ label, url }: { label: string; url: string }) {
+  const [copied, setCopied] = useState(false);
+
+  function handleCopy() {
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    });
+  }
+
+  return (
+    <div className="flex items-center gap-3">
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-bold uppercase text-pet-muted">{label}</p>
+        <p className="mt-0.5 truncate text-sm font-bold text-pet-ink">{url}</p>
+      </div>
+      <button
+        className="shrink-0 rounded-full border border-pet-border bg-white px-3 py-1.5 text-xs font-bold text-pet-muted transition hover:bg-pet-cream"
+        onClick={handleCopy}
+        type="button"
+      >
+        {copied ? "Copied!" : "Copy"}
+      </button>
+    </div>
   );
 }
 
@@ -861,7 +882,6 @@ function toFormState(pet?: Pet): FormState {
     generalArea: pet.generalArea,
     safetyNote: pet.safetyNote,
     emergencyNote: pet.emergencyNote,
-    contactPreference: pet.contactPreference ?? "WhatsApp preferred",
     ownerName: pet.owner.name,
     whatsapp: pet.owner.whatsapp,
     phone: pet.owner.phone,
@@ -914,7 +934,6 @@ function buildPayload(form: FormState): PetPayload {
       form.safetyNote.trim() || "Please contact the owner if this pet is found.",
     emergencyNote:
       form.emergencyNote.trim() || "Keep calm and contact the owner first.",
-    contactPreference: form.contactPreference,
     owner: {
       name: form.ownerName.trim() || `${name}'s owner`,
       whatsapp: form.whatsapp.trim(),
@@ -1013,6 +1032,21 @@ function Checkbox({
   );
 }
 
+function PrivacyGroup({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="rounded-[1.5rem] border border-pet-border bg-white p-5">
+      <p className="mb-3 text-sm font-black text-pet-ink">{title}</p>
+      <div className="grid gap-2 sm:grid-cols-2">{children}</div>
+    </div>
+  );
+}
+
 function ThemeOptionCard({
   name,
   onSelect,
@@ -1029,16 +1063,31 @@ function ThemeOptionCard({
       aria-pressed={selected}
       className={`min-h-[220px] rounded-[1.25rem] border p-4 text-left transition ${
         selected
-          ? "border-pet-coral bg-white shadow-lg shadow-[#0d1b3d]/10"
+          ? "shadow-lg shadow-[#0d1b3d]/10"
           : "border-pet-border bg-white hover:-translate-y-0.5 hover:shadow-md"
       }`}
       onClick={onSelect}
+      style={
+        selected
+          ? {
+              background: theme.colors.surface,
+              borderColor: theme.colors.primary,
+              boxShadow: `0 4px 20px ${theme.colors.primary}22`,
+            }
+          : undefined
+      }
       type="button"
     >
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm font-black text-pet-ink">{theme.name}</p>
         {selected ? (
-          <span className="rounded-full bg-[#e8f8f0] px-2 py-1 text-[10px] font-black uppercase text-pet-sage">
+          <span
+            className="rounded-full px-2 py-1 text-[10px] font-black uppercase"
+            style={{
+              background: theme.colors.primarySoft,
+              color: theme.colors.primary,
+            }}
+          >
             Selected
           </span>
         ) : null}
@@ -1124,27 +1173,17 @@ function ThemePreviewPanel({
       >
         <div>
           <p
-            className="text-sm font-black text-pet-ink"
+            className="text-sm font-black"
             style={{ color: theme.colors.text }}
           >
-            Preview how {petName}&apos;s public profile will look
+            How {petName}&apos;s public profile will look
           </p>
           <p
-            className="mt-2 text-sm leading-6 text-pet-muted"
+            className="mt-2 text-sm leading-6"
             style={{ color: theme.colors.mutedText }}
           >
             {theme.description}
           </p>
-          <button
-            className="mt-4 inline-flex min-h-10 items-center rounded-full px-4 py-2 text-sm font-black"
-            style={{
-              background: theme.colors.buttonBackground,
-              color: theme.colors.buttonText,
-            }}
-            type="button"
-          >
-            View profile
-          </button>
         </div>
 
         <div

@@ -29,7 +29,6 @@ export const mockPets: Pet[] = [
       "Friendly but nervous around traffic. Please contact Aina before moving him far from the found area.",
     emergencyNote:
       "If Milo looks distressed, keep him shaded and avoid feeding unfamiliar treats.",
-    contactPreference: "WhatsApp preferred",
     owner: {
       name: "Milo's owner",
       phone: "+60123456789",
@@ -79,7 +78,6 @@ export const mockPets: Pet[] = [
     safetyNote:
       "Shy with strangers. Please call first and keep her in a quiet, enclosed area if possible.",
     emergencyNote: "Indoor cat. May hide under cars or drains when frightened.",
-    contactPreference: "WhatsApp preferred",
     owner: {
       name: "Luna's owner",
       phone: "+60123456789",

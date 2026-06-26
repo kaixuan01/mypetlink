@@ -21,7 +21,6 @@ export function PublicFinderProfile({ pet }: PublicFinderProfileProps) {
   const message = encodeURIComponent(
     `Hi, I found ${pet.name} from the MyPetLink safety profile.`
   );
-  const contactPreference = pet.contactPreference ?? "WhatsApp preferred";
   const whatsappNumber = normalizeWhatsappNumber(pet.owner.whatsapp);
   const phoneHref = normalizePhoneHref(pet.owner.phone);
   const whatsappBaseUrl = `https://wa.me/${whatsappNumber}`;
@@ -190,18 +189,6 @@ export function PublicFinderProfile({ pet }: PublicFinderProfileProps) {
             <p className="mt-2 text-sm text-pet-muted">{pet.generalArea}</p>
           </div>
         ) : null}
-        <div
-          className="rounded-[1.25rem] bg-white p-4"
-          style={{ borderColor: theme.colors.border }}
-        >
-          <div className="flex items-center gap-2 text-sm font-black text-pet-ink">
-            <Icon name="phone" className="h-4 w-4 text-pet-teal" />
-            Contact preference
-          </div>
-          <p className="mt-2 text-sm text-pet-muted">
-            {contactPreference}
-          </p>
-        </div>
       </div>
 
       {locationStatus ? (

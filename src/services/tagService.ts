@@ -206,7 +206,6 @@ export async function getFinderPetProfile(tagCode: string) {
     favoriteToy: pet.favoriteToy,
     safetyNote: pet.safetyNote,
     emergencyNote: pet.emergencyNote,
-    contactPreference: pet.contactPreference,
     owner: pet.owner,
     visibility: pet.visibility,
   });

@@ -46,7 +46,6 @@ export type Pet = {
   favoriteToy: string;
   safetyNote: string;
   emergencyNote: string;
-  contactPreference: "WhatsApp preferred" | "Call preferred" | "WhatsApp or call";
   owner: {
     name: string;
     phone: string;
@@ -96,7 +95,6 @@ export type PublicPetProfile = Pick<
   | "favoriteToy"
   | "safetyNote"
   | "emergencyNote"
-  | "contactPreference"
   | "owner"
   | "visibility"
 >;

@@ -94,7 +94,6 @@ function normalizePet(pet: Pet): Pet {
     safetyNote:
       pet.safetyNote ?? "Please contact the owner if this pet is found.",
     emergencyNote: pet.emergencyNote ?? "Keep calm and contact the owner first.",
-    contactPreference: pet.contactPreference ?? "WhatsApp preferred",
     visibility: {
       ...defaultVisibility,
       ...pet.visibility,
@@ -142,7 +141,6 @@ function createFallbackPetFromSlug(slug: string): Pet {
     favoriteToy: "Not set",
     safetyNote: "Please contact the owner if this pet is found.",
     emergencyNote: "Keep calm and contact the owner first.",
-    contactPreference: "WhatsApp preferred",
     visibility: defaultVisibility,
   };
 }
@@ -211,7 +209,6 @@ export async function getPublicPetProfile(slug: string) {
     favoriteToy: pet.favoriteToy,
     safetyNote: pet.safetyNote,
     emergencyNote: pet.emergencyNote,
-    contactPreference: pet.contactPreference,
     owner: pet.owner,
     visibility: {
       ...defaultVisibility,
@@ -257,7 +254,6 @@ export async function createPet(payload: PetPayload) {
     favoriteToy: payload.favoriteToy ?? "Not set",
     safetyNote: payload.safetyNote ?? "No safety note yet.",
     emergencyNote: payload.emergencyNote ?? "No emergency note yet.",
-    contactPreference: payload.contactPreference ?? "WhatsApp preferred",
     owner: mergeOwner(mockPets[0].owner, payload.owner),
     visibility: mergeVisibility(payload.visibility),
     qrStatus: "draft",

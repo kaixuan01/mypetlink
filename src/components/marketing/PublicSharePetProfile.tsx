@@ -64,7 +64,6 @@ export function PublicSharePetProfile({
         .slice(0, 3)
     : [];
   const profilePath = profile.publicProfileUrl || `/p/${profile.slug}`;
-  const contactPreference = profile.contactPreference ?? "WhatsApp preferred";
   const summaryCards: { label: string; value: string; icon: IconName }[] = [
     {
       label: "Profile visibility",
@@ -83,7 +82,7 @@ export function PublicSharePetProfile({
     },
     {
       label: "QR safety",
-      value: contactPreference,
+      value: "Scan tag to contact owner",
       icon: "qr",
     },
   ];
@@ -236,7 +235,6 @@ export function PublicSharePetProfile({
             theme={theme}
             value={profile.favoriteToy}
           />
-          <InfoTile label="Contact" theme={theme} value={contactPreference} />
         </div>
       </section>
 
@@ -417,8 +415,14 @@ export function PublicSharePetProfile({
                   className="mt-2 text-2xl font-black text-pet-ink"
                   style={{ color: theme.colors.text }}
                 >
-                  Milestones and special dates from {profile.name}&apos;s life.
+                  {profile.name}&apos;s life milestones
                 </h2>
+                <p
+                  className="mt-1 text-sm leading-6 text-pet-muted"
+                  style={{ color: theme.colors.mutedText }}
+                >
+                  Milestones and special dates from {profile.name}&apos;s life.
+                </p>
                 {timelineItems.length ? (
                   <div
                     className="mt-5 grid gap-3 border-l-2 pl-4"
@@ -455,6 +459,14 @@ export function PublicSharePetProfile({
                           >
                             {item.title}
                           </p>
+                          {item.description ? (
+                            <p
+                              className="mt-1 text-xs leading-5 text-pet-muted"
+                              style={{ color: theme.colors.mutedText }}
+                            >
+                              {item.description}
+                            </p>
+                          ) : null}
                         </div>
                       </div>
                     ))}
@@ -843,6 +855,7 @@ function buildTimelineItems(
 ) {
   const items: {
     date: string;
+    description?: string;
     icon: "heart" | "paw";
     id: string;
     title: string;
@@ -874,6 +887,7 @@ function buildTimelineItems(
     .forEach((moment) => {
       items.push({
         date: moment.date,
+        description: moment.caption || undefined,
         icon: "paw",
         id: moment.id,
         title: moment.title,

@@ -217,10 +217,6 @@ export default async function QRPage({ params }: QRPageProps) {
                 value={pet.data.emergencyNote}
               />
               <StatusBox
-                label="Contact preference"
-                value={pet.data.contactPreference}
-              />
-              <StatusBox
                 label="Owner display"
                 value={
                   pet.data.visibility.showOwnerName
