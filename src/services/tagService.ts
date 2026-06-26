@@ -1,15 +1,16 @@
 import { mockOrders } from "@/data/mockOrders";
 import { mockTags } from "@/data/mockTags";
+import { generateTagCode } from "@/lib/tagCodes";
 import {
   mockDelay,
   mockResponse,
   readStoredCollection,
   writeStoredCollection,
 } from "@/services/mockApi";
-import { getPets, getPublicPetProfile } from "@/services/petService";
+import { getPets, toPublicProfile } from "@/services/petService";
 import type {
+  FinderResult,
   PetTag,
-  PublicPetProfile,
   TagOrder,
   TagOrderPayload,
   TagStatus,
@@ -37,10 +38,8 @@ function formatToday() {
   }).format(new Date());
 }
 
-function createTagCode(petId: string, tagType: TagType) {
-  const prefix = petId.replace(/^pet_/, "").toUpperCase().slice(0, 6);
-  const suffix = tagType === "MyPetLink QR + NFC Smart Tag" ? "NFC" : "QR";
-  return `${prefix}-${suffix}-${Date.now().toString().slice(-4)}`;
+function isNfcTag(tagType: TagType) {
+  return tagType === "MyPetLink QR + NFC Smart Tag";
 }
 
 export function getEstimatedTagPrice(tagType: TagType) {
@@ -88,11 +87,11 @@ export async function createTagOrder(payload: TagOrderPayload) {
   const orderedDate = formatToday();
   const tag: PetTag = {
     id: tagId,
+    tagCode: generateTagCode(),
     petId: payload.petId,
-    tagType: payload.tagType,
-    tagCode: createTagCode(payload.petId, payload.tagType),
+    hasNfc: isNfcTag(payload.tagType),
+    shape: payload.shape,
     status: "Pending",
-    design: payload.design,
     orderedDate,
     replacementForTagId: payload.replacementForTagId,
   };
@@ -100,7 +99,7 @@ export async function createTagOrder(payload: TagOrderPayload) {
     id: `order_${Date.now()}`,
     petId: payload.petId,
     tagType: payload.tagType,
-    design: payload.design,
+    shape: payload.shape,
     delivery: payload.delivery,
     estimatedPrice: getEstimatedTagPrice(payload.tagType),
     status: "Received",
@@ -155,58 +154,66 @@ async function updateTagStatus(tagId: string, status: TagStatus) {
   return mockResponse(updatedTag);
 }
 
-export async function getFinderPetProfile(tagCode: string) {
+// Resolves a scanned tag code to a finder state. The tag code is the single
+// public identifier (printed on the tag, in the QR URL, and on the NFC chip),
+// so this is the one place that decides what a scan shows.
+export async function getFinderState(tagCode: string): Promise<FinderResult> {
+  await mockDelay();
+  const normalized = tagCode.trim();
+  const tag = getTagCollection().find(
+    (item) => item.tagCode.toLowerCase() === normalized.toLowerCase()
+  );
+
+  if (!tag) {
+    return { state: "not-found", tagCode: normalized };
+  }
+
+  if (tag.status === "Unassigned" || !tag.petId) {
+    return { state: "unassigned", tagCode: tag.tagCode };
+  }
+
+  if (disabledStatuses.includes(tag.status)) {
+    return { state: "inactive", tagCode: tag.tagCode, status: tag.status };
+  }
+
+  const pets = await getPets();
+  const pet = pets.data.find((item) => item.id === tag.petId);
+
+  if (!pet) {
+    return { state: "inactive", tagCode: tag.tagCode, status: tag.status };
+  }
+
+  return {
+    state: "active",
+    tagCode: tag.tagCode,
+    profile: toPublicProfile(pet),
+  };
+}
+
+// Binds an unassigned tag to a pet and marks it Active. The tag code never
+// changes during activation — only the pet binding and status do.
+export async function activateTag(tagCode: string, petId: string) {
   await mockDelay();
   const tags = getTagCollection();
   const tag = tags.find(
-    (item) => item.tagCode.toLowerCase() === tagCode.toLowerCase()
+    (item) => item.tagCode.toLowerCase() === tagCode.trim().toLowerCase()
   );
-  const pets = await getPets();
-  const pet = tag
-    ? pets.data.find((item) => item.id === tag.petId)
-    : pets.data.find((item) =>
-        item.finderProfileUrl.toLowerCase().endsWith(tagCode.toLowerCase())
-      );
 
-  if (!pet || (tag && disabledStatuses.includes(tag.status))) {
-    const slugMatch = tagCode.match(/^([a-z0-9-]+)-(qr|nfc)(-\d+)?$/i);
-
-    if (!tag && slugMatch) {
-      const fallbackProfile = await getPublicPetProfile(
-        slugMatch[1].toLowerCase()
-      );
-      return mockResponse(fallbackProfile.data);
-    }
-
-    return mockResponse<PublicPetProfile | null>(null);
+  if (!tag) {
+    return mockResponse<PetTag | null>(null);
   }
 
-  return mockResponse<PublicPetProfile>({
-    id: pet.id,
-    slug: pet.slug,
-    name: pet.name,
-    species: pet.species,
-    breed: pet.breed,
-    gender: pet.gender,
-    color: pet.color,
-    ageLabel: pet.ageLabel,
-    birthday: pet.birthday,
-    adoptionDay: pet.adoptionDay,
-    generalArea: pet.generalArea,
-    photoInitial: pet.photoInitial,
-    photoTone: pet.photoTone,
-    profilePhotoLabel: "",
-    coverPhotoLabel: "",
-    profileTheme: pet.profileTheme,
-    finderProfileUrl: pet.finderProfileUrl,
-    publicProfileUrl: pet.publicProfileUrl,
-    bio: pet.bio,
-    personalityTags: pet.personalityTags,
-    favoriteFood: pet.favoriteFood,
-    favoriteToy: pet.favoriteToy,
-    safetyNote: pet.safetyNote,
-    emergencyNote: pet.emergencyNote,
-    owner: pet.owner,
-    visibility: pet.visibility,
-  });
+  const updatedTag: PetTag = {
+    ...tag,
+    petId,
+    status: "Active",
+    activatedAt: formatToday(),
+  };
+
+  writeStoredCollection(
+    TAG_STORAGE_KEY,
+    tags.map((item) => (item.id === tag.id ? updatedTag : item))
+  );
+
+  return mockResponse(updatedTag);
 }

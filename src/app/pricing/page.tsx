@@ -5,6 +5,7 @@ import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon } from "@/components/ui/Icon";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { mockPlans } from "@/data/mockPlans";
+import { ownerRoutes, samplePet } from "@/lib/routes";
 
 export const metadata: Metadata = {
   title: "Pricing",
@@ -14,7 +15,7 @@ const tagAddOns = [
   {
     name: "MyPetLink QR Pet Tag",
     price: "RM19.90",
-    href: "/pets/pet_milo/tags/order?type=qr",
+    href: ownerRoutes.petTagOrder(samplePet.id, { type: "qr" }),
     description: "Easy to scan and works with any smartphone camera.",
     features: [
       "One-time purchase",
@@ -26,7 +27,7 @@ const tagAddOns = [
   {
     name: "MyPetLink QR + NFC Smart Tag",
     price: "RM39.90",
-    href: "/pets/pet_milo/tags/order?type=nfc",
+    href: ownerRoutes.petTagOrder(samplePet.id, { type: "nfc" }),
     description: "Scan the QR or tap the NFC tag to open the same pet profile.",
     features: [
       "One-time purchase",

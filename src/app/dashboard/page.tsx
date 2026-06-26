@@ -7,6 +7,7 @@ import { CTAButton } from "@/components/ui/CTAButton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard } from "@/components/ui/StatCard";
+import { ownerRoutes } from "@/lib/routes";
 import { getPetMoments } from "@/services/momentService";
 import { getPets } from "@/services/petService";
 import { getPetRecords } from "@/services/recordService";
@@ -36,6 +37,21 @@ export default async function DashboardPage() {
   const vetFollowUp = records.find(
     (record) => record.type === "Vet Visit" && record.dueDate
   );
+
+  const recordsNote = firstPet
+    ? `Latest records for ${firstPet.name}`
+    : "Latest records";
+  const addRecordHref = firstPet
+    ? ownerRoutes.petRecords(firstPet.id)
+    : ownerRoutes.petNew;
+  const addMomentHref = firstPet
+    ? ownerRoutes.petMomentNew(firstPet.id)
+    : ownerRoutes.petNew;
+  const publicProfileHref = firstPet ? firstPet.publicProfilePath : ownerRoutes.pets;
+  const qrProfileHref = firstPet ? ownerRoutes.petQr(firstPet.id) : ownerRoutes.pets;
+  const orderTagHref = firstPet
+    ? ownerRoutes.petTagOrder(firstPet.id)
+    : ownerRoutes.petNew;
 
   return (
     <AppLayout>
@@ -74,7 +90,7 @@ export default async function DashboardPage() {
         <StatCard
           icon="record"
           label="Recent care records"
-          note="Latest records for Milo"
+          note={recordsNote}
           tone="soft"
           value={records.length}
         />
@@ -170,7 +186,7 @@ export default async function DashboardPage() {
                 Add Pet
               </CTAButton>
               <CTAButton
-                href="/pets/pet_milo/records"
+                href={addRecordHref}
                 icon="heart"
                 variant="primary"
                 fullWidth
@@ -178,7 +194,7 @@ export default async function DashboardPage() {
                 Add Care Record
               </CTAButton>
               <CTAButton
-                href="/pets/pet_milo/moments/new"
+                href={addMomentHref}
                 icon="plus"
                 variant="coral"
                 fullWidth
@@ -186,7 +202,7 @@ export default async function DashboardPage() {
                 Add Moment
               </CTAButton>
               <CTAButton
-                href="/p/milo"
+                href={publicProfileHref}
                 icon="heart"
                 variant="outline"
                 fullWidth
@@ -194,7 +210,7 @@ export default async function DashboardPage() {
                 View Public Profile
               </CTAButton>
               <CTAButton
-                href="/pets/pet_milo/qr"
+                href={qrProfileHref}
                 icon="qr"
                 variant="secondary"
                 fullWidth
@@ -202,7 +218,7 @@ export default async function DashboardPage() {
                 View QR Profile
               </CTAButton>
               <CTAButton
-                href="/pets/pet_milo/tags/order"
+                href={orderTagHref}
                 icon="tag"
                 variant="outline"
                 fullWidth

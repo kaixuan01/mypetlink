@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { PublicSharePetProfile } from "@/components/marketing/PublicSharePetProfile";
 import { staticPublicPetParams } from "@/data/staticRouteParams";
+import { parsePublicProfileParam } from "@/lib/routes";
 import { getPublicPetMoments } from "@/services/momentService";
-import { getPublicPetProfile } from "@/services/petService";
+import { getPublicPetProfileByPublicCode } from "@/services/petService";
 import { getPetRecords } from "@/services/recordService";
 
 type PublicPetPageProps = {
@@ -20,7 +21,8 @@ export async function generateMetadata({
   params,
 }: PublicPetPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const profile = await getPublicPetProfile(slug);
+  const { publicCode } = parsePublicProfileParam(slug);
+  const profile = await getPublicPetProfileByPublicCode(publicCode);
 
   return {
     title: profile.data ? `${profile.data.name}'s Profile` : "Pet Profile",
@@ -29,7 +31,8 @@ export async function generateMetadata({
 
 export default async function PublicPetPage({ params }: PublicPetPageProps) {
   const { slug } = await params;
-  const profile = await getPublicPetProfile(slug);
+  const { publicCode } = parsePublicProfileParam(slug);
+  const profile = await getPublicPetProfileByPublicCode(publicCode);
 
   if (!profile.data) {
     notFound();

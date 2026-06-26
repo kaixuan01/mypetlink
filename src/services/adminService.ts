@@ -43,7 +43,7 @@ export async function getAdminQrProfiles() {
       petName: pet.name,
       slug: pet.slug,
       status: pet.qrStatus,
-      url: pet.publicProfileUrl,
+      url: pet.publicProfilePath,
       owner: pet.owner.name,
     })),
     {

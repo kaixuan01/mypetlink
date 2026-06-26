@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AppLayout } from "@/components/layouts/AppLayout";
 import { RecordsManager } from "@/components/portal/RecordsManager";
+import { PetSwitcher } from "@/components/portal/PetSwitcher";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { staticPetIdParams } from "@/data/staticRouteParams";
-import { getPetById } from "@/services/petService";
+import { getPetById, getPets } from "@/services/petService";
 import { getPetRecords } from "@/services/recordService";
 
 type RecordsPageProps = {
@@ -30,6 +31,7 @@ export default async function RecordsPage({ params }: RecordsPageProps) {
   }
 
   const records = await getPetRecords(pet.data.id);
+  const pets = await getPets();
 
   return (
     <AppLayout>
@@ -38,6 +40,8 @@ export default async function RecordsPage({ params }: RecordsPageProps) {
         title={`${pet.data.name}'s health and care history`}
         description="Keep vaccines, deworming, grooming, vet visits, medication, and allergy notes in one place."
       />
+
+      <PetSwitcher activePetId={pet.data.id} pets={pets.data} section="records" />
 
       <RecordsManager petId={pet.data.id} initialRecords={records.data} />
     </AppLayout>

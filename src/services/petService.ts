@@ -1,5 +1,7 @@
 import { mockPets } from "@/data/mockPets";
 import { mockRecords } from "@/data/mockRecords";
+import { publicProfilePath } from "@/lib/routes";
+import { generatePublicCode, generateTagCode } from "@/lib/tagCodes";
 import {
   mockDelay,
   mockResponse,
@@ -48,8 +50,24 @@ function cleanMediaLabel(value: string) {
   return value;
 }
 
-function createTagCode(slug: string) {
-  return `${slug.toUpperCase().replace(/-/g, "").slice(0, 8)}-QR`;
+// Stable fallback publicCode for legacy stored pets saved before publicCode
+// existed. Deterministic so the public profile path never changes on re-read.
+function derivePublicCode(seed: string) {
+  let hash = 0;
+
+  for (let index = 0; index < seed.length; index += 1) {
+    hash = (hash * 31 + seed.charCodeAt(index)) >>> 0;
+  }
+
+  const chars = "abcdefghjkmnpqrstuvwxyz23456789";
+  let code = "";
+
+  for (let index = 0; index < 4; index += 1) {
+    code += chars[hash % chars.length];
+    hash = Math.floor(hash / chars.length);
+  }
+
+  return code;
 }
 
 function mergeVisibility(visibility?: PetPayload["visibility"]) {
@@ -70,6 +88,8 @@ function mergeOwner(
 }
 
 function normalizePet(pet: Pet): Pet {
+  const publicCode = pet.publicCode ?? derivePublicCode(pet.id);
+
   return {
     ...pet,
     gender: pet.gender ?? "Not set",
@@ -82,7 +102,9 @@ function normalizePet(pet: Pet): Pet {
     profilePhotoLabel: cleanMediaLabel(pet.profilePhotoLabel),
     coverPhotoLabel: cleanMediaLabel(pet.coverPhotoLabel),
     profileTheme: pet.profileTheme ?? "default",
-    publicProfileUrl: pet.publicProfileUrl ?? `/p/${pet.slug}`,
+    publicCode,
+    publicProfilePath:
+      pet.publicProfilePath ?? publicProfilePath(pet.slug, publicCode),
     bio:
       pet.bio ??
       `${pet.name} has a safe MyPetLink profile ready for family and friends.`,
@@ -115,7 +137,7 @@ function titleFromSlug(value: string) {
 
 function createFallbackPetFromSlug(slug: string): Pet {
   const name = titleFromSlug(slug) || "New Pet";
-  const tagCode = createTagCode(slug);
+  const publicCode = derivePublicCode(slug);
 
   return {
     ...mockPets[0],
@@ -133,8 +155,9 @@ function createFallbackPetFromSlug(slug: string): Pet {
     coverPhotoLabel: "",
     profileTheme: "default",
     qrStatus: "draft",
-    finderProfileUrl: `/t/${tagCode}`,
-    publicProfileUrl: `/p/${slug}`,
+    finderProfileUrl: `/t/${generateTagCode()}`,
+    publicCode,
+    publicProfilePath: publicProfilePath(slug, publicCode),
     bio: `${name} has a safe MyPetLink profile ready for family and friends.`,
     personalityTags: ["Loved", "Family pet"],
     favoriteFood: "Not set",
@@ -174,17 +197,8 @@ export async function getPetById(id: string) {
   );
 }
 
-export async function getPublicPetProfile(slug: string) {
-  await mockDelay();
-  const pet =
-    getPetCollection().find((item) => item.slug === slug) ??
-    createFallbackPetFromSlug(slug);
-
-  if (!pet) {
-    return mockResponse<PublicPetProfile | null>(null);
-  }
-
-  const publicProfile: PublicPetProfile = {
+export function toPublicProfile(pet: Pet): PublicPetProfile {
+  return {
     id: pet.id,
     slug: pet.slug,
     name: pet.name,
@@ -201,8 +215,9 @@ export async function getPublicPetProfile(slug: string) {
     profilePhotoLabel: "",
     coverPhotoLabel: "",
     profileTheme: pet.profileTheme,
+    publicCode: pet.publicCode,
     finderProfileUrl: pet.finderProfileUrl,
-    publicProfileUrl: pet.publicProfileUrl,
+    publicProfilePath: pet.publicProfilePath,
     bio: pet.bio,
     personalityTags: pet.personalityTags,
     favoriteFood: pet.favoriteFood,
@@ -215,8 +230,23 @@ export async function getPublicPetProfile(slug: string) {
       ...pet.visibility,
     },
   };
+}
 
-  return mockResponse(publicProfile);
+// Public profiles are resolved by the stable publicCode (the last segment of
+// /p/{slug}-{publicCode}), never by slug — so renaming a pet never breaks an
+// already-shared link.
+export async function getPublicPetProfileByPublicCode(publicCode: string) {
+  await mockDelay();
+  const normalized = publicCode.trim().toLowerCase();
+  const pet = getPetCollection().find(
+    (item) => item.publicCode.toLowerCase() === normalized
+  );
+
+  if (!pet) {
+    return mockResponse<PublicPetProfile | null>(null);
+  }
+
+  return mockResponse(toPublicProfile(pet));
 }
 
 export async function createPet(payload: PetPayload) {
@@ -224,7 +254,7 @@ export async function createPet(payload: PetPayload) {
   const pets = getPetCollection();
   const petName = payload.name?.trim() || "New pet";
   const slug = slugifyPetSlug(payload.slug ?? petName) || `pet-${Date.now()}`;
-  const tagCode = createTagCode(slug);
+  const publicCode = generatePublicCode();
 
   const pet: Pet = {
     ...mockPets[0],
@@ -244,8 +274,9 @@ export async function createPet(payload: PetPayload) {
     profilePhotoLabel: payload.profilePhotoLabel ?? "",
     coverPhotoLabel: payload.coverPhotoLabel ?? "",
     profileTheme: payload.profileTheme ?? "default",
-    finderProfileUrl: `/t/${tagCode}`,
-    publicProfileUrl: `/p/${slug}`,
+    finderProfileUrl: `/t/${generateTagCode()}`,
+    publicCode,
+    publicProfilePath: publicProfilePath(slug, publicCode),
     bio:
       payload.bio ??
       `${petName} has a safe MyPetLink profile ready for family and friends.`,
@@ -275,7 +306,7 @@ export async function updatePet(id: string, payload: PetPayload) {
         ...pet,
         ...payload,
         slug: nextSlug ?? pet.slug,
-        publicProfileUrl: `/p/${nextSlug ?? pet.slug}`,
+        publicProfilePath: publicProfilePath(nextSlug ?? pet.slug, pet.publicCode),
         photoInitial:
           payload.photoInitial ??
           (payload.name ? getPetInitial(payload.name) : pet.photoInitial),

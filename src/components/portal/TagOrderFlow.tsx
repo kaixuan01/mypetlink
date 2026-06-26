@@ -18,8 +18,8 @@ import {
 import type {
   DeliveryDetails,
   Pet,
-  TagDesign,
   TagOrder,
+  TagShape,
   TagType,
 } from "@/types";
 
@@ -49,11 +49,11 @@ const tagTypes: {
   },
 ];
 
-const designs: TagDesign[] = [
-  "Round Tag",
-  "Bone Shape",
-  "Minimal Tag",
-  "Cute Paw Tag",
+const shapeOptions: { shape: TagShape; label: string }[] = [
+  { shape: "Round", label: "Round Tag" },
+  { shape: "Bone", label: "Bone Shape" },
+  { shape: "Rounded Square", label: "Minimal Tag" },
+  { shape: "Paw", label: "Cute Paw Tag" },
 ];
 
 const steps = [
@@ -96,7 +96,7 @@ export function TagOrderFlow({
 }: TagOrderFlowProps) {
   const [step, setStep] = useState(0);
   const [petId, setPetId] = useState(preselectedPetId ?? pets[0]?.id ?? "");
-  const [design, setDesign] = useState<TagDesign>("Round Tag");
+  const [shape, setShape] = useState<TagShape>("Round");
   const [delivery, setDelivery] = useState<DeliveryDetails>(emptyDelivery);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [createdOrder, setCreatedOrder] = useState<TagOrder | null>(null);
@@ -119,6 +119,8 @@ export function TagOrderFlow({
     [petId, pets]
   );
   const estimatedPrice = getEstimatedTagPrice(tagType);
+  const shapeLabel =
+    shapeOptions.find((option) => option.shape === shape)?.label ?? shape;
 
   function updateDelivery(field: DeliveryField, value: string) {
     setDelivery((current) => ({ ...current, [field]: value }));
@@ -144,7 +146,7 @@ export function TagOrderFlow({
         setStep(0);
       } else if (nextErrors.tagType) {
         setStep(1);
-      } else if (nextErrors.design) {
+      } else if (nextErrors.shape) {
         setStep(2);
       } else {
         setStep(4);
@@ -163,8 +165,8 @@ export function TagOrderFlow({
       nextErrors.tagType = "Choose a tag type.";
     }
 
-    if (stepIndex === 2 && !design) {
-      nextErrors.design = "Choose a tag design.";
+    if (stepIndex === 2 && !shape) {
+      nextErrors.shape = "Choose a tag design.";
     }
 
     if (stepIndex === 4) {
@@ -204,7 +206,7 @@ export function TagOrderFlow({
     const response = await createTagOrder({
       petId: selectedPet.id,
       tagType,
-      design,
+      shape,
       delivery,
       replacementForTagId: replacementFor,
     });
@@ -398,22 +400,22 @@ export function TagOrderFlow({
           description="Pick a shape that feels right for your pet."
         >
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {designs.map((option) => (
+            {shapeOptions.map((option) => (
               <button
                 className={`min-h-36 rounded-[1.25rem] border p-4 text-center transition ${
-                  design === option
+                  shape === option.shape
                     ? "border-pet-coral bg-pet-apricot"
                     : "border-pet-border bg-pet-cream"
                 }`}
-                key={option}
-                onClick={() => setDesign(option)}
+                key={option.shape}
+                onClick={() => setShape(option.shape)}
                 type="button"
               >
                 <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-white text-pet-coral">
                   <Icon name="tag" className="h-6 w-6" />
                 </span>
                 <span className="mt-3 block text-sm font-black text-pet-ink">
-                  {option}
+                  {option.label}
                 </span>
               </button>
             ))}
@@ -449,7 +451,7 @@ export function TagOrderFlow({
             <div className="grid gap-3">
               <SummaryItem label="Pet" value={selectedPet?.name ?? "Pet"} />
               <SummaryItem label="Tag type" value={tagType} />
-              <SummaryItem label="Design" value={design} />
+              <SummaryItem label="Design" value={shapeLabel} />
               <SummaryItem
                 label="Profile"
                 value={selectedPet?.finderProfileUrl ?? "/t/your-tag"}
@@ -560,7 +562,7 @@ export function TagOrderFlow({
         <div className="grid gap-3 md:grid-cols-2">
           <SummaryItem label="Selected pet" value={selectedPet?.name ?? "Pet"} />
           <SummaryItem label="Tag type" value={tagType} />
-          <SummaryItem label="Design" value={design} />
+          <SummaryItem label="Design" value={shapeLabel} />
           <SummaryItem label="Estimated price" value={estimatedPrice} />
           <SummaryItem label="Recipient" value={delivery.recipientName} />
           <SummaryItem

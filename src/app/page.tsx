@@ -142,7 +142,11 @@ export default async function Home() {
               <CTAButton href="/login" icon="paw" variant="coral">
                 Create Pet Profile
               </CTAButton>
-              <CTAButton href="/p/milo" icon="heart" variant="primary">
+              <CTAButton
+                href={samplePet.publicProfilePath}
+                icon="heart"
+                variant="primary"
+              >
                 View Sample Pet Profile
               </CTAButton>
             </div>
@@ -309,7 +313,7 @@ export default async function Home() {
               title="The finder page stays calm and focused."
               description="It does not look like a dashboard. It gives the finder safe public details and immediate contact actions."
             />
-            <CTAButton href="/t/8KX29A" icon="qr">
+            <CTAButton href={samplePet.finderProfileUrl} icon="qr">
               Open Safety Page
             </CTAButton>
           </div>

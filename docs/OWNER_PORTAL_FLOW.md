@@ -1,0 +1,132 @@
+# MyPetLink Owner Portal Flow
+
+> Read [`AI_AGENT_REFERENCE.md`](./AI_AGENT_REFERENCE.md) first. This document
+> describes the **signed-in owner portal** only. Public scan/share routes are in
+> [`PUBLIC_PROFILE_ROUTING.md`](./PUBLIC_PROFILE_ROUTING.md).
+
+---
+
+## 1. Shell and authentication
+
+Every owner page renders inside **`AppLayout`**
+(`src/components/layouts/AppLayout.tsx`), which:
+
+- Wraps children in **`AuthGuard`**, so all portal pages require a signed-in
+  owner (mock auth via `src/services/authService.ts`, `localStorage` key
+  `mypetlink_mock_owner`).
+- Renders the desktop sidebar nav and, on mobile, the `MobileBottomNav`.
+- Provides the "Add Pet" CTA and logout.
+
+If you add a portal page, render it inside `AppLayout` so it inherits auth and
+navigation. Public pages (scan, share, marketing) must **not** use `AppLayout`.
+
+### Sign-in continuation
+
+`AuthGuard` sends unauthenticated users to `/login?next={path}`. `LoginPanel`
+honors a `next` query param (guarded with `next.startsWith("/")` to prevent
+open redirects) and returns the user to where they were headed — this is what
+lets the activation flow resume after sign-in. Do not bypass this.
+
+---
+
+## 2. Navigation map
+
+The sidebar (`AppLayout`) and `MobileBottomNav` use the **generic, pet-agnostic**
+section routes. They must never point at a specific pet id.
+
+| Nav item   | Route        | Notes                                            |
+| ---------- | ------------ | ------------------------------------------------ |
+| Dashboard  | `/dashboard` | Overview + quick actions                         |
+| My Pets    | `/pets`      | Pet list; `/pets/new` to add                     |
+| Records    | `/records`   | Generic landing → first pet, then pet switcher   |
+| Moments    | `/moments`   | Generic landing → first pet, then pet switcher   |
+| Smart Tags | `/tags`      | All tags across pets                             |
+| Orders     | `/orders`    | Tag order history                                |
+| Settings   | `/settings`  | Account/profile settings                         |
+
+`isActiveNav` in `AppLayout` (and the matcher in `MobileBottomNav`) treats the
+per-pet routes as belonging to their section — e.g. `/pets/{id}/records`
+highlights **Records**, `/pets/{id}/moments` and `/pets/{id}/moments/new`
+highlight **Moments**.
+
+---
+
+## 3. Per-pet pages
+
+All owner pet pages key off the **`petId`** (`ownerRoutes.*` helpers):
+
+| Page          | Route                          | Helper                      |
+| ------------- | ------------------------------ | --------------------------- |
+| Profile       | `/pets/{id}`                   | `ownerRoutes.petProfile`    |
+| Edit          | `/pets/{id}/edit`              | `ownerRoutes.petEdit`       |
+| QR preview    | `/pets/{id}/qr`                | `ownerRoutes.petQr`         |
+| Records       | `/pets/{id}/records`           | `ownerRoutes.petRecords`    |
+| Moments       | `/pets/{id}/moments`           | `ownerRoutes.petMoments`    |
+| New moment    | `/pets/{id}/moments/new`       | `ownerRoutes.petMomentNew`  |
+| Timeline      | `/pets/{id}/timeline`          | `ownerRoutes.petTimeline`   |
+| Tags          | `/pets/{id}/tags`              | `ownerRoutes.petTags`       |
+| Order tag     | `/pets/{id}/tags/order`        | `ownerRoutes.petTagOrder`   |
+
+These are static-export dynamic routes: each exports `dynamicParams = false` and
+`generateStaticParams()` from `staticPetIdParams()`. A pet created at runtime
+(in `localStorage`) is reflected through client re-fetching, not new static
+routes.
+
+`ownerRoutes.petTagOrder(petId, { type?, replacementFor? })` builds the order
+URL with an optional `type=qr|nfc` and `replacementFor={tagId}` query string —
+use it instead of hand-writing the query.
+
+---
+
+## 4. Pet switching (Moments & Records)
+
+Both sections are **pet-aware**. The pattern:
+
+- **Generic route** (`/records`, `/moments`): `GenericPetSection` loads the pet
+  list, selects the **first pet**, fetches that pet's data, and renders the
+  section. If there are no pets it shows an `EmptyState` linking to
+  `ownerRoutes.petNew`.
+- **Specific route** (`/pets/{id}/records`, `/pets/{id}/moments`): the server
+  page loads that pet and renders the section for it.
+- Both render a **`PetSwitcher`** at the top. It self-fetches the live pet list,
+  renders one pill per pet, and navigates between the per-pet routes
+  (`ownerRoutes.petMoments` / `ownerRoutes.petRecords`). It returns `null` when
+  the owner has one pet or fewer (nothing to switch).
+
+The section managers (`RecordsManager`, `PetMomentsManager`) re-fetch their data
+whenever the active `petId` changes, so switching pets updates the title, stats,
+cards, and timeline. **There is no hardcoded "first pet" logic beyond
+`pets[0]`** — never special-case a named pet.
+
+When adding a new pet-aware section, follow this exact shape: generic landing →
+first pet, specific route → that pet, `PetSwitcher` on top, manager re-fetches on
+`petId` change.
+
+---
+
+## 5. Tags & orders in the portal
+
+- **`/tags`** lists every tag across the owner's pets via `TagManagementPanel`.
+  Each card shows the **TagCode prominently** (labelled `TAG CODE`), the linked
+  pet, product name (`QR` vs `QR + NFC`, derived from `hasNfc`), shape, and
+  status. Actions depend on status: an `Unassigned` tag offers **Activate Tag**
+  (`activatePath`); an active tag offers **Order Replacement** / **Disable** /
+  **Report Lost**. "View Tag" (`tagPath`) is always available. The internal `id`
+  is never shown.
+- **`/orders`** lists `TagOrder` history. Orders carry `tagType` + `shape`
+  (there is no `design` field). Replacement links use
+  `ownerRoutes.petTagOrder(petId, { type, replacementFor })`.
+
+Ordering a tag (`createTagOrder`) creates the `PetTag` already bound to the pet
+with status `Pending`, plus a `TagOrder` with status `Received`. A replacement
+order marks the old tag `Replaced`.
+
+---
+
+## 6. Dashboard
+
+`/dashboard` is a server page that derives everything from `firstPet = pets[0]`
+and guards every quick-action link: when there are no pets, links fall back to
+`ownerRoutes.petNew` / `ownerRoutes.pets` instead of pointing at a missing pet.
+Reuse this guarded pattern for any new dashboard shortcut — do not assume a pet
+exists and never hardcode a pet id.

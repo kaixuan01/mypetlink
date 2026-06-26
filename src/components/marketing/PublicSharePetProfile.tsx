@@ -12,7 +12,7 @@ import {
   type PetProfileTheme,
 } from "@/lib/petProfileThemes";
 import { getPublicPetMoments } from "@/services/momentService";
-import { getPublicPetProfile } from "@/services/petService";
+import { getPublicPetProfileByPublicCode } from "@/services/petService";
 import { getPetRecords } from "@/services/recordService";
 import type { CareRecord, Pet, PetMoment, PublicPetProfile } from "@/types";
 
@@ -63,7 +63,7 @@ export function PublicSharePetProfile({
         .filter((record) => record.publicVisibility !== "Private")
         .slice(0, 3)
     : [];
-  const profilePath = profile.publicProfileUrl || `/p/${profile.slug}`;
+  const profilePath = profile.publicProfilePath;
   const summaryCards: { label: string; value: string; icon: IconName }[] = [
     {
       label: "Profile visibility",
@@ -90,26 +90,28 @@ export function PublicSharePetProfile({
   useEffect(() => {
     let active = true;
 
-    getPublicPetProfile(initialProfile.slug).then(async (profileResponse) => {
-      if (!active) {
-        return;
+    getPublicPetProfileByPublicCode(initialProfile.publicCode).then(
+      async (profileResponse) => {
+        if (!active) {
+          return;
+        }
+
+        const nextProfile = profileResponse.data ?? initialProfile;
+        setProfile(nextProfile);
+
+        const [momentsResponse, recordsResponse] = await Promise.all([
+          getPublicPetMoments(nextProfile.id),
+          getPetRecords(nextProfile.id),
+        ]);
+
+        if (!active) {
+          return;
+        }
+
+        setMoments(momentsResponse.data);
+        setRecords(recordsResponse.data);
       }
-
-      const nextProfile = profileResponse.data ?? initialProfile;
-      setProfile(nextProfile);
-
-      const [momentsResponse, recordsResponse] = await Promise.all([
-        getPublicPetMoments(nextProfile.id),
-        getPetRecords(nextProfile.id),
-      ]);
-
-      if (!active) {
-        return;
-      }
-
-      setMoments(momentsResponse.data);
-      setRecords(recordsResponse.data);
-    });
+    );
 
     return () => {
       active = false;

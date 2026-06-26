@@ -104,7 +104,7 @@ export default async function QRPage({ params }: QRPageProps) {
             <div className="mt-3 rounded-[1.25rem] bg-[#e8f3ff] p-4">
               <ShareProfileLink
                 label="Public share profile link"
-                path={pet.data.publicProfileUrl}
+                path={pet.data.publicProfilePath}
                 petName={pet.data.name}
               />
             </div>

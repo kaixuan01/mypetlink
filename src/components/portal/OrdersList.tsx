@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
+import { ownerRoutes } from "@/lib/routes";
 import { getOrders } from "@/services/tagService";
 import type { Pet, TagOrder } from "@/types";
 
@@ -42,12 +43,16 @@ export function OrdersList({ pets, initialOrders }: OrdersListProps) {
   }, []);
 
   if (!orders.length) {
+    const orderHref = pets[0]
+      ? ownerRoutes.petTagOrder(pets[0].id)
+      : ownerRoutes.petNew;
+
     return (
       <EmptyState
         icon="record"
         title="No tag orders yet"
         description="Orders for MyPetLink QR Tags and QR + NFC Smart Tags will appear here with order number, delivery summary, View Order, and replacement actions."
-        actionHref="/pets/pet_milo/tags/order"
+        actionHref={orderHref}
         actionLabel="Order Physical Tag"
       />
     );
@@ -58,7 +63,9 @@ export function OrdersList({ pets, initialOrders }: OrdersListProps) {
       {orders.map((order) => {
         const pet = petMap.get(order.petId);
         const replacementType = order.tagType.includes("NFC") ? "nfc" : "qr";
-        const replacementHref = `/pets/${order.petId}/tags/order?type=${replacementType}`;
+        const replacementHref = ownerRoutes.petTagOrder(order.petId, {
+          type: replacementType,
+        });
         const deliverySummary = [
           order.delivery.addressLine1,
           order.delivery.postcode,
@@ -100,7 +107,7 @@ export function OrdersList({ pets, initialOrders }: OrdersListProps) {
 
             {openOrderId === order.id ? (
               <div className="mt-4 grid gap-3 rounded-[1.25rem] bg-pet-cream p-4 md:grid-cols-3">
-                <SummaryItem label="Design" value={order.design} />
+                <SummaryItem label="Shape" value={order.shape} />
                 <SummaryItem label="Price" value={order.estimatedPrice} />
                 <SummaryItem
                   label="Recipient"

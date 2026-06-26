@@ -12,8 +12,8 @@ import { logoutOwner } from "@/services/authService";
 const navItems: { href: string; label: string; icon: IconName }[] = [
   { href: "/dashboard", label: "Dashboard", icon: "home" },
   { href: "/pets", label: "My Pets", icon: "pets" },
-  { href: "/pets/pet_milo/records", label: "Records", icon: "record" },
-  { href: "/pets/pet_milo/moments", label: "Moments", icon: "heart" },
+  { href: "/records", label: "Records", icon: "record" },
+  { href: "/moments", label: "Moments", icon: "heart" },
   { href: "/tags", label: "Smart Tags", icon: "tag" },
   { href: "/orders", label: "Orders", icon: "record" },
   { href: "/settings", label: "Settings", icon: "settings" },
@@ -32,12 +32,17 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       return pathname === "/settings";
     }
 
-    if (href.endsWith("/records")) {
-      return /^\/pets\/[^/]+\/records$/.test(pathname);
+    if (href === "/records") {
+      return (
+        pathname === "/records" || /^\/pets\/[^/]+\/records$/.test(pathname)
+      );
     }
 
-    if (href.endsWith("/moments")) {
-      return /^\/pets\/[^/]+\/moments(\/new)?$/.test(pathname);
+    if (href === "/moments") {
+      return (
+        pathname === "/moments" ||
+        /^\/pets\/[^/]+\/moments(\/new)?$/.test(pathname)
+      );
     }
 
     if (href === "/tags") {

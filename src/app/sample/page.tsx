@@ -4,14 +4,15 @@ import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon } from "@/components/ui/Icon";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PetAvatar } from "@/components/ui/PetAvatar";
-import { getPublicPetProfile } from "@/services/petService";
+import { samplePet } from "@/lib/routes";
+import { getPublicPetProfileByPublicCode } from "@/services/petService";
 
 export const metadata: Metadata = {
   title: "Sample Experiences",
 };
 
 export default async function SamplePage() {
-  const profile = await getPublicPetProfile("milo");
+  const profile = await getPublicPetProfileByPublicCode(samplePet.publicCode);
 
   return (
     <PublicLayout>
@@ -33,7 +34,7 @@ export default async function SamplePage() {
                         Public Share Profile
                       </p>
                       <h2 className="mt-2 text-3xl font-black text-pet-ink">
-                        Milo&apos;s mini website
+                        {profile.data.name}&apos;s mini website
                       </h2>
                       <p className="mt-2 text-sm leading-6 text-pet-muted">
                         A warm pet page for family and friends, with approved
@@ -56,7 +57,11 @@ export default async function SamplePage() {
                       {item}
                     </div>
                   ))}
-                  <CTAButton href="/p/milo" icon="heart" className="mt-2">
+                  <CTAButton
+                    href={profile.data.publicProfilePath}
+                    icon="heart"
+                    className="mt-2"
+                  >
                     View Sample Pet Profile
                   </CTAButton>
                 </div>
@@ -73,7 +78,7 @@ export default async function SamplePage() {
                         QR/NFC Finder Safety Page
                       </p>
                       <h2 className="mt-2 text-3xl font-black text-pet-ink">
-                        Found Milo?
+                        Found {profile.data.name}?
                       </h2>
                       <p className="mt-2 text-sm leading-6 text-pet-muted">
                         A contact-focused page for scan or tap moments, with
@@ -97,7 +102,7 @@ export default async function SamplePage() {
                     </div>
                   ))}
                   <CTAButton
-                    href="/t/8KX29A"
+                    href={profile.data.finderProfileUrl}
                     icon="qr"
                     variant="coral"
                     className="mt-2"

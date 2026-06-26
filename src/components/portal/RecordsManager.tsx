@@ -1,6 +1,12 @@
 "use client";
 
-import { useMemo, useState, type FormEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { RecordCard } from "@/components/portal/RecordCard";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -8,6 +14,7 @@ import { Icon } from "@/components/ui/Icon";
 import {
   createRecord,
   deleteRecord,
+  getPetRecords,
   updateRecord,
 } from "@/services/recordService";
 import type { CareRecord, RecordType } from "@/types";
@@ -68,6 +75,20 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
       })),
     [records]
   );
+
+  useEffect(() => {
+    let active = true;
+
+    getPetRecords(petId).then((response) => {
+      if (active) {
+        setRecords(response.data);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [petId]);
 
   function updateField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));

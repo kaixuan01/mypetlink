@@ -38,8 +38,9 @@ export type Pet = {
   coverPhotoLabel: string;
   profileTheme: PetProfileThemeId;
   qrStatus: QrStatus;
+  publicCode: string;
   finderProfileUrl: string;
-  publicProfileUrl: string;
+  publicProfilePath: string;
   bio: string;
   personalityTags: string[];
   favoriteFood: string;
@@ -87,8 +88,9 @@ export type PublicPetProfile = Pick<
   | "profilePhotoLabel"
   | "coverPhotoLabel"
   | "profileTheme"
+  | "publicCode"
   | "finderProfileUrl"
-  | "publicProfileUrl"
+  | "publicProfilePath"
   | "bio"
   | "personalityTags"
   | "favoriteFood"
@@ -177,13 +179,10 @@ export type PetMoment = {
 
 export type TagType = "MyPetLink QR Pet Tag" | "MyPetLink QR + NFC Smart Tag";
 
-export type TagDesign =
-  | "Round Tag"
-  | "Bone Shape"
-  | "Minimal Tag"
-  | "Cute Paw Tag";
+export type TagShape = "Round" | "Bone" | "Rounded Square" | "Paw";
 
 export type TagStatus =
+  | "Unassigned"
   | "Pending"
   | "Preparing"
   | "Delivered"
@@ -192,16 +191,21 @@ export type TagStatus =
   | "Lost"
   | "Replaced";
 
+// A physical MyPetLink tag. Identified everywhere by tagCode (MPL-XXXX-XXXX).
+// petId/ownerUserId are only set once the tag is activated and bound to a pet.
 export type PetTag = {
   id: string;
-  petId: string;
-  tagType: TagType;
   tagCode: string;
+  petId?: string;
+  ownerUserId?: string;
+  hasNfc: boolean;
+  shape: TagShape;
   status: TagStatus;
-  design: TagDesign;
-  orderedDate: string;
+  batchNo?: string;
+  orderedDate?: string;
   deliveredDate?: string;
-  lastScannedDate?: string;
+  lastScannedAt?: string;
+  activatedAt?: string;
   replacementForTagId?: string;
 };
 
@@ -220,7 +224,7 @@ export type TagOrder = {
   id: string;
   petId: string;
   tagType: TagType;
-  design: TagDesign;
+  shape: TagShape;
   delivery: DeliveryDetails;
   estimatedPrice: string;
   status: "Received" | "Preparing" | "Delivered";
@@ -236,8 +240,25 @@ export type AdminDashboard = {
   newProfilesThisMonth: number;
 };
 
+// Outcome of resolving a scanned /t/{tagCode}. The state decides what the
+// finder page renders: the public profile, an activation prompt, a safe
+// inactive message, or a branded "tag not found" screen.
+export type FinderResult =
+  | { state: "active"; tagCode: string; profile: PublicPetProfile }
+  | { state: "unassigned"; tagCode: string }
+  | { state: "inactive"; tagCode: string; status: TagStatus }
+  | { state: "not-found"; tagCode: string };
+
 export type PetPayload = Partial<
-  Omit<Pet, "id" | "finderProfileUrl" | "allergies" | "medications">
+  Omit<
+    Pet,
+    | "id"
+    | "publicCode"
+    | "finderProfileUrl"
+    | "publicProfilePath"
+    | "allergies"
+    | "medications"
+  >
 >;
 
 export type RecordPayload = Partial<
@@ -265,7 +286,7 @@ export type PetMomentPayload = Partial<
 export type TagOrderPayload = {
   petId: string;
   tagType: TagType;
-  design: TagDesign;
+  shape: TagShape;
   delivery: DeliveryDetails;
   replacementForTagId?: string;
 };

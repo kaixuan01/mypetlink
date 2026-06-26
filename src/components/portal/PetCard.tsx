@@ -47,7 +47,7 @@ export function PetCard({ pet }: PetCardProps) {
         <CTAButton href={`/pets/${pet.id}/tags/order`} variant="outline" fullWidth>
           Order Tag
         </CTAButton>
-        <CTAButton href={pet.publicProfileUrl} variant="outline" fullWidth>
+        <CTAButton href={pet.publicProfilePath} variant="outline" fullWidth>
           Public Profile
         </CTAButton>
       </div>

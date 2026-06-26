@@ -7,7 +7,7 @@ import { Icon, type IconName } from "@/components/ui/Icon";
 const items: { href: string; label: string; icon: IconName }[] = [
   { href: "/dashboard", label: "Home", icon: "home" },
   { href: "/pets", label: "Pets", icon: "pets" },
-  { href: "/pets/pet_milo/moments", label: "Moments", icon: "heart" },
+  { href: "/moments", label: "Moments", icon: "heart" },
   { href: "/tags", label: "Tags", icon: "tag" },
   { href: "/orders", label: "Orders", icon: "record" },
 ];
@@ -26,8 +26,9 @@ export function MobileBottomNav() {
               /^\/pets\/[^/]+(\/edit|\/qr|\/records|\/timeline)?$/.test(
                 pathname
               ))) ||
-          (item.href.endsWith("/moments") &&
-            /^\/pets\/[^/]+\/moments/.test(pathname)) ||
+          (item.href === "/moments" &&
+            (pathname === "/moments" ||
+              /^\/pets\/[^/]+\/moments/.test(pathname))) ||
           (item.href === "/tags" &&
             (pathname === "/tags" || /^\/pets\/[^/]+\/tags/.test(pathname)));
         return (

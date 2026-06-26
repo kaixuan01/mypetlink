@@ -6,7 +6,7 @@ export function staticPetIdParams() {
 }
 
 export function staticPublicPetParams() {
-  return mockPets.map((pet) => ({ slug: pet.slug }));
+  return mockPets.map((pet) => ({ slug: `${pet.slug}-${pet.publicCode}` }));
 }
 
 export function staticTagCodeParams() {

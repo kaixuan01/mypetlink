@@ -278,11 +278,11 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
         </p>
         <ShareProfileLink
           className="mt-5"
-          path={createdPet.publicProfileUrl}
+          path={createdPet.publicProfilePath}
           petName={createdPet.name}
         />
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-          <CTAButton href={createdPet.publicProfileUrl} icon="heart">
+          <CTAButton href={createdPet.publicProfilePath} icon="heart">
             View Public Profile
           </CTAButton>
           <CTAButton
@@ -820,7 +820,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
 
       {savedPet ? (
         <ShareProfileLink
-          path={savedPet.publicProfileUrl}
+          path={savedPet.publicProfilePath}
           petName={savedPet.name}
         />
       ) : null}

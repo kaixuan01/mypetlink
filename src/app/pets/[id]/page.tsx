@@ -137,7 +137,7 @@ export default async function PetDetailPage({ params }: PetDetailPageProps) {
             </div>
           </div>
           <QRPreviewCard pet={pet} compact />
-          <ShareProfileLink path={pet.publicProfileUrl} petName={pet.name} />
+          <ShareProfileLink path={pet.publicProfilePath} petName={pet.name} />
         </section>
       </div>
 
@@ -152,7 +152,7 @@ export default async function PetDetailPage({ params }: PetDetailPageProps) {
           {
             title: "Public share profile preview",
             description: "Open the cute shareable profile for family and friends.",
-            href: pet.publicProfileUrl,
+            href: pet.publicProfilePath,
             icon: "heart" as const,
           },
           {

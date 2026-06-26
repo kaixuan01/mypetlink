@@ -2,6 +2,7 @@ import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon } from "@/components/ui/Icon";
 import { PetAvatar } from "@/components/ui/PetAvatar";
+import { samplePet } from "@/lib/routes";
 import type { Pet } from "@/types";
 
 const qrCells = [
@@ -21,15 +22,8 @@ type QRPreviewCardProps = {
   compact?: boolean;
 };
 
-const fallbackPet: Pick<Pet, "name" | "species" | "photoInitial" | "photoTone"> = {
-  name: "Milo",
-  species: "Dog",
-  photoInitial: "M",
-  photoTone: "apricot",
-};
-
 export function QRPreviewCard({ pet, compact }: QRPreviewCardProps) {
-  const displayPet = pet ?? fallbackPet;
+  const displayPet = pet ?? samplePet;
 
   return (
     <div className="brand-card rounded-[2rem] p-5">
@@ -88,7 +82,7 @@ export function QRPreviewCard({ pet, compact }: QRPreviewCardProps) {
       </div>
       {!compact ? (
         <CTAButton
-          href={pet?.finderProfileUrl ?? "/t/8KX29A"}
+          href={pet?.finderProfileUrl ?? samplePet.finderProfileUrl}
           icon="qr"
           variant="secondary"
           fullWidth

@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
+import { activatePath, ownerRoutes, tagPath } from "@/lib/routes";
 import {
   disableTag,
   getAllTags,
@@ -21,6 +22,7 @@ type TagManagementPanelProps = {
 };
 
 const statusTone: Record<TagStatus, "warm" | "mint" | "teal" | "soft" | "danger"> = {
+  Unassigned: "soft",
   Pending: "warm",
   Preparing: "teal",
   Delivered: "mint",
@@ -98,7 +100,7 @@ export function TagManagementPanel({
         icon="tag"
         title="No physical tags yet"
         description="Order a MyPetLink QR Tag or MyPetLink QR + NFC Smart Tag so your pet's profile is easy to open if they are found."
-        actionHref={petId ? `/pets/${petId}/tags/order` : "/pets/pet_milo/tags/order"}
+        actionHref={petId ? ownerRoutes.petTagOrder(petId) : ownerRoutes.petNew}
         actionLabel="Order Physical Tag"
       />
     );
@@ -108,10 +110,17 @@ export function TagManagementPanel({
     <>
       <div className="grid gap-4 lg:grid-cols-2">
         {tags.map((tag) => {
-          const pet = petMap.get(tag.petId);
-          const replacementHref = `/pets/${tag.petId}/tags/order?replacementFor=${tag.id}&type=${
-            tag.tagType === "MyPetLink QR + NFC Smart Tag" ? "nfc" : "qr"
-          }`;
+          const linkedPet = tag.petId ? petMap.get(tag.petId) : undefined;
+          const productName = tag.hasNfc
+            ? "MyPetLink QR + NFC Smart Tag"
+            : "MyPetLink QR Pet Tag";
+          const isUnassigned = tag.status === "Unassigned";
+          const replacementHref = tag.petId
+            ? ownerRoutes.petTagOrder(tag.petId, {
+                type: tag.hasNfc ? "nfc" : "qr",
+                replacementFor: tag.id,
+              })
+            : "";
 
           return (
             <article
@@ -119,25 +128,29 @@ export function TagManagementPanel({
               key={tag.id}
             >
               <div className="flex items-start justify-between gap-4">
-                <div>
+                <div className="min-w-0">
                   <Badge tone={statusTone[tag.status]}>{tag.status}</Badge>
-                  <h2 className="mt-3 text-xl font-black text-pet-ink">
-                    {tag.tagType}
+                  <p className="mt-3 text-xs font-bold uppercase text-pet-muted">
+                    Tag code
+                  </p>
+                  <h2 className="text-2xl font-black tracking-wide text-pet-ink">
+                    {tag.tagCode}
                   </h2>
-                  <p className="mt-1 text-sm text-pet-muted">{tag.design}</p>
+                  <p className="mt-1 text-sm text-pet-muted">
+                    {productName} - {tag.shape}
+                  </p>
                 </div>
-                <span className="grid h-12 w-12 place-items-center rounded-2xl bg-[#e8f3ff] text-pet-teal">
+                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-[#e8f3ff] text-pet-teal">
                   <Icon name="tag" className="h-5 w-5" />
                 </span>
               </div>
 
               <dl className="mt-5 grid gap-3 text-sm">
                 {[
-                  ["Tag code", tag.tagCode],
-                  ["Linked pet", pet?.name ?? "Pet profile"],
-                  ["Ordered date", tag.orderedDate],
+                  ["Linked pet", linkedPet?.name ?? "Not linked yet"],
+                  ["Ordered date", tag.orderedDate ?? "Not ordered yet"],
                   ["Delivered date", tag.deliveredDate ?? "Not delivered yet"],
-                  ["Last scanned", tag.lastScannedDate ?? "No scans yet"],
+                  ["Last scanned", tag.lastScannedAt ?? "No scans yet"],
                 ].map(([label, value]) => (
                   <div
                     className="rounded-[1.25rem] bg-pet-cream p-4"
@@ -153,32 +166,46 @@ export function TagManagementPanel({
 
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 <CTAButton
-                  href={`/t/${tag.tagCode}`}
+                  href={tagPath(tag.tagCode)}
                   icon="qr"
                   variant="secondary"
                   fullWidth
                 >
                   View Tag
                 </CTAButton>
-                <CTAButton href={replacementHref} icon="tag" fullWidth>
-                  Order Replacement Tag
-                </CTAButton>
-                <button
-                  className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-transparent px-5 py-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={tag.status === "Disabled"}
-                  onClick={() => setDisableTagTarget(tag)}
-                  type="button"
-                >
-                  Disable Tag
-                </button>
-                <button
-                  className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#ffd2c9] bg-[#fff4f1] px-5 py-3 text-sm font-bold text-[#a63c2e] transition hover:bg-[#ffe8e3] disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={tag.status === "Lost" || tag.status === "Replaced"}
-                  onClick={() => setLostTag(tag)}
-                  type="button"
-                >
-                  Report Lost
-                </button>
+                {isUnassigned ? (
+                  <CTAButton
+                    href={activatePath(tag.tagCode)}
+                    icon="paw"
+                    fullWidth
+                  >
+                    Activate Tag
+                  </CTAButton>
+                ) : (
+                  <>
+                    {replacementHref ? (
+                      <CTAButton href={replacementHref} icon="tag" fullWidth>
+                        Order Replacement Tag
+                      </CTAButton>
+                    ) : null}
+                    <button
+                      className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-transparent px-5 py-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={tag.status === "Disabled"}
+                      onClick={() => setDisableTagTarget(tag)}
+                      type="button"
+                    >
+                      Disable Tag
+                    </button>
+                    <button
+                      className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#ffd2c9] bg-[#fff4f1] px-5 py-3 text-sm font-bold text-[#a63c2e] transition hover:bg-[#ffe8e3] disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={tag.status === "Lost" || tag.status === "Replaced"}
+                      onClick={() => setLostTag(tag)}
+                      type="button"
+                    >
+                      Report Lost
+                    </button>
+                  </>
+                )}
               </div>
             </article>
           );
@@ -215,12 +242,16 @@ export function TagManagementPanel({
                 Report Lost
               </button>
             </div>
-            <Link
-              className="mt-4 block text-center text-sm font-bold text-pet-coral underline"
-              href={`/pets/${lostTag.petId}/tags/order?replacementFor=${lostTag.id}`}
-            >
-              Order Replacement Tag
-            </Link>
+            {lostTag.petId ? (
+              <Link
+                className="mt-4 block text-center text-sm font-bold text-pet-coral underline"
+                href={ownerRoutes.petTagOrder(lostTag.petId, {
+                  replacementFor: lostTag.id,
+                })}
+              >
+                Order Replacement Tag
+              </Link>
+            ) : null}
           </div>
         </div>
       ) : null}
@@ -236,7 +267,7 @@ export function TagManagementPanel({
               Disable this tag?
             </h2>
             <p className="mt-3 text-sm leading-6 text-pet-muted">
-              This tag will stop opening {petMap.get(disableTagTarget.petId)?.name ?? "your pet"}&apos;s safety page.
+              This tag will stop opening {(disableTagTarget.petId ? petMap.get(disableTagTarget.petId)?.name : undefined) ?? "your pet"}&apos;s safety page.
               You can order a replacement tag anytime.
             </p>
             <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
