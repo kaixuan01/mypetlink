@@ -1,7 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { PetMomentCard } from "@/components/portal/PetMomentCard";
 import { ShareProfileLink } from "@/components/share/ShareProfileLink";
@@ -60,7 +65,11 @@ export function PublicSharePetProfile({
   const [records, setRecords] = useState(initialRecords);
   const [lostMode, setLostMode] = useState(initialLostMode);
   const [activeTab, setActiveTab] = useState<TabId>("about");
-  const [isOwner, setIsOwner] = useState(false);
+  const isOwner = useSyncExternalStore(
+    subscribeToAuth,
+    isOwnerAuthenticated,
+    getServerAuth
+  );
 
   const visibility = mergeVisibility(profile.visibility);
   const theme = getPetProfileTheme(profile.profileTheme);
@@ -90,10 +99,6 @@ export function PublicSharePetProfile({
   const timelineEvents = visibility.showTimeline
     ? buildTimelineEvents(profile, moments, visibility)
     : [];
-
-  useEffect(() => {
-    setIsOwner(isOwnerAuthenticated());
-  }, []);
 
   useEffect(() => {
     let active = true;
@@ -705,6 +710,14 @@ function ThemedBadge({
       {children}
     </span>
   );
+}
+
+function subscribeToAuth() {
+  return () => {};
+}
+
+function getServerAuth() {
+  return false;
 }
 
 function mergeVisibility(

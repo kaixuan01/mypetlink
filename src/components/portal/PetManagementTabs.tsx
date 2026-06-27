@@ -351,7 +351,7 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <section className="brand-card flex flex-col gap-4 rounded-[1.75rem] p-6">
+    <section className="brand-card flex min-w-0 flex-col gap-4 rounded-[1.75rem] p-6">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[#e8f3ff] text-pet-teal">

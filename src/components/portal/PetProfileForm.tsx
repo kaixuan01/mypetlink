@@ -4,6 +4,7 @@ import Link from "next/link";
 import {
   useEffect,
   useState,
+  useSyncExternalStore,
   type ChangeEvent,
   type FormEvent,
   type ReactNode,
@@ -170,12 +171,12 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState("");
-  const [origin, setOrigin] = useState("");
+  const origin = useSyncExternalStore(
+    subscribeToOrigin,
+    getBrowserOrigin,
+    getServerOrigin
+  );
   const [tab, setTab] = useState<EditTab>("basic");
-
-  useEffect(() => {
-    setOrigin(window.location.origin);
-  }, []);
 
   useEffect(() => {
     if (mode !== "edit" || !initialPet?.id) {
@@ -1393,6 +1394,18 @@ function ThemePreviewPanel({
       </div>
     </div>
   );
+}
+
+function subscribeToOrigin() {
+  return () => {};
+}
+
+function getBrowserOrigin() {
+  return window.location.origin;
+}
+
+function getServerOrigin() {
+  return "";
 }
 
 function checkRequired<K extends keyof FormState>(
