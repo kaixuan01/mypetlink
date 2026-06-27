@@ -86,6 +86,11 @@ consistent. Records, Moments, and Smart Tag are reached **through this hub** (it
 tabs) or via the deep routes that render the same manager components — never as
 disconnected standalone dashboards.
 
+The pet hub and edit form use the shared responsive `SegmentedTabs` component.
+It measures the available tab row width and keeps the row to one line by moving
+overflow tabs into a **More** menu; do not replace this with horizontal scrolling
+or fixed mobile-only tab limits.
+
 ### Edit page is also tabbed
 
 `/pets/{petId}/edit` (`PetProfileForm`) is a **focused, tabbed edit form**, not a
