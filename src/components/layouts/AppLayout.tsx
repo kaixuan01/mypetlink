@@ -9,6 +9,12 @@ import { MobileBottomNav } from "@/components/layouts/MobileBottomNav";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import {
+  defaultOwnerSettings,
+  getOwnerDisplayName,
+  readOwnerSettings,
+  subscribeOwnerSettings,
+} from "@/lib/ownerSettings";
+import {
   getServerSidebarCollapsed,
   getSidebarCollapsed,
   setSidebarCollapsed,
@@ -34,6 +40,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     getSidebarCollapsed,
     getServerSidebarCollapsed
   );
+  const ownerDisplayName = useSyncExternalStore(
+    subscribeOwnerSettings,
+    getClientOwnerDisplayName,
+    getServerOwnerDisplayName
+  );
+  const ownerInitial = ownerDisplayName.charAt(0).toUpperCase() || "P";
 
   function isActiveNav(href: string) {
     if (href === "/dashboard") {
@@ -131,16 +143,18 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             <div className="mt-7 flex justify-center">
               <span
                 className="grid h-11 w-11 place-items-center rounded-full border border-pet-border bg-pet-cream text-sm font-black text-pet-ink"
-                title="Aina Rahman — Pet owner account"
+                title={`${ownerDisplayName} — Pet owner account`}
               >
-                A
+                {ownerInitial}
               </span>
             </div>
           ) : (
             <div className="brand-paw-dots mt-7 rounded-[1.5rem] border border-pet-border bg-pet-cream p-4">
               <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-bold text-pet-ink">Aina Rahman</p>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-bold text-pet-ink">
+                    {ownerDisplayName}
+                  </p>
                   <p className="text-xs text-pet-muted">Pet owner account</p>
                 </div>
               </div>
@@ -226,6 +240,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       </div>
     </AuthGuard>
   );
+}
+
+function getClientOwnerDisplayName() {
+  return getOwnerDisplayName(readOwnerSettings());
+}
+
+function getServerOwnerDisplayName() {
+  return getOwnerDisplayName(defaultOwnerSettings);
 }
 
 function SidebarToggle({

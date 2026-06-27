@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { CTAButton } from "@/components/ui/CTAButton";
+import { siteConfig } from "@/config/site";
 import { isOwnerAuthenticated } from "@/services/authService";
 
 const publicNav = [
@@ -128,15 +129,18 @@ export function PublicLayout({ children }: { children: React.ReactNode }) {
             </p>
             <div className="mt-5 grid gap-1 text-xs leading-5 text-pet-muted">
               <p className="font-bold text-pet-ink">
-                MyPetLink by GBB Software Solutions
+                {siteConfig.productName} by {siteConfig.companyName}
               </p>
-              <p>Malaysia &middot; Reg. No. AS0515813-P</p>
+              <p>
+                {siteConfig.country} &middot; Reg. No.{" "}
+                {siteConfig.businessRegistrationNo}
+              </p>
               <p>
                 <a
-                  href="mailto:support@gbbsoftwaresolutions.com"
+                  href={`mailto:${siteConfig.supportEmail}`}
                   className="hover:text-pet-teal transition"
                 >
-                  support@gbbsoftwaresolutions.com
+                  {siteConfig.supportEmail}
                 </a>
               </p>
             </div>

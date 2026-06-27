@@ -95,6 +95,8 @@ export function readOwnerSettings(): OwnerSettings {
   }
 }
 
+const ownerSettingsListeners = new Set<() => void>();
+
 export function writeOwnerSettings(settings: OwnerSettings) {
   if (typeof window === "undefined") {
     return;
@@ -104,6 +106,36 @@ export function writeOwnerSettings(settings: OwnerSettings) {
     OWNER_SETTINGS_STORAGE_KEY,
     JSON.stringify(normalizeOwnerSettings(settings))
   );
+
+  ownerSettingsListeners.forEach((listener) => listener());
+}
+
+/**
+ * Subscribe to owner-settings changes so owner-facing UI (e.g. the portal
+ * sidebar) stays in sync after a save, including edits made in another tab.
+ */
+export function subscribeOwnerSettings(callback: () => void): () => void {
+  ownerSettingsListeners.add(callback);
+
+  function handleStorage(event: StorageEvent) {
+    if (event.key === OWNER_SETTINGS_STORAGE_KEY) {
+      callback();
+    }
+  }
+
+  window.addEventListener("storage", handleStorage);
+
+  return () => {
+    ownerSettingsListeners.delete(callback);
+    window.removeEventListener("storage", handleStorage);
+  };
+}
+
+/** Owner display name for owner-facing UI, with a safe fallback. */
+export function getOwnerDisplayName(
+  settings: OwnerSettings = defaultOwnerSettings
+): string {
+  return settings.ownerDisplayName.trim() || "Pet owner";
 }
 
 export function normalizeOwnerSettings(value: unknown): OwnerSettings {

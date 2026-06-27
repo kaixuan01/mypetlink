@@ -479,7 +479,7 @@ export function TagOrderFlow({
                 onChange={(event) =>
                   updateDelivery("recipientName", event.target.value)
                 }
-                placeholder="Aina Rahman"
+                placeholder="Full name"
                 type="text"
                 value={delivery.recipientName}
               />

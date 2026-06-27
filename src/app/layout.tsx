@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Noto_Sans, Poppins } from "next/font/google";
+import { siteConfig } from "@/config/site";
 import "./globals.css";
 
 const poppins = Poppins({
@@ -14,8 +15,8 @@ const notoSans = Noto_Sans({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://mypetlink.com.my"),
-  applicationName: "MyPetLink",
+  metadataBase: new URL(siteConfig.url),
+  applicationName: siteConfig.productName,
   title: {
     default: "MyPetLink - A Safe and Shareable Profile for Your Pet",
     template: "%s | MyPetLink",
@@ -26,8 +27,8 @@ export const metadata: Metadata = {
     title: "MyPetLink - A Safe and Shareable Profile for Your Pet",
     description:
       "Create a QR safety profile for your pet, manage care records, save precious memories, and order optional QR or QR + NFC smart tags.",
-    siteName: "MyPetLink",
-    url: "https://mypetlink.com.my",
+    siteName: siteConfig.productName,
+    url: siteConfig.url,
     type: "website",
     images: [
       {

@@ -29,7 +29,7 @@ export const mockPets: Pet[] = [
     favoriteFood: "Beef treats",
     favoriteToy: "Blue squeaky ball",
     safetyNote:
-      "Friendly but nervous around traffic. Please contact Aina before moving him far from the found area.",
+      "Friendly but nervous around traffic. Please contact the owner before moving him far from the found area.",
     emergencyNote:
       "If Milo looks distressed, keep him shaded and avoid feeding unfamiliar treats.",
     owner: {
@@ -37,6 +37,9 @@ export const mockPets: Pet[] = [
       phone: "+60123456789",
       whatsapp: "+60123456789",
       emergencyContact: "+60199887766",
+    },
+    contactOverride: {
+      useOwnerDefaults: true,
     },
     visibility: {
       showOwnerName: true,
@@ -89,6 +92,9 @@ export const mockPets: Pet[] = [
       phone: "+60123456789",
       whatsapp: "+60123456789",
       emergencyContact: "+60199887766",
+    },
+    contactOverride: {
+      useOwnerDefaults: true,
     },
     visibility: {
       showOwnerName: true,
