@@ -744,7 +744,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
               </div>
             </details>
 
-            <div className="brand-card flex flex-col gap-4 rounded-[1.5rem] p-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="brand-card rounded-[1.5rem] p-5">
               {publicProfileFullUrl ? (
                 <UrlDisplay label="Public Profile URL" url={publicProfileFullUrl} />
               ) : (
@@ -753,17 +753,6 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
                   this pet.
                 </p>
               )}
-              {profilePath ? (
-                <CTAButton
-                  href={profilePath}
-                  icon="heart"
-                  variant="secondary"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Preview Public Profile
-                </CTAButton>
-              ) : null}
             </div>
           </div>
         </FormSection>
@@ -869,19 +858,10 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
             </PrivacyGroup>
 
             {mode === "edit" && currentPet ? (
-              <div className="brand-card flex flex-col gap-4 rounded-[1.5rem] p-5 lg:flex-row lg:items-center lg:justify-between">
+              <div className="brand-card rounded-[1.5rem] p-5">
                 {finderFullUrl ? (
                   <UrlDisplay label="QR Safety Page URL" url={finderFullUrl} />
                 ) : null}
-                <CTAButton
-                  href={currentPet.finderProfileUrl}
-                  icon="qr"
-                  variant="outline"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Preview QR Safety Page
-                </CTAButton>
               </div>
             ) : (
               <p className="rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold text-pet-muted">
@@ -893,30 +873,76 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
       ) : null}
 
       {mode === "edit" && currentPet ? (
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-2 text-sm font-bold text-pet-teal">
-          <span className="text-pet-muted">Related:</span>
-          <Link className="underline" href={`/pets/${currentPet.id}/records`}>
-            Care records
-          </Link>
-          <Link className="underline" href={`/pets/${currentPet.id}/moments`}>
-            Moments
-          </Link>
-          <Link className="underline" href={`/pets/${currentPet.id}/tags`}>
-            Smart tags
-          </Link>
+        <div className="brand-card flex flex-col gap-3 rounded-[1.5rem] p-5">
+          <p className="text-sm font-black text-pet-ink">
+            Manage {form.name || currentPet.name}&apos;s content
+          </p>
+          <p className="-mt-1 text-xs leading-5 text-pet-muted">
+            Records, memories, and smart tags are managed on their own pages.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <CTAButton
+              href={ownerRoutes.petRecords(currentPet.id)}
+              icon="record"
+              variant="outline"
+              fullWidth
+            >
+              Manage Care Records
+            </CTAButton>
+            <CTAButton
+              href={ownerRoutes.petMoments(currentPet.id)}
+              icon="heart"
+              variant="outline"
+              fullWidth
+            >
+              Manage Pet Memories
+            </CTAButton>
+            <CTAButton
+              href={ownerRoutes.petTags(currentPet.id)}
+              icon="tag"
+              variant="outline"
+              fullWidth
+            >
+              Manage Smart Tags
+            </CTAButton>
+          </div>
         </div>
       ) : null}
 
-      <div className="brand-card flex flex-col gap-3 rounded-[1.5rem] p-5 sm:flex-row sm:items-center sm:justify-end">
+      <div className="brand-card flex flex-col gap-3 rounded-[1.5rem] p-5 lg:flex-row lg:items-center lg:justify-between">
         <Link
           className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
           href={mode === "edit" && currentPet ? `/pets/${currentPet.id}` : "/pets"}
         >
           Cancel
         </Link>
-        <CTAButton disabled={isSubmitting} type="submit" variant="coral">
-          {isSubmitting ? "Saving..." : saveLabel}
-        </CTAButton>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+          {mode === "edit" && currentPet ? (
+            <>
+              <CTAButton
+                href={profilePath}
+                icon="heart"
+                variant="secondary"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                View Public Profile
+              </CTAButton>
+              <CTAButton
+                href={currentPet.finderProfileUrl}
+                icon="qr"
+                variant="outline"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                View QR Safety Page
+              </CTAButton>
+            </>
+          ) : null}
+          <CTAButton disabled={isSubmitting} type="submit" variant="coral">
+            {isSubmitting ? "Saving..." : saveLabel}
+          </CTAButton>
+        </div>
       </div>
 
       {savedPet ? (

@@ -9,6 +9,7 @@ import { PetManagementTabs } from "@/components/portal/PetManagementTabs";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { PetAvatar } from "@/components/ui/PetAvatar";
 import { staticPetIdParams } from "@/data/staticRouteParams";
+import { ownerRoutes } from "@/lib/routes";
 import { getPetMoments } from "@/services/momentService";
 import { getPetById } from "@/services/petService";
 import { getPetRecords } from "@/services/recordService";
@@ -67,8 +68,8 @@ export default async function PetDetailPage({ params }: PetDetailPageProps) {
               </p>
             </div>
           </div>
-          <CTAButton href={`/pets/${pet.id}/edit`} icon="settings">
-            Edit Pet Info
+          <CTAButton href={ownerRoutes.petEdit(pet.id)} icon="settings">
+            Edit Pet Details
           </CTAButton>
         </div>
       </section>
