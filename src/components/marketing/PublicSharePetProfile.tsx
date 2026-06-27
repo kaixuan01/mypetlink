@@ -17,6 +17,11 @@ import {
   getPetProfileTheme,
   type PetProfileTheme,
 } from "@/lib/petProfileThemes";
+import {
+  getCallLink,
+  getWhatsAppLink,
+  normalizeStoredPhone,
+} from "@/lib/phone";
 import { ownerRoutes } from "@/lib/routes";
 import { isOwnerAuthenticated } from "@/services/authService";
 import { getPublicPetMoments } from "@/services/momentService";
@@ -77,14 +82,15 @@ export function PublicSharePetProfile({
   const ownerDisplayName = visibility.showOwnerName
     ? getPublicOwnerName(profile.owner.name, profile.name)
     : `${profile.name}'s owner`;
-  const whatsappNumber = normalizeWhatsappNumber(profile.owner.whatsapp);
-  const phoneHref = normalizePhoneHref(profile.owner.phone);
-  const contactMessage = encodeURIComponent(
+  const whatsappE164 = normalizeStoredPhone(profile.owner.whatsapp);
+  const phoneE164 = normalizeStoredPhone(profile.owner.phone);
+  const whatsappHref = getWhatsAppLink(
+    whatsappE164,
     `Hi, I saw ${profile.name}'s MyPetLink profile.`
   );
-  const whatsappHref = `https://wa.me/${whatsappNumber}?text=${contactMessage}`;
-  const canWhatsapp = visibility.showWhatsapp && Boolean(whatsappNumber);
-  const canCall = visibility.showPhone && Boolean(phoneHref);
+  const phoneHref = getCallLink(phoneE164);
+  const canWhatsapp = visibility.showWhatsapp && Boolean(whatsappE164);
+  const canCall = visibility.showPhone && Boolean(phoneE164);
   const canContact = canWhatsapp || canCall;
 
   const publicMoments = visibility.showMoments
@@ -269,7 +275,7 @@ export function PublicSharePetProfile({
                 </CTAButton>
               ) : canCall ? (
                 <CTAButton
-                  href={`tel:${phoneHref}`}
+                  href={phoneHref}
                   icon="phone"
                   variant="coral"
                   fullWidth
@@ -344,7 +350,7 @@ export function PublicSharePetProfile({
               </CTAButton>
             ) : (
               <CTAButton
-                href={`tel:${phoneHref}`}
+                href={phoneHref}
                 icon="phone"
                 variant="secondary"
                 fullWidth
@@ -737,10 +743,3 @@ function getPublicOwnerName(name: string, petName: string) {
   return name.trim() || `${petName}'s owner`;
 }
 
-function normalizeWhatsappNumber(value: string) {
-  return value.replace(/[^\d]/g, "");
-}
-
-function normalizePhoneHref(value: string) {
-  return value.replace(/[^\d+]/g, "");
-}

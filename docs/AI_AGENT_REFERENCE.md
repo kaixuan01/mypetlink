@@ -215,10 +215,50 @@ Note: owner-ordered tags are created with a `petId` already set (status
     and external `<a>`. When the logged-in owner views their own `/p/` page, a
     small "Viewing as public" bar (Copy Link + Back to Edit) is shown; normal
     visitors only get a compact Share button (no raw URL box).
+12. **All phone, WhatsApp, and call inputs use `PhoneNumberInput`.** Never add a
+    plain `<input type="tel">` or text input for a phone, WhatsApp, emergency
+    contact, or delivery number. Use
+    `src/components/ui/PhoneNumberInput.tsx` (which wraps the searchable
+    `CountryCodeSelect`). See §9.
 
 ---
 
-## 8. Where things live
+## 9. Phone, WhatsApp, and call numbers
+
+Every phone-like field (owner phone, WhatsApp, emergency contact, tag-order
+delivery phone) is entered through the shared **`PhoneNumberInput`** component
+and stored as a single **E.164 string**, e.g. `+60123456789`.
+
+**Rules:**
+
+- **Use `PhoneNumberInput` everywhere.** It renders a searchable country-code
+  dropdown (`CountryCodeSelect`) + the national-number field, and emits a
+  normalised E.164 string through `onChange`. Do not build a bespoke phone
+  input or a standalone country `<select>`.
+- **Default country is Malaysia `+60`.** New/empty fields start on `+60`.
+- **Store in E.164.** Persist the value `PhoneNumberInput` emits. When reading
+  legacy/mock values, pass them through `normalizeStoredPhone()` so a bare
+  `60123456789` or `0123456789` becomes `+60123456789`. Never keep a duplicate
+  leading zero after the country code (`toE164` strips it).
+- **Validate with the shared helpers.** Use `isValidE164()` for "is this a
+  usable number" and show friendly copy ("Please enter a valid phone number.",
+  "Please select a country code."). A required WhatsApp/phone must error when
+  its contact option is enabled but the field is empty.
+- **WhatsApp links** must use `getWhatsAppLink(e164, message?)`, which strips
+  the `+` (`+60123456789` → `https://wa.me/60123456789`).
+- **Call links** must use `getCallLink(e164)`, which keeps the `+`
+  (`tel:+60123456789`).
+- All of the above live in **`src/lib/phone.ts`** (country list, `PhoneValue`
+  type, `toE164`, `parsePhone`, `normalizeStoredPhone`, `isValidE164`,
+  `getWhatsAppLink`, `getCallLink`). Add new countries there, not inline.
+
+> Note: the stored format is the E.164 string. `lib/phone.ts` also exports a
+> `PhoneValue` type (`{ countryCode, nationalNumber, e164 }`) and `parsePhone()`
+> for code that needs the split parts (the component uses it internally).
+
+---
+
+## 10. Where things live
 
 | Area                         | Location                                      |
 | ---------------------------- | --------------------------------------------- |
@@ -231,6 +271,8 @@ Note: owner-ordered tags are created with a `petId` already set (status
 | Pet / profile logic          | `src/services/petService.ts`                  |
 | Tag / finder / activation    | `src/services/tagService.ts`                  |
 | Mock auth                    | `src/services/authService.ts`                 |
+| Phone helpers & country list | `src/lib/phone.ts`                            |
+| Phone input + country select | `src/components/ui/PhoneNumberInput.tsx`, `CountryCodeSelect.tsx` |
 | Owner portal shell           | `src/components/layouts/AppLayout.tsx`        |
 | Pet list card (overview)     | `src/components/portal/PetCard.tsx`           |
 | Pet management tabs          | `src/components/portal/PetManagementTabs.tsx` |

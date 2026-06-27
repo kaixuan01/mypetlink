@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { FormSection } from "@/components/ui/FormSection";
+import { PhoneNumberInput } from "@/components/ui/PhoneNumberInput";
 import { logoutOwner } from "@/services/authService";
 
 type SettingsState = {
@@ -152,12 +153,12 @@ export function SettingsPanel() {
             type="email"
             value={settings.email}
           />
-          <TextField
+          <PhoneNumberInput
             label="WhatsApp number"
             onChange={(value) => updateField("whatsapp", value)}
             value={settings.whatsapp}
           />
-          <TextField
+          <PhoneNumberInput
             label="Phone number"
             onChange={(value) => updateField("phone", value)}
             value={settings.phone}

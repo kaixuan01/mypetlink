@@ -35,7 +35,7 @@ export const mockPets: Pet[] = [
     owner: {
       name: "Milo's owner",
       phone: "+60123456789",
-      whatsapp: "60123456789",
+      whatsapp: "+60123456789",
       emergencyContact: "+60199887766",
     },
     visibility: {
@@ -87,7 +87,7 @@ export const mockPets: Pet[] = [
     owner: {
       name: "Luna's owner",
       phone: "+60123456789",
-      whatsapp: "60123456789",
+      whatsapp: "+60123456789",
       emergencyContact: "+60199887766",
     },
     visibility: {

@@ -180,6 +180,21 @@ Default visibility is safe. When adding a field to a public page, route it
 through `toPublicProfile` and gate it behind a `visibility` flag rather than
 reading raw `Pet` fields.
 
+### Contact actions (WhatsApp / Call)
+
+Owner numbers are stored as E.164 strings (e.g. `+60123456789`). Build the
+finder/share contact links with the helpers in `src/lib/phone.ts` — never
+hand-assemble a `wa.me` or `tel:` URL:
+
+- **WhatsApp:** `getWhatsAppLink(e164, message?)` → `https://wa.me/60123456789?text=…`
+  (the `+` is stripped; the message is URL-encoded).
+- **Call:** `getCallLink(e164)` → `tel:+60123456789` (keeps the `+`).
+
+Pass raw stored values through `normalizeStoredPhone()` first so legacy data
+(`60123456789`, `0123456789`) resolves to clean E.164. The WhatsApp/Call
+buttons still only render when `visibility.showWhatsapp` / `showPhone` is on and
+the number is present. See `AI_AGENT_REFERENCE.md` §9.
+
 ---
 
 ## 6. Adding or changing a public route — checklist

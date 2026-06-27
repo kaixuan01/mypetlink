@@ -104,6 +104,12 @@ The edit form does **not** embed Records / Moments / Smart Tag managers — only
 small text links back to those hub routes. On submit, a validation error focuses
 the tab that contains the first invalid field.
 
+> **Phone, WhatsApp, and call numbers** on **Contact & Safety** (and on
+> `/settings`, and the tag-order **Delivery Details** step) use the shared
+> `PhoneNumberInput` (country-code selector defaulting to Malaysia `+60`) and
+> are stored as E.164 strings. Never add a plain phone text input. See
+> `AI_AGENT_REFERENCE.md` §9.
+
 All owner pet pages key off the **`petId`** (`ownerRoutes.*` helpers):
 
 | Page          | Route                          | Helper                      |

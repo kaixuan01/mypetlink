@@ -11,6 +11,8 @@ import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
+import { PhoneNumberInput } from "@/components/ui/PhoneNumberInput";
+import { isValidE164, normalizeStoredPhone } from "@/lib/phone";
 import {
   createTagOrder,
   getEstimatedTagPrice,
@@ -174,7 +176,9 @@ export function TagOrderFlow({
         nextErrors.recipientName = "Add the recipient name.";
       }
       if (!delivery.phone.trim()) {
-        nextErrors.phone = "Add a phone number.";
+        nextErrors.phone = "Please enter a valid phone number.";
+      } else if (!isValidE164(delivery.phone)) {
+        nextErrors.phone = "Please enter a valid phone number.";
       }
       if (!delivery.addressLine1.trim()) {
         nextErrors.addressLine1 = "Add the delivery address.";
@@ -207,7 +211,7 @@ export function TagOrderFlow({
       petId: selectedPet.id,
       tagType,
       shape,
-      delivery,
+      delivery: { ...delivery, phone: normalizeStoredPhone(delivery.phone) },
       replacementForTagId: replacementFor,
     });
     setCreatedOrder(response.data.order);
@@ -480,15 +484,13 @@ export function TagOrderFlow({
                 value={delivery.recipientName}
               />
             </Field>
-            <Field label="Phone number" error={errors.phone}>
-              <input
-                className="brand-input"
-                onChange={(event) => updateDelivery("phone", event.target.value)}
-                placeholder="+60123456789"
-                type="tel"
-                value={delivery.phone}
-              />
-            </Field>
+            <PhoneNumberInput
+              error={errors.phone}
+              label="Phone number"
+              onChange={(value) => updateDelivery("phone", value)}
+              required
+              value={delivery.phone}
+            />
             <Field label="Address line 1" error={errors.addressLine1}>
               <input
                 className="brand-input"

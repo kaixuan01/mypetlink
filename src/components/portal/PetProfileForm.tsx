@@ -15,6 +15,8 @@ import { CTAButton } from "@/components/ui/CTAButton";
 import { FormSection } from "@/components/ui/FormSection";
 import { Icon } from "@/components/ui/Icon";
 import { PetAvatar } from "@/components/ui/PetAvatar";
+import { PhoneNumberInput } from "@/components/ui/PhoneNumberInput";
+import { isValidE164, normalizeStoredPhone } from "@/lib/phone";
 import {
   getPetProfileTheme,
   petProfileThemes,
@@ -234,12 +236,12 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
         "Use lowercase letters, numbers, and hyphens only, like milo-the-dog.";
     }
 
-    if (form.whatsapp && !isValidPhone(form.whatsapp)) {
-      nextErrors.whatsapp = "Add a valid WhatsApp number.";
+    if (form.whatsapp && !isValidE164(form.whatsapp)) {
+      nextErrors.whatsapp = "Please enter a valid WhatsApp number.";
     }
 
-    if (form.phone && !isValidPhone(form.phone)) {
-      nextErrors.phone = "Add a valid phone number.";
+    if (form.phone && !isValidE164(form.phone)) {
+      nextErrors.phone = "Please enter a valid phone number.";
     }
 
     if (form.birthdayDate && !isValidDate(form.birthdayDate)) {
@@ -759,22 +761,18 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
                 placeholder="Petaling Jaya, Selangor"
                 value={form.generalArea}
               />
-              <TextInput
+              <PhoneNumberInput
                 error={errors.whatsapp}
                 helper="Optional, but useful for quick finder contact."
                 label="WhatsApp number"
-                maxLength={24}
                 onChange={(value) => updateField("whatsapp", value)}
-                placeholder="60123456789"
                 value={form.whatsapp}
               />
-              <TextInput
+              <PhoneNumberInput
                 error={errors.phone}
-                helper="Optional. Add country code when possible."
+                helper="Optional. Used for the call button on the safety page."
                 label="Phone number"
-                maxLength={24}
                 onChange={(value) => updateField("phone", value)}
-                placeholder="+60123456789"
                 value={form.phone}
               />
 
@@ -987,8 +985,8 @@ function toFormState(pet?: Pet): FormState {
     safetyNote: pet.safetyNote,
     emergencyNote: pet.emergencyNote,
     ownerName: pet.owner.name,
-    whatsapp: pet.owner.whatsapp,
-    phone: pet.owner.phone,
+    whatsapp: normalizeStoredPhone(pet.owner.whatsapp),
+    phone: normalizeStoredPhone(pet.owner.phone),
     showOwnerName: visibility.showOwnerName,
     showGeneralArea: visibility.showGeneralArea,
     showWhatsapp: visibility.showWhatsapp,
@@ -1042,9 +1040,10 @@ function buildPayload(form: FormState): PetPayload {
       form.emergencyNote.trim() || "Keep calm and contact the owner first.",
     owner: {
       name: form.ownerName.trim() || `${name}'s owner`,
-      whatsapp: form.whatsapp.trim(),
-      phone: form.phone.trim(),
-      emergencyContact: form.phone.trim() || form.whatsapp.trim(),
+      whatsapp: normalizeStoredPhone(form.whatsapp),
+      phone: normalizeStoredPhone(form.phone),
+      emergencyContact:
+        normalizeStoredPhone(form.phone) || normalizeStoredPhone(form.whatsapp),
     },
     visibility: {
       showOwnerName: form.showOwnerName,
@@ -1406,10 +1405,6 @@ function enforceMax<K extends keyof FormState>(
   if (typeof value === "string" && value.length > maxLength) {
     errors[key] = `Keep this under ${maxLength} characters.`;
   }
-}
-
-function isValidPhone(value: string) {
-  return /^\+?[0-9][0-9\s-]{6,22}$/.test(value.trim());
 }
 
 function isValidDate(value: string) {
