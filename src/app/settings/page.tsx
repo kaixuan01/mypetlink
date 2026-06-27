@@ -13,7 +13,7 @@ export default function SettingsPage() {
       <PageHeader
         eyebrow="Settings"
         title="Owner account preferences"
-        description="Manage your contact details, privacy preferences, and reminder options."
+        description="Manage your default contact details, privacy defaults, and reminder options."
       />
       <SettingsPanel />
     </AppLayout>

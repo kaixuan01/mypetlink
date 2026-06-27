@@ -18,6 +18,12 @@ import {
   type PetProfileTheme,
 } from "@/lib/petProfileThemes";
 import {
+  defaultOwnerSettings,
+  getEffectivePetContact,
+  readOwnerSettings,
+  type OwnerSettings,
+} from "@/lib/ownerSettings";
+import {
   getCallLink,
   getWhatsAppLink,
   normalizeStoredPhone,
@@ -69,6 +75,8 @@ export function PublicSharePetProfile({
   const [moments, setMoments] = useState(initialMoments);
   const [records, setRecords] = useState(initialRecords);
   const [lostMode, setLostMode] = useState(initialLostMode);
+  const [ownerSettings, setOwnerSettings] =
+    useState<OwnerSettings>(defaultOwnerSettings);
   const [activeTab, setActiveTab] = useState<TabId>("about");
   const isOwner = useSyncExternalStore(
     subscribeToAuth,
@@ -78,12 +86,13 @@ export function PublicSharePetProfile({
 
   const visibility = mergeVisibility(profile.visibility);
   const theme = getPetProfileTheme(profile.profileTheme);
+  const effectiveContact = getEffectivePetContact(profile, ownerSettings);
 
   const ownerDisplayName = visibility.showOwnerName
-    ? getPublicOwnerName(profile.owner.name, profile.name)
+    ? getPublicOwnerName(effectiveContact.ownerDisplayName, profile.name)
     : `${profile.name}'s owner`;
-  const whatsappE164 = normalizeStoredPhone(profile.owner.whatsapp);
-  const phoneE164 = normalizeStoredPhone(profile.owner.phone);
+  const whatsappE164 = normalizeStoredPhone(effectiveContact.whatsappNumber);
+  const phoneE164 = normalizeStoredPhone(effectiveContact.phoneNumber);
   const whatsappHref = getWhatsAppLink(
     whatsappE164,
     `Hi, I saw ${profile.name}'s MyPetLink profile.`
@@ -108,6 +117,11 @@ export function PublicSharePetProfile({
 
   useEffect(() => {
     let active = true;
+    const settingsTimer = window.setTimeout(() => {
+      if (active) {
+        setOwnerSettings(readOwnerSettings());
+      }
+    }, 0);
 
     getPublicPetProfileByPublicCode(initialProfile.publicCode).then(
       async (profileResponse) => {
@@ -136,6 +150,7 @@ export function PublicSharePetProfile({
 
     return () => {
       active = false;
+      window.clearTimeout(settingsTimer);
     };
   }, [initialProfile]);
 
@@ -397,6 +412,7 @@ export function PublicSharePetProfile({
               theme={theme}
               visibility={visibility}
               careRecords={careRecords}
+              generalArea={effectiveContact.generalArea}
             />
           ) : null}
           {currentTab === "moments" ? (
@@ -432,11 +448,13 @@ function AboutTab({
   theme,
   visibility,
   careRecords,
+  generalArea,
 }: {
   profile: PublicPetProfile;
   theme: PetProfileTheme;
   visibility: Pet["visibility"];
   careRecords: CareRecord[];
+  generalArea: string;
 }) {
   const details: { label: string; value: string }[] = [
     { label: "Breed", value: profile.breed },
@@ -444,6 +462,9 @@ function AboutTab({
     { label: "Gender", value: profile.gender },
     { label: "Age", value: profile.ageLabel },
     { label: "Birthday", value: profile.birthday },
+    ...(visibility.showGeneralArea
+      ? [{ label: "General area", value: generalArea }]
+      : []),
     { label: "Favourite toy", value: profile.favoriteToy },
   ].filter((detail) => detail.value && detail.value !== "Not set");
 

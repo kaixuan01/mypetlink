@@ -5,69 +5,63 @@ import { useEffect, useState, type FormEvent } from "react";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { FormSection } from "@/components/ui/FormSection";
 import { PhoneNumberInput } from "@/components/ui/PhoneNumberInput";
+import {
+  defaultOwnerSettings,
+  readOwnerSettings,
+  writeOwnerSettings,
+  type OwnerNotificationPreferences,
+  type OwnerPrivacyDefaults,
+  type OwnerSettings,
+} from "@/lib/ownerSettings";
 import { logoutOwner } from "@/services/authService";
 
-type SettingsState = {
-  name: string;
-  email: string;
-  whatsapp: string;
-  phone: string;
-  defaultArea: string;
-  privacy: Record<PrivacyKey, boolean>;
-  notifications: Record<NotificationKey, boolean>;
-};
-
-type PrivacyKey =
-  | "ownerName"
-  | "generalArea"
-  | "whatsapp"
-  | "moments"
-  | "careNotesPrivate";
-
-type NotificationKey = "whatsappReminders" | "emailReminders" | "careDigest";
-
-const SETTINGS_STORAGE_KEY = "mypetlink_owner_settings";
-
-const defaultSettings: SettingsState = {
-  name: "Aina Rahman",
-  email: "aina@example.com",
-  whatsapp: "+60123456789",
-  phone: "+60123456789",
-  defaultArea: "Petaling Jaya, Selangor",
-  privacy: {
-    ownerName: true,
-    generalArea: true,
-    whatsapp: true,
-    moments: true,
-    careNotesPrivate: true,
-  },
-  notifications: {
-    whatsappReminders: true,
-    emailReminders: true,
-    careDigest: true,
-  },
-};
+type PrivacyKey = keyof OwnerPrivacyDefaults;
+type NotificationKey = keyof OwnerNotificationPreferences;
 
 const privacyDefaults: { key: PrivacyKey; label: string }[] = [
   {
-    key: "ownerName",
-    label: "Show owner display name publicly",
+    key: "showOwnerName",
+    label: "Show owner display name",
   },
   {
-    key: "generalArea",
-    label: "Show general area instead of full address",
+    key: "showGeneralArea",
+    label: "Show general area",
   },
   {
-    key: "whatsapp",
-    label: "Show WhatsApp contact on finder safety pages",
+    key: "showWhatsapp",
+    label: "Show WhatsApp contact",
   },
   {
-    key: "moments",
-    label: "Show public pet moments on share profiles",
+    key: "showPhone",
+    label: "Show call contact",
   },
   {
-    key: "careNotesPrivate",
-    label: "Keep detailed care notes private by default",
+    key: "showEmergencyNote",
+    label: "Show emergency note",
+  },
+  {
+    key: "showCareBadges",
+    label: "Show care badges",
+  },
+  {
+    key: "showMoments",
+    label: "Show public memories",
+  },
+  {
+    key: "showTimeline",
+    label: "Show Life Timeline",
+  },
+  {
+    key: "showBirthdayOnTimeline",
+    label: "Show birthday in Life Timeline",
+  },
+  {
+    key: "showAdoptionDayOnTimeline",
+    label: "Show adoption day in Life Timeline",
+  },
+  {
+    key: "showHealthSummary",
+    label: "Allow public care record details",
   },
 ];
 
@@ -79,19 +73,24 @@ const notificationOptions: { key: NotificationKey; label: string }[] = [
 
 export function SettingsPanel() {
   const router = useRouter();
-  const [settings, setSettings] = useState(defaultSettings);
+  const [settings, setSettings] = useState<OwnerSettings>(defaultOwnerSettings);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      setSettings(readStoredSettings());
+      setSettings(readOwnerSettings());
     }, 0);
 
     return () => window.clearTimeout(timer);
   }, []);
 
   function updateField(
-    field: "name" | "email" | "whatsapp" | "phone" | "defaultArea",
+    field:
+      | "ownerDisplayName"
+      | "email"
+      | "whatsappNumber"
+      | "phoneNumber"
+      | "defaultGeneralArea",
     value: string
   ) {
     setSettings((current) => ({ ...current, [field]: value }));
@@ -101,7 +100,7 @@ export function SettingsPanel() {
   function updatePrivacy(key: PrivacyKey, value: boolean) {
     setSettings((current) => ({
       ...current,
-      privacy: { ...current.privacy, [key]: value },
+      privacyDefaults: { ...current.privacyDefaults, [key]: value },
     }));
     setSaved(false);
   }
@@ -109,14 +108,17 @@ export function SettingsPanel() {
   function updateNotification(key: NotificationKey, value: boolean) {
     setSettings((current) => ({
       ...current,
-      notifications: { ...current.notifications, [key]: value },
+      notificationPreferences: {
+        ...current.notificationPreferences,
+        [key]: value,
+      },
     }));
     setSaved(false);
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+    writeOwnerSettings(settings);
     setSaved(true);
     window.setTimeout(() => setSaved(false), 3500);
   }
@@ -133,19 +135,24 @@ export function SettingsPanel() {
           className="rounded-[1.25rem] border border-pet-mint bg-[#e8f8f0] p-4 text-sm font-bold text-pet-sage"
           role="status"
         >
-          Settings saved.
+          Account defaults saved.
         </div>
       ) : null}
 
+      <div className="brand-soft-card rounded-[1.5rem] p-5 text-sm leading-6 text-pet-muted">
+        These settings are used as defaults for new pet profiles. You can
+        override them for each pet from that pet&apos;s Edit Pet Details page.
+      </div>
+
       <FormSection
         title="Owner profile and contact"
-        description="These details help keep your pet profiles and finder contact actions up to date."
+        description="Account-level details used when you create a new pet profile."
       >
         <div className="grid gap-4 md:grid-cols-2">
           <TextField
             label="Owner display name"
-            onChange={(value) => updateField("name", value)}
-            value={settings.name}
+            onChange={(value) => updateField("ownerDisplayName", value)}
+            value={settings.ownerDisplayName}
           />
           <TextField
             label="Email"
@@ -155,18 +162,18 @@ export function SettingsPanel() {
           />
           <PhoneNumberInput
             label="WhatsApp number"
-            onChange={(value) => updateField("whatsapp", value)}
-            value={settings.whatsapp}
+            onChange={(value) => updateField("whatsappNumber", value)}
+            value={settings.whatsappNumber}
           />
           <PhoneNumberInput
             label="Phone number"
-            onChange={(value) => updateField("phone", value)}
-            value={settings.phone}
+            onChange={(value) => updateField("phoneNumber", value)}
+            value={settings.phoneNumber}
           />
           <TextField
             label="Default general area"
-            onChange={(value) => updateField("defaultArea", value)}
-            value={settings.defaultArea}
+            onChange={(value) => updateField("defaultGeneralArea", value)}
+            value={settings.defaultGeneralArea}
           />
         </div>
         <p className="mt-4 rounded-[1.25rem] bg-pet-cream p-4 text-sm leading-6 text-pet-muted">
@@ -177,17 +184,15 @@ export function SettingsPanel() {
 
       <FormSection
         title="Privacy defaults"
-        description="Choose what new pet profiles should show unless you change it for a specific pet."
+        description="Choose what new pet profiles should show by default. Existing pets keep their own settings unless you update them."
       >
         <p className="mb-4 rounded-[1.25rem] bg-pet-cream p-4 text-sm leading-6 text-pet-muted">
-          Public owner name setting: use your display name when you want it
-          shown, or leave pet profiles set to show labels such as Milo&apos;s
-          owner.
+          To update an existing pet, open that pet&apos;s Edit Pet Details page.
         </p>
         <div className="grid gap-3">
           {privacyDefaults.map((option) => (
             <Checkbox
-              checked={settings.privacy[option.key]}
+              checked={settings.privacyDefaults[option.key]}
               key={option.key}
               label={option.label}
               onChange={(value) => updatePrivacy(option.key, value)}
@@ -203,7 +208,7 @@ export function SettingsPanel() {
         <div className="grid gap-3">
           {notificationOptions.map((option) => (
             <Checkbox
-              checked={settings.notifications[option.key]}
+              checked={settings.notificationPreferences[option.key]}
               key={option.key}
               label={option.label}
               onChange={(value) => updateNotification(option.key, value)}
@@ -280,36 +285,4 @@ function Checkbox({
       />
     </label>
   );
-}
-
-function readStoredSettings(): SettingsState {
-  if (typeof window === "undefined") {
-    return defaultSettings;
-  }
-
-  const value = window.localStorage.getItem(SETTINGS_STORAGE_KEY);
-
-  if (!value) {
-    return defaultSettings;
-  }
-
-  try {
-    const parsed = JSON.parse(value) as Partial<SettingsState>;
-
-    return {
-      ...defaultSettings,
-      ...parsed,
-      privacy: {
-        ...defaultSettings.privacy,
-        ...parsed.privacy,
-      },
-      notifications: {
-        ...defaultSettings.notifications,
-        ...parsed.notifications,
-      },
-    };
-  } catch {
-    window.localStorage.removeItem(SETTINGS_STORAGE_KEY);
-    return defaultSettings;
-  }
 }

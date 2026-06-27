@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/Badge";
 import { Icon, type IconName } from "@/components/ui/Icon";
-import type { QrStatus } from "@/types";
+import type { PetTag, QrStatus } from "@/types";
 
 type AccessItem = {
   label: string;
@@ -9,22 +9,16 @@ type AccessItem = {
   tone: "warm" | "mint" | "teal" | "soft" | "danger";
 };
 
-const accessItems: AccessItem[] = [
-  {
-    label: "NFC Ready",
-    description: "MyPetLink QR + NFC smart tags open the same safe profile.",
-    icon: "tag",
-    tone: "warm",
-  },
-  {
-    label: "GPS Coming Later",
-    description: "Premium GPS safety features can be added later.",
-    icon: "shield",
-    tone: "teal",
-  },
-];
+const pendingTagStatuses = ["Pending", "Preparing", "Delivered"];
 
-export function getQrStatusLabel(qrStatus: QrStatus = "active") {
+export function getQrStatusLabel(
+  qrStatus: QrStatus = "active",
+  finderProfileUrl?: string
+) {
+  if (finderProfileUrl !== undefined && !finderProfileUrl.trim()) {
+    return "QR Not Set Up";
+  }
+
   if (qrStatus === "active") {
     return "QR Active";
   }
@@ -33,10 +27,163 @@ export function getQrStatusLabel(qrStatus: QrStatus = "active") {
     return "QR Draft";
   }
 
-  return "Private";
+  return "QR Not Set Up";
 }
 
-function getQrStatusDescription(qrStatus: QrStatus = "active") {
+export function getQrStatusBadge(
+  qrStatus: QrStatus = "active",
+  finderProfileUrl?: string
+): AccessItem {
+  const label = getQrStatusLabel(qrStatus, finderProfileUrl);
+
+  if (label === "QR Active") {
+    return {
+      label,
+      description: "This pet's QR safety page is ready for finder scans.",
+      icon: "qr",
+      tone: "mint",
+    };
+  }
+
+  if (label === "QR Draft") {
+    return {
+      label,
+      description: "Finish the safety details before relying on this QR page.",
+      icon: "qr",
+      tone: "warm",
+    };
+  }
+
+  return {
+    label,
+    description: "Create a QR safety page before sharing or printing a tag.",
+    icon: "qr",
+    tone: "soft",
+  };
+}
+
+export function getSmartTagStatusBadge(tags: PetTag[] = []): AccessItem {
+  const linkedTags = tags.filter((tag) => tag.petId);
+  const hasActiveTag = linkedTags.some((tag) => tag.status === "Active");
+  const hasPendingReplacement = linkedTags.some(
+    (tag) =>
+      tag.replacementForTagId &&
+      pendingTagStatuses.includes(tag.status)
+  );
+  const hasPendingTag = linkedTags.some((tag) =>
+    pendingTagStatuses.includes(tag.status)
+  );
+  const hasLostTag = linkedTags.some((tag) => tag.status === "Lost");
+  const hasDisabledTag = linkedTags.some((tag) => tag.status === "Disabled");
+
+  if (hasActiveTag) {
+    return {
+      label: "Smart Tag Active",
+      description: "A physical MyPetLink tag is active for this pet.",
+      icon: "tag",
+      tone: "mint",
+    };
+  }
+
+  if (hasPendingReplacement) {
+    return {
+      label: "Replacement ordered",
+      description: "A replacement tag order is in progress for this pet.",
+      icon: "tag",
+      tone: "warm",
+    };
+  }
+
+  if (hasPendingTag) {
+    return {
+      label: "Smart Tag Pending",
+      description: "A physical tag has been ordered or delivered but is not active yet.",
+      icon: "tag",
+      tone: "warm",
+    };
+  }
+
+  if (hasLostTag) {
+    return {
+      label: "Tag Lost",
+      description: "The linked tag has been reported lost.",
+      icon: "tag",
+      tone: "danger",
+    };
+  }
+
+  if (hasDisabledTag) {
+    return {
+      label: "Tag Disabled",
+      description: "The linked tag is disabled.",
+      icon: "tag",
+      tone: "soft",
+    };
+  }
+
+  return {
+    label: "No smart tag yet",
+    description: "No physical MyPetLink tag is active for this pet yet.",
+    icon: "tag",
+    tone: "soft",
+  };
+}
+
+export function getNfcStatusBadge(tags: PetTag[] = []): AccessItem | null {
+  const nfcTags = tags.filter((tag) => tag.petId && tag.hasNfc);
+  const hasActiveNfc = nfcTags.some((tag) => tag.status === "Active");
+  const hasPendingNfc = nfcTags.some((tag) =>
+    pendingTagStatuses.includes(tag.status)
+  );
+
+  if (hasActiveNfc) {
+    return {
+      label: "NFC Active",
+      description: "A QR + NFC smart tag is active for this pet.",
+      icon: "tag",
+      tone: "mint",
+    };
+  }
+
+  if (hasPendingNfc) {
+    return {
+      label: "NFC Pending",
+      description: "A QR + NFC smart tag exists but is not active yet.",
+      icon: "tag",
+      tone: "warm",
+    };
+  }
+
+  return null;
+}
+
+function getAccessItems({
+  finderProfileUrl,
+  qrStatus = "active",
+  showNfc = true,
+  tags,
+}: {
+  finderProfileUrl?: string;
+  qrStatus?: QrStatus;
+  showNfc?: boolean;
+  tags?: PetTag[];
+}): AccessItem[] {
+  const items = [getQrStatusBadge(qrStatus, finderProfileUrl)];
+
+  if (tags) {
+    items.push(getSmartTagStatusBadge(tags));
+  }
+
+  const nfcBadge = showNfc && tags ? getNfcStatusBadge(tags) : null;
+
+  if (nfcBadge) {
+    items.push(nfcBadge);
+  }
+
+  return items;
+}
+
+function getAccessSummary(qrStatus: QrStatus = "active") {
   if (qrStatus === "active") {
     return "Your pet profile can be opened by QR scan now.";
   }
@@ -45,30 +192,26 @@ function getQrStatusDescription(qrStatus: QrStatus = "active") {
     return "Finish the profile details before sharing the QR pet profile.";
   }
 
-  return "The public pet profile is private until you turn sharing back on.";
-}
-
-function getAccessItems(qrStatus: QrStatus = "active"): AccessItem[] {
-  return [
-    {
-      label: getQrStatusLabel(qrStatus),
-      description: getQrStatusDescription(qrStatus),
-      icon: "qr",
-      tone: qrStatus === "active" ? "mint" : "warm",
-    },
-    ...accessItems,
-  ];
+  return "Create a QR safety page before printing or sharing a pet tag.";
 }
 
 export function ProfileAccessBadges({
   className = "",
+  finderProfileUrl,
   qrStatus = "active",
   scroll = false,
+  showNfc = true,
+  tags,
 }: {
   className?: string;
+  finderProfileUrl?: string;
   qrStatus?: QrStatus;
   scroll?: boolean;
+  showNfc?: boolean;
+  tags?: PetTag[];
 }) {
+  const items = getAccessItems({ finderProfileUrl, qrStatus, showNfc, tags });
+
   return (
     <div
       className={`${
@@ -77,7 +220,7 @@ export function ProfileAccessBadges({
           : "flex flex-wrap gap-2"
       } ${className}`}
     >
-      {getAccessItems(qrStatus).map((item) => (
+      {items.map((item) => (
         <Badge className="shrink-0" key={item.label} tone={item.tone}>
           {item.label}
         </Badge>
@@ -88,26 +231,35 @@ export function ProfileAccessBadges({
 
 export function ProfileAccessStatus({
   compact = false,
+  finderProfileUrl,
   qrStatus = "active",
+  tags,
 }: {
   compact?: boolean;
+  finderProfileUrl?: string;
   qrStatus?: QrStatus;
+  tags?: PetTag[];
 }) {
-  const items = getAccessItems(qrStatus);
+  const items = getAccessItems({ finderProfileUrl, qrStatus, tags });
 
   return (
     <section className="brand-card rounded-[1.75rem] p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-xl font-black text-pet-ink">
-            QR, NFC, and GPS safety
+            QR and smart tag safety
           </h2>
           <p className="mt-2 text-sm leading-6 text-pet-muted">
-            Your pet profile can be opened by QR scan now. MyPetLink QR + NFC
-            smart tags can open the same safe profile with a simple tap.
+            {getAccessSummary(qrStatus)} Physical tag badges are based on this
+            pet&apos;s linked tag records.
           </p>
         </div>
-        <ProfileAccessBadges className="sm:justify-end" qrStatus={qrStatus} />
+        <ProfileAccessBadges
+          className="sm:justify-end"
+          finderProfileUrl={finderProfileUrl}
+          qrStatus={qrStatus}
+          tags={tags}
+        />
       </div>
 
       {!compact ? (

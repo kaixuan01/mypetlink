@@ -6,7 +6,6 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { getPets } from "@/services/petService";
 import { getAllTags } from "@/services/tagService";
-import type { TagStatus } from "@/types";
 
 export const metadata: Metadata = {
   title: "My Pets",
@@ -16,17 +15,12 @@ export default async function PetsPage() {
   const pets = await getPets();
   const tags = await getAllTags();
 
-  const tagSummary = new Map<string, { count: number; status: TagStatus }>();
+  const tagsByPet = new Map<string, typeof tags.data>();
   for (const tag of tags.data) {
     if (!tag.petId) {
       continue;
     }
-    const current = tagSummary.get(tag.petId);
-    const count = (current?.count ?? 0) + 1;
-    // Prefer an Active tag as the representative status for the card.
-    const status =
-      current?.status === "Active" ? current.status : tag.status;
-    tagSummary.set(tag.petId, { count, status });
+    tagsByPet.set(tag.petId, [...(tagsByPet.get(tag.petId) ?? []), tag]);
   }
 
   return (
@@ -44,13 +38,11 @@ export default async function PetsPage() {
       <div className="grid gap-5 lg:grid-cols-2">
         {pets.data.length ? (
           pets.data.map((pet) => {
-            const summary = tagSummary.get(pet.id);
             return (
               <PetCard
                 key={pet.id}
                 pet={pet}
-                tagCount={summary?.count ?? 0}
-                tagStatus={summary?.status}
+                tags={tagsByPet.get(pet.id) ?? []}
               />
             );
           })

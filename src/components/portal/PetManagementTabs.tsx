@@ -1,7 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { getQrStatusLabel } from "@/components/portal/ProfileAccessStatus";
+import { useEffect, useState } from "react";
+import {
+  getQrStatusBadge,
+  getSmartTagStatusBadge,
+} from "@/components/portal/ProfileAccessStatus";
 import { PetMomentsManager } from "@/components/portal/PetMomentsManager";
 import { RecordsManager } from "@/components/portal/RecordsManager";
 import { TagManagementPanel } from "@/components/portal/TagManagementPanel";
@@ -10,6 +13,12 @@ import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon } from "@/components/ui/Icon";
 import { SegmentedTabs, type SegmentedTab } from "@/components/ui/SegmentedTabs";
+import {
+  defaultOwnerSettings,
+  getEffectivePetContact,
+  readOwnerSettings,
+  type OwnerSettings,
+} from "@/lib/ownerSettings";
 import { getPetProfileTheme } from "@/lib/petProfileThemes";
 import { ownerRoutes } from "@/lib/routes";
 import type { CareRecord, Pet, PetMoment, PetTag } from "@/types";
@@ -84,6 +93,19 @@ function OverviewTab({
   const recentMoments = moments.slice(0, 3);
   const activeTag = tags.find((tag) => tag.status === "Active") ?? tags[0];
   const theme = getPetProfileTheme(pet.profileTheme);
+  const qrBadge = getQrStatusBadge(pet.qrStatus, pet.finderProfileUrl);
+  const smartTagBadge = getSmartTagStatusBadge(tags);
+  const [ownerSettings, setOwnerSettings] =
+    useState<OwnerSettings>(defaultOwnerSettings);
+  const effectiveContact = getEffectivePetContact(pet, ownerSettings);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setOwnerSettings(readOwnerSettings());
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, []);
 
   return (
     <div className="grid min-w-0 gap-5 lg:grid-cols-2">
@@ -126,9 +148,7 @@ function OverviewTab({
         icon="qr"
         title="QR Safety Page"
         badge={
-          <Badge tone={pet.qrStatus === "active" ? "mint" : "warm"}>
-            {getQrStatusLabel(pet.qrStatus)}
-          </Badge>
+          <Badge tone={qrBadge.tone}>{qrBadge.label}</Badge>
         }
         description="The finder-first page a stranger sees after scanning the physical tag."
       >
@@ -141,7 +161,9 @@ function OverviewTab({
           <p className="text-xs font-bold uppercase text-pet-muted">
             General area
           </p>
-          <p className="mt-1 font-black text-pet-ink">{pet.generalArea}</p>
+          <p className="mt-1 font-black text-pet-ink">
+            {effectiveContact.generalArea}
+          </p>
         </div>
         <div className="mt-auto flex flex-col gap-3 sm:flex-row pt-1">
           <CTAButton
@@ -267,11 +289,7 @@ function OverviewTab({
       <SectionCard
         icon="tag"
         title="Smart Tags"
-        badge={
-          <Badge tone={activeTag?.status === "Active" ? "mint" : "warm"}>
-            {activeTag ? activeTag.status : "None yet"}
-          </Badge>
-        }
+        badge={<Badge tone={smartTagBadge.tone}>{smartTagBadge.label}</Badge>}
         description="Physical QR or QR + NFC tags that open this pet's QR safety page."
       >
         {activeTag ? (

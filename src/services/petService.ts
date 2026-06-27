@@ -118,6 +118,7 @@ function normalizePet(pet: Pet): Pet {
     safetyNote:
       pet.safetyNote ?? "Please contact the owner if this pet is found.",
     emergencyNote: pet.emergencyNote ?? "Keep calm and contact the owner first.",
+    contactOverride: pet.contactOverride ?? { useOwnerDefaults: false },
     visibility: {
       ...defaultVisibility,
       ...pet.visibility,
@@ -231,6 +232,7 @@ export function toPublicProfile(pet: Pet): PublicPetProfile {
     safetyNote: pet.safetyNote,
     emergencyNote: pet.emergencyNote,
     owner: pet.owner,
+    contactOverride: pet.contactOverride,
     visibility: {
       ...defaultVisibility,
       ...pet.visibility,
@@ -294,6 +296,7 @@ export async function createPet(payload: PetPayload) {
     safetyNote: payload.safetyNote ?? "No safety note yet.",
     emergencyNote: payload.emergencyNote ?? "No emergency note yet.",
     owner: mergeOwner(mockPets[0].owner, payload.owner),
+    contactOverride: payload.contactOverride ?? { useOwnerDefaults: false },
     visibility: mergeVisibility(payload.visibility),
     qrStatus: "draft",
   };

@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
 import { AppLayout } from "@/components/layouts/AppLayout";
+import {
+  getQrStatusBadge,
+  getSmartTagStatusBadge,
+} from "@/components/portal/ProfileAccessStatus";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -10,7 +14,7 @@ import { getPetMoments } from "@/services/momentService";
 import { getPets } from "@/services/petService";
 import { getPetRecords } from "@/services/recordService";
 import { getAllTags, getOrders } from "@/services/tagService";
-import type { CareRecord, Pet, PetTag, QrStatus } from "@/types";
+import type { CareRecord, Pet, PetTag } from "@/types";
 
 export const metadata: Metadata = {
   title: "Owner Dashboard",
@@ -269,7 +273,8 @@ function DashboardPetCard({
   tags: PetTag[];
   nextDue?: CareRecord;
 }) {
-  const tagLabel = getTagLabel(tags);
+  const qrBadge = getQrStatusBadge(pet.qrStatus, pet.finderProfileUrl);
+  const tagBadge = getSmartTagStatusBadge(tags);
 
   return (
     <article className="brand-card flex min-w-0 flex-col gap-4 rounded-[1.75rem] p-5">
@@ -280,15 +285,13 @@ function DashboardPetCard({
             <h3 className="min-w-0 text-xl font-black text-pet-ink">
               {pet.name}
             </h3>
-            <Badge tone={pet.qrStatus === "active" ? "mint" : "warm"}>
-              {getQrStatusLabel(pet.qrStatus)}
-            </Badge>
+            <Badge tone={qrBadge.tone}>{qrBadge.label}</Badge>
           </div>
           <p className="mt-1 text-sm leading-5 text-pet-muted">
             {pet.species} - {pet.breed} - {pet.ageLabel}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
-            <Badge tone={tagLabel.tone}>{tagLabel.label}</Badge>
+            <Badge tone={tagBadge.tone}>{tagBadge.label}</Badge>
             {nextDue ? <Badge tone="warm">Due soon</Badge> : null}
           </div>
         </div>
@@ -457,30 +460,6 @@ function getNextDue(records: CareRecord[]) {
   return records
     .filter((record) => record.dueDate)
     .sort((a, b) => dateScore(a.dueDate) - dateScore(b.dueDate))[0];
-}
-
-function getTagLabel(tags: PetTag[]): { label: string; tone: "mint" | "warm" | "soft" } {
-  if (tags.some((tag) => tag.status === "Active")) {
-    return { label: "Smart Tag Active", tone: "mint" };
-  }
-
-  if (tags.some((tag) => ["Pending", "Preparing", "Delivered"].includes(tag.status))) {
-    return { label: "Smart Tag Pending", tone: "warm" };
-  }
-
-  return { label: "No smart tag yet", tone: "soft" };
-}
-
-function getQrStatusLabel(qrStatus: QrStatus = "active") {
-  if (qrStatus === "active") {
-    return "QR Active";
-  }
-
-  if (qrStatus === "draft") {
-    return "QR Draft";
-  }
-
-  return "Private";
 }
 
 function getRecordStatusLabel(record: CareRecord) {

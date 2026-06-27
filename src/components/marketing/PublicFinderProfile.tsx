@@ -1,9 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon } from "@/components/ui/Icon";
 import { PetAvatar } from "@/components/ui/PetAvatar";
+import {
+  defaultOwnerSettings,
+  getEffectivePetContact,
+  readOwnerSettings,
+  type OwnerSettings,
+} from "@/lib/ownerSettings";
 import { getPetProfileTheme } from "@/lib/petProfileThemes";
 import {
   getCallLink,
@@ -18,14 +24,28 @@ type PublicFinderProfileProps = {
 
 export function PublicFinderProfile({ pet }: PublicFinderProfileProps) {
   const [locationStatus, setLocationStatus] = useState("");
+  const [ownerSettings, setOwnerSettings] =
+    useState<OwnerSettings>(defaultOwnerSettings);
   const visibility = mergeVisibility(pet.visibility);
   const theme = getPetProfileTheme(pet.profileTheme);
+  const effectiveContact = getEffectivePetContact(
+    pet,
+    ownerSettings || defaultOwnerSettings
+  );
   const ownerDisplayName = visibility.showOwnerName
-    ? getPublicOwnerName(pet.owner.name, pet.name)
+    ? getPublicOwnerName(effectiveContact.ownerDisplayName, pet.name)
     : `${pet.name}'s owner`;
   const introMessage = `Hi, I found ${pet.name} from the MyPetLink safety profile.`;
-  const whatsappE164 = normalizeStoredPhone(pet.owner.whatsapp);
-  const phoneE164 = normalizeStoredPhone(pet.owner.phone);
+  const whatsappE164 = normalizeStoredPhone(effectiveContact.whatsappNumber);
+  const phoneE164 = normalizeStoredPhone(effectiveContact.phoneNumber);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setOwnerSettings(readOwnerSettings());
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, []);
 
   function openWhatsappWithMessage(text: string) {
     window.location.assign(getWhatsAppLink(whatsappE164, text));
@@ -188,7 +208,9 @@ export function PublicFinderProfile({ pet }: PublicFinderProfileProps) {
               />
               General area
             </div>
-            <p className="mt-2 text-sm text-pet-muted">{pet.generalArea}</p>
+            <p className="mt-2 text-sm text-pet-muted">
+              {effectiveContact.generalArea}
+            </p>
           </div>
         ) : null}
       </div>

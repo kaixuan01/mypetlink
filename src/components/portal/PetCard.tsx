@@ -2,18 +2,20 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { getQrStatusLabel } from "@/components/portal/ProfileAccessStatus";
+import {
+  getQrStatusBadge,
+  getSmartTagStatusBadge,
+} from "@/components/portal/ProfileAccessStatus";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon } from "@/components/ui/Icon";
 import { PetAvatar } from "@/components/ui/PetAvatar";
 import { ownerRoutes } from "@/lib/routes";
-import type { Pet, TagStatus } from "@/types";
+import type { Pet, PetTag } from "@/types";
 
 type PetCardProps = {
   pet: Pet;
-  tagStatus?: TagStatus;
-  tagCount?: number;
+  tags?: PetTag[];
 };
 
 const moreLinks = (petId: string) => [
@@ -24,11 +26,10 @@ const moreLinks = (petId: string) => [
   { label: "Order tag", href: ownerRoutes.petTagOrder(petId) },
 ];
 
-export function PetCard({ pet, tagStatus, tagCount = 0 }: PetCardProps) {
+export function PetCard({ pet, tags = [] }: PetCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const tagLabel = tagCount
-    ? `Smart tag: ${tagStatus ?? "Active"}`
-    : "No smart tag yet";
+  const qrBadge = getQrStatusBadge(pet.qrStatus, pet.finderProfileUrl);
+  const tagBadge = getSmartTagStatusBadge(tags);
 
   return (
     <article className="brand-card flex flex-col rounded-[1.75rem] p-5">
@@ -37,16 +38,14 @@ export function PetCard({ pet, tagStatus, tagCount = 0 }: PetCardProps) {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-xl font-black text-pet-ink">{pet.name}</h3>
-            <Badge tone={pet.qrStatus === "active" ? "mint" : "warm"}>
-              {getQrStatusLabel(pet.qrStatus)}
-            </Badge>
+            <Badge tone={qrBadge.tone}>{qrBadge.label}</Badge>
           </div>
           <p className="mt-1 text-sm text-pet-muted">
             {pet.species} - {pet.breed} - {pet.ageLabel}
           </p>
           <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-pet-cream px-3 py-1 text-xs font-bold text-pet-muted">
             <Icon name="tag" className="h-3.5 w-3.5 text-pet-teal" />
-            {tagLabel}
+            {tagBadge.label}
           </div>
           {pet.emergencyNote ? (
             <p className="mt-3 line-clamp-2 text-sm leading-6 text-pet-muted">

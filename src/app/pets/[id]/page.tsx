@@ -77,8 +77,10 @@ export default async function PetDetailPage({ params }: PetDetailPageProps) {
         </div>
         <ProfileAccessBadges
           className="mt-4"
+          finderProfileUrl={pet.finderProfileUrl}
           qrStatus={pet.qrStatus}
           scroll
+          tags={tags.data}
         />
       </section>
 

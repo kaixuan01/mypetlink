@@ -23,6 +23,13 @@ import {
   petProfileThemes,
   type PetProfileTheme,
 } from "@/lib/petProfileThemes";
+import {
+  defaultOwnerSettings,
+  getDefaultPetVisibility,
+  getEffectivePetContact,
+  readOwnerSettings,
+  type OwnerSettings,
+} from "@/lib/ownerSettings";
 import { ownerRoutes, publicProfilePath } from "@/lib/routes";
 import {
   createPet,
@@ -65,6 +72,7 @@ type FormState = {
   ownerName: string;
   whatsapp: string;
   phone: string;
+  useOwnerDefaults: boolean;
   showOwnerName: boolean;
   showGeneralArea: boolean;
   showWhatsapp: boolean;
@@ -115,6 +123,7 @@ const fieldTab: Record<keyof FormState, EditTab> = {
   ownerName: "contact",
   whatsapp: "contact",
   phone: "contact",
+  useOwnerDefaults: "contact",
   showOwnerName: "public",
   showCareBadges: "public",
   showMoments: "public",
@@ -153,6 +162,7 @@ const emptyForm: FormState = {
   ownerName: "",
   whatsapp: "",
   phone: "",
+  useOwnerDefaults: true,
   showOwnerName: true,
   showGeneralArea: true,
   showWhatsapp: true,
@@ -168,7 +178,11 @@ const emptyForm: FormState = {
 
 export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
   const router = useRouter();
-  const [form, setForm] = useState<FormState>(() => toFormState(initialPet));
+  const [ownerSettings, setOwnerSettings] =
+    useState<OwnerSettings>(defaultOwnerSettings);
+  const [form, setForm] = useState<FormState>(() =>
+    toFormState(initialPet, defaultOwnerSettings)
+  );
   const [currentPet, setCurrentPet] = useState<Pet | null>(initialPet ?? null);
   const [createdPet, setCreatedPet] = useState<Pet | null>(null);
   const [savedPet, setSavedPet] = useState<Pet | null>(null);
@@ -183,6 +197,21 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
   const [tab, setTab] = useState<EditTab>("basic");
 
   useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const settings = readOwnerSettings();
+      setOwnerSettings(settings);
+
+      if (mode === "create") {
+        setForm(toFormState(undefined, settings));
+      } else if (initialPet) {
+        setForm(toFormState(initialPet, settings));
+      }
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [initialPet, mode]);
+
+  useEffect(() => {
     if (mode !== "edit" || !initialPet?.id) {
       return;
     }
@@ -195,7 +224,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
       }
 
       setCurrentPet(response.data);
-      setForm(toFormState(response.data));
+      setForm(toFormState(response.data, readOwnerSettings()));
     });
 
     return () => {
@@ -221,6 +250,33 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
       };
     });
     setErrors((current) => ({ ...current, name: undefined, slug: undefined }));
+    setSuccess("");
+  }
+
+  function setUseOwnerDefaults(useDefaults: boolean) {
+    setForm((current) => ({
+      ...current,
+      useOwnerDefaults: useDefaults,
+      ownerName: useDefaults
+        ? ownerSettings.ownerDisplayName
+        : current.ownerName || ownerSettings.ownerDisplayName,
+      whatsapp: useDefaults
+        ? ownerSettings.whatsappNumber
+        : current.whatsapp || ownerSettings.whatsappNumber,
+      phone: useDefaults
+        ? ownerSettings.phoneNumber
+        : current.phone || ownerSettings.phoneNumber,
+      generalArea: useDefaults
+        ? ownerSettings.defaultGeneralArea
+        : current.generalArea || ownerSettings.defaultGeneralArea,
+    }));
+    setErrors((current) => ({
+      ...current,
+      ownerName: undefined,
+      whatsapp: undefined,
+      phone: undefined,
+      generalArea: undefined,
+    }));
     setSuccess("");
   }
 
@@ -288,21 +344,21 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
     setIsSubmitting(true);
     setSuccess("");
 
-    const payload = buildPayload(form);
+    const payload = buildPayload(form, ownerSettings);
 
     try {
       if (mode === "create") {
         const response = await createPet(payload);
         setCreatedPet(response.data);
         setCurrentPet(response.data);
-        setForm(toFormState(response.data));
+        setForm(toFormState(response.data, ownerSettings));
       } else if (currentPet) {
         const response = await updatePet(currentPet.id, payload);
 
         if (response.data) {
           setCurrentPet(response.data);
           setSavedPet(response.data);
-          setForm(toFormState(response.data));
+          setForm(toFormState(response.data, ownerSettings));
           setSuccess("Changes saved. Public profile and QR safety page are updated.");
           router.refresh();
         }
@@ -736,39 +792,99 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
           description="Settings for the QR/NFC safety page at /t/{tagCode}. This is the finder-first page shown when someone scans the physical tag. Your full address is never shown."
         >
           <div className="grid min-w-0 gap-4">
-            <div className="grid min-w-0 gap-4 lg:grid-cols-2">
-              <TextInput
-                error={errors.ownerName}
-                label="Owner display name"
-                maxLength={80}
-                onChange={(value) => updateField("ownerName", value)}
-                placeholder={`${form.name || "Your pet"}'s owner`}
-                value={form.ownerName}
-              />
-              <TextInput
-                error={errors.generalArea}
-                helper="Example: Petaling Jaya, Selangor."
-                label="General area"
-                maxLength={120}
-                onChange={(value) => updateField("generalArea", value)}
-                placeholder="Petaling Jaya, Selangor"
-                value={form.generalArea}
-              />
-              <PhoneNumberInput
-                error={errors.whatsapp}
-                helper="Optional, but useful for quick finder contact."
-                label="WhatsApp number"
-                onChange={(value) => updateField("whatsapp", value)}
-                value={form.whatsapp}
-              />
-              <PhoneNumberInput
-                error={errors.phone}
-                helper="Optional. Used for the call button on the safety page."
-                label="Phone number"
-                onChange={(value) => updateField("phone", value)}
-                value={form.phone}
+            <div className="rounded-[1.5rem] border border-pet-border bg-white p-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <h2 className="text-lg font-black text-pet-ink">
+                    Contact details for this pet
+                  </h2>
+                  <p className="mt-2 text-sm leading-6 text-pet-muted">
+                    {form.useOwnerDefaults
+                      ? "Using your account contact details from Settings."
+                      : `Using different contact details for ${
+                          form.name || "this pet"
+                        }.`}
+                  </p>
+                  <p className="mt-2 text-xs font-semibold leading-5 text-pet-muted">
+                    These settings only apply to {form.name || "this pet"}.
+                    Account defaults are managed in Settings.
+                  </p>
+                </div>
+                <CTAButton href={ownerRoutes.settings} variant="outline">
+                  Edit account settings
+                </CTAButton>
+              </div>
+
+              <ContactSummary
+                generalArea={form.generalArea}
+                ownerName={form.ownerName}
+                phone={form.phone}
+                whatsapp={form.whatsapp}
               />
 
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <button
+                  className={`min-h-12 rounded-2xl border px-4 py-3 text-sm font-black transition ${
+                    form.useOwnerDefaults
+                      ? "border-pet-teal bg-[#e8f3ff] text-pet-teal"
+                      : "border-pet-border bg-white text-pet-muted hover:bg-pet-cream"
+                  }`}
+                  onClick={() => setUseOwnerDefaults(true)}
+                  type="button"
+                >
+                  Use account contact details
+                </button>
+                <button
+                  className={`min-h-12 rounded-2xl border px-4 py-3 text-sm font-black transition ${
+                    !form.useOwnerDefaults
+                      ? "border-pet-teal bg-[#e8f3ff] text-pet-teal"
+                      : "border-pet-border bg-white text-pet-muted hover:bg-pet-cream"
+                  }`}
+                  onClick={() => setUseOwnerDefaults(false)}
+                  type="button"
+                >
+                  Use different contact details for this pet
+                </button>
+              </div>
+            </div>
+
+            {!form.useOwnerDefaults ? (
+              <div className="grid min-w-0 gap-4 lg:grid-cols-2">
+                <TextInput
+                  error={errors.ownerName}
+                  label="Owner display name"
+                  maxLength={80}
+                  onChange={(value) => updateField("ownerName", value)}
+                  placeholder={`${form.name || "Your pet"}'s owner`}
+                  value={form.ownerName}
+                />
+                <TextInput
+                  error={errors.generalArea}
+                  helper="Example: Petaling Jaya, Selangor."
+                  label="General area"
+                  maxLength={120}
+                  onChange={(value) => updateField("generalArea", value)}
+                  placeholder="Petaling Jaya, Selangor"
+                  value={form.generalArea}
+                />
+                <PhoneNumberInput
+                  error={errors.whatsapp}
+                  helper="Optional, but useful for quick finder contact."
+                  label="WhatsApp number"
+                  onChange={(value) => updateField("whatsapp", value)}
+                  value={form.whatsapp}
+                />
+                <PhoneNumberInput
+                  error={errors.phone}
+                  helper="Optional. Used for the call button on the safety page."
+                  label="Phone number"
+                  onChange={(value) => updateField("phone", value)}
+                  value={form.phone}
+                />
+              </div>
+            ) : null}
+
+            <div className="grid min-w-0 gap-4 lg:grid-cols-2">
               <Field
                 error={errors.safetyNote}
                 helper="Helpful for anyone who finds your pet outside."
@@ -801,6 +917,11 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
                 />
               </Field>
             </div>
+
+            <p className="rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted">
+              Privacy settings here only affect {form.name || "this pet"}&apos;s
+              public profile and QR safety page.
+            </p>
 
             <PrivacyGroup title="What the finder safety page shows">
               <Checkbox
@@ -973,12 +1094,70 @@ function UrlDisplay({ label, url }: { label: string; url: string }) {
   );
 }
 
-function toFormState(pet?: Pet): FormState {
+function ContactSummary({
+  ownerName,
+  whatsapp,
+  phone,
+  generalArea,
+}: {
+  ownerName: string;
+  whatsapp: string;
+  phone: string;
+  generalArea: string;
+}) {
+  const items = [
+    ["Owner display name", ownerName || "Not set"],
+    ["WhatsApp number", whatsapp || "Not set"],
+    ["Phone number", phone || "Not set"],
+    ["General area", generalArea || "Malaysia"],
+  ];
+
+  return (
+    <dl className="mt-4 grid gap-2 sm:grid-cols-2">
+      {items.map(([label, value]) => (
+        <div className="rounded-[1rem] bg-pet-cream p-3" key={label}>
+          <dt className="text-xs font-bold uppercase text-pet-muted">
+            {label}
+          </dt>
+          <dd className="mt-1 break-words text-sm font-black text-pet-ink">
+            {value}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function toFormState(
+  pet?: Pet,
+  ownerSettings: OwnerSettings = defaultOwnerSettings
+): FormState {
   if (!pet) {
-    return emptyForm;
+    const visibility = getDefaultPetVisibility(ownerSettings);
+
+    return {
+      ...emptyForm,
+      generalArea: ownerSettings.defaultGeneralArea,
+      ownerName: ownerSettings.ownerDisplayName,
+      whatsapp: ownerSettings.whatsappNumber,
+      phone: ownerSettings.phoneNumber,
+      useOwnerDefaults: true,
+      showOwnerName: visibility.showOwnerName,
+      showGeneralArea: visibility.showGeneralArea,
+      showWhatsapp: visibility.showWhatsapp,
+      showPhone: visibility.showPhone,
+      showEmergencyNote: visibility.showEmergencyNote,
+      showCareBadges: visibility.showCareBadges,
+      showMoments: visibility.showMoments,
+      showTimeline: visibility.showTimeline,
+      showBirthdayOnTimeline: visibility.showBirthdayOnTimeline,
+      showAdoptionDayOnTimeline: visibility.showAdoptionDayOnTimeline,
+      showHealthSummary: visibility.showHealthSummary,
+    };
   }
 
   const visibility = mergeVisibility(pet.visibility);
+  const contact = getEffectivePetContact(pet, ownerSettings);
 
   return {
     name: pet.name,
@@ -997,12 +1176,13 @@ function toFormState(pet?: Pet): FormState {
     favoriteToy: pet.favoriteToy === "Not set" ? "" : pet.favoriteToy,
     adoptionDate: parseDisplayDate(pet.adoptionDay),
     slug: pet.slug,
-    generalArea: pet.generalArea,
+    generalArea: contact.generalArea,
     safetyNote: pet.safetyNote,
     emergencyNote: pet.emergencyNote,
-    ownerName: pet.owner.name,
-    whatsapp: normalizeStoredPhone(pet.owner.whatsapp),
-    phone: normalizeStoredPhone(pet.owner.phone),
+    ownerName: contact.ownerDisplayName,
+    whatsapp: contact.whatsappNumber,
+    phone: contact.phoneNumber,
+    useOwnerDefaults: contact.useOwnerDefaults,
     showOwnerName: visibility.showOwnerName,
     showGeneralArea: visibility.showGeneralArea,
     showWhatsapp: visibility.showWhatsapp,
@@ -1017,7 +1197,10 @@ function toFormState(pet?: Pet): FormState {
   };
 }
 
-function buildPayload(form: FormState): PetPayload {
+function buildPayload(
+  form: FormState,
+  ownerSettings: OwnerSettings = defaultOwnerSettings
+): PetPayload {
   const name = form.name.trim();
   const birthday = form.birthdayDate
     ? formatDisplayDate(form.birthdayDate)
@@ -1036,7 +1219,8 @@ function buildPayload(form: FormState): PetPayload {
     birthday,
     ageLabel,
     adoptionDay: form.adoptionDate ? formatDisplayDate(form.adoptionDate) : "Not set",
-    generalArea: form.generalArea.trim() || "Malaysia",
+    generalArea:
+      form.generalArea.trim() || ownerSettings.defaultGeneralArea || "Malaysia",
     photoInitial: getInitial(name),
     photoTone: form.species === "Cat" ? "mint" : "apricot",
     photoUrl: form.photoUrl,
@@ -1061,6 +1245,18 @@ function buildPayload(form: FormState): PetPayload {
       emergencyContact:
         normalizeStoredPhone(form.phone) || normalizeStoredPhone(form.whatsapp),
     },
+    contactOverride: form.useOwnerDefaults
+      ? { useOwnerDefaults: true }
+      : {
+          useOwnerDefaults: false,
+          ownerDisplayName: form.ownerName.trim(),
+          whatsappNumber: normalizeStoredPhone(form.whatsapp),
+          phoneNumber: normalizeStoredPhone(form.phone),
+          generalArea:
+            form.generalArea.trim() ||
+            ownerSettings.defaultGeneralArea ||
+            "Malaysia",
+        },
     visibility: {
       showOwnerName: form.showOwnerName,
       showGeneralArea: form.showGeneralArea,

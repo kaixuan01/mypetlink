@@ -55,6 +55,13 @@ export type Pet = {
     whatsapp: string;
     emergencyContact: string;
   };
+  contactOverride?: {
+    useOwnerDefaults: boolean;
+    ownerDisplayName?: string;
+    whatsappNumber?: string;
+    phoneNumber?: string;
+    generalArea?: string;
+  };
   visibility: {
     showOwnerName: boolean;
     showGeneralArea: boolean;
@@ -102,6 +109,7 @@ export type PublicPetProfile = Pick<
   | "safetyNote"
   | "emergencyNote"
   | "owner"
+  | "contactOverride"
   | "visibility"
 >;
 
