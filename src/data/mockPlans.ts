@@ -6,9 +6,9 @@ export const mockPlans: Plan[] = [
     tier: "Free",
     name: "Free Plan",
     price: "RM0",
-    billingNote: "Start with one pet",
+    billingNote: "Free forever, with basic finder contact included",
     description:
-      "For first-time pet owners who want a basic QR safety profile and a simple shareable pet page.",
+      "For first-time pet owners who want a basic QR safety profile, a shareable pet page, and basic finder contact at no cost.",
     features: [
       "1 pet profile",
       "Public QR pet profile",

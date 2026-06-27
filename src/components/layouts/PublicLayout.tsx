@@ -8,13 +8,16 @@ import { isOwnerAuthenticated } from "@/services/authService";
 
 const publicNav = [
   { href: "/", label: "Home" },
-  { href: "/sample", label: "Sample" },
+  { href: "/#how-it-works", label: "How It Works" },
+  { href: "/sample", label: "Sample Profile" },
+  { href: "/#smart-tags", label: "Smart Tags" },
   { href: "/pricing", label: "Pricing" },
   { href: "/privacy", label: "Privacy" },
 ];
 
 export function PublicLayout({ children }: { children: React.ReactNode }) {
   const [loggedIn, setLoggedIn] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     const timer = window.setTimeout(
@@ -24,40 +27,92 @@ export function PublicLayout({ children }: { children: React.ReactNode }) {
     return () => window.clearTimeout(timer);
   }, []);
 
+  const actions = loggedIn ? (
+    <CTAButton href="/dashboard" icon="home" variant="primary">
+      Open Dashboard
+    </CTAButton>
+  ) : (
+    <div className="flex flex-col gap-2 sm:flex-row">
+      <CTAButton href="/login" variant="secondary">
+        Log in
+      </CTAButton>
+      <CTAButton href="/login" icon="paw" variant="coral">
+        Create Pet Profile
+      </CTAButton>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-pet-cream">
       <header className="sticky top-0 z-30 border-b border-pet-border bg-[#fff8f2]/92 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
-          <Link href="/" className="flex items-center">
-            <BrandLogo className="h-14 w-auto max-w-[235px]" priority />
-          </Link>
-          <div className="flex flex-col gap-3 md:flex-row md:items-center">
-            <nav className="flex flex-wrap gap-x-5 gap-y-2 text-sm font-bold text-pet-muted">
-              {publicNav.map((item) => (
-                <Link
-                  className="transition hover:text-pet-teal"
-                  href={item.href}
-                  key={item.href}
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </nav>
-            {loggedIn ? (
-              <CTAButton href="/dashboard" icon="home" variant="primary">
-                Open Dashboard
-              </CTAButton>
-            ) : (
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <CTAButton href="/login" variant="secondary">
-                  Log in
-                </CTAButton>
-                <CTAButton href="/login" icon="paw" variant="coral">
-                  Create Pet Profile
-                </CTAButton>
-              </div>
-            )}
+        <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between gap-4">
+            <Link href="/" className="flex items-center">
+              <BrandLogo className="h-14 w-auto max-w-[235px]" priority />
+            </Link>
+
+            {/* Desktop nav */}
+            <div className="hidden lg:flex lg:items-center lg:gap-6">
+              <nav className="flex flex-wrap gap-x-5 gap-y-2 text-sm font-bold text-pet-muted">
+                {publicNav.map((item) => (
+                  <Link
+                    className="transition hover:text-pet-teal"
+                    href={item.href}
+                    key={item.href}
+                  >
+                    {item.label}
+                  </Link>
+                ))}
+              </nav>
+              {actions}
+            </div>
+
+            {/* Mobile menu toggle */}
+            <button
+              type="button"
+              aria-label="Toggle menu"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((open) => !open)}
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-pet-border bg-white text-pet-ink lg:hidden"
+            >
+              <span className="relative block h-4 w-5">
+                <span
+                  className={`absolute left-0 block h-0.5 w-5 bg-current transition ${
+                    menuOpen ? "top-1.5 rotate-45" : "top-0"
+                  }`}
+                />
+                <span
+                  className={`absolute left-0 top-1.5 block h-0.5 w-5 bg-current transition ${
+                    menuOpen ? "opacity-0" : "opacity-100"
+                  }`}
+                />
+                <span
+                  className={`absolute left-0 block h-0.5 w-5 bg-current transition ${
+                    menuOpen ? "top-1.5 -rotate-45" : "top-3"
+                  }`}
+                />
+              </span>
+            </button>
           </div>
+
+          {/* Mobile nav panel */}
+          {menuOpen ? (
+            <div className="mt-4 flex flex-col gap-4 lg:hidden">
+              <nav className="grid gap-1 text-sm font-bold text-pet-muted">
+                {publicNav.map((item) => (
+                  <Link
+                    className="rounded-xl px-3 py-2 transition hover:bg-white hover:text-pet-teal"
+                    href={item.href}
+                    key={item.href}
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    {item.label}
+                  </Link>
+                ))}
+              </nav>
+              {actions}
+            </div>
+          ) : null}
         </div>
       </header>
       <main>{children}</main>

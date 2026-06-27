@@ -38,6 +38,16 @@ profile, and contacts the owner. Owners also manage care records, memories
 
 Core promise: **A safer way home for your pet.**
 
+**Positioning:** MyPetLink is a pet **safety and care** profile — *not* a QR/NFC
+gadget. The hero message is *"A safer profile for your pet."* A plain **QR tag
+is the MVP / main product**; **QR + NFC is a premium upgrade**, never required.
+Never over-emphasize NFC, and never imply finder contact costs money (it's free
+on the Free plan). The public marketing pages (Home, Pricing, Privacy) are
+separate from the public/finder app pages — keep them warm and calm. The Home
+page has a **fixed nine-section order** and features grouped into **three pillars
+(Safety / Care / Memories)**. See `MARKETING_STRATEGY.md` §7–§13 for the full
+home section order, pricing strategy, privacy messaging, and copy rules.
+
 ---
 
 ## 3. Tech stack and the one rule that changes everything
