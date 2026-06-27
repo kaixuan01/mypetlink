@@ -25,6 +25,7 @@ function normalizeMoment(moment: PetMoment): PetMoment {
 
   return {
     ...moment,
+    mediaUrl: moment.mediaUrl ?? "",
     showOnPublicProfile:
       legacyMoment.showOnPublicProfile ?? isPublic,
     showInLifeTimeline:
@@ -71,6 +72,7 @@ export async function createPetMoment(
     caption: payload.caption?.trim() || "",
     mediaKind: payload.mediaKind ?? "None",
     mediaLabel: payload.mediaLabel?.trim() || "Pet moment",
+    mediaUrl: payload.mediaUrl ?? "",
     visibility: payload.visibility ?? "Private",
     showOnPublicProfile:
       payload.showOnPublicProfile ?? payload.visibility === "Public",

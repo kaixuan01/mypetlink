@@ -5,14 +5,15 @@ import {
   useEffect,
   useState,
   useSyncExternalStore,
-  type ChangeEvent,
   type FormEvent,
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
+import { ImageUploadField } from "@/components/portal/ImageUploadField";
 import { ShareProfileLink } from "@/components/share/ShareProfileLink";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { FormSection } from "@/components/ui/FormSection";
+import { Icon } from "@/components/ui/Icon";
 import { PetAvatar } from "@/components/ui/PetAvatar";
 import {
   getPetProfileTheme,
@@ -46,8 +47,8 @@ type FormState = {
   color: string;
   birthdayDate: string;
   estimatedAge: string;
-  profilePhotoLabel: string;
-  coverPhotoLabel: string;
+  photoUrl: string;
+  coverUrl: string;
   profileTheme: PetProfileThemeId;
   bio: string;
   personalityTags: string;
@@ -100,8 +101,8 @@ const fieldTab: Record<keyof FormState, EditTab> = {
   personalityTags: "basic",
   favoriteFood: "basic",
   favoriteToy: "basic",
-  profilePhotoLabel: "photos",
-  coverPhotoLabel: "photos",
+  photoUrl: "photos",
+  coverUrl: "photos",
   profileTheme: "theme",
   slug: "public",
   adoptionDate: "public",
@@ -134,8 +135,8 @@ const emptyForm: FormState = {
   color: "",
   birthdayDate: "",
   estimatedAge: "",
-  profilePhotoLabel: "",
-  coverPhotoLabel: "",
+  photoUrl: "",
+  coverUrl: "",
   profileTheme: "default",
   bio: "",
   personalityTags: "",
@@ -220,17 +221,6 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
     setSuccess("");
   }
 
-  function handleFileLabel(
-    key: "profilePhotoLabel" | "coverPhotoLabel",
-    event: ChangeEvent<HTMLInputElement>
-  ) {
-    const fileName = event.target.files?.[0]?.name;
-
-    if (fileName) {
-      updateField(key, fileName);
-    }
-  }
-
   function collectErrors() {
     const nextErrors: FormErrors = {};
     const slug = slugifyPetSlug(form.slug);
@@ -273,8 +263,6 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
     enforceMax(nextErrors, "favoriteFood", form.favoriteFood, 80);
     enforceMax(nextErrors, "favoriteToy", form.favoriteToy, 80);
     enforceMax(nextErrors, "ownerName", form.ownerName, 80);
-    enforceMax(nextErrors, "profilePhotoLabel", form.profilePhotoLabel, 120);
-    enforceMax(nextErrors, "coverPhotoLabel", form.coverPhotoLabel, 120);
 
     return nextErrors;
   }
@@ -378,12 +366,14 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
         name: form.name || currentPet.name,
         species: form.species,
         photoInitial: getInitial(form.name || currentPet.name),
+        photoUrl: form.photoUrl,
         profileTheme: form.profileTheme,
       }
     : {
         species: form.species,
         photoInitial: getInitial(form.name),
         photoTone: "apricot" as const,
+        photoUrl: form.photoUrl,
         profileTheme: form.profileTheme,
       };
   const profileSlug = slugifyPetSlug(form.slug) || "pet-profile";
@@ -581,7 +571,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
                     {form.name || "Your pet"}
                   </p>
                   <p className="mt-1 text-sm text-pet-muted">
-                    {form.profilePhotoLabel
+                    {form.photoUrl
                       ? "Portrait ready"
                       : "Add a portrait when you are ready"}
                   </p>
@@ -590,35 +580,21 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
-              <Field
-                error={errors.profilePhotoLabel}
-                helper="Choose the portrait you want to use for this pet."
+              <ImageUploadField
                 label="Profile photo"
-              >
-                <input
-                  accept="image/*"
-                  className="brand-input"
-                  onChange={(event) =>
-                    handleFileLabel("profilePhotoLabel", event)
-                  }
-                  type="file"
-                />
-              </Field>
+                helper="Used for this pet's avatar across the portal and public pages."
+                shape="square"
+                value={form.photoUrl}
+                onChange={(dataUrl) => updateField("photoUrl", dataUrl)}
+                emptyIcon={<Icon name="paw" className="h-5 w-5" />}
+              />
 
-              <Field
-                error={errors.coverPhotoLabel}
-                helper="Choose a warm cover photo when you are ready."
+              <ImageUploadField
                 label="Cover photo"
-              >
-                <input
-                  accept="image/*"
-                  className="brand-input"
-                  onChange={(event) =>
-                    handleFileLabel("coverPhotoLabel", event)
-                  }
-                  type="file"
-                />
-              </Field>
+                helper="A warm wide banner for the public profile."
+                value={form.coverUrl}
+                onChange={(dataUrl) => updateField("coverUrl", dataUrl)}
+              />
             </div>
           </div>
         </FormSection>
@@ -998,8 +974,8 @@ function toFormState(pet?: Pet): FormState {
     color: pet.color,
     birthdayDate: parseDisplayDate(pet.birthday),
     estimatedAge: pet.ageLabel === "Age not set" ? "" : pet.ageLabel,
-    profilePhotoLabel: cleanMediaLabel(pet.profilePhotoLabel),
-    coverPhotoLabel: cleanMediaLabel(pet.coverPhotoLabel),
+    photoUrl: pet.photoUrl ?? "",
+    coverUrl: pet.coverUrl ?? "",
     profileTheme: pet.profileTheme ?? "default",
     bio: pet.bio,
     personalityTags: pet.personalityTags.join(", "),
@@ -1049,8 +1025,10 @@ function buildPayload(form: FormState): PetPayload {
     generalArea: form.generalArea.trim() || "Malaysia",
     photoInitial: getInitial(name),
     photoTone: form.species === "Cat" ? "mint" : "apricot",
-    profilePhotoLabel: form.profilePhotoLabel.trim(),
-    coverPhotoLabel: form.coverPhotoLabel.trim(),
+    photoUrl: form.photoUrl,
+    coverUrl: form.coverUrl,
+    profilePhotoLabel: form.photoUrl ? "Profile photo added" : "",
+    coverPhotoLabel: form.coverUrl ? "Cover photo added" : "",
     profileTheme: form.profileTheme,
     bio:
       form.bio.trim() ||
@@ -1517,14 +1495,6 @@ function splitTags(value: string) {
 
 function getInitial(name: string) {
   return name.trim().charAt(0).toUpperCase() || "P";
-}
-
-function cleanMediaLabel(value: string) {
-  if (!value || /not added/i.test(value)) {
-    return "";
-  }
-
-  return value;
 }
 
 function mergeVisibility(

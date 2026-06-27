@@ -181,8 +181,12 @@ export function PublicSharePetProfile({
           }}
         >
           <div
-            className="h-28 w-full"
-            style={{ background: theme.gradients.cover }}
+            className="h-28 w-full bg-cover bg-center"
+            style={
+              profile.coverUrl
+                ? { backgroundImage: `url(${profile.coverUrl})` }
+                : { background: theme.gradients.cover }
+            }
           />
           <div className="px-6 pb-6 text-center">
             <div className="-mt-14 flex justify-center">

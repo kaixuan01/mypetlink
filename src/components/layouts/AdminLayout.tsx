@@ -68,6 +68,14 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
           </button>
         </aside>
         <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+          <div className="mb-6 flex items-start gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+            <Icon name="shield" className="mt-0.5 h-5 w-5 shrink-0" />
+            <p className="font-semibold">
+              Internal preview only — the Admin Portal is not part of the Phase 0
+              product scope. It is parked for the Phase 2 tag pilot and is not
+              linked from the owner or public experience.
+            </p>
+          </div>
           {children}
         </main>
       </div>

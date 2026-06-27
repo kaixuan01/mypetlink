@@ -2,7 +2,9 @@ import type { Pet, PublicPetProfile } from "@/types";
 import { Icon } from "@/components/ui/Icon";
 
 type PetAvatarProps = {
-  pet: Pick<Pet | PublicPetProfile, "photoInitial" | "photoTone" | "species">;
+  pet: Pick<Pet | PublicPetProfile, "photoInitial" | "photoTone" | "species"> & {
+    photoUrl?: string;
+  };
   size?: "sm" | "md" | "lg" | "xl";
 };
 
@@ -24,6 +26,25 @@ export function PetAvatar({ pet, size = "md" }: PetAvatarProps) {
     pet.species === "Cat"
       ? "before:-top-3 before:left-3 before:rotate-[-18deg] after:-top-3 after:right-3 after:rotate-[18deg]"
       : "before:top-3 before:-left-3 before:rotate-[18deg] after:top-3 after:-right-3 after:rotate-[-18deg]";
+
+  if (pet.photoUrl) {
+    return (
+      <div
+        className={[
+          "relative shrink-0 overflow-hidden rounded-[2rem] border-4 border-white shadow-lg shadow-[#0d1b3d]/10",
+          sizes[size],
+        ].join(" ")}
+      >
+        {/* Data-URL preview; static export + local mock means no next/image. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          alt="Pet portrait"
+          className="h-full w-full object-cover"
+          src={pet.photoUrl}
+        />
+      </div>
+    );
+  }
 
   return (
     <div

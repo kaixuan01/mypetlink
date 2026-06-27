@@ -7,6 +7,7 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
+import { ImageUploadField } from "@/components/portal/ImageUploadField";
 import { PetMomentCard } from "@/components/portal/PetMomentCard";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -48,7 +49,7 @@ type FormState = {
   date: string;
   type: "" | MomentType;
   caption: string;
-  mediaKind: PetMoment["mediaKind"];
+  mediaUrl: string;
   visibility: MomentVisibility;
   showOnPublicProfile: boolean;
   showInLifeTimeline: boolean;
@@ -61,7 +62,7 @@ const emptyForm: FormState = {
   date: "",
   type: "",
   caption: "",
-  mediaKind: "Image",
+  mediaUrl: "",
   visibility: "Public",
   showOnPublicProfile: true,
   showInLifeTimeline: false,
@@ -121,7 +122,7 @@ export function PetMomentsManager({
       date: parseDisplayDate(moment.date),
       type: moment.type,
       caption: moment.caption,
-      mediaKind: moment.mediaKind,
+      mediaUrl: moment.mediaUrl,
       visibility: moment.visibility,
       showOnPublicProfile: moment.showOnPublicProfile,
       showInLifeTimeline: moment.showInLifeTimeline,
@@ -165,13 +166,9 @@ export function PetMomentsManager({
       date: formatDisplayDate(form.date),
       type: form.type || "Other",
       caption: form.caption.trim(),
-      mediaKind: form.mediaKind,
-      mediaLabel:
-        form.mediaKind === "Video"
-          ? "Memory clip"
-          : form.mediaKind === "Image"
-            ? "Photo moment"
-            : "Memory note",
+      mediaKind: form.mediaUrl ? "Image" : "None",
+      mediaLabel: form.mediaUrl ? "Photo moment" : "Memory note",
+      mediaUrl: form.mediaUrl,
       visibility: form.visibility,
       showOnPublicProfile: form.showOnPublicProfile,
       showInLifeTimeline: form.showInLifeTimeline,
@@ -406,31 +403,12 @@ export function PetMomentsManager({
                 />
               </Field>
 
-              <fieldset className="rounded-[1.25rem] bg-pet-cream p-4">
-                <legend className="text-sm font-bold text-pet-ink">
-                  Moment media
-                </legend>
-                <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                  {(["Image", "Video", "None"] as const).map((mediaKind) => (
-                    <button
-                      className={`min-h-20 rounded-2xl border px-4 py-3 text-sm font-bold transition ${
-                        form.mediaKind === mediaKind
-                          ? "border-pet-coral bg-white text-pet-coral"
-                          : "border-pet-border bg-white text-pet-muted"
-                      }`}
-                      key={mediaKind}
-                      onClick={() => updateField("mediaKind", mediaKind)}
-                      type="button"
-                    >
-                      {mediaKind === "Video"
-                        ? "Memory clip"
-                        : mediaKind === "Image"
-                          ? "Photo moment"
-                          : "Note only"}
-                    </button>
-                  ))}
-                </div>
-              </fieldset>
+              <ImageUploadField
+                label="Moment photo"
+                helper="Optional. Add a photo for this memory, or leave it as a note."
+                value={form.mediaUrl}
+                onChange={(dataUrl) => updateField("mediaUrl", dataUrl)}
+              />
 
               <div className="grid gap-3 md:grid-cols-2">
                 <MomentCheckbox

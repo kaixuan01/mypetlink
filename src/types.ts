@@ -36,6 +36,8 @@ export type Pet = {
   photoTone: "apricot" | "mint" | "sky";
   profilePhotoLabel: string;
   coverPhotoLabel: string;
+  photoUrl: string;
+  coverUrl: string;
   profileTheme: PetProfileThemeId;
   qrStatus: QrStatus;
   publicCode: string;
@@ -87,6 +89,8 @@ export type PublicPetProfile = Pick<
   | "photoTone"
   | "profilePhotoLabel"
   | "coverPhotoLabel"
+  | "photoUrl"
+  | "coverUrl"
   | "profileTheme"
   | "publicCode"
   | "finderProfileUrl"
@@ -172,6 +176,7 @@ export type PetMoment = {
   caption: string;
   mediaKind: "Image" | "Video" | "None";
   mediaLabel: string;
+  mediaUrl: string;
   visibility: MomentVisibility;
   showOnPublicProfile: boolean;
   showInLifeTimeline: boolean;
@@ -277,6 +282,7 @@ export type PetMomentPayload = Partial<
     | "caption"
     | "mediaKind"
     | "mediaLabel"
+    | "mediaUrl"
     | "visibility"
     | "showOnPublicProfile"
     | "showInLifeTimeline"

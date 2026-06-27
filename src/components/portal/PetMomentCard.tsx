@@ -60,6 +60,18 @@ export function PetMomentCard({
         className="brand-paw-dots relative min-h-44 bg-pet-cream p-5"
         style={mediaStyle}
       >
+        {moment.mediaUrl ? (
+          <>
+            {/* Data-URL preview; static export + local mock means no next/image. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              alt={moment.title}
+              className="absolute inset-0 h-full w-full object-cover"
+              src={moment.mediaUrl}
+            />
+            <span className="absolute inset-0 bg-gradient-to-t from-[#0d1b3d]/30 to-transparent" />
+          </>
+        ) : null}
         <div className="absolute inset-x-5 bottom-5 rounded-[1.25rem] bg-white/92 p-4 shadow-lg shadow-[#0d1b3d]/10">
           <div className="flex items-center gap-3">
             <span
