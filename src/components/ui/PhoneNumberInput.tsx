@@ -87,11 +87,11 @@ export function PhoneNumberInput({
         {label}
         {required ? <span className="text-pet-coral"> *</span> : null}
       </span>
-      <div className="flex w-full min-w-0 items-stretch">
+      <div className="phone-input-shell">
         <CountryCodeSelect value={draft.country.dialCode} onChange={handleCountry} />
         <input
           autoComplete="tel-national"
-          className="brand-input min-w-0 flex-1 rounded-l-none"
+          className="phone-number-field"
           id={inputId}
           inputMode="numeric"
           onChange={(event) => handleNational(event.target.value)}

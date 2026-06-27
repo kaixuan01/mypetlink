@@ -120,6 +120,77 @@ select {
   box-shadow: 0 0 0 4px rgba(21, 112, 239, 0.12);
 }
 
+.phone-input-shell {
+  display: flex;
+  width: 100%;
+  min-height: 3rem;
+  min-width: 0;
+  align-items: stretch;
+  overflow: visible;
+  border: 1px solid #f0dcd0;
+  border-radius: 1rem;
+  background: #fff8f2;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease;
+}
+
+.phone-input-shell:focus-within {
+  border-color: #1570ef;
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(21, 112, 239, 0.12);
+}
+
+.phone-country-button {
+  display: flex;
+  width: 8.25rem;
+  max-width: 42vw;
+  min-height: calc(3rem - 2px);
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border: 0;
+  border-right: 1px solid #f0dcd0;
+  border-radius: calc(1rem - 1px) 0 0 calc(1rem - 1px);
+  background: transparent;
+  padding: 0 0.85rem;
+  color: #0d1b3d;
+  font-size: 0.875rem;
+  font-weight: 700;
+  outline: none;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease;
+}
+
+.phone-country-button:hover,
+.phone-country-button:focus-visible,
+.phone-country-button[aria-expanded="true"] {
+  background: rgba(255, 233, 222, 0.72);
+  color: #1570ef;
+}
+
+.phone-country-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.phone-number-field {
+  width: 100%;
+  min-height: calc(3rem - 2px);
+  min-width: 0;
+  flex: 1 1 auto;
+  border: 0;
+  border-radius: 0 calc(1rem - 1px) calc(1rem - 1px) 0;
+  background: transparent;
+  padding: 0.75rem 1rem;
+  color: #0d1b3d;
+  font-size: 0.875rem;
+  outline: none;
+}
+
 /* Horizontal tab strips stay scrollable on mobile without a visible scrollbar. */
 .hide-scrollbar {
   -ms-overflow-style: none;

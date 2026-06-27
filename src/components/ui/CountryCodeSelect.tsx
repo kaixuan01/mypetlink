@@ -58,21 +58,21 @@ export function CountryCodeSelect({
   }
 
   return (
-    <div className="relative min-w-0 shrink-0">
+    <div className="relative h-full shrink-0">
       <button
         aria-expanded={open}
         aria-haspopup="listbox"
-        className="flex h-12 min-h-12 max-w-[7.5rem] shrink-0 items-center gap-1.5 rounded-l-2xl border border-r-0 border-pet-border bg-pet-cream px-3 text-sm font-bold text-pet-ink transition hover:bg-pet-apricot/50 disabled:cursor-not-allowed disabled:opacity-60"
+        className="phone-country-button"
         disabled={disabled}
         id={buttonId}
         onClick={() => (open ? closeMenu() : setOpen(true))}
         type="button"
       >
-        <span aria-hidden="true" className="text-base leading-none">
+        <span aria-hidden="true" className="shrink-0 text-base leading-none">
           {selected.flag}
         </span>
-        <span className="truncate">{selected.dialCode}</span>
-        <span aria-hidden="true" className="text-[0.6rem] text-pet-muted">
+        <span className="min-w-0 truncate">{selected.dialCode}</span>
+        <span aria-hidden="true" className="shrink-0 text-[0.6rem] text-pet-muted">
           ▼
         </span>
         <span className="sr-only">
