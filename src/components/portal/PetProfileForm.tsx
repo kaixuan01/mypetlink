@@ -16,6 +16,7 @@ import { FormSection } from "@/components/ui/FormSection";
 import { Icon } from "@/components/ui/Icon";
 import { PetAvatar } from "@/components/ui/PetAvatar";
 import { PhoneNumberInput } from "@/components/ui/PhoneNumberInput";
+import { SegmentedTabs, type SegmentedTab } from "@/components/ui/SegmentedTabs";
 import { isValidE164, normalizeStoredPhone } from "@/lib/phone";
 import {
   getPetProfileTheme,
@@ -81,12 +82,12 @@ type FormErrors = Partial<Record<keyof FormState, string>>;
 
 type EditTab = "basic" | "photos" | "theme" | "public" | "contact";
 
-const editTabs: { id: EditTab; label: string }[] = [
-  { id: "basic", label: "Basic Info" },
+const editTabs: (SegmentedTab & { id: EditTab })[] = [
+  { id: "basic", label: "Basic Info", mobileLabel: "Info" },
   { id: "photos", label: "Photos" },
   { id: "theme", label: "Theme" },
-  { id: "public", label: "Public Profile" },
-  { id: "contact", label: "Contact & Safety" },
+  { id: "public", label: "Public Profile", mobileLabel: "Public" },
+  { id: "contact", label: "Contact & Safety", mobileLabel: "Safety" },
 ];
 
 // Which tab each field lives on, so a validation error can pull the owner to
@@ -392,42 +393,34 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
       : currentPet?.finderProfileUrl ?? "";
   const selectedTheme = getPetProfileTheme(form.profileTheme);
   const saveLabel = mode === "create" ? "Save Pet" : "Save Changes";
+  const cancelHref =
+    mode === "edit" && currentPet ? ownerRoutes.petProfile(currentPet.id) : "/pets";
   const hasUnsavedThemeChange =
     mode === "edit" &&
     currentPet &&
     form.profileTheme !== currentPet.profileTheme;
 
   return (
-    <form className="grid gap-5" onSubmit={handleSubmit}>
+    <form className="grid min-w-0 gap-5" onSubmit={handleSubmit}>
       {success ? (
         <div className="rounded-[1.25rem] border border-pet-mint bg-[#e8f8f0] p-4 text-sm font-bold text-pet-sage">
           {success}
         </div>
       ) : null}
 
-      <div className="flex gap-1 overflow-x-auto rounded-full border border-pet-border bg-white p-1">
-        {editTabs.map((editTab) => (
-          <button
-            className={`min-h-10 flex-1 whitespace-nowrap rounded-full px-4 py-2 text-sm font-bold transition ${
-              tab === editTab.id
-                ? "bg-pet-teal text-white"
-                : "text-pet-muted hover:bg-pet-cream"
-            }`}
-            key={editTab.id}
-            onClick={() => setTab(editTab.id)}
-            type="button"
-          >
-            {editTab.label}
-          </button>
-        ))}
-      </div>
+      <SegmentedTabs
+        ariaLabel="Edit pet sections"
+        activeId={tab}
+        onChange={(id) => setTab(id as EditTab)}
+        tabs={editTabs}
+      />
 
       {tab === "basic" ? (
         <FormSection
           title="Basic Info"
           description="These details help friends, family, and finders recognize your pet quickly."
         >
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid min-w-0 gap-4 md:grid-cols-2">
             <Field
               error={errors.name}
               helper="Use the name people normally call your pet."
@@ -512,7 +505,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
             />
           </div>
 
-          <div className="mt-4 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="mt-4 grid min-w-0 gap-4 lg:grid-cols-[1.1fr_0.9fr]">
             <Field
               error={errors.bio}
               helper="A few friendly details make the page feel personal."
@@ -527,7 +520,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
               />
             </Field>
 
-            <div className="grid gap-4">
+            <div className="grid min-w-0 gap-4">
               <TextInput
                 error={errors.personalityTags}
                 helper="Personality tags make your pet profile feel more personal."
@@ -563,8 +556,8 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
           title="Photos"
           description="Add the pet photos you want saved with this profile. The Theme tab controls the public page colors."
         >
-          <div className="grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
-            <div className="brand-soft-card rounded-[1.5rem] p-5">
+          <div className="grid min-w-0 gap-4 lg:grid-cols-[0.8fr_1.2fr]">
+            <div className="brand-soft-card min-w-0 rounded-[1.5rem] p-5">
               <p className="text-sm font-black text-pet-ink">Profile preview</p>
               <div className="mt-5 flex items-center gap-4">
                 <PetAvatar pet={previewPet} size="lg" />
@@ -581,7 +574,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
               </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid min-w-0 gap-4 md:grid-cols-2">
               <ImageUploadField
                 label="Profile photo"
                 helper="Used for this pet's avatar across the portal and public pages."
@@ -609,8 +602,8 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
             form.name || "your pet"
           }'s public share profile and QR safety page.`}
         >
-          <div className="grid gap-4">
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <div className="grid min-w-0 gap-4">
+            <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-5">
               {petProfileThemes.map((theme) => (
                 <ThemeOptionCard
                   key={theme.id}
@@ -642,8 +635,8 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
           title="Public Profile"
           description="Settings for the shareable profile at /p/{slug}-{publicCode}. This is the friendly page you share with friends and family."
         >
-          <div className="grid gap-4">
-            <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid min-w-0 gap-4">
+            <div className="grid min-w-0 gap-4 lg:grid-cols-2">
               <Field
                 error={errors.slug}
                 helper="This becomes the public page address."
@@ -723,7 +716,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
               </div>
             </details>
 
-            <div className="brand-card rounded-[1.5rem] p-5">
+            <div className="brand-card min-w-0 rounded-[1.5rem] p-5">
               {publicProfileFullUrl ? (
                 <UrlDisplay label="Public Profile URL" url={publicProfileFullUrl} />
               ) : (
@@ -742,8 +735,8 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
           title="Contact & Safety"
           description="Settings for the QR/NFC safety page at /t/{tagCode}. This is the finder-first page shown when someone scans the physical tag. Your full address is never shown."
         >
-          <div className="grid gap-4">
-            <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid min-w-0 gap-4">
+            <div className="grid min-w-0 gap-4 lg:grid-cols-2">
               <TextInput
                 error={errors.ownerName}
                 label="Owner display name"
@@ -833,7 +826,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
             </PrivacyGroup>
 
             {mode === "edit" && currentPet ? (
-              <div className="brand-card rounded-[1.5rem] p-5">
+              <div className="brand-card min-w-0 rounded-[1.5rem] p-5">
                 {finderFullUrl ? (
                   <UrlDisplay label="QR Safety Page URL" url={finderFullUrl} />
                 ) : null}
@@ -848,14 +841,14 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
       ) : null}
 
       {mode === "edit" && currentPet ? (
-        <div className="brand-card flex flex-col gap-3 rounded-[1.5rem] p-5">
+        <div className="brand-card flex min-w-0 flex-col gap-3 rounded-[1.5rem] p-5">
           <p className="text-sm font-black text-pet-ink">
             Manage {form.name || currentPet.name}&apos;s content
           </p>
           <p className="-mt-1 text-xs leading-5 text-pet-muted">
             Records, memories, and smart tags are managed on their own pages.
           </p>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid min-w-0 gap-3 sm:grid-cols-3">
             <CTAButton
               href={ownerRoutes.petRecords(currentPet.id)}
               icon="record"
@@ -865,12 +858,12 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
               Manage Care Records
             </CTAButton>
             <CTAButton
-              href={ownerRoutes.petMoments(currentPet.id)}
+              href={ownerRoutes.petMomentNew(currentPet.id)}
               icon="heart"
               variant="outline"
               fullWidth
             >
-              Manage Pet Memories
+              Add Pet Moment
             </CTAButton>
             <CTAButton
               href={ownerRoutes.petTags(currentPet.id)}
@@ -884,10 +877,11 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
         </div>
       ) : null}
 
-      <div className="brand-card flex flex-col gap-3 rounded-[1.5rem] p-5 lg:flex-row lg:items-center lg:justify-between">
+      {/* Desktop action bar. On mobile the sticky bar below handles Save/Cancel. */}
+      <div className="hidden rounded-[1.5rem] p-5 brand-card lg:flex lg:flex-row lg:items-center lg:justify-between">
         <Link
           className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
-          href={mode === "edit" && currentPet ? `/pets/${currentPet.id}` : "/pets"}
+          href={cancelHref}
         >
           Cancel
         </Link>
@@ -926,6 +920,28 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
           petName={savedPet.name}
         />
       ) : null}
+
+      {/* Spacer so the last fields clear the fixed mobile action bar. */}
+      <div aria-hidden="true" className="h-28 lg:hidden" />
+
+      {/* Sticky mobile action bar, kept above the bottom navigation. */}
+      <div className="fixed inset-x-3 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-20 max-w-[calc(100vw-1.5rem)] lg:hidden">
+        <div className="brand-card flex min-w-0 items-center gap-2 rounded-full p-2">
+          <Link
+            className="inline-flex min-h-11 min-w-0 flex-1 items-center justify-center rounded-full border border-pet-border bg-white px-4 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
+            href={cancelHref}
+          >
+            Cancel
+          </Link>
+          <button
+            className="inline-flex min-h-11 min-w-0 flex-1 items-center justify-center rounded-full bg-pet-coral px-4 text-sm font-bold text-white shadow-lg shadow-[#ff7a6e]/20 transition hover:bg-[#f26155] disabled:cursor-wait disabled:opacity-70"
+            disabled={isSubmitting}
+            type="submit"
+          >
+            {isSubmitting ? "Saving..." : saveLabel}
+          </button>
+        </div>
+      </div>
     </form>
   );
 }
@@ -941,7 +957,7 @@ function UrlDisplay({ label, url }: { label: string; url: string }) {
   }
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex min-w-0 items-center gap-3">
       <div className="min-w-0 flex-1">
         <p className="text-xs font-bold uppercase text-pet-muted">{label}</p>
         <p className="mt-0.5 truncate text-sm font-bold text-pet-ink">{url}</p>
@@ -1104,7 +1120,7 @@ function Field({
   children: ReactNode;
 }) {
   return (
-    <label className="grid gap-2">
+    <label className="grid min-w-0 gap-2">
       <span className="text-sm font-bold text-pet-ink">{label}</span>
       {children}
       {helper ? <span className="text-xs leading-5 text-pet-muted">{helper}</span> : null}
@@ -1125,8 +1141,8 @@ function Checkbox({
   onChange: (value: boolean) => void;
 }) {
   return (
-    <label className="flex items-center justify-between gap-3 rounded-2xl bg-pet-cream p-4 text-sm font-bold text-pet-ink">
-      <span>{label}</span>
+    <label className="flex min-w-0 items-center justify-between gap-3 rounded-2xl bg-pet-cream p-4 text-sm font-bold text-pet-ink">
+      <span className="min-w-0">{label}</span>
       <input
         checked={checked}
         className="h-4 w-4 accent-pet-teal"
@@ -1145,9 +1161,9 @@ function PrivacyGroup({
   children: ReactNode;
 }) {
   return (
-    <div className="rounded-[1.5rem] border border-pet-border bg-white p-5">
+    <div className="min-w-0 rounded-[1.5rem] border border-pet-border bg-white p-5">
       <p className="mb-3 text-sm font-black text-pet-ink">{title}</p>
-      <div className="grid gap-2 sm:grid-cols-2">{children}</div>
+      <div className="grid min-w-0 gap-2 sm:grid-cols-2">{children}</div>
     </div>
   );
 }
@@ -1166,7 +1182,7 @@ function ThemeOptionCard({
   return (
     <button
       aria-pressed={selected}
-      className={`min-h-[220px] rounded-[1.25rem] border p-4 text-left transition ${
+      className={`min-h-[220px] min-w-0 rounded-[1.25rem] border p-4 text-left transition ${
         selected
           ? "shadow-lg shadow-[#0d1b3d]/10"
           : "border-pet-border bg-white hover:-translate-y-0.5 hover:shadow-md"
@@ -1183,8 +1199,8 @@ function ThemeOptionCard({
       }
       type="button"
     >
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-sm font-black text-pet-ink">{theme.name}</p>
+      <div className="flex min-w-0 items-center justify-between gap-2">
+        <p className="min-w-0 text-sm font-black text-pet-ink">{theme.name}</p>
         {selected ? (
           <span
             className="rounded-full px-2 py-1 text-[10px] font-black uppercase"
@@ -1266,14 +1282,14 @@ function ThemePreviewPanel({
 }) {
   return (
     <div
-      className="overflow-hidden rounded-[1.5rem] border"
+      className="min-w-0 overflow-hidden rounded-[1.5rem] border"
       style={{
         background: theme.colors.surface,
         borderColor: theme.colors.border,
       }}
     >
       <div
-        className="grid gap-5 p-5 lg:grid-cols-[0.9fr_1.1fr]"
+        className="grid min-w-0 gap-5 p-5 lg:grid-cols-[0.9fr_1.1fr]"
         style={{ background: theme.gradients.page }}
       >
         <div>
@@ -1292,7 +1308,7 @@ function ThemePreviewPanel({
         </div>
 
         <div
-          className="rounded-[1.25rem] border p-3"
+          className="min-w-0 rounded-[1.25rem] border p-3"
           style={{
             background: theme.colors.surface,
             borderColor: theme.colors.border,
@@ -1316,7 +1332,7 @@ function ThemePreviewPanel({
               Gentle
             </span>
           </div>
-          <div className="grid gap-3 pt-4 sm:grid-cols-[88px_1fr]">
+          <div className="grid min-w-0 gap-3 pt-4 sm:grid-cols-[88px_1fr]">
             <div
               className="grid h-20 w-20 place-items-center rounded-[1.25rem] text-xl font-black"
               style={{
@@ -1326,7 +1342,7 @@ function ThemePreviewPanel({
             >
               {getInitial(petName)}
             </div>
-            <div>
+            <div className="min-w-0">
               <p
                 className="text-lg font-black"
                 style={{ color: theme.colors.text }}

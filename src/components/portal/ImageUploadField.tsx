@@ -62,11 +62,11 @@ export function ImageUploadField({
   const message = error || localError;
 
   return (
-    <div className="grid gap-2">
+    <div className="grid min-w-0 gap-2">
       <span className="text-sm font-bold text-pet-ink">{label}</span>
 
       {value ? (
-        <div className="grid gap-3">
+        <div className="grid min-w-0 gap-3">
           <div
             className={`overflow-hidden rounded-[1.25rem] border border-pet-border bg-pet-cream ${frameClass}`}
           >

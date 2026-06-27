@@ -63,14 +63,22 @@ function getAccessItems(qrStatus: QrStatus = "active"): AccessItem[] {
 export function ProfileAccessBadges({
   className = "",
   qrStatus = "active",
+  scroll = false,
 }: {
   className?: string;
   qrStatus?: QrStatus;
+  scroll?: boolean;
 }) {
   return (
-    <div className={`flex flex-wrap gap-2 ${className}`}>
+    <div
+      className={`${
+        scroll
+          ? "hide-scrollbar flex gap-2 overflow-x-auto"
+          : "flex flex-wrap gap-2"
+      } ${className}`}
+    >
       {getAccessItems(qrStatus).map((item) => (
-        <Badge key={item.label} tone={item.tone}>
+        <Badge className="shrink-0" key={item.label} tone={item.tone}>
           {item.label}
         </Badge>
       ))}

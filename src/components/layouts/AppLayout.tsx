@@ -73,7 +73,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthGuard>
-      <div className="min-h-screen bg-pet-cream pb-24 lg:flex lg:pb-0">
+      <div className="min-h-screen overflow-x-hidden bg-pet-cream pb-[calc(7rem+env(safe-area-inset-bottom))] lg:flex lg:pb-0">
         <aside className="hidden w-72 shrink-0 border-r border-pet-border bg-white/90 p-5 shadow-xl shadow-[#0d1b3d]/5 backdrop-blur lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col">
           <Link href="/" className="flex items-center gap-3">
             <BrandLogo markOnly className="h-12 w-12" />
@@ -145,7 +145,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               </CTAButton>
             </div>
           </header>
-          <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+          <main className="mx-auto min-w-0 w-full max-w-7xl px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-5 sm:px-6 lg:px-8 lg:py-8">
             {children}
           </main>
         </div>

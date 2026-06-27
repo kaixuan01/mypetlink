@@ -9,11 +9,12 @@ import { ShareProfileLink } from "@/components/share/ShareProfileLink";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon } from "@/components/ui/Icon";
+import { SegmentedTabs, type SegmentedTab } from "@/components/ui/SegmentedTabs";
 import { getPetProfileTheme } from "@/lib/petProfileThemes";
 import { ownerRoutes } from "@/lib/routes";
 import type { CareRecord, Pet, PetMoment, PetTag } from "@/types";
 
-type TabId = "overview" | "records" | "moments" | "tag";
+type TabId = "overview" | "records" | "moments" | "tag" | "privacy";
 
 type PetManagementTabsProps = {
   pet: Pet;
@@ -22,11 +23,12 @@ type PetManagementTabsProps = {
   tags: PetTag[];
 };
 
-const tabs: { id: TabId; label: string }[] = [
+const tabs: (SegmentedTab & { id: TabId })[] = [
   { id: "overview", label: "Overview" },
-  { id: "records", label: "Care Records" },
+  { id: "records", label: "Care Records", mobileLabel: "Records" },
   { id: "moments", label: "Moments" },
-  { id: "tag", label: "Smart Tags" },
+  { id: "tag", label: "Smart Tag", mobileLabel: "Tag" },
+  { id: "privacy", label: "Privacy" },
 ];
 
 export function PetManagementTabs({
@@ -39,22 +41,12 @@ export function PetManagementTabs({
 
   return (
     <div>
-      <div className="mb-6 flex gap-1 overflow-x-auto rounded-full border border-pet-border bg-white p-1">
-        {tabs.map((tab) => (
-          <button
-            className={`min-h-10 shrink-0 rounded-full px-4 py-2 text-sm font-bold transition ${
-              activeTab === tab.id
-                ? "bg-pet-teal text-white"
-                : "text-pet-muted hover:text-pet-ink"
-            }`}
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            type="button"
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <SegmentedTabs
+        ariaLabel="Manage pet sections"
+        activeId={activeTab}
+        onChange={(id) => setActiveTab(id as TabId)}
+        tabs={tabs}
+      />
 
       {activeTab === "overview" ? (
         <OverviewTab pet={pet} records={records} moments={moments} tags={tags} />
@@ -71,6 +63,8 @@ export function PetManagementTabs({
       {activeTab === "tag" ? (
         <TagManagementPanel pets={[pet]} initialTags={tags} petId={pet.id} />
       ) : null}
+
+      {activeTab === "privacy" ? <PrivacyTab pet={pet} /> : null}
     </div>
   );
 }
@@ -91,21 +85,8 @@ function OverviewTab({
   const activeTag = tags.find((tag) => tag.status === "Active") ?? tags[0];
   const theme = getPetProfileTheme(pet.profileTheme);
 
-  const publicStatuses = [
-    { label: "Owner name", enabled: pet.visibility.showOwnerName },
-    { label: "Care badges", enabled: pet.visibility.showCareBadges },
-    { label: "Public memories", enabled: pet.visibility.showMoments },
-    { label: "Life Timeline", enabled: pet.visibility.showTimeline },
-  ];
-  const safetyStatuses = [
-    { label: "WhatsApp owner", enabled: pet.visibility.showWhatsapp },
-    { label: "Call owner", enabled: pet.visibility.showPhone },
-    { label: "Emergency note", enabled: pet.visibility.showEmergencyNote },
-    { label: "General area", enabled: pet.visibility.showGeneralArea },
-  ];
-
   return (
-    <div className="grid gap-5 lg:grid-cols-2">
+    <div className="grid min-w-0 gap-5 lg:grid-cols-2">
       {/* Public Share Profile */}
       <SectionCard
         icon="heart"
@@ -118,7 +99,6 @@ function OverviewTab({
           path={pet.publicProfilePath}
           petName={pet.name}
         />
-        <StatusGrid items={publicStatuses} />
         <div className="mt-auto flex flex-col gap-3 sm:flex-row pt-1">
           <CTAButton
             href={pet.publicProfilePath}
@@ -163,7 +143,6 @@ function OverviewTab({
           </p>
           <p className="mt-1 font-black text-pet-ink">{pet.generalArea}</p>
         </div>
-        <StatusGrid items={safetyStatuses} />
         <div className="mt-auto flex flex-col gap-3 sm:flex-row pt-1">
           <CTAButton
             href={pet.finderProfileUrl}
@@ -337,6 +316,61 @@ function OverviewTab({
   );
 }
 
+function PrivacyTab({ pet }: { pet: Pet }) {
+  const publicStatuses = [
+    { label: "Owner name", enabled: pet.visibility.showOwnerName },
+    { label: "Care badges", enabled: pet.visibility.showCareBadges },
+    { label: "Public memories", enabled: pet.visibility.showMoments },
+    { label: "Life Timeline", enabled: pet.visibility.showTimeline },
+  ];
+  const safetyStatuses = [
+    { label: "WhatsApp owner", enabled: pet.visibility.showWhatsapp },
+    { label: "Call owner", enabled: pet.visibility.showPhone },
+    { label: "Emergency note", enabled: pet.visibility.showEmergencyNote },
+    { label: "General area", enabled: pet.visibility.showGeneralArea },
+  ];
+
+  return (
+    <div className="grid min-w-0 gap-5 lg:grid-cols-2">
+      <SectionCard
+        icon="heart"
+        title="Public profile visibility"
+        description="What friends and family see on the shareable public profile."
+      >
+        <StatusGrid items={publicStatuses} />
+        <div className="mt-auto pt-1">
+          <CTAButton
+            href={ownerRoutes.petEdit(pet.id)}
+            variant="outline"
+            icon="settings"
+            fullWidth
+          >
+            Edit public profile settings
+          </CTAButton>
+        </div>
+      </SectionCard>
+
+      <SectionCard
+        icon="qr"
+        title="QR safety page visibility"
+        description="What a finder sees after scanning the physical tag."
+      >
+        <StatusGrid items={safetyStatuses} />
+        <div className="mt-auto pt-1">
+          <CTAButton
+            href={ownerRoutes.petEdit(pet.id)}
+            variant="outline"
+            icon="settings"
+            fullWidth
+          >
+            Edit QR safety settings
+          </CTAButton>
+        </div>
+      </SectionCard>
+    </div>
+  );
+}
+
 function SectionCard({
   icon,
   title,
@@ -352,12 +386,12 @@ function SectionCard({
 }) {
   return (
     <section className="brand-card flex min-w-0 flex-col gap-4 rounded-[1.75rem] p-6">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
           <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[#e8f3ff] text-pet-teal">
             <Icon name={icon} className="h-5 w-5" />
           </span>
-          <h2 className="text-lg font-black text-pet-ink">{title}</h2>
+          <h2 className="min-w-0 text-lg font-black text-pet-ink">{title}</h2>
         </div>
         {badge}
       </div>
@@ -373,14 +407,16 @@ function StatusGrid({
   items: { label: string; enabled: boolean }[];
 }) {
   return (
-    <div className="grid gap-2 sm:grid-cols-2">
+    <div className="grid min-w-0 gap-2 sm:grid-cols-2">
       {items.map((item) => (
         <div
-          className="flex items-center justify-between rounded-[1rem] bg-pet-cream px-3 py-2 text-sm font-bold text-pet-ink"
+          className="flex min-w-0 items-center justify-between gap-3 rounded-[1rem] bg-pet-cream px-3 py-2 text-sm font-bold text-pet-ink"
           key={item.label}
         >
-          {item.label}
-          <span className={item.enabled ? "text-pet-sage" : "text-pet-muted"}>
+          <span className="min-w-0">{item.label}</span>
+          <span
+            className={`shrink-0 ${item.enabled ? "text-pet-sage" : "text-pet-muted"}`}
+          >
             {item.enabled ? "Shown" : "Hidden"}
           </span>
         </div>

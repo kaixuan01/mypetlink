@@ -14,18 +14,18 @@ export function PageHeader({
   action,
 }: PageHeaderProps) {
   return (
-    <div className="mb-8 flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+    <div className="mb-6 flex flex-col gap-4 sm:mb-8 sm:gap-5 md:flex-row md:items-end md:justify-between">
       <div className="max-w-3xl">
         {eyebrow ? (
-          <p className="text-sm font-extrabold uppercase text-pet-teal">
+          <p className="text-xs font-extrabold uppercase text-pet-teal sm:text-sm">
             {eyebrow}
           </p>
         ) : null}
-        <h1 className="mt-2 text-3xl font-black leading-tight text-pet-ink sm:text-4xl">
+        <h1 className="mt-1 text-2xl font-black leading-tight text-pet-ink sm:mt-2 sm:text-4xl">
           {title}
         </h1>
         {description ? (
-          <p className="mt-3 text-base leading-7 text-pet-muted">
+          <p className="mt-2 text-sm leading-6 text-pet-muted sm:mt-3 sm:text-base sm:leading-7">
             {description}
           </p>
         ) : null}

@@ -5,6 +5,7 @@ type BadgeTone = "warm" | "mint" | "teal" | "soft" | "danger";
 type BadgeProps = {
   children: ReactNode;
   tone?: BadgeTone;
+  className?: string;
 };
 
 const tones: Record<BadgeTone, string> = {
@@ -15,10 +16,10 @@ const tones: Record<BadgeTone, string> = {
   danger: "bg-[#ffe8e3] text-[#a63c2e]",
 };
 
-export function Badge({ children, tone = "soft" }: BadgeProps) {
+export function Badge({ children, tone = "soft", className = "" }: BadgeProps) {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-extrabold ${tones[tone]}`}
+      className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-extrabold ${tones[tone]} ${className}`}
     >
       {children}
     </span>

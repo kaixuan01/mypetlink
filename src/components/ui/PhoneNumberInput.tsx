@@ -82,12 +82,12 @@ export function PhoneNumberInput({
   }
 
   return (
-    <label className="grid min-w-0 gap-2" htmlFor={inputId}>
+    <label className="grid w-full min-w-0 gap-2" htmlFor={inputId}>
       <span className="text-sm font-bold text-pet-ink">
         {label}
         {required ? <span className="text-pet-coral"> *</span> : null}
       </span>
-      <div className="flex min-w-0 items-stretch">
+      <div className="flex w-full min-w-0 items-stretch">
         <CountryCodeSelect value={draft.country.dialCode} onChange={handleCountry} />
         <input
           autoComplete="tel-national"

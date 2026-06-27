@@ -32,8 +32,8 @@ export default async function EditPetPage({ params }: EditPetPageProps) {
     <AppLayout>
       <PageHeader
         eyebrow="Edit pet"
-        title={`Update ${pet.data.name}'s details`}
-        description="Keep public profile details, photos, contact options, and safety notes clear for anyone who may find your pet."
+        title={`Edit ${pet.data.name}`}
+        description="Update profile, photos, privacy, and safety settings."
       />
       <PetProfileForm initialPet={pet.data} mode="edit" />
     </AppLayout>

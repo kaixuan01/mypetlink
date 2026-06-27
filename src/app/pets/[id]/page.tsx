@@ -1,10 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AppLayout } from "@/components/layouts/AppLayout";
-import {
-  getQrStatusLabel,
-  ProfileAccessBadges,
-} from "@/components/portal/ProfileAccessStatus";
+import { ProfileAccessBadges } from "@/components/portal/ProfileAccessStatus";
 import { PetManagementTabs } from "@/components/portal/PetManagementTabs";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { PetAvatar } from "@/components/ui/PetAvatar";
@@ -51,27 +48,38 @@ export default async function PetDetailPage({ params }: PetDetailPageProps) {
 
   return (
     <AppLayout>
-      <section className="brand-card mb-6 rounded-[2rem] p-6">
-        <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-5">
-            <PetAvatar pet={pet} size="lg" />
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-3xl font-black text-pet-ink">{pet.name}</h1>
-                <ProfileAccessBadges qrStatus={pet.qrStatus} />
-              </div>
-              <p className="mt-2 text-sm text-pet-muted">
-                {pet.species} - {pet.breed} - {pet.ageLabel}
-              </p>
-              <p className="mt-1 text-sm font-bold text-pet-muted">
-                {getQrStatusLabel(pet.qrStatus)}
+      <section className="brand-card mb-6 rounded-[1.75rem] p-5 sm:rounded-[2rem] sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-4">
+            <span className="sm:hidden">
+              <PetAvatar pet={pet} size="md" />
+            </span>
+            <span className="hidden sm:block">
+              <PetAvatar pet={pet} size="lg" />
+            </span>
+            <div className="min-w-0">
+              <h1 className="truncate text-2xl font-black text-pet-ink sm:text-3xl">
+                {pet.name}
+              </h1>
+              <p className="mt-1 text-sm text-pet-muted">
+                {pet.species} &middot; {pet.breed} &middot; {pet.ageLabel}
               </p>
             </div>
           </div>
-          <CTAButton href={ownerRoutes.petEdit(pet.id)} icon="settings">
+          <CTAButton
+            href={ownerRoutes.petEdit(pet.id)}
+            icon="settings"
+            fullWidth
+            className="sm:w-auto"
+          >
             Edit Pet Details
           </CTAButton>
         </div>
+        <ProfileAccessBadges
+          className="mt-4"
+          qrStatus={pet.qrStatus}
+          scroll
+        />
       </section>
 
       <PetManagementTabs

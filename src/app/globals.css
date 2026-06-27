@@ -36,6 +36,7 @@ body {
   background: linear-gradient(180deg, #fff8f2 0%, #ffffff 42%, #eef8ff 100%);
   color: var(--foreground);
   font-family: var(--font-noto-sans), Arial, Helvetica, sans-serif;
+  overflow-x: hidden;
 }
 
 h1,
@@ -117,4 +118,14 @@ select {
   border-color: #1570ef;
   background: #ffffff;
   box-shadow: 0 0 0 4px rgba(21, 112, 239, 0.12);
+}
+
+/* Horizontal tab strips stay scrollable on mobile without a visible scrollbar. */
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
 }

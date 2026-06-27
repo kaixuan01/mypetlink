@@ -27,7 +27,7 @@ export function TagActivationFlow({
   tagCode,
 }: TagActivationFlowProps) {
   const [result, setResult] = useState(initialResult);
-  const [authed, setAuthed] = useState(false);
+  const [authed, setAuthed] = useState(() => isOwnerAuthenticated());
   const [pets, setPets] = useState<Pet[]>([]);
   const [selectedPetId, setSelectedPetId] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -35,8 +35,6 @@ export function TagActivationFlow({
 
   useEffect(() => {
     let active = true;
-
-    setAuthed(isOwnerAuthenticated());
 
     getFinderState(tagCode).then((next) => {
       if (active) {
