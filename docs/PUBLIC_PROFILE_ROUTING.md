@@ -97,26 +97,42 @@ finder safety page). It is **looked up by `publicCode`, never by slug**:
 - It renders `PublicSharePetProfile` with the profile, public moments, and
   records.
 
-### Finder-first layout
+### Clean shareable layout (NOT the finder page)
 
-`PublicSharePetProfile` is **finder-first and mobile-first** — it must not look
-like the owner dashboard. The first screen is a single centered card: large pet
-photo, name, species/breed/age, a short description, and the **contact actions
-near the top** (a strong primary "I found this pet - Contact Owner" plus
-WhatsApp / Call / Send Found Location, gated by `visibility.showWhatsapp` /
-`showPhone`). Do not stack many cards before the contact action.
+> **This is the single most important rule for this page.** The share profile
+> (`/p/{slug}-{publicCode}`) is the **friendly, IG-style** page an owner shares
+> with friends, family, and pet communities. It is **NOT** the emergency finder
+> page. The finder/emergency experience lives **only** on the QR/NFC safety page
+> (`/t/{tagCode}`, see §2 and the `PublicFinderProfile` component). Never mix
+> them. A previous version wrongly made the share page finder-first — do not
+> reintroduce that.
 
-Secondary information sits behind three simple tabs:
+`PublicSharePetProfile` is **clean, mobile-first, and shareable**. The first
+screen is an identity hero: cover, large pet photo, name, species/breed/age,
+short bio, and personality tags. The **primary action is "Share profile"**, not
+contact. Then three simple tabs:
 
-| Tab     | Shows                                                                  |
-| ------- | --------------------------------------------------------------------- |
-| About   | breed, color, gender, age, favourite, personality, description        |
-| Notes   | owner-approved public notes: safety note, emergency note (gated), general area (gated), public care badges (gated by `showCareBadges`) |
-| Moments | public memories only (`visibility === "Public"` + `showOnPublicProfile`, gated by `showMoments`) |
+| Tab      | Shows                                                                   |
+| -------- | ----------------------------------------------------------------------- |
+| About    | breed, color, gender, age, birthday, favourite toy, and public care badges (gated by `showCareBadges`) |
+| Moments  | public memories only (`visibility === "Public"` + `showOnPublicProfile`, gated by `showMoments`) |
+| Timeline | life timeline events (birthday/adoption gated by their flags + public moments where `showInLifeTimeline`, gated by `showTimeline`) |
 
-Keep it clean: minimal badges, no large decorative backgrounds competing with
-the contact CTA, plenty of whitespace, one strong primary action. The pet's
-`profileTheme` still themes colors, but lightly. When adding public fields,
+**Do NOT show on the share page by default:** "I found this pet - Contact
+Owner", "Send Found Location", a big emergency WhatsApp/Call block, safety/
+emergency notes as primary content, "safety page" wording, or any lost-pet
+finder wording. The only contact affordance is **one small, optional "Message
+owner"/"Call owner" button** rendered after the share link, and only when the
+owner enabled `visibility.showWhatsapp` / `showPhone`.
+
+**Lost Mode exception:** when any tag bound to the pet has status `Lost`
+(`isPetReportedLost` in `tagService.ts`, passed in as `initialLostMode` and
+re-checked on mount), the share page shows a **lost banner + a single "I found
+this pet - Contact Owner" CTA**. This is the *only* case where the share page
+turns finder-first.
+
+Keep it clean: minimal badges, plenty of whitespace, one strong primary action
+(share). The pet's `profileTheme` themes colors. When adding public fields,
 route them through `toPublicProfile` and gate them behind a `visibility` flag —
 the share page never reads raw `Pet` fields or shows private owner info.
 

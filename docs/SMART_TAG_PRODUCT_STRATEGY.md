@@ -346,10 +346,14 @@ Do not use:
 /t/{sequentialId}
 ```
 
-`/t/{tagCode}` is the **physical tag** route (QR/NFC). The shareable public
-profile is a **separate** route, `/p/{petSlug}-{publicCode}` (e.g. `/p/milo-k7q2`).
-`/p/{petSlug}` alone (e.g. `/p/milo`) is **deprecated** — never display, copy, or
-link to it. See `PUBLIC_PROFILE_ROUTING.md`.
+`/t/{tagCode}` is the **physical tag** route (QR/NFC). It is the **finder-first
+safety page** a stranger sees after scanning — big "I found this pet - Contact
+Owner", WhatsApp/Call/Send Found Location, safety + emergency notes. The shareable
+public profile is a **separate** route, `/p/{petSlug}-{publicCode}`
+(e.g. `/p/milo-k7q2`) — a clean, friendly, IG-style page whose primary action is
+**Share**, with no emergency finder CTAs (except a Lost Mode banner). Never mix the
+two. `/p/{petSlug}` alone (e.g. `/p/milo`) is **deprecated** — never display, copy,
+or link to it. See `PUBLIC_PROFILE_ROUTING.md`.
 
 The URL must not expose:
 

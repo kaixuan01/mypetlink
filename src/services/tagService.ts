@@ -57,6 +57,15 @@ export async function getPetTags(petId: string) {
   });
 }
 
+// A pet is "in lost mode" when any tag bound to it has been reported lost.
+// The shareable public profile uses this to switch into a finder-first state.
+export async function isPetReportedLost(petId: string) {
+  await mockDelay();
+  return getTagCollection().some(
+    (tag) => tag.petId === petId && tag.status === "Lost"
+  );
+}
+
 export async function getAllTags() {
   await mockDelay();
   const tags = getTagCollection();

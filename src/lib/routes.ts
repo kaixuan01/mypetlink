@@ -1,4 +1,5 @@
 import { mockPets } from "@/data/mockPets";
+import type { Pet, PetTag } from "@/types";
 
 // Central route map for MyPetLink so every page links consistently.
 //
@@ -56,6 +57,18 @@ export function activatePath(tagCode: string) {
 
 export function publicProfilePath(slug: string, publicCode: string) {
   return `/p/${slug}-${publicCode}`.toLowerCase();
+}
+
+// Canonical helper for the shareable public profile of a pet.
+// Always /p/{petSlug}-{publicCode}; never the slug alone.
+export function getPublicProfilePath(pet: Pick<Pet, "slug" | "publicCode">) {
+  return publicProfilePath(pet.slug, pet.publicCode);
+}
+
+// Canonical helper for the QR/NFC safety page of a physical tag.
+// Always /t/{tagCode}; never an internal id or old short token.
+export function getTagScanPath(tag: Pick<PetTag, "tagCode">) {
+  return tagPath(tag.tagCode);
 }
 
 // The public param is "{slug}-{publicCode}". A slug can contain hyphens

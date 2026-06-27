@@ -6,6 +6,7 @@ import { parsePublicProfileParam } from "@/lib/routes";
 import { getPublicPetMoments } from "@/services/momentService";
 import { getPublicPetProfileByPublicCode } from "@/services/petService";
 import { getPetRecords } from "@/services/recordService";
+import { isPetReportedLost } from "@/services/tagService";
 
 type PublicPetPageProps = {
   params: Promise<{ slug: string }>;
@@ -40,6 +41,7 @@ export default async function PublicPetPage({ params }: PublicPetPageProps) {
 
   const moments = await getPublicPetMoments(profile.data.id);
   const records = await getPetRecords(profile.data.id);
+  const lostMode = await isPetReportedLost(profile.data.id);
 
   return (
     <main className="min-h-screen bg-pet-cream">
@@ -47,6 +49,7 @@ export default async function PublicPetPage({ params }: PublicPetPageProps) {
         initialMoments={moments.data}
         initialProfile={profile.data}
         initialRecords={records.data}
+        initialLostMode={lostMode}
       />
     </main>
   );

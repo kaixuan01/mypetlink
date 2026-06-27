@@ -82,7 +82,27 @@ status) plus **`PetManagementTabs`** (client) with five tabs:
 Tabs are in-page client state (static export has no server). The per-pet
 sub-routes below still exist for deep links, the `MobileBottomNav`, and the
 `PetSwitcher`; the tabs reuse the **same** manager components, so behaviour stays
-consistent.
+consistent. Records, Moments, and Smart Tag are reached **through this hub** (its
+tabs) or via the deep routes that render the same manager components — never as
+disconnected standalone dashboards.
+
+### Edit page is also tabbed
+
+`/pets/{petId}/edit` (`PetProfileForm`) is a **focused, tabbed edit form**, not a
+dashboard. Its tabs are **Basic Info | Photos | Theme | Public Profile | Contact
+& Safety**, and the two public surfaces are deliberately split:
+
+| Edit tab          | Configures                                                          |
+| ----------------- | ------------------------------------------------------------------ |
+| Basic Info        | name, species, breed, gender, color, birthday/age, description, personality, favourites |
+| Photos            | profile + cover photo, live preview                                |
+| Theme             | `profileTheme` (applies to **both** the public share profile and the QR safety page) |
+| Public Profile    | slug, adoption day, share-page visibility flags, **Public Profile URL** (`/p/{slug}-{publicCode}`) + View Public Profile |
+| Contact & Safety  | owner display name, WhatsApp/phone, general area, safety + emergency notes, finder visibility flags, **QR Safety Page URL** (`/t/{tagCode}`) + View QR Safety Page |
+
+The edit form does **not** embed Records / Moments / Smart Tag managers — only
+small text links back to those hub routes. On submit, a validation error focuses
+the tab that contains the first invalid field.
 
 All owner pet pages key off the **`petId`** (`ownerRoutes.*` helpers):
 

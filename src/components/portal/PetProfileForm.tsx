@@ -75,6 +75,54 @@ type FormState = {
 
 type FormErrors = Partial<Record<keyof FormState, string>>;
 
+type EditTab = "basic" | "photos" | "theme" | "public" | "contact";
+
+const editTabs: { id: EditTab; label: string }[] = [
+  { id: "basic", label: "Basic Info" },
+  { id: "photos", label: "Photos" },
+  { id: "theme", label: "Theme" },
+  { id: "public", label: "Public Profile" },
+  { id: "contact", label: "Contact & Safety" },
+];
+
+// Which tab each field lives on, so a validation error can pull the owner to
+// the right tab instead of failing silently on a hidden one.
+const fieldTab: Record<keyof FormState, EditTab> = {
+  name: "basic",
+  species: "basic",
+  breed: "basic",
+  gender: "basic",
+  color: "basic",
+  birthdayDate: "basic",
+  estimatedAge: "basic",
+  bio: "basic",
+  personalityTags: "basic",
+  favoriteFood: "basic",
+  favoriteToy: "basic",
+  profilePhotoLabel: "photos",
+  coverPhotoLabel: "photos",
+  profileTheme: "theme",
+  slug: "public",
+  adoptionDate: "public",
+  generalArea: "contact",
+  safetyNote: "contact",
+  emergencyNote: "contact",
+  ownerName: "contact",
+  whatsapp: "contact",
+  phone: "contact",
+  showOwnerName: "public",
+  showCareBadges: "public",
+  showMoments: "public",
+  showTimeline: "public",
+  showBirthdayOnTimeline: "public",
+  showAdoptionDayOnTimeline: "public",
+  showHealthSummary: "public",
+  showGeneralArea: "contact",
+  showWhatsapp: "contact",
+  showPhone: "contact",
+  showEmergencyNote: "contact",
+};
+
 const speciesOptions: PetSpecies[] = ["Dog", "Cat", "Rabbit", "Bird", "Other"];
 
 const emptyForm: FormState = {
@@ -123,6 +171,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState("");
   const [origin, setOrigin] = useState("");
+  const [tab, setTab] = useState<EditTab>("basic");
 
   useEffect(() => {
     setOrigin(window.location.origin);
@@ -181,7 +230,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
     }
   }
 
-  function validate() {
+  function collectErrors() {
     const nextErrors: FormErrors = {};
     const slug = slugifyPetSlug(form.slug);
 
@@ -226,14 +275,21 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
     enforceMax(nextErrors, "profilePhotoLabel", form.profilePhotoLabel, 120);
     enforceMax(nextErrors, "coverPhotoLabel", form.coverPhotoLabel, 120);
 
-    setErrors(nextErrors);
-    return Object.keys(nextErrors).length === 0;
+    return nextErrors;
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!validate()) {
+    const nextErrors = collectErrors();
+    setErrors(nextErrors);
+
+    const firstErrorKey = Object.keys(nextErrors)[0] as
+      | keyof FormState
+      | undefined;
+
+    if (firstErrorKey) {
+      setTab(fieldTab[firstErrorKey]);
       return;
     }
 
@@ -349,486 +405,507 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
         </div>
       ) : null}
 
-      <FormSection
-        title="Basic Info"
-        description="These details help friends, family, and finders recognize your pet quickly."
-      >
-        <div className="grid gap-4 md:grid-cols-2">
-          <Field
-            error={errors.name}
-            helper="Use the name people normally call your pet."
-            label="Pet name"
+      <div className="flex gap-1 overflow-x-auto rounded-full border border-pet-border bg-white p-1">
+        {editTabs.map((editTab) => (
+          <button
+            className={`min-h-10 flex-1 whitespace-nowrap rounded-full px-4 py-2 text-sm font-bold transition ${
+              tab === editTab.id
+                ? "bg-pet-teal text-white"
+                : "text-pet-muted hover:bg-pet-cream"
+            }`}
+            key={editTab.id}
+            onClick={() => setTab(editTab.id)}
+            type="button"
           >
-            <input
-              className="brand-input"
-              maxLength={60}
-              onChange={(event) => handleNameChange(event.target.value)}
-              placeholder="Milo"
-              type="text"
-              value={form.name}
-            />
-          </Field>
+            {editTab.label}
+          </button>
+        ))}
+      </div>
 
-          <Field error={errors.species} label="Pet type">
-            <select
-              className="brand-input"
-              onChange={(event) =>
-                updateField("species", event.target.value as PetSpecies)
-              }
-              value={form.species}
-            >
-              {speciesOptions.map((species) => (
-                <option key={species} value={species}>
-                  {species}
-                </option>
-              ))}
-            </select>
-          </Field>
-
-          <TextInput
-            error={errors.breed}
-            label="Breed"
-            maxLength={80}
-            onChange={(value) => updateField("breed", value)}
-            placeholder="Mixed breed"
-            value={form.breed}
-          />
-
-          <TextInput
-            error={errors.gender}
-            label="Gender"
-            maxLength={40}
-            onChange={(value) => updateField("gender", value)}
-            placeholder="Male, female, unknown"
-            value={form.gender}
-          />
-
-          <TextInput
-            error={errors.color}
-            label="Color"
-            maxLength={80}
-            onChange={(value) => updateField("color", value)}
-            placeholder="Brown and white"
-            value={form.color}
-          />
-
-          <Field
-            error={errors.birthdayDate}
-            helper="Leave this blank if you only know an estimated age."
-            label="Birthday"
-          >
-            <input
-              className="brand-input"
-              onChange={(event) => updateField("birthdayDate", event.target.value)}
-              type="date"
-              value={form.birthdayDate}
-            />
-          </Field>
-
-          <TextInput
-            error={errors.estimatedAge}
-            helper="Example: Estimated 5 years."
-            label="Estimated age"
-            maxLength={60}
-            onChange={(value) => updateField("estimatedAge", value)}
-            placeholder="Estimated 5 years"
-            value={form.estimatedAge}
-          />
-        </div>
-      </FormSection>
-
-      <FormSection
-        title="Photos"
-        description="Add the pet photos you want saved with this profile. Profile Theme controls the public page colors."
-      >
-        <div className="grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
-          <div className="brand-soft-card rounded-[1.5rem] p-5">
-            <p className="text-sm font-black text-pet-ink">Profile preview</p>
-            <div className="mt-5 flex items-center gap-4">
-              <PetAvatar pet={previewPet} size="lg" />
-              <div>
-                <p className="font-black text-pet-ink">
-                  {form.name || "Your pet"}
-                </p>
-                <p className="mt-1 text-sm text-pet-muted">
-                  {form.profilePhotoLabel ? "Portrait ready" : "Add a portrait when you are ready"}
-                </p>
-              </div>
-            </div>
-          </div>
-
+      {tab === "basic" ? (
+        <FormSection
+          title="Basic Info"
+          description="These details help friends, family, and finders recognize your pet quickly."
+        >
           <div className="grid gap-4 md:grid-cols-2">
             <Field
-              error={errors.profilePhotoLabel}
-              helper="Choose the portrait you want to use for this pet."
-              label="Profile photo"
+              error={errors.name}
+              helper="Use the name people normally call your pet."
+              label="Pet name"
             >
               <input
-                accept="image/*"
                 className="brand-input"
-                onChange={(event) => handleFileLabel("profilePhotoLabel", event)}
-                type="file"
+                maxLength={60}
+                onChange={(event) => handleNameChange(event.target.value)}
+                placeholder="Milo"
+                type="text"
+                value={form.name}
               />
             </Field>
+
+            <Field error={errors.species} label="Pet type">
+              <select
+                className="brand-input"
+                onChange={(event) =>
+                  updateField("species", event.target.value as PetSpecies)
+                }
+                value={form.species}
+              >
+                {speciesOptions.map((species) => (
+                  <option key={species} value={species}>
+                    {species}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            <TextInput
+              error={errors.breed}
+              label="Breed"
+              maxLength={80}
+              onChange={(value) => updateField("breed", value)}
+              placeholder="Mixed breed"
+              value={form.breed}
+            />
+
+            <TextInput
+              error={errors.gender}
+              label="Gender"
+              maxLength={40}
+              onChange={(value) => updateField("gender", value)}
+              placeholder="Male, female, unknown"
+              value={form.gender}
+            />
+
+            <TextInput
+              error={errors.color}
+              label="Color"
+              maxLength={80}
+              onChange={(value) => updateField("color", value)}
+              placeholder="Brown and white"
+              value={form.color}
+            />
 
             <Field
-              error={errors.coverPhotoLabel}
-              helper="Choose a warm cover photo when you are ready."
-              label="Cover photo"
+              error={errors.birthdayDate}
+              helper="Leave this blank if you only know an estimated age."
+              label="Birthday"
             >
               <input
-                accept="image/*"
                 className="brand-input"
-                onChange={(event) => handleFileLabel("coverPhotoLabel", event)}
-                type="file"
+                onChange={(event) =>
+                  updateField("birthdayDate", event.target.value)
+                }
+                type="date"
+                value={form.birthdayDate}
               />
             </Field>
-          </div>
-        </div>
-      </FormSection>
 
-      <FormSection
-        title="Profile Theme"
-        description={`Used on ${form.name || "your pet"}'s public share profile and QR safety page.`}
-      >
-        <div className="grid gap-4">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            {petProfileThemes.map((theme) => (
-              <ThemeOptionCard
-                key={theme.id}
-                name={form.name || "Milo"}
-                onSelect={() => updateField("profileTheme", theme.id)}
-                selected={form.profileTheme === theme.id}
-                theme={theme}
+            <TextInput
+              error={errors.estimatedAge}
+              helper="Example: Estimated 5 years."
+              label="Estimated age"
+              maxLength={60}
+              onChange={(value) => updateField("estimatedAge", value)}
+              placeholder="Estimated 5 years"
+              value={form.estimatedAge}
+            />
+          </div>
+
+          <div className="mt-4 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+            <Field
+              error={errors.bio}
+              helper="A few friendly details make the page feel personal."
+              label="Short bio / description"
+            >
+              <textarea
+                className="brand-input min-h-32"
+                maxLength={320}
+                onChange={(event) => updateField("bio", event.target.value)}
+                placeholder="Milo is gentle, snack-loving, and happiest after evening walks."
+                value={form.bio}
               />
-            ))}
-          </div>
+            </Field>
 
-          {hasUnsavedThemeChange ? (
-            <p className="rounded-[1rem] bg-[#fffbea] px-4 py-3 text-xs font-bold text-[#856a00]">
-              Save changes to update {form.name || "your pet"}&apos;s public profile and QR safety page.
-            </p>
-          ) : null}
-
-          <ThemePreviewPanel
-            petName={form.name || "Your pet"}
-            theme={selectedTheme}
-          />
-        </div>
-      </FormSection>
-
-      <FormSection
-        title="Public Share Profile"
-        description="Add a short intro so friends and family can know your pet better."
-      >
-        <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-          <Field
-            error={errors.bio}
-            helper="A few friendly details make the page feel personal."
-            label="Short bio / about"
-          >
-            <textarea
-              className="brand-input min-h-32"
-              maxLength={320}
-              onChange={(event) => updateField("bio", event.target.value)}
-              placeholder="Milo is gentle, snack-loving, and happiest after evening walks."
-              value={form.bio}
-            />
-          </Field>
-
-          <div className="grid gap-4">
-            <TextInput
-              error={errors.personalityTags}
-              helper="Personality tags make your pet profile feel more personal."
-              label="Personality tags"
-              maxLength={160}
-              onChange={(value) => updateField("personalityTags", value)}
-              placeholder="Gentle, loyal, playful"
-              value={form.personalityTags}
-            />
-            <TextInput
-              error={errors.favoriteFood}
-              label="Favourite food"
-              maxLength={80}
-              onChange={(value) => updateField("favoriteFood", value)}
-              placeholder="Beef treats"
-              value={form.favoriteFood}
-            />
-            <TextInput
-              error={errors.favoriteToy}
-              label="Favourite toy"
-              maxLength={80}
-              onChange={(value) => updateField("favoriteToy", value)}
-              placeholder="Blue squeaky ball"
-              value={form.favoriteToy}
-            />
-          </div>
-
-          <Field error={errors.adoptionDate} label="Adoption day">
-            <input
-              className="brand-input"
-              onChange={(event) => updateField("adoptionDate", event.target.value)}
-              type="date"
-              value={form.adoptionDate}
-            />
-          </Field>
-
-          <Field
-            error={errors.slug}
-            helper="This becomes the public page address."
-            label="Public profile slug"
-          >
-            <input
-              className="brand-input"
-              maxLength={70}
-              onChange={(event) =>
-                updateField("slug", slugifyPetSlug(event.target.value))
-              }
-              placeholder="milo"
-              type="text"
-              value={form.slug}
-            />
-          </Field>
-        </div>
-      </FormSection>
-
-      <FormSection
-        title="QR Safety Page"
-        description="Contact details, safety notes, and general area for finders. Your full address is never shown publicly."
-      >
-        <div className="grid gap-4 lg:grid-cols-2">
-          <TextInput
-            error={errors.generalArea}
-            helper="Example: Petaling Jaya, Selangor."
-            label="General area"
-            maxLength={120}
-            onChange={(value) => updateField("generalArea", value)}
-            placeholder="Petaling Jaya, Selangor"
-            value={form.generalArea}
-          />
-
-          <Field
-            error={errors.safetyNote}
-            helper="Helpful for anyone who finds your pet outside."
-            label="Safety note"
-          >
-            <textarea
-              className="brand-input min-h-28"
-              maxLength={260}
-              onChange={(event) => updateField("safetyNote", event.target.value)}
-              placeholder="Friendly but nervous around traffic."
-              value={form.safetyNote}
-            />
-          </Field>
-
-          <Field
-            error={errors.emergencyNote}
-            helper="Add anything urgent a finder should know before contacting you."
-            label="Emergency note"
-          >
-            <textarea
-              className="brand-input min-h-28"
-              maxLength={260}
-              onChange={(event) => updateField("emergencyNote", event.target.value)}
-              placeholder="Keep shaded and contact owner first."
-              value={form.emergencyNote}
-            />
-          </Field>
-
-          <TextInput
-            error={errors.ownerName}
-            label="Owner display name"
-            maxLength={80}
-            onChange={(value) => updateField("ownerName", value)}
-            placeholder={`${form.name || "Your pet"}'s owner`}
-            value={form.ownerName}
-          />
-          <TextInput
-            error={errors.whatsapp}
-            helper="Optional, but useful for quick finder contact."
-            label="WhatsApp number"
-            maxLength={24}
-            onChange={(value) => updateField("whatsapp", value)}
-            placeholder="60123456789"
-            value={form.whatsapp}
-          />
-          <TextInput
-            error={errors.phone}
-            helper="Optional. Add country code when possible."
-            label="Phone number"
-            maxLength={24}
-            onChange={(value) => updateField("phone", value)}
-            placeholder="+60123456789"
-            value={form.phone}
-          />
-        </div>
-      </FormSection>
-
-      <FormSection
-        title="Privacy"
-        description="Choose which details appear publicly. Your full address is never shown."
-      >
-        <div className="grid gap-4">
-          <PrivacyGroup title="Public Share Profile">
-            <Checkbox
-              checked={form.showOwnerName}
-              label="Show owner display name"
-              onChange={(value) => updateField("showOwnerName", value)}
-            />
-            <Checkbox
-              checked={form.showCareBadges}
-              label="Show care badges"
-              onChange={(value) => updateField("showCareBadges", value)}
-            />
-            <Checkbox
-              checked={form.showMoments}
-              label="Show public memories"
-              onChange={(value) => updateField("showMoments", value)}
-            />
-            <Checkbox
-              checked={form.showTimeline}
-              label="Show Life Timeline"
-              onChange={(value) => updateField("showTimeline", value)}
-            />
-            <Checkbox
-              checked={form.showBirthdayOnTimeline}
-              label="Show birthday in Life Timeline"
-              onChange={(value) => updateField("showBirthdayOnTimeline", value)}
-            />
-            <Checkbox
-              checked={form.showAdoptionDayOnTimeline}
-              label="Show adoption day in Life Timeline"
-              onChange={(value) => updateField("showAdoptionDayOnTimeline", value)}
-            />
-          </PrivacyGroup>
-
-          <PrivacyGroup title="QR Safety Page">
-            <Checkbox
-              checked={form.showWhatsapp}
-              label="Show WhatsApp contact"
-              onChange={(value) => updateField("showWhatsapp", value)}
-            />
-            <Checkbox
-              checked={form.showPhone}
-              label="Show call contact"
-              onChange={(value) => updateField("showPhone", value)}
-            />
-            <Checkbox
-              checked={form.showEmergencyNote}
-              label="Show emergency note"
-              onChange={(value) => updateField("showEmergencyNote", value)}
-            />
-            <Checkbox
-              checked={form.showGeneralArea}
-              label="Show general area"
-              onChange={(value) => updateField("showGeneralArea", value)}
-            />
-          </PrivacyGroup>
-
-          <details className="rounded-[1.5rem] border border-pet-border bg-white">
-            <summary className="cursor-pointer px-5 py-4 text-sm font-bold text-pet-muted select-none">
-              Advanced
-            </summary>
-            <div className="grid gap-3 px-5 pb-5">
-              <Checkbox
-                checked={form.showHealthSummary}
-                label="Allow public care record details"
-                onChange={(value) => updateField("showHealthSummary", value)}
+            <div className="grid gap-4">
+              <TextInput
+                error={errors.personalityTags}
+                helper="Personality tags make your pet profile feel more personal."
+                label="Personality tags"
+                maxLength={160}
+                onChange={(value) => updateField("personalityTags", value)}
+                placeholder="Gentle, loyal, playful"
+                value={form.personalityTags}
+              />
+              <TextInput
+                error={errors.favoriteFood}
+                label="Favourite food"
+                maxLength={80}
+                onChange={(value) => updateField("favoriteFood", value)}
+                placeholder="Beef treats"
+                value={form.favoriteFood}
+              />
+              <TextInput
+                error={errors.favoriteToy}
+                label="Favourite toy"
+                maxLength={80}
+                onChange={(value) => updateField("favoriteToy", value)}
+                placeholder="Blue squeaky ball"
+                value={form.favoriteToy}
               />
             </div>
-          </details>
-        </div>
-      </FormSection>
-
-      {mode === "edit" && currentPet ? (
-        <section className="brand-card rounded-[1.75rem] p-5 sm:p-6">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <h2 className="text-lg font-black text-pet-ink">
-                Related owner tools
-              </h2>
-              <p className="mt-1 text-sm leading-6 text-pet-muted">
-                Keep moments, care records, and QR safety details connected to
-                this public profile.
-              </p>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <CTAButton
-                href={`/pets/${currentPet.id}/records`}
-                icon="record"
-                variant="secondary"
-              >
-                Manage Care Records
-              </CTAButton>
-              <CTAButton
-                href={`/pets/${currentPet.id}/moments/new`}
-                icon="plus"
-                variant="secondary"
-              >
-                Add Pet Moment
-              </CTAButton>
-              <CTAButton href={`/pets/${currentPet.id}/qr`} icon="qr">
-                Manage QR / Safety Profile
-              </CTAButton>
-            </div>
           </div>
-        </section>
+        </FormSection>
       ) : null}
 
-      <div className="brand-card flex flex-col gap-4 rounded-[1.5rem] p-5 lg:flex-row lg:items-center lg:justify-between">
-        <div className="grid gap-2">
-          {publicProfileFullUrl ? (
-            <UrlDisplay
-              label="Public Profile URL"
-              url={publicProfileFullUrl}
+      {tab === "photos" ? (
+        <FormSection
+          title="Photos"
+          description="Add the pet photos you want saved with this profile. The Theme tab controls the public page colors."
+        >
+          <div className="grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
+            <div className="brand-soft-card rounded-[1.5rem] p-5">
+              <p className="text-sm font-black text-pet-ink">Profile preview</p>
+              <div className="mt-5 flex items-center gap-4">
+                <PetAvatar pet={previewPet} size="lg" />
+                <div>
+                  <p className="font-black text-pet-ink">
+                    {form.name || "Your pet"}
+                  </p>
+                  <p className="mt-1 text-sm text-pet-muted">
+                    {form.profilePhotoLabel
+                      ? "Portrait ready"
+                      : "Add a portrait when you are ready"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field
+                error={errors.profilePhotoLabel}
+                helper="Choose the portrait you want to use for this pet."
+                label="Profile photo"
+              >
+                <input
+                  accept="image/*"
+                  className="brand-input"
+                  onChange={(event) =>
+                    handleFileLabel("profilePhotoLabel", event)
+                  }
+                  type="file"
+                />
+              </Field>
+
+              <Field
+                error={errors.coverPhotoLabel}
+                helper="Choose a warm cover photo when you are ready."
+                label="Cover photo"
+              >
+                <input
+                  accept="image/*"
+                  className="brand-input"
+                  onChange={(event) =>
+                    handleFileLabel("coverPhotoLabel", event)
+                  }
+                  type="file"
+                />
+              </Field>
+            </div>
+          </div>
+        </FormSection>
+      ) : null}
+
+      {tab === "theme" ? (
+        <FormSection
+          title="Profile Theme"
+          description={`Applied to both ${
+            form.name || "your pet"
+          }'s public share profile and QR safety page.`}
+        >
+          <div className="grid gap-4">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+              {petProfileThemes.map((theme) => (
+                <ThemeOptionCard
+                  key={theme.id}
+                  name={form.name || "Milo"}
+                  onSelect={() => updateField("profileTheme", theme.id)}
+                  selected={form.profileTheme === theme.id}
+                  theme={theme}
+                />
+              ))}
+            </div>
+
+            {hasUnsavedThemeChange ? (
+              <p className="rounded-[1rem] bg-[#fffbea] px-4 py-3 text-xs font-bold text-[#856a00]">
+                Save changes to update {form.name || "your pet"}&apos;s public
+                profile and QR safety page.
+              </p>
+            ) : null}
+
+            <ThemePreviewPanel
+              petName={form.name || "Your pet"}
+              theme={selectedTheme}
             />
-          ) : (
-            <p className="text-sm font-semibold leading-6 text-pet-muted">
-              Your public profile link will be ready right after you save this
-              pet.
-            </p>
-          )}
-          {mode === "edit" && currentPet && finderFullUrl ? (
-            <UrlDisplay
-              label="QR Safety Page URL"
-              url={finderFullUrl}
-            />
-          ) : null}
+          </div>
+        </FormSection>
+      ) : null}
+
+      {tab === "public" ? (
+        <FormSection
+          title="Public Profile"
+          description="Settings for the shareable profile at /p/{slug}-{publicCode}. This is the friendly page you share with friends and family."
+        >
+          <div className="grid gap-4">
+            <div className="grid gap-4 lg:grid-cols-2">
+              <Field
+                error={errors.slug}
+                helper="This becomes the public page address."
+                label="Public profile slug"
+              >
+                <input
+                  className="brand-input"
+                  maxLength={70}
+                  onChange={(event) =>
+                    updateField("slug", slugifyPetSlug(event.target.value))
+                  }
+                  placeholder="milo"
+                  type="text"
+                  value={form.slug}
+                />
+              </Field>
+
+              <Field error={errors.adoptionDate} label="Adoption day">
+                <input
+                  className="brand-input"
+                  onChange={(event) =>
+                    updateField("adoptionDate", event.target.value)
+                  }
+                  type="date"
+                  value={form.adoptionDate}
+                />
+              </Field>
+            </div>
+
+            <PrivacyGroup title="What appears on the public profile">
+              <Checkbox
+                checked={form.showOwnerName}
+                label="Show owner display name"
+                onChange={(value) => updateField("showOwnerName", value)}
+              />
+              <Checkbox
+                checked={form.showCareBadges}
+                label="Show care badges"
+                onChange={(value) => updateField("showCareBadges", value)}
+              />
+              <Checkbox
+                checked={form.showMoments}
+                label="Show public memories"
+                onChange={(value) => updateField("showMoments", value)}
+              />
+              <Checkbox
+                checked={form.showTimeline}
+                label="Show Life Timeline"
+                onChange={(value) => updateField("showTimeline", value)}
+              />
+              <Checkbox
+                checked={form.showBirthdayOnTimeline}
+                label="Show birthday in Life Timeline"
+                onChange={(value) =>
+                  updateField("showBirthdayOnTimeline", value)
+                }
+              />
+              <Checkbox
+                checked={form.showAdoptionDayOnTimeline}
+                label="Show adoption day in Life Timeline"
+                onChange={(value) =>
+                  updateField("showAdoptionDayOnTimeline", value)
+                }
+              />
+            </PrivacyGroup>
+
+            <details className="rounded-[1.5rem] border border-pet-border bg-white">
+              <summary className="cursor-pointer px-5 py-4 text-sm font-bold text-pet-muted select-none">
+                Advanced
+              </summary>
+              <div className="grid gap-3 px-5 pb-5">
+                <Checkbox
+                  checked={form.showHealthSummary}
+                  label="Allow public care record details"
+                  onChange={(value) => updateField("showHealthSummary", value)}
+                />
+              </div>
+            </details>
+
+            <div className="brand-card flex flex-col gap-4 rounded-[1.5rem] p-5 lg:flex-row lg:items-center lg:justify-between">
+              {publicProfileFullUrl ? (
+                <UrlDisplay label="Public Profile URL" url={publicProfileFullUrl} />
+              ) : (
+                <p className="text-sm font-semibold leading-6 text-pet-muted">
+                  Your public profile link will be ready right after you save
+                  this pet.
+                </p>
+              )}
+              {profilePath ? (
+                <CTAButton
+                  href={profilePath}
+                  icon="heart"
+                  variant="secondary"
+                >
+                  View Public Profile
+                </CTAButton>
+              ) : null}
+            </div>
+          </div>
+        </FormSection>
+      ) : null}
+
+      {tab === "contact" ? (
+        <FormSection
+          title="Contact & Safety"
+          description="Settings for the QR/NFC safety page at /t/{tagCode}. This is the finder-first page shown when someone scans the physical tag. Your full address is never shown."
+        >
+          <div className="grid gap-4">
+            <div className="grid gap-4 lg:grid-cols-2">
+              <TextInput
+                error={errors.ownerName}
+                label="Owner display name"
+                maxLength={80}
+                onChange={(value) => updateField("ownerName", value)}
+                placeholder={`${form.name || "Your pet"}'s owner`}
+                value={form.ownerName}
+              />
+              <TextInput
+                error={errors.generalArea}
+                helper="Example: Petaling Jaya, Selangor."
+                label="General area"
+                maxLength={120}
+                onChange={(value) => updateField("generalArea", value)}
+                placeholder="Petaling Jaya, Selangor"
+                value={form.generalArea}
+              />
+              <TextInput
+                error={errors.whatsapp}
+                helper="Optional, but useful for quick finder contact."
+                label="WhatsApp number"
+                maxLength={24}
+                onChange={(value) => updateField("whatsapp", value)}
+                placeholder="60123456789"
+                value={form.whatsapp}
+              />
+              <TextInput
+                error={errors.phone}
+                helper="Optional. Add country code when possible."
+                label="Phone number"
+                maxLength={24}
+                onChange={(value) => updateField("phone", value)}
+                placeholder="+60123456789"
+                value={form.phone}
+              />
+
+              <Field
+                error={errors.safetyNote}
+                helper="Helpful for anyone who finds your pet outside."
+                label="Safety note / handling instructions"
+              >
+                <textarea
+                  className="brand-input min-h-28"
+                  maxLength={260}
+                  onChange={(event) =>
+                    updateField("safetyNote", event.target.value)
+                  }
+                  placeholder="Friendly but nervous around traffic."
+                  value={form.safetyNote}
+                />
+              </Field>
+
+              <Field
+                error={errors.emergencyNote}
+                helper="Add anything urgent a finder should know before contacting you."
+                label="Emergency note"
+              >
+                <textarea
+                  className="brand-input min-h-28"
+                  maxLength={260}
+                  onChange={(event) =>
+                    updateField("emergencyNote", event.target.value)
+                  }
+                  placeholder="Keep shaded and contact owner first."
+                  value={form.emergencyNote}
+                />
+              </Field>
+            </div>
+
+            <PrivacyGroup title="What the finder safety page shows">
+              <Checkbox
+                checked={form.showWhatsapp}
+                label="Show WhatsApp contact"
+                onChange={(value) => updateField("showWhatsapp", value)}
+              />
+              <Checkbox
+                checked={form.showPhone}
+                label="Show call contact"
+                onChange={(value) => updateField("showPhone", value)}
+              />
+              <Checkbox
+                checked={form.showEmergencyNote}
+                label="Show emergency note"
+                onChange={(value) => updateField("showEmergencyNote", value)}
+              />
+              <Checkbox
+                checked={form.showGeneralArea}
+                label="Show general area"
+                onChange={(value) => updateField("showGeneralArea", value)}
+              />
+            </PrivacyGroup>
+
+            {mode === "edit" && currentPet ? (
+              <div className="brand-card flex flex-col gap-4 rounded-[1.5rem] p-5 lg:flex-row lg:items-center lg:justify-between">
+                {finderFullUrl ? (
+                  <UrlDisplay label="QR Safety Page URL" url={finderFullUrl} />
+                ) : null}
+                <CTAButton
+                  href={currentPet.finderProfileUrl}
+                  icon="qr"
+                  variant="outline"
+                >
+                  View QR Safety Page
+                </CTAButton>
+              </div>
+            ) : (
+              <p className="rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold text-pet-muted">
+                The QR safety page link will be ready after you save this pet.
+              </p>
+            )}
+          </div>
+        </FormSection>
+      ) : null}
+
+      {mode === "edit" && currentPet ? (
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-2 text-sm font-bold text-pet-teal">
+          <span className="text-pet-muted">Related:</span>
+          <Link className="underline" href={`/pets/${currentPet.id}/records`}>
+            Care records
+          </Link>
+          <Link className="underline" href={`/pets/${currentPet.id}/moments`}>
+            Moments
+          </Link>
+          <Link className="underline" href={`/pets/${currentPet.id}/tags`}>
+            Smart tags
+          </Link>
         </div>
-        <div className="flex flex-col gap-3 sm:flex-row">
-          {mode === "edit" && currentPet ? (
-            <Link
-              className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
-              href={`/pets/${currentPet.id}`}
-            >
-              Cancel
-            </Link>
-          ) : (
-            <Link
-              className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
-              href="/pets"
-            >
-              Cancel
-            </Link>
-          )}
-          {profilePath ? (
-            <CTAButton href={profilePath} icon="heart" variant="secondary">
-              View Public Profile
-            </CTAButton>
-          ) : null}
-          {mode === "edit" && currentPet ? (
-            <CTAButton
-              href={currentPet.finderProfileUrl}
-              icon="qr"
-              variant="outline"
-            >
-              View QR Safety Page
-            </CTAButton>
-          ) : null}
-          <CTAButton disabled={isSubmitting} type="submit" variant="coral">
-            {isSubmitting ? "Saving..." : saveLabel}
-          </CTAButton>
-        </div>
+      ) : null}
+
+      <div className="brand-card flex flex-col gap-3 rounded-[1.5rem] p-5 sm:flex-row sm:items-center sm:justify-end">
+        <Link
+          className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
+          href={mode === "edit" && currentPet ? `/pets/${currentPet.id}` : "/pets"}
+        >
+          Cancel
+        </Link>
+        <CTAButton disabled={isSubmitting} type="submit" variant="coral">
+          {isSubmitting ? "Saving..." : saveLabel}
+        </CTAButton>
       </div>
 
       {savedPet ? (

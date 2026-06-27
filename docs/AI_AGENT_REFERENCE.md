@@ -82,9 +82,15 @@ strings in pages or components.** Import the helpers instead.
 | Purpose            | Pattern                       | Helper                                   |
 | ------------------ | ----------------------------- | ---------------------------------------- |
 | Owner portal pages | `/pets/{petId}/...`           | `ownerRoutes.*`                          |
-| Physical tag scan  | `/t/{tagCode}`                | `tagPath(tagCode)`                       |
+| Physical tag scan  | `/t/{tagCode}`                | `tagPath(tagCode)` / `getTagScanPath(tag)` |
 | Tag activation     | `/activate/{tagCode}`         | `activatePath(tagCode)`                  |
-| Public share       | `/p/{petSlug}-{publicCode}`   | `publicProfilePath(slug, publicCode)`    |
+| Public share       | `/p/{petSlug}-{publicCode}`   | `publicProfilePath(slug, publicCode)` / `getPublicProfilePath(pet)` |
+
+`getPublicProfilePath(pet)` and `getTagScanPath(tag)` are convenience wrappers
+that take the whole object — prefer them when you already have a `Pet` / `PetTag`
+in hand. Pets also carry pre-built `pet.publicProfilePath` and
+`pet.finderProfileUrl` fields (kept in sync by `petService`), which existing UI
+reads directly.
 
 Key rules baked into these helpers:
 
@@ -171,11 +177,21 @@ Note: owner-ordered tags are created with a `petId` already set (status
 7. **Don't break existing pages.** Run `npm run build` before considering a task
    done; a static-export build fails on any unrendered dynamic param or type
    error.
-8. **Keep owner portal and public profile distinct.** The owner portal is for
+8. **Keep owner portal and public pages distinct.** The owner portal is for
    *management* (`/pets` is an overview list; `/pets/{petId}` is the tabbed
-   management page — see `OWNER_PORTAL_FLOW.md` §3). The public profile (`/p/...`)
-   is *finder-first*: pet identity + important notes + contact owner, never an
-   owner dashboard (see `PUBLIC_PROFILE_ROUTING.md` §4). Don't mix the two.
+   management hub; `/pets/{petId}/edit` is the tabbed edit form — see
+   `OWNER_PORTAL_FLOW.md` §3). Public pages are never an owner dashboard.
+9. **The two public pages are DIFFERENT — never mix them.**
+   - **`/p/{petSlug}-{publicCode}` = Public Share Profile.** Friendly, IG-style,
+     shareable. Primary action is *Share*. Tabs: About / Moments / Timeline. No
+     emergency CTAs, no "I found this pet", no "Send Found Location", no safety-
+     page wording — except the **Lost Mode** banner when a bound tag is `Lost`.
+   - **`/t/{tagCode}` = QR/NFC Safety Profile.** Finder-first and emergency-
+     focused (the page a stranger sees after scanning the physical tag). Big
+     "I found this pet - Contact Owner", WhatsApp / Call / Send Found Location,
+     emergency + safety notes. Minimal lifestyle content.
+   See `PUBLIC_PROFILE_ROUTING.md` §2 (safety page) and §4 (share page). A past
+   change wrongly made the share page finder-first; do not reintroduce that.
 
 ---
 

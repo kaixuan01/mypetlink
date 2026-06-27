@@ -6,7 +6,7 @@ import { BrandLogo } from "@/components/brand/BrandLogo";
 import { PetMomentCard } from "@/components/portal/PetMomentCard";
 import { ShareProfileLink } from "@/components/share/ShareProfileLink";
 import { CTAButton } from "@/components/ui/CTAButton";
-import { Icon, type IconName } from "@/components/ui/Icon";
+import { Icon } from "@/components/ui/Icon";
 import { PetAvatar } from "@/components/ui/PetAvatar";
 import {
   getPetProfileTheme,
@@ -15,15 +15,17 @@ import {
 import { getPublicPetMoments } from "@/services/momentService";
 import { getPublicPetProfileByPublicCode } from "@/services/petService";
 import { getPetRecords } from "@/services/recordService";
+import { isPetReportedLost } from "@/services/tagService";
 import type { CareRecord, Pet, PetMoment, PublicPetProfile } from "@/types";
 
 type PublicSharePetProfileProps = {
   initialProfile: PublicPetProfile;
   initialMoments: PetMoment[];
   initialRecords: CareRecord[];
+  initialLostMode?: boolean;
 };
 
-type TabId = "about" | "notes" | "moments";
+type TabId = "about" | "moments" | "timeline";
 
 const fallbackVisibility: Pet["visibility"] = {
   showOwnerName: true,
@@ -39,16 +41,23 @@ const fallbackVisibility: Pet["visibility"] = {
   showHealthSummary: false,
 };
 
+// The shareable public profile (/p/{slug}-{publicCode}). This is the friendly,
+// IG-style pet page owners share with friends, family, and pet communities.
+// It is deliberately NOT the finder/emergency experience — that lives on the
+// QR/NFC safety page (/t/{tagCode}). The only finder-style element here is an
+// optional small "Message owner" button and, when the pet is reported lost, a
+// lost banner with a contact CTA.
 export function PublicSharePetProfile({
   initialProfile,
   initialMoments,
   initialRecords,
+  initialLostMode = false,
 }: PublicSharePetProfileProps) {
   const [profile, setProfile] = useState(initialProfile);
   const [moments, setMoments] = useState(initialMoments);
   const [records, setRecords] = useState(initialRecords);
+  const [lostMode, setLostMode] = useState(initialLostMode);
   const [activeTab, setActiveTab] = useState<TabId>("about");
-  const [locationStatus, setLocationStatus] = useState("");
 
   const visibility = mergeVisibility(profile.visibility);
   const theme = getPetProfileTheme(profile.profileTheme);
@@ -58,12 +67,13 @@ export function PublicSharePetProfile({
     : `${profile.name}'s owner`;
   const whatsappNumber = normalizeWhatsappNumber(profile.owner.whatsapp);
   const phoneHref = normalizePhoneHref(profile.owner.phone);
-  const whatsappBaseUrl = `https://wa.me/${whatsappNumber}`;
-  const introMessage = encodeURIComponent(
-    `Hi, I found ${profile.name} from the MyPetLink profile.`
+  const contactMessage = encodeURIComponent(
+    `Hi, I saw ${profile.name}'s MyPetLink profile.`
   );
+  const whatsappHref = `https://wa.me/${whatsappNumber}?text=${contactMessage}`;
   const canWhatsapp = visibility.showWhatsapp && Boolean(whatsappNumber);
   const canCall = visibility.showPhone && Boolean(phoneHref);
+  const canContact = canWhatsapp || canCall;
 
   const publicMoments = visibility.showMoments
     ? moments.filter(
@@ -73,6 +83,9 @@ export function PublicSharePetProfile({
     : [];
   const careRecords = visibility.showCareBadges
     ? records.filter((record) => record.publicVisibility !== "Private").slice(0, 4)
+    : [];
+  const timelineEvents = visibility.showTimeline
+    ? buildTimelineEvents(profile, moments, visibility)
     : [];
 
   useEffect(() => {
@@ -87,9 +100,10 @@ export function PublicSharePetProfile({
         const nextProfile = profileResponse.data ?? initialProfile;
         setProfile(nextProfile);
 
-        const [momentsResponse, recordsResponse] = await Promise.all([
+        const [momentsResponse, recordsResponse, lost] = await Promise.all([
           getPublicPetMoments(nextProfile.id),
           getPetRecords(nextProfile.id),
+          isPetReportedLost(nextProfile.id),
         ]);
 
         if (!active) {
@@ -98,6 +112,7 @@ export function PublicSharePetProfile({
 
         setMoments(momentsResponse.data);
         setRecords(recordsResponse.data);
+        setLostMode(lost);
       }
     );
 
@@ -106,53 +121,21 @@ export function PublicSharePetProfile({
     };
   }, [initialProfile]);
 
-  function openWhatsappWithMessage(text: string) {
-    window.location.href = `${whatsappBaseUrl}?text=${encodeURIComponent(text)}`;
-  }
-
-  function handleSendFoundLocation() {
-    if (!whatsappNumber) {
-      return;
-    }
-
-    setLocationStatus("Asking your browser for location permission...");
-
-    if (!navigator.geolocation) {
-      setLocationStatus(
-        "Location is not available here. A WhatsApp message is ready for you to type the location."
-      );
-      openWhatsappWithMessage(
-        `Hi ${ownerDisplayName}, I found ${profile.name}. I can describe the found location here.`
-      );
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        const mapsUrl = `https://www.google.com/maps?q=${latitude},${longitude}`;
-        setLocationStatus("Location ready. Opening WhatsApp...");
-        openWhatsappWithMessage(
-          `Hi ${ownerDisplayName}, I found ${profile.name}. Found location: ${mapsUrl}`
-        );
-      },
-      () => {
-        setLocationStatus(
-          "Location was not shared. A WhatsApp message is ready for you to type the location."
-        );
-        openWhatsappWithMessage(
-          `Hi ${ownerDisplayName}, I found ${profile.name}. I can describe the found location here.`
-        );
-      },
-      { enableHighAccuracy: true, maximumAge: 60000, timeout: 10000 }
-    );
-  }
-
   const tabs: { id: TabId; label: string }[] = [
     { id: "about", label: "About" },
-    { id: "notes", label: "Notes" },
-    { id: "moments", label: "Moments" },
   ];
+
+  if (visibility.showMoments) {
+    tabs.push({ id: "moments", label: "Moments" });
+  }
+
+  if (visibility.showTimeline) {
+    tabs.push({ id: "timeline", label: "Timeline" });
+  }
+
+  const currentTab = tabs.some((tab) => tab.id === activeTab)
+    ? activeTab
+    : "about";
 
   return (
     <article
@@ -177,119 +160,149 @@ export function PublicSharePetProfile({
       </header>
 
       <div className="mx-auto max-w-xl px-4 pb-16 pt-6 sm:pt-8">
-        {/* Identity + contact: the first thing a finder sees. */}
+        {/* Identity hero — a friendly, shareable introduction to the pet. */}
         <section
-          className="brand-card rounded-[2rem] p-6 text-center"
+          className="brand-card overflow-hidden rounded-[2rem]"
           style={{
             background: theme.colors.surface,
             borderColor: theme.colors.border,
           }}
         >
-          <div className="flex justify-center">
-            <PetAvatar pet={profile} size="xl" />
-          </div>
-          <h1
-            className="mt-5 text-3xl font-black text-pet-ink"
-            style={{ color: theme.colors.text }}
-          >
-            {profile.name}
-          </h1>
-          <p
-            className="mt-2 text-sm font-bold text-pet-muted"
-            style={{ color: theme.colors.mutedText }}
-          >
-            {profile.species}
-            {" · "}
-            {profile.breed}
-            {" · "}
-            {profile.ageLabel}
-          </p>
-          <p
-            className="mx-auto mt-3 max-w-sm text-sm leading-6 text-pet-muted"
-            style={{ color: theme.colors.mutedText }}
-          >
-            {profile.bio}
-          </p>
-
-          <div className="mt-6 grid gap-3">
-            {canWhatsapp ? (
-              <CTAButton
-                href={`${whatsappBaseUrl}?text=${introMessage}`}
-                icon="phone"
-                target="_blank"
-                rel="noopener noreferrer"
-                variant="coral"
-                fullWidth
-                className="min-h-14 text-base"
+          <div
+            className="h-28 w-full"
+            style={{ background: theme.gradients.cover }}
+          />
+          <div className="px-6 pb-6 text-center">
+            <div className="-mt-14 flex justify-center">
+              <span
+                className="rounded-full border-4"
+                style={{ borderColor: theme.colors.surface }}
               >
-                I found this pet - Contact Owner
-              </CTAButton>
-            ) : canCall ? (
-              <CTAButton
-                href={`tel:${phoneHref}`}
-                icon="phone"
-                variant="coral"
-                fullWidth
-                className="min-h-14 text-base"
+                <PetAvatar pet={profile} size="xl" />
+              </span>
+            </div>
+            <h1
+              className="mt-4 text-3xl font-black text-pet-ink"
+              style={{ color: theme.colors.text }}
+            >
+              {profile.name}
+            </h1>
+            <p
+              className="mt-2 text-sm font-bold text-pet-muted"
+              style={{ color: theme.colors.mutedText }}
+            >
+              {profile.species}
+              {" · "}
+              {profile.breed}
+              {" · "}
+              {profile.ageLabel}
+            </p>
+            {profile.bio ? (
+              <p
+                className="mx-auto mt-3 max-w-sm text-sm leading-6 text-pet-muted"
+                style={{ color: theme.colors.mutedText }}
               >
-                I found this pet - Call Owner
-              </CTAButton>
+                {profile.bio}
+              </p>
             ) : null}
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            {profile.personalityTags.length ? (
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                {profile.personalityTags.map((tag) => (
+                  <ThemedBadge key={tag} theme={theme}>
+                    {tag}
+                  </ThemedBadge>
+                ))}
+              </div>
+            ) : null}
+
+            {visibility.showOwnerName ? (
+              <p
+                className="mt-4 text-sm font-bold text-pet-ink"
+                style={{ color: theme.colors.text }}
+              >
+                Cared for by {ownerDisplayName}
+              </p>
+            ) : null}
+          </div>
+        </section>
+
+        {/* Lost mode is the one time this shareable page turns finder-first. */}
+        {lostMode && canContact ? (
+          <section className="mt-4 rounded-[1.5rem] border-2 border-pet-coral bg-[#fff1ee] p-5 text-center">
+            <div className="flex items-center justify-center gap-2 text-sm font-black uppercase text-pet-coral">
+              <Icon name="shield" className="h-4 w-4" />
+              {profile.name} is reported lost
+            </div>
+            <p className="mt-2 text-sm font-semibold leading-6 text-pet-ink">
+              If you have seen or found {profile.name}, please contact the owner
+              right away.
+            </p>
+            <div className="mt-4 grid gap-3">
               {canWhatsapp ? (
                 <CTAButton
-                  href={`${whatsappBaseUrl}?text=${introMessage}`}
+                  href={whatsappHref}
                   icon="phone"
                   target="_blank"
                   rel="noopener noreferrer"
+                  variant="coral"
                   fullWidth
                   className="min-h-12"
                 >
-                  WhatsApp
+                  I found this pet - Contact Owner
                 </CTAButton>
-              ) : null}
-              {canCall ? (
+              ) : canCall ? (
                 <CTAButton
                   href={`tel:${phoneHref}`}
                   icon="phone"
-                  variant="secondary"
+                  variant="coral"
                   fullWidth
                   className="min-h-12"
                 >
-                  Call
+                  I found this pet - Call Owner
                 </CTAButton>
               ) : null}
             </div>
+          </section>
+        ) : null}
 
+        {/* Primary action is sharing; contact is a small, optional extra. */}
+        <div className="mt-6">
+          <ShareProfileLink
+            path={profile.publicProfilePath}
+            petName={profile.name}
+            showShareButton
+            theme={theme}
+          />
+        </div>
+
+        {!lostMode && canContact ? (
+          <div className="mt-3">
             {canWhatsapp ? (
               <CTAButton
-                icon="pin"
-                onClick={handleSendFoundLocation}
-                variant="outline"
+                href={whatsappHref}
+                icon="phone"
+                target="_blank"
+                rel="noopener noreferrer"
+                variant="secondary"
                 fullWidth
-                className="min-h-12 bg-white"
+                className="min-h-11"
               >
-                Send Found Location
+                Message {ownerDisplayName}
               </CTAButton>
-            ) : null}
+            ) : (
+              <CTAButton
+                href={`tel:${phoneHref}`}
+                icon="phone"
+                variant="secondary"
+                fullWidth
+                className="min-h-11"
+              >
+                Call {ownerDisplayName}
+              </CTAButton>
+            )}
           </div>
-
-          {locationStatus ? (
-            <p className="mt-3 rounded-[1.25rem] bg-[#e8f3ff] p-3 text-sm font-bold leading-6 text-pet-ink">
-              {locationStatus}
-            </p>
-          ) : null}
-
-          {visibility.showOwnerName ? (
-            <p
-              className="mt-4 text-sm font-bold text-pet-ink"
-              style={{ color: theme.colors.text }}
-            >
-              Cared for by {ownerDisplayName}
-            </p>
-          ) : null}
-        </section>
+        ) : null}
 
         {/* Secondary info grouped behind simple tabs. */}
         <div
@@ -305,7 +318,7 @@ export function PublicSharePetProfile({
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               style={
-                activeTab === tab.id
+                currentTab === tab.id
                   ? {
                       background: theme.colors.buttonBackground,
                       color: theme.colors.buttonText,
@@ -320,41 +333,36 @@ export function PublicSharePetProfile({
         </div>
 
         <div className="mt-5">
-          {activeTab === "about" ? (
-            <AboutTab profile={profile} theme={theme} />
-          ) : null}
-          {activeTab === "notes" ? (
-            <NotesTab
+          {currentTab === "about" ? (
+            <AboutTab
               profile={profile}
               theme={theme}
               visibility={visibility}
               careRecords={careRecords}
             />
           ) : null}
-          {activeTab === "moments" ? (
+          {currentTab === "moments" ? (
             <MomentsTab
               petName={profile.name}
               publicMoments={publicMoments}
               theme={theme}
             />
           ) : null}
-        </div>
-
-        <div className="mt-6">
-          <ShareProfileLink
-            path={profile.publicProfilePath}
-            petName={profile.name}
-            showShareButton
-            theme={theme}
-          />
+          {currentTab === "timeline" ? (
+            <TimelineTab
+              petName={profile.name}
+              events={timelineEvents}
+              theme={theme}
+            />
+          ) : null}
         </div>
 
         <p
-          className="mt-4 text-center text-xs font-semibold leading-5 text-pet-muted"
+          className="mt-6 text-center text-xs font-semibold leading-5 text-pet-muted"
           style={{ color: theme.colors.mutedText }}
         >
-          For safety, this profile only shows owner-approved public information.
-          The owner&apos;s full address is never shared.
+          Powered by MyPetLink. This profile only shows owner-approved public
+          information.
         </p>
       </div>
     </article>
@@ -362,80 +370,6 @@ export function PublicSharePetProfile({
 }
 
 function AboutTab({
-  profile,
-  theme,
-}: {
-  profile: PublicPetProfile;
-  theme: PetProfileTheme;
-}) {
-  const details: { label: string; value: string }[] = [
-    { label: "Breed", value: profile.breed },
-    { label: "Color", value: profile.color },
-    { label: "Gender", value: profile.gender },
-    { label: "Age", value: profile.ageLabel },
-    { label: "Birthday", value: profile.birthday },
-    { label: "Favourite", value: profile.favoriteToy },
-  ];
-
-  return (
-    <section
-      className="brand-card rounded-[1.75rem] p-6"
-      style={{
-        background: theme.colors.surface,
-        borderColor: theme.colors.border,
-      }}
-    >
-      <h2
-        className="text-lg font-black text-pet-ink"
-        style={{ color: theme.colors.text }}
-      >
-        About {profile.name}
-      </h2>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        {details.map((detail) => (
-          <div
-            className="rounded-[1.25rem] bg-pet-cream p-4"
-            key={detail.label}
-            style={{ background: theme.colors.surfaceAlt }}
-          >
-            <p
-              className="text-xs font-bold uppercase text-pet-muted"
-              style={{ color: theme.colors.mutedText }}
-            >
-              {detail.label}
-            </p>
-            <p
-              className="mt-1 break-words font-black text-pet-ink"
-              style={{ color: theme.colors.text }}
-            >
-              {detail.value}
-            </p>
-          </div>
-        ))}
-      </div>
-
-      {profile.personalityTags.length ? (
-        <>
-          <p
-            className="mt-5 text-xs font-bold uppercase text-pet-muted"
-            style={{ color: theme.colors.mutedText }}
-          >
-            Personality
-          </p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {profile.personalityTags.map((tag) => (
-              <ThemedBadge key={tag} theme={theme}>
-                {tag}
-              </ThemedBadge>
-            ))}
-          </div>
-        </>
-      ) : null}
-    </section>
-  );
-}
-
-function NotesTab({
   profile,
   theme,
   visibility,
@@ -446,30 +380,53 @@ function NotesTab({
   visibility: Pet["visibility"];
   careRecords: CareRecord[];
 }) {
+  const details: { label: string; value: string }[] = [
+    { label: "Breed", value: profile.breed },
+    { label: "Color", value: profile.color },
+    { label: "Gender", value: profile.gender },
+    { label: "Age", value: profile.ageLabel },
+    { label: "Birthday", value: profile.birthday },
+    { label: "Favourite toy", value: profile.favoriteToy },
+  ].filter((detail) => detail.value && detail.value !== "Not set");
+
   return (
     <section className="grid gap-4">
-      <NoteCard
-        icon="shield"
-        label="Safety note"
-        theme={theme}
-        value={profile.safetyNote}
-      />
-      {visibility.showEmergencyNote ? (
-        <NoteCard
-          icon="record"
-          label="Emergency note"
-          theme={theme}
-          value={profile.emergencyNote}
-        />
-      ) : null}
-      {visibility.showGeneralArea ? (
-        <NoteCard
-          icon="pin"
-          label="General area"
-          theme={theme}
-          value={profile.generalArea}
-        />
-      ) : null}
+      <div
+        className="brand-card rounded-[1.75rem] p-6"
+        style={{
+          background: theme.colors.surface,
+          borderColor: theme.colors.border,
+        }}
+      >
+        <h2
+          className="text-lg font-black text-pet-ink"
+          style={{ color: theme.colors.text }}
+        >
+          About {profile.name}
+        </h2>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          {details.map((detail) => (
+            <div
+              className="rounded-[1.25rem] bg-pet-cream p-4"
+              key={detail.label}
+              style={{ background: theme.colors.surfaceAlt }}
+            >
+              <p
+                className="text-xs font-bold uppercase text-pet-muted"
+                style={{ color: theme.colors.mutedText }}
+              >
+                {detail.label}
+              </p>
+              <p
+                className="mt-1 break-words font-black text-pet-ink"
+                style={{ color: theme.colors.text }}
+              >
+                {detail.value}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {careRecords.length ? (
         <div
@@ -557,44 +514,134 @@ function MomentsTab({
   );
 }
 
-function NoteCard({
-  icon,
-  label,
-  theme,
-  value,
-}: {
-  icon: IconName;
+type TimelineEvent = {
+  id: string;
   label: string;
+  date: string;
+  caption?: string;
+};
+
+function TimelineTab({
+  petName,
+  events,
+  theme,
+}: {
+  petName: string;
+  events: TimelineEvent[];
   theme: PetProfileTheme;
-  value: string;
 }) {
+  if (!events.length) {
+    return (
+      <div
+        className="rounded-[1.5rem] border border-dashed border-pet-border bg-pet-cream p-8 text-center text-sm text-pet-muted"
+        style={{
+          background: theme.colors.surfaceAlt,
+          borderColor: theme.colors.border,
+          color: theme.colors.mutedText,
+        }}
+      >
+        {petName}&apos;s life timeline will appear here.
+      </div>
+    );
+  }
+
   return (
-    <div
-      className="brand-card rounded-[1.5rem] p-5"
+    <section
+      className="brand-card rounded-[1.75rem] p-6"
       style={{
         background: theme.colors.surface,
         borderColor: theme.colors.border,
       }}
     >
-      <div
-        className="flex items-center gap-2 text-sm font-black text-pet-ink"
+      <h2
+        className="text-lg font-black text-pet-ink"
         style={{ color: theme.colors.text }}
       >
-        <Icon
-          name={icon}
-          className="h-4 w-4 text-pet-coral"
-          style={{ color: theme.colors.accent }}
-        />
-        {label}
+        {petName}&apos;s life timeline
+      </h2>
+      <div className="mt-5 grid gap-3">
+        {events.map((event) => (
+          <div
+            className="flex items-start gap-3 rounded-[1.25rem] bg-pet-cream p-4"
+            key={event.id}
+            style={{ background: theme.colors.surfaceAlt }}
+          >
+            <span
+              className="mt-1 h-3 w-3 shrink-0 rounded-full"
+              style={{ background: theme.colors.timelineDot }}
+            />
+            <div className="min-w-0">
+              <p
+                className="text-xs font-bold uppercase text-pet-muted"
+                style={{ color: theme.colors.mutedText }}
+              >
+                {event.date}
+              </p>
+              <p
+                className="mt-0.5 font-black text-pet-ink"
+                style={{ color: theme.colors.text }}
+              >
+                {event.label}
+              </p>
+              {event.caption ? (
+                <p
+                  className="mt-1 text-sm leading-6 text-pet-muted"
+                  style={{ color: theme.colors.mutedText }}
+                >
+                  {event.caption}
+                </p>
+              ) : null}
+            </div>
+          </div>
+        ))}
       </div>
-      <p
-        className="mt-2 text-sm leading-6 text-pet-muted"
-        style={{ color: theme.colors.mutedText }}
-      >
-        {value}
-      </p>
-    </div>
+    </section>
   );
+}
+
+function buildTimelineEvents(
+  profile: PublicPetProfile,
+  moments: PetMoment[],
+  visibility: Pet["visibility"]
+): TimelineEvent[] {
+  const events: TimelineEvent[] = [];
+
+  if (
+    visibility.showBirthdayOnTimeline &&
+    profile.birthday &&
+    profile.birthday !== "Not set"
+  ) {
+    events.push({
+      id: "birthday",
+      label: `${profile.name} was born`,
+      date: profile.birthday,
+    });
+  }
+
+  if (
+    visibility.showAdoptionDayOnTimeline &&
+    profile.adoptionDay &&
+    profile.adoptionDay !== "Not set"
+  ) {
+    events.push({
+      id: "adoption",
+      label: `${profile.name} came home`,
+      date: profile.adoptionDay,
+    });
+  }
+
+  for (const moment of moments) {
+    if (moment.showInLifeTimeline && moment.visibility === "Public") {
+      events.push({
+        id: moment.id,
+        label: moment.title,
+        date: moment.date,
+        caption: moment.caption,
+      });
+    }
+  }
+
+  return events;
 }
 
 function ThemedBadge({
