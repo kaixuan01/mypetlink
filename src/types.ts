@@ -153,15 +153,16 @@ export type Plan = {
 };
 
 export type MomentType =
-  | "Photo"
-  | "Video"
   | "Birthday"
   | "Adoption Day"
   | "First Day Home"
   | "Grooming Day"
   | "Vet Visit"
-  | "Funny Moment"
+  | "Vaccination"
   | "Achievement"
+  | "Funny Moment"
+  | "Training"
+  | "Outdoor / Trip"
   | "Memory"
   | "Other";
 

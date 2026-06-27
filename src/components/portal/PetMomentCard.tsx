@@ -30,7 +30,7 @@ export function PetMomentCard({
       : moment.mediaKind === "Image"
         ? "Photo memory"
         : "Memory note";
-  const momentType = formatMomentType(moment.type);
+  const momentType = moment.type;
 
   const themedStyle = theme
     ? {
@@ -171,16 +171,4 @@ export function PetMomentCard({
       </div>
     </article>
   );
-}
-
-function formatMomentType(type: PetMoment["type"]) {
-  if (type === "Video") {
-    return "Clip";
-  }
-
-  if (type === "Photo") {
-    return "Photo memory";
-  }
-
-  return type;
 }

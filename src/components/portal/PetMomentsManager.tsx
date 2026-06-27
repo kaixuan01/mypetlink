@@ -24,16 +24,17 @@ type PetMomentsManagerProps = {
   initialMoments: PetMoment[];
 };
 
-const momentTypes: MomentType[] = [
-  "Photo",
-  "Video",
+const momentCategories: MomentType[] = [
   "Birthday",
   "Adoption Day",
   "First Day Home",
   "Grooming Day",
   "Vet Visit",
-  "Funny Moment",
+  "Vaccination",
   "Achievement",
+  "Funny Moment",
+  "Training",
+  "Outdoor / Trip",
   "Memory",
   "Other",
 ];
@@ -145,7 +146,7 @@ export function PetMomentsManager({
     }
 
     if (!form.type) {
-      nextErrors.type = "Choose a moment type.";
+      nextErrors.type = "Choose a moment category.";
     }
 
     setErrors(nextErrors);
@@ -356,7 +357,7 @@ export function PetMomentsManager({
                   />
                 </Field>
 
-                <Field label="Moment type" error={errors.type}>
+                <Field label="Moment category" error={errors.type}>
                   <select
                     className="brand-input"
                     onChange={(event) =>
@@ -364,10 +365,10 @@ export function PetMomentsManager({
                     }
                     value={form.type}
                   >
-                    <option value="">Select type</option>
-                    {momentTypes.map((type) => (
-                      <option key={type} value={type}>
-                        {type}
+                    <option value="">Select category</option>
+                    {momentCategories.map((category) => (
+                      <option key={category} value={category}>
+                        {category}
                       </option>
                     ))}
                   </select>
