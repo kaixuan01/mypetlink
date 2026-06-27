@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { getCoverMedia } from "@/lib/momentMedia";
 import { getPetMoments } from "@/services/momentService";
 import type { Pet, PetMoment } from "@/types";
 
@@ -60,34 +61,50 @@ export function PetTimeline({ pet, initialMoments }: PetTimelineProps) {
       </div>
 
       <div className="mt-8 grid gap-4">
-        {timelineMoments.map((moment, index) => (
-          <article
-            className="grid gap-4 rounded-[1.25rem] bg-pet-cream p-4 sm:grid-cols-[72px_1fr]"
-            key={moment.id}
-          >
-            <div className="grid h-16 w-16 place-items-center rounded-2xl bg-white text-xl font-black text-pet-coral">
-              {index + 1}
-            </div>
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge tone={moment.visibility === "Public" ? "mint" : "soft"}>
-                  {moment.type}
-                </Badge>
-                <span className="text-sm font-bold text-pet-muted">
-                  {moment.date}
-                </span>
+        {timelineMoments.map((moment, index) => {
+          const cover = getCoverMedia(moment);
+          const note = moment.timelineNote?.trim() || moment.caption;
+
+          return (
+            <article
+              className="grid gap-4 rounded-[1.25rem] bg-pet-cream p-4 sm:grid-cols-[72px_1fr]"
+              key={moment.id}
+            >
+              <div className="grid h-16 w-16 place-items-center overflow-hidden rounded-2xl bg-white text-xl font-black text-pet-coral">
+                {cover?.type === "image" && cover.url ? (
+                  <>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      alt={cover.altText ?? moment.title}
+                      className="h-full w-full object-cover"
+                      src={cover.url}
+                    />
+                  </>
+                ) : (
+                  index + 1
+                )}
               </div>
-              <h3 className="mt-2 text-xl font-black text-pet-ink">
-                {moment.title}
-              </h3>
-              {moment.caption ? (
-                <p className="mt-2 text-sm leading-6 text-pet-muted">
-                  {moment.caption}
-                </p>
-              ) : null}
-            </div>
-          </article>
-        ))}
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge tone={moment.visibility === "Public" ? "mint" : "soft"}>
+                    {moment.type}
+                  </Badge>
+                  <span className="text-sm font-bold text-pet-muted">
+                    {moment.date}
+                  </span>
+                </div>
+                <h3 className="mt-2 text-xl font-black text-pet-ink">
+                  {moment.title}
+                </h3>
+                {note ? (
+                  <p className="mt-2 text-sm leading-6 text-pet-muted">
+                    {note}
+                  </p>
+                ) : null}
+              </div>
+            </article>
+          );
+        })}
       </div>
     </section>
   );

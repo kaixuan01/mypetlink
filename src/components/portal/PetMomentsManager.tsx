@@ -7,7 +7,7 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
-import { ImageUploadField } from "@/components/portal/ImageUploadField";
+import { MomentMediaField } from "@/components/portal/MomentMediaField";
 import { PetMomentCard } from "@/components/portal/PetMomentCard";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -17,7 +17,13 @@ import {
   getPetMoments,
   updatePetMoment,
 } from "@/services/momentService";
-import type { MomentType, MomentVisibility, Pet, PetMoment } from "@/types";
+import type {
+  MomentMedia,
+  MomentType,
+  MomentVisibility,
+  Pet,
+  PetMoment,
+} from "@/types";
 
 type PetMomentsManagerProps = {
   pet: Pet;
@@ -50,10 +56,12 @@ type FormState = {
   date: string;
   type: "" | MomentType;
   caption: string;
-  mediaUrl: string;
+  media: MomentMedia[];
+  coverMediaId?: string;
   visibility: MomentVisibility;
   showOnPublicProfile: boolean;
   showInLifeTimeline: boolean;
+  timelineNote: string;
 };
 
 type FormErrors = Partial<Record<keyof FormState, string>>;
@@ -63,10 +71,12 @@ const emptyForm: FormState = {
   date: "",
   type: "",
   caption: "",
-  mediaUrl: "",
+  media: [],
+  coverMediaId: undefined,
   visibility: "Public",
   showOnPublicProfile: true,
   showInLifeTimeline: false,
+  timelineNote: "",
 };
 
 export function PetMomentsManager({
@@ -123,10 +133,12 @@ export function PetMomentsManager({
       date: parseDisplayDate(moment.date),
       type: moment.type,
       caption: moment.caption,
-      mediaUrl: moment.mediaUrl,
+      media: moment.media ?? [],
+      coverMediaId: moment.coverMediaId,
       visibility: moment.visibility,
       showOnPublicProfile: moment.showOnPublicProfile,
       showInLifeTimeline: moment.showInLifeTimeline,
+      timelineNote: moment.timelineNote ?? "",
     });
     setErrors({});
     setSuccess("");
@@ -167,12 +179,12 @@ export function PetMomentsManager({
       date: formatDisplayDate(form.date),
       type: form.type || "Other",
       caption: form.caption.trim(),
-      mediaKind: form.mediaUrl ? "Image" : "None",
-      mediaLabel: form.mediaUrl ? "Photo moment" : "Memory note",
-      mediaUrl: form.mediaUrl,
+      media: form.media,
+      coverMediaId: form.coverMediaId,
       visibility: form.visibility,
       showOnPublicProfile: form.showOnPublicProfile,
       showInLifeTimeline: form.showInLifeTimeline,
+      timelineNote: form.timelineNote,
     });
 
     const savedMoment = response.data;
@@ -404,11 +416,12 @@ export function PetMomentsManager({
                 />
               </Field>
 
-              <ImageUploadField
-                label="Moment photo"
-                helper="Optional. Add a photo for this memory, or leave it as a note."
-                value={form.mediaUrl}
-                onChange={(dataUrl) => updateField("mediaUrl", dataUrl)}
+              <MomentMediaField
+                items={form.media}
+                coverMediaId={form.coverMediaId}
+                onChange={(media, coverMediaId) =>
+                  setForm((current) => ({ ...current, media, coverMediaId }))
+                }
               />
 
               <div className="grid gap-3 md:grid-cols-2">
@@ -429,6 +442,20 @@ export function PetMomentsManager({
                   }
                 />
               </div>
+
+              {form.showInLifeTimeline ? (
+                <Field label="Timeline note (optional)">
+                  <input
+                    className="brand-input"
+                    onChange={(event) =>
+                      updateField("timelineNote", event.target.value)
+                    }
+                    placeholder="A short milestone note for the timeline"
+                    type="text"
+                    value={form.timelineNote}
+                  />
+                </Field>
+              ) : null}
 
               <div className="rounded-[1.25rem] border border-pet-border bg-white p-4 text-sm leading-6 text-pet-muted">
                 {form.visibility === "Public" ? (

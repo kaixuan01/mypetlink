@@ -119,7 +119,7 @@ function OverviewTab({
           petName={pet.name}
         />
         <StatusGrid items={publicStatuses} />
-        <div className="flex flex-col gap-3 sm:flex-row">
+        <div className="mt-auto flex flex-col gap-3 sm:flex-row pt-1">
           <CTAButton
             href={pet.publicProfilePath}
             variant="secondary"
@@ -164,7 +164,7 @@ function OverviewTab({
           <p className="mt-1 font-black text-pet-ink">{pet.generalArea}</p>
         </div>
         <StatusGrid items={safetyStatuses} />
-        <div className="flex flex-col gap-3 sm:flex-row">
+        <div className="mt-auto flex flex-col gap-3 sm:flex-row pt-1">
           <CTAButton
             href={pet.finderProfileUrl}
             variant="secondary"
@@ -214,7 +214,7 @@ function OverviewTab({
         ) : (
           <p className="text-sm text-pet-muted">No care records yet.</p>
         )}
-        <div className="flex flex-col gap-3 sm:flex-row">
+        <div className="mt-auto flex flex-col gap-3 sm:flex-row pt-1">
           <CTAButton
             href={ownerRoutes.petRecords(pet.id)}
             variant="secondary"
@@ -264,7 +264,7 @@ function OverviewTab({
         ) : (
           <p className="text-sm text-pet-muted">No pet memories yet.</p>
         )}
-        <div className="flex flex-col gap-3 sm:flex-row">
+        <div className="mt-auto flex flex-col gap-3 sm:flex-row pt-1">
           <CTAButton
             href={ownerRoutes.petMoments(pet.id)}
             variant="secondary"
@@ -314,7 +314,7 @@ function OverviewTab({
             No smart tag linked yet. Order a QR or QR + NFC tag for {pet.name}.
           </p>
         )}
-        <div className="flex flex-col gap-3 sm:flex-row">
+        <div className="mt-auto flex flex-col gap-3 sm:flex-row pt-1">
           <CTAButton
             href={ownerRoutes.petTags(pet.id)}
             variant="secondary"

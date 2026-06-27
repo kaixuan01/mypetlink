@@ -56,7 +56,7 @@ export function PetCard({ pet, tagStatus, tagCount = 0 }: PetCardProps) {
         </div>
       </div>
 
-      <div className="relative mt-5 flex items-center gap-3">
+      <div className="relative mt-auto flex items-center gap-3 pt-5">
         <CTAButton href={ownerRoutes.petProfile(pet.id)} fullWidth>
           Manage
         </CTAButton>

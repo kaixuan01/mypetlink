@@ -1,6 +1,11 @@
 import { Badge } from "@/components/ui/Badge";
 import { Icon } from "@/components/ui/Icon";
 import type { PetProfileTheme } from "@/lib/petProfileThemes";
+import {
+  getCoverMedia,
+  mediaCountLabel,
+  sortedMedia,
+} from "@/lib/momentMedia";
 import type { PetMoment } from "@/types";
 
 type PetMomentCardProps = {
@@ -24,12 +29,14 @@ export function PetMomentCard({
   publicView,
   theme,
 }: PetMomentCardProps) {
-  const mediaTitle =
-    moment.mediaKind === "Video"
-      ? "Short clip"
-      : moment.mediaKind === "Image"
-        ? "Photo memory"
-        : "Memory note";
+  const media = sortedMedia(moment.media ?? []);
+  const cover = getCoverMedia(moment);
+  const countLabel = mediaCountLabel(media);
+  const coverIsImage = cover?.type === "image" && Boolean(cover.url);
+  const mediaTitle = media.length
+    ? countLabel ?? "Memory media"
+    : "Memory note";
+  const extraThumbs = media.filter((item) => item.id !== cover?.id).slice(0, 4);
   const momentType = moment.type;
 
   const themedStyle = theme
@@ -53,24 +60,29 @@ export function PetMomentCard({
 
   return (
     <article
-      className="brand-card overflow-hidden rounded-[1.5rem] p-0"
+      className="brand-card flex h-full flex-col overflow-hidden rounded-[1.5rem] p-0"
       style={themedStyle}
     >
       <div
         className="brand-paw-dots relative min-h-44 bg-pet-cream p-5"
         style={mediaStyle}
       >
-        {moment.mediaUrl ? (
+        {coverIsImage ? (
           <>
             {/* Data-URL preview; static export + local mock means no next/image. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              alt={moment.title}
+              alt={cover?.altText ?? moment.title}
               className="absolute inset-0 h-full w-full object-cover"
-              src={moment.mediaUrl}
+              src={cover?.url}
             />
             <span className="absolute inset-0 bg-gradient-to-t from-[#0d1b3d]/30 to-transparent" />
           </>
+        ) : null}
+        {media.length > 1 && countLabel ? (
+          <span className="absolute right-4 top-4 z-10 rounded-full bg-pet-ink/85 px-3 py-1 text-xs font-bold text-white">
+            {countLabel}
+          </span>
         ) : null}
         <div className="absolute inset-x-5 bottom-5 rounded-[1.25rem] bg-white/92 p-4 shadow-lg shadow-[#0d1b3d]/10">
           <div className="flex items-center gap-3">
@@ -79,11 +91,11 @@ export function PetMomentCard({
               style={iconStyle}
             >
               <Icon
-                name={moment.mediaKind === "Video" ? "record" : "heart"}
+                name={cover?.type === "video" ? "record" : "heart"}
                 className="h-5 w-5"
               />
             </span>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p
                 className="text-xs font-bold uppercase text-pet-muted"
                 style={theme ? { color: theme.colors.mutedText } : undefined}
@@ -94,14 +106,40 @@ export function PetMomentCard({
                 className="mt-1 truncate text-base font-black text-pet-ink"
                 style={theme ? { color: theme.colors.text } : undefined}
               >
-                {moment.mediaLabel}
+                {moment.title}
               </p>
             </div>
+            {extraThumbs.length ? (
+              <div className="flex shrink-0 -space-x-2">
+                {extraThumbs.map((item) => (
+                  <span
+                    className="grid h-9 w-9 place-items-center overflow-hidden rounded-lg border-2 border-white bg-pet-apricot/60 text-pet-coral"
+                    key={item.id}
+                  >
+                    {item.type === "image" && item.url ? (
+                      <>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          alt={item.altText ?? "Moment media"}
+                          className="h-full w-full object-cover"
+                          src={item.url}
+                        />
+                      </>
+                    ) : (
+                      <Icon
+                        name={item.type === "video" ? "record" : "heart"}
+                        className="h-4 w-4"
+                      />
+                    )}
+                  </span>
+                ))}
+              </div>
+            ) : null}
           </div>
         </div>
       </div>
 
-      <div className="p-5">
+      <div className="flex flex-1 flex-col p-5">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p
@@ -147,7 +185,7 @@ export function PetMomentCard({
         </p>
       ) : null}
       {onEdit || onDelete ? (
-        <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+        <div className="mt-auto flex flex-col gap-2 pt-5 sm:flex-row">
           {onEdit ? (
             <button
               className="inline-flex min-h-10 items-center justify-center rounded-full border border-pet-border bg-white px-4 py-2 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"

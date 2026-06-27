@@ -168,6 +168,21 @@ export type MomentType =
 
 export type MomentVisibility = "Public" | "Private" | "Family Only";
 
+export type MomentMediaType = "image" | "video";
+
+export type MomentMedia = {
+  id: string;
+  type: MomentMediaType;
+  url?: string;
+  caption?: string;
+  altText?: string;
+  sortOrder: number;
+};
+
+// Frontend MVP limit for media items per moment. Premium tiers can raise this
+// in a later phase.
+export const MAX_MOMENT_MEDIA = 5;
+
 export type PetMoment = {
   id: string;
   petId: string;
@@ -175,12 +190,12 @@ export type PetMoment = {
   date: string;
   type: MomentType;
   caption: string;
-  mediaKind: "Image" | "Video" | "None";
-  mediaLabel: string;
-  mediaUrl: string;
+  media: MomentMedia[];
+  coverMediaId?: string;
   visibility: MomentVisibility;
   showOnPublicProfile: boolean;
   showInLifeTimeline: boolean;
+  timelineNote?: string;
 };
 
 export type TagType = "MyPetLink QR Pet Tag" | "MyPetLink QR + NFC Smart Tag";
@@ -281,12 +296,12 @@ export type PetMomentPayload = Partial<
     | "date"
     | "type"
     | "caption"
-    | "mediaKind"
-    | "mediaLabel"
-    | "mediaUrl"
+    | "media"
+    | "coverMediaId"
     | "visibility"
     | "showOnPublicProfile"
     | "showInLifeTimeline"
+    | "timelineNote"
   >
 >;
 

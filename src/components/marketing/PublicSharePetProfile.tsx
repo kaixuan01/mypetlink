@@ -688,7 +688,7 @@ function buildTimelineEvents(
         id: moment.id,
         label: moment.title,
         date: moment.date,
-        caption: moment.caption,
+        caption: moment.timelineNote?.trim() || moment.caption,
       });
     }
   }
