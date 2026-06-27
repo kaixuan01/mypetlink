@@ -10,6 +10,8 @@ type ShareProfileLinkProps = {
   className?: string;
   label?: string;
   showShareButton?: boolean;
+  compact?: boolean;
+  copyLabel?: string;
   theme?: PetProfileTheme;
 };
 
@@ -19,6 +21,8 @@ export function ShareProfileLink({
   className = "",
   label = "Share profile link",
   showShareButton = false,
+  compact = false,
+  copyLabel = "Copy Link",
   theme,
 }: ShareProfileLinkProps) {
   const origin = useSyncExternalStore(
@@ -84,6 +88,65 @@ export function ShareProfileLink({
     }
 
     await copyLink();
+  }
+
+  if (compact) {
+    return (
+      <div
+        className={["flex flex-col items-center gap-2", className]
+          .filter(Boolean)
+          .join(" ")}
+      >
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          {showShareButton ? (
+            <button
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-pet-teal bg-pet-teal px-4 py-2 text-sm font-extrabold text-white shadow-sm transition hover:bg-[#0f5fd0]"
+              style={
+                theme
+                  ? {
+                      background: theme.colors.buttonBackground,
+                      borderColor: theme.colors.buttonBackground,
+                      color: theme.colors.buttonText,
+                    }
+                  : undefined
+              }
+              onClick={shareProfile}
+              type="button"
+            >
+              <Icon name="heart" className="h-4 w-4" />
+              Share profile
+            </button>
+          ) : null}
+          <button
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-pet-border bg-white px-4 py-2 text-sm font-extrabold text-pet-ink transition hover:bg-pet-cream"
+            style={
+              theme
+                ? {
+                    background: theme.colors.surface,
+                    borderColor: theme.colors.border,
+                    color: theme.colors.text,
+                  }
+                : undefined
+            }
+            onClick={copyLink}
+            type="button"
+          >
+            <Icon name="qr" className="h-4 w-4" />
+            {copyLabel}
+          </button>
+        </div>
+        {visibleStatus ? (
+          <p
+            aria-live="polite"
+            className="text-xs font-bold text-pet-sage"
+            style={theme ? { color: theme.colors.primary } : undefined}
+            role="status"
+          >
+            {visibleStatus}
+          </p>
+        ) : null}
+      </div>
+    );
   }
 
   return (

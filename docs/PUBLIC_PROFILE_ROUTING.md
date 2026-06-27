@@ -109,8 +109,10 @@ finder safety page). It is **looked up by `publicCode`, never by slug**:
 
 `PublicSharePetProfile` is **clean, mobile-first, and shareable**. The first
 screen is an identity hero: cover, large pet photo, name, species/breed/age,
-short bio, and personality tags. The **primary action is "Share profile"**, not
-contact. Then three simple tabs:
+short bio, and personality tags. The **primary action is a compact "Share
+profile" button** (`ShareProfileLink` with `compact`), **not** a large raw-URL
+panel — normal public visitors never see the full URL in a big box. Then three
+simple tabs:
 
 | Tab      | Shows                                                                   |
 | -------- | ----------------------------------------------------------------------- |
@@ -130,6 +132,13 @@ owner enabled `visibility.showWhatsapp` / `showPhone`.
 re-checked on mount), the share page shows a **lost banner + a single "I found
 this pet - Contact Owner" CTA**. This is the *only* case where the share page
 turns finder-first.
+
+**Owner preview bar:** when the logged-in owner views their own share page
+(`isOwnerAuthenticated()`, checked on mount), a small bar appears above the tabs:
+**"Viewing as public"** + **Copy Link** + **Back to Edit** (`ownerRoutes.petEdit`).
+Normal public visitors never see this owner tooling — they only get the compact
+Share button. Owner-portal "View / Preview Public Profile" buttons link here with
+`target="_blank"` so the portal stays open behind the preview.
 
 Keep it clean: minimal badges, plenty of whitespace, one strong primary action
 (share). The pet's `profileTheme` themes colors. When adding public fields,

@@ -62,7 +62,6 @@ Owner routes are protected by localStorage auth. Use `/login`, then click `Conti
 - `/pets/pet_milo`
 - `/pets/pet_milo/edit`
 - `/pets/pet_milo/records`
-- `/pets/pet_milo/qr`
 - `/pets/pet_milo/moments`
 - `/pets/pet_milo/moments/new`
 - `/pets/pet_milo/timeline`

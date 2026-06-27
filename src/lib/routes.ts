@@ -29,7 +29,6 @@ export const ownerRoutes = {
   petMoments: (petId: string) => `/pets/${petId}/moments`,
   petMomentNew: (petId: string) => `/pets/${petId}/moments/new`,
   petTimeline: (petId: string) => `/pets/${petId}/timeline`,
-  petQr: (petId: string) => `/pets/${petId}/qr`,
   petTags: (petId: string) => `/pets/${petId}/tags`,
   petTagOrder: (petId: string, options: TagOrderOptions = {}) => {
     const params = new URLSearchParams();

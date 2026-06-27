@@ -63,6 +63,8 @@ export function PetCard({ pet, tagStatus, tagCount = 0 }: PetCardProps) {
         <CTAButton
           href={pet.publicProfilePath}
           variant="secondary"
+          target="_blank"
+          rel="noopener noreferrer"
           fullWidth
         >
           Public Profile

@@ -48,7 +48,7 @@ export default async function DashboardPage() {
     ? ownerRoutes.petMomentNew(firstPet.id)
     : ownerRoutes.petNew;
   const publicProfileHref = firstPet ? firstPet.publicProfilePath : ownerRoutes.pets;
-  const qrProfileHref = firstPet ? ownerRoutes.petQr(firstPet.id) : ownerRoutes.pets;
+  const qrProfileHref = firstPet ? firstPet.finderProfileUrl : ownerRoutes.pets;
   const orderTagHref = firstPet
     ? ownerRoutes.petTagOrder(firstPet.id)
     : ownerRoutes.petNew;
@@ -205,6 +205,8 @@ export default async function DashboardPage() {
                 href={publicProfileHref}
                 icon="heart"
                 variant="outline"
+                target={firstPet ? "_blank" : undefined}
+                rel={firstPet ? "noopener noreferrer" : undefined}
                 fullWidth
               >
                 View Public Profile
@@ -213,9 +215,11 @@ export default async function DashboardPage() {
                 href={qrProfileHref}
                 icon="qr"
                 variant="secondary"
+                target={firstPet ? "_blank" : undefined}
+                rel={firstPet ? "noopener noreferrer" : undefined}
                 fullWidth
               >
-                View QR Profile
+                View QR Safety Page
               </CTAButton>
               <CTAButton
                 href={orderTagHref}

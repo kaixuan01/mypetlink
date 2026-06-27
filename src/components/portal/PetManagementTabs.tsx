@@ -118,11 +118,23 @@ function OverviewTab({
           <ShareProfileLink path={pet.publicProfilePath} petName={pet.name} />
         </div>
         <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-          <CTAButton href={pet.publicProfilePath} variant="secondary" fullWidth>
+          <CTAButton
+            href={pet.publicProfilePath}
+            variant="secondary"
+            target="_blank"
+            rel="noopener noreferrer"
+            fullWidth
+          >
             Preview Public Profile
           </CTAButton>
-          <CTAButton href={ownerRoutes.petQr(pet.id)} variant="outline" fullWidth>
-            QR Safety Page
+          <CTAButton
+            href={pet.finderProfileUrl}
+            variant="outline"
+            target="_blank"
+            rel="noopener noreferrer"
+            fullWidth
+          >
+            Preview QR Safety Page
           </CTAButton>
         </div>
       </section>

@@ -61,7 +61,7 @@ export function CTAButton({
   if (href && !disabled) {
     if (href.startsWith("/")) {
       return (
-        <Link href={href} className={classes}>
+        <Link href={href} className={classes} rel={rel} target={target}>
           {content}
         </Link>
       );

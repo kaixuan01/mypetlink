@@ -192,6 +192,19 @@ Note: owner-ordered tags are created with a `petId` already set (status
      emergency + safety notes. Minimal lifestyle content.
    See `PUBLIC_PROFILE_ROUTING.md` §2 (safety page) and §4 (share page). A past
    change wrongly made the share page finder-first; do not reintroduce that.
+10. **No owner-portal QR Safety page.** There is no `/pets/{id}/qr` route and no
+    `ownerRoutes.petQr`. The QR/NFC safety profile *is* the public `/t/{tagCode}`
+    page. QR safety **settings** live in `Edit Pet → Contact & Safety`; tag
+    **management** lives in the hub **Smart Tag** tab. The owner portal only
+    **previews** the safety page.
+11. **Public previews open in a new tab.** Every owner-portal button that opens a
+    public route — "View / Preview Public Profile" (`/p/{slug}-{publicCode}`),
+    "View / Preview QR Safety Page" (`/t/{tagCode}`), "View Tag" — must use
+    `target="_blank"` + `rel="noopener noreferrer"` so the portal stays open in
+    the original tab. `CTAButton` forwards `target`/`rel` to both internal `Link`
+    and external `<a>`. When the logged-in owner views their own `/p/` page, a
+    small "Viewing as public" bar (Copy Link + Back to Edit) is shown; normal
+    visitors only get a compact Share button (no raw URL box).
 
 ---
 

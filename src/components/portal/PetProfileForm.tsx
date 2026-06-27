@@ -18,7 +18,7 @@ import {
   petProfileThemes,
   type PetProfileTheme,
 } from "@/lib/petProfileThemes";
-import { publicProfilePath } from "@/lib/routes";
+import { ownerRoutes, publicProfilePath } from "@/lib/routes";
 import {
   createPet,
   getPetById,
@@ -339,18 +339,25 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
           petName={createdPet.name}
         />
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-          <CTAButton href={createdPet.publicProfilePath} icon="heart">
+          <CTAButton
+            href={createdPet.publicProfilePath}
+            icon="heart"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             View Public Profile
           </CTAButton>
           <CTAButton
             href={createdPet.finderProfileUrl}
             icon="qr"
             variant="secondary"
+            target="_blank"
+            rel="noopener noreferrer"
           >
             View QR Safety Page
           </CTAButton>
           <CTAButton
-            href={`/pets/${createdPet.id}/tags/order`}
+            href={ownerRoutes.petTagOrder(createdPet.id)}
             icon="tag"
             variant="outline"
           >
@@ -751,8 +758,10 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
                   href={profilePath}
                   icon="heart"
                   variant="secondary"
+                  target="_blank"
+                  rel="noopener noreferrer"
                 >
-                  View Public Profile
+                  Preview Public Profile
                 </CTAButton>
               ) : null}
             </div>
@@ -868,8 +877,10 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
                   href={currentPet.finderProfileUrl}
                   icon="qr"
                   variant="outline"
+                  target="_blank"
+                  rel="noopener noreferrer"
                 >
-                  View QR Safety Page
+                  Preview QR Safety Page
                 </CTAButton>
               </div>
             ) : (

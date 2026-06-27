@@ -23,7 +23,7 @@ export function MobileBottomNav() {
           (item.href === "/pets" &&
             (pathname === "/pets" ||
               pathname === "/pets/new" ||
-              /^\/pets\/[^/]+(\/edit|\/qr|\/records|\/timeline)?$/.test(
+              /^\/pets\/[^/]+(\/edit|\/records|\/timeline)?$/.test(
                 pathname
               ))) ||
           (item.href === "/moments" &&

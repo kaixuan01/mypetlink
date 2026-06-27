@@ -59,7 +59,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         pathname === "/pets/new" ||
         /^\/pets\/[^/]+$/.test(pathname) ||
         /^\/pets\/[^/]+\/edit$/.test(pathname) ||
-        /^\/pets\/[^/]+\/qr$/.test(pathname) ||
         /^\/pets\/[^/]+\/timeline$/.test(pathname)
       );
     }

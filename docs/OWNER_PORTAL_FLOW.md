@@ -110,13 +110,20 @@ All owner pet pages key off the **`petId`** (`ownerRoutes.*` helpers):
 | ------------- | ------------------------------ | --------------------------- |
 | Profile       | `/pets/{id}`                   | `ownerRoutes.petProfile`    |
 | Edit          | `/pets/{id}/edit`              | `ownerRoutes.petEdit`       |
-| QR preview    | `/pets/{id}/qr`                | `ownerRoutes.petQr`         |
 | Records       | `/pets/{id}/records`           | `ownerRoutes.petRecords`    |
 | Moments       | `/pets/{id}/moments`           | `ownerRoutes.petMoments`    |
 | New moment    | `/pets/{id}/moments/new`       | `ownerRoutes.petMomentNew`  |
 | Timeline      | `/pets/{id}/timeline`          | `ownerRoutes.petTimeline`   |
 | Tags          | `/pets/{id}/tags`              | `ownerRoutes.petTags`       |
 | Order tag     | `/pets/{id}/tags/order`        | `ownerRoutes.petTagOrder`   |
+
+> **There is no owner-portal QR Safety management page.** The QR/NFC safety
+> profile is the public route `/t/{tagCode}` (`tagPath` / `pet.finderProfileUrl`).
+> The owner portal only **previews** it. QR safety *settings* live in
+> **Edit Pet → Contact & Safety**; tag *management* lives in the hub **Smart Tag**
+> tab. Any "View / Preview QR Safety Page" or "View / Preview Public Profile"
+> button opens its public route in a **new tab** (`target="_blank"`
+> `rel="noopener noreferrer"`) so the portal stays open behind it.
 
 These are static-export dynamic routes: each exports `dynamicParams = false` and
 `generateStaticParams()` from `staticPetIdParams()`. A pet created at runtime

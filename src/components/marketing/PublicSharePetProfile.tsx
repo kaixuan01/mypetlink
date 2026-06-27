@@ -12,6 +12,8 @@ import {
   getPetProfileTheme,
   type PetProfileTheme,
 } from "@/lib/petProfileThemes";
+import { ownerRoutes } from "@/lib/routes";
+import { isOwnerAuthenticated } from "@/services/authService";
 import { getPublicPetMoments } from "@/services/momentService";
 import { getPublicPetProfileByPublicCode } from "@/services/petService";
 import { getPetRecords } from "@/services/recordService";
@@ -58,6 +60,7 @@ export function PublicSharePetProfile({
   const [records, setRecords] = useState(initialRecords);
   const [lostMode, setLostMode] = useState(initialLostMode);
   const [activeTab, setActiveTab] = useState<TabId>("about");
+  const [isOwner, setIsOwner] = useState(false);
 
   const visibility = mergeVisibility(profile.visibility);
   const theme = getPetProfileTheme(profile.profileTheme);
@@ -87,6 +90,10 @@ export function PublicSharePetProfile({
   const timelineEvents = visibility.showTimeline
     ? buildTimelineEvents(profile, moments, visibility)
     : [];
+
+  useEffect(() => {
+    setIsOwner(isOwnerAuthenticated());
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -266,15 +273,51 @@ export function PublicSharePetProfile({
           </section>
         ) : null}
 
-        {/* Primary action is sharing; contact is a small, optional extra. */}
-        <div className="mt-6">
-          <ShareProfileLink
-            path={profile.publicProfilePath}
-            petName={profile.name}
-            showShareButton
-            theme={theme}
-          />
-        </div>
+        {/* Owners previewing their own page get a small admin bar; normal
+            visitors just get a compact share button (no raw URL box). */}
+        {isOwner ? (
+          <section
+            className="mt-6 flex flex-col items-center gap-3 rounded-[1.5rem] border border-pet-border bg-white/80 p-4 sm:flex-row sm:justify-between"
+            style={{
+              background: theme.colors.surface,
+              borderColor: theme.colors.border,
+            }}
+          >
+            <span
+              className="inline-flex items-center gap-2 text-xs font-black uppercase text-pet-muted"
+              style={{ color: theme.colors.mutedText }}
+            >
+              <Icon name="heart" className="h-4 w-4" />
+              Viewing as public
+            </span>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <ShareProfileLink
+                path={profile.publicProfilePath}
+                petName={profile.name}
+                compact
+                theme={theme}
+              />
+              <CTAButton
+                href={ownerRoutes.petEdit(profile.id)}
+                variant="secondary"
+                icon="settings"
+                className="min-h-10"
+              >
+                Back to Edit
+              </CTAButton>
+            </div>
+          </section>
+        ) : (
+          <div className="mt-6 flex justify-center">
+            <ShareProfileLink
+              path={profile.publicProfilePath}
+              petName={profile.name}
+              showShareButton
+              compact
+              theme={theme}
+            />
+          </div>
+        )}
 
         {!lostMode && canContact ? (
           <div className="mt-3">

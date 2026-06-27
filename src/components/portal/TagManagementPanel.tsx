@@ -169,6 +169,8 @@ export function TagManagementPanel({
                   href={tagPath(tag.tagCode)}
                   icon="qr"
                   variant="secondary"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   fullWidth
                 >
                   View Tag
