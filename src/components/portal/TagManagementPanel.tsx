@@ -33,9 +33,10 @@ const statusTone: Record<TagStatus, "warm" | "mint" | "teal" | "soft" | "danger"
   Disabled: "soft",
   Lost: "danger",
   Replaced: "soft",
+  Archived: "soft",
 };
 
-const inactiveStatuses: TagStatus[] = ["Lost", "Disabled", "Replaced"];
+const inactiveStatuses: TagStatus[] = ["Lost", "Disabled", "Replaced", "Archived"];
 const pendingStatuses: TagStatus[] = ["Pending", "Preparing", "Delivered"];
 const currentStatuses: TagStatus[] = ["Active", "Pending", "Preparing", "Delivered"];
 const replacementStatuses: TagStatus[] = ["Active", "Lost", "Disabled", "Replaced"];
@@ -147,7 +148,7 @@ export function TagManagementPanel({
       <EmptyState
         icon="tag"
         title="No physical tags yet"
-        description="Order a MyPetLink QR Tag or MyPetLink QR + NFC Smart Tag so your pet's profile is easy to open if they are found."
+        description="Order a MyPetLink QR Tag or MyPetLink QR + NFC Smart Tag so your pet's QR Safety Page is easy to open if they are found."
         actionHref={petId ? ownerRoutes.petTagOrder(petId) : ownerRoutes.petNew}
         actionLabel="Order Physical Tag"
       />
@@ -222,7 +223,7 @@ export function TagManagementPanel({
             (disableTagTarget.petId
               ? petMap.get(disableTagTarget.petId)?.name
               : undefined) ?? "your pet"
-          }'s QR safety page. You can request a replacement tag anytime.`}
+          }'s QR Safety Page through this physical tag. The pet's own QR Safety Page stays active.`}
           onCancel={() => setDisableTagTarget(null)}
           onConfirm={handleDisable}
           title="Disable this tag?"
@@ -296,6 +297,12 @@ function TagCard({
           <p className="mt-1 text-sm text-pet-muted">
             {productName} - {tag.shape}
           </p>
+          <p className="mt-3 text-xs font-bold uppercase text-pet-muted">
+            Physical Tag Scan Link
+          </p>
+          <p className="mt-1 break-all text-sm font-bold text-pet-teal">
+            /t/{tag.tagCode}
+          </p>
         </div>
         <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-[#e8f3ff] text-pet-teal">
           <Icon name="tag" className="h-5 w-5" />
@@ -320,8 +327,8 @@ function TagCard({
 
       {isInactive || isArchived ? (
         <p className="mt-4 rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted">
-          Scanning this tag shows an inactive tag page and does not expose owner
-          contact details.
+          Scanning this physical tag shows an inactive tag page and does not
+          expose owner contact details. The pet&apos;s QR Safety Page still works.
         </p>
       ) : null}
 
@@ -334,7 +341,7 @@ function TagCard({
           rel="noopener noreferrer"
           fullWidth
         >
-          {isInactive || isArchived ? "View Status" : "View Tag"}
+          {isInactive || isArchived ? "View Inactive Tag" : "View Tag"}
         </CTAButton>
 
         {isArchived ? (

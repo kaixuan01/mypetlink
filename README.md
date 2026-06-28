@@ -7,7 +7,8 @@ Preferred tagline: "A safe and shareable profile for your pet."
 Primary domain examples:
 
 - `https://mypetlink.com.my`
-- `https://mypetlink.com.my/p/milo`
+- `https://mypetlink.com.my/p/milo-k7q2`
+- `https://mypetlink.com.my/q/MPL-SAFE-MILO`
 - `https://mypetlink.com.my/t/8KX29A`
 
 This project is frontend-only. It uses local data and localStorage-backed demo authentication. There is no backend, database, Supabase integration, payment gateway, OAuth, OTP, email/password registration, real file storage, NFC writing, GPS tracking, or supplier integration yet.
@@ -49,8 +50,9 @@ This project is configured with Next.js static export, so `npm run build` writes
 - `/privacy` - Privacy guidance
 - `/terms` - Terms guidance
 - `/login` - Owner login
-- `/p/milo` - Public share pet profile
-- `/t/8KX29A` - Finder safety page for scanned tags
+- `/p/milo-k7q2` - Public Share Profile for family, friends, and pet communities
+- `/q/MPL-SAFE-MILO` - Pet-level QR Safety Page for finders
+- `/t/8KX29A` - Physical tag scan link; active tags show safety content and inactive tags show an inactive tag page
 
 ## Owner Portal Routes
 

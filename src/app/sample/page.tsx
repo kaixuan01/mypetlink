@@ -4,7 +4,7 @@ import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon } from "@/components/ui/Icon";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PetAvatar } from "@/components/ui/PetAvatar";
-import { samplePet } from "@/lib/routes";
+import { publicRoutes, samplePet } from "@/lib/routes";
 import { getPublicPetProfileByPublicCode } from "@/services/petService";
 
 export const metadata: Metadata = {
@@ -21,7 +21,7 @@ export default async function SamplePage() {
           <PageHeader
             eyebrow="Sample experiences"
             title="See MyPetLink in two real situations"
-            description="See how MyPetLink works when you share your pet's cute public profile, and when a finder needs to contact you quickly after scanning a tag."
+            description="See the friendly profile owners share, and the pet-level QR Safety Page a finder can open without depending on any physical tag status."
           />
           {profile.data ? (
             <div className="grid gap-5 lg:grid-cols-2">
@@ -58,11 +58,11 @@ export default async function SamplePage() {
                     </div>
                   ))}
                   <CTAButton
-                    href={profile.data.publicProfilePath}
+                    href={publicRoutes.publicProfile(profile.data)}
                     icon="heart"
                     className="mt-2"
                   >
-                    View Sample Pet Profile
+                    View Sample Public Profile
                   </CTAButton>
                 </div>
               </article>
@@ -75,14 +75,14 @@ export default async function SamplePage() {
                     </span>
                     <div>
                       <p className="text-sm font-bold uppercase text-pet-teal">
-                        QR/NFC Finder Safety Page
+                        QR Safety Page
                       </p>
                       <h2 className="mt-2 text-3xl font-black text-pet-ink">
                         Found {profile.data.name}?
                       </h2>
                       <p className="mt-2 text-sm leading-6 text-pet-muted">
-                        A contact-focused page for scan or tap moments, with
-                        large action buttons and safe location guidance.
+                        A contact-focused pet page for finders, with large
+                        action buttons and safe location guidance.
                       </p>
                     </div>
                   </div>
@@ -102,12 +102,12 @@ export default async function SamplePage() {
                     </div>
                   ))}
                   <CTAButton
-                    href={profile.data.finderProfileUrl}
+                    href={publicRoutes.qrSafetyPage(profile.data)}
                     icon="qr"
                     variant="coral"
                     className="mt-2"
                   >
-                    View Sample Safety Page
+                    View Sample QR Safety Page
                   </CTAButton>
                 </div>
               </article>

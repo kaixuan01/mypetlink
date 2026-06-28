@@ -6,7 +6,7 @@ import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PetAvatar } from "@/components/ui/PetAvatar";
-import { samplePet } from "@/lib/routes";
+import { publicRoutes, samplePet } from "@/lib/routes";
 import type { Pet } from "@/types";
 
 export const metadata: Metadata = {
@@ -27,7 +27,7 @@ const whyItMatters: { icon: IconName; title: string; description: string }[] = [
   {
     icon: "shield",
     title: "Your details stay protected",
-    description: "Show a general area and safe notes — never your full address.",
+    description: "Show a general area and safe notes, never your full address.",
   },
 ];
 
@@ -47,10 +47,10 @@ const pillars: {
     icon: "shield",
     title: "Safety",
     points: [
-      "QR safety profile",
+      "QR Safety Page",
+      "Basic QR download",
       "WhatsApp / call contact",
       "Emergency note",
-      "General area, not full address",
     ],
   },
   {
@@ -110,7 +110,7 @@ const faqs = [
   {
     question: "Can Free users get finder contact?",
     answer:
-      "Yes. Basic finder contact — WhatsApp and call owner — is included on the Free plan.",
+      "Yes. A pet-level QR Safety Page with basic WhatsApp and call owner contact is included on the Free plan.",
   },
 ];
 
@@ -128,23 +128,31 @@ export default function Home() {
               A safer profile for your pet.
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-8 text-pet-muted">
-              Create a public pet profile, save important care details, and let
-              finders contact you quickly through a QR smart tag.
+              Create a public pet profile, save important care details, and give
+              finders a pet-level QR Safety Page for quick contact.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <CTAButton href="/login" icon="paw" variant="coral">
                 Create Free Pet Profile
               </CTAButton>
               <CTAButton
-                href={pet.publicProfilePath}
+                href={publicRoutes.publicProfile(pet)}
                 icon="heart"
                 variant="secondary"
               >
-                View Sample Profile
+                View Sample Public Profile
+              </CTAButton>
+              <CTAButton
+                href={publicRoutes.qrSafetyPage(pet)}
+                icon="qr"
+                variant="outline"
+              >
+                View Sample QR Safety Page
               </CTAButton>
             </div>
             <p className="mt-6 text-sm font-bold text-pet-muted">
-              Free forever to start &middot; Basic finder contact included
+              Free includes a pet-level QR Safety Page. Physical QR/NFC tags are
+              optional add-ons that open it when active.
             </p>
           </div>
 
@@ -241,15 +249,16 @@ export default function Home() {
                   <Icon name="qr" className="h-5 w-5" />
                 </span>
                 <h3 className="text-xl font-black text-pet-ink">
-                  QR Safety Profile
+                  QR Safety Page
                 </h3>
               </div>
               <code className="mt-4 inline-block rounded-full bg-pet-cream px-3 py-1 text-xs font-bold text-pet-muted">
-                /t/{"{tagCode}"}
+                /q/{"{safetyCode}"}
               </code>
               <p className="mt-4 text-sm leading-6 text-pet-muted">
-                The finder-first page opened from a physical tag scan. Contact
-                owner, WhatsApp, call, and send found location.
+                The finder-first page for people who find your pet. It supports
+                QR downloads and active physical tags, with WhatsApp, call, and
+                found-location actions.
               </p>
             </article>
           </div>
@@ -344,7 +353,7 @@ export default function Home() {
             <PricingPreviewCard
               title="Free Plan"
               price="RM0"
-              note="Free forever, with basic finder contact."
+              note="Free forever, with a pet-level QR Safety Page and basic finder contact."
             />
             <PricingPreviewCard
               title="Premium Plan"

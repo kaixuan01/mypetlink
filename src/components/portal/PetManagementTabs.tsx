@@ -106,10 +106,9 @@ function OverviewTab({
   const recentRecords = records.slice(0, 3);
   const recentMoments = moments.slice(0, 3);
   const currentTags = tags.filter((tag) => !tag.isArchived);
-  const activeTag =
-    currentTags.find((tag) => tag.status === "Active") ?? currentTags[0];
+  const activeTag = currentTags.find((tag) => tag.status === "Active");
   const theme = getPetProfileTheme(pet.profileTheme);
-  const qrBadge = getQrStatusBadge(pet.qrStatus, pet.finderProfileUrl);
+  const qrBadge = getQrStatusBadge(pet.qrStatus, pet.qrSafetyPath);
   const smartTagBadge = getSmartTagStatusBadge(tags);
   const [ownerSettings, setOwnerSettings] =
     useState<OwnerSettings>(defaultOwnerSettings);
@@ -166,11 +165,11 @@ function OverviewTab({
         badge={
           <Badge tone={qrBadge.tone}>{qrBadge.label}</Badge>
         }
-        description="The finder-first page a stranger sees after scanning the physical tag."
+        description="The finder-first page for people who find your pet. This link works independently from physical tag status."
       >
         <ShareProfileLink
           label="QR Safety Page URL"
-          path={pet.finderProfileUrl}
+          path={pet.qrSafetyPath}
           petName={pet.name}
         />
         <div className="rounded-[1.25rem] bg-pet-cream p-4">
@@ -183,7 +182,7 @@ function OverviewTab({
         </div>
         <div className="mt-auto flex flex-col gap-3 sm:flex-row pt-1">
           <CTAButton
-            href={pet.finderProfileUrl}
+            href={pet.qrSafetyPath}
             variant="secondary"
             icon="qr"
             target="_blank"
@@ -193,12 +192,12 @@ function OverviewTab({
             View QR Safety Page
           </CTAButton>
           <CTAButton
-            href={ownerRoutes.petEdit(pet.id)}
+            href={ownerRoutes.petQr(pet.id)}
             variant="outline"
             icon="settings"
             fullWidth
           >
-            Edit QR Safety Settings
+            Manage QR Safety Page
           </CTAButton>
         </div>
       </SectionCard>
@@ -309,15 +308,21 @@ function OverviewTab({
         icon="tag"
         title="Smart Tags"
         badge={<Badge tone={smartTagBadge.tone}>{smartTagBadge.label}</Badge>}
-        description="Physical QR or QR + NFC tags that open this pet's QR safety page."
+        description="Physical QR or QR + NFC tags. Active tags open this pet's QR Safety Page."
       >
         {activeTag ? (
           <div className="rounded-[1.25rem] bg-pet-cream p-4">
             <p className="text-xs font-bold uppercase text-pet-muted">
-              Tag code
+              Active tag code
             </p>
             <p className="mt-1 text-lg font-black tracking-wide text-pet-ink">
               {activeTag.tagCode}
+            </p>
+            <p className="mt-3 text-xs font-bold uppercase text-pet-muted">
+              Physical Tag Scan Link
+            </p>
+            <p className="mt-1 break-all text-sm font-bold text-pet-teal">
+              /t/{activeTag.tagCode}
             </p>
             {activeTag.lastScannedAt ? (
               <p className="mt-2 text-sm text-pet-muted">
@@ -327,7 +332,8 @@ function OverviewTab({
           </div>
         ) : (
           <p className="text-sm leading-6 text-pet-muted">
-            No smart tag linked yet. Order a QR or QR + NFC tag for {pet.name}.
+            No active physical tag right now. {pet.name}&apos;s QR Safety Page
+            still works, and you can order or activate a tag separately.
           </p>
         )}
         <div className="mt-auto flex flex-col gap-3 sm:flex-row pt-1">

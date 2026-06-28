@@ -29,19 +29,16 @@ import {
   normalizeStoredPhone,
 } from "@/lib/phone";
 import { getPublicTimeline, type PetTimelineItem } from "@/lib/petTimeline";
-import { ownerRoutes, tagPath } from "@/lib/routes";
+import { ownerRoutes } from "@/lib/routes";
 import { isOwnerAuthenticated } from "@/services/authService";
 import { getPublicPetMoments } from "@/services/momentService";
 import { getPublicPetProfileByPublicCode } from "@/services/petService";
 import { getPetRecords } from "@/services/recordService";
-import { getPetTags } from "@/services/tagService";
 import type {
   CareRecord,
   Pet,
   PetMoment,
-  PetTag,
   PublicPetProfile,
-  TagStatus,
 } from "@/types";
 
 type PublicSharePetProfileProps = {
@@ -67,29 +64,11 @@ const fallbackVisibility: Pet["visibility"] = {
   showHealthSummary: false,
 };
 
-const currentTagStatuses: TagStatus[] = [
-  "Active",
-  "Delivered",
-  "Pending",
-  "Preparing",
-];
-
-function getCurrentSafetyPagePath(tags: PetTag[], fallbackPath: string) {
-  const activeTag =
-    tags.find((tag) => tag.status === "Active" && !tag.isArchived) ??
-    tags.find(
-      (tag) => currentTagStatuses.includes(tag.status) && !tag.isArchived
-    );
-
-  return activeTag ? tagPath(activeTag.tagCode) : fallbackPath;
-}
-
 // The shareable public profile (/p/{slug}-{publicCode}). This is the friendly,
 // IG-style pet page owners share with friends, family, and pet communities.
-// It is deliberately NOT the finder/emergency experience — that lives on the
-// QR/NFC safety page (/t/{tagCode}). The only finder-style element here is an
-// optional small "Message owner" button and, when the pet is reported lost, a
-// lost banner with a contact CTA.
+// It is deliberately separate from the finder/emergency experience. That lives
+// on the pet-level QR Safety Page (/q/{safetyCode}); physical tags use
+// /t/{tagCode} only as scan entry points while active.
 export function PublicSharePetProfile({
   initialProfile,
   initialMoments,
@@ -103,7 +82,7 @@ export function PublicSharePetProfile({
     initialLostMode || initialProfile.lostModeEnabled
   );
   const [safetyPagePath, setSafetyPagePath] = useState(
-    initialProfile.finderProfileUrl
+    initialProfile.qrSafetyPath
   );
   const [ownerSettings, setOwnerSettings] =
     useState<OwnerSettings>(defaultOwnerSettings);
@@ -161,11 +140,10 @@ export function PublicSharePetProfile({
         const nextProfile = profileResponse.data ?? initialProfile;
         setProfile(nextProfile);
 
-        const [momentsResponse, recordsResponse, tagsResponse] =
+        const [momentsResponse, recordsResponse] =
           await Promise.all([
             getPublicPetMoments(nextProfile.id),
             getPetRecords(nextProfile.id),
-            getPetTags(nextProfile.id),
           ]);
 
         if (!active) {
@@ -174,12 +152,7 @@ export function PublicSharePetProfile({
 
         setMoments(momentsResponse.data);
         setRecords(recordsResponse.data);
-        setSafetyPagePath(
-          getCurrentSafetyPagePath(
-            tagsResponse.data,
-            nextProfile.finderProfileUrl
-          )
-        );
+        setSafetyPagePath(nextProfile.qrSafetyPath);
         setLostMode(nextProfile.lostModeEnabled);
       }
     );

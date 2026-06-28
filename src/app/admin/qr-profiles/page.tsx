@@ -16,11 +16,11 @@ export default async function AdminQrProfilesPage() {
       <PageHeader
         eyebrow="Admin"
         title="QR profiles"
-        description="Operational view of public profile slugs, owners, and statuses."
+        description="Operational view of pet-level QR Safety Page links, owners, and statuses."
       />
       <AdminTableShell
         title="QR profiles"
-        description="Review public profile links, owners, and QR status."
+        description="Review QR Safety Page links, owners, and QR status."
       >
         <table className="min-w-full text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase text-slate-500">

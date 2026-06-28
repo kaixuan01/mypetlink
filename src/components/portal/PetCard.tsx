@@ -20,6 +20,7 @@ type PetCardProps = {
 
 const moreLinks = (petId: string) => [
   { label: "Edit profile", href: ownerRoutes.petEdit(petId) },
+  { label: "QR safety page", href: ownerRoutes.petQr(petId) },
   { label: "Care records", href: ownerRoutes.petRecords(petId) },
   { label: "Moments", href: ownerRoutes.petMoments(petId) },
   { label: "Smart tags", href: ownerRoutes.petTags(petId) },
@@ -28,7 +29,7 @@ const moreLinks = (petId: string) => [
 
 export function PetCard({ pet, tags = [] }: PetCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const qrBadge = getQrStatusBadge(pet.qrStatus, pet.finderProfileUrl);
+  const qrBadge = getQrStatusBadge(pet.qrStatus, pet.qrSafetyPath);
   const tagBadge = getSmartTagStatusBadge(tags);
 
   return (

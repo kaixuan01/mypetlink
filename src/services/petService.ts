@@ -1,11 +1,11 @@
 import { mockPets } from "@/data/mockPets";
 import { mockRecords } from "@/data/mockRecords";
-import { mockTags } from "@/data/mockTags";
-import { publicProfilePath, tagPath } from "@/lib/routes";
+import { publicProfilePath, qrSafetyPath } from "@/lib/routes";
 import {
   derivePublicCode,
+  deriveSafetyCode,
   generatePublicCode,
-  generateTagCode,
+  generateSafetyCode,
 } from "@/lib/tagCodes";
 import {
   mockDelay,
@@ -66,25 +66,9 @@ function canonicalPublicCode(pet: Pick<Pet, "id" | "publicCode">) {
   return seedPet?.publicCode ?? pet.publicCode ?? derivePublicCode(pet.id);
 }
 
-function canonicalFinderProfileUrl(
-  pet: Pick<Pet, "id" | "finderProfileUrl">
-) {
-  const seedTag =
-    mockTags.find(
-      (tag) =>
-        tag.petId === pet.id && tag.status === "Active" && !tag.isArchived
-    ) ??
-    mockTags.find(
-      (tag) =>
-        tag.petId === pet.id &&
-        ["Delivered", "Pending", "Preparing"].includes(tag.status) &&
-        !tag.isArchived
-    );
+function canonicalSafetyCode(pet: Pick<Pet, "id" | "safetyCode">) {
   const seedPet = mockPets.find((seed) => seed.id === pet.id);
-
-  return seedTag
-    ? tagPath(seedTag.tagCode)
-    : seedPet?.finderProfileUrl ?? pet.finderProfileUrl;
+  return seedPet?.safetyCode ?? pet.safetyCode ?? deriveSafetyCode(pet.id);
 }
 
 function mergeVisibility(visibility?: PetPayload["visibility"]) {
@@ -127,6 +111,8 @@ function mergeLostMode(
 
 function normalizePet(pet: Pet): Pet {
   const publicCode = canonicalPublicCode(pet);
+  const safetyCode = canonicalSafetyCode(pet);
+  const safetyPath = qrSafetyPath(safetyCode);
 
   return {
     ...pet,
@@ -142,11 +128,17 @@ function normalizePet(pet: Pet): Pet {
     photoUrl: pet.photoUrl ?? "",
     coverUrl: pet.coverUrl ?? "",
     profileTheme: pet.profileTheme ?? "default",
+    qrStatus: pet.qrStatus ?? "active",
     publicCode,
+    safetyCode,
+    qrSafetyEnabled: pet.qrSafetyEnabled ?? pet.qrStatus !== "paused",
+    qrSafetyPath: safetyPath,
     // Always recompute from the canonical code so a stored/drifted path can
     // never point at a route that was not statically exported.
     publicProfilePath: publicProfilePath(pet.slug, publicCode),
-    finderProfileUrl: canonicalFinderProfileUrl(pet),
+    // Backward-compatible alias used by existing components. The value is the
+    // pet-level /q safety page, not a physical /t tag scan link.
+    finderProfileUrl: safetyPath,
     bio:
       pet.bio ??
       `${pet.name} has a safe MyPetLink profile ready for family and friends.`,
@@ -184,6 +176,8 @@ function createFallbackPetFromSlug(slug: string): Pet {
   const name = titleFromSlug(slug) || "New Pet";
   const id = `pet_${slug}`;
   const publicCode = derivePublicCode(id);
+  const safetyCode = deriveSafetyCode(id);
+  const safetyPath = qrSafetyPath(safetyCode);
 
   return {
     ...mockPets[0],
@@ -203,8 +197,11 @@ function createFallbackPetFromSlug(slug: string): Pet {
     coverUrl: "",
     profileTheme: "default",
     qrStatus: "draft",
-    finderProfileUrl: `/t/${generateTagCode()}`,
     publicCode,
+    safetyCode,
+    qrSafetyEnabled: true,
+    qrSafetyPath: safetyPath,
+    finderProfileUrl: safetyPath,
     publicProfilePath: publicProfilePath(slug, publicCode),
     bio: `${name} has a safe MyPetLink profile ready for family and friends.`,
     personalityTags: ["Loved", "Family pet"],
@@ -268,6 +265,9 @@ export function toPublicProfile(pet: Pet): PublicPetProfile {
     coverUrl: pet.coverUrl,
     profileTheme: pet.profileTheme,
     publicCode: pet.publicCode,
+    safetyCode: pet.safetyCode,
+    qrSafetyEnabled: pet.qrSafetyEnabled,
+    qrSafetyPath: pet.qrSafetyPath,
     finderProfileUrl: pet.finderProfileUrl,
     publicProfilePath: pet.publicProfilePath,
     bio: pet.bio,
@@ -304,12 +304,28 @@ export async function getPublicPetProfileByPublicCode(publicCode: string) {
   return mockResponse(toPublicProfile(pet));
 }
 
+export async function getPublicPetProfileBySafetyCode(safetyCode: string) {
+  await mockDelay();
+  const normalized = safetyCode.trim().toLowerCase();
+  const pet = getPetCollection().find(
+    (item) => item.safetyCode.toLowerCase() === normalized
+  );
+
+  if (!pet || !pet.qrSafetyEnabled) {
+    return mockResponse<PublicPetProfile | null>(null);
+  }
+
+  return mockResponse(toPublicProfile(pet));
+}
+
 export async function createPet(payload: PetPayload) {
   await mockDelay();
   const pets = getPetCollection();
   const petName = payload.name?.trim() || "New pet";
   const slug = slugifyPetSlug(payload.slug ?? petName) || `pet-${Date.now()}`;
   const publicCode = generatePublicCode();
+  const safetyCode = generateSafetyCode();
+  const safetyPath = qrSafetyPath(safetyCode);
 
   const pet: Pet = {
     ...mockPets[0],
@@ -331,8 +347,11 @@ export async function createPet(payload: PetPayload) {
     photoUrl: payload.photoUrl ?? "",
     coverUrl: payload.coverUrl ?? "",
     profileTheme: payload.profileTheme ?? "default",
-    finderProfileUrl: `/t/${generateTagCode()}`,
     publicCode,
+    safetyCode,
+    qrSafetyEnabled: payload.qrSafetyEnabled ?? true,
+    qrSafetyPath: safetyPath,
+    finderProfileUrl: safetyPath,
     publicProfilePath: publicProfilePath(slug, publicCode),
     bio:
       payload.bio ??
@@ -365,12 +384,16 @@ export async function updatePet(id: string, payload: PetPayload) {
   const pet = pets.find((item) => item.id === id);
   const nextSlug =
     pet && payload.slug ? slugifyPetSlug(payload.slug) || pet.slug : pet?.slug;
+  const safetyPath = pet ? qrSafetyPath(pet.safetyCode) : "";
   const updatedPet = pet
     ? {
         ...pet,
         ...payload,
         slug: nextSlug ?? pet.slug,
         publicProfilePath: publicProfilePath(nextSlug ?? pet.slug, pet.publicCode),
+        safetyCode: pet.safetyCode,
+        qrSafetyPath: safetyPath,
+        finderProfileUrl: safetyPath,
         photoInitial:
           payload.photoInitial ??
           (payload.name ? getPetInitial(payload.name) : pet.photoInitial),

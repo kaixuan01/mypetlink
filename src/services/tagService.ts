@@ -22,7 +22,12 @@ import type {
 const TAG_STORAGE_KEY = "mypetlink_tags";
 const ORDER_STORAGE_KEY = "mypetlink_orders";
 
-const disabledStatuses: TagStatus[] = ["Disabled", "Lost", "Replaced"];
+const disabledStatuses: TagStatus[] = [
+  "Disabled",
+  "Lost",
+  "Replaced",
+  "Archived",
+];
 
 function normalizeTag(tag: PetTag): PetTag {
   return {
@@ -266,9 +271,8 @@ async function updateTagArchiveState(tagId: string, isArchived: boolean) {
   return mockResponse(updatedTag);
 }
 
-// Resolves a scanned tag code to a finder state. The tag code is the single
-// public identifier (printed on the tag, in the QR URL, and on the NFC chip),
-// so this is the one place that decides what a scan shows.
+// Resolves a scanned physical tag code to a finder state. Active tags show the
+// pet-level QR Safety Page content; inactive tags never expose owner contact.
 export async function getFinderState(tagCode: string): Promise<FinderResult> {
   await mockDelay();
   const normalized = tagCode.trim();

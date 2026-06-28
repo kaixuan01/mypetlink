@@ -77,7 +77,7 @@ export default async function PetDetailPage({ params }: PetDetailPageProps) {
         </div>
         <ProfileAccessBadges
           className="mt-4"
-          finderProfileUrl={pet.finderProfileUrl}
+          finderProfileUrl={pet.qrSafetyPath}
           qrStatus={pet.qrStatus}
           scroll
           tags={tags.data}

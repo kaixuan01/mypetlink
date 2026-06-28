@@ -65,7 +65,7 @@ export default async function DashboardPage() {
   const orderTagHref = firstPet
     ? ownerRoutes.petTagOrder(firstPet.id)
     : ownerRoutes.petNew;
-  const qrProfileHref = firstPet ? firstPet.finderProfileUrl : ownerRoutes.pets;
+  const qrProfileHref = firstPet ? firstPet.qrSafetyPath : ownerRoutes.pets;
 
   return (
     <AppLayout>
@@ -276,7 +276,7 @@ function DashboardPetCard({
   tags: PetTag[];
   nextDue?: CareRecord;
 }) {
-  const qrBadge = getQrStatusBadge(pet.qrStatus, pet.finderProfileUrl);
+  const qrBadge = getQrStatusBadge(pet.qrStatus, pet.qrSafetyPath);
   const tagBadge = getSmartTagStatusBadge(tags);
 
   return (

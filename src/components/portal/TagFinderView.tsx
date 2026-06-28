@@ -16,9 +16,11 @@ type TagFinderViewProps = {
   tagCode: string;
 };
 
-// Renders the four finder states for a scanned /t/{tagCode}. The page passes a
-// build-time result; this component re-checks the live tag state on mount so a
-// tag activated, disabled, or reported lost in this browser shows correctly.
+// Renders the four finder states for a scanned physical /t/{tagCode}. Active
+// tags show pet QR Safety Page content; inactive tags stay safely inactive.
+// The page passes a build-time result; this component re-checks the live tag
+// state on mount so a tag activated, disabled, or reported lost in this browser
+// shows correctly.
 export function TagFinderView({ initialResult, tagCode }: TagFinderViewProps) {
   const [result, setResult] = useState(initialResult);
 
@@ -94,7 +96,7 @@ export function TagFinderView({ initialResult, tagCode }: TagFinderViewProps) {
   );
 }
 
-function FinderShell({ children }: { children: ReactNode }) {
+export function FinderShell({ children }: { children: ReactNode }) {
   return (
     <main className="brand-blue-section min-h-screen px-4 py-5 sm:px-6">
       <header className="mx-auto mb-4 flex max-w-xl items-center justify-between gap-3">

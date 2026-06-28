@@ -5,7 +5,8 @@ import type { Pet, PetTag } from "@/types";
 //
 // Route rules:
 // - Owner portal: /pets/{petId}/...        (always the petId, never the slug)
-// - Physical tag: /t/{tagCode}             (QR + NFC point here)
+// - QR safety:   /q/{safetyCode}           (pet-level finder safety page)
+// - Physical tag: /t/{tagCode}             (printed QR/NFC scan entry point)
 // - Activation:   /activate/{tagCode}      (Unassigned tag binding flow)
 // - Public share: /p/{petSlug}-{publicCode} (looked up by publicCode)
 
@@ -31,6 +32,7 @@ export const ownerRoutes = {
   petProfile: (petId: string) => `/pets/${petId}`,
   petEdit: (petId: string) => `/pets/${petId}/edit`,
   petRecords: (petId: string) => `/pets/${petId}/records`,
+  petQr: (petId: string) => `/pets/${petId}/qr`,
   petMoments: (petId: string) => `/pets/${petId}/moments`,
   petMomentNew: (petId: string) => `/pets/${petId}/moments/new`,
   petTimeline: (petId: string) => `/pets/${petId}/timeline`,
@@ -55,6 +57,10 @@ export function tagPath(tagCode: string) {
   return `/t/${tagCode}`;
 }
 
+export function qrSafetyPath(safetyCode: string) {
+  return `/q/${safetyCode}`;
+}
+
 export function activatePath(tagCode: string) {
   return `/activate/${tagCode}`;
 }
@@ -69,11 +75,24 @@ export function getPublicProfilePath(pet: Pick<Pet, "slug" | "publicCode">) {
   return publicProfilePath(pet.slug, pet.publicCode);
 }
 
-// Canonical helper for the QR/NFC safety page of a physical tag.
-// Always /t/{tagCode}; never an internal id or old short token.
+// Canonical helper for the pet-level QR Safety Page.
+// Always /q/{safetyCode}; never a physical tagCode.
+export function getQrSafetyPath(pet: Pick<Pet, "safetyCode">) {
+  return qrSafetyPath(pet.safetyCode);
+}
+
+// Canonical helper for the physical tag scan link.
+// Always /t/{tagCode}; active tags open safety content, inactive tags do not.
 export function getTagScanPath(tag: Pick<PetTag, "tagCode">) {
   return tagPath(tag.tagCode);
 }
+
+export const publicRoutes = {
+  publicProfile: (pet: Pick<Pet, "slug" | "publicCode">) =>
+    getPublicProfilePath(pet),
+  qrSafetyPage: (pet: Pick<Pet, "safetyCode">) => getQrSafetyPath(pet),
+  physicalTag: (tag: Pick<PetTag, "tagCode">) => getTagScanPath(tag),
+};
 
 // The public param is "{slug}-{publicCode}". A slug can contain hyphens
 // (e.g. "milo-the-dog"), so the publicCode is always the final segment.

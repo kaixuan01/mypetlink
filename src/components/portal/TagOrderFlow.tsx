@@ -530,8 +530,11 @@ export function TagOrderFlow({
                   {selectedPet?.name ?? "Your pet"}&apos;s QR Safety Page
                 </p>
                 <p className="mt-1 text-xs leading-5 text-pet-muted">
-                  The full QR Safety Page link is reserved and shown after your
-                  order is placed.
+                  Your pet-level QR Safety Page stays at{" "}
+                  <span className="font-black text-pet-teal">
+                    {selectedPet?.qrSafetyPath ?? "/q/{safetyCode}"}
+                  </span>
+                  . The physical tag scan link is assigned to the tag order.
                 </p>
               </div>
             </div>

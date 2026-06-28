@@ -49,6 +49,9 @@ export type Pet = {
   profileTheme: PetProfileThemeId;
   qrStatus: QrStatus;
   publicCode: string;
+  safetyCode: string;
+  qrSafetyEnabled: boolean;
+  qrSafetyPath: string;
   finderProfileUrl: string;
   publicProfilePath: string;
   bio: string;
@@ -110,6 +113,9 @@ export type PublicPetProfile = Pick<
   | "coverUrl"
   | "profileTheme"
   | "publicCode"
+  | "safetyCode"
+  | "qrSafetyEnabled"
+  | "qrSafetyPath"
   | "finderProfileUrl"
   | "publicProfilePath"
   | "bio"
@@ -230,7 +236,8 @@ export type TagStatus =
   | "Active"
   | "Disabled"
   | "Lost"
-  | "Replaced";
+  | "Replaced"
+  | "Archived";
 
 // A physical MyPetLink tag. Identified everywhere by tagCode (MPL-XXXX-XXXX).
 // petId/ownerUserId are only set once the tag is activated and bound to a pet.
@@ -305,8 +312,8 @@ export type AdminDashboard = {
 };
 
 // Outcome of resolving a scanned /t/{tagCode}. The state decides what the
-// finder page renders: the public profile, an activation prompt, a safe
-// inactive message, or a branded "tag not found" screen.
+// finder page renders: the pet safety profile for active tags, an activation
+// prompt, a safe inactive message, or a branded "tag not found" screen.
 export type FinderResult =
   | { state: "active"; tagCode: string; profile: PublicPetProfile }
   | { state: "unassigned"; tagCode: string }
@@ -318,6 +325,8 @@ export type PetPayload = Partial<
     Pet,
     | "id"
     | "publicCode"
+    | "safetyCode"
+    | "qrSafetyPath"
     | "finderProfileUrl"
     | "publicProfilePath"
     | "allergies"

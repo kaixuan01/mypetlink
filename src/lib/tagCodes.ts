@@ -4,6 +4,7 @@
 // Format: MPL-XXXX-XXXX (branded, readable, not sequential).
 
 const TAG_CODE_PREFIX = "MPL";
+const SAFETY_CODE_PREFIX = "MPL-SAFE";
 
 // Excludes characters that are easy to confuse when read off a physical tag:
 // no O, 0, I, 1.
@@ -27,6 +28,10 @@ function randomSegment(length: number) {
 
 export function generateTagCode() {
   return `${TAG_CODE_PREFIX}-${randomSegment(4)}-${randomSegment(4)}`;
+}
+
+export function generateSafetyCode() {
+  return `${SAFETY_CODE_PREFIX}-${randomSegment(4)}`;
 }
 
 export function isTagCode(value: string) {
@@ -73,4 +78,10 @@ export function derivePublicCode(seed: string) {
   }
 
   return code;
+}
+
+// Deterministic safety code fallback for pets created before safetyCode was
+// stored. This is pet-level and must never be confused with a physical tagCode.
+export function deriveSafetyCode(seed: string) {
+  return `${SAFETY_CODE_PREFIX}-${derivePublicCode(seed).toUpperCase()}`;
 }

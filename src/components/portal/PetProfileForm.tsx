@@ -396,7 +396,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
             View Public Profile
           </CTAButton>
           <CTAButton
-            href={createdPet.finderProfileUrl}
+            href={createdPet.qrSafetyPath}
             icon="qr"
             variant="secondary"
             target="_blank"
@@ -445,8 +445,8 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
     profilePath && origin ? `${origin}${profilePath}` : profilePath;
   const finderFullUrl =
     origin && currentPet
-      ? `${origin}${currentPet.finderProfileUrl}`
-      : currentPet?.finderProfileUrl ?? "";
+      ? `${origin}${currentPet.qrSafetyPath}`
+      : currentPet?.qrSafetyPath ?? "";
   const selectedTheme = getPetProfileTheme(form.profileTheme);
   const saveLabel = mode === "create" ? "Save Pet" : "Save Changes";
   const cancelHref =
@@ -789,7 +789,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
       {tab === "contact" ? (
         <FormSection
           title="Contact & Safety"
-          description="Settings for the QR/NFC safety page at /t/{tagCode}. This is the finder-first page shown when someone scans the physical tag. Your full address is never shown."
+          description="Settings for the pet-level QR Safety Page at /q/{safetyCode}. Active physical tags can open this page, but lost or disabled tags do not affect it. Your full address is never shown."
         >
           <div className="grid min-w-0 gap-4">
             <p className="rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted">
@@ -1048,7 +1048,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
                 View Public Profile
               </CTAButton>
               <CTAButton
-                href={currentPet.finderProfileUrl}
+                href={currentPet.qrSafetyPath}
                 icon="qr"
                 variant="outline"
                 target="_blank"

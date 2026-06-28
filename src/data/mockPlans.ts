@@ -8,10 +8,11 @@ export const mockPlans: Plan[] = [
     price: "RM0",
     billingNote: "Free forever, with basic finder contact included",
     description:
-      "For first-time pet owners who want a basic QR safety profile, a shareable pet page, and basic finder contact at no cost.",
+      "For first-time pet owners who want a pet-level QR Safety Page, a shareable pet page, and basic finder contact at no cost.",
     features: [
       "1 pet profile",
-      "Public QR pet profile",
+      "Public Share Profile",
+      "QR Safety Page",
       "WhatsApp owner",
       "Call owner",
       "Basic emergency note",

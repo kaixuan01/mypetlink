@@ -20,11 +20,11 @@ export function getQrStatusLabel(
   }
 
   if (qrStatus === "active") {
-    return "QR Active";
+    return "QR Safety Active";
   }
 
   if (qrStatus === "draft") {
-    return "QR Draft";
+    return "QR Safety Draft";
   }
 
   return "QR Not Set Up";
@@ -36,7 +36,7 @@ export function getQrStatusBadge(
 ): AccessItem {
   const label = getQrStatusLabel(qrStatus, finderProfileUrl);
 
-  if (label === "QR Active") {
+  if (label === "QR Safety Active") {
     return {
       label,
       description: "This pet's QR safety page is ready for finder scans.",
@@ -45,7 +45,7 @@ export function getQrStatusBadge(
     };
   }
 
-  if (label === "QR Draft") {
+  if (label === "QR Safety Draft") {
     return {
       label,
       description: "Finish the safety details before relying on this QR page.",
@@ -185,14 +185,14 @@ function getAccessItems({
 
 function getAccessSummary(qrStatus: QrStatus = "active") {
   if (qrStatus === "active") {
-    return "Your pet profile can be opened by QR scan now.";
+    return "Your pet's QR Safety Page can be opened now, even without an active physical tag.";
   }
 
   if (qrStatus === "draft") {
-    return "Finish the profile details before sharing the QR pet profile.";
+    return "Finish the safety details before sharing the QR Safety Page.";
   }
 
-  return "Create a QR safety page before printing or sharing a pet tag.";
+  return "Create a QR Safety Page before printing or sharing a pet tag.";
 }
 
 export function ProfileAccessBadges({
@@ -250,8 +250,8 @@ export function ProfileAccessStatus({
             QR and smart tag safety
           </h2>
           <p className="mt-2 text-sm leading-6 text-pet-muted">
-            {getAccessSummary(qrStatus)} Physical tag badges are based on this
-            pet&apos;s linked tag records.
+            {getAccessSummary(qrStatus)} Physical tag badges are tracked
+            separately from this pet-level safety page.
           </p>
         </div>
         <ProfileAccessBadges
