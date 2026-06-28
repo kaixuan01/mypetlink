@@ -8,6 +8,7 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
+import { ManualPaymentPanel } from "@/components/portal/ManualPaymentPanel";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -20,7 +21,6 @@ import { readOwnerSettings } from "@/lib/ownerSettings";
 import {
   createTagOrder,
   getEstimatedTagPrice,
-  submitOrderPayment,
 } from "@/services/tagService";
 import type {
   DeliveryDetails,
@@ -110,17 +110,6 @@ export function TagOrderFlow({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedTagType, setSelectedTagType] = useState<TagType | null>(null);
 
-  const [paymentReference, setPaymentReference] = useState("");
-  const [paymentNote, setPaymentNote] = useState("");
-  const [paymentProofName, setPaymentProofName] = useState("");
-  const [paymentError, setPaymentError] = useState("");
-  const [isPaying, setIsPaying] = useState(false);
-
-  const origin = useSyncExternalStore(
-    subscribeNoop,
-    getBrowserOrigin,
-    getServerOrigin
-  );
   const orderPrefsKey = useSyncExternalStore(
     subscribeNoop,
     getBrowserOrderPrefsKey,
@@ -271,31 +260,6 @@ export function TagOrderFlow({
     setIsSubmitting(false);
   }
 
-  async function handleSubmitPayment() {
-    if (!createdOrder) {
-      return;
-    }
-
-    if (!paymentReference.trim() && !paymentProofName.trim()) {
-      setPaymentError(
-        "Enter your payment reference or upload payment proof so we can verify your payment."
-      );
-      return;
-    }
-
-    setPaymentError("");
-    setIsPaying(true);
-    const response = await submitOrderPayment(createdOrder.id, {
-      paymentReference,
-      paymentNote,
-      paymentProofName,
-    });
-    if (response.data.order) {
-      setCreatedOrder(response.data.order);
-    }
-    setIsPaying(false);
-  }
-
   if (!pets.length) {
     return (
       <EmptyState
@@ -346,21 +310,10 @@ export function TagOrderFlow({
   // Order placed, awaiting manual payment proof.
   if (createdOrder && selectedPet) {
     return (
-      <PaymentScreen
+      <ManualPaymentPanel
         order={createdOrder}
         petName={selectedPet.name}
-        total={estimatedPrice}
-        shapeLabel={shapeLabel}
-        delivery={delivery}
-        paymentReference={paymentReference}
-        paymentNote={paymentNote}
-        paymentProofName={paymentProofName}
-        paymentError={paymentError}
-        isPaying={isPaying}
-        onReferenceChange={setPaymentReference}
-        onNoteChange={setPaymentNote}
-        onProofChange={setPaymentProofName}
-        onSubmit={handleSubmitPayment}
+        onSubmitted={(updated) => setCreatedOrder(updated)}
       />
     );
   }
@@ -543,9 +496,6 @@ export function TagOrderFlow({
     }
 
     if (step === 3) {
-      const safetyUrl = selectedPet
-        ? `${origin}${selectedPet.finderProfileUrl}`
-        : "";
       const explanation =
         tagType === "MyPetLink QR + NFC Smart Tag"
           ? `QR scan and NFC tap both open ${selectedPet?.name ?? "your pet"}'s QR Safety Page.`
@@ -572,7 +522,18 @@ export function TagOrderFlow({
                 <SummaryItem label="Design" value={shapeLabel} />
                 <SummaryItem label="Estimated price" value={estimatedPrice} />
               </div>
-              <CopyUrlField label="QR Safety Page URL" value={safetyUrl} />
+              <div className="rounded-[1.25rem] bg-pet-cream p-4">
+                <p className="text-xs font-bold uppercase text-pet-muted">
+                  QR destination
+                </p>
+                <p className="mt-1 font-black text-pet-ink">
+                  {selectedPet?.name ?? "Your pet"}&apos;s QR Safety Page
+                </p>
+                <p className="mt-1 text-xs leading-5 text-pet-muted">
+                  The full QR Safety Page link is reserved and shown after your
+                  order is placed.
+                </p>
+              </div>
             </div>
           </div>
         </StepShell>
@@ -763,188 +724,6 @@ function TagMockup({
   );
 }
 
-function PaymentScreen({
-  order,
-  petName,
-  total,
-  shapeLabel,
-  delivery,
-  paymentReference,
-  paymentNote,
-  paymentProofName,
-  paymentError,
-  isPaying,
-  onReferenceChange,
-  onNoteChange,
-  onProofChange,
-  onSubmit,
-}: {
-  order: TagOrder;
-  petName: string;
-  total: string;
-  shapeLabel: string;
-  delivery: DeliveryDetails;
-  paymentReference: string;
-  paymentNote: string;
-  paymentProofName: string;
-  paymentError: string;
-  isPaying: boolean;
-  onReferenceChange: (value: string) => void;
-  onNoteChange: (value: string) => void;
-  onProofChange: (value: string) => void;
-  onSubmit: () => void;
-}) {
-  const reference = formatOrderNumber(order);
-  const deliverySummary = formatDeliverySummary(delivery);
-
-  return (
-    <section className="brand-card rounded-[1.75rem] p-5 sm:p-6">
-      <Badge tone="warm">Pending payment</Badge>
-      <h2 className="mt-4 text-2xl font-black text-pet-ink sm:text-3xl">
-        Manual QR Payment
-      </h2>
-      <p className="mt-2 max-w-2xl text-sm leading-6 text-pet-muted">
-        {paymentConfig.instructions}
-      </p>
-
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1fr] lg:items-start">
-        {/* Merchant QR payment card */}
-        <div className="rounded-[1.5rem] border border-pet-border bg-pet-cream p-5 text-center">
-          <p className="text-xs font-black uppercase tracking-wide text-pet-muted">
-            {paymentConfig.merchantQrLabel}
-          </p>
-          <div className="mx-auto mt-4 grid aspect-square w-full max-w-[240px] place-items-center rounded-[1.25rem] border border-dashed border-pet-border bg-white p-6">
-            {paymentConfig.merchantQrImage ? (
-              <>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  alt="Merchant QR code"
-                  className="h-full w-full object-contain"
-                  src={paymentConfig.merchantQrImage}
-                />
-              </>
-            ) : (
-              <div className="grid place-items-center gap-2 text-pet-muted">
-                <span className="grid h-12 w-12 place-items-center rounded-2xl bg-pet-cream text-pet-teal">
-                  <Icon name="qr" className="h-6 w-6" />
-                </span>
-                <span className="text-sm font-bold">
-                  Contact support for the current payment QR
-                </span>
-              </div>
-            )}
-          </div>
-          <div className="mt-4 grid gap-2 text-left">
-            <PaymentRow label="Amount to pay" value={total} strong />
-            <PaymentRow label="Order number" value={reference} />
-            <PaymentRow label="Pet" value={petName} />
-          </div>
-        </div>
-
-        {/* Proof submission */}
-        <div className="grid gap-4">
-          <div className="grid gap-3 rounded-[1.5rem] bg-pet-cream p-4">
-            <SummaryRow label="Tag" value={order.tagType} />
-            <SummaryRow label="Design" value={shapeLabel} />
-            <SummaryRow label="Recipient" value={delivery.recipientName} />
-            <SummaryRow label="Delivery" value={deliverySummary} />
-          </div>
-
-          <Field label="Payment reference">
-            <input
-              className="brand-input"
-              onChange={(event) => onReferenceChange(event.target.value)}
-              placeholder="e.g. DuitNow reference number"
-              type="text"
-              value={paymentReference}
-            />
-          </Field>
-
-          <label className="grid gap-2">
-            <span className="text-sm font-bold text-pet-ink">
-              Upload payment proof
-            </span>
-            <input
-              accept="image/*,application/pdf"
-              className="block w-full text-sm text-pet-muted file:mr-3 file:rounded-full file:border-0 file:bg-pet-teal file:px-4 file:py-2 file:text-sm file:font-bold file:text-white"
-              onChange={(event) =>
-                onProofChange(event.target.files?.[0]?.name ?? "")
-              }
-              type="file"
-            />
-            {paymentProofName ? (
-              <span className="text-xs font-semibold text-pet-sage">
-                Attached: {paymentProofName}
-              </span>
-            ) : null}
-          </label>
-
-          <Field label="Payment note (optional)">
-            <input
-              className="brand-input"
-              onChange={(event) => onNoteChange(event.target.value)}
-              placeholder="Anything we should know about your payment"
-              type="text"
-              value={paymentNote}
-            />
-          </Field>
-
-          <ErrorText message={paymentError} />
-
-          <button
-            className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-teal bg-pet-teal px-5 py-3 text-sm font-bold text-white shadow-lg shadow-[#1570ef]/20 transition hover:bg-[#0f5fd0] disabled:cursor-wait disabled:opacity-70"
-            disabled={isPaying}
-            onClick={onSubmit}
-            type="button"
-          >
-            {isPaying ? "Submitting..." : "Submit Payment Proof"}
-          </button>
-          <p className="text-xs leading-5 text-pet-muted">
-            Your order moves to pending manual verification after you submit.
-            {" "}
-            {paymentConfig.supportText}
-          </p>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function CopyUrlField({ label, value }: { label: string; value: string }) {
-  const [copied, setCopied] = useState(false);
-
-  function handleCopy() {
-    if (!value) {
-      return;
-    }
-    navigator.clipboard?.writeText(value).then(
-      () => {
-        setCopied(true);
-        window.setTimeout(() => setCopied(false), 1500);
-      },
-      () => setCopied(false)
-    );
-  }
-
-  return (
-    <div className="rounded-[1.25rem] bg-pet-cream p-4">
-      <p className="text-xs font-bold uppercase text-pet-muted">{label}</p>
-      <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
-        <code className="min-w-0 flex-1 break-all rounded-xl bg-white px-3 py-2 text-sm font-semibold text-pet-ink">
-          {value || "Will be ready after activation"}
-        </code>
-        <button
-          className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-full border border-pet-border bg-white px-4 text-sm font-bold text-pet-ink transition hover:bg-pet-apricot/50"
-          onClick={handleCopy}
-          type="button"
-        >
-          <Icon name="qr" className="h-4 w-4" />
-          {copied ? "Copied" : "Copy"}
-        </button>
-      </div>
-    </div>
-  );
-}
 
 function StepShell({
   title,
@@ -987,39 +766,6 @@ function SummaryItem({ label, value }: { label: string; value: string }) {
     <div className="rounded-[1.25rem] bg-pet-cream p-4">
       <p className="text-xs font-bold uppercase text-pet-muted">{label}</p>
       <p className="mt-1 break-words font-black text-pet-ink">{value}</p>
-    </div>
-  );
-}
-
-function SummaryRow({ label, value }: { label: string; value: string }) {
-  if (!value) {
-    return null;
-  }
-  return (
-    <div className="flex items-start justify-between gap-3 text-sm">
-      <span className="font-semibold text-pet-muted">{label}</span>
-      <span className="text-right font-bold text-pet-ink">{value}</span>
-    </div>
-  );
-}
-
-function PaymentRow({
-  label,
-  value,
-  strong,
-}: {
-  label: string;
-  value: string;
-  strong?: boolean;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <span className="text-sm font-semibold text-pet-muted">{label}</span>
-      <span
-        className={`text-right font-black text-pet-ink ${strong ? "text-lg" : "text-sm"}`}
-      >
-        {value}
-      </span>
     </div>
   );
 }
@@ -1069,14 +815,6 @@ function inferCityState(generalArea: string): { city: string; state: string } {
 
 function subscribeNoop() {
   return () => {};
-}
-
-function getServerOrigin() {
-  return "";
-}
-
-function getBrowserOrigin() {
-  return window.location.origin;
 }
 
 function getDefaultOrderPrefsKey() {

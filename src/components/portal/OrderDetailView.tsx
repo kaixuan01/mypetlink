@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { ManualPaymentPanel } from "@/components/portal/ManualPaymentPanel";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -181,6 +182,14 @@ export function OrderDetailView({
         </div>
       </section>
 
+      {order.status === "Pending Payment" ? (
+        <ManualPaymentPanel
+          order={order}
+          petName={petName}
+          onSubmitted={(updated) => setOrder(updated)}
+        />
+      ) : null}
+
       <section className="brand-card rounded-[1.75rem] p-5 sm:p-6">
         <h2 className="text-xl font-black text-pet-ink">Order status</h2>
         <div className="mt-5 grid gap-3">
@@ -250,7 +259,7 @@ export function OrderDetailView({
             />
             <DetailItem label="Payment status" value={getPaymentStatusLabel(order)} />
             <DetailItem
-              label="Payment reference"
+              label="Transaction reference"
               value={order.paymentReference ?? "Not submitted yet"}
             />
             <DetailItem
@@ -264,10 +273,10 @@ export function OrderDetailView({
           </div>
           <p className="mt-4 rounded-[1.25rem] bg-pet-cream p-4 text-sm leading-6 text-pet-muted">
             {receiptReady
-              ? "Manual payment has been confirmed. Your payment receipt is available."
+              ? "Payment confirmed. Your receipt is ready."
               : order.status === "Payment Submitted"
-                ? "Payment proof has been submitted and is pending manual verification."
-                : "Receipt will be available after manual payment is confirmed."}
+                ? "Payment proof is waiting for verification."
+                : "Receipt is available after payment is confirmed."}
           </p>
         </section>
       </div>

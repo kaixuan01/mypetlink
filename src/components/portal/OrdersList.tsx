@@ -158,6 +158,24 @@ export function OrdersList({
             </div>
 
             <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+              {order.status === "Pending Payment" ? (
+                <CTAButton
+                  href={`${ownerRoutes.orders}/${orderNumber}`}
+                  icon="record"
+                  variant="coral"
+                >
+                  Complete Payment
+                </CTAButton>
+              ) : null}
+              {order.status === "Payment Submitted" ? (
+                <CTAButton
+                  href={`${ownerRoutes.orders}/${orderNumber}`}
+                  icon="record"
+                  variant="secondary"
+                >
+                  View Payment Status
+                </CTAButton>
+              ) : null}
               <button
                 className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-extrabold text-pet-ink transition hover:bg-pet-cream"
                 onClick={() =>
@@ -190,9 +208,13 @@ export function OrdersList({
             </div>
 
             <p className="mt-3 text-xs leading-5 text-pet-muted">
-              {receiptReady
-                ? "Receipt is available because manual payment has been confirmed."
-                : "Receipt appears after manual payment is confirmed."}
+              {order.status === "Pending Payment"
+                ? "Complete your Manual QR Payment to continue this order."
+                : order.status === "Payment Submitted"
+                  ? "Payment proof is waiting for verification."
+                  : receiptReady
+                    ? "Payment confirmed. Your receipt is ready."
+                    : "Receipt is available after payment is confirmed."}
             </p>
 
             {openOrderId === order.id ? (
@@ -227,7 +249,7 @@ function OrderInlineDetail({
         value={order.paymentMethod ?? "Manual QR Payment"}
       />
       <CompactItem
-        label="Payment reference"
+        label="Transaction reference"
         value={order.paymentReference ?? "Not submitted yet"}
       />
       <CompactItem
@@ -245,6 +267,7 @@ function OrderInlineDetail({
       <CompactItem
         label="Delivery address"
         value={formatFullDeliveryAddress(order)}
+        wrap
       />
       <CompactItem
         label="Tag status"
@@ -254,13 +277,25 @@ function OrderInlineDetail({
   );
 }
 
-function CompactItem({ label, value }: { label: string; value: string }) {
+function CompactItem({
+  label,
+  value,
+  wrap,
+}: {
+  label: string;
+  value: string;
+  wrap?: boolean;
+}) {
   return (
     <div className="min-w-0 rounded-[1rem] bg-pet-cream px-3 py-3">
       <p className="text-[0.68rem] font-extrabold uppercase text-pet-muted">
         {label}
       </p>
-      <p className="mt-1 truncate text-sm font-bold text-pet-ink">
+      <p
+        className={`mt-1 text-sm font-bold text-pet-ink ${
+          wrap ? "break-words" : "truncate"
+        }`}
+      >
         {value || "Not set"}
       </p>
     </div>
