@@ -663,7 +663,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
               {petProfileThemes.map((theme) => (
                 <ThemeOptionCard
                   key={theme.id}
-                  name={form.name || "Milo"}
+                  name={form.name || "Your pet"}
                   onSelect={() => updateField("profileTheme", theme.id)}
                   selected={form.profileTheme === theme.id}
                   theme={theme}

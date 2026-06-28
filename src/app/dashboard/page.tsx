@@ -175,12 +175,12 @@ export default async function DashboardPage() {
         <div className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
           <DashboardSection
             title="Safety overview"
-            description="A quick check of QR profiles, tags, and orders."
+            description="A quick check of QR safety pages, tags, and orders."
           >
             <div className="grid gap-3 sm:grid-cols-2">
               <SafetyStatusCard
                 icon="qr"
-                label="Active QR profiles"
+                label="Active QR safety pages"
                 note="Ready for public sharing and finder scans."
                 value={activeQrProfiles}
               />
