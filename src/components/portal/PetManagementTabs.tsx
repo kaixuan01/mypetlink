@@ -21,7 +21,7 @@ import {
 } from "@/lib/ownerSettings";
 import { getPetProfileTheme } from "@/lib/petProfileThemes";
 import { ownerRoutes } from "@/lib/routes";
-import { updatePetLostMode } from "@/services/petService";
+import { getPetById, updatePetLostMode } from "@/services/petService";
 import type { CareRecord, Pet, PetLostMode, PetMoment, PetTag } from "@/types";
 
 type TabId = "overview" | "records" | "moments" | "tag" | "privacy";
@@ -49,6 +49,23 @@ export function PetManagementTabs({
 }: PetManagementTabsProps) {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [currentPet, setCurrentPet] = useState(pet);
+
+  // The page is server-rendered from seed data; re-read the pet on the client so
+  // persisted edits (e.g. Lost Mode) survive a refresh and match the QR safety
+  // and public profile pages, which read the same stored record.
+  useEffect(() => {
+    let active = true;
+
+    getPetById(pet.id).then((response) => {
+      if (active && response.data) {
+        setCurrentPet(response.data);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [pet.id]);
 
   return (
     <div>
