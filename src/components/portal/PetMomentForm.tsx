@@ -211,7 +211,7 @@ export function PetMomentForm({ pet }: { pet: Pet }) {
           />
           <MomentCheckbox
             checked={form.showInLifeTimeline}
-            description="Use this for milestones and special dates."
+            description="Timeline moments appear in your pet's Life Timeline when visibility allows."
             label="Show in Life Timeline"
             onChange={(value) => updateField("showInLifeTimeline", value)}
           />

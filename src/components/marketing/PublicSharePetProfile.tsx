@@ -28,6 +28,7 @@ import {
   getWhatsAppLink,
   normalizeStoredPhone,
 } from "@/lib/phone";
+import { getPublicTimeline, type PetTimelineItem } from "@/lib/petTimeline";
 import { ownerRoutes } from "@/lib/routes";
 import { isOwnerAuthenticated } from "@/services/authService";
 import { getPublicPetMoments } from "@/services/momentService";
@@ -111,9 +112,7 @@ export function PublicSharePetProfile({
   const careRecords = visibility.showCareBadges
     ? records.filter((record) => record.publicVisibility !== "Private").slice(0, 4)
     : [];
-  const timelineEvents = visibility.showTimeline
-    ? buildTimelineEvents(profile, moments, visibility)
-    : [];
+  const timelineEvents = getPublicTimeline(profile, moments);
 
   useEffect(() => {
     let active = true;
@@ -593,20 +592,13 @@ function MomentsTab({
   );
 }
 
-type TimelineEvent = {
-  id: string;
-  label: string;
-  date: string;
-  caption?: string;
-};
-
 function TimelineTab({
   petName,
   events,
   theme,
 }: {
   petName: string;
-  events: TimelineEvent[];
+  events: PetTimelineItem[];
   theme: PetProfileTheme;
 }) {
   if (!events.length) {
@@ -619,7 +611,7 @@ function TimelineTab({
           color: theme.colors.mutedText,
         }}
       >
-        {petName}&apos;s life timeline will appear here.
+        {petName}&apos;s owner has not shared timeline milestones yet.
       </div>
     );
   }
@@ -636,8 +628,14 @@ function TimelineTab({
         className="text-lg font-black text-pet-ink"
         style={{ color: theme.colors.text }}
       >
-        {petName}&apos;s life timeline
+        Life Timeline
       </h2>
+      <p
+        className="mt-1 text-sm leading-6 text-pet-muted"
+        style={{ color: theme.colors.mutedText }}
+      >
+        Milestones and special dates from {petName}&apos;s life.
+      </p>
       <div className="mt-5 grid gap-3">
         {events.map((event) => (
           <div
@@ -660,14 +658,14 @@ function TimelineTab({
                 className="mt-0.5 font-black text-pet-ink"
                 style={{ color: theme.colors.text }}
               >
-                {event.label}
+                {event.title}
               </p>
-              {event.caption ? (
+              {event.description ? (
                 <p
                   className="mt-1 text-sm leading-6 text-pet-muted"
                   style={{ color: theme.colors.mutedText }}
                 >
-                  {event.caption}
+                  {event.description}
                 </p>
               ) : null}
             </div>
@@ -676,51 +674,6 @@ function TimelineTab({
       </div>
     </section>
   );
-}
-
-function buildTimelineEvents(
-  profile: PublicPetProfile,
-  moments: PetMoment[],
-  visibility: Pet["visibility"]
-): TimelineEvent[] {
-  const events: TimelineEvent[] = [];
-
-  if (
-    visibility.showBirthdayOnTimeline &&
-    profile.birthday &&
-    profile.birthday !== "Not set"
-  ) {
-    events.push({
-      id: "birthday",
-      label: `${profile.name} was born`,
-      date: profile.birthday,
-    });
-  }
-
-  if (
-    visibility.showAdoptionDayOnTimeline &&
-    profile.adoptionDay &&
-    profile.adoptionDay !== "Not set"
-  ) {
-    events.push({
-      id: "adoption",
-      label: `${profile.name} came home`,
-      date: profile.adoptionDay,
-    });
-  }
-
-  for (const moment of moments) {
-    if (moment.showInLifeTimeline && moment.visibility === "Public") {
-      events.push({
-        id: moment.id,
-        label: moment.title,
-        date: moment.date,
-        caption: moment.timelineNote?.trim() || moment.caption,
-      });
-    }
-  }
-
-  return events;
 }
 
 function ThemedBadge({

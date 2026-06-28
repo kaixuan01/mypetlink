@@ -1,11 +1,18 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { getCoverMedia } from "@/lib/momentMedia";
+import {
+  buildPetTimeline,
+  isItemPubliclyShown,
+  type PetTimelineItem,
+} from "@/lib/petTimeline";
+import { ownerRoutes } from "@/lib/routes";
 import { getPetMoments } from "@/services/momentService";
+import { getPetById } from "@/services/petService";
 import type { Pet, PetMoment } from "@/types";
 
 type PetTimelineProps = {
@@ -13,14 +20,29 @@ type PetTimelineProps = {
   initialMoments: PetMoment[];
 };
 
-export function PetTimeline({ pet, initialMoments }: PetTimelineProps) {
+const visibilityTone = {
+  Public: "mint",
+  Private: "soft",
+  "Family Only": "warm",
+} as const;
+
+export function PetTimeline({ pet: initialPet, initialMoments }: PetTimelineProps) {
+  const [pet, setPet] = useState(initialPet);
   const [moments, setMoments] = useState(initialMoments);
-  const timelineMoments = moments.filter((moment) => moment.showInLifeTimeline);
+  const items = buildPetTimeline(pet, moments);
 
   useEffect(() => {
     let active = true;
 
-    getPetMoments(pet.id).then((response) => {
+    // Re-read pet (for live visibility settings) and moments on the client so
+    // the timeline reflects edits saved in this browser.
+    getPetById(initialPet.id).then((response) => {
+      if (active && response.data) {
+        setPet(response.data);
+      }
+    });
+
+    getPetMoments(initialPet.id).then((response) => {
       if (active) {
         setMoments(response.data);
       }
@@ -29,83 +51,124 @@ export function PetTimeline({ pet, initialMoments }: PetTimelineProps) {
     return () => {
       active = false;
     };
-  }, [pet.id]);
+  }, [initialPet.id]);
 
-  if (!timelineMoments.length) {
-    return (
-      <EmptyState
+  const actions = (
+    <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+      <CTAButton href={ownerRoutes.petMomentNew(pet.id)} icon="plus">
+        Add Moment
+      </CTAButton>
+      <CTAButton
+        href={ownerRoutes.petMoments(pet.id)}
+        variant="secondary"
         icon="heart"
-        title="No timeline yet"
-        description="Add pet moments and choose which milestones should appear in this life timeline."
-        actionHref={`/pets/${pet.id}/moments/new`}
-        actionLabel="Add Moment"
-      />
-    );
-  }
+      >
+        Manage Moments
+      </CTAButton>
+      <CTAButton
+        href={ownerRoutes.petEdit(pet.id)}
+        variant="outline"
+        icon="settings"
+      >
+        Edit Pet Details
+      </CTAButton>
+      <CTAButton
+        href={pet.publicProfilePath}
+        variant="outline"
+        icon="qr"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        View Public Profile
+      </CTAButton>
+    </div>
+  );
 
   return (
     <section className="brand-card rounded-[1.75rem] p-5 sm:p-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4">
         <div>
           <h2 className="text-xl font-black text-pet-ink">
             {pet.name}&apos;s life timeline
           </h2>
           <p className="mt-1 text-sm leading-6 text-pet-muted">
-            Moments appear here when you select Show in Life Timeline from the
-            moments manager.
+            Timeline items come from birthday/adoption details and moments marked
+            as Show in Life Timeline.
           </p>
         </div>
-        <CTAButton href={`/pets/${pet.id}/moments/new`} icon="plus">
-          Add Moment
-        </CTAButton>
+        {actions}
       </div>
 
-      <div className="mt-8 grid gap-4">
-        {timelineMoments.map((moment, index) => {
-          const cover = getCoverMedia(moment);
-          const note = moment.timelineNote?.trim() || moment.caption;
+      {!pet.visibility.showTimeline ? (
+        <p className="mt-5 rounded-[1.25rem] bg-pet-apricot/60 p-4 text-sm font-semibold leading-6 text-[#9b4037]">
+          Life Timeline is currently hidden on {pet.name}&apos;s public profile.
+          Turn on Show Life Timeline in Edit Pet Details to share these
+          milestones.
+        </p>
+      ) : null}
 
-          return (
-            <article
-              className="grid gap-4 rounded-[1.25rem] bg-pet-cream p-4 sm:grid-cols-[72px_1fr]"
-              key={moment.id}
-            >
-              <div className="grid h-16 w-16 place-items-center overflow-hidden rounded-2xl bg-white text-xl font-black text-pet-coral">
-                {cover?.type === "image" && cover.url ? (
-                  <>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      alt={cover.altText ?? moment.title}
-                      className="h-full w-full object-cover"
-                      src={cover.url}
-                    />
-                  </>
-                ) : (
-                  index + 1
-                )}
-              </div>
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge tone={moment.visibility === "Public" ? "mint" : "soft"}>
-                    {moment.type}
-                  </Badge>
-                  <span className="text-sm font-bold text-pet-muted">
-                    {moment.date}
-                  </span>
-                </div>
-                <h3 className="mt-2 text-xl font-black text-pet-ink">
-                  {moment.title}
-                </h3>
-                {note ? (
-                  <p className="mt-2 text-sm leading-6 text-pet-muted">
-                    {note}
-                  </p>
-                ) : null}
-              </div>
-            </article>
-          );
-        })}
-      </div>
+      {items.length ? (
+        <div className="mt-6 grid gap-4">
+          {items.map((item) => (
+            <TimelineRow item={item} key={item.id} pet={pet} />
+          ))}
+        </div>
+      ) : (
+        <div className="mt-6">
+          <EmptyState
+            icon="heart"
+            title="No timeline items yet"
+            description="Add a birthday or adoption day in Edit Pet Details, or add a moment and choose Show in Life Timeline."
+            actionHref={ownerRoutes.petMomentNew(pet.id)}
+            actionLabel="Add Moment"
+          />
+        </div>
+      )}
     </section>
+  );
+}
+
+function TimelineRow({ item, pet }: { item: PetTimelineItem; pet: Pet }) {
+  const publiclyShown = isItemPubliclyShown(item, pet);
+  const editHref =
+    item.source === "moment"
+      ? ownerRoutes.petMoments(pet.id)
+      : ownerRoutes.petEdit(pet.id);
+
+  return (
+    <article className="grid gap-3 rounded-[1.25rem] bg-pet-cream p-4 sm:grid-cols-[1fr_auto] sm:items-start">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          {item.source === "auto" ? (
+            <Badge tone="teal">Auto milestone</Badge>
+          ) : (
+            <Badge tone="soft">{item.typeLabel}</Badge>
+          )}
+          {item.visibility ? (
+            <Badge tone={visibilityTone[item.visibility]}>
+              {item.visibility}
+            </Badge>
+          ) : null}
+          <Badge tone={publiclyShown ? "mint" : "soft"}>
+            {publiclyShown ? "Shown on public profile" : "Hidden from public"}
+          </Badge>
+        </div>
+        <p className="mt-2 text-xs font-bold uppercase text-pet-muted">
+          {item.date}
+        </p>
+        <h3 className="mt-1 text-lg font-black text-pet-ink">{item.title}</h3>
+        {item.description ? (
+          <p className="mt-1 text-sm leading-6 text-pet-muted">
+            {item.description}
+          </p>
+        ) : null}
+      </div>
+      <Link
+        className="inline-flex min-h-10 items-center justify-center rounded-full border border-pet-border bg-white px-4 py-2 text-sm font-bold text-pet-ink transition hover:bg-white/70 sm:self-center"
+        href={editHref}
+      >
+        {item.source === "moment" ? "Edit in Moments" : "Edit pet details"}
+      </Link>
+    </article>
   );
 }
