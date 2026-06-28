@@ -11,6 +11,10 @@ const SAFE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 const TAG_CODE_PATTERN = /^MPL-[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{4}-[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{4}$/;
 
+const LEGACY_TAG_CODE_ALIASES: Record<string, string> = {
+  "8kx29a": "MPL-9F3K-H7Q2",
+};
+
 function randomSegment(length: number) {
   let segment = "";
 
@@ -27,6 +31,19 @@ export function generateTagCode() {
 
 export function isTagCode(value: string) {
   return TAG_CODE_PATTERN.test(value.trim().toUpperCase());
+}
+
+export function resolveTagCodeAlias(value: string) {
+  const normalized = value.trim();
+  return LEGACY_TAG_CODE_ALIASES[normalized.toLowerCase()] ?? normalized;
+}
+
+export function getStaticTagCodeParamVariants(tagCode: string) {
+  const aliases = Object.entries(LEGACY_TAG_CODE_ALIASES)
+    .filter(([, canonical]) => canonical.toLowerCase() === tagCode.toLowerCase())
+    .flatMap(([alias]) => [alias.toUpperCase(), alias.toLowerCase()]);
+
+  return Array.from(new Set([tagCode, tagCode.toLowerCase(), ...aliases]));
 }
 
 // Short, stable, URL-safe disambiguator for a public profile path.

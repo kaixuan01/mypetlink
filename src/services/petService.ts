@@ -1,6 +1,7 @@
 import { mockPets } from "@/data/mockPets";
 import { mockRecords } from "@/data/mockRecords";
-import { publicProfilePath } from "@/lib/routes";
+import { mockTags } from "@/data/mockTags";
+import { publicProfilePath, tagPath } from "@/lib/routes";
 import {
   derivePublicCode,
   generatePublicCode,
@@ -65,6 +66,27 @@ function canonicalPublicCode(pet: Pick<Pet, "id" | "publicCode">) {
   return seedPet?.publicCode ?? pet.publicCode ?? derivePublicCode(pet.id);
 }
 
+function canonicalFinderProfileUrl(
+  pet: Pick<Pet, "id" | "finderProfileUrl">
+) {
+  const seedTag =
+    mockTags.find(
+      (tag) =>
+        tag.petId === pet.id && tag.status === "Active" && !tag.isArchived
+    ) ??
+    mockTags.find(
+      (tag) =>
+        tag.petId === pet.id &&
+        ["Delivered", "Pending", "Preparing"].includes(tag.status) &&
+        !tag.isArchived
+    );
+  const seedPet = mockPets.find((seed) => seed.id === pet.id);
+
+  return seedTag
+    ? tagPath(seedTag.tagCode)
+    : seedPet?.finderProfileUrl ?? pet.finderProfileUrl;
+}
+
 function mergeVisibility(visibility?: PetPayload["visibility"]) {
   return {
     ...defaultVisibility,
@@ -124,6 +146,7 @@ function normalizePet(pet: Pet): Pet {
     // Always recompute from the canonical code so a stored/drifted path can
     // never point at a route that was not statically exported.
     publicProfilePath: publicProfilePath(pet.slug, publicCode),
+    finderProfileUrl: canonicalFinderProfileUrl(pet),
     bio:
       pet.bio ??
       `${pet.name} has a safe MyPetLink profile ready for family and friends.`,

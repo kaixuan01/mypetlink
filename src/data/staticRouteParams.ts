@@ -2,7 +2,7 @@ import { mockOrders } from "@/data/mockOrders";
 import { mockPets } from "@/data/mockPets";
 import { mockTags } from "@/data/mockTags";
 import { formatOrderNumber } from "@/lib/orders";
-import { derivePublicCode } from "@/lib/tagCodes";
+import { derivePublicCode, getStaticTagCodeParamVariants } from "@/lib/tagCodes";
 
 export function staticPetIdParams() {
   return mockPets.map((pet) => ({ id: pet.id }));
@@ -18,7 +18,9 @@ export function staticPublicPetParams() {
 }
 
 export function staticTagCodeParams() {
-  return mockTags.map((tag) => ({ tagCode: tag.tagCode }));
+  return mockTags.flatMap((tag) =>
+    getStaticTagCodeParamVariants(tag.tagCode).map((tagCode) => ({ tagCode }))
+  );
 }
 
 export function staticOrderParams() {

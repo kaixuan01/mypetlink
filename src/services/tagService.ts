@@ -1,7 +1,7 @@
 import { mockOrders } from "@/data/mockOrders";
 import { mockTags } from "@/data/mockTags";
 import { formatOrderNumber } from "@/lib/orders";
-import { generateTagCode } from "@/lib/tagCodes";
+import { generateTagCode, resolveTagCodeAlias } from "@/lib/tagCodes";
 import {
   mockDelay,
   mockResponse,
@@ -272,8 +272,9 @@ async function updateTagArchiveState(tagId: string, isArchived: boolean) {
 export async function getFinderState(tagCode: string): Promise<FinderResult> {
   await mockDelay();
   const normalized = tagCode.trim();
+  const lookupTagCode = resolveTagCodeAlias(normalized);
   const tag = getTagCollection().find(
-    (item) => item.tagCode.toLowerCase() === normalized.toLowerCase()
+    (item) => item.tagCode.toLowerCase() === lookupTagCode.toLowerCase()
   );
 
   if (!tag) {
@@ -317,8 +318,9 @@ export async function getFinderState(tagCode: string): Promise<FinderResult> {
 export async function activateTag(tagCode: string, petId: string) {
   await mockDelay();
   const tags = getTagCollection();
+  const lookupTagCode = resolveTagCodeAlias(tagCode);
   const tag = tags.find(
-    (item) => item.tagCode.toLowerCase() === tagCode.trim().toLowerCase()
+    (item) => item.tagCode.toLowerCase() === lookupTagCode.toLowerCase()
   );
 
   if (!tag) {
