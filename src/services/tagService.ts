@@ -51,7 +51,7 @@ function normalizeOrder(order: TagOrder): TagOrder {
   return {
     ...order,
     orderNumber: order.orderNumber ?? formatOrderNumber(order),
-    paymentMethod: order.paymentMethod ?? "Manual QR Payment",
+    paymentMethod: order.paymentMethod ?? "QR Payment",
     status,
   };
 }
@@ -154,7 +154,7 @@ export async function createTagOrder(payload: TagOrderPayload) {
     orderedDate,
     tagId,
     replacementForTagId: payload.replacementForTagId,
-    paymentMethod: "Manual QR Payment",
+    paymentMethod: "QR Payment",
   };
   const nextTags = payload.replacementForTagId
     ? [

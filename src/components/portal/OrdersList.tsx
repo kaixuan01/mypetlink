@@ -13,6 +13,7 @@ import {
   formatFullDeliveryAddress,
   formatOrderNumber,
   getOrderNextStep,
+  getOrderStatusDisplay,
   getPaymentStatusLabel,
 } from "@/lib/orders";
 import { ownerRoutes } from "@/lib/routes";
@@ -124,7 +125,9 @@ export function OrdersList({
                   <h2 className="text-lg font-black text-pet-ink sm:text-xl">
                     {orderNumber}
                   </h2>
-                  <Badge tone={orderTone[order.status]}>{order.status}</Badge>
+                  <Badge tone={orderTone[order.status]}>
+                    {getOrderStatusDisplay(order.status)}
+                  </Badge>
                 </div>
                 <p className="mt-1 text-sm font-semibold text-pet-muted">
                   {pet?.name ?? "Pet profile"} - {order.tagType}
@@ -160,16 +163,16 @@ export function OrdersList({
             <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
               {order.status === "Pending Payment" ? (
                 <CTAButton
-                  href={`${ownerRoutes.orders}/${orderNumber}`}
+                  href={ownerRoutes.orderDetail(orderNumber)}
                   icon="record"
                   variant="coral"
                 >
-                  Complete Payment
+                  Pay by QR
                 </CTAButton>
               ) : null}
               {order.status === "Payment Submitted" ? (
                 <CTAButton
-                  href={`${ownerRoutes.orders}/${orderNumber}`}
+                  href={ownerRoutes.orderDetail(orderNumber)}
                   icon="record"
                   variant="secondary"
                 >
@@ -209,9 +212,9 @@ export function OrdersList({
 
             <p className="mt-3 text-xs leading-5 text-pet-muted">
               {order.status === "Pending Payment"
-                ? "Complete your Manual QR Payment to continue this order."
+                ? "Complete QR payment to continue this order."
                 : order.status === "Payment Submitted"
-                  ? "Payment proof is waiting for verification."
+                  ? "Payment proof under review."
                   : receiptReady
                     ? "Payment confirmed. Your receipt is ready."
                     : "Receipt is available after payment is confirmed."}
@@ -246,7 +249,7 @@ function OrderInlineDetail({
       <CompactItem label="Design" value={order.shape} />
       <CompactItem
         label="Payment method"
-        value={order.paymentMethod ?? "Manual QR Payment"}
+        value={order.paymentMethod ?? "QR Payment"}
       />
       <CompactItem
         label="Bank/eWallet transaction ID"

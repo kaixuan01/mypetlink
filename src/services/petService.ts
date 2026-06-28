@@ -1,7 +1,11 @@
 import { mockPets } from "@/data/mockPets";
 import { mockRecords } from "@/data/mockRecords";
 import { publicProfilePath } from "@/lib/routes";
-import { generatePublicCode, generateTagCode } from "@/lib/tagCodes";
+import {
+  derivePublicCode,
+  generatePublicCode,
+  generateTagCode,
+} from "@/lib/tagCodes";
 import {
   mockDelay,
   mockResponse,
@@ -51,24 +55,14 @@ function cleanMediaLabel(value: string) {
   return value;
 }
 
-// Stable fallback publicCode for legacy stored pets saved before publicCode
-// existed. Deterministic so the public profile path never changes on re-read.
-function derivePublicCode(seed: string) {
-  let hash = 0;
-
-  for (let index = 0; index < seed.length; index += 1) {
-    hash = (hash * 31 + seed.charCodeAt(index)) >>> 0;
-  }
-
-  const chars = "abcdefghjkmnpqrstuvwxyz23456789";
-  let code = "";
-
-  for (let index = 0; index < 4; index += 1) {
-    code += chars[hash % chars.length];
-    hash = Math.floor(hash / chars.length);
-  }
-
-  return code;
+// Canonical publicCode for a pet, used everywhere the public profile path is
+// built so the portal URL, the stored path, and the static export always agree.
+// Seed pets always resolve to their seed code (correcting any drifted stored
+// value); other pets keep their own code, falling back to a deterministic
+// derive so the path never changes between reads.
+function canonicalPublicCode(pet: Pick<Pet, "id" | "publicCode">) {
+  const seedPet = mockPets.find((seed) => seed.id === pet.id);
+  return seedPet?.publicCode ?? pet.publicCode ?? derivePublicCode(pet.id);
 }
 
 function mergeVisibility(visibility?: PetPayload["visibility"]) {
@@ -110,7 +104,7 @@ function mergeLostMode(
 }
 
 function normalizePet(pet: Pet): Pet {
-  const publicCode = pet.publicCode ?? derivePublicCode(pet.id);
+  const publicCode = canonicalPublicCode(pet);
 
   return {
     ...pet,
@@ -127,8 +121,9 @@ function normalizePet(pet: Pet): Pet {
     coverUrl: pet.coverUrl ?? "",
     profileTheme: pet.profileTheme ?? "default",
     publicCode,
-    publicProfilePath:
-      pet.publicProfilePath ?? publicProfilePath(pet.slug, publicCode),
+    // Always recompute from the canonical code so a stored/drifted path can
+    // never point at a route that was not statically exported.
+    publicProfilePath: publicProfilePath(pet.slug, publicCode),
     bio:
       pet.bio ??
       `${pet.name} has a safe MyPetLink profile ready for family and friends.`,
@@ -164,11 +159,12 @@ function titleFromSlug(value: string) {
 
 function createFallbackPetFromSlug(slug: string): Pet {
   const name = titleFromSlug(slug) || "New Pet";
-  const publicCode = derivePublicCode(slug);
+  const id = `pet_${slug}`;
+  const publicCode = derivePublicCode(id);
 
   return {
     ...mockPets[0],
-    id: `pet_${slug}`,
+    id,
     slug,
     name,
     gender: "Not set",

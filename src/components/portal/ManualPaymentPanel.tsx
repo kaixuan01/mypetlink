@@ -15,7 +15,7 @@ type ManualPaymentPanelProps = {
   onSubmitted: (order: TagOrder) => void;
 };
 
-// Shared Manual QR Payment UI used both right after placing an order and when
+// Shared "Pay by QR" UI used both right after placing an order and when
 // resuming a Pending Payment order from Orders / order details. The system
 // generates the payment reference (the order number); the owner uploads a
 // receipt or screenshot and may add their bank / eWallet transaction ID.
@@ -70,7 +70,7 @@ export function ManualPaymentPanel({
     <section className="brand-card rounded-[1.75rem] p-5 sm:p-6">
       <Badge tone="warm">Pending payment</Badge>
       <h2 className="mt-4 text-2xl font-black text-pet-ink sm:text-3xl">
-        Manual QR Payment
+        Pay by QR
       </h2>
       <p className="mt-2 max-w-2xl text-sm leading-6 text-pet-muted">
         {paymentConfig.instructions}
@@ -226,7 +226,7 @@ export function ManualPaymentPanel({
             {isSubmitting ? "Submitting..." : "Submit Payment Proof"}
           </button>
           <p className="text-xs leading-5 text-pet-muted">
-            Your order moves to pending manual verification after you submit.{" "}
+            We will review your payment proof after you submit.{" "}
             {paymentConfig.supportText}
           </p>
         </div>

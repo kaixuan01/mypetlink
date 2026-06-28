@@ -13,6 +13,7 @@ import {
   formatFullDeliveryAddress,
   formatOrderNumber,
   getOrderNextStep,
+  getOrderStatusDisplay,
   getOrderStatusRank,
   getPaymentStatusLabel,
 } from "@/lib/orders";
@@ -53,6 +54,7 @@ export function OrderDetailView({
 }: OrderDetailViewProps) {
   const [order, setOrder] = useState(initialOrder);
   const [tags, setTags] = useState(initialTags);
+  const [loaded, setLoaded] = useState(Boolean(initialOrder));
   const [downloadMessage, setDownloadMessage] = useState("");
   const [paymentMessage, setPaymentMessage] = useState("");
   const petMap = useMemo(
@@ -72,6 +74,7 @@ export function OrderDetailView({
         if (active) {
           setOrder(orderResponse.data);
           setTags(tagResponse.data);
+          setLoaded(true);
         }
       }
     );
@@ -82,11 +85,19 @@ export function OrderDetailView({
   }, [orderKey]);
 
   if (!order) {
+    if (!loaded) {
+      return (
+        <div className="brand-card rounded-[1.75rem] p-6 text-sm font-semibold text-pet-muted">
+          Loading your order...
+        </div>
+      );
+    }
+
     return (
       <EmptyState
         icon="record"
         title="Order not found"
-        description="This order may no longer be available in your owner workspace."
+        description="We could not find this order in your owner workspace. It may have been removed or the link is incorrect."
         actionHref={ownerRoutes.orders}
         actionLabel="Back to Orders"
       />
@@ -152,8 +163,10 @@ export function OrderDetailView({
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <Badge tone={orderTone[order.status]}>{order.status}</Badge>
-              <Badge tone="soft">{order.paymentMethod ?? "Manual QR Payment"}</Badge>
+              <Badge tone={orderTone[order.status]}>
+                {getOrderStatusDisplay(order.status)}
+              </Badge>
+              <Badge tone="soft">{order.paymentMethod ?? "QR Payment"}</Badge>
             </div>
             <h1 className="mt-3 text-2xl font-black text-pet-ink sm:text-3xl">
               {orderNumber}
@@ -261,13 +274,11 @@ export function OrderDetailView({
         </section>
 
         <section className="brand-card rounded-[1.75rem] p-5 sm:p-6">
-          <h2 className="text-xl font-black text-pet-ink">
-            Manual payment
-          </h2>
+          <h2 className="text-xl font-black text-pet-ink">Payment</h2>
           <div className="mt-4 grid gap-3">
             <DetailItem
               label="Payment method"
-              value={order.paymentMethod ?? "Manual QR Payment"}
+              value={order.paymentMethod ?? "QR Payment"}
             />
             <DetailItem label="Payment status" value={getPaymentStatusLabel(order)} />
             <DetailItem
@@ -287,7 +298,7 @@ export function OrderDetailView({
             {receiptReady
               ? "Payment confirmed. Your receipt is ready."
               : order.status === "Payment Submitted"
-                ? "Payment proof is waiting for verification."
+                ? "We are reviewing your payment proof. Your order will be prepared after payment is confirmed."
                 : "Receipt is available after payment is confirmed."}
           </p>
         </section>
@@ -411,9 +422,9 @@ function buildOrderSummaryText(order: TagOrder, petName: string) {
     "Contact: support@gbbsoftwaresolutions.com",
     "",
     `Order ID: ${formatOrderNumber(order)}`,
-    `Order status: ${order.status}`,
+    `Order status: ${getOrderStatusDisplay(order.status)}`,
     `Payment status: ${getPaymentStatusLabel(order)}`,
-    `Payment method: ${order.paymentMethod ?? "Manual QR Payment"}`,
+    `Payment method: ${order.paymentMethod ?? "QR Payment"}`,
     "",
     `Pet name: ${petName}`,
     `Tag type: ${order.tagType}`,

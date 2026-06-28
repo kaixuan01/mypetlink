@@ -22,8 +22,11 @@ export const ownerRoutes = {
   records: "/records",
   tags: "/tags",
   orders: "/orders",
+  // Static-export safe: a single /orders/view page reads the order number from
+  // the query string, so it works for any order (including runtime-created
+  // orders that were never pre-rendered).
   orderDetail: (orderNumber: string) =>
-    `/orders/${encodeURIComponent(orderNumber)}`,
+    `/orders/view?order=${encodeURIComponent(orderNumber)}`,
   settings: "/settings",
   petProfile: (petId: string) => `/pets/${petId}`,
   petEdit: (petId: string) => `/pets/${petId}/edit`,

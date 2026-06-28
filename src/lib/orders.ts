@@ -65,13 +65,30 @@ export function canRequestReplacement(order: TagOrder, tag?: PetTag) {
   );
 }
 
+// Owner-facing status label. The internal status names stay unchanged; this is
+// only how the status reads to a pet owner.
+const orderStatusDisplay: Record<OrderStatus, string> = {
+  Draft: "Draft",
+  "Pending Payment": "Pending Payment",
+  "Payment Submitted": "Payment Proof Submitted",
+  "Payment Confirmed": "Payment Confirmed",
+  Preparing: "Preparing Tag",
+  Shipped: "Shipped",
+  Delivered: "Delivered",
+  Cancelled: "Cancelled",
+};
+
+export function getOrderStatusDisplay(status: OrderStatus) {
+  return orderStatusDisplay[status] ?? status;
+}
+
 export function getPaymentStatusLabel(order: TagOrder) {
   if (order.status === "Pending Payment") {
     return "Pending payment";
   }
 
   if (order.status === "Payment Submitted") {
-    return "Pending manual verification";
+    return "Payment proof under review";
   }
 
   if (canDownloadPaymentReceipt(order)) {
@@ -87,11 +104,11 @@ export function getPaymentStatusLabel(order: TagOrder) {
 
 export function getOrderNextStep(order: TagOrder) {
   if (order.status === "Pending Payment") {
-    return "Complete Manual QR Payment and upload your receipt or screenshot.";
+    return "Complete QR payment and upload your receipt or screenshot.";
   }
 
   if (order.status === "Payment Submitted") {
-    return "Your payment proof is waiting for manual verification.";
+    return "We are reviewing your payment proof. Your order will be prepared after payment is confirmed.";
   }
 
   if (order.status === "Payment Confirmed") {
@@ -148,7 +165,7 @@ export function buildPaymentReceiptText(order: TagOrder, petName: string) {
     "",
     `Order ID: ${formatOrderNumber(order)}`,
     `Payment date: ${order.paymentConfirmedDate ?? "Payment confirmed"}`,
-    `Payment method: ${order.paymentMethod ?? "Manual QR Payment"}`,
+    `Payment method: ${order.paymentMethod ?? "QR Payment"}`,
     `Amount paid: ${order.estimatedPrice}`,
     "Payment status: Payment Confirmed",
     "",
