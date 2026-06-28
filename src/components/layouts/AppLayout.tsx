@@ -97,7 +97,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthGuard>
-      <div className="min-h-screen overflow-x-hidden bg-pet-cream pb-[calc(7rem+env(safe-area-inset-bottom))] lg:flex lg:pb-0">
+      <div className="min-h-screen overflow-x-hidden bg-pet-cream pb-[calc(8.5rem+env(safe-area-inset-bottom))] lg:flex lg:pb-0">
         <aside
           className={`hidden shrink-0 border-r border-pet-border bg-white/90 shadow-xl shadow-[#0d1b3d]/5 backdrop-blur transition-[width] duration-300 ease-in-out lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col ${
             collapsed ? "px-3 py-5 lg:w-20" : "p-5 lg:w-72"
@@ -231,7 +231,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               </CTAButton>
             </div>
           </header>
-          <main className="mx-auto min-w-0 w-full max-w-7xl px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-5 sm:px-6 lg:px-8 lg:py-8">
+          <main className="mx-auto min-w-0 w-full max-w-7xl px-4 pb-[calc(8.5rem+env(safe-area-inset-bottom))] pt-5 sm:px-6 lg:px-8 lg:py-8">
             {children}
           </main>
         </div>

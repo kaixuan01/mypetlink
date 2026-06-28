@@ -18,11 +18,11 @@ import {
 } from "@/lib/phone";
 import type { Pet, PublicPetProfile } from "@/types";
 
-type PublicFinderProfileProps = {
+type QrSafetyPageViewProps = {
   pet: PublicPetProfile;
 };
 
-export function PublicFinderProfile({ pet }: PublicFinderProfileProps) {
+export function QrSafetyPageView({ pet }: QrSafetyPageViewProps) {
   const [locationStatus, setLocationStatus] = useState("");
   const [ownerSettings, setOwnerSettings] =
     useState<OwnerSettings>(defaultOwnerSettings);

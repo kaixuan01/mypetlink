@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import {
   getQrStatusBadge,
   getSmartTagStatusBadge,
@@ -107,6 +107,11 @@ function OverviewTab({
   const recentMoments = moments.slice(0, 3);
   const currentTags = tags.filter((tag) => !tag.isArchived);
   const activeTag = currentTags.find((tag) => tag.status === "Active");
+  const origin = useSyncExternalStore(
+    subscribeToOrigin,
+    getBrowserOrigin,
+    getServerOrigin
+  );
   const theme = getPetProfileTheme(pet.profileTheme);
   const qrBadge = getQrStatusBadge(pet.qrStatus, pet.qrSafetyPath);
   const smartTagBadge = getSmartTagStatusBadge(tags);
@@ -165,7 +170,7 @@ function OverviewTab({
         badge={
           <Badge tone={qrBadge.tone}>{qrBadge.label}</Badge>
         }
-        description="The finder-first page for people who find your pet. This link works independently from physical tag status."
+        description="This is the page people see when they find your pet. You can share it anytime."
       >
         <ShareProfileLink
           label="QR Safety Page URL"
@@ -322,7 +327,7 @@ function OverviewTab({
               Physical Tag Scan Link
             </p>
             <p className="mt-1 break-all text-sm font-bold text-pet-teal">
-              /t/{activeTag.tagCode}
+              {origin}/t/{activeTag.tagCode}
             </p>
             {activeTag.lastScannedAt ? (
               <p className="mt-2 text-sm text-pet-muted">
@@ -333,7 +338,7 @@ function OverviewTab({
         ) : (
           <p className="text-sm leading-6 text-pet-muted">
             No active physical tag right now. {pet.name}&apos;s QR Safety Page
-            still works, and you can order or activate a tag separately.
+            is still ready to share, and you can order a tag when needed.
           </p>
         )}
         <div className="mt-auto flex flex-col gap-3 sm:flex-row pt-1">
@@ -357,6 +362,18 @@ function OverviewTab({
       </SectionCard>
     </div>
   );
+}
+
+function subscribeToOrigin() {
+  return () => {};
+}
+
+function getBrowserOrigin() {
+  return window.location.origin;
+}
+
+function getServerOrigin() {
+  return "https://mypetlink.pages.dev";
 }
 
 function LostModeCard({
@@ -417,7 +434,7 @@ function LostModeCard({
             <Badge tone="soft">Off</Badge>
           )
         }
-        description="Use this only when your pet is actually missing. Reporting a physical tag lost is managed under Smart Tags."
+        description="Use this only when your pet is actually missing. Finders will see a clearer missing pet notice."
       >
         {pet.lostModeEnabled ? (
           <div className="grid gap-3">

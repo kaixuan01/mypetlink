@@ -59,7 +59,7 @@ export function QRDownloadButton({ pet }: QRDownloadButtonProps) {
       type="button"
     >
       <Icon name="qr" className="h-4 w-4" />
-      Download QR
+      Download QR Code
     </button>
   );
 }

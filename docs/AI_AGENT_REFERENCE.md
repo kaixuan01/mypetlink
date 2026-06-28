@@ -1,11 +1,11 @@
-# MyPetLink AI Agent Reference
+﻿# MyPetLink AI Agent Reference
 
 **Before making changes, read this document first.**
 
 This is the entry point for any AI agent (or developer) working on MyPetLink. It
 explains the product structure, the non-negotiable rules, and where the detailed
 guides live. The goal is that every future change follows the same route rules,
-tag logic, owner pages, and public profile sharing — instead of each agent
+tag logic, owner pages, and public profile sharing â€” instead of each agent
 inventing its own conventions.
 
 If anything in the codebase contradicts this document, treat it as a bug to fix,
@@ -15,15 +15,15 @@ not a pattern to copy.
 
 ## 1. Read these in order
 
-1. **This file** — product structure, rules, and the route map.
-2. [`SMART_TAG_PRODUCT_STRATEGY.md`](./SMART_TAG_PRODUCT_STRATEGY.md) — the
+1. **This file** â€” product structure, rules, and the route map.
+2. [`SMART_TAG_PRODUCT_STRATEGY.md`](./SMART_TAG_PRODUCT_STRATEGY.md) â€” the
    full product/business strategy for the physical Smart Tag (TagCode, QR/NFC,
    activation, admin batches, retail, packaging, security). This is the source
    of truth for *what* the tag product should be.
-3. [`OWNER_PORTAL_FLOW.md`](./OWNER_PORTAL_FLOW.md) — how the signed-in owner
+3. [`OWNER_PORTAL_FLOW.md`](./OWNER_PORTAL_FLOW.md) â€” how the signed-in owner
    portal is structured (dashboard, pets, records, moments, tags, orders) and
    how pet switching works.
-4. [`PUBLIC_PROFILE_ROUTING.md`](./PUBLIC_PROFILE_ROUTING.md) — how the public
+4. [`PUBLIC_PROFILE_ROUTING.md`](./PUBLIC_PROFILE_ROUTING.md) â€” how the public
    `/t/{tagCode}`, `/activate/{tagCode}`, and `/p/{slug}-{publicCode}` routes
    resolve and what each state renders.
 
@@ -38,21 +38,21 @@ profile, and contacts the owner. Owners also manage care records, memories
 
 Core promise: **A safer way home for your pet.**
 
-**Positioning:** MyPetLink is a pet **safety and care** profile — *not* a QR/NFC
+**Positioning:** MyPetLink is a pet **safety and care** profile â€” *not* a QR/NFC
 gadget. The hero message is *"A safer profile for your pet."* A plain **QR tag
 is the MVP / main product**; **QR + NFC is a premium upgrade**, never required.
 Never over-emphasize NFC, and never imply finder contact costs money (it's free
 on the Free plan). The public marketing pages (Home, Pricing, Privacy) are
-separate from the public/finder app pages — keep them warm and calm. The Home
+separate from the public/finder app pages â€” keep them warm and calm. The Home
 page has a **fixed nine-section order** and features grouped into **three pillars
-(Safety / Care / Memories)**. See `MARKETING_STRATEGY.md` §7–§13 for the full
+(Safety / Care / Memories)**. See `MARKETING_STRATEGY.md` Â§7â€“Â§13 for the full
 home section order, pricing strategy, privacy messaging, and copy rules.
 
 ---
 
 ## 3. Tech stack and the one rule that changes everything
 
-- **Next.js (App Router) with `output: "export"`** — see `next.config.ts`. The
+- **Next.js (App Router) with `output: "export"`** â€” see `next.config.ts`. The
   app builds to a **fully static site**. There is **no server at runtime**.
 - **`images.unoptimized: true`** because there is no image optimization server.
 - All data lives in a **mock service layer** (`src/services/*`) backed by
@@ -84,7 +84,7 @@ home section order, pricing strategy, privacy messaging, and copy rules.
 
 ---
 
-## 4. Route map — the single source of truth
+## 4. Route map â€” the single source of truth
 
 All routes are defined in **`src/lib/routes.ts`**. **Do not hardcode route
 strings in pages or components.** Import the helpers instead.
@@ -92,15 +92,16 @@ strings in pages or components.** Import the helpers instead.
 | Purpose            | Pattern                       | Helper                                   |
 | ------------------ | ----------------------------- | ---------------------------------------- |
 | Owner portal pages | `/pets/{petId}/...`           | `ownerRoutes.*`                          |
+| QR Safety Page     | `/q/{safetyCode}`             | `qrSafetyPath(safetyCode)` / `getQrSafetyPath(pet)` |
 | Physical tag scan  | `/t/{tagCode}`                | `tagPath(tagCode)` / `getTagScanPath(tag)` |
 | Tag activation     | `/activate/{tagCode}`         | `activatePath(tagCode)`                  |
 | Public share       | `/p/{petSlug}-{publicCode}`   | `publicProfilePath(slug, publicCode)` / `getPublicProfilePath(pet)` |
 
-`getPublicProfilePath(pet)` and `getTagScanPath(tag)` are convenience wrappers
-that take the whole object — prefer them when you already have a `Pet` / `PetTag`
-in hand. Pets also carry pre-built `pet.publicProfilePath` and
-`pet.finderProfileUrl` fields (kept in sync by `petService`), which existing UI
-reads directly.
+`getPublicProfilePath(pet)`, `getQrSafetyPath(pet)`, and
+`getTagScanPath(tag)` are convenience wrappers that take the whole object.
+Prefer them when you already have a `Pet` / `PetTag` in hand. Pets also carry
+pre-built `pet.publicProfilePath`, `pet.qrSafetyPath`, and legacy
+`pet.finderProfileUrl` fields (kept in sync by `petService`).
 
 Key rules baked into these helpers:
 
@@ -115,12 +116,12 @@ Key rules baked into these helpers:
 
 ---
 
-## 5. The TagCode — one public identifier
+## 5. The TagCode â€” one public identifier
 
 There is exactly **one** public identifier per physical tag: the **TagCode**.
 
 - Format: `MPL-XXXX-XXXX` (e.g. `MPL-26A7-K9Q2`).
-- Charset: `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` — **no `O 0 I 1`**.
+- Charset: `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` â€” **no `O 0 I 1`**.
 - Random, **not sequential**. Generated by `generateTagCode()` in
   `src/lib/tagCodes.ts`.
 - The **same** TagCode is used for: printed tag text, QR URL, NFC URL, owner
@@ -131,22 +132,22 @@ token. **Never** expose the internal database `id` in a URL or in owner-facing
 UI. Owner UI shows the TagCode prominently labelled `TAG CODE`.
 
 The public profile share link uses a separate stable **`publicCode`** (lowercase
-4 chars, `generatePublicCode()`) — this is the pet's public key, distinct from
+4 chars, `generatePublicCode()`) â€” this is the pet's public key, distinct from
 the tag's TagCode. See `PUBLIC_PROFILE_ROUTING.md`.
 
 ---
 
 ## 6. Tag status model
 
-`TagStatus` (in `src/types.ts`) currently has **8 values**:
+`TagStatus` (in `src/types.ts`) currently has **9 values**:
 
 ```
-Unassigned | Pending | Preparing | Delivered | Active | Disabled | Lost | Replaced
+Unassigned | Pending | Preparing | Delivered | Active | Disabled | Lost | Replaced | Archived
 ```
 
-The strategy doc (§8) lists 5 *logical* tag states: `Unassigned, Active,
+The strategy doc (Â§8) lists 5 *logical* tag states: `Unassigned, Active,
 Disabled, Lost, Replaced`. This frontend prototype adds **`Pending`,
-`Preparing`, `Delivered`** because there is no separate orders backend — the
+`Preparing`, `Delivered`** because there is no separate orders backend â€” the
 order-fulfillment lifecycle is folded into the tag record. When a real backend
 exists, fulfillment status should move to the order/batch model and `TagStatus`
 should collapse back to the 5 logical states.
@@ -159,7 +160,7 @@ How status maps to what a scan shows (`getFinderState` in `tagService.ts`):
 | `status === "Unassigned"` **or** no `petId`        | `unassigned`  | Activation prompt                |
 | `status` in `Disabled / Lost / Replaced` or archived | `inactive`    | Safe "no longer active" message  |
 | Bound pet missing                                  | `inactive`    | Safe "no longer active" message  |
-| Otherwise (has `petId`, not disabled)              | `active`      | Public pet profile               |
+| Otherwise (has `petId`, not disabled)              | `active`      | Shared QR Safety Page view       |
 
 Note: owner-ordered tags are created with a `petId` already set (status
 `Pending`), so they resolve to `active` once data exists. Retail stock has no
@@ -179,7 +180,7 @@ Note: owner-ordered tags are created with a `petId` already set (status
    helpers and `samplePet`.
 4. **Centralize data and routes.** Mock data in `src/data/*`, route strings in
    `src/lib/routes.ts`, tag/profile logic in `src/services/*`.
-5. **Respect static export** (§3). New dynamic routes need
+5. **Respect static export** (Â§3). New dynamic routes need
    `dynamicParams = false` + `generateStaticParams()` + a client re-fetch.
 6. **Privacy by default.** Public pages must never expose internal IDs, owner
    address, email, or full phone unless the owner explicitly enabled it. See the
@@ -189,40 +190,44 @@ Note: owner-ordered tags are created with a `petId` already set (status
    error.
 8. **Keep owner portal and public pages distinct.** The owner portal is for
    *management* (`/pets` is an overview list; `/pets/{petId}` is the tabbed
-   management hub; `/pets/{petId}/edit` is the tabbed edit form — see
-   `OWNER_PORTAL_FLOW.md` §3). Public pages are never an owner dashboard.
-9. **The two public pages are DIFFERENT — never mix them.**
+   management hub; `/pets/{petId}/edit` is the tabbed edit form â€” see
+   `OWNER_PORTAL_FLOW.md` Â§3). Public pages are never an owner dashboard.
+9. **The public share page and QR Safety Page are DIFFERENT; never mix them.**
    - **`/p/{petSlug}-{publicCode}` = Public Share Profile.** Friendly, IG-style,
      shareable. Primary action is *Share*. Tabs: About / Moments / Timeline. No
      emergency CTAs, no "I found this pet", no "Send Found Location", no safety-
-     page wording — except the **Lost Mode** banner when a pet-level `lostModeEnabled` is on.
-   - **`/t/{tagCode}` = QR/NFC Safety Profile.** Finder-first and emergency-
-     focused (the page a stranger sees after scanning the physical tag). Big
-     "I found this pet - Contact Owner", WhatsApp / Call / Send Found Location,
-     emergency + safety notes. Minimal lifestyle content.
+     page wording except the **Lost Mode** banner when pet-level `lostModeEnabled` is on.
+   - **`/q/{safetyCode}` = pet-level QR Safety Page.** Finder-first and
+     emergency-focused. It belongs to the pet, works without an active physical
+     tag, uses the pet safety/privacy/contact settings, and shows Lost Mode when
+     `pet.lostModeEnabled` is on.
+   - **`/t/{tagCode}` = physical tag scan entry point.** Active physical tags
+     render the same QR Safety Page component as `/q/{safetyCode}`. Lost,
+     disabled, replaced, or archived tags render the inactive tag page and do
+     not expose owner contact details.
    - **Lost tag is not Lost Mode.** `tag.status === "Lost"` means that physical
-     tag is inactive and must not show owner contact details. Pet Lost Mode is
-     controlled by `pet.lostModeEnabled`.
-   See `PUBLIC_PROFILE_ROUTING.md` §2 (safety page) and §4 (share page). A past
-   change wrongly made the share page finder-first; do not reintroduce that.
-10. **No owner-portal QR Safety page.** There is no `/pets/{id}/qr` route and no
-    `ownerRoutes.petQr`. The QR/NFC safety profile *is* the public `/t/{tagCode}`
-    page. QR safety **settings** live in `Edit Pet → Contact & Safety`; tag
-    **management** lives in the hub **Smart Tag** tab. The owner portal only
-    **previews** the safety page.
+     tag is inactive. Pet Lost Mode is controlled by `pet.lostModeEnabled`.
+   See `PUBLIC_PROFILE_ROUTING.md` for the route state machines. A past change
+   wrongly made the share page finder-first; do not reintroduce that.
+10. **Use the owner QR Safety management page for safety settings.**
+    `/pets/{id}/qr` is the owner-friendly management view for the pet-level
+    QR Safety Page URL, finder contact actions, safety notes, Lost Mode, and
+    physical tag shortcuts. QR safety settings still live in
+    `Edit Pet -> Contact & Safety`; tag management lives in the hub **Smart Tag**
+    tab and `/tags`.
 11. **Public previews open in a new tab.** Every owner-portal button that opens a
-    public route — "View / Preview Public Profile" (`/p/{slug}-{publicCode}`),
-    "View / Preview QR Safety Page" (`/t/{tagCode}`), "View Tag" — must use
-    `target="_blank"` + `rel="noopener noreferrer"` so the portal stays open in
-    the original tab. `CTAButton` forwards `target`/`rel` to both internal `Link`
-    and external `<a>`. When the logged-in owner views their own `/p/` page, a
-    small "Viewing as public" bar (Copy Link + Back to Edit) is shown; normal
-    visitors only get a compact Share button (no raw URL box).
+    public route - "View / Preview Public Profile" (`/p/{slug}-{publicCode}`),
+    "View QR Safety Page" (`/q/{safetyCode}`), "View Tag Scan Page"
+    (`/t/{tagCode}`) - must use `target="_blank"` + `rel="noopener noreferrer"`
+    so the portal stays open in the original tab. `CTAButton` forwards
+    `target`/`rel` to both internal `Link` and external `<a>`. When the logged-in
+    owner views their own `/p/` page, a small "Viewing as public" bar (Copy Link
+    + Back to Edit) is shown; normal visitors only get a compact Share button.
 12. **All phone, WhatsApp, and call inputs use `PhoneNumberInput`.** Never add a
     plain `<input type="tel">` or text input for a phone, WhatsApp, emergency
     contact, or delivery number. Use
     `src/components/ui/PhoneNumberInput.tsx` (which wraps the searchable
-    `CountryCodeSelect`). See §9.
+    `CountryCodeSelect`). See Â§9.
 
 ---
 
@@ -248,7 +253,7 @@ and stored as a single **E.164 string**, e.g. `+60123456789`.
   "Please select a country code."). A required WhatsApp/phone must error when
   its contact option is enabled but the field is empty.
 - **WhatsApp links** must use `getWhatsAppLink(e164, message?)`, which strips
-  the `+` (`+60123456789` → `https://wa.me/60123456789`).
+  the `+` (`+60123456789` â†’ `https://wa.me/60123456789`).
 - **Call links** must use `getCallLink(e164)`, which keeps the `+`
   (`tel:+60123456789`).
 - All of the above live in **`src/lib/phone.ts`** (country list, `PhoneValue`

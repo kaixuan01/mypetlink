@@ -185,7 +185,7 @@ function getAccessItems({
 
 function getAccessSummary(qrStatus: QrStatus = "active") {
   if (qrStatus === "active") {
-    return "Your pet's QR Safety Page can be opened now, even without an active physical tag.";
+    return "Your pet's QR Safety Page is ready for finders.";
   }
 
   if (qrStatus === "draft") {
@@ -250,8 +250,8 @@ export function ProfileAccessStatus({
             QR and smart tag safety
           </h2>
           <p className="mt-2 text-sm leading-6 text-pet-muted">
-            {getAccessSummary(qrStatus)} Physical tag badges are tracked
-            separately from this pet-level safety page.
+            {getAccessSummary(qrStatus)} Active physical tags open this same
+            safety page.
           </p>
         </div>
         <ProfileAccessBadges

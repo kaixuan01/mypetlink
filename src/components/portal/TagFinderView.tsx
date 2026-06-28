@@ -4,7 +4,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { BrandLogo } from "@/components/brand/BrandLogo";
-import { PublicFinderProfile } from "@/components/marketing/PublicFinderProfile";
+import { QrSafetyPageView } from "@/components/marketing/QrSafetyPageView";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { activatePath } from "@/lib/routes";
@@ -41,7 +41,7 @@ export function TagFinderView({ initialResult, tagCode }: TagFinderViewProps) {
   if (result.state === "active") {
     return (
       <FinderShell>
-        <PublicFinderProfile pet={result.profile} />
+        <QrSafetyPageView pet={result.profile} />
       </FinderShell>
     );
   }

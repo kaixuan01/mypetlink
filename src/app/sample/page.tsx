@@ -21,7 +21,7 @@ export default async function SamplePage() {
           <PageHeader
             eyebrow="Sample experiences"
             title="See MyPetLink in two real situations"
-            description="See the friendly profile owners share, and the pet-level QR Safety Page a finder can open without depending on any physical tag status."
+            description="See the friendly profile owners share, and the QR Safety Page a finder can use to contact the owner quickly."
           />
           {profile.data ? (
             <div className="grid gap-5 lg:grid-cols-2">

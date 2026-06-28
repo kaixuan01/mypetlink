@@ -98,7 +98,7 @@ export function TagActivationFlow({
               variant="secondary"
               fullWidth
             >
-              View Tag Page
+              View Tag Scan Page
             </CTAButton>
             <CTAButton href={ownerRoutes.dashboard} variant="outline" fullWidth>
               Go to Dashboard
@@ -125,7 +125,7 @@ export function TagActivationFlow({
             icon="qr"
             fullWidth
           >
-            Open Safety Page
+            View Tag Scan Page
           </CTAButton>
         </ActivationCard>
       </ActivationShell>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -61,6 +61,11 @@ export function TagManagementPanel({
   const [lostTag, setLostTag] = useState<PetTag | null>(null);
   const [disableTagTarget, setDisableTagTarget] = useState<PetTag | null>(null);
   const [archiveTagTarget, setArchiveTagTarget] = useState<PetTag | null>(null);
+  const origin = useSyncExternalStore(
+    subscribeToOrigin,
+    getBrowserOrigin,
+    getServerOrigin
+  );
   const petMap = useMemo(
     () => new Map(pets.map((pet) => [pet.id, pet])),
     [pets]
@@ -181,6 +186,7 @@ export function TagManagementPanel({
               onDisable={() => setDisableTagTarget(tag)}
               onReportLost={() => setLostTag(tag)}
               onRestore={() => handleRestore(tag)}
+              origin={origin}
               tag={tag}
             />
           ))}
@@ -241,6 +247,7 @@ function TagCard({
   onDisable,
   onReportLost,
   onRestore,
+  origin,
   tag,
 }: {
   linkedPet?: Pet;
@@ -248,6 +255,7 @@ function TagCard({
   onDisable: () => void;
   onReportLost: () => void;
   onRestore: () => void;
+  origin: string;
   tag: PetTag;
 }) {
   const productName = tag.hasNfc
@@ -270,6 +278,8 @@ function TagCard({
         replacementFor: tag.id,
       })
     : "";
+  const scanPath = tagPath(tag.tagCode);
+  const scanUrl = origin ? `${origin}${scanPath}` : scanPath;
 
   return (
     <article className="brand-card rounded-[1.75rem] p-5" key={tag.id}>
@@ -292,7 +302,7 @@ function TagCard({
             Physical Tag Scan Link
           </p>
           <p className="mt-1 break-all text-sm font-bold text-pet-teal">
-            /t/{tag.tagCode}
+            {scanUrl}
           </p>
         </div>
         <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-[#e8f3ff] text-pet-teal">
@@ -325,14 +335,14 @@ function TagCard({
 
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
         <CTAButton
-          href={tagPath(tag.tagCode)}
+          href={scanPath}
           icon="qr"
           variant="secondary"
           target="_blank"
           rel="noopener noreferrer"
           fullWidth
         >
-          {isInactive || isArchived ? "View Inactive Tag" : "View Tag"}
+          View Tag Scan Page
         </CTAButton>
 
         {isArchived ? (
@@ -391,6 +401,18 @@ function TagCard({
       </div>
     </article>
   );
+}
+
+function subscribeToOrigin() {
+  return () => {};
+}
+
+function getBrowserOrigin() {
+  return window.location.origin;
+}
+
+function getServerOrigin() {
+  return "https://mypetlink.pages.dev";
 }
 
 function shouldShowTag(tag: PetTag, filter: TagFilter) {

@@ -789,13 +789,12 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
       {tab === "contact" ? (
         <FormSection
           title="Contact & Safety"
-          description="Settings for the pet-level QR Safety Page at /q/{safetyCode}. Active physical tags can open this page, but lost or disabled tags do not affect it. Your full address is never shown."
+          description="Choose what finders see on your pet's QR Safety Page. Your full address is never shown."
         >
           <div className="grid min-w-0 gap-4">
             <p className="rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted">
-              Lost Mode is different from reporting a physical tag as lost.
-              Lost Mode tells finders your pet is missing. Reporting a tag lost
-              disables only that tag.
+              Lost Mode tells finders your pet is missing and shows urgent
+              instructions on the QR Safety Page.
             </p>
             {mode === "edit" && currentPet ? (
               <div className="flex flex-col gap-3 rounded-[1.25rem] border border-pet-border bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
