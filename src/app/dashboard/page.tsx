@@ -15,7 +15,7 @@ import { getPetMoments } from "@/services/momentService";
 import { getPets } from "@/services/petService";
 import { getPetRecords } from "@/services/recordService";
 import { getAllTags, getOrders } from "@/services/tagService";
-import type { CareRecord, Pet, PetTag } from "@/types";
+import type { CareRecord, Pet, PetTag, TagOrder } from "@/types";
 
 export const metadata: Metadata = {
   title: "Owner Dashboard",
@@ -107,6 +107,7 @@ export default async function DashboardPage() {
                 <DashboardPetCard
                   key={pet.id}
                   nextDue={getNextDue(recordsByPet.get(pet.id) ?? [])}
+                  orders={orders.filter((order) => order.petId === pet.id)}
                   pet={pet}
                   tags={tags.filter((tag) => tag.petId === pet.id)}
                 />
@@ -271,13 +272,15 @@ function DashboardPetCard({
   pet,
   tags,
   nextDue,
+  orders,
 }: {
   pet: Pet;
   tags: PetTag[];
+  orders: TagOrder[];
   nextDue?: CareRecord;
 }) {
   const qrBadge = getQrStatusBadge(pet.qrStatus, pet.qrSafetyPath);
-  const tagBadge = getSmartTagStatusBadge(tags);
+  const tagBadge = getSmartTagStatusBadge(tags, orders);
 
   return (
     <article className="brand-card flex min-w-0 flex-col gap-4 rounded-[1.75rem] p-5">

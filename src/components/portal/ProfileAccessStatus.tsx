@@ -1,6 +1,10 @@
 import { Badge } from "@/components/ui/Badge";
 import { Icon, type IconName } from "@/components/ui/Icon";
-import type { PetTag, QrStatus } from "@/types";
+import {
+  getPetNfcTagStatus,
+  getPetSmartTagStatus,
+} from "@/lib/tagStatus";
+import type { PetTag, QrStatus, TagOrder } from "@/types";
 
 type AccessItem = {
   label: string;
@@ -8,8 +12,6 @@ type AccessItem = {
   icon: IconName;
   tone: "warm" | "mint" | "teal" | "soft" | "danger";
 };
-
-const pendingTagStatuses = ["Pending", "Preparing", "Delivered"];
 
 export function getQrStatusLabel(
   qrStatus: QrStatus = "active",
@@ -62,21 +64,13 @@ export function getQrStatusBadge(
   };
 }
 
-export function getSmartTagStatusBadge(tags: PetTag[] = []): AccessItem {
-  const linkedTags = tags.filter((tag) => tag.petId && !tag.isArchived);
-  const hasActiveTag = linkedTags.some((tag) => tag.status === "Active");
-  const hasPendingReplacement = linkedTags.some(
-    (tag) =>
-      tag.replacementForTagId &&
-      pendingTagStatuses.includes(tag.status)
-  );
-  const hasPendingTag = linkedTags.some((tag) =>
-    pendingTagStatuses.includes(tag.status)
-  );
-  const hasLostTag = linkedTags.some((tag) => tag.status === "Lost");
-  const hasDisabledTag = linkedTags.some((tag) => tag.status === "Disabled");
+export function getSmartTagStatusBadge(
+  tags: PetTag[] = [],
+  orders: TagOrder[] = []
+): AccessItem {
+  const status = getPetSmartTagStatus(tags, orders);
 
-  if (hasActiveTag) {
+  if (status === "active") {
     return {
       label: "Smart Tag Active",
       description: "A physical MyPetLink tag is active for this pet.",
@@ -85,58 +79,31 @@ export function getSmartTagStatusBadge(tags: PetTag[] = []): AccessItem {
     };
   }
 
-  if (hasPendingReplacement) {
-    return {
-      label: "Replacement ordered",
-      description: "A replacement tag order is in progress for this pet.",
-      icon: "tag",
-      tone: "warm",
-    };
-  }
-
-  if (hasPendingTag) {
+  if (status === "pending") {
     return {
       label: "Smart Tag Pending",
-      description: "A physical tag has been ordered or delivered but is not active yet.",
+      description:
+        "A physical tag order is in progress or waiting for activation.",
       icon: "tag",
       tone: "warm",
-    };
-  }
-
-  if (hasLostTag) {
-    return {
-      label: "Tag Lost",
-      description: "The linked tag has been reported lost.",
-      icon: "tag",
-      tone: "danger",
-    };
-  }
-
-  if (hasDisabledTag) {
-    return {
-      label: "Tag Disabled",
-      description: "The linked tag is disabled.",
-      icon: "tag",
-      tone: "soft",
     };
   }
 
   return {
-    label: "No smart tag yet",
+    label: "No Active Smart Tag",
     description: "No physical MyPetLink tag is active for this pet yet.",
     icon: "tag",
     tone: "soft",
   };
 }
 
-export function getNfcStatusBadge(tags: PetTag[] = []): AccessItem | null {
-  const nfcTags = tags.filter((tag) => tag.petId && tag.hasNfc && !tag.isArchived);
-  const hasActiveNfc = nfcTags.some((tag) => tag.status === "Active");
-  const hasPendingNfc = nfcTags.some((tag) =>
-    pendingTagStatuses.includes(tag.status)
-  );
+export function getNfcStatusBadge(
+  tags: PetTag[] = [],
+  orders: TagOrder[] = []
+): AccessItem | null {
+  const status = getPetNfcTagStatus(tags, orders);
 
-  if (hasActiveNfc) {
+  if (status === "active") {
     return {
       label: "NFC Active",
       description: "A QR + NFC smart tag is active for this pet.",
@@ -145,7 +112,7 @@ export function getNfcStatusBadge(tags: PetTag[] = []): AccessItem | null {
     };
   }
 
-  if (hasPendingNfc) {
+  if (status === "pending") {
     return {
       label: "NFC Pending",
       description: "A QR + NFC smart tag exists but is not active yet.",
@@ -159,6 +126,7 @@ export function getNfcStatusBadge(tags: PetTag[] = []): AccessItem | null {
 
 function getAccessItems({
   finderProfileUrl,
+  orders,
   qrStatus = "active",
   showNfc = true,
   tags,
@@ -166,15 +134,16 @@ function getAccessItems({
   finderProfileUrl?: string;
   qrStatus?: QrStatus;
   showNfc?: boolean;
+  orders?: TagOrder[];
   tags?: PetTag[];
 }): AccessItem[] {
   const items = [getQrStatusBadge(qrStatus, finderProfileUrl)];
 
   if (tags) {
-    items.push(getSmartTagStatusBadge(tags));
+    items.push(getSmartTagStatusBadge(tags, orders));
   }
 
-  const nfcBadge = showNfc && tags ? getNfcStatusBadge(tags) : null;
+  const nfcBadge = showNfc && tags ? getNfcStatusBadge(tags, orders) : null;
 
   if (nfcBadge) {
     items.push(nfcBadge);
@@ -199,18 +168,26 @@ export function ProfileAccessBadges({
   className = "",
   finderProfileUrl,
   qrStatus = "active",
+  orders,
   scroll = false,
   showNfc = true,
   tags,
 }: {
   className?: string;
   finderProfileUrl?: string;
+  orders?: TagOrder[];
   qrStatus?: QrStatus;
   scroll?: boolean;
   showNfc?: boolean;
   tags?: PetTag[];
 }) {
-  const items = getAccessItems({ finderProfileUrl, qrStatus, showNfc, tags });
+  const items = getAccessItems({
+    finderProfileUrl,
+    orders,
+    qrStatus,
+    showNfc,
+    tags,
+  });
 
   return (
     <div
@@ -232,15 +209,17 @@ export function ProfileAccessBadges({
 export function ProfileAccessStatus({
   compact = false,
   finderProfileUrl,
+  orders,
   qrStatus = "active",
   tags,
 }: {
   compact?: boolean;
   finderProfileUrl?: string;
+  orders?: TagOrder[];
   qrStatus?: QrStatus;
   tags?: PetTag[];
 }) {
-  const items = getAccessItems({ finderProfileUrl, qrStatus, tags });
+  const items = getAccessItems({ finderProfileUrl, orders, qrStatus, tags });
 
   return (
     <section className="brand-card rounded-[1.75rem] p-5">
@@ -257,6 +236,7 @@ export function ProfileAccessStatus({
         <ProfileAccessBadges
           className="sm:justify-end"
           finderProfileUrl={finderProfileUrl}
+          orders={orders}
           qrStatus={qrStatus}
           tags={tags}
         />

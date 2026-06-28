@@ -5,14 +5,18 @@ import { CTAButton } from "@/components/ui/CTAButton";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ownerRoutes } from "@/lib/routes";
 import { getPets } from "@/services/petService";
-import { getAllTags } from "@/services/tagService";
+import { getAllTags, getOrders } from "@/services/tagService";
 
 export const metadata: Metadata = {
   title: "MyPetLink Smart Tags",
 };
 
 export default async function TagsPage() {
-  const [pets, tags] = await Promise.all([getPets(), getAllTags()]);
+  const [pets, tags, orders] = await Promise.all([
+    getPets(),
+    getAllTags(),
+    getOrders(),
+  ]);
   const firstPet = pets.data[0];
 
   return (
@@ -30,7 +34,11 @@ export default async function TagsPage() {
         }
       />
 
-      <TagManagementPanel initialTags={tags.data} pets={pets.data} />
+      <TagManagementPanel
+        initialOrders={orders.data}
+        initialTags={tags.data}
+        pets={pets.data}
+      />
     </AppLayout>
   );
 }

@@ -1,6 +1,13 @@
 import { mockOrders } from "@/data/mockOrders";
 import { mockTags } from "@/data/mockTags";
 import { formatOrderNumber } from "@/lib/orders";
+import {
+  canActivateTagFromOwnerPortal,
+  inactiveTagStatuses,
+  isActivePhysicalTag,
+  isInactivePhysicalTag,
+  isPendingPhysicalTag,
+} from "@/lib/tagStatus";
 import { generateTagCode, resolveTagCodeAlias } from "@/lib/tagCodes";
 import {
   mockDelay,
@@ -21,13 +28,6 @@ import type {
 
 const TAG_STORAGE_KEY = "mypetlink_tags";
 const ORDER_STORAGE_KEY = "mypetlink_orders";
-
-const disabledStatuses: TagStatus[] = [
-  "Disabled",
-  "Lost",
-  "Replaced",
-  "Archived",
-];
 
 function normalizeTag(tag: PetTag): PetTag {
   return {
@@ -285,7 +285,7 @@ export async function getFinderState(tagCode: string): Promise<FinderResult> {
     return { state: "not-found", tagCode: normalized };
   }
 
-  if (tag.isArchived || disabledStatuses.includes(tag.status)) {
+  if (isInactivePhysicalTag(tag)) {
     return {
       state: "inactive",
       tagCode: tag.tagCode,
@@ -296,6 +296,24 @@ export async function getFinderState(tagCode: string): Promise<FinderResult> {
 
   if (tag.status === "Unassigned" || !tag.petId) {
     return { state: "unassigned", tagCode: tag.tagCode };
+  }
+
+  if (isPendingPhysicalTag(tag)) {
+    return {
+      state: "pending",
+      tagCode: tag.tagCode,
+      status: tag.status,
+      petId: tag.petId,
+    };
+  }
+
+  if (!isActivePhysicalTag(tag)) {
+    return {
+      state: "inactive",
+      tagCode: tag.tagCode,
+      status: inactiveTagStatuses.includes(tag.status) ? tag.status : "Disabled",
+      isArchived: tag.isArchived,
+    };
   }
 
   const pets = await getPets();
@@ -327,7 +345,7 @@ export async function activateTag(tagCode: string, petId: string) {
     (item) => item.tagCode.toLowerCase() === lookupTagCode.toLowerCase()
   );
 
-  if (!tag) {
+  if (!tag || !canActivateTagFromOwnerPortal(tag)) {
     return mockResponse<PetTag | null>(null);
   }
 

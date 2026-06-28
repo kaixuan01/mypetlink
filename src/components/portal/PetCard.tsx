@@ -11,10 +11,11 @@ import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon } from "@/components/ui/Icon";
 import { PetAvatar } from "@/components/ui/PetAvatar";
 import { ownerRoutes } from "@/lib/routes";
-import type { Pet, PetTag } from "@/types";
+import type { Pet, PetTag, TagOrder } from "@/types";
 
 type PetCardProps = {
   pet: Pet;
+  orders?: TagOrder[];
   tags?: PetTag[];
 };
 
@@ -27,10 +28,10 @@ const moreLinks = (petId: string) => [
   { label: "Order tag", href: ownerRoutes.petTagOrder(petId) },
 ];
 
-export function PetCard({ pet, tags = [] }: PetCardProps) {
+export function PetCard({ pet, orders = [], tags = [] }: PetCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const qrBadge = getQrStatusBadge(pet.qrStatus, pet.qrSafetyPath);
-  const tagBadge = getSmartTagStatusBadge(tags);
+  const tagBadge = getSmartTagStatusBadge(tags, orders);
 
   return (
     <article className="brand-card flex flex-col rounded-[1.75rem] p-5">

@@ -16,7 +16,7 @@ type TagFinderViewProps = {
   tagCode: string;
 };
 
-// Renders the four finder states for a scanned physical /t/{tagCode}. Active
+// Renders the finder states for a scanned physical /t/{tagCode}. Active
 // tags show pet QR Safety Page content; inactive tags stay safely inactive.
 // The page passes a build-time result; this component re-checks the live tag
 // state on mount so a tag activated, disabled, or reported lost in this browser
@@ -65,6 +65,20 @@ export function TagFinderView({ initialResult, tagCode }: TagFinderViewProps) {
             Activate Tag
           </CTAButton>
         </FinderCard>
+      </FinderShell>
+    );
+  }
+
+  if (result.state === "pending") {
+    return (
+      <FinderShell>
+        <FinderCard
+          description="This physical tag is still being prepared by its owner."
+          icon="tag"
+          tagCode={result.tagCode}
+          title="This tag is not active yet"
+          tone="soft"
+        />
       </FinderShell>
     );
   }

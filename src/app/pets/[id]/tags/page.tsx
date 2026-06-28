@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { staticPetIdParams } from "@/data/staticRouteParams";
 import { ownerRoutes } from "@/lib/routes";
 import { getPetById, getPets } from "@/services/petService";
-import { getPetTags } from "@/services/tagService";
+import { getOrders, getPetTags } from "@/services/tagService";
 
 type PetTagsPageProps = {
   params: Promise<{ id: string }>;
@@ -30,25 +30,31 @@ export default async function PetTagsPage({ params }: PetTagsPageProps) {
   if (!pet.data) {
     notFound();
   }
+  const currentPet = pet.data;
 
-  const [pets, tags] = await Promise.all([getPets(), getPetTags(pet.data.id)]);
+  const [pets, tags, orders] = await Promise.all([
+    getPets(),
+    getPetTags(currentPet.id),
+    getOrders(),
+  ]);
 
   return (
     <AppLayout>
       <PageHeader
         eyebrow="Smart tags"
-        title={`${pet.data.name}'s MyPetLink Smart Tags`}
+        title={`${currentPet.name}'s MyPetLink Smart Tags`}
         description="One pet can have multiple tags for different collars, replacements, or upgrades."
         action={
-          <CTAButton href={ownerRoutes.petTagOrder(pet.data.id)} icon="tag">
+          <CTAButton href={ownerRoutes.petTagOrder(currentPet.id)} icon="tag">
             Order Physical Tag
           </CTAButton>
         }
       />
 
       <TagManagementPanel
+        initialOrders={orders.data.filter((order) => order.petId === currentPet.id)}
         initialTags={tags.data}
-        petId={pet.data.id}
+        petId={currentPet.id}
         pets={pets.data}
       />
     </AppLayout>

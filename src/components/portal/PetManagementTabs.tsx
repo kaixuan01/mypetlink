@@ -20,9 +20,17 @@ import {
   type OwnerSettings,
 } from "@/lib/ownerSettings";
 import { getPetProfileTheme } from "@/lib/petProfileThemes";
-import { ownerRoutes } from "@/lib/routes";
+import { ownerRoutes, tagPath } from "@/lib/routes";
+import { getTagScanDisplay, isActivePhysicalTag } from "@/lib/tagStatus";
 import { getPetById, updatePetLostMode } from "@/services/petService";
-import type { CareRecord, Pet, PetLostMode, PetMoment, PetTag } from "@/types";
+import type {
+  CareRecord,
+  Pet,
+  PetLostMode,
+  PetMoment,
+  PetTag,
+  TagOrder,
+} from "@/types";
 
 type TabId = "overview" | "records" | "moments" | "tag" | "privacy";
 
@@ -30,6 +38,7 @@ type PetManagementTabsProps = {
   pet: Pet;
   records: CareRecord[];
   moments: PetMoment[];
+  orders?: TagOrder[];
   tags: PetTag[];
 };
 
@@ -45,6 +54,7 @@ export function PetManagementTabs({
   pet,
   records,
   moments,
+  orders = [],
   tags,
 }: PetManagementTabsProps) {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
@@ -82,6 +92,7 @@ export function PetManagementTabs({
           records={records}
           moments={moments}
           onPetChange={setCurrentPet}
+          orders={orders}
           tags={tags}
         />
       ) : null}
@@ -98,6 +109,7 @@ export function PetManagementTabs({
         <TagManagementPanel
           pets={[currentPet]}
           initialTags={tags}
+          initialOrders={orders}
           petId={currentPet.id}
         />
       ) : null}
@@ -112,26 +124,33 @@ function OverviewTab({
   records,
   moments,
   onPetChange,
+  orders,
   tags,
 }: {
   pet: Pet;
   records: CareRecord[];
   moments: PetMoment[];
   onPetChange: (pet: Pet) => void;
+  orders: TagOrder[];
   tags: PetTag[];
 }) {
   const recentRecords = records.slice(0, 3);
   const recentMoments = moments.slice(0, 3);
   const currentTags = tags.filter((tag) => !tag.isArchived);
-  const activeTag = currentTags.find((tag) => tag.status === "Active");
+  const activeTag = currentTags.find(isActivePhysicalTag);
   const origin = useSyncExternalStore(
     subscribeToOrigin,
     getBrowserOrigin,
     getServerOrigin
   );
+  const activeTagScanDisplay = activeTag ? getTagScanDisplay(activeTag) : null;
+  const activeTagScanPath = activeTag ? tagPath(activeTag.tagCode) : "";
+  const activeTagScanUrl =
+    activeTag && activeTagScanPath ? `${origin}${activeTagScanPath}` : "";
+  const [copyMessage, setCopyMessage] = useState("");
   const theme = getPetProfileTheme(pet.profileTheme);
   const qrBadge = getQrStatusBadge(pet.qrStatus, pet.qrSafetyPath);
-  const smartTagBadge = getSmartTagStatusBadge(tags);
+  const smartTagBadge = getSmartTagStatusBadge(tags, orders);
   const [ownerSettings, setOwnerSettings] =
     useState<OwnerSettings>(defaultOwnerSettings);
   const effectiveContact = getEffectivePetContact(pet, ownerSettings);
@@ -143,6 +162,21 @@ function OverviewTab({
 
     return () => window.clearTimeout(timer);
   }, []);
+
+  async function handleCopyActiveTagLink() {
+    if (!activeTagScanUrl) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(activeTagScanUrl);
+      setCopyMessage("Tag scan link copied.");
+    } catch {
+      setCopyMessage("Copy unavailable. Select and copy the link.");
+    }
+
+    window.setTimeout(() => setCopyMessage(""), 2500);
+  }
 
   return (
     <div className="grid min-w-0 gap-5 lg:grid-cols-2">
@@ -343,12 +377,27 @@ function OverviewTab({
             <p className="mt-3 text-xs font-bold uppercase text-pet-muted">
               Physical Tag Scan Link
             </p>
-            <p className="mt-1 break-all text-sm font-bold text-pet-teal">
-              {origin}/t/{activeTag.tagCode}
-            </p>
-            {activeTag.lastScannedAt ? (
+            <div className="mt-1 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+              <p className="min-w-0 break-all text-sm font-bold text-pet-teal">
+                {activeTagScanUrl}
+              </p>
+              <button
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-pet-border bg-white px-4 py-2 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
+                onClick={handleCopyActiveTagLink}
+                type="button"
+              >
+                <Icon name="copy" className="h-4 w-4" />
+                Copy
+              </button>
+            </div>
+            {copyMessage ? (
+              <p className="mt-2 text-xs font-bold text-pet-sage">
+                {copyMessage}
+              </p>
+            ) : null}
+            {activeTagScanDisplay ? (
               <p className="mt-2 text-sm text-pet-muted">
-                Last scanned {activeTag.lastScannedAt}
+                {activeTagScanDisplay.label}: {activeTagScanDisplay.value}
               </p>
             ) : null}
           </div>

@@ -18,6 +18,10 @@ type TagActivationFlowProps = {
   tagCode: string;
 };
 
+function getPreferredPetId(result: FinderResult) {
+  return result.state === "pending" ? result.petId ?? "" : "";
+}
+
 // Scan -> /t/{tagCode} (Unassigned) -> here. Sign in, pick the pet, confirm the
 // binding, see success. The tag code stays in the URL the whole time so an
 // unauthenticated owner is never sent back to re-scan or dropped on the
@@ -29,7 +33,9 @@ export function TagActivationFlow({
   const [result, setResult] = useState(initialResult);
   const [authed, setAuthed] = useState(() => isOwnerAuthenticated());
   const [pets, setPets] = useState<Pet[]>([]);
-  const [selectedPetId, setSelectedPetId] = useState("");
+  const [selectedPetId, setSelectedPetId] = useState(() =>
+    getPreferredPetId(initialResult)
+  );
   const [submitting, setSubmitting] = useState(false);
   const [activatedPet, setActivatedPet] = useState<Pet | null>(null);
 
@@ -39,20 +45,27 @@ export function TagActivationFlow({
     getFinderState(tagCode).then((next) => {
       if (active) {
         setResult(next);
+        setSelectedPetId((current) => current || getPreferredPetId(next));
       }
     });
 
     getPets().then((response) => {
       if (active) {
         setPets(response.data);
-        setSelectedPetId((current) => current || response.data[0]?.id || "");
+        setSelectedPetId(
+          (current) =>
+            current ||
+            getPreferredPetId(initialResult) ||
+            response.data[0]?.id ||
+            ""
+        );
       }
     });
 
     return () => {
       active = false;
     };
-  }, [tagCode]);
+  }, [initialResult, tagCode]);
 
   function handleSignIn() {
     loginMockOwner();
@@ -146,6 +159,20 @@ export function TagActivationFlow({
     );
   }
 
+  if (result.state === "pending" && result.status !== "Delivered") {
+    return (
+      <ActivationShell>
+        <ActivationCard
+          description="This physical tag is still being prepared. Activation will be available after the tag is delivered."
+          icon="tag"
+          tagCode={result.tagCode}
+          title="This tag is not active yet"
+          tone="soft"
+        />
+      </ActivationShell>
+    );
+  }
+
   if (result.state === "not-found") {
     return (
       <ActivationShell>
@@ -186,10 +213,18 @@ export function TagActivationFlow({
   return (
     <ActivationShell>
       <ActivationCard
-        description="Choose which pet this tag belongs to. You can change this later from Smart Tags."
+        description={
+          result.state === "pending"
+            ? "This delivered tag is ready to activate. Confirm which pet it belongs to."
+            : "Choose which pet this tag belongs to. You can change this later from Smart Tags."
+        }
         icon="tag"
         tagCode={tagCode}
-        title="Activate your MyPetLink Tag"
+        title={
+          result.state === "pending"
+            ? "Activate your delivered tag"
+            : "Activate your MyPetLink Tag"
+        }
         tone="teal"
       >
         <div className="grid gap-3 text-left">

@@ -317,6 +317,7 @@ export type AdminDashboard = {
 export type FinderResult =
   | { state: "active"; tagCode: string; profile: PublicPetProfile }
   | { state: "unassigned"; tagCode: string }
+  | { state: "pending"; tagCode: string; status: TagStatus; petId?: string }
   | { state: "inactive"; tagCode: string; status: TagStatus; isArchived?: boolean }
   | { state: "not-found"; tagCode: string };
 

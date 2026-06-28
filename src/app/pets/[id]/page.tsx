@@ -10,7 +10,7 @@ import { ownerRoutes } from "@/lib/routes";
 import { getPetMoments } from "@/services/momentService";
 import { getPetById } from "@/services/petService";
 import { getPetRecords } from "@/services/recordService";
-import { getPetTags } from "@/services/tagService";
+import { getOrders, getPetTags } from "@/services/tagService";
 
 type PetDetailPageProps = {
   params: Promise<{ id: string }>;
@@ -45,6 +45,8 @@ export default async function PetDetailPage({ params }: PetDetailPageProps) {
   const records = await getPetRecords(pet.id);
   const tags = await getPetTags(pet.id);
   const moments = await getPetMoments(pet.id);
+  const orders = await getOrders();
+  const petOrders = orders.data.filter((order) => order.petId === pet.id);
 
   return (
     <AppLayout>
@@ -78,6 +80,7 @@ export default async function PetDetailPage({ params }: PetDetailPageProps) {
         <ProfileAccessBadges
           className="mt-4"
           finderProfileUrl={pet.qrSafetyPath}
+          orders={petOrders}
           qrStatus={pet.qrStatus}
           scroll
           tags={tags.data}
@@ -88,6 +91,7 @@ export default async function PetDetailPage({ params }: PetDetailPageProps) {
         pet={pet}
         records={records.data}
         moments={moments.data}
+        orders={petOrders}
         tags={tags.data}
       />
     </AppLayout>

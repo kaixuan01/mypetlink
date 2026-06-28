@@ -4,16 +4,20 @@ import { PetCard } from "@/components/portal/PetCard";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { ownerRoutes } from "@/lib/routes";
 import { getPets } from "@/services/petService";
-import { getAllTags } from "@/services/tagService";
+import { getAllTags, getOrders } from "@/services/tagService";
 
 export const metadata: Metadata = {
   title: "My Pets",
 };
 
 export default async function PetsPage() {
-  const pets = await getPets();
-  const tags = await getAllTags();
+  const [pets, tags, orders] = await Promise.all([
+    getPets(),
+    getAllTags(),
+    getOrders(),
+  ]);
 
   const tagsByPet = new Map<string, typeof tags.data>();
   for (const tag of tags.data) {
@@ -30,7 +34,7 @@ export default async function PetsPage() {
         title="Your pets at a glance"
         description="A quick overview of every pet. Tap Manage to open a pet's records, moments, smart tags, and settings."
         action={
-          <CTAButton href="/pets/new" icon="plus">
+          <CTAButton href={ownerRoutes.petNew} icon="plus">
             Add Pet
           </CTAButton>
         }
@@ -41,6 +45,7 @@ export default async function PetsPage() {
             return (
               <PetCard
                 key={pet.id}
+                orders={orders.data.filter((order) => order.petId === pet.id)}
                 pet={pet}
                 tags={tagsByPet.get(pet.id) ?? []}
               />
@@ -50,7 +55,7 @@ export default async function PetsPage() {
           <EmptyState
             title="No pets yet"
             description="Create your first profile to generate a safe QR page."
-            actionHref="/pets/new"
+            actionHref={ownerRoutes.petNew}
             actionLabel="Add Pet"
           />
         )}
