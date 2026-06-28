@@ -17,8 +17,8 @@ type ManualPaymentPanelProps = {
 
 // Shared Manual QR Payment UI used both right after placing an order and when
 // resuming a Pending Payment order from Orders / order details. The system
-// generates the payment reference (the order number); the owner supplies their
-// own bank / eWallet transaction reference and an optional receipt.
+// generates the payment reference (the order number); the owner uploads a
+// receipt or screenshot and may add their bank / eWallet transaction ID.
 export function ManualPaymentPanel({
   order,
   petName,
@@ -45,9 +45,9 @@ export function ManualPaymentPanel({
   }
 
   async function handleSubmit() {
-    if (!transactionReference.trim() && !proofName.trim()) {
+    if (!proofName.trim()) {
       setError(
-        "Enter your bank or eWallet transaction reference, or upload a receipt, so we can verify your payment."
+        "Upload a receipt or screenshot so we can verify your payment."
       );
       return;
     }
@@ -114,13 +114,20 @@ export function ManualPaymentPanel({
           </div>
 
           <div className="mt-3 rounded-[1.25rem] bg-white p-3">
-            <p className="text-xs font-extrabold uppercase text-pet-muted">
-              Payment reference
-            </p>
+            <label
+              className="text-xs font-extrabold uppercase text-pet-muted"
+              htmlFor={`payment-reference-${order.id}`}
+            >
+              Payment Reference
+            </label>
             <div className="mt-1 flex items-center justify-between gap-2">
-              <code className="min-w-0 break-all text-sm font-black text-pet-ink">
-                {paymentReference}
-              </code>
+              <input
+                className="min-w-0 flex-1 rounded-full border border-pet-border bg-pet-cream px-3 py-2 text-sm font-black text-pet-ink"
+                id={`payment-reference-${order.id}`}
+                readOnly
+                type="text"
+                value={paymentReference}
+              />
               <button
                 className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border border-pet-border bg-white px-3 text-xs font-bold text-pet-ink transition hover:bg-pet-cream"
                 onClick={handleCopyReference}
@@ -154,32 +161,43 @@ export function ManualPaymentPanel({
 
           <label className="grid gap-2">
             <span className="text-sm font-bold text-pet-ink">
-              Bank/eWallet transaction reference
-            </span>
-            <input
-              className="brand-input"
-              onChange={(event) => setTransactionReference(event.target.value)}
-              placeholder="e.g. DuitNow transaction ID"
-              type="text"
-              value={transactionReference}
-            />
-          </label>
-
-          <label className="grid gap-2">
-            <span className="text-sm font-bold text-pet-ink">
               Upload receipt or screenshot
             </span>
             <input
               accept="image/*,application/pdf"
               className="block w-full text-sm text-pet-muted file:mr-3 file:rounded-full file:border-0 file:bg-pet-teal file:px-4 file:py-2 file:text-sm file:font-bold file:text-white"
-              onChange={(event) => setProofName(event.target.files?.[0]?.name ?? "")}
+              onChange={(event) => {
+                setProofName(event.target.files?.[0]?.name ?? "");
+                setError("");
+              }}
+              required
               type="file"
             />
+            <span className="text-xs font-semibold leading-5 text-pet-muted">
+              Upload a payment receipt or screenshot so we can verify your
+              order.
+            </span>
             {proofName ? (
               <span className="text-xs font-semibold text-pet-sage">
                 Attached: {proofName}
               </span>
             ) : null}
+          </label>
+
+          <label className="grid gap-2">
+            <span className="text-sm font-bold text-pet-ink">
+              Bank/eWallet transaction ID (optional)
+            </span>
+            <input
+              className="brand-input"
+              onChange={(event) => setTransactionReference(event.target.value)}
+              placeholder="Optional, e.g. DuitNow transaction ID"
+              type="text"
+              value={transactionReference}
+            />
+            <span className="text-xs font-semibold leading-5 text-pet-muted">
+              Add this if it appears on your payment receipt.
+            </span>
           </label>
 
           <label className="grid gap-2">

@@ -87,7 +87,7 @@ export function getPaymentStatusLabel(order: TagOrder) {
 
 export function getOrderNextStep(order: TagOrder) {
   if (order.status === "Pending Payment") {
-    return "Complete Manual QR Payment and submit your payment reference.";
+    return "Complete Manual QR Payment and upload your receipt or screenshot.";
   }
 
   if (order.status === "Payment Submitted") {

@@ -179,9 +179,10 @@ type OrderPaymentProof = {
   paymentProofName?: string;
 };
 
-// Phase 1 manual payment: record the owner's payment reference / receipt and
-// move the order to "Payment Submitted" for manual verification. The order is
-// never marked Payment Confirmed automatically.
+// Phase 1 manual payment: record the owner's receipt / screenshot file name and
+// optional bank or eWallet transaction ID, then move the order to
+// "Payment Submitted" for manual verification. The order is never marked
+// Payment Confirmed automatically.
 export async function submitOrderPayment(
   orderId: string,
   proof: OrderPaymentProof

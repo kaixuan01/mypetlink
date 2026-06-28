@@ -54,6 +54,7 @@ export function OrderDetailView({
   const [order, setOrder] = useState(initialOrder);
   const [tags, setTags] = useState(initialTags);
   const [downloadMessage, setDownloadMessage] = useState("");
+  const [paymentMessage, setPaymentMessage] = useState("");
   const petMap = useMemo(
     () => new Map(pets.map((pet) => [pet.id, pet])),
     [pets]
@@ -141,6 +142,12 @@ export function OrderDetailView({
         </div>
       ) : null}
 
+      {paymentMessage ? (
+        <div className="rounded-[1.25rem] border border-pet-mint bg-[#e8f8f0] px-4 py-3 text-sm font-bold text-pet-sage">
+          {paymentMessage}
+        </div>
+      ) : null}
+
       <section className="brand-card rounded-[1.75rem] p-5 sm:p-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
@@ -186,7 +193,12 @@ export function OrderDetailView({
         <ManualPaymentPanel
           order={order}
           petName={petName}
-          onSubmitted={(updated) => setOrder(updated)}
+          onSubmitted={(updated) => {
+            setOrder(updated);
+            setPaymentMessage(
+              "Payment proof submitted. We will verify your payment and prepare the tag."
+            );
+          }}
         />
       ) : null}
 
@@ -259,7 +271,7 @@ export function OrderDetailView({
             />
             <DetailItem label="Payment status" value={getPaymentStatusLabel(order)} />
             <DetailItem
-              label="Transaction reference"
+              label="Bank/eWallet transaction ID"
               value={order.paymentReference ?? "Not submitted yet"}
             />
             <DetailItem

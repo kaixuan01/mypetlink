@@ -249,7 +249,7 @@ function OrderInlineDetail({
         value={order.paymentMethod ?? "Manual QR Payment"}
       />
       <CompactItem
-        label="Transaction reference"
+        label="Bank/eWallet transaction ID"
         value={order.paymentReference ?? "Not submitted yet"}
       />
       <CompactItem
