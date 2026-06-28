@@ -34,7 +34,6 @@ import { isOwnerAuthenticated } from "@/services/authService";
 import { getPublicPetMoments } from "@/services/momentService";
 import { getPublicPetProfileByPublicCode } from "@/services/petService";
 import { getPetRecords } from "@/services/recordService";
-import { isPetReportedLost } from "@/services/tagService";
 import type { CareRecord, Pet, PetMoment, PublicPetProfile } from "@/types";
 
 type PublicSharePetProfileProps = {
@@ -75,7 +74,9 @@ export function PublicSharePetProfile({
   const [profile, setProfile] = useState(initialProfile);
   const [moments, setMoments] = useState(initialMoments);
   const [records, setRecords] = useState(initialRecords);
-  const [lostMode, setLostMode] = useState(initialLostMode);
+  const [lostMode, setLostMode] = useState(
+    initialLostMode || initialProfile.lostModeEnabled
+  );
   const [ownerSettings, setOwnerSettings] =
     useState<OwnerSettings>(defaultOwnerSettings);
   const [activeTab, setActiveTab] = useState<TabId>("about");
@@ -102,6 +103,7 @@ export function PublicSharePetProfile({
   const canWhatsapp = visibility.showWhatsapp && Boolean(whatsappE164);
   const canCall = visibility.showPhone && Boolean(phoneE164);
   const canContact = canWhatsapp || canCall;
+  const lostModeDetails = profile.lostMode;
 
   const publicMoments = visibility.showMoments
     ? moments.filter(
@@ -131,10 +133,9 @@ export function PublicSharePetProfile({
         const nextProfile = profileResponse.data ?? initialProfile;
         setProfile(nextProfile);
 
-        const [momentsResponse, recordsResponse, lost] = await Promise.all([
+        const [momentsResponse, recordsResponse] = await Promise.all([
           getPublicPetMoments(nextProfile.id),
           getPetRecords(nextProfile.id),
-          isPetReportedLost(nextProfile.id),
         ]);
 
         if (!active) {
@@ -143,7 +144,7 @@ export function PublicSharePetProfile({
 
         setMoments(momentsResponse.data);
         setRecords(recordsResponse.data);
-        setLostMode(lost);
+        setLostMode(nextProfile.lostModeEnabled);
       }
     );
 
@@ -263,17 +264,39 @@ export function PublicSharePetProfile({
           </div>
         </section>
 
-        {/* Lost mode is the one time this shareable page turns finder-first. */}
-        {lostMode && canContact ? (
+        {/* Lost Mode is the one time this shareable page turns finder-first. */}
+        {lostMode ? (
           <section className="mt-4 rounded-[1.5rem] border-2 border-pet-coral bg-[#fff1ee] p-5 text-center">
             <div className="flex items-center justify-center gap-2 text-sm font-black uppercase text-pet-coral">
               <Icon name="shield" className="h-4 w-4" />
-              {profile.name} is reported lost
+              {profile.name} is currently missing
             </div>
             <p className="mt-2 text-sm font-semibold leading-6 text-pet-ink">
-              If you have seen or found {profile.name}, please contact the owner
-              right away.
+              {lostModeDetails.lostMessage ||
+                `If you have seen ${profile.name}, please contact the owner.`}
             </p>
+            <div className="mt-4 grid gap-2 text-left text-xs font-bold text-pet-muted sm:grid-cols-2">
+              {lostModeDetails.lastSeenArea ? (
+                <span className="rounded-[1rem] bg-white px-4 py-3">
+                  Last seen: {lostModeDetails.lastSeenArea}
+                </span>
+              ) : null}
+              {lostModeDetails.lastSeenDateTime ? (
+                <span className="rounded-[1rem] bg-white px-4 py-3">
+                  Time: {lostModeDetails.lastSeenDateTime}
+                </span>
+              ) : null}
+              {lostModeDetails.rewardNote ? (
+                <span className="rounded-[1rem] bg-white px-4 py-3 sm:col-span-2">
+                  {lostModeDetails.rewardNote}
+                </span>
+              ) : null}
+              {lostModeDetails.extraContactInstruction ? (
+                <span className="rounded-[1rem] bg-white px-4 py-3 sm:col-span-2">
+                  {lostModeDetails.extraContactInstruction}
+                </span>
+              ) : null}
+            </div>
             <div className="mt-4 grid gap-3">
               {canWhatsapp ? (
                 <CTAButton
@@ -298,6 +321,17 @@ export function PublicSharePetProfile({
                   I found this pet - Call Owner
                 </CTAButton>
               ) : null}
+              <CTAButton
+                href={profile.finderProfileUrl}
+                icon="qr"
+                target="_blank"
+                rel="noopener noreferrer"
+                variant="outline"
+                fullWidth
+                className="min-h-12 bg-white"
+              >
+                Open QR Safety Page
+              </CTAButton>
             </div>
           </section>
         ) : null}

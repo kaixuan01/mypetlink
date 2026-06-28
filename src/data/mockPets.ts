@@ -32,6 +32,15 @@ export const mockPets: Pet[] = [
       "Friendly but nervous around traffic. Please contact the owner before moving him far from the found area.",
     emergencyNote:
       "If Milo looks distressed, keep him shaded and avoid feeding unfamiliar treats.",
+    lostModeEnabled: false,
+    lostMode: {
+      lastSeenArea: "Petaling Jaya, Selangor",
+      lastSeenDateTime: "",
+      lostMessage:
+        "Milo is currently missing. If you have found Milo, please contact the owner immediately.",
+      rewardNote: "",
+      extraContactInstruction: "",
+    },
     owner: {
       name: "Milo's owner",
       phone: "+60123456789",
@@ -87,6 +96,15 @@ export const mockPets: Pet[] = [
     safetyNote:
       "Shy with strangers. Please call first and keep her in a quiet, enclosed area if possible.",
     emergencyNote: "Indoor cat. May hide under cars or drains when frightened.",
+    lostModeEnabled: false,
+    lostMode: {
+      lastSeenArea: "Subang Jaya, Selangor",
+      lastSeenDateTime: "",
+      lostMessage:
+        "Luna is currently missing. If you have found Luna, please contact the owner immediately.",
+      rewardNote: "",
+      extraContactInstruction: "",
+    },
     owner: {
       name: "Luna's owner",
       phone: "+60123456789",

@@ -157,8 +157,8 @@ How status maps to what a scan shows (`getFinderState` in `tagService.ts`):
 | -------------------------------------------------- | ------------- | -------------------------------- |
 | No tag with that code                              | `not-found`   | Branded "Tag not found"          |
 | `status === "Unassigned"` **or** no `petId`        | `unassigned`  | Activation prompt                |
-| `status` in `Disabled / Lost / Replaced`           | `inactive`    | Safe "not active" message        |
-| Bound pet missing                                  | `inactive`    | Safe "not active" message        |
+| `status` in `Disabled / Lost / Replaced` or archived | `inactive`    | Safe "no longer active" message  |
+| Bound pet missing                                  | `inactive`    | Safe "no longer active" message  |
 | Otherwise (has `petId`, not disabled)              | `active`      | Public pet profile               |
 
 Note: owner-ordered tags are created with a `petId` already set (status
@@ -195,11 +195,14 @@ Note: owner-ordered tags are created with a `petId` already set (status
    - **`/p/{petSlug}-{publicCode}` = Public Share Profile.** Friendly, IG-style,
      shareable. Primary action is *Share*. Tabs: About / Moments / Timeline. No
      emergency CTAs, no "I found this pet", no "Send Found Location", no safety-
-     page wording — except the **Lost Mode** banner when a bound tag is `Lost`.
+     page wording — except the **Lost Mode** banner when a pet-level `lostModeEnabled` is on.
    - **`/t/{tagCode}` = QR/NFC Safety Profile.** Finder-first and emergency-
      focused (the page a stranger sees after scanning the physical tag). Big
      "I found this pet - Contact Owner", WhatsApp / Call / Send Found Location,
      emergency + safety notes. Minimal lifestyle content.
+   - **Lost tag is not Lost Mode.** `tag.status === "Lost"` means that physical
+     tag is inactive and must not show owner contact details. Pet Lost Mode is
+     controlled by `pet.lostModeEnabled`.
    See `PUBLIC_PROFILE_ROUTING.md` §2 (safety page) and §4 (share page). A past
    change wrongly made the share page finder-first; do not reintroduce that.
 10. **No owner-portal QR Safety page.** There is no `/pets/{id}/qr` route and no

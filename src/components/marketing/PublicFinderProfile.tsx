@@ -35,7 +35,11 @@ export function PublicFinderProfile({ pet }: PublicFinderProfileProps) {
   const ownerDisplayName = visibility.showOwnerName
     ? getPublicOwnerName(effectiveContact.ownerDisplayName, pet.name)
     : `${pet.name}'s owner`;
-  const introMessage = `Hi, I found ${pet.name} from the MyPetLink safety profile.`;
+  const isLostMode = pet.lostModeEnabled;
+  const lostMode = pet.lostMode;
+  const introMessage = isLostMode
+    ? `Hi, I found ${pet.name}. I saw the MyPetLink Lost Mode notice.`
+    : `Hi, I found ${pet.name} from the MyPetLink safety profile.`;
   const whatsappE164 = normalizeStoredPhone(effectiveContact.whatsappNumber);
   const phoneE164 = normalizeStoredPhone(effectiveContact.phoneNumber);
 
@@ -108,10 +112,12 @@ export function PublicFinderProfile({ pet }: PublicFinderProfileProps) {
           MyPetLink safety page
         </p>
         <h1 className="mt-2 text-4xl font-black text-pet-ink">
-          Found {pet.name}?
+          {isLostMode ? `${pet.name} is currently missing` : `Found ${pet.name}?`}
         </h1>
         <p className="mx-auto mt-3 max-w-sm text-sm font-semibold leading-6 text-pet-muted">
-          Please contact the owner directly using one of the options below.
+          {isLostMode
+            ? "If you have found this pet, please contact the owner immediately."
+            : "Please contact the owner directly using one of the options below."}
         </p>
         <p className="mt-4 text-sm text-pet-muted">
           {pet.species} - {pet.breed} - {pet.color}
@@ -123,6 +129,41 @@ export function PublicFinderProfile({ pet }: PublicFinderProfileProps) {
         ) : null}
       </div>
 
+      {isLostMode ? (
+        <section className="mt-5 rounded-[1.5rem] border-2 border-pet-coral bg-[#fff1ee] p-4">
+          <div className="flex items-center gap-2 text-sm font-black text-pet-coral">
+            <Icon name="shield" className="h-4 w-4" />
+            Lost Mode Active
+          </div>
+          <p className="mt-2 text-sm font-semibold leading-6 text-pet-ink">
+            {lostMode.lostMessage ||
+              `If you have found ${pet.name}, please contact the owner immediately.`}
+          </p>
+          <div className="mt-3 grid gap-2 text-xs font-bold text-pet-muted sm:grid-cols-2">
+            {lostMode.lastSeenArea ? (
+              <span className="rounded-[1rem] bg-white px-4 py-3">
+                Last seen: {lostMode.lastSeenArea}
+              </span>
+            ) : null}
+            {lostMode.lastSeenDateTime ? (
+              <span className="rounded-[1rem] bg-white px-4 py-3">
+                Time: {lostMode.lastSeenDateTime}
+              </span>
+            ) : null}
+            {lostMode.rewardNote ? (
+              <span className="rounded-[1rem] bg-white px-4 py-3 sm:col-span-2">
+                {lostMode.rewardNote}
+              </span>
+            ) : null}
+            {lostMode.extraContactInstruction ? (
+              <span className="rounded-[1rem] bg-white px-4 py-3 sm:col-span-2">
+                {lostMode.extraContactInstruction}
+              </span>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
+
       <div className="mt-5 grid gap-3">
         {visibility.showWhatsapp && whatsappE164 ? (
           <CTAButton
@@ -130,6 +171,7 @@ export function PublicFinderProfile({ pet }: PublicFinderProfileProps) {
             icon="phone"
             target="_blank"
             rel="noopener noreferrer"
+            variant={isLostMode ? "coral" : "primary"}
             fullWidth
             className="min-h-14 text-base"
           >

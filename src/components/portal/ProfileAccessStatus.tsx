@@ -63,7 +63,7 @@ export function getQrStatusBadge(
 }
 
 export function getSmartTagStatusBadge(tags: PetTag[] = []): AccessItem {
-  const linkedTags = tags.filter((tag) => tag.petId);
+  const linkedTags = tags.filter((tag) => tag.petId && !tag.isArchived);
   const hasActiveTag = linkedTags.some((tag) => tag.status === "Active");
   const hasPendingReplacement = linkedTags.some(
     (tag) =>
@@ -130,7 +130,7 @@ export function getSmartTagStatusBadge(tags: PetTag[] = []): AccessItem {
 }
 
 export function getNfcStatusBadge(tags: PetTag[] = []): AccessItem | null {
-  const nfcTags = tags.filter((tag) => tag.petId && tag.hasNfc);
+  const nfcTags = tags.filter((tag) => tag.petId && tag.hasNfc && !tag.isArchived);
   const hasActiveNfc = nfcTags.some((tag) => tag.status === "Active");
   const hasPendingNfc = nfcTags.some((tag) =>
     pendingTagStatuses.includes(tag.status)

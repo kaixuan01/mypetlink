@@ -43,7 +43,9 @@ export default async function DashboardPage() {
   const orders = ordersResponse.data;
   const pendingOrders = orders.filter((order) => isActiveOrder(order.status));
   const activeQrProfiles = pets.filter((pet) => pet.qrStatus === "active").length;
-  const activeSmartTags = tags.filter((tag) => tag.status === "Active").length;
+  const activeSmartTags = tags.filter(
+    (tag) => tag.status === "Active" && !tag.isArchived
+  ).length;
   const upcomingRecords = allRecords
     .filter((record) => record.dueDate)
     .sort((a, b) => dateScore(a.dueDate) - dateScore(b.dueDate));

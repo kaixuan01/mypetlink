@@ -20,6 +20,14 @@ export type PetProfileThemeId =
   | "sky"
   | "lavender";
 
+export type PetLostMode = {
+  lastSeenArea: string;
+  lastSeenDateTime: string;
+  lostMessage: string;
+  rewardNote: string;
+  extraContactInstruction: string;
+};
+
 export type Pet = {
   id: string;
   slug: string;
@@ -49,6 +57,8 @@ export type Pet = {
   favoriteToy: string;
   safetyNote: string;
   emergencyNote: string;
+  lostModeEnabled: boolean;
+  lostMode: PetLostMode;
   owner: {
     name: string;
     phone: string;
@@ -108,6 +118,8 @@ export type PublicPetProfile = Pick<
   | "favoriteToy"
   | "safetyNote"
   | "emergencyNote"
+  | "lostModeEnabled"
+  | "lostMode"
   | "owner"
   | "contactOverride"
   | "visibility"
@@ -236,6 +248,7 @@ export type PetTag = {
   lastScannedAt?: string;
   activatedAt?: string;
   replacementForTagId?: string;
+  isArchived?: boolean;
 };
 
 export type DeliveryDetails = {
@@ -297,7 +310,7 @@ export type AdminDashboard = {
 export type FinderResult =
   | { state: "active"; tagCode: string; profile: PublicPetProfile }
   | { state: "unassigned"; tagCode: string }
-  | { state: "inactive"; tagCode: string; status: TagStatus }
+  | { state: "inactive"; tagCode: string; status: TagStatus; isArchived?: boolean }
   | { state: "not-found"; tagCode: string };
 
 export type PetPayload = Partial<

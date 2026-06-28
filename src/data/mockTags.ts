@@ -51,6 +51,7 @@ export const mockTags: PetTag[] = [
     deliveredDate: "09 Jan 2025",
     activatedAt: "10 Jan 2025",
     lastScannedAt: "14 Mar 2026",
+    isArchived: true,
   },
   {
     id: "tag_005",

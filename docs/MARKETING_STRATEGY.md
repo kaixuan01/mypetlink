@@ -28,7 +28,7 @@ copy, or campaigns.
 - The **Share Profile** is the IG-style page an owner *chooses* to send. It is
   warm and clean: photo, name, bio, public memories, timeline, care badges. It
   is **not** emergency-first. Its only finder behaviour is a **Lost Mode** banner
-  when a bound tag is reported `Lost`.
+  when pet-level `lostModeEnabled` is on.
 - The **Safety Profile** is the page a finder *lands on* from a QR/NFC scan. It is
   finder-first: big contact CTA, WhatsApp/Call/Send Found Location, emergency and
   safety notes, minimal lifestyle content.

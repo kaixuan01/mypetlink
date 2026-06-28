@@ -10,6 +10,7 @@ import {
 } from "@/services/mockApi";
 import type {
   Pet,
+  PetLostMode,
   PetPayload,
   PublicPetProfile,
 } from "@/types";
@@ -87,6 +88,27 @@ function mergeOwner(
   };
 }
 
+function getDefaultLostMode(petName: string, generalArea = ""): PetLostMode {
+  return {
+    lastSeenArea: generalArea || "Malaysia",
+    lastSeenDateTime: "",
+    lostMessage: `${petName} is currently missing. If you have found ${petName}, please contact the owner immediately.`,
+    rewardNote: "",
+    extraContactInstruction: "",
+  };
+}
+
+function mergeLostMode(
+  petName: string,
+  generalArea: string,
+  lostMode?: Partial<PetLostMode>
+): PetLostMode {
+  return {
+    ...getDefaultLostMode(petName, generalArea),
+    ...lostMode,
+  };
+}
+
 function normalizePet(pet: Pet): Pet {
   const publicCode = pet.publicCode ?? derivePublicCode(pet.id);
 
@@ -118,6 +140,8 @@ function normalizePet(pet: Pet): Pet {
     safetyNote:
       pet.safetyNote ?? "Please contact the owner if this pet is found.",
     emergencyNote: pet.emergencyNote ?? "Keep calm and contact the owner first.",
+    lostModeEnabled: pet.lostModeEnabled ?? false,
+    lostMode: mergeLostMode(pet.name, pet.generalArea, pet.lostMode),
     contactOverride: pet.contactOverride ?? { useOwnerDefaults: false },
     visibility: {
       ...defaultVisibility,
@@ -169,6 +193,8 @@ function createFallbackPetFromSlug(slug: string): Pet {
     favoriteToy: "Not set",
     safetyNote: "Please contact the owner if this pet is found.",
     emergencyNote: "Keep calm and contact the owner first.",
+    lostModeEnabled: false,
+    lostMode: getDefaultLostMode(name, "Malaysia"),
     visibility: defaultVisibility,
   };
 }
@@ -231,6 +257,8 @@ export function toPublicProfile(pet: Pet): PublicPetProfile {
     favoriteToy: pet.favoriteToy,
     safetyNote: pet.safetyNote,
     emergencyNote: pet.emergencyNote,
+    lostModeEnabled: pet.lostModeEnabled,
+    lostMode: pet.lostMode,
     owner: pet.owner,
     contactOverride: pet.contactOverride,
     visibility: {
@@ -295,6 +323,12 @@ export async function createPet(payload: PetPayload) {
     favoriteToy: payload.favoriteToy ?? "Not set",
     safetyNote: payload.safetyNote ?? "No safety note yet.",
     emergencyNote: payload.emergencyNote ?? "No emergency note yet.",
+    lostModeEnabled: payload.lostModeEnabled ?? false,
+    lostMode: mergeLostMode(
+      petName,
+      payload.generalArea ?? "Malaysia",
+      payload.lostMode
+    ),
     owner: mergeOwner(mockPets[0].owner, payload.owner),
     contactOverride: payload.contactOverride ?? { useOwnerDefaults: false },
     visibility: mergeVisibility(payload.visibility),
@@ -321,6 +355,16 @@ export async function updatePet(id: string, payload: PetPayload) {
         photoInitial:
           payload.photoInitial ??
           (payload.name ? getPetInitial(payload.name) : pet.photoInitial),
+        lostMode: payload.lostMode
+          ? mergeLostMode(
+              payload.name ?? pet.name,
+              payload.generalArea ?? pet.generalArea,
+              {
+                ...pet.lostMode,
+                ...payload.lostMode,
+              }
+            )
+          : pet.lostMode,
         owner: mergeOwner(pet.owner, payload.owner),
         visibility: {
           ...defaultVisibility,
@@ -338,6 +382,26 @@ export async function updatePet(id: string, payload: PetPayload) {
   }
 
   return mockResponse(updatedPet);
+}
+
+export async function updatePetLostMode(
+  id: string,
+  lostModeEnabled: boolean,
+  lostMode?: Partial<PetLostMode>
+) {
+  const pet = await getPetById(id);
+
+  if (!pet.data) {
+    return mockResponse<Pet | null>(null);
+  }
+
+  return updatePet(id, {
+    lostModeEnabled,
+    lostMode: mergeLostMode(pet.data.name, pet.data.generalArea, {
+      ...pet.data.lostMode,
+      ...lostMode,
+    }),
+  });
 }
 
 export async function getPetHealthSummary(petId: string) {

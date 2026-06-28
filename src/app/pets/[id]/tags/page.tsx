@@ -5,6 +5,7 @@ import { TagManagementPanel } from "@/components/portal/TagManagementPanel";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { staticPetIdParams } from "@/data/staticRouteParams";
+import { ownerRoutes } from "@/lib/routes";
 import { getPetById, getPets } from "@/services/petService";
 import { getPetTags } from "@/services/tagService";
 
@@ -39,7 +40,7 @@ export default async function PetTagsPage({ params }: PetTagsPageProps) {
         title={`${pet.data.name}'s MyPetLink Smart Tags`}
         description="One pet can have multiple tags for different collars, replacements, or upgrades."
         action={
-          <CTAButton href={`/pets/${pet.data.id}/tags/order`} icon="tag">
+          <CTAButton href={ownerRoutes.petTagOrder(pet.data.id)} icon="tag">
             Order Physical Tag
           </CTAButton>
         }

@@ -37,7 +37,7 @@ so runtime (`localStorage`) data wins.
 | ------------ | ---------------------------------------------------------- | -------------------------------------------------------- |
 | `not-found`  | No tag with that code                                      | Branded **"Tag not found"** card (no info leaked)        |
 | `unassigned` | `status === "Unassigned"` **or** the tag has no `petId`    | **Activation prompt** → CTA to `/activate/{tagCode}`     |
-| `inactive`   | `status` in `Disabled / Lost / Replaced`, or bound pet gone | Safe **"This tag is not active"** message                |
+| `inactive`   | `status` in `Disabled / Lost / Replaced`, `isArchived`, or bound pet gone | Safe **"This tag is no longer active"** message          |
 | `active`     | Has a `petId`, status not disabled                         | The pet's **public profile** (`PublicFinderProfile`)     |
 
 Why "not found" is a rendered state, not `notFound()`: with static export there
@@ -67,7 +67,7 @@ dashboard redirect. Render precedence:
 1. **Success** (just activated) → "Activated" screen with: Preview Public
    Profile, View Tag Page, Go to Dashboard.
 2. **Already active** → cannot re-activate; offer to view the profile.
-3. **Inactive** (Disabled/Lost/Replaced) → safe "cannot activate" message.
+3. **Inactive** (Disabled/Lost/Replaced/Archived) → safe "cannot activate" message.
 4. **Not found** → branded not-found.
 5. **Not signed in** → sign-in card. Signing in happens **inline**
    (`loginMockOwner()` then stay on the page) so the TagCode is preserved.
@@ -127,11 +127,11 @@ finder wording. The only contact affordance is **one small, optional "Message
 owner"/"Call owner" button** rendered after the share link, and only when the
 owner enabled `visibility.showWhatsapp` / `showPhone`.
 
-**Lost Mode exception:** when any tag bound to the pet has status `Lost`
-(`isPetReportedLost` in `tagService.ts`, passed in as `initialLostMode` and
-re-checked on mount), the share page shows a **lost banner + a single "I found
-this pet - Contact Owner" CTA**. This is the *only* case where the share page
-turns finder-first.
+**Lost Mode exception:** when `pet.lostModeEnabled === true`, the share page
+shows a **missing pet banner + a single contact CTA when public contact is
+allowed**. This is the *only* case where the share page turns finder-first. A
+physical tag with `status === "Lost"` means the tag itself is inactive; it does
+not mark the pet as missing.
 
 **Owner preview bar:** when the logged-in owner views their own share page
 (`isOwnerAuthenticated()`, checked on mount), a small bar appears above the tabs:

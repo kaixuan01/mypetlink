@@ -26,7 +26,12 @@ const receiptStatuses: OrderStatus[] = [
   "Delivered",
 ];
 
-const replacementTagStatuses: TagStatus[] = ["Active", "Lost"];
+const replacementTagStatuses: TagStatus[] = [
+  "Active",
+  "Lost",
+  "Disabled",
+  "Replaced",
+];
 
 export function formatOrderNumber(order: Pick<TagOrder, "id" | "orderNumber">) {
   if (order.orderNumber) {

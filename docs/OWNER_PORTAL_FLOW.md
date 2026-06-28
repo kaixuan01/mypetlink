@@ -76,7 +76,7 @@ status) plus **`PetManagementTabs`** (client) with five tabs:
 | Overview   | Public profile status + share link, smart tag status, emergency note, contact privacy summary, recent records, recent moments |
 | Records    | `RecordsManager` for this pet                                            |
 | Moments    | `PetMomentsManager` (memories + life timeline)                           |
-| Smart Tag  | `TagManagementPanel` scoped to this pet (TagCode, status, view/disable/report lost/order replacement) |
+| Smart Tag  | `TagManagementPanel` scoped to this pet (TagCode, status, view/disable/report tag lost/archive/restore/order replacement) |
 | Settings   | Links to edit profile, privacy, public profile theme, contact preferences |
 
 Tabs are in-page client state (static export has no server). The per-pet
@@ -85,6 +85,11 @@ sub-routes below still exist for deep links, the `MobileBottomNav`, and the
 consistent. Records, Moments, and Smart Tag are reached **through this hub** (its
 tabs) or via the deep routes that render the same manager components — never as
 disconnected standalone dashboards.
+
+Pet-level **Lost Mode** lives on the pet management Overview tab. Use **Mark
+{Pet} as Lost**, **Edit Lost Mode**, and **Turn Off Lost Mode** there. Do not use
+`tag.status === "Lost"` to mark the pet as missing; that status means a physical
+tag has been deactivated.
 
 The pet hub and edit form use the shared responsive `SegmentedTabs` component.
 It measures the available tab row width and keeps the row to one line by moving
@@ -175,13 +180,19 @@ first pet, specific route → that pet, `PetSwitcher` on top, manager re-fetches
 
 ## 5. Tags & orders in the portal
 
-- **`/tags`** lists every tag across the owner's pets via `TagManagementPanel`.
+- **`/tags`** lists tags across the owner's pets via `TagManagementPanel`.
   Each card shows the **TagCode prominently** (labelled `TAG CODE`), the linked
   pet, product name (`QR` vs `QR + NFC`, derived from `hasNfc`), shape, and
-  status. Actions depend on status: an `Unassigned` tag offers **Activate Tag**
-  (`activatePath`); an active tag offers **Request Replacement** / **Disable** /
-  **Report Lost**. "View Tag" (`tagPath`) is always available. The internal `id`
-  is never shown.
+  status. The default view focuses current tags (`Active`, `Pending`,
+  `Preparing`, `Delivered`) and hides archived tags. Filter tabs expose
+  **Active**, **Pending**, **Lost / Disabled**, **Archived**, and **All**.
+  Actions depend on status: an `Unassigned` tag offers **Activate Tag**
+  (`activatePath`); a current active/delivered tag can be disabled or marked
+  **Report Tag Lost**; inactive tags offer **Request Replacement** and
+  **Archive Tag**; archived tags offer **Restore to List** and **View Status**.
+  "View Tag" / "View Status" (`tagPath`) is always available. The internal `id`
+  is never shown. Reporting a tag lost affects only that physical tag; it does
+  not enable pet Lost Mode.
 - **`/orders`** lists `TagOrder` history using customer-facing order numbers
   from `formatOrderNumber(order)` (for example `MPL-ORD-2026-0001`), never the
   internal `id`. Orders carry `tagType` + `shape` (there is no `design` field).

@@ -71,10 +71,10 @@ export function TagFinderView({ initialResult, tagCode }: TagFinderViewProps) {
     return (
       <FinderShell>
         <FinderCard
-          description="This MyPetLink tag is not currently linked to an active pet profile. If you found a pet, please look for another tag or contact local animal services."
+          description="This MyPetLink tag has been reported lost, disabled, or replaced by its owner. If you found this physical tag, please contact MyPetLink support."
           icon="shield"
           tagCode={result.tagCode}
-          title="This tag is not active"
+          title="This tag is no longer active"
           tone="soft"
         />
       </FinderShell>

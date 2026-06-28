@@ -312,7 +312,9 @@ The tag should not show pet information.
 
 ### Lost
 
-The pet or tag has been marked as lost. The public profile may show stronger contact prompts.
+The physical tag has been reported lost, stolen, damaged, or no longer safe to use.
+Scanning it should show an inactive tag page and must not expose owner contact details.
+This is separate from pet-level Lost Mode.
 
 ### Replaced
 
@@ -785,9 +787,14 @@ Features:
 * Unlink tag
 * Replace tag
 * Disable tag
-* Mark pet as lost
-* Mark pet as found
+* Report a physical tag as lost
+* Archive inactive tag records
+* Restore archived tag records to the list
 * View tag status
+
+Pet-level Lost Mode is managed on the pet profile, not as a tag status. Turning
+Lost Mode on should not disable active tags; reporting a tag lost should not mark
+the pet as missing.
 
 ### One Pet, Multiple Tags
 

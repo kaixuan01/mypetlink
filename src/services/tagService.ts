@@ -24,8 +24,15 @@ const ORDER_STORAGE_KEY = "mypetlink_orders";
 
 const disabledStatuses: TagStatus[] = ["Disabled", "Lost", "Replaced"];
 
+function normalizeTag(tag: PetTag): PetTag {
+  return {
+    ...tag,
+    isArchived: tag.isArchived ?? false,
+  };
+}
+
 function getTagCollection() {
-  return readStoredCollection(TAG_STORAGE_KEY, mockTags);
+  return readStoredCollection(TAG_STORAGE_KEY, mockTags).map(normalizeTag);
 }
 
 function getOrderCollection() {
@@ -76,13 +83,10 @@ export async function getPetTags(petId: string) {
   });
 }
 
-// A pet is "in lost mode" when any tag bound to it has been reported lost.
-// The shareable public profile uses this to switch into a finder-first state.
-export async function isPetReportedLost(petId: string) {
+export async function isPetInLostMode(petId: string) {
   await mockDelay();
-  return getTagCollection().some(
-    (tag) => tag.petId === petId && tag.status === "Lost"
-  );
+  const pets = await getPets();
+  return Boolean(pets.data.find((pet) => pet.id === petId)?.lostModeEnabled);
 }
 
 export async function getAllTags() {
@@ -136,6 +140,7 @@ export async function createTagOrder(payload: TagOrderPayload) {
     status: "Pending",
     orderedDate,
     replacementForTagId: payload.replacementForTagId,
+    isArchived: false,
   };
   const order: TagOrder = {
     id: orderId,
@@ -220,10 +225,35 @@ export async function orderReplacementTag(tagId: string) {
   return updateTagStatus(tagId, "Replaced");
 }
 
+export async function archiveTag(tagId: string) {
+  await mockDelay();
+  return updateTagArchiveState(tagId, true);
+}
+
+export async function restoreTag(tagId: string) {
+  await mockDelay();
+  return updateTagArchiveState(tagId, false);
+}
+
 async function updateTagStatus(tagId: string, status: TagStatus) {
   const tags = getTagCollection();
   const tag = tags.find((item) => item.id === tagId);
   const updatedTag = tag ? { ...tag, status } : null;
+
+  if (updatedTag) {
+    writeStoredCollection(
+      TAG_STORAGE_KEY,
+      tags.map((item) => (item.id === tagId ? updatedTag : item))
+    );
+  }
+
+  return mockResponse(updatedTag);
+}
+
+async function updateTagArchiveState(tagId: string, isArchived: boolean) {
+  const tags = getTagCollection();
+  const tag = tags.find((item) => item.id === tagId);
+  const updatedTag = tag ? { ...tag, isArchived } : null;
 
   if (updatedTag) {
     writeStoredCollection(
@@ -249,19 +279,29 @@ export async function getFinderState(tagCode: string): Promise<FinderResult> {
     return { state: "not-found", tagCode: normalized };
   }
 
-  if (tag.status === "Unassigned" || !tag.petId) {
-    return { state: "unassigned", tagCode: tag.tagCode };
+  if (tag.isArchived || disabledStatuses.includes(tag.status)) {
+    return {
+      state: "inactive",
+      tagCode: tag.tagCode,
+      status: tag.status,
+      isArchived: tag.isArchived,
+    };
   }
 
-  if (disabledStatuses.includes(tag.status)) {
-    return { state: "inactive", tagCode: tag.tagCode, status: tag.status };
+  if (tag.status === "Unassigned" || !tag.petId) {
+    return { state: "unassigned", tagCode: tag.tagCode };
   }
 
   const pets = await getPets();
   const pet = pets.data.find((item) => item.id === tag.petId);
 
   if (!pet) {
-    return { state: "inactive", tagCode: tag.tagCode, status: tag.status };
+    return {
+      state: "inactive",
+      tagCode: tag.tagCode,
+      status: tag.status,
+      isArchived: tag.isArchived,
+    };
   }
 
   return {

@@ -792,6 +792,35 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
           description="Settings for the QR/NFC safety page at /t/{tagCode}. This is the finder-first page shown when someone scans the physical tag. Your full address is never shown."
         >
           <div className="grid min-w-0 gap-4">
+            <p className="rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted">
+              Lost Mode is different from reporting a physical tag as lost.
+              Lost Mode tells finders your pet is missing. Reporting a tag lost
+              disables only that tag.
+            </p>
+            {mode === "edit" && currentPet ? (
+              <div className="flex flex-col gap-3 rounded-[1.25rem] border border-pet-border bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-black text-pet-ink">
+                    Lost Mode status
+                  </p>
+                  <p className="mt-1 text-xs font-semibold leading-5 text-pet-muted">
+                    {currentPet.lostModeEnabled
+                      ? `${currentPet.name} is currently marked missing.`
+                      : `Mark ${currentPet.name} as missing from the pet management page if needed.`}
+                  </p>
+                </div>
+                <CTAButton
+                  href={ownerRoutes.petProfile(currentPet.id)}
+                  icon="shield"
+                  variant="outline"
+                  className="sm:w-auto"
+                  fullWidth
+                >
+                  Manage Lost Mode
+                </CTAButton>
+              </div>
+            ) : null}
+
             <div className="rounded-[1.5rem] border border-pet-border bg-white p-5">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div>

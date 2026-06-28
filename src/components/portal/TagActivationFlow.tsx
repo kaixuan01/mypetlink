@@ -136,7 +136,7 @@ export function TagActivationFlow({
     return (
       <ActivationShell>
         <ActivationCard
-          description="This tag has been disabled, replaced, or reported lost, so it cannot be activated. Please order a new MyPetLink tag."
+          description="This tag is no longer active, so it cannot be activated. Please order or activate another MyPetLink tag."
           icon="shield"
           tagCode={result.tagCode}
           title="This tag cannot be activated"
