@@ -9,6 +9,7 @@ import { CTAButton } from "@/components/ui/CTAButton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { PetAvatar } from "@/components/ui/PetAvatar";
+import { isActiveOrder } from "@/lib/orders";
 import { ownerRoutes } from "@/lib/routes";
 import { getPetMoments } from "@/services/momentService";
 import { getPets } from "@/services/petService";
@@ -40,7 +41,7 @@ export default async function DashboardPage() {
   const allMoments = momentResponses.flatMap((response) => response.data);
   const tags = tagsResponse.data;
   const orders = ordersResponse.data;
-  const pendingOrders = orders.filter((order) => order.status !== "Delivered");
+  const pendingOrders = orders.filter((order) => isActiveOrder(order.status));
   const activeQrProfiles = pets.filter((pet) => pet.qrStatus === "active").length;
   const activeSmartTags = tags.filter((tag) => tag.status === "Active").length;
   const upcomingRecords = allRecords
@@ -190,7 +191,7 @@ export default async function DashboardPage() {
               <SafetyStatusCard
                 icon="record"
                 label="Pending orders"
-                note="Tag orders received or preparing."
+                note="Awaiting payment, verification, or delivery."
                 value={pendingOrders.length}
               />
               <SafetyStatusCard

@@ -3,14 +3,18 @@ import { AppLayout } from "@/components/layouts/AppLayout";
 import { OrdersList } from "@/components/portal/OrdersList";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { getPets } from "@/services/petService";
-import { getOrders } from "@/services/tagService";
+import { getAllTags, getOrders } from "@/services/tagService";
 
 export const metadata: Metadata = {
   title: "Orders",
 };
 
 export default async function OrdersPage() {
-  const [pets, orders] = await Promise.all([getPets(), getOrders()]);
+  const [pets, orders, tags] = await Promise.all([
+    getPets(),
+    getOrders(),
+    getAllTags(),
+  ]);
 
   return (
     <AppLayout>
@@ -20,7 +24,11 @@ export default async function OrdersPage() {
         description="Track QR tag and QR + NFC smart tag requests for your pets."
       />
 
-      <OrdersList initialOrders={orders.data} pets={pets.data} />
+      <OrdersList
+        initialOrders={orders.data}
+        initialTags={tags.data}
+        pets={pets.data}
+      />
     </AppLayout>
   );
 }

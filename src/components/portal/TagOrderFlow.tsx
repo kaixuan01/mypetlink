@@ -14,6 +14,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
 import { PhoneNumberInput } from "@/components/ui/PhoneNumberInput";
 import { paymentConfig } from "@/config/payment";
+import { formatOrderNumber } from "@/lib/orders";
 import { isValidE164, normalizeStoredPhone } from "@/lib/phone";
 import { readOwnerSettings } from "@/lib/ownerSettings";
 import {
@@ -277,7 +278,7 @@ export function TagOrderFlow({
 
     if (!paymentReference.trim() && !paymentProofName.trim()) {
       setPaymentError(
-        "Enter your payment reference or upload a receipt so we can verify your payment."
+        "Enter your payment reference or upload payment proof so we can verify your payment."
       );
       return;
     }
@@ -319,7 +320,7 @@ export function TagOrderFlow({
           status anytime in your orders.
         </p>
         <div className="mt-6 grid gap-3 sm:grid-cols-3">
-          <SummaryItem label="Order reference" value={formatOrderReference(createdOrder.id)} />
+          <SummaryItem label="Order number" value={formatOrderNumber(createdOrder)} />
           <SummaryItem label="Tag" value={createdOrder.tagType} />
           <SummaryItem label="Status" value={createdOrder.status} />
         </div>
@@ -793,7 +794,7 @@ function PaymentScreen({
   onProofChange: (value: string) => void;
   onSubmit: () => void;
 }) {
-  const reference = formatOrderReference(order.id);
+  const reference = formatOrderNumber(order);
   const deliverySummary = formatDeliverySummary(delivery);
 
   return (
@@ -828,14 +829,14 @@ function PaymentScreen({
                   <Icon name="qr" className="h-6 w-6" />
                 </span>
                 <span className="text-sm font-bold">
-                  Merchant QR will appear here
+                  Contact support for the current payment QR
                 </span>
               </div>
             )}
           </div>
           <div className="mt-4 grid gap-2 text-left">
             <PaymentRow label="Amount to pay" value={total} strong />
-            <PaymentRow label="Order reference" value={reference} />
+            <PaymentRow label="Order number" value={reference} />
             <PaymentRow label="Pet" value={petName} />
           </div>
         </div>
@@ -861,7 +862,7 @@ function PaymentScreen({
 
           <label className="grid gap-2">
             <span className="text-sm font-bold text-pet-ink">
-              Upload receipt
+              Upload payment proof
             </span>
             <input
               accept="image/*,application/pdf"
@@ -1064,11 +1065,6 @@ function inferCityState(generalArea: string): { city: string; state: string } {
   }
 
   return { city: "", state: "" };
-}
-
-function formatOrderReference(id: string): string {
-  const digits = id.replace(/\D/g, "");
-  return `ORD-${digits.slice(-6) || digits || "000000"}`;
 }
 
 function subscribeNoop() {

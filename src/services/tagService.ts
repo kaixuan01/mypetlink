@@ -1,5 +1,6 @@
 import { mockOrders } from "@/data/mockOrders";
 import { mockTags } from "@/data/mockTags";
+import { formatOrderNumber } from "@/lib/orders";
 import { generateTagCode } from "@/lib/tagCodes";
 import {
   mockDelay,
@@ -10,6 +11,7 @@ import {
 import { getPets, toPublicProfile } from "@/services/petService";
 import type {
   FinderResult,
+  OrderStatus,
   PetTag,
   TagOrder,
   TagOrderPayload,
@@ -27,7 +29,24 @@ function getTagCollection() {
 }
 
 function getOrderCollection() {
-  return readStoredCollection(ORDER_STORAGE_KEY, mockOrders);
+  return readStoredCollection(ORDER_STORAGE_KEY, mockOrders).map(normalizeOrder);
+}
+
+function normalizeOrder(order: TagOrder): TagOrder {
+  const legacyStatus = order.status as string;
+  const status: OrderStatus =
+    legacyStatus === "Paid"
+      ? "Payment Confirmed"
+      : legacyStatus === "Received"
+        ? "Pending Payment"
+        : order.status;
+
+  return {
+    ...order,
+    orderNumber: order.orderNumber ?? formatOrderNumber(order),
+    paymentMethod: order.paymentMethod ?? "Manual QR Payment",
+    status,
+  };
 }
 
 function formatToday() {
@@ -88,11 +107,25 @@ export async function getOrders() {
   });
 }
 
+export async function getOrder(orderKey: string) {
+  await mockDelay();
+  const normalized = decodeURIComponent(orderKey).trim().toLowerCase();
+  const order =
+    getOrderCollection().find(
+      (item) =>
+        item.id.toLowerCase() === normalized ||
+        formatOrderNumber(item).toLowerCase() === normalized
+    ) ?? null;
+
+  return mockResponse(order);
+}
+
 export async function createTagOrder(payload: TagOrderPayload) {
   await mockDelay();
   const tags = getTagCollection();
   const orders = getOrderCollection();
   const tagId = `tag_${Date.now()}`;
+  const orderId = `order_${Date.now()}`;
   const orderedDate = formatToday();
   const tag: PetTag = {
     id: tagId,
@@ -105,7 +138,8 @@ export async function createTagOrder(payload: TagOrderPayload) {
     replacementForTagId: payload.replacementForTagId,
   };
   const order: TagOrder = {
-    id: `order_${Date.now()}`,
+    id: orderId,
+    orderNumber: formatOrderNumber({ id: orderId }),
     petId: payload.petId,
     tagType: payload.tagType,
     shape: payload.shape,
@@ -115,6 +149,7 @@ export async function createTagOrder(payload: TagOrderPayload) {
     orderedDate,
     tagId,
     replacementForTagId: payload.replacementForTagId,
+    paymentMethod: "Manual QR Payment",
   };
   const nextTags = payload.replacementForTagId
     ? [
@@ -141,7 +176,7 @@ type OrderPaymentProof = {
 
 // Phase 1 manual payment: record the owner's payment reference / receipt and
 // move the order to "Payment Submitted" for manual verification. The order is
-// never marked Paid automatically.
+// never marked Payment Confirmed automatically.
 export async function submitOrderPayment(
   orderId: string,
   proof: OrderPaymentProof
@@ -156,6 +191,7 @@ export async function submitOrderPayment(
         paymentReference: proof.paymentReference?.trim() || undefined,
         paymentNote: proof.paymentNote?.trim() || undefined,
         paymentProofName: proof.paymentProofName?.trim() || undefined,
+        paymentSubmittedDate: formatToday(),
       }
     : null;
 

@@ -74,7 +74,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     }
 
     if (href === "/orders") {
-      return pathname === "/orders";
+      return pathname === "/orders" || pathname.startsWith("/orders/");
     }
 
     if (href === "/pets") {

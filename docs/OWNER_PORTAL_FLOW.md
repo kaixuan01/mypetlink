@@ -41,7 +41,7 @@ section routes. They must never point at a specific pet id.
 | Records    | `/records`   | Generic landing → first pet, then pet switcher   |
 | Moments    | `/moments`   | Generic landing → first pet, then pet switcher   |
 | Smart Tags | `/tags`      | All tags across pets                             |
-| Orders     | `/orders`    | Tag order history                                |
+| Orders     | `/orders`    | Tag order history and payment status             |
 | Settings   | `/settings`  | Account/profile settings                         |
 
 `isActiveNav` in `AppLayout` (and the matcher in `MobileBottomNav`) treats the
@@ -179,16 +179,22 @@ first pet, specific route → that pet, `PetSwitcher` on top, manager re-fetches
   Each card shows the **TagCode prominently** (labelled `TAG CODE`), the linked
   pet, product name (`QR` vs `QR + NFC`, derived from `hasNfc`), shape, and
   status. Actions depend on status: an `Unassigned` tag offers **Activate Tag**
-  (`activatePath`); an active tag offers **Order Replacement** / **Disable** /
+  (`activatePath`); an active tag offers **Request Replacement** / **Disable** /
   **Report Lost**. "View Tag" (`tagPath`) is always available. The internal `id`
   is never shown.
-- **`/orders`** lists `TagOrder` history. Orders carry `tagType` + `shape`
-  (there is no `design` field). Replacement links use
-  `ownerRoutes.petTagOrder(petId, { type, replacementFor })`.
+- **`/orders`** lists `TagOrder` history using customer-facing order numbers
+  from `formatOrderNumber(order)` (for example `MPL-ORD-2026-0001`), never the
+  internal `id`. Orders carry `tagType` + `shape` (there is no `design` field).
+  `/orders/{orderNumber}` shows the static order detail page for seeded orders.
+  Replacement links use `ownerRoutes.petTagOrder(petId, { type,
+  replacementFor })`.
 
 Ordering a tag (`createTagOrder`) creates the `PetTag` already bound to the pet
-with status `Pending`, plus a `TagOrder` with status `Received`. A replacement
-order marks the old tag `Replaced`.
+with status `Pending`, plus a `TagOrder` with status `Pending Payment`. After
+the owner submits a Manual QR Payment reference or proof, the order moves to
+`Payment Submitted` for manual verification. The owner-facing receipt only
+appears once the order is `Payment Confirmed`, `Preparing`, `Shipped`, or
+`Delivered`. A replacement order marks the old tag `Replaced`.
 
 ---
 

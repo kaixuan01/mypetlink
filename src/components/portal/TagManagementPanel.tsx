@@ -115,6 +115,8 @@ export function TagManagementPanel({
             ? "MyPetLink QR + NFC Smart Tag"
             : "MyPetLink QR Pet Tag";
           const isUnassigned = tag.status === "Unassigned";
+          const canRequestReplacement =
+            tag.status === "Active" || tag.status === "Lost";
           const replacementHref = tag.petId
             ? ownerRoutes.petTagOrder(tag.petId, {
                 type: tag.hasNfc ? "nfc" : "qr",
@@ -185,9 +187,9 @@ export function TagManagementPanel({
                   </CTAButton>
                 ) : (
                   <>
-                    {replacementHref ? (
-                      <CTAButton href={replacementHref} icon="tag" fullWidth>
-                        Order Replacement Tag
+                    {canRequestReplacement && replacementHref ? (
+                      <CTAButton href={replacementHref} icon="tag" variant="outline" fullWidth>
+                        Request Replacement
                       </CTAButton>
                     ) : null}
                     <button
@@ -251,7 +253,7 @@ export function TagManagementPanel({
                   replacementFor: lostTag.id,
                 })}
               >
-                Order Replacement Tag
+                Request Replacement
               </Link>
             ) : null}
           </div>

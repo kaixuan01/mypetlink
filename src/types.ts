@@ -253,7 +253,7 @@ export type OrderStatus =
   | "Draft"
   | "Pending Payment"
   | "Payment Submitted"
-  | "Paid"
+  | "Payment Confirmed"
   | "Preparing"
   | "Shipped"
   | "Delivered"
@@ -261,6 +261,7 @@ export type OrderStatus =
 
 export type TagOrder = {
   id: string;
+  orderNumber?: string;
   petId: string;
   tagType: TagType;
   shape: TagShape;
@@ -270,9 +271,17 @@ export type TagOrder = {
   orderedDate: string;
   tagId?: string;
   replacementForTagId?: string;
+  paymentMethod?: string;
   paymentReference?: string;
   paymentNote?: string;
   paymentProofName?: string;
+  paymentSubmittedDate?: string;
+  paymentConfirmedDate?: string;
+  paymentRejectionReason?: string;
+  trackingStatus?: string;
+  trackingNumber?: string;
+  shippedDate?: string;
+  deliveredDate?: string;
 };
 
 export type AdminDashboard = {

@@ -12,5 +12,5 @@ export const paymentConfig = {
   deliveryFee: "Free",
   supportText: "Send us your payment reference if you need help.",
   instructions:
-    "Scan the merchant QR code and pay the exact amount. After payment, enter your payment reference or upload a receipt so we can verify your order.",
+    "Scan the merchant QR code and pay the exact amount. After payment, enter your payment reference or upload payment proof so we can verify your order.",
 } as const;

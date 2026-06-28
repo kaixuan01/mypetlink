@@ -30,7 +30,9 @@ export function MobileBottomNav() {
             (pathname === "/moments" ||
               /^\/pets\/[^/]+\/moments/.test(pathname))) ||
           (item.href === "/tags" &&
-            (pathname === "/tags" || /^\/pets\/[^/]+\/tags/.test(pathname)));
+            (pathname === "/tags" || /^\/pets\/[^/]+\/tags/.test(pathname))) ||
+          (item.href === "/orders" &&
+            (pathname === "/orders" || pathname.startsWith("/orders/")));
         return (
           <Link
             className={`grid place-items-center gap-1 rounded-full px-2 py-2 text-[11px] font-bold ${

@@ -22,6 +22,8 @@ export const ownerRoutes = {
   records: "/records",
   tags: "/tags",
   orders: "/orders",
+  orderDetail: (orderNumber: string) =>
+    `/orders/${encodeURIComponent(orderNumber)}`,
   settings: "/settings",
   petProfile: (petId: string) => `/pets/${petId}`,
   petEdit: (petId: string) => `/pets/${petId}/edit`,
