@@ -111,7 +111,7 @@ export async function createTagOrder(payload: TagOrderPayload) {
     shape: payload.shape,
     delivery: payload.delivery,
     estimatedPrice: getEstimatedTagPrice(payload.tagType),
-    status: "Received",
+    status: "Pending Payment",
     orderedDate,
     tagId,
     replacementForTagId: payload.replacementForTagId,
@@ -131,6 +131,42 @@ export async function createTagOrder(payload: TagOrderPayload) {
   writeStoredCollection(ORDER_STORAGE_KEY, [order, ...orders]);
 
   return mockResponse({ order, tag });
+}
+
+type OrderPaymentProof = {
+  paymentReference?: string;
+  paymentNote?: string;
+  paymentProofName?: string;
+};
+
+// Phase 1 manual payment: record the owner's payment reference / receipt and
+// move the order to "Payment Submitted" for manual verification. The order is
+// never marked Paid automatically.
+export async function submitOrderPayment(
+  orderId: string,
+  proof: OrderPaymentProof
+) {
+  await mockDelay();
+  const orders = getOrderCollection();
+  const existing = orders.find((order) => order.id === orderId);
+  const updatedOrder: TagOrder | null = existing
+    ? {
+        ...existing,
+        status: "Payment Submitted",
+        paymentReference: proof.paymentReference?.trim() || undefined,
+        paymentNote: proof.paymentNote?.trim() || undefined,
+        paymentProofName: proof.paymentProofName?.trim() || undefined,
+      }
+    : null;
+
+  if (updatedOrder) {
+    writeStoredCollection(
+      ORDER_STORAGE_KEY,
+      orders.map((order) => (order.id === orderId ? updatedOrder : order))
+    );
+  }
+
+  return mockResponse({ order: updatedOrder });
 }
 
 export async function disableTag(tagId: string) {

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import {
+  useEffect,
   useMemo,
   useState,
   useSyncExternalStore,
@@ -12,10 +13,13 @@ import { CTAButton } from "@/components/ui/CTAButton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
 import { PhoneNumberInput } from "@/components/ui/PhoneNumberInput";
+import { paymentConfig } from "@/config/payment";
 import { isValidE164, normalizeStoredPhone } from "@/lib/phone";
+import { readOwnerSettings } from "@/lib/ownerSettings";
 import {
   createTagOrder,
   getEstimatedTagPrice,
+  submitOrderPayment,
 } from "@/services/tagService";
 import type {
   DeliveryDetails,
@@ -51,11 +55,11 @@ const tagTypes: {
   },
 ];
 
-const shapeOptions: { shape: TagShape; label: string }[] = [
-  { shape: "Round", label: "Round Tag" },
-  { shape: "Bone", label: "Bone Shape" },
-  { shape: "Rounded Square", label: "Minimal Tag" },
-  { shape: "Paw", label: "Cute Paw Tag" },
+const shapeOptions: { shape: TagShape; label: string; radius: string }[] = [
+  { shape: "Round", label: "Round Tag", radius: "rounded-full" },
+  { shape: "Bone", label: "Bone Shape", radius: "rounded-[2.5rem]" },
+  { shape: "Rounded Square", label: "Minimal Tag", radius: "rounded-[1.5rem]" },
+  { shape: "Paw", label: "Cute Paw Tag", radius: "rounded-[2rem]" },
 ];
 
 const steps = [
@@ -104,8 +108,20 @@ export function TagOrderFlow({
   const [createdOrder, setCreatedOrder] = useState<TagOrder | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedTagType, setSelectedTagType] = useState<TagType | null>(null);
+
+  const [paymentReference, setPaymentReference] = useState("");
+  const [paymentNote, setPaymentNote] = useState("");
+  const [paymentProofName, setPaymentProofName] = useState("");
+  const [paymentError, setPaymentError] = useState("");
+  const [isPaying, setIsPaying] = useState(false);
+
+  const origin = useSyncExternalStore(
+    subscribeNoop,
+    getBrowserOrigin,
+    getServerOrigin
+  );
   const orderPrefsKey = useSyncExternalStore(
-    subscribeToOrderPrefs,
+    subscribeNoop,
     getBrowserOrderPrefsKey,
     getDefaultOrderPrefsKey
   );
@@ -121,63 +137,72 @@ export function TagOrderFlow({
     [petId, pets]
   );
   const estimatedPrice = getEstimatedTagPrice(tagType);
-  const shapeLabel =
-    shapeOptions.find((option) => option.shape === shape)?.label ?? shape;
+  const shapeOption =
+    shapeOptions.find((option) => option.shape === shape) ?? shapeOptions[0];
+  const shapeLabel = shapeOption.label;
+
+  // Prefill delivery from the owner's account settings once on mount. Deferred
+  // so it runs as a browser-only effect without a synchronous setState.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const settings = readOwnerSettings();
+      const inferred = inferCityState(settings.defaultGeneralArea);
+      setDelivery((current) => ({
+        ...current,
+        recipientName: current.recipientName || settings.ownerDisplayName,
+        phone:
+          current.phone ||
+          settings.phoneNumber ||
+          settings.whatsappNumber,
+        city: current.city || inferred.city,
+        state: current.state || inferred.state,
+      }));
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  const deliveryValid = isDeliveryValid(delivery);
+  const previewReady = Boolean(selectedPet) && Boolean(tagType) && Boolean(shape);
+
+  function isStepReachable(index: number) {
+    switch (index) {
+      case 0:
+        return true;
+      case 1:
+        return Boolean(selectedPet);
+      case 2:
+        return Boolean(selectedPet) && Boolean(tagType);
+      case 3:
+      case 4:
+        return previewReady;
+      case 5:
+        return deliveryValid;
+      default:
+        return false;
+    }
+  }
 
   function updateDelivery(field: DeliveryField, value: string) {
     setDelivery((current) => ({ ...current, [field]: value }));
     setErrors((current) => ({ ...current, [field]: "" }));
   }
 
-  function validateCurrentStep() {
-    const nextErrors: Record<string, string> = {};
-
-    addStepErrors(step, nextErrors);
-    setErrors(nextErrors);
-    return Object.keys(nextErrors).length === 0;
-  }
-
-  function validateAllSteps() {
-    const nextErrors: Record<string, string> = {};
-
-    [0, 1, 2, 4].forEach((stepIndex) => addStepErrors(stepIndex, nextErrors));
-    setErrors(nextErrors);
-
-    if (Object.keys(nextErrors).length > 0) {
-      if (nextErrors.petId) {
-        setStep(0);
-      } else if (nextErrors.tagType) {
-        setStep(1);
-      } else if (nextErrors.shape) {
-        setStep(2);
-      } else {
-        setStep(4);
-      }
-    }
-
-    return Object.keys(nextErrors).length === 0;
-  }
-
   function addStepErrors(stepIndex: number, nextErrors: Record<string, string>) {
     if (stepIndex === 0 && !petId) {
       nextErrors.petId = "Choose a pet for this tag.";
     }
-
     if (stepIndex === 1 && !tagType) {
       nextErrors.tagType = "Choose a tag type.";
     }
-
     if (stepIndex === 2 && !shape) {
       nextErrors.shape = "Choose a tag design.";
     }
-
     if (stepIndex === 4) {
       if (!delivery.recipientName.trim()) {
         nextErrors.recipientName = "Add the recipient name.";
       }
-      if (!delivery.phone.trim()) {
-        nextErrors.phone = "Please enter a valid phone number.";
-      } else if (!isValidE164(delivery.phone)) {
+      if (!delivery.phone.trim() || !isValidE164(delivery.phone)) {
         nextErrors.phone = "Please enter a valid phone number.";
       }
       if (!delivery.addressLine1.trim()) {
@@ -195,14 +220,41 @@ export function TagOrderFlow({
     }
   }
 
+  function validateCurrentStep() {
+    const nextErrors: Record<string, string> = {};
+    addStepErrors(step, nextErrors);
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  }
+
+  function goToStep(index: number) {
+    if (isStepReachable(index)) {
+      setStep(index);
+    }
+  }
+
   function goNext() {
     if (validateCurrentStep()) {
       setStep((current) => Math.min(current + 1, steps.length - 1));
     }
   }
 
-  async function handleConfirm() {
-    if (!selectedPet || !validateAllSteps()) {
+  function selectPet(nextPetId: string) {
+    setPetId(nextPetId);
+    setErrors((current) => ({ ...current, petId: "" }));
+  }
+
+  async function handlePlaceOrder() {
+    const nextErrors: Record<string, string> = {};
+    [0, 1, 2, 4].forEach((index) => addStepErrors(index, nextErrors));
+    setErrors(nextErrors);
+
+    if (Object.keys(nextErrors).length > 0) {
+      setStep(nextErrors.petId ? 0 : nextErrors.tagType ? 1 : nextErrors.shape ? 2 : 4);
+      return;
+    }
+
+    if (!selectedPet) {
       return;
     }
 
@@ -218,6 +270,31 @@ export function TagOrderFlow({
     setIsSubmitting(false);
   }
 
+  async function handleSubmitPayment() {
+    if (!createdOrder) {
+      return;
+    }
+
+    if (!paymentReference.trim() && !paymentProofName.trim()) {
+      setPaymentError(
+        "Enter your payment reference or upload a receipt so we can verify your payment."
+      );
+      return;
+    }
+
+    setPaymentError("");
+    setIsPaying(true);
+    const response = await submitOrderPayment(createdOrder.id, {
+      paymentReference,
+      paymentNote,
+      paymentProofName,
+    });
+    if (response.data.order) {
+      setCreatedOrder(response.data.order);
+    }
+    setIsPaying(false);
+  }
+
   if (!pets.length) {
     return (
       <EmptyState
@@ -229,18 +306,20 @@ export function TagOrderFlow({
     );
   }
 
-  if (createdOrder && selectedPet) {
+  // Payment proof submitted — final success state.
+  if (createdOrder && selectedPet && createdOrder.status !== "Pending Payment") {
     return (
       <section className="rounded-[1.75rem] border border-pet-mint bg-[#e8f8f0] p-6 shadow-sm">
-        <Badge tone="mint">Order received</Badge>
-        <h2 className="mt-4 text-3xl font-black text-pet-ink">
-          Your tag order has been received.
+        <Badge tone="mint">Payment submitted</Badge>
+        <h2 className="mt-4 text-2xl font-black text-pet-ink sm:text-3xl">
+          Payment proof submitted.
         </h2>
         <p className="mt-3 max-w-2xl text-sm leading-6 text-pet-muted">
-          We will prepare your pet tag and update the order status here.
+          We will verify your payment and prepare the tag. You can track the
+          status anytime in your orders.
         </p>
-        <div className="mt-6 grid gap-3 md:grid-cols-3">
-          <SummaryItem label="Pet" value={selectedPet.name} />
+        <div className="mt-6 grid gap-3 sm:grid-cols-3">
+          <SummaryItem label="Order reference" value={formatOrderReference(createdOrder.id)} />
           <SummaryItem label="Tag" value={createdOrder.tagType} />
           <SummaryItem label="Status" value={createdOrder.status} />
         </div>
@@ -263,27 +342,62 @@ export function TagOrderFlow({
     );
   }
 
+  // Order placed, awaiting manual payment proof.
+  if (createdOrder && selectedPet) {
+    return (
+      <PaymentScreen
+        order={createdOrder}
+        petName={selectedPet.name}
+        total={estimatedPrice}
+        shapeLabel={shapeLabel}
+        delivery={delivery}
+        paymentReference={paymentReference}
+        paymentNote={paymentNote}
+        paymentProofName={paymentProofName}
+        paymentError={paymentError}
+        isPaying={isPaying}
+        onReferenceChange={setPaymentReference}
+        onNoteChange={setPaymentNote}
+        onProofChange={setPaymentProofName}
+        onSubmit={handleSubmitPayment}
+      />
+    );
+  }
+
   return (
     <section className="brand-card rounded-[1.75rem] p-5 sm:p-6">
-      <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
-        {steps.map((label, index) => (
-          <button
-            className={`min-h-14 rounded-2xl px-3 py-2 text-xs font-bold transition ${
-              index === step
-                ? "bg-pet-teal text-white"
-                : index < step
-                  ? "bg-[#e8f8f0] text-pet-sage"
-                  : "bg-pet-cream text-pet-muted"
-            }`}
-            key={label}
-            onClick={() => setStep(index)}
-            type="button"
-          >
-            <span className="block text-[10px] uppercase">Step {index + 1}</span>
-            {label}
-          </button>
-        ))}
-      </div>
+      <ol className="hide-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1 sm:grid sm:grid-cols-3 sm:overflow-visible lg:grid-cols-6">
+        {steps.map((label, index) => {
+          const reachable = isStepReachable(index);
+          const isCurrent = index === step;
+          const isDone = index < step && reachable;
+
+          return (
+            <li className="shrink-0 sm:shrink" key={label}>
+              <button
+                aria-current={isCurrent ? "step" : undefined}
+                aria-disabled={!reachable}
+                className={`flex min-h-14 w-40 flex-col justify-center rounded-2xl px-3 py-2 text-left text-xs font-bold transition sm:w-full ${
+                  isCurrent
+                    ? "bg-pet-teal text-white"
+                    : isDone
+                      ? "bg-[#e8f8f0] text-pet-sage"
+                      : reachable
+                        ? "bg-pet-cream text-pet-muted hover:bg-pet-apricot/50"
+                        : "cursor-not-allowed bg-pet-cream/60 text-pet-muted/50"
+                }`}
+                onClick={() => (reachable ? goToStep(index) : undefined)}
+                type="button"
+              >
+                <span className="block text-[10px] uppercase tracking-wide">
+                  Step {index + 1}
+                </span>
+                {label}
+              </button>
+            </li>
+          );
+        })}
+      </ol>
 
       <div className="mt-6">{renderStep()}</div>
 
@@ -314,12 +428,12 @@ export function TagOrderFlow({
             </button>
           ) : (
             <button
-              className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-teal bg-pet-teal px-5 py-3 text-sm font-bold text-white shadow-lg shadow-[#1570ef]/20 transition hover:bg-[#0f5fd0] disabled:cursor-wait disabled:opacity-70"
-              disabled={isSubmitting}
-              onClick={handleConfirm}
+              className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-teal bg-pet-teal px-5 py-3 text-sm font-bold text-white shadow-lg shadow-[#1570ef]/20 transition hover:bg-[#0f5fd0] disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={!deliveryValid || isSubmitting}
+              onClick={handlePlaceOrder}
               type="button"
             >
-              {isSubmitting ? "Confirming..." : "Confirm Order"}
+              {isSubmitting ? "Placing order..." : "Place Order"}
             </button>
           )}
         </div>
@@ -343,10 +457,7 @@ export function TagOrderFlow({
                     : "border-pet-border bg-pet-cream"
                 }`}
                 key={pet.id}
-                onClick={() => {
-                  setPetId(pet.id);
-                  setErrors((current) => ({ ...current, petId: "" }));
-                }}
+                onClick={() => selectPet(pet.id)}
                 type="button"
               >
                 <p className="text-lg font-black text-pet-ink">{pet.name}</p>
@@ -365,7 +476,7 @@ export function TagOrderFlow({
       return (
         <StepShell
           title="Choose Tag Type"
-          description="Both tag options open your pet's safe profile."
+          description="Both tag options open your pet's QR Safety Page."
         >
           <div className="grid gap-4 md:grid-cols-2">
             {tagTypes.map((option) => (
@@ -380,7 +491,7 @@ export function TagOrderFlow({
                 type="button"
               >
                 <div className="flex items-center justify-between gap-3">
-                  <h3 className="text-xl font-black text-pet-ink">
+                  <h3 className="text-lg font-black text-pet-ink sm:text-xl">
                     {option.title}
                   </h3>
                   <Badge tone={option.type.includes("NFC") ? "mint" : "warm"}>
@@ -415,7 +526,9 @@ export function TagOrderFlow({
                 onClick={() => setShape(option.shape)}
                 type="button"
               >
-                <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-white text-pet-coral">
+                <span
+                  className={`mx-auto grid h-14 w-14 place-items-center bg-white text-pet-coral ${option.radius}`}
+                >
                   <Icon name="tag" className="h-6 w-6" />
                 </span>
                 <span className="mt-3 block text-sm font-black text-pet-ink">
@@ -429,37 +542,36 @@ export function TagOrderFlow({
     }
 
     if (step === 3) {
+      const safetyUrl = selectedPet
+        ? `${origin}${selectedPet.finderProfileUrl}`
+        : "";
+      const explanation =
+        tagType === "MyPetLink QR + NFC Smart Tag"
+          ? `QR scan and NFC tap both open ${selectedPet?.name ?? "your pet"}'s QR Safety Page.`
+          : `This QR opens ${selectedPet?.name ?? "your pet"}'s QR Safety Page.`;
+
       return (
         <StepShell
           title="Preview"
-          description="Check how the tag will be prepared for your pet."
+          description="Here is how your pet tag will be prepared."
         >
-          <div className="grid gap-5 lg:grid-cols-[220px_1fr] lg:items-center">
-            <div className="rounded-[1.5rem] bg-pet-cream p-5 text-center">
-              <div className="mx-auto grid aspect-square max-w-44 grid-cols-9 gap-1 rounded-[1.25rem] bg-white p-4 shadow-inner">
-                {qrCells.map((cell, index) => (
-                  <span
-                    className={
-                      cell
-                        ? "rounded-[0.2rem] bg-pet-ink"
-                        : "rounded-sm bg-transparent"
-                    }
-                    key={`${cell}-${index}`}
-                  />
-                ))}
+          <div className="grid gap-6 lg:grid-cols-[300px_1fr] lg:items-start">
+            <TagMockup
+              petName={selectedPet?.name ?? "Your pet"}
+              radius={shapeOption.radius}
+              isNfc={tagType === "MyPetLink QR + NFC Smart Tag"}
+            />
+            <div className="grid gap-4">
+              <p className="rounded-[1.25rem] bg-[#e8f3ff] p-4 text-sm font-semibold leading-6 text-pet-ink">
+                {explanation}
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <SummaryItem label="Selected pet" value={selectedPet?.name ?? "Pet"} />
+                <SummaryItem label="Tag type" value={tagType} />
+                <SummaryItem label="Design" value={shapeLabel} />
+                <SummaryItem label="Estimated price" value={estimatedPrice} />
               </div>
-              {tagType === "MyPetLink QR + NFC Smart Tag" ? (
-                <Badge tone="mint">NFC tap enabled</Badge>
-              ) : null}
-            </div>
-            <div className="grid gap-3">
-              <SummaryItem label="Pet" value={selectedPet?.name ?? "Pet"} />
-              <SummaryItem label="Tag type" value={tagType} />
-              <SummaryItem label="Design" value={shapeLabel} />
-              <SummaryItem
-                label="Profile"
-                value={selectedPet?.finderProfileUrl ?? "/t/your-tag"}
-              />
+              <CopyUrlField label="QR Safety Page URL" value={safetyUrl} />
             </div>
           </div>
         </StepShell>
@@ -472,6 +584,10 @@ export function TagOrderFlow({
           title="Delivery Details"
           description="Add the address where your pet tag should be sent."
         >
+          <p className="mb-4 rounded-[1.25rem] bg-pet-cream p-4 text-sm leading-6 text-pet-muted">
+            Your public general area is not a delivery address. Please enter the
+            full address for shipping.
+          </p>
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="Recipient name" error={errors.recipientName}>
               <input
@@ -516,6 +632,7 @@ export function TagOrderFlow({
             <Field label="Postcode" error={errors.postcode}>
               <input
                 className="brand-input"
+                inputMode="numeric"
                 onChange={(event) =>
                   updateDelivery("postcode", event.target.value)
                 }
@@ -556,26 +673,276 @@ export function TagOrderFlow({
       );
     }
 
+    // Step 5 — Confirm Order (review before placing).
+    const deliverySummary = formatDeliverySummary(delivery);
+
     return (
       <StepShell
         title="Confirm Order"
-        description="Review the tag, pet, delivery details, and estimated price."
+        description="Review your tag, delivery details, and amount before payment."
       >
-        <div className="grid gap-3 md:grid-cols-2">
+        {deliveryValid ? null : (
+          <div className="mb-4 flex flex-col gap-3 rounded-[1.25rem] border border-pet-coral bg-pet-apricot/60 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm font-bold leading-6 text-[#9b4037]">
+              Some delivery details are missing. Complete them before placing
+              your order.
+            </p>
+            <button
+              className="inline-flex min-h-10 items-center justify-center rounded-full border border-pet-coral bg-white px-4 text-sm font-bold text-pet-coral"
+              onClick={() => setStep(4)}
+              type="button"
+            >
+              Edit Delivery Details
+            </button>
+          </div>
+        )}
+        <div className="grid gap-3 sm:grid-cols-2">
           <SummaryItem label="Selected pet" value={selectedPet?.name ?? "Pet"} />
           <SummaryItem label="Tag type" value={tagType} />
           <SummaryItem label="Design" value={shapeLabel} />
-          <SummaryItem label="Estimated price" value={estimatedPrice} />
-          <SummaryItem label="Recipient" value={delivery.recipientName} />
+          <SummaryItem label="Tag price" value={estimatedPrice} />
+          <SummaryItem label="Delivery fee" value={paymentConfig.deliveryFee} />
+          <SummaryItem label="Total amount" value={estimatedPrice} />
           <SummaryItem
-            label="Delivery"
-            value={`${delivery.addressLine1}, ${delivery.postcode} ${delivery.city}, ${delivery.state}`}
+            label="Delivery recipient"
+            value={delivery.recipientName || "Not set"}
           />
-          <SummaryItem label="Order status" value="Received after confirmation" />
+          <SummaryItem
+            label="Delivery address"
+            value={deliverySummary || "Not set"}
+          />
         </div>
+        <p className="mt-4 rounded-[1.25rem] bg-pet-cream p-4 text-sm leading-6 text-pet-muted">
+          After you place the order, you can pay with a merchant QR and submit
+          your payment proof for verification.
+        </p>
       </StepShell>
     );
   }
+}
+
+function TagMockup({
+  petName,
+  radius,
+  isNfc,
+}: {
+  petName: string;
+  radius: string;
+  isNfc: boolean;
+}) {
+  return (
+    <div className="mx-auto w-full max-w-[280px]">
+      <div
+        className={`relative mx-auto flex aspect-square w-full flex-col items-center justify-center border-4 border-pet-coral/30 bg-gradient-to-br from-white to-pet-apricot/40 p-5 text-center shadow-lg shadow-[#0d1b3d]/10 ${radius}`}
+      >
+        <span className="text-[0.65rem] font-black uppercase tracking-[0.2em] text-pet-teal">
+          MyPetLink
+        </span>
+        <div className="mt-2 grid aspect-square w-24 grid-cols-9 gap-[2px] rounded-xl bg-white p-2 shadow-inner">
+          {qrCells.map((cell, index) => (
+            <span
+              className={cell ? "rounded-[1px] bg-pet-ink" : "bg-transparent"}
+              key={`${cell}-${index}`}
+            />
+          ))}
+        </div>
+        <p className="mt-3 max-w-full truncate text-base font-black text-pet-ink">
+          {petName}
+        </p>
+        <p className="text-[0.65rem] font-semibold text-pet-muted">
+          Scan to open QR Safety Page
+        </p>
+      </div>
+      {isNfc ? (
+        <p className="mt-3 text-center">
+          <Badge tone="mint">QR + NFC tap enabled</Badge>
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function PaymentScreen({
+  order,
+  petName,
+  total,
+  shapeLabel,
+  delivery,
+  paymentReference,
+  paymentNote,
+  paymentProofName,
+  paymentError,
+  isPaying,
+  onReferenceChange,
+  onNoteChange,
+  onProofChange,
+  onSubmit,
+}: {
+  order: TagOrder;
+  petName: string;
+  total: string;
+  shapeLabel: string;
+  delivery: DeliveryDetails;
+  paymentReference: string;
+  paymentNote: string;
+  paymentProofName: string;
+  paymentError: string;
+  isPaying: boolean;
+  onReferenceChange: (value: string) => void;
+  onNoteChange: (value: string) => void;
+  onProofChange: (value: string) => void;
+  onSubmit: () => void;
+}) {
+  const reference = formatOrderReference(order.id);
+  const deliverySummary = formatDeliverySummary(delivery);
+
+  return (
+    <section className="brand-card rounded-[1.75rem] p-5 sm:p-6">
+      <Badge tone="warm">Pending payment</Badge>
+      <h2 className="mt-4 text-2xl font-black text-pet-ink sm:text-3xl">
+        Manual QR Payment
+      </h2>
+      <p className="mt-2 max-w-2xl text-sm leading-6 text-pet-muted">
+        {paymentConfig.instructions}
+      </p>
+
+      <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1fr] lg:items-start">
+        {/* Merchant QR payment card */}
+        <div className="rounded-[1.5rem] border border-pet-border bg-pet-cream p-5 text-center">
+          <p className="text-xs font-black uppercase tracking-wide text-pet-muted">
+            {paymentConfig.merchantQrLabel}
+          </p>
+          <div className="mx-auto mt-4 grid aspect-square w-full max-w-[240px] place-items-center rounded-[1.25rem] border border-dashed border-pet-border bg-white p-6">
+            {paymentConfig.merchantQrImage ? (
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  alt="Merchant QR code"
+                  className="h-full w-full object-contain"
+                  src={paymentConfig.merchantQrImage}
+                />
+              </>
+            ) : (
+              <div className="grid place-items-center gap-2 text-pet-muted">
+                <span className="grid h-12 w-12 place-items-center rounded-2xl bg-pet-cream text-pet-teal">
+                  <Icon name="qr" className="h-6 w-6" />
+                </span>
+                <span className="text-sm font-bold">
+                  Merchant QR will appear here
+                </span>
+              </div>
+            )}
+          </div>
+          <div className="mt-4 grid gap-2 text-left">
+            <PaymentRow label="Amount to pay" value={total} strong />
+            <PaymentRow label="Order reference" value={reference} />
+            <PaymentRow label="Pet" value={petName} />
+          </div>
+        </div>
+
+        {/* Proof submission */}
+        <div className="grid gap-4">
+          <div className="grid gap-3 rounded-[1.5rem] bg-pet-cream p-4">
+            <SummaryRow label="Tag" value={order.tagType} />
+            <SummaryRow label="Design" value={shapeLabel} />
+            <SummaryRow label="Recipient" value={delivery.recipientName} />
+            <SummaryRow label="Delivery" value={deliverySummary} />
+          </div>
+
+          <Field label="Payment reference">
+            <input
+              className="brand-input"
+              onChange={(event) => onReferenceChange(event.target.value)}
+              placeholder="e.g. DuitNow reference number"
+              type="text"
+              value={paymentReference}
+            />
+          </Field>
+
+          <label className="grid gap-2">
+            <span className="text-sm font-bold text-pet-ink">
+              Upload receipt
+            </span>
+            <input
+              accept="image/*,application/pdf"
+              className="block w-full text-sm text-pet-muted file:mr-3 file:rounded-full file:border-0 file:bg-pet-teal file:px-4 file:py-2 file:text-sm file:font-bold file:text-white"
+              onChange={(event) =>
+                onProofChange(event.target.files?.[0]?.name ?? "")
+              }
+              type="file"
+            />
+            {paymentProofName ? (
+              <span className="text-xs font-semibold text-pet-sage">
+                Attached: {paymentProofName}
+              </span>
+            ) : null}
+          </label>
+
+          <Field label="Payment note (optional)">
+            <input
+              className="brand-input"
+              onChange={(event) => onNoteChange(event.target.value)}
+              placeholder="Anything we should know about your payment"
+              type="text"
+              value={paymentNote}
+            />
+          </Field>
+
+          <ErrorText message={paymentError} />
+
+          <button
+            className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-teal bg-pet-teal px-5 py-3 text-sm font-bold text-white shadow-lg shadow-[#1570ef]/20 transition hover:bg-[#0f5fd0] disabled:cursor-wait disabled:opacity-70"
+            disabled={isPaying}
+            onClick={onSubmit}
+            type="button"
+          >
+            {isPaying ? "Submitting..." : "Submit Payment Proof"}
+          </button>
+          <p className="text-xs leading-5 text-pet-muted">
+            Your order moves to pending manual verification after you submit.
+            {" "}
+            {paymentConfig.supportText}
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function CopyUrlField({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false);
+
+  function handleCopy() {
+    if (!value) {
+      return;
+    }
+    navigator.clipboard?.writeText(value).then(
+      () => {
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 1500);
+      },
+      () => setCopied(false)
+    );
+  }
+
+  return (
+    <div className="rounded-[1.25rem] bg-pet-cream p-4">
+      <p className="text-xs font-bold uppercase text-pet-muted">{label}</p>
+      <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+        <code className="min-w-0 flex-1 break-all rounded-xl bg-white px-3 py-2 text-sm font-semibold text-pet-ink">
+          {value || "Will be ready after activation"}
+        </code>
+        <button
+          className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-full border border-pet-border bg-white px-4 text-sm font-bold text-pet-ink transition hover:bg-pet-apricot/50"
+          onClick={handleCopy}
+          type="button"
+        >
+          <Icon name="qr" className="h-4 w-4" />
+          {copied ? "Copied" : "Copy"}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function StepShell({
@@ -623,14 +990,97 @@ function SummaryItem({ label, value }: { label: string; value: string }) {
   );
 }
 
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  if (!value) {
+    return null;
+  }
+  return (
+    <div className="flex items-start justify-between gap-3 text-sm">
+      <span className="font-semibold text-pet-muted">{label}</span>
+      <span className="text-right font-bold text-pet-ink">{value}</span>
+    </div>
+  );
+}
+
+function PaymentRow({
+  label,
+  value,
+  strong,
+}: {
+  label: string;
+  value: string;
+  strong?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-sm font-semibold text-pet-muted">{label}</span>
+      <span
+        className={`text-right font-black text-pet-ink ${strong ? "text-lg" : "text-sm"}`}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
 function ErrorText({ message }: { message?: string }) {
   return message ? (
     <span className="text-xs font-bold text-[#a63c2e]">{message}</span>
   ) : null;
 }
 
-function subscribeToOrderPrefs() {
+function isDeliveryValid(delivery: DeliveryDetails): boolean {
+  return Boolean(
+    delivery.recipientName.trim() &&
+      delivery.phone.trim() &&
+      isValidE164(delivery.phone) &&
+      delivery.addressLine1.trim() &&
+      delivery.postcode.trim() &&
+      delivery.city.trim() &&
+      delivery.state.trim()
+  );
+}
+
+function formatDeliverySummary(delivery: DeliveryDetails): string {
+  return [
+    delivery.addressLine1,
+    delivery.addressLine2,
+    [delivery.postcode, delivery.city].map((part) => part.trim()).filter(Boolean).join(" "),
+    delivery.state,
+  ]
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(", ");
+}
+
+function inferCityState(generalArea: string): { city: string; state: string } {
+  const parts = (generalArea ?? "")
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (parts.length >= 2) {
+    return { city: parts[0], state: parts[parts.length - 1] };
+  }
+
+  return { city: "", state: "" };
+}
+
+function formatOrderReference(id: string): string {
+  const digits = id.replace(/\D/g, "");
+  return `ORD-${digits.slice(-6) || digits || "000000"}`;
+}
+
+function subscribeNoop() {
   return () => {};
+}
+
+function getServerOrigin() {
+  return "";
+}
+
+function getBrowserOrigin() {
+  return window.location.origin;
 }
 
 function getDefaultOrderPrefsKey() {

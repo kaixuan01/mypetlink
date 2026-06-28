@@ -7,18 +7,23 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
 import { ownerRoutes } from "@/lib/routes";
 import { getOrders } from "@/services/tagService";
-import type { Pet, TagOrder } from "@/types";
+import type { OrderStatus, Pet, TagOrder } from "@/types";
 
 type OrdersListProps = {
   pets: Pet[];
   initialOrders: TagOrder[];
 };
 
-const orderTone = {
-  Received: "warm",
+const orderTone: Record<OrderStatus, "warm" | "teal" | "mint" | "soft" | "danger"> = {
+  Draft: "soft",
+  "Pending Payment": "warm",
+  "Payment Submitted": "teal",
+  Paid: "teal",
   Preparing: "teal",
+  Shipped: "teal",
   Delivered: "mint",
-} as const;
+  Cancelled: "danger",
+};
 
 export function OrdersList({ pets, initialOrders }: OrdersListProps) {
   const [orders, setOrders] = useState(initialOrders);

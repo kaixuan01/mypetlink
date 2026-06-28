@@ -47,7 +47,7 @@ export const mockOrders: TagOrder[] = [
     tagType: "MyPetLink QR Pet Tag",
     shape: "Bone",
     estimatedPrice: "RM19.90",
-    status: "Received",
+    status: "Preparing",
     orderedDate: "20 Jun 2026",
     tagId: "tag_003",
     delivery: {

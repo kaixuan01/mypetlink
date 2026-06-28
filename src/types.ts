@@ -249,6 +249,16 @@ export type DeliveryDetails = {
   notes: string;
 };
 
+export type OrderStatus =
+  | "Draft"
+  | "Pending Payment"
+  | "Payment Submitted"
+  | "Paid"
+  | "Preparing"
+  | "Shipped"
+  | "Delivered"
+  | "Cancelled";
+
 export type TagOrder = {
   id: string;
   petId: string;
@@ -256,10 +266,13 @@ export type TagOrder = {
   shape: TagShape;
   delivery: DeliveryDetails;
   estimatedPrice: string;
-  status: "Received" | "Preparing" | "Delivered";
+  status: OrderStatus;
   orderedDate: string;
   tagId?: string;
   replacementForTagId?: string;
+  paymentReference?: string;
+  paymentNote?: string;
+  paymentProofName?: string;
 };
 
 export type AdminDashboard = {
