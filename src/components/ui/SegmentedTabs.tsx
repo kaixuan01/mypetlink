@@ -15,6 +15,8 @@ type SegmentedTabsProps = {
   activeId: string;
   onChange: (id: string) => void;
   ariaLabel?: string;
+  sticky?: boolean;
+  className?: string;
 };
 
 /**
@@ -26,6 +28,8 @@ export function SegmentedTabs({
   activeId,
   onChange,
   ariaLabel,
+  sticky = true,
+  className = "",
 }: SegmentedTabsProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const tabListRef = useRef<HTMLDivElement | null>(null);
@@ -143,9 +147,13 @@ export function SegmentedTabs({
     setMoreOpen(false);
   }
 
+  const wrapperClassName = sticky
+    ? "sticky top-[4.25rem] z-10 -mx-4 mb-5 min-w-0 bg-pet-cream/95 px-4 py-2 backdrop-blur sm:static sm:mx-0 sm:mb-6 sm:bg-transparent sm:px-0 sm:py-0 sm:backdrop-blur-none"
+    : "min-w-0";
+
   return (
     <div
-      className="sticky top-[4.25rem] z-10 -mx-4 mb-5 min-w-0 bg-pet-cream/95 px-4 py-2 backdrop-blur sm:static sm:mx-0 sm:mb-6 sm:bg-transparent sm:px-0 sm:py-0 sm:backdrop-blur-none"
+      className={`${wrapperClassName} ${className}`.trim()}
       ref={rootRef}
     >
       <div className="relative min-w-0">

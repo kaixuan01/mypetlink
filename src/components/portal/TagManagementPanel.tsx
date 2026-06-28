@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
+import { SegmentedTabs, type SegmentedTab } from "@/components/ui/SegmentedTabs";
 import { activatePath, ownerRoutes, tagPath } from "@/lib/routes";
 import {
   archiveTag,
@@ -42,7 +43,7 @@ const currentStatuses: TagStatus[] = ["Active", "Pending", "Preparing", "Deliver
 const replacementStatuses: TagStatus[] = ["Active", "Lost", "Disabled", "Replaced"];
 const archiveEligibleStatuses: TagStatus[] = ["Lost", "Disabled", "Replaced", "Delivered"];
 
-const filterTabs: { id: TagFilter; label: string }[] = [
+const filterTabs: (SegmentedTab & { id: TagFilter })[] = [
   { id: "active", label: "Active" },
   { id: "pending", label: "Pending" },
   { id: "inactive", label: "Lost / Disabled" },
@@ -157,24 +158,14 @@ export function TagManagementPanel({
 
   return (
     <>
-      <div className="mb-4 flex flex-col gap-3 rounded-[1.5rem] border border-pet-border bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="hide-scrollbar flex min-w-0 gap-2 overflow-x-auto">
-          {filterTabs.map((tab) => (
-            <button
-              aria-pressed={filter === tab.id}
-              className={`min-h-10 shrink-0 rounded-full px-4 py-2 text-sm font-black transition ${
-                filter === tab.id
-                  ? "bg-pet-teal text-white shadow-sm"
-                  : "bg-pet-cream text-pet-muted hover:bg-[#e8f3ff] hover:text-pet-teal"
-              }`}
-              key={tab.id}
-              onClick={() => setFilter(tab.id)}
-              type="button"
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+      <div className="mb-4 grid min-w-0 gap-3 rounded-[1.5rem] border border-pet-border bg-white p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+        <SegmentedTabs
+          ariaLabel="Filter smart tags"
+          activeId={filter}
+          onChange={(id) => setFilter(id as TagFilter)}
+          sticky={false}
+          tabs={filterTabs}
+        />
         <p className="px-1 text-xs font-bold text-pet-muted sm:text-right">
           Archived tags stay inactive and remain available for history.
         </p>
