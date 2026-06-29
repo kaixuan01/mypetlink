@@ -39,6 +39,8 @@ export type Pet = {
   ageLabel: string;
   birthday: string;
   adoptionDay: string;
+  createdAt: string;
+  updatedAt: string;
   generalArea: string;
   photoInitial: string;
   photoTone: "apricot" | "mint" | "sky";
@@ -330,6 +332,8 @@ export type PetPayload = Partial<
     | "qrSafetyPath"
     | "finderProfileUrl"
     | "publicProfilePath"
+    | "createdAt"
+    | "updatedAt"
     | "allergies"
     | "medications"
   >

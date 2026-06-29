@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { AppLayout } from "@/components/layouts/AppLayout";
-import { PetCard } from "@/components/portal/PetCard";
+import { PetList } from "@/components/portal/PetList";
 import { CTAButton } from "@/components/ui/CTAButton";
-import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ownerRoutes } from "@/lib/routes";
 import { getPets } from "@/services/petService";
@@ -19,14 +18,6 @@ export default async function PetsPage() {
     getOrders(),
   ]);
 
-  const tagsByPet = new Map<string, typeof tags.data>();
-  for (const tag of tags.data) {
-    if (!tag.petId) {
-      continue;
-    }
-    tagsByPet.set(tag.petId, [...(tagsByPet.get(tag.petId) ?? []), tag]);
-  }
-
   return (
     <AppLayout>
       <PageHeader
@@ -39,27 +30,11 @@ export default async function PetsPage() {
           </CTAButton>
         }
       />
-      <div className="grid gap-5 lg:grid-cols-2">
-        {pets.data.length ? (
-          pets.data.map((pet) => {
-            return (
-              <PetCard
-                key={pet.id}
-                orders={orders.data.filter((order) => order.petId === pet.id)}
-                pet={pet}
-                tags={tagsByPet.get(pet.id) ?? []}
-              />
-            );
-          })
-        ) : (
-          <EmptyState
-            title="No pets yet"
-            description="Create your first profile to generate a safe QR page."
-            actionHref={ownerRoutes.petNew}
-            actionLabel="Add Pet"
-          />
-        )}
-      </div>
+      <PetList
+        initialOrders={orders.data}
+        initialPets={pets.data}
+        initialTags={tags.data}
+      />
     </AppLayout>
   );
 }

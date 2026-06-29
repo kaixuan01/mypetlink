@@ -1,5 +1,10 @@
 import { mockPets } from "@/data/mockPets";
 import { mockRecords } from "@/data/mockRecords";
+import {
+  defaultOwnerSettings,
+  getDefaultPetVisibility,
+  readOwnerSettings,
+} from "@/lib/ownerSettings";
 import { publicProfilePath, qrSafetyPath } from "@/lib/routes";
 import {
   derivePublicCode,
@@ -71,9 +76,12 @@ function canonicalSafetyCode(pet: Pick<Pet, "id" | "safetyCode">) {
   return seedPet?.safetyCode ?? pet.safetyCode ?? deriveSafetyCode(pet.id);
 }
 
-function mergeVisibility(visibility?: PetPayload["visibility"]) {
+function mergeVisibility(
+  visibility?: PetPayload["visibility"],
+  baseVisibility: Pet["visibility"] = defaultVisibility
+) {
   return {
-    ...defaultVisibility,
+    ...baseVisibility,
     ...visibility,
   };
 }
@@ -113,9 +121,14 @@ function normalizePet(pet: Pet): Pet {
   const publicCode = canonicalPublicCode(pet);
   const safetyCode = canonicalSafetyCode(pet);
   const safetyPath = qrSafetyPath(safetyCode);
+  const createdAt =
+    pet.createdAt ?? pet.updatedAt ?? "2026-01-01T00:00:00.000Z";
+  const updatedAt = pet.updatedAt ?? createdAt;
 
   return {
     ...pet,
+    createdAt,
+    updatedAt,
     gender: pet.gender ?? "Not set",
     color: pet.color ?? "Not set",
     ageLabel: pet.ageLabel ?? "Age not set",
@@ -164,63 +177,30 @@ function getPetCollection() {
   return readStoredCollection(PET_STORAGE_KEY, mockPets).map(normalizePet);
 }
 
-function titleFromSlug(value: string) {
-  return value
-    .split("-")
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
+function getUniquePetSlug(rawSlug: string, petName: string, pets: Pet[]) {
+  const baseSlug =
+    slugifyPetSlug(rawSlug || petName) || `pet-${Date.now().toString(36)}`;
+  let slug = baseSlug;
+  let suffix = 2;
 
-function createFallbackPetFromSlug(slug: string): Pet {
-  const name = titleFromSlug(slug) || "New Pet";
-  const id = `pet_${slug}`;
-  const publicCode = derivePublicCode(id);
-  const safetyCode = deriveSafetyCode(id);
-  const safetyPath = qrSafetyPath(safetyCode);
-
-  return {
-    ...mockPets[0],
-    id,
-    slug,
-    name,
-    gender: "Not set",
-    color: "Not set",
-    birthday: "Not set",
-    adoptionDay: "Not set",
-    ageLabel: "Age not set",
-    generalArea: "Malaysia",
-    photoInitial: getPetInitial(name),
-    profilePhotoLabel: "",
-    coverPhotoLabel: "",
-    photoUrl: "",
-    coverUrl: "",
-    profileTheme: "default",
-    qrStatus: "draft",
-    publicCode,
-    safetyCode,
-    qrSafetyEnabled: true,
-    qrSafetyPath: safetyPath,
-    finderProfileUrl: safetyPath,
-    publicProfilePath: publicProfilePath(slug, publicCode),
-    bio: `${name} has a safe MyPetLink profile ready for family and friends.`,
-    personalityTags: ["Loved", "Family pet"],
-    favoriteFood: "Not set",
-    favoriteToy: "Not set",
-    safetyNote: "Please contact the owner if this pet is found.",
-    emergencyNote: "Keep calm and contact the owner first.",
-    lostModeEnabled: false,
-    lostMode: getDefaultLostMode(name, "Malaysia"),
-    visibility: defaultVisibility,
-  };
-}
-
-function createFallbackPetFromId(id: string) {
-  if (!id.startsWith("pet_")) {
-    return null;
+  while (pets.some((pet) => pet.slug === slug || pet.id === `pet_${slug}`)) {
+    slug = `${baseSlug}-${suffix}`;
+    suffix += 1;
   }
 
-  return createFallbackPetFromSlug(id.replace(/^pet_/, ""));
+  return slug;
+}
+
+function getDefaultOwner(petName: string): Pet["owner"] {
+  const settings = readOwnerSettings();
+  const phone = settings.phoneNumber || settings.whatsappNumber;
+
+  return {
+    name: settings.ownerDisplayName || `${petName}'s owner`,
+    phone,
+    whatsapp: settings.whatsappNumber || settings.phoneNumber,
+    emergencyContact: phone || settings.whatsappNumber,
+  };
 }
 
 export async function getPets() {
@@ -239,8 +219,7 @@ export async function getPetById(id: string) {
   const pets = getPetCollection();
 
   return mockResponse(
-    pets.find((pet) => pet.id === id) ??
-      (id === "demo-pet" ? pets[0] : createFallbackPetFromId(id))
+    pets.find((pet) => pet.id === id) ?? (id === "demo-pet" ? pets[0] : null)
   );
 }
 
@@ -321,11 +300,17 @@ export async function getPublicPetProfileBySafetyCode(safetyCode: string) {
 export async function createPet(payload: PetPayload) {
   await mockDelay();
   const pets = getPetCollection();
+  const ownerSettings = readOwnerSettings();
   const petName = payload.name?.trim() || "New pet";
-  const slug = slugifyPetSlug(payload.slug ?? petName) || `pet-${Date.now()}`;
+  const slug = getUniquePetSlug(payload.slug ?? petName, petName, pets);
+  const now = new Date().toISOString();
   const publicCode = generatePublicCode();
   const safetyCode = generateSafetyCode();
   const safetyPath = qrSafetyPath(safetyCode);
+  const generalArea =
+    payload.generalArea ??
+    ownerSettings.defaultGeneralArea ??
+    defaultOwnerSettings.defaultGeneralArea;
 
   const pet: Pet = {
     ...mockPets[0],
@@ -339,7 +324,9 @@ export async function createPet(payload: PetPayload) {
     ageLabel: payload.ageLabel ?? "Age not set",
     birthday: payload.birthday ?? "Not set",
     adoptionDay: payload.adoptionDay ?? "Not set",
-    generalArea: payload.generalArea ?? "Malaysia",
+    createdAt: now,
+    updatedAt: now,
+    generalArea,
     photoInitial: payload.photoInitial ?? getPetInitial(petName),
     photoTone: payload.photoTone ?? "apricot",
     profilePhotoLabel: payload.profilePhotoLabel ?? "",
@@ -364,13 +351,18 @@ export async function createPet(payload: PetPayload) {
     lostModeEnabled: payload.lostModeEnabled ?? false,
     lostMode: mergeLostMode(
       petName,
-      payload.generalArea ?? "Malaysia",
+      generalArea,
       payload.lostMode
     ),
-    owner: mergeOwner(mockPets[0].owner, payload.owner),
-    contactOverride: payload.contactOverride ?? { useOwnerDefaults: false },
-    visibility: mergeVisibility(payload.visibility),
-    qrStatus: "draft",
+    owner: mergeOwner(getDefaultOwner(petName), payload.owner),
+    contactOverride: payload.contactOverride ?? { useOwnerDefaults: true },
+    visibility: mergeVisibility(
+      payload.visibility,
+      getDefaultPetVisibility(ownerSettings)
+    ),
+    allergies: [],
+    medications: [],
+    qrStatus: payload.qrStatus ?? "active",
   };
 
   writeStoredCollection(PET_STORAGE_KEY, [pet, ...pets]);
@@ -394,6 +386,7 @@ export async function updatePet(id: string, payload: PetPayload) {
         safetyCode: pet.safetyCode,
         qrSafetyPath: safetyPath,
         finderProfileUrl: safetyPath,
+        updatedAt: new Date().toISOString(),
         photoInitial:
           payload.photoInitial ??
           (payload.name ? getPetInitial(payload.name) : pet.photoInitial),

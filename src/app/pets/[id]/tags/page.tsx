@@ -2,10 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AppLayout } from "@/components/layouts/AppLayout";
 import { TagManagementPanel } from "@/components/portal/TagManagementPanel";
-import { CTAButton } from "@/components/ui/CTAButton";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { staticPetIdParams } from "@/data/staticRouteParams";
-import { ownerRoutes } from "@/lib/routes";
 import { getPetById, getPets } from "@/services/petService";
 import { getOrders, getPetTags } from "@/services/tagService";
 
@@ -44,11 +42,6 @@ export default async function PetTagsPage({ params }: PetTagsPageProps) {
         eyebrow="Smart tags"
         title={`${currentPet.name}'s MyPetLink Smart Tags`}
         description="One pet can have multiple tags for different collars, replacements, or upgrades."
-        action={
-          <CTAButton href={ownerRoutes.petTagOrder(currentPet.id)} icon="tag">
-            Order Physical Tag
-          </CTAButton>
-        }
       />
 
       <TagManagementPanel

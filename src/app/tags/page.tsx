@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
 import { AppLayout } from "@/components/layouts/AppLayout";
 import { TagManagementPanel } from "@/components/portal/TagManagementPanel";
-import { CTAButton } from "@/components/ui/CTAButton";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { ownerRoutes } from "@/lib/routes";
 import { getPets } from "@/services/petService";
 import { getAllTags, getOrders } from "@/services/tagService";
 
@@ -17,7 +15,6 @@ export default async function TagsPage() {
     getAllTags(),
     getOrders(),
   ]);
-  const firstPet = pets.data[0];
 
   return (
     <AppLayout>
@@ -25,13 +22,6 @@ export default async function TagsPage() {
         eyebrow="Smart tags"
         title="MyPetLink Smart Tags"
         description="Manage current tags, pending orders, replacements, inactive tags, and archived tag history."
-        action={
-          firstPet ? (
-            <CTAButton href={ownerRoutes.petTagOrder(firstPet.id)} icon="tag">
-              Order Physical Tag
-            </CTAButton>
-          ) : null
-        }
       />
 
       <TagManagementPanel

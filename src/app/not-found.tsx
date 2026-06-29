@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { BrandLogo } from "@/components/brand/BrandLogo";
+import { RuntimeRouteFallback } from "@/components/runtime/RuntimeRouteFallback";
 import { CTAButton } from "@/components/ui/CTAButton";
 
 export const metadata: Metadata = {
@@ -7,6 +8,14 @@ export const metadata: Metadata = {
 };
 
 export default function NotFound() {
+  return (
+    <RuntimeRouteFallback>
+      <DefaultNotFound />
+    </RuntimeRouteFallback>
+  );
+}
+
+function DefaultNotFound() {
   return (
     <main className="grid min-h-screen place-items-center bg-pet-cream px-4">
       <div className="brand-card w-full max-w-md rounded-[2rem] p-8 text-center">

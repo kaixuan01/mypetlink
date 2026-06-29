@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
@@ -21,6 +22,7 @@ import {
   shouldShowTagForFilter,
   type TagFilter,
 } from "@/lib/tagStatus";
+import { getPets } from "@/services/petService";
 import {
   archiveTag,
   disableTag,
@@ -60,14 +62,23 @@ const filterTabs: (SegmentedTab & { id: TagFilter })[] = [
 ];
 
 export function TagManagementPanel({
-  pets,
+  pets: initialPets,
   initialTags,
   initialOrders = [],
   petId,
 }: TagManagementPanelProps) {
+  const router = useRouter();
+  const [pets, setPets] = useState(initialPets);
   const [tags, setTags] = useState(initialTags);
   const [orders, setOrders] = useState(initialOrders);
   const [filter, setFilter] = useState<TagFilter>("active");
+  // "" means "All pets". On a pet-scoped route (petId set) we default to that
+  // pet; changing the selector there navigates instead of cross-filtering.
+  const [selectedPetId, setSelectedPetId] = useState(petId ?? "");
+  const isScoped = Boolean(petId);
+  const selectedPet = selectedPetId
+    ? pets.find((pet) => pet.id === selectedPetId)
+    : undefined;
   const [lostTag, setLostTag] = useState<PetTag | null>(null);
   const [disableTagTarget, setDisableTagTarget] = useState<PetTag | null>(null);
   const [archiveTagTarget, setArchiveTagTarget] = useState<PetTag | null>(null);
@@ -83,21 +94,37 @@ export function TagManagementPanel({
   const visibleTags = useMemo(
     () =>
       tags
+        .filter((tag) => !selectedPetId || tag.petId === selectedPetId)
         .filter((tag) => shouldShowTagForFilter(tag, filter, getTagOrder(tag, orders)))
         .sort((a, b) => compareTagsForDisplay(a, b, orders)),
-    [filter, orders, tags]
+    [filter, orders, selectedPetId, tags]
   );
+
+  function handleSelectPet(nextPetId: string) {
+    // On the pet-scoped route, switching pets navigates to that pet's tags so
+    // the URL and header stay in sync; the owner-level /tags hub filters in place.
+    if (isScoped) {
+      router.push(nextPetId ? ownerRoutes.petTags(nextPetId) : ownerRoutes.tags);
+      return;
+    }
+    setSelectedPetId(nextPetId);
+  }
+
+  const orderHref = ownerRoutes.petTagOrder(selectedPetId || pets[0]?.id || "");
 
   useEffect(() => {
     let active = true;
     const tagRequest = petId ? getPetTags(petId) : getAllTags();
 
-    Promise.all([tagRequest, getOrders()]).then(([tagResponse, orderResponse]) => {
-      if (active) {
-        setTags(tagResponse.data);
-        setOrders(orderResponse.data);
+    Promise.all([tagRequest, getOrders(), getPets()]).then(
+      ([tagResponse, orderResponse, petsResponse]) => {
+        if (active) {
+          setTags(tagResponse.data);
+          setOrders(orderResponse.data);
+          setPets(petsResponse.data);
+        }
       }
-    });
+    );
 
     return () => {
       active = false;
@@ -179,6 +206,41 @@ export function TagManagementPanel({
 
   return (
     <>
+      <div className="mb-4 flex flex-col gap-3 rounded-[1.5rem] border border-pet-border bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+          {pets.length > 1 ? (
+            <label className="flex items-center gap-2 text-sm font-bold text-pet-ink">
+              <span className="shrink-0">Pet</span>
+              <select
+                aria-label="Filter Smart Tags by pet"
+                className="brand-input h-11 min-h-11 w-auto min-w-0"
+                onChange={(event) => handleSelectPet(event.target.value)}
+                value={selectedPetId}
+              >
+                <option value="">All pets</option>
+                {pets.map((pet) => (
+                  <option key={pet.id} value={pet.id}>
+                    {pet.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          <p className="text-xs font-semibold leading-5 text-pet-muted">
+            {selectedPet
+              ? `Physical QR and QR + NFC tags linked to ${selectedPet.name}.`
+              : "Showing physical tags across all pets."}
+          </p>
+        </div>
+        {pets.length ? (
+          <CTAButton className="shrink-0" href={orderHref} icon="tag">
+            {selectedPet
+              ? `Order a tag for ${selectedPet.name}`
+              : "Order Physical Tag"}
+          </CTAButton>
+        ) : null}
+      </div>
+
       <div className="mb-4 grid min-w-0 gap-3 rounded-[1.5rem] border border-pet-border bg-white p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
         <SegmentedTabs
           ariaLabel="Filter smart tags"
@@ -193,7 +255,11 @@ export function TagManagementPanel({
       </div>
 
       {visibleTags.length ? (
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div
+          className={`grid gap-4 ${
+            visibleTags.length === 1 ? "" : "lg:grid-cols-2"
+          }`}
+        >
           {visibleTags.map((tag) => (
             <TagCard
               key={tag.id}
@@ -209,29 +275,18 @@ export function TagManagementPanel({
           ))}
         </div>
       ) : (
-        <EmptyState
-          icon="tag"
-          title={
-            filter === "active"
-              ? "No active physical tags yet."
-              : "No tags in this view"
-          }
-          description={
-            filter === "active"
-              ? "Pending and inactive tags are kept out of the Active view."
-              : "Try another filter to see pending, inactive, or archived tags."
-          }
-          actionHref={
-            filter === "active"
-              ? petId
-                ? ownerRoutes.petTagOrder(petId)
-                : pets[0]
-                  ? ownerRoutes.petTagOrder(pets[0].id)
-                  : ownerRoutes.petNew
-              : undefined
-          }
-          actionLabel={filter === "active" ? "Order Physical Tag" : undefined}
-        />
+        (() => {
+          const empty = getTagEmptyState(filter, selectedPet?.name);
+          return (
+            <EmptyState
+              icon="tag"
+              title={empty.title}
+              description={empty.description}
+              actionHref={empty.showOrder ? orderHref : undefined}
+              actionLabel={empty.showOrder ? empty.orderLabel : undefined}
+            />
+          );
+        })()
       )}
 
       {lostTag ? (
@@ -396,7 +451,7 @@ function TagCard({
         </span>
       </div>
 
-      <dl className="mt-5 grid gap-3 text-sm">
+      <dl className="mt-5 grid gap-3 text-sm sm:grid-cols-2">
         {detailItems.map(([label, value]) => (
           <div className="rounded-[1.25rem] bg-pet-cream p-4" key={label}>
             <dt className="text-xs font-bold uppercase text-pet-muted">
@@ -530,6 +585,58 @@ function TagCard({
       </div>
     </article>
   );
+}
+
+function getTagEmptyState(filter: TagFilter, petName?: string) {
+  const orderLabel = petName ? `Order a tag for ${petName}` : "Order Physical Tag";
+
+  switch (filter) {
+    case "active":
+      return {
+        title: petName
+          ? `${petName} has no active physical tag yet.`
+          : "No active physical tags yet.",
+        description:
+          "Pending and inactive tags are kept out of the Active view.",
+        showOrder: true,
+        orderLabel,
+      };
+    case "pending":
+      return {
+        title: petName
+          ? `No pending tag orders for ${petName}.`
+          : "No pending tag orders.",
+        description:
+          "Tag orders appear here while payment and preparation are in progress.",
+        showOrder: false,
+        orderLabel,
+      };
+    case "inactive":
+      return {
+        title: petName
+          ? `${petName} has no lost or disabled tags.`
+          : "No lost or disabled tags.",
+        description: "Tags you report lost or disable will appear here.",
+        showOrder: false,
+        orderLabel,
+      };
+    case "archived":
+      return {
+        title: "No archived tags yet.",
+        description:
+          "Archived tags stay inactive and remain available for history.",
+        showOrder: false,
+        orderLabel,
+      };
+    default:
+      return {
+        title: petName ? `No tags for ${petName} yet.` : "No tags in this view.",
+        description:
+          "Try another filter to see active, pending, inactive, or archived tags.",
+        showOrder: true,
+        orderLabel,
+      };
+  }
 }
 
 function subscribeToOrigin() {

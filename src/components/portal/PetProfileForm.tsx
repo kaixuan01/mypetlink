@@ -409,9 +409,16 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
             icon="tag"
             variant="outline"
           >
-            Preview Tag Options
+            Order Physical Tag
           </CTAButton>
-          <CTAButton href="/dashboard" variant="outline">
+          <CTAButton
+            href={ownerRoutes.petProfile(createdPet.id)}
+            icon="pets"
+            variant="outline"
+          >
+            Manage {createdPet.name}
+          </CTAButton>
+          <CTAButton href={ownerRoutes.dashboard} icon="home" variant="outline">
             Go to Dashboard
           </CTAButton>
         </div>
