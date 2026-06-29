@@ -11,7 +11,7 @@ export function AdminGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!isAdminAuthenticated()) {
-      router.replace(`/admin/login?next=${encodeURIComponent(pathname)}`);
+      router.replace(`/admin/login?redirect=${encodeURIComponent(pathname)}`);
       return;
     }
 

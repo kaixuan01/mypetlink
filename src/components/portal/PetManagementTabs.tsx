@@ -19,6 +19,7 @@ import {
   readOwnerSettings,
   type OwnerSettings,
 } from "@/lib/ownerSettings";
+import { getMemoryLimitState } from "@/lib/planLimits";
 import { getPetProfileTheme } from "@/lib/petProfileThemes";
 import { ownerRoutes, tagPath } from "@/lib/routes";
 import { getTagScanDisplay, isActivePhysicalTag } from "@/lib/tagStatus";
@@ -136,6 +137,7 @@ function OverviewTab({
 }) {
   const recentRecords = records.slice(0, 3);
   const recentMoments = moments.slice(0, 3);
+  const memoryLimit = getMemoryLimitState(moments.length);
   const currentTags = tags.filter((tag) => !tag.isArchived);
   const activeTag = currentTags.find(isActivePhysicalTag);
   const origin = useSyncExternalStore(
@@ -349,12 +351,13 @@ function OverviewTab({
             Manage Pet Memories
           </CTAButton>
           <CTAButton
-            href={ownerRoutes.petMomentNew(pet.id)}
+            disabled={!memoryLimit.canCreate}
+            href={memoryLimit.canCreate ? ownerRoutes.petMomentNew(pet.id) : undefined}
             variant="outline"
             icon="plus"
             fullWidth
           >
-            Add Pet Moment
+            {memoryLimit.canCreate ? "Add Memory" : "Memory Limit Reached"}
           </CTAButton>
         </div>
       </SectionCard>

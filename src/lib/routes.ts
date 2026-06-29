@@ -6,7 +6,7 @@ import type { Pet, PetTag } from "@/types";
 // Route rules:
 // - Owner portal: /pets/{petId}/...        (always the petId, never the slug)
 // - QR safety:   /q/{safetyCode}           (pet-level finder safety page)
-// - Physical tag: /t/{tagCode}             (printed QR/NFC scan entry point)
+// - Physical tag: /t/{tagCode}             (physical QR or QR + NFC scan link)
 // - Activation:   /activate/{tagCode}      (Unassigned tag binding flow)
 // - Public share: /p/{petSlug}-{publicCode} (looked up by publicCode)
 

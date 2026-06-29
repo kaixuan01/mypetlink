@@ -6,7 +6,7 @@ import { useSyncExternalStore } from "react";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { MobileBottomNav } from "@/components/layouts/MobileBottomNav";
-import { CTAButton } from "@/components/ui/CTAButton";
+import { PlanAwareAddPetButton } from "@/components/portal/PlanAwareAddPetButton";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import {
   defaultOwnerSettings,
@@ -188,9 +188,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 </Link>
               </SidebarTooltipWrap>
             ) : (
-              <CTAButton href="/pets/new" icon="plus" fullWidth>
-                Add Pet
-              </CTAButton>
+              <PlanAwareAddPetButton fullWidth />
             )}
 
             {collapsed ? (
@@ -226,9 +224,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   MyPetLink
                 </span>
               </Link>
-              <CTAButton href="/pets/new" icon="plus" variant="secondary">
-                Add Pet
-              </CTAButton>
+              <PlanAwareAddPetButton />
             </div>
           </header>
           <main className="mx-auto min-w-0 w-full max-w-7xl px-4 pb-[calc(8.5rem+env(safe-area-inset-bottom))] pt-5 sm:px-6 lg:px-8 lg:py-8">

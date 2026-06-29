@@ -16,8 +16,8 @@ not a pattern to copy.
 ## 1. Read these in order
 
 1. **This file** â€” product structure, rules, and the route map.
-2. [`SMART_TAG_PRODUCT_STRATEGY.md`](./SMART_TAG_PRODUCT_STRATEGY.md) â€” the
-   full product/business strategy for the physical Smart Tag (TagCode, QR/NFC,
+2. [`SMART_TAG_PRODUCT_STRATEGY.md`](./SMART_TAG_PRODUCT_STRATEGY.md) — the
+   full product/business strategy for the physical Smart Tag (TagCode, QR or QR + NFC,
    activation, admin batches, retail, packaging, security). This is the source
    of truth for *what* the tag product should be.
 3. [`OWNER_PORTAL_FLOW.md`](./OWNER_PORTAL_FLOW.md) â€” how the signed-in owner
@@ -38,15 +38,18 @@ profile, and contacts the owner. Owners also manage care records, memories
 
 Core promise: **A safer way home for your pet.**
 
-**Positioning:** MyPetLink is a pet **safety and care** profile â€” *not* a QR/NFC
-gadget. The hero message is *"A safer profile for your pet."* A plain **QR tag
-is the MVP / main product**; **QR + NFC is a premium upgrade**, never required.
-Never over-emphasize NFC, and never imply finder contact costs money (it's free
-on the Free plan). The public marketing pages (Home, Pricing, Privacy) are
-separate from the public/finder app pages â€” keep them warm and calm. The Home
-page has a **fixed nine-section order** and features grouped into **three pillars
-(Safety / Care / Memories)**. See `MARKETING_STRATEGY.md` Â§7â€“Â§13 for the full
-home section order, pricing strategy, privacy messaging, and copy rules.
+**Positioning:** MyPetLink is a pet **safety and care** profile — *not* a QR/NFC
+gadget. Create a **Free Profile** first; it includes the Public Share Profile,
+pet-level QR Safety Page, basic finder contact, basic care records, and up to 3
+pets with up to 10 memories per pet. Physical **QR** and **QR + NFC** smart tags
+are optional one-time add-ons that open the same safety content. **Premium is
+Coming Soon** and must not be presented as a live subscription or checkout flow.
+Never imply finder contact costs money (it's free on the Free plan). The public
+marketing pages (Home, Pricing, Privacy) are separate from the public/finder app
+pages — keep them warm and calm. The Home page has a **fixed nine-section
+order** and features grouped into **three pillars (Safety / Care / Memories)**.
+See `MARKETING_STRATEGY.md` §7-§13 for the full home section order, pricing
+strategy, privacy messaging, and copy rules.
 
 ---
 

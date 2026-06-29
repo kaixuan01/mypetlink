@@ -207,8 +207,8 @@ export type MomentMedia = {
   sortOrder: number;
 };
 
-// Frontend MVP limit for media items per moment. Premium tiers can raise this
-// in a later phase.
+// Frontend MVP limit for media items per memory. Premium albums can raise this
+// when they become available in a later phase.
 export const MAX_MOMENT_MEDIA = 5;
 
 export type PetMoment = {

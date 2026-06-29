@@ -1,11 +1,17 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { PublicLayout } from "@/components/layouts/PublicLayout";
+import { CreateProfileCTA } from "@/components/marketing/CreateProfileCTA";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PetAvatar } from "@/components/ui/PetAvatar";
+import {
+  freePlanLimits,
+  phase1Positioning,
+  premiumPlan,
+  smartTagAddOns,
+} from "@/lib/planLimits";
 import { publicRoutes, samplePet } from "@/lib/routes";
 import type { Pet } from "@/types";
 
@@ -57,8 +63,8 @@ const pillars: {
     icon: "record",
     title: "Care",
     points: [
-      "Care records",
-      "Reminders",
+      "Basic care records",
+      "Reminders coming soon",
       "Medication & allergy notes",
       "Vet visit history",
     ],
@@ -86,7 +92,7 @@ const smartTags: {
   },
   {
     name: "QR + NFC Smart Tag",
-    tagline: "Premium tap + scan option",
+    tagline: "QR scan plus NFC tap support",
     highlighted: true,
   },
 ];
@@ -100,7 +106,7 @@ const faqs = [
   {
     question: "Do I need the NFC tag?",
     answer:
-      "No. A QR tag is the main product and works with any phone camera. QR + NFC is an optional premium upgrade.",
+      "No. A physical QR tag works with any phone camera. QR + NFC is an optional one-time add-on.",
   },
   {
     question: "Will my full address be public?",
@@ -128,13 +134,13 @@ export default function Home() {
               A safer profile for your pet.
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-8 text-pet-muted">
-              Create a public pet profile, save important care details, and give
-              finders a pet-level QR Safety Page for quick contact.
+              Create a shareable pet profile and QR Safety Page for free. Add a
+              physical smart tag when you want extra safety.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <CTAButton href="/login" icon="paw" variant="coral">
+              <CreateProfileCTA>
                 Create Free Pet Profile
-              </CTAButton>
+              </CreateProfileCTA>
               <CTAButton
                 href={publicRoutes.publicProfile(pet)}
                 icon="heart"
@@ -151,8 +157,8 @@ export default function Home() {
               </CTAButton>
             </div>
             <p className="mt-6 text-sm font-bold text-pet-muted">
-              Free includes a pet-level QR Safety Page. Physical QR/NFC tags are
-              optional add-ons that open it when active.
+              Free covers basic pet safety and sharing. Physical QR and QR + NFC
+              tags are one-time add-ons. Premium care features are coming soon.
             </p>
           </div>
 
@@ -306,8 +312,8 @@ export default function Home() {
         <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
           <PageHeader
             eyebrow="Smart tag add-on"
-            title="Start with QR. Upgrade to QR + NFC."
-            description="Smart tags are optional one-time purchases. The QR tag is all most pets need; NFC is a premium tap-to-open extra."
+            title="Start free. Add a physical tag when you want one."
+            description="Smart tags are optional one-time purchases that connect to your pet's QR Safety Page."
           />
           <div className="grid gap-4 md:grid-cols-2">
             {smartTags.map((tag) => (
@@ -325,7 +331,9 @@ export default function Home() {
                     <h3 className="text-lg font-black text-pet-ink">
                       {tag.name}
                     </h3>
-                    {tag.highlighted ? <Badge tone="mint">Premium</Badge> : null}
+                    {tag.highlighted ? (
+                      <Badge tone="mint">QR + NFC</Badge>
+                    ) : null}
                   </div>
                   <p className="mt-1 text-sm font-semibold text-pet-muted">
                     {tag.tagline}
@@ -342,29 +350,40 @@ export default function Home() {
         <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
           <PageHeader
             eyebrow="Pricing"
-            title="Simple plans, optional tags."
+            title="Free profile now. Premium coming soon. Smart tags are optional add-ons."
             action={
               <CTAButton href="/pricing" variant="secondary">
                 View Pricing
               </CTAButton>
             }
           />
-          <div className="grid gap-4 md:grid-cols-3">
+          <p className="mb-6 max-w-3xl text-sm font-semibold leading-6 text-pet-muted">
+            {phase1Positioning}
+          </p>
+          <div className="grid gap-4 md:grid-cols-4">
             <PricingPreviewCard
-              title="Free Plan"
+              badge="Available now"
+              title="Free Profile"
               price="RM0"
-              note="Free forever, with a pet-level QR Safety Page and basic finder contact."
+              note={`Up to ${freePlanLimits.maxPets} pet profiles and ${freePlanLimits.maxMemoriesPerPet} pet memories per pet.`}
             />
             <PricingPreviewCard
-              title="Premium Plan"
-              price="RM19.90 / mo"
-              note="Multi-pet care, reminders, records, and richer memories."
-              highlighted
-            />
-            <PricingPreviewCard
+              badge="Available now"
               title="Smart Tag Add-ons"
-              price="from RM19.90"
-              note="One-time QR or QR + NFC tags. Works with any plan."
+              price={`from ${smartTagAddOns[0].price}`}
+              note="One-time physical QR and QR + NFC smart tag add-ons."
+            />
+            <PricingPreviewCard
+              badge="Coming Soon"
+              title={premiumPlan.name}
+              price="Coming Soon"
+              note={premiumPlan.description}
+            />
+            <PricingPreviewCard
+              badge="Coming Later"
+              title="GPS Safety"
+              price="Coming Later"
+              note="GPS tracking is planned for a later phase."
             />
           </div>
         </div>
@@ -398,12 +417,9 @@ export default function Home() {
               A safer way home for your pet.
             </h2>
           </div>
-          <Link
-            className="inline-flex min-h-12 items-center justify-center rounded-full bg-white px-6 py-3 text-sm font-black text-pet-ink transition hover:bg-pet-apricot"
-            href="/login"
-          >
+          <CreateProfileCTA variant="light">
             Create Free Pet Profile
-          </Link>
+          </CreateProfileCTA>
         </div>
       </section>
     </PublicLayout>
@@ -411,23 +427,19 @@ export default function Home() {
 }
 
 function PricingPreviewCard({
+  badge,
   title,
   price,
   note,
-  highlighted,
 }: {
+  badge: string;
   title: string;
   price: string;
   note: string;
-  highlighted?: boolean;
 }) {
   return (
-    <article
-      className={`brand-card rounded-[1.75rem] p-6 ${
-        highlighted ? "ring-2 ring-pet-coral" : ""
-      }`}
-    >
-      {highlighted ? <Badge tone="warm">Popular</Badge> : null}
+    <article className="brand-card rounded-[1.75rem] p-6">
+      <Badge tone={badge.includes("Coming") ? "teal" : "mint"}>{badge}</Badge>
       <h3 className="mt-3 text-xl font-black text-pet-ink">{title}</h3>
       <p className="mt-2 text-2xl font-black text-pet-coral">{price}</p>
       <p className="mt-3 text-sm leading-6 text-pet-muted">{note}</p>

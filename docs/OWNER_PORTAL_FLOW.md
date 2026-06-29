@@ -22,10 +22,11 @@ navigation. Public pages (scan, share, marketing) must **not** use `AppLayout`.
 
 ### Sign-in continuation
 
-`AuthGuard` sends unauthenticated users to `/login?next={path}`. `LoginPanel`
-honors a `next` query param (guarded with `next.startsWith("/")` to prevent
-open redirects) and returns the user to where they were headed â€” this is what
-lets the activation flow resume after sign-in. Do not bypass this.
+`AuthGuard` sends unauthenticated users to `/login?redirect={path}`.
+`LoginPanel` honors a `redirect` query param (guarded with
+`redirect.startsWith("/")` and not `//` to prevent open redirects) and returns
+the user to where they were headed. Without a redirect, login falls back to the
+dashboard. Do not bypass this.
 
 ---
 

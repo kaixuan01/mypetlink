@@ -12,6 +12,7 @@ import { PetMomentCard } from "@/components/portal/PetMomentCard";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
+import { getMemoryLimitState } from "@/lib/planLimits";
 import {
   deletePetMoment,
   getPetMoments,
@@ -89,6 +90,7 @@ export function PetMomentsManager({
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState("");
+  const memoryLimit = getMemoryLimitState(moments.length);
   const counts = useMemo(
     () => ({
       publicProfile: moments.filter(
@@ -263,6 +265,11 @@ export function PetMomentsManager({
               Pet Memories are the public gallery. Life Timeline is built from
               public moments you mark as milestones.
             </p>
+            {!memoryLimit.canCreate ? (
+              <p className="mt-3 rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted">
+                {memoryLimit.message}
+              </p>
+            ) : null}
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">
             <CTAButton
@@ -273,11 +280,16 @@ export function PetMomentsManager({
               View Life Timeline
             </CTAButton>
             <CTAButton
-              href={`/pets/${pet.id}/moments/new`}
+              disabled={!memoryLimit.canCreate}
+              href={
+                memoryLimit.canCreate
+                  ? `/pets/${pet.id}/moments/new`
+                  : undefined
+              }
               icon="plus"
-              variant="coral"
+              variant={memoryLimit.canCreate ? "coral" : "secondary"}
             >
-              Add Moment
+              {memoryLimit.canCreate ? "Add Memory" : "Limit Reached"}
             </CTAButton>
           </div>
         </div>
@@ -309,7 +321,9 @@ export function PetMomentsManager({
             icon="heart"
             title="No pet moments yet"
             description="Add your pet's first little moment and keep it safe in their profile."
-            actionHref={`/pets/${pet.id}/moments/new`}
+            actionHref={
+              memoryLimit.canCreate ? `/pets/${pet.id}/moments/new` : undefined
+            }
             actionLabel="Add Moment"
           />
         )}

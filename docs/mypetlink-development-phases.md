@@ -38,6 +38,16 @@ Finder contacts owner
 
 This is the core value of MyPetLink.
 
+Current Phase 1 commercial positioning:
+
+```txt
+Free Profile is available now
+Optional QR Pet Tag is a one-time RM19.90 add-on
+Optional QR + NFC Smart Tag is a one-time RM39.90 add-on
+Premium Plan is Coming Soon
+GPS Safety is Coming Later
+```
+
 ---
 
 # Phase 0: UI / Product Shape
@@ -111,7 +121,7 @@ Building full admin features too early will slow down the MVP.
 
 Build the backend, database, authentication, and launch the first usable version of MyPetLink.
 
-This phase should make MyPetLink usable even without physical QR/NFC tags.
+This phase should make MyPetLink usable even without physical QR or QR + NFC tags.
 
 ## Launch Scope
 
@@ -155,7 +165,7 @@ Finder contacts owner
 
 ## Important Rule
 
-Do not wait for physical QR/NFC tag suppliers before launching the MVP.
+Do not wait for physical QR or QR + NFC tag suppliers before launching the MVP.
 
 Phase 1 should already support digital QR usage.
 
@@ -199,7 +209,7 @@ Do not build a full tag inventory system yet.
 
 ## Goal
 
-Start physical QR/NFC smart tag testing after the basic product is online.
+Start physical QR or QR + NFC smart tag testing after the basic product is online.
 
 This phase focuses on supplier research, small-batch testing, tag activation, and minimum admin tools.
 
@@ -299,7 +309,7 @@ Basic user/pet lookup
 
 ## Admin Portal Rule
 
-Only build admin features required to support QR/NFC tag pilot.
+Only build admin features required to support the physical smart tag pilot.
 
 Do not build full reports, advanced permissions, advanced support tools, or complex subscription tools yet.
 
@@ -378,7 +388,7 @@ Order status
 Delivery tracking status
 Invoice/receipt
 Subscription plan management
-Premium upgrade/downgrade
+Premium plan management after Premium is launched
 ```
 
 ## Operation Scope
@@ -554,7 +564,7 @@ Admin Portal should not be the main priority now.
 
 Location tracker should not be started now.
 
-Physical QR/NFC supplier research can start lightly, but implementation should wait until the online MVP is usable.
+Physical QR or QR + NFC supplier research can start lightly, but implementation should wait until the online MVP is usable.
 
 ---
 
@@ -571,7 +581,7 @@ Phase 1:
 Downloadable QR code
 
 Phase 2:
-Physical QR/NFC smart tag
+Physical QR or QR + NFC smart tag
 ```
 
 ## Finder Contact Must Not Be Locked Behind Premium
@@ -617,11 +627,12 @@ Use phased development instead of building everything at once.
 
 ```txt
 Do not build full Admin Portal during Phase 0.
-Do not block MVP launch while waiting for QR/NFC suppliers.
+Do not block MVP launch while waiting for QR or QR + NFC suppliers.
 Do not require physical tag before QR profile can work.
 Do not build location tracker before QR/NFC demand is proven.
 Do not build complex tag inventory before physical tag pilot.
 Do not overbuild payment/subscription/order system before users exist.
+Do not show Premium as a live subscription, checkout, or upgrade flow during Phase 1.
 Do not expose internal database IDs in public profile or QR URLs.
 ```
 
@@ -631,7 +642,7 @@ Do not expose internal database IDs in public profile or QR URLs.
 Simple MVP first.
 Customer-facing flow before internal admin flow.
 Real user feedback before advanced operation tools.
-Digital QR before physical QR/NFC.
+Digital QR before physical QR or QR + NFC.
 Small-batch pilot before mass tag order.
 Partner/white-label tracker before custom tracker hardware.
 ```

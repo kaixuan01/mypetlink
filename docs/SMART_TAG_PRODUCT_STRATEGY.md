@@ -348,10 +348,11 @@ Do not use:
 /t/{sequentialId}
 ```
 
-`/t/{tagCode}` is the **physical tag** route (QR/NFC). It is the **finder-first
-safety page** a stranger sees after scanning — big "I found this pet - Contact
-Owner", WhatsApp/Call/Send Found Location, safety + emergency notes. The shareable
-public profile is a **separate** route, `/p/{petSlug}-{publicCode}`
+`/t/{tagCode}` is the **physical tag** route (QR or QR + NFC). Active tags open
+the same **finder-first safety page** as the pet-level `/q/{safetyCode}` route:
+big "I found this pet - Contact Owner", WhatsApp/Call/Send Found Location,
+safety + emergency notes. The shareable public profile is a **separate** route,
+`/p/{petSlug}-{publicCode}`
 (e.g. `/p/milo-k7q2`) — a clean, friendly, IG-style page whose primary action is
 **Share**, with no emergency finder CTAs (except a Lost Mode banner). Never mix the
 two. `/p/{petSlug}` alone (e.g. `/p/milo`) is **deprecated** — never display, copy,
@@ -933,6 +934,10 @@ Encrypted identifier
 
 Technical names are allowed only in code, database, and internal admin pages.
 
+Phase 1 public positioning: create a Free Profile first. The QR Pet Tag and
+QR + NFC Smart Tag are optional one-time add-ons, not Premium prerequisites.
+Premium is Coming Soon, and GPS Safety is Coming Later.
+
 ---
 
 ## 28. Recommended MVP Scope
@@ -966,7 +971,7 @@ Technical names are allowed only in code, database, and internal admin pages.
 ### Later
 
 * NFC support
-* QR + NFC premium tag
+* QR + NFC smart tag variant
 * Custom name tag
 * Reseller / pet shop portal
 * Pet shop stock tracking
@@ -982,7 +987,7 @@ The activation flow must be smooth and mobile-first.
 
 Rules:
 
-* Do not require users to manually enter TagCode if they scanned QR/NFC.
+* Do not require users to manually enter TagCode if they scanned QR or tapped NFC.
 * Do not lose the TagCode during login/register.
 * Do not redirect users to dashboard before activation is complete.
 * Do not show technical errors to normal users.

@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { AppLayout } from "@/components/layouts/AppLayout";
+import { PlanAwareAddPetButton } from "@/components/portal/PlanAwareAddPetButton";
+import { PlanSummaryCard } from "@/components/portal/PlanSummaryCard";
 import {
   getQrStatusBadge,
   getSmartTagStatusBadge,
@@ -84,9 +86,7 @@ export default async function DashboardPage() {
                 one place.
               </p>
             </div>
-            <CTAButton href={ownerRoutes.petNew} icon="plus" className="lg:w-auto" fullWidth>
-              Add Pet
-            </CTAButton>
+            <PlanAwareAddPetButton className="lg:w-auto" fullWidth />
           </div>
 
           <div className="mt-5 grid gap-2 sm:grid-cols-3">
@@ -95,6 +95,8 @@ export default async function DashboardPage() {
             <SummaryPill label="Orders pending" value={pendingOrders.length} />
           </div>
         </section>
+
+        <PlanSummaryCard compact initialPets={pets} />
 
         <DashboardSection
           title="Your pets"
@@ -157,7 +159,10 @@ export default async function DashboardPage() {
             description="Common owner tasks, kept close at hand."
           >
             <div className="grid grid-cols-2 gap-3">
-              <ActionTile href={ownerRoutes.petNew} icon="plus" label="Add Pet" />
+              <PlanAwareAddPetButton
+                className="min-h-14 px-3 text-center"
+                fullWidth
+              />
               <ActionTile href={addRecordHref} icon="record" label="Add Care Record" />
               <ActionTile href={addMomentHref} icon="heart" label="Add Pet Moment" />
               <ActionTile href={orderTagHref} icon="tag" label="Order Physical Tag" />

@@ -27,7 +27,7 @@ export default function LoginPage() {
                 "Create QR safety profiles",
                 "Manage care records",
                 "Save pet memories",
-                "Order QR/NFC tags later",
+                "Order QR or QR + NFC tags",
               ].map((item) => (
                   <div
                     className="brand-card flex items-center gap-3 rounded-[1.25rem] p-4 text-sm font-bold text-pet-ink"

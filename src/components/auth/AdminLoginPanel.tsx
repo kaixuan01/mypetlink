@@ -9,7 +9,14 @@ export function AdminLoginPanel() {
 
   function handleLogin() {
     loginMockAdmin();
-    router.replace("/admin");
+    const params = new URLSearchParams(window.location.search);
+    const redirect = params.get("redirect");
+    const destination =
+      redirect && redirect.startsWith("/admin") && !redirect.startsWith("//")
+        ? redirect
+        : "/admin";
+
+    router.replace(destination);
   }
 
   return (

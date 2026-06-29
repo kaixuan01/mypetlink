@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { BrandLogo } from "@/components/brand/BrandLogo";
+import { CreateProfileCTA } from "@/components/marketing/CreateProfileCTA";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { siteConfig } from "@/config/site";
 import { isOwnerAuthenticated } from "@/services/authService";
@@ -37,9 +38,9 @@ export function PublicLayout({ children }: { children: React.ReactNode }) {
       <CTAButton href="/login" variant="secondary">
         Log in
       </CTAButton>
-      <CTAButton href="/login" icon="paw" variant="coral">
+      <CreateProfileCTA>
         Create Pet Profile
-      </CTAButton>
+      </CreateProfileCTA>
     </div>
   );
 
@@ -124,8 +125,8 @@ export function PublicLayout({ children }: { children: React.ReactNode }) {
             <p className="mt-4 max-w-xl text-sm leading-6 text-pet-muted">
               Built for Malaysian pet owners who want safer public QR profiles,
               beautiful shareable pet pages, pet memories, simpler care
-              records, optional MyPetLink QR and QR + NFC smart tags, and fast
-              WhatsApp contact when a pet is found.
+              records, optional one-time MyPetLink QR and QR + NFC smart tag
+              add-ons, and fast WhatsApp contact when a pet is found.
             </p>
             <div className="mt-5 grid gap-1 text-xs leading-5 text-pet-muted">
               <p className="font-bold text-pet-ink">

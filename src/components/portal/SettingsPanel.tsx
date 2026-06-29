@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
+import { PlanSummaryCard } from "@/components/portal/PlanSummaryCard";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { FormSection } from "@/components/ui/FormSection";
 import { PhoneNumberInput } from "@/components/ui/PhoneNumberInput";
@@ -143,6 +144,8 @@ export function SettingsPanel() {
         These settings are used as defaults for new pet profiles. You can
         override them for each pet from that pet&apos;s Edit Pet Details page.
       </div>
+
+      <PlanSummaryCard />
 
       <FormSection
         title="Owner profile and contact"

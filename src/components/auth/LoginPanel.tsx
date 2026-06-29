@@ -49,8 +49,14 @@ export function LoginPanel() {
 
   function handleProviderLogin() {
     loginMockOwner();
-    const next = new URLSearchParams(window.location.search).get("next");
-    router.replace(next && next.startsWith("/") ? next : "/dashboard");
+    const params = new URLSearchParams(window.location.search);
+    const redirect = params.get("redirect") ?? params.get("next");
+    const destination =
+      redirect && redirect.startsWith("/") && !redirect.startsWith("//")
+        ? redirect
+        : "/dashboard";
+
+    router.replace(destination);
   }
 
   function handleEmailSubmit(event: React.FormEvent<HTMLFormElement>) {

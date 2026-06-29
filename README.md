@@ -1,6 +1,6 @@
 # MyPetLink
 
-MyPetLink is a Malaysia-focused frontend MVP for safe and shareable pet profiles. It helps pet owners create a QR safety profile, manage care records, save meaningful pet memories, and order optional MyPetLink QR or QR + NFC smart tags.
+MyPetLink is a Malaysia-focused frontend MVP for safe and shareable pet profiles. Pet owners can create a free pet profile first, then add optional one-time MyPetLink QR or QR + NFC smart tags when they want extra collar safety. Premium care features are coming soon.
 
 Preferred tagline: "A safe and shareable profile for your pet."
 
@@ -12,6 +12,14 @@ Primary domain examples:
 - `https://mypetlink.com.my/t/8KX29A`
 
 This project is frontend-only. It uses local data and localStorage-backed demo authentication. There is no backend, database, Supabase integration, payment gateway, OAuth, OTP, email/password registration, real file storage, NFC writing, GPS tracking, or supplier integration yet.
+
+## Phase 1 Product Rules
+
+- Free Profile is RM0 and available now, with up to 3 pets and up to 10 memories per pet.
+- Every pet gets a Public Share Profile and pet-level QR Safety Page without buying a physical tag.
+- QR Pet Tag (RM19.90) and QR + NFC Smart Tag (RM39.90) are optional one-time add-ons.
+- Premium Plan is Coming Soon only; there is no subscription, upgrade, or payment flow in this frontend MVP.
+- GPS Safety is Coming Later.
 
 ## Tech Stack
 
@@ -46,7 +54,7 @@ This project is configured with Next.js static export, so `npm run build` writes
 
 - `/` - Marketing landing page
 - `/sample` - Sample public profile and finder safety experiences
-- `/pricing` - Free, Premium, Smart Tag Add-ons, and GPS Safety pricing
+- `/pricing` - Free Profile, Smart Tag Add-ons, Premium Coming Soon, and GPS Safety Coming Later pricing
 - `/privacy` - Privacy guidance
 - `/terms` - Terms guidance
 - `/login` - Owner login

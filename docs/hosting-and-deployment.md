@@ -61,16 +61,16 @@ Cloudflare Pages
 api.mypetlink.com
  ↓
 .NET Web API
- - Pet CRUD
- - Owner account logic
- - Tag binding
- - QR scan logging
- - Lost Mode
- - Contact privacy rules
- - Admin functions
- - Premium/subscription logic
- - Payment webhook handling
- - Upload signed URL generation
+- Pet CRUD
+- Owner account logic
+- Tag binding
+- QR scan logging
+- Lost Mode
+- Contact privacy rules
+- Admin functions
+- Future Premium/subscription logic
+- Future payment webhook handling
+- Upload signed URL generation
 
  ↓
 Supabase PostgreSQL
@@ -150,11 +150,14 @@ app.mypetlink.com
 admin.mypetlink.com
 - Admin portal
 
-mypetlink.com/p/{publicSlug}
-- Public pet profile
+mypetlink.com/p/{petSlug}-{publicCode}
+- Public Share Profile
 
-mypetlink.com/t/{tagToken}
-- QR safety profile
+mypetlink.com/q/{safetyCode}
+- Pet-level QR Safety Page
+
+mypetlink.com/t/{tagCode}
+- Physical tag scan link; active tags open the QR Safety Page
 ```
 
 Cloudflare Pages is suitable for frontend applications such as:
@@ -238,9 +241,9 @@ Tag binding / unbinding
 QR scan logging
 Lost Mode update
 Contact privacy logic
-Payment webhook handling
-Premium plan update
-Subscription status update
+Future payment webhook handling
+Future Premium plan update
+Future subscription status update
 Upload signed URL generation
 Delete document
 Delete pet
@@ -384,7 +387,7 @@ Finder contact should not be locked behind Premium.
 
 A finder scanning the QR code should still be able to contact the owner based on the owner’s privacy settings.
 
-Premium features may include:
+Premium is Coming Soon in Phase 1. When launched, Premium features may include:
 
 ```txt
 More pets

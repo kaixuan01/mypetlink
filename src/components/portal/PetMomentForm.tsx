@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { MomentMediaField } from "@/components/portal/MomentMediaField";
 import { PetMomentCard } from "@/components/portal/PetMomentCard";
 import { CTAButton } from "@/components/ui/CTAButton";
-import { createPetMoment } from "@/services/momentService";
+import { getMemoryLimitState } from "@/lib/planLimits";
+import { createPetMoment, getPetMoments } from "@/services/momentService";
 import type {
   MomentMedia,
   MomentType,
@@ -68,6 +69,21 @@ export function PetMomentForm({ pet }: { pet: Pet }) {
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [createdMoment, setCreatedMoment] = useState<PetMoment | null>(null);
+  const [memoryCount, setMemoryCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    getPetMoments(pet.id).then((response) => {
+      if (active) {
+        setMemoryCount(response.data.length);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [pet.id]);
 
   function updateField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -98,6 +114,10 @@ export function PetMomentForm({ pet }: { pet: Pet }) {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
+    if (memoryCount !== null && !getMemoryLimitState(memoryCount).canCreate) {
+      return;
+    }
+
     if (!validate()) {
       return;
     }
@@ -117,9 +137,46 @@ export function PetMomentForm({ pet }: { pet: Pet }) {
     });
 
     setCreatedMoment(response.data);
+    setMemoryCount((current) => (current === null ? current : current + 1));
     setForm(emptyForm);
     setErrors({});
     setIsSubmitting(false);
+  }
+
+  if (memoryCount === null) {
+    return (
+      <div className="brand-card rounded-[1.75rem] p-6">
+        <p className="text-sm font-semibold text-pet-muted">
+          Checking this pet&apos;s memory allowance...
+        </p>
+      </div>
+    );
+  }
+
+  const memoryLimit = getMemoryLimitState(memoryCount);
+
+  if (!memoryLimit.canCreate && !createdMoment) {
+    return (
+      <section className="brand-soft-card rounded-[1.75rem] p-6">
+        <p className="text-sm font-bold uppercase text-pet-teal">
+          Free memory limit
+        </p>
+        <h2 className="mt-3 text-2xl font-black text-pet-ink">
+          More memories are coming with Premium.
+        </h2>
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-pet-muted">
+          {memoryLimit.message}
+        </p>
+        <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+          <CTAButton href={`/pets/${pet.id}/moments`} icon="heart">
+            View Existing Memories
+          </CTAButton>
+          <CTAButton href={`/pets/${pet.id}`} variant="secondary">
+            Manage {pet.name}
+          </CTAButton>
+        </div>
+      </section>
+    );
   }
 
   return (
@@ -253,11 +310,15 @@ export function PetMomentForm({ pet }: { pet: Pet }) {
             Back to Moments
           </Link>
           <button
-            className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-coral bg-pet-coral px-5 py-3 text-sm font-bold text-white shadow-lg shadow-[#ff7a6e]/20 transition hover:bg-[#f26155] disabled:cursor-wait disabled:opacity-70"
-            disabled={isSubmitting}
+            className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-coral bg-pet-coral px-5 py-3 text-sm font-bold text-white shadow-lg shadow-[#ff7a6e]/20 transition hover:bg-[#f26155] disabled:cursor-not-allowed disabled:opacity-70"
+            disabled={isSubmitting || !memoryLimit.canCreate}
             type="submit"
           >
-            {isSubmitting ? "Saving..." : "Save Moment"}
+            {isSubmitting
+              ? "Saving..."
+              : memoryLimit.canCreate
+                ? "Save Moment"
+                : "Memory Limit Reached"}
           </button>
         </div>
       </form>
@@ -285,11 +346,11 @@ export function PetMomentForm({ pet }: { pet: Pet }) {
         ) : (
           <div className="brand-soft-card rounded-[1.5rem] p-5">
             <h2 className="text-xl font-black text-pet-ink">
-              More pets, more memories
+              Premium albums are coming soon
             </h2>
             <p className="mt-2 text-sm leading-6 text-pet-muted">
-              Public memories can also be shown in {pet.name}&apos;s Life
-              Timeline when you choose.
+              Your Free profile includes pet memories now. Richer albums and
+              more memory space are planned for Premium.
             </p>
           </div>
         )}
