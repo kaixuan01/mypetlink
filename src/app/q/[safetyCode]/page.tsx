@@ -20,7 +20,9 @@ export async function generateMetadata({
   const profile = await getPublicPetProfileBySafetyCode(safetyCode);
 
   return {
-    title: profile.data ? `Found ${profile.data.name}?` : "QR Safety Page",
+    title: profile.data
+      ? `${profile.data.name} QR Safety Page`
+      : "QR Safety Page",
   };
 }
 

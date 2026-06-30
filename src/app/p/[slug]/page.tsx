@@ -25,7 +25,9 @@ export async function generateMetadata({
   const profile = await getPublicPetProfileByPublicCode(publicCode);
 
   return {
-    title: profile.data ? `${profile.data.name}'s Profile` : "Pet Profile",
+    title: profile.data
+      ? `${profile.data.name} Pet Profile`
+      : "Pet Profile",
   };
 }
 

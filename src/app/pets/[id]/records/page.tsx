@@ -12,14 +12,21 @@ type RecordsPageProps = {
   params: Promise<{ id: string }>;
 };
 
-export const metadata: Metadata = {
-  title: "Pet Records",
-};
-
 export const dynamicParams = false;
 
 export function generateStaticParams() {
   return staticPetIdParams();
+}
+
+export async function generateMetadata({
+  params,
+}: RecordsPageProps): Promise<Metadata> {
+  const { id } = await params;
+  const pet = await getPetById(id);
+
+  return {
+    title: pet.data ? `${pet.data.name} Care Records` : "Pet Records",
+  };
 }
 
 export default async function RecordsPage({ params }: RecordsPageProps) {

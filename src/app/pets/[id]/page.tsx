@@ -29,7 +29,7 @@ export async function generateMetadata({
   const pet = await getPetById(id);
 
   return {
-    title: pet.data ? `${pet.data.name} Profile` : "Pet Profile",
+    title: pet.data ? pet.data.name : "Pet Profile",
   };
 }
 

@@ -10,14 +10,21 @@ type PetQrPageProps = {
   params: Promise<{ id: string }>;
 };
 
-export const metadata: Metadata = {
-  title: "QR Safety Page",
-};
-
 export const dynamicParams = false;
 
 export function generateStaticParams() {
   return staticPetIdParams();
+}
+
+export async function generateMetadata({
+  params,
+}: PetQrPageProps): Promise<Metadata> {
+  const { id } = await params;
+  const pet = await getPetById(id);
+
+  return {
+    title: pet.data ? `${pet.data.name} QR Safety` : "QR Safety Page",
+  };
 }
 
 export default async function PetQrPage({ params }: PetQrPageProps) {

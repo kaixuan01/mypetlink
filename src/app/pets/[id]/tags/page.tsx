@@ -11,14 +11,21 @@ type PetTagsPageProps = {
   params: Promise<{ id: string }>;
 };
 
-export const metadata: Metadata = {
-  title: "MyPetLink Smart Tags",
-};
-
 export const dynamicParams = false;
 
 export function generateStaticParams() {
   return staticPetIdParams();
+}
+
+export async function generateMetadata({
+  params,
+}: PetTagsPageProps): Promise<Metadata> {
+  const { id } = await params;
+  const pet = await getPetById(id);
+
+  return {
+    title: pet.data ? `${pet.data.name} Smart Tags` : "MyPetLink Smart Tags",
+  };
 }
 
 export default async function PetTagsPage({ params }: PetTagsPageProps) {

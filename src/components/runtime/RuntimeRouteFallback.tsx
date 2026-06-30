@@ -84,6 +84,33 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
   const [state, setState] = useState<RuntimeState>({ status: "loading" });
 
   useEffect(() => {
+    if (state.status === "loading") {
+      return;
+    }
+
+    if (state.status === "owner") {
+      setDocumentTitle(ownerSectionTitle(state.section, state.pet.name));
+      return;
+    }
+
+    if (state.status === "public") {
+      setDocumentTitle(`${state.profile.name} Pet Profile`);
+      return;
+    }
+
+    if (state.status === "qr") {
+      setDocumentTitle(
+        state.profile
+          ? `${state.profile.name} QR Safety Page`
+          : "QR Safety Page"
+      );
+      return;
+    }
+
+    setDocumentTitle("Page not found");
+  }, [state]);
+
+  useEffect(() => {
     let active = true;
     const route = parseRuntimeRoute(window.location.pathname);
 
@@ -420,6 +447,40 @@ function RuntimeLoading() {
       </div>
     </main>
   );
+}
+
+function setDocumentTitle(pageTitle: string) {
+  if (typeof document === "undefined") {
+    return;
+  }
+
+  // Match the root layout's title template so the tab matches what a real
+  // server-rendered page would show. The root template is "%s | MyPetLink".
+  document.title = `${pageTitle} | MyPetLink`;
+}
+
+function ownerSectionTitle(section: OwnerSection, petName: string) {
+  switch (section) {
+    case "edit":
+      return `Edit ${petName}`;
+    case "records":
+      return `${petName} Care Records`;
+    case "moments":
+      return `${petName} Moments`;
+    case "moment-new":
+      return `Add a moment for ${petName}`;
+    case "timeline":
+      return `${petName} Timeline`;
+    case "qr":
+      return `${petName} QR Safety`;
+    case "tags":
+      return `${petName} Smart Tags`;
+    case "tag-order":
+      return `Order a tag for ${petName}`;
+    case "profile":
+    default:
+      return petName;
+  }
 }
 
 function parseRuntimeRoute(pathname: string): RuntimeRoute {

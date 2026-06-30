@@ -10,14 +10,21 @@ type NewMomentPageProps = {
   params: Promise<{ id: string }>;
 };
 
-export const metadata: Metadata = {
-  title: "Add Pet Moment",
-};
-
 export const dynamicParams = false;
 
 export function generateStaticParams() {
   return staticPetIdParams();
+}
+
+export async function generateMetadata({
+  params,
+}: NewMomentPageProps): Promise<Metadata> {
+  const { id } = await params;
+  const pet = await getPetById(id);
+
+  return {
+    title: pet.data ? `Add a moment for ${pet.data.name}` : "Add Pet Moment",
+  };
 }
 
 export default async function NewMomentPage({ params }: NewMomentPageProps) {

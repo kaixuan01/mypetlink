@@ -10,14 +10,21 @@ type PetTagOrderPageProps = {
   params: Promise<{ id: string }>;
 };
 
-export const metadata: Metadata = {
-  title: "Order Physical Tag",
-};
-
 export const dynamicParams = false;
 
 export function generateStaticParams() {
   return staticPetIdParams();
+}
+
+export async function generateMetadata({
+  params,
+}: PetTagOrderPageProps): Promise<Metadata> {
+  const { id } = await params;
+  const pet = await getPetById(id);
+
+  return {
+    title: pet.data ? `Order a tag for ${pet.data.name}` : "Order Physical Tag",
+  };
 }
 
 export default async function PetTagOrderPage({ params }: PetTagOrderPageProps) {

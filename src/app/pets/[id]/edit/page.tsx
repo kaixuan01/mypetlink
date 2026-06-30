@@ -10,14 +10,21 @@ type EditPetPageProps = {
   params: Promise<{ id: string }>;
 };
 
-export const metadata: Metadata = {
-  title: "Edit Pet",
-};
-
 export const dynamicParams = false;
 
 export function generateStaticParams() {
   return staticPetIdParams();
+}
+
+export async function generateMetadata({
+  params,
+}: EditPetPageProps): Promise<Metadata> {
+  const { id } = await params;
+  const pet = await getPetById(id);
+
+  return {
+    title: pet.data ? `Edit ${pet.data.name}` : "Edit Pet",
+  };
 }
 
 export default async function EditPetPage({ params }: EditPetPageProps) {
