@@ -163,17 +163,24 @@ The Home pricing preview mirrors this but stays short and links out to
 
 ## 11. Privacy page messaging
 
-`/privacy` is a friendly explainer (card/icon rows), **not** a legal text wall.
-Lead with *"Privacy-first pet profiles"* and group into:
+`/privacy` is the Phase 1 Privacy Notice. It should be complete enough for the
+pet profile, QR Safety Page, optional smart tag, manual payment proof, and order
+tracking flow, while still feeling friendly and readable on mobile.
 
+Lead with clear owner privacy control and group the Notice into:
+
+- **What may be collected:** account, pet profile, safety/contact, care records,
+  memories, smart tag/order/payment proof, finder scan, and technical
+  information.
 - **What can be public:** pet name, photos, breed/type, general area,
-  owner-approved notes, public moments.
-- **What stays private:** full address, private notes, private memories, account
-  details, internal records.
-- **Owner controls (off until enabled):** WhatsApp, call, public memories, life
-  timeline, care badges, safety notes.
-- Short explainers for the finder safety page, found-location sharing, and how
-  care records/memories stay private until marked public.
+  owner-approved notes, public memories, and finder-friendly QR Safety Page
+  contact options.
+- **What stays private by default:** full address, private notes, private
+  memories, account email, full payment proof, private account settings, and
+  internal order details.
+- **Owner controls and requests:** public visibility choices, retention,
+  deletion/update requests, third-party services, cross-border processing, and
+  support contact.
 
 ---
 

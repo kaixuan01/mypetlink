@@ -148,10 +148,10 @@ export function PublicLayout({ children }: { children: React.ReactNode }) {
           </div>
           <nav className="flex flex-wrap items-start gap-4 text-sm font-bold text-pet-muted md:justify-end">
             <Link href="/privacy" className="hover:text-pet-teal transition">
-              Privacy
+              Privacy Notice
             </Link>
             <Link href="/terms" className="hover:text-pet-teal transition">
-              Terms
+              Terms of Use
             </Link>
           </nav>
         </div>

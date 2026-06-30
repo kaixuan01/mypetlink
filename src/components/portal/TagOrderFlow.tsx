@@ -52,7 +52,7 @@ const tagTypes: {
   {
     type: "MyPetLink QR + NFC Smart Tag",
     title: "MyPetLink QR + NFC Smart Tag",
-    description: "Scan the QR or tap the NFC tag to open the same pet profile.",
+    description: "Scan the QR or tap the NFC tag to open the QR Safety Page.",
   },
 ];
 

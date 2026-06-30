@@ -55,8 +55,8 @@ This project is configured with Next.js static export, so `npm run build` writes
 - `/` - Marketing landing page
 - `/sample` - Sample public profile and finder safety experiences
 - `/pricing` - Free Profile, Smart Tag Add-ons, Premium Coming Soon, and GPS Safety Coming Later pricing
-- `/privacy` - Privacy guidance
-- `/terms` - Terms guidance
+- `/privacy` - Privacy Notice
+- `/terms` - Terms of Use
 - `/login` - Owner login
 - `/p/milo-k7q2` - Public Share Profile for family, friends, and pet communities
 - `/q/MPL-SAFE-MILO` - Pet-level QR Safety Page for finders
