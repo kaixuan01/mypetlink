@@ -383,7 +383,7 @@ export default function Home() {
               badge="Coming Later"
               title="GPS Safety"
               price="Coming Later"
-              note="GPS tracking is planned for a later phase."
+              note="GPS tracking is planned for a future release."
             />
           </div>
         </div>

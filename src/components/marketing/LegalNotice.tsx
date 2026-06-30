@@ -66,10 +66,10 @@ export function LegalQuickLinks({ links }: { links: LegalQuickLink[] }) {
       <p className="text-xs font-black uppercase text-pet-teal">
         Quick links
       </p>
-      <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-3 flex flex-wrap gap-2 sm:gap-2.5">
         {links.map((link) => (
           <a
-            className="rounded-2xl bg-pet-cream px-3 py-2 text-sm font-bold text-pet-ink transition hover:bg-pet-apricot hover:text-pet-teal"
+            className="inline-flex min-h-10 items-center rounded-full bg-pet-cream px-3.5 py-2 text-sm font-bold leading-5 text-pet-ink transition hover:bg-pet-apricot hover:text-pet-teal focus:outline-none focus:ring-4 focus:ring-pet-teal/15"
             href={`#${link.id}`}
             key={link.id}
           >

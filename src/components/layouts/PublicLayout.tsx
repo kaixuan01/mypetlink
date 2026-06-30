@@ -132,9 +132,9 @@ export function PublicLayout({ children }: { children: React.ReactNode }) {
               <p className="font-bold text-pet-ink">
                 {siteConfig.productName} by {siteConfig.companyName}
               </p>
+              <p>{siteConfig.country}</p>
               <p>
-                {siteConfig.country} &middot; Reg. No.{" "}
-                {siteConfig.businessRegistrationNo}
+                Business Registration No.: {siteConfig.businessRegistrationNo}
               </p>
               <p>
                 <a

@@ -36,7 +36,7 @@ export function AdminLoginPanel() {
         type="button"
       >
         <Icon name="shield" className="h-4 w-4" />
-        Continue as Demo Admin
+        Continue as Admin
       </button>
     </div>
   );

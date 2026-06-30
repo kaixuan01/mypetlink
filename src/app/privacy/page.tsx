@@ -186,9 +186,9 @@ export default function PrivacyPage() {
               owner details private unless the owner chooses to share them.
             </p>
             <p>
-              Because MyPetLink is being developed in phases, some features may
-              only collect information when they are enabled or when you provide
-              that information.
+              Some features may only collect information when they are
+              available, enabled, or when you choose to provide that
+              information.
             </p>
           </LegalSection>
 
@@ -317,7 +317,7 @@ export default function PrivacyPage() {
           <LegalSection id="cookies" number={9} title="Cookies, Local Storage, and Analytics">
             <LegalBulletList
               items={[
-                "MyPetLink may use cookies or local storage to keep users signed in, remember preferences, support demo or local state, and improve the service.",
+                "MyPetLink may use cookies or local storage to keep users signed in, remember preferences, save information you choose to keep on your device, and improve the service.",
                 "Analytics may be used to understand page usage and improve features if enabled.",
                 "You can manage cookies through your browser settings, but some features may not work properly if cookies or local storage are disabled.",
               ]}

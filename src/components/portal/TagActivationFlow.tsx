@@ -203,7 +203,7 @@ export function TagActivationFlow({
             onClick={handleSignIn}
             fullWidth
           >
-            Continue with demo account
+            Continue with owner account
           </CTAButton>
         </ActivationCard>
       </ActivationShell>

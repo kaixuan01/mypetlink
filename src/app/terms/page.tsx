@@ -40,8 +40,8 @@ export default function TermsPage() {
         links={quickLinks}
       >
         <p>
-          These Terms explain the practical rules for using MyPetLink during
-          Phase 1. They should be read together with our{" "}
+          These Terms explain the practical rules for using MyPetLink. They
+          should be read together with our{" "}
           <Link className="font-bold text-pet-teal hover:underline" href="/privacy">
             Privacy Notice
           </Link>
@@ -112,7 +112,7 @@ export default function TermsPage() {
               items={[
                 "QR Pet Tags and QR + NFC Smart Tags are optional one-time add-ons.",
                 "Smart tags connect to the pet's QR Safety Page or activation flow.",
-                "Tag availability, pricing, design, delivery, and packaging may change while the product is being tested.",
+                "Tag availability, pricing, design, packaging, and delivery timelines may vary during our early launch and as we improve fulfilment.",
                 "A physical tag does not provide GPS tracking.",
                 "A QR + NFC tag does not mean real-time tracking.",
                 "You are responsible for attaching the tag safely to your pet's collar or accessory.",
@@ -129,13 +129,13 @@ export default function TermsPage() {
           >
             <LegalBulletList
               items={[
-                "During Phase 1, payment methods may be manual or limited, such as merchant QR payment with uploaded payment proof.",
+                "During our early launch, some payment methods may be limited, and payment proof may be reviewed manually before an order is confirmed.",
                 "Payment confirmation may require review before an order is prepared.",
                 "Orders may only be prepared after payment is confirmed.",
                 "Delivery times are estimates and are not guaranteed.",
                 "Cancellation and refund handling may depend on the order status, product type, and preparation stage.",
                 "Customized or printed tags may not be cancellable after preparation or printing begins, unless required by law.",
-                "Because MyPetLink is early-stage, tag product details and order processes may be adjusted as we improve the service.",
+                "Tag product details, order steps, and fulfilment processes may be adjusted as we improve the service.",
               ]}
               icon="record"
             />
@@ -194,10 +194,10 @@ export default function TermsPage() {
             <LegalBulletList
               items={[
                 "MyPetLink may change, improve, pause, or discontinue features as the product develops.",
-                "Some features are experimental, in testing, or marked as coming soon.",
+                "Some features may be new, limited, planned, or marked as coming soon.",
                 "We do not guarantee that the service will always be uninterrupted, available, or error-free.",
-                "GPS Safety is not currently available and is planned for a later phase.",
-                "Premium Plan features are Coming Soon and are not an active subscription in Phase 1.",
+                "GPS Safety is planned for a future release and is not currently available.",
+                "Premium Plan features are coming soon and are not currently available for subscription.",
               ]}
               icon="settings"
             />
