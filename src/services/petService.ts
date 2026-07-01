@@ -6,6 +6,7 @@ import {
   readOwnerSettings,
 } from "@/lib/ownerSettings";
 import { getPetAgeLabel, PET_TYPE_OPTIONS } from "@/lib/petDisplay";
+import { freePlanLimits } from "@/lib/planLimits";
 import { publicProfilePath, qrSafetyPath } from "@/lib/routes";
 import {
   derivePublicCode,
@@ -21,7 +22,9 @@ import {
 } from "@/services/mockApi";
 import type {
   Pet,
+  PetLifecycleStatus,
   PetLostMode,
+  PetMemorial,
   PetPayload,
   PublicPetProfile,
 } from "@/types";
@@ -118,6 +121,41 @@ function mergeLostMode(
   };
 }
 
+function getDefaultMemorial(): PetMemorial {
+  return {
+    passedAwayDate: "",
+    memorialMessage: "",
+    showMemorialOnPublicProfile: true,
+  };
+}
+
+function mergeMemorial(memorial?: Partial<PetMemorial>): PetMemorial {
+  return {
+    ...getDefaultMemorial(),
+    ...memorial,
+  };
+}
+
+function normalizeLifecycleStatus(
+  value?: PetLifecycleStatus
+): PetLifecycleStatus {
+  return value === "Memorial" || value === "Archived" ? value : "Active";
+}
+
+function getPreviousLifecycleStatus(pet: Pet): Exclude<PetLifecycleStatus, "Archived"> {
+  const current = normalizeLifecycleStatus(pet.lifecycleStatus);
+
+  if (current === "Memorial") {
+    return "Memorial";
+  }
+
+  if (pet.previousLifecycleStatus === "Memorial") {
+    return "Memorial";
+  }
+
+  return "Active";
+}
+
 function normalizeSpecies(pet: Pet): Pick<Pet, "species" | "customSpecies"> {
   if (PET_TYPE_OPTIONS.includes(pet.species)) {
     return {
@@ -162,6 +200,10 @@ function normalizePet(pet: Pet): Pet {
     photoUrl: pet.photoUrl ?? "",
     coverUrl: pet.coverUrl ?? "",
     profileTheme: pet.profileTheme ?? "default",
+    lifecycleStatus: normalizeLifecycleStatus(pet.lifecycleStatus),
+    previousLifecycleStatus:
+      pet.previousLifecycleStatus === "Memorial" ? "Memorial" : "Active",
+    memorial: mergeMemorial(pet.memorial),
     qrStatus: pet.qrStatus ?? "active",
     publicCode,
     safetyCode,
@@ -265,6 +307,9 @@ export function toPublicProfile(pet: Pet): PublicPetProfile {
     photoUrl: pet.photoUrl,
     coverUrl: pet.coverUrl,
     profileTheme: pet.profileTheme,
+    lifecycleStatus: pet.lifecycleStatus,
+    previousLifecycleStatus: pet.previousLifecycleStatus,
+    memorial: pet.memorial,
     publicCode: pet.publicCode,
     safetyCode: pet.safetyCode,
     qrSafetyEnabled: pet.qrSafetyEnabled,
@@ -359,6 +404,10 @@ export async function createPet(payload: PetPayload) {
     photoUrl: payload.photoUrl ?? "",
     coverUrl: payload.coverUrl ?? "",
     profileTheme: payload.profileTheme ?? "default",
+    lifecycleStatus: payload.lifecycleStatus ?? "Active",
+    previousLifecycleStatus:
+      payload.lifecycleStatus === "Memorial" ? "Memorial" : "Active",
+    memorial: mergeMemorial(payload.memorial),
     publicCode,
     safetyCode,
     qrSafetyEnabled: payload.qrSafetyEnabled ?? true,
@@ -416,6 +465,21 @@ export async function updatePet(id: string, payload: PetPayload) {
         qrSafetyPath: safetyPath,
         finderProfileUrl: safetyPath,
         updatedAt: new Date().toISOString(),
+        lifecycleStatus: payload.lifecycleStatus
+          ? normalizeLifecycleStatus(payload.lifecycleStatus)
+          : pet.lifecycleStatus,
+        previousLifecycleStatus:
+          payload.lifecycleStatus === "Archived"
+            ? getPreviousLifecycleStatus(pet)
+            : payload.lifecycleStatus === "Memorial"
+              ? "Memorial"
+              : payload.lifecycleStatus === "Active"
+                ? "Active"
+                : payload.previousLifecycleStatus ?? pet.previousLifecycleStatus,
+        memorial: mergeMemorial({
+          ...pet.memorial,
+          ...payload.memorial,
+        }),
         photoInitial:
           payload.photoInitial ??
           (payload.name ? getPetInitial(payload.name) : pet.photoInitial),
@@ -446,6 +510,84 @@ export async function updatePet(id: string, payload: PetPayload) {
   }
 
   return mockResponse(updatedPet);
+}
+
+export function getCountedProfileCount(pets: Pet[]) {
+  return pets.filter((pet) => {
+    const lifecycleStatus = normalizeLifecycleStatus(pet.lifecycleStatus);
+    return lifecycleStatus === "Active" || lifecycleStatus === "Memorial";
+  }).length;
+}
+
+export async function updatePetLifecycle(
+  id: string,
+  lifecycleStatus: PetLifecycleStatus,
+  memorial?: Partial<PetMemorial>
+) {
+  const pet = await getPetById(id);
+
+  if (!pet.data) {
+    return mockResponse<Pet | null>(null);
+  }
+
+  return updatePet(id, {
+    lifecycleStatus,
+    previousLifecycleStatus:
+      lifecycleStatus === "Archived"
+        ? getPreviousLifecycleStatus(pet.data)
+        : lifecycleStatus === "Memorial"
+          ? "Memorial"
+          : pet.data.previousLifecycleStatus,
+    memorial: memorial
+      ? mergeMemorial({
+          ...pet.data.memorial,
+          ...memorial,
+        })
+      : pet.data.memorial,
+  });
+}
+
+export async function restorePetProfile(id: string) {
+  await mockDelay();
+  const pets = getPetCollection();
+  const pet = pets.find((item) => item.id === id);
+  type RestorePetProfileResult = { pet: Pet | null; blockedReason?: string };
+
+  if (!pet) {
+    return mockResponse<RestorePetProfileResult>({
+      pet: null,
+    });
+  }
+
+  if (pet.lifecycleStatus !== "Archived") {
+    return mockResponse<RestorePetProfileResult>({ pet });
+  }
+
+  const countedProfiles = getCountedProfileCount(pets);
+  const freeLimit = freePlanLimits.maxPets;
+
+  if (countedProfiles >= freeLimit) {
+    return mockResponse<RestorePetProfileResult>({
+      pet: null,
+      blockedReason:
+        "You've reached the Free profile limit. Archive another pet first, or wait for Premium plans for more profiles.",
+    });
+  }
+
+  const restoredStatus = pet.previousLifecycleStatus || "Active";
+  const restoredPet: Pet = normalizePet({
+    ...pet,
+    lifecycleStatus: restoredStatus,
+    previousLifecycleStatus: restoredStatus,
+    updatedAt: new Date().toISOString(),
+  });
+
+  writeStoredCollection(
+    PET_STORAGE_KEY,
+    pets.map((item) => (item.id === id ? restoredPet : item))
+  );
+
+  return mockResponse<RestorePetProfileResult>({ pet: restoredPet });
 }
 
 export async function updatePetLostMode(

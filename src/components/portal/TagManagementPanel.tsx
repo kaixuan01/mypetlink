@@ -471,6 +471,16 @@ function TagCard({
           Scanning this physical tag shows an inactive tag page and does not
           expose owner contact details. The pet&apos;s QR Safety Page still works.
         </p>
+      ) : linkedPet?.lifecycleStatus === "Memorial" ? (
+        <p className="mt-4 rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted">
+          {linkedPet.name} is in Memorial Mode. Consider disabling or archiving
+          physical tags that are no longer in use.
+        </p>
+      ) : linkedPet?.lifecycleStatus === "Archived" ? (
+        <p className="mt-4 rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted">
+          {linkedPet.name}&apos;s profile is archived. Consider disabling or
+          archiving physical tags that are no longer in use.
+        </p>
       ) : isPending ? (
         <p className="mt-4 rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted">
           Physical tag scan link is not active yet. Scan history appears after

@@ -1,3 +1,5 @@
+import type { Pet } from "@/types";
+
 export const phase1Positioning =
   "Create a free pet profile first. Add a physical QR or QR + NFC smart tag when you want extra safety. Premium care features are coming soon.";
 
@@ -78,6 +80,14 @@ export function getPetLimitState(petCount: number) {
       ? "You're currently above the new Free limit because you joined during early access. Your existing pet profiles remain active. New profiles may require Premium when it becomes available."
       : "You've reached the Free profile limit. Premium plans for more pets are coming soon. Your existing pet profiles remain active.",
   };
+}
+
+export function getCountedPetProfiles(pets: Pet[]) {
+  return pets.filter((pet) => pet.lifecycleStatus !== "Archived");
+}
+
+export function getPetLimitStateFromPets(pets: Pet[]) {
+  return getPetLimitState(getCountedPetProfiles(pets).length);
 }
 
 export function getMemoryLimitState(memoryCount: number) {

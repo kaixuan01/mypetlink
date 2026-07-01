@@ -36,7 +36,9 @@ export function QrSafetyPageView({ pet }: QrSafetyPageViewProps) {
   const ownerDisplayName = visibility.showOwnerName
     ? getPublicOwnerName(effectiveContact.ownerDisplayName, pet.name)
     : `${pet.name}'s owner`;
-  const isLostMode = pet.lostModeEnabled;
+  const isMemorial = pet.lifecycleStatus === "Memorial";
+  const isArchived = pet.lifecycleStatus === "Archived";
+  const isLostMode = pet.lifecycleStatus === "Active" && pet.lostModeEnabled;
   const lostMode = pet.lostMode;
   const introMessage = isLostMode
     ? `Hi, I found ${pet.name}. I saw the MyPetLink Lost Mode notice.`
@@ -58,6 +60,55 @@ export function QrSafetyPageView({ pet }: QrSafetyPageViewProps) {
 
     return () => window.clearTimeout(timer);
   }, []);
+
+  if (isMemorial || isArchived) {
+    return (
+      <article
+        className="brand-card mx-auto max-w-xl rounded-[2rem] p-5 sm:p-6"
+        style={{ borderColor: theme.colors.border }}
+      >
+        <div
+          className="brand-blue-section rounded-[1.75rem] p-6 text-center"
+          style={{
+            background: `linear-gradient(135deg, ${theme.colors.primarySoft}, #ffffff)`,
+          }}
+        >
+          <PetAvatar pet={pet} size="xl" />
+          <p
+            className="mt-5 text-sm font-bold uppercase text-pet-teal"
+            style={{ color: theme.colors.primary }}
+          >
+            MyPetLink safety page
+          </p>
+          <h1 className="mt-2 text-3xl font-black text-pet-ink">
+            {isMemorial
+              ? "This profile is now a memorial"
+              : "This pet profile is archived"}
+          </h1>
+          <p className="mx-auto mt-3 max-w-sm text-sm font-semibold leading-6 text-pet-muted">
+            {isMemorial
+              ? `${pet.name}'s owner has kept this MyPetLink profile as a place for memories.`
+              : "This MyPetLink profile is not currently active."}
+          </p>
+          {isMemorial ? (
+            <CTAButton
+              className="mt-5 min-h-12"
+              href={pet.publicProfilePath}
+              icon="heart"
+              variant="secondary"
+              fullWidth
+            >
+              View Memorial Profile
+            </CTAButton>
+          ) : null}
+        </div>
+
+        <p className="mt-5 rounded-[1.25rem] bg-pet-cream p-4 text-center text-xs font-semibold leading-5 text-pet-muted">
+          Emergency finder contact actions are not shown for this profile.
+        </p>
+      </article>
+    );
+  }
 
   function openWhatsappWithMessage(text: string) {
     window.location.assign(getWhatsAppLink(whatsappE164, text));

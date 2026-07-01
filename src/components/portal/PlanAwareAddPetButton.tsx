@@ -4,9 +4,10 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { getPetLimitState } from "@/lib/planLimits";
+import { getPetLimitStateFromPets } from "@/lib/planLimits";
 import { ownerRoutes } from "@/lib/routes";
 import { getPets } from "@/services/petService";
+import type { Pet } from "@/types";
 
 type PlanAwareAddPetButtonProps = {
   className?: string;
@@ -20,7 +21,7 @@ export function PlanAwareAddPetButton({
   fullWidth,
 }: PlanAwareAddPetButtonProps) {
   const router = useRouter();
-  const [petCount, setPetCount] = useState<number | null>(null);
+  const [pets, setPets] = useState<Pet[] | null>(null);
   const [showLimitDialog, setShowLimitDialog] = useState(false);
 
   useEffect(() => {
@@ -28,7 +29,7 @@ export function PlanAwareAddPetButton({
 
     getPets().then((response) => {
       if (active) {
-        setPetCount(response.data.length);
+        setPets(response.data);
       }
     });
 
@@ -37,10 +38,10 @@ export function PlanAwareAddPetButton({
     };
   }, []);
 
-  const limit = petCount === null ? null : getPetLimitState(petCount);
+  const limit = pets === null ? null : getPetLimitStateFromPets(pets);
   const canCreate = limit?.canCreate ?? false;
 
-  if (petCount === null) {
+  if (pets === null) {
     return (
       <CTAButton
         className={`${compact ? "min-h-10 px-3 py-2 text-xs" : ""} ${className ?? ""}`.trim()}

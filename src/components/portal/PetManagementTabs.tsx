@@ -153,6 +153,8 @@ function OverviewTab({
   const theme = getPetProfileTheme(pet.profileTheme);
   const qrBadge = getQrStatusBadge(pet.qrStatus, pet.qrSafetyPath);
   const smartTagBadge = getSmartTagStatusBadge(tags, orders);
+  const isMemorial = pet.lifecycleStatus === "Memorial";
+  const isArchived = pet.lifecycleStatus === "Archived";
   const [ownerSettings, setOwnerSettings] =
     useState<OwnerSettings>(defaultOwnerSettings);
   const effectiveContact = getEffectivePetContact(pet, ownerSettings);
@@ -223,7 +225,13 @@ function OverviewTab({
         badge={
           <Badge tone={qrBadge.tone}>{qrBadge.label}</Badge>
         }
-        description="This is the page people see when they find your pet. You can share it anytime."
+        description={
+          isMemorial
+            ? "Memorial profiles keep QR Safety contact actions turned off."
+            : isArchived
+              ? "Restore this profile to manage QR Safety contact settings again."
+              : "This is the page people see when they find your pet. You can share it anytime."
+        }
       >
         <ShareProfileLink
           label="QR Safety Page URL"
@@ -260,8 +268,49 @@ function OverviewTab({
         </div>
       </SectionCard>
 
-      {/* Lost Mode */}
-      <LostModeCard pet={pet} onPetChange={onPetChange} />
+      {isMemorial ? (
+        <SectionCard
+          icon="heart"
+          title="Memorial Mode"
+          badge={<Badge tone="soft">Memorial</Badge>}
+          description="Emergency finder actions are turned off while this profile is in Memorial Mode."
+        >
+          <p className="rounded-[1.25rem] bg-pet-cream p-4 text-sm font-semibold leading-6 text-pet-muted">
+            Memories, care records, and Life Timeline remain available. You can
+            edit memorial details from the pet edit page.
+          </p>
+          <CTAButton
+            href={ownerRoutes.petEdit(pet.id)}
+            variant="outline"
+            icon="settings"
+            fullWidth
+          >
+            Edit Memorial
+          </CTAButton>
+        </SectionCard>
+      ) : isArchived ? (
+        <SectionCard
+          icon="record"
+          title="Archived profile"
+          badge={<Badge tone="soft">Archived</Badge>}
+          description="Archived profiles stay saved but emergency finder actions are hidden."
+        >
+          <p className="rounded-[1.25rem] bg-pet-cream p-4 text-sm font-semibold leading-6 text-pet-muted">
+            Restore this profile from the pet edit page if you want it back in
+            your main pet list and Free profile count.
+          </p>
+          <CTAButton
+            href={ownerRoutes.petEdit(pet.id)}
+            variant="outline"
+            icon="settings"
+            fullWidth
+          >
+            Open Profile Status
+          </CTAButton>
+        </SectionCard>
+      ) : (
+        <LostModeCard pet={pet} onPetChange={onPetChange} />
+      )}
 
       {/* Care Records */}
       <SectionCard

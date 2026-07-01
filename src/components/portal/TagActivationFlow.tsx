@@ -52,14 +52,25 @@ export function TagActivationFlow({
 
     getPets().then((response) => {
       if (active) {
-        setPets(response.data);
-        setSelectedPetId(
-          (current) =>
-            current ||
-            getPreferredPetId(initialResult) ||
-            response.data[0]?.id ||
-            ""
+        const activePets = response.data.filter(
+          (pet) => pet.lifecycleStatus === "Active"
         );
+        setPets(activePets);
+        const preferredPetId = getPreferredPetId(initialResult);
+        setSelectedPetId((current) => {
+          if (current && activePets.some((pet) => pet.id === current)) {
+            return current;
+          }
+
+          if (
+            preferredPetId &&
+            activePets.some((pet) => pet.id === preferredPetId)
+          ) {
+            return preferredPetId;
+          }
+
+          return activePets[0]?.id || "";
+        });
       }
     });
 
@@ -205,6 +216,24 @@ export function TagActivationFlow({
             fullWidth
           >
             Continue with owner account
+          </CTAButton>
+        </ActivationCard>
+      </ActivationShell>
+    );
+  }
+
+  if (!pets.length) {
+    return (
+      <ActivationShell>
+        <ActivationCard
+          description="A tag needs an active pet profile so finders can open the QR Safety Page."
+          icon="paw"
+          tagCode={tagCode}
+          title="No active pet profile available"
+          tone="soft"
+        >
+          <CTAButton href={ownerRoutes.petNew} icon="paw" fullWidth>
+            Add Pet Profile
           </CTAButton>
         </ActivationCard>
       </ActivationShell>

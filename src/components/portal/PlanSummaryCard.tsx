@@ -3,7 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
-import { freePlanLimits, getPetLimitState, premiumPlan } from "@/lib/planLimits";
+import {
+  freePlanLimits,
+  getCountedPetProfiles,
+  getPetLimitStateFromPets,
+  premiumPlan,
+} from "@/lib/planLimits";
 import { ownerRoutes } from "@/lib/routes";
 import { getPetMoments } from "@/services/momentService";
 import { getPets } from "@/services/petService";
@@ -45,17 +50,18 @@ export function PlanSummaryCard({
     };
   }, []);
 
-  const petLimit = getPetLimitState(pets.length);
+  const countedPets = getCountedPetProfiles(pets);
+  const petLimit = getPetLimitStateFromPets(pets);
   const topMemoryRows = useMemo(
     () =>
-      pets
+      countedPets
         .slice(0, compact ? 2 : 4)
         .map((pet) => ({
           id: pet.id,
           name: pet.name,
           count: memoryCounts[pet.id] ?? 0,
         })),
-    [compact, memoryCounts, pets]
+    [compact, countedPets, memoryCounts]
   );
 
   return (

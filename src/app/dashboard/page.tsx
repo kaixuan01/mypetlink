@@ -26,7 +26,8 @@ export const metadata: Metadata = {
 
 export default async function DashboardPage() {
   const petsResponse = await getPets();
-  const pets = petsResponse.data;
+  const allPets = petsResponse.data;
+  const pets = allPets.filter((pet) => pet.lifecycleStatus !== "Archived");
   const firstPet = pets[0];
 
   const [recordResponses, momentResponses, tagsResponse, ordersResponse] =
@@ -45,7 +46,9 @@ export default async function DashboardPage() {
   const tags = tagsResponse.data;
   const orders = ordersResponse.data;
   const pendingOrders = orders.filter((order) => isActiveOrder(order.status));
-  const activeQrProfiles = pets.filter((pet) => pet.qrStatus === "active").length;
+  const activeQrProfiles = pets.filter(
+    (pet) => pet.lifecycleStatus === "Active" && pet.qrStatus === "active"
+  ).length;
   const activeSmartTags = tags.filter(
     (tag) => tag.status === "Active" && !tag.isArchived
   ).length;
@@ -91,13 +94,13 @@ export default async function DashboardPage() {
           </div>
 
           <div className="mt-5 grid gap-2 sm:grid-cols-3">
-            <SummaryPill label="Pets" value={pets.length} />
+            <SummaryPill label="Active profiles" value={pets.length} />
             <SummaryPill label="QR active" value={activeQrProfiles} />
             <SummaryPill label="Orders pending" value={pendingOrders.length} />
           </div>
         </section>
 
-        <PlanSummaryCard compact initialPets={pets} />
+        <PlanSummaryCard compact initialPets={allPets} />
 
         <DashboardSection
           title="Your pets"

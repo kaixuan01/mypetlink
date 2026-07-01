@@ -27,14 +27,18 @@ export function PetSwitcher({
   activePetId,
   section,
 }: PetSwitcherProps) {
-  const [pets, setPets] = useState(initialPets);
+  const [pets, setPets] = useState(
+    initialPets.filter((pet) => pet.lifecycleStatus !== "Archived")
+  );
 
   useEffect(() => {
     let active = true;
 
     getPets().then((response) => {
       if (active) {
-        setPets(response.data);
+        setPets(
+          response.data.filter((pet) => pet.lifecycleStatus !== "Archived")
+        );
       }
     });
 

@@ -13,6 +13,7 @@ import { useRouter } from "next/navigation";
 import { ImageUploadField } from "@/components/portal/ImageUploadField";
 import { ShareProfileLink } from "@/components/share/ShareProfileLink";
 import { CTAButton } from "@/components/ui/CTAButton";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { FormSection } from "@/components/ui/FormSection";
 import { Icon } from "@/components/ui/Icon";
 import { PetAvatar } from "@/components/ui/PetAvatar";
@@ -42,11 +43,14 @@ import { ownerRoutes, publicProfilePath } from "@/lib/routes";
 import {
   createPet,
   getPetById,
+  restorePetProfile,
   slugifyPetSlug,
   updatePet,
+  updatePetLifecycle,
 } from "@/services/petService";
 import type {
   Pet,
+  PetLifecycleStatus,
   PetPayload,
   PetProfileThemeId,
   PetSpecies,
@@ -69,6 +73,10 @@ type FormState = {
   photoUrl: string;
   coverUrl: string;
   profileTheme: PetProfileThemeId;
+  lifecycleStatus: PetLifecycleStatus;
+  passedAwayDate: string;
+  memorialMessage: string;
+  showMemorialOnPublicProfile: boolean;
   bio: string;
   personalityTags: string;
   favoriteFood: string;
@@ -125,6 +133,10 @@ const fieldTab: Record<keyof FormState, EditTab> = {
   photoUrl: "photos",
   coverUrl: "photos",
   profileTheme: "theme",
+  lifecycleStatus: "public",
+  passedAwayDate: "public",
+  memorialMessage: "public",
+  showMemorialOnPublicProfile: "public",
   slug: "public",
   adoptionDate: "public",
   generalArea: "contact",
@@ -159,6 +171,10 @@ const emptyForm: FormState = {
   photoUrl: "",
   coverUrl: "",
   profileTheme: "default",
+  lifecycleStatus: "Active",
+  passedAwayDate: "",
+  memorialMessage: "",
+  showMemorialOnPublicProfile: true,
   bio: "",
   personalityTags: "",
   favoriteFood: "",
@@ -198,6 +214,10 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState("");
+  const [statusMessage, setStatusMessage] = useState("");
+  const [statusAction, setStatusAction] = useState<
+    "memorial" | "archive" | "restore" | null
+  >(null);
   const origin = useSyncExternalStore(
     subscribeToOrigin,
     getBrowserOrigin,
@@ -245,6 +265,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
     setForm((current) => ({ ...current, [key]: value }));
     setErrors((current) => ({ ...current, [key]: undefined }));
     setSuccess("");
+    setStatusMessage("");
   }
 
   function updateSpecies(species: PetSpecies) {
@@ -354,6 +375,14 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
       nextErrors.adoptionDate = "Choose a valid adoption day.";
     }
 
+    if (form.passedAwayDate) {
+      if (!isValidDate(form.passedAwayDate)) {
+        nextErrors.passedAwayDate = "Choose a valid date.";
+      } else if (new Date(`${form.passedAwayDate}T00:00:00`) > new Date()) {
+        nextErrors.passedAwayDate = "Passed away date cannot be in the future.";
+      }
+    }
+
     enforceMax(nextErrors, "name", form.name, 60);
     enforceMax(nextErrors, "breed", form.breed, 80);
     enforceMax(nextErrors, "customSpecies", form.customSpecies, 60);
@@ -368,6 +397,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
     enforceMax(nextErrors, "favoriteFood", form.favoriteFood, 80);
     enforceMax(nextErrors, "favoriteToy", form.favoriteToy, 80);
     enforceMax(nextErrors, "ownerName", form.ownerName, 80);
+    enforceMax(nextErrors, "memorialMessage", form.memorialMessage, 240);
 
     return nextErrors;
   }
@@ -412,6 +442,54 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  async function handleStatusAction() {
+    if (!currentPet || !statusAction) {
+      return;
+    }
+
+    if (statusAction === "restore") {
+      const response = await restorePetProfile(currentPet.id);
+
+      if (response.data.pet) {
+        setCurrentPet(response.data.pet);
+        setForm(toFormState(response.data.pet, ownerSettings));
+        setStatusMessage(`${response.data.pet.name} is back in your main list.`);
+        router.refresh();
+      } else {
+        setStatusMessage(
+          response.data.blockedReason ??
+            "You've reached the Free profile limit. Archive another pet first, or wait for Premium plans for more profiles."
+        );
+      }
+
+      setStatusAction(null);
+      return;
+    }
+
+    const nextStatus: PetLifecycleStatus =
+      statusAction === "memorial" ? "Memorial" : "Archived";
+    const response = await updatePetLifecycle(currentPet.id, nextStatus, {
+      passedAwayDate: form.passedAwayDate
+        ? formatDisplayDate(form.passedAwayDate)
+        : currentPet.memorial.passedAwayDate,
+      memorialMessage: form.memorialMessage.trim(),
+      showMemorialOnPublicProfile: form.showMemorialOnPublicProfile,
+    });
+
+    if (response.data) {
+      setCurrentPet(response.data);
+      setForm(toFormState(response.data, ownerSettings));
+      setStatusMessage(
+        nextStatus === "Memorial"
+          ? `${response.data.name} is now in Memorial Mode.`
+          : `${response.data.name} has been archived.`
+      );
+      router.refresh();
+    }
+
+    setStatusAction(null);
   }
 
   if (createdPet) {
@@ -771,6 +849,128 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
           description="Settings for the shareable profile at /p/{slug}-{publicCode}. This is the friendly page you share with friends and family."
         >
           <div className="grid min-w-0 gap-4">
+            <div className="rounded-[1.5rem] border border-pet-border bg-white p-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <h2 className="text-lg font-black text-pet-ink">
+                    Profile status
+                  </h2>
+                  <p className="mt-2 text-sm leading-6 text-pet-muted">
+                    Use Memorial Mode to keep this pet&apos;s profile as a
+                    gentle place for memories. Archived profiles are hidden from
+                    your main list.
+                  </p>
+                </div>
+                <span className="inline-flex w-fit rounded-full bg-pet-cream px-3 py-1 text-xs font-black uppercase text-pet-muted">
+                  {form.lifecycleStatus}
+                </span>
+              </div>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                {(["Active", "Memorial", "Archived"] as PetLifecycleStatus[]).map(
+                  (status) => (
+                    <button
+                      aria-pressed={form.lifecycleStatus === status}
+                      className={`min-h-12 rounded-2xl border px-4 py-3 text-sm font-black transition ${
+                        form.lifecycleStatus === status
+                          ? "border-pet-teal bg-[#e8f3ff] text-pet-teal"
+                          : "border-pet-border bg-white text-pet-muted hover:bg-pet-cream"
+                      }`}
+                      key={status}
+                      onClick={() => updateField("lifecycleStatus", status)}
+                      type="button"
+                    >
+                      {status}
+                    </button>
+                  )
+                )}
+              </div>
+
+              {form.lifecycleStatus === "Memorial" ||
+              currentPet?.lifecycleStatus === "Memorial" ||
+              currentPet?.previousLifecycleStatus === "Memorial" ? (
+                <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                  <Field
+                    error={errors.passedAwayDate}
+                    helper="Optional. This can appear on the memorial profile."
+                    label="Passed away date"
+                  >
+                    <input
+                      className="brand-input"
+                      onChange={(event) =>
+                        updateField("passedAwayDate", event.target.value)
+                      }
+                      type="date"
+                      value={form.passedAwayDate}
+                    />
+                  </Field>
+                  <Field
+                    error={errors.memorialMessage}
+                    helper="A gentle note for friends and family. Maximum 240 characters."
+                    label="Memorial message"
+                  >
+                    <textarea
+                      className="brand-input min-h-28"
+                      maxLength={240}
+                      onChange={(event) =>
+                        updateField("memorialMessage", event.target.value)
+                      }
+                      placeholder={`${form.name || "This pet"} is lovingly remembered.`}
+                      value={form.memorialMessage}
+                    />
+                  </Field>
+                  <div className="lg:col-span-2">
+                    <Checkbox
+                      checked={form.showMemorialOnPublicProfile}
+                      label="Show memorial notice on public profile"
+                      onChange={(value) =>
+                        updateField("showMemorialOnPublicProfile", value)
+                      }
+                    />
+                  </div>
+                </div>
+              ) : null}
+
+              {statusMessage ? (
+                <p className="mt-4 rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted">
+                  {statusMessage}
+                </p>
+              ) : null}
+
+              {mode === "edit" && currentPet ? (
+                <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                  {currentPet.lifecycleStatus !== "Archived" ? (
+                    <>
+                      {currentPet.lifecycleStatus !== "Memorial" ? (
+                        <button
+                          className="inline-flex min-h-12 flex-1 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
+                          onClick={() => setStatusAction("memorial")}
+                          type="button"
+                        >
+                          Move to Memorial
+                        </button>
+                      ) : null}
+                      <button
+                        className="inline-flex min-h-12 flex-1 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-bold text-pet-muted transition hover:bg-pet-cream"
+                        onClick={() => setStatusAction("archive")}
+                        type="button"
+                      >
+                        Archive Pet
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      className="inline-flex min-h-12 flex-1 items-center justify-center rounded-full border border-pet-teal bg-[#e8f3ff] px-5 py-3 text-sm font-bold text-pet-teal transition hover:bg-[#d8edff]"
+                      onClick={() => setStatusAction("restore")}
+                      type="button"
+                    >
+                      Restore to List
+                    </button>
+                  )}
+                </div>
+              ) : null}
+            </div>
+
             <div className="grid min-w-0 gap-4 lg:grid-cols-2">
               <Field
                 error={errors.slug}
@@ -1170,8 +1370,50 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
           </button>
         </div>
       </div>
+
+      {statusAction ? (
+        <ConfirmDialog
+          cancelLabel="Cancel"
+          confirmLabel={getStatusActionCopy(statusAction, form.name).confirmLabel}
+          destructive={statusAction === "archive"}
+          message={getStatusActionCopy(statusAction, form.name).message}
+          onCancel={() => setStatusAction(null)}
+          onConfirm={() => void handleStatusAction()}
+          open={Boolean(statusAction)}
+          title={getStatusActionCopy(statusAction, form.name).title}
+        />
+      ) : null}
     </form>
   );
+}
+
+function getStatusActionCopy(
+  action: "memorial" | "archive" | "restore",
+  petName: string
+) {
+  const name = petName || "this pet";
+
+  if (action === "memorial") {
+    return {
+      title: "Move to Memorial?",
+      message: `This keeps ${name}'s profile, memories, and timeline, but the QR Safety Page will no longer show emergency finder contact actions.`,
+      confirmLabel: "Move to Memorial",
+    };
+  }
+
+  if (action === "archive") {
+    return {
+      title: "Archive this pet?",
+      message: `This hides ${name} from your main pet list. Memories, records, tags, and order history stay saved.`,
+      confirmLabel: "Archive Pet",
+    };
+  }
+
+  return {
+    title: "Restore this pet?",
+    message: `This will show ${name} in your main pet list again and count toward your Free profile limit.`,
+    confirmLabel: "Restore to List",
+  };
 }
 
 function UrlDisplay({ label, url }: { label: string; url: string }) {
@@ -1380,6 +1622,11 @@ function toFormState(
     photoUrl: pet.photoUrl ?? "",
     coverUrl: pet.coverUrl ?? "",
     profileTheme: pet.profileTheme ?? "default",
+    lifecycleStatus: pet.lifecycleStatus ?? "Active",
+    passedAwayDate: parseDisplayDate(pet.memorial?.passedAwayDate ?? ""),
+    memorialMessage: pet.memorial?.memorialMessage ?? "",
+    showMemorialOnPublicProfile:
+      pet.memorial?.showMemorialOnPublicProfile ?? true,
     bio: pet.bio,
     personalityTags: pet.personalityTags.join(", "),
     favoriteFood: pet.favoriteFood === "Not set" ? "" : pet.favoriteFood,
@@ -1440,6 +1687,16 @@ function buildPayload(
     profilePhotoLabel: form.photoUrl ? "Profile photo added" : "",
     coverPhotoLabel: form.coverUrl ? "Cover photo added" : "",
     profileTheme: form.profileTheme,
+    lifecycleStatus: form.lifecycleStatus,
+    previousLifecycleStatus:
+      form.lifecycleStatus === "Memorial" ? "Memorial" : undefined,
+    memorial: {
+      passedAwayDate: form.passedAwayDate
+        ? formatDisplayDate(form.passedAwayDate)
+        : "",
+      memorialMessage: form.memorialMessage.trim(),
+      showMemorialOnPublicProfile: form.showMemorialOnPublicProfile,
+    },
     bio:
       form.bio.trim() ||
       `${name} is loved dearly and has a safe profile for family and friends.`,

@@ -49,8 +49,11 @@ export function GenericPetSection({ section }: { section: Section }) {
         return;
       }
 
-      setPets(response.data);
-      const firstPet = response.data[0];
+      const visiblePets = response.data.filter(
+        (pet) => pet.lifecycleStatus !== "Archived"
+      );
+      setPets(visiblePets);
+      const firstPet = visiblePets[0];
 
       if (firstPet) {
         if (section === "moments") {

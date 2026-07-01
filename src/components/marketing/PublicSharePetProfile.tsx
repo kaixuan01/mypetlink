@@ -84,7 +84,8 @@ export function PublicSharePetProfile({
   const [moments, setMoments] = useState(initialMoments);
   const [records, setRecords] = useState(initialRecords);
   const [lostMode, setLostMode] = useState(
-    initialLostMode || initialProfile.lostModeEnabled
+    initialProfile.lifecycleStatus === "Active" &&
+      (initialLostMode || initialProfile.lostModeEnabled)
   );
   const [safetyPagePath, setSafetyPagePath] = useState(
     initialProfile.qrSafetyPath
@@ -101,6 +102,9 @@ export function PublicSharePetProfile({
   const visibility = mergeVisibility(profile.visibility);
   const theme = getPetProfileTheme(profile.profileTheme);
   const effectiveContact = getEffectivePetContact(profile, ownerSettings);
+  const isMemorial = profile.lifecycleStatus === "Memorial";
+  const isArchived = profile.lifecycleStatus === "Archived";
+  const isActiveProfile = !isMemorial && !isArchived;
 
   const ownerDisplayName = visibility.showOwnerName
     ? getPublicOwnerName(effectiveContact.ownerDisplayName, profile.name)
@@ -114,7 +118,7 @@ export function PublicSharePetProfile({
   const phoneHref = getCallLink(phoneE164);
   const canWhatsapp = visibility.showWhatsapp && Boolean(whatsappE164);
   const canCall = visibility.showPhone && Boolean(phoneE164);
-  const canContact = canWhatsapp || canCall;
+  const canContact = isActiveProfile && (canWhatsapp || canCall);
   const lostModeDetails = profile.lostMode;
 
   const publicMoments = visibility.showMoments
@@ -158,7 +162,9 @@ export function PublicSharePetProfile({
         setMoments(momentsResponse.data);
         setRecords(recordsResponse.data);
         setSafetyPagePath(nextProfile.qrSafetyPath);
-        setLostMode(nextProfile.lostModeEnabled);
+        setLostMode(
+          nextProfile.lifecycleStatus === "Active" && nextProfile.lostModeEnabled
+        );
       }
     );
 
@@ -236,7 +242,7 @@ export function PublicSharePetProfile({
               className="mt-4 text-3xl font-black text-pet-ink"
               style={{ color: theme.colors.text }}
             >
-              {profile.name}
+              {isMemorial ? `Remembering ${profile.name}` : profile.name}
             </h1>
             <p
               className="mt-2 text-sm font-bold text-pet-muted"
@@ -274,8 +280,66 @@ export function PublicSharePetProfile({
           </div>
         </section>
 
+        {isMemorial && profile.memorial.showMemorialOnPublicProfile ? (
+          <section
+            className="mt-4 rounded-[1.5rem] border p-5 text-center"
+            style={{
+              background: theme.colors.surface,
+              borderColor: theme.colors.border,
+            }}
+          >
+            <div
+              className="flex items-center justify-center gap-2 text-sm font-black uppercase"
+              style={{ color: theme.colors.accent }}
+            >
+              <Icon name="heart" className="h-4 w-4" />
+              {profile.name} is lovingly remembered.
+            </div>
+            {profile.memorial.passedAwayDate ? (
+              <p
+                className="mt-2 text-sm font-bold"
+                style={{ color: theme.colors.mutedText }}
+              >
+                Passed away: {profile.memorial.passedAwayDate}
+              </p>
+            ) : null}
+            {profile.memorial.memorialMessage ? (
+              <p
+                className="mx-auto mt-3 max-w-sm text-sm font-semibold leading-6"
+                style={{ color: theme.colors.text }}
+              >
+                {profile.memorial.memorialMessage}
+              </p>
+            ) : null}
+          </section>
+        ) : null}
+
+        {isArchived ? (
+          <section
+            className="mt-4 rounded-[1.5rem] border p-5 text-center"
+            style={{
+              background: theme.colors.surface,
+              borderColor: theme.colors.border,
+            }}
+          >
+            <p
+              className="text-sm font-black"
+              style={{ color: theme.colors.text }}
+            >
+              This profile is archived by the owner.
+            </p>
+            <p
+              className="mx-auto mt-2 max-w-sm text-sm font-semibold leading-6"
+              style={{ color: theme.colors.mutedText }}
+            >
+              Memories and public details can still be viewed, but emergency
+              finder actions are turned off.
+            </p>
+          </section>
+        ) : null}
+
         {/* Lost Mode is the one time this shareable page turns finder-first. */}
-        {lostMode ? (
+        {isActiveProfile && lostMode ? (
           <section className="mt-4 rounded-[1.5rem] border-2 border-pet-coral bg-[#fff1ee] p-5 text-center">
             <div className="flex items-center justify-center gap-2 text-sm font-black uppercase text-pet-coral">
               <Icon name="shield" className="h-4 w-4" />
@@ -392,7 +456,7 @@ export function PublicSharePetProfile({
           </div>
         )}
 
-        {!lostMode && canContact ? (
+        {isActiveProfile && !lostMode && canContact ? (
           <div className="mt-3">
             {canWhatsapp ? (
               <CTAButton
@@ -506,6 +570,10 @@ function AboutTab({
     { label: "Gender", value: profile.gender },
     { label: "Age", value: getPetAgeLabel(profile) },
     { label: "Birthday", value: profile.birthday },
+    ...(profile.lifecycleStatus === "Memorial" &&
+    profile.memorial.passedAwayDate
+      ? [{ label: "Remembered since", value: profile.memorial.passedAwayDate }]
+      : []),
     ...(visibility.showGeneralArea
       ? [{ label: "General area", value: generalArea }]
       : []),

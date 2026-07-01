@@ -3,19 +3,20 @@
 import { useEffect, useState } from "react";
 import { PetProfileForm } from "@/components/portal/PetProfileForm";
 import { CTAButton } from "@/components/ui/CTAButton";
-import { getPetLimitState } from "@/lib/planLimits";
+import { getPetLimitStateFromPets } from "@/lib/planLimits";
 import { ownerRoutes } from "@/lib/routes";
 import { getPets } from "@/services/petService";
+import type { Pet } from "@/types";
 
 export function NewPetForm() {
-  const [petCount, setPetCount] = useState<number | null>(null);
+  const [pets, setPets] = useState<Pet[] | null>(null);
 
   useEffect(() => {
     let active = true;
 
     getPets().then((response) => {
       if (active) {
-        setPetCount(response.data.length);
+        setPets(response.data);
       }
     });
 
@@ -24,7 +25,7 @@ export function NewPetForm() {
     };
   }, []);
 
-  if (petCount === null) {
+  if (pets === null) {
     return (
       <div className="brand-card rounded-[1.75rem] p-6">
         <p className="text-sm font-semibold text-pet-muted">
@@ -34,7 +35,7 @@ export function NewPetForm() {
     );
   }
 
-  const limit = getPetLimitState(petCount);
+  const limit = getPetLimitStateFromPets(pets);
 
   if (!limit.canCreate) {
     return (

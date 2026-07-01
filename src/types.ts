@@ -38,6 +38,14 @@ export type PetProfileThemeId =
   | "sky"
   | "lavender";
 
+export type PetLifecycleStatus = "Active" | "Memorial" | "Archived";
+
+export type PetMemorial = {
+  passedAwayDate?: string;
+  memorialMessage?: string;
+  showMemorialOnPublicProfile: boolean;
+};
+
 export type PetLostMode = {
   lastSeenArea: string;
   lastSeenDateTime: string;
@@ -69,6 +77,9 @@ export type Pet = {
   photoUrl: string;
   coverUrl: string;
   profileTheme: PetProfileThemeId;
+  lifecycleStatus: PetLifecycleStatus;
+  previousLifecycleStatus?: Exclude<PetLifecycleStatus, "Archived">;
+  memorial: PetMemorial;
   qrStatus: QrStatus;
   publicCode: string;
   safetyCode: string;
@@ -135,6 +146,9 @@ export type PublicPetProfile = Pick<
   | "photoUrl"
   | "coverUrl"
   | "profileTheme"
+  | "lifecycleStatus"
+  | "previousLifecycleStatus"
+  | "memorial"
   | "publicCode"
   | "safetyCode"
   | "qrSafetyEnabled"

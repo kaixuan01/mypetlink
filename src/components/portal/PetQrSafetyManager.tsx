@@ -39,6 +39,8 @@ export function PetQrSafetyManager({
   const showPhone = visibility.showPhone && Boolean(phoneE164);
   const showEmergencyNote = visibility.showEmergencyNote;
   const showGeneralArea = visibility.showGeneralArea;
+  const isMemorial = pet.lifecycleStatus === "Memorial";
+  const isArchived = pet.lifecycleStatus === "Archived";
   const activeTags = tags.filter(
     (tag) => tag.status === "Active" && !tag.isArchived
   );
@@ -96,6 +98,70 @@ export function PetQrSafetyManager({
           </CTAButton>
         </div>
       </section>
+
+      {isMemorial ? (
+        <section className="brand-card rounded-[1.75rem] p-5">
+          <Badge tone="soft">Memorial Mode</Badge>
+          <h2 className="mt-3 text-xl font-black text-pet-ink">
+            QR Safety contact actions are turned off.
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-pet-muted">
+            This profile is in Memorial Mode. People can still view the
+            memorial profile, but finder contact buttons are hidden.
+          </p>
+          <p className="mt-3 rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted">
+            Consider disabling or archiving physical tags that are no longer in
+            use.
+          </p>
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+            <CTAButton
+              href={pet.publicProfilePath}
+              icon="heart"
+              target="_blank"
+              rel="noopener noreferrer"
+              variant="secondary"
+            >
+              View Memorial Profile
+            </CTAButton>
+            <CTAButton
+              href={ownerRoutes.petTags(pet.id)}
+              icon="tag"
+              variant="outline"
+            >
+              Manage Physical Tags
+            </CTAButton>
+          </div>
+        </section>
+      ) : null}
+
+      {isArchived ? (
+        <section className="brand-card rounded-[1.75rem] p-5">
+          <Badge tone="soft">Archived</Badge>
+          <h2 className="mt-3 text-xl font-black text-pet-ink">
+            Restore this profile to manage QR Safety settings.
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-pet-muted">
+            This profile is archived. Memories, records, tags, and order history
+            stay saved, but emergency finder contact actions are hidden.
+          </p>
+          <p className="mt-3 rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted">
+            Consider disabling or archiving physical tags that are no longer in
+            use.
+          </p>
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+            <CTAButton href={ownerRoutes.petEdit(pet.id)} icon="settings">
+              Open Profile Status
+            </CTAButton>
+            <CTAButton
+              href={ownerRoutes.petTags(pet.id)}
+              icon="tag"
+              variant="outline"
+            >
+              Manage Physical Tags
+            </CTAButton>
+          </div>
+        </section>
+      ) : null}
 
       <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
         <div className="grid gap-5">
@@ -198,7 +264,9 @@ export function PetQrSafetyManager({
         </div>
 
         <div className="grid gap-5 content-start">
-          <LostModePanel pet={pet} onPetChange={handlePetChange} />
+          {isMemorial || isArchived ? null : (
+            <LostModePanel pet={pet} onPetChange={handlePetChange} />
+          )}
 
           <section className="brand-card rounded-[1.75rem] p-5">
             <div className="flex items-start justify-between gap-3">

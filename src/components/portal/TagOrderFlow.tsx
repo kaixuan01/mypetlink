@@ -102,8 +102,14 @@ export function TagOrderFlow({
   initialTagType = "MyPetLink QR Pet Tag",
   replacementForTagId,
 }: TagOrderFlowProps) {
+  const orderablePets = pets.filter((pet) => pet.lifecycleStatus === "Active");
+  const initialPetId =
+    preselectedPetId &&
+    orderablePets.some((pet) => pet.id === preselectedPetId)
+      ? preselectedPetId
+      : orderablePets[0]?.id ?? "";
   const [step, setStep] = useState(0);
-  const [petId, setPetId] = useState(preselectedPetId ?? pets[0]?.id ?? "");
+  const [petId, setPetId] = useState(initialPetId);
   const [shape, setShape] = useState<TagShape>("Round");
   const [delivery, setDelivery] = useState<DeliveryDetails>(emptyDelivery);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -124,8 +130,8 @@ export function TagOrderFlow({
   const replacementFor = orderPrefs.replacementForTagId ?? replacementForTagId;
 
   const selectedPet = useMemo(
-    () => pets.find((pet) => pet.id === petId),
-    [petId, pets]
+    () => orderablePets.find((pet) => pet.id === petId),
+    [orderablePets, petId]
   );
   const estimatedPrice = getEstimatedTagPrice(tagType);
   const shapeOption =
@@ -261,11 +267,11 @@ export function TagOrderFlow({
     setIsSubmitting(false);
   }
 
-  if (!pets.length) {
+  if (!orderablePets.length) {
     return (
       <EmptyState
-        title="Create a pet profile first"
-        description="A physical tag needs a pet profile so finders can contact you quickly."
+        title="No active profiles available"
+        description="A physical tag needs an active pet profile so finders can contact you quickly."
         actionHref="/pets/new"
         actionLabel="Add Pet"
       />
@@ -404,7 +410,7 @@ export function TagOrderFlow({
           description="Choose which pet this tag belongs to."
         >
           <div className="grid gap-3 md:grid-cols-2">
-            {pets.map((pet) => (
+            {orderablePets.map((pet) => (
               <button
                 className={`rounded-[1.25rem] border p-4 text-left transition ${
                   petId === pet.id

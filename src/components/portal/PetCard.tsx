@@ -8,16 +8,22 @@ import {
 } from "@/components/portal/ProfileAccessStatus";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Icon } from "@/components/ui/Icon";
 import { PetAvatar } from "@/components/ui/PetAvatar";
 import { getPetSummaryLabel } from "@/lib/petDisplay";
 import { ownerRoutes } from "@/lib/routes";
-import type { Pet, PetTag, TagOrder } from "@/types";
+import {
+  restorePetProfile,
+  updatePetLifecycle,
+} from "@/services/petService";
+import type { Pet, PetLifecycleStatus, PetTag, TagOrder } from "@/types";
 
 type PetCardProps = {
   pet: Pet;
   orders?: TagOrder[];
   tags?: PetTag[];
+  onPetUpdated?: (pet: Pet) => void;
 };
 
 const moreLinks = (petId: string) => [
@@ -29,10 +35,55 @@ const moreLinks = (petId: string) => [
   { label: "Order tag", href: ownerRoutes.petTagOrder(petId) },
 ];
 
-export function PetCard({ pet, orders = [], tags = [] }: PetCardProps) {
+export function PetCard({
+  pet,
+  orders = [],
+  tags = [],
+  onPetUpdated,
+}: PetCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [statusMessage, setStatusMessage] = useState("");
+  const [confirmAction, setConfirmAction] = useState<
+    "memorial" | "archive" | "restore" | null
+  >(null);
   const qrBadge = getQrStatusBadge(pet.qrStatus, pet.qrSafetyPath);
   const tagBadge = getSmartTagStatusBadge(tags, orders);
+  const isMemorial = pet.lifecycleStatus === "Memorial";
+  const isArchived = pet.lifecycleStatus === "Archived";
+  const confirmCopy = getConfirmCopy(confirmAction, pet);
+
+  async function handleLifecycleUpdate(status: PetLifecycleStatus) {
+    const response = await updatePetLifecycle(pet.id, status);
+
+    if (response.data) {
+      onPetUpdated?.(response.data);
+      setStatusMessage(
+        status === "Memorial"
+          ? `${pet.name} is now in Memorial Mode.`
+          : `${pet.name} has been archived.`
+      );
+    }
+
+    setConfirmAction(null);
+    setMenuOpen(false);
+  }
+
+  async function handleRestore() {
+    const response = await restorePetProfile(pet.id);
+
+    if (response.data.pet) {
+      onPetUpdated?.(response.data.pet);
+      setStatusMessage(`${pet.name} is back in your main list.`);
+    } else {
+      setStatusMessage(
+        response.data.blockedReason ??
+          "You've reached the Free profile limit. Archive another pet first, or wait for Premium plans for more profiles."
+      );
+    }
+
+    setConfirmAction(null);
+    setMenuOpen(false);
+  }
 
   return (
     <article className="brand-card flex flex-col rounded-[1.75rem] p-5">
@@ -41,6 +92,8 @@ export function PetCard({ pet, orders = [], tags = [] }: PetCardProps) {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-xl font-black text-pet-ink">{pet.name}</h3>
+            {isMemorial ? <Badge tone="soft">Memorial</Badge> : null}
+            {isArchived ? <Badge tone="soft">Archived</Badge> : null}
             <Badge tone={qrBadge.tone}>{qrBadge.label}</Badge>
           </div>
           <p className="mt-1 text-sm text-pet-muted">
@@ -52,15 +105,26 @@ export function PetCard({ pet, orders = [], tags = [] }: PetCardProps) {
           </div>
           {pet.emergencyNote ? (
             <p className="mt-3 line-clamp-2 text-sm leading-6 text-pet-muted">
-              {pet.emergencyNote}
+              {isMemorial
+                ? pet.memorial.memorialMessage ||
+                  "Memories, records, and timeline stay saved here."
+                : isArchived
+                  ? "This profile is archived. Memories and records stay saved."
+                  : pet.emergencyNote}
             </p>
           ) : null}
         </div>
       </div>
 
+      {statusMessage ? (
+        <p className="mt-4 rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted">
+          {statusMessage}
+        </p>
+      ) : null}
+
       <div className="relative mt-auto flex items-center gap-3 pt-5">
         <CTAButton href={ownerRoutes.petProfile(pet.id)} fullWidth>
-          Manage
+          {isArchived ? "View Profile" : "Manage"}
         </CTAButton>
         <CTAButton
           href={pet.publicProfilePath}
@@ -69,7 +133,7 @@ export function PetCard({ pet, orders = [], tags = [] }: PetCardProps) {
           rel="noopener noreferrer"
           fullWidth
         >
-          Public Profile
+          {isMemorial ? "Memorial Profile" : "Public Profile"}
         </CTAButton>
         <button
           aria-expanded={menuOpen}
@@ -101,10 +165,92 @@ export function PetCard({ pet, orders = [], tags = [] }: PetCardProps) {
                   {link.label}
                 </Link>
               ))}
+              <div className="my-1 border-t border-pet-border" />
+              {isArchived ? (
+                <button
+                  className="block w-full rounded-[0.9rem] px-4 py-2.5 text-left text-sm font-bold text-pet-teal transition hover:bg-pet-cream"
+                  onClick={() => setConfirmAction("restore")}
+                  type="button"
+                >
+                  Restore to List
+                </button>
+              ) : (
+                <>
+                  {isMemorial ? null : (
+                    <button
+                      className="block w-full rounded-[0.9rem] px-4 py-2.5 text-left text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
+                      onClick={() => setConfirmAction("memorial")}
+                      type="button"
+                    >
+                      Move to Memorial
+                    </button>
+                  )}
+                  <button
+                    className="block w-full rounded-[0.9rem] px-4 py-2.5 text-left text-sm font-bold text-pet-muted transition hover:bg-pet-cream"
+                    onClick={() => setConfirmAction("archive")}
+                    type="button"
+                  >
+                    Archive Pet
+                  </button>
+                </>
+              )}
             </div>
           </>
         ) : null}
       </div>
+
+      {confirmCopy ? (
+        <ConfirmDialog
+          cancelLabel="Cancel"
+          confirmLabel={confirmCopy.confirmLabel}
+          destructive={confirmAction === "archive"}
+          message={confirmCopy.message}
+          onCancel={() => setConfirmAction(null)}
+          onConfirm={() => {
+            if (confirmAction === "restore") {
+              void handleRestore();
+              return;
+            }
+
+            void handleLifecycleUpdate(
+              confirmAction === "memorial" ? "Memorial" : "Archived"
+            );
+          }}
+          open={Boolean(confirmAction)}
+          title={confirmCopy.title}
+        />
+      ) : null}
     </article>
   );
+}
+
+function getConfirmCopy(
+  action: "memorial" | "archive" | "restore" | null,
+  pet: Pet
+) {
+  if (action === "memorial") {
+    return {
+      title: "Move to Memorial?",
+      message: `This keeps ${pet.name}'s profile, memories, and timeline, but the QR Safety Page will no longer show emergency finder contact actions.`,
+      confirmLabel: "Move to Memorial",
+    };
+  }
+
+  if (action === "archive") {
+    return {
+      title: "Archive this pet?",
+      message: `This hides ${pet.name} from your main pet list. Memories, records, tags, and order history stay saved.`,
+      confirmLabel: "Archive Pet",
+    };
+  }
+
+  if (action === "restore") {
+    return {
+      title: "Restore this pet?",
+      message: `This will show ${pet.name} in your main pet list again and count toward your Free profile limit.`,
+      confirmLabel: "Restore to List",
+    };
+  }
+
+  return null;
 }
