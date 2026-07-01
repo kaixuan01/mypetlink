@@ -7,7 +7,12 @@ import { AuthGuard } from "@/components/auth/AuthGuard";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { MobileBottomNav } from "@/components/layouts/MobileBottomNav";
 import { PlanAwareAddPetButton } from "@/components/portal/PlanAwareAddPetButton";
-import { Icon, type IconName } from "@/components/ui/Icon";
+import { Icon } from "@/components/ui/Icon";
+import {
+  isOwnerNavItemActive,
+  ownerNavItems,
+  type OwnerNavItem,
+} from "@/lib/ownerNavigation";
 import {
   defaultOwnerSettings,
   getOwnerDisplayName,
@@ -21,16 +26,6 @@ import {
   subscribeSidebarCollapsed,
 } from "@/lib/sidebarState";
 import { logoutOwner } from "@/services/authService";
-
-const navItems: { href: string; label: string; icon: IconName }[] = [
-  { href: "/dashboard", label: "Dashboard", icon: "home" },
-  { href: "/pets", label: "My Pets", icon: "pets" },
-  { href: "/records", label: "Records", icon: "record" },
-  { href: "/moments", label: "Moments", icon: "heart" },
-  { href: "/tags", label: "Smart Tags", icon: "tag" },
-  { href: "/orders", label: "Orders", icon: "record" },
-  { href: "/settings", label: "Settings", icon: "settings" },
-];
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -46,49 +41,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     getServerOwnerDisplayName
   );
   const ownerInitial = ownerDisplayName.charAt(0).toUpperCase() || "P";
-
-  function isActiveNav(href: string) {
-    if (href === "/dashboard") {
-      return pathname === "/dashboard";
-    }
-
-    if (href === "/settings") {
-      return pathname === "/settings";
-    }
-
-    if (href === "/records") {
-      return (
-        pathname === "/records" || /^\/pets\/[^/]+\/records$/.test(pathname)
-      );
-    }
-
-    if (href === "/moments") {
-      return (
-        pathname === "/moments" ||
-        /^\/pets\/[^/]+\/moments(\/new)?$/.test(pathname)
-      );
-    }
-
-    if (href === "/tags") {
-      return pathname === "/tags" || /^\/pets\/[^/]+\/tags/.test(pathname);
-    }
-
-    if (href === "/orders") {
-      return pathname === "/orders" || pathname.startsWith("/orders/");
-    }
-
-    if (href === "/pets") {
-      return (
-        pathname === "/pets" ||
-        pathname === "/pets/new" ||
-        /^\/pets\/[^/]+$/.test(pathname) ||
-        /^\/pets\/[^/]+\/edit$/.test(pathname) ||
-        /^\/pets\/[^/]+\/timeline$/.test(pathname)
-      );
-    }
-
-    return pathname === href;
-  }
 
   function handleLogout() {
     logoutOwner();
@@ -162,12 +114,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           )}
 
           <nav className="mt-6 grid gap-1.5">
-            {navItems.map((item) => (
+            {ownerNavItems.map((item) => (
               <SidebarNavItem
-                active={isActiveNav(item.href)}
+                active={isOwnerNavItemActive(item, pathname)}
                 collapsed={collapsed}
                 item={item}
-                key={item.href}
+                key={item.id}
               />
             ))}
           </nav>
@@ -286,7 +238,7 @@ function SidebarNavItem({
 }: {
   active: boolean;
   collapsed: boolean;
-  item: { href: string; label: string; icon: IconName };
+  item: OwnerNavItem;
 }) {
   if (collapsed) {
     return (

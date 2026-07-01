@@ -78,7 +78,7 @@ export function PlanAwareAddPetButton({
         onClick={() => setShowLimitDialog(true)}
         variant="secondary"
       >
-        {compact ? "Limit" : "Limit Reached"}
+        {compact ? "Limit reached" : "Limit Reached"}
       </CTAButton>
       <ConfirmDialog
         cancelLabel="Close"

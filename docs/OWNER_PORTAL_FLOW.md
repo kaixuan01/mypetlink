@@ -32,8 +32,10 @@ dashboard. Do not bypass this.
 
 ## 2. Navigation map
 
-The sidebar (`AppLayout`) and `MobileBottomNav` use the **generic, pet-agnostic**
-section routes. They must never point at a specific pet id.
+The sidebar (`AppLayout`) and `MobileBottomNav` use the shared
+`ownerNavItems` config and active-route matcher in
+`src/lib/ownerNavigation.ts`. They use the **generic, pet-agnostic** section
+routes and must never point at a specific pet id.
 
 | Nav item   | Route        | Notes                                            |
 | ---------- | ------------ | ------------------------------------------------ |
@@ -45,10 +47,16 @@ section routes. They must never point at a specific pet id.
 | Orders     | `/orders`    | Tag order history and payment status             |
 | Settings   | `/settings`  | Account/profile settings                         |
 
-`isActiveNav` in `AppLayout` (and the matcher in `MobileBottomNav`) treats the
-per-pet routes as belonging to their section â€” e.g. `/pets/{id}/records`
-highlights **Records**, `/pets/{id}/moments` and `/pets/{id}/moments/new`
-highlight **Moments**.
+`getActiveOwnerNavItemId` treats the per-pet routes as belonging to their
+section - e.g. `/pets/{id}/records` highlights **Records**,
+`/pets/{id}/moments` and `/pets/{id}/moments/new` highlight **Moments**.
+
+On mobile, the bottom nav renders the highest-priority modules directly and
+puts the rest into a **More** bottom sheet. The normal direct set is
+**Home / Pets / Moments / Tags / More**; narrower widths can reduce the direct
+items, but hidden modules must remain reachable from **More**. If the active
+route belongs to a hidden module such as Records, Orders, or Settings, the
+**More** button shows the active state.
 
 ---
 
