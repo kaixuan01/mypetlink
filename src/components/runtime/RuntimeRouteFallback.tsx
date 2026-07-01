@@ -526,6 +526,7 @@ function OwnerRuntimeView({
           className="mt-4"
           finderProfileUrl={pet.qrSafetyPath}
           orders={petOrders}
+          pet={pet}
           qrStatus={pet.qrStatus}
           scroll
           tags={tags}

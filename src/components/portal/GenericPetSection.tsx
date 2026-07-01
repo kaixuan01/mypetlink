@@ -6,6 +6,7 @@ import { PetSwitcher } from "@/components/portal/PetSwitcher";
 import { RecordsManager } from "@/components/portal/RecordsManager";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { getActivePets } from "@/lib/petLifecycle";
 import { ownerRoutes } from "@/lib/routes";
 import { getPetMoments } from "@/services/momentService";
 import { getPets } from "@/services/petService";
@@ -49,9 +50,7 @@ export function GenericPetSection({ section }: { section: Section }) {
         return;
       }
 
-      const visiblePets = response.data.filter(
-        (pet) => pet.lifecycleStatus !== "Archived"
-      );
+      const visiblePets = getActivePets(response.data);
       setPets(visiblePets);
       const firstPet = visiblePets[0];
 

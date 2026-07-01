@@ -32,6 +32,7 @@ import {
   getPetSummaryLabel,
   getPetTypeLabel,
 } from "@/lib/petDisplay";
+import { isActivePet, isArchivedPet, isMemorialPet } from "@/lib/petLifecycle";
 import {
   getCallLink,
   getWhatsAppLink,
@@ -88,7 +89,7 @@ export function PublicSharePetProfile({
   const [moments, setMoments] = useState(initialMoments);
   const [records, setRecords] = useState(initialRecords);
   const [lostMode, setLostMode] = useState(
-    initialProfile.lifecycleStatus === "Active" &&
+    isActivePet(initialProfile) &&
       (initialLostMode || initialProfile.lostModeEnabled)
   );
   const [safetyPagePath, setSafetyPagePath] = useState(
@@ -106,9 +107,9 @@ export function PublicSharePetProfile({
   const visibility = mergeVisibility(profile.visibility);
   const theme = getPetProfileTheme(profile.profileTheme);
   const effectiveContact = getEffectivePetContact(profile, ownerSettings);
-  const isMemorial = profile.lifecycleStatus === "Memorial";
-  const isArchived = profile.lifecycleStatus === "Archived";
-  const isActiveProfile = !isMemorial && !isArchived;
+  const isMemorial = isMemorialPet(profile);
+  const isArchived = isArchivedPet(profile);
+  const isActiveProfile = isActivePet(profile);
 
   const ownerDisplayName = visibility.showOwnerName
     ? getPublicOwnerName(effectiveContact.ownerDisplayName, profile.name)
@@ -171,7 +172,7 @@ export function PublicSharePetProfile({
         setRecords(recordsResponse.data);
         setSafetyPagePath(nextProfile.qrSafetyPath);
         setLostMode(
-          nextProfile.lifecycleStatus === "Active" && nextProfile.lostModeEnabled
+          isActivePet(nextProfile) && nextProfile.lostModeEnabled
         );
       }
     );
@@ -181,6 +182,16 @@ export function PublicSharePetProfile({
       window.clearTimeout(settingsTimer);
     };
   }, [initialProfile]);
+
+  if (isMemorial && !profile.memorial.showMemorialOnPublicProfile) {
+    return (
+      <PrivateMemorialProfile
+        isOwner={isOwner}
+        profile={profile}
+        theme={theme}
+      />
+    );
+  }
 
   const tabs: { id: TabId; label: string }[] = [
     { id: "about", label: "About" },
@@ -250,7 +261,7 @@ export function PublicSharePetProfile({
               className="mt-4 text-3xl font-black text-pet-ink"
               style={{ color: theme.colors.text }}
             >
-              {isMemorial ? `Remembering ${profile.name}` : profile.name}
+              {isMemorial ? `In memory of ${profile.name}` : profile.name}
             </h1>
             <p
               className="mt-2 text-sm font-bold text-pet-muted"
@@ -558,6 +569,83 @@ export function PublicSharePetProfile({
   );
 }
 
+function PrivateMemorialProfile({
+  isOwner,
+  profile,
+  theme,
+}: {
+  isOwner: boolean;
+  profile: PublicPetProfile;
+  theme: PetProfileTheme;
+}) {
+  return (
+    <article
+      className="min-h-screen bg-pet-cream"
+      style={{ background: theme.gradients.page, color: theme.colors.text }}
+    >
+      <header
+        className="border-b border-pet-border bg-white/92 backdrop-blur"
+        style={{ borderColor: theme.colors.border }}
+      >
+        <div className="mx-auto flex max-w-xl items-center justify-between px-4 py-3">
+          <Link href="/" className="flex items-center">
+            <BrandLogo className="h-9 w-auto max-w-[160px]" priority />
+          </Link>
+          <span
+            className="text-xs font-bold uppercase text-pet-muted"
+            style={{ color: theme.colors.mutedText }}
+          >
+            Memorial profile
+          </span>
+        </div>
+      </header>
+
+      <main className="mx-auto grid min-h-[70vh] max-w-xl place-items-center px-4 py-10">
+        <section
+          className="brand-card w-full rounded-[2rem] p-8 text-center"
+          style={{
+            background: theme.colors.surface,
+            borderColor: theme.colors.border,
+          }}
+        >
+          <span
+            className="mx-auto grid h-16 w-16 place-items-center rounded-[1.5rem]"
+            style={{
+              background: theme.colors.surfaceAlt,
+              color: theme.colors.accent,
+            }}
+          >
+            <Icon name="heart" className="h-7 w-7" />
+          </span>
+          <h1
+            className="mt-5 text-3xl font-black text-pet-ink"
+            style={{ color: theme.colors.text }}
+          >
+            This memorial profile is private
+          </h1>
+          <p
+            className="mx-auto mt-3 max-w-sm text-sm font-semibold leading-6 text-pet-muted"
+            style={{ color: theme.colors.mutedText }}
+          >
+            {profile.name}&apos;s owner has kept this memorial profile from
+            public view.
+          </p>
+          {isOwner ? (
+            <CTAButton
+              className="mt-6"
+              href={ownerRoutes.petEdit(profile.id)}
+              icon="settings"
+              variant="secondary"
+            >
+              Edit Memorial Settings
+            </CTAButton>
+          ) : null}
+        </section>
+      </main>
+    </article>
+  );
+}
+
 function AboutTab({
   profile,
   theme,
@@ -578,8 +666,7 @@ function AboutTab({
     { label: "Gender", value: profile.gender },
     { label: "Age", value: getPetAgeLabel(profile) },
     { label: "Birthday", value: profile.birthday },
-    ...(profile.lifecycleStatus === "Memorial" &&
-    profile.memorial.passedAwayDate
+    ...(isMemorialPet(profile) && profile.memorial.passedAwayDate
       ? [{ label: "Remembered since", value: profile.memorial.passedAwayDate }]
       : []),
     ...(visibility.showGeneralArea

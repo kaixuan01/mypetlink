@@ -1,6 +1,12 @@
 import { Badge } from "@/components/ui/Badge";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import {
+  isActivePet,
+  isArchivedPet,
+  isMemorialPet,
+  type PetLifecycleLike,
+} from "@/lib/petLifecycle";
+import {
   getPetNfcTagStatus,
   getPetSmartTagStatus,
 } from "@/lib/tagStatus";
@@ -13,10 +19,24 @@ type AccessItem = {
   tone: "warm" | "mint" | "teal" | "soft" | "danger";
 };
 
+type ProfileAccessPet = PetLifecycleLike & {
+  id?: string;
+  name?: string;
+};
+
 export function getQrStatusLabel(
   qrStatus: QrStatus = "active",
-  finderProfileUrl?: string
+  finderProfileUrl?: string,
+  pet?: ProfileAccessPet
 ) {
+  if (isMemorialPet(pet)) {
+    return "Memorial Profile";
+  }
+
+  if (isArchivedPet(pet)) {
+    return "Archived Profile";
+  }
+
   if (finderProfileUrl !== undefined && !finderProfileUrl.trim()) {
     return "QR Not Set Up";
   }
@@ -34,9 +54,28 @@ export function getQrStatusLabel(
 
 export function getQrStatusBadge(
   qrStatus: QrStatus = "active",
-  finderProfileUrl?: string
+  finderProfileUrl?: string,
+  pet?: ProfileAccessPet
 ): AccessItem {
-  const label = getQrStatusLabel(qrStatus, finderProfileUrl);
+  const label = getQrStatusLabel(qrStatus, finderProfileUrl, pet);
+
+  if (label === "Memorial Profile") {
+    return {
+      label,
+      description: "QR Safety contact actions are turned off for this memorial.",
+      icon: "heart",
+      tone: "soft",
+    };
+  }
+
+  if (label === "Archived Profile") {
+    return {
+      label,
+      description: "Restore this profile to use finder contact actions again.",
+      icon: "record",
+      tone: "soft",
+    };
+  }
 
   if (label === "QR Safety Active") {
     return {
@@ -66,9 +105,28 @@ export function getQrStatusBadge(
 
 export function getSmartTagStatusBadge(
   tags: PetTag[] = [],
-  orders: TagOrder[] = []
+  orders: TagOrder[] = [],
+  pet?: ProfileAccessPet
 ): AccessItem {
-  const status = getPetSmartTagStatus(tags, orders);
+  if (isMemorialPet(pet)) {
+    return {
+      label: "Smart Tags Inactive",
+      description: "Physical tags are kept as history for this memorial profile.",
+      icon: "tag",
+      tone: "soft",
+    };
+  }
+
+  if (isArchivedPet(pet)) {
+    return {
+      label: "Smart Tags Inactive",
+      description: "Restore this profile before using physical tags again.",
+      icon: "tag",
+      tone: "soft",
+    };
+  }
+
+  const status = getPetSmartTagStatus(tags, orders, pet?.id, pet);
 
   if (status === "active") {
     return {
@@ -99,9 +157,14 @@ export function getSmartTagStatusBadge(
 
 export function getNfcStatusBadge(
   tags: PetTag[] = [],
-  orders: TagOrder[] = []
+  orders: TagOrder[] = [],
+  pet?: ProfileAccessPet
 ): AccessItem | null {
-  const status = getPetNfcTagStatus(tags, orders);
+  if (pet && !isActivePet(pet)) {
+    return null;
+  }
+
+  const status = getPetNfcTagStatus(tags, orders, pet?.id, pet);
 
   if (status === "active") {
     return {
@@ -127,6 +190,7 @@ export function getNfcStatusBadge(
 function getAccessItems({
   finderProfileUrl,
   orders,
+  pet,
   qrStatus = "active",
   showNfc = true,
   tags,
@@ -134,16 +198,17 @@ function getAccessItems({
   finderProfileUrl?: string;
   qrStatus?: QrStatus;
   showNfc?: boolean;
+  pet?: ProfileAccessPet;
   orders?: TagOrder[];
   tags?: PetTag[];
 }): AccessItem[] {
-  const items = [getQrStatusBadge(qrStatus, finderProfileUrl)];
+  const items = [getQrStatusBadge(qrStatus, finderProfileUrl, pet)];
 
   if (tags) {
-    items.push(getSmartTagStatusBadge(tags, orders));
+    items.push(getSmartTagStatusBadge(tags, orders, pet));
   }
 
-  const nfcBadge = showNfc && tags ? getNfcStatusBadge(tags, orders) : null;
+  const nfcBadge = showNfc && tags ? getNfcStatusBadge(tags, orders, pet) : null;
 
   if (nfcBadge) {
     items.push(nfcBadge);
@@ -152,7 +217,15 @@ function getAccessItems({
   return items;
 }
 
-function getAccessSummary(qrStatus: QrStatus = "active") {
+function getAccessSummary(qrStatus: QrStatus = "active", pet?: ProfileAccessPet) {
+  if (isMemorialPet(pet)) {
+    return "This memorial profile keeps memories available while finder contact actions stay off.";
+  }
+
+  if (isArchivedPet(pet)) {
+    return "This archived profile is saved for history while finder contact actions stay off.";
+  }
+
   if (qrStatus === "active") {
     return "Your pet's QR Safety Page is ready for finders.";
   }
@@ -169,6 +242,7 @@ export function ProfileAccessBadges({
   finderProfileUrl,
   qrStatus = "active",
   orders,
+  pet,
   scroll = false,
   showNfc = true,
   tags,
@@ -176,6 +250,7 @@ export function ProfileAccessBadges({
   className?: string;
   finderProfileUrl?: string;
   orders?: TagOrder[];
+  pet?: ProfileAccessPet;
   qrStatus?: QrStatus;
   scroll?: boolean;
   showNfc?: boolean;
@@ -184,6 +259,7 @@ export function ProfileAccessBadges({
   const items = getAccessItems({
     finderProfileUrl,
     orders,
+    pet,
     qrStatus,
     showNfc,
     tags,
@@ -210,16 +286,19 @@ export function ProfileAccessStatus({
   compact = false,
   finderProfileUrl,
   orders,
+  pet,
   qrStatus = "active",
   tags,
 }: {
   compact?: boolean;
   finderProfileUrl?: string;
   orders?: TagOrder[];
+  pet?: ProfileAccessPet;
   qrStatus?: QrStatus;
   tags?: PetTag[];
 }) {
-  const items = getAccessItems({ finderProfileUrl, orders, qrStatus, tags });
+  const items = getAccessItems({ finderProfileUrl, orders, pet, qrStatus, tags });
+  const showActiveTagSummary = !pet || isActivePet(pet);
 
   return (
     <section className="brand-card rounded-[1.75rem] p-5">
@@ -229,14 +308,17 @@ export function ProfileAccessStatus({
             QR and smart tag safety
           </h2>
           <p className="mt-2 text-sm leading-6 text-pet-muted">
-            {getAccessSummary(qrStatus)} Active physical tags open this same
-            safety page.
+            {getAccessSummary(qrStatus, pet)}
+            {showActiveTagSummary
+              ? " Active physical tags open this same safety page."
+              : ""}
           </p>
         </div>
         <ProfileAccessBadges
           className="sm:justify-end"
           finderProfileUrl={finderProfileUrl}
           orders={orders}
+          pet={pet}
           qrStatus={qrStatus}
           tags={tags}
         />

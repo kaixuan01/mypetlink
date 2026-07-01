@@ -47,9 +47,9 @@ export default async function PetTagOrderPage({ params }: PetTagOrderPageProps) 
   return (
     <AppLayout>
       <PageHeader
-        eyebrow="Order physical tag"
-        title={`Order a tag for ${selectedPet.name}`}
-        description="Choose a MyPetLink QR Pet Tag or MyPetLink QR + NFC Smart Tag after creating your pet profile."
+        eyebrow="Physical tags"
+        title={`Physical tags for ${selectedPet.name}`}
+        description="New physical tags can only be ordered for active pet profiles. Memorial and archived profiles keep existing tag history."
       />
 
       <TagOrderFlow

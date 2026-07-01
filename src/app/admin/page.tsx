@@ -62,7 +62,7 @@ export default async function AdminPage() {
               <span className="font-bold text-slate-950">{pet.name}</span>
               <span className="text-slate-500">{pet.publicProfilePath}</span>
               <span className="font-semibold text-slate-600">
-                {getQrStatusLabel(pet.qrStatus)}
+                {getQrStatusLabel(pet.qrStatus, pet.qrSafetyPath, pet)}
               </span>
             </div>
           ))}

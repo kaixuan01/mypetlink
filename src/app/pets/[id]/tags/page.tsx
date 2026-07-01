@@ -49,7 +49,7 @@ export default async function PetTagsPage({ params }: PetTagsPageProps) {
       <PageHeader
         eyebrow="Smart tags"
         title={`${currentPet.name}'s MyPetLink Smart Tags`}
-        description="One pet can have multiple tags for different collars, replacements, or upgrades."
+        description="Review active tags for active pets, plus inactive tag history for memorial or archived profiles."
       />
 
       <TagManagementPanel

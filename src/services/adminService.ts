@@ -1,6 +1,7 @@
 import { mockPlans } from "@/data/mockPlans";
 import { mockPets } from "@/data/mockPets";
 import { mockUsers } from "@/data/mockUsers";
+import { isActivePet } from "@/lib/petLifecycle";
 import { mockDelay, mockResponse } from "@/services/mockApi";
 import type { AdminDashboard } from "@/types";
 
@@ -9,8 +10,9 @@ export async function getAdminDashboard() {
   const dashboard: AdminDashboard = {
     totalUsers: mockUsers.filter((user) => user.role === "owner").length,
     totalPets: mockPets.length,
-    activeQrProfiles: mockPets.filter((pet) => pet.qrStatus === "active")
-      .length,
+    activeQrProfiles: mockPets.filter(
+      (pet) => isActivePet(pet) && pet.qrStatus === "active"
+    ).length,
     newProfilesThisMonth: 6,
   };
 

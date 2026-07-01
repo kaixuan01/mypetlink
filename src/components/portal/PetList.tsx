@@ -4,6 +4,10 @@ import { useEffect, useState } from "react";
 import { PetCard } from "@/components/portal/PetCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SegmentedTabs, type SegmentedTab } from "@/components/ui/SegmentedTabs";
+import {
+  getPetsByFilter,
+  type PetLifecycleFilter,
+} from "@/lib/petLifecycle";
 import { ownerRoutes } from "@/lib/routes";
 import { getPets } from "@/services/petService";
 import { getAllTags, getOrders } from "@/services/tagService";
@@ -15,9 +19,7 @@ type PetListProps = {
   initialOrders: TagOrder[];
 };
 
-type PetListFilter = "active" | "memorial" | "archived" | "all";
-
-const petFilterTabs: (SegmentedTab & { id: PetListFilter })[] = [
+const petFilterTabs: (SegmentedTab & { id: PetLifecycleFilter })[] = [
   { id: "active", label: "Active" },
   { id: "memorial", label: "Memorial" },
   { id: "archived", label: "Archived" },
@@ -32,7 +34,7 @@ export function PetList({
   const [pets, setPets] = useState(initialPets);
   const [tags, setTags] = useState(initialTags);
   const [orders, setOrders] = useState(initialOrders);
-  const [filter, setFilter] = useState<PetListFilter>("active");
+  const [filter, setFilter] = useState<PetLifecycleFilter>("active");
 
   useEffect(() => {
     let active = true;
@@ -74,21 +76,7 @@ export function PetList({
     );
   }
 
-  const visiblePets = pets.filter((pet) => {
-    if (filter === "all") {
-      return true;
-    }
-
-    if (filter === "archived") {
-      return pet.lifecycleStatus === "Archived";
-    }
-
-    if (filter === "memorial") {
-      return pet.lifecycleStatus === "Memorial";
-    }
-
-    return pet.lifecycleStatus !== "Archived";
-  });
+  const visiblePets = getPetsByFilter(pets, filter);
 
   const empty = getPetEmptyState(filter);
 
@@ -97,7 +85,7 @@ export function PetList({
       <SegmentedTabs
         ariaLabel="Filter pet profiles"
         activeId={filter}
-        onChange={(id) => setFilter(id as PetListFilter)}
+        onChange={(id) => setFilter(id as PetLifecycleFilter)}
         tabs={petFilterTabs}
       />
 
@@ -131,7 +119,7 @@ export function PetList({
   );
 }
 
-function getPetEmptyState(filter: PetListFilter) {
+function getPetEmptyState(filter: PetLifecycleFilter) {
   if (filter === "archived") {
     return {
       title: "No archived profiles yet.",

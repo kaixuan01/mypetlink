@@ -21,8 +21,9 @@ import {
 } from "@/lib/ownerSettings";
 import { getMemoryLimitState } from "@/lib/planLimits";
 import { getPetProfileTheme } from "@/lib/petProfileThemes";
+import { isActivePet, isArchivedPet, isMemorialPet } from "@/lib/petLifecycle";
 import { ownerRoutes, tagPath } from "@/lib/routes";
-import { getTagScanDisplay, isActivePhysicalTag } from "@/lib/tagStatus";
+import { getTagScanDisplay, isActivePhysicalTagForPet } from "@/lib/tagStatus";
 import { getPetById, updatePetLostMode } from "@/services/petService";
 import type {
   CareRecord,
@@ -139,22 +140,25 @@ function OverviewTab({
   const recentMoments = moments.slice(0, 3);
   const memoryLimit = getMemoryLimitState(moments.length);
   const currentTags = tags.filter((tag) => !tag.isArchived);
-  const activeTag = currentTags.find(isActivePhysicalTag);
+  const activeTag = currentTags.find((tag) => isActivePhysicalTagForPet(tag, pet));
   const origin = useSyncExternalStore(
     subscribeToOrigin,
     getBrowserOrigin,
     getServerOrigin
   );
-  const activeTagScanDisplay = activeTag ? getTagScanDisplay(activeTag) : null;
+  const activeTagScanDisplay = activeTag
+    ? getTagScanDisplay(activeTag, undefined, pet)
+    : null;
   const activeTagScanPath = activeTag ? tagPath(activeTag.tagCode) : "";
   const activeTagScanUrl =
     activeTag && activeTagScanPath ? `${origin}${activeTagScanPath}` : "";
   const [copyMessage, setCopyMessage] = useState("");
   const theme = getPetProfileTheme(pet.profileTheme);
-  const qrBadge = getQrStatusBadge(pet.qrStatus, pet.qrSafetyPath);
-  const smartTagBadge = getSmartTagStatusBadge(tags, orders);
-  const isMemorial = pet.lifecycleStatus === "Memorial";
-  const isArchived = pet.lifecycleStatus === "Archived";
+  const qrBadge = getQrStatusBadge(pet.qrStatus, pet.qrSafetyPath, pet);
+  const smartTagBadge = getSmartTagStatusBadge(tags, orders, pet);
+  const isMemorial = isMemorialPet(pet);
+  const isArchived = isArchivedPet(pet);
+  const isActiveProfile = isActivePet(pet);
   const [ownerSettings, setOwnerSettings] =
     useState<OwnerSettings>(defaultOwnerSettings);
   const effectiveContact = getEffectivePetContact(pet, ownerSettings);
@@ -205,7 +209,7 @@ function OverviewTab({
             rel="noopener noreferrer"
             fullWidth
           >
-            View Public Profile
+            {isMemorial ? "View Memorial Profile" : "View Public Profile"}
           </CTAButton>
           <CTAButton
             href={ownerRoutes.petEdit(pet.id)}
@@ -416,7 +420,13 @@ function OverviewTab({
         icon="tag"
         title="Smart Tags"
         badge={<Badge tone={smartTagBadge.tone}>{smartTagBadge.label}</Badge>}
-        description="Physical QR or QR + NFC tags. Active tags open this pet's QR Safety Page."
+        description={
+          isMemorial
+            ? "Physical tags linked to this memorial are kept as history and show an inactive scan page."
+            : isArchived
+              ? "Restore this profile before using physical tags again."
+              : "Physical QR or QR + NFC tags. Active tags open this pet's QR Safety Page."
+        }
       >
         {activeTag ? (
           <div className="rounded-[1.25rem] bg-pet-cream p-4">
@@ -455,8 +465,11 @@ function OverviewTab({
           </div>
         ) : (
           <p className="text-sm leading-6 text-pet-muted">
-            No active physical tag right now. {pet.name}&apos;s QR Safety Page
-            is still ready to share, and you can order a tag when needed.
+            {isMemorial
+              ? `Physical tags linked to ${pet.name} are historical and no longer show finder contact actions.`
+              : isArchived
+                ? `Physical tags linked to ${pet.name} are inactive while this profile is archived.`
+                : `No active physical tag right now. ${pet.name}'s QR Safety Page is still ready to share, and you can order a tag when needed.`}
           </p>
         )}
         <div className="mt-auto flex flex-col gap-3 sm:flex-row pt-1">
@@ -468,14 +481,16 @@ function OverviewTab({
           >
             Manage Smart Tags
           </CTAButton>
-          <CTAButton
-            href={ownerRoutes.petTagOrder(pet.id)}
-            variant="outline"
-            icon="plus"
-            fullWidth
-          >
-            Order Physical Tag
-          </CTAButton>
+          {isActiveProfile ? (
+            <CTAButton
+              href={ownerRoutes.petTagOrder(pet.id)}
+              variant="outline"
+              icon="plus"
+              fullWidth
+            >
+              Order Physical Tag
+            </CTAButton>
+          ) : null}
         </div>
       </SectionCard>
     </div>

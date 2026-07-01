@@ -110,15 +110,32 @@ export function TagFinderView({ initialResult, tagCode }: TagFinderViewProps) {
   }
 
   if (result.state === "inactive") {
+    const inactiveCopy = getInactiveTagCopy(result);
+    const showMemorialLink =
+      result.reason === "memorial" &&
+      result.profile?.memorial.showMemorialOnPublicProfile;
+
     return (
       <FinderShell>
         <FinderCard
-          description="This MyPetLink tag has been reported lost, disabled, or replaced by its owner. If you found this physical tag, please contact MyPetLink support."
+          description={inactiveCopy.description}
           icon="shield"
           tagCode={result.tagCode}
-          title="This tag is no longer active"
+          title={inactiveCopy.title}
           tone="soft"
-        />
+        >
+          {showMemorialLink && result.profile ? (
+            <CTAButton
+              className="min-h-14 text-base"
+              href={result.profile.publicProfilePath}
+              icon="heart"
+              variant="secondary"
+              fullWidth
+            >
+              View Memorial Profile
+            </CTAButton>
+          ) : null}
+        </FinderCard>
       </FinderShell>
     );
   }
@@ -134,6 +151,28 @@ export function TagFinderView({ initialResult, tagCode }: TagFinderViewProps) {
       />
     </FinderShell>
   );
+}
+
+function getInactiveTagCopy(result: Extract<FinderResult, { state: "inactive" }>) {
+  if (result.reason === "memorial" && result.profile) {
+    return {
+      title: "This tag is no longer active",
+      description: `${result.profile.name}'s profile is now kept as a memorial. This tag does not show finder contact details.`,
+    };
+  }
+
+  if (result.reason === "archived" && result.profile) {
+    return {
+      title: "This tag is no longer active",
+      description: `${result.profile.name}'s profile is archived. This tag does not show finder contact details.`,
+    };
+  }
+
+  return {
+    title: "This tag is no longer active",
+    description:
+      "This MyPetLink tag has been reported lost, disabled, or replaced by its owner. If you found this physical tag, please contact MyPetLink support.",
+  };
 }
 
 function finderPageTitle(result: FinderResult) {

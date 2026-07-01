@@ -6,6 +6,12 @@ import {
   readOwnerSettings,
 } from "@/lib/ownerSettings";
 import { getPetAgeLabel, PET_TYPE_OPTIONS } from "@/lib/petDisplay";
+import {
+  getCountedPetProfiles,
+  getPetLifecycleStatus,
+  isActivePet,
+  isArchivedPet,
+} from "@/lib/petLifecycle";
 import { freePlanLimits } from "@/lib/planLimits";
 import { publicProfilePath, qrSafetyPath } from "@/lib/routes";
 import {
@@ -137,9 +143,9 @@ function mergeMemorial(memorial?: Partial<PetMemorial>): PetMemorial {
 }
 
 function normalizeLifecycleStatus(
-  value?: PetLifecycleStatus
+  value?: PetLifecycleStatus | string
 ): PetLifecycleStatus {
-  return value === "Memorial" || value === "Archived" ? value : "Active";
+  return getPetLifecycleStatus({ lifecycleStatus: value });
 }
 
 function getPreviousLifecycleStatus(pet: Pet): Exclude<PetLifecycleStatus, "Archived"> {
@@ -357,7 +363,7 @@ export async function getPublicPetProfileBySafetyCode(safetyCode: string) {
     (item) => item.safetyCode.toLowerCase() === normalized
   );
 
-  if (!pet || !pet.qrSafetyEnabled) {
+  if (!pet || (isActivePet(pet) && !pet.qrSafetyEnabled)) {
     return mockResponse<PublicPetProfile | null>(null);
   }
 
@@ -513,10 +519,7 @@ export async function updatePet(id: string, payload: PetPayload) {
 }
 
 export function getCountedProfileCount(pets: Pet[]) {
-  return pets.filter((pet) => {
-    const lifecycleStatus = normalizeLifecycleStatus(pet.lifecycleStatus);
-    return lifecycleStatus === "Active" || lifecycleStatus === "Memorial";
-  }).length;
+  return getCountedPetProfiles(pets).length;
 }
 
 export async function updatePetLifecycle(
@@ -559,7 +562,7 @@ export async function restorePetProfile(id: string) {
     });
   }
 
-  if (pet.lifecycleStatus !== "Archived") {
+  if (!isArchivedPet(pet)) {
     return mockResponse<RestorePetProfileResult>({ pet });
   }
 

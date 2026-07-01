@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { getActivePets } from "@/lib/petLifecycle";
 import { ownerRoutes } from "@/lib/routes";
 import { getPets } from "@/services/petService";
 import type { Pet } from "@/types";
@@ -27,8 +28,8 @@ export function PetSwitcher({
   activePetId,
   section,
 }: PetSwitcherProps) {
-  const [pets, setPets] = useState(
-    initialPets.filter((pet) => pet.lifecycleStatus !== "Archived")
+  const [pets, setPets] = useState(() =>
+    getSelectablePets(initialPets, activePetId)
   );
 
   useEffect(() => {
@@ -36,16 +37,14 @@ export function PetSwitcher({
 
     getPets().then((response) => {
       if (active) {
-        setPets(
-          response.data.filter((pet) => pet.lifecycleStatus !== "Archived")
-        );
+        setPets(getSelectablePets(response.data, activePetId));
       }
     });
 
     return () => {
       active = false;
     };
-  }, []);
+  }, [activePetId]);
 
   if (pets.length <= 1) {
     return null;
@@ -78,4 +77,15 @@ export function PetSwitcher({
       })}
     </nav>
   );
+}
+
+function getSelectablePets(pets: Pet[], activePetId: string) {
+  const activePets = getActivePets(pets);
+  const currentPet = pets.find((pet) => pet.id === activePetId);
+
+  if (currentPet && !activePets.some((pet) => pet.id === currentPet.id)) {
+    return [currentPet, ...activePets];
+  }
+
+  return activePets;
 }

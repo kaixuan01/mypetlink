@@ -12,6 +12,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Icon } from "@/components/ui/Icon";
 import { PetAvatar } from "@/components/ui/PetAvatar";
 import { getPetSummaryLabel } from "@/lib/petDisplay";
+import { isActivePet, isArchivedPet, isMemorialPet } from "@/lib/petLifecycle";
 import { ownerRoutes } from "@/lib/routes";
 import {
   restorePetProfile,
@@ -26,14 +27,21 @@ type PetCardProps = {
   onPetUpdated?: (pet: Pet) => void;
 };
 
-const moreLinks = (petId: string) => [
-  { label: "Edit profile", href: ownerRoutes.petEdit(petId) },
-  { label: "QR safety page", href: ownerRoutes.petQr(petId) },
-  { label: "Care records", href: ownerRoutes.petRecords(petId) },
-  { label: "Moments", href: ownerRoutes.petMoments(petId) },
-  { label: "Smart tags", href: ownerRoutes.petTags(petId) },
-  { label: "Order tag", href: ownerRoutes.petTagOrder(petId) },
-];
+const moreLinks = (pet: Pet) => {
+  const links = [
+    { label: "Edit profile", href: ownerRoutes.petEdit(pet.id) },
+    { label: "QR safety page", href: ownerRoutes.petQr(pet.id) },
+    { label: "Care records", href: ownerRoutes.petRecords(pet.id) },
+    { label: "Moments", href: ownerRoutes.petMoments(pet.id) },
+    { label: "Smart tags", href: ownerRoutes.petTags(pet.id) },
+  ];
+
+  if (isActivePet(pet)) {
+    links.push({ label: "Order tag", href: ownerRoutes.petTagOrder(pet.id) });
+  }
+
+  return links;
+};
 
 export function PetCard({
   pet,
@@ -44,12 +52,12 @@ export function PetCard({
   const [menuOpen, setMenuOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const [confirmAction, setConfirmAction] = useState<
-    "memorial" | "archive" | "restore" | null
+    "active" | "memorial" | "archive" | "restore" | null
   >(null);
-  const qrBadge = getQrStatusBadge(pet.qrStatus, pet.qrSafetyPath);
-  const tagBadge = getSmartTagStatusBadge(tags, orders);
-  const isMemorial = pet.lifecycleStatus === "Memorial";
-  const isArchived = pet.lifecycleStatus === "Archived";
+  const qrBadge = getQrStatusBadge(pet.qrStatus, pet.qrSafetyPath, pet);
+  const tagBadge = getSmartTagStatusBadge(tags, orders, pet);
+  const isMemorial = isMemorialPet(pet);
+  const isArchived = isArchivedPet(pet);
   const confirmCopy = getConfirmCopy(confirmAction, pet);
 
   async function handleLifecycleUpdate(status: PetLifecycleStatus) {
@@ -60,7 +68,9 @@ export function PetCard({
       setStatusMessage(
         status === "Memorial"
           ? `${pet.name} is now in Memorial Mode.`
-          : `${pet.name} has been archived.`
+          : status === "Active"
+            ? `${pet.name} is back in your active pet list.`
+            : `${pet.name} has been archived.`
       );
     }
 
@@ -103,7 +113,7 @@ export function PetCard({
             <Icon name="tag" className="h-3.5 w-3.5 text-pet-teal" />
             {tagBadge.label}
           </div>
-          {pet.emergencyNote ? (
+          {isMemorial || isArchived || pet.emergencyNote ? (
             <p className="mt-3 line-clamp-2 text-sm leading-6 text-pet-muted">
               {isMemorial
                 ? pet.memorial.memorialMessage ||
@@ -155,7 +165,7 @@ export function PetCard({
               type="button"
             />
             <div className="absolute bottom-14 right-0 z-30 w-52 overflow-hidden rounded-[1.25rem] border border-pet-border bg-white p-1 shadow-xl shadow-[#0d1b3d]/10">
-              {moreLinks(pet.id).map((link) => (
+              {moreLinks(pet).map((link) => (
                 <Link
                   className="block rounded-[0.9rem] px-4 py-2.5 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
                   href={link.href}
@@ -176,7 +186,15 @@ export function PetCard({
                 </button>
               ) : (
                 <>
-                  {isMemorial ? null : (
+                  {isMemorial ? (
+                    <button
+                      className="block w-full rounded-[0.9rem] px-4 py-2.5 text-left text-sm font-bold text-pet-teal transition hover:bg-pet-cream"
+                      onClick={() => setConfirmAction("active")}
+                      type="button"
+                    >
+                      Restore to Active
+                    </button>
+                  ) : (
                     <button
                       className="block w-full rounded-[0.9rem] px-4 py-2.5 text-left text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
                       onClick={() => setConfirmAction("memorial")}
@@ -213,7 +231,11 @@ export function PetCard({
             }
 
             void handleLifecycleUpdate(
-              confirmAction === "memorial" ? "Memorial" : "Archived"
+              confirmAction === "memorial"
+                ? "Memorial"
+                : confirmAction === "active"
+                  ? "Active"
+                  : "Archived"
             );
           }}
           open={Boolean(confirmAction)}
@@ -225,9 +247,17 @@ export function PetCard({
 }
 
 function getConfirmCopy(
-  action: "memorial" | "archive" | "restore" | null,
+  action: "active" | "memorial" | "archive" | "restore" | null,
   pet: Pet
 ) {
+  if (action === "active") {
+    return {
+      title: "Restore to Active?",
+      message: `This will show ${pet.name} in active pet pages again and use the pet's QR Safety settings for finder contact actions.`,
+      confirmLabel: "Restore to Active",
+    };
+  }
+
   if (action === "memorial") {
     return {
       title: "Move to Memorial?",

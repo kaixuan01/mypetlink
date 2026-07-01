@@ -1,3 +1,4 @@
+import { getCountedPetProfiles as getLifecycleCountedPetProfiles } from "@/lib/petLifecycle";
 import type { Pet } from "@/types";
 
 export const phase1Positioning =
@@ -83,7 +84,7 @@ export function getPetLimitState(petCount: number) {
 }
 
 export function getCountedPetProfiles(pets: Pet[]) {
-  return pets.filter((pet) => pet.lifecycleStatus !== "Archived");
+  return getLifecycleCountedPetProfiles(pets);
 }
 
 export function getPetLimitStateFromPets(pets: Pet[]) {

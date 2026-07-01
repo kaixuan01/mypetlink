@@ -42,7 +42,7 @@ export default async function AdminPetsPage() {
                 <td className="px-5 py-4 text-slate-600">{pet.owner.name}</td>
                 <td className="px-5 py-4 text-slate-600">{pet.generalArea}</td>
                 <td className="px-5 py-4 text-slate-600">
-                  {getQrStatusLabel(pet.qrStatus)}
+                  {getQrStatusLabel(pet.qrStatus, pet.qrSafetyPath, pet)}
                 </td>
               </tr>
             ))}

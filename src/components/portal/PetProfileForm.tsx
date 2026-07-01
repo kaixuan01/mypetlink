@@ -39,6 +39,7 @@ import {
   parseEstimatedAgeValue,
   PET_TYPE_OPTIONS,
 } from "@/lib/petDisplay";
+import { isActivePet, isArchivedPet, isMemorialPet } from "@/lib/petLifecycle";
 import { ownerRoutes, publicProfilePath } from "@/lib/routes";
 import {
   createPet,
@@ -216,7 +217,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
   const [success, setSuccess] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
   const [statusAction, setStatusAction] = useState<
-    "memorial" | "archive" | "restore" | null
+    "active" | "memorial" | "archive" | "restore" | null
   >(null);
   const origin = useSyncExternalStore(
     subscribeToOrigin,
@@ -469,7 +470,11 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
     }
 
     const nextStatus: PetLifecycleStatus =
-      statusAction === "memorial" ? "Memorial" : "Archived";
+      statusAction === "memorial"
+        ? "Memorial"
+        : statusAction === "active"
+          ? "Active"
+          : "Archived";
     const response = await updatePetLifecycle(currentPet.id, nextStatus, {
       passedAwayDate: form.passedAwayDate
         ? formatDisplayDate(form.passedAwayDate)
@@ -484,7 +489,9 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
       setStatusMessage(
         nextStatus === "Memorial"
           ? `${response.data.name} is now in Memorial Mode.`
-          : `${response.data.name} has been archived.`
+          : nextStatus === "Active"
+            ? `${response.data.name} is back in your active pet list.`
+            : `${response.data.name} has been archived.`
       );
       router.refresh();
     }
@@ -528,13 +535,15 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
           >
             View QR Safety Page
           </CTAButton>
-          <CTAButton
-            href={ownerRoutes.petTagOrder(createdPet.id)}
-            icon="tag"
-            variant="outline"
-          >
-            Order Physical Tag
-          </CTAButton>
+          {isActivePet(createdPet) ? (
+            <CTAButton
+              href={ownerRoutes.petTagOrder(createdPet.id)}
+              icon="tag"
+              variant="outline"
+            >
+              Order Physical Tag
+            </CTAButton>
+          ) : null}
           <CTAButton
             href={ownerRoutes.petProfile(createdPet.id)}
             icon="pets"
@@ -887,7 +896,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
               </div>
 
               {form.lifecycleStatus === "Memorial" ||
-              currentPet?.lifecycleStatus === "Memorial" ||
+              (currentPet ? isMemorialPet(currentPet) : false) ||
               currentPet?.previousLifecycleStatus === "Memorial" ? (
                 <div className="mt-4 grid gap-4 lg:grid-cols-2">
                   <Field
@@ -939,9 +948,17 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
 
               {mode === "edit" && currentPet ? (
                 <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-                  {currentPet.lifecycleStatus !== "Archived" ? (
+                  {!isArchivedPet(currentPet) ? (
                     <>
-                      {currentPet.lifecycleStatus !== "Memorial" ? (
+                      {isMemorialPet(currentPet) ? (
+                        <button
+                          className="inline-flex min-h-12 flex-1 items-center justify-center rounded-full border border-pet-teal bg-[#e8f3ff] px-5 py-3 text-sm font-bold text-pet-teal transition hover:bg-[#d8edff]"
+                          onClick={() => setStatusAction("active")}
+                          type="button"
+                        >
+                          Restore to Active
+                        </button>
+                      ) : (
                         <button
                           className="inline-flex min-h-12 flex-1 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
                           onClick={() => setStatusAction("memorial")}
@@ -949,7 +966,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
                         >
                           Move to Memorial
                         </button>
-                      ) : null}
+                      )}
                       <button
                         className="inline-flex min-h-12 flex-1 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-bold text-pet-muted transition hover:bg-pet-cream"
                         onClick={() => setStatusAction("archive")}
@@ -1388,10 +1405,18 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
 }
 
 function getStatusActionCopy(
-  action: "memorial" | "archive" | "restore",
+  action: "active" | "memorial" | "archive" | "restore",
   petName: string
 ) {
   const name = petName || "this pet";
+
+  if (action === "active") {
+    return {
+      title: "Restore to Active?",
+      message: `This will show ${name} in active pet pages again and use the pet's QR Safety settings for finder contact actions.`,
+      confirmLabel: "Restore to Active",
+    };
+  }
 
   if (action === "memorial") {
     return {

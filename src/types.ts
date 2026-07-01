@@ -355,7 +355,14 @@ export type FinderResult =
   | { state: "active"; tagCode: string; profile: PublicPetProfile }
   | { state: "unassigned"; tagCode: string }
   | { state: "pending"; tagCode: string; status: TagStatus; petId?: string }
-  | { state: "inactive"; tagCode: string; status: TagStatus; isArchived?: boolean }
+  | {
+      state: "inactive";
+      tagCode: string;
+      status: TagStatus;
+      isArchived?: boolean;
+      reason?: "inactive" | "memorial" | "archived";
+      profile?: PublicPetProfile;
+    }
   | { state: "not-found"; tagCode: string };
 
 export type PetPayload = Partial<

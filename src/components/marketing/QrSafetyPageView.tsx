@@ -12,6 +12,7 @@ import {
 } from "@/lib/ownerSettings";
 import { getPetProfileTheme } from "@/lib/petProfileThemes";
 import { getPetAgeLabel, getPetTypeLabel } from "@/lib/petDisplay";
+import { isActivePet, isArchivedPet, isMemorialPet } from "@/lib/petLifecycle";
 import {
   getCallLink,
   getWhatsAppLink,
@@ -36,9 +37,9 @@ export function QrSafetyPageView({ pet }: QrSafetyPageViewProps) {
   const ownerDisplayName = visibility.showOwnerName
     ? getPublicOwnerName(effectiveContact.ownerDisplayName, pet.name)
     : `${pet.name}'s owner`;
-  const isMemorial = pet.lifecycleStatus === "Memorial";
-  const isArchived = pet.lifecycleStatus === "Archived";
-  const isLostMode = pet.lifecycleStatus === "Active" && pet.lostModeEnabled;
+  const isMemorial = isMemorialPet(pet);
+  const isArchived = isArchivedPet(pet);
+  const isLostMode = isActivePet(pet) && pet.lostModeEnabled;
   const lostMode = pet.lostMode;
   const introMessage = isLostMode
     ? `Hi, I found ${pet.name}. I saw the MyPetLink Lost Mode notice.`
@@ -82,12 +83,12 @@ export function QrSafetyPageView({ pet }: QrSafetyPageViewProps) {
           </p>
           <h1 className="mt-2 text-3xl font-black text-pet-ink">
             {isMemorial
-              ? "This profile is now a memorial"
+              ? `${pet.name}'s safety page is no longer active`
               : "This pet profile is archived"}
           </h1>
           <p className="mx-auto mt-3 max-w-sm text-sm font-semibold leading-6 text-pet-muted">
             {isMemorial
-              ? `${pet.name}'s owner has kept this MyPetLink profile as a place for memories.`
+              ? "This pet is marked as memorial. The profile and memories are kept for remembrance."
               : "This MyPetLink profile is not currently active."}
           </p>
           {isMemorial ? (

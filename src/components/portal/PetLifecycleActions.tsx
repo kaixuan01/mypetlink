@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { isArchivedPet, isMemorialPet } from "@/lib/petLifecycle";
 import {
   restorePetProfile,
   updatePetLifecycle,
@@ -21,10 +22,12 @@ export function PetLifecycleActions({
 }: PetLifecycleActionsProps) {
   const router = useRouter();
   const [action, setAction] = useState<
-    "memorial" | "archive" | "restore" | null
+    "active" | "memorial" | "archive" | "restore" | null
   >(null);
   const [message, setMessage] = useState("");
   const copy = action ? getActionCopy(action, pet.name) : null;
+  const isArchived = isArchivedPet(pet);
+  const isMemorial = isMemorialPet(pet);
 
   async function updateLifecycle(status: PetLifecycleStatus) {
     const response = await updatePetLifecycle(pet.id, status);
@@ -33,7 +36,9 @@ export function PetLifecycleActions({
       setMessage(
         status === "Memorial"
           ? `${pet.name} is now in Memorial Mode.`
-          : `${pet.name} has been archived.`
+          : status === "Active"
+            ? `${pet.name} is back in your active pet list.`
+            : `${pet.name} has been archived.`
       );
       router.refresh();
     }
@@ -60,7 +65,7 @@ export function PetLifecycleActions({
   return (
     <div className="grid gap-3">
       <div className={`flex flex-col gap-3 ${compact ? "" : "sm:flex-row"}`}>
-        {pet.lifecycleStatus === "Archived" ? (
+        {isArchived ? (
           <CTAButton
             icon="paw"
             onClick={() => setAction("restore")}
@@ -71,7 +76,16 @@ export function PetLifecycleActions({
           </CTAButton>
         ) : (
           <>
-            {pet.lifecycleStatus !== "Memorial" ? (
+            {isMemorial ? (
+              <CTAButton
+                icon="paw"
+                onClick={() => setAction("active")}
+                variant="secondary"
+                fullWidth={compact}
+              >
+                Restore to Active
+              </CTAButton>
+            ) : (
               <CTAButton
                 icon="heart"
                 onClick={() => setAction("memorial")}
@@ -80,7 +94,7 @@ export function PetLifecycleActions({
               >
                 Move to Memorial
               </CTAButton>
-            ) : null}
+            )}
             <CTAButton
               icon="record"
               onClick={() => setAction("archive")}
@@ -112,7 +126,13 @@ export function PetLifecycleActions({
               return;
             }
 
-            void updateLifecycle(action === "memorial" ? "Memorial" : "Archived");
+            void updateLifecycle(
+              action === "memorial"
+                ? "Memorial"
+                : action === "active"
+                  ? "Active"
+                  : "Archived"
+            );
           }}
           open={Boolean(action)}
           title={copy.title}
@@ -123,9 +143,17 @@ export function PetLifecycleActions({
 }
 
 function getActionCopy(
-  action: "memorial" | "archive" | "restore",
+  action: "active" | "memorial" | "archive" | "restore",
   petName: string
 ) {
+  if (action === "active") {
+    return {
+      title: "Restore to Active?",
+      message: `This will show ${petName} in active pet pages again and use the pet's QR Safety settings for finder contact actions.`,
+      confirmLabel: "Restore to Active",
+    };
+  }
+
   if (action === "memorial") {
     return {
       title: "Move to Memorial?",

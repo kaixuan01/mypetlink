@@ -12,8 +12,10 @@ import {
   readOwnerSettings,
   type OwnerSettings,
 } from "@/lib/ownerSettings";
+import { isActivePet, isArchivedPet, isMemorialPet } from "@/lib/petLifecycle";
 import { normalizeStoredPhone } from "@/lib/phone";
 import { ownerRoutes } from "@/lib/routes";
+import { isActivePhysicalTagForPet } from "@/lib/tagStatus";
 import { getPetById, updatePetLostMode } from "@/services/petService";
 import { getPetTags } from "@/services/tagService";
 import type { Pet, PetLostMode, PetTag } from "@/types";
@@ -39,11 +41,10 @@ export function PetQrSafetyManager({
   const showPhone = visibility.showPhone && Boolean(phoneE164);
   const showEmergencyNote = visibility.showEmergencyNote;
   const showGeneralArea = visibility.showGeneralArea;
-  const isMemorial = pet.lifecycleStatus === "Memorial";
-  const isArchived = pet.lifecycleStatus === "Archived";
-  const activeTags = tags.filter(
-    (tag) => tag.status === "Active" && !tag.isArchived
-  );
+  const isMemorial = isMemorialPet(pet);
+  const isArchived = isArchivedPet(pet);
+  const isActiveProfile = isActivePet(pet);
+  const activeTags = tags.filter((tag) => isActivePhysicalTagForPet(tag, pet));
 
   useEffect(() => {
     let active = true;
@@ -89,8 +90,11 @@ export function PetQrSafetyManager({
               {pet.name}&apos;s QR Safety Page
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-pet-muted sm:text-base sm:leading-7">
-              Manage what finders see when they scan {pet.name}&apos;s safety
-              QR.
+              {isMemorial
+                ? `Review the inactive memorial QR page for ${pet.name}.`
+                : isArchived
+                  ? `Review the inactive archived QR page for ${pet.name}.`
+                  : `Manage what finders see when they scan ${pet.name}'s safety QR.`}
             </p>
           </div>
           <CTAButton href={ownerRoutes.petEdit(pet.id)} icon="settings">
@@ -172,12 +176,23 @@ export function PetQrSafetyManager({
                   QR Safety Page link
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-pet-muted">
-                  You can share this page anytime. Active physical tags open
-                  this same safety page.
+                  {isActiveProfile
+                    ? "You can share this page anytime. Active physical tags open this same safety page."
+                    : "This page stays available as an inactive status page and does not show finder contact actions."}
                 </p>
               </div>
-              <Badge tone={pet.qrSafetyEnabled ? "mint" : "warm"}>
-                {pet.qrSafetyEnabled ? "Active" : "Not active"}
+              <Badge
+                tone={
+                  isActiveProfile && pet.qrSafetyEnabled ? "mint" : "soft"
+                }
+              >
+                {isMemorial
+                  ? "Memorial"
+                  : isArchived
+                    ? "Archived"
+                    : pet.qrSafetyEnabled
+                      ? "Active"
+                      : "Not active"}
               </Badge>
             </div>
             <ShareProfileLink
@@ -200,46 +215,49 @@ export function PetQrSafetyManager({
             </div>
           </section>
 
-          <section className="brand-card rounded-[1.75rem] p-5">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-xl font-black text-pet-ink">
-                  Finder contact actions
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-pet-muted">
-                  Choose which contact buttons people can use when they find
-                  {` ${pet.name}`}.
-                </p>
+          {isActiveProfile ? (
+            <section className="brand-card rounded-[1.75rem] p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-black text-pet-ink">
+                    Finder contact actions
+                  </h2>
+                  <p className="mt-2 text-sm leading-6 text-pet-muted">
+                    Choose which contact buttons people can use when they find
+                    {` ${pet.name}`}.
+                  </p>
+                </div>
               </div>
-            </div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              <StatusTile
-                label="WhatsApp button"
-                shown={showWhatsapp}
-                value={showWhatsapp ? "Shown" : "Hidden"}
-              />
-              <StatusTile
-                label="Call button"
-                shown={showPhone}
-                value={showPhone ? "Shown" : "Hidden"}
-              />
-              <StatusTile
-                label="Send Found Location"
-                shown={showWhatsapp}
-                value={showWhatsapp ? "Available" : "Hidden"}
-              />
-            </div>
-            <CTAButton
-              className="mt-4"
-              href={ownerRoutes.petEdit(pet.id)}
-              icon="settings"
-              variant="outline"
-            >
-              Edit Safety Settings
-            </CTAButton>
-          </section>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <StatusTile
+                  label="WhatsApp button"
+                  shown={showWhatsapp}
+                  value={showWhatsapp ? "Shown" : "Hidden"}
+                />
+                <StatusTile
+                  label="Call button"
+                  shown={showPhone}
+                  value={showPhone ? "Shown" : "Hidden"}
+                />
+                <StatusTile
+                  label="Send Found Location"
+                  shown={showWhatsapp}
+                  value={showWhatsapp ? "Available" : "Hidden"}
+                />
+              </div>
+              <CTAButton
+                className="mt-4"
+                href={ownerRoutes.petEdit(pet.id)}
+                icon="settings"
+                variant="outline"
+              >
+                Edit Safety Settings
+              </CTAButton>
+            </section>
+          ) : null}
 
-          <section className="brand-card rounded-[1.75rem] p-5">
+          {isActiveProfile ? (
+            <section className="brand-card rounded-[1.75rem] p-5">
             <h2 className="text-xl font-black text-pet-ink">Safety notes</h2>
             <p className="mt-2 text-sm leading-6 text-pet-muted">
               These notes help finders keep {pet.name} calm and safe.
@@ -260,7 +278,8 @@ export function PetQrSafetyManager({
             <p className="mt-4 rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted">
               Your full address is never shown publicly.
             </p>
-          </section>
+            </section>
+          ) : null}
         </div>
 
         <div className="grid gap-5 content-start">
@@ -275,8 +294,9 @@ export function PetQrSafetyManager({
                   Physical tags
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-pet-muted">
-                  Active physical tags open this QR Safety Page. Lost or
-                  disabled tags will show an inactive tag page.
+                  {isActiveProfile
+                    ? "Active physical tags open this QR Safety Page. Lost or disabled tags will show an inactive tag page."
+                    : "Physical tags linked to this profile show an inactive tag page and do not expose owner contact details."}
                 </p>
               </div>
               <Badge tone={activeTags.length ? "mint" : "soft"}>
@@ -294,14 +314,16 @@ export function PetQrSafetyManager({
               >
                 Manage Physical Tags
               </CTAButton>
-              <CTAButton
-                href={ownerRoutes.petTagOrder(pet.id)}
-                icon="tag"
-                variant="secondary"
-                fullWidth
-              >
-                Order Physical Tag
-              </CTAButton>
+              {isActiveProfile ? (
+                <CTAButton
+                  href={ownerRoutes.petTagOrder(pet.id)}
+                  icon="tag"
+                  variant="secondary"
+                  fullWidth
+                >
+                  Order Physical Tag
+                </CTAButton>
+              ) : null}
             </div>
           </section>
         </div>

@@ -1,4 +1,5 @@
 import { getOrderStatusDisplay } from "@/lib/orders";
+import { isActivePet, isArchivedPet, isMemorialPet } from "@/lib/petLifecycle";
 import type { OrderStatus, PetTag, TagOrder, TagStatus } from "@/types";
 
 export type TagFilter = "active" | "pending" | "inactive" | "archived" | "all";
@@ -41,12 +42,28 @@ export const pendingOrderStatuses: OrderStatus[] = [
   "Delivered",
 ];
 
+type LinkedPetLifecycle = Parameters<typeof isActivePet>[0];
+
 export function getTagOrder(tag: PetTag, orders: TagOrder[] = []) {
   return orders.find((order) => order.tagId === tag.id);
 }
 
 export function isActivePhysicalTag(tag: PetTag) {
   return tag.status === "Active" && !tag.isArchived;
+}
+
+export function isActivePhysicalTagForPet(
+  tag: PetTag,
+  linkedPet?: LinkedPetLifecycle
+) {
+  return isActivePhysicalTag(tag) && (!linkedPet || isActivePet(linkedPet));
+}
+
+export function isTagLinkedToInactivePet(
+  tag: PetTag,
+  linkedPet?: LinkedPetLifecycle
+) {
+  return Boolean(tag.petId && linkedPet && !isActivePet(linkedPet));
 }
 
 export function isInactivePhysicalTag(tag: PetTag) {
@@ -76,9 +93,25 @@ export function canActivateTagFromOwnerPortal(tag: PetTag) {
   return !tag.isArchived && (tag.status === "Unassigned" || tag.status === "Delivered");
 }
 
-export function getTagDisplayStatus(tag: PetTag, order?: TagOrder) {
+export function getTagDisplayStatus(
+  tag: PetTag,
+  order?: TagOrder,
+  linkedPet?: LinkedPetLifecycle
+) {
   if (tag.isArchived) {
     return "Archived";
+  }
+
+  if (isTagLinkedToInactivePet(tag, linkedPet)) {
+    if (isMemorialPet(linkedPet)) {
+      return "Inactive - memorial profile";
+    }
+
+    if (isArchivedPet(linkedPet)) {
+      return "Inactive - archived profile";
+    }
+
+    return "Inactive";
   }
 
   if (isActivePhysicalTag(tag) || inactiveTagStatuses.includes(tag.status)) {
@@ -96,7 +129,20 @@ export function getTagDisplayStatus(tag: PetTag, order?: TagOrder) {
   return tag.status;
 }
 
-export function getTagScanDisplay(tag: PetTag, order?: TagOrder) {
+export function getTagScanDisplay(
+  tag: PetTag,
+  order?: TagOrder,
+  linkedPet?: LinkedPetLifecycle
+) {
+  if (isTagLinkedToInactivePet(tag, linkedPet)) {
+    return {
+      label: "Scan behavior",
+      value: isMemorialPet(linkedPet)
+        ? "Shows inactive memorial tag page"
+        : "Shows inactive tag page",
+    };
+  }
+
   if (isActivePhysicalTag(tag)) {
     return {
       label: "Last scanned",
@@ -129,9 +175,17 @@ export function getTagScanDisplay(tag: PetTag, order?: TagOrder) {
   };
 }
 
-export function getTagAvailableActions(tag: PetTag, order?: TagOrder): TagAction[] {
+export function getTagAvailableActions(
+  tag: PetTag,
+  order?: TagOrder,
+  linkedPet?: LinkedPetLifecycle
+): TagAction[] {
   if (tag.isArchived) {
     return ["view-status", "restore-to-list"];
+  }
+
+  if (isTagLinkedToInactivePet(tag, linkedPet)) {
+    return ["view-inactive-tag-page", "disable-tag", "archive-tag"];
   }
 
   if (isActivePhysicalTag(tag)) {
@@ -181,7 +235,8 @@ export function getTagAvailableActions(tag: PetTag, order?: TagOrder): TagAction
 export function shouldShowTagForFilter(
   tag: PetTag,
   filter: TagFilter,
-  order?: TagOrder
+  order?: TagOrder,
+  linkedPet?: LinkedPetLifecycle
 ) {
   if (filter === "all") {
     return true;
@@ -195,24 +250,28 @@ export function shouldShowTagForFilter(
     return false;
   }
 
+  const linkedToInactivePet = isTagLinkedToInactivePet(tag, linkedPet);
+
   if (filter === "active") {
-    return isActivePhysicalTag(tag);
+    return isActivePhysicalTagForPet(tag, linkedPet);
   }
 
   if (filter === "pending") {
-    return isPendingPhysicalTag(tag, order);
+    return !linkedToInactivePet && isPendingPhysicalTag(tag, order);
   }
 
-  return inactiveTagStatuses.includes(tag.status);
+  return inactiveTagStatuses.includes(tag.status) || linkedToInactivePet;
 }
 
 export function compareTagsForDisplay(
   a: PetTag,
   b: PetTag,
-  orders: TagOrder[] = []
+  orders: TagOrder[] = [],
+  linkedPetA?: LinkedPetLifecycle,
+  linkedPetB?: LinkedPetLifecycle
 ) {
-  const rankDiff = getTagSortRank(a, getTagOrder(a, orders)) -
-    getTagSortRank(b, getTagOrder(b, orders));
+  const rankDiff = getTagSortRank(a, getTagOrder(a, orders), linkedPetA) -
+    getTagSortRank(b, getTagOrder(b, orders), linkedPetB);
 
   if (rankDiff !== 0) {
     return rankDiff;
@@ -227,19 +286,23 @@ export function compareTagsForDisplay(
 export function getPetSmartTagStatus(
   tags: PetTag[] = [],
   orders: TagOrder[] = [],
-  petId?: string
+  petId?: string,
+  linkedPet?: LinkedPetLifecycle
 ) {
   const scopedTags = tags.filter(
     (tag) => (!petId || tag.petId === petId) && !tag.isArchived
   );
   const scopedOrders = orders.filter((order) => !petId || order.petId === petId);
-  const hasActiveTag = scopedTags.some(isActivePhysicalTag);
+  const hasActiveTag = scopedTags.some((tag) =>
+    isActivePhysicalTagForPet(tag, linkedPet)
+  );
+  const isLinkedPetActive = !linkedPet || isActivePet(linkedPet);
   const hasPendingTag = scopedTags.some((tag) =>
-    isPendingPhysicalTag(tag, getTagOrder(tag, orders))
+    isLinkedPetActive && isPendingPhysicalTag(tag, getTagOrder(tag, orders))
   );
-  const hasPendingOrder = scopedOrders.some((order) =>
-    isPendingOrderStatus(order.status)
-  );
+  const hasPendingOrder =
+    isLinkedPetActive &&
+    scopedOrders.some((order) => isPendingOrderStatus(order.status));
 
   if (hasActiveTag) {
     return "active";
@@ -255,7 +318,8 @@ export function getPetSmartTagStatus(
 export function getPetNfcTagStatus(
   tags: PetTag[] = [],
   orders: TagOrder[] = [],
-  petId?: string
+  petId?: string,
+  linkedPet?: LinkedPetLifecycle
 ) {
   const scopedTags = tags.filter(
     (tag) => (!petId || tag.petId === petId) && tag.hasNfc && !tag.isArchived
@@ -266,8 +330,12 @@ export function getPetNfcTagStatus(
       order.tagType === "MyPetLink QR + NFC Smart Tag"
   );
 
-  if (scopedTags.some(isActivePhysicalTag)) {
+  if (scopedTags.some((tag) => isActivePhysicalTagForPet(tag, linkedPet))) {
     return "active";
+  }
+
+  if (linkedPet && !isActivePet(linkedPet)) {
+    return "none";
   }
 
   if (
@@ -280,9 +348,17 @@ export function getPetNfcTagStatus(
   return "none";
 }
 
-function getTagSortRank(tag: PetTag, order?: TagOrder) {
-  if (isActivePhysicalTag(tag)) {
+function getTagSortRank(
+  tag: PetTag,
+  order?: TagOrder,
+  linkedPet?: LinkedPetLifecycle
+) {
+  if (isActivePhysicalTagForPet(tag, linkedPet)) {
     return 0;
+  }
+
+  if (isTagLinkedToInactivePet(tag, linkedPet)) {
+    return 2;
   }
 
   if (isPendingPhysicalTag(tag, order)) {

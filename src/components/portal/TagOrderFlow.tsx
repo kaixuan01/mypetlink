@@ -17,12 +17,14 @@ import { PhoneNumberInput } from "@/components/ui/PhoneNumberInput";
 import { paymentConfig } from "@/config/payment";
 import { formatOrderNumber } from "@/lib/orders";
 import { getPetSummaryLabel } from "@/lib/petDisplay";
+import { getActivePets, isActivePet } from "@/lib/petLifecycle";
 import { isValidE164, normalizeStoredPhone } from "@/lib/phone";
 import { readOwnerSettings } from "@/lib/ownerSettings";
 import {
   createTagOrder,
   getEstimatedTagPrice,
 } from "@/services/tagService";
+import { getPets } from "@/services/petService";
 import type {
   DeliveryDetails,
   Pet,
@@ -102,7 +104,11 @@ export function TagOrderFlow({
   initialTagType = "MyPetLink QR Pet Tag",
   replacementForTagId,
 }: TagOrderFlowProps) {
-  const orderablePets = pets.filter((pet) => pet.lifecycleStatus === "Active");
+  const [availablePets, setAvailablePets] = useState(pets);
+  const orderablePets = useMemo(
+    () => getActivePets(availablePets),
+    [availablePets]
+  );
   const initialPetId =
     preselectedPetId &&
     orderablePets.some((pet) => pet.id === preselectedPetId)
@@ -128,6 +134,9 @@ export function TagOrderFlow({
   );
   const tagType = selectedTagType ?? orderPrefs.tagType ?? initialTagType;
   const replacementFor = orderPrefs.replacementForTagId ?? replacementForTagId;
+  const preselectedPet = preselectedPetId
+    ? availablePets.find((pet) => pet.id === preselectedPetId)
+    : undefined;
 
   const selectedPet = useMemo(
     () => orderablePets.find((pet) => pet.id === petId),
@@ -137,6 +146,31 @@ export function TagOrderFlow({
   const shapeOption =
     shapeOptions.find((option) => option.shape === shape) ?? shapeOptions[0];
   const shapeLabel = shapeOption.label;
+
+  useEffect(() => {
+    let active = true;
+
+    getPets().then((response) => {
+      if (!active) {
+        return;
+      }
+
+      const nextPets =
+        preselectedPetId &&
+        !response.data.some((pet) => pet.id === preselectedPetId)
+          ? [
+              pets.find((pet) => pet.id === preselectedPetId),
+              ...response.data,
+            ].filter((pet): pet is Pet => Boolean(pet))
+          : response.data;
+
+      setAvailablePets(nextPets);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [pets, preselectedPetId]);
 
   // Prefill delivery from the owner's account settings once on mount. Deferred
   // so it runs as a browser-only effect without a synchronous setState.
@@ -158,6 +192,17 @@ export function TagOrderFlow({
 
     return () => window.clearTimeout(timer);
   }, []);
+
+  if (preselectedPet && !isActivePet(preselectedPet)) {
+    return (
+      <EmptyState
+        title="Physical tags are for active profiles"
+        description={`${preselectedPet.name} is not an active pet profile. Memorial and archived profiles keep existing tag history, but new physical tags can only be ordered for active pets.`}
+        actionHref={`/pets/${preselectedPet.id}/tags`}
+        actionLabel="View Smart Tags"
+      />
+    );
+  }
 
   const deliveryValid = isDeliveryValid(delivery);
   const previewReady = Boolean(selectedPet) && Boolean(tagType) && Boolean(shape);

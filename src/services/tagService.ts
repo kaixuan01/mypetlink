@@ -2,6 +2,11 @@ import { mockOrders } from "@/data/mockOrders";
 import { mockTags } from "@/data/mockTags";
 import { formatOrderNumber } from "@/lib/orders";
 import {
+  isActivePet,
+  isArchivedPet,
+  isMemorialPet,
+} from "@/lib/petLifecycle";
+import {
   canActivateTagFromOwnerPortal,
   inactiveTagStatuses,
   isActivePhysicalTag,
@@ -291,6 +296,7 @@ export async function getFinderState(tagCode: string): Promise<FinderResult> {
       tagCode: tag.tagCode,
       status: tag.status,
       isArchived: tag.isArchived,
+      reason: "inactive",
     };
   }
 
@@ -313,6 +319,7 @@ export async function getFinderState(tagCode: string): Promise<FinderResult> {
       tagCode: tag.tagCode,
       status: inactiveTagStatuses.includes(tag.status) ? tag.status : "Disabled",
       isArchived: tag.isArchived,
+      reason: "inactive",
     };
   }
 
@@ -325,6 +332,22 @@ export async function getFinderState(tagCode: string): Promise<FinderResult> {
       tagCode: tag.tagCode,
       status: tag.status,
       isArchived: tag.isArchived,
+      reason: "inactive",
+    };
+  }
+
+  if (!isActivePet(pet)) {
+    return {
+      state: "inactive",
+      tagCode: tag.tagCode,
+      status: tag.status,
+      isArchived: tag.isArchived,
+      reason: isMemorialPet(pet)
+        ? "memorial"
+        : isArchivedPet(pet)
+          ? "archived"
+          : "inactive",
+      profile: toPublicProfile(pet),
     };
   }
 
@@ -346,6 +369,13 @@ export async function activateTag(tagCode: string, petId: string) {
   );
 
   if (!tag || !canActivateTagFromOwnerPortal(tag)) {
+    return mockResponse<PetTag | null>(null);
+  }
+
+  const pets = await getPets();
+  const pet = pets.data.find((item) => item.id === petId);
+
+  if (!pet || !isActivePet(pet)) {
     return mockResponse<PetTag | null>(null);
   }
 

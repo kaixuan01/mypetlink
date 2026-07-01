@@ -8,6 +8,7 @@ import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon } from "@/components/ui/Icon";
 import { PetAvatar } from "@/components/ui/PetAvatar";
 import { getPetSummaryLabel } from "@/lib/petDisplay";
+import { getActivePets } from "@/lib/petLifecycle";
 import { ownerRoutes, tagPath } from "@/lib/routes";
 import { isOwnerAuthenticated, loginMockOwner } from "@/services/authService";
 import { getPets } from "@/services/petService";
@@ -52,9 +53,7 @@ export function TagActivationFlow({
 
     getPets().then((response) => {
       if (active) {
-        const activePets = response.data.filter(
-          (pet) => pet.lifecycleStatus === "Active"
-        );
+        const activePets = getActivePets(response.data);
         setPets(activePets);
         const preferredPetId = getPreferredPetId(initialResult);
         setSelectedPetId((current) => {

@@ -9,6 +9,12 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
 import { SegmentedTabs, type SegmentedTab } from "@/components/ui/SegmentedTabs";
 import { formatOrderNumber } from "@/lib/orders";
+import {
+  getActivePets,
+  isActivePet,
+  isArchivedPet,
+  isMemorialPet,
+} from "@/lib/petLifecycle";
 import { activatePath, ownerRoutes, tagPath } from "@/lib/routes";
 import {
   compareTagsForDisplay,
@@ -17,9 +23,10 @@ import {
   getTagOrder,
   getTagScanDisplay,
   inactiveTagStatuses,
-  isActivePhysicalTag,
+  isActivePhysicalTagForPet,
   isInactivePhysicalTag,
   isPendingPhysicalTag,
+  isTagLinkedToInactivePet,
   shouldShowTagForFilter,
   type TagFilter,
 } from "@/lib/tagStatus";
@@ -92,13 +99,29 @@ export function TagManagementPanel({
     () => new Map(pets.map((pet) => [pet.id, pet])),
     [pets]
   );
+  const orderablePets = useMemo(() => getActivePets(pets), [pets]);
   const visibleTags = useMemo(
     () =>
       tags
         .filter((tag) => !selectedPetId || tag.petId === selectedPetId)
-        .filter((tag) => shouldShowTagForFilter(tag, filter, getTagOrder(tag, orders)))
-        .sort((a, b) => compareTagsForDisplay(a, b, orders)),
-    [filter, orders, selectedPetId, tags]
+        .filter((tag) =>
+          shouldShowTagForFilter(
+            tag,
+            filter,
+            getTagOrder(tag, orders),
+            tag.petId ? petMap.get(tag.petId) : undefined
+          )
+        )
+        .sort((a, b) =>
+          compareTagsForDisplay(
+            a,
+            b,
+            orders,
+            a.petId ? petMap.get(a.petId) : undefined,
+            b.petId ? petMap.get(b.petId) : undefined
+          )
+        ),
+    [filter, orders, petMap, selectedPetId, tags]
   );
 
   function handleSelectPet(nextPetId: string) {
@@ -111,7 +134,14 @@ export function TagManagementPanel({
     setSelectedPetId(nextPetId);
   }
 
-  const orderHref = ownerRoutes.petTagOrder(selectedPetId || pets[0]?.id || "");
+  const orderPetId =
+    selectedPet && isActivePet(selectedPet)
+      ? selectedPet.id
+      : !selectedPet
+        ? orderablePets[0]?.id ?? ""
+        : "";
+  const orderHref = orderPetId ? ownerRoutes.petTagOrder(orderPetId) : "";
+  const showOrderButton = Boolean(orderHref);
 
   useEffect(() => {
     let active = true;
@@ -233,7 +263,7 @@ export function TagManagementPanel({
               : "Showing physical tags across all pets."}
           </p>
         </div>
-        {pets.length ? (
+        {showOrderButton ? (
           <CTAButton className="shrink-0" href={orderHref} icon="tag">
             {selectedPet
               ? `Order a tag for ${selectedPet.name}`
@@ -283,8 +313,10 @@ export function TagManagementPanel({
               icon="tag"
               title={empty.title}
               description={empty.description}
-              actionHref={empty.showOrder ? orderHref : undefined}
-              actionLabel={empty.showOrder ? empty.orderLabel : undefined}
+              actionHref={empty.showOrder && showOrderButton ? orderHref : undefined}
+              actionLabel={
+                empty.showOrder && showOrderButton ? empty.orderLabel : undefined
+              }
             />
           );
         })()
@@ -358,11 +390,12 @@ function TagCard({
   const productName = tag.hasNfc
     ? "MyPetLink QR + NFC Smart Tag"
     : "MyPetLink QR Pet Tag";
-  const actions = getTagAvailableActions(tag, order);
-  const displayStatus = getTagDisplayStatus(tag, order);
-  const scanDisplay = getTagScanDisplay(tag, order);
-  const isActive = isActivePhysicalTag(tag);
-  const isInactive = isInactivePhysicalTag(tag);
+  const actions = getTagAvailableActions(tag, order, linkedPet);
+  const displayStatus = getTagDisplayStatus(tag, order, linkedPet);
+  const scanDisplay = getTagScanDisplay(tag, order, linkedPet);
+  const isActive = isActivePhysicalTagForPet(tag, linkedPet);
+  const linkedToInactivePet = isTagLinkedToInactivePet(tag, linkedPet);
+  const isInactive = isInactivePhysicalTag(tag) || linkedToInactivePet;
   const isPending = isPendingPhysicalTag(tag, order);
   const isArchived = Boolean(tag.isArchived);
   const orderHref = order ? ownerRoutes.orderDetail(formatOrderNumber(order)) : "";
@@ -400,7 +433,9 @@ function TagCard({
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex flex-wrap gap-2">
-            <Badge tone={getStatusTone(tag, order)}>{displayStatus}</Badge>
+            <Badge tone={getStatusTone(tag, order, linkedPet)}>
+              {displayStatus}
+            </Badge>
             {isArchived ? <Badge tone="soft">Archived</Badge> : null}
           </div>
           <p className="mt-3 text-xs font-bold uppercase text-pet-muted">
@@ -466,20 +501,22 @@ function TagCard({
         ))}
       </dl>
 
-      {isInactive ? (
+      {linkedToInactivePet && isMemorialPet(linkedPet) ? (
+        <p className="mt-4 rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted">
+          {linkedPet?.name} is in Memorial Mode. Scanning this physical tag
+          shows an inactive memorial tag page and does not expose owner contact
+          details.
+        </p>
+      ) : linkedToInactivePet && isArchivedPet(linkedPet) ? (
+        <p className="mt-4 rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted">
+          {linkedPet?.name}&apos;s profile is archived. Scanning this physical
+          tag shows an inactive tag page and does not expose owner contact
+          details.
+        </p>
+      ) : isInactive ? (
         <p className="mt-4 rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted">
           Scanning this physical tag shows an inactive tag page and does not
           expose owner contact details. The pet&apos;s QR Safety Page still works.
-        </p>
-      ) : linkedPet?.lifecycleStatus === "Memorial" ? (
-        <p className="mt-4 rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted">
-          {linkedPet.name} is in Memorial Mode. Consider disabling or archiving
-          physical tags that are no longer in use.
-        </p>
-      ) : linkedPet?.lifecycleStatus === "Archived" ? (
-        <p className="mt-4 rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted">
-          {linkedPet.name}&apos;s profile is archived. Consider disabling or
-          archiving physical tags that are no longer in use.
         </p>
       ) : isPending ? (
         <p className="mt-4 rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted">
@@ -667,8 +704,13 @@ function getServerOrigin() {
 
 function getStatusTone(
   tag: PetTag,
-  order?: TagOrder
+  order?: TagOrder,
+  linkedPet?: Pet
 ): "warm" | "mint" | "teal" | "soft" | "danger" {
+  if (isTagLinkedToInactivePet(tag, linkedPet)) {
+    return "soft";
+  }
+
   if (tag.isArchived) {
     return "soft";
   }
