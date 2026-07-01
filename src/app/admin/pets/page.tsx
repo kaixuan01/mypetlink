@@ -3,6 +3,7 @@ import { AdminTableShell } from "@/components/admin/AdminTableShell";
 import { AdminLayout } from "@/components/layouts/AdminLayout";
 import { getQrStatusLabel } from "@/components/portal/ProfileAccessStatus";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { getPetTypeLabel } from "@/lib/petDisplay";
 import { getAdminPets } from "@/services/adminService";
 
 export const metadata: Metadata = {
@@ -36,7 +37,7 @@ export default async function AdminPetsPage() {
             {pets.data.map((pet) => (
               <tr key={pet.id}>
                 <td className="px-5 py-4 font-bold text-slate-950">
-                  {pet.name} - {pet.species}
+                  {pet.name} - {getPetTypeLabel(pet)}
                 </td>
                 <td className="px-5 py-4 text-slate-600">{pet.owner.name}</td>
                 <td className="px-5 py-4 text-slate-600">{pet.generalArea}</td>

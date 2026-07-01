@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
 import { SegmentedTabs, type SegmentedTab } from "@/components/ui/SegmentedTabs";
@@ -290,22 +291,23 @@ export function TagManagementPanel({
       )}
 
       {lostTag ? (
-        <ConfirmModal
+        <ConfirmDialog
           cancelLabel="Cancel"
           confirmLabel="Report Tag Lost"
-          danger
+          destructive
           message="This will deactivate this physical tag so anyone scanning it will no longer see your pet's safety contact page. Your pet profile and other active tags will not be affected."
           onCancel={() => setLostTag(null)}
           onConfirm={handleReportLost}
+          open={Boolean(lostTag)}
           title="Report this tag as lost?"
         />
       ) : null}
 
       {disableTagTarget ? (
-        <ConfirmModal
+        <ConfirmDialog
           cancelLabel="Cancel"
           confirmLabel="Disable Tag"
-          danger
+          destructive
           message={`This tag will stop opening ${
             (disableTagTarget.petId
               ? petMap.get(disableTagTarget.petId)?.name
@@ -313,17 +315,19 @@ export function TagManagementPanel({
           }'s QR Safety Page through this physical tag. The pet's own QR Safety Page stays active.`}
           onCancel={() => setDisableTagTarget(null)}
           onConfirm={handleDisable}
+          open={Boolean(disableTagTarget)}
           title="Disable this tag?"
         />
       ) : null}
 
       {archiveTagTarget ? (
-        <ConfirmModal
+        <ConfirmDialog
           cancelLabel="Cancel"
           confirmLabel="Archive Tag"
           message="This hides the tag from your main Smart Tags list. The tag will stay inactive and can still be viewed in archived tags."
           onCancel={() => setArchiveTagTarget(null)}
           onConfirm={handleArchive}
+          open={Boolean(archiveTagTarget)}
           title="Archive this tag?"
         />
       ) : null}
@@ -680,55 +684,4 @@ function getStatusTone(
   }
 
   return statusTone[tag.status];
-}
-
-function ConfirmModal({
-  cancelLabel,
-  confirmLabel,
-  danger = false,
-  message,
-  onCancel,
-  onConfirm,
-  title,
-}: {
-  cancelLabel: string;
-  confirmLabel: string;
-  danger?: boolean;
-  message: string;
-  onCancel: () => void;
-  onConfirm: () => void;
-  title: string;
-}) {
-  const confirmClass = danger
-    ? "border-[#ffd2c9] bg-[#ffe8e3] text-[#a63c2e] hover:bg-[#ffd8cf]"
-    : "border-pet-teal bg-[#e8f3ff] text-pet-teal hover:bg-[#d8edff]";
-
-  return (
-    <div
-      aria-modal="true"
-      className="fixed inset-0 z-50 grid place-items-end bg-pet-ink/35 p-0 backdrop-blur-sm sm:place-items-center sm:p-4"
-      role="dialog"
-    >
-      <div className="w-full max-w-lg rounded-t-[2rem] bg-white p-5 shadow-2xl sm:rounded-[2rem] sm:p-6">
-        <h2 className="text-2xl font-black text-pet-ink">{title}</h2>
-        <p className="mt-3 text-sm leading-6 text-pet-muted">{message}</p>
-        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-          <button
-            className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
-            onClick={onCancel}
-            type="button"
-          >
-            {cancelLabel}
-          </button>
-          <button
-            className={`inline-flex min-h-12 items-center justify-center rounded-full border px-5 py-3 text-sm font-bold transition ${confirmClass}`}
-            onClick={onConfirm}
-            type="button"
-          >
-            {confirmLabel}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
 }

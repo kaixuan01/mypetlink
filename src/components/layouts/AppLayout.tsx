@@ -224,7 +224,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   MyPetLink
                 </span>
               </Link>
-              <PlanAwareAddPetButton />
+              <PlanAwareAddPetButton compact />
             </div>
           </header>
           <main className="mx-auto min-w-0 w-full max-w-7xl px-4 pb-[calc(8.5rem+env(safe-area-inset-bottom))] pt-5 sm:px-6 lg:px-8 lg:py-8">

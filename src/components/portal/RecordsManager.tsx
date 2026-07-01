@@ -9,6 +9,7 @@ import {
 } from "react";
 import { RecordCard } from "@/components/portal/RecordCard";
 import { CTAButton } from "@/components/ui/CTAButton";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
 import {
@@ -66,6 +67,7 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
   const [success, setSuccess] = useState("");
   const [form, setForm] = useState<FormState>(emptyForm);
   const [errors, setErrors] = useState<FormErrors>({});
+  const [deleteTarget, setDeleteTarget] = useState<CareRecord | null>(null);
 
   const groupedRecords = useMemo(
     () =>
@@ -193,23 +195,21 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
     setIsSubmitting(false);
   }
 
-  async function handleDelete(record: CareRecord) {
-    const confirmed = window.confirm(
-      `Delete "${record.title}" from this pet's care records?`
-    );
-
-    if (!confirmed) {
+  async function confirmDelete() {
+    if (!deleteTarget) {
       return;
     }
 
-    const response = await deleteRecord(record.id);
+    const response = await deleteRecord(deleteTarget.id);
 
     if (response.data.deleted) {
       setRecords((current) =>
-        current.filter((item) => item.id !== record.id)
+        current.filter((item) => item.id !== deleteTarget.id)
       );
       setSuccess("Record deleted.");
     }
+
+    setDeleteTarget(null);
   }
 
   return (
@@ -249,7 +249,7 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
                   {group.map((record) => (
                     <RecordCard
                       key={record.id}
-                      onDelete={() => handleDelete(record)}
+                      onDelete={() => setDeleteTarget(record)}
                       onEdit={() => openEditForm(record)}
                       record={record}
                     />
@@ -416,6 +416,20 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
           </div>
         </div>
       ) : null}
+
+      <ConfirmDialog
+        confirmLabel="Delete record"
+        destructive
+        message={
+          deleteTarget
+            ? `Delete "${deleteTarget.title}" from this pet's care records? This action cannot be undone.`
+            : ""
+        }
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+        open={Boolean(deleteTarget)}
+        title="Delete care record?"
+      />
     </>
   );
 }

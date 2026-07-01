@@ -6,6 +6,7 @@ import { PetManagementTabs } from "@/components/portal/PetManagementTabs";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { PetAvatar } from "@/components/ui/PetAvatar";
 import { staticPetIdParams } from "@/data/staticRouteParams";
+import { getPetSummaryLabel } from "@/lib/petDisplay";
 import { ownerRoutes } from "@/lib/routes";
 import { getPetMoments } from "@/services/momentService";
 import { getPetById } from "@/services/petService";
@@ -64,7 +65,7 @@ export default async function PetDetailPage({ params }: PetDetailPageProps) {
                 {pet.name}
               </h1>
               <p className="mt-1 text-sm text-pet-muted">
-                {pet.species} &middot; {pet.breed} &middot; {pet.ageLabel}
+                {getPetSummaryLabel(pet)}
               </p>
             </div>
           </div>

@@ -11,6 +11,7 @@ import {
   type OwnerSettings,
 } from "@/lib/ownerSettings";
 import { getPetProfileTheme } from "@/lib/petProfileThemes";
+import { getPetAgeLabel, getPetTypeLabel } from "@/lib/petDisplay";
 import {
   getCallLink,
   getWhatsAppLink,
@@ -42,6 +43,13 @@ export function QrSafetyPageView({ pet }: QrSafetyPageViewProps) {
     : `Hi, I found ${pet.name} from the MyPetLink safety profile.`;
   const whatsappE164 = normalizeStoredPhone(effectiveContact.whatsappNumber);
   const phoneE164 = normalizeStoredPhone(effectiveContact.phoneNumber);
+  const safetySummary = [
+    getPetTypeLabel(pet),
+    pet.breed && pet.breed !== "Not set" ? pet.breed : pet.color,
+    getPetAgeLabel(pet),
+  ]
+    .filter(Boolean)
+    .join(" - ");
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -120,7 +128,7 @@ export function QrSafetyPageView({ pet }: QrSafetyPageViewProps) {
             : "Please contact the owner directly using one of the options below."}
         </p>
         <p className="mt-4 text-sm text-pet-muted">
-          {pet.species} - {pet.breed} - {pet.color}
+          {safetySummary}
         </p>
         {visibility.showOwnerName ? (
           <p className="mt-2 text-sm font-bold text-pet-ink">

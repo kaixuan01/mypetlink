@@ -12,6 +12,7 @@ import {
   premiumPlan,
   smartTagAddOns,
 } from "@/lib/planLimits";
+import { getPetSummaryLabel } from "@/lib/petDisplay";
 import { publicRoutes, samplePet } from "@/lib/routes";
 import type { Pet } from "@/types";
 
@@ -459,7 +460,7 @@ function LandingPetProfilePreview({ pet }: { pet: Pet }) {
           <div className="rounded-[1.5rem] bg-white/95 p-4 shadow-sm">
             <h2 className="text-2xl font-black text-pet-ink">{pet.name}</h2>
             <p className="mt-1 text-sm font-bold text-pet-muted">
-              {pet.species} - {pet.breed} - {pet.ageLabel}
+              {getPetSummaryLabel(pet)}
             </p>
           </div>
         </div>

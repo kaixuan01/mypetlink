@@ -10,6 +10,7 @@ import {
 import { MomentMediaField } from "@/components/portal/MomentMediaField";
 import { PetMomentCard } from "@/components/portal/PetMomentCard";
 import { CTAButton } from "@/components/ui/CTAButton";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
 import { getMemoryLimitState } from "@/lib/planLimits";
@@ -90,6 +91,7 @@ export function PetMomentsManager({
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<PetMoment | null>(null);
   const memoryLimit = getMemoryLimitState(moments.length);
   const counts = useMemo(
     () => ({
@@ -205,23 +207,21 @@ export function PetMomentsManager({
     setIsSubmitting(false);
   }
 
-  async function handleDelete(moment: PetMoment) {
-    const confirmed = window.confirm(
-      `Delete "${moment.title}" from ${pet.name}'s moments?`
-    );
-
-    if (!confirmed) {
+  async function confirmDelete() {
+    if (!deleteTarget) {
       return;
     }
 
-    const response = await deletePetMoment(moment.id);
+    const response = await deletePetMoment(deleteTarget.id);
 
     if (response.data.deleted) {
       setMoments((current) =>
-        current.filter((item) => item.id !== moment.id)
+        current.filter((item) => item.id !== deleteTarget.id)
       );
       setSuccess("Moment deleted.");
     }
+
+    setDeleteTarget(null);
   }
 
   return (
@@ -311,7 +311,7 @@ export function PetMomentsManager({
               <PetMomentCard
                 key={moment.id}
                 moment={moment}
-                onDelete={() => handleDelete(moment)}
+                onDelete={() => setDeleteTarget(moment)}
                 onEdit={() => openEditForm(moment)}
               />
             ))}
@@ -505,6 +505,20 @@ export function PetMomentsManager({
           </div>
         </div>
       ) : null}
+
+      <ConfirmDialog
+        confirmLabel="Delete memory"
+        destructive
+        message={
+          deleteTarget
+            ? `Delete this memory from ${pet.name}'s profile? This action cannot be undone.`
+            : ""
+        }
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+        open={Boolean(deleteTarget)}
+        title="Delete memory?"
+      />
     </>
   );
 }

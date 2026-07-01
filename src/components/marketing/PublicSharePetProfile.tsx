@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import {
@@ -23,6 +23,11 @@ import {
   readOwnerSettings,
   type OwnerSettings,
 } from "@/lib/ownerSettings";
+import {
+  getPetAgeLabel,
+  getPetSummaryLabel,
+  getPetTypeLabel,
+} from "@/lib/petDisplay";
 import {
   getCallLink,
   getWhatsAppLink,
@@ -202,7 +207,7 @@ export function PublicSharePetProfile({
       </header>
 
       <div className="mx-auto max-w-xl px-4 pb-16 pt-6 sm:pt-8">
-        {/* Identity hero — a friendly, shareable introduction to the pet. */}
+        {/* Identity hero â€” a friendly, shareable introduction to the pet. */}
         <section
           className="brand-card overflow-hidden rounded-[2rem]"
           style={{
@@ -237,11 +242,7 @@ export function PublicSharePetProfile({
               className="mt-2 text-sm font-bold text-pet-muted"
               style={{ color: theme.colors.mutedText }}
             >
-              {profile.species}
-              {" · "}
-              {profile.breed}
-              {" · "}
-              {profile.ageLabel}
+              {getPetSummaryLabel(profile)}
             </p>
             {profile.bio ? (
               <p
@@ -499,10 +500,11 @@ function AboutTab({
   generalArea: string;
 }) {
   const details: { label: string; value: string }[] = [
+    { label: "Pet type", value: getPetTypeLabel(profile) },
     { label: "Breed", value: profile.breed },
     { label: "Color", value: profile.color },
     { label: "Gender", value: profile.gender },
-    { label: "Age", value: profile.ageLabel },
+    { label: "Age", value: getPetAgeLabel(profile) },
     { label: "Birthday", value: profile.birthday },
     ...(visibility.showGeneralArea
       ? [{ label: "General area", value: generalArea }]

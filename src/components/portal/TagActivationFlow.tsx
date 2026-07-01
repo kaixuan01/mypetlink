@@ -7,6 +7,7 @@ import { BrandLogo } from "@/components/brand/BrandLogo";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon } from "@/components/ui/Icon";
 import { PetAvatar } from "@/components/ui/PetAvatar";
+import { getPetSummaryLabel } from "@/lib/petDisplay";
 import { ownerRoutes, tagPath } from "@/lib/routes";
 import { isOwnerAuthenticated, loginMockOwner } from "@/services/authService";
 import { getPets } from "@/services/petService";
@@ -248,7 +249,7 @@ export function TagActivationFlow({
                     {pet.name}
                   </span>
                   <span className="block text-xs font-semibold text-pet-muted">
-                    {pet.species} - {pet.breed}
+                    {getPetSummaryLabel(pet)}
                   </span>
                 </span>
                 {selected ? (

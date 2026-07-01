@@ -5,6 +5,7 @@ import {
   getDefaultPetVisibility,
   readOwnerSettings,
 } from "@/lib/ownerSettings";
+import { getPetAgeLabel, PET_TYPE_OPTIONS } from "@/lib/petDisplay";
 import { publicProfilePath, qrSafetyPath } from "@/lib/routes";
 import {
   derivePublicCode,
@@ -117,6 +118,20 @@ function mergeLostMode(
   };
 }
 
+function normalizeSpecies(pet: Pet): Pick<Pet, "species" | "customSpecies"> {
+  if (PET_TYPE_OPTIONS.includes(pet.species)) {
+    return {
+      species: pet.species,
+      customSpecies: pet.species === "Other" ? pet.customSpecies?.trim() : "",
+    };
+  }
+
+  return {
+    species: "Other",
+    customSpecies: String(pet.species || pet.customSpecies || "Other").trim(),
+  };
+}
+
 function normalizePet(pet: Pet): Pet {
   const publicCode = canonicalPublicCode(pet);
   const safetyCode = canonicalSafetyCode(pet);
@@ -124,18 +139,24 @@ function normalizePet(pet: Pet): Pet {
   const createdAt =
     pet.createdAt ?? pet.updatedAt ?? "2026-01-01T00:00:00.000Z";
   const updatedAt = pet.updatedAt ?? createdAt;
+  const species = normalizeSpecies(pet);
 
   return {
     ...pet,
+    ...species,
     createdAt,
     updatedAt,
     gender: pet.gender ?? "Not set",
     color: pet.color ?? "Not set",
-    ageLabel: pet.ageLabel ?? "Age not set",
+    ageLabel: getPetAgeLabel({
+      birthday: pet.birthday ?? "Not set",
+      ageLabel: pet.ageLabel ?? "Age not set",
+      estimatedAge: pet.estimatedAge,
+    }),
     birthday: pet.birthday ?? "Not set",
     adoptionDay: pet.adoptionDay ?? "Not set",
     photoInitial: pet.photoInitial ?? getPetInitial(pet.name),
-    photoTone: pet.photoTone ?? "apricot",
+    photoTone: pet.photoTone ?? (species.species === "Cat" ? "mint" : "apricot"),
     profilePhotoLabel: cleanMediaLabel(pet.profilePhotoLabel),
     coverPhotoLabel: cleanMediaLabel(pet.coverPhotoLabel),
     photoUrl: pet.photoUrl ?? "",
@@ -229,6 +250,7 @@ export function toPublicProfile(pet: Pet): PublicPetProfile {
     slug: pet.slug,
     name: pet.name,
     species: pet.species,
+    customSpecies: pet.customSpecies,
     breed: pet.breed,
     gender: pet.gender,
     color: pet.color,
@@ -318,6 +340,8 @@ export async function createPet(payload: PetPayload) {
     slug,
     name: petName,
     species: payload.species ?? "Dog",
+    customSpecies:
+      payload.species === "Other" ? payload.customSpecies?.trim() : "",
     breed: payload.breed ?? "Mixed breed",
     gender: payload.gender ?? "Unknown",
     color: payload.color ?? "Not set",
@@ -328,7 +352,8 @@ export async function createPet(payload: PetPayload) {
     updatedAt: now,
     generalArea,
     photoInitial: payload.photoInitial ?? getPetInitial(petName),
-    photoTone: payload.photoTone ?? "apricot",
+    photoTone:
+      payload.photoTone ?? (payload.species === "Cat" ? "mint" : "apricot"),
     profilePhotoLabel: payload.profilePhotoLabel ?? "",
     coverPhotoLabel: payload.coverPhotoLabel ?? "",
     photoUrl: payload.photoUrl ?? "",
@@ -382,6 +407,10 @@ export async function updatePet(id: string, payload: PetPayload) {
         ...pet,
         ...payload,
         slug: nextSlug ?? pet.slug,
+        customSpecies:
+          payload.species === "Other"
+            ? payload.customSpecies?.trim() || pet.customSpecies
+            : "",
         publicProfilePath: publicProfilePath(nextSlug ?? pet.slug, pet.publicCode),
         safetyCode: pet.safetyCode,
         qrSafetyPath: safetyPath,

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {
   useEffect,
+  useRef,
   useState,
   useSyncExternalStore,
   type FormEvent,
@@ -30,6 +31,13 @@ import {
   readOwnerSettings,
   type OwnerSettings,
 } from "@/lib/ownerSettings";
+import {
+  buildAgeLabelFromDate,
+  ESTIMATED_AGE_OPTIONS,
+  formatEstimatedAgeLabel,
+  parseEstimatedAgeValue,
+  PET_TYPE_OPTIONS,
+} from "@/lib/petDisplay";
 import { ownerRoutes, publicProfilePath } from "@/lib/routes";
 import {
   createPet,
@@ -52,6 +60,7 @@ type PetProfileFormProps = {
 type FormState = {
   name: string;
   species: PetSpecies;
+  customSpecies: string;
   breed: string;
   gender: string;
   color: string;
@@ -103,6 +112,7 @@ const editTabs: (SegmentedTab & { id: EditTab })[] = [
 const fieldTab: Record<keyof FormState, EditTab> = {
   name: "basic",
   species: "basic",
+  customSpecies: "basic",
   breed: "basic",
   gender: "basic",
   color: "basic",
@@ -137,11 +147,10 @@ const fieldTab: Record<keyof FormState, EditTab> = {
   showEmergencyNote: "contact",
 };
 
-const speciesOptions: PetSpecies[] = ["Dog", "Cat", "Rabbit", "Bird", "Other"];
-
 const emptyForm: FormState = {
   name: "",
   species: "Dog",
+  customSpecies: "",
   breed: "",
   gender: "",
   color: "",
@@ -238,6 +247,34 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
     setSuccess("");
   }
 
+  function updateSpecies(species: PetSpecies) {
+    setForm((current) => ({
+      ...current,
+      species,
+      customSpecies: species === "Other" ? current.customSpecies : "",
+    }));
+    setErrors((current) => ({
+      ...current,
+      species: undefined,
+      customSpecies: undefined,
+    }));
+    setSuccess("");
+  }
+
+  function updateBirthday(value: string) {
+    setForm((current) => ({
+      ...current,
+      birthdayDate: value,
+      estimatedAge: value ? "" : current.estimatedAge,
+    }));
+    setErrors((current) => ({
+      ...current,
+      birthdayDate: undefined,
+      estimatedAge: undefined,
+    }));
+    setSuccess("");
+  }
+
   function handleNameChange(value: string) {
     setForm((current) => {
       const previousSlug = slugifyPetSlug(current.name);
@@ -288,6 +325,10 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
     checkRequired(nextErrors, "species", form.species, "Pet type is required.");
     checkRequired(nextErrors, "slug", form.slug, "Public profile slug is required.");
 
+    if (form.species === "Other" && !form.customSpecies.trim()) {
+      nextErrors.customSpecies = "Enter your pet type.";
+    }
+
     if (form.slug && form.slug !== slug) {
       nextErrors.slug =
         "Use lowercase letters, numbers, and hyphens only, like milo-the-dog.";
@@ -301,8 +342,12 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
       nextErrors.phone = "Please enter a valid phone number.";
     }
 
-    if (form.birthdayDate && !isValidDate(form.birthdayDate)) {
-      nextErrors.birthdayDate = "Choose a valid birthday.";
+    if (form.birthdayDate) {
+      if (!isValidDate(form.birthdayDate)) {
+        nextErrors.birthdayDate = "Choose a valid birthday.";
+      } else if (new Date(`${form.birthdayDate}T00:00:00`) > new Date()) {
+        nextErrors.birthdayDate = "Birthday cannot be in the future.";
+      }
     }
 
     if (form.adoptionDate && !isValidDate(form.adoptionDate)) {
@@ -311,6 +356,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
 
     enforceMax(nextErrors, "name", form.name, 60);
     enforceMax(nextErrors, "breed", form.breed, 80);
+    enforceMax(nextErrors, "customSpecies", form.customSpecies, 60);
     enforceMax(nextErrors, "gender", form.gender, 40);
     enforceMax(nextErrors, "color", form.color, 80);
     enforceMax(nextErrors, "estimatedAge", form.estimatedAge, 60);
@@ -431,12 +477,14 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
         ...currentPet,
         name: form.name || currentPet.name,
         species: form.species,
+        customSpecies: form.customSpecies,
         photoInitial: getInitial(form.name || currentPet.name),
         photoUrl: form.photoUrl,
         profileTheme: form.profileTheme,
       }
     : {
         species: form.species,
+        customSpecies: form.customSpecies,
         photoInitial: getInitial(form.name),
         photoTone: "apricot" as const,
         photoUrl: form.photoUrl,
@@ -464,7 +512,10 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
     form.profileTheme !== currentPet.profileTheme;
 
   return (
-    <form className="grid min-w-0 gap-5" onSubmit={handleSubmit}>
+    <form
+      className="grid min-w-0 gap-5 pb-[calc(7rem+env(safe-area-inset-bottom))] lg:pb-0"
+      onSubmit={handleSubmit}
+    >
       {success ? (
         <div className="rounded-[1.25rem] border border-pet-mint bg-[#e8f8f0] p-4 text-sm font-bold text-pet-sage">
           {success}
@@ -500,20 +551,23 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
             </Field>
 
             <Field error={errors.species} label="Pet type">
-              <select
-                className="brand-input"
-                onChange={(event) =>
-                  updateField("species", event.target.value as PetSpecies)
-                }
+              <PetTypeSelector
+                onChange={updateSpecies}
                 value={form.species}
-              >
-                {speciesOptions.map((species) => (
-                  <option key={species} value={species}>
-                    {species}
-                  </option>
-                ))}
-              </select>
+              />
             </Field>
+
+            {form.species === "Other" ? (
+              <TextInput
+                error={errors.customSpecies}
+                helper="This is what people will see on profiles and QR safety pages."
+                label="Enter pet type"
+                maxLength={60}
+                onChange={(value) => updateField("customSpecies", value)}
+                placeholder="Example: Axolotl"
+                value={form.customSpecies}
+              />
+            ) : null}
 
             <TextInput
               error={errors.breed}
@@ -549,23 +603,41 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
             >
               <input
                 className="brand-input"
-                onChange={(event) =>
-                  updateField("birthdayDate", event.target.value)
-                }
+                onChange={(event) => updateBirthday(event.target.value)}
                 type="date"
                 value={form.birthdayDate}
               />
             </Field>
 
-            <TextInput
-              error={errors.estimatedAge}
-              helper="Example: Estimated 5 years."
-              label="Estimated age"
-              maxLength={60}
-              onChange={(value) => updateField("estimatedAge", value)}
-              placeholder="Estimated 5 years"
-              value={form.estimatedAge}
-            />
+            {form.birthdayDate ? (
+              <Field label="Age display">
+                <div className="rounded-[1.25rem] bg-pet-cream px-4 py-3 text-sm font-bold text-pet-ink">
+                  {buildAgeLabelFromDate(
+                    new Date(`${form.birthdayDate}T00:00:00`)
+                  )}
+                </div>
+              </Field>
+            ) : (
+              <Field
+                error={errors.estimatedAge}
+                helper="Use this only when the birthday is not known."
+                label="Estimated age"
+              >
+                <select
+                  className="brand-input"
+                  onChange={(event) =>
+                    updateField("estimatedAge", event.target.value)
+                  }
+                  value={form.estimatedAge || "unknown"}
+                >
+                  {ESTIMATED_AGE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            )}
           </div>
 
           <div className="mt-4 grid min-w-0 gap-4 lg:grid-cols-[1.1fr_0.9fr]">
@@ -1078,7 +1150,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
       ) : null}
 
       {/* Spacer so the last fields clear the fixed mobile action bar. */}
-      <div aria-hidden="true" className="h-28 lg:hidden" />
+      <div aria-hidden="true" className="h-40 lg:hidden" />
 
       {/* Sticky mobile action bar, kept above the bottom navigation. */}
       <div className="fixed inset-x-3 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-20 max-w-[calc(100vw-1.5rem)] lg:hidden">
@@ -1163,6 +1235,106 @@ function ContactSummary({
   );
 }
 
+function PetTypeSelector({
+  onChange,
+  value,
+}: {
+  onChange: (value: PetSpecies) => void;
+  value: PetSpecies;
+}) {
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const normalizedQuery = query.trim().toLowerCase();
+  const visibleOptions = PET_TYPE_OPTIONS.filter((option) =>
+    option.toLowerCase().includes(normalizedQuery)
+  );
+  const options = visibleOptions.length ? visibleOptions : ["Other" as PetSpecies];
+
+  useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      if (!wrapperRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
+  function selectOption(option: PetSpecies) {
+    onChange(option);
+    setQuery("");
+    setOpen(false);
+  }
+
+  return (
+    <div className="relative" ref={wrapperRef}>
+      <button
+        aria-expanded={open}
+        className="brand-input flex min-h-12 items-center justify-between gap-3 text-left"
+        onClick={() => setOpen((current) => !current)}
+        type="button"
+      >
+        <span>{value}</span>
+        <Icon name="settings" className="h-4 w-4 text-pet-muted" />
+      </button>
+
+      {open ? (
+        <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-30 overflow-hidden rounded-[1.25rem] border border-pet-border bg-white p-2 shadow-xl shadow-[#0d1b3d]/12">
+          <input
+            aria-label="Search pet type"
+            autoFocus
+            className="brand-input min-h-11"
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search pet type"
+            type="search"
+            value={query}
+          />
+          <div className="mt-2 max-h-64 overflow-y-auto pr-1">
+            {options.map((option) => {
+              const selected = option === value;
+
+              return (
+                <button
+                  className={`flex min-h-11 w-full items-center justify-between rounded-2xl px-4 py-2 text-left text-sm font-bold transition ${
+                    selected
+                      ? "bg-[#e8f3ff] text-pet-teal"
+                      : "text-pet-ink hover:bg-pet-cream"
+                  }`}
+                  key={option}
+                  onClick={() => selectOption(option)}
+                  type="button"
+                >
+                  <span>{option}</span>
+                  {selected ? (
+                    <span className="text-xs text-pet-teal">Selected</span>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function toFormState(
   pet?: Pet,
   ownerSettings: OwnerSettings = defaultOwnerSettings
@@ -1197,11 +1369,14 @@ function toFormState(
   return {
     name: pet.name,
     species: pet.species,
+    customSpecies: pet.customSpecies ?? "",
     breed: pet.breed,
     gender: pet.gender,
     color: pet.color,
     birthdayDate: parseDisplayDate(pet.birthday),
-    estimatedAge: pet.ageLabel === "Age not set" ? "" : pet.ageLabel,
+    estimatedAge: parseDisplayDate(pet.birthday)
+      ? ""
+      : parseEstimatedAgeValue(pet.ageLabel),
     photoUrl: pet.photoUrl ?? "",
     coverUrl: pet.coverUrl ?? "",
     profileTheme: pet.profileTheme ?? "default",
@@ -1240,14 +1415,16 @@ function buildPayload(
   const birthday = form.birthdayDate
     ? formatDisplayDate(form.birthdayDate)
     : "Not set";
-  const ageLabel =
-    form.estimatedAge.trim() ||
-    (form.birthdayDate ? buildAgeLabel(form.birthdayDate) : "Age not set");
+  const ageLabel = form.birthdayDate
+    ? buildAgeLabelFromDate(new Date(`${form.birthdayDate}T00:00:00`))
+    : formatEstimatedAgeLabel(form.estimatedAge || "unknown");
 
   return {
     name,
     slug: slugifyPetSlug(form.slug),
     species: form.species,
+    customSpecies:
+      form.species === "Other" ? form.customSpecies.trim() : "",
     breed: form.breed.trim() || "Mixed breed",
     gender: form.gender.trim() || "Not set",
     color: form.color.trim() || "Not set",
@@ -1703,26 +1880,6 @@ function parseDisplayDate(value: string) {
   }
 
   return `${year}-${String(monthIndex + 1).padStart(2, "0")}-${day}`;
-}
-
-function buildAgeLabel(value: string) {
-  const birthDate = new Date(`${value}T00:00:00`);
-  const today = new Date();
-  let years = today.getFullYear() - birthDate.getFullYear();
-  const monthDiff = today.getMonth() - birthDate.getMonth();
-
-  if (
-    monthDiff < 0 ||
-    (monthDiff === 0 && today.getDate() < birthDate.getDate())
-  ) {
-    years -= 1;
-  }
-
-  if (years <= 0) {
-    return "Under 1 year";
-  }
-
-  return years === 1 ? "1 year" : `${years} years`;
 }
 
 function splitTags(value: string) {

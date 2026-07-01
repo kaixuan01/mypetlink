@@ -12,6 +12,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { PetAvatar } from "@/components/ui/PetAvatar";
 import { isActiveOrder } from "@/lib/orders";
+import { getPetSummaryLabel } from "@/lib/petDisplay";
 import { ownerRoutes } from "@/lib/routes";
 import { getPetMoments } from "@/services/momentService";
 import { getPets } from "@/services/petService";
@@ -299,7 +300,7 @@ function DashboardPetCard({
             <Badge tone={qrBadge.tone}>{qrBadge.label}</Badge>
           </div>
           <p className="mt-1 text-sm leading-5 text-pet-muted">
-            {pet.species} - {pet.breed} - {pet.ageLabel}
+            {getPetSummaryLabel(pet)}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <Badge tone={tagBadge.tone}>{tagBadge.label}</Badge>

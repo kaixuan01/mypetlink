@@ -16,6 +16,7 @@ import { Icon } from "@/components/ui/Icon";
 import { PhoneNumberInput } from "@/components/ui/PhoneNumberInput";
 import { paymentConfig } from "@/config/payment";
 import { formatOrderNumber } from "@/lib/orders";
+import { getPetSummaryLabel } from "@/lib/petDisplay";
 import { isValidE164, normalizeStoredPhone } from "@/lib/phone";
 import { readOwnerSettings } from "@/lib/ownerSettings";
 import {
@@ -416,7 +417,7 @@ export function TagOrderFlow({
               >
                 <p className="text-lg font-black text-pet-ink">{pet.name}</p>
                 <p className="mt-1 text-sm text-pet-muted">
-                  {pet.species} - {pet.breed}
+                  {getPetSummaryLabel(pet)}
                 </p>
               </button>
             ))}

@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon } from "@/components/ui/Icon";
 import { PetAvatar } from "@/components/ui/PetAvatar";
+import { getPetSummaryLabel } from "@/lib/petDisplay";
 import { ownerRoutes } from "@/lib/routes";
 import type { Pet, PetTag, TagOrder } from "@/types";
 
@@ -43,7 +44,7 @@ export function PetCard({ pet, orders = [], tags = [] }: PetCardProps) {
             <Badge tone={qrBadge.tone}>{qrBadge.label}</Badge>
           </div>
           <p className="mt-1 text-sm text-pet-muted">
-            {pet.species} - {pet.breed} - {pet.ageLabel}
+            {getPetSummaryLabel(pet)}
           </p>
           <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-pet-cream px-3 py-1 text-xs font-bold text-pet-muted">
             <Icon name="tag" className="h-3.5 w-3.5 text-pet-teal" />

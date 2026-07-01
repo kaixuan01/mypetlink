@@ -19,6 +19,7 @@ import { TagOrderFlow } from "@/components/portal/TagOrderFlow";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PetAvatar } from "@/components/ui/PetAvatar";
+import { getPetSummaryLabel } from "@/lib/petDisplay";
 import { parsePublicProfileParam, ownerRoutes } from "@/lib/routes";
 import { getPublicPetMoments, getPetMoments } from "@/services/momentService";
 import {
@@ -397,7 +398,7 @@ function OwnerRuntimeView({
                 {pet.name}
               </h1>
               <p className="mt-1 text-sm text-pet-muted">
-                {pet.species} &middot; {pet.breed} &middot; {pet.ageLabel}
+                {getPetSummaryLabel(pet)}
               </p>
             </div>
           </div>

@@ -11,7 +11,25 @@ export type ApiResponse<T> = {
 
 export type QrStatus = "active" | "draft" | "paused";
 
-export type PetSpecies = "Dog" | "Cat" | "Rabbit" | "Bird" | "Other";
+export type PetSpecies =
+  | "Dog"
+  | "Cat"
+  | "Rabbit"
+  | "Bird"
+  | "Hamster"
+  | "Guinea Pig"
+  | "Fish"
+  | "Turtle"
+  | "Tortoise"
+  | "Reptile"
+  | "Snake"
+  | "Lizard"
+  | "Ferret"
+  | "Hedgehog"
+  | "Sugar Glider"
+  | "Chinchilla"
+  | "Horse"
+  | "Other";
 
 export type PetProfileThemeId =
   | "default"
@@ -33,10 +51,12 @@ export type Pet = {
   slug: string;
   name: string;
   species: PetSpecies;
+  customSpecies?: string;
   breed: string;
   gender: string;
   color: string;
   ageLabel: string;
+  estimatedAge?: string;
   birthday: string;
   adoptionDay: string;
   createdAt: string;
@@ -100,6 +120,7 @@ export type PublicPetProfile = Pick<
   | "slug"
   | "name"
   | "species"
+  | "customSpecies"
   | "breed"
   | "gender"
   | "color"
