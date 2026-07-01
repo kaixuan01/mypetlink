@@ -7,6 +7,12 @@ import { BrandLogo } from "@/components/brand/BrandLogo";
 import { QrSafetyPageView } from "@/components/marketing/QrSafetyPageView";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon, type IconName } from "@/components/ui/Icon";
+import {
+  loadingTitle,
+  setPageTitle,
+  tagNotFoundTitle,
+  tagScanPageTitle,
+} from "@/lib/pageTitles";
 import { activatePath } from "@/lib/routes";
 import { getFinderState } from "@/services/tagService";
 import type { FinderResult } from "@/types";
@@ -23,6 +29,7 @@ type TagFinderViewProps = {
 // shows correctly.
 export function TagFinderView({ initialResult, tagCode }: TagFinderViewProps) {
   const [result, setResult] = useState(initialResult);
+  const [loaded, setLoaded] = useState(initialResult.state !== "not-found");
 
   useEffect(() => {
     let active = true;
@@ -30,6 +37,7 @@ export function TagFinderView({ initialResult, tagCode }: TagFinderViewProps) {
     getFinderState(tagCode).then((next) => {
       if (active) {
         setResult(next);
+        setLoaded(true);
       }
     });
 
@@ -37,6 +45,24 @@ export function TagFinderView({ initialResult, tagCode }: TagFinderViewProps) {
       active = false;
     };
   }, [tagCode]);
+
+  useEffect(() => {
+    setPageTitle(loaded ? finderPageTitle(result) : loadingTitle);
+  }, [loaded, result]);
+
+  if (!loaded) {
+    return (
+      <FinderShell>
+        <FinderCard
+          description="Checking the latest saved tag details for this scan link."
+          icon="tag"
+          tagCode={tagCode}
+          title="Loading tag"
+          tone="teal"
+        />
+      </FinderShell>
+    );
+  }
 
   if (result.state === "active") {
     return (
@@ -108,6 +134,22 @@ export function TagFinderView({ initialResult, tagCode }: TagFinderViewProps) {
       />
     </FinderShell>
   );
+}
+
+function finderPageTitle(result: FinderResult) {
+  switch (result.state) {
+    case "active":
+      return tagScanPageTitle(result.profile.name);
+    case "not-found":
+      return tagNotFoundTitle;
+    case "unassigned":
+      return "Activate MyPetLink Tag";
+    case "pending":
+      return "MyPetLink Tag Pending";
+    case "inactive":
+    default:
+      return "Inactive MyPetLink Tag";
+  }
 }
 
 export function FinderShell({ children }: { children: ReactNode }) {

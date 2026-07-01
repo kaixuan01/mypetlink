@@ -17,6 +17,11 @@ import {
   getOrderStatusRank,
   getPaymentStatusLabel,
 } from "@/lib/orders";
+import {
+  loadingTitle,
+  orderNotFoundTitle,
+  setPageTitle,
+} from "@/lib/pageTitles";
 import { ownerRoutes } from "@/lib/routes";
 import { getAllTags, getOrder } from "@/services/tagService";
 import type { OrderStatus, Pet, PetTag, TagOrder } from "@/types";
@@ -83,6 +88,15 @@ export function OrderDetailView({
       active = false;
     };
   }, [orderKey]);
+
+  useEffect(() => {
+    if (!loaded) {
+      setPageTitle(loadingTitle);
+      return;
+    }
+
+    setPageTitle(order ? formatOrderNumber(order) : orderNotFoundTitle);
+  }, [loaded, order]);
 
   if (!order) {
     if (!loaded) {

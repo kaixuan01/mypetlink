@@ -4,6 +4,7 @@ import { AppLayout } from "@/components/layouts/AppLayout";
 import { TagManagementPanel } from "@/components/portal/TagManagementPanel";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { staticPetIdParams } from "@/data/staticRouteParams";
+import { loadingTitle, ownerPetPageTitle } from "@/lib/pageTitles";
 import { getPetById, getPets } from "@/services/petService";
 import { getOrders, getPetTags } from "@/services/tagService";
 
@@ -24,7 +25,7 @@ export async function generateMetadata({
   const pet = await getPetById(id);
 
   return {
-    title: pet.data ? `${pet.data.name} Smart Tags` : "MyPetLink Smart Tags",
+    title: pet.data ? ownerPetPageTitle("tags", pet.data.name) : loadingTitle,
   };
 }
 

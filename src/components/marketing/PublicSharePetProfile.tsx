@@ -18,6 +18,10 @@ import {
   type PetProfileTheme,
 } from "@/lib/petProfileThemes";
 import {
+  publicPetProfileDocumentTitle,
+  setAbsolutePageTitle,
+} from "@/lib/pageTitles";
+import {
   defaultOwnerSettings,
   getEffectivePetContact,
   readOwnerSettings,
@@ -131,6 +135,10 @@ export function PublicSharePetProfile({
     ? records.filter((record) => record.publicVisibility !== "Private").slice(0, 4)
     : [];
   const timelineEvents = getPublicTimeline(profile, moments);
+
+  useEffect(() => {
+    setAbsolutePageTitle(publicPetProfileDocumentTitle(profile.name));
+  }, [profile.name]);
 
   useEffect(() => {
     let active = true;

@@ -14,11 +14,29 @@ import { PetSwitcher } from "@/components/portal/PetSwitcher";
 import { PetTimeline } from "@/components/portal/PetTimeline";
 import { ProfileAccessBadges } from "@/components/portal/ProfileAccessStatus";
 import { RecordsManager } from "@/components/portal/RecordsManager";
+import { OrderDetailView } from "@/components/portal/OrderDetailView";
+import { TagFinderView } from "@/components/portal/TagFinderView";
 import { TagManagementPanel } from "@/components/portal/TagManagementPanel";
 import { TagOrderFlow } from "@/components/portal/TagOrderFlow";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PetAvatar } from "@/components/ui/PetAvatar";
+import { formatOrderNumber } from "@/lib/orders";
+import {
+  genericNotFoundTitle,
+  loadingTitle,
+  orderNotFoundTitle,
+  ownerPetPageTitle,
+  petNotFoundTitle,
+  publicPetProfileDocumentTitle,
+  publicProfileNotFoundTitle,
+  qrSafetyNotFoundTitle,
+  qrSafetyPageTitle,
+  setAbsolutePageTitle,
+  setPageTitle,
+  tagNotFoundTitle,
+  tagScanPageTitle,
+} from "@/lib/pageTitles";
 import { getPetSummaryLabel } from "@/lib/petDisplay";
 import { parsePublicProfileParam, ownerRoutes } from "@/lib/routes";
 import { getPublicPetMoments, getPetMoments } from "@/services/momentService";
@@ -29,9 +47,16 @@ import {
   getPublicPetProfileBySafetyCode,
 } from "@/services/petService";
 import { getPetRecords } from "@/services/recordService";
-import { getOrders, getPetTags } from "@/services/tagService";
+import {
+  getAllTags,
+  getFinderState,
+  getOrder,
+  getOrders,
+  getPetTags,
+} from "@/services/tagService";
 import type {
   CareRecord,
+  FinderResult,
   Pet,
   PetMoment,
   PetTag,
@@ -53,12 +78,14 @@ type OwnerSection =
 type RuntimeRoute =
   | { kind: "public"; param: string }
   | { kind: "qr"; safetyCode: string }
+  | { kind: "tag"; tagCode: string }
+  | { kind: "order"; orderKey: string }
   | { kind: "owner"; petId: string; section: OwnerSection }
   | { kind: "none" };
 
 type RuntimeState =
   | { status: "loading" }
-  | { status: "not-found" }
+  | { status: "not-found"; title: string }
   | {
       status: "public";
       profile: PublicPetProfile;
@@ -69,6 +96,18 @@ type RuntimeState =
       status: "qr";
       safetyCode: string;
       profile: PublicPetProfile | null;
+    }
+  | {
+      status: "tag";
+      tagCode: string;
+      result: FinderResult;
+    }
+  | {
+      status: "order";
+      orderKey: string;
+      order: TagOrder | null;
+      pets: Pet[];
+      tags: PetTag[];
     }
   | {
       status: "owner";
@@ -86,29 +125,42 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (state.status === "loading") {
+      setPageTitle(loadingTitle);
       return;
     }
 
     if (state.status === "owner") {
-      setDocumentTitle(ownerSectionTitle(state.section, state.pet.name));
+      setPageTitle(ownerPetPageTitle(state.section, state.pet.name));
       return;
     }
 
     if (state.status === "public") {
-      setDocumentTitle(`${state.profile.name} Pet Profile`);
+      setAbsolutePageTitle(publicPetProfileDocumentTitle(state.profile.name));
       return;
     }
 
     if (state.status === "qr") {
-      setDocumentTitle(
+      setPageTitle(
         state.profile
-          ? `${state.profile.name} QR Safety Page`
-          : "QR Safety Page"
+          ? qrSafetyPageTitle(state.profile.name)
+          : qrSafetyNotFoundTitle
       );
       return;
     }
 
-    setDocumentTitle("Page not found");
+    if (state.status === "tag") {
+      setPageTitle(tagResultTitle(state.result));
+      return;
+    }
+
+    if (state.status === "order") {
+      setPageTitle(
+        state.order ? formatOrderNumber(state.order) : orderNotFoundTitle
+      );
+      return;
+    }
+
+    setPageTitle(state.title);
   }, [state]);
 
   useEffect(() => {
@@ -117,7 +169,7 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
 
     async function resolveRoute() {
       if (route.kind === "none") {
-        setState({ status: "not-found" });
+        setState({ status: "not-found", title: genericNotFoundTitle });
         return;
       }
 
@@ -131,7 +183,10 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
         }
 
         if (!profileResponse.data) {
-          setState({ status: "not-found" });
+          setState({
+            status: "not-found",
+            title: publicProfileNotFoundTitle,
+          });
           return;
         }
 
@@ -169,6 +224,40 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
         return;
       }
 
+      if (route.kind === "tag") {
+        const result = await getFinderState(route.tagCode);
+
+        if (active) {
+          setState({
+            status: "tag",
+            tagCode: route.tagCode,
+            result,
+          });
+        }
+
+        return;
+      }
+
+      if (route.kind === "order") {
+        const [orderResponse, petsResponse, tagsResponse] = await Promise.all([
+          getOrder(route.orderKey),
+          getPets(),
+          getAllTags(),
+        ]);
+
+        if (active) {
+          setState({
+            status: "order",
+            orderKey: route.orderKey,
+            order: orderResponse.data,
+            pets: petsResponse.data,
+            tags: tagsResponse.data,
+          });
+        }
+
+        return;
+      }
+
       const [
         petResponse,
         petsResponse,
@@ -190,7 +279,7 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
       }
 
       if (!petResponse.data) {
-        setState({ status: "not-found" });
+        setState({ status: "not-found", title: petNotFoundTitle });
         return;
       }
 
@@ -213,7 +302,7 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
 
     resolveRoute().catch(() => {
       if (active) {
-        setState({ status: "not-found" });
+        setState({ status: "not-found", title: genericNotFoundTitle });
       }
     });
 
@@ -249,6 +338,28 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
         initialProfile={state.profile}
         safetyCode={state.safetyCode}
       />
+    );
+  }
+
+  if (state.status === "tag") {
+    return <TagFinderView initialResult={state.result} tagCode={state.tagCode} />;
+  }
+
+  if (state.status === "order") {
+    return (
+      <AppLayout>
+        <PageHeader
+          eyebrow="Order detail"
+          title={state.order ? formatOrderNumber(state.order) : "Order"}
+          description="Review your tag order, payment status, delivery information, and receipt."
+        />
+        <OrderDetailView
+          initialOrder={state.order}
+          initialTags={state.tags}
+          orderKey={state.orderKey}
+          pets={state.pets}
+        />
+      </AppLayout>
     );
   }
 
@@ -440,48 +551,14 @@ function RuntimeLoading() {
           <BrandLogo className="h-12 w-auto max-w-[200px]" />
         </div>
         <p className="mt-6 text-sm font-extrabold uppercase text-pet-teal">
-          Loading profile
+          Loading page
         </p>
         <h1 className="mt-2 text-2xl font-black text-pet-ink">
-          Fetching the latest saved pet details
+          Fetching the latest saved details
         </h1>
       </div>
     </main>
   );
-}
-
-function setDocumentTitle(pageTitle: string) {
-  if (typeof document === "undefined") {
-    return;
-  }
-
-  // Match the root layout's title template so the tab matches what a real
-  // server-rendered page would show. The root template is "%s | MyPetLink".
-  document.title = `${pageTitle} | MyPetLink`;
-}
-
-function ownerSectionTitle(section: OwnerSection, petName: string) {
-  switch (section) {
-    case "edit":
-      return `Edit ${petName}`;
-    case "records":
-      return `${petName} Care Records`;
-    case "moments":
-      return `${petName} Moments`;
-    case "moment-new":
-      return `Add a moment for ${petName}`;
-    case "timeline":
-      return `${petName} Timeline`;
-    case "qr":
-      return `${petName} QR Safety`;
-    case "tags":
-      return `${petName} Smart Tags`;
-    case "tag-order":
-      return `Order a tag for ${petName}`;
-    case "profile":
-    default:
-      return petName;
-  }
 }
 
 function parseRuntimeRoute(pathname: string): RuntimeRoute {
@@ -496,6 +573,14 @@ function parseRuntimeRoute(pathname: string): RuntimeRoute {
 
   if (parts[0] === "q" && parts.length === 2) {
     return { kind: "qr", safetyCode: parts[1] };
+  }
+
+  if (parts[0] === "t" && parts.length === 2) {
+    return { kind: "tag", tagCode: parts[1] };
+  }
+
+  if (parts[0] === "orders" && parts.length === 2) {
+    return { kind: "order", orderKey: parts[1] };
   }
 
   if (parts[0] !== "pets" || !parts[1]) {
@@ -541,5 +626,21 @@ function safeDecode(value: string) {
     return decodeURIComponent(value);
   } catch {
     return value;
+  }
+}
+
+function tagResultTitle(result: FinderResult) {
+  switch (result.state) {
+    case "active":
+      return tagScanPageTitle(result.profile.name);
+    case "not-found":
+      return tagNotFoundTitle;
+    case "unassigned":
+      return "Activate MyPetLink Tag";
+    case "pending":
+      return "MyPetLink Tag Pending";
+    case "inactive":
+    default:
+      return "Inactive MyPetLink Tag";
   }
 }

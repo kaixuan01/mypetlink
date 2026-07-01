@@ -2,6 +2,10 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { PublicSharePetProfile } from "@/components/marketing/PublicSharePetProfile";
 import { staticPublicPetParams } from "@/data/staticRouteParams";
+import {
+  loadingTitle,
+  publicPetProfileDocumentTitle,
+} from "@/lib/pageTitles";
 import { parsePublicProfileParam } from "@/lib/routes";
 import { getPublicPetMoments } from "@/services/momentService";
 import { getPublicPetProfileByPublicCode } from "@/services/petService";
@@ -26,8 +30,8 @@ export async function generateMetadata({
 
   return {
     title: profile.data
-      ? `${profile.data.name} Pet Profile`
-      : "Pet Profile",
+      ? { absolute: publicPetProfileDocumentTitle(profile.data.name) }
+      : loadingTitle,
   };
 }
 

@@ -4,6 +4,7 @@ import { AppLayout } from "@/components/layouts/AppLayout";
 import { PetMomentForm } from "@/components/portal/PetMomentForm";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { staticPetIdParams } from "@/data/staticRouteParams";
+import { loadingTitle, ownerPetPageTitle } from "@/lib/pageTitles";
 import { getPetById } from "@/services/petService";
 
 type NewMomentPageProps = {
@@ -23,7 +24,9 @@ export async function generateMetadata({
   const pet = await getPetById(id);
 
   return {
-    title: pet.data ? `Add a moment for ${pet.data.name}` : "Add Pet Moment",
+    title: pet.data
+      ? ownerPetPageTitle("moment-new", pet.data.name)
+      : loadingTitle,
   };
 }
 

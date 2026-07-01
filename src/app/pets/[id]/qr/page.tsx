@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { AppLayout } from "@/components/layouts/AppLayout";
 import { PetQrSafetyManager } from "@/components/portal/PetQrSafetyManager";
 import { staticPetIdParams } from "@/data/staticRouteParams";
+import { loadingTitle, ownerPetPageTitle } from "@/lib/pageTitles";
 import { getPetById } from "@/services/petService";
 import { getPetTags } from "@/services/tagService";
 
@@ -23,7 +24,7 @@ export async function generateMetadata({
   const pet = await getPetById(id);
 
   return {
-    title: pet.data ? `${pet.data.name} QR Safety` : "QR Safety Page",
+    title: pet.data ? ownerPetPageTitle("qr", pet.data.name) : loadingTitle,
   };
 }
 

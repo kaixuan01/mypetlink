@@ -3,11 +3,12 @@ import { Suspense } from "react";
 import { AppLayout } from "@/components/layouts/AppLayout";
 import { OrderViewClient } from "@/components/portal/OrderViewClient";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { loadingTitle } from "@/lib/pageTitles";
 import { getPets } from "@/services/petService";
 import { getAllTags } from "@/services/tagService";
 
 export const metadata: Metadata = {
-  title: "Order",
+  title: loadingTitle,
 };
 
 export default async function OrderViewPage() {

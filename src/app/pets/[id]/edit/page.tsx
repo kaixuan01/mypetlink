@@ -4,6 +4,7 @@ import { AppLayout } from "@/components/layouts/AppLayout";
 import { PetProfileForm } from "@/components/portal/PetProfileForm";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { staticPetIdParams } from "@/data/staticRouteParams";
+import { loadingTitle, ownerPetPageTitle } from "@/lib/pageTitles";
 import { getPetById } from "@/services/petService";
 
 type EditPetPageProps = {
@@ -23,7 +24,7 @@ export async function generateMetadata({
   const pet = await getPetById(id);
 
   return {
-    title: pet.data ? `Edit ${pet.data.name}` : "Edit Pet",
+    title: pet.data ? ownerPetPageTitle("edit", pet.data.name) : loadingTitle,
   };
 }
 

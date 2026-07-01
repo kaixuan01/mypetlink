@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { PetAvatar } from "@/components/ui/PetAvatar";
 import { staticPetIdParams } from "@/data/staticRouteParams";
+import { loadingTitle, ownerPetPageTitle } from "@/lib/pageTitles";
 import { getPetSummaryLabel } from "@/lib/petDisplay";
 import { ownerRoutes } from "@/lib/routes";
 import { getPetMoments } from "@/services/momentService";
@@ -32,7 +33,7 @@ export async function generateMetadata({
   const pet = await getPetById(id);
 
   return {
-    title: pet.data ? pet.data.name : "Pet Profile",
+    title: pet.data ? ownerPetPageTitle("profile", pet.data.name) : loadingTitle,
   };
 }
 

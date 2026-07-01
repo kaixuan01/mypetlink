@@ -4,6 +4,7 @@ import { AppLayout } from "@/components/layouts/AppLayout";
 import { TagOrderFlow } from "@/components/portal/TagOrderFlow";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { staticPetIdParams } from "@/data/staticRouteParams";
+import { loadingTitle, ownerPetPageTitle } from "@/lib/pageTitles";
 import { getPetById, getPets } from "@/services/petService";
 
 type PetTagOrderPageProps = {
@@ -23,7 +24,9 @@ export async function generateMetadata({
   const pet = await getPetById(id);
 
   return {
-    title: pet.data ? `Order a tag for ${pet.data.name}` : "Order Physical Tag",
+    title: pet.data
+      ? ownerPetPageTitle("tag-order", pet.data.name)
+      : loadingTitle,
   };
 }
 

@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { RuntimeRouteFallback } from "@/components/runtime/RuntimeRouteFallback";
 import { CTAButton } from "@/components/ui/CTAButton";
+import { loadingTitle } from "@/lib/pageTitles";
 
 export const metadata: Metadata = {
-  title: "Page not found",
+  title: loadingTitle,
 };
 
 export default function NotFound() {

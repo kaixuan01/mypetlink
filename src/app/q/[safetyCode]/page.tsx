@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { QrSafetyRouteView } from "@/components/marketing/QrSafetyRouteView";
 import { staticQrSafetyParams } from "@/data/staticRouteParams";
+import { loadingTitle, qrSafetyPageTitle } from "@/lib/pageTitles";
 import { getPublicPetProfileBySafetyCode } from "@/services/petService";
 
 type QrSafetyPageProps = {
@@ -20,9 +21,7 @@ export async function generateMetadata({
   const profile = await getPublicPetProfileBySafetyCode(safetyCode);
 
   return {
-    title: profile.data
-      ? `${profile.data.name} QR Safety Page`
-      : "QR Safety Page",
+    title: profile.data ? qrSafetyPageTitle(profile.data.name) : loadingTitle,
   };
 }
 

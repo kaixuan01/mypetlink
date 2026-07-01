@@ -5,6 +5,7 @@ import { RecordsManager } from "@/components/portal/RecordsManager";
 import { PetSwitcher } from "@/components/portal/PetSwitcher";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { staticPetIdParams } from "@/data/staticRouteParams";
+import { loadingTitle, ownerPetPageTitle } from "@/lib/pageTitles";
 import { getPetById, getPets } from "@/services/petService";
 import { getPetRecords } from "@/services/recordService";
 
@@ -25,7 +26,9 @@ export async function generateMetadata({
   const pet = await getPetById(id);
 
   return {
-    title: pet.data ? `${pet.data.name} Care Records` : "Pet Records",
+    title: pet.data
+      ? ownerPetPageTitle("records", pet.data.name)
+      : loadingTitle,
   };
 }
 

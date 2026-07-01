@@ -1,7 +1,13 @@
 import type { Metadata } from "next";
 import { TagFinderView } from "@/components/portal/TagFinderView";
 import { staticTagCodeParams } from "@/data/staticRouteParams";
+import {
+  loadingTitle,
+  tagNotFoundTitle,
+  tagScanPageTitle,
+} from "@/lib/pageTitles";
 import { getFinderState } from "@/services/tagService";
+import type { FinderResult } from "@/types";
 
 type FinderPageProps = {
   params: Promise<{ tagCode: string }>;
@@ -20,10 +26,7 @@ export async function generateMetadata({
   const result = await getFinderState(tagCode);
 
   return {
-    title:
-      result.state === "active"
-        ? `Found ${result.profile.name}?`
-        : "MyPetLink Safety Page",
+    title: finderMetadataTitle(result),
   };
 }
 
@@ -32,4 +35,21 @@ export default async function FinderPage({ params }: FinderPageProps) {
   const result = await getFinderState(tagCode);
 
   return <TagFinderView initialResult={result} tagCode={tagCode} />;
+}
+
+function finderMetadataTitle(result: FinderResult) {
+  switch (result.state) {
+    case "active":
+      return tagScanPageTitle(result.profile.name);
+    case "not-found":
+      return loadingTitle;
+    case "unassigned":
+      return "Activate MyPetLink Tag";
+    case "pending":
+      return "MyPetLink Tag Pending";
+    case "inactive":
+      return "Inactive MyPetLink Tag";
+    default:
+      return tagNotFoundTitle;
+  }
 }

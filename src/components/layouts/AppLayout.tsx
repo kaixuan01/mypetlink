@@ -51,12 +51,17 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     <AuthGuard>
       <div className="min-h-screen overflow-x-hidden bg-pet-cream pb-[calc(8.5rem+env(safe-area-inset-bottom))] lg:flex lg:pb-0">
         <aside
-          className={`hidden shrink-0 border-r border-pet-border bg-white/90 shadow-xl shadow-[#0d1b3d]/5 backdrop-blur transition-[width] duration-300 ease-in-out lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col ${
+          className={`hidden shrink-0 border-r border-pet-border bg-white/90 shadow-xl shadow-[#0d1b3d]/5 backdrop-blur transition-[width] duration-300 ease-in-out lg:sticky lg:top-0 lg:flex lg:h-dvh lg:flex-col lg:overflow-hidden ${
             collapsed ? "px-3 py-5 lg:w-20" : "p-5 lg:w-72"
           }`}
         >
-          {/* Header: logo + collapse toggle */}
-          {collapsed ? (
+          <div
+            className={`min-h-0 flex-1 overflow-y-auto ${
+              collapsed ? "" : "pr-1"
+            }`}
+          >
+            {/* Header: logo + collapse toggle */}
+            {collapsed ? (
             <div className="flex flex-col items-center gap-3">
               <Link
                 aria-label="MyPetLink home"
@@ -70,7 +75,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 onClick={() => setSidebarCollapsed(!collapsed)}
               />
             </div>
-          ) : (
+            ) : (
             <div className="flex items-center justify-between gap-2">
               <Link href="/" className="flex min-w-0 items-center gap-3">
                 <BrandLogo markOnly className="h-12 w-12 shrink-0" />
@@ -88,10 +93,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 onClick={() => setSidebarCollapsed(!collapsed)}
               />
             </div>
-          )}
+            )}
 
-          {/* Owner account card / compact avatar */}
-          {collapsed ? (
+            {/* Owner account card / compact avatar */}
+            {collapsed ? (
             <div className="mt-7 flex justify-center">
               <span
                 className="grid h-11 w-11 place-items-center rounded-full border border-pet-border bg-pet-cream text-sm font-black text-pet-ink"
@@ -100,7 +105,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 {ownerInitial}
               </span>
             </div>
-          ) : (
+            ) : (
             <div className="brand-paw-dots mt-7 rounded-[1.5rem] border border-pet-border bg-pet-cream p-4">
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
@@ -111,22 +116,23 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 </div>
               </div>
             </div>
-          )}
+            )}
 
-          <nav className="mt-6 grid gap-1.5">
-            {ownerNavItems.map((item) => (
-              <SidebarNavItem
-                active={isOwnerNavItemActive(item, pathname)}
-                collapsed={collapsed}
-                item={item}
-                key={item.id}
-              />
-            ))}
-          </nav>
+            <nav className="mt-6 grid gap-1.5 pb-4">
+              {ownerNavItems.map((item) => (
+                <SidebarNavItem
+                  active={isOwnerNavItemActive(item, pathname)}
+                  collapsed={collapsed}
+                  item={item}
+                  key={item.id}
+                />
+              ))}
+            </nav>
+          </div>
 
           <div
-            className={`mt-auto grid gap-3 ${
-              collapsed ? "justify-items-center" : ""
+            className={`shrink-0 border-t border-pet-border/70 pt-4 ${
+              collapsed ? "grid justify-items-center gap-3" : "grid gap-3"
             }`}
           >
             {collapsed ? (

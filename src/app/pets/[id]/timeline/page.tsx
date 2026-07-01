@@ -4,6 +4,7 @@ import { AppLayout } from "@/components/layouts/AppLayout";
 import { PetTimeline } from "@/components/portal/PetTimeline";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { staticPetIdParams } from "@/data/staticRouteParams";
+import { loadingTitle, ownerPetPageTitle } from "@/lib/pageTitles";
 import { getPetMoments } from "@/services/momentService";
 import { getPetById } from "@/services/petService";
 
@@ -24,7 +25,7 @@ export async function generateMetadata({
   const pet = await getPetById(id);
 
   return {
-    title: pet.data ? `${pet.data.name} Timeline` : "Pet Timeline",
+    title: pet.data ? ownerPetPageTitle("timeline", pet.data.name) : loadingTitle,
   };
 }
 

@@ -5,6 +5,7 @@ import { PetMomentsManager } from "@/components/portal/PetMomentsManager";
 import { PetSwitcher } from "@/components/portal/PetSwitcher";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { staticPetIdParams } from "@/data/staticRouteParams";
+import { loadingTitle, ownerPetPageTitle } from "@/lib/pageTitles";
 import { getPetMoments } from "@/services/momentService";
 import { getPetById, getPets } from "@/services/petService";
 
@@ -25,7 +26,7 @@ export async function generateMetadata({
   const pet = await getPetById(id);
 
   return {
-    title: pet.data ? `${pet.data.name} Moments` : "Pet Moments",
+    title: pet.data ? ownerPetPageTitle("moments", pet.data.name) : loadingTitle,
   };
 }
 
