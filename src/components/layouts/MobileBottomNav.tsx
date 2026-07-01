@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Icon } from "@/components/ui/Icon";
+import { Icon, type IconName } from "@/components/ui/Icon";
 import {
   getActiveOwnerNavItemId,
   ownerNavItems,
@@ -101,24 +101,23 @@ export function MobileBottomNav() {
         style={{ gridTemplateColumns }}
       >
         {primaryItems.map((item) => (
-          <BottomNavLink
+          <BottomNavItem
             active={item.id === activeId}
-            item={item}
+            href={item.href}
+            icon={item.icon}
             key={item.id}
+            label={item.mobileLabel}
             onClick={() => setMoreOpen(false)}
           />
         ))}
 
-        <button
-          aria-expanded={moreOpen}
-          aria-haspopup="dialog"
-          className={getBottomNavClassName(moreActive)}
+        <BottomNavItem
+          active={moreActive || moreOpen}
+          ariaExpanded={moreOpen}
+          icon="more"
+          label="More"
           onClick={() => setMoreOpen((open) => !open)}
-          type="button"
-        >
-          <Icon name="settings" className="h-4 w-4" />
-          <span>More</span>
-        </button>
+        />
       </nav>
 
       {moreOpen ? (
@@ -176,24 +175,52 @@ export function MobileBottomNav() {
   );
 }
 
-function BottomNavLink({
+function BottomNavItem({
   active,
-  item,
+  ariaExpanded,
+  href,
+  icon,
+  label,
   onClick,
 }: {
   active: boolean;
-  item: OwnerNavItem;
+  ariaExpanded?: boolean;
+  href?: string;
+  icon: IconName;
+  label: string;
   onClick: () => void;
 }) {
+  const content = (
+    <>
+      <Icon name={icon} className="h-4 w-4 shrink-0" />
+      <span className="block max-w-full truncate text-[11px] font-bold leading-none">
+        {label}
+      </span>
+    </>
+  );
+
+  if (!href) {
+    return (
+      <button
+        aria-expanded={ariaExpanded}
+        aria-haspopup="dialog"
+        className={getBottomNavClassName(active)}
+        onClick={onClick}
+        type="button"
+      >
+        {content}
+      </button>
+    );
+  }
+
   return (
     <Link
       aria-current={active ? "page" : undefined}
       className={getBottomNavClassName(active)}
-      href={item.href}
+      href={href}
       onClick={onClick}
     >
-      <Icon name={item.icon} className="h-4 w-4" />
-      <span>{item.mobileLabel}</span>
+      {content}
     </Link>
   );
 }
@@ -240,7 +267,7 @@ function getPrimaryCount(width: number) {
 }
 
 function getBottomNavClassName(active: boolean) {
-  return `grid min-h-14 min-w-0 place-items-center gap-1 rounded-full px-1.5 py-2 text-[11px] font-bold transition ${
+  return `flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-full px-1.5 py-2 text-center transition ${
     active ? "bg-[#e8f3ff] text-pet-teal" : "text-pet-muted hover:bg-pet-cream"
   }`;
 }

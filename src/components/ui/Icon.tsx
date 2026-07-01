@@ -17,7 +17,8 @@ export type IconName =
   | "plans"
   | "logout"
   | "search"
-  | "copy";
+  | "copy"
+  | "more";
 
 type IconProps = SVGProps<SVGSVGElement> & {
   name: IconName;
@@ -153,6 +154,13 @@ const paths: Record<IconName, ReactNode> = {
     <>
       <rect x="8" y="8" width="11" height="11" rx="2" />
       <path d="M5 15H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1" />
+    </>
+  ),
+  more: (
+    <>
+      <circle cx="5" cy="12" r="1.5" />
+      <circle cx="12" cy="12" r="1.5" />
+      <circle cx="19" cy="12" r="1.5" />
     </>
   ),
 };
