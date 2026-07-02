@@ -1,9 +1,9 @@
 # MyPetLink Marketing Strategy
 
-> Read [`AI_AGENT_REFERENCE.md`](./AI_AGENT_REFERENCE.md) first. This document
+> Read [`AI_AGENT_REFERENCE.md`](../../apps/web/docs/AI_AGENT_REFERENCE.md) first. This document
 > covers product **positioning** and how the two public surfaces map to two
 > different audiences. For the technical routing rules see
-> [`PUBLIC_PROFILE_ROUTING.md`](./PUBLIC_PROFILE_ROUTING.md).
+> [`PUBLIC_PROFILE_ROUTING.md`](../../apps/web/docs/PUBLIC_PROFILE_ROUTING.md).
 
 ---
 

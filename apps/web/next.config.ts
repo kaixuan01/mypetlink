@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 
 // `output: "export"` enforces, even in `next dev`, that any visited dynamic
@@ -14,6 +15,13 @@ const nextConfig: NextConfig = {
   ...(isProductionBuild ? { output: "export" as const } : {}),
   images: {
     unoptimized: true,
+  },
+  // This app lives in a workspace monorepo with lockfiles at both the repo
+  // root and apps/web (the latter kept for Cloudflare Pages, which builds with
+  // apps/web as its root directory). Pin the workspace root explicitly so
+  // Turbopack does not have to infer it from the lockfiles.
+  turbopack: {
+    root: path.resolve(__dirname, "..", ".."),
   },
 };
 
