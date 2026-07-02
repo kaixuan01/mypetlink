@@ -1,127 +1,55 @@
 # MyPetLink
 
-MyPetLink is a Malaysia-focused frontend MVP for safe and shareable pet profiles. Pet owners can create a free pet profile first, then add optional one-time MyPetLink QR or QR + NFC smart tags when they want extra collar safety. Premium care features are coming soon.
+MyPetLink is a Malaysia-focused platform for safe and shareable pet profiles. Pet owners create a free pet profile first, then add optional one-time MyPetLink QR or QR + NFC smart tags for extra collar safety.
 
-Preferred tagline: "A safe and shareable profile for your pet."
+This repository is a monorepo. The current product surface is the frontend app in `apps/web`.
 
-Primary domain examples:
+## Structure
 
-- `https://mypetlink.com.my`
-- `https://mypetlink.com.my/p/milo-k7q2`
-- `https://mypetlink.com.my/q/MPL-SAFE-MILO`
-- `https://mypetlink.com.my/t/8KX29A`
-
-This project is frontend-only. It uses local data and localStorage-backed demo authentication. There is no backend, database, Supabase integration, payment gateway, OAuth, OTP, email/password registration, real file storage, NFC writing, GPS tracking, or supplier integration yet.
-
-## Phase 1 Product Rules
-
-- Free Profile is RM0 and available now, with up to 3 pets and up to 10 memories per pet.
-- Every pet gets a Public Share Profile and pet-level QR Safety Page without buying a physical tag.
-- QR Pet Tag (RM19.90) and QR + NFC Smart Tag (RM39.90) are optional one-time add-ons.
-- Premium Plan is Coming Soon only; there is no subscription, upgrade, or payment flow in this frontend MVP.
-- GPS Safety is Coming Later.
-
-## Tech Stack
-
-- Next.js App Router
-- TypeScript
-- Tailwind CSS
-- ESLint
-- Local data and mock service layer
-
-## Run Locally
-
-```bash
-npm install
-npm run dev
+```
+MyPetLink
+├─ apps
+│  ├─ web        Next.js app: Landing Page, Owner Portal, Public Profile,
+│  │             QR Safety Page, and the future Admin Portal UI
+│  └─ api        Future C# .NET API (placeholder only — not implemented)
+├─ database      Future migrations, seed scripts, and database docs (placeholders)
+└─ docs          Product, architecture, API, database, and operations documentation
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+## Current status
 
-## Cloudflare Pages Deployment
+- The frontend is built in `apps/web` (Next.js App Router, TypeScript, Tailwind CSS, static export).
+- The backend is not implemented yet (`apps/api` is a placeholder).
+- The database is not implemented yet (`database/` holds placeholders).
+- Premium is Coming Soon.
+- GPS Safety is Coming Later.
+- Smart Tags are optional one-time add-ons.
 
-Use Cloudflare Pages as a static site deployment for this frontend-only staging build.
+## Common commands
 
-- Framework preset: `Next.js`
-- Root directory: leave blank when the repository root is this app; use `mypetlink` only if the app sits inside a parent repository folder
+Run from the repository root:
+
+```bash
+npm install        # installs workspace dependencies
+npm run dev:web    # start the web app dev server
+npm run build:web  # build the web app (static export to apps/web/out)
+npm run lint:web   # lint the web app
+```
+
+You can also run the same scripts directly inside `apps/web` (`npm run dev`, `npm run build`, `npm run lint`).
+
+## Cloudflare Pages
+
+After this restructure, update the Cloudflare Pages project settings to build from the app folder:
+
+- Root directory: `apps/web`
 - Build command: `npm run build`
 - Build output directory: `out`
-- Node.js version: use Cloudflare Pages default Node 20 or newer
 
-This project is configured with Next.js static export, so `npm run build` writes the deployable site to the `out` folder. The staging build includes `noindex,nofollow` metadata and a restrictive `robots.txt`.
+The web app uses Next.js static export (`output: "export"` in production builds), so `npm run build` writes the deployable site to `apps/web/out`.
 
-## Public Website Routes
+## More documentation
 
-- `/` - Marketing landing page
-- `/sample` - Sample public profile and finder safety experiences
-- `/pricing` - Free Profile, Smart Tag Add-ons, Premium Coming Soon, and GPS Safety Coming Later pricing
-- `/privacy` - Privacy Notice
-- `/terms` - Terms of Use
-- `/login` - Owner login
-- `/p/milo-k7q2` - Public Share Profile for family, friends, and pet communities
-- `/q/MPL-SAFE-MILO` - Pet-level QR Safety Page for finders
-- `/t/8KX29A` - Physical tag scan link; active tags show safety content and inactive tags show an inactive tag page
-
-## Owner Portal Routes
-
-Owner routes are protected by localStorage auth. Use `/login`, then click `Continue with Google` or `Try Demo Account`.
-
-- `/dashboard`
-- `/pets`
-- `/pets/new`
-- `/pets/pet_milo`
-- `/pets/pet_milo/edit`
-- `/pets/pet_milo/records`
-- `/pets/pet_milo/moments`
-- `/pets/pet_milo/moments/new`
-- `/pets/pet_milo/timeline`
-- `/pets/pet_milo/tags`
-- `/pets/pet_milo/tags/order`
-- `/tags`
-- `/orders`
-- `/settings`
-
-## Admin Portal Routes
-
-Admin routes are protected by localStorage auth. Use `/admin/login`, then click `Continue as Admin`.
-
-- `/admin`
-- `/admin/pets`
-- `/admin/users`
-- `/admin/qr-profiles`
-- `/admin/plans`
-
-## Service Layer
-
-The local services are shaped like future API calls and return response envelopes:
-
-- `src/services/authService.ts`
-- `src/services/petService.ts`
-- `src/services/recordService.ts`
-- `src/services/momentService.ts`
-- `src/services/tagService.ts`
-- `src/services/adminService.ts`
-
-Local data lives in:
-
-- `src/data/mockPets.ts`
-- `src/data/mockUsers.ts`
-- `src/data/mockRecords.ts`
-- `src/data/mockPlans.ts`
-- `src/data/mockMoments.ts`
-- `src/data/mockTags.ts`
-- `src/data/mockOrders.ts`
-
-## Future Planned Features
-
-- Real authentication and route protection
-- Persisted pet profiles, care records, moments, tags, and orders
-- Real payment and delivery workflow for MyPetLink Smart Tags
-- Reminder notifications
-- Admin role and permission controls
-- Family sharing controls
-- Data deletion and privacy controls
-
-## Environment Variables
-
-Copy `.env.example` to `.env.local` when real integrations are added. The current frontend MVP does not require environment variables to run.
+- Frontend app guide: [`apps/web/README.md`](apps/web/README.md)
+- Frontend agent/developer reference: [`apps/web/docs/AI_AGENT_REFERENCE.md`](apps/web/docs/AI_AGENT_REFERENCE.md)
+- Repo-wide docs index: [`docs/README.md`](docs/README.md)

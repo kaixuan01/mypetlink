@@ -80,7 +80,7 @@ dashboard redirect. Render precedence:
 binding and status do.
 
 > Full activation product requirements (retail flow, no-account flow, existing
-> user flow, edge cases) live in `SMART_TAG_PRODUCT_STRATEGY.md` Â§15â€“Â§21, Â§29â€“Â§30.
+> user flow, edge cases) live in `docs/product/SMART_TAG_PRODUCT_STRATEGY.md` (repo root) Â§15â€“Â§21, Â§29â€“Â§30.
 
 ---
 

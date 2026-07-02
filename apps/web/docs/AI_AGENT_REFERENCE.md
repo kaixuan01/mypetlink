@@ -16,7 +16,7 @@ not a pattern to copy.
 ## 1. Read these in order
 
 1. **This file** â€” product structure, rules, and the route map.
-2. [`SMART_TAG_PRODUCT_STRATEGY.md`](./SMART_TAG_PRODUCT_STRATEGY.md) — the
+2. [`SMART_TAG_PRODUCT_STRATEGY.md`](../../../docs/product/SMART_TAG_PRODUCT_STRATEGY.md) — the
    full product/business strategy for the physical Smart Tag (TagCode, QR or QR + NFC,
    activation, admin batches, retail, packaging, security). This is the source
    of truth for *what* the tag product should be.
@@ -48,7 +48,7 @@ Never imply finder contact costs money (it's free on the Free plan). The public
 marketing pages (Home, Pricing, Privacy) are separate from the public/finder app
 pages — keep them warm and calm. The Home page has a **fixed nine-section
 order** and features grouped into **three pillars (Safety / Care / Memories)**.
-See `MARKETING_STRATEGY.md` §7-§13 for the full home section order, pricing
+See `docs/product/MARKETING_STRATEGY.md` (repo root) §7-§13 for the full home section order, pricing
 strategy, privacy messaging, and copy rules.
 
 ---
