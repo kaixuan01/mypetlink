@@ -134,6 +134,53 @@ export function getOrderNextStep(order: TagOrder) {
   return "Review the order summary before payment.";
 }
 
+// Manual-operations actions available to the admin for an order in its
+// current status. Payment confirmation is manual by product rule, so
+// "confirm-payment" is only offered once the owner has submitted proof.
+export type AdminOrderAction =
+  | "confirm-payment"
+  | "reject-payment"
+  | "mark-preparing"
+  | "mark-shipped"
+  | "mark-delivered"
+  | "cancel-order";
+
+const cancellableOrderStatuses: OrderStatus[] = [
+  "Draft",
+  "Pending Payment",
+  "Payment Submitted",
+  "Payment Confirmed",
+  "Preparing",
+];
+
+export function getAdminOrderActions(
+  order: Pick<TagOrder, "status">
+): AdminOrderAction[] {
+  const actions: AdminOrderAction[] = [];
+
+  if (order.status === "Payment Submitted") {
+    actions.push("confirm-payment", "reject-payment");
+  }
+
+  if (order.status === "Payment Confirmed") {
+    actions.push("mark-preparing");
+  }
+
+  if (order.status === "Preparing") {
+    actions.push("mark-shipped");
+  }
+
+  if (order.status === "Shipped") {
+    actions.push("mark-delivered");
+  }
+
+  if (cancellableOrderStatuses.includes(order.status)) {
+    actions.push("cancel-order");
+  }
+
+  return actions;
+}
+
 export function formatDeliverySummary(order: Pick<TagOrder, "delivery">) {
   return [order.delivery.addressLine1, order.delivery.city, order.delivery.state]
     .map((part) => part.trim())

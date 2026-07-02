@@ -9,10 +9,15 @@ import { logoutAdmin } from "@/services/authService";
 
 const adminNav: { href: string; label: string; icon: IconName }[] = [
   { href: "/admin", label: "Overview", icon: "home" },
+  { href: "/admin/orders", label: "Orders", icon: "record" },
+  { href: "/admin/payment-proofs", label: "Payment Proofs", icon: "shield" },
+  { href: "/admin/tags", label: "Smart Tags", icon: "tag" },
+  { href: "/admin/tag-inventory", label: "Tag Inventory", icon: "copy" },
   { href: "/admin/pets", label: "Pets", icon: "pets" },
-  { href: "/admin/users", label: "Users", icon: "users" },
+  { href: "/admin/users", label: "Owners", icon: "users" },
   { href: "/admin/qr-profiles", label: "QR Profiles", icon: "qr" },
   { href: "/admin/plans", label: "Plans", icon: "plans" },
+  { href: "/admin/settings", label: "Settings", icon: "settings" },
 ];
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -37,7 +42,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
               </span>
             </span>
           </Link>
-          <nav className="mt-8 grid gap-2">
+          <nav className="mt-8 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-1">
             {adminNav.map((item) => {
               const active =
                 pathname === item.href ||
@@ -71,9 +76,9 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
           <div className="mb-6 flex items-start gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
             <Icon name="shield" className="mt-0.5 h-5 w-5 shrink-0" />
             <p className="font-semibold">
-              Internal preview only — the Admin Portal is not part of the Phase 0
-              product scope. It is parked for the Phase 2 tag pilot and is not
-              linked from the owner or public experience.
+              Early launch operations workspace — payments are reviewed manually
+              in this phase. Changes here update order, tag, and profile status
+              for owners.
             </p>
           </div>
           {children}
