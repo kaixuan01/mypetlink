@@ -27,6 +27,7 @@ import type {
   PetTag,
   TagOrder,
   TagOrderPayload,
+  TagShape,
   TagStatus,
   TagType,
 } from "@/types";
@@ -392,4 +393,212 @@ export async function activateTag(tagCode: string, petId: string) {
   );
 
   return mockResponse(updatedTag);
+}
+
+// --- Admin manual operations -------------------------------------------------
+// These write to the same stored collections the owner portal reads, so the
+// owner /orders and /tags pages stay consistent with admin changes.
+
+function writeOrder(orders: TagOrder[], updatedOrder: TagOrder) {
+  writeStoredCollection(
+    ORDER_STORAGE_KEY,
+    orders.map((order) => (order.id === updatedOrder.id ? updatedOrder : order))
+  );
+}
+
+// Keeps the linked tag's fulfillment status in step with the order. Only
+// pending-family tags are touched — an already active or deactivated tag is
+// never overwritten by order fulfillment.
+function syncLinkedTag(
+  tagId: string | undefined,
+  update: (tag: PetTag) => PetTag
+) {
+  if (!tagId) {
+    return;
+  }
+
+  const tags = getTagCollection();
+  const tag = tags.find((item) => item.id === tagId);
+
+  if (
+    !tag ||
+    tag.isArchived ||
+    tag.status === "Active" ||
+    inactiveTagStatuses.includes(tag.status)
+  ) {
+    return;
+  }
+
+  writeStoredCollection(
+    TAG_STORAGE_KEY,
+    tags.map((item) => (item.id === tagId ? update(tag) : item))
+  );
+}
+
+export async function adminConfirmOrderPayment(orderId: string) {
+  await mockDelay();
+  const orders = getOrderCollection();
+  const order = orders.find((item) => item.id === orderId);
+
+  if (!order || order.status !== "Payment Submitted") {
+    return mockResponse<TagOrder | null>(null);
+  }
+
+  const updatedOrder: TagOrder = {
+    ...order,
+    status: "Payment Confirmed",
+    paymentConfirmedDate: formatToday(),
+    paymentRejectionReason: undefined,
+    trackingStatus: "Payment confirmed. Tag preparation is next.",
+  };
+
+  writeOrder(orders, updatedOrder);
+  return mockResponse(updatedOrder);
+}
+
+// Returns the order to Pending Payment with a friendly reason. The order is
+// never deleted, and the owner can resubmit proof.
+export async function adminRejectOrderPayment(orderId: string, reason: string) {
+  await mockDelay();
+  const orders = getOrderCollection();
+  const order = orders.find((item) => item.id === orderId);
+
+  if (!order || order.status !== "Payment Submitted") {
+    return mockResponse<TagOrder | null>(null);
+  }
+
+  const updatedOrder: TagOrder = {
+    ...order,
+    status: "Pending Payment",
+    paymentRejectionReason:
+      reason.trim() ||
+      "We could not verify this payment proof. Please resubmit your receipt.",
+    trackingStatus: "Payment proof needs to be resubmitted.",
+  };
+
+  writeOrder(orders, updatedOrder);
+  return mockResponse(updatedOrder);
+}
+
+export async function adminMarkOrderPreparing(orderId: string) {
+  await mockDelay();
+  const orders = getOrderCollection();
+  const order = orders.find((item) => item.id === orderId);
+
+  if (!order || order.status !== "Payment Confirmed") {
+    return mockResponse<TagOrder | null>(null);
+  }
+
+  const updatedOrder: TagOrder = {
+    ...order,
+    status: "Preparing",
+    trackingStatus: "Tag is being prepared",
+  };
+
+  writeOrder(orders, updatedOrder);
+  syncLinkedTag(order.tagId, (tag) => ({ ...tag, status: "Preparing" }));
+  return mockResponse(updatedOrder);
+}
+
+export async function adminMarkOrderShipped(orderId: string) {
+  await mockDelay();
+  const orders = getOrderCollection();
+  const order = orders.find((item) => item.id === orderId);
+
+  if (!order || order.status !== "Preparing") {
+    return mockResponse<TagOrder | null>(null);
+  }
+
+  const updatedOrder: TagOrder = {
+    ...order,
+    status: "Shipped",
+    shippedDate: formatToday(),
+    trackingStatus: `On the way to ${order.delivery.city || "you"}`,
+  };
+
+  writeOrder(orders, updatedOrder);
+  return mockResponse(updatedOrder);
+}
+
+export async function adminMarkOrderDelivered(orderId: string) {
+  await mockDelay();
+  const orders = getOrderCollection();
+  const order = orders.find((item) => item.id === orderId);
+
+  if (!order || order.status !== "Shipped") {
+    return mockResponse<TagOrder | null>(null);
+  }
+
+  const deliveredDate = formatToday();
+  const updatedOrder: TagOrder = {
+    ...order,
+    status: "Delivered",
+    deliveredDate,
+    trackingStatus: `Delivered to ${order.delivery.city || "the delivery address"}`,
+  };
+
+  writeOrder(orders, updatedOrder);
+  syncLinkedTag(order.tagId, (tag) => ({
+    ...tag,
+    status: "Delivered",
+    deliveredDate,
+  }));
+  return mockResponse(updatedOrder);
+}
+
+// Cancelling archives a linked tag that never became active, so it stops
+// appearing in the owner's active/pending tag lists.
+export async function adminCancelOrder(orderId: string) {
+  await mockDelay();
+  const orders = getOrderCollection();
+  const order = orders.find((item) => item.id === orderId);
+  const cancellable: OrderStatus[] = [
+    "Draft",
+    "Pending Payment",
+    "Payment Submitted",
+    "Payment Confirmed",
+    "Preparing",
+  ];
+
+  if (!order || !cancellable.includes(order.status)) {
+    return mockResponse<TagOrder | null>(null);
+  }
+
+  const updatedOrder: TagOrder = {
+    ...order,
+    status: "Cancelled",
+    trackingStatus: "Cancelled",
+  };
+
+  writeOrder(orders, updatedOrder);
+  syncLinkedTag(order.tagId, (tag) => ({ ...tag, isArchived: true }));
+  return mockResponse(updatedOrder);
+}
+
+// Creates unclaimed retail stock: tags with a TagCode but no pet and no owner.
+// Customers activate them through /activate/{tagCode} after scanning.
+export async function adminGenerateRetailTags(
+  count: number,
+  hasNfc: boolean,
+  shape: TagShape = "Round"
+) {
+  await mockDelay();
+  const safeCount = Math.max(1, Math.min(50, Math.floor(count)));
+  const now = new Date();
+  const batchNo = `BATCH-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const generatedDate = formatToday();
+  const tags = getTagCollection();
+  const newTags: PetTag[] = Array.from({ length: safeCount }, (_, index) => ({
+    id: `tag_${Date.now()}_${index}`,
+    tagCode: generateTagCode(),
+    hasNfc,
+    shape,
+    status: "Unassigned",
+    batchNo,
+    orderedDate: generatedDate,
+    isArchived: false,
+  }));
+
+  writeStoredCollection(TAG_STORAGE_KEY, [...newTags, ...tags]);
+  return mockResponse(newTags);
 }

@@ -20,10 +20,11 @@ export default function AdminLoginPage() {
             Back to public site
           </Link>
           <h1 className="mt-6 text-4xl font-black leading-tight text-slate-950 sm:text-5xl">
-            Admin Sign In
+            Admin access
           </h1>
           <p className="mt-5 text-base leading-7 text-slate-500">
-            Manage users, pet profiles, smart tags, and plans.
+            This area is for MyPetLink operations: order review, manual payment
+            confirmation, smart tag management, and tag inventory.
           </p>
         </div>
         <AdminLoginPanel />

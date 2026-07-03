@@ -1,24 +1,24 @@
 import type { Metadata } from "next";
-import { AdminDashboard } from "@/components/admin/AdminDashboard";
+import { AdminPaymentProofsManager } from "@/components/admin/AdminPaymentProofsManager";
 import { AdminLayout } from "@/components/layouts/AdminLayout";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { getAdminData } from "@/services/adminService";
 
 export const metadata: Metadata = {
-  title: "Admin Overview",
+  title: "Admin Payment Proofs",
 };
 
-export default async function AdminPage() {
+export default async function AdminPaymentProofsPage() {
   const data = await getAdminData();
 
   return (
     <AdminLayout>
       <PageHeader
         eyebrow="Admin"
-        title="Operations overview"
-        description="Track owners, pets, payment proofs, orders, and smart tags from one workspace."
+        title="Payment proof review"
+        description="Review uploaded receipts and confirm payments manually."
       />
-      <AdminDashboard initialData={data} />
+      <AdminPaymentProofsManager initialData={data} />
     </AdminLayout>
   );
 }

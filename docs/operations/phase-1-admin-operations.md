@@ -1,0 +1,302 @@
+# Phase 1 Admin Operations
+
+This document maps the completed Admin Portal MVP to future backend requirements.
+
+The current Admin Portal is a functional operations preview backed by local/demo browser state. The future backend must replace that local state with authenticated, relational, auditable operations APIs.
+
+## Admin Portal Source Of Truth
+
+Current frontend pages:
+
+- `/admin/login`
+- `/admin`
+- `/admin/orders`
+- `/admin/payment-proofs`
+- `/admin/tags`
+- `/admin/tag-inventory`
+- `/admin/users`
+- `/admin/pets`
+- `/admin/settings`
+- `/admin/qr-profiles`
+- `/admin/plans`
+
+Current local services:
+
+- `apps/web/src/services/adminService.ts`
+- `apps/web/src/services/tagService.ts`
+- `apps/web/src/services/petService.ts`
+- `apps/web/src/lib/orders.ts`
+- `apps/web/src/lib/tagStatus.ts`
+- `apps/web/src/lib/petLifecycle.ts`
+
+## Current MVP Limitations And Backend Fixes
+
+### Admin login is local placeholder
+
+Current state:
+
+- `/admin/login` sets a local demo admin session.
+- There are no real credentials, roles, permissions, sessions, or audit logs.
+
+Backend requirement:
+
+- Implement Google Sign-In/JWT auth in Phase A.
+- Add `AdminUsers` with role enforcement.
+- Protect every `/api/v1/admin/*` endpoint.
+- Write audit logs for every admin mutation.
+
+### Payment proofs are file names only
+
+Current state:
+
+- Owner upload stores only the browser-selected file name.
+- Admin sees the file name but no real stored receipt or preview/download.
+
+Backend requirement:
+
+- Store real files through the reusable `MediaFiles` system.
+- Store provider-neutral metadata: original file name, storage file name, content type, size, provider, path, SHA-256, uploaded time.
+- Link proof rows to orders and preserve review history.
+- Admin proof review should fetch controlled file preview/download URLs.
+
+### Owner-pet attribution is display-name based
+
+Current state:
+
+- Demo pets do not have reliable owner ids.
+- Admin owner summaries infer ownership by display name and fallback rules.
+
+Backend requirement:
+
+- Use real FKs:
+  - `Pets.OwnerUserId`
+  - `TagOrders.OwnerUserId`
+  - `SmartTags.OwnerUserId`
+- Admin owner lists should compute counts from relational ownership, never display names.
+
+### Printed/reseller tracking is disabled placeholder
+
+Current state:
+
+- Admin Tag Inventory shows Mark as Printed and Send to Reseller as disabled coming-later actions.
+
+Backend requirement:
+
+- Add batch fields such as `PrintedAt`, `SentToResellerAt`, `ResellerName`, `Remarks`.
+- Keep UI actions disabled until backend implementation is explicitly scoped.
+- Tag generation and CSV export are Phase 1 admin backend needs; reseller workflows can be later.
+
+### Settings are read-only
+
+Current state:
+
+- `/admin/settings` reads frontend config for payment instructions, tag pricing, feature availability, support, and company info.
+
+Backend requirement:
+
+- Add `AppSettings` for backend-managed operational settings.
+- Phase 1 can expose read APIs first.
+- Admin write APIs can come later, with audit logs and validation.
+
+### No pagination or search
+
+Current state:
+
+- Tables are local/demo volume and filter in the browser.
+
+Backend requirement:
+
+- All admin lists should support `page` and `pageSize`.
+- Add filters/search for:
+  - owners: search, status
+  - pets: owner, lifecycle, Lost Mode, search
+  - orders: status, payment status, owner, pet, search
+  - payment proofs: review status, order status
+  - tags: status, pet, owner, batch, TagCode, NFC
+  - audit logs: actor, action, entity, date range
+
+## Admin Dashboard Backend Requirements
+
+Endpoint:
+
+- `GET /api/v1/admin/dashboard/summary`
+
+Return:
+
+- total owners
+- total pets
+- active pets in Lost Mode
+- pending payment proofs
+- orders in preparation (`PaymentConfirmed`, `PreparingTag`)
+- active smart tags
+- lost/disabled tags
+- unclaimed retail tags
+- recent orders
+- recent payment proof submissions
+- recent tag activity
+
+Rules:
+
+- Active tag count excludes tags linked to Memorial or Archived pets.
+- Lost Mode count includes active pets only.
+- Unclaimed tags have no owner/pet and status `Unclaimed`.
+
+## Admin Order Operations
+
+Endpoints:
+
+- `GET /api/v1/admin/orders`
+- `GET /api/v1/admin/orders/{orderId}`
+- `POST /api/v1/admin/orders/{orderId}/confirm-payment`
+- `POST /api/v1/admin/orders/{orderId}/reject-payment-proof`
+- `POST /api/v1/admin/orders/{orderId}/status`
+- `POST /api/v1/admin/orders/{orderId}/cancel`
+
+Valid actions:
+
+- Confirm Payment: `PaymentProofSubmitted` -> `PaymentConfirmed`
+- Request Resubmission: `PaymentProofSubmitted` -> `PendingPayment`
+- Mark Preparing: `PaymentConfirmed` -> `PreparingTag`
+- Mark Shipped: `PreparingTag` -> `Shipped`
+- Mark Delivered: `Shipped` -> `Delivered`
+- Cancel Order: before shipping only
+
+Side effects:
+
+- Confirm payment sets payment status to `Confirmed`.
+- Reject payment sets proof status to `Rejected`, payment status to `Rejected`, and order status to `PendingPayment`.
+- Preparing updates linked pending-family tag to `Preparing`.
+- Delivered updates linked pending-family tag to `Delivered`.
+- Cancel archives a linked tag that never became active.
+
+## Admin Payment Proof Review
+
+Endpoint:
+
+- `GET /api/v1/admin/payment-proofs`
+
+Review actions:
+
+- Approve and Confirm Payment
+- Request Resubmission
+- View Order
+
+Rules:
+
+- Proof upload is never auto-confirmed.
+- Rejection requires a friendly reason.
+- Rejection never deletes the order or proof history.
+- Admin review writes audit logs with old/new state.
+
+## Admin Tag Operations
+
+Endpoints:
+
+- `GET /api/v1/admin/tags`
+- `POST /api/v1/admin/tags/{tagId}/status`
+- `POST /api/v1/admin/tags/{tagId}/archive`
+- `POST /api/v1/admin/tags/{tagId}/restore`
+
+Filters:
+
+- active
+- pending
+- unclaimed
+- lost/disabled
+- replaced
+- archived
+- all
+
+Rules:
+
+- Active tags linked to Memorial/Archived pets display as inactive and must not count as active safety tags.
+- View Tag opens `/t/:tagCode`.
+- Lost/disabled/replaced/archived scans never expose owner contact.
+- Pending-family tags can be archived as an admin correction if they never became active.
+
+## Admin Tag Inventory
+
+Endpoints:
+
+- `POST /api/v1/admin/tags/generate`
+- `GET /api/v1/admin/tag-batches/{batchNo}/export`
+
+Rules:
+
+- Generate 1 to 50 codes per MVP batch unless configuration changes this later.
+- Generated retail tags are `Unclaimed`, with no `OwnerUserId` and no `PetId`.
+- TagCode uses the single public `MPL-XXXX-XXXX` identifier.
+- TagCode must be secure random and unique.
+- CSV uses the same URL for QR and NFC: `/t/:tagCode`.
+
+## Admin Owners
+
+Endpoint:
+
+- `GET /api/v1/admin/owners`
+
+Return:
+
+- owner account
+- contact summary
+- joined date
+- status
+- pet count
+- order count
+
+Rules:
+
+- Counts use real FK relationships.
+- Account suspension can be planned later but should fit `Users.Status`.
+
+## Admin Pets
+
+Endpoint:
+
+- `GET /api/v1/admin/pets`
+
+Filters:
+
+- active
+- Lost Mode
+- memorial
+- archived
+- all
+
+Rules:
+
+- Lost Mode is a flag on active pets, not a lifecycle status.
+- Memorial is never active.
+- QR Safety enabled status should respect lifecycle.
+- Smart tag status should exclude inactive linked tags from active counts.
+
+## Admin Settings
+
+Endpoints:
+
+- `GET /api/v1/admin/settings`
+- `PATCH /api/v1/admin/settings` future
+
+Rules:
+
+- Read-only is acceptable for Phase 1.
+- Editable settings later must write audit logs.
+- Settings should include manual payment mode, support contact, tag pricing labels, feature availability, and legal/company info.
+
+## Security And Audit Requirements
+
+- Admin routes require JWT plus active admin profile.
+- Admin role checks should be enforced by policies.
+- Every admin mutation writes `AuditLogs`.
+- Audit record fields:
+  - ActorId
+  - ActorType
+  - Action
+  - Entity
+  - EntityId
+  - OldValue
+  - NewValue
+  - IP Address
+  - UserAgent
+  - CreatedAt
+- Do not store secrets, raw refresh tokens, or file contents in audit JSON.

@@ -1,24 +1,24 @@
 import type { Metadata } from "next";
-import { AdminDashboard } from "@/components/admin/AdminDashboard";
+import { AdminTagInventoryManager } from "@/components/admin/AdminTagInventoryManager";
 import { AdminLayout } from "@/components/layouts/AdminLayout";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { getAdminData } from "@/services/adminService";
 
 export const metadata: Metadata = {
-  title: "Admin Overview",
+  title: "Admin Tag Inventory",
 };
 
-export default async function AdminPage() {
+export default async function AdminTagInventoryPage() {
   const data = await getAdminData();
 
   return (
     <AdminLayout>
       <PageHeader
         eyebrow="Admin"
-        title="Operations overview"
-        description="Track owners, pets, payment proofs, orders, and smart tags from one workspace."
+        title="Tag inventory"
+        description="Generate tag codes and manage unclaimed retail stock for pet shops and resellers."
       />
-      <AdminDashboard initialData={data} />
+      <AdminTagInventoryManager initialData={data} />
     </AdminLayout>
   );
 }
