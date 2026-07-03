@@ -153,11 +153,21 @@ dotnet ef database update --project apps/api/MyPetLink.Api --startup-project app
 
 Do not run production migrations from local development settings.
 
-LocalDB troubleshooting:
+LocalDB recovery:
 
-- If `C:\Users\User\MyPetLinkDev.mdf` exists but `MyPetLinkDev` is not attached to `(localdb)\MSSQLLocalDB`, `dotnet ef database update` may fail while trying to create that database name.
+- The stable local development database name is `MyPetLinkDev`.
+- If `$env:USERPROFILE\MyPetLinkDev.mdf` and `$env:USERPROFILE\MyPetLinkDev_log.ldf` exist but `MyPetLinkDev` is not attached to `(localdb)\MSSQLLocalDB`, attach the existing files instead of deleting them:
+
+```powershell
+sqllocaldb start MSSQLLocalDB
+$mdf = Join-Path $env:USERPROFILE "MyPetLinkDev.mdf"
+$ldf = Join-Path $env:USERPROFILE "MyPetLinkDev_log.ldf"
+sqlcmd -S "(localdb)\MSSQLLocalDB" -Q "IF DB_ID(N'MyPetLinkDev') IS NULL CREATE DATABASE [MyPetLinkDev] ON (FILENAME = N'$mdf'), (FILENAME = N'$ldf') FOR ATTACH;"
+dotnet ef database update --project apps/api/MyPetLink.Api --startup-project apps/api/MyPetLink.Api
+```
+
 - Do not delete `.mdf` or `.ldf` files without confirming they are disposable.
-- For isolated branch verification, override `ConnectionStrings__MyPetLinkDb` with a clean database name such as `MyPetLinkPhaseA2`.
+- Use `ConnectionStrings__MyPetLinkDb` only for temporary isolated verification; remove that override before normal local development.
 
 ## Current Backend Scope
 
