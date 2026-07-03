@@ -1,6 +1,6 @@
 # MyPetLink Current Demo Data Model
 
-This documents the local preview data model in `apps/web`. Owner auth, owner profile, pets, public profile, QR Safety, care records, and memories now use the backend API when `NEXT_PUBLIC_API_BASE_URL` is configured; the localStorage model remains the fallback for static/demo preview. All frontend types live in `apps/web/src/types.ts`.
+This documents the local preview data model in `apps/web`. Owner auth, owner profile, pets, public profile, QR Safety, care records, memories, Smart Tags, Orders, and physical tag scans now use the backend API when `NEXT_PUBLIC_API_BASE_URL` is configured; owner-protected flows also require an owner API session. The localStorage model remains the fallback for static/demo preview. All frontend types live in `apps/web/src/types.ts`.
 
 ## Persistence approach
 
@@ -40,13 +40,14 @@ Contact & privacy: embedded `owner` contact (`name`, `phone`, `whatsapp`, `emerg
 
 `Unassigned | Pending | Preparing | Delivered | Active | Disabled | Lost | Replaced | Archived`
 
+- In backend mode, public physical tag scans use `/api/v1/public/tags/{tagCode}` without owner auth. Active backend tags return the same safety projection as `/q/:safetyCode`; pending, inactive, memorial-linked, archived, and not-found tags never expose owner contact.
 - Pending-family (`Pending`, `Preparing`, `Delivered`) exists because order fulfillment is folded into the tag record in this frontend phase; a real backend should move fulfillment to the order and collapse tags to the 5 logical states.
 - Status helpers live in `src/lib/tagStatus.ts`: `isActivePhysicalTag`, `isPendingPhysicalTag`, `isInactivePhysicalTag`, `getTagDisplayStatus`, `shouldShowTagForFilter`, `getPetSmartTagStatus`. A tag linked to a Memorial/Archived pet is displayed as inactive even if its own status is `Active`.
 - Finder resolution (`getFinderState` in `tagService.ts`): not-found → branded page; `Unassigned`/no petId → activation prompt; inactive statuses or archived → safe inactive page (no owner contact); pending → pending state; otherwise active → QR Safety Page content.
 
 ## Order model (`TagOrder`)
 
-`id`, `orderNumber` (`MPL-ORD-2026-XXXX`, via `formatOrderNumber`), `petId`, `tagType` (`MyPetLink QR Pet Tag` RM19.90 | `MyPetLink QR + NFC Smart Tag` RM39.90), `shape`, `delivery` (`DeliveryDetails`), `estimatedPrice`, `status`, `orderedDate`, `tagId` (linked tag, created with the order), `replacementForTagId`, tracking fields (`trackingStatus`, `trackingNumber`, `shippedDate`, `deliveredDate`).
+`id`, `orderNumber` (`MPL-ORD-2026-XXXX` for local preview or backend-generated `MPL-ORD-YYYYMMDD-XXXX`), `petId`, optional `petName`, `tagType` (`MyPetLink QR Pet Tag` RM19.90 | `MyPetLink QR + NFC Smart Tag` RM39.90), `shape`, `delivery` (`DeliveryDetails`), `estimatedPrice`, `status`, `orderedDate`, `tagId` (linked tag, created with the order), `replacementForTagId`, tracking fields (`trackingStatus`, `trackingNumber`, `shippedDate`, `deliveredDate`).
 
 ### Order status values (`OrderStatus`)
 
@@ -61,6 +62,8 @@ Phase 1 payment is manual (`src/config/payment.ts`): the owner pays a merchant Q
 - `paymentMethod` (default "QR Payment"), `paymentReference` (bank/eWallet transaction ID), `paymentNote`, `paymentProofName` (uploaded file name — no real file storage yet), `paymentSubmittedDate`, `paymentConfirmedDate`, `paymentRejectionReason`.
 - `submitOrderPayment()` moves the order to `Payment Submitted`; confirmation is never automatic — an admin confirms manually.
 - Receipt download is available from `Payment Confirmed` onward (`canDownloadPaymentReceipt`).
+
+Backend mode stores payment proof metadata only (`MediaFiles` + `PaymentProofs` metadata rows), not file bytes/base64. Real storage is a later enhancement.
 
 ## Plan limit model (`src/lib/planLimits.ts`)
 

@@ -2,7 +2,7 @@
 
 Planning draft for building the future backend after the documentation is approved.
 
-Implementation status: the initial .NET 8 API skeleton now lives in `apps/api/MyPetLink.Api`. It includes the project structure, EF Core model, service/controller placeholders, JWT/admin-policy wiring, audit/storage placeholders, and local development settings. As of 2026-07-03 the `InitialCreate` EF Core migration exists and is validated against SQL Server LocalDB (23 tables plus plan/app-setting seeds), `dotnet-ef` is pinned as a repo-local tool (`.config/dotnet-tools.json`), and the API runs locally with Swagger and `/api/v1/health`. Business logic remains intentionally unimplemented until the next backend phase.
+Implementation status: the .NET 8 API lives in `apps/api/MyPetLink.Api`. As of 2026-07-03 the `InitialCreate` EF Core migration exists and is validated against SQL Server LocalDB, `dotnet-ef` is pinned as a repo-local tool (`.config/dotnet-tools.json`), and the API runs locally with Swagger and `/api/v1/health`. Auth, owner profile, pets, public profile, QR Safety, care records, memories, and the owner Smart Tags + Orders slice are implemented. Admin APIs, real payment gateway, real shipping integration, real file storage, Premium subscription, GPS, and production deployment remain planned later.
 
 ## Guiding Rules
 
@@ -109,6 +109,8 @@ Tests:
 
 Goal: support owner smart tag orders and manual payment proof submission.
 
+Current implementation status: the owner-facing Phase C slice is implemented for backend-connected Owner Portal pages. Admin review/fulfillment APIs and real file upload/storage remain planned.
+
 Build:
 
 - `SmartTagBatches`
@@ -120,10 +122,10 @@ Build:
 - portal order creation linked to selected `petId`
 - tag reservation/creation on order
 - replacement order support
-- manual payment proof upload
-- payment proof media storage using `MediaFiles`
+- manual payment proof metadata submission
+- metadata-only payment proof records using `MediaFiles`/`PaymentProofs`; real file bytes are not stored yet
 - owner order cancellation before shipping
-- receipt/read endpoint after payment confirmation
+- receipt/read endpoint after payment confirmation (planned with admin payment confirmation)
 - physical tag scan public endpoint by `tagCode`
 - retail/unclaimed tag activation endpoint
 - basic `TagScans` recording without precise location unless consent is explicitly granted
@@ -133,7 +135,7 @@ Acceptance criteria:
 - Portal order requires `petId` and active pet.
 - Portal-purchased tag is linked to selected pet from order creation.
 - Owner uploads payment proof; order becomes `PaymentProofSubmitted`, not confirmed.
-- Payment proof stores provider-neutral file metadata.
+- Payment proof stores provider-neutral metadata only in the current owner slice; real file storage is a later phase.
 - Retail/unclaimed tag starts with no owner/pet and activates only after authenticated owner selects an active pet.
 - Active `/t/:tagCode` returns same safety content as `/q/:safetyCode`.
 - Lost/disabled/replaced/archived tags never expose owner contact.

@@ -13,7 +13,10 @@ import {
 } from "@/lib/tagStatus";
 import { mockDelay, mockResponse } from "@/services/mockApi";
 import { getPets } from "@/services/petService";
-import { getAllTags, getOrders } from "@/services/tagService";
+import {
+  getStoredOrdersForAdmin,
+  getStoredTagsForAdmin,
+} from "@/services/tagService";
 import type {
   AdminDashboard,
   MockUser,
@@ -95,8 +98,8 @@ export type AdminData = {
 export async function getAdminData(): Promise<AdminData> {
   const [pets, tags, orders] = await Promise.all([
     getPets(),
-    getAllTags(),
-    getOrders(),
+    getStoredTagsForAdmin(),
+    getStoredOrdersForAdmin(),
   ]);
 
   return { pets: pets.data, tags: tags.data, orders: orders.data };

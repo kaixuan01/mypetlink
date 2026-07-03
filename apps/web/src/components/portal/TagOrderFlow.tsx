@@ -23,8 +23,11 @@ import { readOwnerSettings } from "@/lib/ownerSettings";
 import {
   createTagOrder,
   getEstimatedTagPrice,
+  getFriendlyTagErrorMessage,
 } from "@/services/tagService";
 import { getPets } from "@/services/petService";
+import { isApiConfigured } from "@/services/apiConfig";
+import { ownerRoutes } from "@/lib/routes";
 import type {
   DeliveryDetails,
   Pet,
@@ -104,7 +107,10 @@ export function TagOrderFlow({
   initialTagType = "MyPetLink QR Pet Tag",
   replacementForTagId,
 }: TagOrderFlowProps) {
-  const [availablePets, setAvailablePets] = useState(pets);
+  const apiMode = isApiConfigured();
+  const [availablePets, setAvailablePets] = useState<Pet[]>(
+    apiMode ? [] : pets
+  );
   const orderablePets = useMemo(
     () => getActivePets(availablePets),
     [availablePets]
@@ -122,6 +128,9 @@ export function TagOrderFlow({
   const [createdOrder, setCreatedOrder] = useState<TagOrder | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedTagType, setSelectedTagType] = useState<TagType | null>(null);
+  const [loadingPets, setLoadingPets] = useState(apiMode);
+  const [loadError, setLoadError] = useState("");
+  const [formError, setFormError] = useState("");
 
   const orderPrefsKey = useSyncExternalStore(
     subscribeNoop,
@@ -150,22 +159,55 @@ export function TagOrderFlow({
   useEffect(() => {
     let active = true;
 
-    getPets().then((response) => {
-      if (!active) {
-        return;
+    async function loadPets() {
+      setLoadingPets(true);
+      setLoadError("");
+
+      try {
+        const response = await getPets();
+
+        if (!active) {
+          return;
+        }
+
+        const nextPets =
+          preselectedPetId &&
+          !response.data.some((pet) => pet.id === preselectedPetId)
+            ? [
+                pets.find((pet) => pet.id === preselectedPetId),
+                ...response.data,
+              ].filter((pet): pet is Pet => Boolean(pet))
+            : response.data;
+
+        setAvailablePets(nextPets);
+
+        const nextOrderablePets = getActivePets(nextPets);
+        setPetId((current) => {
+          if (current && nextOrderablePets.some((pet) => pet.id === current)) {
+            return current;
+          }
+
+          if (
+            preselectedPetId &&
+            nextOrderablePets.some((pet) => pet.id === preselectedPetId)
+          ) {
+            return preselectedPetId;
+          }
+
+          return nextOrderablePets[0]?.id ?? "";
+        });
+      } catch (caught) {
+        if (active) {
+          setLoadError(getFriendlyTagErrorMessage(caught));
+        }
+      } finally {
+        if (active) {
+          setLoadingPets(false);
+        }
       }
+    }
 
-      const nextPets =
-        preselectedPetId &&
-        !response.data.some((pet) => pet.id === preselectedPetId)
-          ? [
-              pets.find((pet) => pet.id === preselectedPetId),
-              ...response.data,
-            ].filter((pet): pet is Pet => Boolean(pet))
-          : response.data;
-
-      setAvailablePets(nextPets);
-    });
+    void loadPets();
 
     return () => {
       active = false;
@@ -198,7 +240,7 @@ export function TagOrderFlow({
       <EmptyState
         title="Physical tags are for active profiles"
         description={`${preselectedPet.name} is not an active pet profile. Memorial and archived profiles keep existing tag history, but new physical tags can only be ordered for active pets.`}
-        actionHref={`/pets/${preselectedPet.id}/tags`}
+        actionHref={ownerRoutes.petTags(preselectedPet.id)}
         actionLabel="View Smart Tags"
       />
     );
@@ -301,15 +343,41 @@ export function TagOrderFlow({
     }
 
     setIsSubmitting(true);
-    const response = await createTagOrder({
-      petId: selectedPet.id,
-      tagType,
-      shape,
-      delivery: { ...delivery, phone: normalizeStoredPhone(delivery.phone) },
-      replacementForTagId: replacementFor,
-    });
-    setCreatedOrder(response.data.order);
-    setIsSubmitting(false);
+    setFormError("");
+
+    try {
+      const response = await createTagOrder({
+        petId: selectedPet.id,
+        tagType,
+        shape,
+        delivery: { ...delivery, phone: normalizeStoredPhone(delivery.phone) },
+        replacementForTagId: replacementFor,
+      });
+      setCreatedOrder(response.data.order);
+    } catch (caught) {
+      setFormError(getFriendlyTagErrorMessage(caught));
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  if (loadingPets) {
+    return (
+      <div className="brand-card rounded-[1.75rem] p-6 text-sm font-semibold text-pet-muted">
+        Loading pet profiles...
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <EmptyState
+        title="Pet profiles could not load"
+        description={loadError}
+        actionHref={ownerRoutes.dashboard}
+        actionLabel="Back to Dashboard"
+      />
+    );
   }
 
   if (!orderablePets.length) {
@@ -317,7 +385,7 @@ export function TagOrderFlow({
       <EmptyState
         title="No active profiles available"
         description="A physical tag needs an active pet profile so finders can contact you quickly."
-        actionHref="/pets/new"
+        actionHref={ownerRoutes.petNew}
         actionLabel="Add Pet"
       />
     );
@@ -341,17 +409,17 @@ export function TagOrderFlow({
           <SummaryItem label="Status" value={createdOrder.status} />
         </div>
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-          <CTAButton href="/orders" icon="record">
+          <CTAButton href={ownerRoutes.orders} icon="record">
             View Orders
           </CTAButton>
           <CTAButton
-            href={`/pets/${selectedPet.id}/tags`}
+            href={ownerRoutes.petTags(selectedPet.id)}
             icon="tag"
             variant="secondary"
           >
             View Smart Tags
           </CTAButton>
-          <CTAButton href="/dashboard" variant="outline">
+          <CTAButton href={ownerRoutes.dashboard} variant="outline">
             Go to Dashboard
           </CTAButton>
         </div>
@@ -410,7 +478,7 @@ export function TagOrderFlow({
       <div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Link
           className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
-          href={selectedPet ? `/pets/${selectedPet.id}/tags` : "/tags"}
+          href={selectedPet ? ownerRoutes.petTags(selectedPet.id) : ownerRoutes.tags}
         >
           Cancel
         </Link>
@@ -444,6 +512,11 @@ export function TagOrderFlow({
           )}
         </div>
       </div>
+      {formError ? (
+        <p className="mt-4 rounded-[1.25rem] border border-[#ffd2c9] bg-[#fff4f1] px-4 py-3 text-sm font-bold text-[#a63c2e]">
+          {formError}
+        </p>
+      ) : null}
     </section>
   );
 

@@ -491,12 +491,13 @@ Response:
 
 - `state`: `active`, `unclaimed`, `pending`, `inactive`, `notFound`
 - `tagCode`
-- `profile` only when active or safe inactive memorial projection is allowed
+- `profile` only when the tag is active and linked to an active pet
 
 Rules:
 
 - Active tag linked to active pet opens same safety content as `/q/:safetyCode`.
 - Unclaimed retail tags show activation prompt.
+- Pending/preparing/delivered tags return a not-active-yet state without owner contact.
 - Lost/disabled/replaced/archived tags never expose owner contact.
 - Bound tags linked to Memorial/Archived pets return inactive safe state.
 - Record a `TagScans` event for valid and invalid scans where appropriate.
@@ -810,6 +811,8 @@ Response:
 
 ## Smart Tags
 
+Phase status: owner Smart Tags endpoints are implemented for the backend-connected Owner Portal slice. Admin inventory endpoints remain planned for a later admin phase.
+
 ### GET `/api/v1/tags`
 
 Purpose: list authenticated owner's smart tags.
@@ -821,10 +824,22 @@ Query:
 - `page`, `pageSize`
 - `status`
 - `petId`
+- `type`: `QrPetTag`, `QrNfcSmartTag`, `QR`, or `QR_NFC`
 
 Response:
 
 - tag summaries with linked pet/order display data
+
+### GET `/api/v1/pets/{petId}/tags`
+
+Purpose: list authenticated owner's tags for one owned pet.
+
+Auth: owner.
+
+Rules:
+
+- Owner can only read tags for their own pet.
+- Active, Memorial, and Archived pets remain readable for history.
 
 ### GET `/api/v1/tags/{tagId}`
 
@@ -855,11 +870,11 @@ Validation:
 - tag exists and is `Unclaimed` or `Delivered`.
 - selected pet belongs to owner and is Active.
 - active tag cannot be claimed by another owner.
+- delivered portal tags already reserved to a pet cannot be activated for a different pet.
 
 Errors:
 
-- `400` invalid tag state
-- `403` tag belongs to another owner
+- `422` invalid tag state
 - `404` tag or pet not found
 
 ### POST `/api/v1/tags/{tagId}/mark-lost`
@@ -871,6 +886,7 @@ Auth: owner.
 Rules:
 
 - Sets tag status to `Lost`.
+- Current owner action is limited to `Active` or `Delivered` tags.
 - Does not enable pet Lost Mode.
 - `/q/:safetyCode` remains unaffected.
 
@@ -880,17 +896,30 @@ Purpose: owner disables physical tag.
 
 Auth: owner.
 
+Rules:
+
+- Current owner action is limited to `Active` or `Delivered` tags.
+- Disabled tags never expose owner contact on `/t/:tagCode`.
+
 ### POST `/api/v1/tags/{tagId}/replace`
 
 Purpose: mark tag as replaced, usually through replacement order flow.
 
 Auth: owner.
 
+Current status: reserved in the V1 contract; owner replacement is represented by a new order with `replacementForTagId`. Admin/ops replacement mutation is planned later.
+
 ### POST `/api/v1/tags/{tagId}/archive`
 
 Purpose: archive tag from owner list.
 
 Auth: owner.
+
+Rules:
+
+- Owners can archive inactive/lost/disabled/replaced/unclaimed tags.
+- Active tags linked to Memorial/Archived pets can also be archived because they no longer expose finder contact.
+- Active tags for active pets must be reported lost or disabled before archive.
 
 ### POST `/api/v1/tags/{tagId}/restore`
 
@@ -902,9 +931,11 @@ Rules for all owner tag actions:
 
 - Owner must own linked tag or linked pet.
 - Inactive states never expose owner contact.
-- Invalid transitions return `400`.
+- Invalid transitions return `422`.
 
 ## Orders And Payment Proofs
+
+Phase status: owner order creation, list/detail, cancellation, and payment proof metadata submission are implemented. Admin payment review and fulfillment transitions remain planned.
 
 ### GET `/api/v1/orders`
 
@@ -917,6 +948,7 @@ Query:
 - `page`, `pageSize`
 - `status`
 - `paymentStatus`
+- `petId`
 
 ### GET `/api/v1/orders/{orderNumber}`
 
@@ -949,9 +981,19 @@ Response:
 Validation:
 
 - pet belongs to owner and is Active.
+- Memorial and Archived pets cannot receive new tag orders.
 - portal order must have `petId`.
-- tag price comes from backend config/app settings, not client.
-- replacement tag must belong to owner and be replaceable.
+- tag price is server-calculated and not trusted from the client:
+  - `QrPetTag`: RM19.90
+  - `QrNfcSmartTag`: RM39.90
+- replacement tag must belong to owner.
+
+Initial state:
+
+- order `PendingPayment`
+- payment `Pending`
+- linked smart tag `Pending`
+- portal-purchased smart tag has `OwnerUserId`, `PetId`, and `OrderId` immediately
 
 Errors:
 
@@ -966,7 +1008,8 @@ Auth: owner.
 
 Request:
 
-- `mediaFileId` or multipart file
+- `fileName` or existing `mediaFileId`
+- `paymentMethod` optional, defaults to `QR Payment`
 - `paymentReference`
 - `ownerNote`
 
@@ -978,14 +1021,14 @@ Response:
 Validation:
 
 - order belongs to owner.
-- order status must be `PendingPayment`.
-- file content type allowed: image or PDF.
+- order status must be `PendingPayment` or `PaymentProofSubmitted`.
+- current implementation stores metadata only; real file bytes/upload storage are not implemented yet.
+- submitting a new proof supersedes earlier pending proof metadata.
 
 Errors:
 
-- `400` invalid order state
-- `413` file too large
-- `415` unsupported media type
+- `400` missing file metadata
+- `422` invalid order state
 
 ### POST `/api/v1/orders/{orderNumber}/cancel`
 
@@ -995,12 +1038,13 @@ Auth: owner.
 
 Rules:
 
-- Allowed before shipping only.
-- Linked unactivated tag is archived.
+- Current owner implementation allows cancellation while order is `PendingPayment` or `PaymentProofSubmitted`.
+- Linked unactivated pending-family tag is archived.
+- Admin cancellation after later fulfillment states is planned for the admin phase.
 
 Errors:
 
-- `400` cannot cancel after shipped
+- `422` cannot cancel after preparation/payment confirmation has started
 
 ### GET `/api/v1/orders/{orderNumber}/receipt`
 
@@ -1011,6 +1055,7 @@ Auth: owner.
 Rules:
 
 - Available when payment is confirmed or later.
+- Current status: reserved in contract; frontend still generates local text summaries, and backend receipt output is planned with admin payment confirmation.
 
 Errors:
 

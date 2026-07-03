@@ -16,10 +16,6 @@ public abstract class SkeletonService : ISkeletonService
     }
 }
 
-public sealed class TagScanService : SkeletonService, ITagScanService;
-public sealed class SmartTagService : SkeletonService, ISmartTagService;
-public sealed class OrderService : SkeletonService, IOrderService;
-public sealed class PaymentProofService : SkeletonService, IPaymentProofService;
 public sealed class AdminService : SkeletonService, IAdminService;
 
 public sealed class AuditLogService : SkeletonService, IAuditLogService

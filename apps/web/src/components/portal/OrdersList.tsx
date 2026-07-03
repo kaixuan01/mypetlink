@@ -17,7 +17,13 @@ import {
   getPaymentStatusLabel,
 } from "@/lib/orders";
 import { ownerRoutes } from "@/lib/routes";
-import { getAllTags, getOrders } from "@/services/tagService";
+import { isApiConfigured } from "@/services/apiConfig";
+import { getPets } from "@/services/petService";
+import {
+  getAllTags,
+  getFriendlyTagErrorMessage,
+  getOrders,
+} from "@/services/tagService";
 import type { OrderStatus, Pet, PetTag, TagOrder } from "@/types";
 
 type OrdersListProps = {
@@ -42,13 +48,19 @@ export function OrdersList({
   initialOrders,
   initialTags,
 }: OrdersListProps) {
-  const [orders, setOrders] = useState(initialOrders);
-  const [tags, setTags] = useState(initialTags);
+  const apiMode = isApiConfigured();
+  const [portalPets, setPortalPets] = useState<Pet[]>(apiMode ? [] : pets);
+  const [orders, setOrders] = useState<TagOrder[]>(
+    apiMode ? [] : initialOrders
+  );
+  const [tags, setTags] = useState<PetTag[]>(apiMode ? [] : initialTags);
   const [openOrderId, setOpenOrderId] = useState("");
   const [receiptMessage, setReceiptMessage] = useState("");
+  const [loading, setLoading] = useState(apiMode);
+  const [loadError, setLoadError] = useState("");
   const petMap = useMemo(
-    () => new Map(pets.map((pet) => [pet.id, pet])),
-    [pets]
+    () => new Map(portalPets.map((pet) => [pet.id, pet])),
+    [portalPets]
   );
   const tagMap = useMemo(
     () => new Map(tags.map((tag) => [tag.id, tag])),
@@ -58,12 +70,34 @@ export function OrdersList({
   useEffect(() => {
     let active = true;
 
-    Promise.all([getOrders(), getAllTags()]).then(([orderResponse, tagResponse]) => {
-      if (active) {
-        setOrders(orderResponse.data);
-        setTags(tagResponse.data);
+    async function loadOrders() {
+      setLoading(true);
+      setLoadError("");
+
+      try {
+        const [orderResponse, tagResponse, petsResponse] = await Promise.all([
+          getOrders(),
+          getAllTags(),
+          getPets(),
+        ]);
+
+        if (active) {
+          setOrders(orderResponse.data);
+          setTags(tagResponse.data);
+          setPortalPets(petsResponse.data);
+        }
+      } catch (caught) {
+        if (active) {
+          setLoadError(getFriendlyTagErrorMessage(caught));
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
       }
-    });
+    }
+
+    void loadOrders();
 
     return () => {
       active = false;
@@ -76,9 +110,29 @@ export function OrdersList({
     window.setTimeout(() => setReceiptMessage(""), 2500);
   }
 
+  if (loading) {
+    return (
+      <div className="brand-card rounded-[1.75rem] p-6 text-sm font-semibold text-pet-muted">
+        Loading orders...
+      </div>
+    );
+  }
+
+  if (loadError && !orders.length) {
+    return (
+      <EmptyState
+        icon="record"
+        title="Orders could not load"
+        description={loadError}
+        actionHref={ownerRoutes.dashboard}
+        actionLabel="Back to Dashboard"
+      />
+    );
+  }
+
   if (!orders.length) {
-    const orderHref = pets[0]
-      ? ownerRoutes.petTagOrder(pets[0].id)
+    const orderHref = portalPets[0]
+      ? ownerRoutes.petTagOrder(portalPets[0].id)
       : ownerRoutes.petNew;
 
     return (
@@ -94,6 +148,12 @@ export function OrdersList({
 
   return (
     <div className="grid gap-4">
+      {loadError ? (
+        <div className="rounded-[1.25rem] border border-[#ffd2c9] bg-[#fff4f1] px-4 py-3 text-sm font-bold text-[#a63c2e]">
+          {loadError}
+        </div>
+      ) : null}
+
       {receiptMessage ? (
         <div className="rounded-[1.25rem] border border-pet-mint bg-[#e8f8f0] px-4 py-3 text-sm font-bold text-pet-sage">
           {receiptMessage}
@@ -103,6 +163,7 @@ export function OrdersList({
       {orders.map((order) => {
         const pet = petMap.get(order.petId);
         const linkedTag = order.tagId ? tagMap.get(order.tagId) : undefined;
+        const petName = pet?.name ?? order.petName ?? "Pet profile";
         const orderNumber = formatOrderNumber(order);
         const replacementHref =
           linkedTag && order.petId
@@ -130,7 +191,7 @@ export function OrdersList({
                   </Badge>
                 </div>
                 <p className="mt-1 text-sm font-semibold text-pet-muted">
-                  {pet?.name ?? "Pet profile"} - {order.tagType}
+                  {petName} - {order.tagType}
                 </p>
               </div>
               <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[#e8f3ff] text-pet-teal">
@@ -195,7 +256,7 @@ export function OrdersList({
                 <button
                   className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-extrabold text-pet-ink transition hover:bg-pet-cream"
                   onClick={() =>
-                    handleReceipt(order, pet?.name ?? "Pet profile")
+                    handleReceipt(order, petName)
                   }
                   type="button"
                 >
@@ -223,7 +284,7 @@ export function OrdersList({
             {openOrderId === order.id ? (
               <OrderInlineDetail
                 order={order}
-                petName={pet?.name ?? "Pet profile"}
+                petName={petName}
                 tag={linkedTag}
               />
             ) : null}

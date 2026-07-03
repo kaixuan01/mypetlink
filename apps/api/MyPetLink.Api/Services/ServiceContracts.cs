@@ -175,11 +175,118 @@ public interface IQrSafetyService : ISkeletonService
         string safetyCode,
         CancellationToken cancellationToken = default);
 }
-public interface ITagScanService : ISkeletonService;
-public interface ISmartTagService : ISkeletonService;
-public interface IOrderService : ISkeletonService;
-public interface IPaymentProofService : ISkeletonService;
+
+public interface ITagScanService : ISkeletonService
+{
+    Task<TagScanPageResponse> ResolveAsync(
+        string tagCode,
+        TagScanContext context,
+        CancellationToken cancellationToken = default);
+
+    Task SubmitLocationConsentAsync(
+        string tagCode,
+        SubmitScanLocationConsentRequest request,
+        CancellationToken cancellationToken = default);
+}
+
+public interface ISmartTagService : ISkeletonService
+{
+    Task<(IReadOnlyCollection<SmartTagResponse> Items, int Total)> ListAsync(
+        Guid? currentUserId,
+        int page,
+        int pageSize,
+        Guid? petId,
+        string? status,
+        string? type,
+        CancellationToken cancellationToken = default);
+
+    Task<(IReadOnlyCollection<SmartTagResponse> Items, int Total)> ListForPetAsync(
+        Guid? currentUserId,
+        Guid petId,
+        int page,
+        int pageSize,
+        string? status,
+        string? type,
+        CancellationToken cancellationToken = default);
+
+    Task<SmartTagResponse> GetAsync(
+        Guid? currentUserId,
+        Guid tagId,
+        CancellationToken cancellationToken = default);
+
+    Task<SmartTagResponse> ActivateAsync(
+        Guid? currentUserId,
+        string tagCode,
+        ActivateTagRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<SmartTagResponse> MarkLostAsync(
+        Guid? currentUserId,
+        Guid tagId,
+        CancellationToken cancellationToken = default);
+
+    Task<SmartTagResponse> DisableAsync(
+        Guid? currentUserId,
+        Guid tagId,
+        CancellationToken cancellationToken = default);
+
+    Task<SmartTagResponse> ArchiveAsync(
+        Guid? currentUserId,
+        Guid tagId,
+        CancellationToken cancellationToken = default);
+
+    Task<SmartTagResponse> RestoreAsync(
+        Guid? currentUserId,
+        Guid tagId,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IOrderService : ISkeletonService
+{
+    Task<(IReadOnlyCollection<TagOrderResponse> Items, int Total)> ListAsync(
+        Guid? currentUserId,
+        int page,
+        int pageSize,
+        string? status,
+        string? paymentStatus,
+        Guid? petId,
+        CancellationToken cancellationToken = default);
+
+    Task<TagOrderResponse> GetAsync(
+        Guid? currentUserId,
+        string orderKey,
+        CancellationToken cancellationToken = default);
+
+    Task<CreateTagOrderResponse> CreateAsync(
+        Guid? currentUserId,
+        CreateTagOrderRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<TagOrderResponse> SubmitPaymentProofAsync(
+        Guid? currentUserId,
+        string orderKey,
+        UploadPaymentProofRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<TagOrderResponse> CancelAsync(
+        Guid? currentUserId,
+        string orderKey,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IPaymentProofService : ISkeletonService
+{
+    Task<PaymentProofResponse> GetAsync(
+        Guid? currentUserId,
+        Guid paymentProofId,
+        CancellationToken cancellationToken = default);
+}
 public interface IAdminService : ISkeletonService;
+
+public sealed record TagScanContext(
+    string? IpAddress,
+    string? UserAgent,
+    string? Referer);
 
 public interface IAuditLogService : ISkeletonService
 {

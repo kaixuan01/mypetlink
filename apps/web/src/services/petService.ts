@@ -584,7 +584,7 @@ function mapBackendPublicProfile(profile: BackendPublicPetProfile): PublicPetPro
   );
 }
 
-function mapBackendSafetyPage(page: BackendPublicSafetyPage): PublicPetProfile {
+export function mapBackendSafetyPage(page: BackendPublicSafetyPage): PublicPetProfile {
   const species = normalizeBackendSpecies(page.species);
   const safetyPath = qrSafetyPath(page.safetyCode);
   const slug = slugifyPetSlug(page.name) || "pet";

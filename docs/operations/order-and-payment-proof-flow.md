@@ -43,7 +43,9 @@ Important:
 
 ## Payment Proof Storage
 
-Payment proof upload must use the reusable media system and provider-neutral file metadata.
+Current owner slice: payment proof submission stores metadata only. The frontend captures the selected filename, optional payment reference, and optional owner note; the backend creates a metadata-only `MediaFiles` row plus a `PaymentProofs` row. It does not upload or store actual file bytes, base64 payloads, or local uploaded files yet.
+
+Future real upload/storage must use the reusable media system and provider-neutral file metadata.
 
 Required file metadata:
 
@@ -71,6 +73,7 @@ Rules:
 - Admin preview/download should use controlled URLs or signed URLs.
 - Keep rejected proof history.
 - Uploading proof never confirms payment automatically.
+- Until real storage is implemented, `StorageProvider = MetadataOnly` means the proof is an owner-submitted metadata placeholder, not a retrievable file.
 
 ## Order Statuses
 
@@ -119,14 +122,15 @@ Trigger:
 
 Required current state:
 
-- order `PendingPayment`
-- payment `Pending` or `Rejected`
+- order `PendingPayment` or `PaymentProofSubmitted`
+- payment `Pending`, `ProofSubmitted`, or `Rejected`
 
 Result:
 
 - order `PaymentProofSubmitted`
 - payment `ProofSubmitted`
 - new proof `PendingReview`
+- prior pending proof metadata is marked `Superseded`
 
 Owner portal shows:
 
@@ -273,10 +277,13 @@ Result:
 
 ## Cancellation Rules
 
-Allowed before shipping:
+Current owner API allows cancellation only while:
 
 - `PendingPayment`
 - `PaymentProofSubmitted`
+
+Future admin cancellation may additionally allow:
+
 - `PaymentConfirmed`
 - `PreparingTag`
 
@@ -290,7 +297,7 @@ Result:
 - order `Cancelled`
 - linked unactivated tag archived
 - order history remains visible
-- audit log written
+- audit log written when audit integration is enabled for this mutation
 
 ## Invalid Transitions
 

@@ -14,7 +14,10 @@ import {
   tagScanPageTitle,
 } from "@/lib/pageTitles";
 import { activatePath } from "@/lib/routes";
-import { getFinderState } from "@/services/tagService";
+import {
+  getFinderState,
+  getFriendlyTagErrorMessage,
+} from "@/services/tagService";
 import type { FinderResult } from "@/types";
 
 type TagFinderViewProps = {
@@ -30,16 +33,25 @@ type TagFinderViewProps = {
 export function TagFinderView({ initialResult, tagCode }: TagFinderViewProps) {
   const [result, setResult] = useState(initialResult);
   const [loaded, setLoaded] = useState(initialResult.state !== "not-found");
+  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
     let active = true;
 
-    getFinderState(tagCode).then((next) => {
-      if (active) {
-        setResult(next);
-        setLoaded(true);
-      }
-    });
+    getFinderState(tagCode)
+      .then((next) => {
+        if (active) {
+          setResult(next);
+          setLoadError("");
+          setLoaded(true);
+        }
+      })
+      .catch((caught) => {
+        if (active) {
+          setLoadError(getFriendlyTagErrorMessage(caught));
+          setLoaded(true);
+        }
+      });
 
     return () => {
       active = false;
@@ -59,6 +71,20 @@ export function TagFinderView({ initialResult, tagCode }: TagFinderViewProps) {
           tagCode={tagCode}
           title="Loading tag"
           tone="teal"
+        />
+      </FinderShell>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <FinderShell>
+        <FinderCard
+          description={loadError}
+          icon="shield"
+          tagCode={tagCode}
+          title="Tag status unavailable"
+          tone="soft"
         />
       </FinderShell>
     );

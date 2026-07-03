@@ -1,6 +1,6 @@
 # Smart Tag Lifecycle
 
-This document defines Phase 1 smart tag lifecycle rules for backend planning.
+This document defines Phase 1 smart tag lifecycle rules. The owner Smart Tags + Orders backend slice is implemented; admin inventory, payment review, fulfillment, manufacturer CSV export, and real file storage remain planned later.
 
 ## Core Rules
 
@@ -83,11 +83,11 @@ Phase 1 keeps pending-family tag statuses because the completed frontend/Admin M
    - tag `Pending`
    - tag linked to `OwnerUserId`, `PetId`, and `OrderId`
 4. Owner submits payment proof.
-5. Admin confirms payment.
-6. Admin marks order preparing.
+5. Admin confirms payment later (admin API planned).
+6. Admin marks order preparing later.
 7. Linked tag becomes `Preparing`.
-8. Admin marks order shipped.
-9. Admin marks order delivered.
+8. Admin marks order shipped later.
+9. Admin marks order delivered later.
 10. Linked tag becomes `Delivered`.
 11. Owner activates delivered tag.
 12. Tag becomes `Active`.
@@ -156,7 +156,7 @@ Behavior:
 Behavior:
 
 - owner can activate from `/activate/:tagCode`
-- public scan can show activation-ready or pending-safe state
+- public scan shows a pending-safe/not-active-yet state
 - no owner contact until activated
 
 ### `Active`
@@ -258,8 +258,8 @@ Owner can:
 - view tag list
 - view tag scan page/status
 - activate unclaimed or delivered tag
-- mark active tag lost
-- disable active tag
+- mark active or delivered tag lost
+- disable active or delivered tag
 - request replacement
 - archive inactive tag from main list
 - restore archived tag to list
@@ -270,6 +270,8 @@ Rules:
 - Owner must own linked tag or linked pet.
 - Marking tag lost affects only physical tag status.
 - Marking tag lost does not enable pet Lost Mode.
+- Portal order creation creates a pending linked tag immediately; owner cannot mark payment confirmed, preparing, shipped, or delivered.
+- Owner replacement ordering stores `replacementForTagId`; final replacement-status mutation is part of the later admin/ops flow.
 
 ## Admin Actions
 

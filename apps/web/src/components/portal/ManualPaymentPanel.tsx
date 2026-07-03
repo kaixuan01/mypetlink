@@ -5,7 +5,10 @@ import { Badge } from "@/components/ui/Badge";
 import { Icon } from "@/components/ui/Icon";
 import { paymentConfig } from "@/config/payment";
 import { formatDeliverySummary, formatOrderNumber } from "@/lib/orders";
-import { submitOrderPayment } from "@/services/tagService";
+import {
+  getFriendlyTagErrorMessage,
+  submitOrderPayment,
+} from "@/services/tagService";
 import type { TagOrder } from "@/types";
 
 type ManualPaymentPanelProps = {
@@ -54,15 +57,21 @@ export function ManualPaymentPanel({
 
     setError("");
     setIsSubmitting(true);
-    const response = await submitOrderPayment(order.id, {
-      paymentReference: transactionReference,
-      paymentNote,
-      paymentProofName: proofName,
-    });
-    setIsSubmitting(false);
 
-    if (response.data.order) {
-      onSubmitted(response.data.order);
+    try {
+      const response = await submitOrderPayment(order.id, {
+        paymentReference: transactionReference,
+        paymentNote,
+        paymentProofName: proofName,
+      });
+
+      if (response.data.order) {
+        onSubmitted(response.data.order);
+      }
+    } catch (caught) {
+      setError(getFriendlyTagErrorMessage(caught));
+    } finally {
+      setIsSubmitting(false);
     }
   }
 

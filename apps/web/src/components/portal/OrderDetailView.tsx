@@ -23,7 +23,13 @@ import {
   setPageTitle,
 } from "@/lib/pageTitles";
 import { ownerRoutes } from "@/lib/routes";
-import { getAllTags, getOrder } from "@/services/tagService";
+import { isApiConfigured } from "@/services/apiConfig";
+import { getPets } from "@/services/petService";
+import {
+  getAllTags,
+  getFriendlyTagErrorMessage,
+  getOrder,
+} from "@/services/tagService";
 import type { OrderStatus, Pet, PetTag, TagOrder } from "@/types";
 
 type OrderDetailViewProps = {
@@ -57,14 +63,17 @@ export function OrderDetailView({
   pets,
   initialTags,
 }: OrderDetailViewProps) {
+  const apiMode = isApiConfigured();
   const [order, setOrder] = useState(initialOrder);
-  const [tags, setTags] = useState(initialTags);
+  const [portalPets, setPortalPets] = useState<Pet[]>(apiMode ? [] : pets);
+  const [tags, setTags] = useState<PetTag[]>(apiMode ? [] : initialTags);
   const [loaded, setLoaded] = useState(Boolean(initialOrder));
   const [downloadMessage, setDownloadMessage] = useState("");
   const [paymentMessage, setPaymentMessage] = useState("");
+  const [loadError, setLoadError] = useState("");
   const petMap = useMemo(
-    () => new Map(pets.map((pet) => [pet.id, pet])),
-    [pets]
+    () => new Map(portalPets.map((pet) => [pet.id, pet])),
+    [portalPets]
   );
   const tagMap = useMemo(
     () => new Map(tags.map((tag) => [tag.id, tag])),
@@ -74,15 +83,31 @@ export function OrderDetailView({
   useEffect(() => {
     let active = true;
 
-    Promise.all([getOrder(orderKey), getAllTags()]).then(
-      ([orderResponse, tagResponse]) => {
+    async function loadOrder() {
+      setLoadError("");
+
+      try {
+        const [orderResponse, tagResponse, petsResponse] = await Promise.all([
+          getOrder(orderKey),
+          getAllTags(),
+          getPets(),
+        ]);
+
         if (active) {
           setOrder(orderResponse.data);
           setTags(tagResponse.data);
+          setPortalPets(petsResponse.data);
+          setLoaded(true);
+        }
+      } catch (caught) {
+        if (active) {
+          setLoadError(getFriendlyTagErrorMessage(caught));
           setLoaded(true);
         }
       }
-    );
+    }
+
+    void loadOrder();
 
     return () => {
       active = false;
@@ -110,8 +135,11 @@ export function OrderDetailView({
     return (
       <EmptyState
         icon="record"
-        title="Order not found"
-        description="We could not find this order in your owner workspace. It may have been removed or the link is incorrect."
+        title={loadError ? "Order could not load" : "Order not found"}
+        description={
+          loadError ||
+          "We could not find this order in your owner workspace. It may have been removed or the link is incorrect."
+        }
         actionHref={ownerRoutes.orders}
         actionLabel="Back to Orders"
       />
@@ -121,7 +149,7 @@ export function OrderDetailView({
   const pet = petMap.get(order.petId);
   const linkedTag = order.tagId ? tagMap.get(order.tagId) : undefined;
   const orderNumber = formatOrderNumber(order);
-  const petName = pet?.name ?? "Pet profile";
+  const petName = pet?.name ?? order.petName ?? "Pet profile";
   const receiptReady = canDownloadPaymentReceipt(order);
   const replacementReady = canRequestReplacement(order, linkedTag);
   const timelineSteps = buildTimeline(order);
@@ -161,6 +189,12 @@ export function OrderDetailView({
 
   return (
     <div className="grid gap-5">
+      {loadError ? (
+        <div className="rounded-[1.25rem] border border-[#ffd2c9] bg-[#fff4f1] px-4 py-3 text-sm font-bold text-[#a63c2e]">
+          {loadError}
+        </div>
+      ) : null}
+
       {downloadMessage ? (
         <div className="rounded-[1.25rem] border border-pet-mint bg-[#e8f8f0] px-4 py-3 text-sm font-bold text-pet-sage">
           {downloadMessage}

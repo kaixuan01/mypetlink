@@ -320,6 +320,7 @@ export type TagOrder = {
   id: string;
   orderNumber?: string;
   petId: string;
+  petName?: string;
   tagType: TagType;
   shape: TagShape;
   delivery: DeliveryDetails;

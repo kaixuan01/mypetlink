@@ -34,12 +34,14 @@ import { getPets } from "@/services/petService";
 import {
   archiveTag,
   disableTag,
+  getFriendlyTagErrorMessage,
   getAllTags,
   getOrders,
   getPetTags,
   reportTagLost,
   restoreTag,
 } from "@/services/tagService";
+import { isApiConfigured } from "@/services/apiConfig";
 import type { Pet, PetTag, TagOrder, TagStatus } from "@/types";
 
 type TagManagementPanelProps = {
@@ -76,10 +78,16 @@ export function TagManagementPanel({
   petId,
 }: TagManagementPanelProps) {
   const router = useRouter();
-  const [pets, setPets] = useState(initialPets);
-  const [tags, setTags] = useState(initialTags);
-  const [orders, setOrders] = useState(initialOrders);
+  const apiMode = isApiConfigured();
+  const [pets, setPets] = useState(apiMode ? [] : initialPets);
+  const [tags, setTags] = useState<PetTag[]>(apiMode ? [] : initialTags);
+  const [orders, setOrders] = useState<TagOrder[]>(
+    apiMode ? [] : initialOrders
+  );
   const [filter, setFilter] = useState<TagFilter>("active");
+  const [loading, setLoading] = useState(apiMode);
+  const [loadError, setLoadError] = useState("");
+  const [actionError, setActionError] = useState("");
   // "" means "All pets". On a pet-scoped route (petId set) we default to that
   // pet; changing the selector there navigates instead of cross-filtering.
   const [selectedPetId, setSelectedPetId] = useState(petId ?? "");
@@ -145,17 +153,36 @@ export function TagManagementPanel({
 
   useEffect(() => {
     let active = true;
-    const tagRequest = petId ? getPetTags(petId) : getAllTags();
 
-    Promise.all([tagRequest, getOrders(), getPets()]).then(
-      ([tagResponse, orderResponse, petsResponse]) => {
+    async function loadTags() {
+      setLoading(true);
+      setLoadError("");
+
+      try {
+        const tagRequest = petId ? getPetTags(petId) : getAllTags();
+        const [tagResponse, orderResponse, petsResponse] = await Promise.all([
+          tagRequest,
+          getOrders(),
+          getPets(),
+        ]);
+
         if (active) {
           setTags(tagResponse.data);
           setOrders(orderResponse.data);
           setPets(petsResponse.data);
         }
+      } catch (caught) {
+        if (active) {
+          setLoadError(getFriendlyTagErrorMessage(caught));
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
       }
-    );
+    }
+
+    void loadTags();
 
     return () => {
       active = false;
@@ -167,13 +194,18 @@ export function TagManagementPanel({
       return;
     }
 
-    const response = await disableTag(disableTagTarget.id);
+    try {
+      setActionError("");
+      const response = await disableTag(disableTagTarget.id);
 
-    if (response.data) {
-      replaceTag(response.data);
+      if (response.data) {
+        replaceTag(response.data);
+      }
+    } catch (caught) {
+      setActionError(getFriendlyTagErrorMessage(caught));
+    } finally {
+      setDisableTagTarget(null);
     }
-
-    setDisableTagTarget(null);
   }
 
   async function handleReportLost() {
@@ -181,14 +213,19 @@ export function TagManagementPanel({
       return;
     }
 
-    const response = await reportTagLost(lostTag.id);
+    try {
+      setActionError("");
+      const response = await reportTagLost(lostTag.id);
 
-    if (response.data) {
-      replaceTag(response.data);
-      setFilter("inactive");
+      if (response.data) {
+        replaceTag(response.data);
+        setFilter("inactive");
+      }
+    } catch (caught) {
+      setActionError(getFriendlyTagErrorMessage(caught));
+    } finally {
+      setLostTag(null);
     }
-
-    setLostTag(null);
   }
 
   async function handleArchive() {
@@ -196,30 +233,60 @@ export function TagManagementPanel({
       return;
     }
 
-    const response = await archiveTag(archiveTagTarget.id);
+    try {
+      setActionError("");
+      const response = await archiveTag(archiveTagTarget.id);
 
-    if (response.data) {
-      replaceTag(response.data);
-      setFilter("archived");
+      if (response.data) {
+        replaceTag(response.data);
+        setFilter("archived");
+      }
+    } catch (caught) {
+      setActionError(getFriendlyTagErrorMessage(caught));
+    } finally {
+      setArchiveTagTarget(null);
     }
-
-    setArchiveTagTarget(null);
   }
 
   async function handleRestore(tag: PetTag) {
-    const response = await restoreTag(tag.id);
+    try {
+      setActionError("");
+      const response = await restoreTag(tag.id);
 
-    if (response.data) {
-      replaceTag(response.data);
-      setFilter(
-        inactiveTagStatuses.includes(response.data.status) ? "inactive" : "active"
-      );
+      if (response.data) {
+        replaceTag(response.data);
+        setFilter(
+          inactiveTagStatuses.includes(response.data.status) ? "inactive" : "active"
+        );
+      }
+    } catch (caught) {
+      setActionError(getFriendlyTagErrorMessage(caught));
     }
   }
 
   function replaceTag(updatedTag: PetTag) {
     setTags((current) =>
       current.map((tag) => (tag.id === updatedTag.id ? updatedTag : tag))
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="brand-card rounded-[1.75rem] p-6 text-sm font-semibold text-pet-muted">
+        Loading Smart Tags...
+      </div>
+    );
+  }
+
+  if (loadError && !tags.length) {
+    return (
+      <EmptyState
+        icon="tag"
+        title="Smart Tags could not load"
+        description={loadError}
+        actionHref={ownerRoutes.dashboard}
+        actionLabel="Back to Dashboard"
+      />
     );
   }
 
@@ -237,6 +304,18 @@ export function TagManagementPanel({
 
   return (
     <>
+      {actionError ? (
+        <div className="mb-4 rounded-[1.25rem] border border-[#ffd2c9] bg-[#fff4f1] px-4 py-3 text-sm font-bold text-[#a63c2e]">
+          {actionError}
+        </div>
+      ) : null}
+
+      {loadError ? (
+        <div className="mb-4 rounded-[1.25rem] border border-[#ffd2c9] bg-[#fff4f1] px-4 py-3 text-sm font-bold text-[#a63c2e]">
+          {loadError}
+        </div>
+      ) : null}
+
       <div className="mb-4 flex flex-col gap-3 rounded-[1.5rem] border border-pet-border bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
           {pets.length > 1 ? (

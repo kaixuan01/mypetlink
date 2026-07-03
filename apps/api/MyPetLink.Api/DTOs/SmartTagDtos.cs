@@ -10,8 +10,16 @@ public sealed record SmartTagResponse(
     Guid? PetId,
     Guid? OwnerUserId,
     Guid? OrderId,
+    string? OrderNumber,
+    string? PetName,
+    string? BatchNo,
     bool HasNfc,
     string Shape,
     SmartTagStatus Status,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt,
     DateTimeOffset? ActivatedAt,
-    DateTimeOffset? LastScannedAt);
+    DateTimeOffset? DeliveredAt,
+    DateTimeOffset? LastScannedAt,
+    Guid? ReplacementForTagId,
+    DateTimeOffset? ArchivedAt);

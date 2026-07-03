@@ -142,6 +142,33 @@ DELETE /api/v1/memories/{memoryId}
 
 Memories require owner authentication. Owners can only access memories for pets they own. Active, Memorial, and Archived pets remain readable; new memories are blocked for Archived pets. Free plan memory creation uses `PlanLimits.MaxMemoriesPerPet` and returns `plan_limit_reached` when the active memory limit is reached. Deletes are soft archives. Public profile projections include only `Public` memories marked for the Memories gallery or Life Timeline; `Private` and `FamilyOnly` memories stay owner-only. Real photo/video upload storage is not implemented yet, so clients must not send media attachment ids in Phase B local development.
 
+Implemented owner Smart Tags endpoints:
+
+```txt
+GET /api/v1/tags
+GET /api/v1/pets/{petId}/tags
+GET /api/v1/tags/{tagId}
+POST /api/v1/tags/{tagCode}/activate
+POST /api/v1/tags/{tagId}/mark-lost
+POST /api/v1/tags/{tagId}/disable
+POST /api/v1/tags/{tagId}/archive
+POST /api/v1/tags/{tagId}/restore
+GET /api/v1/public/tags/{tagCode}
+```
+
+Implemented owner Orders endpoints:
+
+```txt
+GET /api/v1/orders
+GET /api/v1/orders/{orderNumber-or-id}
+POST /api/v1/orders
+POST /api/v1/orders/{orderNumber-or-id}/payment-proof
+POST /api/v1/orders/{orderNumber-or-id}/cancel
+GET /api/v1/payment-proofs/{paymentProofId}
+```
+
+Owner tag orders require an active owned pet. The server calculates amounts (`QrPetTag` RM19.90, `QrNfcSmartTag` RM39.90), creates a linked `SmartTags` row in `Pending` status, and sets the order to `PendingPayment`. Payment proof submission stores metadata only (`fileName`, payment reference/method, owner note, and metadata-only `MediaFiles`/`PaymentProofs` rows); real file upload/storage, payment gateway integration, admin payment confirmation, shipping integration, and admin order/tag APIs are not implemented yet. Public `/api/v1/public/tags/{tagCode}` returns safety content only for active tags linked to active pets; pending, lost, disabled, replaced, archived, Memorial-linked, and Archived-linked tags never expose owner contact.
+
 Pet creation generates a public share slug/code and a separate pet-level QR Safety code. The QR Safety Page does not require a physical tag. Free plan creation is limited by the configured `PlanLimits.MaxPets` active-pet count; existing pets remain readable even if the owner is over the limit.
 
 Public profile responses are privacy-gated server-side and do not expose owner account email, private care records, private memories, internal ids, or address data. QR Safety responses expose only finder-friendly fields allowed by the pet safety settings. Memorial safety pages return an inactive memorial response without normal finder contact actions; archived pets return unavailable/not found responses.
@@ -202,6 +229,7 @@ dotnet ef database update --project apps/api/MyPetLink.Api --startup-project app
 - Phase A2: owner profile read/update, owner-scoped pet CRUD and lifecycle endpoints, privacy-gated public profile reads, and pet-level QR Safety reads.
 - Backend-connected Records slice: owner-scoped care record list/create/read/update/archive with validation and public-profile projection support.
 - Backend-connected Memories slice: owner-scoped memory list/create/read/update/archive, public/private visibility projection, and configurable Free plan memory limit enforcement.
+- Backend-connected Smart Tags + Orders owner slice: owner tag/order list/detail/create/action endpoints, physical tag public scan endpoint, server-calculated one-time tag pricing, and metadata-only payment proof submission.
 - Audit log service placeholder for admin mutations.
 - Local file storage provider abstraction for development only.
-- No payment gateway, Premium subscription, GPS tracking, outbound notifications, or real upload workflow yet.
+- No payment gateway, Premium subscription, GPS tracking, outbound notifications, admin order fulfillment APIs, or real upload workflow yet.

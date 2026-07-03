@@ -20,8 +20,23 @@ import {
   readStoredCollection,
   writeStoredCollection,
 } from "@/services/mockApi";
-import { getPets, toPublicProfile } from "@/services/petService";
+import { apiRequest, isApiClientError } from "@/services/apiClient";
+import { canUseApi } from "@/services/apiConfig";
+import { readStoredAuthSession } from "@/services/authStorage";
+import {
+  getFriendlyApiErrorMessage,
+  getPets,
+  mapBackendSafetyPage,
+  toPublicProfile,
+} from "@/services/petService";
 import type {
+  BackendCreateTagOrderResult,
+  BackendSmartTag,
+  BackendTagOrder,
+  BackendTagScanPage,
+} from "@/services/apiDtos";
+import type {
+  ApiResponse,
   FinderResult,
   OrderStatus,
   PetTag,
@@ -34,6 +49,203 @@ import type {
 
 const TAG_STORAGE_KEY = "mypetlink_tags";
 const ORDER_STORAGE_KEY = "mypetlink_orders";
+
+type BackendListEnvelope<T> = {
+  data?: T;
+  meta?: {
+    requestId?: string;
+    page?: number | null;
+    pageSize?: number | null;
+    total?: number | null;
+  };
+};
+
+function canUseOwnerTagApi() {
+  return canUseApi() && Boolean(readStoredAuthSession()?.accessToken);
+}
+
+function apiResponse<T>(
+  envelope: BackendListEnvelope<T>,
+  fallbackData: T
+): ApiResponse<T> {
+  return {
+    data: envelope.data ?? fallbackData,
+    meta: {
+      requestId: envelope.meta?.requestId ?? `api_${Date.now()}`,
+      source: "api",
+      page: envelope.meta?.page ?? undefined,
+      pageSize: envelope.meta?.pageSize ?? undefined,
+      total: envelope.meta?.total ?? undefined,
+    },
+  };
+}
+
+function apiNullResponse<T>(): ApiResponse<T | null> {
+  return {
+    data: null,
+    meta: {
+      requestId: `api_${Date.now()}`,
+      source: "api",
+    },
+  };
+}
+
+export function getFriendlyTagErrorMessage(error: unknown) {
+  return getFriendlyApiErrorMessage(error);
+}
+
+function mapBackendTag(tag: BackendSmartTag): PetTag {
+  return normalizeTag({
+    id: tag.id,
+    tagCode: tag.tagCode,
+    petId: tag.petId ?? undefined,
+    ownerUserId: tag.ownerUserId ?? undefined,
+    hasNfc: tag.hasNfc,
+    shape: toTagShape(tag.shape),
+    status: fromBackendTagStatus(tag.status),
+    batchNo: tag.batchNo ?? undefined,
+    orderedDate: formatDisplayDate(tag.createdAt),
+    deliveredDate: formatDisplayDate(tag.deliveredAt),
+    lastScannedAt: formatDisplayDateTime(tag.lastScannedAt),
+    activatedAt: formatDisplayDate(tag.activatedAt),
+    replacementForTagId: tag.replacementForTagId ?? undefined,
+    isArchived: Boolean(tag.archivedAt || tag.status === "Archived"),
+  });
+}
+
+function mapBackendOrder(order: BackendTagOrder): TagOrder {
+  const latestProof = order.paymentProofs?.[0];
+
+  return normalizeOrder({
+    id: order.id,
+    orderNumber: order.orderNumber,
+    petId: order.petId,
+    petName: order.petName ?? undefined,
+    tagType: fromBackendTagType(order.tagType),
+    shape: toTagShape(order.shape),
+    delivery: {
+      recipientName: order.delivery.recipientName,
+      phone: order.delivery.phoneE164,
+      addressLine1: order.delivery.addressLine1,
+      addressLine2: order.delivery.addressLine2 ?? "",
+      postcode: order.delivery.postcode,
+      city: order.delivery.city,
+      state: order.delivery.state,
+      notes: order.delivery.notes ?? "",
+    },
+    estimatedPrice: formatAmount(order.amount, order.currency),
+    status: fromBackendOrderStatus(order.status),
+    orderedDate: formatDisplayDate(order.createdAt) ?? formatToday(),
+    tagId: order.smartTagId ?? undefined,
+    replacementForTagId: order.replacementForTagId ?? undefined,
+    paymentMethod: order.paymentMethod ?? latestProof?.paymentMethod ?? "QR Payment",
+    paymentReference:
+      order.paymentReference ?? latestProof?.paymentReference ?? undefined,
+    paymentNote: order.paymentNote ?? latestProof?.ownerNote ?? undefined,
+    paymentProofName:
+      order.paymentProofName ?? latestProof?.originalFileName ?? undefined,
+    paymentSubmittedDate: formatDisplayDate(
+      order.paymentSubmittedAt ?? latestProof?.uploadedAt
+    ),
+    paymentConfirmedDate: formatDisplayDate(order.paymentConfirmedAt),
+    paymentRejectionReason:
+      order.paymentRejectionReason ?? latestProof?.rejectionReason ?? undefined,
+    trackingStatus: order.trackingStatus ?? undefined,
+    trackingNumber: order.trackingNumber ?? undefined,
+    shippedDate: formatDisplayDate(order.shippedAt),
+    deliveredDate: formatDisplayDate(order.deliveredAt),
+  });
+}
+
+function fromBackendTagType(tagType: string): TagType {
+  return tagType === "QrNfcSmartTag"
+    ? "MyPetLink QR + NFC Smart Tag"
+    : "MyPetLink QR Pet Tag";
+}
+
+function toBackendTagType(tagType: TagType) {
+  return tagType === "MyPetLink QR + NFC Smart Tag"
+    ? "QrNfcSmartTag"
+    : "QrPetTag";
+}
+
+function fromBackendOrderStatus(status: string): OrderStatus {
+  switch (status) {
+    case "PendingPayment":
+      return "Pending Payment";
+    case "PaymentProofSubmitted":
+      return "Payment Submitted";
+    case "PaymentConfirmed":
+      return "Payment Confirmed";
+    case "PreparingTag":
+      return "Preparing";
+    case "Shipped":
+    case "Delivered":
+    case "Cancelled":
+      return status;
+    default:
+      return "Pending Payment";
+  }
+}
+
+function fromBackendTagStatus(status: string): TagStatus {
+  return status === "Unclaimed" ? "Unassigned" : toTagStatus(status);
+}
+
+function toTagStatus(value: string): TagStatus {
+  const supported: TagStatus[] = [
+    "Unassigned",
+    "Pending",
+    "Preparing",
+    "Delivered",
+    "Active",
+    "Disabled",
+    "Lost",
+    "Replaced",
+    "Archived",
+  ];
+
+  return supported.includes(value as TagStatus)
+    ? (value as TagStatus)
+    : "Disabled";
+}
+
+function toTagShape(value: string): TagShape {
+  const supported: TagShape[] = ["Round", "Bone", "Rounded Square", "Paw"];
+
+  return supported.includes(value as TagShape) ? (value as TagShape) : "Round";
+}
+
+function formatAmount(amount: number, currency: string) {
+  const prefix = currency === "MYR" ? "RM" : `${currency} `;
+  return `${prefix}${amount.toFixed(2)}`;
+}
+
+function formatDisplayDate(value?: string | null) {
+  if (!value) {
+    return undefined;
+  }
+
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(value));
+}
+
+function formatDisplayDateTime(value?: string | null) {
+  if (!value) {
+    return undefined;
+  }
+
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
 
 function normalizeTag(tag: PetTag): PetTag {
   return {
@@ -84,6 +296,15 @@ export function getEstimatedTagPrice(tagType: TagType) {
 }
 
 export async function getPetTags(petId: string) {
+  if (canUseOwnerTagApi()) {
+    const response = await apiRequest<BackendSmartTag[]>(
+      `/api/v1/pets/${encodeURIComponent(petId)}/tags?page=1&pageSize=100`
+    );
+    const tags = (response.data ?? []).map(mapBackendTag);
+
+    return apiResponse({ data: tags, meta: response.meta }, []);
+  }
+
   await mockDelay();
   const tags = getTagCollection().filter((tag) => tag.petId === petId);
 
@@ -101,6 +322,26 @@ export async function isPetInLostMode(petId: string) {
 }
 
 export async function getAllTags() {
+  if (canUseOwnerTagApi()) {
+    const response = await apiRequest<BackendSmartTag[]>(
+      "/api/v1/tags?page=1&pageSize=100"
+    );
+    const tags = (response.data ?? []).map(mapBackendTag);
+
+    return apiResponse({ data: tags, meta: response.meta }, []);
+  }
+
+  await mockDelay();
+  const tags = getTagCollection();
+
+  return mockResponse(tags, {
+    page: 1,
+    pageSize: tags.length,
+    total: tags.length,
+  });
+}
+
+export async function getStoredTagsForAdmin() {
   await mockDelay();
   const tags = getTagCollection();
 
@@ -112,6 +353,26 @@ export async function getAllTags() {
 }
 
 export async function getOrders() {
+  if (canUseOwnerTagApi()) {
+    const response = await apiRequest<BackendTagOrder[]>(
+      "/api/v1/orders?page=1&pageSize=100"
+    );
+    const orders = (response.data ?? []).map(mapBackendOrder);
+
+    return apiResponse({ data: orders, meta: response.meta }, []);
+  }
+
+  await mockDelay();
+  const orders = getOrderCollection();
+
+  return mockResponse(orders, {
+    page: 1,
+    pageSize: orders.length,
+    total: orders.length,
+  });
+}
+
+export async function getStoredOrdersForAdmin() {
   await mockDelay();
   const orders = getOrderCollection();
 
@@ -123,6 +384,28 @@ export async function getOrders() {
 }
 
 export async function getOrder(orderKey: string) {
+  if (canUseOwnerTagApi()) {
+    try {
+      const response = await apiRequest<BackendTagOrder>(
+        `/api/v1/orders/${encodeURIComponent(orderKey)}`
+      );
+
+      return apiResponse(
+        {
+          data: response.data ? mapBackendOrder(response.data) : null,
+          meta: response.meta,
+        },
+        null
+      );
+    } catch (error) {
+      if (isApiClientError(error) && [403, 404].includes(error.status)) {
+        return apiNullResponse<TagOrder>();
+      }
+
+      throw error;
+    }
+  }
+
   await mockDelay();
   const normalized = decodeURIComponent(orderKey).trim().toLowerCase();
   const order =
@@ -136,6 +419,41 @@ export async function getOrder(orderKey: string) {
 }
 
 export async function createTagOrder(payload: TagOrderPayload) {
+  if (canUseOwnerTagApi()) {
+    const response = await apiRequest<BackendCreateTagOrderResult>(
+      "/api/v1/orders",
+      {
+        method: "POST",
+        body: {
+          petId: payload.petId,
+          tagType: toBackendTagType(payload.tagType),
+          shape: payload.shape,
+          delivery: {
+            recipientName: payload.delivery.recipientName,
+            phoneE164: payload.delivery.phone,
+            addressLine1: payload.delivery.addressLine1,
+            addressLine2: payload.delivery.addressLine2 || null,
+            postcode: payload.delivery.postcode,
+            city: payload.delivery.city,
+            state: payload.delivery.state,
+            notes: payload.delivery.notes || null,
+          },
+          replacementForTagId: payload.replacementForTagId,
+        },
+      }
+    );
+    if (!response.data) {
+      throw new Error("Tag order was not created.");
+    }
+
+    const mapped = {
+      order: mapBackendOrder(response.data.order),
+      tag: mapBackendTag(response.data.tag),
+    };
+
+    return apiResponse({ data: mapped, meta: response.meta }, mapped);
+  }
+
   await mockDelay();
   const tags = getTagCollection();
   const orders = getOrderCollection();
@@ -198,6 +516,24 @@ export async function submitOrderPayment(
   orderId: string,
   proof: OrderPaymentProof
 ) {
+  if (canUseOwnerTagApi()) {
+    const response = await apiRequest<BackendTagOrder>(
+      `/api/v1/orders/${encodeURIComponent(orderId)}/payment-proof`,
+      {
+        method: "POST",
+        body: {
+          fileName: proof.paymentProofName,
+          paymentMethod: "QR Payment",
+          paymentReference: proof.paymentReference,
+          ownerNote: proof.paymentNote,
+        },
+      }
+    );
+    const order = response.data ? mapBackendOrder(response.data) : null;
+
+    return apiResponse({ data: { order }, meta: response.meta }, { order });
+  }
+
   await mockDelay();
   const orders = getOrderCollection();
   const existing = orders.find((order) => order.id === orderId);
@@ -223,11 +559,41 @@ export async function submitOrderPayment(
 }
 
 export async function disableTag(tagId: string) {
+  if (canUseOwnerTagApi()) {
+    const response = await apiRequest<BackendSmartTag>(
+      `/api/v1/tags/${encodeURIComponent(tagId)}/disable`,
+      { method: "POST" }
+    );
+
+    return apiResponse(
+      {
+        data: response.data ? mapBackendTag(response.data) : null,
+        meta: response.meta,
+      },
+      null
+    );
+  }
+
   await mockDelay();
   return updateTagStatus(tagId, "Disabled");
 }
 
 export async function reportTagLost(tagId: string) {
+  if (canUseOwnerTagApi()) {
+    const response = await apiRequest<BackendSmartTag>(
+      `/api/v1/tags/${encodeURIComponent(tagId)}/mark-lost`,
+      { method: "POST" }
+    );
+
+    return apiResponse(
+      {
+        data: response.data ? mapBackendTag(response.data) : null,
+        meta: response.meta,
+      },
+      null
+    );
+  }
+
   await mockDelay();
   return updateTagStatus(tagId, "Lost");
 }
@@ -238,11 +604,41 @@ export async function orderReplacementTag(tagId: string) {
 }
 
 export async function archiveTag(tagId: string) {
+  if (canUseOwnerTagApi()) {
+    const response = await apiRequest<BackendSmartTag>(
+      `/api/v1/tags/${encodeURIComponent(tagId)}/archive`,
+      { method: "POST" }
+    );
+
+    return apiResponse(
+      {
+        data: response.data ? mapBackendTag(response.data) : null,
+        meta: response.meta,
+      },
+      null
+    );
+  }
+
   await mockDelay();
   return updateTagArchiveState(tagId, true);
 }
 
 export async function restoreTag(tagId: string) {
+  if (canUseOwnerTagApi()) {
+    const response = await apiRequest<BackendSmartTag>(
+      `/api/v1/tags/${encodeURIComponent(tagId)}/restore`,
+      { method: "POST" }
+    );
+
+    return apiResponse(
+      {
+        data: response.data ? mapBackendTag(response.data) : null,
+        meta: response.meta,
+      },
+      null
+    );
+  }
+
   await mockDelay();
   return updateTagArchiveState(tagId, false);
 }
@@ -280,6 +676,51 @@ async function updateTagArchiveState(tagId: string, isArchived: boolean) {
 // Resolves a scanned physical tag code to a finder state. Active tags show the
 // pet-level QR Safety Page content; inactive tags never expose owner contact.
 export async function getFinderState(tagCode: string): Promise<FinderResult> {
+  if (canUseApi()) {
+    const response = await apiRequest<BackendTagScanPage>(
+      `/api/v1/public/tags/${encodeURIComponent(tagCode)}`,
+      { auth: false }
+    );
+    const data = response.data;
+
+    if (!data) {
+      return { state: "not-found", tagCode };
+    }
+
+    const state = data.state.toLowerCase();
+
+    if (state === "active" && data.profile) {
+      return {
+        state: "active",
+        tagCode: data.tagCode,
+        profile: mapBackendSafetyPage(data.profile),
+      };
+    }
+
+    if (state === "unclaimed") {
+      return { state: "unassigned", tagCode: data.tagCode };
+    }
+
+    if (state === "pending") {
+      return {
+        state: "pending",
+        tagCode: data.tagCode,
+        status: fromBackendTagStatus(data.status ?? "Pending"),
+      };
+    }
+
+    if (state === "inactive") {
+      return {
+        state: "inactive",
+        tagCode: data.tagCode,
+        status: fromBackendTagStatus(data.status ?? "Disabled"),
+        reason: "inactive",
+      };
+    }
+
+    return { state: "not-found", tagCode: data.tagCode || tagCode };
+  }
+
   await mockDelay();
   const normalized = tagCode.trim();
   const lookupTagCode = resolveTagCodeAlias(normalized);
@@ -362,6 +803,24 @@ export async function getFinderState(tagCode: string): Promise<FinderResult> {
 // Binds an unassigned tag to a pet and marks it Active. The tag code never
 // changes during activation — only the pet binding and status do.
 export async function activateTag(tagCode: string, petId: string) {
+  if (canUseOwnerTagApi()) {
+    const response = await apiRequest<BackendSmartTag>(
+      `/api/v1/tags/${encodeURIComponent(tagCode)}/activate`,
+      {
+        method: "POST",
+        body: { petId },
+      }
+    );
+
+    return apiResponse(
+      {
+        data: response.data ? mapBackendTag(response.data) : null,
+        meta: response.meta,
+      },
+      null
+    );
+  }
+
   await mockDelay();
   const tags = getTagCollection();
   const lookupTagCode = resolveTagCodeAlias(tagCode);

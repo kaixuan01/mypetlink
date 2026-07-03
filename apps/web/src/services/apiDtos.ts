@@ -245,3 +245,132 @@ export type BackendPublicSafetyPage = {
     emergencyContactE164?: string | null;
   } | null;
 };
+
+export type BackendSmartTagStatus =
+  | "Unclaimed"
+  | "Pending"
+  | "Preparing"
+  | "Delivered"
+  | "Active"
+  | "Lost"
+  | "Disabled"
+  | "Replaced"
+  | "Archived";
+
+export type BackendTagType = "QrPetTag" | "QrNfcSmartTag";
+
+export type BackendOrderStatus =
+  | "PendingPayment"
+  | "PaymentProofSubmitted"
+  | "PaymentConfirmed"
+  | "PreparingTag"
+  | "Shipped"
+  | "Delivered"
+  | "Cancelled";
+
+export type BackendPaymentStatus =
+  | "Pending"
+  | "ProofSubmitted"
+  | "Confirmed"
+  | "Rejected"
+  | "Refunded";
+
+export type BackendPaymentProofStatus =
+  | "PendingReview"
+  | "Approved"
+  | "Rejected"
+  | "Superseded";
+
+export type BackendSmartTag = {
+  id: string;
+  tagCode: string;
+  petId?: string | null;
+  ownerUserId?: string | null;
+  orderId?: string | null;
+  orderNumber?: string | null;
+  petName?: string | null;
+  batchNo?: string | null;
+  hasNfc: boolean;
+  shape: string;
+  status: BackendSmartTagStatus;
+  createdAt: string;
+  updatedAt: string;
+  activatedAt?: string | null;
+  deliveredAt?: string | null;
+  lastScannedAt?: string | null;
+  replacementForTagId?: string | null;
+  archivedAt?: string | null;
+};
+
+export type BackendDeliveryDetails = {
+  recipientName: string;
+  phoneE164: string;
+  addressLine1: string;
+  addressLine2?: string | null;
+  postcode: string;
+  city: string;
+  state: string;
+  notes?: string | null;
+};
+
+export type BackendPaymentProof = {
+  id: string;
+  orderId: string;
+  mediaFileId: string;
+  originalFileName: string;
+  contentType: string;
+  fileSize: number;
+  storageProvider: string;
+  paymentMethod: string;
+  status: BackendPaymentProofStatus;
+  paymentReference?: string | null;
+  ownerNote?: string | null;
+  rejectionReason?: string | null;
+  uploadedAt: string;
+};
+
+export type BackendTagOrder = {
+  id: string;
+  orderNumber: string;
+  ownerUserId: string;
+  petId: string;
+  petName?: string | null;
+  smartTagId?: string | null;
+  smartTagCode?: string | null;
+  tagType: BackendTagType;
+  shape: string;
+  amount: number;
+  currency: string;
+  deliveryFee: number;
+  status: BackendOrderStatus;
+  paymentStatus: BackendPaymentStatus;
+  replacementForTagId?: string | null;
+  delivery: BackendDeliveryDetails;
+  paymentSubmittedAt?: string | null;
+  paymentConfirmedAt?: string | null;
+  paymentMethod?: string | null;
+  paymentReference?: string | null;
+  paymentNote?: string | null;
+  paymentProofName?: string | null;
+  paymentRejectionReason?: string | null;
+  trackingStatus?: string | null;
+  trackingNumber?: string | null;
+  shippedAt?: string | null;
+  deliveredAt?: string | null;
+  cancelledAt?: string | null;
+  paymentProofs: BackendPaymentProof[];
+  updatedAt: string;
+  createdAt: string;
+};
+
+export type BackendCreateTagOrderResult = {
+  order: BackendTagOrder;
+  tag: BackendSmartTag;
+};
+
+export type BackendTagScanPage = {
+  state: "active" | "unclaimed" | "pending" | "inactive" | "notFound" | string;
+  tagCode: string;
+  status?: BackendSmartTagStatus | string | null;
+  profile?: BackendPublicSafetyPage | null;
+};
