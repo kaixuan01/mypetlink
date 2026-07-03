@@ -151,5 +151,7 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapGet("/health", (HttpContext context) =>
     Results.Ok(ApiEnvelope.Ok(new { status = "ok" }, context))).AllowAnonymous();
+app.MapGet("/api/v1/health", (HttpContext context) =>
+    Results.Ok(ApiEnvelope.Ok(new { status = "ok", service = "MyPetLink.Api" }, context))).AllowAnonymous();
 
 app.Run();

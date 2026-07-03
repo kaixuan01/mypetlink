@@ -39,25 +39,46 @@ ConnectionStrings__MyPetLinkDb
 Run from the repository root:
 
 ```bash
+dotnet tool restore
 dotnet restore apps/api/MyPetLink.Api.sln
 dotnet build apps/api/MyPetLink.Api.sln
-dotnet run --project apps/api/MyPetLink.Api
+dotnet run --project apps/api/MyPetLink.Api --launch-profile http
 ```
 
-Swagger runs in development at:
+Local endpoints (Development, `http` profile on port 5281):
 
 ```txt
-https://localhost:<port>/swagger
+http://localhost:5281/swagger
+http://localhost:5281/health
+http://localhost:5281/api/v1/health
 ```
 
 ## EF Core Migrations
 
-`dotnet-ef` was not installed when this skeleton was generated, so `InitialCreate` was not created yet.
-
-After installing EF tooling, run:
+`dotnet-ef` is installed as a **local tool** pinned in the repo-root manifest at `.config/dotnet-tools.json` (version matches the EF Core packages). After cloning, restore it once:
 
 ```bash
-dotnet ef migrations add InitialCreate --project apps/api/MyPetLink.Api --startup-project apps/api/MyPetLink.Api --output-dir Data/Migrations
+dotnet tool restore
+```
+
+The `InitialCreate` migration exists in `apps/api/MyPetLink.Api/Migrations/` and creates all 23 Phase 1 tables plus the Free/Premium plan, plan limit, and app-setting seed rows.
+
+Create the local database / apply migrations (run from the repository root):
+
+```bash
+dotnet ef database update --project apps/api/MyPetLink.Api --startup-project apps/api/MyPetLink.Api
+```
+
+Add a new migration after entity changes:
+
+```bash
+dotnet ef migrations add <MigrationName> --project apps/api/MyPetLink.Api --startup-project apps/api/MyPetLink.Api
+```
+
+Reset the local database (safe while it only holds local dev data):
+
+```bash
+dotnet ef database drop --project apps/api/MyPetLink.Api --startup-project apps/api/MyPetLink.Api
 dotnet ef database update --project apps/api/MyPetLink.Api --startup-project apps/api/MyPetLink.Api
 ```
 

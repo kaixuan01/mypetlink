@@ -2,7 +2,7 @@
 
 Planning draft for building the future backend after the documentation is approved.
 
-Implementation status: the initial .NET 8 API skeleton now lives in `apps/api/MyPetLink.Api`. It includes the project structure, EF Core model, service/controller placeholders, JWT/admin-policy wiring, audit/storage placeholders, and local development settings. Business logic remains intentionally unimplemented until the next backend phase.
+Implementation status: the initial .NET 8 API skeleton now lives in `apps/api/MyPetLink.Api`. It includes the project structure, EF Core model, service/controller placeholders, JWT/admin-policy wiring, audit/storage placeholders, and local development settings. As of 2026-07-03 the `InitialCreate` EF Core migration exists and is validated against SQL Server LocalDB (23 tables plus plan/app-setting seeds), `dotnet-ef` is pinned as a repo-local tool (`.config/dotnet-tools.json`), and the API runs locally with Swagger and `/api/v1/health`. Business logic remains intentionally unimplemented until the next backend phase.
 
 ## Guiding Rules
 
