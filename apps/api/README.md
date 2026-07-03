@@ -118,6 +118,18 @@ GET /api/v1/public/pets/{publicSlug}
 GET /api/v1/public/safety/{safetyCode}
 ```
 
+Implemented owner Care Records endpoints:
+
+```txt
+GET /api/v1/pets/{petId}/care-records
+POST /api/v1/pets/{petId}/care-records
+GET /api/v1/care-records/{recordId}
+PUT /api/v1/care-records/{recordId}
+DELETE /api/v1/care-records/{recordId}
+```
+
+Care Records require owner authentication. Owners can only access records for pets they own. Active, Memorial, and Archived pets remain readable; new records are blocked for Archived pets. Deletes are soft archives, so archived records are hidden from active owner/public projections unless explicitly requested by API filters. Attachment/file upload storage is not implemented yet; clients must not send attachment ids in Phase A/B local development.
+
 Pet creation generates a public share slug/code and a separate pet-level QR Safety code. The QR Safety Page does not require a physical tag. Free plan creation is limited by the configured `PlanLimits.MaxPets` active-pet count; existing pets remain readable even if the owner is over the limit.
 
 Public profile responses are privacy-gated server-side and do not expose owner account email, private care records, private memories, internal ids, or address data. QR Safety responses expose only finder-friendly fields allowed by the pet safety settings. Memorial safety pages return an inactive memorial response without normal finder contact actions; archived pets return unavailable/not found responses.
@@ -176,6 +188,7 @@ dotnet ef database update --project apps/api/MyPetLink.Api --startup-project app
 - JWT bearer authentication with Swagger Bearer auth support.
 - Auth Phase A: Google ID token validation, user/external-login upsert, JWT access tokens, hashed rotating refresh tokens, logout, current-user lookup, and active `AdminUsers` policy foundation.
 - Phase A2: owner profile read/update, owner-scoped pet CRUD and lifecycle endpoints, privacy-gated public profile reads, and pet-level QR Safety reads.
+- Backend-connected Records slice: owner-scoped care record list/create/read/update/archive with validation and public-profile projection support.
 - Audit log service placeholder for admin mutations.
 - Local file storage provider abstraction for development only.
 - No payment gateway, Premium subscription, GPS tracking, outbound notifications, or real upload workflow yet.

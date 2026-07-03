@@ -99,6 +99,42 @@ public interface IPublicProfileService : ISkeletonService
         CancellationToken cancellationToken = default);
 }
 
+public interface ICareRecordService : ISkeletonService
+{
+    Task<(IReadOnlyCollection<CareRecordResponse> Items, int Total)> ListForPetAsync(
+        Guid? currentUserId,
+        Guid petId,
+        int page,
+        int pageSize,
+        string? type,
+        DateOnly? fromDate,
+        DateOnly? toDate,
+        bool includeArchived,
+        CancellationToken cancellationToken = default);
+
+    Task<CareRecordResponse> CreateAsync(
+        Guid? currentUserId,
+        Guid petId,
+        CreateCareRecordRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<CareRecordResponse> GetAsync(
+        Guid? currentUserId,
+        Guid recordId,
+        CancellationToken cancellationToken = default);
+
+    Task<CareRecordResponse> UpdateAsync(
+        Guid? currentUserId,
+        Guid recordId,
+        UpdateCareRecordRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task ArchiveAsync(
+        Guid? currentUserId,
+        Guid recordId,
+        CancellationToken cancellationToken = default);
+}
+
 public interface IQrSafetyService : ISkeletonService
 {
     Task<PublicSafetyPageResponse> GetBySafetyCodeAsync(

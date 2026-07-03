@@ -1,6 +1,6 @@
 # MyPetLink Current Demo Data Model
 
-This documents the frontend-only data model as implemented in `apps/web`. There is no backend or database; this model is the reference the Admin Portal reuses and the future API/database schema should map from. All types live in `apps/web/src/types.ts`.
+This documents the local preview data model in `apps/web`. Owner auth, owner profile, pets, public profile, QR Safety, and care records now use the backend API when `NEXT_PUBLIC_API_BASE_URL` is configured; the localStorage model remains the fallback for static/demo preview. All frontend types live in `apps/web/src/types.ts`.
 
 ## Persistence approach
 
@@ -8,7 +8,7 @@ This documents the frontend-only data model as implemented in `apps/web`. There 
 - **Runtime persistence** is `localStorage`, via `readStoredCollection(key, fallback)` / `writeStoredCollection(key, values)` in `src/services/mockApi.ts`. Stored items are merged with the seed by `id` (stored wins; seed items not present in storage are appended).
 - **Storage keys**: `mypetlink_pets`, `mypetlink_tags`, `mypetlink_orders`, `mypetlink_owner_settings`, `mypetlink_mock_owner` (owner session), `mypetlink_mock_admin` (admin session), plus records/moments keys.
 - **Server/build time** returns the seed; client components re-fetch from localStorage on mount. Services return an `ApiResponse<T>` envelope (`{ data, meta }`) shaped like a future API.
-- **Sessions** are plain localStorage flags (`authService.ts`): `loginMockOwner()` / `loginMockAdmin()`. There is no real authentication; the future backend must enforce owner/admin roles and permissions.
+- **Sessions** in local preview are plain localStorage flags (`authService.ts`): `loginMockOwner()` / `loginMockAdmin()`. In backend mode, owner auth uses the API JWT/refresh-token flow and the backend enforces owner/admin roles and permissions.
 
 ## Pet model (`Pet`)
 
@@ -71,7 +71,7 @@ Phase 1 payment is manual (`src/config/payment.ts`): the owner pays a merchant Q
 
 ## Other models
 
-- `CareRecord`: typed care events with `publicVisibility` (`Private | Public badge only | Public details`) and `status` (`complete | due-soon | upcoming`).
+- `CareRecord`: typed care events with `publicVisibility` (`Private | Public badge only | Public details`) and `status` (`complete | due-soon | upcoming`). In backend mode, owner Records pages read/write these through `/api/v1/pets/{petId}/care-records` and `/api/v1/care-records/{recordId}`. File upload/storage for attachments is not implemented yet.
 - `PetMoment`: memories with media (max 5 per moment), visibility, and timeline flags.
 - `QrStatus` (`active | draft | paused`) — QR profile status used by the earlier admin QR Profiles view.
 - Company/config constants: `src/config/site.ts` (company, support email, business registration no.) and `src/config/payment.ts` (manual payment copy).

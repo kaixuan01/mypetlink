@@ -139,7 +139,7 @@ Local data lives in:
 ## Future Planned Features
 
 - Real authentication and route protection
-- Persisted pet profiles, care records, moments, tags, and orders
+- Persisted memories, tags, and orders
 - Real payment and delivery workflow for MyPetLink Smart Tags
 - Reminder notifications
 - Admin role and permission controls

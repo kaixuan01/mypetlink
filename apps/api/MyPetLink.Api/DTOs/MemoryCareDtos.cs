@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using MyPetLink.Api.Entities;
 
 namespace MyPetLink.Api.DTOs;
@@ -33,21 +34,26 @@ public sealed record MemoryResponse(
     bool ShowOnPublicProfile);
 
 public sealed record CreateCareRecordRequest(
-    CareRecordType Type,
-    string Title,
+    CareRecordType? Type,
+    [Required, MaxLength(160)] string Title,
     DateOnly? Date,
     DateOnly? DueDate,
+    [MaxLength(160)]
     string? Provider,
+    [MaxLength(2000)]
     string? Notes,
-    CareRecordPublicVisibility PublicVisibility,
+    CareRecordPublicVisibility? PublicVisibility,
     IReadOnlyCollection<Guid>? MediaFileIds);
 
 public sealed record UpdateCareRecordRequest(
     CareRecordType? Type,
+    [MaxLength(160)]
     string? Title,
     DateOnly? Date,
     DateOnly? DueDate,
+    [MaxLength(160)]
     string? Provider,
+    [MaxLength(2000)]
     string? Notes,
     CareRecordPublicVisibility? PublicVisibility,
     IReadOnlyCollection<Guid>? MediaFileIds);
@@ -59,5 +65,10 @@ public sealed record CareRecordResponse(
     string Title,
     DateOnly? Date,
     DateOnly? DueDate,
+    string? Provider,
+    string? Notes,
     CareRecordPublicVisibility PublicVisibility,
-    string DerivedStatus);
+    string DerivedStatus,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt,
+    DateTimeOffset? ArchivedAt);

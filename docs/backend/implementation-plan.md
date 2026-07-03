@@ -80,7 +80,7 @@ Build:
 - local file storage provider implementation for development
 - storage provider interface for future Azure Blob, S3, Cloudflare R2
 - memory list/create/update/archive
-- care record list/create/update/archive
+- care record list/create/update/archive (implemented for the backend-connected Records slice)
 - public memory/care projections with visibility checks
 - media linking for memories and care records
 
@@ -92,12 +92,14 @@ Acceptance criteria:
 - New memory creation respects configured memory limit unless overridden.
 - New media attachment respects configured media limits.
 - Public pages show only public memories/care records allowed by owner settings.
+- Owner Records UI persists care records through authenticated API calls when backend mode is configured.
 
 Tests:
 
 - plan limits and grandfather behavior
 - memory visibility filtering
 - care record public visibility filtering
+- care record ownership, validation, and archive behavior
 - media ownership validation
 - upload content-type and size validation
 

@@ -24,7 +24,9 @@ import { getPetProfileTheme } from "@/lib/petProfileThemes";
 import { isActivePet, isArchivedPet, isMemorialPet } from "@/lib/petLifecycle";
 import { ownerRoutes, tagPath } from "@/lib/routes";
 import { getTagScanDisplay, isActivePhysicalTagForPet } from "@/lib/tagStatus";
+import { isApiConfigured } from "@/services/apiConfig";
 import { getPetById, updatePetLostMode } from "@/services/petService";
+import { getPetRecords } from "@/services/recordService";
 import type {
   CareRecord,
   Pet,
@@ -59,8 +61,12 @@ export function PetManagementTabs({
   orders = [],
   tags,
 }: PetManagementTabsProps) {
+  const apiMode = isApiConfigured();
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [currentPet, setCurrentPet] = useState(pet);
+  const [currentRecords, setCurrentRecords] = useState<CareRecord[]>(
+    apiMode ? [] : records
+  );
 
   // The page is server-rendered from seed data; re-read the pet on the client so
   // persisted edits (e.g. Lost Mode) survive a refresh and match the QR safety
@@ -79,6 +85,26 @@ export function PetManagementTabs({
     };
   }, [pet.id]);
 
+  useEffect(() => {
+    let active = true;
+
+    getPetRecords(currentPet.id)
+      .then((response) => {
+        if (active) {
+          setCurrentRecords(response.data);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setCurrentRecords([]);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [currentPet.id]);
+
   return (
     <div>
       <SegmentedTabs
@@ -91,7 +117,7 @@ export function PetManagementTabs({
       {activeTab === "overview" ? (
         <OverviewTab
           pet={currentPet}
-          records={records}
+          records={currentRecords}
           moments={moments}
           onPetChange={setCurrentPet}
           orders={orders}
@@ -100,7 +126,7 @@ export function PetManagementTabs({
       ) : null}
 
       {activeTab === "records" ? (
-        <RecordsManager petId={currentPet.id} initialRecords={records} />
+        <RecordsManager petId={currentPet.id} initialRecords={currentRecords} />
       ) : null}
 
       {activeTab === "moments" ? (

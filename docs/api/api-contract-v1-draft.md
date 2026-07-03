@@ -612,13 +612,26 @@ Rules:
 
 ### GET `/api/v1/pets/{petId}/care-records`
 
-Purpose: list care records.
+Purpose: list care records for one owned pet.
 
 Auth: owner.
 
 Query:
 
-- `page`, `pageSize`, `type`, `status`
+- `page`, `pageSize`
+- `type` or `category`: optional record type filter, for example `Vaccine`, `VetVisit`, `LabTest`, `Other`
+- `fromDate`, `toDate`: optional record-date range
+- `includeArchived`: optional, default `false`
+
+Rules:
+
+- Owner can only list records for their own pets.
+- Active, Memorial, and Archived pets remain readable.
+- Archived/deleted records are hidden unless `includeArchived=true`.
+
+Response:
+
+- care record list with `id`, `petId`, `type`, `title`, `date`, `dueDate`, `provider`, `notes`, `publicVisibility`, `derivedStatus`, timestamps, and pagination metadata.
 
 ### POST `/api/v1/pets/{petId}/care-records`
 
@@ -632,17 +645,56 @@ Request:
 
 Validation:
 
+- pet must exist and belong to the current owner.
+- archived pets cannot receive new care records.
+- `type`, `title`, `date`, and `publicVisibility` are required.
 - known record type or `Other`.
 - public visibility must be known.
-- media files must belong to owner.
+- `dueDate` must be on or after `date` when both are supplied.
+- file upload/storage is not implemented yet; non-empty `mediaFileIds` are rejected.
 
-### PATCH `/api/v1/pets/{petId}/care-records/{recordId}`
+Errors:
+
+- `400` validation failed
+- `404` pet not found or not owned
+- `422` archived pet state or unsupported attachment request
+
+### GET `/api/v1/care-records/{recordId}`
+
+Purpose: get one care record by id.
+
+Auth: owner.
+
+Rules:
+
+- Owner can only access records through pets they own.
+
+Errors:
+
+- `404` record not found or not owned
+
+### PUT `/api/v1/care-records/{recordId}`
 
 Purpose: update care record.
 
 Auth: owner.
 
-### DELETE `/api/v1/pets/{petId}/care-records/{recordId}`
+Request:
+
+- partial `type`, `title`, `date`, `dueDate`, `provider`, `notes`, `publicVisibility`
+
+Validation:
+
+- `title` cannot be empty when supplied.
+- `dueDate` must be on or after the effective record date.
+- archived care records cannot be updated.
+- file upload/storage is not implemented yet; non-empty `mediaFileIds` are rejected.
+
+Compatibility:
+
+- `PATCH /api/v1/pets/{petId}/care-records/{recordId}` is reserved as a pet-scoped compatibility route.
+
+### DELETE `/api/v1/care-records/{recordId}`
 
 Purpose: archive/delete care record.
 
@@ -651,6 +703,15 @@ Auth: owner.
 Response:
 
 - `204 No Content`
+
+Rules:
+
+- Soft archive is preferred; archived records no longer appear in the active owner list or public projections.
+- Owner can only archive records through pets they own.
+
+Compatibility:
+
+- `DELETE /api/v1/pets/{petId}/care-records/{recordId}` is reserved as a pet-scoped compatibility route.
 
 ## Media Files
 

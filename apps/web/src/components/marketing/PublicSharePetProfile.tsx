@@ -45,7 +45,10 @@ import { isApiConfigured } from "@/services/apiConfig";
 import { isOwnerAuthenticated } from "@/services/authService";
 import { getPublicPetMoments } from "@/services/momentService";
 import { getPublicPetProfileByPublicCode } from "@/services/petService";
-import { getPetRecords } from "@/services/recordService";
+import {
+  getPetRecords,
+  getPublicPetRecords,
+} from "@/services/recordService";
 import type {
   CareRecord,
   Pet,
@@ -155,8 +158,16 @@ export function PublicSharePetProfile({
         setLostMode(isActivePet(nextProfile) && nextProfile.lostModeEnabled);
 
         if (apiMode) {
+          const recordsResponse = await getPublicPetRecords(
+            initialProfile.publicCode
+          );
+
+          if (!active) {
+            return;
+          }
+
           setMoments([]);
-          setRecords([]);
+          setRecords(recordsResponse.data);
           setLoaded(true);
           return;
         }

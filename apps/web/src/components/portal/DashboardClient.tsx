@@ -68,18 +68,25 @@ export function DashboardClient({
 
         setAllPets(petsResponse.data);
 
+        const activePets = getActivePets(petsResponse.data);
+        const recordResponses = await Promise.all(
+          activePets.map((pet) => getPetRecords(pet.id))
+        );
+
         if (apiMode) {
-          setAllRecords([]);
+          if (!active) {
+            return;
+          }
+
+          setAllRecords(recordResponses.flatMap((response) => response.data));
           setAllMoments([]);
           setTags([]);
           setOrders([]);
           return;
         }
 
-        const activePets = getActivePets(petsResponse.data);
-        const [recordResponses, momentResponses, tagsResponse, ordersResponse] =
+        const [momentResponses, tagsResponse, ordersResponse] =
           await Promise.all([
-            Promise.all(activePets.map((pet) => getPetRecords(pet.id))),
             Promise.all(activePets.map((pet) => getPetMoments(pet.id))),
             getAllTags(),
             getOrders(),

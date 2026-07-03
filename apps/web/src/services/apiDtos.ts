@@ -139,7 +139,48 @@ export type BackendPublicPetProfile = {
   bio?: string | null;
   memorialMessage?: string | null;
   memories: unknown[];
-  careRecords: unknown[];
+  careRecords: BackendPublicCareRecord[];
+};
+
+export type BackendCareRecordType =
+  | "Vaccine"
+  | "Deworming"
+  | "Grooming"
+  | "VetVisit"
+  | "Medication"
+  | "Allergy"
+  | "Surgery"
+  | "LabTest"
+  | "Other";
+
+export type BackendCareRecordPublicVisibility =
+  | "Private"
+  | "PublicBadgeOnly"
+  | "PublicDetails";
+
+export type BackendCareRecord = {
+  id: string;
+  petId: string;
+  type: BackendCareRecordType;
+  title: string;
+  date?: string | null;
+  dueDate?: string | null;
+  provider?: string | null;
+  notes?: string | null;
+  publicVisibility: BackendCareRecordPublicVisibility;
+  derivedStatus: "complete" | "due-soon" | "upcoming" | string;
+  createdAt: string;
+  updatedAt: string;
+  archivedAt?: string | null;
+};
+
+export type BackendPublicCareRecord = {
+  type: BackendCareRecordType | string;
+  title: string;
+  recordDate?: string | null;
+  dueDate?: string | null;
+  provider?: string | null;
+  notes?: string | null;
 };
 
 export type BackendPublicSafetyPage = {
