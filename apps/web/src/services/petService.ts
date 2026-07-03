@@ -734,19 +734,33 @@ function getDefaultOwner(petName: string): Pet["owner"] {
   };
 }
 
+// Several dashboard/list widgets call getPets on mount at the same time.
+// Sharing the in-flight request collapses those concurrent calls into one
+// network fetch; the promise is cleared as soon as it settles, so later
+// calls (e.g. after a mutation) always fetch fresh data.
+let inFlightPetsRequest: Promise<ApiResponse<Pet[]>> | null = null;
+
 export async function getPets() {
   if (canUseApi()) {
-    const response = await apiRequest<BackendPetListItem[]>(
-      "/api/v1/pets?lifecycleStatus=All&page=1&pageSize=100"
-    );
+    inFlightPetsRequest ??= (async () => {
+      try {
+        const response = await apiRequest<BackendPetListItem[]>(
+          "/api/v1/pets?lifecycleStatus=All&page=1&pageSize=100"
+        );
 
-    return apiResponse(
-      {
-        data: (response.data ?? []).map(mapBackendPetToFrontend),
-        meta: response.meta,
-      },
-      []
-    );
+        return apiResponse(
+          {
+            data: (response.data ?? []).map(mapBackendPetToFrontend),
+            meta: response.meta,
+          },
+          []
+        );
+      } finally {
+        inFlightPetsRequest = null;
+      }
+    })();
+
+    return inFlightPetsRequest;
   }
 
   await mockDelay();
