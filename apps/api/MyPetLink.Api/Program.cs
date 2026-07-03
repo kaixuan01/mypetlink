@@ -138,6 +138,7 @@ builder.Services.AddAuthorization(options =>
 
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IOwnerProfileService, OwnerProfileService>();
 builder.Services.AddScoped<IExternalAuthService, ExternalAuthService>();
 builder.Services.AddScoped<IExternalTokenValidator, GoogleTokenValidator>();
 builder.Services.AddScoped<IAuthorizationHandler, ActiveAdminRequirementHandler>();
@@ -172,20 +173,7 @@ builder.Services.AddSwaggerGen(options =>
         BearerFormat = "JWT"
     });
 
-    options.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
-        {
-            new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference
-                {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer"
-                }
-            },
-            Array.Empty<string>()
-        }
-    });
+    options.OperationFilter<AuthorizeOperationFilter>();
 });
 
 var app = builder.Build();

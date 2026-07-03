@@ -43,11 +43,3 @@ public sealed record AdminProfileSummaryResponse(string Role, bool IsActive);
 public sealed record AdminAuthCheckResponse(
     CurrentUserSummaryResponse User,
     AdminProfileSummaryResponse Admin);
-
-public sealed record UpdateOwnerProfileRequest(
-    string? OwnerDisplayName,
-    string? PhoneE164,
-    string? WhatsappE164,
-    string? DefaultGeneralArea,
-    object? PrivacyDefaults,
-    object? NotificationPreferences);

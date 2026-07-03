@@ -183,7 +183,32 @@ These routes are planning notes and must not be exposed as working behavior unti
 
 Apple Login is planned for later. Email OTP/passwordless login may be considered later. Password login is not part of Phase A.
 
-### PATCH `/api/v1/account/owner-profile`
+### GET `/api/v1/owner/profile`
+
+Purpose: read the current owner's profile, contact defaults, privacy defaults, and plan summary.
+
+Auth: owner.
+
+Response:
+
+- `userId`
+- `ownerProfileId`
+- `displayName`
+- `email`
+- `phoneE164`
+- `whatsappE164`
+- `defaultGeneralArea`
+- `defaultContact`
+- `defaultPrivacy`
+- `notificationPreferences`
+- `planCode`
+- `createdAt`, `updatedAt`
+
+Errors:
+
+- `401` unauthenticated
+
+### PUT `/api/v1/owner/profile`
 
 Purpose: update owner settings.
 
@@ -191,11 +216,11 @@ Auth: owner.
 
 Request:
 
-- `ownerDisplayName`
+- `displayName`
 - `phoneE164`
 - `whatsappE164`
 - `defaultGeneralArea`
-- `privacyDefaults`
+- `privacyDefaults` / `defaultPrivacy`
 - `notificationPreferences`
 
 Response:
@@ -207,6 +232,7 @@ Validation:
 - E.164 phone/WhatsApp when supplied.
 - Email is not changed here.
 - Privacy defaults must match known keys.
+- Plan code cannot be changed from this endpoint.
 
 Errors:
 
@@ -228,7 +254,13 @@ Query:
 
 Response:
 
-- pet summaries including public/QR paths, lifecycle, Lost Mode, smart tag summary
+- pet summaries including owner `petId`, `publicSlug`, `publicCode`, `safetyCode`, public/QR paths, lifecycle, and Lost Mode.
+
+Rules:
+
+- Default list returns active pets only.
+- Use `lifecycleStatus=All`, `Memorial`, or `Archived` to include non-active pets.
+- Owner can only list their own pets.
 
 Errors:
 
@@ -255,6 +287,8 @@ Validation:
 - `name` required.
 - `species` must be known or `Other` with `customSpecies`.
 - public identifiers generated server-side only.
+- create default public profile, safety settings, and contact settings.
+- active Free-plan pet count blocks only new active pet creation; existing pets remain readable.
 
 Errors:
 
@@ -275,7 +309,7 @@ Errors:
 
 - `404` not found or not owned
 
-### PATCH `/api/v1/pets/{petId}`
+### PUT `/api/v1/pets/{petId}`
 
 Purpose: update profile, contact, safety, public visibility, and QR settings.
 
@@ -293,6 +327,7 @@ Validation:
 
 - `publicCode` and `safetyCode` cannot be changed by client.
 - lifecycle changes should use lifecycle endpoints.
+- owner can only update their own pets.
 
 Errors:
 
@@ -360,6 +395,7 @@ Rules:
 - Archive hides from main owner list.
 - Records, memories, orders, and tags remain saved.
 - Linked tags scan inactive and do not expose owner contact.
+- Archived pets are not returned by the default active pet list.
 
 Errors:
 
@@ -397,9 +433,9 @@ Errors:
 
 ## Public
 
-### GET `/api/v1/public/profiles/{publicCode}`
+### GET `/api/v1/public/pets/{publicSlug}`
 
-Purpose: resolve Public Share Profile by stable pet public code.
+Purpose: resolve Public Share Profile by friendly slug ending with the stable pet public code.
 
 Auth: public.
 
@@ -410,9 +446,12 @@ Response:
 
 Rules:
 
-- Lookup by `publicCode`, not slug.
+- Lookup extracts the stable public code from the end of `publicSlug`; cosmetic slug text can change.
 - Never expose internal ids, owner email, private notes, full address, or hidden phone/WhatsApp.
 - Lost Mode may add missing-pet banner/contact CTA when public contact is allowed.
+- Active pets return normal public profile content.
+- Memorial pets return memorial content only when the owner allows public memorial visibility.
+- Archived/private/unavailable pets return a safe not found response.
 
 Errors:
 
@@ -435,6 +474,7 @@ Rules:
 - Active pets expose only allowed contact/safety fields.
 - Memorial/archived pets return inactive/memorial-safe projection without emergency contact actions.
 - Disabled `QrSafetyEnabled` returns safe unavailable state.
+- Physical tag status does not disable the pet-level QR Safety Page.
 
 Errors:
 

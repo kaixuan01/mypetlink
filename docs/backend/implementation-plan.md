@@ -35,10 +35,11 @@ Build:
 - `Users`, `ExternalLogins`, `RefreshTokens`, `OwnerProfiles`, `AdminUsers`
 - `Plans`, `PlanLimits` seed data
 - `Pets`, `PetContacts`, `PetPublicProfiles`, `PetSafetySettings`
+- owner profile read/update
 - owner pet list/detail/create/update
 - pet lifecycle endpoints: mark memorial, restore active, archive
-- Lost Mode endpoint
-- public profile read by `publicCode`
+- Lost Mode endpoint planned after Phase A2
+- public profile read by `publicSlug` ending in `publicCode`
 - QR Safety Page read by `safetyCode`
 
 Acceptance criteria:
@@ -51,9 +52,10 @@ Acceptance criteria:
 - No password login is implemented in Phase A.
 - Owner can create and update pets.
 - Backend generates `publicCode` and `safetyCode` with secure random identifiers.
-- `/api/v1/public/profiles/{publicCode}` returns only privacy-safe share profile data.
+- `/api/v1/public/pets/{publicSlug}` returns only privacy-safe share profile data.
 - `/api/v1/public/safety/{safetyCode}` returns only privacy-safe QR Safety data.
 - Memorial/archived pets do not expose emergency finder contact.
+- Free-plan active-pet creation is blocked at the configured plan limit without hiding existing pets.
 
 Tests:
 

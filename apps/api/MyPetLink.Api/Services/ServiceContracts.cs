@@ -39,9 +39,72 @@ public interface IAuthService : ISkeletonService
         Guid? currentUserId,
         CancellationToken cancellationToken = default);
 }
-public interface IPetService : ISkeletonService;
-public interface IPublicProfileService : ISkeletonService;
-public interface IQrSafetyService : ISkeletonService;
+
+public interface IOwnerProfileService : ISkeletonService
+{
+    Task<OwnerProfileResponse> GetAsync(Guid? currentUserId, CancellationToken cancellationToken = default);
+
+    Task<OwnerProfileResponse> UpdateAsync(
+        Guid? currentUserId,
+        UpdateOwnerProfileRequest request,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IPetService : ISkeletonService
+{
+    Task<(IReadOnlyCollection<PetListItemResponse> Items, int Total)> ListAsync(
+        Guid? currentUserId,
+        int page,
+        int pageSize,
+        string? lifecycleStatus,
+        CancellationToken cancellationToken = default);
+
+    Task<PetDetailResponse> CreateAsync(
+        Guid? currentUserId,
+        CreatePetRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<PetDetailResponse> GetAsync(
+        Guid? currentUserId,
+        Guid petId,
+        CancellationToken cancellationToken = default);
+
+    Task<PetDetailResponse> UpdateAsync(
+        Guid? currentUserId,
+        Guid petId,
+        UpdatePetRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<PetDetailResponse> MarkMemorialAsync(
+        Guid? currentUserId,
+        Guid petId,
+        MarkPetMemorialRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<PetDetailResponse> RestoreActiveAsync(
+        Guid? currentUserId,
+        Guid petId,
+        CancellationToken cancellationToken = default);
+
+    Task<PetDetailResponse> ArchiveAsync(
+        Guid? currentUserId,
+        Guid petId,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IPublicProfileService : ISkeletonService
+{
+    Task<PublicPetProfileResponse> GetByPublicSlugAsync(
+        string publicSlug,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IQrSafetyService : ISkeletonService
+{
+    Task<PublicSafetyPageResponse> GetBySafetyCodeAsync(
+        string safetyCode,
+        CancellationToken cancellationToken = default);
+}
 public interface ITagScanService : ISkeletonService;
 public interface ISmartTagService : ISkeletonService;
 public interface IOrderService : ISkeletonService;

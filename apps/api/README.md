@@ -95,6 +95,33 @@ Google login validates the Google ID token against `GoogleAuth:ClientId`, create
 
 Admin authorization uses the `AdminUsers` table. The admin policy checks that the authenticated user has an active `AdminUsers` record and an active `Users` row; it does not grant admin access from a role claim alone.
 
+## Phase A2 Owner And Pet APIs
+
+Implemented owner endpoints:
+
+```txt
+GET /api/v1/owner/profile
+PUT /api/v1/owner/profile
+GET /api/v1/pets
+POST /api/v1/pets
+GET /api/v1/pets/{petId}
+PUT /api/v1/pets/{petId}
+POST /api/v1/pets/{petId}/mark-memorial
+POST /api/v1/pets/{petId}/restore-active
+POST /api/v1/pets/{petId}/archive
+```
+
+Implemented public read endpoints:
+
+```txt
+GET /api/v1/public/pets/{publicSlug}
+GET /api/v1/public/safety/{safetyCode}
+```
+
+Pet creation generates a public share slug/code and a separate pet-level QR Safety code. The QR Safety Page does not require a physical tag. Free plan creation is limited by the configured `PlanLimits.MaxPets` active-pet count; existing pets remain readable even if the owner is over the limit.
+
+Public profile responses are privacy-gated server-side and do not expose owner account email, private care records, private memories, internal ids, or address data. QR Safety responses expose only finder-friendly fields allowed by the pet safety settings. Memorial safety pages return an inactive memorial response without normal finder contact actions; archived pets return unavailable/not found responses.
+
 ## EF Core Migrations
 
 `dotnet-ef` is installed as a **local tool** pinned in the repo-root manifest at `.config/dotnet-tools.json` (version matches the EF Core packages). After cloning, restore it once:
@@ -126,12 +153,19 @@ dotnet ef database update --project apps/api/MyPetLink.Api --startup-project app
 
 Do not run production migrations from local development settings.
 
+LocalDB troubleshooting:
+
+- If `C:\Users\User\MyPetLinkDev.mdf` exists but `MyPetLinkDev` is not attached to `(localdb)\MSSQLLocalDB`, `dotnet ef database update` may fail while trying to create that database name.
+- Do not delete `.mdf` or `.ldf` files without confirming they are disposable.
+- For isolated branch verification, override `ConnectionStrings__MyPetLinkDb` with a clean database name such as `MyPetLinkPhaseA2`.
+
 ## Current Backend Scope
 
 - SQL Server EF Core `MyPetLinkDbContext` with Phase 1 entities, indexes, restrictive FK behavior, and seed defaults for Free/Premium plans and app settings.
 - `/api/v1` controller route skeletons with response envelopes.
 - JWT bearer authentication with Swagger Bearer auth support.
 - Auth Phase A: Google ID token validation, user/external-login upsert, JWT access tokens, hashed rotating refresh tokens, logout, current-user lookup, and active `AdminUsers` policy foundation.
+- Phase A2: owner profile read/update, owner-scoped pet CRUD and lifecycle endpoints, privacy-gated public profile reads, and pet-level QR Safety reads.
 - Audit log service placeholder for admin mutations.
 - Local file storage provider abstraction for development only.
 - No payment gateway, Premium subscription, GPS tracking, outbound notifications, or real upload workflow yet.
