@@ -59,14 +59,17 @@ public sealed class PublicProfileService : SkeletonService, IPublicProfileServic
                     memory.DeletedAt == null
                     && memory.ArchivedAt == null
                     && memory.Visibility == MemoryVisibility.Public
-                    && memory.ShowOnPublicProfile)
+                    && (memory.ShowOnPublicProfile || memory.ShowInLifeTimeline))
                 .OrderByDescending(memory => memory.MomentDate)
                 .ThenByDescending(memory => memory.CreatedAt)
                 .Select(memory => new PublicMemorySummaryResponse(
                     memory.Title,
                     memory.MomentDate,
                     memory.Type,
-                    memory.Caption))
+                    memory.Caption,
+                    memory.ShowOnPublicProfile,
+                    memory.ShowInLifeTimeline,
+                    memory.TimelineNote))
                 .ToArray()
             : Array.Empty<PublicMemorySummaryResponse>();
 

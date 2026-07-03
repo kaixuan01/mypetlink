@@ -179,6 +179,7 @@ builder.Services.AddScoped<IExternalTokenValidator, GoogleTokenValidator>();
 builder.Services.AddScoped<IAuthorizationHandler, ActiveAdminRequirementHandler>();
 builder.Services.AddScoped<IPetService, PetService>();
 builder.Services.AddScoped<IPublicProfileService, PublicProfileService>();
+builder.Services.AddScoped<IMemoryService, MemoryService>();
 builder.Services.AddScoped<ICareRecordService, CareRecordService>();
 builder.Services.AddScoped<IQrSafetyService, QrSafetyService>();
 builder.Services.AddScoped<ITagScanService, TagScanService>();

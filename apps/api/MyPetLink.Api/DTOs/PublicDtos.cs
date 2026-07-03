@@ -21,7 +21,10 @@ public sealed record PublicMemorySummaryResponse(
     string Title,
     DateOnly? MomentDate,
     string? Type,
-    string? Caption);
+    string? Caption,
+    bool ShowOnPublicProfile,
+    bool ShowInLifeTimeline,
+    string? TimelineNote);
 
 public sealed record PublicCareSummaryResponse(
     string Type,

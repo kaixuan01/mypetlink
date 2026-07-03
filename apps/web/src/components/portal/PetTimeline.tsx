@@ -11,7 +11,10 @@ import {
   type PetTimelineItem,
 } from "@/lib/petTimeline";
 import { ownerRoutes } from "@/lib/routes";
-import { getPetMoments } from "@/services/momentService";
+import {
+  getFriendlyMomentErrorMessage,
+  getPetMoments,
+} from "@/services/momentService";
 import { getPetById } from "@/services/petService";
 import type { Pet, PetMoment } from "@/types";
 
@@ -29,24 +32,42 @@ const visibilityTone = {
 export function PetTimeline({ pet: initialPet, initialMoments }: PetTimelineProps) {
   const [pet, setPet] = useState(initialPet);
   const [moments, setMoments] = useState(initialMoments);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState("");
   const items = buildPetTimeline(pet, moments);
 
   useEffect(() => {
     let active = true;
 
-    // Re-read pet (for live visibility settings) and moments on the client so
-    // the timeline reflects edits saved in this browser.
-    getPetById(initialPet.id).then((response) => {
-      if (active && response.data) {
-        setPet(response.data);
+    queueMicrotask(() => {
+      if (active) {
+        setLoading(true);
+        setLoadError("");
       }
     });
 
-    getPetMoments(initialPet.id).then((response) => {
-      if (active) {
-        setMoments(response.data);
-      }
-    });
+    // Re-read pet (for live visibility settings) and moments on the client so
+    // the timeline reflects edits saved in this browser.
+    Promise.all([getPetById(initialPet.id), getPetMoments(initialPet.id)])
+      .then(([petResponse, momentResponse]) => {
+        if (active && petResponse.data) {
+          setPet(petResponse.data);
+        }
+
+        if (active) {
+          setMoments(momentResponse.data);
+        }
+      })
+      .catch((caught) => {
+        if (active) {
+          setLoadError(getFriendlyMomentErrorMessage(caught));
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setLoading(false);
+        }
+      });
 
     return () => {
       active = false;
@@ -107,7 +128,17 @@ export function PetTimeline({ pet: initialPet, initialMoments }: PetTimelineProp
         </p>
       ) : null}
 
-      {items.length ? (
+      {loading ? (
+        <div className="mt-6 rounded-[1.25rem] bg-pet-cream p-4">
+          <p className="text-sm font-semibold text-pet-muted">
+            Loading timeline...
+          </p>
+        </div>
+      ) : loadError ? (
+        <div className="mt-6 rounded-[1.25rem] border border-[#f3b4a8] bg-[#fff1ee] p-4">
+          <p className="text-sm font-bold text-[#a63c2e]">{loadError}</p>
+        </div>
+      ) : items.length ? (
         <div className="mt-6 grid gap-4">
           {items.map((item) => (
             <TimelineRow item={item} key={item.id} pet={pet} />

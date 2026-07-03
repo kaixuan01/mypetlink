@@ -25,6 +25,7 @@ import { isActivePet, isArchivedPet, isMemorialPet } from "@/lib/petLifecycle";
 import { ownerRoutes, tagPath } from "@/lib/routes";
 import { getTagScanDisplay, isActivePhysicalTagForPet } from "@/lib/tagStatus";
 import { isApiConfigured } from "@/services/apiConfig";
+import { getPetMoments } from "@/services/momentService";
 import { getPetById, updatePetLostMode } from "@/services/petService";
 import { getPetRecords } from "@/services/recordService";
 import type {
@@ -67,6 +68,9 @@ export function PetManagementTabs({
   const [currentRecords, setCurrentRecords] = useState<CareRecord[]>(
     apiMode ? [] : records
   );
+  const [currentMoments, setCurrentMoments] = useState<PetMoment[]>(
+    apiMode ? [] : moments
+  );
 
   // The page is server-rendered from seed data; re-read the pet on the client so
   // persisted edits (e.g. Lost Mode) survive a refresh and match the QR safety
@@ -88,15 +92,20 @@ export function PetManagementTabs({
   useEffect(() => {
     let active = true;
 
-    getPetRecords(currentPet.id)
-      .then((response) => {
+    Promise.all([
+      getPetRecords(currentPet.id),
+      getPetMoments(currentPet.id),
+    ])
+      .then(([recordResponse, momentResponse]) => {
         if (active) {
-          setCurrentRecords(response.data);
+          setCurrentRecords(recordResponse.data);
+          setCurrentMoments(momentResponse.data);
         }
       })
       .catch(() => {
         if (active) {
           setCurrentRecords([]);
+          setCurrentMoments([]);
         }
       });
 
@@ -118,7 +127,7 @@ export function PetManagementTabs({
         <OverviewTab
           pet={currentPet}
           records={currentRecords}
-          moments={moments}
+          moments={currentMoments}
           onPetChange={setCurrentPet}
           orders={orders}
           tags={tags}
@@ -130,7 +139,7 @@ export function PetManagementTabs({
       ) : null}
 
       {activeTab === "moments" ? (
-        <PetMomentsManager pet={currentPet} initialMoments={moments} />
+        <PetMomentsManager pet={currentPet} initialMoments={currentMoments} />
       ) : null}
 
       {activeTab === "tag" ? (

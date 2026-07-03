@@ -8,7 +8,10 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { getActivePets } from "@/lib/petLifecycle";
 import { ownerRoutes } from "@/lib/routes";
-import { getPetMoments } from "@/services/momentService";
+import {
+  getFriendlyMomentErrorMessage,
+  getPetMoments,
+} from "@/services/momentService";
 import { getPets } from "@/services/petService";
 import {
   getFriendlyRecordErrorMessage,
@@ -83,7 +86,11 @@ export function GenericPetSection({ section }: { section: Section }) {
         }
       } catch (caught) {
         if (active) {
-          setError(getFriendlyRecordErrorMessage(caught));
+          setError(
+            section === "moments"
+              ? getFriendlyMomentErrorMessage(caught)
+              : getFriendlyRecordErrorMessage(caught)
+          );
           setPets([]);
         }
       } finally {

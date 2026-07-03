@@ -158,15 +158,16 @@ export function PublicSharePetProfile({
         setLostMode(isActivePet(nextProfile) && nextProfile.lostModeEnabled);
 
         if (apiMode) {
-          const recordsResponse = await getPublicPetRecords(
-            initialProfile.publicCode
-          );
+          const [momentsResponse, recordsResponse] = await Promise.all([
+            getPublicPetMoments(initialProfile.publicCode),
+            getPublicPetRecords(initialProfile.publicCode),
+          ]);
 
           if (!active) {
             return;
           }
 
-          setMoments([]);
+          setMoments(momentsResponse.data);
           setRecords(recordsResponse.data);
           setLoaded(true);
           return;

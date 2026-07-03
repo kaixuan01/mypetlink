@@ -1,4 +1,4 @@
-import type { PetLifecycleStatus } from "@/types";
+import type { MomentType, PetLifecycleStatus } from "@/types";
 
 export type BackendCurrentUser = {
   user: {
@@ -138,8 +138,47 @@ export type BackendPublicPetProfile = {
   generalArea?: string | null;
   bio?: string | null;
   memorialMessage?: string | null;
-  memories: unknown[];
+  memories: BackendPublicMemory[];
   careRecords: BackendPublicCareRecord[];
+};
+
+export type BackendMemoryVisibility = "Public" | "Private" | "FamilyOnly";
+
+export type BackendMemoryMedia = {
+  id: string;
+  type: "image" | "video" | string;
+  url?: string | null;
+  caption?: string | null;
+  altText?: string | null;
+  sortOrder: number;
+};
+
+export type BackendMemory = {
+  id: string;
+  petId: string;
+  title: string;
+  date?: string | null;
+  type?: MomentType | string | null;
+  caption?: string | null;
+  visibility: BackendMemoryVisibility;
+  showOnPublicProfile: boolean;
+  showInLifeTimeline: boolean;
+  timelineNote?: string | null;
+  media: BackendMemoryMedia[];
+  coverMediaId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  archivedAt?: string | null;
+};
+
+export type BackendPublicMemory = {
+  title: string;
+  momentDate?: string | null;
+  type?: MomentType | string | null;
+  caption?: string | null;
+  showOnPublicProfile: boolean;
+  showInLifeTimeline: boolean;
+  timelineNote?: string | null;
 };
 
 export type BackendCareRecordType =

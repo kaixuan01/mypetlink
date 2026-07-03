@@ -99,6 +99,40 @@ public interface IPublicProfileService : ISkeletonService
         CancellationToken cancellationToken = default);
 }
 
+public interface IMemoryService : ISkeletonService
+{
+    Task<(IReadOnlyCollection<MemoryResponse> Items, int Total)> ListForPetAsync(
+        Guid? currentUserId,
+        Guid petId,
+        int page,
+        int pageSize,
+        string? visibility,
+        bool includeArchived,
+        CancellationToken cancellationToken = default);
+
+    Task<MemoryResponse> CreateAsync(
+        Guid? currentUserId,
+        Guid petId,
+        CreateMemoryRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<MemoryResponse> GetAsync(
+        Guid? currentUserId,
+        Guid memoryId,
+        CancellationToken cancellationToken = default);
+
+    Task<MemoryResponse> UpdateAsync(
+        Guid? currentUserId,
+        Guid memoryId,
+        UpdateMemoryRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task ArchiveAsync(
+        Guid? currentUserId,
+        Guid memoryId,
+        CancellationToken cancellationToken = default);
+}
+
 public interface ICareRecordService : ISkeletonService
 {
     Task<(IReadOnlyCollection<CareRecordResponse> Items, int Total)> ListForPetAsync(

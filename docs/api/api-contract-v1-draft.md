@@ -543,11 +543,19 @@ Auth: owner.
 Query:
 
 - `page`, `pageSize`
-- `visibility`
+- `visibility`: optional `Public`, `Private`, or `FamilyOnly`
+- `includeArchived`: optional, default `false`
+
+Rules:
+
+- Owner can only list memories for their own pets.
+- Active, Memorial, and Archived pets remain readable.
+- Archived/deleted memories are hidden unless `includeArchived=true`.
+- Existing over-limit memories remain readable.
 
 Response:
 
-- memory list with linked media summaries
+- memory list with `id`, `petId`, `title`, `date`, `type`, `caption`, `visibility`, `showOnPublicProfile`, `showInLifeTimeline`, `timelineNote`, empty media summaries until upload/storage is implemented, timestamps, and pagination metadata.
 
 Errors:
 
@@ -570,31 +578,63 @@ Request:
 
 Validation:
 
-- configured memory limit per pet.
-- configured media limit per memory.
-- media files must belong to owner.
+- pet must exist and belong to the current owner.
+- archived pets cannot receive new memories.
+- Memorial pets may still receive memories.
+- `title`, `date`, `type`, and `visibility` are required.
+- Free plan memory creation is limited by `PlanLimits.MaxMemoriesPerPet` active memories per pet; existing over-limit memories remain readable/editable.
+- `Public` memories can appear on the public profile when `showOnPublicProfile` or `showInLifeTimeline` is enabled and the pet public profile section allows it.
+- `Private` and `FamilyOnly` memories are owner-only in Phase B.
+- real media upload/storage is not implemented yet; non-empty `mediaFileIds` are rejected.
 
 Errors:
 
+- `400` validation failed
 - `422` plan limit reached
-- `404` pet not found or media not found
+- `404` pet not found or not owned
+- `422` archived pet state or unsupported attachment request
 
-### PATCH `/api/v1/pets/{petId}/memories/{memoryId}`
+### GET `/api/v1/memories/{memoryId}`
 
-Purpose: update memory.
+Purpose: get one memory by id.
 
 Auth: owner.
 
 Rules:
 
+- Owner can only access memories through pets they own.
+
+Errors:
+
+- `404` memory not found or not owned
+
+### PUT `/api/v1/memories/{memoryId}`
+
+Purpose: update memory.
+
+Auth: owner.
+
+Request:
+
+- partial `title`, `date`, `type`, `caption`, `visibility`, `showOnPublicProfile`, `showInLifeTimeline`, `timelineNote`
+
+Rules:
+
 - Existing grandfathered over-limit memories remain editable.
-- Adding new media still checks configured media limit unless override applies.
+- Changing visibility persists.
+- `Private` and `FamilyOnly` memories cannot appear on public projections.
+- Archived memories cannot be updated.
+- Real media upload/storage is not implemented yet; non-empty `mediaFileIds` are rejected.
 
 Errors:
 
 - `404` not found or not owned
 
-### DELETE `/api/v1/pets/{petId}/memories/{memoryId}`
+Compatibility:
+
+- `PATCH /api/v1/pets/{petId}/memories/{memoryId}` is reserved as a pet-scoped compatibility route.
+
+### DELETE `/api/v1/memories/{memoryId}`
 
 Purpose: archive/delete memory from owner view.
 
@@ -606,7 +646,12 @@ Response:
 
 Rules:
 
-- Prefer soft delete/archival.
+- Soft archive is preferred; archived memories no longer appear in the active owner list or public projections.
+- Owner can only archive memories through pets they own.
+
+Compatibility:
+
+- `DELETE /api/v1/pets/{petId}/memories/{memoryId}` is reserved as a pet-scoped compatibility route.
 
 ## Care Records
 

@@ -79,7 +79,7 @@ Build:
 - `MediaFileLinks`
 - local file storage provider implementation for development
 - storage provider interface for future Azure Blob, S3, Cloudflare R2
-- memory list/create/update/archive
+- memory list/create/update/archive (implemented for the backend-connected Moments slice)
 - care record list/create/update/archive (implemented for the backend-connected Records slice)
 - public memory/care projections with visibility checks
 - media linking for memories and care records
@@ -93,11 +93,13 @@ Acceptance criteria:
 - New media attachment respects configured media limits.
 - Public pages show only public memories/care records allowed by owner settings.
 - Owner Records UI persists care records through authenticated API calls when backend mode is configured.
+- Owner Moments UI persists memories through authenticated API calls when backend mode is configured.
 
 Tests:
 
 - plan limits and grandfather behavior
 - memory visibility filtering
+- memory ownership, validation, archive behavior, and plan-limit enforcement
 - care record public visibility filtering
 - care record ownership, validation, and archive behavior
 - media ownership validation

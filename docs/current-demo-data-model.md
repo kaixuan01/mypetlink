@@ -1,6 +1,6 @@
 # MyPetLink Current Demo Data Model
 
-This documents the local preview data model in `apps/web`. Owner auth, owner profile, pets, public profile, QR Safety, and care records now use the backend API when `NEXT_PUBLIC_API_BASE_URL` is configured; the localStorage model remains the fallback for static/demo preview. All frontend types live in `apps/web/src/types.ts`.
+This documents the local preview data model in `apps/web`. Owner auth, owner profile, pets, public profile, QR Safety, care records, and memories now use the backend API when `NEXT_PUBLIC_API_BASE_URL` is configured; the localStorage model remains the fallback for static/demo preview. All frontend types live in `apps/web/src/types.ts`.
 
 ## Persistence approach
 
@@ -72,6 +72,6 @@ Phase 1 payment is manual (`src/config/payment.ts`): the owner pays a merchant Q
 ## Other models
 
 - `CareRecord`: typed care events with `publicVisibility` (`Private | Public badge only | Public details`) and `status` (`complete | due-soon | upcoming`). In backend mode, owner Records pages read/write these through `/api/v1/pets/{petId}/care-records` and `/api/v1/care-records/{recordId}`. File upload/storage for attachments is not implemented yet.
-- `PetMoment`: memories with media (max 5 per moment), visibility, and timeline flags.
+- `PetMoment`: memories with media (max 5 per moment), visibility, and timeline flags. In backend mode, owner Moments pages read/write memory details through `/api/v1/pets/{petId}/memories` and `/api/v1/memories/{memoryId}`. Public profile projections include only `Public` memories marked for the gallery or Life Timeline. Real photo/video upload storage is not implemented yet, so API-mode memory media is shown as a later enhancement.
 - `QrStatus` (`active | draft | paused`) — QR profile status used by the earlier admin QR Profiles view.
 - Company/config constants: `src/config/site.ts` (company, support email, business registration no.) and `src/config/payment.ts` (manual payment copy).
