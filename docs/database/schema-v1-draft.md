@@ -38,9 +38,9 @@ Target stack: SQL Server, EF Core, C# .NET 8 Web API.
 
 ### AdminRole
 
-`OwnerSupport`, `Operations`, `Admin`, `SuperAdmin`
+`Admin`, `SuperAdmin` (Phase 1) — `OwnerSupport`, `Operations` are reserved future values.
 
-Phase 1 can seed one `SuperAdmin`; controllers should still enforce roles.
+Phase 1 decision: keep role granularity simple. Seed one `SuperAdmin`, treat `Admin` and `SuperAdmin` as equivalent in Phase 1 policies, and add granular permissions only when a second operations person exists. The enum is additive, so future roles do not require schema changes.
 
 ### PetLifecycleStatus
 
@@ -74,6 +74,8 @@ Frontend compatibility note: the current local model calls these `Pending Paymen
 `Unclaimed`, `Pending`, `Preparing`, `Delivered`, `Active`, `Lost`, `Disabled`, `Replaced`, `Archived`
 
 Phase 1 keeps `Pending`, `Preparing`, and `Delivered` to match the completed frontend/Admin MVP. A later backend refactor may move fulfillment-only states entirely onto orders, but V1 should avoid breaking the current UI.
+
+Frontend compatibility note: the current frontend `TagStatus` enum uses the value `Unassigned` for what this schema calls `Unclaimed` (unclaimed retail stock). The API layer must map between the two, or the frontend enum value should be migrated during integration. The frontend also models archived state as a separate `isArchived` flag rather than an `Archived` status; V1 treats `Archived` as a status plus `ArchivedAt`.
 
 ### ActorType
 
@@ -305,11 +307,15 @@ Key fields:
 - `PersonalityTagsJson`
 - `FavoriteFood`, `FavoriteToy`
 - `SafetyNote`, `EmergencyNote`
+- `AllergiesJson`, `MedicationsJson` (current frontend stores these as simple string arrays on the pet; keep as JSON in V1 and normalize into `CareRecords` types only if a later phase needs querying)
+- `ProfilePhotoMediaFileId` nullable FK `MediaFiles`
+- `CoverPhotoMediaFileId` nullable FK `MediaFiles`
 - `CreatedAt`, `UpdatedAt`, `ArchivedAt`, `DeletedAt`
 
 Foreign keys:
 
 - `OwnerUserId` -> `Users.Id`
+- `ProfilePhotoMediaFileId` / `CoverPhotoMediaFileId` -> `MediaFiles.Id` (explicit columns so the profile and cover photo are unambiguous; gallery-style media still uses `MediaFileLinks`)
 
 Indexes:
 
@@ -381,6 +387,7 @@ Rules:
 
 - Lookup by `PublicCode`; slug is cosmetic.
 - Server must return a public projection only. Do not ship hidden or private fields.
+- `SlugSnapshot` must be updated whenever the pet's slug is renamed (or dropped in favor of reading `Pets.Slug` at projection time) — a stale snapshot would emit wrong share URLs. Old slugs never need to keep working because resolution is by `PublicCode`.
 
 ### PetSafetySettings
 
@@ -433,6 +440,7 @@ Key fields:
 Indexes:
 
 - `(PetId, CreatedAt)`
+- `(PetId, MomentDate)` (timeline and public profile sort by moment date)
 - `(PetId, Visibility)`
 - `(PetId, ShowOnPublicProfile)`
 - `(PetId, ShowInLifeTimeline)`
@@ -457,7 +465,7 @@ Key fields:
 - `Provider`
 - `Notes`
 - `PublicVisibility` (`Private`, `PublicBadgeOnly`, `PublicDetails`)
-- `Status` (`Complete`, `DueSoon`, `Upcoming`)
+- `Status` (`Complete`, `DueSoon`, `Upcoming`) — prefer deriving this from `RecordDate`/`DueDate` at query time instead of persisting it; a stored status silently goes stale as dates pass. If stored for filtering, a scheduled recompute is required.
 - `CreatedAt`, `UpdatedAt`, `ArchivedAt`, `DeletedAt`
 
 Indexes:
@@ -609,6 +617,7 @@ Rules:
 - One physical tag can be linked to one active pet at a time.
 - A pet can have multiple tags.
 - Lost/disabled/replaced/archived tags must not expose owner contact from `/t/:tagCode`.
+- Circular FK note: `SmartTags.OrderId` and `TagOrders.SmartTagId` reference each other. Both must stay nullable, EF Core must configure both with `DeleteBehavior.Restrict`/`NoAction` (SQL Server rejects cascade cycles), and inserts happen in two steps (create order, create tag, then set the back-reference). Treat `TagOrders.SmartTagId` as the authoritative link; `SmartTags.OrderId` is a denormalized convenience for tag-side lookups and may be dropped if it proves noisy.
 
 ### TagOrders
 
@@ -639,6 +648,7 @@ Key fields:
 - `DeliveryNotes`
 - `TrackingStatus`
 - `TrackingNumber`
+- `PaymentConfirmedAt` (recorded when admin confirms payment; used for receipts and reporting)
 - `ShippedAt`
 - `DeliveredAt`
 - `CancelledAt`
@@ -704,7 +714,8 @@ Rules:
 
 - Keep every submitted proof for review history unless a privacy/legal retention workflow says otherwise.
 - Rejecting a proof sets proof status to `Rejected`, returns order to `PendingPayment`, and keeps the order.
-- Approving a proof sets proof status to `Approved`, order status to `PaymentConfirmed`, and payment status to `Confirmed`.
+- Approving a proof sets proof status to `Approved`, order status to `PaymentConfirmed`, payment status to `Confirmed`, and records `TagOrders.PaymentConfirmedAt`.
+- `Superseded` applies when the owner uploads a new proof while an earlier proof on the same order is still `PendingReview` — the earlier proof becomes `Superseded` and the new proof becomes the reviewable one. Rejected proofs stay `Rejected`.
 - File fields mirror `MediaFiles` so reports and exports remain stable even if media storage metadata changes later.
 
 ## Scans, Found Reports, And Analytics
@@ -751,6 +762,8 @@ Privacy rule:
 - If precise consent is not granted, do not store latitude/longitude.
 - Without consent, store only non-precise IP-based `Country` and `City` when available.
 - QR/NFC scan analytics must not be described as GPS tracking.
+- Retention (PDPA): `IpAddress` and `UserAgent` are personal data — define a configurable retention window (e.g. purge or anonymize scan IP/user-agent after N days, default 90) instead of keeping them forever. Aggregated country/city counts may be retained.
+- IP-based `Country`/`City` resolution is optional and must not block Phase 1 — leave the columns null when no geolocation source is configured.
 
 ### FoundReports
 

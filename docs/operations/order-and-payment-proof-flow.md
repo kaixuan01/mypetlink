@@ -107,7 +107,7 @@ Frontend display labels:
 - `PendingReview`
 - `Approved`
 - `Rejected`
-- `Superseded`
+- `Superseded` — set when the owner uploads a new proof while an earlier proof on the same order is still `PendingReview`. The newest proof becomes the reviewable one; rejected proofs stay `Rejected` and are never superseded.
 
 ## Valid Transitions
 

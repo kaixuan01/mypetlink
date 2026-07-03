@@ -195,6 +195,22 @@ Errors:
 - `400` invalid phone
 - `422` invalid privacy settings
 
+### POST `/api/v1/account/deletion-request` (Phase 1: support-driven)
+
+Purpose: PDPA/privacy data deletion entry point.
+
+Auth: owner.
+
+Rules:
+
+- Phase 1 may implement this as a recorded request handled by support (sets `Users.Status` workflow, writes an audit log) rather than an automated purge.
+- Deletion must not destroy order, payment, or audit history that has a legal/operational retention need; personal fields are anonymized instead.
+- The Privacy Notice promises data deletion controls, so the workflow must exist even while it is manual.
+
+Errors:
+
+- `401` unauthenticated
+
 ## Pets
 
 ### GET `/api/v1/pets`
@@ -473,6 +489,23 @@ Errors:
 
 - `400` invalid coordinates
 - `404` scan not found
+
+### POST `/api/v1/public/safety/{safetyCode}/found-report` (future, Phase 1 optional)
+
+Purpose: finder submits an optional found report (message, contact, consented location) that lands in `FoundReports`.
+
+Auth: public, rate limited.
+
+Request:
+
+- `finderMessage`, `finderContact` optional
+- `latitude`, `longitude`, `preciseLocationConsent`
+
+Rules:
+
+- The current frontend sends found-location messages through a WhatsApp deep link with no server round-trip, so this endpoint is not required for Phase 1 launch. It exists so the `FoundReports` table has a defined entry point when the feature is scoped.
+- Same explicit-consent rule as `TagScans` for precise coordinates.
+- Only available for active pets with an enabled safety page.
 
 ## Memories
 
@@ -876,6 +909,21 @@ Query:
 
 - `page`, `pageSize`, `search`, `status`
 
+### GET `/api/v1/admin/owners/{ownerId}`
+
+Purpose: admin owner detail (target of the Admin Portal "View Owner" action).
+
+Response:
+
+- owner account, contact summary, status, joined date
+- pets with lifecycle/Lost Mode summary
+- orders with status summary
+- tags with status summary
+
+Errors:
+
+- `404` owner not found
+
 ### GET `/api/v1/admin/pets`
 
 Purpose: list pets across owners.
@@ -1111,6 +1159,12 @@ Valid transitions:
 - `ProofSubmitted` -> `Confirmed`
 - `ProofSubmitted` -> `Rejected`
 - `Rejected` -> `ProofSubmitted` on resubmission
+
+Payment proof records:
+
+- `PendingReview` -> `Approved` on admin confirmation
+- `PendingReview` -> `Rejected` on admin rejection (rejected proofs stay `Rejected` forever)
+- `PendingReview` -> `Superseded` when the owner uploads a replacement proof before the earlier one is reviewed; the newest proof becomes the reviewable one
 
 ### Smart Tags
 

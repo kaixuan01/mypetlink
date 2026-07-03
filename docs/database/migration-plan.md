@@ -207,8 +207,8 @@ Expected local/deployment settings:
 - `Jwt__Issuer`
 - `Jwt__Audience`
 - `Jwt__SigningKey`
-- `Jwt__AccessTokenMinutes`
-- `Jwt__RefreshTokenDays`
+- `Jwt__AccessTokenMinutes` (recommended Phase 1 default: 30)
+- `Jwt__RefreshTokenDays` (recommended Phase 1 default: 30, rotating on every refresh)
 - `GoogleAuth__ClientId`
 - `Storage__Provider`
 - `Storage__LocalRoot`
