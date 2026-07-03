@@ -25,8 +25,8 @@ public sealed record PetVisibilityRequest(
     bool ShowHealthSummary);
 
 public sealed record CreatePetRequest(
-    [property: Required, MaxLength(120)] string Name,
-    [property: Required, MaxLength(80)] string Species,
+    [Required, MaxLength(120)] string Name,
+    [Required, MaxLength(80)] string Species,
     string? CustomSpecies,
     string? Breed,
     string? Gender,

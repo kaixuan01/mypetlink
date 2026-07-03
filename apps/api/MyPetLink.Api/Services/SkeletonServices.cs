@@ -16,7 +16,6 @@ public abstract class SkeletonService : ISkeletonService
     }
 }
 
-public sealed class AuthService : SkeletonService, IAuthService;
 public sealed class PetService : SkeletonService, IPetService;
 public sealed class PublicProfileService : SkeletonService, IPublicProfileService;
 public sealed class QrSafetyService : SkeletonService, IQrSafetyService;

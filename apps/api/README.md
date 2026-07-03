@@ -1,6 +1,6 @@
 # MyPetLink API
 
-Initial .NET 8 Web API skeleton for the MyPetLink backend.
+.NET 8 Web API for the MyPetLink backend.
 
 ## Project
 
@@ -53,6 +53,48 @@ http://localhost:5281/health
 http://localhost:5281/api/v1/health
 ```
 
+## Auth Phase A Configuration
+
+Phase A implements Google Login first, but the auth design is provider-ready through the existing `ExternalLogins` table. Supported provider values are planned as:
+
+- `Google` - implemented first.
+- `Apple` - planned later, not exposed as a working endpoint yet.
+- `EmailOtp` - possible future passwordless login, not implemented yet.
+
+No password login is implemented in Phase A.
+
+Required local settings:
+
+```bash
+dotnet user-secrets set --project apps/api/MyPetLink.Api "Jwt:SigningKey" "local-dev-long-random-secret-at-least-32-chars"
+dotnet user-secrets set --project apps/api/MyPetLink.Api "GoogleAuth:ClientId" "your-google-client-id.apps.googleusercontent.com"
+```
+
+Optional overrides:
+
+```bash
+dotnet user-secrets set --project apps/api/MyPetLink.Api "Jwt:Issuer" "MyPetLink.Api"
+dotnet user-secrets set --project apps/api/MyPetLink.Api "Jwt:Audience" "MyPetLink.Local"
+dotnet user-secrets set --project apps/api/MyPetLink.Api "Jwt:AccessTokenMinutes" "15"
+dotnet user-secrets set --project apps/api/MyPetLink.Api "Jwt:RefreshTokenDays" "30"
+```
+
+Environment variables use the same names with double underscores, for example `Jwt__SigningKey` and `GoogleAuth__ClientId`.
+
+Implemented auth endpoints:
+
+```txt
+POST /api/v1/auth/google
+POST /api/v1/auth/refresh
+POST /api/v1/auth/logout
+GET  /api/v1/auth/me
+GET  /api/v1/admin/auth/check
+```
+
+Google login validates the Google ID token against `GoogleAuth:ClientId`, creates or updates `Users`, creates or updates the `ExternalLogins` row with `Provider = Google`, creates an owner profile on the Free plan when needed, and returns a JWT access token plus a rotating refresh token. Refresh tokens are stored only as SHA-256 hashes and are rotated on every refresh. Logout revokes the submitted refresh token.
+
+Admin authorization uses the `AdminUsers` table. The admin policy checks that the authenticated user has an active `AdminUsers` record and an active `Users` row; it does not grant admin access from a role claim alone.
+
 ## EF Core Migrations
 
 `dotnet-ef` is installed as a **local tool** pinned in the repo-root manifest at `.config/dotnet-tools.json` (version matches the EF Core packages). After cloning, restore it once:
@@ -84,12 +126,12 @@ dotnet ef database update --project apps/api/MyPetLink.Api --startup-project app
 
 Do not run production migrations from local development settings.
 
-## Current Skeleton Scope
+## Current Backend Scope
 
 - SQL Server EF Core `MyPetLinkDbContext` with Phase 1 entities, indexes, restrictive FK behavior, and seed defaults for Free/Premium plans and app settings.
 - `/api/v1` controller route skeletons with response envelopes.
-- JWT bearer authentication wiring and admin authorization policy placeholder.
-- Google login endpoint placeholder only; no OAuth validation logic yet.
+- JWT bearer authentication with Swagger Bearer auth support.
+- Auth Phase A: Google ID token validation, user/external-login upsert, JWT access tokens, hashed rotating refresh tokens, logout, current-user lookup, and active `AdminUsers` policy foundation.
 - Audit log service placeholder for admin mutations.
 - Local file storage provider abstraction for development only.
 - No payment gateway, Premium subscription, GPS tracking, outbound notifications, or real upload workflow yet.

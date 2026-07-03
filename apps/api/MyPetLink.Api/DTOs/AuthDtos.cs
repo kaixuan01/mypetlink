@@ -2,9 +2,9 @@ using System.ComponentModel.DataAnnotations;
 
 namespace MyPetLink.Api.DTOs;
 
-public sealed record GoogleLoginRequest([property: Required] string IdToken);
+public sealed record GoogleLoginRequest([Required] string IdToken);
 
-public sealed record RefreshTokenRequest([property: Required] string RefreshToken);
+public sealed record RefreshTokenRequest([Required] string RefreshToken);
 
 public sealed record LogoutRequest(string? RefreshToken);
 
@@ -14,6 +14,11 @@ public sealed record AuthTokenResponse(
     int ExpiresIn,
     CurrentUserSummaryResponse User,
     OwnerProfileSummaryResponse? OwnerProfile);
+
+public sealed record TokenRefreshResponse(
+    string AccessToken,
+    string RefreshToken,
+    int ExpiresIn);
 
 public sealed record CurrentUserSummaryResponse(
     Guid Id,
@@ -34,6 +39,10 @@ public sealed record CurrentSessionResponse(
     AdminProfileSummaryResponse? Admin);
 
 public sealed record AdminProfileSummaryResponse(string Role, bool IsActive);
+
+public sealed record AdminAuthCheckResponse(
+    CurrentUserSummaryResponse User,
+    AdminProfileSummaryResponse Admin);
 
 public sealed record UpdateOwnerProfileRequest(
     string? OwnerDisplayName,

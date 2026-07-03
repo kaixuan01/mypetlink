@@ -29,7 +29,7 @@ Build:
 - global error handling middleware
 - JWT access token support
 - refresh token support and rotation
-- Google Sign-In validation
+- provider-ready external auth foundation with Google Sign-In validation first
 - current-user service
 - owner/admin authorization policies
 - `Users`, `ExternalLogins`, `RefreshTokens`, `OwnerProfiles`, `AdminUsers`
@@ -44,9 +44,11 @@ Build:
 Acceptance criteria:
 
 - Owner can sign in with Google and receive JWT + refresh token.
+- `ExternalLogins` supports multiple provider values (`Google`, later `Apple`, later `EmailOtp` if approved) without a Google-only service design.
 - Refresh token rotation works and old refresh token reuse is rejected.
 - Protected owner endpoints require JWT.
 - Admin endpoints reject non-admin users.
+- No password login is implemented in Phase A.
 - Owner can create and update pets.
 - Backend generates `publicCode` and `safetyCode` with secure random identifiers.
 - `/api/v1/public/profiles/{publicCode}` returns only privacy-safe share profile data.

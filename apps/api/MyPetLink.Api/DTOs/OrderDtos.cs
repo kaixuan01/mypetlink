@@ -4,17 +4,17 @@ using MyPetLink.Api.Entities;
 namespace MyPetLink.Api.DTOs;
 
 public sealed record DeliveryDetailsRequest(
-    [property: Required] string RecipientName,
-    [property: Required] string PhoneE164,
-    [property: Required] string AddressLine1,
+    [Required] string RecipientName,
+    [Required] string PhoneE164,
+    [Required] string AddressLine1,
     string? AddressLine2,
-    [property: Required] string Postcode,
-    [property: Required] string City,
-    [property: Required] string State,
+    [Required] string Postcode,
+    [Required] string City,
+    [Required] string State,
     string? Notes);
 
 public sealed record CreateTagOrderRequest(
-    [property: Required] Guid PetId,
+    [Required] Guid PetId,
     TagType TagType,
     string? Shape,
     DeliveryDetailsRequest Delivery,

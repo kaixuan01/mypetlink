@@ -59,10 +59,13 @@ Common status codes:
 
 - Protected endpoints require a JWT bearer access token.
 - Refresh token endpoints use a secure refresh token value and rotate tokens.
-- Admin endpoints require an active `AdminUsers` record and role authorization.
+- Admin endpoints require an active `AdminUsers` record; a role claim alone is not enough.
 - Public endpoints must never expose internal ids or private owner fields.
 - Owner endpoints must scope every read/write by the authenticated user.
 - Every admin mutation writes an `AuditLogs` record.
+- Phase A implements Google Login first through `ExternalLogins.Provider = Google`.
+- `ExternalLogins` is designed for multiple provider values: `Google`, `Apple` later, and `EmailOtp` later if passwordless email login is approved.
+- No password login is implemented in Phase A.
 
 ## Pagination And Filtering
 
@@ -98,11 +101,16 @@ Validation:
 
 - Validate Google token issuer, audience, expiry, and subject.
 - Normalize and verify email from token.
+- Create or update `Users`.
+- Create or update `ExternalLogins` with `provider = Google`.
+- Create owner profile on the Free plan when needed.
+- Issue JWT access token and rotating refresh token.
 
 Errors:
 
 - `401` invalid Google token
 - `403` user suspended
+- `500` Google auth provider not configured
 - `409` email linked to unsupported login state
 
 ### POST `/api/v1/auth/refresh`
@@ -164,6 +172,16 @@ Response:
 Errors:
 
 - `401` unauthenticated
+
+### Future auth endpoints - planned only
+
+These routes are planning notes and must not be exposed as working behavior until implemented:
+
+- `POST /api/v1/auth/apple`
+- `POST /api/v1/auth/email-otp/request`
+- `POST /api/v1/auth/email-otp/verify`
+
+Apple Login is planned for later. Email OTP/passwordless login may be considered later. Password login is not part of Phase A.
 
 ### PATCH `/api/v1/account/owner-profile`
 
@@ -855,6 +873,23 @@ Errors:
 ## Admin
 
 All admin endpoints require an active admin profile. Mutations write audit logs.
+
+### GET `/api/v1/admin/auth/check`
+
+Purpose: verify the current JWT belongs to an active admin user.
+
+Auth: admin policy.
+
+Rules:
+
+- Requires a valid JWT.
+- Requires an active `AdminUsers` row for the current user.
+- Does not trust the `Admin` role claim by itself.
+
+Errors:
+
+- `401` unauthenticated
+- `403` not an active admin
 
 ### GET `/api/v1/admin/dashboard/summary`
 

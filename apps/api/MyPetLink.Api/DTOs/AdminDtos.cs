@@ -26,14 +26,14 @@ public sealed record AdminOrderResponse(
     DateTimeOffset CreatedAt);
 
 public sealed record ReviewPaymentProofRequest(
-    [property: Required] string Reason);
+    [Required] string Reason);
 
 public sealed record UpdateOrderStatusRequest(
     OrderStatus Status,
     string? TrackingNumber);
 
 public sealed record GenerateTagCodesRequest(
-    [property: Range(1, 50)] int Count,
+    [Range(1, 50)] int Count,
     bool HasNfc,
     string? Shape,
     string? BatchNo);

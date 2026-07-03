@@ -1,5 +1,7 @@
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -51,9 +53,12 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
 });
 
 var jwt = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
-var signingKey = string.IsNullOrWhiteSpace(jwt.SigningKey)
-    ? "development-placeholder-signing-key-change-before-production"
-    : jwt.SigningKey;
+if (string.IsNullOrWhiteSpace(jwt.SigningKey))
+{
+    throw new InvalidOperationException("Jwt:SigningKey must be configured before starting the API.");
+}
+
+var apiJsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -66,8 +71,56 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateLifetime = true,
             ValidIssuer = jwt.Issuer,
             ValidAudience = jwt.Audience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)),
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.SigningKey)),
             ClockSkew = TimeSpan.FromMinutes(2)
+        };
+
+        options.Events = new JwtBearerEvents
+        {
+            OnChallenge = async context =>
+            {
+                context.HandleResponse();
+
+                if (context.Response.HasStarted)
+                {
+                    return;
+                }
+
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                context.Response.ContentType = "application/json";
+
+                var response = ApiEnvelope.Error(
+                    context.HttpContext,
+                    "unauthorized",
+                    "Authentication is required.");
+
+                await JsonSerializer.SerializeAsync(
+                    context.Response.Body,
+                    response,
+                    apiJsonOptions,
+                    context.HttpContext.RequestAborted);
+            },
+            OnForbidden = async context =>
+            {
+                if (context.Response.HasStarted)
+                {
+                    return;
+                }
+
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                context.Response.ContentType = "application/json";
+
+                var response = ApiEnvelope.Error(
+                    context.HttpContext,
+                    "forbidden",
+                    "You do not have permission to access this resource.");
+
+                await JsonSerializer.SerializeAsync(
+                    context.Response.Body,
+                    response,
+                    apiJsonOptions,
+                    context.HttpContext.RequestAborted);
+            }
         };
     });
 
@@ -78,14 +131,16 @@ builder.Services.AddAuthorization(options =>
 
     options.AddPolicy(AuthorizationPolicies.Admin, policy =>
     {
-        // TODO: Replace role-only check with active AdminUsers lookup once auth logic is implemented.
         policy.RequireAuthenticatedUser();
-        policy.RequireRole(RoleConstants.Admin);
+        policy.Requirements.Add(new ActiveAdminRequirement());
     });
 });
 
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IExternalAuthService, ExternalAuthService>();
+builder.Services.AddScoped<IExternalTokenValidator, GoogleTokenValidator>();
+builder.Services.AddScoped<IAuthorizationHandler, ActiveAdminRequirementHandler>();
 builder.Services.AddScoped<IPetService, PetService>();
 builder.Services.AddScoped<IPublicProfileService, PublicProfileService>();
 builder.Services.AddScoped<IQrSafetyService, QrSafetyService>();

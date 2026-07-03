@@ -21,6 +21,25 @@ public sealed class ErrorHandlingMiddleware
         {
             await _next(context);
         }
+        catch (ApiException exception)
+        {
+            if (context.Response.HasStarted)
+            {
+                throw;
+            }
+
+            context.Response.Clear();
+            context.Response.StatusCode = exception.StatusCode;
+            context.Response.ContentType = "application/json";
+
+            var response = ApiEnvelope.Error(
+                context,
+                exception.Code,
+                exception.Message,
+                exception.Details);
+
+            await JsonSerializer.SerializeAsync(context.Response.Body, response, JsonOptions, context.RequestAborted);
+        }
         catch (Exception exception)
         {
             _logger.LogError(exception, "Unhandled API exception.");
