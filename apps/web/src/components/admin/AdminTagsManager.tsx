@@ -18,14 +18,13 @@ import {
   isActivePhysicalTagForPet,
   isPendingPhysicalTag,
 } from "@/lib/tagStatus";
-import { getAdminData, type AdminData } from "@/services/adminService";
 import {
-  archiveTag,
-  disableTag,
-  orderReplacementTag,
-  reportTagLost,
-  restoreTag,
-} from "@/services/tagService";
+  getAdminData,
+  runAdminTagAction,
+  type AdminData,
+  type AdminTagAction,
+} from "@/services/adminService";
+import { getFriendlyTagErrorMessage } from "@/services/tagService";
 import type { PetTag } from "@/types";
 
 type AdminTagFilter =
@@ -61,11 +60,17 @@ export function AdminTagsManager({ initialData }: { initialData: AdminData }) {
   useEffect(() => {
     let active = true;
 
-    getAdminData().then((next) => {
-      if (active) {
-        setData(next);
-      }
-    });
+    getAdminData()
+      .then((next) => {
+        if (active) {
+          setData(next);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setMessage("We could not load smart tags. Please refresh to try again.");
+        }
+      });
 
     return () => {
       active = false;
@@ -126,18 +131,8 @@ export function AdminTagsManager({ initialData }: { initialData: AdminData }) {
   const visibleTags = scopedTags.filter((tag) => matchesFilter(tag, filter));
   const scopedPetName = petScope ? petMap.get(petScope)?.name : "";
 
-  async function runTagAction(
-    tag: PetTag,
-    action: "disable" | "mark-lost" | "mark-replaced" | "archive" | "restore"
-  ) {
-    const handlers = {
-      disable: disableTag,
-      "mark-lost": reportTagLost,
-      "mark-replaced": orderReplacementTag,
-      archive: archiveTag,
-      restore: restoreTag,
-    };
-    const labels = {
+  async function runTagAction(tag: PetTag, action: AdminTagAction) {
+    const labels: Record<AdminTagAction, string> = {
       disable: "disabled",
       "mark-lost": "marked as lost",
       "mark-replaced": "marked as replaced",
@@ -145,9 +140,13 @@ export function AdminTagsManager({ initialData }: { initialData: AdminData }) {
       restore: "restored",
     };
 
-    await handlers[action](tag.id);
-    await refresh();
-    setMessage(`Tag ${tag.tagCode} ${labels[action]}.`);
+    try {
+      await runAdminTagAction(tag.id, action);
+      await refresh();
+      setMessage(`Tag ${tag.tagCode} ${labels[action]}.`);
+    } catch (caught) {
+      setMessage(getFriendlyTagErrorMessage(caught));
+    }
   }
 
   return (

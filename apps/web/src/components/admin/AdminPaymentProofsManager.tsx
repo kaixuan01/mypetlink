@@ -41,11 +41,17 @@ export function AdminPaymentProofsManager({
   useEffect(() => {
     let active = true;
 
-    getAdminData().then((next) => {
-      if (active) {
-        setData(next);
-      }
-    });
+    getAdminData()
+      .then((next) => {
+        if (active) {
+          setData(next);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setMessage("We could not load payment proofs. Please refresh to try again.");
+        }
+      });
 
     return () => {
       active = false;

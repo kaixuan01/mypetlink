@@ -1,22 +1,71 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
-import { loginMockAdmin } from "@/services/authService";
+import { isApiClientError } from "@/services/apiClient";
+import { canUseApi } from "@/services/apiConfig";
+import {
+  checkAdminAccess,
+  isOwnerAuthenticated,
+  loginMockAdmin,
+} from "@/services/authService";
 
 export function AdminLoginPanel() {
   const router = useRouter();
+  const apiMode = canUseApi();
+  const [checking, setChecking] = useState(false);
+  const [message, setMessage] = useState("");
 
-  function handleLogin() {
-    loginMockAdmin();
+  function resolveDestination() {
     const params = new URLSearchParams(window.location.search);
     const redirect = params.get("redirect");
-    const destination =
-      redirect && redirect.startsWith("/admin") && !redirect.startsWith("//")
-        ? redirect
-        : "/admin";
 
-    router.replace(destination);
+    return redirect && redirect.startsWith("/admin") && !redirect.startsWith("//")
+      ? redirect
+      : "/admin";
+  }
+
+  async function handleApiContinue() {
+    if (!isOwnerAuthenticated()) {
+      router.replace(`/login?redirect=${encodeURIComponent(resolveDestination())}`);
+      return;
+    }
+
+    setChecking(true);
+    setMessage("");
+
+    try {
+      const access = await checkAdminAccess();
+
+      if (access?.admin.isActive) {
+        router.replace(resolveDestination());
+        return;
+      }
+
+      setMessage("This account does not have operations access.");
+    } catch (caught) {
+      if (isApiClientError(caught) && caught.status === 403) {
+        setMessage("This account does not have operations access.");
+      } else if (isApiClientError(caught) && caught.status === 401) {
+        router.replace(`/login?redirect=${encodeURIComponent(resolveDestination())}`);
+        return;
+      } else {
+        setMessage("We could not confirm your access. Please try again.");
+      }
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  function handleLogin() {
+    if (apiMode) {
+      void handleApiContinue();
+      return;
+    }
+
+    loginMockAdmin();
+    router.replace(resolveDestination());
   }
 
   return (
@@ -31,13 +80,23 @@ export function AdminLoginPanel() {
         This area is for MyPetLink operations.
       </p>
       <button
-        className="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-slate-950 px-5 py-3 text-sm font-bold text-white transition hover:bg-slate-800"
+        className="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-slate-950 px-5 py-3 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+        disabled={checking}
         onClick={handleLogin}
         type="button"
       >
         <Icon name="shield" className="h-4 w-4" />
-        Continue as Admin
+        {checking
+          ? "Checking access..."
+          : apiMode
+            ? "Continue to Operations"
+            : "Continue as Admin"}
       </button>
+      {message ? (
+        <p className="mt-4 rounded-xl bg-[#fff2ef] px-4 py-3 text-sm font-bold text-[#a63c2e]">
+          {message}
+        </p>
+      ) : null}
     </div>
   );
 }

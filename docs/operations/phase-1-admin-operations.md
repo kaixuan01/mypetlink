@@ -1,8 +1,8 @@
 # Phase 1 Admin Operations
 
-This document maps the completed Admin Portal MVP to future backend requirements.
+This document maps the Admin Portal to its backend requirements.
 
-The current Admin Portal is a functional operations preview backed by local/demo browser state. The future backend must replace that local state with authenticated, relational, auditable operations APIs.
+Status (2026-07-04): the admin backend is implemented. The Admin Portal now calls `/api/v1/admin/*` APIs (JWT + active `AdminUsers` policy, audited mutations) whenever the frontend is API-configured with an authenticated session; the local/demo state remains only as the unauthenticated fallback. Payment proofs are still metadata only (no file storage/preview), admin settings are read-only, printed/reseller batch tracking stays disabled, and admin lists load up to 100 rows and filter client-side pending server-side pagination in the UI.
 
 ## Admin Portal Source Of Truth
 

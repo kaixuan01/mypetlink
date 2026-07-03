@@ -1,6 +1,8 @@
 # MyPetLink API Contract V1 Draft
 
-Planning draft for the future C# .NET 8 API. This API is not implemented yet.
+Contract draft for the C# .NET 8 API.
+
+Implementation status (2026-07-04): auth, owner profile, pets, public reads, care records, memories, smart tags, orders/payment proofs, `/t` scan resolution, and the admin group are implemented in `apps/api`. Implemented admin routes differ slightly from this draft (see `apps/api/README.md` for the authoritative list): order fulfillment uses explicit `POST /admin/orders/{id}/mark-preparing|mark-shipped|mark-delivered` routes (with `POST {id}/status` kept as a compatibility dispatcher), payment proofs add `GET /admin/payment-proofs/{id}` plus `POST {id}/approve|reject` sharing the order transition logic, tag generation/export live under `/admin/tag-inventory` (`GET`, `POST /generate`, `GET /export`), tag status actions are explicit `POST /admin/tags/{id}/disable|mark-lost|replace|archive|restore` routes, and `PATCH /admin/settings` is not implemented (read-only Phase 1). Notifications and found reports remain future.
 
 Base path: `/api/v1`
 

@@ -155,6 +155,8 @@ Tests:
 
 Goal: replace the Admin Portal local/demo operations with real backend APIs.
 
+Status (2026-07-04): implemented. All `/api/v1/admin/*` endpoints exist and are policy-guarded by an active `AdminUsers` lookup; every admin mutation writes a real `AuditLogs` row in the same transaction as the change. The Admin Portal UI calls these APIs when the frontend is API-configured with an authenticated session, keeping local/demo state as the unauthenticated fallback. Follow-ups: admin pet lifecycle actions (owner-only for now), editable settings, payment proof file preview (needs file storage), and server-side pagination in the admin UI (it currently loads up to 100 rows per collection and filters client-side).
+
 Build:
 
 - admin dashboard summary

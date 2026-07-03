@@ -47,15 +47,22 @@ function matchesFilter(pet: Pet, filter: PetFilter) {
 export function AdminPetsManager({ initialData }: { initialData: AdminData }) {
   const [data, setData] = useState(initialData);
   const [filter, setFilter] = useState<PetFilter>("all");
+  const [error, setError] = useState("");
 
   useEffect(() => {
     let active = true;
 
-    getAdminData().then((next) => {
-      if (active) {
-        setData(next);
-      }
-    });
+    getAdminData()
+      .then((next) => {
+        if (active) {
+          setData(next);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setError("We could not load pet profiles. Please refresh to try again.");
+        }
+      });
 
     return () => {
       active = false;
@@ -87,6 +94,9 @@ export function AdminPetsManager({ initialData }: { initialData: AdminData }) {
         }))}
         onChange={setFilter}
       />
+      {error ? (
+        <p className="px-4 pt-3 text-sm font-bold text-[#a63c2e]">{error}</p>
+      ) : null}
       <div className="p-4">
         {visiblePets.length === 0 ? (
           <p className="rounded-xl bg-slate-50 px-4 py-6 text-center text-sm font-semibold text-slate-500">

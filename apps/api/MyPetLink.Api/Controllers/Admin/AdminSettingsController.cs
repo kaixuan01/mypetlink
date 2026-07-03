@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MyPetLink.Api.Auth;
+using MyPetLink.Api.Common;
 using MyPetLink.Api.Controllers;
-using MyPetLink.Api.DTOs;
 using MyPetLink.Api.Services;
 
 namespace MyPetLink.Api.Controllers.Admin;
@@ -12,25 +12,18 @@ namespace MyPetLink.Api.Controllers.Admin;
 public sealed class AdminSettingsController : ApiControllerBase
 {
     private readonly IAdminService _adminService;
-    private readonly IAuditLogService _auditLogService;
 
-    public AdminSettingsController(IAdminService adminService, IAuditLogService auditLogService)
+    public AdminSettingsController(IAdminService adminService)
     {
         _adminService = adminService;
-        _auditLogService = auditLogService;
     }
 
-    // TODO: Expose read-only settings first; future edits must audit old/new values.
+    // Read-only in Phase 1: editable settings need audited writes and are a
+    // documented follow-up.
     [HttpGet]
-    public Task<IActionResult> Get(CancellationToken cancellationToken)
+    public async Task<IActionResult> Get(CancellationToken cancellationToken)
     {
-        return PlaceholderAsync(_adminService, "GET /api/v1/admin/settings", cancellationToken);
-    }
-
-    [HttpPatch]
-    public async Task<IActionResult> Patch([FromBody] UpdateAppSettingsRequest request, CancellationToken cancellationToken)
-    {
-        await _auditLogService.RecordAsync("UpdateSettings", "AppSetting", null, cancellationToken);
-        return await PlaceholderAsync(_adminService, "PATCH /api/v1/admin/settings", cancellationToken);
+        var response = await _adminService.GetSettingsAsync(cancellationToken);
+        return Ok(ApiEnvelope.Ok(response, HttpContext));
     }
 }

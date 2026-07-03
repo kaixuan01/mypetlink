@@ -1,6 +1,6 @@
 # Smart Tag Lifecycle
 
-This document defines Phase 1 smart tag lifecycle rules. The owner Smart Tags + Orders backend slice is implemented; admin inventory, payment review, fulfillment, manufacturer CSV export, and real file storage remain planned later.
+This document defines Phase 1 smart tag lifecycle rules. The owner Smart Tags + Orders backend slice is implemented. As of 2026-07-04 the admin side is implemented too: registry list/search (`/api/v1/admin/tags`), audited status actions (`disable`, `mark-lost`, `replace`, `archive`, `restore`), inventory generation (`POST /api/v1/admin/tag-inventory/generate`), and manufacturer CSV export (`GET /api/v1/admin/tag-inventory/export`). Real file storage remains planned later.
 
 ## Core Rules
 

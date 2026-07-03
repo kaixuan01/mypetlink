@@ -406,7 +406,7 @@ function getSlugFromPublicSlug(publicSlug: string, publicCode: string) {
   return publicSlug || "pet";
 }
 
-function mapBackendPetToFrontend(
+export function mapBackendPetToFrontend(
   pet: BackendPetDetail | BackendPetListItem
 ): Pet {
   const species = normalizeBackendSpecies(pet.species, pet.customSpecies);

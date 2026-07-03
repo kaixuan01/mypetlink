@@ -2,6 +2,8 @@
 
 Phase 1 uses manual payment proof review. There is no payment gateway, no automatic payment confirmation, and no subscription billing.
 
+Status (2026-07-04): this flow is implemented end to end. Owner submission uses `POST /api/v1/orders/{orderNumber}/payment-proof`; admin review uses `/api/v1/admin/orders/{orderId}/confirm-payment`, `/reject-payment-proof`, `/mark-preparing`, `/mark-shipped`, `/mark-delivered`, and `/cancel` (plus `/api/v1/admin/payment-proofs/{id}/approve|reject`, which share the same transition logic). All admin transitions are audited. Payment proofs remain metadata only until file storage exists.
+
 ## Product Rules
 
 - Smart tags are optional one-time add-ons.

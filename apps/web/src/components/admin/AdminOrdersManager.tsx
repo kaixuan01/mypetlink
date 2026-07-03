@@ -70,11 +70,17 @@ export function AdminOrdersManager({ initialData }: { initialData: AdminData }) 
   useEffect(() => {
     let active = true;
 
-    getAdminData().then((next) => {
-      if (active) {
-        setData(next);
-      }
-    });
+    getAdminData()
+      .then((next) => {
+        if (active) {
+          setData(next);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setMessage("We could not load orders. Please refresh to try again.");
+        }
+      });
 
     return () => {
       active = false;

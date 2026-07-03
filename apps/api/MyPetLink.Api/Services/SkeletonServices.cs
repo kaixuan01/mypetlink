@@ -16,29 +16,3 @@ public abstract class SkeletonService : ISkeletonService
     }
 }
 
-public sealed class AdminService : SkeletonService, IAdminService;
-
-public sealed class AuditLogService : SkeletonService, IAuditLogService
-{
-    private readonly ILogger<AuditLogService> _logger;
-
-    public AuditLogService(ILogger<AuditLogService> logger)
-    {
-        _logger = logger;
-    }
-
-    public Task RecordAsync(
-        string action,
-        string entity,
-        Guid? entityId = null,
-        CancellationToken cancellationToken = default)
-    {
-        _logger.LogInformation(
-            "Audit log placeholder: {Action} on {Entity} {EntityId}",
-            action,
-            entity,
-            entityId);
-
-        return Task.CompletedTask;
-    }
-}

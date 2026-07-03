@@ -1,4 +1,4 @@
-# MyPetLink API
+﻿# MyPetLink API
 
 .NET 8 Web API for the MyPetLink backend.
 
@@ -173,6 +173,59 @@ Pet creation generates a public share slug/code and a separate pet-level QR Safe
 
 Public profile responses are privacy-gated server-side and do not expose owner account email, private care records, private memories, internal ids, or address data. QR Safety responses expose only finder-friendly fields allowed by the pet safety settings. Memorial safety pages return an inactive memorial response without normal finder contact actions; archived pets return unavailable/not found responses.
 
+
+## Phase D Admin APIs
+
+All `/api/v1/admin/*` endpoints require a JWT plus an active `AdminUsers` record (enforced by the `ActiveAdminRequirement` policy, not a role claim). A signed-in owner without an admin record receives `403`. Every admin mutation writes an `AuditLogs` row (actor, action, entity, old/new state, IP, user agent) saved in the same transaction as the change.
+
+Implemented admin endpoints:
+
+```txt
+GET  /api/v1/admin/auth/check
+GET  /api/v1/admin/dashboard            (alias: /dashboard/summary)
+GET  /api/v1/admin/orders
+GET  /api/v1/admin/orders/{orderId}
+POST /api/v1/admin/orders/{orderId}/confirm-payment
+POST /api/v1/admin/orders/{orderId}/reject-payment-proof
+POST /api/v1/admin/orders/{orderId}/mark-preparing
+POST /api/v1/admin/orders/{orderId}/mark-shipped
+POST /api/v1/admin/orders/{orderId}/mark-delivered
+POST /api/v1/admin/orders/{orderId}/status        (contract-compat dispatcher)
+POST /api/v1/admin/orders/{orderId}/cancel
+GET  /api/v1/admin/payment-proofs
+GET  /api/v1/admin/payment-proofs/{paymentProofId}
+POST /api/v1/admin/payment-proofs/{paymentProofId}/approve
+POST /api/v1/admin/payment-proofs/{paymentProofId}/reject
+GET  /api/v1/admin/tags
+GET  /api/v1/admin/tags/{tagId}
+POST /api/v1/admin/tags/{tagId}/disable|mark-lost|replace|archive|restore
+GET  /api/v1/admin/tag-inventory
+POST /api/v1/admin/tag-inventory/generate
+GET  /api/v1/admin/tag-inventory/export           (CSV: safe fields only)
+GET  /api/v1/admin/owners
+GET  /api/v1/admin/owners/{ownerId}
+GET  /api/v1/admin/pets
+GET  /api/v1/admin/pets/{petId}
+GET  /api/v1/admin/settings                       (read-only in Phase 1)
+GET  /api/v1/admin/audit-logs
+```
+
+Order transitions follow the documented matrix: confirm/reject require a submitted proof with a pending review; preparing requires confirmed payment; shipped requires preparing; delivered requires shipped; cancel is blocked once shipped. Preparing/delivered keep the linked pending-family tag in sync, and delivered tags wait for owner activation. Rejecting a proof returns the order to `PendingPayment` with a friendly reason and keeps the proof history.
+
+### Local dev admin setup
+
+Admin access is data-driven. After signing in once with Google (so your `Users` row exists), promote that local user with SQL against `MyPetLinkDev` (development only — never run against production):
+
+```sql
+INSERT INTO AdminUsers (Id, UserId, Role, IsActive, CreatedAt, UpdatedAt)
+SELECT NEWID(), Id, 'SuperAdmin', 1, SYSDATETIMEOFFSET(), SYSDATETIMEOFFSET()
+FROM Users WHERE Email = 'your-local-google-email@example.com'
+  AND NOT EXISTS (SELECT 1 FROM AdminUsers WHERE AdminUsers.UserId = Users.Id);
+```
+
+Verify with `GET /api/v1/admin/auth/check` using your bearer token. Do not commit personal emails or secrets.
+
+Known Phase 1 limitations: payment proofs are metadata only (no file storage or preview), no payment gateway, no shipping provider integration, admin settings are read-only, and admin pet lifecycle actions are owner-only for now.
 ## EF Core Migrations
 
 `dotnet-ef` is installed as a **local tool** pinned in the repo-root manifest at `.config/dotnet-tools.json` (version matches the EF Core packages). After cloning, restore it once:

@@ -9,8 +9,15 @@ import {
 } from "@/components/admin/AdminPanels";
 import { getTagTypeLabel, tagStatusTone } from "@/components/admin/adminDisplay";
 import { Badge } from "@/components/ui/Badge";
-import { getAdminData, type AdminData } from "@/services/adminService";
-import { adminGenerateRetailTags } from "@/services/tagService";
+import {
+  downloadAdminInventoryCsv,
+  getAdminData,
+  type AdminData,
+} from "@/services/adminService";
+import {
+  adminGenerateRetailTags,
+  getFriendlyTagErrorMessage,
+} from "@/services/tagService";
 import type { PetTag, TagShape } from "@/types";
 
 const shapeOptions: TagShape[] = ["Round", "Bone", "Rounded Square", "Paw"];
@@ -36,11 +43,17 @@ export function AdminTagInventoryManager({
   useEffect(() => {
     let active = true;
 
-    getAdminData().then((next) => {
-      if (active) {
-        setData(next);
-      }
-    });
+    getAdminData()
+      .then((next) => {
+        if (active) {
+          setData(next);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setMessage("We could not load tag inventory. Please refresh to try again.");
+        }
+      });
 
     return () => {
       active = false;
@@ -64,16 +77,34 @@ export function AdminTagInventoryManager({
   ).length;
 
   async function generate() {
-    const result = await adminGenerateRetailTags(count, tagKind === "nfc", shape);
-    await refresh();
-    setMessage(
-      `${result.data.length} new ${tagKind === "nfc" ? "QR + NFC" : "QR"} tag code${
-        result.data.length === 1 ? "" : "s"
-      } generated as unclaimed stock.`
-    );
+    try {
+      const result = await adminGenerateRetailTags(count, tagKind === "nfc", shape);
+      await refresh();
+      setMessage(
+        `${result.data.length} new ${tagKind === "nfc" ? "QR + NFC" : "QR"} tag code${
+          result.data.length === 1 ? "" : "s"
+        } generated as unclaimed stock.`
+      );
+    } catch (caught) {
+      setMessage(getFriendlyTagErrorMessage(caught));
+    }
   }
 
-  function exportCsv() {
+  async function exportCsv() {
+    try {
+      if (await downloadAdminInventoryCsv()) {
+        setMessage("Tag inventory exported as CSV.");
+        return;
+      }
+    } catch {
+      setMessage("We could not export the tag inventory right now. Please try again.");
+      return;
+    }
+
+    exportLocalCsv();
+  }
+
+  function exportLocalCsv() {
     const rows = [
       ["Tag code", "Type", "Status", "Batch", "Generated", "Pet", "Owner"],
       ...inventoryTags.map((tag) => {

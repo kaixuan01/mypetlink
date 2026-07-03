@@ -105,6 +105,11 @@ export function logoutOwner() {
 }
 
 export function logoutAdmin() {
+  if (canUseApi()) {
+    logoutOwner();
+    return;
+  }
+
   window.localStorage.removeItem(ADMIN_KEY);
 }
 
@@ -116,8 +121,28 @@ export function isOwnerAuthenticated() {
   return Boolean(getOwnerSession());
 }
 
+// In API mode this only checks that a signed-in session exists; whether that
+// session actually has operations access is decided by the backend through
+// checkAdminAccess (an active AdminUsers record, not a role claim).
 export function isAdminAuthenticated() {
+  if (canUseApi()) {
+    return Boolean(readStoredAuthSession());
+  }
+
   return Boolean(getAdminSession());
+}
+
+export type AdminAccessCheck = {
+  user: BackendCurrentUser["user"];
+  admin: {
+    role: string;
+    isActive: boolean;
+  };
+};
+
+export async function checkAdminAccess() {
+  const response = await apiRequest<AdminAccessCheck>("/api/v1/admin/auth/check");
+  return response.data ?? null;
 }
 
 export async function loginWithGoogleIdToken(idToken: string) {

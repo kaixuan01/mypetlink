@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MyPetLink.Api.Auth;
+using MyPetLink.Api.Common;
 using MyPetLink.Api.Controllers;
 using MyPetLink.Api.Services;
 
@@ -17,10 +18,11 @@ public sealed class AdminDashboardController : ApiControllerBase
         _adminService = adminService;
     }
 
-    // TODO: Compute dashboard counts from relational owner, pet, order, proof, and tag data.
+    [HttpGet]
     [HttpGet("summary")]
-    public Task<IActionResult> Summary(CancellationToken cancellationToken)
+    public async Task<IActionResult> Get(CancellationToken cancellationToken)
     {
-        return PlaceholderAsync(_adminService, "GET /api/v1/admin/dashboard/summary", cancellationToken);
+        var response = await _adminService.GetDashboardAsync(cancellationToken);
+        return Ok(ApiEnvelope.Ok(response, HttpContext));
     }
 }

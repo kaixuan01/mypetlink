@@ -281,7 +281,144 @@ public interface IPaymentProofService : ISkeletonService
         Guid paymentProofId,
         CancellationToken cancellationToken = default);
 }
-public interface IAdminService : ISkeletonService;
+public interface IAdminService : ISkeletonService
+{
+    Task<AdminDashboardResponse> GetDashboardAsync(CancellationToken cancellationToken = default);
+
+    Task<(IReadOnlyCollection<AdminTagOrderResponse> Items, int Total)> ListOrdersAsync(
+        int page,
+        int pageSize,
+        string? status,
+        string? paymentStatus,
+        Guid? petId,
+        Guid? ownerId,
+        string? tagType,
+        string? search,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminTagOrderResponse> GetOrderAsync(Guid orderId, CancellationToken cancellationToken = default);
+
+    Task<AdminTagOrderResponse> ConfirmPaymentAsync(
+        Guid? currentUserId,
+        Guid orderId,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminTagOrderResponse> RejectPaymentProofAsync(
+        Guid? currentUserId,
+        Guid orderId,
+        string? reason,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminTagOrderResponse> MarkOrderPreparingAsync(
+        Guid? currentUserId,
+        Guid orderId,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminTagOrderResponse> MarkOrderShippedAsync(
+        Guid? currentUserId,
+        Guid orderId,
+        string? trackingNumber,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminTagOrderResponse> MarkOrderDeliveredAsync(
+        Guid? currentUserId,
+        Guid orderId,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminTagOrderResponse> CancelOrderAsync(
+        Guid? currentUserId,
+        Guid orderId,
+        CancellationToken cancellationToken = default);
+
+    Task<(IReadOnlyCollection<AdminPaymentProofResponse> Items, int Total)> ListPaymentProofsAsync(
+        int page,
+        int pageSize,
+        string? status,
+        string? orderStatus,
+        Guid? ownerId,
+        string? search,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminPaymentProofResponse> GetPaymentProofAsync(
+        Guid paymentProofId,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminTagOrderResponse> ApprovePaymentProofAsync(
+        Guid? currentUserId,
+        Guid paymentProofId,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminTagOrderResponse> RejectPaymentProofByIdAsync(
+        Guid? currentUserId,
+        Guid paymentProofId,
+        string? reason,
+        CancellationToken cancellationToken = default);
+
+    Task<(IReadOnlyCollection<AdminSmartTagResponse> Items, int Total)> ListTagsAsync(
+        int page,
+        int pageSize,
+        string? status,
+        string? type,
+        Guid? petId,
+        Guid? ownerId,
+        Guid? orderId,
+        string? batchNumber,
+        string? search,
+        bool inventoryOnly,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminSmartTagResponse> GetTagAsync(Guid tagId, CancellationToken cancellationToken = default);
+
+    Task<AdminSmartTagResponse> UpdateTagStatusAsync(
+        Guid? currentUserId,
+        Guid tagId,
+        string action,
+        string? reason,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminGenerateTagsResponse> GenerateTagInventoryAsync(
+        Guid? currentUserId,
+        AdminGenerateTagsRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<(string FileName, string Csv)> ExportTagInventoryCsvAsync(
+        string? batchNumber,
+        CancellationToken cancellationToken = default);
+
+    Task<(IReadOnlyCollection<AdminOwnerListItemResponse> Items, int Total)> ListOwnersAsync(
+        int page,
+        int pageSize,
+        string? search,
+        string? plan,
+        string? status,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminOwnerDetailResponse> GetOwnerAsync(Guid ownerUserId, CancellationToken cancellationToken = default);
+
+    Task<(IReadOnlyCollection<AdminPetListItemResponse> Items, int Total)> ListPetsAsync(
+        int page,
+        int pageSize,
+        string? lifecycleStatus,
+        bool? lostMode,
+        Guid? ownerId,
+        string? search,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminPetDetailResponse> GetPetAsync(Guid petId, CancellationToken cancellationToken = default);
+
+    Task<AdminSettingsResponse> GetSettingsAsync(CancellationToken cancellationToken = default);
+
+    Task<(IReadOnlyCollection<AdminAuditLogResponse> Items, int Total)> ListAuditLogsAsync(
+        int page,
+        int pageSize,
+        string? action,
+        string? entity,
+        Guid? entityId,
+        Guid? actorId,
+        DateTimeOffset? fromDate,
+        DateTimeOffset? toDate,
+        CancellationToken cancellationToken = default);
+}
 
 public sealed record TagScanContext(
     string? IpAddress,
@@ -290,5 +427,14 @@ public sealed record TagScanContext(
 
 public interface IAuditLogService : ISkeletonService
 {
-    Task RecordAsync(string action, string entity, Guid? entityId = null, CancellationToken cancellationToken = default);
+    // Adds an audit row to the current DbContext without saving, so the caller
+    // persists the audit entry and the mutation in one SaveChanges.
+    void Append(
+        Guid? actorId,
+        Entities.ActorType actorType,
+        string action,
+        string entity,
+        Guid? entityId,
+        object? oldValue = null,
+        object? newValue = null);
 }

@@ -11,12 +11,27 @@ import {
   isPendingPhysicalTag,
   getTagOrder,
 } from "@/lib/tagStatus";
+import { apiRequest } from "@/services/apiClient";
+import { canUseApi, getApiBaseUrl } from "@/services/apiConfig";
+import { readStoredAuthSession } from "@/services/authStorage";
 import { mockDelay, mockResponse } from "@/services/mockApi";
-import { getPets } from "@/services/petService";
+import { getPets, mapBackendPetToFrontend } from "@/services/petService";
 import {
+  archiveTag,
+  disableTag,
   getStoredOrdersForAdmin,
   getStoredTagsForAdmin,
+  mapBackendOrder,
+  mapBackendTag,
+  orderReplacementTag,
+  reportTagLost,
+  restoreTag,
 } from "@/services/tagService";
+import type {
+  BackendPetListItem,
+  BackendSmartTag,
+  BackendTagOrder,
+} from "@/services/apiDtos";
 import type {
   AdminDashboard,
   MockUser,
@@ -24,6 +39,117 @@ import type {
   PetTag,
   TagOrder,
 } from "@/types";
+
+// Backend admin DTO shapes (subset of apps/api AdminDtos).
+type BackendAdminOwnerRef = {
+  userId: string;
+  email: string;
+  displayName: string;
+};
+
+type BackendAdminPetListItem = {
+  pet: BackendPetListItem;
+  owner: BackendAdminOwnerRef;
+  breed?: string | null;
+  qrSafetyEnabled: boolean;
+  tagCount: number;
+};
+
+type BackendAdminSmartTag = {
+  tag: BackendSmartTag;
+  owner?: BackendAdminOwnerRef | null;
+  petLifecycleStatus?: string | null;
+};
+
+type BackendAdminTagOrder = {
+  order: BackendTagOrder;
+  owner: BackendAdminOwnerRef;
+};
+
+type BackendAdminOwnerListItem = {
+  userId: string;
+  email: string;
+  displayName: string;
+  ownerDisplayName: string;
+  planCode: string;
+  status: string;
+  phoneE164?: string | null;
+  whatsappE164?: string | null;
+  petCount: number;
+  activePetCount: number;
+  orderCount: number;
+  createdAt: string;
+  lastLoginAt?: string | null;
+};
+
+type BackendAdminDashboard = {
+  summary: {
+    totalOwners: number;
+    totalPets: number;
+    activePets: number;
+    memorialPets: number;
+    lostModePets: number;
+    pendingPaymentProofs: number;
+    ordersPendingPayment: number;
+    ordersPreparing: number;
+    ordersShipped: number;
+    activeTags: number;
+    lostOrDisabledTags: number;
+    unclaimedTags: number;
+  };
+  recentOrders: BackendAdminTagOrder[];
+  recentPaymentProofs: {
+    proof: { id: string; uploadedAt: string };
+    orderNumber: string;
+    orderStatus: string;
+    petName?: string | null;
+    owner: BackendAdminOwnerRef;
+  }[];
+  recentActivity: {
+    id: string;
+    action: string;
+    entity: string;
+    entityId?: string | null;
+    createdAt: string;
+  }[];
+};
+
+export function canUseAdminApi() {
+  return canUseApi() && Boolean(readStoredAuthSession()?.accessToken);
+}
+
+function mapAdminPet(item: BackendAdminPetListItem): Pet {
+  const pet = mapBackendPetToFrontend(item.pet);
+
+  return {
+    ...pet,
+    breed: item.breed || pet.breed,
+    qrSafetyEnabled: item.qrSafetyEnabled,
+    qrStatus: item.qrSafetyEnabled ? "active" : "paused",
+    owner: {
+      ...pet.owner,
+      name: item.owner.displayName || item.owner.email,
+    },
+  };
+}
+
+function formatBackendDate(value?: string | null) {
+  if (!value) {
+    return "";
+  }
+
+  const parsed = new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(parsed);
+}
 
 export async function getAdminDashboard() {
   await mockDelay();
@@ -96,6 +222,20 @@ export type AdminData = {
 };
 
 export async function getAdminData(): Promise<AdminData> {
+  if (canUseAdminApi()) {
+    const [pets, tags, orders] = await Promise.all([
+      apiRequest<BackendAdminPetListItem[]>("/api/v1/admin/pets?page=1&pageSize=100"),
+      apiRequest<BackendAdminSmartTag[]>("/api/v1/admin/tags?page=1&pageSize=100"),
+      apiRequest<BackendAdminTagOrder[]>("/api/v1/admin/orders?page=1&pageSize=100"),
+    ]);
+
+    return {
+      pets: (pets.data ?? []).map(mapAdminPet),
+      tags: (tags.data ?? []).map((item) => mapBackendTag(item.tag)),
+      orders: (orders.data ?? []).map((item) => mapBackendOrder(item.order)),
+    };
+  }
+
   const [pets, tags, orders] = await Promise.all([
     getPets(),
     getStoredTagsForAdmin(),
@@ -103,6 +243,70 @@ export async function getAdminData(): Promise<AdminData> {
   ]);
 
   return { pets: pets.data, tags: tags.data, orders: orders.data };
+}
+
+// Admin tag status actions. In API mode these call the admin endpoints (owner
+// endpoints would reject tags the admin does not own); in demo mode they fall
+// back to the shared localStorage helpers.
+export type AdminTagAction =
+  | "disable"
+  | "mark-lost"
+  | "mark-replaced"
+  | "archive"
+  | "restore";
+
+export async function runAdminTagAction(tagId: string, action: AdminTagAction) {
+  if (canUseAdminApi()) {
+    const backendAction = action === "mark-replaced" ? "replace" : action;
+    const response = await apiRequest<BackendAdminSmartTag>(
+      `/api/v1/admin/tags/${encodeURIComponent(tagId)}/${backendAction}`,
+      { method: "POST", body: {} }
+    );
+
+    return response.data ? mapBackendTag(response.data.tag) : null;
+  }
+
+  const handlers = {
+    disable: disableTag,
+    "mark-lost": reportTagLost,
+    "mark-replaced": orderReplacementTag,
+    archive: archiveTag,
+    restore: restoreTag,
+  } as const;
+
+  const response = await handlers[action](tagId);
+  return response.data;
+}
+
+// CSV export. API mode downloads the server CSV (authoritative inventory);
+// demo mode returns null so callers keep the client-side CSV fallback.
+export async function downloadAdminInventoryCsv(): Promise<boolean> {
+  if (!canUseAdminApi()) {
+    return false;
+  }
+
+  const session = readStoredAuthSession();
+  const response = await fetch(`${getApiBaseUrl()}/api/v1/admin/tag-inventory/export`, {
+    headers: session?.accessToken
+      ? { Authorization: `Bearer ${session.accessToken}` }
+      : undefined,
+  });
+
+  if (!response.ok) {
+    throw new Error("Could not export the tag inventory right now.");
+  }
+
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = "mypetlink-tag-inventory.csv";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  return true;
 }
 
 export type AdminOwnerSummary = {
@@ -130,6 +334,34 @@ export function getPetsForOwner(user: MockUser, pets: Pet[]) {
       pet.owner.name === user.name ||
       (isPortalOwner && !ownerNames.has(pet.owner.name))
   );
+}
+
+// Owner accounts for the admin Users page. API mode uses real FK-backed
+// counts from /admin/owners; demo mode keeps the display-name attribution.
+export async function getOwnerSummaries(): Promise<AdminOwnerSummary[]> {
+  if (canUseAdminApi()) {
+    const response = await apiRequest<BackendAdminOwnerListItem[]>(
+      "/api/v1/admin/owners?page=1&pageSize=100"
+    );
+
+    return (response.data ?? []).map((owner) => ({
+      user: {
+        id: owner.userId,
+        name: owner.ownerDisplayName || owner.displayName || owner.email,
+        email: owner.email,
+        role: "owner" as const,
+        joinedAt: formatBackendDate(owner.createdAt),
+        petCount: owner.petCount,
+        status: owner.status.toLowerCase() as MockUser["status"],
+      },
+      petCount: owner.petCount,
+      orderCount: owner.orderCount,
+      phone: owner.phoneE164 ?? "",
+      whatsapp: owner.whatsappE164 ?? "",
+    }));
+  }
+
+  return buildOwnerSummaries(await getAdminData());
 }
 
 export function buildOwnerSummaries(data: AdminData): AdminOwnerSummary[] {
@@ -205,6 +437,72 @@ function parseDisplayDate(value?: string) {
 
   const parsed = Date.parse(value);
   return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+export type AdminDashboardData = {
+  summary: AdminDashboardSummary;
+  activity: {
+    latestOrders: AdminActivityItem[];
+    latestPaymentProofs: AdminActivityItem[];
+    recentTags: AdminActivityItem[];
+  };
+};
+
+// Dashboard data. API mode reads the server-computed /admin/dashboard summary
+// and recent activity (including audit log entries); demo mode derives both
+// from the shared local collections.
+export async function getAdminDashboardData(): Promise<AdminDashboardData> {
+  if (canUseAdminApi()) {
+    const response = await apiRequest<BackendAdminDashboard>("/api/v1/admin/dashboard");
+    const dashboard = response.data;
+
+    if (!dashboard) {
+      throw new Error("Dashboard data was not returned.");
+    }
+
+    return {
+      summary: {
+        totalOwners: dashboard.summary.totalOwners,
+        totalPets: dashboard.summary.totalPets,
+        pendingPaymentProofs: dashboard.summary.pendingPaymentProofs,
+        ordersPreparing: dashboard.summary.ordersPreparing,
+        activeTags: dashboard.summary.activeTags,
+        lostOrDisabledTags: dashboard.summary.lostOrDisabledTags,
+        unclaimedRetailTags: dashboard.summary.unclaimedTags,
+        lostModePets: dashboard.summary.lostModePets,
+      },
+      activity: {
+        latestOrders: dashboard.recentOrders.map((item) => ({
+          id: `order-${item.order.id}`,
+          date: formatBackendDate(item.order.createdAt),
+          title: item.order.orderNumber,
+          detail: `${item.order.petName ?? "Pet profile"} - ${item.owner.displayName || item.owner.email} - ${item.order.status}`,
+          href: `/admin/orders?order=${encodeURIComponent(item.order.orderNumber)}`,
+        })),
+        latestPaymentProofs: dashboard.recentPaymentProofs.map((item) => ({
+          id: `proof-${item.proof.id}`,
+          date: formatBackendDate(item.proof.uploadedAt),
+          title: item.orderNumber,
+          detail: `${item.petName ?? "Pet profile"} - ${item.owner.displayName || item.owner.email} - ${item.orderStatus}`,
+          href: "/admin/payment-proofs",
+        })),
+        recentTags: dashboard.recentActivity.map((item) => ({
+          id: `activity-${item.id}`,
+          date: formatBackendDate(item.createdAt),
+          title: item.action,
+          detail: item.entity,
+          href: "/admin/tags",
+        })),
+      },
+    };
+  }
+
+  const data = await getAdminData();
+
+  return {
+    summary: buildDashboardSummary(data),
+    activity: buildRecentActivity(data),
+  };
 }
 
 export function buildRecentActivity(data: AdminData): {

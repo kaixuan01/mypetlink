@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MyPetLink.Api.Auth;
+using MyPetLink.Api.Common;
 using MyPetLink.Api.Controllers;
 using MyPetLink.Api.DTOs;
 using MyPetLink.Api.Services;
@@ -13,50 +14,92 @@ namespace MyPetLink.Api.Controllers.Admin;
 public sealed class AdminSmartTagsController : ApiControllerBase
 {
     private readonly IAdminService _adminService;
-    private readonly IAuditLogService _auditLogService;
+    private readonly ICurrentUserService _currentUserService;
 
-    public AdminSmartTagsController(IAdminService adminService, IAuditLogService auditLogService)
+    public AdminSmartTagsController(IAdminService adminService, ICurrentUserService currentUserService)
     {
         _adminService = adminService;
-        _auditLogService = auditLogService;
+        _currentUserService = currentUserService;
     }
 
-    // TODO: Search/filter smart tag registry and reject unsafe status transitions.
     [HttpGet]
-    public Task<IActionResult> List(
+    public async Task<IActionResult> List(
         [FromQuery] PagedQuery query,
         [FromQuery] string? status,
+        [FromQuery] string? type,
         [FromQuery] Guid? petId,
         [FromQuery] Guid? ownerId,
-        [FromQuery] string? batchNo,
-        [FromQuery] string? tagCode,
-        [FromQuery] bool? hasNfc,
+        [FromQuery] Guid? orderId,
+        [FromQuery] string? batchNumber,
+        [FromQuery] string? search,
         CancellationToken cancellationToken)
     {
-        return PlaceholderAsync(_adminService, "GET /api/v1/admin/tags", cancellationToken);
+        var (items, total) = await _adminService.ListTagsAsync(
+            query.Page,
+            query.PageSize,
+            status,
+            type,
+            petId,
+            ownerId,
+            orderId,
+            batchNumber,
+            search,
+            inventoryOnly: false,
+            cancellationToken);
+
+        return Ok(ApiEnvelope.Ok(items, HttpContext, query.Page, query.PageSize, total));
     }
 
-    [HttpPost("{tagId:guid}/status")]
-    public async Task<IActionResult> UpdateStatus(
-        Guid tagId,
-        [FromBody] UpdateSmartTagStatusRequest request,
-        CancellationToken cancellationToken)
+    [HttpGet("{tagId:guid}")]
+    public async Task<IActionResult> Get(Guid tagId, CancellationToken cancellationToken)
     {
-        await _auditLogService.RecordAsync("UpdateTagStatus", "SmartTag", tagId, cancellationToken);
-        return await PlaceholderAsync(_adminService, "POST /api/v1/admin/tags/{tagId}/status", cancellationToken);
+        var response = await _adminService.GetTagAsync(tagId, cancellationToken);
+        return Ok(ApiEnvelope.Ok(response, HttpContext));
+    }
+
+    [HttpPost("{tagId:guid}/disable")]
+    public Task<IActionResult> Disable(Guid tagId, CancellationToken cancellationToken)
+    {
+        return RunTagActionAsync(tagId, "disable", null, cancellationToken);
+    }
+
+    [HttpPost("{tagId:guid}/mark-lost")]
+    public Task<IActionResult> MarkLost(Guid tagId, CancellationToken cancellationToken)
+    {
+        return RunTagActionAsync(tagId, "mark-lost", null, cancellationToken);
+    }
+
+    [HttpPost("{tagId:guid}/replace")]
+    public Task<IActionResult> Replace(Guid tagId, CancellationToken cancellationToken)
+    {
+        return RunTagActionAsync(tagId, "replace", null, cancellationToken);
     }
 
     [HttpPost("{tagId:guid}/archive")]
-    public async Task<IActionResult> Archive(Guid tagId, CancellationToken cancellationToken)
+    public Task<IActionResult> Archive(Guid tagId, CancellationToken cancellationToken)
     {
-        await _auditLogService.RecordAsync("ArchiveTag", "SmartTag", tagId, cancellationToken);
-        return await PlaceholderAsync(_adminService, "POST /api/v1/admin/tags/{tagId}/archive", cancellationToken);
+        return RunTagActionAsync(tagId, "archive", null, cancellationToken);
     }
 
     [HttpPost("{tagId:guid}/restore")]
-    public async Task<IActionResult> Restore(Guid tagId, CancellationToken cancellationToken)
+    public Task<IActionResult> Restore(Guid tagId, CancellationToken cancellationToken)
     {
-        await _auditLogService.RecordAsync("RestoreTag", "SmartTag", tagId, cancellationToken);
-        return await PlaceholderAsync(_adminService, "POST /api/v1/admin/tags/{tagId}/restore", cancellationToken);
+        return RunTagActionAsync(tagId, "restore", null, cancellationToken);
+    }
+
+    private async Task<IActionResult> RunTagActionAsync(
+        Guid tagId,
+        string action,
+        string? reason,
+        CancellationToken cancellationToken)
+    {
+        var response = await _adminService.UpdateTagStatusAsync(
+            _currentUserService.Current.UserId,
+            tagId,
+            action,
+            reason,
+            cancellationToken);
+
+        return Ok(ApiEnvelope.Ok(response, HttpContext));
     }
 }

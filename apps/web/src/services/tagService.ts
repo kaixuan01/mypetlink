@@ -94,7 +94,7 @@ export function getFriendlyTagErrorMessage(error: unknown) {
   return getFriendlyApiErrorMessage(error);
 }
 
-function mapBackendTag(tag: BackendSmartTag): PetTag {
+export function mapBackendTag(tag: BackendSmartTag): PetTag {
   return normalizeTag({
     id: tag.id,
     tagCode: tag.tagCode,
@@ -113,7 +113,7 @@ function mapBackendTag(tag: BackendSmartTag): PetTag {
   });
 }
 
-function mapBackendOrder(order: BackendTagOrder): TagOrder {
+export function mapBackendOrder(order: BackendTagOrder): TagOrder {
   const latestProof = order.paymentProofs?.[0];
 
   return normalizeOrder({
@@ -894,7 +894,34 @@ function syncLinkedTag(
   );
 }
 
+// Backend admin action responses wrap the order with an owner summary.
+type BackendAdminTagOrder = {
+  order: BackendTagOrder;
+  owner: { userId: string; email: string; displayName: string };
+};
+
+async function runAdminOrderAction(path: string, body?: unknown) {
+  const response = await apiRequest<BackendAdminTagOrder>(path, {
+    method: "POST",
+    body: body ?? {},
+  });
+
+  return apiResponse<TagOrder | null>(
+    {
+      data: response.data ? mapBackendOrder(response.data.order) : null,
+      meta: response.meta,
+    },
+    null
+  );
+}
+
 export async function adminConfirmOrderPayment(orderId: string) {
+  if (canUseOwnerTagApi()) {
+    return runAdminOrderAction(
+      `/api/v1/admin/orders/${encodeURIComponent(orderId)}/confirm-payment`
+    );
+  }
+
   await mockDelay();
   const orders = getOrderCollection();
   const order = orders.find((item) => item.id === orderId);
@@ -918,6 +945,13 @@ export async function adminConfirmOrderPayment(orderId: string) {
 // Returns the order to Pending Payment with a friendly reason. The order is
 // never deleted, and the owner can resubmit proof.
 export async function adminRejectOrderPayment(orderId: string, reason: string) {
+  if (canUseOwnerTagApi()) {
+    return runAdminOrderAction(
+      `/api/v1/admin/orders/${encodeURIComponent(orderId)}/reject-payment-proof`,
+      { reason }
+    );
+  }
+
   await mockDelay();
   const orders = getOrderCollection();
   const order = orders.find((item) => item.id === orderId);
@@ -940,6 +974,12 @@ export async function adminRejectOrderPayment(orderId: string, reason: string) {
 }
 
 export async function adminMarkOrderPreparing(orderId: string) {
+  if (canUseOwnerTagApi()) {
+    return runAdminOrderAction(
+      `/api/v1/admin/orders/${encodeURIComponent(orderId)}/mark-preparing`
+    );
+  }
+
   await mockDelay();
   const orders = getOrderCollection();
   const order = orders.find((item) => item.id === orderId);
@@ -960,6 +1000,12 @@ export async function adminMarkOrderPreparing(orderId: string) {
 }
 
 export async function adminMarkOrderShipped(orderId: string) {
+  if (canUseOwnerTagApi()) {
+    return runAdminOrderAction(
+      `/api/v1/admin/orders/${encodeURIComponent(orderId)}/mark-shipped`
+    );
+  }
+
   await mockDelay();
   const orders = getOrderCollection();
   const order = orders.find((item) => item.id === orderId);
@@ -980,6 +1026,12 @@ export async function adminMarkOrderShipped(orderId: string) {
 }
 
 export async function adminMarkOrderDelivered(orderId: string) {
+  if (canUseOwnerTagApi()) {
+    return runAdminOrderAction(
+      `/api/v1/admin/orders/${encodeURIComponent(orderId)}/mark-delivered`
+    );
+  }
+
   await mockDelay();
   const orders = getOrderCollection();
   const order = orders.find((item) => item.id === orderId);
@@ -1008,6 +1060,12 @@ export async function adminMarkOrderDelivered(orderId: string) {
 // Cancelling archives a linked tag that never became active, so it stops
 // appearing in the owner's active/pending tag lists.
 export async function adminCancelOrder(orderId: string) {
+  if (canUseOwnerTagApi()) {
+    return runAdminOrderAction(
+      `/api/v1/admin/orders/${encodeURIComponent(orderId)}/cancel`
+    );
+  }
+
   await mockDelay();
   const orders = getOrderCollection();
   const order = orders.find((item) => item.id === orderId);
@@ -1041,6 +1099,29 @@ export async function adminGenerateRetailTags(
   hasNfc: boolean,
   shape: TagShape = "Round"
 ) {
+  if (canUseOwnerTagApi()) {
+    const response = await apiRequest<{
+      batchNo: string;
+      quantity: number;
+      tags: BackendSmartTag[];
+    }>("/api/v1/admin/tag-inventory/generate", {
+      method: "POST",
+      body: {
+        quantity: Math.max(1, Math.min(50, Math.floor(count))),
+        tagType: hasNfc ? "QR_NFC" : "QR",
+        shape,
+      },
+    });
+
+    return apiResponse(
+      {
+        data: (response.data?.tags ?? []).map(mapBackendTag),
+        meta: response.meta,
+      },
+      []
+    );
+  }
+
   await mockDelay();
   const safeCount = Math.max(1, Math.min(50, Math.floor(count)));
   const now = new Date();
