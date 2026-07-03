@@ -46,11 +46,13 @@ export function PetList({
   useEffect(() => {
     let active = true;
 
-    setLoading(true);
-    setError("");
-
     async function loadPets() {
       try {
+        if (active) {
+          setLoading(true);
+          setError("");
+        }
+
         const petsResponse = await getPets();
 
         if (!active) {

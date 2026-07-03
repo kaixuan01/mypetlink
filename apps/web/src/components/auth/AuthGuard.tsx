@@ -25,10 +25,16 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
     if (canUseApi()) {
       let active = true;
-      setReady(false);
-      setError("");
 
-      Promise.all([getCurrentOwnerSession(), getOwnerProfileSettings()])
+      Promise.resolve()
+        .then(() => {
+          if (active) {
+            setReady(false);
+            setError("");
+          }
+
+          return Promise.all([getCurrentOwnerSession(), getOwnerProfileSettings()]);
+        })
         .then(() => {
           if (active) {
             setReady(true);
