@@ -91,7 +91,7 @@ export function QrSafetyPageView({ pet }: QrSafetyPageViewProps) {
               ? "This pet is marked as memorial. The profile and memories are kept for remembrance."
               : "This MyPetLink profile is not currently active."}
           </p>
-          {isMemorial ? (
+          {isMemorial && pet.publicProfilePath ? (
             <CTAButton
               className="mt-5 min-h-12"
               href={pet.publicProfilePath}

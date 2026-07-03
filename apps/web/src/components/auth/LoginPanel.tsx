@@ -1,9 +1,39 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BrandLogo } from "@/components/brand/BrandLogo";
-import { loginMockOwner } from "@/services/authService";
+import {
+  loginMockOwner,
+  loginWithGoogleIdToken,
+} from "@/services/authService";
+import { getGoogleClientId, isApiConfigured } from "@/services/apiConfig";
+import { isApiClientError } from "@/services/apiClient";
+
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (options: {
+            client_id: string;
+            callback: (response: { credential?: string }) => void;
+          }) => void;
+          renderButton: (
+            element: HTMLElement,
+            options: {
+              theme: "outline" | "filled_blue" | "filled_black";
+              size: "large" | "medium" | "small";
+              width?: number;
+              text?: "signin_with" | "continue_with";
+              shape?: "pill" | "rectangular";
+            }
+          ) => void;
+        };
+      };
+    };
+  }
+}
 
 function GoogleMark() {
   return (
@@ -28,77 +58,90 @@ function GoogleMark() {
   );
 }
 
-function AppleMark() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width="1.1em"
-      height="1.1em"
-      fill="currentColor"
-      aria-hidden="true"
-    >
-      <path d="M16.36 12.78c-.02-2.18 1.78-3.23 1.86-3.28-1.01-1.48-2.59-1.69-3.15-1.71-1.34-.14-2.62.79-3.3.79-.68 0-1.73-.77-2.85-.75-1.46.02-2.82.85-3.57 2.16-1.53 2.65-.39 6.56 1.09 8.71.72 1.05 1.58 2.23 2.71 2.19 1.09-.04 1.5-.7 2.81-.7 1.31 0 1.68.7 2.83.68 1.17-.02 1.91-1.07 2.62-2.13.83-1.22 1.17-2.4 1.19-2.46-.03-.01-2.28-.88-2.3-3.44ZM14.2 6.06c.6-.73 1-1.74.89-2.75-.86.03-1.91.57-2.53 1.3-.55.64-1.04 1.67-.91 2.65.96.08 1.94-.49 2.55-1.2Z" />
-    </svg>
-  );
-}
-
 export function LoginPanel() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [sentTo, setSentTo] = useState<string | null>(null);
+  const apiMode = isApiConfigured();
+  const googleClientId = getGoogleClientId();
+  const googleButtonRef = useRef<HTMLDivElement | null>(null);
+  const [error, setError] = useState("");
+  const [signingIn, setSigningIn] = useState(false);
+  const [googleReady, setGoogleReady] = useState(!apiMode);
 
-  function handleProviderLogin() {
-    loginMockOwner();
-    const params = new URLSearchParams(window.location.search);
-    const redirect = params.get("redirect") ?? params.get("next");
-    const destination =
-      redirect && redirect.startsWith("/") && !redirect.startsWith("//")
-        ? redirect
-        : "/dashboard";
-
-    router.replace(destination);
-  }
-
-  function handleEmailSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const trimmed = email.trim();
-
-    if (!trimmed) {
+  useEffect(() => {
+    if (!apiMode || !googleClientId) {
       return;
     }
 
-    // Phase 1 will send a real magic link / OTP here. For now we confirm the
-    // request in the UI without contacting a backend.
-    setSentTo(trimmed);
-  }
+    let cancelled = false;
 
-  if (sentTo) {
-    return (
-      <div className="brand-card rounded-[2rem] p-6 sm:p-8">
-        <BrandLogo markOnly className="h-14 w-14" />
-        <h1 className="mt-5 text-2xl font-black text-pet-ink sm:text-3xl">
-          Check your inbox
-        </h1>
-        <p className="mt-3 text-sm leading-6 text-pet-muted">
-          We sent a secure login link to{" "}
-          <span className="font-bold text-pet-ink">{sentTo}</span>. Open it on
-          this device to finish signing in.
-        </p>
-        <p className="mt-5 rounded-2xl bg-pet-cream p-4 text-xs leading-5 text-pet-muted">
-          Didn&apos;t get it? Check your spam folder, or try a different email.
-        </p>
-        <button
-          className="mt-5 inline-flex min-h-12 w-full items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-extrabold text-pet-ink transition hover:bg-pet-cream"
-          onClick={() => {
-            setSentTo(null);
-            setEmail("");
-          }}
-          type="button"
-        >
-          Use a different email
-        </button>
-      </div>
-    );
+    async function handleCredential(idToken: string) {
+      setSigningIn(true);
+      setError("");
+
+      try {
+        await loginWithGoogleIdToken(idToken);
+        navigateAfterLogin(router);
+      } catch (caught) {
+        setError(getLoginErrorMessage(caught));
+      } finally {
+        setSigningIn(false);
+      }
+    }
+
+    function initializeGoogle() {
+      if (cancelled || !window.google || !googleButtonRef.current) {
+        return;
+      }
+
+      window.google.accounts.id.initialize({
+        client_id: googleClientId,
+        callback: (response) => {
+          if (response.credential) {
+            void handleCredential(response.credential);
+          } else {
+            setError("Google sign-in did not return a valid credential.");
+          }
+        },
+      });
+      googleButtonRef.current.innerHTML = "";
+      window.google.accounts.id.renderButton(googleButtonRef.current, {
+        theme: "outline",
+        size: "large",
+        text: "continue_with",
+        shape: "pill",
+        width: 320,
+      });
+      setGoogleReady(true);
+    }
+
+    if (window.google) {
+      initializeGoogle();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    script.onload = initializeGoogle;
+    script.onerror = () => {
+      if (!cancelled) {
+        setError("Google sign-in could not load. Please try again.");
+      }
+    };
+    document.head.appendChild(script);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [apiMode, googleClientId, router]);
+
+  function handleProviderLogin() {
+    setError("");
+    loginMockOwner();
+    navigateAfterLogin(router);
   }
 
   return (
@@ -111,57 +154,71 @@ export function LoginPanel() {
         Sign in to manage your pet profiles, safety contacts, and QR pages.
       </p>
 
+      {error ? (
+        <div
+          className="mt-5 rounded-2xl border border-[#ffd5cf] bg-[#fff1ee] p-4 text-sm font-bold leading-6 text-[#a63c2e]"
+          role="alert"
+        >
+          {error}
+        </div>
+      ) : null}
+
       <div className="mt-6 grid gap-3">
-        <button
-          className="inline-flex min-h-12 items-center justify-center gap-3 rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-extrabold text-pet-ink shadow-sm transition hover:bg-pet-cream focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pet-teal"
-          onClick={handleProviderLogin}
-          type="button"
-        >
-          <GoogleMark />
-          Continue with Google
-        </button>
-        <button
-          className="inline-flex min-h-12 items-center justify-center gap-3 rounded-full border border-pet-ink bg-pet-ink px-5 py-3 text-sm font-extrabold text-white shadow-sm transition hover:bg-[#16264d] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pet-ink"
-          onClick={handleProviderLogin}
-          type="button"
-        >
-          <AppleMark />
-          Continue with Apple
-        </button>
+        {apiMode ? (
+          googleClientId ? (
+            <>
+              <div className="flex min-h-12 justify-center" ref={googleButtonRef} />
+              {!googleReady || signingIn ? (
+                <p className="text-center text-xs font-bold text-pet-muted">
+                  {signingIn ? "Signing you in..." : "Loading Google sign-in..."}
+                </p>
+              ) : null}
+            </>
+          ) : (
+            <div className="rounded-2xl bg-pet-cream p-4 text-sm font-semibold leading-6 text-pet-muted">
+              Google sign-in needs a client ID in local settings before you can
+              continue.
+            </div>
+          )
+        ) : (
+          <button
+            className="inline-flex min-h-12 items-center justify-center gap-3 rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-extrabold text-pet-ink shadow-sm transition hover:bg-pet-cream focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pet-teal"
+            onClick={handleProviderLogin}
+            type="button"
+          >
+            <GoogleMark />
+            Continue with Google
+          </button>
+        )}
       </div>
-
-      <div className="my-6 flex items-center gap-3 text-xs font-bold uppercase tracking-wide text-pet-muted">
-        <span className="h-px flex-1 bg-pet-border" />
-        or
-        <span className="h-px flex-1 bg-pet-border" />
-      </div>
-
-      <form className="grid gap-3" onSubmit={handleEmailSubmit}>
-        <label className="grid gap-2 text-sm font-bold text-pet-ink">
-          Email address
-          <input
-            autoComplete="email"
-            className="min-h-12 rounded-2xl border border-pet-border bg-white px-4 py-3 text-sm font-semibold text-pet-ink shadow-sm outline-none transition focus:border-pet-teal focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pet-teal"
-            inputMode="email"
-            name="email"
-            onChange={(event) => setEmail(event.target.value)}
-            placeholder="you@example.com"
-            required
-            type="email"
-            value={email}
-          />
-        </label>
-        <button
-          className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-coral bg-pet-coral px-5 py-3 text-sm font-extrabold text-white shadow-lg shadow-[#ff7a6e]/20 transition hover:bg-[#f26155] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pet-coral"
-          type="submit"
-        >
-          Send login link
-        </button>
-      </form>
 
       <p className="mt-5 rounded-2xl bg-pet-cream p-4 text-xs leading-5 text-pet-muted">
-        No password required. We&apos;ll send you a secure login link or code.
+        No password required. Your pet profiles stay connected to your owner
+        account.
       </p>
     </div>
   );
+}
+
+function navigateAfterLogin(router: ReturnType<typeof useRouter>) {
+  const params = new URLSearchParams(window.location.search);
+  const redirect = params.get("redirect") ?? params.get("next");
+  const destination =
+    redirect && redirect.startsWith("/") && !redirect.startsWith("//")
+      ? redirect
+      : "/dashboard";
+
+  router.replace(destination);
+}
+
+function getLoginErrorMessage(error: unknown) {
+  if (isApiClientError(error)) {
+    if (error.status === 0) {
+      return "We could not reach MyPetLink right now. Please try again.";
+    }
+
+    return error.message;
+  }
+
+  return "Google sign-in could not finish. Please try again.";
 }

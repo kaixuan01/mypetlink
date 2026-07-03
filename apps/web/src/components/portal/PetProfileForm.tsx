@@ -43,6 +43,7 @@ import { isActivePet, isArchivedPet, isMemorialPet } from "@/lib/petLifecycle";
 import { ownerRoutes, publicProfilePath } from "@/lib/routes";
 import {
   createPet,
+  getFriendlyApiErrorMessage,
   getPetById,
   restorePetProfile,
   slugifyPetSlug,
@@ -213,6 +214,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
   const [createdPet, setCreatedPet] = useState<Pet | null>(null);
   const [savedPet, setSavedPet] = useState<Pet | null>(null);
   const [errors, setErrors] = useState<FormErrors>({});
+  const [formError, setFormError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
@@ -265,6 +267,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
   function updateField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
     setErrors((current) => ({ ...current, [key]: undefined }));
+    setFormError("");
     setSuccess("");
     setStatusMessage("");
   }
@@ -280,6 +283,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
       species: undefined,
       customSpecies: undefined,
     }));
+    setFormError("");
     setSuccess("");
   }
 
@@ -294,6 +298,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
       birthdayDate: undefined,
       estimatedAge: undefined,
     }));
+    setFormError("");
     setSuccess("");
   }
 
@@ -309,6 +314,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
       };
     });
     setErrors((current) => ({ ...current, name: undefined, slug: undefined }));
+    setFormError("");
     setSuccess("");
   }
 
@@ -336,6 +342,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
       phone: undefined,
       generalArea: undefined,
     }));
+    setFormError("");
     setSuccess("");
   }
 
@@ -420,6 +427,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
 
     setIsSubmitting(true);
     setSuccess("");
+    setFormError("");
 
     const payload = buildPayload(form, ownerSettings);
 
@@ -438,8 +446,14 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
           setForm(toFormState(response.data, ownerSettings));
           setSuccess("Changes saved. Public profile and QR safety page are updated.");
           router.refresh();
+        } else {
+          setFormError(
+            "We could not find this pet profile. Please return to My Pets and try again."
+          );
         }
       }
+    } catch (caught) {
+      setFormError(getFriendlyApiErrorMessage(caught));
     } finally {
       setIsSubmitting(false);
     }
@@ -450,53 +464,60 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
       return;
     }
 
-    if (statusAction === "restore") {
-      const response = await restorePetProfile(currentPet.id);
+    try {
+      if (statusAction === "restore") {
+        const response = await restorePetProfile(currentPet.id);
 
-      if (response.data.pet) {
-        setCurrentPet(response.data.pet);
-        setForm(toFormState(response.data.pet, ownerSettings));
-        setStatusMessage(`${response.data.pet.name} is back in your main list.`);
+        if (response.data.pet) {
+          setCurrentPet(response.data.pet);
+          setForm(toFormState(response.data.pet, ownerSettings));
+          setStatusMessage(`${response.data.pet.name} is back in your main list.`);
+          router.refresh();
+        } else {
+          setStatusMessage(
+            response.data.blockedReason ??
+              "You've reached the Free profile limit. Archive another pet first, or wait for Premium plans for more profiles."
+          );
+        }
+
+        return;
+      }
+
+      const nextStatus: PetLifecycleStatus =
+        statusAction === "memorial"
+          ? "Memorial"
+          : statusAction === "active"
+            ? "Active"
+            : "Archived";
+      const response = await updatePetLifecycle(currentPet.id, nextStatus, {
+        passedAwayDate: form.passedAwayDate
+          ? formatDisplayDate(form.passedAwayDate)
+          : currentPet.memorial.passedAwayDate,
+        memorialMessage: form.memorialMessage.trim(),
+        showMemorialOnPublicProfile: form.showMemorialOnPublicProfile,
+      });
+
+      if (response.data) {
+        setCurrentPet(response.data);
+        setForm(toFormState(response.data, ownerSettings));
+        setStatusMessage(
+          nextStatus === "Memorial"
+            ? `${response.data.name} is now in Memorial Mode.`
+            : nextStatus === "Active"
+              ? `${response.data.name} is back in your active pet list.`
+              : `${response.data.name} has been archived.`
+        );
         router.refresh();
       } else {
         setStatusMessage(
-          response.data.blockedReason ??
-            "You've reached the Free profile limit. Archive another pet first, or wait for Premium plans for more profiles."
+          "We could not find this pet profile. Please return to My Pets and try again."
         );
       }
-
+    } catch (caught) {
+      setStatusMessage(getFriendlyApiErrorMessage(caught));
+    } finally {
       setStatusAction(null);
-      return;
     }
-
-    const nextStatus: PetLifecycleStatus =
-      statusAction === "memorial"
-        ? "Memorial"
-        : statusAction === "active"
-          ? "Active"
-          : "Archived";
-    const response = await updatePetLifecycle(currentPet.id, nextStatus, {
-      passedAwayDate: form.passedAwayDate
-        ? formatDisplayDate(form.passedAwayDate)
-        : currentPet.memorial.passedAwayDate,
-      memorialMessage: form.memorialMessage.trim(),
-      showMemorialOnPublicProfile: form.showMemorialOnPublicProfile,
-    });
-
-    if (response.data) {
-      setCurrentPet(response.data);
-      setForm(toFormState(response.data, ownerSettings));
-      setStatusMessage(
-        nextStatus === "Memorial"
-          ? `${response.data.name} is now in Memorial Mode.`
-          : nextStatus === "Active"
-            ? `${response.data.name} is back in your active pet list.`
-            : `${response.data.name} has been archived.`
-      );
-      router.refresh();
-    }
-
-    setStatusAction(null);
   }
 
   if (createdPet) {
@@ -606,6 +627,12 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
       {success ? (
         <div className="rounded-[1.25rem] border border-pet-mint bg-[#e8f8f0] p-4 text-sm font-bold text-pet-sage">
           {success}
+        </div>
+      ) : null}
+
+      {formError ? (
+        <div className="rounded-[1.25rem] border border-[#f3b4a8] bg-[#fff1ee] p-4 text-sm font-bold text-[#a63c2e]">
+          {formError}
         </div>
       ) : null}
 

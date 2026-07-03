@@ -8,13 +8,17 @@ import { FormSection } from "@/components/ui/FormSection";
 import { PhoneNumberInput } from "@/components/ui/PhoneNumberInput";
 import {
   defaultOwnerSettings,
-  readOwnerSettings,
-  writeOwnerSettings,
   type OwnerNotificationPreferences,
   type OwnerPrivacyDefaults,
   type OwnerSettings,
 } from "@/lib/ownerSettings";
 import { logoutOwner } from "@/services/authService";
+import { isApiConfigured } from "@/services/apiConfig";
+import { isApiClientError } from "@/services/apiClient";
+import {
+  getOwnerProfileSettings,
+  updateOwnerProfileSettings,
+} from "@/services/ownerProfileService";
 
 type PrivacyKey = keyof OwnerPrivacyDefaults;
 type NotificationKey = keyof OwnerNotificationPreferences;
@@ -74,15 +78,37 @@ const notificationOptions: { key: NotificationKey; label: string }[] = [
 
 export function SettingsPanel() {
   const router = useRouter();
+  const apiMode = isApiConfigured();
   const [settings, setSettings] = useState<OwnerSettings>(defaultOwnerSettings);
   const [saved, setSaved] = useState(false);
+  const [loading, setLoading] = useState(apiMode);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setSettings(readOwnerSettings());
-    }, 0);
+    let active = true;
 
-    return () => window.clearTimeout(timer);
+    getOwnerProfileSettings()
+      .then((response) => {
+        if (active) {
+          setSettings(response.data);
+          setError("");
+        }
+      })
+      .catch((caught) => {
+        if (active) {
+          setError(getSettingsErrorMessage(caught));
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   function updateField(
@@ -117,11 +143,21 @@ export function SettingsPanel() {
     setSaved(false);
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    writeOwnerSettings(settings);
-    setSaved(true);
-    window.setTimeout(() => setSaved(false), 3500);
+    setSaving(true);
+    setError("");
+
+    try {
+      const response = await updateOwnerProfileSettings(settings);
+      setSettings(response.data);
+      setSaved(true);
+      window.setTimeout(() => setSaved(false), 3500);
+    } catch (caught) {
+      setError(getSettingsErrorMessage(caught));
+    } finally {
+      setSaving(false);
+    }
   }
 
   function handleLogout() {
@@ -131,6 +167,21 @@ export function SettingsPanel() {
 
   return (
     <form className="grid gap-5" onSubmit={handleSubmit}>
+      {loading ? (
+        <div className="brand-card rounded-[1.75rem] p-5 text-sm font-semibold text-pet-muted">
+          Loading your account defaults...
+        </div>
+      ) : null}
+
+      {error ? (
+        <div
+          className="rounded-[1.25rem] border border-[#ffd5cf] bg-[#fff1ee] p-4 text-sm font-bold text-[#a63c2e]"
+          role="alert"
+        >
+          {error}
+        </div>
+      ) : null}
+
       {saved ? (
         <div
           className="rounded-[1.25rem] border border-pet-mint bg-[#e8f8f0] p-4 text-sm font-bold text-pet-sage"
@@ -158,6 +209,7 @@ export function SettingsPanel() {
             value={settings.ownerDisplayName}
           />
           <TextField
+            disabled={apiMode}
             label="Email"
             onChange={(value) => updateField("email", value)}
             type="email"
@@ -236,7 +288,7 @@ export function SettingsPanel() {
             Logout
           </button>
           <CTAButton type="submit" variant="coral">
-            Save Settings
+            {saving ? "Saving..." : "Save Settings"}
           </CTAButton>
         </div>
       </div>
@@ -248,11 +300,13 @@ function TextField({
   label,
   value,
   onChange,
+  disabled = false,
   type = "text",
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
+  disabled?: boolean;
   type?: "email" | "text";
 }) {
   return (
@@ -260,12 +314,29 @@ function TextField({
       <span className="text-sm font-bold text-pet-ink">{label}</span>
       <input
         className="brand-input"
+        disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
         type={type}
         value={value}
       />
     </label>
   );
+}
+
+function getSettingsErrorMessage(error: unknown) {
+  if (isApiClientError(error)) {
+    if (error.code === "validation_failed" && error.details) {
+      return Object.values(error.details)[0]?.[0] ?? error.message;
+    }
+
+    if (error.status === 0) {
+      return "We could not reach MyPetLink right now. Please try again.";
+    }
+
+    return error.message;
+  }
+
+  return "We could not save your settings. Please try again.";
 }
 
 function Checkbox({

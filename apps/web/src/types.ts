@@ -2,7 +2,7 @@ export type ApiResponse<T> = {
   data: T;
   meta: {
     requestId: string;
-    source: "mock";
+    source?: "mock" | "api";
     page?: number;
     pageSize?: number;
     total?: number;

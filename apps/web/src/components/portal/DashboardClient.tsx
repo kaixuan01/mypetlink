@@ -17,8 +17,9 @@ import { getPetSummaryLabel } from "@/lib/petDisplay";
 import { getActivePets, getMemorialPets } from "@/lib/petLifecycle";
 import { ownerRoutes } from "@/lib/routes";
 import { isActivePhysicalTagForPet } from "@/lib/tagStatus";
+import { isApiConfigured } from "@/services/apiConfig";
 import { getPetMoments } from "@/services/momentService";
-import { getPets } from "@/services/petService";
+import { getFriendlyApiErrorMessage, getPets } from "@/services/petService";
 import { getPetRecords } from "@/services/recordService";
 import { getAllTags, getOrders } from "@/services/tagService";
 import type { CareRecord, Pet, PetMoment, PetTag, TagOrder } from "@/types";
@@ -38,40 +39,77 @@ export function DashboardClient({
   initialTags,
   initialOrders,
 }: DashboardClientProps) {
-  const [allPets, setAllPets] = useState(initialPets);
-  const [allRecords, setAllRecords] = useState(initialRecords);
-  const [allMoments, setAllMoments] = useState(initialMoments);
-  const [tags, setTags] = useState(initialTags);
-  const [orders, setOrders] = useState(initialOrders);
+  const apiMode = isApiConfigured();
+  const [allPets, setAllPets] = useState<Pet[]>(apiMode ? [] : initialPets);
+  const [allRecords, setAllRecords] = useState<CareRecord[]>(
+    apiMode ? [] : initialRecords
+  );
+  const [allMoments, setAllMoments] = useState<PetMoment[]>(
+    apiMode ? [] : initialMoments
+  );
+  const [tags, setTags] = useState<PetTag[]>(apiMode ? [] : initialTags);
+  const [orders, setOrders] = useState<TagOrder[]>(apiMode ? [] : initialOrders);
+  const [loading, setLoading] = useState(apiMode);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     let active = true;
 
-    getPets().then(async (petsResponse) => {
-      const activePets = getActivePets(petsResponse.data);
-      const [recordResponses, momentResponses, tagsResponse, ordersResponse] =
-        await Promise.all([
-          Promise.all(activePets.map((pet) => getPetRecords(pet.id))),
-          Promise.all(activePets.map((pet) => getPetMoments(pet.id))),
-          getAllTags(),
-          getOrders(),
-        ]);
+    async function loadDashboard() {
+      setLoading(true);
+      setError("");
 
-      if (!active) {
-        return;
+      try {
+        const petsResponse = await getPets();
+
+        if (!active) {
+          return;
+        }
+
+        setAllPets(petsResponse.data);
+
+        if (apiMode) {
+          setAllRecords([]);
+          setAllMoments([]);
+          setTags([]);
+          setOrders([]);
+          return;
+        }
+
+        const activePets = getActivePets(petsResponse.data);
+        const [recordResponses, momentResponses, tagsResponse, ordersResponse] =
+          await Promise.all([
+            Promise.all(activePets.map((pet) => getPetRecords(pet.id))),
+            Promise.all(activePets.map((pet) => getPetMoments(pet.id))),
+            getAllTags(),
+            getOrders(),
+          ]);
+
+        if (!active) {
+          return;
+        }
+
+        setAllRecords(recordResponses.flatMap((response) => response.data));
+        setAllMoments(momentResponses.flatMap((response) => response.data));
+        setTags(tagsResponse.data);
+        setOrders(ordersResponse.data);
+      } catch (caught) {
+        if (active) {
+          setError(getFriendlyApiErrorMessage(caught));
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
       }
+    }
 
-      setAllPets(petsResponse.data);
-      setAllRecords(recordResponses.flatMap((response) => response.data));
-      setAllMoments(momentResponses.flatMap((response) => response.data));
-      setTags(tagsResponse.data);
-      setOrders(ordersResponse.data);
-    });
+    void loadDashboard();
 
     return () => {
       active = false;
     };
-  }, []);
+  }, [apiMode]);
 
   const pets = getActivePets(allPets);
   const memorialPets = getMemorialPets(allPets);
@@ -111,6 +149,42 @@ export function DashboardClient({
     ? ownerRoutes.petTagOrder(firstPet.id)
     : ownerRoutes.petNew;
   const qrProfileHref = firstPet ? firstPet.qrSafetyPath : ownerRoutes.pets;
+
+  if (loading) {
+    return (
+      <section className="brand-card rounded-[1.75rem] p-6 text-center">
+        <p className="text-sm font-extrabold uppercase text-pet-teal">
+          Loading owner portal
+        </p>
+        <h1 className="mt-2 text-2xl font-black text-pet-ink">
+          Fetching your latest pet profiles
+        </h1>
+      </section>
+    );
+  }
+
+  if (error) {
+    return (
+      <section className="brand-card rounded-[1.75rem] p-6 text-center">
+        <p className="text-sm font-extrabold uppercase text-[#a63c2e]">
+          Connection needed
+        </p>
+        <h1 className="mt-2 text-2xl font-black text-pet-ink">
+          Could not load your dashboard
+        </h1>
+        <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-6 text-pet-muted">
+          {error}
+        </p>
+        <CTAButton
+          className="mt-5"
+          onClick={() => window.location.reload()}
+          variant="secondary"
+        >
+          Try Again
+        </CTAButton>
+      </section>
+    );
+  }
 
   return (
     <div className="grid gap-6">

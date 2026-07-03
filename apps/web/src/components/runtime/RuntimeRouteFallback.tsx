@@ -39,6 +39,8 @@ import {
 } from "@/lib/pageTitles";
 import { getPetSummaryLabel } from "@/lib/petDisplay";
 import { parsePublicProfileParam, ownerRoutes } from "@/lib/routes";
+import { isApiClientError } from "@/services/apiClient";
+import { isApiConfigured } from "@/services/apiConfig";
 import { getPublicPetMoments, getPetMoments } from "@/services/momentService";
 import {
   getPetById,
@@ -85,6 +87,7 @@ type RuntimeRoute =
 
 type RuntimeState =
   | { status: "loading" }
+  | { status: "unavailable"; message: string; title: string }
   | { status: "not-found"; title: string }
   | {
       status: "public";
@@ -166,6 +169,7 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
   useEffect(() => {
     let active = true;
     const route = parseRuntimeRoute(window.location.pathname);
+    const apiMode = isApiConfigured();
 
     async function resolveRoute() {
       if (route.kind === "none") {
@@ -186,6 +190,16 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
           setState({
             status: "not-found",
             title: publicProfileNotFoundTitle,
+          });
+          return;
+        }
+
+        if (apiMode) {
+          setState({
+            status: "public",
+            profile: profileResponse.data,
+            moments: [],
+            records: [],
           });
           return;
         }
@@ -300,8 +314,18 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
       });
     }
 
-    resolveRoute().catch(() => {
+    resolveRoute().catch((caught) => {
       if (active) {
+        if (isApiClientError(caught) && caught.status === 0) {
+          setState({
+            status: "unavailable",
+            title: "MyPetLink temporarily unavailable",
+            message:
+              "We could not reach MyPetLink right now. Please try again.",
+          });
+          return;
+        }
+
         setState({ status: "not-found", title: genericNotFoundTitle });
       }
     });
@@ -317,6 +341,12 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
 
   if (state.status === "not-found") {
     return <>{children}</>;
+  }
+
+  if (state.status === "unavailable") {
+    return (
+      <RuntimeUnavailable title={state.title} message={state.message} />
+    );
   }
 
   if (state.status === "public") {
@@ -364,6 +394,28 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
   }
 
   return <OwnerRuntimeView state={state} />;
+}
+
+function RuntimeUnavailable({
+  message,
+  title,
+}: {
+  message: string;
+  title: string;
+}) {
+  return (
+    <main className="grid min-h-screen place-items-center bg-pet-cream px-4">
+      <div className="brand-card w-full max-w-md rounded-[2rem] p-8 text-center">
+        <div className="flex justify-center">
+          <BrandLogo className="h-12 w-auto max-w-[200px]" />
+        </div>
+        <h1 className="mt-6 text-2xl font-black text-pet-ink">{title}</h1>
+        <p className="mx-auto mt-3 max-w-sm text-sm font-semibold leading-6 text-pet-muted">
+          {message}
+        </p>
+      </div>
+    </main>
+  );
 }
 
 function OwnerRuntimeView({

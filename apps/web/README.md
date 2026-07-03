@@ -13,7 +13,7 @@ Primary domain examples:
 - `https://mypetlink.com.my/q/MPL-SAFE-MILO`
 - `https://mypetlink.com.my/t/8KX29A`
 
-This project is frontend-only. It uses local data and localStorage-backed demo authentication. There is no backend, database, Supabase integration, payment gateway, OAuth, OTP, email/password registration, real file storage, NFC writing, GPS tracking, or supplier integration yet.
+The owner pet flow can now run against the .NET backend API when `NEXT_PUBLIC_API_BASE_URL` is configured. If the API base URL is missing, the app keeps the local preview flow for static/UI work. There is still no Smart Tag, Orders, Payment Proof, Memories/Records, Admin Portal, Apple Login, Email OTP, password login, real file storage, NFC writing, GPS tracking, or supplier integration in this frontend slice.
 
 ## Phase 1 Product Rules
 
@@ -29,7 +29,7 @@ This project is frontend-only. It uses local data and localStorage-backed demo a
 - TypeScript
 - Tailwind CSS
 - ESLint
-- Local data and mock service layer
+- Backend API client with local preview fallback
 
 ## Run Locally
 
@@ -47,6 +47,15 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
+
+To use the backend-backed owner pet flow locally, run the API at `http://localhost:5281` and set:
+
+```bash
+NEXT_PUBLIC_API_BASE_URL=http://localhost:5281
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+```
+
+Do not commit real `.env.local` values. Without a real Google client ID, the login button can load but a full Google sign-in cannot be completed.
 
 ## Cloudflare Pages Deployment
 
@@ -74,7 +83,7 @@ This project is configured with Next.js static export, so `npm run build` writes
 
 ## Owner Portal Routes
 
-Owner routes are protected by localStorage auth. Use `/login`, then click `Continue with Google` or `Try Demo Account`.
+Owner routes use Google Login through the backend when `NEXT_PUBLIC_API_BASE_URL` is set. When the API base URL is missing, routes use the local preview login flow.
 
 - `/dashboard`
 - `/pets`
@@ -103,9 +112,14 @@ Admin routes are protected by localStorage auth. Use `/admin/login`, then click 
 
 ## Service Layer
 
-The local services are shaped like future API calls and return response envelopes:
+The services return response envelopes and switch by environment:
+
+- API mode: `NEXT_PUBLIC_API_BASE_URL` is set in the browser. Owner auth, owner profile, pets, public profiles, and QR safety use the backend.
+- Local preview mode: `NEXT_PUBLIC_API_BASE_URL` is missing. The same flows use local data/localStorage for static preview work.
 
 - `src/services/authService.ts`
+- `src/services/apiClient.ts`
+- `src/services/ownerProfileService.ts`
 - `src/services/petService.ts`
 - `src/services/recordService.ts`
 - `src/services/momentService.ts`
@@ -134,4 +148,9 @@ Local data lives in:
 
 ## Environment Variables
 
-Copy `.env.example` to `.env.local` when real integrations are added. The current frontend MVP does not require environment variables to run.
+Copy `.env.example` to `.env.local` for local backend integration:
+
+- `NEXT_PUBLIC_API_BASE_URL` - backend API origin, for example `http://localhost:5281`
+- `NEXT_PUBLIC_GOOGLE_CLIENT_ID` - browser Google OAuth client ID used by Google Identity Services
+
+Leave `NEXT_PUBLIC_API_BASE_URL` empty only when you intentionally want local preview mode.
