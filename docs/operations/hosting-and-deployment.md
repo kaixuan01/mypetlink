@@ -6,6 +6,8 @@ This document defines the recommended hosting, database, storage, and deployment
 
 Codex / Claude Code / AI coding assistants should refer to this document before making infrastructure, backend, database, storage, or deployment-related changes.
 
+Backend planning note: the current backend planning docs now target C# .NET 8 Web API, SQL Server, EF Core, JWT/refresh-token auth, Google Sign-In, and provider-neutral file storage. See [`../backend/backend-architecture.md`](../backend/backend-architecture.md), [`../database/schema-v1-draft.md`](../database/schema-v1-draft.md), and [`../api/api-contract-v1-draft.md`](../api/api-contract-v1-draft.md) before implementing backend/database work. Older Supabase references in this document are historical hosting assumptions and should be reconciled before production infrastructure is finalized.
+
 ---
 
 ## Final Direction

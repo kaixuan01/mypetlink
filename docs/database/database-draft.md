@@ -1,5 +1,7 @@
 # Database Draft
 
+> Historical draft. For current backend planning, use [`schema-v1-draft.md`](schema-v1-draft.md), which adds Phase A auth, configurable plans, reusable media files, provider-neutral payment proofs, production audit logs, scan analytics consent rules, and secure random public identifiers.
+
 Draft relational schema for the future SQL Server database (EF Core). **Not implemented — for planning only.** No production database exists yet. The current frontend demo model (`docs/current-demo-data-model.md`) maps onto these tables; the key correction over the demo is real foreign keys (the demo links pets to owners only by display name).
 
 ## Core tables

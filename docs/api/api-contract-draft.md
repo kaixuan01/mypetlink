@@ -1,5 +1,7 @@
 # API Contract Draft
 
+> Historical draft. For current backend planning, use [`api-contract-v1-draft.md`](api-contract-v1-draft.md), which adds `/api/v1` versioning, Phase A auth, provider-neutral media/payment proof design, audit logging, scan analytics consent rules, and configurable plans.
+
 Draft REST contract for the future C# .NET 8 API. **Not implemented — for planning only.** Shapes mirror the current frontend types (`apps/web/src/types.ts`) so the mock service layer can be swapped for real calls with minimal UI change. All responses use the existing envelope:
 
 ```json
