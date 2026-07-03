@@ -231,13 +231,15 @@ Only configure provider-specific storage values for the active provider.
 
 ## Local Development DB Setup
 
-Recommended local flow after backend generation:
+Status: the `InitialCreate` migration exists (`apps/api/MyPetLink.Api/Migrations/`, generated 2026-07-03) and has been validated against SQL Server LocalDB. It creates all 23 Phase 1 tables and seeds Free/Premium plans, plan limits, and default app settings.
 
-1. Install SQL Server Developer Edition or use a SQL Server Docker container.
-2. Configure `ConnectionStrings__MyPetLinkDb` in user secrets.
-3. Run EF Core initial migration generation from `apps/api/MyPetLink.Api`.
-4. Apply migrations to local DB.
-5. Run seed routine for plans, app settings, admin user, demo owner, demo pets, demo tags/orders.
+Local flow (SQL Server LocalDB is the default; no install needed beyond Visual Studio/SQL Server Express LocalDB):
+
+1. `dotnet tool restore` (restores the `dotnet-ef` local tool from `.config/dotnet-tools.json`).
+2. The Development connection string defaults to `Server=(localdb)\MSSQLLocalDB;Database=MyPetLinkDev;...` in `appsettings.Development.json`; override with `ConnectionStrings__MyPetLinkDb` (user secrets) for a full SQL Server or Docker container.
+3. `dotnet ef database update --project apps/api/MyPetLink.Api --startup-project apps/api/MyPetLink.Api` creates the database and applies migrations (plan/app-setting seeds are part of the migration).
+4. To reset local data: `dotnet ef database drop` then `database update` again.
+5. Admin user and demo owner/pet/tag/order seeds are a later Phase A/D seeding routine, not part of `InitialCreate`.
 6. Verify owner login with Google dev client or a local development auth bypass only if explicitly implemented and never enabled in production.
 
 ## Seed Data Strategy

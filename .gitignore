@@ -13,6 +13,15 @@ out/
 # production
 build/
 
+# .NET
+bin/
+obj/
+.vs/
+*.user
+App_Data/
+*.mdf
+*.ldf
+
 # misc
 .DS_Store
 *.pem
