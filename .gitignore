@@ -13,6 +13,11 @@ out/
 # production
 build/
 
+# .NET
+bin/
+obj/
+.vs/
+
 # misc
 .DS_Store
 *.pem

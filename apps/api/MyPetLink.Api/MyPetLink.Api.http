@@ -1,0 +1,11 @@
+@MyPetLink.Api_HostAddress = http://localhost:5281
+
+GET {{MyPetLink.Api_HostAddress}}/health
+Accept: application/json
+
+###
+
+GET {{MyPetLink.Api_HostAddress}}/api/v1/public/safety/sample-safety-code
+Accept: application/json
+
+###

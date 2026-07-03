@@ -11,7 +11,7 @@ MyPetLink
 ├─ apps
 │  ├─ web        Next.js app: Landing Page, Owner Portal, Public Profile,
 │  │             QR Safety Page, and the future Admin Portal UI
-│  └─ api        Future C# .NET API (placeholder only — not implemented)
+│  └─ api        C# .NET 8 API skeleton
 ├─ database      Future migrations, seed scripts, and database docs (placeholders)
 └─ docs          Product, architecture, API, database, and operations documentation
 ```
@@ -19,7 +19,7 @@ MyPetLink
 ## Current status
 
 - The frontend is built in `apps/web` (Next.js App Router, TypeScript, Tailwind CSS, static export).
-- The backend is not implemented yet (`apps/api` is a placeholder).
+- The backend skeleton exists in `apps/api/MyPetLink.Api`; business logic is intentionally still placeholder-level.
 - The database is not implemented yet (`database/` holds placeholders).
 - Premium is Coming Soon.
 - GPS Safety is Coming Later.
@@ -37,6 +37,14 @@ npm run lint:web   # lint the web app
 ```
 
 You can also run the same scripts directly inside `apps/web` (`npm run dev`, `npm run build`, `npm run lint`).
+
+Backend commands:
+
+```bash
+dotnet restore apps/api/MyPetLink.Api.sln
+dotnet build apps/api/MyPetLink.Api.sln
+dotnet run --project apps/api/MyPetLink.Api
+```
 
 ## Cloudflare Pages
 

@@ -1,6 +1,8 @@
 # MyPetLink Backend Implementation Plan
 
-Planning draft for building the future backend after the documentation is approved. Do not generate backend code until explicitly requested.
+Planning draft for building the future backend after the documentation is approved.
+
+Implementation status: the initial .NET 8 API skeleton now lives in `apps/api/MyPetLink.Api`. It includes the project structure, EF Core model, service/controller placeholders, JWT/admin-policy wiring, audit/storage placeholders, and local development settings. Business logic remains intentionally unimplemented until the next backend phase.
 
 ## Guiding Rules
 
