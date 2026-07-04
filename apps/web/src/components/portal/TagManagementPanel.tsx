@@ -510,7 +510,7 @@ function TagCard({
             <QrCodeCard
               className="mt-4"
               fileNameBase={`${tag.tagCode}-physical-tag-qr`}
-              helperText="This is the QR printed on the physical tag. It uses /t so lost, disabled, pending, or unclaimed tags stay protected."
+              helperText="This is the QR printed on your physical tag. If the tag is lost or disabled, the scan page will stop showing your contact details."
               targetPath={scanPath}
               title="Physical Tag QR"
               viewLabel={isActive ? "View Tag Scan Page" : "View Inactive Tag Page"}

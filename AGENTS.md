@@ -18,6 +18,30 @@ This is the **MyPetLink monorepo**. Read this file before making changes anywher
 5. **GPS Safety is Coming Later only.**
 6. **Smart Tags are optional one-time add-ons** (QR Pet Tag and QR + NFC Smart Tag), not subscriptions.
 
+## Production UI copy rules
+
+All user-facing **and** admin-facing UI text must read as production-ready copy for non-developers.
+
+- Do not write sentences for developers unless the UI is explicitly a developer/debug-only screen.
+- Avoid internal route names, API/backend/database wording, and implementation details in normal UI copy. Routes may still appear as actual URLs or links when the user needs the URL itself.
+- Explain the user benefit or operational meaning, not the technical mechanism.
+  - Good: "If this tag is disabled, the scan page will not show owner contact details."
+  - Bad: "Uses /t so disabled tags stay protected."
+  - Good: "We couldn't connect right now. Please try again in a moment."
+  - Bad: "Check that the backend and local database are running."
+- Development-only hints (e.g. connection debug hints) must be gated so they only render in development, never in a production build.
+- Admin Portal copy can be operational, but must still be clear and non-technical.
+
+### User-facing terms for our routes
+
+Refer to the three public pages by name in copy, not by their path:
+
+- `/p/:petSlug` → **Public Share Profile** (or "Share Profile")
+- `/q/:safetyCode` → **QR Safety Page** (or "Safety QR")
+- `/t/:tagCode` → **Physical Tag Scan Page** (or "Physical Tag QR" / "Tag Scan Page")
+
+Do not lump these together as a generic "QR Profile" — they are three distinct pages.
+
 ## Route conventions
 
 - QR Safety Page: `/q/:safetyCode`

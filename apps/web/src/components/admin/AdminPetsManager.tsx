@@ -85,10 +85,10 @@ export function AdminPetsManager({ initialData }: { initialData: AdminData }) {
   return (
     <div className="grid gap-4">
       <AdminNotice>
-        Each pet has a pet-level QR Safety Page (/q) that works even without a
+        Every pet has its own free QR Safety Page that works even without a
         physical tag. Use the QR Safety column and the QR Safety Page action
-        below to review it. This is separate from physical Smart Tags —
-        physical tag inventory is managed under Smart Tags and Tag Inventory.
+        below to review it. This is separate from physical Smart Tags — physical
+        tags and stock are managed under Smart Tags and Tag Inventory.
       </AdminNotice>
       <AdminSection
         title="Pet profiles"

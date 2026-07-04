@@ -236,11 +236,11 @@ export function AdminTagsManager({ initialData }: { initialData: AdminData }) {
                       </a>
                       <QrCodeButton
                         fileNameBase={`${tag.tagCode}-physical-tag-qr`}
-                        helperText="Printed tag scan link. Uses /t so lost, disabled, replaced, or archived tags stay protected."
+                        helperText="This QR is printed on the physical tag. If the tag is lost, disabled, replaced, or archived, scanning it shows a protected inactive page and will not display owner contact details."
                         label="QR"
                         targetPath={getTagScanPath(tag)}
-                        title={`Physical Tag QR - ${tag.tagCode}`}
-                        viewLabel="View /t Scan Page"
+                        title={`Physical Tag QR · ${tag.tagCode}`}
+                        viewLabel="View Tag Scan Page"
                       />
                       {getTagActions(tag).map((action) => (
                         <AdminActionButton

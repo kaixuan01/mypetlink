@@ -290,15 +290,15 @@ function InventoryRow({
             rel="noopener noreferrer"
             target="_blank"
           >
-            View /t
+            View Tag Scan Page
           </a>
           <QrCodeButton
             fileNameBase={`${tag.tagCode}-physical-tag-qr`}
-            helperText="Printed tag scan link. Uses /t so lost, disabled, pending, or unclaimed tags stay protected. Downloading does not consume inventory."
+            helperText="This QR belongs to an unassigned tag. It will show an activation page until the tag is assigned to a pet and activated. Downloading this QR does not use up inventory."
             label="QR"
             targetPath={getTagScanPath(tag)}
-            title={`Physical Tag QR - ${tag.tagCode}`}
-            viewLabel="View /t Scan Page"
+            title={`Physical Tag QR · ${tag.tagCode}`}
+            viewLabel="View Tag Scan Page"
           />
         </div>
       </td>

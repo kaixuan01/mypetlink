@@ -377,7 +377,7 @@ export function OrderDetailView({
               <QrCodeCard
                 className="mt-4"
                 fileNameBase={`${linkedTag.tagCode}-physical-tag-qr`}
-                helperText="This is the QR printed on your physical tag. It uses /t so lost or disabled tags stay protected."
+                helperText="This is the QR printed on your physical tag. If the tag is lost or disabled, the scan page will stop showing your contact details."
                 targetPath={tagPath(linkedTag.tagCode)}
                 title="Physical Tag QR"
                 viewLabel="View Tag Scan Page"
@@ -391,8 +391,8 @@ export function OrderDetailView({
                   {linkedTag.tagCode}
                 </p>
                 <p className="mt-2 text-xs font-bold leading-5 text-pet-muted">
-                  The physical tag QR (/t) turns on after the tag is delivered
-                  and activated.
+                  The physical tag QR becomes active once the tag is delivered
+                  and you activate it.
                 </p>
               </div>
             )
