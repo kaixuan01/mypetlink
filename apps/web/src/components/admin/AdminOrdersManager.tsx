@@ -10,6 +10,10 @@ import {
   AdminTable,
 } from "@/components/admin/AdminPanels";
 import { OrderDocumentButtons } from "@/components/admin/OrderDocumentButtons";
+import {
+  TagAssignmentModal,
+  type TagAssignmentMode,
+} from "@/components/admin/TagAssignmentModal";
 import { orderStatusTone } from "@/components/admin/adminDisplay";
 import { Badge } from "@/components/ui/Badge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -25,11 +29,13 @@ import { getAdminData, type AdminData } from "@/services/adminService";
 import {
   adminAssignInventoryTag,
   adminCancelOrder,
+  adminChangeAssignedTag,
   adminConfirmOrderPayment,
   adminMarkOrderDelivered,
   adminMarkOrderPreparing,
   adminMarkOrderShipped,
   adminRejectOrderPayment,
+  adminReplaceTag,
 } from "@/services/tagService";
 import type { OrderStatus, PetTag, TagOrder } from "@/types";
 
@@ -50,10 +56,19 @@ const actionLabels: Record<AdminOrderAction, string> = {
   "confirm-payment": "Confirm Payment",
   "reject-payment": "Request Resubmission",
   "assign-tag": "Assign Inventory Tag",
+  "change-tag": "Change Assigned Tag",
+  "replace-tag": "Replace Tag",
   "mark-preparing": "Mark Preparing",
   "mark-shipped": "Mark Shipped",
   "mark-delivered": "Mark Delivered",
   "cancel-order": "Cancel Order",
+};
+
+// Which admin actions open the assign/change/replace inventory modal.
+const tagModalActions: Partial<Record<AdminOrderAction, TagAssignmentMode>> = {
+  "assign-tag": "assign",
+  "change-tag": "change",
+  "replace-tag": "replace",
 };
 
 export function AdminOrdersManager({ initialData }: { initialData: AdminData }) {
@@ -65,6 +80,11 @@ export function AdminOrdersManager({ initialData }: { initialData: AdminData }) 
   const [message, setMessage] = useState("");
   const [pendingCancelId, setPendingCancelId] = useState("");
   const [pendingRejectId, setPendingRejectId] = useState("");
+  const [tagModal, setTagModal] = useState<{
+    orderId: string;
+    mode: TagAssignmentMode;
+  } | null>(null);
+  const [tagModalBusy, setTagModalBusy] = useState(false);
 
   const refresh = useCallback(async () => {
     setData(await getAdminData());
@@ -113,6 +133,10 @@ export function AdminOrdersManager({ initialData }: { initialData: AdminData }) 
     () => new Map(data.pets.map((pet) => [pet.id, pet])),
     [data.pets]
   );
+  const tagsById = useMemo(
+    () => new Map(data.tags.map((tag) => [tag.id, tag])),
+    [data.tags]
+  );
 
   const counts = useMemo(() => {
     const map = new Map<OrderFilter, number>();
@@ -144,13 +168,17 @@ export function AdminOrdersManager({ initialData }: { initialData: AdminData }) 
       return;
     }
 
-    if (action === "assign-tag") {
-      setOpenOverride(order.id);
+    const modalMode = tagModalActions[action];
+    if (modalMode) {
+      setTagModal({ orderId: order.id, mode: modalMode });
       return;
     }
 
     const handlers: Record<
-      Exclude<AdminOrderAction, "cancel-order" | "reject-payment" | "assign-tag">,
+      Extract<
+        AdminOrderAction,
+        "confirm-payment" | "mark-preparing" | "mark-shipped" | "mark-delivered"
+      >,
       (id: string) => Promise<{ data: TagOrder | null }>
     > = {
       "confirm-payment": adminConfirmOrderPayment,
@@ -159,7 +187,12 @@ export function AdminOrdersManager({ initialData }: { initialData: AdminData }) 
       "mark-delivered": adminMarkOrderDelivered,
     };
 
-    const result = await handlers[action](order.id);
+    const handler = handlers[action as keyof typeof handlers];
+    if (!handler) {
+      return;
+    }
+
+    const result = await handler(order.id);
     await refresh();
     setMessage(
       result.data
@@ -168,19 +201,48 @@ export function AdminOrdersManager({ initialData }: { initialData: AdminData }) 
     );
   }
 
-  async function assignInventoryTag(order: TagOrder, tagId: string) {
-    if (!tagId) {
-      setMessage("Choose an unclaimed inventory tag first.");
+  async function submitTagModal(input: {
+    tagId: string;
+    reason: string;
+    note: string;
+  }) {
+    if (!tagModal) {
       return;
     }
 
-    const result = await adminAssignInventoryTag(order.id, tagId);
-    await refresh();
-    setMessage(
-      result.data
-        ? `Inventory tag assigned to ${formatOrderNumber(order)}.`
-        : "This tag could not be assigned to the order."
-    );
+    const order = data.orders.find((item) => item.id === tagModal.orderId);
+    if (!order) {
+      setTagModal(null);
+      return;
+    }
+
+    setTagModalBusy(true);
+
+    try {
+      const result =
+        tagModal.mode === "assign"
+          ? await adminAssignInventoryTag(order.id, input.tagId)
+          : tagModal.mode === "change"
+            ? await adminChangeAssignedTag(order.id, input.tagId, input.reason)
+            : await adminReplaceTag(order.id, input.tagId, input.reason, input.note);
+
+      await refresh();
+      setMessage(
+        result.data
+          ? tagModal.mode === "assign"
+            ? `Inventory tag assigned to ${formatOrderNumber(order)}.`
+            : tagModal.mode === "change"
+              ? `Assigned tag changed for ${formatOrderNumber(order)}.`
+              : `Replacement tag issued for ${formatOrderNumber(order)}.`
+          : "This tag action could not be completed from the order's current status."
+      );
+
+      if (result.data) {
+        setTagModal(null);
+      }
+    } finally {
+      setTagModalBusy(false);
+    }
   }
 
   async function confirmCancel() {
@@ -260,17 +322,12 @@ export function AdminOrdersManager({ initialData }: { initialData: AdminData }) 
               const pet = petMap.get(order.petId);
               const actions = getAdminOrderActions(order);
               const open = openOrderId === order.id;
-              const availableInventoryTags = getAssignableInventoryTags(
-                order,
-                data.tags
-              );
 
               return (
                 <OrderRow
                   actions={actions}
-                  availableInventoryTags={availableInventoryTags}
                   key={order.id}
-                  onAssign={(tagId) => void assignInventoryTag(order, tagId)}
+                  linkedTag={order.tagId ? tagsById.get(order.tagId) : undefined}
                   onAction={(action) => void runAction(order, action)}
                   onToggle={() =>
                     setOpenOverride(openOrderId === order.id ? "" : order.id)
@@ -304,6 +361,33 @@ export function AdminOrdersManager({ initialData }: { initialData: AdminData }) 
         open={Boolean(pendingRejectId)}
         title="Request payment proof resubmission?"
       />
+
+      {(() => {
+        if (!tagModal) {
+          return null;
+        }
+
+        const order = data.orders.find((item) => item.id === tagModal.orderId);
+        if (!order) {
+          return null;
+        }
+
+        const pet = petMap.get(order.petId);
+
+        return (
+          <TagAssignmentModal
+            availableTags={getAssignableInventoryTags(order, data.tags)}
+            busy={tagModalBusy}
+            currentTag={order.tagId ? tagsById.get(order.tagId) : undefined}
+            mode={tagModal.mode}
+            onCancel={() => setTagModal(null)}
+            onSubmit={(input) => void submitTagModal(input)}
+            order={order}
+            ownerName={pet?.owner.name ?? "Owner"}
+            petName={pet?.name ?? "Pet profile"}
+          />
+        );
+      })()}
     </AdminSection>
   );
 }
@@ -313,26 +397,20 @@ function OrderRow({
   ownerName,
   petName,
   actions,
-  availableInventoryTags,
+  linkedTag,
   open,
   onToggle,
   onAction,
-  onAssign,
 }: {
   order: TagOrder;
   ownerName: string;
   petName: string;
   actions: AdminOrderAction[];
-  availableInventoryTags: PetTag[];
+  linkedTag?: PetTag;
   open: boolean;
   onToggle: () => void;
   onAction: (action: AdminOrderAction) => void;
-  onAssign: (tagId: string) => void;
 }) {
-  const [selectedTagId, setSelectedTagId] = useState("");
-  const needsTagAssignment =
-    order.status === "Payment Confirmed" && !order.tagId;
-
   return (
     <>
       <tr className="align-top">
@@ -366,12 +444,14 @@ function OrderRow({
             <AdminActionButton onClick={onToggle}>
               {open ? "Close" : "View"}
             </AdminActionButton>
-            {actions.filter((action) => action !== "assign-tag").map((action) => (
+            {actions.map((action) => (
               <AdminActionButton
                 key={action}
                 onClick={() => onAction(action)}
                 tone={
-                  action === "cancel-order" || action === "reject-payment"
+                  action === "cancel-order" ||
+                  action === "reject-payment" ||
+                  action === "replace-tag"
                     ? "danger"
                     : "primary"
                 }
@@ -379,11 +459,6 @@ function OrderRow({
                 {actionLabels[action]}
               </AdminActionButton>
             ))}
-            {actions.includes("assign-tag") ? (
-              <AdminActionButton onClick={onToggle} tone="primary">
-                Assign Inventory Tag
-              </AdminActionButton>
-            ) : null}
           </div>
         </td>
       </tr>
@@ -442,13 +517,11 @@ function OrderRow({
                 value={order.deliveredDate ?? "Not delivered"}
               />
               <AdminDetailItem
-                label="Linked tag"
+                label="Assigned tag"
                 value={
-                  order.tagId
-                    ? "Assigned from inventory"
-                    : order.status === "Payment Confirmed"
-                      ? "Assignment needed"
-                      : "Not assigned yet"
+                  linkedTag
+                    ? `${linkedTag.tagCode} · ${getTagAssignmentLabel(order, linkedTag)}`
+                    : getTagAssignmentLabel(order, undefined)
                 }
               />
               <AdminDetailItem
@@ -456,51 +529,53 @@ function OrderRow({
                 value={order.trackingStatus || "Not started"}
               />
             </div>
-            {needsTagAssignment ? (
-              <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
-                <p className="text-sm font-black text-slate-950">
-                  Assign inventory tag
-                </p>
+            <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+              <p className="text-xs font-black uppercase tracking-wide text-slate-500">
+                Inventory tag
+              </p>
+              {linkedTag ? (
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <span className="font-mono text-sm font-bold text-slate-950">
+                    {linkedTag.tagCode}
+                  </span>
+                  <Badge tone="soft">
+                    {getTagAssignmentLabel(order, linkedTag)}
+                  </Badge>
+                </div>
+              ) : (
                 <p className="mt-1 text-sm font-semibold leading-6 text-slate-500">
-                  Choose an unclaimed {order.tagType.includes("NFC") ? "QR + NFC" : "QR"}{" "}
-                  {order.shape} tag. Stock is consumed only after assignment.
+                  {order.status === "Payment Confirmed"
+                    ? "No tag assigned yet. Use Assign Inventory Tag to fulfil this order."
+                    : "No tag assigned yet."}
                 </p>
-                <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
-                  <select
-                    className="min-h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none focus:border-slate-400"
-                    onChange={(event) => setSelectedTagId(event.target.value)}
-                    value={selectedTagId}
-                  >
-                    <option value="">Select unclaimed tag</option>
-                    {availableInventoryTags.map((tag) => (
-                      <option key={tag.id} value={tag.id}>
-                        {tag.tagCode} - {tag.hasNfc ? "QR + NFC" : "QR"} - {tag.shape}
-                      </option>
-                    ))}
-                  </select>
+              )}
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {actions.includes("assign-tag") ? (
                   <AdminActionButton
-                    disabled={!selectedTagId}
-                    onClick={() => onAssign(selectedTagId)}
+                    onClick={() => onAction("assign-tag")}
                     tone="primary"
                   >
                     Assign Inventory Tag
                   </AdminActionButton>
-                </div>
-                {!availableInventoryTags.length ? (
-                  <p className="mt-3 rounded-lg bg-[#fff4f1] px-3 py-2 text-xs font-bold text-[#a63c2e]">
-                    No matching unclaimed stock is available. Generate matching
-                    inventory before preparing this order.
-                  </p>
+                ) : null}
+                {actions.includes("change-tag") ? (
+                  <AdminActionButton
+                    onClick={() => onAction("change-tag")}
+                    tone="primary"
+                  >
+                    Change Assigned Tag
+                  </AdminActionButton>
+                ) : null}
+                {actions.includes("replace-tag") ? (
+                  <AdminActionButton
+                    onClick={() => onAction("replace-tag")}
+                    tone="danger"
+                  >
+                    Replace Tag
+                  </AdminActionButton>
                 ) : null}
               </div>
-            ) : order.tagId ? (
-              <p className="mt-4 rounded-xl bg-slate-100 px-4 py-3 text-sm font-bold text-slate-600">
-                Linked tag is{" "}
-                {order.status === "Delivered"
-                  ? "awaiting owner activation unless it is already Active."
-                  : "assigned to this order."}
-              </p>
-            ) : null}
+            </div>
             <OrderDocumentButtons order={order} />
             <ProofHistory order={order} />
           </td>
@@ -521,6 +596,37 @@ function getAssignableInventoryTags(order: TagOrder, tags: PetTag[]) {
       tag.hasNfc === needsNfc &&
       tag.shape === order.shape
   );
+}
+
+// Clear, non-technical status for the tag assigned to an order.
+function getTagAssignmentLabel(order: TagOrder, tag?: PetTag): string {
+  if (!tag) {
+    return order.status === "Payment Confirmed"
+      ? "No tag assigned"
+      : "No tag yet";
+  }
+
+  if (tag.status === "Active") {
+    return "Active";
+  }
+
+  if (tag.status === "Replaced") {
+    return "Replaced";
+  }
+
+  if (order.status === "Shipped") {
+    return "Shipped, waiting activation";
+  }
+
+  if (order.status === "Delivered") {
+    return "Delivered, waiting activation";
+  }
+
+  if (tag.status === "Preparing") {
+    return "Assigned, preparing";
+  }
+
+  return "Assigned";
 }
 
 const proofStatusLabels: Record<

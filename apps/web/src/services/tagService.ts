@@ -1092,6 +1092,134 @@ export async function adminAssignInventoryTag(orderId: string, tagId: string) {
   return mockResponse(updatedOrder);
 }
 
+export async function adminChangeAssignedTag(
+  orderId: string,
+  newTagId: string,
+  reason?: string
+) {
+  if (canUseOwnerTagApi()) {
+    return runAdminOrderAction(
+      `/api/v1/admin/orders/${encodeURIComponent(orderId)}/change-assigned-tag`,
+      { newTagId, reason }
+    );
+  }
+
+  await mockDelay();
+  const orders = getOrderCollection();
+  const tags = getTagCollection();
+  const order = orders.find((item) => item.id === orderId);
+  const oldTag = tags.find((item) => item.id === order?.tagId);
+  const newTag = tags.find((item) => item.id === newTagId);
+
+  if (
+    !order ||
+    !oldTag ||
+    !newTag ||
+    (order.status !== "Payment Confirmed" && order.status !== "Preparing") ||
+    newTag.id === oldTag.id ||
+    newTag.status !== "Unassigned" ||
+    newTag.petId ||
+    newTag.isArchived ||
+    newTag.hasNfc !== order.tagType.includes("NFC") ||
+    newTag.shape !== order.shape
+  ) {
+    return mockResponse<TagOrder | null>(null);
+  }
+
+  const updatedTags = tags.map((item) => {
+    if (item.id === oldTag.id) {
+      return { ...item, petId: undefined, status: "Unassigned" as TagStatus };
+    }
+
+    if (item.id === newTag.id) {
+      return { ...item, petId: order.petId, status: "Preparing" as TagStatus };
+    }
+
+    return item;
+  });
+  const updatedOrder: TagOrder = {
+    ...order,
+    tagId: newTag.id,
+    trackingStatus: "Assigned tag updated. Tag preparation is next.",
+  };
+
+  writeStoredCollection(TAG_STORAGE_KEY, updatedTags);
+  writeOrder(orders, updatedOrder);
+  return mockResponse(updatedOrder);
+}
+
+export async function adminReplaceTag(
+  orderId: string,
+  newTagId: string,
+  reason: string,
+  note?: string
+) {
+  if (canUseOwnerTagApi()) {
+    return runAdminOrderAction(
+      `/api/v1/admin/orders/${encodeURIComponent(orderId)}/replace-tag`,
+      { newTagId, reason, note }
+    );
+  }
+
+  await mockDelay();
+  const orders = getOrderCollection();
+  const tags = getTagCollection();
+  const order = orders.find((item) => item.id === orderId);
+  const oldTag = tags.find((item) => item.id === order?.tagId);
+  const newTag = tags.find((item) => item.id === newTagId);
+  const eligible =
+    order &&
+    (order.status === "Shipped" ||
+      order.status === "Delivered" ||
+      oldTag?.status === "Active");
+
+  if (
+    !order ||
+    !oldTag ||
+    !newTag ||
+    !eligible ||
+    !reason ||
+    newTag.id === oldTag.id ||
+    newTag.status !== "Unassigned" ||
+    newTag.petId ||
+    newTag.isArchived ||
+    newTag.hasNfc !== order.tagType.includes("NFC") ||
+    newTag.shape !== order.shape
+  ) {
+    return mockResponse<TagOrder | null>(null);
+  }
+
+  const updatedTags = tags.map((item) => {
+    if (item.id === oldTag.id) {
+      // Keep the pet link for history; Replaced tags read as inactive.
+      return { ...item, status: "Replaced" as TagStatus };
+    }
+
+    if (item.id === newTag.id) {
+      return {
+        ...item,
+        petId: order.petId,
+        status: "Preparing" as TagStatus,
+        replacementForTagId: oldTag.id,
+      };
+    }
+
+    return item;
+  });
+  const updatedOrder: TagOrder = {
+    ...order,
+    tagId: newTag.id,
+    status: "Preparing",
+    shippedDate: undefined,
+    deliveredDate: undefined,
+    trackingStatus: "A replacement tag is being prepared.",
+  };
+
+  writeStoredCollection(TAG_STORAGE_KEY, updatedTags);
+  writeOrder(orders, updatedOrder);
+  return mockResponse(updatedOrder);
+}
+
 export async function adminMarkOrderPreparing(orderId: string) {
   if (canUseOwnerTagApi()) {
     return runAdminOrderAction(

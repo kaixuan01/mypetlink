@@ -151,6 +151,8 @@ Endpoints:
 - `POST /api/v1/admin/orders/{orderId}/confirm-payment`
 - `POST /api/v1/admin/orders/{orderId}/reject-payment-proof`
 - `POST /api/v1/admin/orders/{orderId}/assign-tag`
+- `POST /api/v1/admin/orders/{orderId}/change-assigned-tag`
+- `POST /api/v1/admin/orders/{orderId}/replace-tag`
 - `POST /api/v1/admin/orders/{orderId}/status`
 - `POST /api/v1/admin/orders/{orderId}/cancel`
 
@@ -159,6 +161,8 @@ Valid actions:
 - Confirm Payment: `PaymentProofSubmitted` -> `PaymentConfirmed`
 - Request Resubmission: `PaymentProofSubmitted` -> `PendingPayment`
 - Assign Inventory Tag: confirmed order receives an unclaimed matching tag
+- Change Assigned Tag: swap the assigned tag while `PaymentConfirmed` or `PreparingTag` (before shipping)
+- Replace Tag: issue a replacement while `Shipped`/`Delivered`, or when the assigned tag is `Active`
 - Mark Preparing: `PaymentConfirmed` -> `PreparingTag`
 - Mark Shipped: `PreparingTag` -> `Shipped`
 - Mark Delivered: `Shipped` -> `Delivered`
@@ -168,7 +172,10 @@ Side effects:
 
 - Confirm payment sets payment status to `Confirmed`.
 - Reject payment sets proof status to `Rejected`, payment status to `Rejected`, and order status to `PendingPayment`.
-- Assigning inventory links an unclaimed tag to the owner, pet, and order, then moves it to `Preparing`.
+- Assigning inventory links an unclaimed tag to the owner, pet, and order, then moves it to `Preparing`. Stock is consumed at assignment, not at order creation.
+- Change Assigned Tag returns the old (never-shipped) tag to `Unclaimed` inventory with its owner/pet/order links cleared, then links the new tag as `Preparing`. Audited with old and new tag codes.
+- Replace Tag marks the old tag `Replaced` (its `/t` scan page stops showing owner contact) while keeping its owner/pet/order history, links a fresh tag as `Preparing`, and sends the order back to `PreparingTag` (tracking: "A replacement tag is being prepared."). A reason is required. Audited with old/new tag codes and the reason.
+- Change/Replace validate the new tag is unclaimed, unlinked, not archived, and matches the order's tag type and shape; the pet must be Active (Memorial/Archived pets cannot receive an active replacement).
 - Preparing updates linked pending-family tag to `Preparing`.
 - Delivered updates linked pending-family tag to `Delivered`.
 - Admin order/tag pages do not activate customer tags; activation is completed by the owner from the Physical Tag Scan Page after scanning/tapping the physical tag.

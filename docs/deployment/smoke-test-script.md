@@ -60,6 +60,16 @@ curl -s -H "Authorization: Bearer $ADMIN" "$API/api/v1/admin/auth/check"        
 12. **CSV export** — export the inventory CSV; file downloads with tag_code / type / batch / status / created_at.
 13. **Audit** — confirm `AuditLogs` rows were written for the admin actions above.
 
+### Tag reassignment & replacement
+
+1. **Generate stock** — generate at least 3 matching unclaimed tags (Tag A, B, C).
+2. **Assign Tag A** — on a payment-confirmed order, open the assign modal and assign Tag A.
+3. **Change to Tag B** — before shipping, use Change Assigned Tag to switch to Tag B; confirm Tag A returns to Unclaimed inventory and Tag B is linked to the order/owner/pet.
+4. **Ship** — mark Preparing then Shipped; confirm Change Assigned Tag is no longer offered (only Replace Tag).
+5. **Replace with Tag C** — use Replace Tag with reason "Damaged"; confirm Tag B shows `Replaced` and `/t/{TagB}` shows the inactive/no-contact page, Tag C is linked and preparing, and the order returns to Preparing Tag with "A replacement tag is being prepared."
+6. **Activate Tag C** — ship/deliver, then activate Tag C as the matching owner from `/t/{TagC}`; confirm active safety content shows.
+7. **Guards** — confirm a wrong-type or already-assigned tag cannot be selected/assigned, and that non-admin tokens are rejected (`403`). Confirm `AuditLogs` rows exist for the change and replace actions (old + new tag codes).
+
 ## 4. Public tag / lifecycle states (curl or browser)
 
 | Scenario | `/t/:tagCode` state | Owner contact exposed? |

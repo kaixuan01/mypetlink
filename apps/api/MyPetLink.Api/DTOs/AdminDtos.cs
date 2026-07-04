@@ -53,6 +53,15 @@ public sealed record MarkOrderShippedRequest(
 public sealed record AssignInventoryTagRequest(
     [Required] Guid? TagId);
 
+public sealed record ChangeAssignedTagRequest(
+    [Required] Guid? NewTagId,
+    [MaxLength(600)] string? Reason);
+
+public sealed record ReplaceTagRequest(
+    [Required] Guid? NewTagId,
+    [Required, MaxLength(60)] string? Reason,
+    [MaxLength(600)] string? Note);
+
 public sealed record AdminSmartTagResponse(
     SmartTagResponse Tag,
     AdminOwnerRefResponse? Owner,

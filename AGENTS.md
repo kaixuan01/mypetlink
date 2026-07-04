@@ -17,6 +17,7 @@ This is the **MyPetLink monorepo**. Read this file before making changes anywher
 4. **Premium is Coming Soon only.** No subscription, upgrade, or checkout flow.
 5. **GPS Safety is Coming Later only.**
 6. **Smart Tags are optional one-time add-ons** (QR Pet Tag and QR + NFC Smart Tag), not subscriptions.
+7. **Assigned inventory tags are not final.** Before an order ships, an admin can change the assigned tag (the old tag returns to unclaimed stock). After shipping/delivery/activation, use Replace Tag (the old tag becomes `Replaced` and its `/t` scan page stops showing owner contact). Both are admin-only, validate tag type/shape, and are audited. Inventory stock is consumed at assignment, not at order creation.
 
 ## Production UI copy rules
 

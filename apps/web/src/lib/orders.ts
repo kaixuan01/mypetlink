@@ -141,6 +141,8 @@ export type AdminOrderAction =
   | "confirm-payment"
   | "reject-payment"
   | "assign-tag"
+  | "change-tag"
+  | "replace-tag"
   | "mark-preparing"
   | "mark-shipped"
   | "mark-delivered"
@@ -169,6 +171,22 @@ export function getAdminOrderActions(
 
   if (order.status === "Payment Confirmed" && order.tagId) {
     actions.push("mark-preparing");
+  }
+
+  // Before shipping, an assigned tag can be swapped for a different one.
+  if (
+    (order.status === "Payment Confirmed" || order.status === "Preparing") &&
+    order.tagId
+  ) {
+    actions.push("change-tag");
+  }
+
+  // After shipping/delivery/activation, the tag can only be replaced.
+  if (
+    (order.status === "Shipped" || order.status === "Delivered") &&
+    order.tagId
+  ) {
+    actions.push("replace-tag");
   }
 
   if (order.status === "Preparing") {

@@ -118,6 +118,15 @@ Rules:
 - Assigned portal tags must not ask the owner to choose a pet during activation; the order-selected pet is authoritative.
 - Memorial and archived pets cannot receive new portal tag orders.
 
+### Changing or replacing an assigned tag
+
+Assignment is not final. Admins fix real fulfilment problems (wrong tag picked, tag missing before packing, printed tag defective, parcel not received, tag damaged/wrong on arrival, customer needs a replacement) through two audited actions:
+
+- **Change Assigned Tag** — before the order ships (`PaymentConfirmed`/`PreparingTag`). The old tag was never shipped or activated, so it returns to `Unclaimed` inventory (owner/pet/order links cleared) and a new matching unclaimed tag takes its place as `Preparing`.
+- **Replace Tag** — after the order has shipped/been delivered/activated. The old tag is marked `Replaced` (its `/t` page becomes inactive/no-contact) but keeps its owner/pet/order history; a new matching unclaimed tag is linked as `Preparing`, records `ReplacementForTagId`, and the order re-enters preparation. A reason is required.
+
+Both actions consume a new unclaimed tag only at the moment of assignment, validate tag type/shape and availability, block Memorial/archived pets from receiving an active replacement, and write audit logs with the old and new tag codes.
+
 ## Retail / Pet-Shop Tag Flow
 
 1. Admin generates tag batch.
@@ -250,6 +259,8 @@ Valid transitions:
 
 - `Unclaimed` -> `Active`
 - portal inventory assignment: `Unclaimed` -> `Preparing` with owner, pet, and order binding
+- change assigned tag before shipping: old `Preparing`/`Pending` -> `Unclaimed` (links cleared, back to inventory); new `Unclaimed` -> `Preparing`
+- replace tag after shipping/delivery/activation: old tag -> `Replaced` (owner/pet/order history kept); new `Unclaimed` -> `Preparing` (order returns to preparation)
 - `Preparing` -> `Delivered`
 - `Delivered` -> `Active`
 - `Active` -> `Lost`

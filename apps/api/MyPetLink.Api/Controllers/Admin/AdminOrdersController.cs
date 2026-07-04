@@ -101,6 +101,41 @@ public sealed class AdminOrdersController : ApiControllerBase
         return Ok(ApiEnvelope.Ok(response, HttpContext));
     }
 
+    // Swap the assigned tag before shipping (old tag returns to inventory).
+    [HttpPost("{orderId:guid}/change-assigned-tag")]
+    public async Task<IActionResult> ChangeAssignedTag(
+        Guid orderId,
+        [FromBody] ChangeAssignedTagRequest request,
+        CancellationToken cancellationToken)
+    {
+        var response = await _adminService.ChangeAssignedTagAsync(
+            _currentUserService.Current.UserId,
+            orderId,
+            request.NewTagId ?? Guid.Empty,
+            request.Reason,
+            cancellationToken);
+
+        return Ok(ApiEnvelope.Ok(response, HttpContext));
+    }
+
+    // Replace the tag after shipping/delivery/activation (old tag is retired).
+    [HttpPost("{orderId:guid}/replace-tag")]
+    public async Task<IActionResult> ReplaceTag(
+        Guid orderId,
+        [FromBody] ReplaceTagRequest request,
+        CancellationToken cancellationToken)
+    {
+        var response = await _adminService.ReplaceTagAsync(
+            _currentUserService.Current.UserId,
+            orderId,
+            request.NewTagId ?? Guid.Empty,
+            request.Reason,
+            request.Note,
+            cancellationToken);
+
+        return Ok(ApiEnvelope.Ok(response, HttpContext));
+    }
+
     [HttpPost("{orderId:guid}/mark-preparing")]
     public async Task<IActionResult> MarkPreparing(Guid orderId, CancellationToken cancellationToken)
     {

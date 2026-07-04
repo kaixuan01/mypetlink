@@ -1204,6 +1204,61 @@ Rules:
 - owner activation does not ask for pet selection.
 - owner activation is surfaced from the Physical Tag Scan Page, not admin or owner management pages.
 
+### POST `/api/v1/admin/orders/{orderId}/change-assigned-tag`
+
+Purpose: swap the assigned inventory tag before the order ships (e.g. wrong tag picked, tag missing before packing).
+
+Request:
+
+- `newTagId`: required inventory tag id
+- `reason`: optional
+
+Validation:
+
+- order must be `PaymentConfirmed` or `PreparingTag`.
+- order must already have an assigned tag whose status is `Pending` or `Preparing` (never shipped/activated).
+- order pet must be Active and not archived.
+- `newTagId` must differ from the current tag and pass the same availability/type/shape checks as assign.
+
+Transition:
+
+- old tag returns to `Unclaimed` with owner/pet/order links and `ReplacementForTagId` cleared.
+- new tag becomes linked and `Preparing`; order points at the new `smartTagId`.
+
+Errors:
+
+- `422` when the order has shipped (use Replace Tag), has no assigned tag, or the tag already progressed past preparation.
+
+### POST `/api/v1/admin/orders/{orderId}/replace-tag`
+
+Purpose: replace a tag after it has shipped/been delivered/activated (not received, damaged, wrong tag sent, QR/NFC issue, other).
+
+Request:
+
+- `newTagId`: required inventory tag id
+- `reason`: required
+- `note`: optional
+
+Validation:
+
+- order must be `Shipped` or `Delivered`, or the assigned tag must be `Active`.
+- order must have an assigned tag.
+- `reason` is required.
+- order pet must be Active and not archived (Memorial/Archived pets cannot receive an active replacement).
+- `newTagId` must be a different, available tag matching the order type/shape.
+
+Transition:
+
+- old tag becomes `Replaced` (its `/t` shows the inactive/no-contact page) but keeps its owner/pet/order history.
+- new tag becomes linked and `Preparing` with `ReplacementForTagId` set to the old tag.
+- order returns to `PreparingTag`; `ShippedAt`/`DeliveredAt` cleared; tracking reads "A replacement tag is being prepared."
+
+Errors:
+
+- `422` when the order has not shipped yet (use Change Assigned Tag) or has no assigned tag.
+
+Both endpoints require the admin policy and write `AuditLogs` rows (order-level plus old/new tag), including old and new tag codes and the reason.
+
 ### POST `/api/v1/admin/orders/{orderId}/reject-payment-proof`
 
 Purpose: reject payment proof and request resubmission.

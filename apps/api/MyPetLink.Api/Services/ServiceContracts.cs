@@ -315,6 +315,21 @@ public interface IAdminService : ISkeletonService
         Guid tagId,
         CancellationToken cancellationToken = default);
 
+    Task<AdminTagOrderResponse> ChangeAssignedTagAsync(
+        Guid? currentUserId,
+        Guid orderId,
+        Guid newTagId,
+        string? reason,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminTagOrderResponse> ReplaceTagAsync(
+        Guid? currentUserId,
+        Guid orderId,
+        Guid newTagId,
+        string? reason,
+        string? note,
+        CancellationToken cancellationToken = default);
+
     Task<AdminTagOrderResponse> MarkOrderPreparingAsync(
         Guid? currentUserId,
         Guid orderId,

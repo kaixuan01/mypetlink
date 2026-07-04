@@ -237,6 +237,46 @@ Owner portal shows:
 - physical tag assigned from inventory
 - tag is not active yet and does not expose owner contact
 
+Stock is consumed at assignment, not at order creation.
+
+### Admin changes the assigned tag (before shipping)
+
+Trigger:
+
+- Admin calls `POST /api/v1/admin/orders/{orderId}/change-assigned-tag` with `newTagId` (and optional `reason`).
+
+Required current state:
+
+- order `PaymentConfirmed` or `PreparingTag`
+- order already has an assigned tag that has not shipped/activated (`Pending`/`Preparing`)
+- new tag is a different, available (`Unclaimed`) tag matching the order type/shape
+
+Result:
+
+- old tag returns to `Unclaimed` inventory with owner/pet/order links cleared
+- new tag is linked and `Preparing`; order points at the new tag
+- audit logs record old and new tag codes and the reason
+
+### Admin replaces the tag (after shipping/delivery/activation)
+
+Trigger:
+
+- Admin calls `POST /api/v1/admin/orders/{orderId}/replace-tag` with `newTagId`, required `reason`, optional `note`.
+
+Required current state:
+
+- order `Shipped`/`Delivered`, or the assigned tag is `Active`
+- order has an assigned tag
+- pet is Active (Memorial/archived pets cannot receive an active replacement)
+- new tag is a different, available tag matching the order type/shape
+
+Result:
+
+- old tag becomes `Replaced` (its `/t` page no longer shows owner contact) but keeps owner/pet/order history
+- new tag is linked and `Preparing`, records `ReplacementForTagId`, and the order returns to `PreparingTag`
+- owner sees "A replacement tag is being prepared"; the replaced tag appears under inactive/history
+- audit logs record old and new tag codes and the reason
+
 ### Admin rejects proof
 
 Trigger:
