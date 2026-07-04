@@ -30,7 +30,14 @@ import {
   getFriendlyTagErrorMessage,
   getOrder,
 } from "@/services/tagService";
-import type { OrderStatus, Pet, PetTag, TagOrder } from "@/types";
+import type {
+  OrderStatus,
+  OrderTimelineEvent,
+  OrderTimelineTone,
+  Pet,
+  PetTag,
+  TagOrder,
+} from "@/types";
 
 type OrderDetailViewProps = {
   initialOrder: TagOrder | null;
@@ -50,11 +57,29 @@ const orderTone: Record<OrderStatus, "warm" | "teal" | "mint" | "soft" | "danger
   Cancelled: "danger",
 };
 
-type TimelineStep = {
-  label: string;
-  date?: string;
-  completed: boolean;
-  current: boolean;
+// Circle + text styling per timeline tone. `completed` steps read as done,
+// `current` is highlighted, `warning` marks a rejected proof (amber, not
+// alarming), and `cancelled` is a muted red.
+const timelineToneStyles: Record<
+  OrderTimelineTone,
+  { circle: string; description: string }
+> = {
+  completed: {
+    circle: "border-pet-teal bg-pet-teal text-white",
+    description: "text-pet-muted",
+  },
+  current: {
+    circle: "border-pet-coral bg-pet-apricot text-pet-coral",
+    description: "text-pet-muted",
+  },
+  warning: {
+    circle: "border-[#f4cf8a] bg-[#fdf3df] text-[#9a6b18]",
+    description: "text-[#9a6b18]",
+  },
+  cancelled: {
+    circle: "border-[#ffd2c9] bg-[#fff4f1] text-[#a63c2e]",
+    description: "text-[#a63c2e]",
+  },
 };
 
 export function OrderDetailView({
@@ -152,7 +177,10 @@ export function OrderDetailView({
   const petName = pet?.name ?? order.petName ?? "Pet profile";
   const receiptReady = canDownloadPaymentReceipt(order);
   const replacementReady = canRequestReplacement(order, linkedTag);
-  const timelineSteps = buildTimeline(order);
+  const timelineEvents =
+    order.timeline && order.timeline.length > 0
+      ? order.timeline
+      : buildFallbackTimeline(order);
   const replacementHref =
     linkedTag && order.petId
       ? ownerRoutes.petTagOrder(order.petId, {
@@ -266,32 +294,37 @@ export function OrderDetailView({
       <section className="brand-card rounded-[1.75rem] p-5 sm:p-6">
         <h2 className="text-xl font-black text-pet-ink">Order status</h2>
         <div className="mt-5 grid gap-3">
-          {timelineSteps.map((step, index) => (
-            <div className="flex gap-3" key={step.label}>
-              <div className="grid justify-items-center">
-                <span
-                  className={`grid h-8 w-8 place-items-center rounded-full border text-xs font-black ${
-                    step.current
-                      ? "border-pet-coral bg-pet-apricot text-pet-coral"
-                      : step.completed
-                        ? "border-pet-teal bg-pet-teal text-white"
-                        : "border-pet-border bg-white text-pet-muted"
-                  }`}
-                >
-                  {index + 1}
-                </span>
-                {index < timelineSteps.length - 1 ? (
-                  <span className="my-1 h-full min-h-6 w-px bg-pet-border" />
-                ) : null}
+          {timelineEvents.map((event, index) => {
+            const toneStyles = timelineToneStyles[event.tone];
+
+            return (
+              <div className="flex gap-3" key={`${event.type}-${index}`}>
+                <div className="grid justify-items-center">
+                  <span
+                    className={`grid h-8 w-8 place-items-center rounded-full border text-xs font-black ${toneStyles.circle}`}
+                  >
+                    {index + 1}
+                  </span>
+                  {index < timelineEvents.length - 1 ? (
+                    <span className="my-1 h-full min-h-6 w-px bg-pet-border" />
+                  ) : null}
+                </div>
+                <div className="min-w-0 pb-3">
+                  <p className="font-black text-pet-ink">{event.title}</p>
+                  <p className="mt-1 text-sm font-semibold text-pet-muted">
+                    {event.timestampLabel ?? "Time not available"}
+                  </p>
+                  {event.description ? (
+                    <p
+                      className={`mt-1 text-sm font-semibold ${toneStyles.description}`}
+                    >
+                      {event.description}
+                    </p>
+                  ) : null}
+                </div>
               </div>
-              <div className="min-w-0 pb-3">
-                <p className="font-black text-pet-ink">{step.label}</p>
-                <p className="mt-1 text-sm font-semibold text-pet-muted">
-                  {step.date ?? (step.completed ? "Completed" : "Not yet")}
-                </p>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </section>
 
@@ -417,49 +450,83 @@ function DetailItem({ label, value }: { label: string; value: string }) {
   );
 }
 
-function buildTimeline(order: TagOrder): TimelineStep[] {
+// Fallback timeline for demo mode, where the backend history is not available.
+// The API-connected path renders order.timeline directly; this only mirrors the
+// order's current status from the flattened fields on the order.
+function buildFallbackTimeline(order: TagOrder): OrderTimelineEvent[] {
   const rank = getOrderStatusRank(order.status);
   const cancelled = order.status === "Cancelled";
-  const isAtLeast = (status: OrderStatus) =>
+  const reached = (status: OrderStatus) =>
     !cancelled && rank >= getOrderStatusRank(status);
 
-  return [
+  const tone = (status: OrderStatus): OrderTimelineTone =>
+    order.status === status ? "current" : "completed";
+
+  const events: OrderTimelineEvent[] = [
     {
-      label: "Order created",
-      date: order.orderedDate,
-      completed: true,
-      current: order.status === "Draft" || order.status === "Pending Payment",
+      type: "OrderCreated",
+      title: "Order created",
+      timestampLabel: order.orderedDate,
+      tone:
+        order.status === "Draft" || order.status === "Pending Payment"
+          ? "current"
+          : "completed",
     },
-    {
-      label: "Payment submitted",
-      date: order.paymentSubmittedDate,
-      completed: isAtLeast("Payment Submitted"),
-      current: order.status === "Payment Submitted",
-    },
-    {
-      label: "Payment confirmed",
-      date: order.paymentConfirmedDate,
-      completed: isAtLeast("Payment Confirmed"),
-      current: order.status === "Payment Confirmed",
-    },
-    {
-      label: "Preparing tag",
-      completed: isAtLeast("Preparing"),
-      current: order.status === "Preparing",
-    },
-    {
-      label: "Shipped",
-      date: order.shippedDate,
-      completed: isAtLeast("Shipped"),
-      current: order.status === "Shipped",
-    },
-    {
-      label: "Delivered",
-      date: order.deliveredDate,
-      completed: order.status === "Delivered",
-      current: order.status === "Delivered",
-    },
-  ].filter((step) => step.completed || step.current);
+  ];
+
+  if (reached("Payment Submitted")) {
+    events.push({
+      type: "PaymentProofSubmitted",
+      title: "Payment proof submitted",
+      timestampLabel: order.paymentSubmittedDate,
+      tone: tone("Payment Submitted"),
+    });
+  }
+
+  if (reached("Payment Confirmed")) {
+    events.push({
+      type: "PaymentConfirmed",
+      title: "Payment confirmed",
+      timestampLabel: order.paymentConfirmedDate,
+      tone: tone("Payment Confirmed"),
+    });
+  }
+
+  if (reached("Preparing")) {
+    events.push({
+      type: "PreparingTag",
+      title: "Tag preparing",
+      tone: tone("Preparing"),
+    });
+  }
+
+  if (reached("Shipped")) {
+    events.push({
+      type: "Shipped",
+      title: "Shipped",
+      timestampLabel: order.shippedDate,
+      tone: tone("Shipped"),
+    });
+  }
+
+  if (order.status === "Delivered") {
+    events.push({
+      type: "Delivered",
+      title: "Delivered",
+      timestampLabel: order.deliveredDate,
+      tone: "current",
+    });
+  }
+
+  if (cancelled) {
+    events.push({
+      type: "Cancelled",
+      title: "Order cancelled",
+      tone: "cancelled",
+    });
+  }
+
+  return events;
 }
 
 function buildOrderSummaryText(order: TagOrder, petName: string) {

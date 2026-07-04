@@ -31,6 +31,8 @@ import {
 } from "@/services/petService";
 import type {
   BackendCreateTagOrderResult,
+  BackendOrderTimelineEvent,
+  BackendPaymentProof,
   BackendSmartTag,
   BackendTagOrder,
   BackendTagScanPage,
@@ -38,7 +40,10 @@ import type {
 import type {
   ApiResponse,
   FinderResult,
+  OrderPaymentProof,
   OrderStatus,
+  OrderTimelineEvent,
+  OrderTimelineTone,
   PetTag,
   TagOrder,
   TagOrderPayload,
@@ -154,7 +159,48 @@ export function mapBackendOrder(order: BackendTagOrder): TagOrder {
     trackingNumber: order.trackingNumber ?? undefined,
     shippedDate: formatDisplayDate(order.shippedAt),
     deliveredDate: formatDisplayDate(order.deliveredAt),
+    timeline: (order.timeline ?? []).map(mapBackendTimelineEvent),
+    paymentProofs: (order.paymentProofs ?? []).map(mapBackendPaymentProof),
   });
+}
+
+function mapBackendTimelineEvent(
+  event: BackendOrderTimelineEvent
+): OrderTimelineEvent {
+  return {
+    type: event.type,
+    title: event.title,
+    description: event.description ?? undefined,
+    timestampLabel: formatTimestampLabel(event.occurredAt),
+    tone: toTimelineTone(event.statusTone),
+  };
+}
+
+function mapBackendPaymentProof(proof: BackendPaymentProof): OrderPaymentProof {
+  return {
+    id: proof.id,
+    status: proof.status,
+    originalFileName: proof.originalFileName,
+    paymentMethod: proof.paymentMethod,
+    paymentReference: proof.paymentReference ?? undefined,
+    ownerNote: proof.ownerNote ?? undefined,
+    rejectionReason: proof.rejectionReason ?? undefined,
+    submittedLabel: formatTimestampLabel(proof.uploadedAt),
+    reviewedLabel: formatTimestampLabel(proof.reviewedAt),
+  };
+}
+
+function toTimelineTone(tone: string): OrderTimelineTone {
+  const supported: OrderTimelineTone[] = [
+    "completed",
+    "current",
+    "warning",
+    "cancelled",
+  ];
+
+  return supported.includes(tone as OrderTimelineTone)
+    ? (tone as OrderTimelineTone)
+    : "completed";
 }
 
 function fromBackendTagType(tagType: string): TagType {
@@ -231,6 +277,34 @@ function formatDisplayDate(value?: string | null) {
     month: "short",
     year: "numeric",
   }).format(new Date(value));
+}
+
+// Timeline/proof timestamps: date + time in the viewer's local timezone,
+// e.g. "04 Jul 2026, 8:25 PM". Kept separate from formatDisplayDateTime so we
+// get a day-first date with a 12-hour clock without touching existing labels.
+function formatTimestampLabel(value?: string | null) {
+  if (!value) {
+    return undefined;
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return undefined;
+  }
+
+  const datePart = new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+  const timePart = new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(date);
+
+  return `${datePart}, ${timePart}`;
 }
 
 function formatDisplayDateTime(value?: string | null) {
@@ -502,7 +576,7 @@ export async function createTagOrder(payload: TagOrderPayload) {
   return mockResponse({ order, tag });
 }
 
-type OrderPaymentProof = {
+type SubmitPaymentInput = {
   paymentReference?: string;
   paymentNote?: string;
   paymentProofName?: string;
@@ -514,7 +588,7 @@ type OrderPaymentProof = {
 // Payment Confirmed automatically.
 export async function submitOrderPayment(
   orderId: string,
-  proof: OrderPaymentProof
+  proof: SubmitPaymentInput
 ) {
   if (canUseOwnerTagApi()) {
     const response = await apiRequest<BackendTagOrder>(

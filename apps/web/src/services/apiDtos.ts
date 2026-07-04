@@ -327,6 +327,15 @@ export type BackendPaymentProof = {
   ownerNote?: string | null;
   rejectionReason?: string | null;
   uploadedAt: string;
+  reviewedAt?: string | null;
+};
+
+export type BackendOrderTimelineEvent = {
+  type: string;
+  title: string;
+  description?: string | null;
+  occurredAt?: string | null;
+  statusTone: string;
 };
 
 export type BackendTagOrder = {
@@ -359,6 +368,7 @@ export type BackendTagOrder = {
   deliveredAt?: string | null;
   cancelledAt?: string | null;
   paymentProofs: BackendPaymentProof[];
+  timeline: BackendOrderTimelineEvent[];
   updatedAt: string;
   createdAt: string;
 };

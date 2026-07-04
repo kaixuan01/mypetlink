@@ -958,6 +958,11 @@ Purpose: get owner order detail by operational order number.
 
 Auth: owner.
 
+Response includes, in addition to the order fields:
+
+- `paymentProofs`: array of proof attempts, newest first. Each item has `id`, `status` (`PendingReview` | `Approved` | `Rejected` | `Superseded`), `originalFileName`, `paymentMethod`, `paymentReference`, `ownerNote`, `rejectionReason`, `uploadedAt`, and `reviewedAt`. Rejected attempts are kept as history.
+- `timeline`: array of chronological status events. Each event has `type` (`OrderCreated`, `PaymentProofSubmitted`, `PaymentProofResubmitted`, `PaymentProofRejected`, `PaymentConfirmed`, `PreparingTag`, `Shipped`, `Delivered`, `Cancelled`), `title`, `description` (nullable; carries the rejection reason for `PaymentProofRejected`), `occurredAt` (`DateTimeOffset`, nullable for `PreparingTag`), and `statusTone` (`completed` | `current` | `warning` | `cancelled`). See `docs/operations/order-and-payment-proof-flow.md` for the derivation rules.
+
 Errors:
 
 - `404` not found or not owned
@@ -1165,6 +1170,7 @@ Rules:
 
 - Order is never deleted.
 - Existing proof remains in history.
+- The rejected proof keeps its `RejectionReason` and `ReviewedAt`; a later resubmission adds a new proof row and only supersedes still-pending proofs, so the rejection stays visible in `paymentProofs` and the order `timeline`.
 
 ### POST `/api/v1/admin/orders/{orderId}/status`
 

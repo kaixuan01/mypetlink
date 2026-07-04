@@ -408,9 +408,94 @@ function OrderRow({
                 value={order.trackingStatus || "Not started"}
               />
             </div>
+            <ProofHistory order={order} />
           </td>
         </tr>
       ) : null}
     </>
+  );
+}
+
+const proofStatusLabels: Record<
+  NonNullable<TagOrder["paymentProofs"]>[number]["status"],
+  string
+> = {
+  PendingReview: "Awaiting review",
+  Approved: "Approved",
+  Rejected: "Rejected / resubmission requested",
+  Superseded: "Replaced by a newer upload",
+};
+
+// Payment proof attempt history for the admin. Each resubmission is kept as its
+// own row, so a rejected-then-resubmitted order shows the full trail with the
+// rejection reason and reviewed timestamp rather than only the latest upload.
+function ProofHistory({ order }: { order: TagOrder }) {
+  const proofs = order.paymentProofs ?? [];
+
+  if (proofs.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="mt-4">
+      <p className="text-xs font-black uppercase tracking-wide text-slate-500">
+        Payment proof history ({proofs.length}{" "}
+        {proofs.length === 1 ? "attempt" : "attempts"})
+      </p>
+      <ol className="mt-2 grid gap-2">
+        {proofs.map((proof, index) => {
+          const attemptNumber = proofs.length - index;
+
+          return (
+            <li
+              className="rounded-xl border border-slate-200 bg-white p-3"
+              key={proof.id}
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-black text-slate-950">
+                  Attempt {attemptNumber}
+                </span>
+                <Badge
+                  tone={
+                    proof.status === "Approved"
+                      ? "mint"
+                      : proof.status === "Rejected"
+                        ? "danger"
+                        : proof.status === "PendingReview"
+                          ? "warm"
+                          : "soft"
+                  }
+                >
+                  {proofStatusLabels[proof.status]}
+                </Badge>
+              </div>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                <AdminDetailItem
+                  label="Uploaded file"
+                  value={proof.originalFileName || "Not provided"}
+                />
+                <AdminDetailItem
+                  label="Reference"
+                  value={proof.paymentReference ?? "Not provided"}
+                />
+                <AdminDetailItem
+                  label="Submitted"
+                  value={proof.submittedLabel ?? "Time not available"}
+                />
+                <AdminDetailItem
+                  label="Reviewed"
+                  value={proof.reviewedLabel ?? "Not reviewed"}
+                />
+              </div>
+              {proof.status === "Rejected" && proof.rejectionReason ? (
+                <p className="mt-2 rounded-lg bg-[#fff4f1] px-3 py-2 text-xs font-bold text-[#a63c2e]">
+                  Reason: {proof.rejectionReason}
+                </p>
+              ) : null}
+            </li>
+          );
+        })}
+      </ol>
+    </div>
   );
 }

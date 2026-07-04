@@ -60,8 +60,22 @@ public sealed record TagOrderResponse(
     DateTimeOffset? DeliveredAt,
     DateTimeOffset? CancelledAt,
     IReadOnlyCollection<PaymentProofResponse> PaymentProofs,
+    IReadOnlyCollection<OrderTimelineEventResponse> Timeline,
     DateTimeOffset UpdatedAt,
     DateTimeOffset CreatedAt);
+
+// A single chronological event in the order's status history. `OccurredAt`
+// is a DateTimeOffset that the frontend formats in the viewer's local
+// timezone; it may be null for lifecycle steps that have no dedicated
+// timestamp (e.g. tag preparation), in which case the UI shows a safe
+// fallback rather than hiding the event. `StatusTone` is one of
+// "completed", "current", "warning", or "cancelled".
+public sealed record OrderTimelineEventResponse(
+    string Type,
+    string Title,
+    string? Description,
+    DateTimeOffset? OccurredAt,
+    string StatusTone);
 
 public sealed record CreateTagOrderResponse(
     TagOrderResponse Order,
@@ -87,4 +101,5 @@ public sealed record PaymentProofResponse(
     string? PaymentReference,
     string? OwnerNote,
     string? RejectionReason,
-    DateTimeOffset UploadedAt);
+    DateTimeOffset UploadedAt,
+    DateTimeOffset? ReviewedAt);

@@ -316,6 +316,35 @@ export type OrderStatus =
   | "Delivered"
   | "Cancelled";
 
+export type OrderTimelineTone = "completed" | "current" | "warning" | "cancelled";
+
+// One event in the owner order status history (built by the backend from the
+// payment proof attempts and order lifecycle timestamps). `timestampLabel` is
+// pre-formatted for display (date + time in the viewer's local timezone) and
+// is absent when the event has no known timestamp.
+export type OrderTimelineEvent = {
+  type: string;
+  title: string;
+  description?: string;
+  timestampLabel?: string;
+  tone: OrderTimelineTone;
+};
+
+// A single payment proof attempt kept for history. Older rejected attempts are
+// preserved alongside the latest one so the owner and admin can see the full
+// resubmission history.
+export type OrderPaymentProof = {
+  id: string;
+  status: "PendingReview" | "Approved" | "Rejected" | "Superseded";
+  originalFileName: string;
+  paymentMethod: string;
+  paymentReference?: string;
+  ownerNote?: string;
+  rejectionReason?: string;
+  submittedLabel?: string;
+  reviewedLabel?: string;
+};
+
 export type TagOrder = {
   id: string;
   orderNumber?: string;
@@ -340,6 +369,8 @@ export type TagOrder = {
   trackingNumber?: string;
   shippedDate?: string;
   deliveredDate?: string;
+  timeline?: OrderTimelineEvent[];
+  paymentProofs?: OrderPaymentProof[];
 };
 
 export type AdminDashboard = {

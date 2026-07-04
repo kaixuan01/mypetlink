@@ -77,6 +77,31 @@ Rules:
 - Uploading proof never confirms payment automatically.
 - Until real storage is implemented, `StorageProvider = MetadataOnly` means the proof is an owner-submitted metadata placeholder, not a retrievable file.
 
+## Payment Proof Attempt History
+
+Each payment proof upload creates its own `PaymentProofs` row; attempts are never overwritten. On resubmission, only a still-`PendingReview` proof is marked `Superseded` — a `Rejected` proof is preserved as history with its `RejectionReason` and `ReviewedAt`. This means an order can carry multiple proof rows (e.g. `Rejected` -> `PendingReview`), which together form the resubmission trail.
+
+The owner order detail response includes a `paymentProofs` array (newest first, each with `status`, `uploadedAt`, `reviewedAt`, and `rejectionReason`) and a derived `timeline` array (see below). The admin order detail and payment proof pages read the same `paymentProofs` array to show the full attempt history — attempt number, status, submitted timestamp, reviewed timestamp, and rejection reason. No file bytes are stored; proofs remain metadata only.
+
+## Order Status Timeline
+
+The owner order detail response includes a `timeline` array built by the backend from the payment proof attempts and order lifecycle timestamps. It is the source of truth for the owner-facing status history; the frontend renders it directly and only falls back to a status-derived timeline in demo mode.
+
+Event `type` values and rules:
+
+- `OrderCreated` — always first, uses `TagOrders.CreatedAt`.
+- `PaymentProofSubmitted` — the first proof upload.
+- `PaymentProofResubmitted` — every proof upload after the first.
+- `PaymentProofRejected` — emitted for each `Rejected` proof, timestamped with `ReviewedAt`, carrying the admin `RejectionReason`. When no reason was supplied, a friendly fallback ("Please upload a clearer payment proof.") is shown instead of hiding the event.
+- `PaymentConfirmed` — uses `PaymentConfirmedAt`; only "Payment confirmed" wording is used after admin confirmation (never for a plain proof upload).
+- `PreparingTag` — surfaced once the order reaches preparation. It has no dedicated timestamp column, so `occurredAt` is `null` and the UI shows "Time not available" rather than hiding the step.
+- `Shipped`, `Delivered` — use `ShippedAt` / `DeliveredAt`.
+- `Cancelled` — uses `CancelledAt`.
+
+Each event carries a `statusTone`: `completed`, `current`, `warning` (rejected proof), or `cancelled`. The most recent event is promoted to `current` unless it is a rejection (`warning`) or cancellation (`cancelled`). `occurredAt` is a `DateTimeOffset`; the frontend formats it in the viewer's local timezone as e.g. `04 Jul 2026, 8:25 PM` (date + time, no seconds).
+
+No migration was required for this history — the existing `PaymentProofs` columns (`Status`, `UploadedAt`, `ReviewedAt`, `RejectionReason`) and order lifecycle timestamps already carry everything the timeline needs.
+
 ## Order Statuses
 
 Canonical backend statuses:
@@ -325,6 +350,7 @@ Owner order list/detail should show:
 - order status
 - payment proof upload/resubmission area when needed
 - rejection reason if rejected
+- a chronological status timeline including payment proof submitted, rejected (with reason), and resubmitted events, each with date and time
 - receipt only after payment confirmed
 - delivery tracking status
 - activation prompt when delivered tag is ready
@@ -342,6 +368,7 @@ Admin order/payment proof pages should show:
 - current payment status
 - payment proof metadata and preview/download
 - payment reference and owner note
+- payment proof attempt history (attempt number, status, submitted and reviewed timestamps, rejection reason)
 - rejection reason history
 - delivery details
 - linked tag

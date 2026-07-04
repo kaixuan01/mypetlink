@@ -85,6 +85,14 @@ export function ManualPaymentPanel({
         {paymentConfig.instructions}
       </p>
 
+      {order.paymentRejectionReason ? (
+        <div className="mt-4 rounded-[1.25rem] border border-[#f4cf8a] bg-[#fdf3df] px-4 py-3 text-sm font-semibold leading-6 text-[#9a6b18]">
+          Your previous payment proof needs another look. Reason:{" "}
+          {order.paymentRejectionReason} Please upload a clearer receipt or
+          screenshot below and submit again.
+        </div>
+      ) : null}
+
       <div className="mt-6 grid gap-6 lg:grid-cols-2 lg:items-start">
         {/* Merchant QR + payment reference */}
         <div className="rounded-[1.5rem] border border-pet-border bg-pet-cream p-5">
