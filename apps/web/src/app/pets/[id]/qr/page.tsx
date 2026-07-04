@@ -1,11 +1,8 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 import { AppLayout } from "@/components/layouts/AppLayout";
-import { PetQrSafetyManager } from "@/components/portal/PetQrSafetyManager";
+import { PetQrRedirect } from "@/components/portal/PetQrRedirect";
 import { staticPetIdParams } from "@/data/staticRouteParams";
-import { loadingTitle, ownerPetPageTitle } from "@/lib/pageTitles";
-import { getPetById } from "@/services/petService";
-import { getPetTags } from "@/services/tagService";
+import { ownerRoutes } from "@/lib/routes";
 
 type PetQrPageProps = {
   params: Promise<{ id: string }>;
@@ -17,30 +14,23 @@ export function generateStaticParams() {
   return staticPetIdParams();
 }
 
-export async function generateMetadata({
-  params,
-}: PetQrPageProps): Promise<Metadata> {
+export async function generateMetadata({ params }: PetQrPageProps): Promise<Metadata> {
   const { id } = await params;
-  const pet = await getPetById(id);
 
   return {
-    title: pet.data ? ownerPetPageTitle("qr", pet.data.name) : loadingTitle,
+    title: "Opening pet overview",
+    alternates: {
+      canonical: ownerRoutes.petProfile(id),
+    },
   };
 }
 
 export default async function PetQrPage({ params }: PetQrPageProps) {
   const { id } = await params;
-  const pet = await getPetById(id);
-
-  if (!pet.data) {
-    notFound();
-  }
-
-  const tags = await getPetTags(pet.data.id);
 
   return (
     <AppLayout>
-      <PetQrSafetyManager initialPet={pet.data} initialTags={tags.data} />
+      <PetQrRedirect petId={id} />
     </AppLayout>
   );
 }

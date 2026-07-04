@@ -32,7 +32,7 @@ Key rule: the Public Share Profile (`/p/`) and the QR Safety Page (`/q/`) are di
 | `/pets/{petId}/moments` | Memories (moments) |
 | `/pets/{petId}/moments/new` | Add moment |
 | `/pets/{petId}/timeline` | Life timeline |
-| `/pets/{petId}/qr` | Owner QR Safety management page |
+| `/pets/{petId}/qr` | Legacy compatibility redirect to `/pets/{petId}` |
 | `/pets/{petId}/tags` | Pet smart tags |
 | `/pets/{petId}/tags/order` | Order a tag (query: `type`, `replacementFor`) |
 | `/moments`, `/records` | Cross-pet views |

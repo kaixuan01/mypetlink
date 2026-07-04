@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
-import { QrCodeCard } from "@/components/qr/QrCodeCard";
+import { QrCodeButton } from "@/components/qr/QrCodeButton";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
@@ -507,19 +507,29 @@ function TagCard({
             {productName} - {tag.shape}
           </p>
           {isActive || isInactive ? (
-            <QrCodeCard
-              className="mt-4"
-              fileNameBase={`${tag.tagCode}-physical-tag-qr`}
-              helperText="This is the QR printed on your physical tag. If the tag is lost or disabled, the scan page will stop showing your contact details."
-              targetPath={scanPath}
-              title="Physical Tag QR"
-              viewLabel={isActive ? "View Tag Scan Page" : "View Inactive Tag Page"}
-              warning={
-                isActive
-                  ? undefined
-                  : "This tag is inactive. Scanning it shows an inactive tag page and never reveals owner contact details."
-              }
-            />
+            <div className="mt-4 rounded-[1.25rem] bg-pet-cream p-4">
+              <p className="text-xs font-bold uppercase text-pet-muted">
+                Physical Tag Scan Page
+              </p>
+              <p className="mt-1 text-sm font-bold text-pet-ink">
+                Use the physical tag QR when you need to view, copy, or download
+                the scan page code.
+              </p>
+              <QrCodeButton
+                className="mt-3 inline-flex min-h-10 items-center justify-center rounded-full border border-pet-border bg-white px-4 py-2 text-sm font-extrabold text-pet-ink transition hover:bg-pet-cream"
+                fileNameBase={`${tag.tagCode}-physical-tag-qr`}
+                helperText="This is the QR printed on your physical tag. If the tag is lost or disabled, the scan page will stop showing your contact details."
+                label="Show Physical Tag QR"
+                targetPath={scanPath}
+                title="Physical Tag QR"
+                viewLabel={isActive ? "View Tag Scan Page" : "View Inactive Tag Page"}
+                warning={
+                  isActive
+                    ? undefined
+                    : "This tag is inactive. Scanning it shows an inactive tag page and never reveals owner contact details."
+                }
+              />
+            </div>
           ) : isPending || tag.status === "Unassigned" ? (
             <div className="mt-4 rounded-[1.25rem] bg-pet-cream p-4">
               <p className="text-xs font-bold uppercase text-pet-muted">

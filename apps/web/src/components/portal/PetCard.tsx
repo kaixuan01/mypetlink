@@ -28,10 +28,15 @@ type PetCardProps = {
   onPetUpdated?: (pet: Pet) => void;
 };
 
+type PetMenuLink = {
+  label: string;
+  href: string;
+  external?: boolean;
+};
+
 const moreLinks = (pet: Pet) => {
-  const links = [
+  const links: PetMenuLink[] = [
     { label: "Edit profile", href: ownerRoutes.petEdit(pet.id) },
-    { label: "QR safety page", href: ownerRoutes.petQr(pet.id) },
     { label: "Care records", href: ownerRoutes.petRecords(pet.id) },
     { label: "Moments", href: ownerRoutes.petMoments(pet.id) },
     { label: "Smart tags", href: ownerRoutes.petTags(pet.id) },
@@ -40,6 +45,11 @@ const moreLinks = (pet: Pet) => {
   if (isActivePet(pet)) {
     links.push({ label: "Order tag", href: ownerRoutes.petTagOrder(pet.id) });
   }
+
+  links.push(
+    { label: "View public profile", href: pet.publicProfilePath, external: true },
+    { label: "View QR Safety Page", href: pet.qrSafetyPath, external: true }
+  );
 
   return links;
 };
@@ -184,6 +194,8 @@ export function PetCard({
                   href={link.href}
                   key={link.href}
                   onClick={() => setMenuOpen(false)}
+                  rel={link.external ? "noopener noreferrer" : undefined}
+                  target={link.external ? "_blank" : undefined}
                 >
                   {link.label}
                 </Link>

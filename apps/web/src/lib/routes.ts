@@ -32,7 +32,6 @@ export const ownerRoutes = {
   petProfile: (petId: string) => `/pets/${petId}`,
   petEdit: (petId: string) => `/pets/${petId}/edit`,
   petRecords: (petId: string) => `/pets/${petId}/records`,
-  petQr: (petId: string) => `/pets/${petId}/qr`,
   petMoments: (petId: string) => `/pets/${petId}/moments`,
   petMomentNew: (petId: string) => `/pets/${petId}/moments/new`,
   petTimeline: (petId: string) => `/pets/${petId}/timeline`,

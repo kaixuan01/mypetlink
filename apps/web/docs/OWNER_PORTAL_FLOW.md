@@ -142,13 +142,12 @@ All owner pet pages key off the **`petId`** (`ownerRoutes.*` helpers):
 | Tags          | `/pets/{id}/tags`              | `ownerRoutes.petTags`       |
 | Order tag     | `/pets/{id}/tags/order`        | `ownerRoutes.petTagOrder`   |
 
-> **Owner QR Safety management page:** `/pets/{id}/qr` shows the pet-level
-> QR Safety Page URL (`/q/{safetyCode}`), finder contact action status, safety
-> notes, Lost Mode, and concise physical tag shortcuts. Active physical tags
-> open the same QR Safety Page through `/t/{tagCode}`; lost, disabled, replaced,
-> or archived physical tags show an inactive tag page. Any public preview opens
-> in a **new tab** (`target="_blank"` `rel="noopener noreferrer"`) so the portal
-> stays open behind it.
+> **Legacy QR route:** `/pets/{id}/qr` is kept only as a compatibility redirect
+> to `/pets/{id}`. Do not link to it as a management page. The pet overview owns
+> the compact Public Share Profile, QR Safety Page, and Physical Smart Tag
+> Copy/View/Show QR actions. Safety/contact/privacy settings live in
+> `Edit Pet -> Contact & Safety`; physical tag management lives in the hub
+> **Smart Tag** tab and `/tags`.
 
 These are static-export dynamic routes: each exports `dynamicParams = false` and
 `generateStaticParams()` from `staticPetIdParams()`. A pet created at runtime

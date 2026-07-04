@@ -10,7 +10,7 @@ import { PetManagementTabs } from "@/components/portal/PetManagementTabs";
 import { PetMomentForm } from "@/components/portal/PetMomentForm";
 import { PetMomentsManager } from "@/components/portal/PetMomentsManager";
 import { PetProfileForm } from "@/components/portal/PetProfileForm";
-import { PetQrSafetyManager } from "@/components/portal/PetQrSafetyManager";
+import { PetQrRedirect } from "@/components/portal/PetQrRedirect";
 import { PetSwitcher } from "@/components/portal/PetSwitcher";
 import { PetTimeline } from "@/components/portal/PetTimeline";
 import { RecordsManager } from "@/components/portal/RecordsManager";
@@ -494,7 +494,7 @@ function OwnerRuntimeView({
   if (section === "qr") {
     return (
       <AppLayout>
-        <PetQrSafetyManager initialPet={pet} initialTags={tags} />
+        <PetQrRedirect petId={pet.id} />
       </AppLayout>
     );
   }

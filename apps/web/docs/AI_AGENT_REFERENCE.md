@@ -212,10 +212,11 @@ Note: owner-ordered tags are created with a `petId` already set (status
      tag is inactive. Pet Lost Mode is controlled by `pet.lostModeEnabled`.
    See `PUBLIC_PROFILE_ROUTING.md` for the route state machines. A past change
    wrongly made the share page finder-first; do not reintroduce that.
-10. **Use the owner QR Safety management page for safety settings.**
-    `/pets/{id}/qr` is the owner-friendly management view for the pet-level
-    QR Safety Page URL, finder contact actions, safety notes, Lost Mode, and
-    physical tag shortcuts. QR safety settings still live in
+10. **Do not recreate a separate owner QR Safety management page.**
+    `/pets/{id}/qr` is a legacy compatibility route that redirects back to the
+    pet overview. Owners manage the Public Share Profile link, QR Safety Page
+    link, and Physical Smart Tag link from `/pets/{id}` using compact
+    Copy/View/Show QR actions. Safety and contact settings live in
     `Edit Pet -> Contact & Safety`; tag management lives in the hub **Smart Tag**
     tab and `/tags`.
 11. **Public previews open in a new tab.** Every owner-portal button that opens a
