@@ -15,11 +15,16 @@ namespace MyPetLink.Api.Controllers.Admin;
 public sealed class AdminOrdersController : ApiControllerBase
 {
     private readonly IAdminService _adminService;
+    private readonly IOrderDocumentService _orderDocumentService;
     private readonly ICurrentUserService _currentUserService;
 
-    public AdminOrdersController(IAdminService adminService, ICurrentUserService currentUserService)
+    public AdminOrdersController(
+        IAdminService adminService,
+        IOrderDocumentService orderDocumentService,
+        ICurrentUserService currentUserService)
     {
         _adminService = adminService;
+        _orderDocumentService = orderDocumentService;
         _currentUserService = currentUserService;
     }
 
@@ -154,5 +159,22 @@ public sealed class AdminOrdersController : ApiControllerBase
             cancellationToken);
 
         return Ok(ApiEnvelope.Ok(response, HttpContext));
+    }
+
+    // Order/receipt PDFs for support and accounting reference. Admins may
+    // download any order's documents; the receipt still requires confirmed
+    // payment (enforced by the document service).
+    [HttpGet("{orderId:guid}/summary.pdf")]
+    public async Task<IActionResult> SummaryPdf(Guid orderId, CancellationToken cancellationToken)
+    {
+        var document = await _orderDocumentService.GetAdminSummaryAsync(orderId, cancellationToken);
+        return File(document.Content, document.ContentType, document.FileName);
+    }
+
+    [HttpGet("{orderId:guid}/receipt.pdf")]
+    public async Task<IActionResult> ReceiptPdf(Guid orderId, CancellationToken cancellationToken)
+    {
+        var document = await _orderDocumentService.GetAdminReceiptAsync(orderId, cancellationToken);
+        return File(document.Content, document.ContentType, document.FileName);
     }
 }

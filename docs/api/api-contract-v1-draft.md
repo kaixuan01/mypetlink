@@ -1053,20 +1053,37 @@ Errors:
 
 - `422` cannot cancel after preparation/payment confirmation has started
 
-### GET `/api/v1/orders/{orderNumber}/receipt`
+### GET `/api/v1/orders/{orderNumber}/summary.pdf`
 
-Purpose: get receipt after payment confirmation.
+Purpose: download the Order Summary PDF for an owner's order.
 
-Auth: owner.
+Auth: owner (own order only).
+
+Response: `application/pdf`, filename `MyPetLink-Order-{OrderNumber}.pdf`. Titled "Order Summary"; never shows "Official Receipt" or "Paid". Available in any order state.
+
+### GET `/api/v1/orders/{orderNumber}/receipt.pdf`
+
+Purpose: download the Official Receipt PDF for an owner's order.
+
+Auth: owner (own order only).
+
+Response: `application/pdf`, filename `MyPetLink-Receipt-{OrderNumber}.pdf`. Titled "Official Receipt"; shows "PAID", the payment confirmed date/time, and a Receipt No.
 
 Rules:
 
-- Available when payment is confirmed or later.
-- Current status: reserved in contract; frontend still generates local text summaries, and backend receipt output is planned with admin payment confirmation.
+- Available only after payment is confirmed (`PaymentConfirmedAt` set).
+- Documents are generated server-side (QuestPDF) from authoritative order data. No files are stored. Payment proofs remain metadata only; no payment gateway. No SST is claimed.
 
 Errors:
 
-- `403` payment not confirmed
+- `422 receipt_not_available` — "Receipt is available after payment is confirmed."
+- `404 not_found` — order not found or not owned by the caller.
+
+### GET `/api/v1/admin/orders/{orderId}/summary.pdf` and `/receipt.pdf`
+
+Purpose: admin download of the same Order Summary / Official Receipt PDFs for support and accounting reference.
+
+Auth: admin policy. Can access any order. The receipt endpoint enforces the same confirmed-payment rule (`422 receipt_not_available`).
 
 ## Admin
 

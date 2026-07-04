@@ -83,6 +83,28 @@ Each payment proof upload creates its own `PaymentProofs` row; attempts are neve
 
 The owner order detail response includes a `paymentProofs` array (newest first, each with `status`, `uploadedAt`, `reviewedAt`, and `rejectionReason`) and a derived `timeline` array (see below). The admin order detail and payment proof pages read the same `paymentProofs` array to show the full attempt history — attempt number, status, submitted timestamp, reviewed timestamp, and rejection reason. No file bytes are stored; proofs remain metadata only.
 
+## Order Documents (PDF)
+
+Owners and admins download order documents as PDFs generated server-side (QuestPDF) from authoritative order data. There is no customer-facing TXT download.
+
+Two document types, gated by payment status:
+
+- **Order Summary PDF** — available in any state before payment is confirmed (Pending Payment, Payment Proof Submitted, rejected/resubmission needed). Titled "Order Summary". Never shows "Official Receipt" or "Paid".
+- **Official Receipt PDF** — available only after admin confirms payment (Payment Confirmed, Preparing Tag, Shipped, Delivered). Titled "Official Receipt", shows "PAID", the payment confirmed date/time, and a Receipt No. (`MPL-RCP-…` derived from the order number).
+
+Endpoints (return `application/pdf`):
+
+- Owner: `GET /api/v1/orders/{orderNumber}/summary.pdf`, `GET /api/v1/orders/{orderNumber}/receipt.pdf`
+- Admin: `GET /api/v1/admin/orders/{orderId}/summary.pdf`, `GET /api/v1/admin/orders/{orderId}/receipt.pdf`
+
+Rules:
+
+- Owner endpoints require auth and only serve the owner's own order; admin endpoints require the admin policy and can serve any order.
+- The receipt endpoints return `422 receipt_not_available` ("Receipt is available after payment is confirmed.") when `PaymentConfirmedAt` is not set.
+- Filenames: `MyPetLink-Order-{OrderNumber}.pdf` and `MyPetLink-Receipt-{OrderNumber}.pdf`.
+- Documents are generated on demand; no PDF files are stored or committed. Payment proofs remain metadata only; there is no payment gateway.
+- No SST is claimed (shown as "SST: Not applicable"); no tax registration numbers are printed.
+
 ## Order Status Timeline
 
 The owner order detail response includes a `timeline` array built by the backend from the payment proof attempts and order lifecycle timestamps. It is the source of truth for the owner-facing status history; the frontend renders it directly and only falls back to a status-derived timeline in demo mode.

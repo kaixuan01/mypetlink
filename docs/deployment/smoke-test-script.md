@@ -41,13 +41,14 @@ curl -s -H "Authorization: Bearer $ADMIN" "$API/api/v1/admin/auth/check"        
 7. **Memory (public + private)** — create a Public memory and a Private memory; confirm the public one appears on `/p/`, the private one does not.
 8. **Smart tag order** — order a tag; confirm the price is set server-side (owner does not send it).
 9. **Payment proof** — submit a proof; confirm it records metadata only (file name/reference, no file bytes).
-10. **Logout** — session clears; a protected page (`/pets`) redirects to `/login`.
+10. **Order Summary PDF** — before payment is confirmed, download the Order Summary PDF; confirm it opens, is titled "Order Summary", and does not show "Official Receipt" or "Paid". Confirm no `.txt` download remains.
+11. **Logout** — session clears; a protected page (`/pets`) redirects to `/login`.
 
 ## 3. Admin flow (frontend, admin account)
 
 1. **Dashboard** — `/admin` loads real counts.
 2. **Orders** — `/admin/orders` lists real orders with filters.
-3. **Confirm payment** — on the submitted-proof order, click Confirm Payment; owner order reflects Payment Confirmed.
+3. **Confirm payment** — on the submitted-proof order, click Confirm Payment; owner order reflects Payment Confirmed. Owner can now download the **Receipt PDF** (shows "PAID" + confirmed date); admin can download the same Order Summary / Receipt PDFs from `/admin/orders`.
 4. **Preparing** — Mark Preparing; linked tag goes to Preparing.
 5. **Shipped** — Mark Shipped (optionally with tracking number).
 6. **Delivered** — Mark Delivered; linked tag goes to Delivered (awaiting owner activation).

@@ -203,23 +203,3 @@ export function formatFullDeliveryAddress(order: Pick<TagOrder, "delivery">) {
     .join(", ");
 }
 
-export function buildPaymentReceiptText(order: TagOrder, petName: string) {
-  return [
-    "MyPetLink Payment Receipt",
-    "MyPetLink by GBB Software Solutions",
-    "Malaysia",
-    "Contact: support@gbbsoftwaresolutions.com",
-    "",
-    `Order ID: ${formatOrderNumber(order)}`,
-    `Payment date: ${order.paymentConfirmedDate ?? "Payment confirmed"}`,
-    `Payment method: ${order.paymentMethod ?? "QR Payment"}`,
-    `Amount paid: ${order.estimatedPrice}`,
-    "Payment status: Payment Confirmed",
-    "",
-    `Pet name: ${petName}`,
-    `Tag type: ${order.tagType}`,
-    `Design: ${order.shape}`,
-    `Delivery recipient: ${order.delivery.recipientName}`,
-    `Delivery address: ${formatFullDeliveryAddress(order)}`,
-  ].join("\n");
-}

@@ -9,6 +9,7 @@ import {
   AdminNotice,
   AdminSection,
 } from "@/components/admin/AdminPanels";
+import { OrderDocumentButtons } from "@/components/admin/OrderDocumentButtons";
 import { orderStatusTone } from "@/components/admin/adminDisplay";
 import { Badge } from "@/components/ui/Badge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -235,6 +236,7 @@ export function AdminPaymentProofsManager({
                       View Order
                     </Link>
                   </div>
+                  <OrderDocumentButtons heading="Order documents" order={order} />
                 </article>
               );
             })

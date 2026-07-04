@@ -14,6 +14,10 @@ using MyPetLink.Api.Middleware;
 using MyPetLink.Api.Services;
 using MyPetLink.Api.Storage;
 
+// QuestPDF Community license (free for small businesses / open use). Must be
+// set before any document is generated.
+QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
+
 var builder = WebApplication.CreateBuilder(args);
 const string FrontendCorsPolicy = "MyPetLinkFrontend";
 
@@ -186,6 +190,7 @@ builder.Services.AddScoped<IQrSafetyService, QrSafetyService>();
 builder.Services.AddScoped<ITagScanService, TagScanService>();
 builder.Services.AddScoped<ISmartTagService, SmartTagService>();
 builder.Services.AddScoped<IOrderService, OrderService>();
+builder.Services.AddScoped<IOrderDocumentService, OrderDocumentService>();
 builder.Services.AddScoped<IPaymentProofService, PaymentProofService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();

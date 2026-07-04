@@ -131,6 +131,106 @@ async function request<T>(
   return envelope;
 }
 
+export type BlobResponse = { blob: Blob; fileName?: string };
+
+// Fetches a binary document (e.g. a PDF) with auth, mirroring the JSON client's
+// 401-refresh behavior. Non-OK responses still carry the JSON error envelope,
+// so we surface the friendly server message.
+export async function apiRequestBlob(
+  path: string,
+  options: { auth?: boolean; retryOnUnauthorized?: boolean } = {}
+): Promise<BlobResponse> {
+  const baseUrl = getApiBaseUrl();
+
+  if (!baseUrl) {
+    throw new ApiClientError(
+      0,
+      "connection_not_configured",
+      "MyPetLink connection is not configured."
+    );
+  }
+
+  return requestBlob(baseUrl, path, options);
+}
+
+async function requestBlob(
+  baseUrl: string,
+  path: string,
+  options: { auth?: boolean; retryOnUnauthorized?: boolean }
+): Promise<BlobResponse> {
+  const headers = new Headers();
+  const session = options.auth === false ? null : readStoredAuthSession();
+
+  if (session?.accessToken) {
+    headers.set("Authorization", `Bearer ${session.accessToken}`);
+  }
+
+  let response: Response;
+
+  try {
+    response = await fetch(`${baseUrl}${path}`, { method: "GET", headers });
+  } catch {
+    throw new ApiClientError(
+      0,
+      "service_unavailable",
+      "We could not reach MyPetLink right now. Please try again."
+    );
+  }
+
+  if (
+    response.status === 401 &&
+    options.auth !== false &&
+    options.retryOnUnauthorized !== false &&
+    (await refreshAccessToken(baseUrl))
+  ) {
+    return requestBlob(baseUrl, path, { ...options, retryOnUnauthorized: false });
+  }
+
+  if (!response.ok) {
+    let code = `http_${response.status}`;
+    let message = "We could not generate this document. Please try again.";
+
+    try {
+      const envelope = (await response.json()) as ApiEnvelope<unknown>;
+
+      if (envelope.error) {
+        code = envelope.error.code ?? code;
+        message = envelope.error.message ?? message;
+      }
+    } catch {
+      // Non-JSON error body; keep the default message.
+    }
+
+    throw new ApiClientError(response.status, code, message);
+  }
+
+  return {
+    blob: await response.blob(),
+    fileName: parseContentDispositionFileName(
+      response.headers.get("Content-Disposition")
+    ),
+  };
+}
+
+function parseContentDispositionFileName(headerValue: string | null) {
+  if (!headerValue) {
+    return undefined;
+  }
+
+  const utf8Match = /filename\*=UTF-8''([^;]+)/i.exec(headerValue);
+
+  if (utf8Match?.[1]) {
+    try {
+      return decodeURIComponent(utf8Match[1]);
+    } catch {
+      // Fall through to the plain filename form.
+    }
+  }
+
+  const plainMatch = /filename="?([^";]+)"?/i.exec(headerValue);
+  return plainMatch?.[1];
+}
+
 async function readEnvelope<T>(response: Response): Promise<ApiEnvelope<T>> {
   try {
     return (await response.json()) as ApiEnvelope<T>;

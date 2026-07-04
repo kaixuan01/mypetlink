@@ -7,7 +7,6 @@ import { CTAButton } from "@/components/ui/CTAButton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
 import {
-  buildPaymentReceiptText,
   canDownloadPaymentReceipt,
   canRequestReplacement,
   formatFullDeliveryAddress,
@@ -25,6 +24,10 @@ import {
 import { ownerRoutes, tagPath } from "@/lib/routes";
 import { QrCodeCard } from "@/components/qr/QrCodeCard";
 import { isApiConfigured } from "@/services/apiConfig";
+import {
+  downloadOwnerOrderReceiptPdf,
+  downloadOwnerOrderSummaryPdf,
+} from "@/services/orderDocuments";
 import { getPets } from "@/services/petService";
 import {
   getAllTags,
@@ -95,6 +98,8 @@ export function OrderDetailView({
   const [tags, setTags] = useState<PetTag[]>(apiMode ? [] : initialTags);
   const [loaded, setLoaded] = useState(Boolean(initialOrder));
   const [downloadMessage, setDownloadMessage] = useState("");
+  const [downloadError, setDownloadError] = useState("");
+  const [downloadBusy, setDownloadBusy] = useState(false);
   const [paymentMessage, setPaymentMessage] = useState("");
   const [loadError, setLoadError] = useState("");
   const petMap = useMemo(
@@ -190,30 +195,46 @@ export function OrderDetailView({
         })
       : "";
 
-  function handleDownloadReceipt() {
-    if (!order) {
+  const orderKeyForApi = order.orderNumber || order.id;
+
+  async function handleDownloadReceipt() {
+    if (!order || downloadBusy) {
       return;
     }
 
-    downloadTextFile(
-      `${orderNumber}-payment-receipt.txt`,
-      buildPaymentReceiptText(order, petName)
-    );
-    setDownloadMessage("Payment receipt downloaded.");
-    window.setTimeout(() => setDownloadMessage(""), 2500);
+    setDownloadBusy(true);
+    setDownloadMessage("");
+    setDownloadError("");
+
+    try {
+      await downloadOwnerOrderReceiptPdf(orderKeyForApi, orderNumber);
+      setDownloadMessage("Receipt PDF downloaded.");
+      window.setTimeout(() => setDownloadMessage(""), 2500);
+    } catch (caught) {
+      setDownloadError(getFriendlyTagErrorMessage(caught));
+    } finally {
+      setDownloadBusy(false);
+    }
   }
 
-  function handleDownloadSummary() {
-    if (!order) {
+  async function handleDownloadSummary() {
+    if (!order || downloadBusy) {
       return;
     }
 
-    downloadTextFile(
-      `${orderNumber}-order-summary.txt`,
-      buildOrderSummaryText(order, petName)
-    );
-    setDownloadMessage("Order summary downloaded.");
-    window.setTimeout(() => setDownloadMessage(""), 2500);
+    setDownloadBusy(true);
+    setDownloadMessage("");
+    setDownloadError("");
+
+    try {
+      await downloadOwnerOrderSummaryPdf(orderKeyForApi, orderNumber);
+      setDownloadMessage("Order Summary PDF downloaded.");
+      window.setTimeout(() => setDownloadMessage(""), 2500);
+    } catch (caught) {
+      setDownloadError(getFriendlyTagErrorMessage(caught));
+    } finally {
+      setDownloadBusy(false);
+    }
   }
 
   return (
@@ -227,6 +248,12 @@ export function OrderDetailView({
       {downloadMessage ? (
         <div className="rounded-[1.25rem] border border-pet-mint bg-[#e8f8f0] px-4 py-3 text-sm font-bold text-pet-sage">
           {downloadMessage}
+        </div>
+      ) : null}
+
+      {downloadError ? (
+        <div className="rounded-[1.25rem] border border-[#ffd2c9] bg-[#fff4f1] px-4 py-3 text-sm font-bold text-[#a63c2e]">
+          {downloadError}
         </div>
       ) : null}
 
@@ -258,21 +285,23 @@ export function OrderDetailView({
             </CTAButton>
             {receiptReady ? (
               <button
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-pet-teal bg-pet-teal px-5 py-3 text-sm font-extrabold text-white shadow-lg shadow-[#1570ef]/20 transition hover:bg-[#0f5fd0]"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-pet-teal bg-pet-teal px-5 py-3 text-sm font-extrabold text-white shadow-lg shadow-[#1570ef]/20 transition hover:bg-[#0f5fd0] disabled:cursor-wait disabled:opacity-70"
+                disabled={downloadBusy}
                 onClick={handleDownloadReceipt}
                 type="button"
               >
                 <Icon name="record" className="h-4 w-4" />
-                Download Receipt
+                {downloadBusy ? "Preparing..." : "Download Receipt PDF"}
               </button>
             ) : (
               <button
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-extrabold text-pet-ink transition hover:bg-pet-cream"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-extrabold text-pet-ink transition hover:bg-pet-cream disabled:cursor-wait disabled:opacity-70"
+                disabled={downloadBusy}
                 onClick={handleDownloadSummary}
                 type="button"
               >
                 <Icon name="record" className="h-4 w-4" />
-                Download Order Summary
+                {downloadBusy ? "Preparing..." : "Download Order Summary PDF"}
               </button>
             )}
           </div>
@@ -444,16 +473,19 @@ export function OrderDetailView({
           <CTAButton href={ownerRoutes.orders} variant="secondary">
             View All Orders
           </CTAButton>
-          {receiptReady ? (
-            <button
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-extrabold text-pet-ink transition hover:bg-pet-cream"
-              onClick={handleDownloadReceipt}
-              type="button"
-            >
-              <Icon name="record" className="h-4 w-4" />
-              Download Receipt
-            </button>
-          ) : null}
+          <button
+            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-extrabold text-pet-ink transition hover:bg-pet-cream disabled:cursor-wait disabled:opacity-70"
+            disabled={downloadBusy}
+            onClick={receiptReady ? handleDownloadReceipt : handleDownloadSummary}
+            type="button"
+          >
+            <Icon name="record" className="h-4 w-4" />
+            {downloadBusy
+              ? "Preparing..."
+              : receiptReady
+                ? "Download Receipt PDF"
+                : "Download Order Summary PDF"}
+          </button>
           {replacementReady && replacementHref ? (
             <CTAButton href={replacementHref} icon="tag" variant="outline">
               Request Replacement
@@ -555,36 +587,3 @@ function buildFallbackTimeline(order: TagOrder): OrderTimelineEvent[] {
   return events;
 }
 
-function buildOrderSummaryText(order: TagOrder, petName: string) {
-  return [
-    "MyPetLink Order Summary",
-    "MyPetLink by GBB Software Solutions",
-    "Malaysia",
-    "Contact: support@gbbsoftwaresolutions.com",
-    "",
-    `Order ID: ${formatOrderNumber(order)}`,
-    `Order status: ${getOrderStatusDisplay(order.status)}`,
-    `Payment status: ${getPaymentStatusLabel(order)}`,
-    `Payment method: ${order.paymentMethod ?? "QR Payment"}`,
-    "",
-    `Pet name: ${petName}`,
-    `Tag type: ${order.tagType}`,
-    `Design: ${order.shape}`,
-    `Total amount: ${order.estimatedPrice}`,
-    `Delivery recipient: ${order.delivery.recipientName}`,
-    `Delivery address: ${formatFullDeliveryAddress(order)}`,
-  ].join("\n");
-}
-
-function downloadTextFile(filename: string, content: string) {
-  const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}

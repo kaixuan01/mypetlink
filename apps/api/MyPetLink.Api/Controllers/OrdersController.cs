@@ -12,13 +12,16 @@ namespace MyPetLink.Api.Controllers;
 public sealed class OrdersController : ApiControllerBase
 {
     private readonly IOrderService _orderService;
+    private readonly IOrderDocumentService _orderDocumentService;
     private readonly ICurrentUserService _currentUserService;
 
     public OrdersController(
         IOrderService orderService,
+        IOrderDocumentService orderDocumentService,
         ICurrentUserService currentUserService)
     {
         _orderService = orderService;
+        _orderDocumentService = orderDocumentService;
         _currentUserService = currentUserService;
     }
 
@@ -95,9 +98,27 @@ public sealed class OrdersController : ApiControllerBase
         return Ok(ApiEnvelope.Ok(response, HttpContext));
     }
 
-    [HttpGet("{orderNumber}/receipt")]
-    public Task<IActionResult> Receipt(string orderNumber, CancellationToken cancellationToken)
+    // Order Summary PDF: available in any state (before payment is confirmed).
+    [HttpGet("{orderNumber}/summary.pdf")]
+    public async Task<IActionResult> SummaryPdf(string orderNumber, CancellationToken cancellationToken)
     {
-        return PlaceholderAsync(_orderService, "GET /api/v1/orders/{orderNumber}/receipt", cancellationToken);
+        var document = await _orderDocumentService.GetOwnerSummaryAsync(
+            _currentUserService.Current.UserId,
+            orderNumber,
+            cancellationToken);
+
+        return File(document.Content, document.ContentType, document.FileName);
+    }
+
+    // Official Receipt PDF: only after payment is confirmed (service enforces).
+    [HttpGet("{orderNumber}/receipt.pdf")]
+    public async Task<IActionResult> ReceiptPdf(string orderNumber, CancellationToken cancellationToken)
+    {
+        var document = await _orderDocumentService.GetOwnerReceiptAsync(
+            _currentUserService.Current.UserId,
+            orderNumber,
+            cancellationToken);
+
+        return File(document.Content, document.ContentType, document.FileName);
     }
 }

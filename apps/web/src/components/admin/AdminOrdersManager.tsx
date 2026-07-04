@@ -9,6 +9,7 @@ import {
   AdminSection,
   AdminTable,
 } from "@/components/admin/AdminPanels";
+import { OrderDocumentButtons } from "@/components/admin/OrderDocumentButtons";
 import { orderStatusTone } from "@/components/admin/adminDisplay";
 import { Badge } from "@/components/ui/Badge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -408,6 +409,7 @@ function OrderRow({
                 value={order.trackingStatus || "Not started"}
               />
             </div>
+            <OrderDocumentButtons order={order} />
             <ProofHistory order={order} />
           </td>
         </tr>

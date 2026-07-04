@@ -6,7 +6,6 @@ import { CTAButton } from "@/components/ui/CTAButton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
 import {
-  buildPaymentReceiptText,
   canDownloadPaymentReceipt,
   canRequestReplacement,
   formatDeliverySummary,
@@ -18,6 +17,10 @@ import {
 } from "@/lib/orders";
 import { ownerRoutes } from "@/lib/routes";
 import { isApiConfigured } from "@/services/apiConfig";
+import {
+  downloadOwnerOrderReceiptPdf,
+  downloadOwnerOrderSummaryPdf,
+} from "@/services/orderDocuments";
 import { getPets } from "@/services/petService";
 import {
   getAllTags,
@@ -56,6 +59,8 @@ export function OrdersList({
   const [tags, setTags] = useState<PetTag[]>(apiMode ? [] : initialTags);
   const [openOrderId, setOpenOrderId] = useState("");
   const [receiptMessage, setReceiptMessage] = useState("");
+  const [downloadError, setDownloadError] = useState("");
+  const [downloadingId, setDownloadingId] = useState("");
   const [loading, setLoading] = useState(apiMode);
   const [loadError, setLoadError] = useState("");
   const petMap = useMemo(
@@ -104,10 +109,34 @@ export function OrdersList({
     };
   }, []);
 
-  function handleReceipt(order: TagOrder, petName: string) {
-    downloadPaymentReceipt(order, petName);
-    setReceiptMessage(`Payment receipt downloaded for ${formatOrderNumber(order)}.`);
-    window.setTimeout(() => setReceiptMessage(""), 2500);
+  async function handleDownloadDocument(order: TagOrder) {
+    if (downloadingId) {
+      return;
+    }
+
+    const orderKey = order.orderNumber || order.id;
+    const orderNumber = formatOrderNumber(order);
+    const isReceipt = canDownloadPaymentReceipt(order);
+
+    setDownloadingId(order.id);
+    setReceiptMessage("");
+    setDownloadError("");
+
+    try {
+      if (isReceipt) {
+        await downloadOwnerOrderReceiptPdf(orderKey, orderNumber);
+        setReceiptMessage(`Receipt PDF downloaded for ${orderNumber}.`);
+      } else {
+        await downloadOwnerOrderSummaryPdf(orderKey, orderNumber);
+        setReceiptMessage(`Order Summary PDF downloaded for ${orderNumber}.`);
+      }
+
+      window.setTimeout(() => setReceiptMessage(""), 2500);
+    } catch (caught) {
+      setDownloadError(getFriendlyTagErrorMessage(caught));
+    } finally {
+      setDownloadingId("");
+    }
   }
 
   if (loading) {
@@ -157,6 +186,12 @@ export function OrdersList({
       {receiptMessage ? (
         <div className="rounded-[1.25rem] border border-pet-mint bg-[#e8f8f0] px-4 py-3 text-sm font-bold text-pet-sage">
           {receiptMessage}
+        </div>
+      ) : null}
+
+      {downloadError ? (
+        <div className="rounded-[1.25rem] border border-[#ffd2c9] bg-[#fff4f1] px-4 py-3 text-sm font-bold text-[#a63c2e]">
+          {downloadError}
         </div>
       ) : null}
 
@@ -252,18 +287,19 @@ export function OrdersList({
                 <Icon name="record" className="h-4 w-4" />
                 {openOrderId === order.id ? "Close Details" : "View Order"}
               </button>
-              {receiptReady ? (
-                <button
-                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-extrabold text-pet-ink transition hover:bg-pet-cream"
-                  onClick={() =>
-                    handleReceipt(order, petName)
-                  }
-                  type="button"
-                >
-                  <Icon name="record" className="h-4 w-4" />
-                  Download Receipt
-                </button>
-              ) : null}
+              <button
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-extrabold text-pet-ink transition hover:bg-pet-cream disabled:cursor-wait disabled:opacity-70"
+                disabled={downloadingId === order.id}
+                onClick={() => void handleDownloadDocument(order)}
+                type="button"
+              >
+                <Icon name="record" className="h-4 w-4" />
+                {downloadingId === order.id
+                  ? "Preparing..."
+                  : receiptReady
+                    ? "Download Receipt PDF"
+                    : "Download Order Summary PDF"}
+              </button>
               {replacementReady && replacementHref ? (
                 <CTAButton href={replacementHref} icon="tag" variant="outline">
                   Request Replacement
@@ -366,18 +402,3 @@ function CompactItem({
   );
 }
 
-function downloadPaymentReceipt(order: TagOrder, petName: string) {
-  const orderNumber = formatOrderNumber(order);
-  const blob = new Blob([buildPaymentReceiptText(order, petName)], {
-    type: "text/plain;charset=utf-8",
-  });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-
-  link.href = url;
-  link.download = `${orderNumber}-payment-receipt.txt`;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}
