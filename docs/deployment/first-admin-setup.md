@@ -6,19 +6,39 @@ No admin email is hardcoded in code, and there is **no auto-running admin seed i
 
 > **Local development only:** to make `/admin` reachable while testing, the API auto-promotes a configured email on Google login **when running in the Development environment**. The allowlist is `AdminSeed:Emails` in `appsettings.Development.json` (current value: `gbbsoftwaresolutions@gmail.com`). This is guarded by `IsDevelopment()` and does **not** run in production (production config has no `AdminSeed` section). It only reactivates or creates one idempotent `AdminUsers` row after the user has logged in with Google. **Production admins are still promoted manually with the steps below** — do not rely on the dev auto-admin for production.
 
+## Production first admin account
+
+The initial production admin (first `SuperAdmin`) is:
+
+```txt
+gbbsoftwaresolutions@gmail.com
+```
+
+Rules for this account in production:
+
+1. It **must log in once through Google Login** so its `Users` row is created — the standard flow, no special handling.
+2. After that login, production admin access is granted **manually** by inserting/activating the matching `AdminUsers` row in the production database (see Steps below).
+3. **Do not auto-promote this email in production.** The Development auto-promote allowlist (`AdminSeed:Emails`) is for local testing only and never runs in production; production must not have a hardcoded admin email or backdoor.
+
+Notes on which email to use:
+
+- **Cloudflare Email Routing addresses are not automatically Google Login accounts.** A routed address (e.g. `admin@mypetlink.com.my` forwarding to an inbox) cannot log in with Google unless it is itself a real Google account. It only forwards mail; it is not an identity provider account.
+- **If MyPetLink later adopts Google Workspace / a domain Google account** (e.g. a real `admin@mypetlink.com.my` Workspace account), promote **that** account instead and retire this one — repeat the same login-once-then-manual-insert flow for the new account, then revoke the old `AdminUsers` row.
+- **For now, use `gbbsoftwaresolutions@gmail.com` as the first production `SuperAdmin`.**
+
 ## Steps
 
-1. **Log in once with Google** on the production frontend using the account that should be the operator. This creates the normal `Users` row (and `OwnerProfile` on the Free plan) through the standard `/api/v1/auth/google` flow. No special handling.
+1. **Log in once with Google** on the production frontend using the first-admin account (`gbbsoftwaresolutions@gmail.com`). This creates the normal `Users` row (and `OwnerProfile` on the Free plan) through the standard `/api/v1/auth/google` flow. No special handling.
 2. **Find the user id** in the production database:
    ```sql
-   SELECT Id, Email, DisplayName FROM Users WHERE Email = N'operator@example.com';
+   SELECT Id, Email, DisplayName FROM Users WHERE Email = N'gbbsoftwaresolutions@gmail.com';
    ```
 3. **Insert an active `AdminUsers` row** for that user (idempotent guard so re-running is safe):
    ```sql
    INSERT INTO AdminUsers (Id, UserId, Role, IsActive, CreatedAt, UpdatedAt)
    SELECT NEWID(), u.Id, 'SuperAdmin', 1, SYSDATETIMEOFFSET(), SYSDATETIMEOFFSET()
    FROM Users u
-   WHERE u.Email = N'operator@example.com'
+   WHERE u.Email = N'gbbsoftwaresolutions@gmail.com'
      AND NOT EXISTS (SELECT 1 FROM AdminUsers a WHERE a.UserId = u.Id);
    ```
    `Role` may be `Admin` or `SuperAdmin` — Phase 1 treats them equivalently in policy (`OwnerSupport`/`Operations` are reserved for later).

@@ -110,6 +110,8 @@ Rules:
 - The user must log in with Google **first** (to create their `Users` row); promotion happens on that login.
 - **Production admins are still seeded manually** — see [`../../docs/deployment/first-admin-setup.md`](../../docs/deployment/first-admin-setup.md) and [`../../docs/deployment/sql/first-admin-template.sql`](../../docs/deployment/sql/first-admin-template.sql). Do not rely on the dev auto-admin in production.
 
+The **production** first admin is `gbbsoftwaresolutions@gmail.com`: it logs in once with Google, then is promoted **manually** via the first-admin SQL (no production auto-promote). A Cloudflare Email Routing address is not a Google Login account; if a Google Workspace/domain account is adopted later, promote that account instead.
+
 ## Phase A2 Owner And Pet APIs
 
 Implemented owner endpoints:
