@@ -58,13 +58,19 @@ public sealed class TagScanService : SkeletonService, ITagScanService
             return new TagScanPageResponse("unclaimed", tag.TagCode, tag.Status.ToString(), null);
         }
 
+        if (!IsActiveSafetyPet(tag.Pet))
+        {
+            await RecordScanAsync(tag, normalizedCode, TagScanResolvedState.Inactive, context, cancellationToken);
+            return new TagScanPageResponse("inactive", tag.TagCode, tag.Status.ToString(), null);
+        }
+
         if (tag.Status is SmartTagStatus.Pending or SmartTagStatus.Preparing or SmartTagStatus.Delivered)
         {
             await RecordScanAsync(tag, normalizedCode, TagScanResolvedState.Pending, context, cancellationToken);
             return new TagScanPageResponse("pending", tag.TagCode, tag.Status.ToString(), null);
         }
 
-        if (tag.Status != SmartTagStatus.Active || !IsActiveSafetyPet(tag.Pet))
+        if (tag.Status != SmartTagStatus.Active)
         {
             await RecordScanAsync(tag, normalizedCode, TagScanResolvedState.Inactive, context, cancellationToken);
             return new TagScanPageResponse("inactive", tag.TagCode, tag.Status.ToString(), null);

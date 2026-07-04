@@ -173,6 +173,8 @@ POST /api/v1/tags/{tagId}/restore
 GET /api/v1/public/tags/{tagCode}
 ```
 
+Activation requests are intended to come from the Physical Tag Scan Page flow (`/t/{tagCode}`). Owner Portal tag/order pages should show View Tag Scan Page and Copy Tag Link, but not direct Activate Tag actions.
+
 Implemented owner Orders endpoints:
 
 ```txt

@@ -171,6 +171,7 @@ Side effects:
 - Assigning inventory links an unclaimed tag to the owner, pet, and order, then moves it to `Preparing`.
 - Preparing updates linked pending-family tag to `Preparing`.
 - Delivered updates linked pending-family tag to `Delivered`.
+- Admin order/tag pages do not activate customer tags; activation is completed by the owner from the Physical Tag Scan Page after scanning/tapping the physical tag.
 - Cancel archives a linked tag that never became active.
 
 ## Admin Payment Proof Review

@@ -39,7 +39,7 @@ Auth: bearer tokens; `/admin/*` endpoints require an admin role. All ids below a
 | GET | `/public/profiles/{publicCode}` | Public Share Profile projection (visibility enforced server-side) |
 | GET | `/public/safety/{safetyCode}` | QR Safety Page projection |
 | GET | `/public/tags/{tagCode}` | Finder resolution → `{ state: active|unassigned|pending|inactive|not-found, profile? }` |
-| POST | `/public/tags/{tagCode}/activate` | Activation flow (authenticated step binds pet) |
+| POST | `/tags/{tagCode}/activate` | Authenticated activation step reached from `/t/{tagCode}` scan/tap flow |
 
 ## Owner: tags and orders
 

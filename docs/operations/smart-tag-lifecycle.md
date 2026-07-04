@@ -13,6 +13,7 @@ Three distinct public routes, each with its own QR code shown in the UI:
 QR rules:
 
 - Physical tags must print `/t`, never `/q` directly. `/t` respects tag status, so lost/disabled/replaced/archived/pending/unclaimed tags do not expose owner contact. Printing `/q` directly would bypass tag status.
+- Physical tag activation also starts from `/t`; Owner Portal tag/order pages may link to or copy the Tag Scan Page, but must not show a direct Activate Tag action.
 - All three QR codes are generated **client-side in the browser** from `NEXT_PUBLIC_SITE_URL` (see `docs/deployment/environment-variables.md`); no external QR service is called.
 - Do not show a `/t` QR before an inventory tag is assigned to an order. Show "Physical tag QR will appear after an inventory tag is assigned." instead.
 - `/p` and `/q` are free and separate from physical Smart Tags; do not label them "Smart Tag".
@@ -164,7 +165,7 @@ Behavior:
 
 Behavior:
 
-- show pending/preparation state
+- show login/activation flow only when scanned by the matching owner; otherwise show safe not-active-yet state
 - no owner contact
 - no pet safety content
 - owner/admin can view order status from protected portals
@@ -173,8 +174,9 @@ Behavior:
 
 Behavior:
 
-- owner can activate from `/activate/:tagCode`
-- public scan shows a pending-safe/not-active-yet state
+- owner can activate only from the Physical Tag Scan Page `/t/:tagCode`
+- matching owner sees "Activate this tag for {petName}" with no pet selector
+- wrong account sees a safe linked-to-another-account message
 - no owner contact until activated
 
 ### `Active`
@@ -288,6 +290,8 @@ Rules:
 
 - Owner actions require JWT.
 - Owner must own linked tag or linked pet.
+- Owner Portal `/tags`, pet-scoped tag pages, and order detail pages must not directly activate a tag; they can show View Tag Scan Page, Copy Tag Link, and View Order.
+- Portal-purchased assigned tags are activated after the owner receives the physical tag and scans/taps `/t/:tagCode`.
 - Marking tag lost affects only physical tag status.
 - Marking tag lost does not enable pet Lost Mode.
 - Portal order creation does not create or expose a physical tag code; admin assigns inventory after payment confirmation.

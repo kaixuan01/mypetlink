@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { QrSafetyPageView } from "@/components/marketing/QrSafetyPageView";
+import { TagActivationFlow } from "@/components/portal/TagActivationFlow";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import {
@@ -13,7 +14,6 @@ import {
   tagNotFoundTitle,
   tagScanPageTitle,
 } from "@/lib/pageTitles";
-import { activatePath } from "@/lib/routes";
 import {
   getFinderState,
   getFriendlyTagErrorMessage,
@@ -99,40 +99,11 @@ export function TagFinderView({ initialResult, tagCode }: TagFinderViewProps) {
   }
 
   if (result.state === "unassigned") {
-    return (
-      <FinderShell>
-        <FinderCard
-          description="This tag is not linked to any pet yet. Activate it now so your pet can be identified if they ever get lost."
-          icon="tag"
-          tagCode={result.tagCode}
-          title="Activate your MyPetLink Tag"
-          tone="teal"
-        >
-          <CTAButton
-            className="min-h-14 text-base"
-            href={activatePath(result.tagCode)}
-            icon="paw"
-            fullWidth
-          >
-            Activate Tag
-          </CTAButton>
-        </FinderCard>
-      </FinderShell>
-    );
+    return <TagActivationFlow initialResult={result} tagCode={tagCode} />;
   }
 
   if (result.state === "pending") {
-    return (
-      <FinderShell>
-        <FinderCard
-          description="This physical tag is still being prepared by its owner."
-          icon="tag"
-          tagCode={result.tagCode}
-          title="This tag is not active yet"
-          tone="soft"
-        />
-      </FinderShell>
-    );
+    return <TagActivationFlow initialResult={result} tagCode={tagCode} />;
   }
 
   if (result.state === "inactive") {

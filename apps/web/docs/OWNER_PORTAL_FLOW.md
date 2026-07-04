@@ -194,13 +194,15 @@ first pet, specific route â†’ that pet, `PetSwitcher` on top, manager re-fe
   status. The default view focuses current tags (`Active`, `Pending`,
   `Preparing`, `Delivered`) and hides archived tags. Filter tabs expose
   **Active**, **Pending**, **Lost / Disabled**, **Archived**, and **All**.
-  Actions depend on status: an `Unassigned` tag offers **Activate Tag**
-  (`activatePath`); a current active/delivered tag can be disabled or marked
-  **Report Tag Lost**; inactive tags offer **Request Replacement** and
-  **Archive Tag**; archived tags offer **Restore to List** and **View Status**.
-  "View Tag" / "View Status" (`tagPath`) is always available. The internal `id`
-  is never shown. Reporting a tag lost affects only that physical tag; it does
-  not enable pet Lost Mode.
+  Actions depend on status: unassigned or assigned-but-not-active tags offer
+  **View Tag Scan Page**, **Copy Tag Link**, and **View Order** where applicable.
+  Owner Portal pages do **not** show a direct **Activate Tag** button; owners
+  activate only after scanning/tapping the physical tag at `/t/{tagCode}`.
+  Active tags can be disabled or marked **Report Tag Lost**; inactive tags offer
+  **Request Replacement** and **Archive Tag**; archived tags offer **Restore to
+  List** and **View Status**. "View Tag" / "View Status" (`tagPath`) is always
+  available. The internal `id` is never shown. Reporting a tag lost affects only
+  that physical tag; it does not enable pet Lost Mode.
 - **`/orders`** lists `TagOrder` history using customer-facing order numbers
   from `formatOrderNumber(order)` (for example `MPL-ORD-2026-0001`), never the
   internal `id`. Orders carry `tagType` + `shape` (there is no `design` field).

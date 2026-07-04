@@ -791,25 +791,6 @@ export async function getFinderState(tagCode: string): Promise<FinderResult> {
     return { state: "unassigned", tagCode: tag.tagCode };
   }
 
-  if (isPendingPhysicalTag(tag)) {
-    return {
-      state: "pending",
-      tagCode: tag.tagCode,
-      status: tag.status,
-      petId: tag.petId,
-    };
-  }
-
-  if (!isActivePhysicalTag(tag)) {
-    return {
-      state: "inactive",
-      tagCode: tag.tagCode,
-      status: inactiveTagStatuses.includes(tag.status) ? tag.status : "Disabled",
-      isArchived: tag.isArchived,
-      reason: "inactive",
-    };
-  }
-
   const pets = await getPets();
   const pet = pets.data.find((item) => item.id === tag.petId);
 
@@ -835,6 +816,25 @@ export async function getFinderState(tagCode: string): Promise<FinderResult> {
           ? "archived"
           : "inactive",
       profile: toPublicProfile(pet),
+    };
+  }
+
+  if (isPendingPhysicalTag(tag)) {
+    return {
+      state: "pending",
+      tagCode: tag.tagCode,
+      status: tag.status,
+      petId: tag.petId,
+    };
+  }
+
+  if (!isActivePhysicalTag(tag)) {
+    return {
+      state: "inactive",
+      tagCode: tag.tagCode,
+      status: inactiveTagStatuses.includes(tag.status) ? tag.status : "Disabled",
+      isArchived: tag.isArchived,
+      reason: "inactive",
     };
   }
 
@@ -1212,7 +1212,7 @@ export async function adminCancelOrder(orderId: string) {
 }
 
 // Creates unclaimed retail stock: tags with a TagCode but no pet and no owner.
-// Customers activate them through /activate/{tagCode} after scanning.
+// Customers activate them through /t/{tagCode} after scanning or tapping.
 export async function adminGenerateRetailTags(
   count: number,
   hasNfc: boolean,

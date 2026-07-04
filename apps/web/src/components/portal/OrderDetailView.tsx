@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { ManualPaymentPanel } from "@/components/portal/ManualPaymentPanel";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
@@ -21,7 +21,8 @@ import {
   orderNotFoundTitle,
   setPageTitle,
 } from "@/lib/pageTitles";
-import { activatePath, ownerRoutes, tagPath } from "@/lib/routes";
+import { ownerRoutes, tagPath } from "@/lib/routes";
+import { getEnvBaseUrl, getSiteBaseUrl, toAbsoluteUrl } from "@/lib/siteUrl";
 import { QrCodeCard } from "@/components/qr/QrCodeCard";
 import { isApiConfigured } from "@/services/apiConfig";
 import {
@@ -100,8 +101,10 @@ export function OrderDetailView({
   const [downloadMessage, setDownloadMessage] = useState("");
   const [downloadError, setDownloadError] = useState("");
   const [downloadBusy, setDownloadBusy] = useState(false);
+  const [copyTagStatus, setCopyTagStatus] = useState("");
   const [paymentMessage, setPaymentMessage] = useState("");
   const [loadError, setLoadError] = useState("");
+  const base = useSyncExternalStore(subscribeNoop, getSiteBaseUrl, getEnvBaseUrl);
   const petMap = useMemo(
     () => new Map(portalPets.map((pet) => [pet.id, pet])),
     [portalPets]
@@ -194,6 +197,10 @@ export function OrderDetailView({
           replacementFor: linkedTag.id,
         })
       : "";
+  const linkedTagScanPath = linkedTag ? tagPath(linkedTag.tagCode) : "";
+  const linkedTagScanUrl = linkedTagScanPath
+    ? toAbsoluteUrl(linkedTagScanPath, base)
+    : "";
 
   const orderKeyForApi = order.orderNumber || order.id;
 
@@ -378,7 +385,7 @@ export function OrderDetailView({
                 className="mt-4"
                 fileNameBase={`${linkedTag.tagCode}-physical-tag-qr`}
                 helperText="This is the QR printed on your physical tag. If the tag is lost or disabled, the scan page will stop showing your contact details."
-                targetPath={tagPath(linkedTag.tagCode)}
+                targetPath={linkedTagScanPath}
                 title="Physical Tag QR"
                 viewLabel="View Tag Scan Page"
               />
@@ -391,18 +398,43 @@ export function OrderDetailView({
                   {linkedTag.tagCode}
                 </p>
                 <p className="mt-2 text-xs font-bold leading-5 text-pet-muted">
-                  Your tag has been assigned to {petName}. Scan or tap the tag
+                  Your tag is linked to {petName}. Scan or tap the physical tag
                   when you receive it to activate. It will not show contact
                   details before activation.
                 </p>
-                <CTAButton
-                  className="mt-3"
-                  href={activatePath(linkedTag.tagCode)}
-                  icon="tag"
-                  variant="secondary"
-                >
-                  Activate Tag
-                </CTAButton>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <CTAButton
+                    href={linkedTagScanPath}
+                    icon="qr"
+                    rel="noopener noreferrer"
+                    target="_blank"
+                    variant="secondary"
+                    fullWidth
+                  >
+                    View Tag Scan Page
+                  </CTAButton>
+                  <button
+                    className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
+                    onClick={() => {
+                      void copyText(linkedTagScanUrl).then((copied) => {
+                        setCopyTagStatus(
+                          copied
+                            ? "Tag Scan Page link copied."
+                            : "Copy unavailable. Select and copy the link."
+                        );
+                        window.setTimeout(() => setCopyTagStatus(""), 2500);
+                      });
+                    }}
+                    type="button"
+                  >
+                    Copy Tag Link
+                  </button>
+                </div>
+                {copyTagStatus ? (
+                  <p className="mt-2 text-xs font-bold text-pet-sage" role="status">
+                    {copyTagStatus}
+                  </p>
+                ) : null}
               </div>
             )
           ) : (
@@ -516,6 +548,37 @@ function DetailItem({ label, value }: { label: string; value: string }) {
       </p>
     </div>
   );
+}
+
+function subscribeNoop() {
+  return () => {};
+}
+
+async function copyText(text: string) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // Try the textarea copy path below.
+    }
+  }
+
+  const textArea = document.createElement("textarea");
+  textArea.value = text;
+  textArea.setAttribute("readonly", "true");
+  textArea.style.position = "fixed";
+  textArea.style.left = "-9999px";
+  document.body.appendChild(textArea);
+  textArea.select();
+
+  try {
+    return document.execCommand("copy");
+  } catch {
+    return false;
+  } finally {
+    document.body.removeChild(textArea);
+  }
 }
 
 // Fallback timeline for demo mode, where the backend history is not available.

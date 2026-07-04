@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { QrCodeButton } from "@/components/qr/QrCodeButton";
@@ -16,7 +16,8 @@ import {
   isArchivedPet,
   isMemorialPet,
 } from "@/lib/petLifecycle";
-import { activatePath, ownerRoutes, tagPath } from "@/lib/routes";
+import { ownerRoutes, tagPath } from "@/lib/routes";
+import { getEnvBaseUrl, getSiteBaseUrl, toAbsoluteUrl } from "@/lib/siteUrl";
 import {
   compareTagsForDisplay,
   getTagAvailableActions,
@@ -458,6 +459,8 @@ function TagCard({
   order?: TagOrder;
   tag: PetTag;
 }) {
+  const base = useSyncExternalStore(subscribeNoop, getSiteBaseUrl, getEnvBaseUrl);
+  const [copyStatus, setCopyStatus] = useState("");
   const productName = tag.hasNfc
     ? "MyPetLink QR + NFC Smart Tag"
     : "MyPetLink QR Pet Tag";
@@ -477,6 +480,7 @@ function TagCard({
       })
     : "";
   const scanPath = tagPath(tag.tagCode);
+  const scanUrl = toAbsoluteUrl(scanPath, base);
   const codeLabel =
     isPending || tag.status === "Unassigned" ? "Reserved tag code" : "Tag code";
   const detailItems = [
@@ -533,14 +537,14 @@ function TagCard({
           ) : isPending || tag.status === "Unassigned" ? (
             <div className="mt-4 rounded-[1.25rem] bg-pet-cream p-4">
               <p className="text-xs font-bold uppercase text-pet-muted">
-                Physical tag scan link
+                Physical Tag Scan Page
               </p>
               <p className="mt-1 text-sm font-bold text-pet-ink">
                 {tag.status === "Unassigned"
-                  ? "Activate this reserved tag to turn on its scan page."
+                  ? "Scan or open the physical tag link to activate this tag for a pet."
                   : tag.petId
                     ? "Waiting for owner activation. Scan or tap the physical tag when you receive it."
-                    : "Tag scan link will be available after activation."}
+                    : "Physical tag QR will appear after an inventory tag is assigned."}
               </p>
             </div>
           ) : null}
@@ -580,8 +584,9 @@ function TagCard({
         </p>
       ) : isPending ? (
         <p className="mt-4 rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted">
-          This physical tag is linked but not active yet. It will not show owner
-          contact details until you activate it.
+          Waiting for owner activation. Scan or tap the physical tag when you
+          receive it to activate it. It will not show owner contact details
+          before activation.
         </p>
       ) : null}
 
@@ -622,6 +627,24 @@ function TagCard({
             View Status
           </CTAButton>
         ) : null}
+        {actions.includes("copy-tag-scan-link") ? (
+          <button
+            className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
+            onClick={() => {
+              void copyText(scanUrl).then((copied) => {
+                setCopyStatus(
+                  copied
+                    ? "Tag Scan Page link copied."
+                    : "Copy unavailable. Select and copy the link."
+                );
+                window.setTimeout(() => setCopyStatus(""), 2500);
+              });
+            }}
+            type="button"
+          >
+            Copy Tag Link
+          </button>
+        ) : null}
         {actions.includes("pay-by-qr") && orderHref ? (
           <CTAButton href={orderHref} icon="record" variant="coral" fullWidth>
             Pay by QR
@@ -630,11 +653,6 @@ function TagCard({
         {actions.includes("view-payment-status") && orderHref ? (
           <CTAButton href={orderHref} icon="record" variant="secondary" fullWidth>
             View Payment Status
-          </CTAButton>
-        ) : null}
-        {actions.includes("activate-tag") ? (
-          <CTAButton href={activatePath(tag.tagCode)} icon="paw" fullWidth>
-            Activate Tag
           </CTAButton>
         ) : null}
         {actions.includes("view-order") && orderHref ? (
@@ -694,8 +712,44 @@ function TagCard({
           </button>
         ) : null}
       </div>
+      {copyStatus ? (
+        <p className="mt-3 text-xs font-bold text-pet-sage" role="status">
+          {copyStatus}
+        </p>
+      ) : null}
     </article>
   );
+}
+
+function subscribeNoop() {
+  return () => {};
+}
+
+async function copyText(text: string) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // Try the textarea copy path below.
+    }
+  }
+
+  const textArea = document.createElement("textarea");
+  textArea.value = text;
+  textArea.setAttribute("readonly", "true");
+  textArea.style.position = "fixed";
+  textArea.style.left = "-9999px";
+  document.body.appendChild(textArea);
+  textArea.select();
+
+  try {
+    return document.execCommand("copy");
+  } catch {
+    return false;
+  } finally {
+    document.body.removeChild(textArea);
+  }
 }
 
 function getTagEmptyState(filter: TagFilter, petName?: string) {

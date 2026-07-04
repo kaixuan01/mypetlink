@@ -119,7 +119,7 @@ export function TagActivationFlow({
   function handleSignIn() {
     if (apiMode) {
       window.location.href = `/login?redirect=${encodeURIComponent(
-        `/activate/${tagCode}`
+        tagPath(tagCode)
       )}`;
       return;
     }

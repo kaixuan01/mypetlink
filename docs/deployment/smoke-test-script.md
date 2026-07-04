@@ -53,11 +53,12 @@ curl -s -H "Authorization: Bearer $ADMIN" "$API/api/v1/admin/auth/check"        
 5. **Preparing** — Mark Preparing; linked tag stays Preparing.
 6. **Shipped** — Mark Shipped (optionally with tracking number).
 7. **Delivered** — Mark Delivered; linked tag goes to Delivered (awaiting owner activation).
-8. **Tag active `/t`** — activate the assigned tag from the owner scan/tap flow, then scan `/t/:tagCode` → shows safety content.
-9. **Mark lost** — admin marks the tag lost; `/t/:tagCode` now shows no owner contact.
-10. **Unclaimed tag generation** — `/admin/tag-inventory`, generate a small batch; confirm unclaimed `MPL-XXXX-XXXX` codes appear.
-11. **CSV export** — export the inventory CSV; file downloads with tag_code / type / batch / status / created_at.
-12. **Audit** — confirm `AuditLogs` rows were written for the admin actions above.
+8. **Owner portal check** — `/tags` and `/orders/view` show Waiting for owner activation plus View Tag Scan Page / Copy Tag Link; neither page shows a direct Activate Tag button.
+9. **Tag active `/t`** — open `/t/:tagCode` as the matching owner, activate the assigned tag from the scan/tap flow, then scan `/t/:tagCode` again → shows safety content.
+10. **Mark lost** — admin marks the tag lost; `/t/:tagCode` now shows no owner contact.
+11. **Unclaimed tag generation** — `/admin/tag-inventory`, generate a small batch; confirm unclaimed `MPL-XXXX-XXXX` codes appear.
+12. **CSV export** — export the inventory CSV; file downloads with tag_code / type / batch / status / created_at.
+13. **Audit** — confirm `AuditLogs` rows were written for the admin actions above.
 
 ## 4. Public tag / lifecycle states (curl or browser)
 

@@ -13,7 +13,6 @@ export type TagAction =
   | "view-payment-status"
   | "view-order"
   | "view-preparation-status"
-  | "activate-tag"
   | "view-inactive-tag-page"
   | "request-replacement"
   | "archive-tag"
@@ -202,11 +201,13 @@ export function getTagAvailableActions(
   }
 
   if (tag.status === "Unassigned") {
-    return ["activate-tag"];
+    return ["view-tag-scan-page", "copy-tag-scan-link"];
   }
 
   if (tag.petId && pendingTagStatuses.includes(tag.status)) {
-    return order ? ["activate-tag", "view-order"] : ["activate-tag"];
+    return order
+      ? ["view-tag-scan-page", "copy-tag-scan-link", "view-order"]
+      : ["view-tag-scan-page", "copy-tag-scan-link"];
   }
 
   if (order?.status === "Pending Payment") {

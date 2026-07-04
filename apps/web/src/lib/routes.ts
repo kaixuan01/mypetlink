@@ -7,7 +7,7 @@ import type { Pet, PetTag } from "@/types";
 // - Owner portal: /pets/{petId}/...        (always the petId, never the slug)
 // - QR safety:   /q/{safetyCode}           (pet-level finder safety page)
 // - Physical tag: /t/{tagCode}             (physical QR or QR + NFC scan link)
-// - Activation:   /activate/{tagCode}      (Unassigned tag binding flow)
+// - Activation:   /t/{tagCode}             (scan/tap entry point for activation)
 // - Public share: /p/{petSlug}-{publicCode} (looked up by publicCode)
 
 type TagOrderOptions = {
@@ -61,7 +61,7 @@ export function qrSafetyPath(safetyCode: string) {
 }
 
 export function activatePath(tagCode: string) {
-  return `/activate/${tagCode}`;
+  return tagPath(tagCode);
 }
 
 export function publicProfilePath(slug: string, publicCode: string) {

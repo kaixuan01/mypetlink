@@ -45,12 +45,14 @@ Do not lump these together as a generic "QR Profile" — they are three distinct
 ## Route conventions
 
 - QR Safety Page: `/q/:safetyCode`
-- Physical Tag Scan Link: `/t/:tagCode`
+- Physical Tag Scan Link and tag activation entry point: `/t/:tagCode`
 - Public Share Profile: `/p/:petSlug` (slug ends with the pet's public code)
 - Owner Portal routes currently live in the same Next.js app (`/dashboard`, `/pets`, `/tags`, `/orders`, `/settings`, ...).
 - The Admin Portal UI will also be added later under `/admin` in `apps/web`, unless the project is split later.
 
 Route strings are centralized in `apps/web/src/lib/routes.ts` — never hardcode route strings in pages or components.
+
+Physical tag activation must be started from the Physical Tag Scan Page (`/t/:tagCode`) after the owner scans/taps the physical tag. Owner Portal tag/order pages may offer View Tag Scan Page and Copy Tag Link, but must not show direct Activate Tag actions.
 
 ## Future work (planned, not started)
 

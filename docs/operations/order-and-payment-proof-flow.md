@@ -330,13 +330,15 @@ Result:
 Owner portal shows:
 
 - delivered
-- activation available for delivered tag
+- waiting for owner activation
+- View Tag Scan Page / Copy Tag Link actions, not a direct Activate Tag button
 
 ### Owner activates delivered tag
 
 Trigger:
 
-- Owner calls `POST /api/v1/tags/{tagCode}/activate`.
+- Owner scans or taps the physical tag and completes activation from `/t/:tagCode`.
+- The frontend then calls `POST /api/v1/tags/{tagCode}/activate` from that scan activation flow.
 
 Required state:
 
@@ -402,7 +404,9 @@ Owner order list/detail should show:
 - a chronological status timeline including payment proof submitted, rejected (with reason), and resubmitted events, each with date and time
 - receipt only after payment confirmed
 - delivery tracking status
-- activation prompt for the assigned physical tag when activation is available
+- waiting-for-owner-activation copy for assigned inactive tags
+- View Tag Scan Page and Copy Tag Link actions
+- no direct Activate Tag button from order detail
 
 ## Admin Portal Reflection
 

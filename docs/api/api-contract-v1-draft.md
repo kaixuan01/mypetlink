@@ -498,8 +498,8 @@ Response:
 Rules:
 
 - Active tag linked to active pet opens same safety content as `/q/:safetyCode`.
-- Unclaimed retail tags show activation prompt.
-- Pending/preparing/delivered tags return a not-active-yet state without owner contact.
+- Unclaimed retail tags show activation prompt on the Physical Tag Scan Page.
+- Pending/preparing/delivered tags return a not-active-yet/activation state without owner contact; only the matching signed-in owner can activate from the scan flow.
 - Lost/disabled/replaced/archived tags never expose owner contact.
 - Bound tags linked to Memorial/Archived pets return inactive safe state.
 - Record a `TagScans` event for valid and invalid scans where appropriate.
@@ -859,6 +859,12 @@ Purpose: activate a retail/unclaimed tag to a selected pet, or activate an assig
 
 Auth: owner.
 
+Entry-point rule:
+
+- Normal customer activation starts from `/t/:tagCode`, the Physical Tag Scan Page.
+- Owner Portal tag/order pages must not call this endpoint through direct Activate Tag buttons.
+- `/activate/:tagCode`, if present for compatibility, redirects back to `/t/:tagCode`.
+
 Request:
 
 - Retail/unclaimed tag: `petId` is required.
@@ -1196,6 +1202,7 @@ Rules:
 
 - assigned portal tags do not expose owner contact until owner activation.
 - owner activation does not ask for pet selection.
+- owner activation is surfaced from the Physical Tag Scan Page, not admin or owner management pages.
 
 ### POST `/api/v1/admin/orders/{orderId}/reject-payment-proof`
 
