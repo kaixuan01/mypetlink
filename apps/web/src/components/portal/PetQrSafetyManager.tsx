@@ -4,8 +4,7 @@ import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
-import { QRDownloadButton } from "@/components/portal/QRDownloadButton";
-import { ShareProfileLink } from "@/components/share/ShareProfileLink";
+import { QrCodeCard } from "@/components/qr/QrCodeCard";
 import {
   defaultOwnerSettings,
   getEffectivePetContact,
@@ -195,23 +194,26 @@ export function PetQrSafetyManager({
                       : "Not active"}
               </Badge>
             </div>
-            <ShareProfileLink
-              className="mt-4 shadow-none"
-              label="QR Safety Page URL"
-              path={pet.qrSafetyPath}
-              petName={pet.name}
-            />
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <CTAButton
-                href={pet.qrSafetyPath}
-                icon="qr"
-                target="_blank"
-                rel="noopener noreferrer"
-                fullWidth
-              >
-                View QR Safety Page
-              </CTAButton>
-              <QRDownloadButton pet={pet} />
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+              <QrCodeCard
+                fileNameBase={`${pet.slug}-share-profile-qr`}
+                helperText="Share your pet's public profile with friends and family."
+                targetPath={pet.publicProfilePath}
+                title="Share Profile QR"
+                viewLabel="View Share Profile"
+              />
+              <QrCodeCard
+                fileNameBase={`${pet.slug}-qr-safety-page`}
+                helperText="Use this free safety QR if someone finds your pet. It is separate from physical Smart Tags."
+                targetPath={pet.qrSafetyPath}
+                title="QR Safety Page"
+                viewLabel="View QR Safety Page"
+                warning={
+                  isActiveProfile
+                    ? undefined
+                    : "This profile is inactive, so the QR Safety Page shows a status page only and does not reveal finder contact details."
+                }
+              />
             </div>
           </section>
 

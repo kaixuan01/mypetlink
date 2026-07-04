@@ -22,7 +22,8 @@ import {
   orderNotFoundTitle,
   setPageTitle,
 } from "@/lib/pageTitles";
-import { ownerRoutes } from "@/lib/routes";
+import { ownerRoutes, tagPath } from "@/lib/routes";
+import { QrCodeCard } from "@/components/qr/QrCodeCard";
 import { isApiConfigured } from "@/services/apiConfig";
 import { getPets } from "@/services/petService";
 import {
@@ -343,15 +344,40 @@ export function OrderDetailView({
             />
           </div>
           {linkedTag?.tagCode ? (
+            linkedTag.status === "Active" ? (
+              <QrCodeCard
+                className="mt-4"
+                fileNameBase={`${linkedTag.tagCode}-physical-tag-qr`}
+                helperText="This is the QR printed on your physical tag. It uses /t so lost or disabled tags stay protected."
+                targetPath={tagPath(linkedTag.tagCode)}
+                title="Physical Tag QR"
+                viewLabel="View Tag Scan Page"
+              />
+            ) : (
+              <div className="mt-4 rounded-[1.25rem] bg-pet-cream p-4">
+                <p className="text-xs font-extrabold uppercase text-pet-muted">
+                  Tag code
+                </p>
+                <p className="mt-1 break-words text-lg font-black text-pet-ink">
+                  {linkedTag.tagCode}
+                </p>
+                <p className="mt-2 text-xs font-bold leading-5 text-pet-muted">
+                  The physical tag QR (/t) turns on after the tag is delivered
+                  and activated.
+                </p>
+              </div>
+            )
+          ) : (
             <div className="mt-4 rounded-[1.25rem] bg-pet-cream p-4">
-              <p className="text-xs font-extrabold uppercase text-pet-muted">
-                Tag code
+              <p className="text-sm font-bold leading-6 text-pet-ink">
+                Physical tag QR will appear after an inventory tag is assigned.
               </p>
-              <p className="mt-1 break-words text-lg font-black text-pet-ink">
-                {linkedTag.tagCode}
+              <p className="mt-1 text-xs font-bold leading-5 text-pet-muted">
+                Tag code will be assigned after payment is confirmed and
+                prepared.
               </p>
             </div>
-          ) : null}
+          )}
         </section>
 
         <section className="brand-card rounded-[1.75rem] p-5 sm:p-6">

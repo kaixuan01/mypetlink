@@ -8,7 +8,9 @@ import {
   AdminTable,
 } from "@/components/admin/AdminPanels";
 import { getTagTypeLabel, tagStatusTone } from "@/components/admin/adminDisplay";
+import { QrCodeButton } from "@/components/qr/QrCodeButton";
 import { Badge } from "@/components/ui/Badge";
+import { getTagScanPath } from "@/lib/routes";
 import {
   downloadAdminInventoryCsv,
   getAdminData,
@@ -223,6 +225,7 @@ export function AdminTagInventoryManager({
                 "Generated",
                 "Linked pet",
                 "Linked owner",
+                "Physical Tag QR",
               ]}
             >
               {inventoryTags.map((tag) => (
@@ -278,6 +281,26 @@ function InventoryRow({
       </td>
       <td className="whitespace-nowrap px-4 py-3 text-slate-600">
         {ownerName || "-"}
+      </td>
+      <td className="whitespace-nowrap px-4 py-3">
+        <div className="flex flex-wrap gap-1.5">
+          <a
+            className="inline-flex min-h-9 items-center justify-center rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-extrabold text-slate-700 transition hover:bg-slate-50"
+            href={getTagScanPath(tag)}
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            View /t
+          </a>
+          <QrCodeButton
+            fileNameBase={`${tag.tagCode}-physical-tag-qr`}
+            helperText="Printed tag scan link. Uses /t so lost, disabled, pending, or unclaimed tags stay protected. Downloading does not consume inventory."
+            label="QR"
+            targetPath={getTagScanPath(tag)}
+            title={`Physical Tag QR - ${tag.tagCode}`}
+            viewLabel="View /t Scan Page"
+          />
+        </div>
       </td>
     </tr>
   );

@@ -2,6 +2,21 @@
 
 This document defines Phase 1 smart tag lifecycle rules. The owner Smart Tags + Orders backend slice is implemented. As of 2026-07-04 the admin side is implemented too: registry list/search (`/api/v1/admin/tags`), audited status actions (`disable`, `mark-lost`, `replace`, `archive`, `restore`), inventory generation (`POST /api/v1/admin/tag-inventory/generate`), and manufacturer CSV export (`GET /api/v1/admin/tag-inventory/export`). Real file storage remains planned later.
 
+## Route And QR Model
+
+Three distinct public routes, each with its own QR code shown in the UI:
+
+- `/p/:petSlug` — **Public Share Profile**. Free, cute profile for sharing with friends and family. Owner UI: "Share Profile QR".
+- `/q/:safetyCode` — **QR Safety Page**. Free, pet-level, finder-first safety/contact page. Exists even without buying a physical tag. Owner UI: "QR Safety Page".
+- `/t/:tagCode` — **Physical Smart Tag scan link**. Printed on physical QR/NFC tags. Owner/Admin UI: "Physical Tag QR".
+
+QR rules:
+
+- Physical tags must print `/t`, never `/q` directly. `/t` respects tag status, so lost/disabled/replaced/archived/pending/unclaimed tags do not expose owner contact. Printing `/q` directly would bypass tag status.
+- All three QR codes are generated **client-side in the browser** from `NEXT_PUBLIC_SITE_URL` (see `docs/deployment/environment-variables.md`); no external QR service is called.
+- Do not show a `/t` QR before an inventory tag is assigned to an order. Show "Physical tag QR will appear after an inventory tag is assigned." instead.
+- `/p` and `/q` are free and separate from physical Smart Tags; do not label them "Smart Tag".
+
 ## Core Rules
 
 - One physical tag has one public `tagCode`.

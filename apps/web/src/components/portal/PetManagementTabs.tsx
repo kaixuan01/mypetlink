@@ -23,6 +23,7 @@ import { getMemoryLimitState } from "@/lib/planLimits";
 import { getPetProfileTheme } from "@/lib/petProfileThemes";
 import { isActivePet, isArchivedPet, isMemorialPet } from "@/lib/petLifecycle";
 import { ownerRoutes, tagPath } from "@/lib/routes";
+import { getServerFallbackBaseUrl } from "@/lib/siteUrl";
 import { getTagScanDisplay, isActivePhysicalTagForPet } from "@/lib/tagStatus";
 import { isApiConfigured } from "@/services/apiConfig";
 import { getPetMoments } from "@/services/momentService";
@@ -541,7 +542,7 @@ function getBrowserOrigin() {
 }
 
 function getServerOrigin() {
-  return "https://mypetlink.pages.dev";
+  return getServerFallbackBaseUrl();
 }
 
 function LostModeCard({

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { Icon } from "@/components/ui/Icon";
+import { getServerFallbackBaseUrl } from "@/lib/siteUrl";
 import type { PetProfileTheme } from "@/lib/petProfileThemes";
 
 type ShareProfileLinkProps = {
@@ -260,7 +261,7 @@ function getBrowserOrigin() {
 }
 
 function getDefaultOrigin() {
-  return "https://mypetlink.pages.dev";
+  return getServerFallbackBaseUrl();
 }
 
 async function writeTextToClipboard(text: string) {

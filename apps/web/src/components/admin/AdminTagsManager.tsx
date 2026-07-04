@@ -9,6 +9,7 @@ import {
   AdminTable,
 } from "@/components/admin/AdminPanels";
 import { getTagTypeLabel, tagStatusTone } from "@/components/admin/adminDisplay";
+import { QrCodeButton } from "@/components/qr/QrCodeButton";
 import { Badge } from "@/components/ui/Badge";
 import { formatOrderNumber } from "@/lib/orders";
 import { getTagScanPath } from "@/lib/routes";
@@ -233,6 +234,14 @@ export function AdminTagsManager({ initialData }: { initialData: AdminData }) {
                       >
                         View Tag
                       </a>
+                      <QrCodeButton
+                        fileNameBase={`${tag.tagCode}-physical-tag-qr`}
+                        helperText="Printed tag scan link. Uses /t so lost, disabled, replaced, or archived tags stay protected."
+                        label="QR"
+                        targetPath={getTagScanPath(tag)}
+                        title={`Physical Tag QR - ${tag.tagCode}`}
+                        viewLabel="View /t Scan Page"
+                      />
                       {getTagActions(tag).map((action) => (
                         <AdminActionButton
                           key={action.id}

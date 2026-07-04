@@ -1,9 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
+import { QrCodeCard } from "@/components/qr/QrCodeCard";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
@@ -98,11 +99,6 @@ export function TagManagementPanel({
   const [lostTag, setLostTag] = useState<PetTag | null>(null);
   const [disableTagTarget, setDisableTagTarget] = useState<PetTag | null>(null);
   const [archiveTagTarget, setArchiveTagTarget] = useState<PetTag | null>(null);
-  const origin = useSyncExternalStore(
-    subscribeToOrigin,
-    getBrowserOrigin,
-    getServerOrigin
-  );
   const petMap = useMemo(
     () => new Map(pets.map((pet) => [pet.id, pet])),
     [pets]
@@ -379,7 +375,6 @@ export function TagManagementPanel({
               onReportLost={() => setLostTag(tag)}
               onRestore={() => handleRestore(tag)}
               order={getTagOrder(tag, orders)}
-              origin={origin}
               tag={tag}
             />
           ))}
@@ -453,7 +448,6 @@ function TagCard({
   onReportLost,
   onRestore,
   order,
-  origin,
   tag,
 }: {
   linkedPet?: Pet;
@@ -462,10 +456,8 @@ function TagCard({
   onReportLost: () => void;
   onRestore: () => void;
   order?: TagOrder;
-  origin: string;
   tag: PetTag;
 }) {
-  const [copyMessage, setCopyMessage] = useState("");
   const productName = tag.hasNfc
     ? "MyPetLink QR + NFC Smart Tag"
     : "MyPetLink QR Pet Tag";
@@ -485,7 +477,6 @@ function TagCard({
       })
     : "";
   const scanPath = tagPath(tag.tagCode);
-  const scanUrl = origin ? `${origin}${scanPath}` : scanPath;
   const codeLabel =
     isPending || tag.status === "Unassigned" ? "Reserved tag code" : "Tag code";
   const detailItems = [
@@ -495,17 +486,6 @@ function TagCard({
     ["Delivered date", tag.deliveredDate ?? "Not delivered yet"],
     [scanDisplay.label, scanDisplay.value],
   ].filter((item): item is [string, string] => Boolean(item));
-
-  async function handleCopyScanLink() {
-    try {
-      await navigator.clipboard.writeText(scanUrl);
-      setCopyMessage("Tag scan link copied.");
-    } catch {
-      setCopyMessage("Copy unavailable. Select and copy the link.");
-    }
-
-    window.setTimeout(() => setCopyMessage(""), 2500);
-  }
 
   return (
     <article className="brand-card rounded-[1.75rem] p-5" key={tag.id}>
@@ -526,31 +506,20 @@ function TagCard({
           <p className="mt-1 text-sm text-pet-muted">
             {productName} - {tag.shape}
           </p>
-          {isActive ? (
-            <div className="mt-4 rounded-[1.25rem] bg-pet-cream p-4">
-              <p className="text-xs font-bold uppercase text-pet-muted">
-                Physical Tag Scan Link
-              </p>
-              <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-                <p className="min-w-0 break-all text-sm font-bold text-pet-teal">
-                  {scanUrl}
-                </p>
-                <button
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-pet-border bg-white px-4 py-2 text-sm font-bold text-pet-ink transition hover:bg-white/80"
-                  onClick={handleCopyScanLink}
-                  type="button"
-                >
-                  <Icon name="copy" className="h-4 w-4" />
-                  <span className="sm:hidden">Copy</span>
-                  <span className="hidden sm:inline">Copy Tag Scan Link</span>
-                </button>
-              </div>
-              {copyMessage ? (
-                <p className="mt-2 text-xs font-bold text-pet-sage">
-                  {copyMessage}
-                </p>
-              ) : null}
-            </div>
+          {isActive || isInactive ? (
+            <QrCodeCard
+              className="mt-4"
+              fileNameBase={`${tag.tagCode}-physical-tag-qr`}
+              helperText="This is the QR printed on the physical tag. It uses /t so lost, disabled, pending, or unclaimed tags stay protected."
+              targetPath={scanPath}
+              title="Physical Tag QR"
+              viewLabel={isActive ? "View Tag Scan Page" : "View Inactive Tag Page"}
+              warning={
+                isActive
+                  ? undefined
+                  : "This tag is inactive. Scanning it shows an inactive tag page and never reveals owner contact details."
+              }
+            />
           ) : isPending || tag.status === "Unassigned" ? (
             <div className="mt-4 rounded-[1.25rem] bg-pet-cream p-4">
               <p className="text-xs font-bold uppercase text-pet-muted">
@@ -767,18 +736,6 @@ function getTagEmptyState(filter: TagFilter, petName?: string) {
         orderLabel,
       };
   }
-}
-
-function subscribeToOrigin() {
-  return () => {};
-}
-
-function getBrowserOrigin() {
-  return window.location.origin;
-}
-
-function getServerOrigin() {
-  return "https://mypetlink.pages.dev";
 }
 
 function getStatusTone(

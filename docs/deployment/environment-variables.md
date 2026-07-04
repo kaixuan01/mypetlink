@@ -10,10 +10,13 @@ These are `NEXT_PUBLIC_*`, so they are **baked into the static bundle at build t
 
 | Variable | Secret? | Purpose | Example shape |
 | --- | --- | --- | --- |
+| `NEXT_PUBLIC_SITE_URL` | No | Canonical public site URL (no trailing slash). Used to build absolute share links and to generate QR codes (`/p`, `/q`, `/t`) client-side. **Must be set before the production build**, or QR/link URLs fall back to a placeholder host. | `https://mypetlink.pages.dev` |
 | `NEXT_PUBLIC_API_BASE_URL` | No | Base URL of the production .NET API (no trailing slash) | `https://api.mypetlink.com.my` |
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | No (public by design) | Google OAuth Web client id used by the GIS button | `<id>.apps.googleusercontent.com` |
 
-Local dev equivalents live in `apps/web/.env.local` (gitignored): `NEXT_PUBLIC_API_BASE_URL=http://localhost:5281` and the dev Google client id.
+QR codes are generated entirely in the browser from these URLs — no external QR service is called. If `NEXT_PUBLIC_SITE_URL` is unset, the app falls back to `NEXT_PUBLIC_APP_URL`, then to `window.location.origin` in the browser.
+
+Local dev equivalents live in `apps/web/.env.local` (gitignored): `NEXT_PUBLIC_API_BASE_URL=http://localhost:5281`, `NEXT_PUBLIC_APP_URL=http://localhost:3000` (used as the QR base locally), and the dev Google client id.
 
 ## Backend (.NET 8 API — `apps/api/MyPetLink.Api`)
 

@@ -11,7 +11,7 @@ Work top to bottom. Do not merge `feature/connect-admin-apis` into `main` until 
 - [ ] Production SQL Server database created; `InitialCreate` migration applied; 24 tables present; plan/limit/app-setting seed rows present.
 - [ ] Google OAuth: production frontend origin added to Authorized JavaScript origins; consent screen published; frontend and backend use the same client id.
 - [ ] **Manual Google popup login test passes** on a preview/prod frontend (real account → `/dashboard`, `/api/v1/auth/me` returns the user).
-- [ ] Frontend production env set in Cloudflare Pages (`NEXT_PUBLIC_API_BASE_URL`, `NEXT_PUBLIC_GOOGLE_CLIENT_ID`) and the frontend **rebuilt** so values are baked in.
+- [ ] Frontend production env set in Cloudflare Pages (`NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_API_BASE_URL`, `NEXT_PUBLIC_GOOGLE_CLIENT_ID`) and the frontend **rebuilt** so values are baked in. `NEXT_PUBLIC_SITE_URL` must be the canonical public site URL so generated QR codes (`/p`, `/q`, `/t`) point at production, not a placeholder host.
 - [ ] Backend env set: `ConnectionStrings__MyPetLinkDb`, `Jwt__SigningKey`, `Jwt__Issuer`, `Jwt__Audience`, `GoogleAuth__ClientId`, `Cors__AllowedOrigins__0` = production frontend origin, `ASPNETCORE_ENVIRONMENT=Production`.
 - [ ] CORS confirmed: production frontend can call the API; other origins are blocked.
 - [ ] First admin seeded and verified (`/api/v1/admin/auth/check` → 200 for admin, 403 for non-admin) — see `first-admin-setup.md`.
