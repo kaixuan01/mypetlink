@@ -8,11 +8,11 @@ Implementation status: the .NET 8 API lives in `apps/api/MyPetLink.Api`. As of 2
 
 Backend-connected and verified end to end against a local SQL Server database: Google-token auth foundation with rotating refresh tokens, owner profile, pets CRUD + lifecycle (Memorial/Archive/Restore with plan limits), care records, memories with public visibility gating, smart tag orders with manual payment proof metadata, admin operations (dashboard, orders with the full confirm → preparing → shipped → delivered flow and linked tag sync, payment proof review, tag registry actions, tag inventory generation + CSV export, owners, pets, read-only settings, audit logs), public share/QR Safety/tag scan routes with safe no-contact states, and route guards for owner and admin surfaces.
 
-Before production deployment:
+Before production deployment (full plan in [`../deployment/production-deployment-plan.md`](../deployment/production-deployment-plan.md)):
 
-1. **Manual Google popup login check** — every token flow behind the button is verified with real backend-issued sessions, but the interactive Google credential exchange still needs one manual click-through by the owner with the production OAuth client.
-2. **Production backend + database hosting** — the API currently runs only on LocalDB/dev settings; production needs hosted SQL Server, environment configuration (JWT signing key, Google client id, CORS origins), and a deployment target for the API.
-3. **Production admin seeding** — promote the operations account via the documented `AdminUsers` insert.
+1. **Manual Google popup login check** — every token flow behind the button is verified with real backend-issued sessions, but the interactive Google credential exchange still needs one manual click-through by the owner with the production OAuth client. See [`../deployment/google-oauth-setup.md`](../deployment/google-oauth-setup.md).
+2. **Production backend + database hosting** — the API currently runs only on LocalDB/dev settings; production needs hosted SQL Server, environment configuration (JWT signing key, Google client id, CORS origins), and a deployment target for the API. Recommended: Azure App Service + Azure SQL Database. See [`../deployment/environment-variables.md`](../deployment/environment-variables.md).
+3. **Production admin seeding** — promote the operations account via the documented `AdminUsers` insert. See [`../deployment/first-admin-setup.md`](../deployment/first-admin-setup.md).
 
 Known non-blocking follow-ups: admin pages load up to 100 rows per collection and filter client-side (server-side pagination later); the admin payment-proofs page derives its queue from order data rather than the dedicated `/admin/payment-proofs` endpoint (functionally consistent); payment proofs are metadata only until file storage exists; admin settings are read-only; printed/reseller batch tracking stays disabled; admin pet lifecycle actions remain owner-only.
 
