@@ -9,10 +9,12 @@ namespace MyPetLink.Api.Services;
 public sealed class SmartTagService : SkeletonService, ISmartTagService
 {
     private readonly MyPetLinkDbContext _dbContext;
+    private readonly IAuditLogService _auditLogService;
 
-    public SmartTagService(MyPetLinkDbContext dbContext)
+    public SmartTagService(MyPetLinkDbContext dbContext, IAuditLogService auditLogService)
     {
         _dbContext = dbContext;
+        _auditLogService = auditLogService;
     }
 
     public async Task<(IReadOnlyCollection<SmartTagResponse> Items, int Total)> ListAsync(
@@ -92,13 +94,6 @@ public sealed class SmartTagService : SkeletonService, ISmartTagService
             throw NotFound("Tag was not found.");
         }
 
-        var pet = await LoadOwnedPetAsync(userId, request.PetId, cancellationToken);
-
-        if (pet.LifecycleStatus != PetLifecycleStatus.Active || pet.ArchivedAt.HasValue)
-        {
-            throw InvalidState("Tags can only be activated for active pet profiles.");
-        }
-
         var tag = await _dbContext.SmartTags
             .Include(item => item.Pet)
             .Include(item => item.Order)
@@ -112,28 +107,85 @@ public sealed class SmartTagService : SkeletonService, ISmartTagService
             throw NotFound("Tag was not found.");
         }
 
-        if (tag.OwnerUserId.HasValue && tag.OwnerUserId.Value != userId)
+        var now = DateTimeOffset.UtcNow;
+
+        if (!tag.OwnerUserId.HasValue && !tag.PetId.HasValue && !tag.OrderId.HasValue)
+        {
+            if (!request.PetId.HasValue || request.PetId.Value == Guid.Empty)
+            {
+                throw ValidationFailed("petId", "Choose a pet for this tag.");
+            }
+
+            var pet = await LoadOwnedPetAsync(userId, request.PetId.Value, cancellationToken);
+
+            if (pet.LifecycleStatus != PetLifecycleStatus.Active || pet.ArchivedAt.HasValue)
+            {
+                throw InvalidState("Tags can only be activated for active pet profiles.");
+            }
+
+            if (tag.ArchivedAt.HasValue || tag.Status != SmartTagStatus.Unclaimed)
+            {
+                throw InvalidState("This tag cannot be activated yet.");
+            }
+
+            tag.OwnerUserId = userId;
+            tag.PetId = pet.Id;
+            tag.Pet = pet;
+            tag.Status = SmartTagStatus.Active;
+            tag.ActivatedAt ??= now;
+
+            _auditLogService.Append(
+                userId, ActorType.Owner, "tag.activate-retail", "SmartTag", tag.Id,
+                null, TagStateSnapshot(tag, "Retail activation"));
+
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            return TagDtoMapper.ToSmartTagResponse(tag);
+        }
+
+        if (tag.OwnerUserId != userId)
         {
             throw NotFound("Tag was not found.");
         }
 
-        if (tag.PetId.HasValue && tag.PetId.Value != pet.Id)
+        if (!tag.PetId.HasValue || tag.Pet is null)
         {
-            throw InvalidState("This tag is already reserved for another pet profile.");
+            throw InvalidState("This assigned tag is missing its linked pet profile.");
+        }
+
+        if (tag.Pet.LifecycleStatus != PetLifecycleStatus.Active || tag.Pet.ArchivedAt.HasValue)
+        {
+            throw InvalidState("Tags can only be activated for active pet profiles.");
         }
 
         if (tag.ArchivedAt.HasValue
-            || (tag.Status != SmartTagStatus.Unclaimed && tag.Status != SmartTagStatus.Delivered))
+            || tag.Status is SmartTagStatus.Lost or SmartTagStatus.Disabled or SmartTagStatus.Replaced or SmartTagStatus.Archived)
         {
             throw InvalidState("This tag cannot be activated yet.");
         }
 
-        var now = DateTimeOffset.UtcNow;
-        tag.OwnerUserId = userId;
-        tag.PetId = pet.Id;
-        tag.Pet = pet;
+        if (tag.Status == SmartTagStatus.Active)
+        {
+            return TagDtoMapper.ToSmartTagResponse(tag);
+        }
+
+        if (tag.Status is not (SmartTagStatus.Pending or SmartTagStatus.Preparing or SmartTagStatus.Delivered))
+        {
+            throw InvalidState("This tag cannot be activated yet.");
+        }
+
         tag.Status = SmartTagStatus.Active;
         tag.ActivatedAt ??= now;
+
+        if (tag.Order is { Status: OrderStatus.Shipped } order)
+        {
+            order.Status = OrderStatus.Delivered;
+            order.DeliveredAt ??= now;
+            order.TrackingStatus = "Delivered and activated by owner.";
+        }
+
+        _auditLogService.Append(
+            userId, ActorType.Owner, "tag.activate-assigned", "SmartTag", tag.Id,
+            null, TagStateSnapshot(tag, "Assigned portal tag activation"));
 
         await _dbContext.SaveChangesAsync(cancellationToken);
         return TagDtoMapper.ToSmartTagResponse(tag);
@@ -146,9 +198,9 @@ public sealed class SmartTagService : SkeletonService, ISmartTagService
     {
         var tag = await LoadOwnedTagAsync(currentUserId, tagId, trackChanges: true, cancellationToken);
 
-        if (tag.Status != SmartTagStatus.Active && tag.Status != SmartTagStatus.Delivered)
+        if (tag.Status != SmartTagStatus.Active)
         {
-            throw InvalidState("Only active or delivered tags can be reported lost.");
+            throw InvalidState("Only active tags can be reported lost.");
         }
 
         tag.Status = SmartTagStatus.Lost;
@@ -164,9 +216,9 @@ public sealed class SmartTagService : SkeletonService, ISmartTagService
     {
         var tag = await LoadOwnedTagAsync(currentUserId, tagId, trackChanges: true, cancellationToken);
 
-        if (tag.Status != SmartTagStatus.Active && tag.Status != SmartTagStatus.Delivered)
+        if (tag.Status != SmartTagStatus.Active)
         {
-            throw InvalidState("Only active or delivered tags can be disabled by the owner.");
+            throw InvalidState("Only active tags can be disabled by the owner.");
         }
 
         tag.Status = SmartTagStatus.Disabled;
@@ -373,6 +425,20 @@ public sealed class SmartTagService : SkeletonService, ISmartTagService
     private static ApiException NotFound(string message)
     {
         return new ApiException(StatusCodes.Status404NotFound, "not_found", message);
+    }
+
+    private static object TagStateSnapshot(SmartTag tag, string? reason = null)
+    {
+        return new
+        {
+            status = tag.Status.ToString(),
+            ownerUserId = tag.OwnerUserId,
+            petId = tag.PetId,
+            orderId = tag.OrderId,
+            archived = tag.ArchivedAt.HasValue,
+            activatedAt = tag.ActivatedAt,
+            reason
+        };
     }
 
     private static ApiException Unauthorized()

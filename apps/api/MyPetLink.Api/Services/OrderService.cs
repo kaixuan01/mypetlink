@@ -147,39 +147,11 @@ public sealed class OrderService : SkeletonService, IOrderService
         _dbContext.TagOrders.Add(order);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        var tag = new SmartTag
-        {
-            TagCode = await GenerateTagCodeAsync(cancellationToken),
-            OwnerUserId = userId,
-            PetId = pet.Id,
-            Pet = pet,
-            OrderId = order.Id,
-            Order = order,
-            HasNfc = tagType == TagType.QrNfcSmartTag,
-            Shape = order.Shape,
-            Status = SmartTagStatus.Pending,
-            ReplacementForTagId = replacementForTag?.Id,
-            ReplacementForTag = replacementForTag
-        };
-
-        _dbContext.SmartTags.Add(tag);
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
-        order.SmartTagId = tag.Id;
-        order.SmartTag = tag;
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
         var hydratedOrder = await LoadOwnedOrderByIdAsync(userId, order.Id, trackChanges: false, cancellationToken);
-        var hydratedTag = await _dbContext.SmartTags
-            .AsNoTracking()
-            .Include(item => item.Pet)
-            .Include(item => item.Order)
-            .Include(item => item.Batch)
-            .SingleAsync(item => item.Id == tag.Id, cancellationToken);
 
         return new CreateTagOrderResponse(
             TagDtoMapper.ToOrderResponse(hydratedOrder),
-            TagDtoMapper.ToSmartTagResponse(hydratedTag));
+            null);
     }
 
     public async Task<TagOrderResponse> SubmitPaymentProofAsync(
@@ -468,39 +440,6 @@ public sealed class OrderService : SkeletonService, IOrderService
             StatusCodes.Status500InternalServerError,
             "order_number_generation_failed",
             "Could not generate an order number. Please try again.");
-    }
-
-    private async Task<string> GenerateTagCodeAsync(CancellationToken cancellationToken)
-    {
-        for (var attempt = 0; attempt < 12; attempt++)
-        {
-            var code = $"MPL-{RandomToken(4)}-{RandomToken(4)}";
-            var exists = await _dbContext.SmartTags.AnyAsync(
-                tag => tag.TagCode == code,
-                cancellationToken);
-
-            if (!exists)
-            {
-                return code;
-            }
-        }
-
-        throw new ApiException(
-            StatusCodes.Status500InternalServerError,
-            "tag_code_generation_failed",
-            "Could not generate a tag code. Please try again.");
-    }
-
-    private static string RandomToken(int length)
-    {
-        const string alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-        return string.Create(length, alphabet, static (span, chars) =>
-        {
-            for (var index = 0; index < span.Length; index++)
-            {
-                span[index] = chars[RandomNumberGenerator.GetInt32(chars.Length)];
-            }
-        });
     }
 
     private static decimal GetAmount(TagType tagType)

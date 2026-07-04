@@ -855,13 +855,14 @@ Errors:
 
 ### POST `/api/v1/tags/{tagCode}/activate`
 
-Purpose: activate retail/unclaimed or delivered tag to selected pet.
+Purpose: activate a retail/unclaimed tag to a selected pet, or activate an assigned portal-purchased tag for its order-selected pet.
 
 Auth: owner.
 
 Request:
 
-- `petId`
+- Retail/unclaimed tag: `petId` is required.
+- Assigned portal tag: omit `petId`; the tag's linked order/pet is authoritative.
 
 Response:
 
@@ -869,10 +870,10 @@ Response:
 
 Validation:
 
-- tag exists and is `Unclaimed` or `Delivered`.
-- selected pet belongs to owner and is Active.
-- active tag cannot be claimed by another owner.
-- delivered portal tags already reserved to a pet cannot be activated for a different pet.
+- retail tag exists, is `Unclaimed`, and has no owner, pet, or order.
+- selected retail pet belongs to owner and is Active.
+- assigned portal tag belongs to the current owner, has a linked Active pet, and is `Pending`, `Preparing`, or `Delivered`.
+- assigned portal tags cannot be activated for a different pet.
 
 Errors:
 
@@ -888,7 +889,7 @@ Auth: owner.
 Rules:
 
 - Sets tag status to `Lost`.
-- Current owner action is limited to `Active` or `Delivered` tags.
+- Current owner action is limited to `Active` tags.
 - Does not enable pet Lost Mode.
 - `/q/:safetyCode` remains unaffected.
 
@@ -900,7 +901,7 @@ Auth: owner.
 
 Rules:
 
-- Current owner action is limited to `Active` or `Delivered` tags.
+- Current owner action is limited to `Active` tags.
 - Disabled tags never expose owner contact on `/t/:tagCode`.
 
 ### POST `/api/v1/tags/{tagId}/replace`
@@ -1169,6 +1170,33 @@ Errors:
 
 - `400` invalid transition
 
+### POST `/api/v1/admin/orders/{orderId}/assign-tag`
+
+Purpose: assign an existing unclaimed inventory tag to a confirmed portal order.
+
+Request:
+
+- `tagId`: required inventory tag id
+
+Validation:
+
+- order must be `PaymentConfirmed`.
+- order must not already have a linked tag.
+- order pet must still be Active and not archived.
+- tag must be `Unclaimed`, unarchived, and have no owner, pet, or order.
+- tag type and shape must match the order.
+
+Transition:
+
+- tag becomes linked to order owner, order pet, and order.
+- tag `Unclaimed` -> `Preparing`.
+- order stores `smartTagId`.
+
+Rules:
+
+- assigned portal tags do not expose owner contact until owner activation.
+- owner activation does not ask for pet selection.
+
 ### POST `/api/v1/admin/orders/{orderId}/reject-payment-proof`
 
 Purpose: reject payment proof and request resubmission.
@@ -1206,7 +1234,7 @@ Transitions:
 
 Side effects:
 
-- preparing updates linked tag to `Preparing` when still pending-family.
+- preparing requires an assigned tag and keeps it `Preparing`.
 - delivered updates linked tag to `Delivered`.
 
 Errors:
@@ -1344,6 +1372,7 @@ Valid transitions:
 - `PaymentProofSubmitted` -> `PaymentConfirmed`: admin confirms proof.
 - `PaymentProofSubmitted` -> `PendingPayment`: admin rejects proof and requests resubmission.
 - `PaymentConfirmed` -> `PreparingTag`: admin starts fulfillment.
+- `PaymentConfirmed` order must receive an assigned inventory tag before fulfillment starts.
 - `PreparingTag` -> `Shipped`: admin marks shipped.
 - `Shipped` -> `Delivered`: admin marks delivered.
 - `PendingPayment`, `PaymentProofSubmitted`, `PaymentConfirmed`, `PreparingTag` -> `Cancelled`: owner/admin cancellation before shipping.
@@ -1368,7 +1397,7 @@ Valid transitions:
 Valid transitions:
 
 - Retail: `Unclaimed` -> `Active`
-- Portal order: `Pending` -> `Preparing` -> `Delivered` -> `Active`
+- Portal order: `Unclaimed` inventory -> `Preparing` when assigned to confirmed order -> `Delivered` -> `Active`
 - `Active` -> `Lost`
 - `Active` -> `Disabled`
 - `Active` -> `Replaced`

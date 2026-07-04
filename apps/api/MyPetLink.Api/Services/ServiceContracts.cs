@@ -309,6 +309,12 @@ public interface IAdminService : ISkeletonService
         string? reason,
         CancellationToken cancellationToken = default);
 
+    Task<AdminTagOrderResponse> AssignInventoryTagAsync(
+        Guid? currentUserId,
+        Guid orderId,
+        Guid tagId,
+        CancellationToken cancellationToken = default);
+
     Task<AdminTagOrderResponse> MarkOrderPreparingAsync(
         Guid? currentUserId,
         Guid orderId,

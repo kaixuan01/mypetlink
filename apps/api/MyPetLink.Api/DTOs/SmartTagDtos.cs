@@ -2,7 +2,7 @@ using MyPetLink.Api.Entities;
 
 namespace MyPetLink.Api.DTOs;
 
-public sealed record ActivateTagRequest(Guid PetId);
+public sealed record ActivateTagRequest(Guid? PetId);
 
 public sealed record SmartTagResponse(
     Guid Id,

@@ -86,6 +86,21 @@ public sealed class AdminOrdersController : ApiControllerBase
         return Ok(ApiEnvelope.Ok(response, HttpContext));
     }
 
+    [HttpPost("{orderId:guid}/assign-tag")]
+    public async Task<IActionResult> AssignTag(
+        Guid orderId,
+        [FromBody] AssignInventoryTagRequest request,
+        CancellationToken cancellationToken)
+    {
+        var response = await _adminService.AssignInventoryTagAsync(
+            _currentUserService.Current.UserId,
+            orderId,
+            request.TagId ?? Guid.Empty,
+            cancellationToken);
+
+        return Ok(ApiEnvelope.Ok(response, HttpContext));
+    }
+
     [HttpPost("{orderId:guid}/mark-preparing")]
     public async Task<IActionResult> MarkPreparing(Guid orderId, CancellationToken cancellationToken)
     {

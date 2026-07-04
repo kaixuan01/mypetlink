@@ -232,6 +232,87 @@ public sealed class AdminService : SkeletonService, IAdminService
         return ToAdminOrderResponse(order);
     }
 
+    public async Task<AdminTagOrderResponse> AssignInventoryTagAsync(
+        Guid? currentUserId,
+        Guid orderId,
+        Guid tagId,
+        CancellationToken cancellationToken = default)
+    {
+        if (tagId == Guid.Empty)
+        {
+            throw ValidationFailed("tagId", "Choose an inventory tag to assign.");
+        }
+
+        var admin = await RequireAdminAsync(currentUserId, cancellationToken);
+        var order = await LoadOrderAsync(orderId, trackChanges: true, cancellationToken);
+
+        if (order.Status != OrderStatus.PaymentConfirmed)
+        {
+            throw InvalidState("Inventory tags can only be assigned after payment is confirmed.");
+        }
+
+        if (order.SmartTagId.HasValue || order.SmartTag is not null)
+        {
+            throw InvalidState("This order already has an assigned inventory tag.");
+        }
+
+        if (order.Pet.LifecycleStatus is not PetLifecycleStatus.Active || order.Pet.ArchivedAt.HasValue)
+        {
+            throw InvalidState("Inventory tags can only be assigned to active pet profiles.");
+        }
+
+        var tag = await LoadTagAsync(tagId, trackChanges: true, cancellationToken);
+
+        if (tag.Status != SmartTagStatus.Unclaimed
+            || tag.ArchivedAt.HasValue
+            || tag.OwnerUserId.HasValue
+            || tag.PetId.HasValue
+            || tag.OrderId.HasValue)
+        {
+            throw InvalidState("Only unclaimed inventory tags can be assigned to an order.");
+        }
+
+        var orderHasNfc = order.TagType == TagType.QrNfcSmartTag;
+        if (tag.HasNfc != orderHasNfc)
+        {
+            throw ValidationFailed("tagId", "Choose an inventory tag with the same tag type as the order.");
+        }
+
+        if (!tag.Shape.Equals(order.Shape, StringComparison.OrdinalIgnoreCase))
+        {
+            throw ValidationFailed("tagId", "Choose an inventory tag with the same shape as the order.");
+        }
+
+        var oldOrderState = OrderStateSnapshot(order);
+        var oldTagState = TagStateSnapshot(tag);
+        var now = DateTimeOffset.UtcNow;
+
+        tag.OwnerUserId = order.OwnerUserId;
+        tag.OwnerUser = order.OwnerUser;
+        tag.PetId = order.PetId;
+        tag.Pet = order.Pet;
+        tag.OrderId = order.Id;
+        tag.Order = order;
+        tag.ReplacementForTagId = order.ReplacementForTagId;
+        tag.Status = SmartTagStatus.Preparing;
+        tag.UpdatedAt = now;
+
+        order.SmartTagId = tag.Id;
+        order.SmartTag = tag;
+        order.TrackingStatus = "Inventory tag assigned. Tag preparation is next.";
+        order.UpdatedAt = now;
+
+        _auditLogService.Append(
+            admin.Id, ActorType.Admin, "order.assign-inventory-tag", "TagOrder", order.Id,
+            oldOrderState, OrderStateSnapshot(order));
+        _auditLogService.Append(
+            admin.Id, ActorType.Admin, "tag.assign-to-order", "SmartTag", tag.Id,
+            oldTagState, TagStateSnapshot(tag, "Assigned to portal order"));
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return ToAdminOrderResponse(order);
+    }
+
     public async Task<AdminTagOrderResponse> MarkOrderPreparingAsync(
         Guid? currentUserId,
         Guid orderId,
@@ -246,9 +327,10 @@ public sealed class AdminService : SkeletonService, IAdminService
         }
 
         var oldState = OrderStateSnapshot(order);
+        var tag = RequireAssignedOrderTag(order, "start preparation");
         order.Status = OrderStatus.PreparingTag;
         order.TrackingStatus = "Tag is being prepared.";
-        SyncPendingFamilyTag(order, SmartTagStatus.Preparing);
+        tag.Status = SmartTagStatus.Preparing;
 
         _auditLogService.Append(
             admin.Id, ActorType.Admin, "order.mark-preparing", "TagOrder", order.Id,
@@ -280,6 +362,7 @@ public sealed class AdminService : SkeletonService, IAdminService
         order.TrackingStatus = string.IsNullOrWhiteSpace(order.City)
             ? "Tag is on the way."
             : $"On the way to {order.City}.";
+        RequireAssignedOrderTag(order, "ship");
 
         _auditLogService.Append(
             admin.Id, ActorType.Admin, "order.mark-shipped", "TagOrder", order.Id,
@@ -310,13 +393,10 @@ public sealed class AdminService : SkeletonService, IAdminService
             ? "Delivered."
             : $"Delivered to {order.City}.";
 
-        // The tag becomes Delivered and waits for the owner to activate it;
-        // activation stays an owner action by product rule.
-        var tag = SyncPendingFamilyTag(order, SmartTagStatus.Delivered);
-        if (tag is not null)
-        {
-            tag.DeliveredAt ??= now;
-        }
+        var tag = RequireAssignedOrderTag(order, "mark delivered");
+        tag.Status = SmartTagStatus.Delivered;
+        tag.DeliveredAt ??= now;
+        tag.UpdatedAt = now;
 
         _auditLogService.Append(
             admin.Id, ActorType.Admin, "order.mark-delivered", "TagOrder", order.Id,
@@ -1077,18 +1157,20 @@ public sealed class AdminService : SkeletonService, IAdminService
         return orderId ?? throw NotFound("Payment proof was not found.");
     }
 
-    private SmartTag? SyncPendingFamilyTag(TagOrder order, SmartTagStatus nextStatus)
+    private static SmartTag RequireAssignedOrderTag(TagOrder order, string actionLabel)
     {
         var tag = order.SmartTag;
 
         if (tag is null
             || tag.ArchivedAt.HasValue
-            || tag.Status is not (SmartTagStatus.Pending or SmartTagStatus.Preparing or SmartTagStatus.Delivered))
+            || tag.OwnerUserId != order.OwnerUserId
+            || tag.PetId != order.PetId
+            || tag.OrderId != order.Id
+            || tag.Status is not (SmartTagStatus.Preparing or SmartTagStatus.Delivered or SmartTagStatus.Active))
         {
-            return null;
+            throw InvalidState($"Assign an inventory tag before you {actionLabel} this order.");
         }
 
-        tag.Status = nextStatus;
         return tag;
     }
 
@@ -1218,6 +1300,7 @@ public sealed class AdminService : SkeletonService, IAdminService
         {
             status = order.Status.ToString(),
             paymentStatus = order.PaymentStatus.ToString(),
+            smartTagId = order.SmartTagId,
             trackingStatus = order.TrackingStatus,
             trackingNumber = order.TrackingNumber
         };
@@ -1228,6 +1311,9 @@ public sealed class AdminService : SkeletonService, IAdminService
         return new
         {
             status = tag.Status.ToString(),
+            ownerUserId = tag.OwnerUserId,
+            petId = tag.PetId,
+            orderId = tag.OrderId,
             archived = tag.ArchivedAt.HasValue,
             reason
         };

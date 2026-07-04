@@ -184,7 +184,7 @@ POST /api/v1/orders/{orderNumber-or-id}/cancel
 GET /api/v1/payment-proofs/{paymentProofId}
 ```
 
-Owner tag orders require an active owned pet. The server calculates amounts (`QrPetTag` RM19.90, `QrNfcSmartTag` RM39.90), creates a linked `SmartTags` row in `Pending` status, and sets the order to `PendingPayment`. Payment proof submission stores metadata only (`fileName`, payment reference/method, owner note, and metadata-only `MediaFiles`/`PaymentProofs` rows); real file upload/storage, payment gateway integration, admin payment confirmation, shipping integration, and admin order/tag APIs are not implemented yet. Public `/api/v1/public/tags/{tagCode}` returns safety content only for active tags linked to active pets; pending, lost, disabled, replaced, archived, Memorial-linked, and Archived-linked tags never expose owner contact.
+Owner tag orders require an active owned pet. The server calculates amounts (`QrPetTag` RM19.90, `QrNfcSmartTag` RM39.90), creates the order in `PendingPayment`, and does not expose a physical tag code until an admin assigns an existing unclaimed inventory tag after payment confirmation. Payment proof submission stores metadata only (`fileName`, payment reference/method, owner note, and metadata-only `MediaFiles`/`PaymentProofs` rows); real file upload/storage, payment gateway integration, and shipping provider integration are not implemented yet. Public `/api/v1/public/tags/{tagCode}` returns safety content only for active tags linked to active pets; pending/preparing/delivered, lost, disabled, replaced, archived, Memorial-linked, and Archived-linked tags never expose owner contact.
 
 Pet creation generates a public share slug/code and a separate pet-level QR Safety code. The QR Safety Page does not require a physical tag. Free plan creation is limited by the configured `PlanLimits.MaxPets` active-pet count; existing pets remain readable even if the owner is over the limit.
 
@@ -204,6 +204,7 @@ GET  /api/v1/admin/orders
 GET  /api/v1/admin/orders/{orderId}
 POST /api/v1/admin/orders/{orderId}/confirm-payment
 POST /api/v1/admin/orders/{orderId}/reject-payment-proof
+POST /api/v1/admin/orders/{orderId}/assign-tag
 POST /api/v1/admin/orders/{orderId}/mark-preparing
 POST /api/v1/admin/orders/{orderId}/mark-shipped
 POST /api/v1/admin/orders/{orderId}/mark-delivered
@@ -227,7 +228,7 @@ GET  /api/v1/admin/settings                       (read-only in Phase 1)
 GET  /api/v1/admin/audit-logs
 ```
 
-Order transitions follow the documented matrix: confirm/reject require a submitted proof with a pending review; preparing requires confirmed payment; shipped requires preparing; delivered requires shipped; cancel is blocked once shipped. Preparing/delivered keep the linked pending-family tag in sync, and delivered tags wait for owner activation. Rejecting a proof returns the order to `PendingPayment` with a friendly reason and keeps the proof history.
+Order transitions follow the documented matrix: confirm/reject require a submitted proof with a pending review; assigning inventory requires confirmed payment and an unclaimed matching tag; preparing requires a confirmed order with an assigned tag; shipped requires preparing; delivered requires shipped; cancel is blocked once shipped. Assigned tags remain no-contact until the owner activates the physical tag by scanning or tapping it. Rejecting a proof returns the order to `PendingPayment` with a friendly reason and keeps the proof history.
 
 ### Local dev admin setup
 

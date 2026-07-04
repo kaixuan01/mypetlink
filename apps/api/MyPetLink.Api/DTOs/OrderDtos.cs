@@ -79,7 +79,7 @@ public sealed record OrderTimelineEventResponse(
 
 public sealed record CreateTagOrderResponse(
     TagOrderResponse Order,
-    SmartTagResponse Tag);
+    SmartTagResponse? Tag);
 
 public sealed record UploadPaymentProofRequest(
     Guid? MediaFileId,

@@ -361,10 +361,6 @@ function formatToday() {
   }).format(new Date());
 }
 
-function isNfcTag(tagType: TagType) {
-  return tagType === "MyPetLink QR + NFC Smart Tag";
-}
-
 export function getEstimatedTagPrice(tagType: TagType) {
   return tagType === "MyPetLink QR + NFC Smart Tag" ? "RM39.90" : "RM19.90";
 }
@@ -522,29 +518,16 @@ export async function createTagOrder(payload: TagOrderPayload) {
 
     const mapped = {
       order: mapBackendOrder(response.data.order),
-      tag: mapBackendTag(response.data.tag),
+      tag: response.data.tag ? mapBackendTag(response.data.tag) : null,
     };
 
     return apiResponse({ data: mapped, meta: response.meta }, mapped);
   }
 
   await mockDelay();
-  const tags = getTagCollection();
   const orders = getOrderCollection();
-  const tagId = `tag_${Date.now()}`;
   const orderId = `order_${Date.now()}`;
   const orderedDate = formatToday();
-  const tag: PetTag = {
-    id: tagId,
-    tagCode: generateTagCode(),
-    petId: payload.petId,
-    hasNfc: isNfcTag(payload.tagType),
-    shape: payload.shape,
-    status: "Pending",
-    orderedDate,
-    replacementForTagId: payload.replacementForTagId,
-    isArchived: false,
-  };
   const order: TagOrder = {
     id: orderId,
     orderNumber: formatOrderNumber({ id: orderId }),
@@ -555,25 +538,13 @@ export async function createTagOrder(payload: TagOrderPayload) {
     estimatedPrice: getEstimatedTagPrice(payload.tagType),
     status: "Pending Payment",
     orderedDate,
-    tagId,
     replacementForTagId: payload.replacementForTagId,
     paymentMethod: "QR Payment",
   };
-  const nextTags = payload.replacementForTagId
-    ? [
-        tag,
-        ...tags.map((item) =>
-          item.id === payload.replacementForTagId
-            ? { ...item, status: "Replaced" as TagStatus }
-            : item
-        ),
-      ]
-    : [tag, ...tags];
 
-  writeStoredCollection(TAG_STORAGE_KEY, nextTags);
   writeStoredCollection(ORDER_STORAGE_KEY, [order, ...orders]);
 
-  return mockResponse({ order, tag });
+  return mockResponse({ order, tag: null });
 }
 
 type SubmitPaymentInput = {
@@ -876,13 +847,13 @@ export async function getFinderState(tagCode: string): Promise<FinderResult> {
 
 // Binds an unassigned tag to a pet and marks it Active. The tag code never
 // changes during activation — only the pet binding and status do.
-export async function activateTag(tagCode: string, petId: string) {
+export async function activateTag(tagCode: string, petId?: string) {
   if (canUseOwnerTagApi()) {
     const response = await apiRequest<BackendSmartTag>(
       `/api/v1/tags/${encodeURIComponent(tagCode)}/activate`,
       {
         method: "POST",
-        body: { petId },
+        body: petId ? { petId } : {},
       }
     );
 
@@ -902,20 +873,33 @@ export async function activateTag(tagCode: string, petId: string) {
     (item) => item.tagCode.toLowerCase() === lookupTagCode.toLowerCase()
   );
 
-  if (!tag || !canActivateTagFromOwnerPortal(tag)) {
+  if (!tag) {
     return mockResponse<PetTag | null>(null);
   }
 
   const pets = await getPets();
-  const pet = pets.data.find((item) => item.id === petId);
+  const isRetailActivation = canActivateTagFromOwnerPortal(tag);
+  const linkedPetId = tag.petId || petId;
+  const pet = pets.data.find((item) => item.id === linkedPetId);
 
   if (!pet || !isActivePet(pet)) {
     return mockResponse<PetTag | null>(null);
   }
 
+  if (
+    !isRetailActivation &&
+    (!tag.petId ||
+      tag.status === "Active" ||
+      tag.isArchived ||
+      inactiveTagStatuses.includes(tag.status) ||
+      !["Pending", "Preparing", "Delivered"].includes(tag.status))
+  ) {
+    return mockResponse<PetTag | null>(null);
+  }
+
   const updatedTag: PetTag = {
     ...tag,
-    petId,
+    petId: linkedPetId,
     status: "Active",
     activatedAt: formatToday(),
   };
@@ -924,6 +908,20 @@ export async function activateTag(tagCode: string, petId: string) {
     TAG_STORAGE_KEY,
     tags.map((item) => (item.id === tag.id ? updatedTag : item))
   );
+
+  if (tag.petId) {
+    const orders = getOrderCollection();
+    const order = orders.find((item) => item.tagId === tag.id);
+
+    if (order?.status === "Shipped") {
+      writeOrder(orders, {
+        ...order,
+        status: "Delivered",
+        deliveredDate: formatToday(),
+        trackingStatus: "Delivered and activated by owner.",
+      });
+    }
+  }
 
   return mockResponse(updatedTag);
 }
@@ -1047,6 +1045,53 @@ export async function adminRejectOrderPayment(orderId: string, reason: string) {
   return mockResponse(updatedOrder);
 }
 
+export async function adminAssignInventoryTag(orderId: string, tagId: string) {
+  if (canUseOwnerTagApi()) {
+    return runAdminOrderAction(
+      `/api/v1/admin/orders/${encodeURIComponent(orderId)}/assign-tag`,
+      { tagId }
+    );
+  }
+
+  await mockDelay();
+  const orders = getOrderCollection();
+  const tags = getTagCollection();
+  const order = orders.find((item) => item.id === orderId);
+  const tag = tags.find((item) => item.id === tagId);
+
+  if (
+    !order ||
+    !tag ||
+    order.status !== "Payment Confirmed" ||
+    order.tagId ||
+    tag.status !== "Unassigned" ||
+    tag.petId ||
+    tag.isArchived ||
+    tag.hasNfc !== order.tagType.includes("NFC") ||
+    tag.shape !== order.shape
+  ) {
+    return mockResponse<TagOrder | null>(null);
+  }
+
+  const updatedTag: PetTag = {
+    ...tag,
+    petId: order.petId,
+    status: "Preparing",
+  };
+  const updatedOrder: TagOrder = {
+    ...order,
+    tagId: tag.id,
+    trackingStatus: "Inventory tag assigned. Tag preparation is next.",
+  };
+
+  writeStoredCollection(
+    TAG_STORAGE_KEY,
+    tags.map((item) => (item.id === tag.id ? updatedTag : item))
+  );
+  writeOrder(orders, updatedOrder);
+  return mockResponse(updatedOrder);
+}
+
 export async function adminMarkOrderPreparing(orderId: string) {
   if (canUseOwnerTagApi()) {
     return runAdminOrderAction(
@@ -1058,7 +1103,7 @@ export async function adminMarkOrderPreparing(orderId: string) {
   const orders = getOrderCollection();
   const order = orders.find((item) => item.id === orderId);
 
-  if (!order || order.status !== "Payment Confirmed") {
+  if (!order || order.status !== "Payment Confirmed" || !order.tagId) {
     return mockResponse<TagOrder | null>(null);
   }
 
@@ -1084,7 +1129,7 @@ export async function adminMarkOrderShipped(orderId: string) {
   const orders = getOrderCollection();
   const order = orders.find((item) => item.id === orderId);
 
-  if (!order || order.status !== "Preparing") {
+  if (!order || order.status !== "Preparing" || !order.tagId) {
     return mockResponse<TagOrder | null>(null);
   }
 
@@ -1110,7 +1155,7 @@ export async function adminMarkOrderDelivered(orderId: string) {
   const orders = getOrderCollection();
   const order = orders.find((item) => item.id === orderId);
 
-  if (!order || order.status !== "Shipped") {
+  if (!order || order.status !== "Shipped" || !order.tagId) {
     return mockResponse<TagOrder | null>(null);
   }
 

@@ -210,7 +210,32 @@ Owner portal shows:
 
 - payment confirmed
 - receipt available
-- tag preparation is next
+- physical tag assignment is next
+
+### Admin assigns inventory tag
+
+Trigger:
+
+- Admin calls `POST /api/v1/admin/orders/{orderId}/assign-tag`.
+
+Required current state:
+
+- order `PaymentConfirmed`
+- order has no linked tag yet
+- selected inventory tag is `Unclaimed`, unarchived, and has no owner, pet, or order
+- tag type and shape match the order
+
+Result:
+
+- inventory tag is linked to the order owner, selected pet, and order
+- tag moves to `Preparing`
+- order stores the linked tag id
+- audit logs are written for the order and tag
+
+Owner portal shows:
+
+- physical tag assigned from inventory
+- tag is not active yet and does not expose owner contact
 
 ### Admin rejects proof
 
@@ -251,6 +276,7 @@ Trigger:
 Required current state:
 
 - order `PaymentConfirmed`
+- assigned inventory tag exists
 
 Result:
 
@@ -292,6 +318,7 @@ Trigger:
 Required current state:
 
 - order `Shipped`
+- assigned inventory tag exists
 
 Result:
 
@@ -313,14 +340,14 @@ Trigger:
 
 Required state:
 
-- tag `Delivered`
-- linked order `Delivered`
+- assigned portal tag is `Pending`, `Preparing`, or `Delivered`
 - pet belongs to owner and is Active
 
 Result:
 
 - tag `Active`
 - `ActivatedAt` recorded
+- if the linked order is still `Shipped`, the order may be marked `Delivered`
 - scan link `/t/:tagCode` opens pet QR Safety content
 - audit log written
 
@@ -375,7 +402,7 @@ Owner order list/detail should show:
 - a chronological status timeline including payment proof submitted, rejected (with reason), and resubmitted events, each with date and time
 - receipt only after payment confirmed
 - delivery tracking status
-- activation prompt when delivered tag is ready
+- activation prompt for the assigned physical tag when activation is available
 
 ## Admin Portal Reflection
 

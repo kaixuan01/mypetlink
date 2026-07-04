@@ -150,6 +150,7 @@ Endpoints:
 - `GET /api/v1/admin/orders/{orderId}`
 - `POST /api/v1/admin/orders/{orderId}/confirm-payment`
 - `POST /api/v1/admin/orders/{orderId}/reject-payment-proof`
+- `POST /api/v1/admin/orders/{orderId}/assign-tag`
 - `POST /api/v1/admin/orders/{orderId}/status`
 - `POST /api/v1/admin/orders/{orderId}/cancel`
 
@@ -157,6 +158,7 @@ Valid actions:
 
 - Confirm Payment: `PaymentProofSubmitted` -> `PaymentConfirmed`
 - Request Resubmission: `PaymentProofSubmitted` -> `PendingPayment`
+- Assign Inventory Tag: confirmed order receives an unclaimed matching tag
 - Mark Preparing: `PaymentConfirmed` -> `PreparingTag`
 - Mark Shipped: `PreparingTag` -> `Shipped`
 - Mark Delivered: `Shipped` -> `Delivered`
@@ -166,6 +168,7 @@ Side effects:
 
 - Confirm payment sets payment status to `Confirmed`.
 - Reject payment sets proof status to `Rejected`, payment status to `Rejected`, and order status to `PendingPayment`.
+- Assigning inventory links an unclaimed tag to the owner, pet, and order, then moves it to `Preparing`.
 - Preparing updates linked pending-family tag to `Preparing`.
 - Delivered updates linked pending-family tag to `Delivered`.
 - Cancel archives a linked tag that never became active.

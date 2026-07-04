@@ -21,7 +21,7 @@ import {
   orderNotFoundTitle,
   setPageTitle,
 } from "@/lib/pageTitles";
-import { ownerRoutes, tagPath } from "@/lib/routes";
+import { activatePath, ownerRoutes, tagPath } from "@/lib/routes";
 import { QrCodeCard } from "@/components/qr/QrCodeCard";
 import { isApiConfigured } from "@/services/apiConfig";
 import {
@@ -391,19 +391,29 @@ export function OrderDetailView({
                   {linkedTag.tagCode}
                 </p>
                 <p className="mt-2 text-xs font-bold leading-5 text-pet-muted">
-                  The physical tag QR becomes active once the tag is delivered
-                  and you activate it.
+                  Your tag has been assigned to {petName}. Scan or tap the tag
+                  when you receive it to activate. It will not show contact
+                  details before activation.
                 </p>
+                <CTAButton
+                  className="mt-3"
+                  href={activatePath(linkedTag.tagCode)}
+                  icon="tag"
+                  variant="secondary"
+                >
+                  Activate Tag
+                </CTAButton>
               </div>
             )
           ) : (
             <div className="mt-4 rounded-[1.25rem] bg-pet-cream p-4">
               <p className="text-sm font-bold leading-6 text-pet-ink">
-                Physical tag QR will appear after an inventory tag is assigned.
+                Your physical tag will be assigned after your payment is
+                confirmed.
               </p>
               <p className="mt-1 text-xs font-bold leading-5 text-pet-muted">
-                Tag code will be assigned after payment is confirmed and
-                prepared.
+                No tag code is shown until our team assigns inventory to this
+                order.
               </p>
             </div>
           )}

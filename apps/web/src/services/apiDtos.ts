@@ -375,7 +375,7 @@ export type BackendTagOrder = {
 
 export type BackendCreateTagOrderResult = {
   order: BackendTagOrder;
-  tag: BackendSmartTag;
+  tag?: BackendSmartTag | null;
 };
 
 export type BackendTagScanPage = {

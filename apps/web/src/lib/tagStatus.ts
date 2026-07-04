@@ -90,7 +90,7 @@ export function isPendingPhysicalTag(tag: PetTag, order?: TagOrder) {
 }
 
 export function canActivateTagFromOwnerPortal(tag: PetTag) {
-  return !tag.isArchived && (tag.status === "Unassigned" || tag.status === "Delivered");
+  return !tag.isArchived && tag.status === "Unassigned" && !tag.petId;
 }
 
 export function getTagDisplayStatus(
@@ -119,7 +119,7 @@ export function getTagDisplayStatus(
   }
 
   if (tag.status === "Delivered" && !tag.activatedAt) {
-    return "Delivered - activation pending";
+    return "Delivered - awaiting owner activation";
   }
 
   if (order && isPendingPhysicalTag(tag, order)) {
@@ -205,7 +205,7 @@ export function getTagAvailableActions(
     return ["activate-tag"];
   }
 
-  if (tag.status === "Delivered") {
+  if (tag.petId && pendingTagStatuses.includes(tag.status)) {
     return order ? ["activate-tag", "view-order"] : ["activate-tag"];
   }
 

@@ -95,23 +95,26 @@ Phase 1 keeps pending-family tag statuses because the completed frontend/Admin M
 2. Owner creates an order.
 3. Backend creates:
    - order `PendingPayment`
-   - tag `Pending`
-   - tag linked to `OwnerUserId`, `PetId`, and `OrderId`
+   - no physical tag record yet
 4. Owner submits payment proof.
-5. Admin confirms payment later (admin API planned).
-6. Admin marks order preparing later.
-7. Linked tag becomes `Preparing`.
+5. Admin confirms payment.
+6. Admin assigns an existing `Unclaimed` inventory tag to the order.
+7. Assigned tag is linked to `OwnerUserId`, `PetId`, and `OrderId`, then moves to `Preparing`.
 8. Admin marks order shipped later.
 9. Admin marks order delivered later.
 10. Linked tag becomes `Delivered`.
-11. Owner activates delivered tag.
-12. Tag becomes `Active`.
-13. `/t/:tagCode` opens the pet's QR Safety content.
+11. Owner scans or taps the physical tag.
+12. If signed in as the matching owner, the owner sees "Activate this tag for {petName}" with no pet selector.
+13. Owner activates the assigned tag.
+14. Tag becomes `Active`.
+15. `/t/:tagCode` opens the pet's QR Safety content.
 
 Rules:
 
-- Portal-purchased tags must have `PetId` from the order flow.
-- Portal-purchased tags are never unclaimed retail stock.
+- Portal-purchased orders must have `PetId` from the order flow.
+- Portal-purchased orders use unclaimed inventory only after admin payment confirmation.
+- Assigned portal tags must not expose owner contact until owner activation.
+- Assigned portal tags must not ask the owner to choose a pet during activation; the order-selected pet is authoritative.
 - Memorial and archived pets cannot receive new portal tag orders.
 
 ## Retail / Pet-Shop Tag Flow
@@ -244,7 +247,7 @@ Behavior:
 Valid transitions:
 
 - `Unclaimed` -> `Active`
-- `Pending` -> `Preparing`
+- portal inventory assignment: `Unclaimed` -> `Preparing` with owner, pet, and order binding
 - `Preparing` -> `Delivered`
 - `Delivered` -> `Active`
 - `Active` -> `Lost`
@@ -258,6 +261,7 @@ Valid transitions:
 Invalid transitions:
 
 - `Unclaimed` -> `Preparing`
+- `Unclaimed` -> `Preparing` without admin inventory assignment to a confirmed portal order
 - `Unclaimed` -> `Delivered`
 - `Unclaimed` -> `Active` without owner/pet binding
 - `Lost` -> `Active` without admin-supported recovery process
@@ -272,9 +276,10 @@ Owner can:
 
 - view tag list
 - view tag scan page/status
-- activate unclaimed or delivered tag
-- mark active or delivered tag lost
-- disable active or delivered tag
+- activate unclaimed retail tags by choosing a pet
+- activate assigned portal tags without choosing a pet
+- mark active tag lost
+- disable active tag
 - request replacement
 - archive inactive tag from main list
 - restore archived tag to list
@@ -285,7 +290,8 @@ Rules:
 - Owner must own linked tag or linked pet.
 - Marking tag lost affects only physical tag status.
 - Marking tag lost does not enable pet Lost Mode.
-- Portal order creation creates a pending linked tag immediately; owner cannot mark payment confirmed, preparing, shipped, or delivered.
+- Portal order creation does not create or expose a physical tag code; admin assigns inventory after payment confirmation.
+- Owner cannot mark payment confirmed, preparing, shipped, or delivered.
 - Owner replacement ordering stores `replacementForTagId`; final replacement-status mutation is part of the later admin/ops flow.
 
 ## Admin Actions

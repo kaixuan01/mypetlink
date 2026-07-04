@@ -659,7 +659,8 @@ export function TagOrderFlow({
                   <span className="font-black text-pet-teal">
                     {selectedPet?.qrSafetyPath ?? "/q/{safetyCode}"}
                   </span>
-                  . The physical tag scan link is assigned to the tag order.
+                  . The physical tag code appears after our team assigns a
+                  physical tag from inventory.
                 </p>
               </div>
             </div>

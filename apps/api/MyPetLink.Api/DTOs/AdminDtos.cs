@@ -50,6 +50,9 @@ public sealed record UpdateOrderStatusRequest(
 public sealed record MarkOrderShippedRequest(
     [MaxLength(120)] string? TrackingNumber);
 
+public sealed record AssignInventoryTagRequest(
+    [Required] Guid? TagId);
+
 public sealed record AdminSmartTagResponse(
     SmartTagResponse Tag,
     AdminOwnerRefResponse? Owner,

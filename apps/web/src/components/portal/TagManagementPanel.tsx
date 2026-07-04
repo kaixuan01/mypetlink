@@ -538,7 +538,9 @@ function TagCard({
               <p className="mt-1 text-sm font-bold text-pet-ink">
                 {tag.status === "Unassigned"
                   ? "Activate this reserved tag to turn on its scan page."
-                  : "Tag scan link will be available after activation."}
+                  : tag.petId
+                    ? "Waiting for owner activation. Scan or tap the physical tag when you receive it."
+                    : "Tag scan link will be available after activation."}
               </p>
             </div>
           ) : null}
@@ -578,8 +580,8 @@ function TagCard({
         </p>
       ) : isPending ? (
         <p className="mt-4 rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted">
-          Physical tag scan link is not active yet. Scan history appears after
-          activation.
+          This physical tag is linked but not active yet. It will not show owner
+          contact details until you activate it.
         </p>
       ) : null}
 

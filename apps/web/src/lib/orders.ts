@@ -140,6 +140,7 @@ export function getOrderNextStep(order: TagOrder) {
 export type AdminOrderAction =
   | "confirm-payment"
   | "reject-payment"
+  | "assign-tag"
   | "mark-preparing"
   | "mark-shipped"
   | "mark-delivered"
@@ -154,7 +155,7 @@ const cancellableOrderStatuses: OrderStatus[] = [
 ];
 
 export function getAdminOrderActions(
-  order: Pick<TagOrder, "status">
+  order: Pick<TagOrder, "status" | "tagId">
 ): AdminOrderAction[] {
   const actions: AdminOrderAction[] = [];
 
@@ -162,7 +163,11 @@ export function getAdminOrderActions(
     actions.push("confirm-payment", "reject-payment");
   }
 
-  if (order.status === "Payment Confirmed") {
+  if (order.status === "Payment Confirmed" && !order.tagId) {
+    actions.push("assign-tag");
+  }
+
+  if (order.status === "Payment Confirmed" && order.tagId) {
     actions.push("mark-preparing");
   }
 
