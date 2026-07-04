@@ -1,0 +1,62 @@
+name: MyPetLink CI
+
+# Builds and lints both apps on pull requests and on pushes to working
+# branches. No database, no secrets: the frontend build uses public
+# placeholder env values and the API job only restores + builds.
+on:
+  pull_request:
+  push:
+    branches:
+      - "feature/**"
+      - "docs/**"
+
+# Cancel superseded runs on the same ref to save minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Web (lint + build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint web
+        run: npm run lint:web
+
+      - name: Build web
+        # Public, non-secret placeholders. The frontend is a static export,
+        # so these only need to be present, not real. Never put a real
+        # Google client id, JWT key, or connection string here.
+        env:
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+          NEXT_PUBLIC_API_BASE_URL: http://localhost:5281
+          NEXT_PUBLIC_GOOGLE_CLIENT_ID: ci-placeholder.apps.googleusercontent.com
+        run: npm run build:web
+
+  api:
+    name: API (.NET 8 build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore
+        run: dotnet restore apps/api/MyPetLink.Api/MyPetLink.Api.csproj
+
+      - name: Build (Release)
+        run: dotnet build apps/api/MyPetLink.Api/MyPetLink.Api.csproj --configuration Release --no-restore
