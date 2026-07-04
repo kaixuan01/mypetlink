@@ -6,6 +6,9 @@ import { isApiClientError } from "@/services/apiClient";
 import { canUseApi } from "@/services/apiConfig";
 import { checkAdminAccess, isAdminAuthenticated } from "@/services/authService";
 
+// Development builds only; inlined by Next at build time.
+const isDevelopment = process.env.NODE_ENV === "development";
+
 type GuardState = "checking" | "ready" | "denied" | "error";
 
 export function AdminGuard({ children }: { children: React.ReactNode }) {
@@ -75,12 +78,18 @@ export function AdminGuard({ children }: { children: React.ReactNode }) {
   if (state === "error") {
     return (
       <GuardShell>
-        <h1 className="text-xl font-black text-slate-950">
-          We could not confirm your access
+        <p className="text-sm font-bold uppercase text-slate-400">Connection issue</p>
+        <h1 className="mt-2 text-xl font-black text-slate-950">
+          We couldn&rsquo;t confirm your access
         </h1>
         <p className="mt-2 text-sm leading-6 text-slate-500">
-          Please check that MyPetLink is reachable, then try again.
+          MyPetLink is having trouble connecting right now. Please try again in a moment.
         </p>
+        {isDevelopment ? (
+          <p className="mt-3 rounded-xl bg-slate-50 px-4 py-2 text-xs font-semibold leading-5 text-slate-500">
+            Developer hint: Check that the API and local database are running.
+          </p>
+        ) : null}
         <button
           className="mt-4 inline-flex min-h-11 items-center justify-center rounded-full border border-slate-950 bg-slate-950 px-5 text-sm font-extrabold text-white"
           onClick={() => window.location.reload()}

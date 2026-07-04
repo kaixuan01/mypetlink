@@ -236,4 +236,26 @@ app.MapGet("/health", (HttpContext context) =>
 app.MapGet("/api/v1/health", (HttpContext context) =>
     Results.Ok(ApiEnvelope.Ok(new { status = "ok", service = "MyPetLink.Api" }, context))).AllowAnonymous();
 
+// Readiness probe: verifies the database is reachable. Returns 200 when ready,
+// 503 when the database is unavailable. CanConnectAsync never throws, so a DB
+// outage yields a clean 503 rather than an exception.
+app.MapGet("/api/v1/health/ready", async (HttpContext context, MyPetLinkDbContext dbContext) =>
+{
+    var databaseReady = await dbContext.Database.CanConnectAsync(context.RequestAborted);
+
+    if (!databaseReady)
+    {
+        return Results.Json(
+            ApiEnvelope.Error(
+                context,
+                "service_unavailable",
+                "MyPetLink is having trouble connecting right now. Please try again in a moment."),
+            statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+
+    return Results.Ok(ApiEnvelope.Ok(
+        new { status = "ready", service = "MyPetLink.Api", database = "up" },
+        context));
+}).AllowAnonymous();
+
 app.Run();
