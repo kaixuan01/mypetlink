@@ -4,6 +4,7 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using MyPetLink.Api.Auth;
@@ -23,15 +24,24 @@ public sealed class AuthService : SkeletonService, IAuthService
     private readonly MyPetLinkDbContext _dbContext;
     private readonly IExternalAuthService _externalAuthService;
     private readonly JwtOptions _jwtOptions;
+    private readonly IHostEnvironment _environment;
+    private readonly HashSet<string> _devAdminEmails;
 
     public AuthService(
         MyPetLinkDbContext dbContext,
         IExternalAuthService externalAuthService,
-        IOptions<JwtOptions> jwtOptions)
+        IOptions<JwtOptions> jwtOptions,
+        IOptions<AdminSeedOptions> adminSeedOptions,
+        IHostEnvironment environment)
     {
         _dbContext = dbContext;
         _externalAuthService = externalAuthService;
         _jwtOptions = jwtOptions.Value;
+        _environment = environment;
+        _devAdminEmails = (adminSeedOptions.Value.Emails ?? [])
+            .Where(email => !string.IsNullOrWhiteSpace(email))
+            .Select(NormalizeEmail)
+            .ToHashSet();
     }
 
     public async Task<AuthTokenResponse> SignInWithGoogleAsync(
@@ -220,6 +230,7 @@ public sealed class AuthService : SkeletonService, IAuthService
         UpdateExternalLogin(externalLogin, externalUser);
 
         await EnsureOwnerProfileAsync(user, externalUser.DisplayName, cancellationToken);
+        await EnsureDevAdminAsync(user, normalizedEmail, cancellationToken);
 
         var refreshToken = CreateRefreshToken(user.Id, clientContext, now);
         _dbContext.RefreshTokens.Add(refreshToken.Entity);
@@ -353,6 +364,47 @@ public sealed class AuthService : SkeletonService, IAuthService
 
         user.OwnerProfile = ownerProfile;
         _dbContext.OwnerProfiles.Add(ownerProfile);
+    }
+
+    // Development-only convenience: promote a configured email to an active
+    // admin on login so /admin is reachable locally without a manual SQL step.
+    // Guarded by IsDevelopment(), so it can never run in production. Idempotent:
+    // an existing AdminUsers row is reactivated rather than duplicated.
+    private async Task EnsureDevAdminAsync(
+        User user,
+        string normalizedEmail,
+        CancellationToken cancellationToken)
+    {
+        if (!_environment.IsDevelopment()
+            || _devAdminEmails.Count == 0
+            || !_devAdminEmails.Contains(normalizedEmail))
+        {
+            return;
+        }
+
+        var adminUser = user.AdminUser
+            ?? await _dbContext.AdminUsers
+                .SingleOrDefaultAsync(admin => admin.UserId == user.Id, cancellationToken);
+
+        if (adminUser is null)
+        {
+            adminUser = new AdminUser
+            {
+                UserId = user.Id,
+                Role = AdminRole.SuperAdmin,
+                IsActive = true
+            };
+
+            _dbContext.AdminUsers.Add(adminUser);
+        }
+        else
+        {
+            adminUser.IsActive = true;
+            adminUser.DisabledAt = null;
+        }
+
+        // Attach so this same login's token/`/auth/me` reflect admin immediately.
+        user.AdminUser = adminUser;
     }
 
     private static void EnsureUserCanAuthenticate(User user)

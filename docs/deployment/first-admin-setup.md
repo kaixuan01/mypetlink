@@ -2,7 +2,9 @@
 
 MyPetLink admin access is **data-driven, not code-driven**. The admin policy (`ActiveAdminRequirement`) authorizes a request only when the signed-in user has an **active `AdminUsers` row** — never from a role claim or a hardcoded email. So the first admin is created by promoting a normal user account once, directly in the production database.
 
-No admin email appears anywhere in the codebase, and there is **no auto-running admin seed**. The `InitialCreate` migration seeds plans, plan limits, and app settings only — it does **not** create any `AdminUsers` row. Nothing admin-related runs automatically in production; the step below is deliberate and manual.
+No admin email is hardcoded in code, and there is **no auto-running admin seed in production**. The `InitialCreate` migration seeds plans, plan limits, and app settings only — it does **not** create any `AdminUsers` row. Nothing admin-related runs automatically in production; the step below is deliberate and manual.
+
+> **Local development only:** to make `/admin` reachable while testing, the API auto-promotes a configured email on Google login **when running in the Development environment**. The allowlist is `AdminSeed:Emails` in `appsettings.Development.json` (current value: `gbbsoftwaresolutions@gmail.com`). This is guarded by `IsDevelopment()` and does **not** run in production (production config has no `AdminSeed` section). It only reactivates or creates one idempotent `AdminUsers` row after the user has logged in with Google. **Production admins are still promoted manually with the steps below** — do not rely on the dev auto-admin for production.
 
 ## Steps
 

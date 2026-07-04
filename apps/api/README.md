@@ -95,6 +95,21 @@ Google login validates the Google ID token against `GoogleAuth:ClientId`, create
 
 Admin authorization uses the `AdminUsers` table. The admin policy checks that the authenticated user has an active `AdminUsers` record and an active `Users` row; it does not grant admin access from a role claim alone.
 
+### Local dev admin
+
+For local testing, `AdminSeed:Emails` (in `appsettings.Development.json`) is a **Development-only** allowlist. When the API runs in the Development environment and someone logs in with Google using a matching email, `AuthService` ensures they have an active `AdminUsers` row (role `SuperAdmin`) — so `/admin` works without a manual SQL step. Current local dev admin email:
+
+```txt
+gbbsoftwaresolutions@gmail.com
+```
+
+Rules:
+
+- Runs **only** in Development (`IsDevelopment()`), so it can never become a production auto-admin. Production `appsettings.json` has no `AdminSeed` section.
+- Idempotent: an existing `AdminUsers` row is reactivated, never duplicated.
+- The user must log in with Google **first** (to create their `Users` row); promotion happens on that login.
+- **Production admins are still seeded manually** — see [`../../docs/deployment/first-admin-setup.md`](../../docs/deployment/first-admin-setup.md) and [`../../docs/deployment/sql/first-admin-template.sql`](../../docs/deployment/sql/first-admin-template.sql). Do not rely on the dev auto-admin in production.
+
 ## Phase A2 Owner And Pet APIs
 
 Implemented owner endpoints:

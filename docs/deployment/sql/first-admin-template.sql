@@ -6,6 +6,13 @@
 -- request only when the signed-in user has an active AdminUsers row. No admin
 -- email is hardcoded in code, and no migration auto-creates an admin.
 --
+-- NOTE (local development only): when the API runs in the Development
+-- environment, a Google login with an email in AdminSeed:Emails
+-- (appsettings.Development.json, currently gbbsoftwaresolutions@gmail.com) is
+-- auto-promoted to admin, so this SQL is NOT needed locally for that email.
+-- This template is for PRODUCTION (and for promoting any other local account).
+-- The dev auto-admin never runs in production.
+--
 -- Order of operations:
 --   1. The intended operator logs in ONCE with Google on the target
 --      environment. This creates their Users row through the normal auth flow.
