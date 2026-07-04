@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
   AdminFilterTabs,
+  AdminNotice,
   AdminSection,
   AdminTable,
 } from "@/components/admin/AdminPanels";
@@ -82,10 +83,17 @@ export function AdminPetsManager({ initialData }: { initialData: AdminData }) {
   const visiblePets = data.pets.filter((pet) => matchesFilter(pet, filter));
 
   return (
-    <AdminSection
-      title="Pet profiles"
-      description="Lifecycle, Lost Mode, QR Safety, and smart tag status for every pet profile."
-    >
+    <div className="grid gap-4">
+      <AdminNotice>
+        Each pet has a pet-level QR Safety Page (/q) that works even without a
+        physical tag. Use the QR Safety column and the QR Safety Page action
+        below to review it. This is separate from physical Smart Tags —
+        physical tag inventory is managed under Smart Tags and Tag Inventory.
+      </AdminNotice>
+      <AdminSection
+        title="Pet profiles"
+        description="Lifecycle, Lost Mode, QR Safety, and smart tag status for every pet profile."
+      >
       <AdminFilterTabs
         active={filter}
         filters={filterDefs.map((def) => ({
@@ -202,7 +210,8 @@ export function AdminPetsManager({ initialData }: { initialData: AdminData }) {
           </AdminTable>
         )}
       </div>
-    </AdminSection>
+      </AdminSection>
+    </div>
   );
 }
 

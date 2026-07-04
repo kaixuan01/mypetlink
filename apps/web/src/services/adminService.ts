@@ -183,25 +183,6 @@ export async function getAdminUsers() {
   });
 }
 
-export async function getAdminQrProfiles() {
-  await mockDelay();
-  return mockResponse(
-    mockPets.map((pet) => ({
-      id: pet.id,
-      petName: pet.name,
-      slug: pet.slug,
-      status: pet.qrStatus,
-      url: pet.qrSafetyPath,
-      owner: pet.owner.name,
-    })),
-    {
-      page: 1,
-      pageSize: mockPets.length,
-      total: mockPets.length,
-    }
-  );
-}
-
 export async function getAdminPlans() {
   await mockDelay();
   return mockResponse(mockPlans, {

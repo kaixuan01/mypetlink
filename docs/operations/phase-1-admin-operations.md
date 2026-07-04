@@ -17,8 +17,9 @@ Current frontend pages:
 - `/admin/users`
 - `/admin/pets`
 - `/admin/settings`
-- `/admin/qr-profiles`
 - `/admin/plans`
+
+The former `/admin/qr-profiles` module was removed (see "Admin Pets" below); the route now redirects to `/admin/pets`.
 
 Current local services:
 
@@ -269,6 +270,16 @@ Rules:
 - Memorial is never active.
 - QR Safety enabled status should respect lifecycle.
 - Smart tag status should exclude inactive linked tags from active counts.
+
+### QR Safety Pages live in Admin Pets (QR Profiles module removed)
+
+Decision (2026-07-05): the old `/admin/qr-profiles` ("QR Profiles") module was removed rather than renamed. It was a build-time server page mapping ~2 hardcoded demo pets, so it never showed backend-created pets, and its columns (pet, slug, owner, /q URL, status) duplicated Admin Pets.
+
+Pet-level QR Safety Pages (`/q/:safetyCode`) are represented inside Admin Pets, which loads live backend data and already shows QR Safety status, lifecycle, Lost Mode, owner, the QR Safety Page (`/q`) link, and linked tags. A note on the Pets page clarifies that `/q` is pet-level and works without a physical tag, and that physical Smart Tags are managed under Smart Tags and Tag Inventory.
+
+- `/q/:safetyCode` (pet-level QR Safety) is distinct from `/t/:tagCode` (physical Smart Tag scan) and `/p/:petSlug` (public share profile).
+- `/q` does not depend on physical tag inventory.
+- The `/admin/qr-profiles` route is kept only as a client-side redirect to `/admin/pets` for existing bookmarks.
 
 ## Admin Settings
 

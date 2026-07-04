@@ -15,7 +15,6 @@ const adminNav: { href: string; label: string; icon: IconName }[] = [
   { href: "/admin/tag-inventory", label: "Tag Inventory", icon: "copy" },
   { href: "/admin/pets", label: "Pets", icon: "pets" },
   { href: "/admin/users", label: "Owners", icon: "users" },
-  { href: "/admin/qr-profiles", label: "QR Profiles", icon: "qr" },
   { href: "/admin/plans", label: "Plans", icon: "plans" },
   { href: "/admin/settings", label: "Settings", icon: "settings" },
 ];
