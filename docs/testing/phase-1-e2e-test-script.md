@@ -6,14 +6,51 @@ Manual + API regression script for the Phase 1 backend (`apps/api`) + frontend (
 
 - **Environment**: backend on `http://localhost:5281`, frontend on `http://localhost:3000`, local `MyPetLinkDev` (LocalDB). Do not commit the local DB or `.env.local`.
 - **Roles**: `Owner` (a signed-in owner), `Owner2` (a second owner for cross-owner checks), `Admin` (an owner promoted via `sql/first-admin-template.sql`), `Public` (anonymous).
-- **Tokens**: owner/admin bearer tokens come from completing the Google login in the browser and reading the stored session. There is **no** dev token-minting endpoint, so token-gated cases must be run through the browser (or with a captured bearer token via curl/Swagger).
+- **Tokens**: use the **Development-only test login** (see below) to mint owner/admin sessions without the Google popup. Real Google login still works and is unchanged; the test helper is disabled (returns `404`) outside Development.
+
+### Development-only test login
+
+`POST /api/v1/dev/test-login` issues the same JWT + refresh token response as Google login. It only works when `ASPNETCORE_ENVIRONMENT=Development`.
+
+```bash
+API=http://localhost:5281
+
+# Owner session (default role is Owner)
+curl -s -X POST "$API/api/v1/dev/test-login" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"owner.test@mypetlink.local","role":"Owner"}'
+
+# Admin session
+curl -s -X POST "$API/api/v1/dev/test-login" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin.test@mypetlink.local","role":"Admin"}'
+
+# Second owner for cross-owner tests
+curl -s -X POST "$API/api/v1/dev/test-login" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"other.owner@mypetlink.local","role":"Owner"}'
+```
+
+Copy the `accessToken` from the response and send it as a bearer token:
+
+```bash
+TOKEN=<accessToken from the response>
+curl -s -H "Authorization: Bearer $TOKEN" "$API/api/v1/auth/me"          # owner APIs
+curl -s -H "Authorization: Bearer $TOKEN" "$API/api/v1/admin/auth/check"  # admin only
+```
+
+- **Admin vs non-admin**: an `Admin` test login gets roles `["Owner","Admin"]` and `200` on `/admin/*`; an `Owner` test login gets `["Owner"]` and `403` on `/admin/*`.
+- **Cross-owner**: log in as `owner.test` and `other.owner`, then use one token against the other's order/pet/PDF ids to confirm `404`/blocked.
+- **Browser**: in development you can also open `/dev-login` and click a test user; it stores the session and redirects. This page shows "Not available" in production builds.
+- Emails are arbitrary local addresses; suggested: `owner.test@mypetlink.local`, `admin.test@mypetlink.local`, `other.owner@mypetlink.local`. Repeat logins with the same email reuse the same local user.
+- **Warning**: this endpoint/page is Development-only and must never be enabled or documented as a real login in production.
 - Each case has: **ID · Role · Preconditions · Steps · Expected · Actual · Status · Notes**. Record `Actual`/`Status` when you run it. Status legend: `PASS` (executed, passed), `FAIL`, `BLOCKED`, `PASS(CR)` (verified by code review because a live token/browser was unavailable), `NT` (not tested).
 - The companion run results live in [`phase-1-e2e-test-report.md`](phase-1-e2e-test-report.md).
 
 ## Test data setup
 
 1. Apply migrations: `dotnet ef database update` (from `apps/api/MyPetLink.Api`).
-2. First admin: run `docs/deployment/sql/first-admin-template.sql` against `MyPetLinkDev` after the admin owner has logged in once (promotes an existing user to an active `AdminUsers` row). No secrets in the repo.
+2. Admin account: the fastest local path is a `POST /api/v1/dev/test-login` with `"role":"Admin"` (creates/activates the `AdminUsers` row automatically in Development). For a production-like promotion instead, run `docs/deployment/sql/first-admin-template.sql` against `MyPetLinkDev` after the admin owner has logged in once. No secrets in the repo.
 3. Seed via the UI so data uses real server-generated codes:
    - Owner: create **3 active pets** (also exercises the Free plan limit), then take one pet through **Memorial** and another through **Archived**.
    - Admin: generate **unclaimed inventory** (a few QR and a few QR + NFC tags).

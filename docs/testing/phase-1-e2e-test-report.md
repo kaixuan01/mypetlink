@@ -16,7 +16,7 @@ Run of [`phase-1-e2e-test-script.md`](phase-1-e2e-test-script.md).
 - Backend: .NET SDK 9.0.313 building `net8.0`, running at `http://localhost:5281`.
 - Frontend: Next.js 16 (Node v22.13.1) dev server at `http://localhost:3000`.
 - Database: local `MyPetLinkDev` (LocalDB), migrations already applied.
-- Auth: Google login only; **no dev token-minting endpoint exists**, so owner/admin bearer tokens require an interactive browser login.
+- Auth: Google login plus a **Development-only test login** (`POST /api/v1/dev/test-login`, added after the initial run) that mints owner/admin sessions without the Google popup. Disabled (`404`) outside Development.
 
 ## 4. Checks run
 
@@ -94,8 +94,8 @@ Run of [`phase-1-e2e-test-script.md`](phase-1-e2e-test-script.md).
 
 ## 10. Non-blocking follow-ups
 
-1. **Add a dev-only token/login helper** (guarded to `Development`) so E2E and this script can run token-gated cases via curl/CI without a real Google popup. Would convert most "Not tested" cases to automatable.
-2. **Optional Playwright/API harness** to execute flows 1–8 end to end against a seeded DB.
+1. ~~Add a dev-only token/login helper~~ — **Done** (commit after this report). `POST /api/v1/dev/test-login` (Development-only) mints owner/admin sessions; verified live: owner token → owner APIs `200`; admin token → `/admin/*` `200`; non-admin token → `403`; invalid role → `400`; and in a true Production run the endpoint (and Swagger) return `404`. Token-gated cases can now be scripted via curl. See `phase-1-e2e-test-script.md`.
+2. **Optional Playwright/API harness** to execute flows 1–8 end to end against a seeded DB, now unblocked by the dev login helper.
 3. Consider a seeded demo dataset for `MyPetLinkDev` (active/memorial/archived pets, inventory, one live order) to speed manual runs; keep it out of production seeds.
 
 None of these are release blockers.

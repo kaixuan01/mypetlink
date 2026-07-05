@@ -21,6 +21,13 @@ public interface IAuthService : ISkeletonService
         AuthClientContext clientContext,
         CancellationToken cancellationToken = default);
 
+    // Development-only test login. Implementations must reject the call
+    // (404) when the host environment is not Development.
+    Task<AuthTokenResponse> SignInWithDevTestUserAsync(
+        DevTestLoginRequest request,
+        AuthClientContext clientContext,
+        CancellationToken cancellationToken = default);
+
     Task<TokenRefreshResponse> RefreshAsync(
         RefreshTokenRequest request,
         AuthClientContext clientContext,

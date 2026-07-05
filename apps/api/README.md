@@ -112,6 +112,38 @@ Rules:
 
 The **production** first admin is `gbbsoftwaresolutions@gmail.com`: it logs in once with Google, then is promoted **manually** via the first-admin SQL (no production auto-promote). A Cloudflare Email Routing address is not a Google Login account; if a Google Workspace/domain account is adopted later, promote that account instead.
 
+### Development-only test login (E2E helper)
+
+`POST /api/v1/dev/test-login` mints owner/admin sessions for local and CI-style E2E testing **without** the Google popup. It is **not** a real login method and must never be enabled or advertised in production.
+
+```bash
+API=http://localhost:5281
+
+# Owner session (default role is Owner)
+curl -s -X POST "$API/api/v1/dev/test-login" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"owner.test@mypetlink.local","role":"Owner"}'
+
+# Admin session (creates/activates an AdminUsers row for the test user)
+curl -s -X POST "$API/api/v1/dev/test-login" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin.test@mypetlink.local","role":"Admin"}'
+
+# Then use the accessToken as a bearer token:
+TOKEN=<accessToken>
+curl -s -H "Authorization: Bearer $TOKEN" "$API/api/v1/auth/me"
+curl -s -H "Authorization: Bearer $TOKEN" "$API/api/v1/admin/auth/check"   # Admin role only
+```
+
+Response shape is identical to `POST /api/v1/auth/google` (`accessToken`, `refreshToken`, `expiresIn`, `user`, `ownerProfile`). Test users behave exactly like real users afterward — requests still pass through normal JWT validation and authorization.
+
+Safety:
+
+- **Development only.** Both `DevAuthController` and `AuthService.SignInWithDevTestUserAsync` check `IsDevelopment()`; outside Development the endpoint returns `404` (verified against a Production run). No config switch can enable it in production.
+- Reuses the same token/user/owner-profile path as Google login, so it does not weaken or bypass real auth.
+- `role` must be `Owner` (default) or `Admin`; anything else is `400`. Use distinct emails (e.g. `owner.test@`, `admin.test@`, `other.owner@ mypetlink.local`) for owner/admin/cross-owner scenarios.
+- A matching `/dev-login` page exists in the frontend for browser testing; it renders "Not available" in production builds.
+
 ## Phase A2 Owner And Pet APIs
 
 Implemented owner endpoints:

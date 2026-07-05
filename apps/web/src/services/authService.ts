@@ -163,6 +163,28 @@ export async function loginWithGoogleIdToken(idToken: string) {
   return getOwnerSession();
 }
 
+// DEVELOPMENT-ONLY test login. Calls the Development-gated backend helper
+// (`/api/v1/dev/test-login`) and stores the returned session exactly like a
+// real Google login. Never used in production UI; the backend returns 404
+// outside Development.
+export async function loginWithDevTestUser(email: string, role: "Owner" | "Admin") {
+  const response = await apiRequest<BackendAuthTokenResponse>(
+    "/api/v1/dev/test-login",
+    {
+      method: "POST",
+      body: { email, role },
+      auth: false,
+    }
+  );
+
+  if (!response.data) {
+    throw new Error("Test login did not return a session.");
+  }
+
+  storeBackendSession(response.data);
+  return getOwnerSession();
+}
+
 export async function getCurrentOwnerSession() {
   const response = await apiRequest<BackendCurrentUser>("/api/v1/auth/me");
 

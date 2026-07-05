@@ -4,6 +4,11 @@ namespace MyPetLink.Api.DTOs;
 
 public sealed record GoogleLoginRequest([Required] string IdToken);
 
+// Development-only test login. `Role` is "Owner" (default) or "Admin".
+public sealed record DevTestLoginRequest(
+    [EmailAddress, MaxLength(160)] string? Email,
+    [MaxLength(16)] string? Role);
+
 public sealed record RefreshTokenRequest([Required] string RefreshToken);
 
 public sealed record LogoutRequest(string? RefreshToken);

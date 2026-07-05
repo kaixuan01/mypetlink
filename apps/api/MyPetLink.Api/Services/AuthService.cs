@@ -172,10 +172,61 @@ public sealed class AuthService : SkeletonService, IAuthService
         return new AdminAuthCheckResponse(BuildUserSummary(user), admin);
     }
 
+    // Development-only test login. Reuses the exact same external-user sign-in
+    // path (user/owner-profile creation, JWT + refresh token issuance) as real
+    // Google login, so it never weakens or bypasses production auth. It refuses
+    // to run outside Development. See DevAuthController for the HTTP guard.
+    public async Task<AuthTokenResponse> SignInWithDevTestUserAsync(
+        DevTestLoginRequest request,
+        AuthClientContext clientContext,
+        CancellationToken cancellationToken = default)
+    {
+        if (!_environment.IsDevelopment())
+        {
+            // Behaves as if the endpoint does not exist outside Development.
+            throw new ApiException(StatusCodes.Status404NotFound, "not_found", "Not found.");
+        }
+
+        var email = (request.Email ?? string.Empty).Trim();
+        if (email.Length == 0)
+        {
+            email = "owner.test@mypetlink.local";
+        }
+
+        if (!email.Contains('@', StringComparison.Ordinal))
+        {
+            throw ValidationFailed("email", "Provide a valid test email address.");
+        }
+
+        var role = (request.Role ?? "Owner").Trim();
+        var isAdmin = string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase);
+
+        if (!isAdmin && !string.Equals(role, "Owner", StringComparison.OrdinalIgnoreCase))
+        {
+            throw ValidationFailed("role", "Role must be 'Owner' or 'Admin'.");
+        }
+
+        // Deterministic subject id per email so repeat test logins reuse the
+        // same local user instead of creating duplicates.
+        var externalUser = new ExternalTokenUser(
+            ExternalLoginProviders.DevTest,
+            $"devtest:{NormalizeEmail(email)}",
+            email,
+            EmailVerified: true,
+            DisplayName: CleanDisplayName(null, email));
+
+        return await SignInWithExternalUserAsync(
+            externalUser,
+            clientContext,
+            cancellationToken,
+            ensureActiveAdmin: isAdmin);
+    }
+
     private async Task<AuthTokenResponse> SignInWithExternalUserAsync(
         ExternalTokenUser externalUser,
         AuthClientContext clientContext,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool ensureActiveAdmin = false)
     {
         var now = DateTimeOffset.UtcNow;
         var normalizedEmail = NormalizeEmail(externalUser.Email);
@@ -231,6 +282,11 @@ public sealed class AuthService : SkeletonService, IAuthService
 
         await EnsureOwnerProfileAsync(user, externalUser.DisplayName, cancellationToken);
         await EnsureDevAdminAsync(user, normalizedEmail, cancellationToken);
+
+        if (ensureActiveAdmin)
+        {
+            await EnsureActiveTestAdminAsync(user, cancellationToken);
+        }
 
         var refreshToken = CreateRefreshToken(user.Id, clientContext, now);
         _dbContext.RefreshTokens.Add(refreshToken.Entity);
@@ -404,6 +460,40 @@ public sealed class AuthService : SkeletonService, IAuthService
         }
 
         // Attach so this same login's token/`/auth/me` reflect admin immediately.
+        user.AdminUser = adminUser;
+    }
+
+    // Development-only: create or reactivate an AdminUsers row for a test admin
+    // login so the issued token includes the Admin role immediately. Guarded by
+    // IsDevelopment() as defense in depth (the only caller is already gated).
+    private async Task EnsureActiveTestAdminAsync(User user, CancellationToken cancellationToken)
+    {
+        if (!_environment.IsDevelopment())
+        {
+            return;
+        }
+
+        var adminUser = user.AdminUser
+            ?? await _dbContext.AdminUsers
+                .SingleOrDefaultAsync(admin => admin.UserId == user.Id, cancellationToken);
+
+        if (adminUser is null)
+        {
+            adminUser = new AdminUser
+            {
+                UserId = user.Id,
+                Role = AdminRole.Admin,
+                IsActive = true
+            };
+
+            _dbContext.AdminUsers.Add(adminUser);
+        }
+        else
+        {
+            adminUser.IsActive = true;
+            adminUser.DisabledAt = null;
+        }
+
         user.AdminUser = adminUser;
     }
 
