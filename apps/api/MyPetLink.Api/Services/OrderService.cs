@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using MyPetLink.Api.Common;
 using MyPetLink.Api.Data;
 using MyPetLink.Api.DTOs;
@@ -14,10 +15,12 @@ public sealed class OrderService : SkeletonService, IOrderService
     private const string Currency = "MYR";
 
     private readonly MyPetLinkDbContext _dbContext;
+    private readonly FeatureOptions _features;
 
-    public OrderService(MyPetLinkDbContext dbContext)
+    public OrderService(MyPetLinkDbContext dbContext, IOptions<FeatureOptions> features)
     {
         _dbContext = dbContext;
+        _features = features.Value;
     }
 
     public async Task<(IReadOnlyCollection<TagOrderResponse> Items, int Total)> ListAsync(
@@ -79,6 +82,11 @@ public sealed class OrderService : SkeletonService, IOrderService
         CreateTagOrderRequest request,
         CancellationToken cancellationToken = default)
     {
+        if (!_features.SmartTagOrderingEnabled)
+        {
+            throw FeatureDisabled();
+        }
+
         var userId = RequireUserId(currentUserId);
         await EnsureUserExistsAsync(userId, cancellationToken);
         ValidateCreateRequest(request);
@@ -528,6 +536,14 @@ public sealed class OrderService : SkeletonService, IOrderService
     private static ApiException InvalidState(string message)
     {
         return new ApiException(StatusCodes.Status422UnprocessableEntity, "invalid_order_state", message);
+    }
+
+    private static ApiException FeatureDisabled()
+    {
+        return new ApiException(
+            StatusCodes.Status403Forbidden,
+            "feature_disabled",
+            "Smart Tag ordering is not available yet. Your free QR Safety Page is still active.");
     }
 
     private static ApiException NotFound(string message)

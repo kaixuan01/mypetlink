@@ -122,7 +122,8 @@ public sealed record AdminFeatureFlagsResponse(
     string PremiumStatus,
     string GpsStatus,
     bool PaymentGatewayEnabled,
-    bool FileStorageEnabled);
+    bool FileStorageEnabled,
+    bool SmartTagOrderingEnabled);
 
 public sealed record AdminSettingsResponse(
     IReadOnlyCollection<AdminSettingItemResponse> Settings,

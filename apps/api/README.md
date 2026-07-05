@@ -34,6 +34,19 @@ Override with:
 ConnectionStrings__MyPetLinkDb
 ```
 
+## Feature flags
+
+Runtime toggles bound from the `Features` configuration section.
+
+| Key | Default | Effect |
+| --- | --- | --- |
+| `Features:SmartTagOrderingEnabled` | `false` (production-safe) | When `false`, `POST /api/v1/orders` is blocked with `403 feature_disabled`. All other tag/order/admin/`/t` behaviour is unchanged. |
+
+- The tracked `appsettings.json` ships `false` so the initial launch is **free pet profiles only** (physical Smart Tags not yet available from a manufacturer). `appsettings.Development.json` sets `true` so local dev/E2E can still exercise ordering.
+- Re-open ordering per-environment with `Features__SmartTagOrderingEnabled=true` (env var) once physical tags are ready. Nothing is deleted; ordering is future-ready.
+- The admin settings response (`GET /api/v1/admin/settings`) surfaces the current value as `features.smartTagOrderingEnabled`.
+- The frontend mirrors this with `NEXT_PUBLIC_SMART_TAG_ORDERING_ENABLED` (default off) to hide ordering CTAs.
+
 ## Commands
 
 Run from the repository root:

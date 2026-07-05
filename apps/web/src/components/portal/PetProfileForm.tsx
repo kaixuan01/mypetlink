@@ -40,6 +40,7 @@ import {
   PET_TYPE_OPTIONS,
 } from "@/lib/petDisplay";
 import { isActivePet, isArchivedPet, isMemorialPet } from "@/lib/petLifecycle";
+import { smartTagOrderingEnabled } from "@/lib/features";
 import { ownerRoutes, publicProfilePath } from "@/lib/routes";
 import {
   createPet,
@@ -556,7 +557,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
           >
             View QR Safety Page
           </CTAButton>
-          {isActivePet(createdPet) ? (
+          {isActivePet(createdPet) && smartTagOrderingEnabled ? (
             <CTAButton
               href={ownerRoutes.petTagOrder(createdPet.id)}
               icon="tag"

@@ -15,6 +15,7 @@ import {
   getOrderStatusDisplay,
   getPaymentStatusLabel,
 } from "@/lib/orders";
+import { smartTagOrderingEnabled } from "@/lib/features";
 import { ownerRoutes } from "@/lib/routes";
 import { isApiConfigured } from "@/services/apiConfig";
 import {
@@ -160,6 +161,18 @@ export function OrdersList({
   }
 
   if (!orders.length) {
+    if (!smartTagOrderingEnabled) {
+      return (
+        <EmptyState
+          icon="record"
+          title="No tag orders yet"
+          description="Smart Tag ordering is coming soon. Your pet's free QR Safety Page and Public Share Profile are already active — no order needed."
+          actionHref={ownerRoutes.pets}
+          actionLabel="Go to My Pets"
+        />
+      );
+    }
+
     const orderHref = portalPets[0]
       ? ownerRoutes.petTagOrder(portalPets[0].id)
       : ownerRoutes.petNew;

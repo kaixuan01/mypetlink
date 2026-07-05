@@ -13,6 +13,7 @@ import { Icon } from "@/components/ui/Icon";
 import { PetAvatar } from "@/components/ui/PetAvatar";
 import { getPetSummaryLabel } from "@/lib/petDisplay";
 import { isActivePet, isArchivedPet, isMemorialPet } from "@/lib/petLifecycle";
+import { smartTagOrderingEnabled } from "@/lib/features";
 import { ownerRoutes } from "@/lib/routes";
 import {
   getFriendlyApiErrorMessage,
@@ -42,7 +43,7 @@ const moreLinks = (pet: Pet) => {
     { label: "Smart tags", href: ownerRoutes.petTags(pet.id) },
   ];
 
-  if (isActivePet(pet)) {
+  if (isActivePet(pet) && smartTagOrderingEnabled) {
     links.push({ label: "Order tag", href: ownerRoutes.petTagOrder(pet.id) });
   }
 

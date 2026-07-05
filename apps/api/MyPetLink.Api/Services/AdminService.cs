@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using MyPetLink.Api.Common;
 using MyPetLink.Api.Data;
 using MyPetLink.Api.DTOs;
@@ -16,11 +17,16 @@ public sealed class AdminService : SkeletonService, IAdminService
 
     private readonly MyPetLinkDbContext _dbContext;
     private readonly IAuditLogService _auditLogService;
+    private readonly FeatureOptions _features;
 
-    public AdminService(MyPetLinkDbContext dbContext, IAuditLogService auditLogService)
+    public AdminService(
+        MyPetLinkDbContext dbContext,
+        IAuditLogService auditLogService,
+        IOptions<FeatureOptions> features)
     {
         _dbContext = dbContext;
         _auditLogService = auditLogService;
+        _features = features.Value;
     }
 
     // --- Dashboard ------------------------------------------------------------
@@ -1118,7 +1124,8 @@ public sealed class AdminService : SkeletonService, IAdminService
                 PremiumStatus: "Coming Soon",
                 GpsStatus: "Coming Later",
                 PaymentGatewayEnabled: false,
-                FileStorageEnabled: false));
+                FileStorageEnabled: false,
+                SmartTagOrderingEnabled: _features.SmartTagOrderingEnabled));
     }
 
     public async Task<(IReadOnlyCollection<AdminAuditLogResponse> Items, int Total)> ListAuditLogsAsync(
