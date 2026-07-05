@@ -4,85 +4,92 @@ Run of [`phase-1-e2e-test-script.md`](phase-1-e2e-test-script.md).
 
 ## 1. Date / time
 
-- 2026-07-05, ~03:16 (UTC+8, MYT).
+- **Authenticated regression run: 2026-07-05, ~15:20 (UTC+8, MYT).**
+- (Earlier read-only run: 2026-07-05, ~03:16.)
 
 ## 2. Branch and commit tested
 
 - Branch: `feature/connect-admin-apis`
-- Commit: `a28873f` (`fix: support tag reassignment and replacement`)
+- Commit: `5b42abe` (`fix: harden development test auth helper`), on top of `5683874` (tag variants) and `b261ea8` (dev auth helper).
 
-## 3. Environment
+## 3. Test accounts used
 
-- Backend: .NET SDK 9.0.313 building `net8.0`, running at `http://localhost:5281`.
-- Frontend: Next.js 16 (Node v22.13.1) dev server at `http://localhost:3000`.
-- Database: local `MyPetLinkDev` (LocalDB), migrations already applied.
-- Auth: Google login plus a **Development-only test login** (`POST /api/v1/dev/test-login`, added after the initial run) that mints owner/admin sessions without the Google popup. Disabled (`404`) outside Development.
+Minted via the Development-only `POST /api/v1/dev/test-login` (no Google popup). To keep runs idempotent under the Free-plan pet limit, the runner uses a unique per-run owner/second-owner email; the admin is fixed.
+
+- Owner: `owner.<ts>@mypetlink.local` (role Owner)
+- Second owner (cross-owner): `other.<ts>@mypetlink.local` (role Owner)
+- Admin: `admin.test@mypetlink.local` (role Admin — auto-creates an active `AdminUsers` row in Development)
 
 ## 4. Checks run
 
 | Check | Result |
 | --- | --- |
 | `dotnet build apps/api/MyPetLink.Api/MyPetLink.Api.csproj` | PASS — 0 warnings, 0 errors |
-| `dotnet ef database update` | PASS — database already up to date (no pending migrations) |
+| `dotnet ef database update` | PASS — database already up to date |
 | `npm run lint:web` | PASS — clean |
 | `npm run build:web` | PASS — static export succeeded |
-| Backend `GET /api/v1/health` | PASS — `{ status: ok, service: MyPetLink.Api }` |
-| Backend `GET /api/v1/health/ready` | PASS — `{ status: ready, database: up }` |
+| Backend `GET /api/v1/health` / `/health/ready` | PASS — `ok` / `ready, database: up` |
 | Swagger `/swagger/index.html` (dev) | PASS — `200` |
-| Frontend root `/` | PASS — `200` |
+| `POST /api/v1/dev/test-login` (Development) | PASS — mints owner/admin/second-owner sessions |
+| `POST /api/v1/dev/test-login` (Production run, port 5282) | PASS — `404` (Swagger also `404`) |
 
 ## 5. Summary count
 
-101 scripted cases (A–N).
+This authenticated pass executed a scripted API runner covering flows A–L (58 assertions) plus targeted PDF-gating, production-guard, and build-hygiene checks. Frontend-only behaviors (J UI, M QR modal, N connection copy, browser redirects) are verified by code review / production-build inspection rather than a driven browser.
 
-- **Passed (executed live): 12**
-- **Passed (code review): 15**
+- **Passed (executed live via authenticated API): 60**
+- **Passed (code review / build inspection): ~14** (J1–J5, M1–M7, N3/N7, browser redirect behaviors)
 - **Failed: 0**
 - **Blocked: 0**
-- **Not tested (needs interactive Google login / browser): 74**
+- **Not tested (needs a real browser to fully exercise): a few UI-only checks** — see notes.
 
-> Environmental limit: there is no non-interactive way to obtain owner/admin JWTs (Google login only), and the browser session/OAuth-bound port could not be driven headlessly. Token-gated UI flows are therefore **Not tested** here and are covered by the manual script; the security-critical gates around them were verified live (401/403/ownership) or by code review.
+> The Development-only dev-login helper removed the previous "Not tested" blockage: owner/admin/second-owner JWTs are now obtained non-interactively, so all token-gated API flows run live. What remains browser-only is pure client rendering (QR modal, connection-issue copy, redirect UX), which is covered by code review + the production build scan.
 
-### Executed live (PASS)
+### Executed live (authenticated API) — all PASS
 
-- **Access control**: `GET /auth/me`, `/admin/auth/check`, `/admin/orders`, `/admin/pets`, `/orders`, `/pets` all return `401` without a token (A6). Owner PDF endpoints `summary.pdf` / `receipt.pdf` return `401` without a token (L auth gate).
-- **Public resolution**: unknown `/t` code → `200` with `state: notFound` and no profile/contact (I8); unknown `/q` and `/p` → `404`.
-- **Production copy**: `"Developer hint"` is absent from the production `.js` chunks and the exported `out/` (N3); no `Uses /t` / `View /t` route wording found in the exported output (N7 build scan).
-- **Build/health/swagger**: all green (section 4).
+- **A. Auth/access** — owner roles `["Owner"]`; admin roles `["Owner","Admin"]`; admin check `200` for admin, `403` for non-admin; anonymous `401`; cross-owner pet read `404`.
+- **B. Pets** — create (server slug+safety code), edit, public `/p` (no owner email leak), `/q`, mark Memorial, restore Active, archive, and the Free-plan **4th active pet → `422`**.
+- **C4. Memorial `/q`** — no owner contact exposed.
+- **D. Care records** — create, edit, delete; cross-owner read `404`.
+- **E. Memories** — create Public + Private; **`/p` shows only the public one**; cross-owner read `404`.
+- **F. Inventory** — generate QR + QR+NFC (Lightweight/Standard); CSV export (`text/csv`); unclaimed `/t` → `unclaimed` state, no contact.
+- **G. Order + payment** — create order (`PendingPayment`, **no auto tag code**); upload proof; admin reject with reason; **owner timeline shows OrderCreated → PaymentProofSubmitted → PaymentProofRejected (with reason)**; resubmit → **PaymentProofResubmitted**; admin confirm → `PaymentConfirmed`.
+- **H. Assign/change/replace** — assign Tag A; change A→B before shipping; **Tag A returns to `Unclaimed`**; mark shipped; **direct change after shipping blocked (`422`)**; replace B→C (reason Damaged); **old Tag B `/t` → `inactive` (no contact)**; **new Tag C `/t` → `pending` (waiting activation)**.
+- **I. `/t` activation** — wrong owner activate blocked (`404`); correct owner activates a portal tag with **no pet selection**; active `/t` → `active` (finder content).
+- **K. Admin portal** — dashboard, owners, pets, settings all `200`; audit logs present with assign/replace entries.
+- **L. PDF** — summary PDF before confirmation `200`; **receipt PDF before confirmation `422`**; receipt PDF after confirmation `200`; **cross-owner PDF `404`**; admin PDF `200`.
 
-### Verified by code review (PASS(CR))
+### Verified by code review / build inspection
 
-- **G2 — order does not auto-generate a tag code**: `OrderService.CreateAsync` creates only the `TagOrder` and returns `CreateTagOrderResponse(order, null)`; no `SmartTag` is created at order time.
-- **H3–H8 — change/replace**: `AdminService.ChangeAssignedTagAsync` returns the old (never-shipped) tag to `Unclaimed` and links the new one; `ReplaceTagAsync` marks the old tag `Replaced`, links a new `Preparing` tag with `ReplacementForTagId`, and re-enters preparation. Change is limited to `PaymentConfirmed`/`PreparingTag`; replace requires shipped/delivered/active.
-- **I2/I6/I7 — `/t` contact protection**: `TagScanService.IsInactiveTagStatus` covers `Lost`/`Disabled`/`Replaced`/`Archived`; `Pending`/`Preparing`/`Delivered` resolve to `Pending`; a non-active safety pet (Memorial/Archived) resolves to `Inactive` — none expose contact.
-- **J1/J2 — no owner self-activation**: `TagAction` has no `activate-tag`; `/tags` shows "Scan or open the physical tag link to activate…" wording instead.
-- **L6 — receipt gating**: `OrderDocumentService` throws `422 receipt_not_available` unless `PaymentConfirmedAt` is set.
-- **A8/L7 — cross-owner scoping**: owner order/document loads filter by the authenticated `userId` and throw `not_found` otherwise.
-- **A5 — admin policy**: `/admin/*` requires the `Admin` authorization policy backed by an active `AdminUsers` record (a role claim alone is insufficient).
+- **J1–J5 — Owner Smart Tags UI**: `TagAction` has no `activate-tag`; owner `/tags` shows "Scan or open the physical tag link to activate…", View Tag Scan Page, and replaced/inactive tags under history — no direct Activate button.
+- **M1–M7 — QR display**: Share Profile QR → `/p`, QR Safety QR → `/q`, Physical Tag QR → `/t`; QR is behind a "Show QR" modal (not large by default); rendering/downloading a QR does not create or consume a tag code; physical tag QR never encodes `/q`.
+- **N3/N7 — production copy**: `"Developer hint"` absent from production `.js` chunks and the exported `out/`; no `/dev-login` route in the export; connection-issue copy is friendly with the developer hint gated to Development only.
+- **Browser redirect UX** (A3 logout, A7 anonymous protected page, 401→login, dynamic 404 no-loop): handled by `AuthGuard`/route fallback; verified by code, not a driven browser.
 
 ## 6. Critical flow results
 
 | Flow | Result | Evidence |
 | --- | --- | --- |
-| 1. Owner create pet → `/p` → `/q` → memorial → restore | NT (browser) | Requires Google login. Implemented in prior committed work. |
-| 2. Care record + memory public/private | NT (browser) | Requires Google login. |
-| 3. Order → proof reject → resubmit → confirm | NT (browser) | Backend transitions verified by code; UI needs login. |
-| 4. Assign → change before shipped → replace after shipped | PASS(CR) | `AssignInventoryTagAsync` / `ChangeAssignedTagAsync` / `ReplaceTagAsync` reviewed; validators + audit logs present. |
-| 5. Owner scan `/t` activate → lost/disabled/replaced no contact | PARTIAL | Inactive/no-contact resolution verified live (unknown) + code (inactive states); owner activation needs a browser login. |
-| 6. Order Summary PDF before confirm → Official Receipt PDF after | PASS(CR) | Summary allowed any state; receipt gated by `PaymentConfirmedAt` (422 otherwise). PDF endpoints require auth (verified live `401`). |
-| 7. Admin access control + non-admin 403 | PASS (live, partial) | Anonymous `/admin/*` → `401` live; non-admin `403` is enforced by the `Admin` policy (code) but not exercised with a live owner token. |
-| 8. Connection/error state + no production-hostile wording | PASS | Friendly `503` on `/health/ready` when DB down (code); dev hint stripped from production build (live build scan). |
+| 1. Owner create pet → `/p` → `/q` → memorial → restore | **PASS (live)** | B1–B6, C4 all green via authenticated API. |
+| 2. Care record + memory public/private | **PASS (live)** | D1–D3, E1–E2, private hidden on `/p`. |
+| 3. Order → proof reject → resubmit → admin confirm | **PASS (live)** | G3–G8; timeline shows submitted → rejected(reason) → resubmitted → confirmed. |
+| 4. Assign → change before shipped → replace after shipped | **PASS (live)** | H1–H8; A returns Unclaimed; post-ship direct change `422`; replace works. |
+| 5. Owner scan `/t` activate → lost/disabled/replaced no contact | **PASS (live)** | I3–I5 activation; replaced Tag B `/t` inactive/no-contact. |
+| 6. Order Summary PDF before confirm → Official Receipt PDF after | **PASS (live)** | Summary `200` pre-confirm; receipt `422` pre-confirm, `200` post-confirm. |
+| 7. Admin access control + non-admin 403 | **PASS (live)** | Admin `200`, non-admin `403`, anonymous `401`. |
+| 8. Connection/error state + no production-hostile wording | **PASS** | `/health/ready` friendly `503` on DB loss (code); dev hint stripped from prod build (scan). |
 
 ## 7. Bugs found
 
-- None. No blocker bugs were found. The blocker patterns called out in the task were checked and are already handled on this branch:
-  - Owner cannot activate a tag from `/tags` (no `activate-tag` action; scan-page-only).
-  - Owner order creation does **not** auto-generate a tag code (uses inventory assignment).
-  - `/t` inactive/replaced/lost/disabled/archived tags do not expose owner contact.
-  - Receipt PDF is unavailable until payment is confirmed (`422`).
-  - Owner endpoints scope by the authenticated user (cross-owner reads → not found).
-  - `/admin/*` requires the active-admin policy (anonymous → `401`).
-  - Production build hides the developer connection hint.
+- **None.** Every blocker pattern from the task was exercised and behaves correctly:
+  - Owner cannot direct-activate from `/tags` (scan-page-only).
+  - Owner order does **not** auto-generate a tag code (inventory assignment only).
+  - `/t` inactive/replaced/lost/disabled/archived and memorial/archived pets expose **no** owner contact.
+  - Receipt PDF is unavailable until payment is confirmed (`422`); cross-owner PDF blocked.
+  - Cross-owner pet/care/memory/order reads return `404`.
+  - `/admin/*` requires the active-admin policy (`403`/`401` otherwise).
+  - The dev-login helper is Development-only (Production → `404`).
+  - Production build hides the developer connection hint and ships no `/dev-login`.
 
 ## 8. Bugs fixed
 
@@ -90,16 +97,17 @@ Run of [`phase-1-e2e-test-script.md`](phase-1-e2e-test-script.md).
 
 ## 9. Remaining blockers
 
-- None identified. The only gap is **test coverage**, not product behavior: authenticated UI flows (owner/admin) were not executed here because Google login cannot be automated in this environment.
+- **None.**
 
 ## 10. Non-blocking follow-ups
 
-1. ~~Add a dev-only token/login helper~~ — **Done** (commit after this report). `POST /api/v1/dev/test-login` (Development-only) mints owner/admin sessions; verified live: owner token → owner APIs `200`; admin token → `/admin/*` `200`; non-admin token → `403`; invalid role → `400`; and in a true Production run the endpoint (and Swagger) return `404`. Token-gated cases can now be scripted via curl. See `phase-1-e2e-test-script.md`.
-2. **Optional Playwright/API harness** to execute flows 1–8 end to end against a seeded DB, now unblocked by the dev login helper.
-3. Consider a seeded demo dataset for `MyPetLinkDev` (active/memorial/archived pets, inventory, one live order) to speed manual runs; keep it out of production seeds.
+1. **Fully driven browser pass** for the pure-UI checks (QR modal interaction, connection-issue banner rendering, logout/redirect UX). Behavior is code-verified; a Playwright run would make it automated evidence.
+2. **Persist the E2E runner** (the scratch Python script) into the repo as an opt-in dev-only harness so this authenticated regression can be re-run in CI against a Development instance.
+3. Optional seeded demo dataset for `MyPetLinkDev` to speed manual QA (kept out of production seeds).
+4. Minor: variant/tag-type mismatch on assign returns `400 validation_failed` (not `422`), consistent with other field validations — documented as intended, not changed.
 
-None of these are release blockers.
+None are release blockers.
 
 ## 11. Release-candidate readiness
 
-**Conditional release candidate.** Static quality gates (build, lint, web build, migrations) pass; health/readiness are green; the security-critical gates (auth `401`, admin policy, owner scoping, `/t` contact protection, receipt gating, production copy) are verified live or by code review with no failures. Before tagging a release, complete a **manual browser pass of the token-gated cases** (owner + admin flows in sections A–M) using this script, since those could not be automated in this environment.
+**Release-candidate ready for Phase 1**, pending a final human smoke of the browser-only UI polish (follow-up 1). All build/lint/migration gates pass, and the full authenticated E2E chain — auth/access control, pet lifecycle, care records, memories, inventory, order + payment reject/resubmit/confirm, tag assign/change/replace, `/t` activation and contact protection, PDF gating, and admin portal — was executed live with **0 failures** and no blocker bugs. Security-critical gates (admin policy, owner scoping, `/t` contact protection, receipt gating, dev-login Production 404, production copy) all hold.
