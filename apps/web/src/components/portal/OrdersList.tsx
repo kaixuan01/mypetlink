@@ -343,7 +343,7 @@ function OrderInlineDetail({
   return (
     <div className="mt-4 grid gap-3 rounded-[1.25rem] border border-pet-border bg-white p-4 md:grid-cols-3">
       <CompactItem label="Pet" value={petName} />
-      <CompactItem label="Design" value={order.shape} />
+      <CompactItem label="Tag variant" value={`${order.variant} Tag`} />
       <CompactItem
         label="Payment method"
         value={order.paymentMethod ?? "QR Payment"}

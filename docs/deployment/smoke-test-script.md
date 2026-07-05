@@ -49,14 +49,14 @@ curl -s -H "Authorization: Bearer $ADMIN" "$API/api/v1/admin/auth/check"        
 1. **Dashboard** — `/admin` loads real counts.
 2. **Orders** — `/admin/orders` lists real orders with filters.
 3. **Confirm payment** — on the submitted-proof order, click Confirm Payment; owner order reflects Payment Confirmed. Owner can now download the **Receipt PDF** (shows "PAID" + confirmed date); admin can download the same Order Summary / Receipt PDFs from `/admin/orders`.
-4. **Assign inventory tag** — assign a matching unclaimed inventory tag to the confirmed order; owner order now shows the assigned physical tag, but it is not active yet.
+4. **Assign inventory tag** — assign a matching (same tag type + variant) unclaimed inventory tag to the confirmed order; confirm a wrong-variant tag is rejected. The owner order now shows the assigned physical tag, but it is not active yet.
 5. **Preparing** — Mark Preparing; linked tag stays Preparing.
 6. **Shipped** — Mark Shipped (optionally with tracking number).
 7. **Delivered** — Mark Delivered; linked tag goes to Delivered (awaiting owner activation).
 8. **Owner portal check** — `/tags` and `/orders/view` show Waiting for owner activation plus View Tag Scan Page / Copy Tag Link; neither page shows a direct Activate Tag button.
 9. **Tag active `/t`** — open `/t/:tagCode` as the matching owner, activate the assigned tag from the scan/tap flow, then scan `/t/:tagCode` again → shows safety content.
 10. **Mark lost** — admin marks the tag lost; `/t/:tagCode` now shows no owner contact.
-11. **Unclaimed tag generation** — `/admin/tag-inventory`, generate a small batch; confirm unclaimed `MPL-XXXX-XXXX` codes appear.
+11. **Unclaimed tag generation** — `/admin/tag-inventory`, generate a small batch choosing a tag type (QR / QR + NFC) and tag variant (Lightweight / Standard); confirm unclaimed `MPL-XXXX-XXXX` codes appear with the chosen variant.
 12. **CSV export** — export the inventory CSV; file downloads with tag_code / type / batch / status / created_at.
 13. **Audit** — confirm `AuditLogs` rows were written for the admin actions above.
 

@@ -47,7 +47,7 @@ import type {
   PetTag,
   TagOrder,
   TagOrderPayload,
-  TagShape,
+  TagVariant,
   TagStatus,
   TagType,
 } from "@/types";
@@ -106,7 +106,7 @@ export function mapBackendTag(tag: BackendSmartTag): PetTag {
     petId: tag.petId ?? undefined,
     ownerUserId: tag.ownerUserId ?? undefined,
     hasNfc: tag.hasNfc,
-    shape: toTagShape(tag.shape),
+    variant: toTagVariant(tag.variant),
     status: fromBackendTagStatus(tag.status),
     batchNo: tag.batchNo ?? undefined,
     orderedDate: formatDisplayDate(tag.createdAt),
@@ -127,7 +127,7 @@ export function mapBackendOrder(order: BackendTagOrder): TagOrder {
     petId: order.petId,
     petName: order.petName ?? undefined,
     tagType: fromBackendTagType(order.tagType),
-    shape: toTagShape(order.shape),
+    variant: toTagVariant(order.variant),
     delivery: {
       recipientName: order.delivery.recipientName,
       phone: order.delivery.phoneE164,
@@ -256,10 +256,11 @@ function toTagStatus(value: string): TagStatus {
     : "Disabled";
 }
 
-function toTagShape(value: string): TagShape {
-  const supported: TagShape[] = ["Round", "Bone", "Rounded Square", "Paw"];
-
-  return supported.includes(value as TagShape) ? (value as TagShape) : "Round";
+// Maps backend variant text to the two supported variants. Legacy shape values
+// (Round/Bone/etc.) and anything unknown fall back to Standard so old local
+// records keep rendering.
+function toTagVariant(value: string): TagVariant {
+  return value?.trim().toLowerCase() === "lightweight" ? "Lightweight" : "Standard";
 }
 
 function formatAmount(amount: number, currency: string) {
@@ -497,7 +498,7 @@ export async function createTagOrder(payload: TagOrderPayload) {
         body: {
           petId: payload.petId,
           tagType: toBackendTagType(payload.tagType),
-          shape: payload.shape,
+          variant: payload.variant,
           delivery: {
             recipientName: payload.delivery.recipientName,
             phoneE164: payload.delivery.phone,
@@ -533,7 +534,7 @@ export async function createTagOrder(payload: TagOrderPayload) {
     orderNumber: formatOrderNumber({ id: orderId }),
     petId: payload.petId,
     tagType: payload.tagType,
-    shape: payload.shape,
+    variant: payload.variant,
     delivery: payload.delivery,
     estimatedPrice: getEstimatedTagPrice(payload.tagType),
     status: "Pending Payment",
@@ -1068,7 +1069,7 @@ export async function adminAssignInventoryTag(orderId: string, tagId: string) {
     tag.petId ||
     tag.isArchived ||
     tag.hasNfc !== order.tagType.includes("NFC") ||
-    tag.shape !== order.shape
+    tag.variant !== order.variant
   ) {
     return mockResponse<TagOrder | null>(null);
   }
@@ -1121,7 +1122,7 @@ export async function adminChangeAssignedTag(
     newTag.petId ||
     newTag.isArchived ||
     newTag.hasNfc !== order.tagType.includes("NFC") ||
-    newTag.shape !== order.shape
+    newTag.variant !== order.variant
   ) {
     return mockResponse<TagOrder | null>(null);
   }
@@ -1184,7 +1185,7 @@ export async function adminReplaceTag(
     newTag.petId ||
     newTag.isArchived ||
     newTag.hasNfc !== order.tagType.includes("NFC") ||
-    newTag.shape !== order.shape
+    newTag.variant !== order.variant
   ) {
     return mockResponse<TagOrder | null>(null);
   }
@@ -1344,7 +1345,7 @@ export async function adminCancelOrder(orderId: string) {
 export async function adminGenerateRetailTags(
   count: number,
   hasNfc: boolean,
-  shape: TagShape = "Round"
+  variant: TagVariant = "Standard"
 ) {
   if (canUseOwnerTagApi()) {
     const response = await apiRequest<{
@@ -1356,7 +1357,7 @@ export async function adminGenerateRetailTags(
       body: {
         quantity: Math.max(1, Math.min(50, Math.floor(count))),
         tagType: hasNfc ? "QR_NFC" : "QR",
-        shape,
+        variant,
       },
     });
 
@@ -1379,7 +1380,7 @@ export async function adminGenerateRetailTags(
     id: `tag_${Date.now()}_${index}`,
     tagCode: generateTagCode(),
     hasNfc,
-    shape,
+    variant,
     status: "Unassigned",
     batchNo,
     orderedDate: generatedDate,

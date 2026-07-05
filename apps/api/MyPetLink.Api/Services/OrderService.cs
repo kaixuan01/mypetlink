@@ -12,7 +12,6 @@ public sealed class OrderService : SkeletonService, IOrderService
     private const decimal QrTagAmount = 19.90m;
     private const decimal QrNfcTagAmount = 39.90m;
     private const string Currency = "MYR";
-    private const string DefaultShape = "Round";
 
     private readonly MyPetLinkDbContext _dbContext;
 
@@ -125,7 +124,7 @@ public sealed class OrderService : SkeletonService, IOrderService
             ReplacementForTagId = replacementForTag?.Id,
             ReplacementForTag = replacementForTag,
             TagType = tagType,
-            Shape = NormalizeOptional(request.Shape) ?? DefaultShape,
+            Variant = TagVariants.Normalize(request.Variant),
             Amount = GetAmount(tagType),
             Currency = Currency,
             DeliveryFee = 0m,

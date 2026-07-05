@@ -984,7 +984,7 @@ Request:
 
 - `petId`: required
 - `tagType`: `QrPetTag` or `QrNfcSmartTag`
-- `shape`
+- `variant`: `Lightweight` or `Standard`
 - delivery: `recipientName`, `phoneE164`, `addressLine1`, `addressLine2`, `postcode`, `city`, `state`, `notes`
 - `replacementForTagId` optional
 
@@ -1190,7 +1190,7 @@ Validation:
 - order must not already have a linked tag.
 - order pet must still be Active and not archived.
 - tag must be `Unclaimed`, unarchived, and have no owner, pet, or order.
-- tag type and shape must match the order.
+- tag type and variant must match the order.
 
 Transition:
 
@@ -1218,7 +1218,7 @@ Validation:
 - order must be `PaymentConfirmed` or `PreparingTag`.
 - order must already have an assigned tag whose status is `Pending` or `Preparing` (never shipped/activated).
 - order pet must be Active and not archived.
-- `newTagId` must differ from the current tag and pass the same availability/type/shape checks as assign.
+- `newTagId` must differ from the current tag and pass the same availability/type/variant checks as assign.
 
 Transition:
 
@@ -1245,7 +1245,7 @@ Validation:
 - order must have an assigned tag.
 - `reason` is required.
 - order pet must be Active and not archived (Memorial/Archived pets cannot receive an active replacement).
-- `newTagId` must be a different, available tag matching the order type/shape.
+- `newTagId` must be a different, available tag matching the order type/variant.
 
 Transition:
 
@@ -1340,7 +1340,7 @@ Request:
 
 - `count`: 1 to 50 for MVP
 - `hasNfc`
-- `shape`
+- `variant`: `Lightweight` or `Standard`
 - `batchNo` optional; backend can generate
 
 Response:
@@ -1362,7 +1362,7 @@ Response:
 
 CSV fields:
 
-- `tag_code`, `url`, `shape`, `batch_no`, `has_nfc`
+- `tag_code`, `url`, `variant`, `batch_no`, `has_nfc`
 
 ### POST `/api/v1/admin/tags/{tagId}/status`
 

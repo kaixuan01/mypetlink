@@ -371,7 +371,7 @@ export function OrderDetailView({
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <DetailItem label="Pet" value={petName} />
             <DetailItem label="Tag type" value={order.tagType} />
-            <DetailItem label="Design" value={order.shape} />
+            <DetailItem label="Tag variant" value={`${order.variant} Tag`} />
             <DetailItem label="Total amount" value={order.estimatedPrice} />
             <DetailItem label="Ordered date" value={order.orderedDate} />
             <DetailItem

@@ -21,11 +21,9 @@ Status (2026-07-04): this flow is implemented end to end. Owner submission uses 
 2. Owner chooses tag type:
    - QR Pet Tag
    - QR + NFC Smart Tag
-3. Owner chooses shape:
-   - Round
-   - Bone
-   - Rounded Square
-   - Paw
+3. Owner chooses tag variant:
+   - Lightweight Tag (recommended for cats/small pets)
+   - Standard Tag (recommended for dogs/medium-large pets)
 4. Owner enters delivery details.
 5. Owner confirms order.
 6. Backend creates:
@@ -223,7 +221,7 @@ Required current state:
 - order `PaymentConfirmed`
 - order has no linked tag yet
 - selected inventory tag is `Unclaimed`, unarchived, and has no owner, pet, or order
-- tag type and shape match the order
+- tag type and variant match the order
 
 Result:
 
@@ -249,7 +247,7 @@ Required current state:
 
 - order `PaymentConfirmed` or `PreparingTag`
 - order already has an assigned tag that has not shipped/activated (`Pending`/`Preparing`)
-- new tag is a different, available (`Unclaimed`) tag matching the order type/shape
+- new tag is a different, available (`Unclaimed`) tag matching the order type/variant
 
 Result:
 
@@ -268,7 +266,7 @@ Required current state:
 - order `Shipped`/`Delivered`, or the assigned tag is `Active`
 - order has an assigned tag
 - pet is Active (Memorial/archived pets cannot receive an active replacement)
-- new tag is a different, available tag matching the order type/shape
+- new tag is a different, available tag matching the order type/variant
 
 Result:
 
@@ -435,7 +433,7 @@ Owner order list/detail should show:
 
 - order number
 - selected pet
-- tag type and shape
+- tag type and variant
 - amount
 - payment status
 - order status
@@ -456,7 +454,7 @@ Admin order/payment proof pages should show:
 - owner
 - pet
 - amount
-- tag type and shape
+- tag type and variant
 - current order status
 - current payment status
 - payment proof metadata and preview/download

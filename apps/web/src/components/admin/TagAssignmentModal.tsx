@@ -119,7 +119,7 @@ export function TagAssignmentModal({
           <SummaryItem label="Owner" value={ownerName} />
           <SummaryItem label="Pet" value={petName} />
           <SummaryItem label="Product" value={productLabel} />
-          <SummaryItem label="Shape" value={order.shape} />
+          <SummaryItem label="Variant" value={`${order.variant} Tag`} />
         </div>
 
         {/* Current assigned tag */}
@@ -201,7 +201,7 @@ export function TagAssignmentModal({
           <div className="mt-2 max-h-56 overflow-y-auto rounded-xl border border-slate-200">
             {filteredTags.length === 0 ? (
               <p className="px-4 py-6 text-center text-sm font-semibold text-slate-500">
-                No matching unclaimed {productLabel} · {order.shape} tags are
+                No matching unclaimed {productLabel} · {order.variant} tags are
                 available. Generate matching inventory first.
               </p>
             ) : (
@@ -223,7 +223,7 @@ export function TagAssignmentModal({
                             {tag.tagCode}
                           </span>
                           <span className="mt-0.5 block text-xs font-semibold text-slate-500">
-                            {getTagTypeLabel(tag.hasNfc)} · {tag.shape}
+                            {getTagTypeLabel(tag.hasNfc)} · {tag.variant}
                             {tag.batchNo ? ` · Batch ${tag.batchNo}` : ""}
                             {tag.orderedDate ? ` · ${tag.orderedDate}` : ""}
                           </span>

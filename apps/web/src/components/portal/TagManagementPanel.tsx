@@ -508,7 +508,7 @@ function TagCard({
             {tag.tagCode}
           </h2>
           <p className="mt-1 text-sm text-pet-muted">
-            {productName} - {tag.shape}
+            {productName} - {tag.variant} Tag
           </p>
           {isActive || isInactive ? (
             <div className="mt-4 rounded-[1.25rem] bg-pet-cream p-4">

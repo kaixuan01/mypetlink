@@ -16,7 +16,7 @@ public sealed record DeliveryDetailsRequest(
 public sealed record CreateTagOrderRequest(
     [Required] Guid PetId,
     [Required] TagType? TagType,
-    [MaxLength(80)] string? Shape,
+    [MaxLength(80)] string? Variant,
     [Required] DeliveryDetailsRequest? Delivery,
     Guid? ReplacementForTagId);
 
@@ -39,7 +39,7 @@ public sealed record TagOrderResponse(
     Guid? SmartTagId,
     string? SmartTagCode,
     TagType TagType,
-    string Shape,
+    string Variant,
     decimal Amount,
     string Currency,
     decimal DeliveryFee,

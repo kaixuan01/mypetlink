@@ -14,7 +14,7 @@ public sealed record SmartTagResponse(
     string? PetName,
     string? BatchNo,
     bool HasNfc,
-    string Shape,
+    string Variant,
     SmartTagStatus Status,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,

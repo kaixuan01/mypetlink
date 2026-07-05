@@ -291,7 +291,7 @@ export type BackendSmartTag = {
   petName?: string | null;
   batchNo?: string | null;
   hasNfc: boolean;
-  shape: string;
+  variant: string;
   status: BackendSmartTagStatus;
   createdAt: string;
   updatedAt: string;
@@ -347,7 +347,7 @@ export type BackendTagOrder = {
   smartTagId?: string | null;
   smartTagCode?: string | null;
   tagType: BackendTagType;
-  shape: string;
+  variant: string;
   amount: number;
   currency: string;
   deliveryFee: number;

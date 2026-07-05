@@ -548,7 +548,7 @@ Key fields:
 - `BatchNo` unique
 - `Quantity`
 - `HasNfc`
-- `Shape`
+- `Variant` (`Lightweight` or `Standard`; renamed from legacy `Shape`)
 - `GeneratedByAdminUserId` FK `AdminUsers`
 - `GeneratedAt`
 - `ExportedAt`
@@ -563,7 +563,7 @@ Indexes:
 - Unique `BatchNo`
 - `GeneratedAt`
 - `HasNfc`
-- `Shape`
+- `Variant` (`Lightweight` or `Standard`; renamed from legacy `Shape`)
 
 Rules:
 
@@ -583,7 +583,7 @@ Key fields:
 - `OrderId` nullable FK `TagOrders`
 - `BatchId` nullable FK `SmartTagBatches`
 - `HasNfc`
-- `Shape`
+- `Variant` (`Lightweight` or `Standard`; renamed from legacy `Shape`)
 - `Status`
 - `ActivatedAt`
 - `DeliveredAt`
@@ -623,7 +623,7 @@ Key fields:
 - `SmartTagId` nullable FK `SmartTags`
 - `ReplacementForTagId` nullable FK `SmartTags`
 - `TagType` (`QrPetTag`, `QrNfcSmartTag`)
-- `Shape`
+- `Variant` (`Lightweight` or `Standard`; renamed from legacy `Shape`)
 - `Amount`
 - `Currency`
 - `DeliveryFee`

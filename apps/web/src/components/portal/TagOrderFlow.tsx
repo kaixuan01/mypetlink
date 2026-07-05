@@ -32,7 +32,7 @@ import type {
   DeliveryDetails,
   Pet,
   TagOrder,
-  TagShape,
+  TagVariant,
   TagType,
 } from "@/types";
 
@@ -62,17 +62,23 @@ const tagTypes: {
   },
 ];
 
-const shapeOptions: { shape: TagShape; label: string; radius: string }[] = [
-  { shape: "Round", label: "Round Tag", radius: "rounded-full" },
-  { shape: "Bone", label: "Bone Shape", radius: "rounded-[2.5rem]" },
-  { shape: "Rounded Square", label: "Minimal Tag", radius: "rounded-[1.5rem]" },
-  { shape: "Paw", label: "Cute Paw Tag", radius: "rounded-[2rem]" },
+const variantOptions: { variant: TagVariant; label: string; helper: string }[] = [
+  {
+    variant: "Lightweight",
+    label: "Lightweight Tag",
+    helper: "Recommended for cats, small pets, and pets that prefer a lighter tag.",
+  },
+  {
+    variant: "Standard",
+    label: "Standard Tag",
+    helper: "Recommended for dogs and owners who prefer a more solid everyday tag.",
+  },
 ];
 
 const steps = [
   "Select Pet",
   "Choose Tag Type",
-  "Choose Design",
+  "Choose Tag Style",
   "Preview",
   "Delivery Details",
   "Confirm Order",
@@ -122,7 +128,7 @@ export function TagOrderFlow({
       : orderablePets[0]?.id ?? "";
   const [step, setStep] = useState(0);
   const [petId, setPetId] = useState(initialPetId);
-  const [shape, setShape] = useState<TagShape>("Round");
+  const [variant, setVariant] = useState<TagVariant>("Standard");
   const [delivery, setDelivery] = useState<DeliveryDetails>(emptyDelivery);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [createdOrder, setCreatedOrder] = useState<TagOrder | null>(null);
@@ -152,9 +158,9 @@ export function TagOrderFlow({
     [orderablePets, petId]
   );
   const estimatedPrice = getEstimatedTagPrice(tagType);
-  const shapeOption =
-    shapeOptions.find((option) => option.shape === shape) ?? shapeOptions[0];
-  const shapeLabel = shapeOption.label;
+  const variantOption =
+    variantOptions.find((option) => option.variant === variant) ?? variantOptions[1];
+  const variantLabel = variantOption.label;
 
   useEffect(() => {
     let active = true;
@@ -247,7 +253,7 @@ export function TagOrderFlow({
   }
 
   const deliveryValid = isDeliveryValid(delivery);
-  const previewReady = Boolean(selectedPet) && Boolean(tagType) && Boolean(shape);
+  const previewReady = Boolean(selectedPet) && Boolean(tagType) && Boolean(variant);
 
   function isStepReachable(index: number) {
     switch (index) {
@@ -279,8 +285,8 @@ export function TagOrderFlow({
     if (stepIndex === 1 && !tagType) {
       nextErrors.tagType = "Choose a tag type.";
     }
-    if (stepIndex === 2 && !shape) {
-      nextErrors.shape = "Choose a tag design.";
+    if (stepIndex === 2 && !variant) {
+      nextErrors.variant = "Choose a tag style.";
     }
     if (stepIndex === 4) {
       if (!delivery.recipientName.trim()) {
@@ -334,7 +340,7 @@ export function TagOrderFlow({
     setErrors(nextErrors);
 
     if (Object.keys(nextErrors).length > 0) {
-      setStep(nextErrors.petId ? 0 : nextErrors.tagType ? 1 : nextErrors.shape ? 2 : 4);
+      setStep(nextErrors.petId ? 0 : nextErrors.tagType ? 1 : nextErrors.variant ? 2 : 4);
       return;
     }
 
@@ -349,7 +355,7 @@ export function TagOrderFlow({
       const response = await createTagOrder({
         petId: selectedPet.id,
         tagType,
-        shape,
+        variant,
         delivery: { ...delivery, phone: normalizeStoredPhone(delivery.phone) },
         replacementForTagId: replacementFor,
       });
@@ -590,28 +596,29 @@ export function TagOrderFlow({
     if (step === 2) {
       return (
         <StepShell
-          title="Choose Design"
-          description="Pick a shape that feels right for your pet."
+          title="Choose Tag Style"
+          description="Pick the tag style that suits your pet best."
         >
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {shapeOptions.map((option) => (
+          <div className="grid gap-4 sm:grid-cols-2">
+            {variantOptions.map((option) => (
               <button
-                className={`min-h-36 rounded-[1.25rem] border p-4 text-center transition ${
-                  shape === option.shape
+                className={`min-h-36 rounded-[1.25rem] border p-5 text-left transition ${
+                  variant === option.variant
                     ? "border-pet-coral bg-pet-apricot"
                     : "border-pet-border bg-pet-cream"
                 }`}
-                key={option.shape}
-                onClick={() => setShape(option.shape)}
+                key={option.variant}
+                onClick={() => setVariant(option.variant)}
                 type="button"
               >
-                <span
-                  className={`mx-auto grid h-14 w-14 place-items-center bg-white text-pet-coral ${option.radius}`}
-                >
+                <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white text-pet-coral">
                   <Icon name="tag" className="h-6 w-6" />
                 </span>
-                <span className="mt-3 block text-sm font-black text-pet-ink">
+                <span className="mt-3 block text-base font-black text-pet-ink">
                   {option.label}
+                </span>
+                <span className="mt-1 block text-sm font-semibold leading-6 text-pet-muted">
+                  {option.helper}
                 </span>
               </button>
             ))}
@@ -634,7 +641,7 @@ export function TagOrderFlow({
           <div className="grid gap-6 lg:grid-cols-[300px_1fr] lg:items-start">
             <TagMockup
               petName={selectedPet?.name ?? "Your pet"}
-              radius={shapeOption.radius}
+              radius="rounded-full"
               isNfc={tagType === "MyPetLink QR + NFC Smart Tag"}
             />
             <div className="grid gap-4">
@@ -644,7 +651,7 @@ export function TagOrderFlow({
               <div className="grid gap-3 sm:grid-cols-2">
                 <SummaryItem label="Selected pet" value={selectedPet?.name ?? "Pet"} />
                 <SummaryItem label="Tag type" value={tagType} />
-                <SummaryItem label="Design" value={shapeLabel} />
+                <SummaryItem label="Tag variant" value={variantLabel} />
                 <SummaryItem label="Estimated price" value={estimatedPrice} />
               </div>
               <div className="rounded-[1.25rem] bg-pet-cream p-4">
@@ -790,7 +797,7 @@ export function TagOrderFlow({
         <div className="grid gap-3 sm:grid-cols-2">
           <SummaryItem label="Selected pet" value={selectedPet?.name ?? "Pet"} />
           <SummaryItem label="Tag type" value={tagType} />
-          <SummaryItem label="Design" value={shapeLabel} />
+          <SummaryItem label="Tag variant" value={variantLabel} />
           <SummaryItem label="Tag price" value={estimatedPrice} />
           <SummaryItem label="Delivery fee" value={paymentConfig.deliveryFee} />
           <SummaryItem label="Total amount" value={estimatedPrice} />

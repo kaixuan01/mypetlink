@@ -13,7 +13,6 @@ namespace MyPetLink.Api.Services;
 // SaveChanges as the mutation itself.
 public sealed class AdminService : SkeletonService, IAdminService
 {
-    private const string DefaultShape = "Round";
 
     private readonly MyPetLinkDbContext _dbContext;
     private readonly IAuditLogService _auditLogService;
@@ -809,7 +808,7 @@ public sealed class AdminService : SkeletonService, IAdminService
     {
         var admin = await RequireAdminAsync(currentUserId, cancellationToken);
         var hasNfc = ParseTagType(request.TagType);
-        var shape = NormalizeOptional(request.Shape) ?? DefaultShape;
+        var variant = TagVariants.Normalize(request.Variant);
         var now = DateTimeOffset.UtcNow;
         var batchNo = NormalizeOptional(request.BatchNumber)
             ?? await GenerateBatchNumberAsync(now, cancellationToken);
@@ -827,7 +826,7 @@ public sealed class AdminService : SkeletonService, IAdminService
             BatchNo = batchNo,
             Quantity = request.Quantity,
             HasNfc = hasNfc,
-            Shape = shape,
+            Variant = variant,
             GeneratedByAdminUserId = admin.Id,
             GeneratedAt = now
         };
@@ -843,7 +842,7 @@ public sealed class AdminService : SkeletonService, IAdminService
                 TagCode = await GenerateUniqueTagCodeAsync(tags, cancellationToken),
                 Batch = batch,
                 HasNfc = hasNfc,
-                Shape = shape,
+                Variant = variant,
                 Status = SmartTagStatus.Unclaimed
             });
         }
@@ -852,7 +851,7 @@ public sealed class AdminService : SkeletonService, IAdminService
 
         _auditLogService.Append(
             admin.Id, ActorType.Admin, "tag-inventory.generate", "SmartTagBatch", batch.Id,
-            null, new { batchNo, request.Quantity, tagType = hasNfc ? "QR_NFC" : "QR", shape });
+            null, new { batchNo, request.Quantity, tagType = hasNfc ? "QR_NFC" : "QR", variant });
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
@@ -1316,7 +1315,7 @@ public sealed class AdminService : SkeletonService, IAdminService
     }
 
     // Loads an inventory tag that is safe to assign to this order: it must be
-    // unclaimed, unlinked, not archived, and match the order's tag type + shape.
+    // unclaimed, unlinked, not archived, and match the order's tag type + variant.
     private async Task<SmartTag> LoadAvailableInventoryTagAsync(
         TagOrder order,
         Guid tagId,
@@ -1345,9 +1344,9 @@ public sealed class AdminService : SkeletonService, IAdminService
             throw ValidationFailed(fieldName, "Choose an inventory tag with the same tag type as the order.");
         }
 
-        if (!tag.Shape.Equals(order.Shape, StringComparison.OrdinalIgnoreCase))
+        if (!tag.Variant.Equals(order.Variant, StringComparison.OrdinalIgnoreCase))
         {
-            throw ValidationFailed(fieldName, "Choose an inventory tag with the same shape as the order.");
+            throw ValidationFailed(fieldName, "Choose an inventory tag with the same tag variant as the order.");
         }
 
         return tag;

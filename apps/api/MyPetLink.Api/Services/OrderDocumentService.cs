@@ -174,7 +174,7 @@ public sealed class OrderDocumentService : IOrderDocumentService
             ProductName: order.TagType == TagType.QrNfcSmartTag
                 ? "MyPetLink QR + NFC Smart Tag"
                 : "MyPetLink QR Pet Tag",
-            Shape: Fallback(order.Shape, "-"),
+            Variant: TagVariants.Normalize(order.Variant),
             Quantity: 1,
             UnitPrice: FormatMoney(unitPrice, currency),
             DeliveryFee: deliveryFee <= 0m ? "Free" : FormatMoney(deliveryFee, currency),
@@ -279,7 +279,7 @@ internal sealed record OrderDocumentModel(
     string CustomerEmail,
     string PetName,
     string ProductName,
-    string Shape,
+    string Variant,
     int Quantity,
     string UnitPrice,
     string DeliveryFee,
@@ -450,7 +450,7 @@ internal static class OrderDocumentRenderer
                 table.Cell().Element(BodyCell).Column(cell =>
                 {
                     cell.Item().Text(model.ProductName).FontSize(9).Bold();
-                    cell.Item().Text($"Design/Shape: {model.Shape}").FontSize(8).FontColor(Muted);
+                    cell.Item().Text($"Tag variant: {model.Variant} Tag").FontSize(8).FontColor(Muted);
                 });
                 table.Cell().Element(BodyCell).AlignRight().Text(model.Quantity.ToString()).FontSize(9);
                 table.Cell().Element(BodyCell).AlignRight().Text(model.UnitPrice).FontSize(9);

@@ -20,9 +20,9 @@ import {
   adminGenerateRetailTags,
   getFriendlyTagErrorMessage,
 } from "@/services/tagService";
-import type { PetTag, TagShape } from "@/types";
+import type { PetTag, TagVariant } from "@/types";
 
-const shapeOptions: TagShape[] = ["Round", "Bone", "Rounded Square", "Paw"];
+const variantOptions: TagVariant[] = ["Lightweight", "Standard"];
 
 // Retail/pet-shop stock: tags that carry a TagCode but no pet and no owner
 // until a customer scans and activates them. Portal-purchased tags are bound
@@ -35,7 +35,7 @@ export function AdminTagInventoryManager({
   const [data, setData] = useState(initialData);
   const [count, setCount] = useState(5);
   const [tagKind, setTagKind] = useState<"qr" | "nfc">("qr");
-  const [shape, setShape] = useState<TagShape>("Round");
+  const [variant, setVariant] = useState<TagVariant>("Standard");
   const [message, setMessage] = useState("");
 
   const refresh = useCallback(async () => {
@@ -80,10 +80,10 @@ export function AdminTagInventoryManager({
 
   async function generate() {
     try {
-      const result = await adminGenerateRetailTags(count, tagKind === "nfc", shape);
+      const result = await adminGenerateRetailTags(count, tagKind === "nfc", variant);
       await refresh();
       setMessage(
-        `${result.data.length} new ${tagKind === "nfc" ? "QR + NFC" : "QR"} tag code${
+        `${result.data.length} new ${tagKind === "nfc" ? "QR + NFC" : "QR"} ${variant} tag code${
           result.data.length === 1 ? "" : "s"
         } generated as unclaimed stock.`
       );
@@ -108,12 +108,13 @@ export function AdminTagInventoryManager({
 
   function exportLocalCsv() {
     const rows = [
-      ["Tag code", "Type", "Status", "Batch", "Generated", "Pet", "Owner"],
+      ["Tag code", "Type", "Variant", "Status", "Batch", "Generated", "Pet", "Owner"],
       ...inventoryTags.map((tag) => {
         const pet = tag.petId ? petMap.get(tag.petId) : undefined;
         return [
           tag.tagCode,
           getTagTypeLabel(tag.hasNfc),
+          `${tag.variant} Tag`,
           tag.isArchived ? "Archived" : tag.status,
           tag.batchNo ?? "",
           tag.orderedDate ?? "",
@@ -175,15 +176,15 @@ export function AdminTagInventoryManager({
             </select>
           </label>
           <label className="grid gap-1 text-xs font-extrabold uppercase text-slate-500">
-            Shape
+            Tag variant
             <select
               className="min-h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none focus:border-slate-400"
-              onChange={(event) => setShape(event.target.value as TagShape)}
-              value={shape}
+              onChange={(event) => setVariant(event.target.value as TagVariant)}
+              value={variant}
             >
-              {shapeOptions.map((option) => (
+              {variantOptions.map((option) => (
                 <option key={option} value={option}>
-                  {option}
+                  {option} Tag
                 </option>
               ))}
             </select>
@@ -220,6 +221,7 @@ export function AdminTagInventoryManager({
               headers={[
                 "Tag code",
                 "Type",
+                "Variant",
                 "Status",
                 "Batch",
                 "Generated",
@@ -264,6 +266,9 @@ function InventoryRow({
       </td>
       <td className="whitespace-nowrap px-4 py-3 text-slate-600">
         {getTagTypeLabel(tag.hasNfc)}
+      </td>
+      <td className="whitespace-nowrap px-4 py-3 text-slate-600">
+        {tag.variant} Tag
       </td>
       <td className="whitespace-nowrap px-4 py-3">
         <Badge tone={tag.isArchived ? "soft" : tagStatusTone[tag.status]}>

@@ -170,7 +170,7 @@ export function ManualPaymentPanel({
         <div className="grid gap-4">
           <div className="grid gap-2 rounded-[1.5rem] bg-pet-cream p-4">
             <SummaryRow label="Tag type" value={order.tagType} />
-            <SummaryRow label="Design" value={order.shape} />
+            <SummaryRow label="Tag variant" value={`${order.variant} Tag`} />
             <SummaryRow label="Recipient" value={order.delivery.recipientName} />
             <SummaryRow label="Delivery" value={deliverySummary} />
             <SummaryRow label="Total amount" value={order.estimatedPrice} />

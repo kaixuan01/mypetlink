@@ -467,7 +467,7 @@ function OrderRow({
           <td className="bg-slate-50/60 px-4 py-4" colSpan={10}>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
               <AdminDetailItem label="Pet" value={petName} />
-              <AdminDetailItem label="Design" value={order.shape} />
+              <AdminDetailItem label="Tag variant" value={`${order.variant} Tag`} />
               <AdminDetailItem
                 label="Payment method"
                 value={order.paymentMethod ?? "QR Payment"}
@@ -594,7 +594,7 @@ function getAssignableInventoryTags(order: TagOrder, tags: PetTag[]) {
       !tag.petId &&
       tag.status === "Unassigned" &&
       tag.hasNfc === needsNfc &&
-      tag.shape === order.shape
+      tag.variant === order.variant
   );
 }
 

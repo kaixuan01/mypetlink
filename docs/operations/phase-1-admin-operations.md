@@ -175,7 +175,7 @@ Side effects:
 - Assigning inventory links an unclaimed tag to the owner, pet, and order, then moves it to `Preparing`. Stock is consumed at assignment, not at order creation.
 - Change Assigned Tag returns the old (never-shipped) tag to `Unclaimed` inventory with its owner/pet/order links cleared, then links the new tag as `Preparing`. Audited with old and new tag codes.
 - Replace Tag marks the old tag `Replaced` (its `/t` scan page stops showing owner contact) while keeping its owner/pet/order history, links a fresh tag as `Preparing`, and sends the order back to `PreparingTag` (tracking: "A replacement tag is being prepared."). A reason is required. Audited with old/new tag codes and the reason.
-- Change/Replace validate the new tag is unclaimed, unlinked, not archived, and matches the order's tag type and shape; the pet must be Active (Memorial/Archived pets cannot receive an active replacement).
+- Change/Replace validate the new tag is unclaimed, unlinked, not archived, and matches the order's tag type and variant; the pet must be Active (Memorial/Archived pets cannot receive an active replacement).
 - Preparing updates linked pending-family tag to `Preparing`.
 - Delivered updates linked pending-family tag to `Delivered`.
 - Admin order/tag pages do not activate customer tags; activation is completed by the owner from the Physical Tag Scan Page after scanning/tapping the physical tag.

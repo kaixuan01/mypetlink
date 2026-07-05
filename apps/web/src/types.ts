@@ -263,7 +263,9 @@ export type PetMoment = {
 
 export type TagType = "MyPetLink QR Pet Tag" | "MyPetLink QR + NFC Smart Tag";
 
-export type TagShape = "Round" | "Bone" | "Rounded Square" | "Paw";
+// Tag variant (formerly the physical shape option): Lightweight for cats/small
+// pets, Standard for dogs/medium-large pets. Applies to both QR and QR + NFC.
+export type TagVariant = "Lightweight" | "Standard";
 
 export type TagStatus =
   | "Unassigned"
@@ -284,7 +286,7 @@ export type PetTag = {
   petId?: string;
   ownerUserId?: string;
   hasNfc: boolean;
-  shape: TagShape;
+  variant: TagVariant;
   status: TagStatus;
   batchNo?: string;
   orderedDate?: string;
@@ -351,7 +353,7 @@ export type TagOrder = {
   petId: string;
   petName?: string;
   tagType: TagType;
-  shape: TagShape;
+  variant: TagVariant;
   delivery: DeliveryDetails;
   estimatedPrice: string;
   status: OrderStatus;
@@ -439,7 +441,7 @@ export type PetMomentPayload = Partial<
 export type TagOrderPayload = {
   petId: string;
   tagType: TagType;
-  shape: TagShape;
+  variant: TagVariant;
   delivery: DeliveryDetails;
   replacementForTagId?: string;
 };

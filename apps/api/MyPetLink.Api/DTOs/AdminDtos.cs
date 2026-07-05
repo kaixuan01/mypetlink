@@ -70,7 +70,7 @@ public sealed record AdminSmartTagResponse(
 public sealed record AdminGenerateTagsRequest(
     [Required, Range(1, 50)] int Quantity,
     [Required, MaxLength(32)] string TagType,
-    [MaxLength(80)] string? Shape,
+    [MaxLength(80)] string? Variant,
     [MaxLength(80)] string? BatchNumber);
 
 public sealed record AdminGenerateTagsResponse(
