@@ -97,20 +97,17 @@ Admin authorization uses the `AdminUsers` table. The admin policy checks that th
 
 ### Local dev admin
 
-For local testing, `AdminSeed:Emails` (in `appsettings.Development.json`) is a **Development-only** allowlist. When the API runs in the Development environment and someone logs in with Google using a matching email, `AuthService` ensures they have an active `AdminUsers` row (role `SuperAdmin`) — so `/admin` works without a manual SQL step. Current local dev admin email:
-
-```txt
-gbbsoftwaresolutions@gmail.com
-```
+For local testing, `AdminSeed:Emails` is a **Development-only** allowlist. When the API runs in the Development environment and someone logs in with Google using a matching email, `AuthService` ensures they have an active `AdminUsers` row (role `SuperAdmin`) — so `/admin` works without a manual SQL step. The tracked `appsettings.Development.json` keeps this list empty; add a local-only value with user-secrets or your uncommitted development settings if you need Google-login auto-promotion.
 
 Rules:
 
 - Runs **only** in Development (`IsDevelopment()`), so it can never become a production auto-admin. Production `appsettings.json` has no `AdminSeed` section.
+- Keep real admin emails out of committed config. Use user-secrets for local convenience.
 - Idempotent: an existing `AdminUsers` row is reactivated, never duplicated.
 - The user must log in with Google **first** (to create their `Users` row); promotion happens on that login.
 - **Production admins are still seeded manually** — see [`../../docs/deployment/first-admin-setup.md`](../../docs/deployment/first-admin-setup.md) and [`../../docs/deployment/sql/first-admin-template.sql`](../../docs/deployment/sql/first-admin-template.sql). Do not rely on the dev auto-admin in production.
 
-The **production** first admin is `gbbsoftwaresolutions@gmail.com`: it logs in once with Google, then is promoted **manually** via the first-admin SQL (no production auto-promote). A Cloudflare Email Routing address is not a Google Login account; if a Google Workspace/domain account is adopted later, promote that account instead.
+The **production** first admin is selected by the operator: that account logs in once with Google, then is promoted **manually** via the first-admin SQL (no production auto-promote). A Cloudflare Email Routing address is not a Google Login account; if a Google Workspace/domain account is adopted later, promote that account instead.
 
 ### Development-only test login (E2E helper)
 
@@ -142,7 +139,7 @@ Safety:
 - **Development only.** Both `DevAuthController` and `AuthService.SignInWithDevTestUserAsync` check `IsDevelopment()`; outside Development the endpoint returns `404` (verified against a Production run). No config switch can enable it in production.
 - Reuses the same token/user/owner-profile path as Google login, so it does not weaken or bypass real auth.
 - `role` must be `Owner` (default) or `Admin`; anything else is `400`. Use distinct emails (e.g. `owner.test@`, `admin.test@`, `other.owner@ mypetlink.local`) for owner/admin/cross-owner scenarios.
-- A matching `/dev-login` page exists in the frontend for browser testing; it renders "Not available" in production builds.
+- No frontend `/dev-login` page is shipped. Use the Development-only API endpoint directly for local/E2E sessions.
 
 ## Phase A2 Owner And Pet APIs
 

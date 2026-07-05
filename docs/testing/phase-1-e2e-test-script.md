@@ -41,7 +41,7 @@ curl -s -H "Authorization: Bearer $TOKEN" "$API/api/v1/admin/auth/check"  # admi
 
 - **Admin vs non-admin**: an `Admin` test login gets roles `["Owner","Admin"]` and `200` on `/admin/*`; an `Owner` test login gets `["Owner"]` and `403` on `/admin/*`.
 - **Cross-owner**: log in as `owner.test` and `other.owner`, then use one token against the other's order/pet/PDF ids to confirm `404`/blocked.
-- **Browser**: in development you can also open `/dev-login` and click a test user; it stores the session and redirects. This page shows "Not available" in production builds.
+- **Browser**: no `/dev-login` page is shipped. Use the Development-only API endpoint directly for local/E2E sessions, then store or inject the returned session as needed for the test run.
 - Emails are arbitrary local addresses; suggested: `owner.test@mypetlink.local`, `admin.test@mypetlink.local`, `other.owner@mypetlink.local`. Repeat logins with the same email reuse the same local user.
 - **Warning**: this endpoint/page is Development-only and must never be enabled or documented as a real login in production.
 - Each case has: **ID · Role · Preconditions · Steps · Expected · Actual · Status · Notes**. Record `Actual`/`Status` when you run it. Status legend: `PASS` (executed, passed), `FAIL`, `BLOCKED`, `PASS(CR)` (verified by code review because a live token/browser was unavailable), `NT` (not tested).

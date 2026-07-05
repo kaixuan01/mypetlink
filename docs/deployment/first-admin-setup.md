@@ -4,15 +4,11 @@ MyPetLink admin access is **data-driven, not code-driven**. The admin policy (`A
 
 No admin email is hardcoded in code, and there is **no auto-running admin seed in production**. The `InitialCreate` migration seeds plans, plan limits, and app settings only — it does **not** create any `AdminUsers` row. Nothing admin-related runs automatically in production; the step below is deliberate and manual.
 
-> **Local development only:** to make `/admin` reachable while testing, the API auto-promotes a configured email on Google login **when running in the Development environment**. The allowlist is `AdminSeed:Emails` in `appsettings.Development.json` (current value: `gbbsoftwaresolutions@gmail.com`). This is guarded by `IsDevelopment()` and does **not** run in production (production config has no `AdminSeed` section). It only reactivates or creates one idempotent `AdminUsers` row after the user has logged in with Google. **Production admins are still promoted manually with the steps below** — do not rely on the dev auto-admin for production.
+> **Local development only:** to make `/admin` reachable while testing, the API can auto-promote a configured email on Google login **when running in the Development environment**. The tracked `appsettings.Development.json` keeps `AdminSeed:Emails` empty; add a local-only value with user-secrets or uncommitted development settings if you need this convenience. This is guarded by `IsDevelopment()` and does **not** run in production (production config has no `AdminSeed` section). It only reactivates or creates one idempotent `AdminUsers` row after the user has logged in with Google. **Production admins are still promoted manually with the steps below** — do not rely on the dev auto-admin for production.
 
 ## Production first admin account
 
-The initial production admin (first `SuperAdmin`) is:
-
-```txt
-gbbsoftwaresolutions@gmail.com
-```
+Choose one real Google-login account to become the initial production admin (first `SuperAdmin`). Do not commit that address to the repository.
 
 Rules for this account in production:
 
@@ -23,22 +19,22 @@ Rules for this account in production:
 Notes on which email to use:
 
 - **Cloudflare Email Routing addresses are not automatically Google Login accounts.** A routed address (e.g. `admin@mypetlink.com.my` forwarding to an inbox) cannot log in with Google unless it is itself a real Google account. It only forwards mail; it is not an identity provider account.
-- **If MyPetLink later adopts Google Workspace / a domain Google account** (e.g. a real `admin@mypetlink.com.my` Workspace account), promote **that** account instead and retire this one — repeat the same login-once-then-manual-insert flow for the new account, then revoke the old `AdminUsers` row.
-- **For now, use `gbbsoftwaresolutions@gmail.com` as the first production `SuperAdmin`.**
+- **If MyPetLink later adopts Google Workspace / a domain Google account** (e.g. a real `admin@mypetlink.com.my` Workspace account), promote **that** account using the same login-once-then-manual-insert flow, then revoke any old `AdminUsers` row.
 
 ## Steps
 
-1. **Log in once with Google** on the production frontend using the first-admin account (`gbbsoftwaresolutions@gmail.com`). This creates the normal `Users` row (and `OwnerProfile` on the Free plan) through the standard `/api/v1/auth/google` flow. No special handling.
+1. **Log in once with Google** on the production frontend using the intended first-admin account. This creates the normal `Users` row (and `OwnerProfile` on the Free plan) through the standard `/api/v1/auth/google` flow. No special handling.
 2. **Find the user id** in the production database:
    ```sql
-   SELECT Id, Email, DisplayName FROM Users WHERE Email = N'gbbsoftwaresolutions@gmail.com';
+   DECLARE @AdminEmail NVARCHAR(320) = N'admin@example.com'; -- replace before running
+   SELECT Id, Email, DisplayName FROM Users WHERE Email = @AdminEmail;
    ```
 3. **Insert an active `AdminUsers` row** for that user (idempotent guard so re-running is safe):
    ```sql
    INSERT INTO AdminUsers (Id, UserId, Role, IsActive, CreatedAt, UpdatedAt)
    SELECT NEWID(), u.Id, 'SuperAdmin', 1, SYSDATETIMEOFFSET(), SYSDATETIMEOFFSET()
    FROM Users u
-   WHERE u.Email = N'gbbsoftwaresolutions@gmail.com'
+   WHERE u.Email = @AdminEmail
      AND NOT EXISTS (SELECT 1 FROM AdminUsers a WHERE a.UserId = u.Id);
    ```
    `Role` may be `Admin` or `SuperAdmin` — Phase 1 treats them equivalently in policy (`OwnerSupport`/`Operations` are reserved for later).

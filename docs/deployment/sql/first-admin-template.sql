@@ -7,13 +7,14 @@
 -- email is hardcoded in code, and no migration auto-creates an admin.
 --
 -- NOTE (local development only): when the API runs in the Development
--- environment, a Google login with an email in AdminSeed:Emails
--- (appsettings.Development.json, currently gbbsoftwaresolutions@gmail.com) is
--- auto-promoted to admin, so this SQL is NOT needed locally for that email.
+-- environment, a Google login with an email in AdminSeed:Emails can be
+-- auto-promoted to admin. The tracked development config keeps this list
+-- empty; use user-secrets or uncommitted local settings if needed.
 -- This template is for PRODUCTION (and for promoting any other local account).
 -- The dev auto-admin never runs in production.
 --
--- Current production first admin (first SuperAdmin): gbbsoftwaresolutions@gmail.com
+-- First production admin (first SuperAdmin):
+--   * Choose one real Google-login account and keep the address out of git.
 --   * This account must log in ONCE with Google in production first, then be
 --     promoted with the steps below. It is NOT auto-promoted in production.
 --   * Cloudflare Email Routing addresses are not Google Login accounts and
@@ -34,10 +35,8 @@
 --   * Keep this as a manual, auditable action.
 -- ------------------------------------------------------------
 
--- Set the target email once. For the current production first admin, use:
---   gbbsoftwaresolutions@gmail.com
--- (Replace only if promoting a different account.)
-DECLARE @AdminEmail NVARCHAR(320) = N'gbbsoftwaresolutions@gmail.com';
+-- Set the target email once. Replace this placeholder before running.
+DECLARE @AdminEmail NVARCHAR(320) = N'admin@example.com';
 
 -- Step 1 — find the user id (after the operator has logged in once with Google)
 SELECT Id, Email, DisplayName, Status
