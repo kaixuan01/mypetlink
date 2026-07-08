@@ -8,7 +8,13 @@ No admin email is hardcoded in code, and there is **no auto-running admin seed i
 
 ## Production first admin account
 
-Choose one real Google-login account to become the initial production admin (first `SuperAdmin`). Do not commit that address to the repository.
+The initial production admin (first `SuperAdmin`) is:
+
+```txt
+gbbsoftwaresolutions@gmail.com
+```
+
+This is an operator account identifier, not a secret. It is still **not** auto-promoted by code; it must be promoted manually after a normal Google login.
 
 Rules for this account in production:
 
@@ -23,10 +29,10 @@ Notes on which email to use:
 
 ## Steps
 
-1. **Log in once with Google** on the production frontend using the intended first-admin account. This creates the normal `Users` row (and `OwnerProfile` on the Free plan) through the standard `/api/v1/auth/google` flow. No special handling.
+1. **Log in once with Google** on the production frontend using `gbbsoftwaresolutions@gmail.com`. This creates the normal `Users` row (and `OwnerProfile` on the Free plan) through the standard `/api/v1/auth/google` flow. No special handling.
 2. **Find the user id** in the production database:
    ```sql
-   DECLARE @AdminEmail NVARCHAR(320) = N'admin@example.com'; -- replace before running
+   DECLARE @AdminEmail NVARCHAR(320) = N'gbbsoftwaresolutions@gmail.com';
    SELECT Id, Email, DisplayName FROM Users WHERE Email = @AdminEmail;
    ```
 3. **Insert an active `AdminUsers` row** for that user (idempotent guard so re-running is safe):

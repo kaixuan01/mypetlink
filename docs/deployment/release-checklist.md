@@ -4,18 +4,20 @@ Work top to bottom. Do not merge `feature/connect-admin-apis` into `main` until 
 
 ## Pre-release
 
-- [ ] All feature/docs branches pushed to origin (`feature/connect-admin-apis` at `08c34c2` or later).
+- [ ] All feature/docs branches pushed to origin (`feature/connect-admin-apis` at the latest verified commit).
 - [ ] `dotnet build apps/api/MyPetLink.Api/MyPetLink.Api.csproj` passes.
 - [ ] `npm run lint:web` and `npm run build:web` pass.
 - [ ] Backend hosted (e.g. Azure App Service) and reachable at `https://api.mypetlink.com.my/api/v1/health` → `{ "status": "ok" }`.
 - [ ] Production SQL Server database created; `InitialCreate` migration applied; 24 tables present; plan/limit/app-setting seed rows present.
 - [ ] Google OAuth: production frontend origin added to Authorized JavaScript origins; consent screen published; frontend and backend use the same client id.
 - [ ] **Manual Google popup login test passes** on a preview/prod frontend (real account → `/dashboard`, `/api/v1/auth/me` returns the user).
-- [ ] Frontend production env set in Cloudflare Pages (`NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_API_BASE_URL`, `NEXT_PUBLIC_GOOGLE_CLIENT_ID`) and the frontend **rebuilt** so values are baked in. `NEXT_PUBLIC_SITE_URL` must be the canonical public site URL so generated QR codes (`/p`, `/q`, `/t`) point at production, not a placeholder host.
-- [ ] Backend env set: `ConnectionStrings__MyPetLinkDb`, `Jwt__SigningKey`, `Jwt__Issuer`, `Jwt__Audience`, `GoogleAuth__ClientId`, `Cors__AllowedOrigins__0` = production frontend origin, `ASPNETCORE_ENVIRONMENT=Production`.
+- [ ] Frontend production env set in Cloudflare Pages (`NEXT_PUBLIC_SITE_URL=https://mypetlink.com.my`, `NEXT_PUBLIC_API_BASE_URL=https://api.mypetlink.com.my`, `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, `NEXT_PUBLIC_SMART_TAG_ORDERING_ENABLED=false`) and the frontend **rebuilt** so values are baked in.
+- [ ] Backend env set: `ASPNETCORE_ENVIRONMENT=Production`, `ConnectionStrings__MyPetLinkDb`, `Jwt__SigningKey`, `Jwt__Issuer`, `Jwt__Audience`, `GoogleAuth__ClientId`, `Cors__AllowedOrigins__0=https://mypetlink.com.my`, `Cors__AllowedOrigins__1=https://www.mypetlink.com.my` if `www` is served, and `Features__SmartTagOrderingEnabled=false` for the free-profiles launch.
 - [ ] Smart Tag ordering flag confirmed for the intended launch: backend `Features__SmartTagOrderingEnabled` and frontend `NEXT_PUBLIC_SMART_TAG_ORDERING_ENABLED` both **false** for the free-profiles launch (default), or both **true** only when physical tags are ready. Mismatched values (frontend shows CTAs but backend blocks) should be avoided.
+- [ ] Confirm `PublicApp__BaseUrl` is not required by the current backend; public links are generated from frontend `NEXT_PUBLIC_SITE_URL=https://mypetlink.com.my`.
 - [ ] CORS confirmed: production frontend can call the API; other origins are blocked.
-- [ ] First admin seeded and verified (`/api/v1/admin/auth/check` → 200 for admin, 403 for non-admin) — see `first-admin-setup.md`.
+- [ ] Production safety checks pass: `POST /api/v1/dev/test-login` returns `404`, `/swagger` returns `404`, developer hints are absent from the production frontend build, no frontend `/dev-login` route is generated, and no secrets or `.env.local` are committed.
+- [ ] First admin `gbbsoftwaresolutions@gmail.com` logged in once via Google, then was manually seeded and verified (`/api/v1/admin/auth/check` returns 200 for admin and 403 for non-admin) — see `first-admin-setup.md`.
 
 ## Smoke test (run against production, admin account)
 
@@ -27,7 +29,8 @@ Owner:
 - [ ] QR Safety `/q/:safetyCode` renders finder-first content.
 - [ ] Create a care record; edit it; confirm it persists after reload.
 - [ ] Create a memory (public) and a private memory; confirm the public one appears on `/p/`, the private one does not.
-- [ ] Create a smart tag order (price set server-side); submit a payment proof (metadata only).
+- [ ] If Smart Tag ordering is disabled for launch, confirm order CTAs are hidden/coming soon and direct `POST /api/v1/orders` returns `403 feature_disabled`.
+- [ ] If Smart Tag ordering is explicitly enabled later, create a smart tag order (price set server-side); submit a payment proof (metadata only).
 
 Admin:
 
