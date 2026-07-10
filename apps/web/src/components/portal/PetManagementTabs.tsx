@@ -8,7 +8,7 @@ import {
 import { PetMomentsManager } from "@/components/portal/PetMomentsManager";
 import { RecordsManager } from "@/components/portal/RecordsManager";
 import { TagManagementPanel } from "@/components/portal/TagManagementPanel";
-import { ShareProfileLink } from "@/components/share/ShareProfileLink";
+import { QrCodeButton } from "@/components/qr/QrCodeButton";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon } from "@/components/ui/Icon";
@@ -23,8 +23,12 @@ import { getMemoryLimitState } from "@/lib/planLimits";
 import { getPetProfileTheme } from "@/lib/petProfileThemes";
 import { isActivePet, isArchivedPet, isMemorialPet } from "@/lib/petLifecycle";
 import { ownerRoutes, tagPath } from "@/lib/routes";
+import { getServerFallbackBaseUrl, toAbsoluteUrl } from "@/lib/siteUrl";
 import { getTagScanDisplay, isActivePhysicalTagForPet } from "@/lib/tagStatus";
+import { isApiConfigured } from "@/services/apiConfig";
+import { getPetMoments } from "@/services/momentService";
 import { getPetById, updatePetLostMode } from "@/services/petService";
+import { getPetRecords } from "@/services/recordService";
 import type {
   CareRecord,
   Pet,
@@ -59,8 +63,15 @@ export function PetManagementTabs({
   orders = [],
   tags,
 }: PetManagementTabsProps) {
+  const apiMode = isApiConfigured();
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [currentPet, setCurrentPet] = useState(pet);
+  const [currentRecords, setCurrentRecords] = useState<CareRecord[]>(
+    apiMode ? [] : records
+  );
+  const [currentMoments, setCurrentMoments] = useState<PetMoment[]>(
+    apiMode ? [] : moments
+  );
 
   // The page is server-rendered from seed data; re-read the pet on the client so
   // persisted edits (e.g. Lost Mode) survive a refresh and match the QR safety
@@ -79,6 +90,31 @@ export function PetManagementTabs({
     };
   }, [pet.id]);
 
+  useEffect(() => {
+    let active = true;
+
+    Promise.all([
+      getPetRecords(currentPet.id),
+      getPetMoments(currentPet.id),
+    ])
+      .then(([recordResponse, momentResponse]) => {
+        if (active) {
+          setCurrentRecords(recordResponse.data);
+          setCurrentMoments(momentResponse.data);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setCurrentRecords([]);
+          setCurrentMoments([]);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [currentPet.id]);
+
   return (
     <div>
       <SegmentedTabs
@@ -91,8 +127,8 @@ export function PetManagementTabs({
       {activeTab === "overview" ? (
         <OverviewTab
           pet={currentPet}
-          records={records}
-          moments={moments}
+          records={currentRecords}
+          moments={currentMoments}
           onPetChange={setCurrentPet}
           orders={orders}
           tags={tags}
@@ -100,11 +136,11 @@ export function PetManagementTabs({
       ) : null}
 
       {activeTab === "records" ? (
-        <RecordsManager petId={currentPet.id} initialRecords={records} />
+        <RecordsManager petId={currentPet.id} initialRecords={currentRecords} />
       ) : null}
 
       {activeTab === "moments" ? (
-        <PetMomentsManager pet={currentPet} initialMoments={moments} />
+        <PetMomentsManager pet={currentPet} initialMoments={currentMoments} />
       ) : null}
 
       {activeTab === "tag" ? (
@@ -151,8 +187,7 @@ function OverviewTab({
     : null;
   const activeTagScanPath = activeTag ? tagPath(activeTag.tagCode) : "";
   const activeTagScanUrl =
-    activeTag && activeTagScanPath ? `${origin}${activeTagScanPath}` : "";
-  const [copyMessage, setCopyMessage] = useState("");
+    activeTag && activeTagScanPath ? toAbsoluteUrl(activeTagScanPath, origin) : "";
   const theme = getPetProfileTheme(pet.profileTheme);
   const qrBadge = getQrStatusBadge(pet.qrStatus, pet.qrSafetyPath, pet);
   const smartTagBadge = getSmartTagStatusBadge(tags, orders, pet);
@@ -171,21 +206,6 @@ function OverviewTab({
     return () => window.clearTimeout(timer);
   }, []);
 
-  async function handleCopyActiveTagLink() {
-    if (!activeTagScanUrl) {
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(activeTagScanUrl);
-      setCopyMessage("Tag scan link copied.");
-    } catch {
-      setCopyMessage("Copy unavailable. Select and copy the link.");
-    }
-
-    window.setTimeout(() => setCopyMessage(""), 2500);
-  }
-
   return (
     <div className="grid min-w-0 gap-5 lg:grid-cols-2">
       {/* Public Share Profile */}
@@ -195,10 +215,15 @@ function OverviewTab({
         badge={<Badge tone="mint">{theme.name} theme</Badge>}
         description="The friendly page you share with family, friends, and pet communities."
       >
-        <ShareProfileLink
-          label="Public Profile URL"
+        <LinkActionPanel
+          copyLabel="Copy Link"
+          copyMessage="Public Share Profile link copied."
+          fileNameBase={`${pet.slug}-share-profile-qr`}
+          helperText="Share your pet's public profile with friends and family."
           path={pet.publicProfilePath}
-          petName={pet.name}
+          qrTitle="Share Profile QR"
+          url={toAbsoluteUrl(pet.publicProfilePath, origin)}
+          viewLabel={isMemorial ? "View Memorial Profile" : "View Public Profile"}
         />
         <div className="mt-auto flex flex-col gap-3 sm:flex-row pt-1">
           <CTAButton
@@ -237,10 +262,20 @@ function OverviewTab({
               : "This is the page people see when they find your pet. You can share it anytime."
         }
       >
-        <ShareProfileLink
-          label="QR Safety Page URL"
+        <LinkActionPanel
+          copyLabel="Copy Link"
+          copyMessage="QR Safety Page link copied."
+          fileNameBase={`${pet.slug}-qr-safety-page`}
+          helperText="Use this safety page if someone finds your pet."
           path={pet.qrSafetyPath}
-          petName={pet.name}
+          qrTitle="QR Safety Page QR"
+          url={toAbsoluteUrl(pet.qrSafetyPath, origin)}
+          viewLabel="View QR Safety Page"
+          warning={
+            isActiveProfile
+              ? undefined
+              : "This profile is inactive, so the QR Safety Page does not reveal finder contact details."
+          }
         />
         <div className="rounded-[1.25rem] bg-pet-cream p-4">
           <p className="text-xs font-bold uppercase text-pet-muted">
@@ -262,12 +297,12 @@ function OverviewTab({
             View QR Safety Page
           </CTAButton>
           <CTAButton
-            href={ownerRoutes.petQr(pet.id)}
+            href={ownerRoutes.petEdit(pet.id)}
             variant="outline"
             icon="settings"
             fullWidth
           >
-            Manage QR Safety Page
+            Edit Safety Settings
           </CTAButton>
         </div>
       </SectionCard>
@@ -437,26 +472,20 @@ function OverviewTab({
               {activeTag.tagCode}
             </p>
             <p className="mt-3 text-xs font-bold uppercase text-pet-muted">
-              Physical Tag Scan Link
+              Physical Tag Scan Page
             </p>
-            <div className="mt-1 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-              <p className="min-w-0 break-all text-sm font-bold text-pet-teal">
-                {activeTagScanUrl}
-              </p>
-              <button
-                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-pet-border bg-white px-4 py-2 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
-                onClick={handleCopyActiveTagLink}
-                type="button"
-              >
-                <Icon name="copy" className="h-4 w-4" />
-                Copy
-              </button>
+            <div className="mt-2">
+              <LinkActionPanel
+                copyLabel="Copy Link"
+                copyMessage="Physical Tag Scan Page link copied."
+                fileNameBase={`${activeTag.tagCode}-physical-tag-qr`}
+                helperText="This QR belongs to the physical tag linked to this pet."
+                path={activeTagScanPath}
+                qrTitle="Physical Tag QR"
+                url={activeTagScanUrl}
+                viewLabel="View Tag Scan Page"
+              />
             </div>
-            {copyMessage ? (
-              <p className="mt-2 text-xs font-bold text-pet-sage">
-                {copyMessage}
-              </p>
-            ) : null}
             {activeTagScanDisplay ? (
               <p className="mt-2 text-sm text-pet-muted">
                 {activeTagScanDisplay.label}: {activeTagScanDisplay.value}
@@ -506,7 +535,112 @@ function getBrowserOrigin() {
 }
 
 function getServerOrigin() {
-  return "https://mypetlink.pages.dev";
+  return getServerFallbackBaseUrl();
+}
+
+function LinkActionPanel({
+  copyLabel,
+  copyMessage,
+  fileNameBase,
+  helperText,
+  path,
+  qrTitle,
+  url,
+  viewLabel,
+  warning,
+}: {
+  copyLabel: string;
+  copyMessage: string;
+  fileNameBase: string;
+  helperText: string;
+  path: string;
+  qrTitle: string;
+  url: string;
+  viewLabel: string;
+  warning?: string;
+}) {
+  const [status, setStatus] = useState("");
+
+  async function handleCopy() {
+    const copied = await copyText(url);
+    setStatus(copied ? copyMessage : "Copy unavailable. Select and copy the link.");
+    window.setTimeout(() => setStatus(""), 2500);
+  }
+
+  return (
+    <div className="grid min-w-0 gap-3">
+      <p
+        aria-label={`${qrTitle} link`}
+        className="select-all break-all rounded-[1rem] border border-pet-border bg-white px-3 py-2 text-xs font-bold leading-5 text-pet-ink"
+        role="textbox"
+        tabIndex={0}
+      >
+        {url}
+      </p>
+      <div className="grid gap-2 sm:grid-cols-3">
+        <button
+          className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-pet-border bg-white px-4 py-2 text-sm font-extrabold text-pet-ink transition hover:bg-pet-cream"
+          onClick={handleCopy}
+          type="button"
+        >
+          <Icon name="copy" className="h-4 w-4" />
+          {copyLabel}
+        </button>
+        <CTAButton
+          href={path}
+          icon="qr"
+          rel="noopener noreferrer"
+          target="_blank"
+          variant="secondary"
+          fullWidth
+        >
+          {viewLabel}
+        </CTAButton>
+        <QrCodeButton
+          className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-white px-4 py-2 text-sm font-extrabold text-pet-ink transition hover:bg-pet-cream"
+          fileNameBase={fileNameBase}
+          helperText={helperText}
+          label="Show QR"
+          targetPath={path}
+          title={qrTitle}
+          viewLabel={viewLabel}
+          warning={warning}
+        />
+      </div>
+      {status ? (
+        <p className="text-xs font-bold text-pet-sage" role="status">
+          {status}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+async function copyText(text: string) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // Try the textarea copy path below.
+    }
+  }
+
+  const textArea = document.createElement("textarea");
+  textArea.value = text;
+  textArea.setAttribute("readonly", "true");
+  textArea.style.position = "fixed";
+  textArea.style.left = "-9999px";
+  document.body.appendChild(textArea);
+  textArea.select();
+
+  try {
+    return document.execCommand("copy");
+  } catch {
+    return false;
+  } finally {
+    document.body.removeChild(textArea);
+  }
 }
 
 function LostModeCard({

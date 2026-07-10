@@ -6,34 +6,47 @@ import { AdminSection, AdminTable } from "@/components/admin/AdminPanels";
 import { Badge } from "@/components/ui/Badge";
 import {
   buildOwnerSummaries,
-  getAdminData,
+  getOwnerSummaries,
   type AdminData,
+  type AdminOwnerSummary,
 } from "@/services/adminService";
 
 export function AdminUsersManager({ initialData }: { initialData: AdminData }) {
-  const [data, setData] = useState(initialData);
+  const initialOwners = useMemo(
+    () => buildOwnerSummaries(initialData),
+    [initialData]
+  );
+  const [owners, setOwners] = useState<AdminOwnerSummary[]>(initialOwners);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     let active = true;
 
-    getAdminData().then((next) => {
-      if (active) {
-        setData(next);
-      }
-    });
+    getOwnerSummaries()
+      .then((next) => {
+        if (active) {
+          setOwners(next);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setError("We could not load owner accounts. Please refresh to try again.");
+        }
+      });
 
     return () => {
       active = false;
     };
   }, []);
 
-  const owners = useMemo(() => buildOwnerSummaries(data), [data]);
-
   return (
     <AdminSection
       title="Owners"
       description="Pet owner accounts with their profiles and tag orders. Account suspension arrives with a later update."
     >
+      {error ? (
+        <p className="px-4 pt-3 text-sm font-bold text-[#a63c2e]">{error}</p>
+      ) : null}
       <div className="p-4">
         <AdminTable
           headers={[

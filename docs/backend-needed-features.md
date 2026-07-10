@@ -19,7 +19,7 @@ What the future C# .NET API (`apps/api`) must provide to replace the current fro
 ## Smart tags and orders
 
 - **Tag registry**: TagCode (`MPL-XXXX-XXXX`) as the single public identifier; batches; QR/NFC type; shape; status transitions with history.
-- **Tag activation**: `/activate/{tagCode}` binding an Unassigned or Delivered tag to a pet (with account creation for retail customers).
+- **Tag activation**: `/t/{tagCode}` scan/tap flow binding an Unassigned retail tag to a selected pet, or activating an assigned portal tag for its order-selected pet.
 - **Tag status changes**: lost / disabled / replaced / archived + restore, with owner-safe scan behavior (inactive tags never expose owner contact).
 - **Smart tag orders**: creation from the owner portal (tag bound to pet from the start), pricing, delivery details, order numbers, fulfillment states (move fulfillment off the tag record and onto the order — collapse `TagStatus` to the 5 logical states).
 - **Payment proof review**: real file upload + storage for receipts, manual confirm/reject with reasons, receipt generation; keep manual review until a payment gateway phase.

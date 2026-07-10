@@ -19,7 +19,13 @@ Repo-wide documentation. Frontend-specific docs (agent reference, owner portal f
 - [`backend/`](backend/) - backend planning and architecture
   - [`backend-architecture.md`](backend/backend-architecture.md) - high-level backend flows and Mermaid diagrams
   - [`backend-project-structure.md`](backend/backend-project-structure.md) - recommended .NET 8 project structure
-  - [`implementation-plan.md`](backend/implementation-plan.md) - backend implementation phases
+  - [`implementation-plan.md`](backend/implementation-plan.md) - backend implementation phases + Phase 1 release readiness
+- [`deployment/`](deployment/) - Phase 1 production deployment planning
+  - [`production-deployment-plan.md`](deployment/production-deployment-plan.md) - hosting options, architecture, DB deployment, merge strategy
+  - [`environment-variables.md`](deployment/environment-variables.md) - required frontend/backend variables and secrets
+  - [`google-oauth-setup.md`](deployment/google-oauth-setup.md) - Google Cloud Console OAuth setup
+  - [`first-admin-setup.md`](deployment/first-admin-setup.md) - safe first admin promotion
+  - [`release-checklist.md`](deployment/release-checklist.md) - pre-release, smoke test, post-release
 - [`architecture/`](architecture/) - system architecture docs
 - [`api/`](api/) - API documentation
   - [`api-contract-v1-draft.md`](api/api-contract-v1-draft.md) - V1 REST API contract draft (`/api/v1`)
@@ -29,7 +35,7 @@ Repo-wide documentation. Frontend-specific docs (agent reference, owner portal f
   - [`migration-plan.md`](database/migration-plan.md) - migration and seed planning
   - [`database-draft.md`](database/database-draft.md) - earlier draft SQL Server schema
 - [`operations/`](operations/) - hosting, deployment, and operations
-  - [`hosting-and-deployment.md`](operations/hosting-and-deployment.md) - hosting and deployment strategy
+  - [`hosting-and-deployment.md`](operations/hosting-and-deployment.md) - earlier hosting strategy (historical; predates the .NET/SQL Server direction — see `deployment/` for the current plan)
   - [`phase-1-operations-flow.md`](operations/phase-1-operations-flow.md) - manual order, payment, and tag operations
   - [`phase-1-admin-operations.md`](operations/phase-1-admin-operations.md) - Admin Portal MVP backend requirements
   - [`order-and-payment-proof-flow.md`](operations/order-and-payment-proof-flow.md) - manual order/payment proof flow

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MyPetLink.Api.Common;
 using MyPetLink.Api.DTOs;
 using MyPetLink.Api.Services;
 using MyPetLink.Api.Validation;
@@ -11,46 +12,113 @@ namespace MyPetLink.Api.Controllers;
 public sealed class OrdersController : ApiControllerBase
 {
     private readonly IOrderService _orderService;
+    private readonly IOrderDocumentService _orderDocumentService;
+    private readonly ICurrentUserService _currentUserService;
 
-    public OrdersController(IOrderService orderService)
+    public OrdersController(
+        IOrderService orderService,
+        IOrderDocumentService orderDocumentService,
+        ICurrentUserService currentUserService)
     {
         _orderService = orderService;
+        _orderDocumentService = orderDocumentService;
+        _currentUserService = currentUserService;
     }
 
-    // TODO: Create portal-purchased tags bound to active owned pets and keep payment manual.
     [HttpGet]
-    public Task<IActionResult> List([FromQuery] PagedQuery query, [FromQuery] string? status, [FromQuery] string? paymentStatus, CancellationToken cancellationToken)
+    public async Task<IActionResult> List(
+        [FromQuery] PagedQuery query,
+        [FromQuery] string? status,
+        [FromQuery] string? paymentStatus,
+        [FromQuery] Guid? petId,
+        CancellationToken cancellationToken)
     {
-        return PlaceholderAsync(_orderService, "GET /api/v1/orders", cancellationToken);
+        var (items, total) = await _orderService.ListAsync(
+            _currentUserService.Current.UserId,
+            query.Page,
+            query.PageSize,
+            status,
+            paymentStatus,
+            petId,
+            cancellationToken);
+
+        return Ok(ApiEnvelope.Ok(items, HttpContext, query.Page, query.PageSize, total));
     }
 
     [HttpGet("{orderNumber}")]
-    public Task<IActionResult> Get(string orderNumber, CancellationToken cancellationToken)
+    public async Task<IActionResult> Get(string orderNumber, CancellationToken cancellationToken)
     {
-        return PlaceholderAsync(_orderService, "GET /api/v1/orders/{orderNumber}", cancellationToken);
+        var response = await _orderService.GetAsync(
+            _currentUserService.Current.UserId,
+            orderNumber,
+            cancellationToken);
+
+        return Ok(ApiEnvelope.Ok(response, HttpContext));
     }
 
     [HttpPost]
-    public Task<IActionResult> Create([FromBody] CreateTagOrderRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> Create(
+        [FromBody] CreateTagOrderRequest request,
+        CancellationToken cancellationToken)
     {
-        return PlaceholderAsync(_orderService, "POST /api/v1/orders", cancellationToken);
+        var response = await _orderService.CreateAsync(
+            _currentUserService.Current.UserId,
+            request,
+            cancellationToken);
+
+        return CreatedAtAction(
+            nameof(Get),
+            new { orderNumber = response.Order.OrderNumber },
+            ApiEnvelope.Ok(response, HttpContext));
     }
 
     [HttpPost("{orderNumber}/payment-proof")]
-    public Task<IActionResult> UploadPaymentProof(string orderNumber, [FromBody] UploadPaymentProofRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> UploadPaymentProof(
+        string orderNumber,
+        [FromBody] UploadPaymentProofRequest request,
+        CancellationToken cancellationToken)
     {
-        return PlaceholderAsync(_orderService, "POST /api/v1/orders/{orderNumber}/payment-proof", cancellationToken);
+        var response = await _orderService.SubmitPaymentProofAsync(
+            _currentUserService.Current.UserId,
+            orderNumber,
+            request,
+            cancellationToken);
+
+        return Ok(ApiEnvelope.Ok(response, HttpContext));
     }
 
     [HttpPost("{orderNumber}/cancel")]
-    public Task<IActionResult> Cancel(string orderNumber, CancellationToken cancellationToken)
+    public async Task<IActionResult> Cancel(string orderNumber, CancellationToken cancellationToken)
     {
-        return PlaceholderAsync(_orderService, "POST /api/v1/orders/{orderNumber}/cancel", cancellationToken);
+        var response = await _orderService.CancelAsync(
+            _currentUserService.Current.UserId,
+            orderNumber,
+            cancellationToken);
+
+        return Ok(ApiEnvelope.Ok(response, HttpContext));
     }
 
-    [HttpGet("{orderNumber}/receipt")]
-    public Task<IActionResult> Receipt(string orderNumber, CancellationToken cancellationToken)
+    // Order Summary PDF: available in any state (before payment is confirmed).
+    [HttpGet("{orderNumber}/summary.pdf")]
+    public async Task<IActionResult> SummaryPdf(string orderNumber, CancellationToken cancellationToken)
     {
-        return PlaceholderAsync(_orderService, "GET /api/v1/orders/{orderNumber}/receipt", cancellationToken);
+        var document = await _orderDocumentService.GetOwnerSummaryAsync(
+            _currentUserService.Current.UserId,
+            orderNumber,
+            cancellationToken);
+
+        return File(document.Content, document.ContentType, document.FileName);
+    }
+
+    // Official Receipt PDF: only after payment is confirmed (service enforces).
+    [HttpGet("{orderNumber}/receipt.pdf")]
+    public async Task<IActionResult> ReceiptPdf(string orderNumber, CancellationToken cancellationToken)
+    {
+        var document = await _orderDocumentService.GetOwnerReceiptAsync(
+            _currentUserService.Current.UserId,
+            orderNumber,
+            cancellationToken);
+
+        return File(document.Content, document.ContentType, document.FileName);
     }
 }

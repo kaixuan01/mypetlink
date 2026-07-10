@@ -13,7 +13,6 @@ export type TagAction =
   | "view-payment-status"
   | "view-order"
   | "view-preparation-status"
-  | "activate-tag"
   | "view-inactive-tag-page"
   | "request-replacement"
   | "archive-tag"
@@ -90,7 +89,7 @@ export function isPendingPhysicalTag(tag: PetTag, order?: TagOrder) {
 }
 
 export function canActivateTagFromOwnerPortal(tag: PetTag) {
-  return !tag.isArchived && (tag.status === "Unassigned" || tag.status === "Delivered");
+  return !tag.isArchived && tag.status === "Unassigned" && !tag.petId;
 }
 
 export function getTagDisplayStatus(
@@ -119,7 +118,7 @@ export function getTagDisplayStatus(
   }
 
   if (tag.status === "Delivered" && !tag.activatedAt) {
-    return "Delivered - activation pending";
+    return "Delivered - awaiting owner activation";
   }
 
   if (order && isPendingPhysicalTag(tag, order)) {
@@ -202,11 +201,13 @@ export function getTagAvailableActions(
   }
 
   if (tag.status === "Unassigned") {
-    return ["activate-tag"];
+    return ["view-tag-scan-page", "copy-tag-scan-link"];
   }
 
-  if (tag.status === "Delivered") {
-    return order ? ["activate-tag", "view-order"] : ["activate-tag"];
+  if (tag.petId && pendingTagStatuses.includes(tag.status)) {
+    return order
+      ? ["view-tag-scan-page", "copy-tag-scan-link", "view-order"]
+      : ["view-tag-scan-page", "copy-tag-scan-link"];
   }
 
   if (order?.status === "Pending Payment") {

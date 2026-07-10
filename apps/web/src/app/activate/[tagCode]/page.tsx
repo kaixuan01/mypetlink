@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import { TagActivationFlow } from "@/components/portal/TagActivationFlow";
+import { redirect } from "next/navigation";
 import { staticTagCodeParams } from "@/data/staticRouteParams";
-import { getFinderState } from "@/services/tagService";
+import { tagPath } from "@/lib/routes";
 
 type ActivatePageProps = {
   params: Promise<{ tagCode: string }>;
@@ -19,7 +19,5 @@ export const metadata: Metadata = {
 
 export default async function ActivatePage({ params }: ActivatePageProps) {
   const { tagCode } = await params;
-  const result = await getFinderState(tagCode);
-
-  return <TagActivationFlow initialResult={result} tagCode={tagCode} />;
+  redirect(tagPath(tagCode));
 }

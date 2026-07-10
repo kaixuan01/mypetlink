@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Text.Json;
 using MyPetLink.Api.Common;
 
@@ -20,6 +21,48 @@ public sealed class ErrorHandlingMiddleware
         try
         {
             await _next(context);
+        }
+        catch (ApiException exception)
+        {
+            if (context.Response.HasStarted)
+            {
+                throw;
+            }
+
+            context.Response.Clear();
+            context.Response.StatusCode = exception.StatusCode;
+            context.Response.ContentType = "application/json";
+
+            var response = ApiEnvelope.Error(
+                context,
+                exception.Code,
+                exception.Message,
+                exception.Details);
+
+            await JsonSerializer.SerializeAsync(context.Response.Body, response, JsonOptions, context.RequestAborted);
+        }
+        catch (DbException exception)
+        {
+            // Database unreachable / connectivity failure. Surface a safe 503 so
+            // the client shows a temporary connection issue rather than a 500.
+            // Full details are logged server-side only, never returned.
+            _logger.LogError(exception, "Database connectivity failure.");
+
+            if (context.Response.HasStarted)
+            {
+                throw;
+            }
+
+            context.Response.Clear();
+            context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+            context.Response.ContentType = "application/json";
+
+            var response = ApiEnvelope.Error(
+                context,
+                "service_unavailable",
+                "MyPetLink is having trouble connecting right now. Please try again in a moment.");
+
+            await JsonSerializer.SerializeAsync(context.Response.Body, response, JsonOptions, context.RequestAborted);
         }
         catch (Exception exception)
         {

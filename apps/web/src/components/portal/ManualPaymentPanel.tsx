@@ -5,7 +5,10 @@ import { Badge } from "@/components/ui/Badge";
 import { Icon } from "@/components/ui/Icon";
 import { paymentConfig } from "@/config/payment";
 import { formatDeliverySummary, formatOrderNumber } from "@/lib/orders";
-import { submitOrderPayment } from "@/services/tagService";
+import {
+  getFriendlyTagErrorMessage,
+  submitOrderPayment,
+} from "@/services/tagService";
 import type { TagOrder } from "@/types";
 
 type ManualPaymentPanelProps = {
@@ -54,15 +57,21 @@ export function ManualPaymentPanel({
 
     setError("");
     setIsSubmitting(true);
-    const response = await submitOrderPayment(order.id, {
-      paymentReference: transactionReference,
-      paymentNote,
-      paymentProofName: proofName,
-    });
-    setIsSubmitting(false);
 
-    if (response.data.order) {
-      onSubmitted(response.data.order);
+    try {
+      const response = await submitOrderPayment(order.id, {
+        paymentReference: transactionReference,
+        paymentNote,
+        paymentProofName: proofName,
+      });
+
+      if (response.data.order) {
+        onSubmitted(response.data.order);
+      }
+    } catch (caught) {
+      setError(getFriendlyTagErrorMessage(caught));
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -75,6 +84,14 @@ export function ManualPaymentPanel({
       <p className="mt-2 max-w-2xl text-sm leading-6 text-pet-muted">
         {paymentConfig.instructions}
       </p>
+
+      {order.paymentRejectionReason ? (
+        <div className="mt-4 rounded-[1.25rem] border border-[#f4cf8a] bg-[#fdf3df] px-4 py-3 text-sm font-semibold leading-6 text-[#9a6b18]">
+          Your previous payment proof needs another look. Reason:{" "}
+          {order.paymentRejectionReason} Please upload a clearer receipt or
+          screenshot below and submit again.
+        </div>
+      ) : null}
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2 lg:items-start">
         {/* Merchant QR + payment reference */}
@@ -153,7 +170,7 @@ export function ManualPaymentPanel({
         <div className="grid gap-4">
           <div className="grid gap-2 rounded-[1.5rem] bg-pet-cream p-4">
             <SummaryRow label="Tag type" value={order.tagType} />
-            <SummaryRow label="Design" value={order.shape} />
+            <SummaryRow label="Tag variant" value={`${order.variant} Tag`} />
             <SummaryRow label="Recipient" value={order.delivery.recipientName} />
             <SummaryRow label="Delivery" value={deliverySummary} />
             <SummaryRow label="Total amount" value={order.estimatedPrice} />

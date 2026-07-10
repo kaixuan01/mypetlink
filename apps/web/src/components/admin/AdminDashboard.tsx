@@ -7,7 +7,7 @@ import { StatCard } from "@/components/ui/StatCard";
 import {
   buildDashboardSummary,
   buildRecentActivity,
-  getAdminData,
+  getAdminDashboardData,
   type AdminData,
   type AdminActivityItem,
 } from "@/services/adminService";
@@ -21,27 +21,47 @@ const quickActions = [
 ];
 
 export function AdminDashboard({ initialData }: { initialData: AdminData }) {
-  const [data, setData] = useState(initialData);
+  const initial = useMemo(
+    () => ({
+      summary: buildDashboardSummary(initialData),
+      activity: buildRecentActivity(initialData),
+    }),
+    [initialData]
+  );
+  const [dashboard, setDashboard] = useState(initial);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     let active = true;
 
-    getAdminData().then((next) => {
-      if (active) {
-        setData(next);
-      }
-    });
+    getAdminDashboardData()
+      .then((next) => {
+        if (active) {
+          setDashboard(next);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setError(
+            "We could not load the latest operations summary. Please refresh to try again."
+          );
+        }
+      });
 
     return () => {
       active = false;
     };
   }, []);
 
-  const summary = useMemo(() => buildDashboardSummary(data), [data]);
-  const activity = useMemo(() => buildRecentActivity(data), [data]);
+  const { summary, activity } = dashboard;
 
   return (
     <div className="grid gap-6">
+      {error ? (
+        <p className="rounded-xl border border-[#ffd2c9] bg-[#fff2ef] px-4 py-3 text-sm font-bold text-[#a63c2e]">
+          {error}
+        </p>
+      ) : null}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard
           icon="users"

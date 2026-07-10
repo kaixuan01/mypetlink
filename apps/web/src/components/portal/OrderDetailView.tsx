@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { ManualPaymentPanel } from "@/components/portal/ManualPaymentPanel";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
 import {
-  buildPaymentReceiptText,
   canDownloadPaymentReceipt,
   canRequestReplacement,
   formatFullDeliveryAddress,
@@ -22,9 +21,28 @@ import {
   orderNotFoundTitle,
   setPageTitle,
 } from "@/lib/pageTitles";
-import { ownerRoutes } from "@/lib/routes";
-import { getAllTags, getOrder } from "@/services/tagService";
-import type { OrderStatus, Pet, PetTag, TagOrder } from "@/types";
+import { ownerRoutes, tagPath } from "@/lib/routes";
+import { getEnvBaseUrl, getSiteBaseUrl, toAbsoluteUrl } from "@/lib/siteUrl";
+import { QrCodeCard } from "@/components/qr/QrCodeCard";
+import { isApiConfigured } from "@/services/apiConfig";
+import {
+  downloadOwnerOrderReceiptPdf,
+  downloadOwnerOrderSummaryPdf,
+} from "@/services/orderDocuments";
+import { getPets } from "@/services/petService";
+import {
+  getAllTags,
+  getFriendlyTagErrorMessage,
+  getOrder,
+} from "@/services/tagService";
+import type {
+  OrderStatus,
+  OrderTimelineEvent,
+  OrderTimelineTone,
+  Pet,
+  PetTag,
+  TagOrder,
+} from "@/types";
 
 type OrderDetailViewProps = {
   initialOrder: TagOrder | null;
@@ -44,11 +62,29 @@ const orderTone: Record<OrderStatus, "warm" | "teal" | "mint" | "soft" | "danger
   Cancelled: "danger",
 };
 
-type TimelineStep = {
-  label: string;
-  date?: string;
-  completed: boolean;
-  current: boolean;
+// Circle + text styling per timeline tone. `completed` steps read as done,
+// `current` is highlighted, `warning` marks a rejected proof (amber, not
+// alarming), and `cancelled` is a muted red.
+const timelineToneStyles: Record<
+  OrderTimelineTone,
+  { circle: string; description: string }
+> = {
+  completed: {
+    circle: "border-pet-teal bg-pet-teal text-white",
+    description: "text-pet-muted",
+  },
+  current: {
+    circle: "border-pet-coral bg-pet-apricot text-pet-coral",
+    description: "text-pet-muted",
+  },
+  warning: {
+    circle: "border-[#f4cf8a] bg-[#fdf3df] text-[#9a6b18]",
+    description: "text-[#9a6b18]",
+  },
+  cancelled: {
+    circle: "border-[#ffd2c9] bg-[#fff4f1] text-[#a63c2e]",
+    description: "text-[#a63c2e]",
+  },
 };
 
 export function OrderDetailView({
@@ -57,14 +93,21 @@ export function OrderDetailView({
   pets,
   initialTags,
 }: OrderDetailViewProps) {
+  const apiMode = isApiConfigured();
   const [order, setOrder] = useState(initialOrder);
-  const [tags, setTags] = useState(initialTags);
+  const [portalPets, setPortalPets] = useState<Pet[]>(apiMode ? [] : pets);
+  const [tags, setTags] = useState<PetTag[]>(apiMode ? [] : initialTags);
   const [loaded, setLoaded] = useState(Boolean(initialOrder));
   const [downloadMessage, setDownloadMessage] = useState("");
+  const [downloadError, setDownloadError] = useState("");
+  const [downloadBusy, setDownloadBusy] = useState(false);
+  const [copyTagStatus, setCopyTagStatus] = useState("");
   const [paymentMessage, setPaymentMessage] = useState("");
+  const [loadError, setLoadError] = useState("");
+  const base = useSyncExternalStore(subscribeNoop, getSiteBaseUrl, getEnvBaseUrl);
   const petMap = useMemo(
-    () => new Map(pets.map((pet) => [pet.id, pet])),
-    [pets]
+    () => new Map(portalPets.map((pet) => [pet.id, pet])),
+    [portalPets]
   );
   const tagMap = useMemo(
     () => new Map(tags.map((tag) => [tag.id, tag])),
@@ -74,15 +117,31 @@ export function OrderDetailView({
   useEffect(() => {
     let active = true;
 
-    Promise.all([getOrder(orderKey), getAllTags()]).then(
-      ([orderResponse, tagResponse]) => {
+    async function loadOrder() {
+      setLoadError("");
+
+      try {
+        const [orderResponse, tagResponse, petsResponse] = await Promise.all([
+          getOrder(orderKey),
+          getAllTags(),
+          getPets(),
+        ]);
+
         if (active) {
           setOrder(orderResponse.data);
           setTags(tagResponse.data);
+          setPortalPets(petsResponse.data);
+          setLoaded(true);
+        }
+      } catch (caught) {
+        if (active) {
+          setLoadError(getFriendlyTagErrorMessage(caught));
           setLoaded(true);
         }
       }
-    );
+    }
+
+    void loadOrder();
 
     return () => {
       active = false;
@@ -110,8 +169,11 @@ export function OrderDetailView({
     return (
       <EmptyState
         icon="record"
-        title="Order not found"
-        description="We could not find this order in your owner workspace. It may have been removed or the link is incorrect."
+        title={loadError ? "Order could not load" : "Order not found"}
+        description={
+          loadError ||
+          "We could not find this order in your owner workspace. It may have been removed or the link is incorrect."
+        }
         actionHref={ownerRoutes.orders}
         actionLabel="Back to Orders"
       />
@@ -121,10 +183,13 @@ export function OrderDetailView({
   const pet = petMap.get(order.petId);
   const linkedTag = order.tagId ? tagMap.get(order.tagId) : undefined;
   const orderNumber = formatOrderNumber(order);
-  const petName = pet?.name ?? "Pet profile";
+  const petName = pet?.name ?? order.petName ?? "Pet profile";
   const receiptReady = canDownloadPaymentReceipt(order);
   const replacementReady = canRequestReplacement(order, linkedTag);
-  const timelineSteps = buildTimeline(order);
+  const timelineEvents =
+    order.timeline && order.timeline.length > 0
+      ? order.timeline
+      : buildFallbackTimeline(order);
   const replacementHref =
     linkedTag && order.petId
       ? ownerRoutes.petTagOrder(order.petId, {
@@ -132,38 +197,70 @@ export function OrderDetailView({
           replacementFor: linkedTag.id,
         })
       : "";
+  const linkedTagScanPath = linkedTag ? tagPath(linkedTag.tagCode) : "";
+  const linkedTagScanUrl = linkedTagScanPath
+    ? toAbsoluteUrl(linkedTagScanPath, base)
+    : "";
 
-  function handleDownloadReceipt() {
-    if (!order) {
+  const orderKeyForApi = order.orderNumber || order.id;
+
+  async function handleDownloadReceipt() {
+    if (!order || downloadBusy) {
       return;
     }
 
-    downloadTextFile(
-      `${orderNumber}-payment-receipt.txt`,
-      buildPaymentReceiptText(order, petName)
-    );
-    setDownloadMessage("Payment receipt downloaded.");
-    window.setTimeout(() => setDownloadMessage(""), 2500);
+    setDownloadBusy(true);
+    setDownloadMessage("");
+    setDownloadError("");
+
+    try {
+      await downloadOwnerOrderReceiptPdf(orderKeyForApi, orderNumber);
+      setDownloadMessage("Receipt PDF downloaded.");
+      window.setTimeout(() => setDownloadMessage(""), 2500);
+    } catch (caught) {
+      setDownloadError(getFriendlyTagErrorMessage(caught));
+    } finally {
+      setDownloadBusy(false);
+    }
   }
 
-  function handleDownloadSummary() {
-    if (!order) {
+  async function handleDownloadSummary() {
+    if (!order || downloadBusy) {
       return;
     }
 
-    downloadTextFile(
-      `${orderNumber}-order-summary.txt`,
-      buildOrderSummaryText(order, petName)
-    );
-    setDownloadMessage("Order summary downloaded.");
-    window.setTimeout(() => setDownloadMessage(""), 2500);
+    setDownloadBusy(true);
+    setDownloadMessage("");
+    setDownloadError("");
+
+    try {
+      await downloadOwnerOrderSummaryPdf(orderKeyForApi, orderNumber);
+      setDownloadMessage("Order Summary PDF downloaded.");
+      window.setTimeout(() => setDownloadMessage(""), 2500);
+    } catch (caught) {
+      setDownloadError(getFriendlyTagErrorMessage(caught));
+    } finally {
+      setDownloadBusy(false);
+    }
   }
 
   return (
     <div className="grid gap-5">
+      {loadError ? (
+        <div className="rounded-[1.25rem] border border-[#ffd2c9] bg-[#fff4f1] px-4 py-3 text-sm font-bold text-[#a63c2e]">
+          {loadError}
+        </div>
+      ) : null}
+
       {downloadMessage ? (
         <div className="rounded-[1.25rem] border border-pet-mint bg-[#e8f8f0] px-4 py-3 text-sm font-bold text-pet-sage">
           {downloadMessage}
+        </div>
+      ) : null}
+
+      {downloadError ? (
+        <div className="rounded-[1.25rem] border border-[#ffd2c9] bg-[#fff4f1] px-4 py-3 text-sm font-bold text-[#a63c2e]">
+          {downloadError}
         </div>
       ) : null}
 
@@ -195,21 +292,23 @@ export function OrderDetailView({
             </CTAButton>
             {receiptReady ? (
               <button
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-pet-teal bg-pet-teal px-5 py-3 text-sm font-extrabold text-white shadow-lg shadow-[#1570ef]/20 transition hover:bg-[#0f5fd0]"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-pet-teal bg-pet-teal px-5 py-3 text-sm font-extrabold text-white shadow-lg shadow-[#1570ef]/20 transition hover:bg-[#0f5fd0] disabled:cursor-wait disabled:opacity-70"
+                disabled={downloadBusy}
                 onClick={handleDownloadReceipt}
                 type="button"
               >
                 <Icon name="record" className="h-4 w-4" />
-                Download Receipt
+                {downloadBusy ? "Preparing..." : "Download Receipt PDF"}
               </button>
             ) : (
               <button
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-extrabold text-pet-ink transition hover:bg-pet-cream"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-extrabold text-pet-ink transition hover:bg-pet-cream disabled:cursor-wait disabled:opacity-70"
+                disabled={downloadBusy}
                 onClick={handleDownloadSummary}
                 type="button"
               >
                 <Icon name="record" className="h-4 w-4" />
-                Download Order Summary
+                {downloadBusy ? "Preparing..." : "Download Order Summary PDF"}
               </button>
             )}
           </div>
@@ -232,32 +331,37 @@ export function OrderDetailView({
       <section className="brand-card rounded-[1.75rem] p-5 sm:p-6">
         <h2 className="text-xl font-black text-pet-ink">Order status</h2>
         <div className="mt-5 grid gap-3">
-          {timelineSteps.map((step, index) => (
-            <div className="flex gap-3" key={step.label}>
-              <div className="grid justify-items-center">
-                <span
-                  className={`grid h-8 w-8 place-items-center rounded-full border text-xs font-black ${
-                    step.current
-                      ? "border-pet-coral bg-pet-apricot text-pet-coral"
-                      : step.completed
-                        ? "border-pet-teal bg-pet-teal text-white"
-                        : "border-pet-border bg-white text-pet-muted"
-                  }`}
-                >
-                  {index + 1}
-                </span>
-                {index < timelineSteps.length - 1 ? (
-                  <span className="my-1 h-full min-h-6 w-px bg-pet-border" />
-                ) : null}
+          {timelineEvents.map((event, index) => {
+            const toneStyles = timelineToneStyles[event.tone];
+
+            return (
+              <div className="flex gap-3" key={`${event.type}-${index}`}>
+                <div className="grid justify-items-center">
+                  <span
+                    className={`grid h-8 w-8 place-items-center rounded-full border text-xs font-black ${toneStyles.circle}`}
+                  >
+                    {index + 1}
+                  </span>
+                  {index < timelineEvents.length - 1 ? (
+                    <span className="my-1 h-full min-h-6 w-px bg-pet-border" />
+                  ) : null}
+                </div>
+                <div className="min-w-0 pb-3">
+                  <p className="font-black text-pet-ink">{event.title}</p>
+                  <p className="mt-1 text-sm font-semibold text-pet-muted">
+                    {event.timestampLabel ?? "Time not available"}
+                  </p>
+                  {event.description ? (
+                    <p
+                      className={`mt-1 text-sm font-semibold ${toneStyles.description}`}
+                    >
+                      {event.description}
+                    </p>
+                  ) : null}
+                </div>
               </div>
-              <div className="min-w-0 pb-3">
-                <p className="font-black text-pet-ink">{step.label}</p>
-                <p className="mt-1 text-sm font-semibold text-pet-muted">
-                  {step.date ?? (step.completed ? "Completed" : "Not yet")}
-                </p>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </section>
 
@@ -267,7 +371,7 @@ export function OrderDetailView({
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <DetailItem label="Pet" value={petName} />
             <DetailItem label="Tag type" value={order.tagType} />
-            <DetailItem label="Design" value={order.shape} />
+            <DetailItem label="Tag variant" value={`${order.variant} Tag`} />
             <DetailItem label="Total amount" value={order.estimatedPrice} />
             <DetailItem label="Ordered date" value={order.orderedDate} />
             <DetailItem
@@ -276,15 +380,75 @@ export function OrderDetailView({
             />
           </div>
           {linkedTag?.tagCode ? (
+            linkedTag.status === "Active" ? (
+              <QrCodeCard
+                className="mt-4"
+                fileNameBase={`${linkedTag.tagCode}-physical-tag-qr`}
+                helperText="This is the QR printed on your physical tag. If the tag is lost or disabled, the scan page will stop showing your contact details."
+                targetPath={linkedTagScanPath}
+                title="Physical Tag QR"
+                viewLabel="View Tag Scan Page"
+              />
+            ) : (
+              <div className="mt-4 rounded-[1.25rem] bg-pet-cream p-4">
+                <p className="text-xs font-extrabold uppercase text-pet-muted">
+                  Tag code
+                </p>
+                <p className="mt-1 break-words text-lg font-black text-pet-ink">
+                  {linkedTag.tagCode}
+                </p>
+                <p className="mt-2 text-xs font-bold leading-5 text-pet-muted">
+                  Your tag is linked to {petName}. Scan or tap the physical tag
+                  when you receive it to activate. It will not show contact
+                  details before activation.
+                </p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <CTAButton
+                    href={linkedTagScanPath}
+                    icon="qr"
+                    rel="noopener noreferrer"
+                    target="_blank"
+                    variant="secondary"
+                    fullWidth
+                  >
+                    View Tag Scan Page
+                  </CTAButton>
+                  <button
+                    className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
+                    onClick={() => {
+                      void copyText(linkedTagScanUrl).then((copied) => {
+                        setCopyTagStatus(
+                          copied
+                            ? "Tag Scan Page link copied."
+                            : "Copy unavailable. Select and copy the link."
+                        );
+                        window.setTimeout(() => setCopyTagStatus(""), 2500);
+                      });
+                    }}
+                    type="button"
+                  >
+                    Copy Tag Link
+                  </button>
+                </div>
+                {copyTagStatus ? (
+                  <p className="mt-2 text-xs font-bold text-pet-sage" role="status">
+                    {copyTagStatus}
+                  </p>
+                ) : null}
+              </div>
+            )
+          ) : (
             <div className="mt-4 rounded-[1.25rem] bg-pet-cream p-4">
-              <p className="text-xs font-extrabold uppercase text-pet-muted">
-                Tag code
+              <p className="text-sm font-bold leading-6 text-pet-ink">
+                Your physical tag will be assigned after your payment is
+                confirmed.
               </p>
-              <p className="mt-1 break-words text-lg font-black text-pet-ink">
-                {linkedTag.tagCode}
+              <p className="mt-1 text-xs font-bold leading-5 text-pet-muted">
+                No tag code is shown until our team assigns inventory to this
+                order.
               </p>
             </div>
-          ) : null}
+          )}
         </section>
 
         <section className="brand-card rounded-[1.75rem] p-5 sm:p-6">
@@ -351,16 +515,19 @@ export function OrderDetailView({
           <CTAButton href={ownerRoutes.orders} variant="secondary">
             View All Orders
           </CTAButton>
-          {receiptReady ? (
-            <button
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-extrabold text-pet-ink transition hover:bg-pet-cream"
-              onClick={handleDownloadReceipt}
-              type="button"
-            >
-              <Icon name="record" className="h-4 w-4" />
-              Download Receipt
-            </button>
-          ) : null}
+          <button
+            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-extrabold text-pet-ink transition hover:bg-pet-cream disabled:cursor-wait disabled:opacity-70"
+            disabled={downloadBusy}
+            onClick={receiptReady ? handleDownloadReceipt : handleDownloadSummary}
+            type="button"
+          >
+            <Icon name="record" className="h-4 w-4" />
+            {downloadBusy
+              ? "Preparing..."
+              : receiptReady
+                ? "Download Receipt PDF"
+                : "Download Order Summary PDF"}
+          </button>
           {replacementReady && replacementHref ? (
             <CTAButton href={replacementHref} icon="tag" variant="outline">
               Request Replacement
@@ -383,81 +550,113 @@ function DetailItem({ label, value }: { label: string; value: string }) {
   );
 }
 
-function buildTimeline(order: TagOrder): TimelineStep[] {
+function subscribeNoop() {
+  return () => {};
+}
+
+async function copyText(text: string) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // Try the textarea copy path below.
+    }
+  }
+
+  const textArea = document.createElement("textarea");
+  textArea.value = text;
+  textArea.setAttribute("readonly", "true");
+  textArea.style.position = "fixed";
+  textArea.style.left = "-9999px";
+  document.body.appendChild(textArea);
+  textArea.select();
+
+  try {
+    return document.execCommand("copy");
+  } catch {
+    return false;
+  } finally {
+    document.body.removeChild(textArea);
+  }
+}
+
+// Fallback timeline for demo mode, where the backend history is not available.
+// The API-connected path renders order.timeline directly; this only mirrors the
+// order's current status from the flattened fields on the order.
+function buildFallbackTimeline(order: TagOrder): OrderTimelineEvent[] {
   const rank = getOrderStatusRank(order.status);
   const cancelled = order.status === "Cancelled";
-  const isAtLeast = (status: OrderStatus) =>
+  const reached = (status: OrderStatus) =>
     !cancelled && rank >= getOrderStatusRank(status);
 
-  return [
+  const tone = (status: OrderStatus): OrderTimelineTone =>
+    order.status === status ? "current" : "completed";
+
+  const events: OrderTimelineEvent[] = [
     {
-      label: "Order created",
-      date: order.orderedDate,
-      completed: true,
-      current: order.status === "Draft" || order.status === "Pending Payment",
+      type: "OrderCreated",
+      title: "Order created",
+      timestampLabel: order.orderedDate,
+      tone:
+        order.status === "Draft" || order.status === "Pending Payment"
+          ? "current"
+          : "completed",
     },
-    {
-      label: "Payment submitted",
-      date: order.paymentSubmittedDate,
-      completed: isAtLeast("Payment Submitted"),
-      current: order.status === "Payment Submitted",
-    },
-    {
-      label: "Payment confirmed",
-      date: order.paymentConfirmedDate,
-      completed: isAtLeast("Payment Confirmed"),
-      current: order.status === "Payment Confirmed",
-    },
-    {
-      label: "Preparing tag",
-      completed: isAtLeast("Preparing"),
-      current: order.status === "Preparing",
-    },
-    {
-      label: "Shipped",
-      date: order.shippedDate,
-      completed: isAtLeast("Shipped"),
-      current: order.status === "Shipped",
-    },
-    {
-      label: "Delivered",
-      date: order.deliveredDate,
-      completed: order.status === "Delivered",
-      current: order.status === "Delivered",
-    },
-  ].filter((step) => step.completed || step.current);
+  ];
+
+  if (reached("Payment Submitted")) {
+    events.push({
+      type: "PaymentProofSubmitted",
+      title: "Payment proof submitted",
+      timestampLabel: order.paymentSubmittedDate,
+      tone: tone("Payment Submitted"),
+    });
+  }
+
+  if (reached("Payment Confirmed")) {
+    events.push({
+      type: "PaymentConfirmed",
+      title: "Payment confirmed",
+      timestampLabel: order.paymentConfirmedDate,
+      tone: tone("Payment Confirmed"),
+    });
+  }
+
+  if (reached("Preparing")) {
+    events.push({
+      type: "PreparingTag",
+      title: "Tag preparing",
+      tone: tone("Preparing"),
+    });
+  }
+
+  if (reached("Shipped")) {
+    events.push({
+      type: "Shipped",
+      title: "Shipped",
+      timestampLabel: order.shippedDate,
+      tone: tone("Shipped"),
+    });
+  }
+
+  if (order.status === "Delivered") {
+    events.push({
+      type: "Delivered",
+      title: "Delivered",
+      timestampLabel: order.deliveredDate,
+      tone: "current",
+    });
+  }
+
+  if (cancelled) {
+    events.push({
+      type: "Cancelled",
+      title: "Order cancelled",
+      tone: "cancelled",
+    });
+  }
+
+  return events;
 }
 
-function buildOrderSummaryText(order: TagOrder, petName: string) {
-  return [
-    "MyPetLink Order Summary",
-    "MyPetLink by GBB Software Solutions",
-    "Malaysia",
-    "Contact: support@gbbsoftwaresolutions.com",
-    "",
-    `Order ID: ${formatOrderNumber(order)}`,
-    `Order status: ${getOrderStatusDisplay(order.status)}`,
-    `Payment status: ${getPaymentStatusLabel(order)}`,
-    `Payment method: ${order.paymentMethod ?? "QR Payment"}`,
-    "",
-    `Pet name: ${petName}`,
-    `Tag type: ${order.tagType}`,
-    `Design: ${order.shape}`,
-    `Total amount: ${order.estimatedPrice}`,
-    `Delivery recipient: ${order.delivery.recipientName}`,
-    `Delivery address: ${formatFullDeliveryAddress(order)}`,
-  ].join("\n");
-}
-
-function downloadTextFile(filename: string, content: string) {
-  const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}

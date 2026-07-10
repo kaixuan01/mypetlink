@@ -7,19 +7,19 @@
 
 ---
 
-## 1. The four public routes
+## 1. The public routes
 
 | Route                        | Purpose                          | Lookup key            |
 | ---------------------------- | -------------------------------- | --------------------- |
 | `/q/{safetyCode}`            | Pet-level QR Safety Page for finders | `safetyCode`       |
-| `/t/{tagCode}`               | A physical tag was scanned/tapped | `tagCode`             |
-| `/activate/{tagCode}`        | Bind an unassigned tag to a pet  | `tagCode`             |
+| `/t/{tagCode}`               | A physical tag was scanned/tapped; also the customer activation entry point | `tagCode`             |
+| `/activate/{tagCode}`        | Compatibility redirect back to `/t/{tagCode}` | `tagCode`             |
 | `/p/{slug}-{publicCode}`     | Share a pet's public profile     | `publicCode`          |
 
-Pet-level QR Safety Page links use **`/q/{safetyCode}`**. Physical QR codes and NFC chips point at **`/t/{tagCode}`**; active tags open the same QR Safety Page, while inactive tags show an inactive tag page.
+Pet-level QR Safety Page links use **`/q/{safetyCode}`**. Physical QR codes and NFC chips point at **`/t/{tagCode}`**; active tags open the same QR Safety Page, while inactive tags show an inactive tag page. Tag activation is also completed from `/t/{tagCode}` after the owner scans/taps the physical tag.
 
 Build these URLs with the helpers in `src/lib/routes.ts` (`qrSafetyPath`,
-`tagPath`, `activatePath`, `publicProfilePath`). Never hand-write them.
+`tagPath`, `publicProfilePath`). Never hand-write them.
 
 ---
 
@@ -36,8 +36,9 @@ so runtime (`localStorage`) data wins.
 | State        | When                                                       | What `TagFinderView` renders                              |
 | ------------ | ---------------------------------------------------------- | -------------------------------------------------------- |
 | `not-found`  | No tag with that code                                      | Branded **"Tag not found"** card (no info leaked)        |
-| `unassigned` | `status === "Unassigned"` **or** the tag has no `petId`    | **Activation prompt** â†’ CTA to `/activate/{tagCode}`     |
-| `inactive`   | `status` in `Disabled / Lost / Replaced`, `isArchived`, or bound pet gone | Safe **"This tag is no longer active"** message          |
+| `unassigned` | `status === "Unassigned"` **or** the tag has no `petId`    | Activation flow directly on `/t`: sign in/register, choose/create pet, activate |
+| `pending`    | Portal-purchased assigned tag is `Pending`, `Preparing`, or `Delivered` | Activation flow directly on `/t` for the matching owner; safe no-contact state otherwise |
+| `inactive`   | `status` in `Disabled / Lost / Replaced`, `isArchived`, bound pet gone, or bound pet Memorial/Archived | Safe **"This tag is no longer active"** message          |
 | `active`     | Has a `petId`, status not disabled                         | Shared **QR Safety Page** (`QrSafetyPageView`)            |
 
 Why "not found" is a rendered state, not `notFound()`: with static export there
@@ -52,17 +53,17 @@ The unassigned activation prompt uses the exact product copy:
   can be identified if they ever get lost.`
 - **Button:** `Activate Tag`
 
-A finder scanning an **active** tag must see the QR Safety Page directly - never
-the activation page.
+A finder scanning an **active** tag must see the QR Safety Page directly.
 
 ---
 
-## 3. `/activate/{tagCode}` â€” activation flow
+## 3. `/t/{tagCode}` â€” activation flow
 
-`src/app/activate/[tagCode]/page.tsx` (static, same param source) renders
-**`TagActivationFlow`** (client) with the initial `FinderResult`. The flow keeps
-the TagCode in the URL the whole time and never forces a re-scan or an early
-dashboard redirect. Render precedence:
+`src/app/t/[tagCode]/page.tsx` renders **`TagActivationFlow`** directly for
+`unassigned` and `pending` scan states. The flow keeps the TagCode on the
+Physical Tag Scan Page the whole time and never forces a re-scan or an early
+dashboard redirect. `src/app/activate/[tagCode]/page.tsx` exists only as a
+compatibility redirect back to `/t/{tagCode}`. Render precedence:
 
 1. **Success** (just activated) â†’ "Activated" screen with: Preview Public
    Profile, View Tag Scan Page, Go to Dashboard.
@@ -71,7 +72,8 @@ dashboard redirect. Render precedence:
 4. **Not found** â†’ branded not-found.
 5. **Not signed in** â†’ sign-in card. Signing in happens **inline**
    (`loginMockOwner()` then stay on the page) so the TagCode is preserved.
-6. **Signed in, unassigned** â†’ **pet selection**: pick an existing pet
+6. **Signed in, assigned portal tag** â†’ matching owner sees **Activate this tag for {petName}** with no pet selector; wrong account sees a safe linked-to-another-account message.
+7. **Signed in, unassigned retail tag** â†’ **pet selection**: pick an existing pet
    (avatar + name) or "Create a new pet profile instead"
    (`ownerRoutes.petNew`), then **Activate Tag**.
 

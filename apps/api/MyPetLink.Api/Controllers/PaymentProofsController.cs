@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MyPetLink.Api.Common;
 using MyPetLink.Api.Services;
 
 namespace MyPetLink.Api.Controllers;
@@ -9,16 +10,24 @@ namespace MyPetLink.Api.Controllers;
 public sealed class PaymentProofsController : ApiControllerBase
 {
     private readonly IPaymentProofService _paymentProofService;
+    private readonly ICurrentUserService _currentUserService;
 
-    public PaymentProofsController(IPaymentProofService paymentProofService)
+    public PaymentProofsController(
+        IPaymentProofService paymentProofService,
+        ICurrentUserService currentUserService)
     {
         _paymentProofService = paymentProofService;
+        _currentUserService = currentUserService;
     }
 
-    // TODO: Return controlled metadata/download information for authorized users.
     [HttpGet("{paymentProofId:guid}")]
-    public Task<IActionResult> Get(Guid paymentProofId, CancellationToken cancellationToken)
+    public async Task<IActionResult> Get(Guid paymentProofId, CancellationToken cancellationToken)
     {
-        return PlaceholderAsync(_paymentProofService, "GET /api/v1/payment-proofs/{paymentProofId}", cancellationToken);
+        var response = await _paymentProofService.GetAsync(
+            _currentUserService.Current.UserId,
+            paymentProofId,
+            cancellationToken);
+
+        return Ok(ApiEnvelope.Ok(response, HttpContext));
     }
 }

@@ -339,12 +339,12 @@ public sealed class MyPetLinkDbContext : DbContext
         {
             entity.ToTable("SmartTagBatches");
             entity.Property(item => item.BatchNo).HasMaxLength(80);
-            entity.Property(item => item.Shape).HasMaxLength(80);
+            entity.Property(item => item.Variant).HasMaxLength(80);
             entity.Property(item => item.ResellerName).HasMaxLength(200);
             entity.HasIndex(item => item.BatchNo).IsUnique();
             entity.HasIndex(item => item.GeneratedAt);
             entity.HasIndex(item => item.HasNfc);
-            entity.HasIndex(item => item.Shape);
+            entity.HasIndex(item => item.Variant);
             entity.HasOne(item => item.GeneratedByAdminUser)
                 .WithMany()
                 .HasForeignKey(item => item.GeneratedByAdminUserId)
@@ -355,7 +355,7 @@ public sealed class MyPetLinkDbContext : DbContext
         {
             entity.ToTable("SmartTags");
             entity.Property(item => item.TagCode).HasMaxLength(32);
-            entity.Property(item => item.Shape).HasMaxLength(80);
+            entity.Property(item => item.Variant).HasMaxLength(80);
             entity.Property(item => item.Status).HasConversion<string>().HasMaxLength(32);
             entity.HasIndex(item => item.TagCode).IsUnique();
             entity.HasIndex(item => item.OwnerUserId);
@@ -392,7 +392,7 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.ToTable("TagOrders");
             entity.Property(item => item.OrderNumber).HasMaxLength(80);
             entity.Property(item => item.TagType).HasConversion<string>().HasMaxLength(32);
-            entity.Property(item => item.Shape).HasMaxLength(80);
+            entity.Property(item => item.Variant).HasMaxLength(80);
             entity.Property(item => item.Amount).HasPrecision(18, 2);
             entity.Property(item => item.Currency).HasMaxLength(3);
             entity.Property(item => item.DeliveryFee).HasPrecision(18, 2);

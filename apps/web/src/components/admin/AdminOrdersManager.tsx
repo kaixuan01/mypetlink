@@ -9,6 +9,11 @@ import {
   AdminSection,
   AdminTable,
 } from "@/components/admin/AdminPanels";
+import { OrderDocumentButtons } from "@/components/admin/OrderDocumentButtons";
+import {
+  TagAssignmentModal,
+  type TagAssignmentMode,
+} from "@/components/admin/TagAssignmentModal";
 import { orderStatusTone } from "@/components/admin/adminDisplay";
 import { Badge } from "@/components/ui/Badge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -22,14 +27,17 @@ import {
 } from "@/lib/orders";
 import { getAdminData, type AdminData } from "@/services/adminService";
 import {
+  adminAssignInventoryTag,
   adminCancelOrder,
+  adminChangeAssignedTag,
   adminConfirmOrderPayment,
   adminMarkOrderDelivered,
   adminMarkOrderPreparing,
   adminMarkOrderShipped,
   adminRejectOrderPayment,
+  adminReplaceTag,
 } from "@/services/tagService";
-import type { OrderStatus, TagOrder } from "@/types";
+import type { OrderStatus, PetTag, TagOrder } from "@/types";
 
 type OrderFilter = OrderStatus | "all";
 
@@ -47,10 +55,20 @@ const filterDefs: { id: OrderFilter; label: string }[] = [
 const actionLabels: Record<AdminOrderAction, string> = {
   "confirm-payment": "Confirm Payment",
   "reject-payment": "Request Resubmission",
+  "assign-tag": "Assign Inventory Tag",
+  "change-tag": "Change Assigned Tag",
+  "replace-tag": "Replace Tag",
   "mark-preparing": "Mark Preparing",
   "mark-shipped": "Mark Shipped",
   "mark-delivered": "Mark Delivered",
   "cancel-order": "Cancel Order",
+};
+
+// Which admin actions open the assign/change/replace inventory modal.
+const tagModalActions: Partial<Record<AdminOrderAction, TagAssignmentMode>> = {
+  "assign-tag": "assign",
+  "change-tag": "change",
+  "replace-tag": "replace",
 };
 
 export function AdminOrdersManager({ initialData }: { initialData: AdminData }) {
@@ -62,6 +80,11 @@ export function AdminOrdersManager({ initialData }: { initialData: AdminData }) 
   const [message, setMessage] = useState("");
   const [pendingCancelId, setPendingCancelId] = useState("");
   const [pendingRejectId, setPendingRejectId] = useState("");
+  const [tagModal, setTagModal] = useState<{
+    orderId: string;
+    mode: TagAssignmentMode;
+  } | null>(null);
+  const [tagModalBusy, setTagModalBusy] = useState(false);
 
   const refresh = useCallback(async () => {
     setData(await getAdminData());
@@ -70,11 +93,17 @@ export function AdminOrdersManager({ initialData }: { initialData: AdminData }) 
   useEffect(() => {
     let active = true;
 
-    getAdminData().then((next) => {
-      if (active) {
-        setData(next);
-      }
-    });
+    getAdminData()
+      .then((next) => {
+        if (active) {
+          setData(next);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setMessage("We could not load orders. Please refresh to try again.");
+        }
+      });
 
     return () => {
       active = false;
@@ -103,6 +132,10 @@ export function AdminOrdersManager({ initialData }: { initialData: AdminData }) 
   const petMap = useMemo(
     () => new Map(data.pets.map((pet) => [pet.id, pet])),
     [data.pets]
+  );
+  const tagsById = useMemo(
+    () => new Map(data.tags.map((tag) => [tag.id, tag])),
+    [data.tags]
   );
 
   const counts = useMemo(() => {
@@ -135,8 +168,17 @@ export function AdminOrdersManager({ initialData }: { initialData: AdminData }) 
       return;
     }
 
+    const modalMode = tagModalActions[action];
+    if (modalMode) {
+      setTagModal({ orderId: order.id, mode: modalMode });
+      return;
+    }
+
     const handlers: Record<
-      Exclude<AdminOrderAction, "cancel-order" | "reject-payment">,
+      Extract<
+        AdminOrderAction,
+        "confirm-payment" | "mark-preparing" | "mark-shipped" | "mark-delivered"
+      >,
       (id: string) => Promise<{ data: TagOrder | null }>
     > = {
       "confirm-payment": adminConfirmOrderPayment,
@@ -145,13 +187,62 @@ export function AdminOrdersManager({ initialData }: { initialData: AdminData }) 
       "mark-delivered": adminMarkOrderDelivered,
     };
 
-    const result = await handlers[action](order.id);
+    const handler = handlers[action as keyof typeof handlers];
+    if (!handler) {
+      return;
+    }
+
+    const result = await handler(order.id);
     await refresh();
     setMessage(
       result.data
         ? `${formatOrderNumber(order)} updated to ${getOrderStatusDisplay(result.data.status)}.`
         : "This order could not be updated from its current status."
     );
+  }
+
+  async function submitTagModal(input: {
+    tagId: string;
+    reason: string;
+    note: string;
+  }) {
+    if (!tagModal) {
+      return;
+    }
+
+    const order = data.orders.find((item) => item.id === tagModal.orderId);
+    if (!order) {
+      setTagModal(null);
+      return;
+    }
+
+    setTagModalBusy(true);
+
+    try {
+      const result =
+        tagModal.mode === "assign"
+          ? await adminAssignInventoryTag(order.id, input.tagId)
+          : tagModal.mode === "change"
+            ? await adminChangeAssignedTag(order.id, input.tagId, input.reason)
+            : await adminReplaceTag(order.id, input.tagId, input.reason, input.note);
+
+      await refresh();
+      setMessage(
+        result.data
+          ? tagModal.mode === "assign"
+            ? `Inventory tag assigned to ${formatOrderNumber(order)}.`
+            : tagModal.mode === "change"
+              ? `Assigned tag changed for ${formatOrderNumber(order)}.`
+              : `Replacement tag issued for ${formatOrderNumber(order)}.`
+          : "This tag action could not be completed from the order's current status."
+      );
+
+      if (result.data) {
+        setTagModal(null);
+      }
+    } finally {
+      setTagModalBusy(false);
+    }
   }
 
   async function confirmCancel() {
@@ -236,6 +327,7 @@ export function AdminOrdersManager({ initialData }: { initialData: AdminData }) 
                 <OrderRow
                   actions={actions}
                   key={order.id}
+                  linkedTag={order.tagId ? tagsById.get(order.tagId) : undefined}
                   onAction={(action) => void runAction(order, action)}
                   onToggle={() =>
                     setOpenOverride(openOrderId === order.id ? "" : order.id)
@@ -269,6 +361,33 @@ export function AdminOrdersManager({ initialData }: { initialData: AdminData }) 
         open={Boolean(pendingRejectId)}
         title="Request payment proof resubmission?"
       />
+
+      {(() => {
+        if (!tagModal) {
+          return null;
+        }
+
+        const order = data.orders.find((item) => item.id === tagModal.orderId);
+        if (!order) {
+          return null;
+        }
+
+        const pet = petMap.get(order.petId);
+
+        return (
+          <TagAssignmentModal
+            availableTags={getAssignableInventoryTags(order, data.tags)}
+            busy={tagModalBusy}
+            currentTag={order.tagId ? tagsById.get(order.tagId) : undefined}
+            mode={tagModal.mode}
+            onCancel={() => setTagModal(null)}
+            onSubmit={(input) => void submitTagModal(input)}
+            order={order}
+            ownerName={pet?.owner.name ?? "Owner"}
+            petName={pet?.name ?? "Pet profile"}
+          />
+        );
+      })()}
     </AdminSection>
   );
 }
@@ -278,6 +397,7 @@ function OrderRow({
   ownerName,
   petName,
   actions,
+  linkedTag,
   open,
   onToggle,
   onAction,
@@ -286,6 +406,7 @@ function OrderRow({
   ownerName: string;
   petName: string;
   actions: AdminOrderAction[];
+  linkedTag?: PetTag;
   open: boolean;
   onToggle: () => void;
   onAction: (action: AdminOrderAction) => void;
@@ -328,7 +449,9 @@ function OrderRow({
                 key={action}
                 onClick={() => onAction(action)}
                 tone={
-                  action === "cancel-order" || action === "reject-payment"
+                  action === "cancel-order" ||
+                  action === "reject-payment" ||
+                  action === "replace-tag"
                     ? "danger"
                     : "primary"
                 }
@@ -344,7 +467,7 @@ function OrderRow({
           <td className="bg-slate-50/60 px-4 py-4" colSpan={10}>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
               <AdminDetailItem label="Pet" value={petName} />
-              <AdminDetailItem label="Design" value={order.shape} />
+              <AdminDetailItem label="Tag variant" value={`${order.variant} Tag`} />
               <AdminDetailItem
                 label="Payment method"
                 value={order.paymentMethod ?? "QR Payment"}
@@ -394,17 +517,198 @@ function OrderRow({
                 value={order.deliveredDate ?? "Not delivered"}
               />
               <AdminDetailItem
-                label="Linked tag"
-                value={order.tagId ? "Created with this order" : "None"}
+                label="Assigned tag"
+                value={
+                  linkedTag
+                    ? `${linkedTag.tagCode} · ${getTagAssignmentLabel(order, linkedTag)}`
+                    : getTagAssignmentLabel(order, undefined)
+                }
               />
               <AdminDetailItem
                 label="Latest update"
                 value={order.trackingStatus || "Not started"}
               />
             </div>
+            <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+              <p className="text-xs font-black uppercase tracking-wide text-slate-500">
+                Inventory tag
+              </p>
+              {linkedTag ? (
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <span className="font-mono text-sm font-bold text-slate-950">
+                    {linkedTag.tagCode}
+                  </span>
+                  <Badge tone="soft">
+                    {getTagAssignmentLabel(order, linkedTag)}
+                  </Badge>
+                </div>
+              ) : (
+                <p className="mt-1 text-sm font-semibold leading-6 text-slate-500">
+                  {order.status === "Payment Confirmed"
+                    ? "No tag assigned yet. Use Assign Inventory Tag to fulfil this order."
+                    : "No tag assigned yet."}
+                </p>
+              )}
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {actions.includes("assign-tag") ? (
+                  <AdminActionButton
+                    onClick={() => onAction("assign-tag")}
+                    tone="primary"
+                  >
+                    Assign Inventory Tag
+                  </AdminActionButton>
+                ) : null}
+                {actions.includes("change-tag") ? (
+                  <AdminActionButton
+                    onClick={() => onAction("change-tag")}
+                    tone="primary"
+                  >
+                    Change Assigned Tag
+                  </AdminActionButton>
+                ) : null}
+                {actions.includes("replace-tag") ? (
+                  <AdminActionButton
+                    onClick={() => onAction("replace-tag")}
+                    tone="danger"
+                  >
+                    Replace Tag
+                  </AdminActionButton>
+                ) : null}
+              </div>
+            </div>
+            <OrderDocumentButtons order={order} />
+            <ProofHistory order={order} />
           </td>
         </tr>
       ) : null}
     </>
+  );
+}
+
+function getAssignableInventoryTags(order: TagOrder, tags: PetTag[]) {
+  const needsNfc = order.tagType.includes("NFC");
+
+  return tags.filter(
+    (tag) =>
+      !tag.isArchived &&
+      !tag.petId &&
+      tag.status === "Unassigned" &&
+      tag.hasNfc === needsNfc &&
+      tag.variant === order.variant
+  );
+}
+
+// Clear, non-technical status for the tag assigned to an order.
+function getTagAssignmentLabel(order: TagOrder, tag?: PetTag): string {
+  if (!tag) {
+    return order.status === "Payment Confirmed"
+      ? "No tag assigned"
+      : "No tag yet";
+  }
+
+  if (tag.status === "Active") {
+    return "Active";
+  }
+
+  if (tag.status === "Replaced") {
+    return "Replaced";
+  }
+
+  if (order.status === "Shipped") {
+    return "Shipped, waiting activation";
+  }
+
+  if (order.status === "Delivered") {
+    return "Delivered, waiting activation";
+  }
+
+  if (tag.status === "Preparing") {
+    return "Assigned, preparing";
+  }
+
+  return "Assigned";
+}
+
+const proofStatusLabels: Record<
+  NonNullable<TagOrder["paymentProofs"]>[number]["status"],
+  string
+> = {
+  PendingReview: "Awaiting review",
+  Approved: "Approved",
+  Rejected: "Rejected / resubmission requested",
+  Superseded: "Replaced by a newer upload",
+};
+
+// Payment proof attempt history for the admin. Each resubmission is kept as its
+// own row, so a rejected-then-resubmitted order shows the full trail with the
+// rejection reason and reviewed timestamp rather than only the latest upload.
+function ProofHistory({ order }: { order: TagOrder }) {
+  const proofs = order.paymentProofs ?? [];
+
+  if (proofs.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="mt-4">
+      <p className="text-xs font-black uppercase tracking-wide text-slate-500">
+        Payment proof history ({proofs.length}{" "}
+        {proofs.length === 1 ? "attempt" : "attempts"})
+      </p>
+      <ol className="mt-2 grid gap-2">
+        {proofs.map((proof, index) => {
+          const attemptNumber = proofs.length - index;
+
+          return (
+            <li
+              className="rounded-xl border border-slate-200 bg-white p-3"
+              key={proof.id}
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-black text-slate-950">
+                  Attempt {attemptNumber}
+                </span>
+                <Badge
+                  tone={
+                    proof.status === "Approved"
+                      ? "mint"
+                      : proof.status === "Rejected"
+                        ? "danger"
+                        : proof.status === "PendingReview"
+                          ? "warm"
+                          : "soft"
+                  }
+                >
+                  {proofStatusLabels[proof.status]}
+                </Badge>
+              </div>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                <AdminDetailItem
+                  label="Uploaded file"
+                  value={proof.originalFileName || "Not provided"}
+                />
+                <AdminDetailItem
+                  label="Reference"
+                  value={proof.paymentReference ?? "Not provided"}
+                />
+                <AdminDetailItem
+                  label="Submitted"
+                  value={proof.submittedLabel ?? "Time not available"}
+                />
+                <AdminDetailItem
+                  label="Reviewed"
+                  value={proof.reviewedLabel ?? "Not reviewed"}
+                />
+              </div>
+              {proof.status === "Rejected" && proof.rejectionReason ? (
+                <p className="mt-2 rounded-lg bg-[#fff4f1] px-3 py-2 text-xs font-bold text-[#a63c2e]">
+                  Reason: {proof.rejectionReason}
+                </p>
+              ) : null}
+            </li>
+          );
+        })}
+      </ol>
+    </div>
   );
 }

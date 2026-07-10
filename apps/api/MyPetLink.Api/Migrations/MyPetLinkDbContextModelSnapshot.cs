@@ -1281,11 +1281,6 @@ namespace MyPetLink.Api.Migrations
                     b.Property<Guid?>("ReplacementForTagId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("Shape")
-                        .IsRequired()
-                        .HasMaxLength(80)
-                        .HasColumnType("nvarchar(80)");
-
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -1298,6 +1293,11 @@ namespace MyPetLink.Api.Migrations
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Variant")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
 
                     b.HasKey("Id");
 
@@ -1368,13 +1368,13 @@ namespace MyPetLink.Api.Migrations
                     b.Property<DateTimeOffset?>("SentToResellerAt")
                         .HasColumnType("datetimeoffset");
 
-                    b.Property<string>("Shape")
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Variant")
                         .IsRequired()
                         .HasMaxLength(80)
                         .HasColumnType("nvarchar(80)");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("datetimeoffset");
 
                     b.HasKey("Id");
 
@@ -1387,7 +1387,7 @@ namespace MyPetLink.Api.Migrations
 
                     b.HasIndex("HasNfc");
 
-                    b.HasIndex("Shape");
+                    b.HasIndex("Variant");
 
                     b.ToTable("SmartTagBatches", (string)null);
                 });
@@ -1474,11 +1474,6 @@ namespace MyPetLink.Api.Migrations
                     b.Property<Guid?>("ReplacementForTagId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("Shape")
-                        .IsRequired()
-                        .HasMaxLength(80)
-                        .HasColumnType("nvarchar(80)");
-
                     b.Property<DateTimeOffset?>("ShippedAt")
                         .HasColumnType("datetimeoffset");
 
@@ -1509,6 +1504,11 @@ namespace MyPetLink.Api.Migrations
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Variant")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
 
                     b.HasKey("Id");
 

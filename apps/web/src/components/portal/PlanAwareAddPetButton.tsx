@@ -6,7 +6,7 @@ import { CTAButton } from "@/components/ui/CTAButton";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { getPetLimitStateFromPets } from "@/lib/planLimits";
 import { ownerRoutes } from "@/lib/routes";
-import { getPets } from "@/services/petService";
+import { getFriendlyApiErrorMessage, getPets } from "@/services/petService";
 import type { Pet } from "@/types";
 
 type PlanAwareAddPetButtonProps = {
@@ -22,16 +22,25 @@ export function PlanAwareAddPetButton({
 }: PlanAwareAddPetButtonProps) {
   const router = useRouter();
   const [pets, setPets] = useState<Pet[] | null>(null);
+  const [error, setError] = useState("");
   const [showLimitDialog, setShowLimitDialog] = useState(false);
 
   useEffect(() => {
     let active = true;
 
-    getPets().then((response) => {
-      if (active) {
-        setPets(response.data);
-      }
-    });
+    getPets()
+      .then((response) => {
+        if (active) {
+          setPets(response.data);
+          setError("");
+        }
+      })
+      .catch((caught) => {
+        if (active) {
+          setError(getFriendlyApiErrorMessage(caught));
+          setPets([]);
+        }
+      });
 
     return () => {
       active = false;
@@ -40,6 +49,20 @@ export function PlanAwareAddPetButton({
 
   const limit = pets === null ? null : getPetLimitStateFromPets(pets);
   const canCreate = limit?.canCreate ?? false;
+
+  if (error) {
+    return (
+      <CTAButton
+        className={`${compact ? "min-h-10 px-3 py-2 text-xs" : ""} ${className ?? ""}`.trim()}
+        disabled
+        fullWidth={fullWidth}
+        icon="plus"
+        variant="secondary"
+      >
+        {compact ? "Unavailable" : "Add Pet Unavailable"}
+      </CTAButton>
+    );
+  }
 
   if (pets === null) {
     return (

@@ -9,6 +9,7 @@ import {
   AdminNotice,
   AdminSection,
 } from "@/components/admin/AdminPanels";
+import { OrderDocumentButtons } from "@/components/admin/OrderDocumentButtons";
 import { orderStatusTone } from "@/components/admin/adminDisplay";
 import { Badge } from "@/components/ui/Badge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -41,11 +42,17 @@ export function AdminPaymentProofsManager({
   useEffect(() => {
     let active = true;
 
-    getAdminData().then((next) => {
-      if (active) {
-        setData(next);
-      }
-    });
+    getAdminData()
+      .then((next) => {
+        if (active) {
+          setData(next);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setMessage("We could not load payment proofs. Please refresh to try again.");
+        }
+      });
 
     return () => {
       active = false;
@@ -136,6 +143,11 @@ export function AdminPaymentProofsManager({
             visible.map((order) => {
               const pet = petMap.get(order.petId);
               const awaiting = order.status === "Payment Submitted";
+              const proofs = order.paymentProofs ?? [];
+              const latestProof = proofs[0];
+              const rejectedCount = proofs.filter(
+                (proof) => proof.status === "Rejected"
+              ).length;
 
               return (
                 <article
@@ -180,7 +192,26 @@ export function AdminPaymentProofsManager({
                       label="Confirmed"
                       value={order.paymentConfirmedDate ?? "Not confirmed"}
                     />
+                    <AdminDetailItem
+                      label="Attempts"
+                      value={
+                        proofs.length > 0
+                          ? `${proofs.length} (${rejectedCount} rejected)`
+                          : "1"
+                      }
+                    />
+                    <AdminDetailItem
+                      label="Last reviewed"
+                      value={latestProof?.reviewedLabel ?? "Not reviewed"}
+                    />
                   </div>
+                  {rejectedCount > 0 ? (
+                    <p className="mt-2 text-xs font-bold text-slate-500">
+                      This order had {rejectedCount}{" "}
+                      {rejectedCount === 1 ? "proof" : "proofs"} sent back for
+                      resubmission. Open the order to see the full history.
+                    </p>
+                  ) : null}
                   <div className="mt-3 flex flex-wrap gap-1.5">
                     {awaiting ? (
                       <>
@@ -205,6 +236,7 @@ export function AdminPaymentProofsManager({
                       View Order
                     </Link>
                   </div>
+                  <OrderDocumentButtons heading="Order documents" order={order} />
                 </article>
               );
             })

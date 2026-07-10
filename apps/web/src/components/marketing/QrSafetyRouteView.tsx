@@ -10,6 +10,8 @@ import {
   qrSafetyPageTitle,
   setPageTitle,
 } from "@/lib/pageTitles";
+import { isApiClientError } from "@/services/apiClient";
+import { isApiConfigured } from "@/services/apiConfig";
 import { getPublicPetProfileBySafetyCode } from "@/services/petService";
 import type { PublicPetProfile } from "@/types";
 
@@ -22,18 +24,36 @@ export function QrSafetyRouteView({
   initialProfile,
   safetyCode,
 }: QrSafetyRouteViewProps) {
-  const [profile, setProfile] = useState(initialProfile);
-  const [loaded, setLoaded] = useState(Boolean(initialProfile));
+  const apiMode = isApiConfigured();
+  const [profile, setProfile] = useState<PublicPetProfile | null>(() =>
+    apiMode ? null : initialProfile
+  );
+  const [loaded, setLoaded] = useState(!apiMode && Boolean(initialProfile));
+  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
     let active = true;
 
-    getPublicPetProfileBySafetyCode(safetyCode).then((response) => {
-      if (active) {
-        setProfile(response.data);
-        setLoaded(true);
+    async function loadSafetyPage() {
+      setLoadError("");
+
+      try {
+        const response = await getPublicPetProfileBySafetyCode(safetyCode);
+
+        if (active) {
+          setProfile(response.data);
+          setLoaded(true);
+        }
+      } catch (caught) {
+        if (active) {
+          setProfile(null);
+          setLoadError(getSafetyPageErrorMessage(caught));
+          setLoaded(true);
+        }
       }
-    });
+    }
+
+    void loadSafetyPage();
 
     return () => {
       active = false;
@@ -53,7 +73,9 @@ export function QrSafetyRouteView({
 
   return (
     <FinderShell>
-      {profile ? (
+      {loadError ? (
+        <SafetyPageUnavailableCard message={loadError} />
+      ) : profile ? (
         <QrSafetyPageView pet={profile} />
       ) : !loaded ? (
         <SafetyPageLoadingCard />
@@ -61,6 +83,22 @@ export function QrSafetyRouteView({
         <SafetyPageNotFoundCard safetyCode={safetyCode} />
       )}
     </FinderShell>
+  );
+}
+
+function SafetyPageUnavailableCard({ message }: { message: string }) {
+  return (
+    <article className="brand-card mx-auto max-w-xl rounded-[2rem] p-6 text-center sm:p-8">
+      <span className="mx-auto grid h-16 w-16 place-items-center rounded-[1.5rem] bg-[#e8f3ff] text-pet-teal">
+        <Icon name="shield" className="h-7 w-7" />
+      </span>
+      <h1 className="mt-5 text-3xl font-black text-pet-ink">
+        QR Safety Page temporarily unavailable
+      </h1>
+      <p className="mx-auto mt-3 max-w-sm text-sm font-semibold leading-6 text-pet-muted">
+        {message}
+      </p>
+    </article>
   );
 }
 
@@ -103,4 +141,12 @@ function SafetyPageNotFoundCard({ safetyCode }: { safetyCode: string }) {
       </div>
     </article>
   );
+}
+
+function getSafetyPageErrorMessage(error: unknown) {
+  if (isApiClientError(error) && error.status === 0) {
+    return "We could not reach MyPetLink right now. Please try again.";
+  }
+
+  return "We could not load this QR Safety Page right now. Please try again.";
 }

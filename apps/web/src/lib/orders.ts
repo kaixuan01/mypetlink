@@ -140,6 +140,9 @@ export function getOrderNextStep(order: TagOrder) {
 export type AdminOrderAction =
   | "confirm-payment"
   | "reject-payment"
+  | "assign-tag"
+  | "change-tag"
+  | "replace-tag"
   | "mark-preparing"
   | "mark-shipped"
   | "mark-delivered"
@@ -154,7 +157,7 @@ const cancellableOrderStatuses: OrderStatus[] = [
 ];
 
 export function getAdminOrderActions(
-  order: Pick<TagOrder, "status">
+  order: Pick<TagOrder, "status" | "tagId">
 ): AdminOrderAction[] {
   const actions: AdminOrderAction[] = [];
 
@@ -162,8 +165,28 @@ export function getAdminOrderActions(
     actions.push("confirm-payment", "reject-payment");
   }
 
-  if (order.status === "Payment Confirmed") {
+  if (order.status === "Payment Confirmed" && !order.tagId) {
+    actions.push("assign-tag");
+  }
+
+  if (order.status === "Payment Confirmed" && order.tagId) {
     actions.push("mark-preparing");
+  }
+
+  // Before shipping, an assigned tag can be swapped for a different one.
+  if (
+    (order.status === "Payment Confirmed" || order.status === "Preparing") &&
+    order.tagId
+  ) {
+    actions.push("change-tag");
+  }
+
+  // After shipping/delivery/activation, the tag can only be replaced.
+  if (
+    (order.status === "Shipped" || order.status === "Delivered") &&
+    order.tagId
+  ) {
+    actions.push("replace-tag");
   }
 
   if (order.status === "Preparing") {
@@ -203,23 +226,3 @@ export function formatFullDeliveryAddress(order: Pick<TagOrder, "delivery">) {
     .join(", ");
 }
 
-export function buildPaymentReceiptText(order: TagOrder, petName: string) {
-  return [
-    "MyPetLink Payment Receipt",
-    "MyPetLink by GBB Software Solutions",
-    "Malaysia",
-    "Contact: support@gbbsoftwaresolutions.com",
-    "",
-    `Order ID: ${formatOrderNumber(order)}`,
-    `Payment date: ${order.paymentConfirmedDate ?? "Payment confirmed"}`,
-    `Payment method: ${order.paymentMethod ?? "QR Payment"}`,
-    `Amount paid: ${order.estimatedPrice}`,
-    "Payment status: Payment Confirmed",
-    "",
-    `Pet name: ${petName}`,
-    `Tag type: ${order.tagType}`,
-    `Design: ${order.shape}`,
-    `Delivery recipient: ${order.delivery.recipientName}`,
-    `Delivery address: ${formatFullDeliveryAddress(order)}`,
-  ].join("\n");
-}

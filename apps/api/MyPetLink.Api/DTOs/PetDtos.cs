@@ -5,10 +5,15 @@ namespace MyPetLink.Api.DTOs;
 
 public sealed record PetContactRequest(
     bool UseOwnerDefaults,
+    [MaxLength(200)]
     string? OwnerDisplayName,
+    [MaxLength(32)]
     string? PhoneE164,
+    [MaxLength(32)]
     string? WhatsappE164,
+    [MaxLength(32)]
     string? EmergencyContactE164,
+    [MaxLength(200)]
     string? GeneralAreaOverride);
 
 public sealed record PetVisibilityRequest(
@@ -25,25 +30,99 @@ public sealed record PetVisibilityRequest(
     bool ShowHealthSummary);
 
 public sealed record CreatePetRequest(
-    [property: Required, MaxLength(120)] string Name,
-    [property: Required, MaxLength(80)] string Species,
+    [Required, MaxLength(120)] string Name,
+    [Required, MaxLength(80)] string Species,
+    [MaxLength(120)]
     string? CustomSpecies,
+    [MaxLength(160)]
     string? Breed,
+    [MaxLength(80)]
     string? Gender,
+    [MaxLength(120)]
     string? Color,
     DateOnly? Birthday,
     DateOnly? AdoptionDay,
+    [MaxLength(200)]
     string? GeneralArea,
+    [MaxLength(2000)]
     string? Bio,
+    [MaxLength(64)]
     string? ProfileTheme,
     PetContactRequest? Contact,
     PetVisibilityRequest? Visibility,
+    [MaxLength(2000)]
     string? SafetyNote,
+    [MaxLength(2000)]
     string? EmergencyNote);
 
 public sealed record UpdatePetRequest(
+    [MaxLength(120)]
     string? Name,
+    [MaxLength(80)]
     string? Species,
+    [MaxLength(120)]
+    string? CustomSpecies,
+    [MaxLength(160)]
+    string? Breed,
+    [MaxLength(80)]
+    string? Gender,
+    [MaxLength(120)]
+    string? Color,
+    DateOnly? Birthday,
+    DateOnly? AdoptionDay,
+    [MaxLength(200)]
+    string? GeneralArea,
+    [MaxLength(2000)]
+    string? Bio,
+    [MaxLength(64)]
+    string? ProfileTheme,
+    PetContactRequest? Contact,
+    PetVisibilityRequest? Visibility,
+    [MaxLength(2000)]
+    string? SafetyNote,
+    [MaxLength(2000)]
+    string? EmergencyNote);
+
+public sealed record PetContactResponse(
+    bool UseOwnerDefaults,
+    string? OwnerDisplayName,
+    string? PhoneE164,
+    string? WhatsappE164,
+    string? EmergencyContactE164,
+    string? GeneralAreaOverride);
+
+public sealed record PetVisibilityResponse(
+    bool ShowOwnerName,
+    bool ShowGeneralArea,
+    bool ShowPhone,
+    bool ShowWhatsapp,
+    bool ShowEmergencyNote,
+    bool ShowCareBadges,
+    bool ShowMoments,
+    bool ShowTimeline,
+    bool ShowBirthdayOnTimeline,
+    bool ShowAdoptionDayOnTimeline,
+    bool ShowHealthSummary);
+
+public sealed record PetListItemResponse(
+    Guid Id,
+    string Name,
+    string Species,
+    string? CustomSpecies,
+    string PublicSlug,
+    string PublicCode,
+    string SafetyCode,
+    PetLifecycleStatus LifecycleStatus,
+    bool LostModeEnabled,
+    string PublicProfilePath,
+    string QrSafetyPath,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt);
+
+public sealed record PetDetailResponse(
+    Guid Id,
+    string Name,
+    string Species,
     string? CustomSpecies,
     string? Breed,
     string? Gender,
@@ -52,11 +131,29 @@ public sealed record UpdatePetRequest(
     DateOnly? AdoptionDay,
     string? GeneralArea,
     string? Bio,
-    string? ProfileTheme,
-    PetContactRequest? Contact,
-    PetVisibilityRequest? Visibility,
+    string ProfileTheme,
+    PetLifecycleStatus LifecycleStatus,
+    bool LostModeEnabled,
+    string? LostLastSeenArea,
+    DateTimeOffset? LostLastSeenDateTime,
+    string? LostMessage,
+    string? LostRewardNote,
+    string? LostExtraContactInstruction,
+    DateOnly? MemorialPassedAwayDate,
+    string? MemorialMessage,
+    bool ShowMemorialOnPublicProfile,
+    string PublicCode,
+    string PublicSlug,
+    string SafetyCode,
+    string PublicProfilePath,
+    string QrSafetyPath,
+    PetContactResponse Contact,
+    PetVisibilityResponse Visibility,
     string? SafetyNote,
-    string? EmergencyNote);
+    string? EmergencyNote,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt,
+    DateTimeOffset? ArchivedAt);
 
 public sealed record PetResponse(
     Guid Id,
@@ -73,6 +170,7 @@ public sealed record PetResponse(
 
 public sealed record MarkPetMemorialRequest(
     DateOnly? PassedAwayDate,
+    [MaxLength(2000)]
     string? MemorialMessage,
     bool ShowMemorialOnPublicProfile);
 

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MyPetLink.Api.Auth;
+using MyPetLink.Api.Common;
 using MyPetLink.Api.Controllers;
 using MyPetLink.Api.Services;
 using MyPetLink.Api.Validation;
@@ -18,10 +19,29 @@ public sealed class AdminOwnersController : ApiControllerBase
         _adminService = adminService;
     }
 
-    // TODO: Add owner search, status filters, and FK-based pet/order counts.
     [HttpGet]
-    public Task<IActionResult> List([FromQuery] PagedQuery query, [FromQuery] string? search, [FromQuery] string? status, CancellationToken cancellationToken)
+    public async Task<IActionResult> List(
+        [FromQuery] PagedQuery query,
+        [FromQuery] string? search,
+        [FromQuery] string? plan,
+        [FromQuery] string? status,
+        CancellationToken cancellationToken)
     {
-        return PlaceholderAsync(_adminService, "GET /api/v1/admin/owners", cancellationToken);
+        var (items, total) = await _adminService.ListOwnersAsync(
+            query.Page,
+            query.PageSize,
+            search,
+            plan,
+            status,
+            cancellationToken);
+
+        return Ok(ApiEnvelope.Ok(items, HttpContext, query.Page, query.PageSize, total));
+    }
+
+    [HttpGet("{ownerId:guid}")]
+    public async Task<IActionResult> Get(Guid ownerId, CancellationToken cancellationToken)
+    {
+        var response = await _adminService.GetOwnerAsync(ownerId, cancellationToken);
+        return Ok(ApiEnvelope.Ok(response, HttpContext));
     }
 }

@@ -2,7 +2,19 @@
 
 Planning draft for building the future backend after the documentation is approved.
 
-Implementation status: the initial .NET 8 API skeleton now lives in `apps/api/MyPetLink.Api`. It includes the project structure, EF Core model, service/controller placeholders, JWT/admin-policy wiring, audit/storage placeholders, and local development settings. As of 2026-07-03 the `InitialCreate` EF Core migration exists and is validated against SQL Server LocalDB (23 tables plus plan/app-setting seeds), `dotnet-ef` is pinned as a repo-local tool (`.config/dotnet-tools.json`), and the API runs locally with Swagger and `/api/v1/health`. Business logic remains intentionally unimplemented until the next backend phase.
+Implementation status: the .NET 8 API lives in `apps/api/MyPetLink.Api`. As of 2026-07-03 the `InitialCreate` EF Core migration exists and is validated against SQL Server LocalDB, `dotnet-ef` is pinned as a repo-local tool (`.config/dotnet-tools.json`), and the API runs locally with Swagger and `/api/v1/health`. Auth, owner profile, pets, public profile, QR Safety, care records, memories, the owner Smart Tags + Orders slice, and the Admin Portal APIs are implemented. Real payment gateway, real shipping integration, real file storage, Premium subscription, GPS, and production deployment remain planned later.
+
+## Phase 1 Release Readiness (stabilization audit, 2026-07-04)
+
+Backend-connected and verified end to end against a local SQL Server database: Google-token auth foundation with rotating refresh tokens, owner profile, pets CRUD + lifecycle (Memorial/Archive/Restore with plan limits), care records, memories with public visibility gating, smart tag orders with manual payment proof metadata, admin operations (dashboard, orders with the full confirm → preparing → shipped → delivered flow and linked tag sync, payment proof review, tag registry actions, tag inventory generation + CSV export, owners, pets, read-only settings, audit logs), public share/QR Safety/tag scan routes with safe no-contact states, and route guards for owner and admin surfaces.
+
+Before production deployment (full plan in [`../deployment/production-deployment-plan.md`](../deployment/production-deployment-plan.md)):
+
+1. **Manual Google popup login check** — every token flow behind the button is verified with real backend-issued sessions, but the interactive Google credential exchange still needs one manual click-through by the owner with the production OAuth client. See [`../deployment/google-oauth-setup.md`](../deployment/google-oauth-setup.md).
+2. **Production backend + database hosting** — the API currently runs only on LocalDB/dev settings; production needs hosted SQL Server, environment configuration (JWT signing key, Google client id, CORS origins), and a deployment target for the API. Recommended: Azure App Service + Azure SQL Database. See [`../deployment/environment-variables.md`](../deployment/environment-variables.md).
+3. **Production admin seeding** — promote the operations account via the documented `AdminUsers` insert. See [`../deployment/first-admin-setup.md`](../deployment/first-admin-setup.md).
+
+Known non-blocking follow-ups: admin pages load up to 100 rows per collection and filter client-side (server-side pagination later); the admin payment-proofs page derives its queue from order data rather than the dedicated `/admin/payment-proofs` endpoint (functionally consistent); payment proofs are metadata only until file storage exists; admin settings are read-only; printed/reseller batch tracking stays disabled; admin pet lifecycle actions remain owner-only.
 
 ## Guiding Rules
 
@@ -29,29 +41,33 @@ Build:
 - global error handling middleware
 - JWT access token support
 - refresh token support and rotation
-- Google Sign-In validation
+- provider-ready external auth foundation with Google Sign-In validation first
 - current-user service
 - owner/admin authorization policies
 - `Users`, `ExternalLogins`, `RefreshTokens`, `OwnerProfiles`, `AdminUsers`
 - `Plans`, `PlanLimits` seed data
 - `Pets`, `PetContacts`, `PetPublicProfiles`, `PetSafetySettings`
+- owner profile read/update
 - owner pet list/detail/create/update
 - pet lifecycle endpoints: mark memorial, restore active, archive
-- Lost Mode endpoint
-- public profile read by `publicCode`
+- Lost Mode endpoint planned after Phase A2
+- public profile read by `publicSlug` ending in `publicCode`
 - QR Safety Page read by `safetyCode`
 
 Acceptance criteria:
 
 - Owner can sign in with Google and receive JWT + refresh token.
+- `ExternalLogins` supports multiple provider values (`Google`, later `Apple`, later `EmailOtp` if approved) without a Google-only service design.
 - Refresh token rotation works and old refresh token reuse is rejected.
 - Protected owner endpoints require JWT.
 - Admin endpoints reject non-admin users.
+- No password login is implemented in Phase A.
 - Owner can create and update pets.
 - Backend generates `publicCode` and `safetyCode` with secure random identifiers.
-- `/api/v1/public/profiles/{publicCode}` returns only privacy-safe share profile data.
+- `/api/v1/public/pets/{publicSlug}` returns only privacy-safe share profile data.
 - `/api/v1/public/safety/{safetyCode}` returns only privacy-safe QR Safety data.
 - Memorial/archived pets do not expose emergency finder contact.
+- Free-plan active-pet creation is blocked at the configured plan limit without hiding existing pets.
 
 Tests:
 
@@ -75,8 +91,8 @@ Build:
 - `MediaFileLinks`
 - local file storage provider implementation for development
 - storage provider interface for future Azure Blob, S3, Cloudflare R2
-- memory list/create/update/archive
-- care record list/create/update/archive
+- memory list/create/update/archive (implemented for the backend-connected Moments slice)
+- care record list/create/update/archive (implemented for the backend-connected Records slice)
 - public memory/care projections with visibility checks
 - media linking for memories and care records
 
@@ -88,18 +104,24 @@ Acceptance criteria:
 - New memory creation respects configured memory limit unless overridden.
 - New media attachment respects configured media limits.
 - Public pages show only public memories/care records allowed by owner settings.
+- Owner Records UI persists care records through authenticated API calls when backend mode is configured.
+- Owner Moments UI persists memories through authenticated API calls when backend mode is configured.
 
 Tests:
 
 - plan limits and grandfather behavior
 - memory visibility filtering
+- memory ownership, validation, archive behavior, and plan-limit enforcement
 - care record public visibility filtering
+- care record ownership, validation, and archive behavior
 - media ownership validation
 - upload content-type and size validation
 
 ## Phase C - Smart Tag Orders And Payment Proofs
 
 Goal: support owner smart tag orders and manual payment proof submission.
+
+Current implementation status: the owner-facing Phase C slice is implemented for backend-connected Owner Portal pages. Admin review/fulfillment APIs and real file upload/storage remain planned.
 
 Build:
 
@@ -112,10 +134,10 @@ Build:
 - portal order creation linked to selected `petId`
 - tag reservation/creation on order
 - replacement order support
-- manual payment proof upload
-- payment proof media storage using `MediaFiles`
+- manual payment proof metadata submission
+- metadata-only payment proof records using `MediaFiles`/`PaymentProofs`; real file bytes are not stored yet
 - owner order cancellation before shipping
-- receipt/read endpoint after payment confirmation
+- receipt/read endpoint after payment confirmation (planned with admin payment confirmation)
 - physical tag scan public endpoint by `tagCode`
 - retail/unclaimed tag activation endpoint
 - basic `TagScans` recording without precise location unless consent is explicitly granted
@@ -125,7 +147,7 @@ Acceptance criteria:
 - Portal order requires `petId` and active pet.
 - Portal-purchased tag is linked to selected pet from order creation.
 - Owner uploads payment proof; order becomes `PaymentProofSubmitted`, not confirmed.
-- Payment proof stores provider-neutral file metadata.
+- Payment proof stores provider-neutral metadata only in the current owner slice; real file storage is a later phase.
 - Retail/unclaimed tag starts with no owner/pet and activates only after authenticated owner selects an active pet.
 - Active `/t/:tagCode` returns same safety content as `/q/:safetyCode`.
 - Lost/disabled/replaced/archived tags never expose owner contact.
@@ -144,6 +166,8 @@ Tests:
 ## Phase D - Admin APIs, Payment Review, Tag Inventory, Audit Logs
 
 Goal: replace the Admin Portal local/demo operations with real backend APIs.
+
+Status (2026-07-04): implemented. All `/api/v1/admin/*` endpoints exist and are policy-guarded by an active `AdminUsers` lookup; every admin mutation writes a real `AuditLogs` row in the same transaction as the change. The Admin Portal UI calls these APIs when the frontend is API-configured with an authenticated session, keeping local/demo state as the unauthenticated fallback. Follow-ups: admin pet lifecycle actions (owner-only for now), editable settings, payment proof file preview (needs file storage), and server-side pagination in the admin UI (it currently loads up to 100 rows per collection and filters client-side).
 
 Build:
 

@@ -40,10 +40,15 @@ import {
 } from "@/lib/phone";
 import { getPublicTimeline, type PetTimelineItem } from "@/lib/petTimeline";
 import { ownerRoutes } from "@/lib/routes";
+import { isApiClientError } from "@/services/apiClient";
+import { isApiConfigured } from "@/services/apiConfig";
 import { isOwnerAuthenticated } from "@/services/authService";
 import { getPublicPetMoments } from "@/services/momentService";
 import { getPublicPetProfileByPublicCode } from "@/services/petService";
-import { getPetRecords } from "@/services/recordService";
+import {
+  getPetRecords,
+  getPublicPetRecords,
+} from "@/services/recordService";
 import type {
   CareRecord,
   Pet,
@@ -85,15 +90,25 @@ export function PublicSharePetProfile({
   initialRecords,
   initialLostMode = false,
 }: PublicSharePetProfileProps) {
-  const [profile, setProfile] = useState(initialProfile);
-  const [moments, setMoments] = useState(initialMoments);
-  const [records, setRecords] = useState(initialRecords);
+  const apiMode = isApiConfigured();
+  const [profile, setProfile] = useState<PublicPetProfile | null>(() =>
+    apiMode ? null : initialProfile
+  );
+  const [moments, setMoments] = useState<PetMoment[]>(() =>
+    apiMode ? [] : initialMoments
+  );
+  const [records, setRecords] = useState<CareRecord[]>(() =>
+    apiMode ? [] : initialRecords
+  );
+  const [loaded, setLoaded] = useState(!apiMode);
+  const [loadError, setLoadError] = useState("");
   const [lostMode, setLostMode] = useState(
-    isActivePet(initialProfile) &&
+    !apiMode &&
+      isActivePet(initialProfile) &&
       (initialLostMode || initialProfile.lostModeEnabled)
   );
   const [safetyPagePath, setSafetyPagePath] = useState(
-    initialProfile.qrSafetyPath
+    apiMode ? "" : initialProfile.qrSafetyPath
   );
   const [ownerSettings, setOwnerSettings] =
     useState<OwnerSettings>(defaultOwnerSettings);
@@ -103,6 +118,114 @@ export function PublicSharePetProfile({
     isOwnerAuthenticated,
     getServerAuth
   );
+
+  useEffect(() => {
+    if (profile) {
+      setAbsolutePageTitle(publicPetProfileDocumentTitle(profile.name));
+    }
+  }, [profile]);
+
+  useEffect(() => {
+    let active = true;
+    const settingsTimer = window.setTimeout(() => {
+      if (active) {
+        setOwnerSettings(readOwnerSettings());
+      }
+    }, 0);
+
+    async function loadProfile() {
+      setLoadError("");
+
+      try {
+        const profileResponse =
+          await getPublicPetProfileByPublicCode(initialProfile.publicCode);
+
+        if (!active) {
+          return;
+        }
+
+        if (!profileResponse.data) {
+          setProfile(null);
+          setMoments([]);
+          setRecords([]);
+          setLoaded(true);
+          return;
+        }
+
+        const nextProfile = profileResponse.data;
+        setProfile(nextProfile);
+        setSafetyPagePath(nextProfile.qrSafetyPath);
+        setLostMode(isActivePet(nextProfile) && nextProfile.lostModeEnabled);
+
+        if (apiMode) {
+          const [momentsResponse, recordsResponse] = await Promise.all([
+            getPublicPetMoments(initialProfile.publicCode),
+            getPublicPetRecords(initialProfile.publicCode),
+          ]);
+
+          if (!active) {
+            return;
+          }
+
+          setMoments(momentsResponse.data);
+          setRecords(recordsResponse.data);
+          setLoaded(true);
+          return;
+        }
+
+        const [momentsResponse, recordsResponse] =
+          await Promise.all([
+            getPublicPetMoments(nextProfile.id),
+            getPetRecords(nextProfile.id),
+          ]);
+
+        if (!active) {
+          return;
+        }
+
+        setMoments(momentsResponse.data);
+        setRecords(recordsResponse.data);
+        setLoaded(true);
+      } catch (caught) {
+        if (!active) {
+          return;
+        }
+
+        setProfile(null);
+        setMoments([]);
+        setRecords([]);
+        setLoadError(getPublicProfileErrorMessage(caught));
+        setLoaded(true);
+      }
+    }
+
+    void loadProfile();
+
+    return () => {
+      active = false;
+      window.clearTimeout(settingsTimer);
+    };
+  }, [apiMode, initialProfile]);
+
+  if (!profile) {
+    return (
+      <PublicProfileStatusCard
+        message={
+          loadError ||
+          (loaded
+            ? "We could not find a public MyPetLink profile for this link."
+            : "Checking the latest saved public profile for this link.")
+        }
+        title={
+          loadError
+            ? "Profile temporarily unavailable"
+            : loaded
+              ? "Pet profile not found"
+              : "Loading pet profile"
+        }
+      />
+    );
+  }
 
   const visibility = mergeVisibility(profile.visibility);
   const theme = getPetProfileTheme(profile.profileTheme);
@@ -136,52 +259,6 @@ export function PublicSharePetProfile({
     ? records.filter((record) => record.publicVisibility !== "Private").slice(0, 4)
     : [];
   const timelineEvents = getPublicTimeline(profile, moments);
-
-  useEffect(() => {
-    setAbsolutePageTitle(publicPetProfileDocumentTitle(profile.name));
-  }, [profile.name]);
-
-  useEffect(() => {
-    let active = true;
-    const settingsTimer = window.setTimeout(() => {
-      if (active) {
-        setOwnerSettings(readOwnerSettings());
-      }
-    }, 0);
-
-    getPublicPetProfileByPublicCode(initialProfile.publicCode).then(
-      async (profileResponse) => {
-        if (!active) {
-          return;
-        }
-
-        const nextProfile = profileResponse.data ?? initialProfile;
-        setProfile(nextProfile);
-
-        const [momentsResponse, recordsResponse] =
-          await Promise.all([
-            getPublicPetMoments(nextProfile.id),
-            getPetRecords(nextProfile.id),
-          ]);
-
-        if (!active) {
-          return;
-        }
-
-        setMoments(momentsResponse.data);
-        setRecords(recordsResponse.data);
-        setSafetyPagePath(nextProfile.qrSafetyPath);
-        setLostMode(
-          isActivePet(nextProfile) && nextProfile.lostModeEnabled
-        );
-      }
-    );
-
-    return () => {
-      active = false;
-      window.clearTimeout(settingsTimer);
-    };
-  }, [initialProfile]);
 
   if (isMemorial && !profile.memorial.showMemorialOnPublicProfile) {
     return (
@@ -232,7 +309,7 @@ export function PublicSharePetProfile({
       </header>
 
       <div className="mx-auto max-w-xl px-4 pb-16 pt-6 sm:pt-8">
-        {/* Identity hero â€” a friendly, shareable introduction to the pet. */}
+        {/* Identity hero: a friendly, shareable introduction to the pet. */}
         <section
           className="brand-card overflow-hidden rounded-[2rem]"
           style={{
@@ -565,6 +642,40 @@ export function PublicSharePetProfile({
           information.
         </p>
       </div>
+    </article>
+  );
+}
+
+function PublicProfileStatusCard({
+  message,
+  title,
+}: {
+  message: string;
+  title: string;
+}) {
+  return (
+    <article className="min-h-screen bg-pet-cream">
+      <header className="border-b border-pet-border bg-white/92 backdrop-blur">
+        <div className="mx-auto flex max-w-xl items-center justify-between px-4 py-3">
+          <Link href="/" className="flex items-center">
+            <BrandLogo className="h-9 w-auto max-w-[160px]" priority />
+          </Link>
+          <span className="text-xs font-bold uppercase text-pet-muted">
+            Pet profile
+          </span>
+        </div>
+      </header>
+      <main className="mx-auto grid min-h-[70vh] max-w-xl place-items-center px-4 py-10">
+        <section className="brand-card w-full rounded-[2rem] p-8 text-center">
+          <span className="mx-auto grid h-16 w-16 place-items-center rounded-[1.5rem] bg-pet-cream text-pet-muted">
+            <Icon name="heart" className="h-7 w-7" />
+          </span>
+          <h1 className="mt-5 text-3xl font-black text-pet-ink">{title}</h1>
+          <p className="mx-auto mt-3 max-w-sm text-sm font-semibold leading-6 text-pet-muted">
+            {message}
+          </p>
+        </section>
+      </main>
     </article>
   );
 }
@@ -923,5 +1034,13 @@ function mergeVisibility(
 
 function getPublicOwnerName(name: string, petName: string) {
   return name.trim() || `${petName}'s owner`;
+}
+
+function getPublicProfileErrorMessage(error: unknown) {
+  if (isApiClientError(error) && error.status === 0) {
+    return "We could not reach MyPetLink right now. Please try again.";
+  }
+
+  return "We could not load this public profile right now. Please try again.";
 }
 

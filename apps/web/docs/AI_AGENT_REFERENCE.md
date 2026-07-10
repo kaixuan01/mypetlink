@@ -97,7 +97,7 @@ strings in pages or components.** Import the helpers instead.
 | Owner portal pages | `/pets/{petId}/...`           | `ownerRoutes.*`                          |
 | QR Safety Page     | `/q/{safetyCode}`             | `qrSafetyPath(safetyCode)` / `getQrSafetyPath(pet)` |
 | Physical tag scan  | `/t/{tagCode}`                | `tagPath(tagCode)` / `getTagScanPath(tag)` |
-| Tag activation     | `/activate/{tagCode}`         | `activatePath(tagCode)`                  |
+| Tag activation     | `/t/{tagCode}`                | `tagPath(tagCode)`                       |
 | Public share       | `/p/{petSlug}-{publicCode}`   | `publicProfilePath(slug, publicCode)` / `getPublicProfilePath(pet)` |
 
 `getPublicProfilePath(pet)`, `getQrSafetyPath(pet)`, and
@@ -116,6 +116,9 @@ Key rules baked into these helpers:
   approved source for demo/marketing links. Never hardcode a specific pet id,
   slug, or tag code (e.g. `pet_milo`, `/p/milo`, `/t/8KX29A`) in a page or
   component. Seed values may only live in `src/data/*`.
+- Physical tag activation starts from `/t/{tagCode}` after the owner scans/taps
+  the physical tag. Owner Portal tag/order pages may link to or copy the Tag
+  Scan Page, but must not show direct Activate Tag buttons.
 
 ---
 
@@ -163,11 +166,12 @@ How status maps to what a scan shows (`getFinderState` in `tagService.ts`):
 | `status === "Unassigned"` **or** no `petId`        | `unassigned`  | Activation prompt                |
 | `status` in `Disabled / Lost / Replaced` or archived | `inactive`    | Safe "no longer active" message  |
 | Bound pet missing                                  | `inactive`    | Safe "no longer active" message  |
+| `Pending` / `Preparing` / `Delivered` with active linked pet | `pending` | Activation flow on `/t` for matching owner only |
 | Otherwise (has `petId`, not disabled)              | `active`      | Shared QR Safety Page view       |
 
-Note: owner-ordered tags are created with a `petId` already set (status
-`Pending`), so they resolve to `active` once data exists. Retail stock has no
-`petId` (status `Unassigned`) and goes through the activation flow.
+Retail stock has no `petId` (status `Unassigned`) and goes through the
+pet-selection activation flow. Portal-purchased assigned tags already have a
+pet/order link and activate from `/t` without pet selection.
 
 ---
 
@@ -212,10 +216,11 @@ Note: owner-ordered tags are created with a `petId` already set (status
      tag is inactive. Pet Lost Mode is controlled by `pet.lostModeEnabled`.
    See `PUBLIC_PROFILE_ROUTING.md` for the route state machines. A past change
    wrongly made the share page finder-first; do not reintroduce that.
-10. **Use the owner QR Safety management page for safety settings.**
-    `/pets/{id}/qr` is the owner-friendly management view for the pet-level
-    QR Safety Page URL, finder contact actions, safety notes, Lost Mode, and
-    physical tag shortcuts. QR safety settings still live in
+10. **Do not recreate a separate owner QR Safety management page.**
+    `/pets/{id}/qr` is a legacy compatibility route that redirects back to the
+    pet overview. Owners manage the Public Share Profile link, QR Safety Page
+    link, and Physical Smart Tag link from `/pets/{id}` using compact
+    Copy/View/Show QR actions. Safety and contact settings live in
     `Edit Pet -> Contact & Safety`; tag management lives in the hub **Smart Tag**
     tab and `/tags`.
 11. **Public previews open in a new tab.** Every owner-portal button that opens a

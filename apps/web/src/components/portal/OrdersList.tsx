@@ -6,7 +6,6 @@ import { CTAButton } from "@/components/ui/CTAButton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
 import {
-  buildPaymentReceiptText,
   canDownloadPaymentReceipt,
   canRequestReplacement,
   formatDeliverySummary,
@@ -17,7 +16,17 @@ import {
   getPaymentStatusLabel,
 } from "@/lib/orders";
 import { ownerRoutes } from "@/lib/routes";
-import { getAllTags, getOrders } from "@/services/tagService";
+import { isApiConfigured } from "@/services/apiConfig";
+import {
+  downloadOwnerOrderReceiptPdf,
+  downloadOwnerOrderSummaryPdf,
+} from "@/services/orderDocuments";
+import { getPets } from "@/services/petService";
+import {
+  getAllTags,
+  getFriendlyTagErrorMessage,
+  getOrders,
+} from "@/services/tagService";
 import type { OrderStatus, Pet, PetTag, TagOrder } from "@/types";
 
 type OrdersListProps = {
@@ -42,13 +51,21 @@ export function OrdersList({
   initialOrders,
   initialTags,
 }: OrdersListProps) {
-  const [orders, setOrders] = useState(initialOrders);
-  const [tags, setTags] = useState(initialTags);
+  const apiMode = isApiConfigured();
+  const [portalPets, setPortalPets] = useState<Pet[]>(apiMode ? [] : pets);
+  const [orders, setOrders] = useState<TagOrder[]>(
+    apiMode ? [] : initialOrders
+  );
+  const [tags, setTags] = useState<PetTag[]>(apiMode ? [] : initialTags);
   const [openOrderId, setOpenOrderId] = useState("");
   const [receiptMessage, setReceiptMessage] = useState("");
+  const [downloadError, setDownloadError] = useState("");
+  const [downloadingId, setDownloadingId] = useState("");
+  const [loading, setLoading] = useState(apiMode);
+  const [loadError, setLoadError] = useState("");
   const petMap = useMemo(
-    () => new Map(pets.map((pet) => [pet.id, pet])),
-    [pets]
+    () => new Map(portalPets.map((pet) => [pet.id, pet])),
+    [portalPets]
   );
   const tagMap = useMemo(
     () => new Map(tags.map((tag) => [tag.id, tag])),
@@ -58,27 +75,93 @@ export function OrdersList({
   useEffect(() => {
     let active = true;
 
-    Promise.all([getOrders(), getAllTags()]).then(([orderResponse, tagResponse]) => {
-      if (active) {
-        setOrders(orderResponse.data);
-        setTags(tagResponse.data);
+    async function loadOrders() {
+      setLoading(true);
+      setLoadError("");
+
+      try {
+        const [orderResponse, tagResponse, petsResponse] = await Promise.all([
+          getOrders(),
+          getAllTags(),
+          getPets(),
+        ]);
+
+        if (active) {
+          setOrders(orderResponse.data);
+          setTags(tagResponse.data);
+          setPortalPets(petsResponse.data);
+        }
+      } catch (caught) {
+        if (active) {
+          setLoadError(getFriendlyTagErrorMessage(caught));
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
       }
-    });
+    }
+
+    void loadOrders();
 
     return () => {
       active = false;
     };
   }, []);
 
-  function handleReceipt(order: TagOrder, petName: string) {
-    downloadPaymentReceipt(order, petName);
-    setReceiptMessage(`Payment receipt downloaded for ${formatOrderNumber(order)}.`);
-    window.setTimeout(() => setReceiptMessage(""), 2500);
+  async function handleDownloadDocument(order: TagOrder) {
+    if (downloadingId) {
+      return;
+    }
+
+    const orderKey = order.orderNumber || order.id;
+    const orderNumber = formatOrderNumber(order);
+    const isReceipt = canDownloadPaymentReceipt(order);
+
+    setDownloadingId(order.id);
+    setReceiptMessage("");
+    setDownloadError("");
+
+    try {
+      if (isReceipt) {
+        await downloadOwnerOrderReceiptPdf(orderKey, orderNumber);
+        setReceiptMessage(`Receipt PDF downloaded for ${orderNumber}.`);
+      } else {
+        await downloadOwnerOrderSummaryPdf(orderKey, orderNumber);
+        setReceiptMessage(`Order Summary PDF downloaded for ${orderNumber}.`);
+      }
+
+      window.setTimeout(() => setReceiptMessage(""), 2500);
+    } catch (caught) {
+      setDownloadError(getFriendlyTagErrorMessage(caught));
+    } finally {
+      setDownloadingId("");
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="brand-card rounded-[1.75rem] p-6 text-sm font-semibold text-pet-muted">
+        Loading orders...
+      </div>
+    );
+  }
+
+  if (loadError && !orders.length) {
+    return (
+      <EmptyState
+        icon="record"
+        title="Orders could not load"
+        description={loadError}
+        actionHref={ownerRoutes.dashboard}
+        actionLabel="Back to Dashboard"
+      />
+    );
   }
 
   if (!orders.length) {
-    const orderHref = pets[0]
-      ? ownerRoutes.petTagOrder(pets[0].id)
+    const orderHref = portalPets[0]
+      ? ownerRoutes.petTagOrder(portalPets[0].id)
       : ownerRoutes.petNew;
 
     return (
@@ -94,15 +177,28 @@ export function OrdersList({
 
   return (
     <div className="grid gap-4">
+      {loadError ? (
+        <div className="rounded-[1.25rem] border border-[#ffd2c9] bg-[#fff4f1] px-4 py-3 text-sm font-bold text-[#a63c2e]">
+          {loadError}
+        </div>
+      ) : null}
+
       {receiptMessage ? (
         <div className="rounded-[1.25rem] border border-pet-mint bg-[#e8f8f0] px-4 py-3 text-sm font-bold text-pet-sage">
           {receiptMessage}
         </div>
       ) : null}
 
+      {downloadError ? (
+        <div className="rounded-[1.25rem] border border-[#ffd2c9] bg-[#fff4f1] px-4 py-3 text-sm font-bold text-[#a63c2e]">
+          {downloadError}
+        </div>
+      ) : null}
+
       {orders.map((order) => {
         const pet = petMap.get(order.petId);
         const linkedTag = order.tagId ? tagMap.get(order.tagId) : undefined;
+        const petName = pet?.name ?? order.petName ?? "Pet profile";
         const orderNumber = formatOrderNumber(order);
         const replacementHref =
           linkedTag && order.petId
@@ -130,7 +226,7 @@ export function OrdersList({
                   </Badge>
                 </div>
                 <p className="mt-1 text-sm font-semibold text-pet-muted">
-                  {pet?.name ?? "Pet profile"} - {order.tagType}
+                  {petName} - {order.tagType}
                 </p>
               </div>
               <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[#e8f3ff] text-pet-teal">
@@ -191,18 +287,19 @@ export function OrdersList({
                 <Icon name="record" className="h-4 w-4" />
                 {openOrderId === order.id ? "Close Details" : "View Order"}
               </button>
-              {receiptReady ? (
-                <button
-                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-extrabold text-pet-ink transition hover:bg-pet-cream"
-                  onClick={() =>
-                    handleReceipt(order, pet?.name ?? "Pet profile")
-                  }
-                  type="button"
-                >
-                  <Icon name="record" className="h-4 w-4" />
-                  Download Receipt
-                </button>
-              ) : null}
+              <button
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-extrabold text-pet-ink transition hover:bg-pet-cream disabled:cursor-wait disabled:opacity-70"
+                disabled={downloadingId === order.id}
+                onClick={() => void handleDownloadDocument(order)}
+                type="button"
+              >
+                <Icon name="record" className="h-4 w-4" />
+                {downloadingId === order.id
+                  ? "Preparing..."
+                  : receiptReady
+                    ? "Download Receipt PDF"
+                    : "Download Order Summary PDF"}
+              </button>
               {replacementReady && replacementHref ? (
                 <CTAButton href={replacementHref} icon="tag" variant="outline">
                   Request Replacement
@@ -223,7 +320,7 @@ export function OrdersList({
             {openOrderId === order.id ? (
               <OrderInlineDetail
                 order={order}
-                petName={pet?.name ?? "Pet profile"}
+                petName={petName}
                 tag={linkedTag}
               />
             ) : null}
@@ -246,7 +343,7 @@ function OrderInlineDetail({
   return (
     <div className="mt-4 grid gap-3 rounded-[1.25rem] border border-pet-border bg-white p-4 md:grid-cols-3">
       <CompactItem label="Pet" value={petName} />
-      <CompactItem label="Design" value={order.shape} />
+      <CompactItem label="Tag variant" value={`${order.variant} Tag`} />
       <CompactItem
         label="Payment method"
         value={order.paymentMethod ?? "QR Payment"}
@@ -305,18 +402,3 @@ function CompactItem({
   );
 }
 
-function downloadPaymentReceipt(order: TagOrder, petName: string) {
-  const orderNumber = formatOrderNumber(order);
-  const blob = new Blob([buildPaymentReceiptText(order, petName)], {
-    type: "text/plain;charset=utf-8",
-  });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-
-  link.href = url;
-  link.download = `${orderNumber}-payment-receipt.txt`;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}

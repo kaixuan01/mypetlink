@@ -39,7 +39,7 @@ Queue of orders with submitted proof (Awaiting review / Reviewed / All). Each it
 - Actions by state: Active → Mark Lost / Disable / Archive; Lost or Disabled → Mark Replaced / Archive; Replaced → Archive; Unassigned → Disable / Archive; pending-family → Archive; Archived → Restore. "View Tag" opens `/t/{tagCode}` in a new tab.
 
 ### `/admin/tag-inventory` — Retail stock
-- Generate tag codes (1–50 per batch): creates **Unclaimed** stock — a TagCode with no pet and no owner — with an auto `BATCH-YYYY-MM` number. Customers activate via scan → `/activate/{tagCode}` → link to a pet → Active.
+- Generate tag codes (1–50 per batch): creates **Unclaimed** stock — a TagCode with no pet and no owner — with an auto `BATCH-YYYY-MM` number. Customers activate via scan/tap on `/t/{tagCode}` → link to a pet → Active.
 - Export CSV: simple frontend-only CSV download of the stock list.
 - Mark as Printed / Send to Reseller: visible but disabled ("coming later") — printing/reseller tracking needs backend fields.
 - Portal-purchased tags are bound to a pet from the start and never appear as unclaimed stock.

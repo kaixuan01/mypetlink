@@ -1,8 +1,8 @@
 # Phase 1 Admin Operations
 
-This document maps the completed Admin Portal MVP to future backend requirements.
+This document maps the Admin Portal to its backend requirements.
 
-The current Admin Portal is a functional operations preview backed by local/demo browser state. The future backend must replace that local state with authenticated, relational, auditable operations APIs.
+Status (2026-07-04): the admin backend is implemented. The Admin Portal now calls `/api/v1/admin/*` APIs (JWT + active `AdminUsers` policy, audited mutations) whenever the frontend is API-configured with an authenticated session; the local/demo state remains only as the unauthenticated fallback. Payment proofs are still metadata only (no file storage/preview), admin settings are read-only, printed/reseller batch tracking stays disabled, and admin lists load up to 100 rows and filter client-side pending server-side pagination in the UI.
 
 ## Admin Portal Source Of Truth
 
@@ -17,8 +17,9 @@ Current frontend pages:
 - `/admin/users`
 - `/admin/pets`
 - `/admin/settings`
-- `/admin/qr-profiles`
 - `/admin/plans`
+
+The former `/admin/qr-profiles` module was removed (see "Admin Pets" below); the route now redirects to `/admin/pets`.
 
 Current local services:
 
@@ -149,6 +150,9 @@ Endpoints:
 - `GET /api/v1/admin/orders/{orderId}`
 - `POST /api/v1/admin/orders/{orderId}/confirm-payment`
 - `POST /api/v1/admin/orders/{orderId}/reject-payment-proof`
+- `POST /api/v1/admin/orders/{orderId}/assign-tag`
+- `POST /api/v1/admin/orders/{orderId}/change-assigned-tag`
+- `POST /api/v1/admin/orders/{orderId}/replace-tag`
 - `POST /api/v1/admin/orders/{orderId}/status`
 - `POST /api/v1/admin/orders/{orderId}/cancel`
 
@@ -156,6 +160,9 @@ Valid actions:
 
 - Confirm Payment: `PaymentProofSubmitted` -> `PaymentConfirmed`
 - Request Resubmission: `PaymentProofSubmitted` -> `PendingPayment`
+- Assign Inventory Tag: confirmed order receives an unclaimed matching tag
+- Change Assigned Tag: swap the assigned tag while `PaymentConfirmed` or `PreparingTag` (before shipping)
+- Replace Tag: issue a replacement while `Shipped`/`Delivered`, or when the assigned tag is `Active`
 - Mark Preparing: `PaymentConfirmed` -> `PreparingTag`
 - Mark Shipped: `PreparingTag` -> `Shipped`
 - Mark Delivered: `Shipped` -> `Delivered`
@@ -165,8 +172,13 @@ Side effects:
 
 - Confirm payment sets payment status to `Confirmed`.
 - Reject payment sets proof status to `Rejected`, payment status to `Rejected`, and order status to `PendingPayment`.
+- Assigning inventory links an unclaimed tag to the owner, pet, and order, then moves it to `Preparing`. Stock is consumed at assignment, not at order creation.
+- Change Assigned Tag returns the old (never-shipped) tag to `Unclaimed` inventory with its owner/pet/order links cleared, then links the new tag as `Preparing`. Audited with old and new tag codes.
+- Replace Tag marks the old tag `Replaced` (its `/t` scan page stops showing owner contact) while keeping its owner/pet/order history, links a fresh tag as `Preparing`, and sends the order back to `PreparingTag` (tracking: "A replacement tag is being prepared."). A reason is required. Audited with old/new tag codes and the reason.
+- Change/Replace validate the new tag is unclaimed, unlinked, not archived, and matches the order's tag type and variant; the pet must be Active (Memorial/Archived pets cannot receive an active replacement).
 - Preparing updates linked pending-family tag to `Preparing`.
 - Delivered updates linked pending-family tag to `Delivered`.
+- Admin order/tag pages do not activate customer tags; activation is completed by the owner from the Physical Tag Scan Page after scanning/tapping the physical tag.
 - Cancel archives a linked tag that never became active.
 
 ## Admin Payment Proof Review
@@ -269,6 +281,16 @@ Rules:
 - Memorial is never active.
 - QR Safety enabled status should respect lifecycle.
 - Smart tag status should exclude inactive linked tags from active counts.
+
+### QR Safety Pages live in Admin Pets (QR Profiles module removed)
+
+Decision (2026-07-05): the old `/admin/qr-profiles` ("QR Profiles") module was removed rather than renamed. It was a build-time server page mapping ~2 hardcoded demo pets, so it never showed backend-created pets, and its columns (pet, slug, owner, /q URL, status) duplicated Admin Pets.
+
+Pet-level QR Safety Pages (`/q/:safetyCode`) are represented inside Admin Pets, which loads live backend data and already shows QR Safety status, lifecycle, Lost Mode, owner, the QR Safety Page (`/q`) link, and linked tags. A note on the Pets page clarifies that `/q` is pet-level and works without a physical tag, and that physical Smart Tags are managed under Smart Tags and Tag Inventory.
+
+- `/q/:safetyCode` (pet-level QR Safety) is distinct from `/t/:tagCode` (physical Smart Tag scan) and `/p/:petSlug` (public share profile).
+- `/q` does not depend on physical tag inventory.
+- The `/admin/qr-profiles` route is kept only as a client-side redirect to `/admin/pets` for existing bookmarks.
 
 ## Admin Settings
 

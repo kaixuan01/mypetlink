@@ -16,37 +16,3 @@ public abstract class SkeletonService : ISkeletonService
     }
 }
 
-public sealed class AuthService : SkeletonService, IAuthService;
-public sealed class PetService : SkeletonService, IPetService;
-public sealed class PublicProfileService : SkeletonService, IPublicProfileService;
-public sealed class QrSafetyService : SkeletonService, IQrSafetyService;
-public sealed class TagScanService : SkeletonService, ITagScanService;
-public sealed class SmartTagService : SkeletonService, ISmartTagService;
-public sealed class OrderService : SkeletonService, IOrderService;
-public sealed class PaymentProofService : SkeletonService, IPaymentProofService;
-public sealed class AdminService : SkeletonService, IAdminService;
-
-public sealed class AuditLogService : SkeletonService, IAuditLogService
-{
-    private readonly ILogger<AuditLogService> _logger;
-
-    public AuditLogService(ILogger<AuditLogService> logger)
-    {
-        _logger = logger;
-    }
-
-    public Task RecordAsync(
-        string action,
-        string entity,
-        Guid? entityId = null,
-        CancellationToken cancellationToken = default)
-    {
-        _logger.LogInformation(
-            "Audit log placeholder: {Action} on {Entity} {EntityId}",
-            action,
-            entity,
-            entityId);
-
-        return Task.CompletedTask;
-    }
-}

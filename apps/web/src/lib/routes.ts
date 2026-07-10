@@ -7,7 +7,7 @@ import type { Pet, PetTag } from "@/types";
 // - Owner portal: /pets/{petId}/...        (always the petId, never the slug)
 // - QR safety:   /q/{safetyCode}           (pet-level finder safety page)
 // - Physical tag: /t/{tagCode}             (physical QR or QR + NFC scan link)
-// - Activation:   /activate/{tagCode}      (Unassigned tag binding flow)
+// - Activation:   /t/{tagCode}             (scan/tap entry point for activation)
 // - Public share: /p/{petSlug}-{publicCode} (looked up by publicCode)
 
 type TagOrderOptions = {
@@ -32,7 +32,6 @@ export const ownerRoutes = {
   petProfile: (petId: string) => `/pets/${petId}`,
   petEdit: (petId: string) => `/pets/${petId}/edit`,
   petRecords: (petId: string) => `/pets/${petId}/records`,
-  petQr: (petId: string) => `/pets/${petId}/qr`,
   petMoments: (petId: string) => `/pets/${petId}/moments`,
   petMomentNew: (petId: string) => `/pets/${petId}/moments/new`,
   petTimeline: (petId: string) => `/pets/${petId}/timeline`,
@@ -62,7 +61,7 @@ export function qrSafetyPath(safetyCode: string) {
 }
 
 export function activatePath(tagCode: string) {
-  return `/activate/${tagCode}`;
+  return tagPath(tagCode);
 }
 
 export function publicProfilePath(slug: string, publicCode: string) {

@@ -14,8 +14,12 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
 import { getMemoryLimitState } from "@/lib/planLimits";
+import { isArchivedPet } from "@/lib/petLifecycle";
+import { ownerRoutes } from "@/lib/routes";
+import { isApiConfigured } from "@/services/apiConfig";
 import {
   deletePetMoment,
+  getFriendlyMomentErrorMessage,
   getPetMoments,
   updatePetMoment,
 } from "@/services/momentService";
@@ -85,14 +89,23 @@ export function PetMomentsManager({
   pet,
   initialMoments,
 }: PetMomentsManagerProps) {
-  const [moments, setMoments] = useState(initialMoments);
+  const apiMode = isApiConfigured();
+  const archivedPet = isArchivedPet(pet);
+  const [moments, setMoments] = useState<PetMoment[]>(
+    apiMode ? [] : initialMoments
+  );
   const [editingMoment, setEditingMoment] = useState<PetMoment | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loading, setLoading] = useState(apiMode);
+  const [loadError, setLoadError] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [formError, setFormError] = useState("");
   const [success, setSuccess] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<PetMoment | null>(null);
   const memoryLimit = getMemoryLimitState(moments.length);
+  const canCreateMemory = memoryLimit.canCreate && !archivedPet;
   const counts = useMemo(
     () => ({
       publicProfile: moments.filter(
@@ -113,11 +126,30 @@ export function PetMomentsManager({
   useEffect(() => {
     let active = true;
 
-    getPetMoments(pet.id).then((response) => {
+    queueMicrotask(() => {
       if (active) {
-        setMoments(response.data);
+        setLoading(true);
+        setLoadError("");
       }
     });
+
+    getPetMoments(pet.id)
+      .then((response) => {
+        if (active) {
+          setMoments(response.data);
+        }
+      })
+      .catch((caught) => {
+        if (active) {
+          setLoadError(getFriendlyMomentErrorMessage(caught));
+          setMoments([]);
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setLoading(false);
+        }
+      });
 
     return () => {
       active = false;
@@ -127,6 +159,7 @@ export function PetMomentsManager({
   function updateField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
     setErrors((current) => ({ ...current, [key]: undefined }));
+    setFormError("");
     setSuccess("");
   }
 
@@ -145,6 +178,8 @@ export function PetMomentsManager({
       timelineNote: moment.timelineNote ?? "",
     });
     setErrors({});
+    setActionError("");
+    setFormError("");
     setSuccess("");
   }
 
@@ -177,34 +212,42 @@ export function PetMomentsManager({
     }
 
     setIsSubmitting(true);
+    setSuccess("");
+    setActionError("");
+    setFormError("");
 
-    const response = await updatePetMoment(editingMoment.id, {
-      title: form.title.trim(),
-      date: formatDisplayDate(form.date),
-      type: form.type || "Other",
-      caption: form.caption.trim(),
-      media: form.media,
-      coverMediaId: form.coverMediaId,
-      visibility: form.visibility,
-      showOnPublicProfile: form.showOnPublicProfile,
-      showInLifeTimeline: form.showInLifeTimeline,
-      timelineNote: form.timelineNote,
-    });
+    try {
+      const response = await updatePetMoment(editingMoment.id, {
+        title: form.title.trim(),
+        date: formatDisplayDate(form.date),
+        type: form.type || "Other",
+        caption: form.caption.trim(),
+        media: apiMode ? [] : form.media,
+        coverMediaId: apiMode ? undefined : form.coverMediaId,
+        visibility: form.visibility,
+        showOnPublicProfile: form.showOnPublicProfile,
+        showInLifeTimeline: form.showInLifeTimeline,
+        timelineNote: form.timelineNote,
+      });
 
-    const savedMoment = response.data;
+      const savedMoment = response.data;
 
-    if (savedMoment) {
-      setMoments((current) =>
-        current.map((moment) =>
-          moment.id === editingMoment.id ? savedMoment : moment
-        )
-      );
-      setSuccess("Moment updated.");
+      if (savedMoment) {
+        setMoments((current) =>
+          current.map((moment) =>
+            moment.id === editingMoment.id ? savedMoment : moment
+          )
+        );
+        setSuccess("Moment updated.");
+      }
+
+      setEditingMoment(null);
+      setErrors({});
+    } catch (caught) {
+      setFormError(getFriendlyMomentErrorMessage(caught));
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setEditingMoment(null);
-    setErrors({});
-    setIsSubmitting(false);
   }
 
   async function confirmDelete() {
@@ -212,16 +255,22 @@ export function PetMomentsManager({
       return;
     }
 
-    const response = await deletePetMoment(deleteTarget.id);
+    try {
+      const response = await deletePetMoment(deleteTarget.id);
 
-    if (response.data.deleted) {
-      setMoments((current) =>
-        current.filter((item) => item.id !== deleteTarget.id)
-      );
-      setSuccess("Moment deleted.");
+      if (response.data.deleted) {
+        setMoments((current) =>
+          current.filter((item) => item.id !== deleteTarget.id)
+        );
+        setActionError("");
+        setSuccess("Moment deleted.");
+      }
+    } catch (caught) {
+      setSuccess("");
+      setActionError(getFriendlyMomentErrorMessage(caught));
+    } finally {
+      setDeleteTarget(null);
     }
-
-    setDeleteTarget(null);
   }
 
   return (
@@ -265,7 +314,12 @@ export function PetMomentsManager({
               Pet Memories are the public gallery. Life Timeline is built from
               public moments you mark as milestones.
             </p>
-            {!memoryLimit.canCreate ? (
+            {archivedPet ? (
+              <p className="mt-3 rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted">
+                Archived pet profiles keep existing memories safe, but new
+                memories can be added after the profile is restored.
+              </p>
+            ) : !memoryLimit.canCreate ? (
               <p className="mt-3 rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted">
                 {memoryLimit.message}
               </p>
@@ -273,23 +327,23 @@ export function PetMomentsManager({
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">
             <CTAButton
-              href={`/pets/${pet.id}/timeline`}
+              href={ownerRoutes.petTimeline(pet.id)}
               icon="heart"
               variant="secondary"
             >
               View Life Timeline
             </CTAButton>
             <CTAButton
-              disabled={!memoryLimit.canCreate}
+              disabled={!canCreateMemory}
               href={
-                memoryLimit.canCreate
-                  ? `/pets/${pet.id}/moments/new`
+                canCreateMemory
+                  ? ownerRoutes.petMomentNew(pet.id)
                   : undefined
               }
               icon="plus"
-              variant={memoryLimit.canCreate ? "coral" : "secondary"}
+              variant={canCreateMemory ? "coral" : "secondary"}
             >
-              {memoryLimit.canCreate ? "Add Memory" : "Limit Reached"}
+              {canCreateMemory ? "Add Memory" : "Unavailable"}
             </CTAButton>
           </div>
         </div>
@@ -304,8 +358,42 @@ export function PetMomentsManager({
         </div>
       ) : null}
 
+      {actionError ? (
+        <div
+          className="mt-6 rounded-[1.25rem] border border-[#f3b4a8] bg-[#fff1ee] p-4 text-sm font-bold text-[#a63c2e]"
+          role="alert"
+        >
+          {actionError}
+        </div>
+      ) : null}
+
       <section className="mt-6">
-        {moments.length ? (
+        {loading ? (
+          <div className="brand-card rounded-[1.75rem] p-6">
+            <p className="text-sm font-semibold text-pet-muted">
+              Loading pet memories...
+            </p>
+          </div>
+        ) : loadError ? (
+          <section className="brand-card rounded-[1.75rem] p-6">
+            <p className="text-sm font-bold uppercase text-pet-teal">
+              Could not load memories
+            </p>
+            <h2 className="mt-2 text-2xl font-black text-pet-ink">
+              {pet.name}&apos;s memories are temporarily unavailable.
+            </h2>
+            <p className="mt-3 max-w-xl text-sm font-semibold leading-6 text-pet-muted">
+              {loadError}
+            </p>
+            <CTAButton
+              className="mt-5"
+              onClick={() => window.location.reload()}
+              variant="secondary"
+            >
+              Try Again
+            </CTAButton>
+          </section>
+        ) : moments.length ? (
           <div className="grid gap-4 lg:grid-cols-2">
             {moments.map((moment) => (
               <PetMomentCard
@@ -322,7 +410,7 @@ export function PetMomentsManager({
             title="No pet moments yet"
             description="Add your pet's first little moment and keep it safe in their profile."
             actionHref={
-              memoryLimit.canCreate ? `/pets/${pet.id}/moments/new` : undefined
+              canCreateMemory ? ownerRoutes.petMomentNew(pet.id) : undefined
             }
             actionLabel="Add Moment"
           />
@@ -360,6 +448,12 @@ export function PetMomentsManager({
             </div>
 
             <form className="mt-6 grid gap-4" onSubmit={handleEditSubmit}>
+              {formError ? (
+                <div className="rounded-[1.25rem] border border-[#f3b4a8] bg-[#fff1ee] p-4 text-sm font-bold text-[#a63c2e]">
+                  {formError}
+                </div>
+              ) : null}
+
               <div className="grid gap-4 md:grid-cols-2">
                 <Field label="Title" error={errors.title}>
                   <input
@@ -430,13 +524,20 @@ export function PetMomentsManager({
                 />
               </Field>
 
-              <MomentMediaField
-                items={form.media}
-                coverMediaId={form.coverMediaId}
-                onChange={(media, coverMediaId) =>
-                  setForm((current) => ({ ...current, media, coverMediaId }))
-                }
-              />
+              {apiMode ? (
+                <div className="rounded-[1.25rem] border border-pet-border bg-pet-cream p-4 text-sm font-semibold leading-6 text-pet-muted">
+                  Photo and video upload is coming later. You can still save the
+                  memory details, visibility, and timeline settings now.
+                </div>
+              ) : (
+                <MomentMediaField
+                  items={form.media}
+                  coverMediaId={form.coverMediaId}
+                  onChange={(media, coverMediaId) =>
+                    setForm((current) => ({ ...current, media, coverMediaId }))
+                  }
+                />
+              )}
 
               <div className="grid gap-3 md:grid-cols-2">
                 <MomentCheckbox

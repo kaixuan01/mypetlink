@@ -1,5 +1,7 @@
 # MyPetLink Hosting & Deployment Strategy
 
+> **Historical.** This document predates the current .NET 8 + SQL Server backend and still references Supabase/PostgreSQL as early hosting assumptions. For the Phase 1 production plan (Azure App Service + Azure SQL Database, frontend on Cloudflare Pages), use [`../deployment/production-deployment-plan.md`](../deployment/production-deployment-plan.md) and the companion docs in [`../deployment/`](../deployment/).
+
 ## Purpose
 
 This document defines the recommended hosting, database, storage, and deployment architecture for the MyPetLink project.

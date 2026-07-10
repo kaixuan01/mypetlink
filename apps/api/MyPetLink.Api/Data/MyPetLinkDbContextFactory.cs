@@ -7,8 +7,14 @@ public sealed class MyPetLinkDbContextFactory : IDesignTimeDbContextFactory<MyPe
 {
     public MyPetLinkDbContext CreateDbContext(string[] args)
     {
+        var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__MyPetLinkDb");
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            connectionString = "Server=(localdb)\\MSSQLLocalDB;Database=MyPetLinkDev;Trusted_Connection=True;TrustServerCertificate=True;";
+        }
+
         var options = new DbContextOptionsBuilder<MyPetLinkDbContext>()
-            .UseSqlServer("Server=(localdb)\\MSSQLLocalDB;Database=MyPetLinkDev;Trusted_Connection=True;TrustServerCertificate=True;")
+            .UseSqlServer(connectionString)
             .Options;
 
         return new MyPetLinkDbContext(options);

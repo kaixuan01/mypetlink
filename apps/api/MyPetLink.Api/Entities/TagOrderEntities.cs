@@ -5,7 +5,8 @@ public sealed class SmartTagBatch : AuditableEntity
     public string BatchNo { get; set; } = "";
     public int Quantity { get; set; }
     public bool HasNfc { get; set; }
-    public string Shape { get; set; } = "";
+    // Tag variant: "Lightweight" or "Standard" (formerly the physical shape).
+    public string Variant { get; set; } = "Standard";
     public Guid? GeneratedByAdminUserId { get; set; }
     public DateTimeOffset? GeneratedAt { get; set; }
     public DateTimeOffset? ExportedAt { get; set; }
@@ -27,7 +28,8 @@ public sealed class SmartTag : AuditableEntity
     public Guid? OrderId { get; set; }
     public Guid? BatchId { get; set; }
     public bool HasNfc { get; set; }
-    public string Shape { get; set; } = "";
+    // Tag variant: "Lightweight" or "Standard" (formerly the physical shape).
+    public string Variant { get; set; } = "Standard";
     public SmartTagStatus Status { get; set; } = SmartTagStatus.Unclaimed;
     public DateTimeOffset? ActivatedAt { get; set; }
     public DateTimeOffset? DeliveredAt { get; set; }
@@ -51,7 +53,8 @@ public sealed class TagOrder : AuditableEntity
     public Guid? SmartTagId { get; set; }
     public Guid? ReplacementForTagId { get; set; }
     public TagType TagType { get; set; } = TagType.QrPetTag;
-    public string Shape { get; set; } = "";
+    // Tag variant: "Lightweight" or "Standard" (formerly the physical shape).
+    public string Variant { get; set; } = "Standard";
     public decimal Amount { get; set; }
     public string Currency { get; set; } = "MYR";
     public decimal DeliveryFee { get; set; }

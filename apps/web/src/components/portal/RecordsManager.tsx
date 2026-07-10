@@ -15,9 +15,11 @@ import { Icon } from "@/components/ui/Icon";
 import {
   createRecord,
   deleteRecord,
+  getFriendlyRecordErrorMessage,
   getPetRecords,
   updateRecord,
 } from "@/services/recordService";
+import { isApiConfigured } from "@/services/apiConfig";
 import type { CareRecord, RecordType } from "@/types";
 
 const recordTypes: RecordType[] = [
@@ -60,10 +62,17 @@ const emptyForm: FormState = {
 };
 
 export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
-  const [records, setRecords] = useState(initialRecords);
+  const apiMode = isApiConfigured();
+  const [records, setRecords] = useState<CareRecord[]>(
+    apiMode ? [] : initialRecords
+  );
   const [isOpen, setIsOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<CareRecord | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loading, setLoading] = useState(apiMode);
+  const [loadError, setLoadError] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [formError, setFormError] = useState("");
   const [success, setSuccess] = useState("");
   const [form, setForm] = useState<FormState>(emptyForm);
   const [errors, setErrors] = useState<FormErrors>({});
@@ -81,11 +90,30 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
   useEffect(() => {
     let active = true;
 
-    getPetRecords(petId).then((response) => {
+    queueMicrotask(() => {
       if (active) {
-        setRecords(response.data);
+        setLoading(true);
+        setLoadError("");
       }
     });
+
+    getPetRecords(petId)
+      .then((response) => {
+        if (active) {
+          setRecords(response.data);
+        }
+      })
+      .catch((caught) => {
+        if (active) {
+          setLoadError(getFriendlyRecordErrorMessage(caught));
+          setRecords([]);
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setLoading(false);
+        }
+      });
 
     return () => {
       active = false;
@@ -95,12 +123,15 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
   function updateField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
     setErrors((current) => ({ ...current, [key]: undefined }));
+    setFormError("");
   }
 
   function openAddForm() {
     setEditingRecord(null);
     setForm(emptyForm);
     setErrors({});
+    setActionError("");
+    setFormError("");
     setSuccess("");
     setIsOpen(true);
   }
@@ -117,6 +148,8 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
       publicVisibility: record.publicVisibility,
     });
     setErrors({});
+    setActionError("");
+    setFormError("");
     setSuccess("");
     setIsOpen(true);
   }
@@ -154,6 +187,8 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSuccess("");
+    setActionError("");
+    setFormError("");
 
     if (!validate()) {
       return;
@@ -171,28 +206,33 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
       publicVisibility: form.publicVisibility,
     };
 
-    const response = editingRecord
-      ? await updateRecord(editingRecord.id, payload)
-      : await createRecord(petId, payload);
+    try {
+      const response = editingRecord
+        ? await updateRecord(editingRecord.id, payload)
+        : await createRecord(petId, payload);
 
-    const savedRecord = response.data;
+      const savedRecord = response.data;
 
-    if (savedRecord) {
-      setRecords((current) =>
-        editingRecord
-          ? current.map((record) =>
-              record.id === editingRecord.id ? savedRecord : record
-            )
-          : [savedRecord, ...current]
-      );
+      if (savedRecord) {
+        setRecords((current) =>
+          editingRecord
+            ? current.map((record) =>
+                record.id === editingRecord.id ? savedRecord : record
+              )
+            : [savedRecord, ...current]
+        );
+      }
+
+      setForm(emptyForm);
+      setErrors({});
+      setIsOpen(false);
+      setEditingRecord(null);
+      setSuccess("Record saved. Your care history has been updated.");
+    } catch (caught) {
+      setFormError(getFriendlyRecordErrorMessage(caught));
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setForm(emptyForm);
-    setErrors({});
-    setIsOpen(false);
-    setEditingRecord(null);
-    setSuccess("Record saved. Your care history has been updated.");
-    setIsSubmitting(false);
   }
 
   async function confirmDelete() {
@@ -200,16 +240,22 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
       return;
     }
 
-    const response = await deleteRecord(deleteTarget.id);
+    try {
+      const response = await deleteRecord(deleteTarget.id);
 
-    if (response.data.deleted) {
-      setRecords((current) =>
-        current.filter((item) => item.id !== deleteTarget.id)
-      );
-      setSuccess("Record deleted.");
+      if (response.data.deleted) {
+        setRecords((current) =>
+          current.filter((item) => item.id !== deleteTarget.id)
+        );
+        setActionError("");
+        setSuccess("Record deleted.");
+      }
+    } catch (caught) {
+      setSuccess("");
+      setActionError(getFriendlyRecordErrorMessage(caught));
+    } finally {
+      setDeleteTarget(null);
     }
-
-    setDeleteTarget(null);
   }
 
   return (
@@ -233,7 +279,38 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
         </div>
       ) : null}
 
-      {records.length === 0 ? (
+      {actionError ? (
+        <div className="mb-6 rounded-[1.25rem] border border-[#f3b4a8] bg-[#fff1ee] p-4 text-sm font-bold text-[#a63c2e]">
+          {actionError}
+        </div>
+      ) : null}
+
+      {loading ? (
+        <div className="brand-card rounded-[1.75rem] p-6">
+          <p className="text-sm font-semibold text-pet-muted">
+            Loading care records...
+          </p>
+        </div>
+      ) : loadError ? (
+        <section className="brand-card rounded-[1.75rem] p-6">
+          <p className="text-sm font-bold uppercase text-pet-teal">
+            Could not load records
+          </p>
+          <h2 className="mt-2 text-2xl font-black text-pet-ink">
+            Your pet&apos;s care records are temporarily unavailable.
+          </h2>
+          <p className="mt-3 max-w-xl text-sm font-semibold leading-6 text-pet-muted">
+            {loadError}
+          </p>
+          <CTAButton
+            className="mt-5"
+            onClick={() => window.location.reload()}
+            variant="secondary"
+          >
+            Try Again
+          </CTAButton>
+        </section>
+      ) : records.length === 0 ? (
         <EmptyState
           icon="record"
           title="No care records yet"
@@ -296,6 +373,12 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
             </div>
 
             <form className="mt-6 grid gap-4" onSubmit={handleSubmit}>
+              {formError ? (
+                <div className="rounded-[1.25rem] border border-[#f3b4a8] bg-[#fff1ee] p-4 text-sm font-bold text-[#a63c2e]">
+                  {formError}
+                </div>
+              ) : null}
+
               <div className="grid gap-4 md:grid-cols-2">
                 <Field label="Record Type" error={errors.type}>
                   <select

@@ -5,14 +5,14 @@ import { BrandLogo } from "@/components/brand/BrandLogo";
 import { AppLayout } from "@/components/layouts/AppLayout";
 import { PublicSharePetProfile } from "@/components/marketing/PublicSharePetProfile";
 import { QrSafetyRouteView } from "@/components/marketing/QrSafetyRouteView";
+import { PetDetailHeader } from "@/components/portal/PetDetailHeader";
 import { PetManagementTabs } from "@/components/portal/PetManagementTabs";
 import { PetMomentForm } from "@/components/portal/PetMomentForm";
 import { PetMomentsManager } from "@/components/portal/PetMomentsManager";
 import { PetProfileForm } from "@/components/portal/PetProfileForm";
-import { PetQrSafetyManager } from "@/components/portal/PetQrSafetyManager";
+import { PetQrRedirect } from "@/components/portal/PetQrRedirect";
 import { PetSwitcher } from "@/components/portal/PetSwitcher";
 import { PetTimeline } from "@/components/portal/PetTimeline";
-import { ProfileAccessBadges } from "@/components/portal/ProfileAccessStatus";
 import { RecordsManager } from "@/components/portal/RecordsManager";
 import { OrderDetailView } from "@/components/portal/OrderDetailView";
 import { TagFinderView } from "@/components/portal/TagFinderView";
@@ -20,7 +20,6 @@ import { TagManagementPanel } from "@/components/portal/TagManagementPanel";
 import { TagOrderFlow } from "@/components/portal/TagOrderFlow";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { PetAvatar } from "@/components/ui/PetAvatar";
 import { formatOrderNumber } from "@/lib/orders";
 import {
   genericNotFoundTitle,
@@ -37,8 +36,9 @@ import {
   tagNotFoundTitle,
   tagScanPageTitle,
 } from "@/lib/pageTitles";
-import { getPetSummaryLabel } from "@/lib/petDisplay";
 import { parsePublicProfileParam, ownerRoutes } from "@/lib/routes";
+import { isApiClientError } from "@/services/apiClient";
+import { isApiConfigured } from "@/services/apiConfig";
 import { getPublicPetMoments, getPetMoments } from "@/services/momentService";
 import {
   getPetById,
@@ -85,6 +85,7 @@ type RuntimeRoute =
 
 type RuntimeState =
   | { status: "loading" }
+  | { status: "unavailable"; message: string; title: string }
   | { status: "not-found"; title: string }
   | {
       status: "public";
@@ -166,6 +167,7 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
   useEffect(() => {
     let active = true;
     const route = parseRuntimeRoute(window.location.pathname);
+    const apiMode = isApiConfigured();
 
     async function resolveRoute() {
       if (route.kind === "none") {
@@ -186,6 +188,16 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
           setState({
             status: "not-found",
             title: publicProfileNotFoundTitle,
+          });
+          return;
+        }
+
+        if (apiMode) {
+          setState({
+            status: "public",
+            profile: profileResponse.data,
+            moments: [],
+            records: [],
           });
           return;
         }
@@ -300,8 +312,18 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
       });
     }
 
-    resolveRoute().catch(() => {
+    resolveRoute().catch((caught) => {
       if (active) {
+        if (isApiClientError(caught) && caught.status === 0) {
+          setState({
+            status: "unavailable",
+            title: "MyPetLink temporarily unavailable",
+            message:
+              "We could not reach MyPetLink right now. Please try again.",
+          });
+          return;
+        }
+
         setState({ status: "not-found", title: genericNotFoundTitle });
       }
     });
@@ -317,6 +339,12 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
 
   if (state.status === "not-found") {
     return <>{children}</>;
+  }
+
+  if (state.status === "unavailable") {
+    return (
+      <RuntimeUnavailable title={state.title} message={state.message} />
+    );
   }
 
   if (state.status === "public") {
@@ -364,6 +392,28 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
   }
 
   return <OwnerRuntimeView state={state} />;
+}
+
+function RuntimeUnavailable({
+  message,
+  title,
+}: {
+  message: string;
+  title: string;
+}) {
+  return (
+    <main className="grid min-h-screen place-items-center bg-pet-cream px-4">
+      <div className="brand-card w-full max-w-md rounded-[2rem] p-8 text-center">
+        <div className="flex justify-center">
+          <BrandLogo className="h-12 w-auto max-w-[200px]" />
+        </div>
+        <h1 className="mt-6 text-2xl font-black text-pet-ink">{title}</h1>
+        <p className="mx-auto mt-3 max-w-sm text-sm font-semibold leading-6 text-pet-muted">
+          {message}
+        </p>
+      </div>
+    </main>
+  );
 }
 
 function OwnerRuntimeView({
@@ -444,7 +494,7 @@ function OwnerRuntimeView({
   if (section === "qr") {
     return (
       <AppLayout>
-        <PetQrSafetyManager initialPet={pet} initialTags={tags} />
+        <PetQrRedirect petId={pet.id} />
       </AppLayout>
     );
   }
@@ -495,43 +545,7 @@ function OwnerRuntimeView({
 
   return (
     <AppLayout>
-      <section className="brand-card mb-6 rounded-[1.75rem] p-5 sm:rounded-[2rem] sm:p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-4">
-            <span className="sm:hidden">
-              <PetAvatar pet={pet} size="md" />
-            </span>
-            <span className="hidden sm:block">
-              <PetAvatar pet={pet} size="lg" />
-            </span>
-            <div className="min-w-0">
-              <h1 className="truncate text-2xl font-black text-pet-ink sm:text-3xl">
-                {pet.name}
-              </h1>
-              <p className="mt-1 text-sm text-pet-muted">
-                {getPetSummaryLabel(pet)}
-              </p>
-            </div>
-          </div>
-          <CTAButton
-            href={ownerRoutes.petEdit(pet.id)}
-            icon="settings"
-            fullWidth
-            className="sm:w-auto"
-          >
-            Edit Pet Details
-          </CTAButton>
-        </div>
-        <ProfileAccessBadges
-          className="mt-4"
-          finderProfileUrl={pet.qrSafetyPath}
-          orders={petOrders}
-          pet={pet}
-          qrStatus={pet.qrStatus}
-          scroll
-          tags={tags}
-        />
-      </section>
+      <PetDetailHeader pet={pet} petOrders={petOrders} tags={tags} />
 
       <PetManagementTabs
         pet={pet}

@@ -6,6 +6,7 @@ import { CTAButton } from "@/components/ui/CTAButton";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { isArchivedPet, isMemorialPet } from "@/lib/petLifecycle";
 import {
+  getFriendlyApiErrorMessage,
   restorePetProfile,
   updatePetLifecycle,
 } from "@/services/petService";
@@ -30,36 +31,48 @@ export function PetLifecycleActions({
   const isMemorial = isMemorialPet(pet);
 
   async function updateLifecycle(status: PetLifecycleStatus) {
-    const response = await updatePetLifecycle(pet.id, status);
+    try {
+      const response = await updatePetLifecycle(pet.id, status);
 
-    if (response.data) {
-      setMessage(
-        status === "Memorial"
-          ? `${pet.name} is now in Memorial Mode.`
-          : status === "Active"
-            ? `${pet.name} is back in your active pet list.`
-            : `${pet.name} has been archived.`
-      );
-      router.refresh();
+      if (response.data) {
+        setMessage(
+          status === "Memorial"
+            ? `${pet.name} is now in Memorial Mode.`
+            : status === "Active"
+              ? `${pet.name} is back in your active pet list.`
+              : `${pet.name} has been archived.`
+        );
+        router.refresh();
+      } else {
+        setMessage(
+          "We could not find this pet profile. Please refresh and try again."
+        );
+      }
+    } catch (caught) {
+      setMessage(getFriendlyApiErrorMessage(caught));
+    } finally {
+      setAction(null);
     }
-
-    setAction(null);
   }
 
   async function restore() {
-    const response = await restorePetProfile(pet.id);
+    try {
+      const response = await restorePetProfile(pet.id);
 
-    if (response.data.pet) {
-      setMessage(`${response.data.pet.name} is back in your main list.`);
-      router.refresh();
-    } else {
-      setMessage(
-        response.data.blockedReason ??
-          "You've reached the Free profile limit. Archive another pet first, or wait for Premium plans for more profiles."
-      );
+      if (response.data.pet) {
+        setMessage(`${response.data.pet.name} is back in your main list.`);
+        router.refresh();
+      } else {
+        setMessage(
+          response.data.blockedReason ??
+            "You've reached the Free profile limit. Archive another pet first, or wait for Premium plans for more profiles."
+        );
+      }
+    } catch (caught) {
+      setMessage(getFriendlyApiErrorMessage(caught));
+    } finally {
+      setAction(null);
     }
-
-    setAction(null);
   }
 
   return (

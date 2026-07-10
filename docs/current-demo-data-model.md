@@ -1,6 +1,6 @@
 # MyPetLink Current Demo Data Model
 
-This documents the frontend-only data model as implemented in `apps/web`. There is no backend or database; this model is the reference the Admin Portal reuses and the future API/database schema should map from. All types live in `apps/web/src/types.ts`.
+This documents the local preview data model in `apps/web`. Owner auth, owner profile, pets, public profile, QR Safety, care records, memories, Smart Tags, Orders, and physical tag scans now use the backend API when `NEXT_PUBLIC_API_BASE_URL` is configured; owner-protected flows also require an owner API session. The localStorage model remains the fallback for static/demo preview. All frontend types live in `apps/web/src/types.ts`.
 
 ## Persistence approach
 
@@ -8,7 +8,7 @@ This documents the frontend-only data model as implemented in `apps/web`. There 
 - **Runtime persistence** is `localStorage`, via `readStoredCollection(key, fallback)` / `writeStoredCollection(key, values)` in `src/services/mockApi.ts`. Stored items are merged with the seed by `id` (stored wins; seed items not present in storage are appended).
 - **Storage keys**: `mypetlink_pets`, `mypetlink_tags`, `mypetlink_orders`, `mypetlink_owner_settings`, `mypetlink_mock_owner` (owner session), `mypetlink_mock_admin` (admin session), plus records/moments keys.
 - **Server/build time** returns the seed; client components re-fetch from localStorage on mount. Services return an `ApiResponse<T>` envelope (`{ data, meta }`) shaped like a future API.
-- **Sessions** are plain localStorage flags (`authService.ts`): `loginMockOwner()` / `loginMockAdmin()`. There is no real authentication; the future backend must enforce owner/admin roles and permissions.
+- **Sessions** in local preview are plain localStorage flags (`authService.ts`): `loginMockOwner()` / `loginMockAdmin()`. In backend mode, owner auth uses the API JWT/refresh-token flow and the backend enforces owner/admin roles and permissions.
 
 ## Pet model (`Pet`)
 
@@ -40,13 +40,14 @@ Contact & privacy: embedded `owner` contact (`name`, `phone`, `whatsapp`, `emerg
 
 `Unassigned | Pending | Preparing | Delivered | Active | Disabled | Lost | Replaced | Archived`
 
+- In backend mode, public physical tag scans use `/api/v1/public/tags/{tagCode}` without owner auth. Active backend tags return the same safety projection as `/q/:safetyCode`; pending, inactive, memorial-linked, archived, and not-found tags never expose owner contact.
 - Pending-family (`Pending`, `Preparing`, `Delivered`) exists because order fulfillment is folded into the tag record in this frontend phase; a real backend should move fulfillment to the order and collapse tags to the 5 logical states.
 - Status helpers live in `src/lib/tagStatus.ts`: `isActivePhysicalTag`, `isPendingPhysicalTag`, `isInactivePhysicalTag`, `getTagDisplayStatus`, `shouldShowTagForFilter`, `getPetSmartTagStatus`. A tag linked to a Memorial/Archived pet is displayed as inactive even if its own status is `Active`.
 - Finder resolution (`getFinderState` in `tagService.ts`): not-found → branded page; `Unassigned`/no petId → activation prompt; inactive statuses or archived → safe inactive page (no owner contact); pending → pending state; otherwise active → QR Safety Page content.
 
 ## Order model (`TagOrder`)
 
-`id`, `orderNumber` (`MPL-ORD-2026-XXXX`, via `formatOrderNumber`), `petId`, `tagType` (`MyPetLink QR Pet Tag` RM19.90 | `MyPetLink QR + NFC Smart Tag` RM39.90), `shape`, `delivery` (`DeliveryDetails`), `estimatedPrice`, `status`, `orderedDate`, `tagId` (linked tag, created with the order), `replacementForTagId`, tracking fields (`trackingStatus`, `trackingNumber`, `shippedDate`, `deliveredDate`).
+`id`, `orderNumber` (`MPL-ORD-2026-XXXX` for local preview or backend-generated `MPL-ORD-YYYYMMDD-XXXX`), `petId`, optional `petName`, `tagType` (`MyPetLink QR Pet Tag` RM19.90 | `MyPetLink QR + NFC Smart Tag` RM39.90), `shape`, `delivery` (`DeliveryDetails`), `estimatedPrice`, `status`, `orderedDate`, `tagId` (linked tag, created with the order), `replacementForTagId`, tracking fields (`trackingStatus`, `trackingNumber`, `shippedDate`, `deliveredDate`).
 
 ### Order status values (`OrderStatus`)
 
@@ -62,6 +63,8 @@ Phase 1 payment is manual (`src/config/payment.ts`): the owner pays a merchant Q
 - `submitOrderPayment()` moves the order to `Payment Submitted`; confirmation is never automatic — an admin confirms manually.
 - Receipt download is available from `Payment Confirmed` onward (`canDownloadPaymentReceipt`).
 
+Backend mode stores payment proof metadata only (`MediaFiles` + `PaymentProofs` metadata rows), not file bytes/base64. Real storage is a later enhancement.
+
 ## Plan limit model (`src/lib/planLimits.ts`)
 
 - Free plan: `maxPets: 3`, `maxMemoriesPerPet: 10`; archived pets don't count. Early-access users over the limit keep their profiles (over-limit messaging, no lockout).
@@ -71,7 +74,7 @@ Phase 1 payment is manual (`src/config/payment.ts`): the owner pays a merchant Q
 
 ## Other models
 
-- `CareRecord`: typed care events with `publicVisibility` (`Private | Public badge only | Public details`) and `status` (`complete | due-soon | upcoming`).
-- `PetMoment`: memories with media (max 5 per moment), visibility, and timeline flags.
+- `CareRecord`: typed care events with `publicVisibility` (`Private | Public badge only | Public details`) and `status` (`complete | due-soon | upcoming`). In backend mode, owner Records pages read/write these through `/api/v1/pets/{petId}/care-records` and `/api/v1/care-records/{recordId}`. File upload/storage for attachments is not implemented yet.
+- `PetMoment`: memories with media (max 5 per moment), visibility, and timeline flags. In backend mode, owner Moments pages read/write memory details through `/api/v1/pets/{petId}/memories` and `/api/v1/memories/{memoryId}`. Public profile projections include only `Public` memories marked for the gallery or Life Timeline. Real photo/video upload storage is not implemented yet, so API-mode memory media is shown as a later enhancement.
 - `QrStatus` (`active | draft | paused`) — QR profile status used by the earlier admin QR Profiles view.
 - Company/config constants: `src/config/site.ts` (company, support email, business registration no.) and `src/config/payment.ts` (manual payment copy).

@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { QrSafetyPageView } from "@/components/marketing/QrSafetyPageView";
+import { TagActivationFlow } from "@/components/portal/TagActivationFlow";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import {
@@ -13,8 +14,10 @@ import {
   tagNotFoundTitle,
   tagScanPageTitle,
 } from "@/lib/pageTitles";
-import { activatePath } from "@/lib/routes";
-import { getFinderState } from "@/services/tagService";
+import {
+  getFinderState,
+  getFriendlyTagErrorMessage,
+} from "@/services/tagService";
 import type { FinderResult } from "@/types";
 
 type TagFinderViewProps = {
@@ -30,16 +33,25 @@ type TagFinderViewProps = {
 export function TagFinderView({ initialResult, tagCode }: TagFinderViewProps) {
   const [result, setResult] = useState(initialResult);
   const [loaded, setLoaded] = useState(initialResult.state !== "not-found");
+  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
     let active = true;
 
-    getFinderState(tagCode).then((next) => {
-      if (active) {
-        setResult(next);
-        setLoaded(true);
-      }
-    });
+    getFinderState(tagCode)
+      .then((next) => {
+        if (active) {
+          setResult(next);
+          setLoadError("");
+          setLoaded(true);
+        }
+      })
+      .catch((caught) => {
+        if (active) {
+          setLoadError(getFriendlyTagErrorMessage(caught));
+          setLoaded(true);
+        }
+      });
 
     return () => {
       active = false;
@@ -64,6 +76,20 @@ export function TagFinderView({ initialResult, tagCode }: TagFinderViewProps) {
     );
   }
 
+  if (loadError) {
+    return (
+      <FinderShell>
+        <FinderCard
+          description={loadError}
+          icon="shield"
+          tagCode={tagCode}
+          title="Tag status unavailable"
+          tone="soft"
+        />
+      </FinderShell>
+    );
+  }
+
   if (result.state === "active") {
     return (
       <FinderShell>
@@ -73,40 +99,11 @@ export function TagFinderView({ initialResult, tagCode }: TagFinderViewProps) {
   }
 
   if (result.state === "unassigned") {
-    return (
-      <FinderShell>
-        <FinderCard
-          description="This tag is not linked to any pet yet. Activate it now so your pet can be identified if they ever get lost."
-          icon="tag"
-          tagCode={result.tagCode}
-          title="Activate your MyPetLink Tag"
-          tone="teal"
-        >
-          <CTAButton
-            className="min-h-14 text-base"
-            href={activatePath(result.tagCode)}
-            icon="paw"
-            fullWidth
-          >
-            Activate Tag
-          </CTAButton>
-        </FinderCard>
-      </FinderShell>
-    );
+    return <TagActivationFlow initialResult={result} tagCode={tagCode} />;
   }
 
   if (result.state === "pending") {
-    return (
-      <FinderShell>
-        <FinderCard
-          description="This physical tag is still being prepared by its owner."
-          icon="tag"
-          tagCode={result.tagCode}
-          title="This tag is not active yet"
-          tone="soft"
-        />
-      </FinderShell>
-    );
+    return <TagActivationFlow initialResult={result} tagCode={tagCode} />;
   }
 
   if (result.state === "inactive") {

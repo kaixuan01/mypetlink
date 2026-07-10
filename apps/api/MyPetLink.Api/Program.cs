@@ -1,5 +1,7 @@
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -12,11 +14,17 @@ using MyPetLink.Api.Middleware;
 using MyPetLink.Api.Services;
 using MyPetLink.Api.Storage;
 
+// QuestPDF Community license (free for small businesses / open use). Must be
+// set before any document is generated.
+QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
+
 var builder = WebApplication.CreateBuilder(args);
+const string FrontendCorsPolicy = "MyPetLinkFrontend";
 
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
 builder.Services.Configure<GoogleAuthOptions>(builder.Configuration.GetSection(GoogleAuthOptions.SectionName));
 builder.Services.Configure<StorageOptions>(builder.Configuration.GetSection(StorageOptions.SectionName));
+builder.Services.Configure<AdminSeedOptions>(builder.Configuration.GetSection(AdminSeedOptions.SectionName));
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddDbContext<MyPetLinkDbContext>(options =>
@@ -50,10 +58,47 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
     };
 });
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(FrontendCorsPolicy, policy =>
+    {
+        var configuredOrigins = builder.Configuration
+            .GetSection("Cors:AllowedOrigins")
+            .Get<string[]>() ?? Array.Empty<string>();
+        var origins = configuredOrigins
+            .Where(origin => !string.IsNullOrWhiteSpace(origin))
+            .Select(origin => origin.Trim().TrimEnd('/'))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (origins.Length == 0 && builder.Environment.IsDevelopment())
+        {
+            origins =
+            [
+                "http://localhost:3000",
+                "http://127.0.0.1:3000",
+                "http://localhost:3001",
+                "http://127.0.0.1:3001"
+            ];
+        }
+
+        if (origins.Length > 0)
+        {
+            policy
+                .WithOrigins(origins)
+                .AllowAnyHeader()
+                .AllowAnyMethod();
+        }
+    });
+});
+
 var jwt = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
-var signingKey = string.IsNullOrWhiteSpace(jwt.SigningKey)
-    ? "development-placeholder-signing-key-change-before-production"
-    : jwt.SigningKey;
+if (string.IsNullOrWhiteSpace(jwt.SigningKey))
+{
+    throw new InvalidOperationException("Jwt:SigningKey must be configured before starting the API.");
+}
+
+var apiJsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -66,8 +111,56 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateLifetime = true,
             ValidIssuer = jwt.Issuer,
             ValidAudience = jwt.Audience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)),
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.SigningKey)),
             ClockSkew = TimeSpan.FromMinutes(2)
+        };
+
+        options.Events = new JwtBearerEvents
+        {
+            OnChallenge = async context =>
+            {
+                context.HandleResponse();
+
+                if (context.Response.HasStarted)
+                {
+                    return;
+                }
+
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                context.Response.ContentType = "application/json";
+
+                var response = ApiEnvelope.Error(
+                    context.HttpContext,
+                    "unauthorized",
+                    "Authentication is required.");
+
+                await JsonSerializer.SerializeAsync(
+                    context.Response.Body,
+                    response,
+                    apiJsonOptions,
+                    context.HttpContext.RequestAborted);
+            },
+            OnForbidden = async context =>
+            {
+                if (context.Response.HasStarted)
+                {
+                    return;
+                }
+
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                context.Response.ContentType = "application/json";
+
+                var response = ApiEnvelope.Error(
+                    context.HttpContext,
+                    "forbidden",
+                    "You do not have permission to access this resource.");
+
+                await JsonSerializer.SerializeAsync(
+                    context.Response.Body,
+                    response,
+                    apiJsonOptions,
+                    context.HttpContext.RequestAborted);
+            }
         };
     });
 
@@ -78,20 +171,26 @@ builder.Services.AddAuthorization(options =>
 
     options.AddPolicy(AuthorizationPolicies.Admin, policy =>
     {
-        // TODO: Replace role-only check with active AdminUsers lookup once auth logic is implemented.
         policy.RequireAuthenticatedUser();
-        policy.RequireRole(RoleConstants.Admin);
+        policy.Requirements.Add(new ActiveAdminRequirement());
     });
 });
 
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IOwnerProfileService, OwnerProfileService>();
+builder.Services.AddScoped<IExternalAuthService, ExternalAuthService>();
+builder.Services.AddScoped<IExternalTokenValidator, GoogleTokenValidator>();
+builder.Services.AddScoped<IAuthorizationHandler, ActiveAdminRequirementHandler>();
 builder.Services.AddScoped<IPetService, PetService>();
 builder.Services.AddScoped<IPublicProfileService, PublicProfileService>();
+builder.Services.AddScoped<IMemoryService, MemoryService>();
+builder.Services.AddScoped<ICareRecordService, CareRecordService>();
 builder.Services.AddScoped<IQrSafetyService, QrSafetyService>();
 builder.Services.AddScoped<ITagScanService, TagScanService>();
 builder.Services.AddScoped<ISmartTagService, SmartTagService>();
 builder.Services.AddScoped<IOrderService, OrderService>();
+builder.Services.AddScoped<IOrderDocumentService, OrderDocumentService>();
 builder.Services.AddScoped<IPaymentProofService, PaymentProofService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
@@ -117,20 +216,7 @@ builder.Services.AddSwaggerGen(options =>
         BearerFormat = "JWT"
     });
 
-    options.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
-        {
-            new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference
-                {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer"
-                }
-            },
-            Array.Empty<string>()
-        }
-    });
+    options.OperationFilter<AuthorizeOperationFilter>();
 });
 
 var app = builder.Build();
@@ -145,6 +231,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseCors(FrontendCorsPolicy);
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -153,5 +240,27 @@ app.MapGet("/health", (HttpContext context) =>
     Results.Ok(ApiEnvelope.Ok(new { status = "ok" }, context))).AllowAnonymous();
 app.MapGet("/api/v1/health", (HttpContext context) =>
     Results.Ok(ApiEnvelope.Ok(new { status = "ok", service = "MyPetLink.Api" }, context))).AllowAnonymous();
+
+// Readiness probe: verifies the database is reachable. Returns 200 when ready,
+// 503 when the database is unavailable. CanConnectAsync never throws, so a DB
+// outage yields a clean 503 rather than an exception.
+app.MapGet("/api/v1/health/ready", async (HttpContext context, MyPetLinkDbContext dbContext) =>
+{
+    var databaseReady = await dbContext.Database.CanConnectAsync(context.RequestAborted);
+
+    if (!databaseReady)
+    {
+        return Results.Json(
+            ApiEnvelope.Error(
+                context,
+                "service_unavailable",
+                "MyPetLink is having trouble connecting right now. Please try again in a moment."),
+            statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+
+    return Results.Ok(ApiEnvelope.Ok(
+        new { status = "ready", service = "MyPetLink.Api", database = "up" },
+        context));
+}).AllowAnonymous();
 
 app.Run();

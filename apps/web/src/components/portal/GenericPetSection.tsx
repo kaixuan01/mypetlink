@@ -8,9 +8,15 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { getActivePets } from "@/lib/petLifecycle";
 import { ownerRoutes } from "@/lib/routes";
-import { getPetMoments } from "@/services/momentService";
+import {
+  getFriendlyMomentErrorMessage,
+  getPetMoments,
+} from "@/services/momentService";
 import { getPets } from "@/services/petService";
-import { getPetRecords } from "@/services/recordService";
+import {
+  getFriendlyRecordErrorMessage,
+  getPetRecords,
+} from "@/services/recordService";
 import type { CareRecord, Pet, PetMoment } from "@/types";
 
 type Section = "moments" | "records";
@@ -41,37 +47,60 @@ export function GenericPetSection({ section }: { section: Section }) {
   const [moments, setMoments] = useState<PetMoment[]>([]);
   const [records, setRecords] = useState<CareRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     let active = true;
 
-    getPets().then(async (response) => {
-      if (!active) {
-        return;
-      }
-
-      const visiblePets = getActivePets(response.data);
-      setPets(visiblePets);
-      const firstPet = visiblePets[0];
-
-      if (firstPet) {
-        if (section === "moments") {
-          const result = await getPetMoments(firstPet.id);
-          if (active) {
-            setMoments(result.data);
-          }
-        } else {
-          const result = await getPetRecords(firstPet.id);
-          if (active) {
-            setRecords(result.data);
-          }
-        }
-      }
-
+    queueMicrotask(() => {
       if (active) {
-        setLoading(false);
+        setLoading(true);
+        setError("");
       }
     });
+
+    async function loadSection() {
+      try {
+        const response = await getPets();
+
+        if (!active) {
+          return;
+        }
+
+        const visiblePets = getActivePets(response.data);
+        setPets(visiblePets);
+        const firstPet = visiblePets[0];
+
+        if (firstPet) {
+          if (section === "moments") {
+            const result = await getPetMoments(firstPet.id);
+            if (active) {
+              setMoments(result.data);
+            }
+          } else {
+            const result = await getPetRecords(firstPet.id);
+            if (active) {
+              setRecords(result.data);
+            }
+          }
+        }
+      } catch (caught) {
+        if (active) {
+          setError(
+            section === "moments"
+              ? getFriendlyMomentErrorMessage(caught)
+              : getFriendlyRecordErrorMessage(caught)
+          );
+          setPets([]);
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadSection();
 
     return () => {
       active = false;
@@ -83,6 +112,22 @@ export function GenericPetSection({ section }: { section: Section }) {
       <p className="text-sm font-semibold text-pet-muted">
         Loading your pets...
       </p>
+    );
+  }
+
+  if (error) {
+    return (
+      <section className="brand-card rounded-[1.75rem] p-6">
+        <p className="text-sm font-bold uppercase text-pet-teal">
+          Could not load pets
+        </p>
+        <h2 className="mt-2 text-2xl font-black text-pet-ink">
+          This section is temporarily unavailable.
+        </h2>
+        <p className="mt-3 max-w-xl text-sm font-semibold leading-6 text-pet-muted">
+          {error}
+        </p>
+      </section>
     );
   }
 

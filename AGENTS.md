@@ -16,17 +16,44 @@ This is the **MyPetLink monorepo**. Read this file before making changes anywher
 3. **Never expose internal wording in user-facing UI** — no "mock", "demo", "backend", "API", "payload", "service", or "frontend-only" text in anything a visitor or owner can see.
 4. **Premium is Coming Soon only.** No subscription, upgrade, or checkout flow.
 5. **GPS Safety is Coming Later only.**
-6. **Smart Tags are optional one-time add-ons** (QR Pet Tag and QR + NFC Smart Tag), not subscriptions.
+6. **Smart Tags are optional one-time add-ons** (QR Pet Tag and QR + NFC Smart Tag), not subscriptions. Each tag has a **tag variant** — **Lightweight** (cats/small pets) or **Standard** (dogs/medium-large pets) — separate from the tag type. There is no shape/design option (deprecated).
+7. **Assigned inventory tags are not final.** Before an order ships, an admin can change the assigned tag (the old tag returns to unclaimed stock). After shipping/delivery/activation, use Replace Tag (the old tag becomes `Replaced` and its `/t` scan page stops showing owner contact). Both are admin-only, validate tag type/variant, and are audited. Inventory stock is consumed at assignment, not at order creation.
+
+## Production UI copy rules
+
+All user-facing **and** admin-facing UI text must read as production-ready copy for non-developers.
+
+- Do not write sentences for developers unless the UI is explicitly a developer/debug-only screen.
+- Avoid internal route names, API/backend/database wording, and implementation details in normal UI copy. Routes may still appear as actual URLs or links when the user needs the URL itself.
+- Explain the user benefit or operational meaning, not the technical mechanism.
+  - Good: "If this tag is disabled, the scan page will not show owner contact details."
+  - Bad: "Uses /t so disabled tags stay protected."
+  - Good: "We couldn't connect right now. Please try again in a moment."
+  - Bad: "Check that the backend and local database are running."
+- Development-only hints (e.g. connection debug hints) must be gated so they only render in development, never in a production build.
+- Admin Portal copy can be operational, but must still be clear and non-technical.
+
+### User-facing terms for our routes
+
+Refer to the three public pages by name in copy, not by their path:
+
+- `/p/:petSlug` → **Public Share Profile** (or "Share Profile")
+- `/q/:safetyCode` → **QR Safety Page** (or "Safety QR")
+- `/t/:tagCode` → **Physical Tag Scan Page** (or "Physical Tag QR" / "Tag Scan Page")
+
+Do not lump these together as a generic "QR Profile" — they are three distinct pages.
 
 ## Route conventions
 
 - QR Safety Page: `/q/:safetyCode`
-- Physical Tag Scan Link: `/t/:tagCode`
+- Physical Tag Scan Link and tag activation entry point: `/t/:tagCode`
 - Public Share Profile: `/p/:petSlug` (slug ends with the pet's public code)
 - Owner Portal routes currently live in the same Next.js app (`/dashboard`, `/pets`, `/tags`, `/orders`, `/settings`, ...).
 - The Admin Portal UI will also be added later under `/admin` in `apps/web`, unless the project is split later.
 
 Route strings are centralized in `apps/web/src/lib/routes.ts` — never hardcode route strings in pages or components.
+
+Physical tag activation must be started from the Physical Tag Scan Page (`/t/:tagCode`) after the owner scans/taps the physical tag. Owner Portal tag/order pages may offer View Tag Scan Page and Copy Tag Link, but must not show direct Activate Tag actions.
 
 ## Future work (planned, not started)
 

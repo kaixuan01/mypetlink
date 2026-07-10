@@ -1,6 +1,8 @@
 # MyPetLink API Contract V1 Draft
 
-Planning draft for the future C# .NET 8 API. This API is not implemented yet.
+Contract draft for the C# .NET 8 API.
+
+Implementation status (2026-07-04): auth, owner profile, pets, public reads, care records, memories, smart tags, orders/payment proofs, `/t` scan resolution, and the admin group are implemented in `apps/api`. Implemented admin routes differ slightly from this draft (see `apps/api/README.md` for the authoritative list): order fulfillment uses explicit `POST /admin/orders/{id}/mark-preparing|mark-shipped|mark-delivered` routes (with `POST {id}/status` kept as a compatibility dispatcher), payment proofs add `GET /admin/payment-proofs/{id}` plus `POST {id}/approve|reject` sharing the order transition logic, tag generation/export live under `/admin/tag-inventory` (`GET`, `POST /generate`, `GET /export`), tag status actions are explicit `POST /admin/tags/{id}/disable|mark-lost|replace|archive|restore` routes, and `PATCH /admin/settings` is not implemented (read-only Phase 1). Notifications and found reports remain future.
 
 Base path: `/api/v1`
 
@@ -59,10 +61,13 @@ Common status codes:
 
 - Protected endpoints require a JWT bearer access token.
 - Refresh token endpoints use a secure refresh token value and rotate tokens.
-- Admin endpoints require an active `AdminUsers` record and role authorization.
+- Admin endpoints require an active `AdminUsers` record; a role claim alone is not enough.
 - Public endpoints must never expose internal ids or private owner fields.
 - Owner endpoints must scope every read/write by the authenticated user.
 - Every admin mutation writes an `AuditLogs` record.
+- Phase A implements Google Login first through `ExternalLogins.Provider = Google`.
+- `ExternalLogins` is designed for multiple provider values: `Google`, `Apple` later, and `EmailOtp` later if passwordless email login is approved.
+- No password login is implemented in Phase A.
 
 ## Pagination And Filtering
 
@@ -98,11 +103,16 @@ Validation:
 
 - Validate Google token issuer, audience, expiry, and subject.
 - Normalize and verify email from token.
+- Create or update `Users`.
+- Create or update `ExternalLogins` with `provider = Google`.
+- Create owner profile on the Free plan when needed.
+- Issue JWT access token and rotating refresh token.
 
 Errors:
 
 - `401` invalid Google token
 - `403` user suspended
+- `500` Google auth provider not configured
 - `409` email linked to unsupported login state
 
 ### POST `/api/v1/auth/refresh`
@@ -165,7 +175,42 @@ Errors:
 
 - `401` unauthenticated
 
-### PATCH `/api/v1/account/owner-profile`
+### Future auth endpoints - planned only
+
+These routes are planning notes and must not be exposed as working behavior until implemented:
+
+- `POST /api/v1/auth/apple`
+- `POST /api/v1/auth/email-otp/request`
+- `POST /api/v1/auth/email-otp/verify`
+
+Apple Login is planned for later. Email OTP/passwordless login may be considered later. Password login is not part of Phase A.
+
+### GET `/api/v1/owner/profile`
+
+Purpose: read the current owner's profile, contact defaults, privacy defaults, and plan summary.
+
+Auth: owner.
+
+Response:
+
+- `userId`
+- `ownerProfileId`
+- `displayName`
+- `email`
+- `phoneE164`
+- `whatsappE164`
+- `defaultGeneralArea`
+- `defaultContact`
+- `defaultPrivacy`
+- `notificationPreferences`
+- `planCode`
+- `createdAt`, `updatedAt`
+
+Errors:
+
+- `401` unauthenticated
+
+### PUT `/api/v1/owner/profile`
 
 Purpose: update owner settings.
 
@@ -173,11 +218,11 @@ Auth: owner.
 
 Request:
 
-- `ownerDisplayName`
+- `displayName`
 - `phoneE164`
 - `whatsappE164`
 - `defaultGeneralArea`
-- `privacyDefaults`
+- `privacyDefaults` / `defaultPrivacy`
 - `notificationPreferences`
 
 Response:
@@ -189,6 +234,7 @@ Validation:
 - E.164 phone/WhatsApp when supplied.
 - Email is not changed here.
 - Privacy defaults must match known keys.
+- Plan code cannot be changed from this endpoint.
 
 Errors:
 
@@ -210,7 +256,13 @@ Query:
 
 Response:
 
-- pet summaries including public/QR paths, lifecycle, Lost Mode, smart tag summary
+- pet summaries including owner `petId`, `publicSlug`, `publicCode`, `safetyCode`, public/QR paths, lifecycle, and Lost Mode.
+
+Rules:
+
+- Default list returns active pets only.
+- Use `lifecycleStatus=All`, `Memorial`, or `Archived` to include non-active pets.
+- Owner can only list their own pets.
 
 Errors:
 
@@ -237,6 +289,8 @@ Validation:
 - `name` required.
 - `species` must be known or `Other` with `customSpecies`.
 - public identifiers generated server-side only.
+- create default public profile, safety settings, and contact settings.
+- active Free-plan pet count blocks only new active pet creation; existing pets remain readable.
 
 Errors:
 
@@ -257,7 +311,7 @@ Errors:
 
 - `404` not found or not owned
 
-### PATCH `/api/v1/pets/{petId}`
+### PUT `/api/v1/pets/{petId}`
 
 Purpose: update profile, contact, safety, public visibility, and QR settings.
 
@@ -275,6 +329,7 @@ Validation:
 
 - `publicCode` and `safetyCode` cannot be changed by client.
 - lifecycle changes should use lifecycle endpoints.
+- owner can only update their own pets.
 
 Errors:
 
@@ -342,6 +397,7 @@ Rules:
 - Archive hides from main owner list.
 - Records, memories, orders, and tags remain saved.
 - Linked tags scan inactive and do not expose owner contact.
+- Archived pets are not returned by the default active pet list.
 
 Errors:
 
@@ -379,9 +435,9 @@ Errors:
 
 ## Public
 
-### GET `/api/v1/public/profiles/{publicCode}`
+### GET `/api/v1/public/pets/{publicSlug}`
 
-Purpose: resolve Public Share Profile by stable pet public code.
+Purpose: resolve Public Share Profile by friendly slug ending with the stable pet public code.
 
 Auth: public.
 
@@ -392,9 +448,12 @@ Response:
 
 Rules:
 
-- Lookup by `publicCode`, not slug.
+- Lookup extracts the stable public code from the end of `publicSlug`; cosmetic slug text can change.
 - Never expose internal ids, owner email, private notes, full address, or hidden phone/WhatsApp.
 - Lost Mode may add missing-pet banner/contact CTA when public contact is allowed.
+- Active pets return normal public profile content.
+- Memorial pets return memorial content only when the owner allows public memorial visibility.
+- Archived/private/unavailable pets return a safe not found response.
 
 Errors:
 
@@ -417,6 +476,7 @@ Rules:
 - Active pets expose only allowed contact/safety fields.
 - Memorial/archived pets return inactive/memorial-safe projection without emergency contact actions.
 - Disabled `QrSafetyEnabled` returns safe unavailable state.
+- Physical tag status does not disable the pet-level QR Safety Page.
 
 Errors:
 
@@ -433,12 +493,13 @@ Response:
 
 - `state`: `active`, `unclaimed`, `pending`, `inactive`, `notFound`
 - `tagCode`
-- `profile` only when active or safe inactive memorial projection is allowed
+- `profile` only when the tag is active and linked to an active pet
 
 Rules:
 
 - Active tag linked to active pet opens same safety content as `/q/:safetyCode`.
-- Unclaimed retail tags show activation prompt.
+- Unclaimed retail tags show activation prompt on the Physical Tag Scan Page.
+- Pending/preparing/delivered tags return a not-active-yet/activation state without owner contact; only the matching signed-in owner can activate from the scan flow.
 - Lost/disabled/replaced/archived tags never expose owner contact.
 - Bound tags linked to Memorial/Archived pets return inactive safe state.
 - Record a `TagScans` event for valid and invalid scans where appropriate.
@@ -485,11 +546,19 @@ Auth: owner.
 Query:
 
 - `page`, `pageSize`
-- `visibility`
+- `visibility`: optional `Public`, `Private`, or `FamilyOnly`
+- `includeArchived`: optional, default `false`
+
+Rules:
+
+- Owner can only list memories for their own pets.
+- Active, Memorial, and Archived pets remain readable.
+- Archived/deleted memories are hidden unless `includeArchived=true`.
+- Existing over-limit memories remain readable.
 
 Response:
 
-- memory list with linked media summaries
+- memory list with `id`, `petId`, `title`, `date`, `type`, `caption`, `visibility`, `showOnPublicProfile`, `showInLifeTimeline`, `timelineNote`, empty media summaries until upload/storage is implemented, timestamps, and pagination metadata.
 
 Errors:
 
@@ -512,31 +581,63 @@ Request:
 
 Validation:
 
-- configured memory limit per pet.
-- configured media limit per memory.
-- media files must belong to owner.
+- pet must exist and belong to the current owner.
+- archived pets cannot receive new memories.
+- Memorial pets may still receive memories.
+- `title`, `date`, `type`, and `visibility` are required.
+- Free plan memory creation is limited by `PlanLimits.MaxMemoriesPerPet` active memories per pet; existing over-limit memories remain readable/editable.
+- `Public` memories can appear on the public profile when `showOnPublicProfile` or `showInLifeTimeline` is enabled and the pet public profile section allows it.
+- `Private` and `FamilyOnly` memories are owner-only in Phase B.
+- real media upload/storage is not implemented yet; non-empty `mediaFileIds` are rejected.
 
 Errors:
 
+- `400` validation failed
 - `422` plan limit reached
-- `404` pet not found or media not found
+- `404` pet not found or not owned
+- `422` archived pet state or unsupported attachment request
 
-### PATCH `/api/v1/pets/{petId}/memories/{memoryId}`
+### GET `/api/v1/memories/{memoryId}`
 
-Purpose: update memory.
+Purpose: get one memory by id.
 
 Auth: owner.
 
 Rules:
 
+- Owner can only access memories through pets they own.
+
+Errors:
+
+- `404` memory not found or not owned
+
+### PUT `/api/v1/memories/{memoryId}`
+
+Purpose: update memory.
+
+Auth: owner.
+
+Request:
+
+- partial `title`, `date`, `type`, `caption`, `visibility`, `showOnPublicProfile`, `showInLifeTimeline`, `timelineNote`
+
+Rules:
+
 - Existing grandfathered over-limit memories remain editable.
-- Adding new media still checks configured media limit unless override applies.
+- Changing visibility persists.
+- `Private` and `FamilyOnly` memories cannot appear on public projections.
+- Archived memories cannot be updated.
+- Real media upload/storage is not implemented yet; non-empty `mediaFileIds` are rejected.
 
 Errors:
 
 - `404` not found or not owned
 
-### DELETE `/api/v1/pets/{petId}/memories/{memoryId}`
+Compatibility:
+
+- `PATCH /api/v1/pets/{petId}/memories/{memoryId}` is reserved as a pet-scoped compatibility route.
+
+### DELETE `/api/v1/memories/{memoryId}`
 
 Purpose: archive/delete memory from owner view.
 
@@ -548,19 +649,37 @@ Response:
 
 Rules:
 
-- Prefer soft delete/archival.
+- Soft archive is preferred; archived memories no longer appear in the active owner list or public projections.
+- Owner can only archive memories through pets they own.
+
+Compatibility:
+
+- `DELETE /api/v1/pets/{petId}/memories/{memoryId}` is reserved as a pet-scoped compatibility route.
 
 ## Care Records
 
 ### GET `/api/v1/pets/{petId}/care-records`
 
-Purpose: list care records.
+Purpose: list care records for one owned pet.
 
 Auth: owner.
 
 Query:
 
-- `page`, `pageSize`, `type`, `status`
+- `page`, `pageSize`
+- `type` or `category`: optional record type filter, for example `Vaccine`, `VetVisit`, `LabTest`, `Other`
+- `fromDate`, `toDate`: optional record-date range
+- `includeArchived`: optional, default `false`
+
+Rules:
+
+- Owner can only list records for their own pets.
+- Active, Memorial, and Archived pets remain readable.
+- Archived/deleted records are hidden unless `includeArchived=true`.
+
+Response:
+
+- care record list with `id`, `petId`, `type`, `title`, `date`, `dueDate`, `provider`, `notes`, `publicVisibility`, `derivedStatus`, timestamps, and pagination metadata.
 
 ### POST `/api/v1/pets/{petId}/care-records`
 
@@ -574,17 +693,56 @@ Request:
 
 Validation:
 
+- pet must exist and belong to the current owner.
+- archived pets cannot receive new care records.
+- `type`, `title`, `date`, and `publicVisibility` are required.
 - known record type or `Other`.
 - public visibility must be known.
-- media files must belong to owner.
+- `dueDate` must be on or after `date` when both are supplied.
+- file upload/storage is not implemented yet; non-empty `mediaFileIds` are rejected.
 
-### PATCH `/api/v1/pets/{petId}/care-records/{recordId}`
+Errors:
+
+- `400` validation failed
+- `404` pet not found or not owned
+- `422` archived pet state or unsupported attachment request
+
+### GET `/api/v1/care-records/{recordId}`
+
+Purpose: get one care record by id.
+
+Auth: owner.
+
+Rules:
+
+- Owner can only access records through pets they own.
+
+Errors:
+
+- `404` record not found or not owned
+
+### PUT `/api/v1/care-records/{recordId}`
 
 Purpose: update care record.
 
 Auth: owner.
 
-### DELETE `/api/v1/pets/{petId}/care-records/{recordId}`
+Request:
+
+- partial `type`, `title`, `date`, `dueDate`, `provider`, `notes`, `publicVisibility`
+
+Validation:
+
+- `title` cannot be empty when supplied.
+- `dueDate` must be on or after the effective record date.
+- archived care records cannot be updated.
+- file upload/storage is not implemented yet; non-empty `mediaFileIds` are rejected.
+
+Compatibility:
+
+- `PATCH /api/v1/pets/{petId}/care-records/{recordId}` is reserved as a pet-scoped compatibility route.
+
+### DELETE `/api/v1/care-records/{recordId}`
 
 Purpose: archive/delete care record.
 
@@ -593,6 +751,15 @@ Auth: owner.
 Response:
 
 - `204 No Content`
+
+Rules:
+
+- Soft archive is preferred; archived records no longer appear in the active owner list or public projections.
+- Owner can only archive records through pets they own.
+
+Compatibility:
+
+- `DELETE /api/v1/pets/{petId}/care-records/{recordId}` is reserved as a pet-scoped compatibility route.
 
 ## Media Files
 
@@ -646,6 +813,8 @@ Response:
 
 ## Smart Tags
 
+Phase status: owner Smart Tags endpoints are implemented for the backend-connected Owner Portal slice. Admin inventory endpoints remain planned for a later admin phase.
+
 ### GET `/api/v1/tags`
 
 Purpose: list authenticated owner's smart tags.
@@ -657,10 +826,22 @@ Query:
 - `page`, `pageSize`
 - `status`
 - `petId`
+- `type`: `QrPetTag`, `QrNfcSmartTag`, `QR`, or `QR_NFC`
 
 Response:
 
 - tag summaries with linked pet/order display data
+
+### GET `/api/v1/pets/{petId}/tags`
+
+Purpose: list authenticated owner's tags for one owned pet.
+
+Auth: owner.
+
+Rules:
+
+- Owner can only read tags for their own pet.
+- Active, Memorial, and Archived pets remain readable for history.
 
 ### GET `/api/v1/tags/{tagId}`
 
@@ -674,13 +855,20 @@ Errors:
 
 ### POST `/api/v1/tags/{tagCode}/activate`
 
-Purpose: activate retail/unclaimed or delivered tag to selected pet.
+Purpose: activate a retail/unclaimed tag to a selected pet, or activate an assigned portal-purchased tag for its order-selected pet.
 
 Auth: owner.
 
+Entry-point rule:
+
+- Normal customer activation starts from `/t/:tagCode`, the Physical Tag Scan Page.
+- Owner Portal tag/order pages must not call this endpoint through direct Activate Tag buttons.
+- `/activate/:tagCode`, if present for compatibility, redirects back to `/t/:tagCode`.
+
 Request:
 
-- `petId`
+- Retail/unclaimed tag: `petId` is required.
+- Assigned portal tag: omit `petId`; the tag's linked order/pet is authoritative.
 
 Response:
 
@@ -688,14 +876,14 @@ Response:
 
 Validation:
 
-- tag exists and is `Unclaimed` or `Delivered`.
-- selected pet belongs to owner and is Active.
-- active tag cannot be claimed by another owner.
+- retail tag exists, is `Unclaimed`, and has no owner, pet, or order.
+- selected retail pet belongs to owner and is Active.
+- assigned portal tag belongs to the current owner, has a linked Active pet, and is `Pending`, `Preparing`, or `Delivered`.
+- assigned portal tags cannot be activated for a different pet.
 
 Errors:
 
-- `400` invalid tag state
-- `403` tag belongs to another owner
+- `422` invalid tag state
 - `404` tag or pet not found
 
 ### POST `/api/v1/tags/{tagId}/mark-lost`
@@ -707,6 +895,7 @@ Auth: owner.
 Rules:
 
 - Sets tag status to `Lost`.
+- Current owner action is limited to `Active` tags.
 - Does not enable pet Lost Mode.
 - `/q/:safetyCode` remains unaffected.
 
@@ -716,17 +905,30 @@ Purpose: owner disables physical tag.
 
 Auth: owner.
 
+Rules:
+
+- Current owner action is limited to `Active` tags.
+- Disabled tags never expose owner contact on `/t/:tagCode`.
+
 ### POST `/api/v1/tags/{tagId}/replace`
 
 Purpose: mark tag as replaced, usually through replacement order flow.
 
 Auth: owner.
 
+Current status: reserved in the V1 contract; owner replacement is represented by a new order with `replacementForTagId`. Admin/ops replacement mutation is planned later.
+
 ### POST `/api/v1/tags/{tagId}/archive`
 
 Purpose: archive tag from owner list.
 
 Auth: owner.
+
+Rules:
+
+- Owners can archive inactive/lost/disabled/replaced/unclaimed tags.
+- Active tags linked to Memorial/Archived pets can also be archived because they no longer expose finder contact.
+- Active tags for active pets must be reported lost or disabled before archive.
 
 ### POST `/api/v1/tags/{tagId}/restore`
 
@@ -738,9 +940,11 @@ Rules for all owner tag actions:
 
 - Owner must own linked tag or linked pet.
 - Inactive states never expose owner contact.
-- Invalid transitions return `400`.
+- Invalid transitions return `422`.
 
 ## Orders And Payment Proofs
+
+Phase status: owner order creation, list/detail, cancellation, and payment proof metadata submission are implemented. Admin payment review and fulfillment transitions remain planned.
 
 ### GET `/api/v1/orders`
 
@@ -753,12 +957,18 @@ Query:
 - `page`, `pageSize`
 - `status`
 - `paymentStatus`
+- `petId`
 
 ### GET `/api/v1/orders/{orderNumber}`
 
 Purpose: get owner order detail by operational order number.
 
 Auth: owner.
+
+Response includes, in addition to the order fields:
+
+- `paymentProofs`: array of proof attempts, newest first. Each item has `id`, `status` (`PendingReview` | `Approved` | `Rejected` | `Superseded`), `originalFileName`, `paymentMethod`, `paymentReference`, `ownerNote`, `rejectionReason`, `uploadedAt`, and `reviewedAt`. Rejected attempts are kept as history.
+- `timeline`: array of chronological status events. Each event has `type` (`OrderCreated`, `PaymentProofSubmitted`, `PaymentProofResubmitted`, `PaymentProofRejected`, `PaymentConfirmed`, `PreparingTag`, `Shipped`, `Delivered`, `Cancelled`), `title`, `description` (nullable; carries the rejection reason for `PaymentProofRejected`), `occurredAt` (`DateTimeOffset`, nullable for `PreparingTag`), and `statusTone` (`completed` | `current` | `warning` | `cancelled`). See `docs/operations/order-and-payment-proof-flow.md` for the derivation rules.
 
 Errors:
 
@@ -774,7 +984,7 @@ Request:
 
 - `petId`: required
 - `tagType`: `QrPetTag` or `QrNfcSmartTag`
-- `shape`
+- `variant`: `Lightweight` or `Standard`
 - delivery: `recipientName`, `phoneE164`, `addressLine1`, `addressLine2`, `postcode`, `city`, `state`, `notes`
 - `replacementForTagId` optional
 
@@ -785,9 +995,19 @@ Response:
 Validation:
 
 - pet belongs to owner and is Active.
+- Memorial and Archived pets cannot receive new tag orders.
 - portal order must have `petId`.
-- tag price comes from backend config/app settings, not client.
-- replacement tag must belong to owner and be replaceable.
+- tag price is server-calculated and not trusted from the client:
+  - `QrPetTag`: RM19.90
+  - `QrNfcSmartTag`: RM39.90
+- replacement tag must belong to owner.
+
+Initial state:
+
+- order `PendingPayment`
+- payment `Pending`
+- linked smart tag `Pending`
+- portal-purchased smart tag has `OwnerUserId`, `PetId`, and `OrderId` immediately
 
 Errors:
 
@@ -802,7 +1022,8 @@ Auth: owner.
 
 Request:
 
-- `mediaFileId` or multipart file
+- `fileName` or existing `mediaFileId`
+- `paymentMethod` optional, defaults to `QR Payment`
 - `paymentReference`
 - `ownerNote`
 
@@ -814,14 +1035,14 @@ Response:
 Validation:
 
 - order belongs to owner.
-- order status must be `PendingPayment`.
-- file content type allowed: image or PDF.
+- order status must be `PendingPayment` or `PaymentProofSubmitted`.
+- current implementation stores metadata only; real file bytes/upload storage are not implemented yet.
+- submitting a new proof supersedes earlier pending proof metadata.
 
 Errors:
 
-- `400` invalid order state
-- `413` file too large
-- `415` unsupported media type
+- `400` missing file metadata
+- `422` invalid order state
 
 ### POST `/api/v1/orders/{orderNumber}/cancel`
 
@@ -831,30 +1052,66 @@ Auth: owner.
 
 Rules:
 
-- Allowed before shipping only.
-- Linked unactivated tag is archived.
+- Current owner implementation allows cancellation while order is `PendingPayment` or `PaymentProofSubmitted`.
+- Linked unactivated pending-family tag is archived.
+- Admin cancellation after later fulfillment states is planned for the admin phase.
 
 Errors:
 
-- `400` cannot cancel after shipped
+- `422` cannot cancel after preparation/payment confirmation has started
 
-### GET `/api/v1/orders/{orderNumber}/receipt`
+### GET `/api/v1/orders/{orderNumber}/summary.pdf`
 
-Purpose: get receipt after payment confirmation.
+Purpose: download the Order Summary PDF for an owner's order.
 
-Auth: owner.
+Auth: owner (own order only).
+
+Response: `application/pdf`, filename `MyPetLink-Order-{OrderNumber}.pdf`. Titled "Order Summary"; never shows "Official Receipt" or "Paid". Available in any order state.
+
+### GET `/api/v1/orders/{orderNumber}/receipt.pdf`
+
+Purpose: download the Official Receipt PDF for an owner's order.
+
+Auth: owner (own order only).
+
+Response: `application/pdf`, filename `MyPetLink-Receipt-{OrderNumber}.pdf`. Titled "Official Receipt"; shows "PAID", the payment confirmed date/time, and a Receipt No.
 
 Rules:
 
-- Available when payment is confirmed or later.
+- Available only after payment is confirmed (`PaymentConfirmedAt` set).
+- Documents are generated server-side (QuestPDF) from authoritative order data. No files are stored. Payment proofs remain metadata only; no payment gateway. No SST is claimed.
 
 Errors:
 
-- `403` payment not confirmed
+- `422 receipt_not_available` — "Receipt is available after payment is confirmed."
+- `404 not_found` — order not found or not owned by the caller.
+
+### GET `/api/v1/admin/orders/{orderId}/summary.pdf` and `/receipt.pdf`
+
+Purpose: admin download of the same Order Summary / Official Receipt PDFs for support and accounting reference.
+
+Auth: admin policy. Can access any order. The receipt endpoint enforces the same confirmed-payment rule (`422 receipt_not_available`).
 
 ## Admin
 
 All admin endpoints require an active admin profile. Mutations write audit logs.
+
+### GET `/api/v1/admin/auth/check`
+
+Purpose: verify the current JWT belongs to an active admin user.
+
+Auth: admin policy.
+
+Rules:
+
+- Requires a valid JWT.
+- Requires an active `AdminUsers` row for the current user.
+- Does not trust the `Admin` role claim by itself.
+
+Errors:
+
+- `401` unauthenticated
+- `403` not an active admin
 
 ### GET `/api/v1/admin/dashboard/summary`
 
@@ -919,6 +1176,89 @@ Errors:
 
 - `400` invalid transition
 
+### POST `/api/v1/admin/orders/{orderId}/assign-tag`
+
+Purpose: assign an existing unclaimed inventory tag to a confirmed portal order.
+
+Request:
+
+- `tagId`: required inventory tag id
+
+Validation:
+
+- order must be `PaymentConfirmed`.
+- order must not already have a linked tag.
+- order pet must still be Active and not archived.
+- tag must be `Unclaimed`, unarchived, and have no owner, pet, or order.
+- tag type and variant must match the order.
+
+Transition:
+
+- tag becomes linked to order owner, order pet, and order.
+- tag `Unclaimed` -> `Preparing`.
+- order stores `smartTagId`.
+
+Rules:
+
+- assigned portal tags do not expose owner contact until owner activation.
+- owner activation does not ask for pet selection.
+- owner activation is surfaced from the Physical Tag Scan Page, not admin or owner management pages.
+
+### POST `/api/v1/admin/orders/{orderId}/change-assigned-tag`
+
+Purpose: swap the assigned inventory tag before the order ships (e.g. wrong tag picked, tag missing before packing).
+
+Request:
+
+- `newTagId`: required inventory tag id
+- `reason`: optional
+
+Validation:
+
+- order must be `PaymentConfirmed` or `PreparingTag`.
+- order must already have an assigned tag whose status is `Pending` or `Preparing` (never shipped/activated).
+- order pet must be Active and not archived.
+- `newTagId` must differ from the current tag and pass the same availability/type/variant checks as assign.
+
+Transition:
+
+- old tag returns to `Unclaimed` with owner/pet/order links and `ReplacementForTagId` cleared.
+- new tag becomes linked and `Preparing`; order points at the new `smartTagId`.
+
+Errors:
+
+- `422` when the order has shipped (use Replace Tag), has no assigned tag, or the tag already progressed past preparation.
+
+### POST `/api/v1/admin/orders/{orderId}/replace-tag`
+
+Purpose: replace a tag after it has shipped/been delivered/activated (not received, damaged, wrong tag sent, QR/NFC issue, other).
+
+Request:
+
+- `newTagId`: required inventory tag id
+- `reason`: required
+- `note`: optional
+
+Validation:
+
+- order must be `Shipped` or `Delivered`, or the assigned tag must be `Active`.
+- order must have an assigned tag.
+- `reason` is required.
+- order pet must be Active and not archived (Memorial/Archived pets cannot receive an active replacement).
+- `newTagId` must be a different, available tag matching the order type/variant.
+
+Transition:
+
+- old tag becomes `Replaced` (its `/t` shows the inactive/no-contact page) but keeps its owner/pet/order history.
+- new tag becomes linked and `Preparing` with `ReplacementForTagId` set to the old tag.
+- order returns to `PreparingTag`; `ShippedAt`/`DeliveredAt` cleared; tracking reads "A replacement tag is being prepared."
+
+Errors:
+
+- `422` when the order has not shipped yet (use Change Assigned Tag) or has no assigned tag.
+
+Both endpoints require the admin policy and write `AuditLogs` rows (order-level plus old/new tag), including old and new tag codes and the reason.
+
 ### POST `/api/v1/admin/orders/{orderId}/reject-payment-proof`
 
 Purpose: reject payment proof and request resubmission.
@@ -937,6 +1277,7 @@ Rules:
 
 - Order is never deleted.
 - Existing proof remains in history.
+- The rejected proof keeps its `RejectionReason` and `ReviewedAt`; a later resubmission adds a new proof row and only supersedes still-pending proofs, so the rejection stays visible in `paymentProofs` and the order `timeline`.
 
 ### POST `/api/v1/admin/orders/{orderId}/status`
 
@@ -955,7 +1296,7 @@ Transitions:
 
 Side effects:
 
-- preparing updates linked tag to `Preparing` when still pending-family.
+- preparing requires an assigned tag and keeps it `Preparing`.
 - delivered updates linked tag to `Delivered`.
 
 Errors:
@@ -999,7 +1340,7 @@ Request:
 
 - `count`: 1 to 50 for MVP
 - `hasNfc`
-- `shape`
+- `variant`: `Lightweight` or `Standard`
 - `batchNo` optional; backend can generate
 
 Response:
@@ -1021,7 +1362,7 @@ Response:
 
 CSV fields:
 
-- `tag_code`, `url`, `shape`, `batch_no`, `has_nfc`
+- `tag_code`, `url`, `variant`, `batch_no`, `has_nfc`
 
 ### POST `/api/v1/admin/tags/{tagId}/status`
 
@@ -1093,6 +1434,7 @@ Valid transitions:
 - `PaymentProofSubmitted` -> `PaymentConfirmed`: admin confirms proof.
 - `PaymentProofSubmitted` -> `PendingPayment`: admin rejects proof and requests resubmission.
 - `PaymentConfirmed` -> `PreparingTag`: admin starts fulfillment.
+- `PaymentConfirmed` order must receive an assigned inventory tag before fulfillment starts.
 - `PreparingTag` -> `Shipped`: admin marks shipped.
 - `Shipped` -> `Delivered`: admin marks delivered.
 - `PendingPayment`, `PaymentProofSubmitted`, `PaymentConfirmed`, `PreparingTag` -> `Cancelled`: owner/admin cancellation before shipping.
@@ -1117,7 +1459,7 @@ Valid transitions:
 Valid transitions:
 
 - Retail: `Unclaimed` -> `Active`
-- Portal order: `Pending` -> `Preparing` -> `Delivered` -> `Active`
+- Portal order: `Unclaimed` inventory -> `Preparing` when assigned to confirmed order -> `Delivered` -> `Active`
 - `Active` -> `Lost`
 - `Active` -> `Disabled`
 - `Active` -> `Replaced`

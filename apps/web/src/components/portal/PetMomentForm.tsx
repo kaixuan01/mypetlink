@@ -6,7 +6,14 @@ import { MomentMediaField } from "@/components/portal/MomentMediaField";
 import { PetMomentCard } from "@/components/portal/PetMomentCard";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { getMemoryLimitState } from "@/lib/planLimits";
-import { createPetMoment, getPetMoments } from "@/services/momentService";
+import { isArchivedPet } from "@/lib/petLifecycle";
+import { ownerRoutes } from "@/lib/routes";
+import { isApiConfigured } from "@/services/apiConfig";
+import {
+  createPetMoment,
+  getFriendlyMomentErrorMessage,
+  getPetMoments,
+} from "@/services/momentService";
 import type {
   MomentMedia,
   MomentType,
@@ -65,20 +72,30 @@ const emptyForm: FormState = {
 };
 
 export function PetMomentForm({ pet }: { pet: Pet }) {
+  const apiMode = isApiConfigured();
+  const archivedPet = isArchivedPet(pet);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [createdMoment, setCreatedMoment] = useState<PetMoment | null>(null);
   const [memoryCount, setMemoryCount] = useState<number | null>(null);
+  const [loadError, setLoadError] = useState("");
+  const [formError, setFormError] = useState("");
 
   useEffect(() => {
     let active = true;
 
-    getPetMoments(pet.id).then((response) => {
-      if (active) {
-        setMemoryCount(response.data.length);
-      }
-    });
+    getPetMoments(pet.id)
+      .then((response) => {
+        if (active) {
+          setMemoryCount(response.data.length);
+        }
+      })
+      .catch((caught) => {
+        if (active) {
+          setLoadError(getFriendlyMomentErrorMessage(caught));
+        }
+      });
 
     return () => {
       active = false;
@@ -88,6 +105,7 @@ export function PetMomentForm({ pet }: { pet: Pet }) {
   function updateField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
     setErrors((current) => ({ ...current, [key]: undefined }));
+    setFormError("");
   }
 
   function validate() {
@@ -113,8 +131,12 @@ export function PetMomentForm({ pet }: { pet: Pet }) {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setFormError("");
 
-    if (memoryCount !== null && !getMemoryLimitState(memoryCount).canCreate) {
+    if (
+      archivedPet ||
+      (memoryCount !== null && !getMemoryLimitState(memoryCount).canCreate)
+    ) {
       return;
     }
 
@@ -123,24 +145,70 @@ export function PetMomentForm({ pet }: { pet: Pet }) {
     }
 
     setIsSubmitting(true);
-    const response = await createPetMoment(pet.id, {
-      title: form.title,
-      date: formatDisplayDate(form.date),
-      type: form.type || "Other",
-      caption: form.caption,
-      media: form.media,
-      coverMediaId: form.coverMediaId,
-      visibility: form.visibility,
-      showOnPublicProfile: form.showOnPublicProfile,
-      showInLifeTimeline: form.showInLifeTimeline,
-      timelineNote: form.timelineNote,
-    });
 
-    setCreatedMoment(response.data);
-    setMemoryCount((current) => (current === null ? current : current + 1));
-    setForm(emptyForm);
-    setErrors({});
-    setIsSubmitting(false);
+    try {
+      const response = await createPetMoment(pet.id, {
+        title: form.title,
+        date: formatDisplayDate(form.date),
+        type: form.type || "Other",
+        caption: form.caption,
+        media: apiMode ? [] : form.media,
+        coverMediaId: apiMode ? undefined : form.coverMediaId,
+        visibility: form.visibility,
+        showOnPublicProfile: form.showOnPublicProfile,
+        showInLifeTimeline: form.showInLifeTimeline,
+        timelineNote: form.timelineNote,
+      });
+
+      setCreatedMoment(response.data);
+      setMemoryCount((current) => (current === null ? current : current + 1));
+      setForm(emptyForm);
+      setErrors({});
+    } catch (caught) {
+      setFormError(getFriendlyMomentErrorMessage(caught));
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  if (archivedPet) {
+    return (
+      <section className="brand-soft-card rounded-[1.75rem] p-6">
+        <p className="text-sm font-bold uppercase text-pet-teal">
+          Archived profile
+        </p>
+        <h2 className="mt-3 text-2xl font-black text-pet-ink">
+          Restore this profile before adding new memories.
+        </h2>
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-pet-muted">
+          Existing memories stay safe with the archived profile, but new memory
+          creation is paused while the profile is archived.
+        </p>
+        <CTAButton
+          href={ownerRoutes.petMoments(pet.id)}
+          icon="heart"
+          className="mt-6"
+        >
+          View Existing Memories
+        </CTAButton>
+      </section>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <section className="brand-card rounded-[1.75rem] p-6">
+        <p className="text-sm font-bold uppercase text-pet-teal">
+          Could not check memories
+        </p>
+        <h2 className="mt-2 text-2xl font-black text-pet-ink">
+          This pet&apos;s memory allowance is temporarily unavailable.
+        </h2>
+        <p className="mt-3 max-w-xl text-sm font-semibold leading-6 text-pet-muted">
+          {loadError}
+        </p>
+      </section>
+    );
   }
 
   if (memoryCount === null) {
@@ -168,10 +236,10 @@ export function PetMomentForm({ pet }: { pet: Pet }) {
           {memoryLimit.message}
         </p>
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-          <CTAButton href={`/pets/${pet.id}/moments`} icon="heart">
+          <CTAButton href={ownerRoutes.petMoments(pet.id)} icon="heart">
             View Existing Memories
           </CTAButton>
-          <CTAButton href={`/pets/${pet.id}`} variant="secondary">
+          <CTAButton href={ownerRoutes.petProfile(pet.id)} variant="secondary">
             Manage {pet.name}
           </CTAButton>
         </div>
@@ -185,6 +253,12 @@ export function PetMomentForm({ pet }: { pet: Pet }) {
         className="brand-card grid gap-5 rounded-[1.75rem] p-5 sm:p-6"
         onSubmit={handleSubmit}
       >
+        {formError ? (
+          <div className="rounded-[1.25rem] border border-[#f3b4a8] bg-[#fff1ee] p-4 text-sm font-bold text-[#a63c2e]">
+            {formError}
+          </div>
+        ) : null}
+
         <div className="grid gap-4 md:grid-cols-2">
           <Field label="Title" error={errors.title}>
             <input
@@ -251,13 +325,20 @@ export function PetMomentForm({ pet }: { pet: Pet }) {
           />
         </Field>
 
-        <MomentMediaField
-          items={form.media}
-          coverMediaId={form.coverMediaId}
-          onChange={(media, coverMediaId) =>
-            setForm((current) => ({ ...current, media, coverMediaId }))
-          }
-        />
+        {apiMode ? (
+          <div className="rounded-[1.25rem] border border-pet-border bg-pet-cream p-4 text-sm font-semibold leading-6 text-pet-muted">
+            Photo and video upload is coming later. You can still save the
+            memory details, visibility, and timeline settings now.
+          </div>
+        ) : (
+          <MomentMediaField
+            items={form.media}
+            coverMediaId={form.coverMediaId}
+            onChange={(media, coverMediaId) =>
+              setForm((current) => ({ ...current, media, coverMediaId }))
+            }
+          />
+        )}
 
         <div className="grid gap-3 md:grid-cols-2">
           <MomentCheckbox
@@ -305,7 +386,7 @@ export function PetMomentForm({ pet }: { pet: Pet }) {
         <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
           <Link
             className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
-            href={`/pets/${pet.id}/moments`}
+            href={ownerRoutes.petMoments(pet.id)}
           >
             Back to Moments
           </Link>
@@ -334,7 +415,7 @@ export function PetMomentForm({ pet }: { pet: Pet }) {
                 Your memory has been added to {pet.name}&apos;s moments.
               </p>
               <CTAButton
-                href={`/pets/${pet.id}/moments`}
+                href={ownerRoutes.petMoments(pet.id)}
                 className="mt-4"
                 icon="heart"
               >

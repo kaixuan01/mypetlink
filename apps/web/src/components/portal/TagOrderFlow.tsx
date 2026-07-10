@@ -23,13 +23,16 @@ import { readOwnerSettings } from "@/lib/ownerSettings";
 import {
   createTagOrder,
   getEstimatedTagPrice,
+  getFriendlyTagErrorMessage,
 } from "@/services/tagService";
 import { getPets } from "@/services/petService";
+import { isApiConfigured } from "@/services/apiConfig";
+import { ownerRoutes } from "@/lib/routes";
 import type {
   DeliveryDetails,
   Pet,
   TagOrder,
-  TagShape,
+  TagVariant,
   TagType,
 } from "@/types";
 
@@ -59,17 +62,23 @@ const tagTypes: {
   },
 ];
 
-const shapeOptions: { shape: TagShape; label: string; radius: string }[] = [
-  { shape: "Round", label: "Round Tag", radius: "rounded-full" },
-  { shape: "Bone", label: "Bone Shape", radius: "rounded-[2.5rem]" },
-  { shape: "Rounded Square", label: "Minimal Tag", radius: "rounded-[1.5rem]" },
-  { shape: "Paw", label: "Cute Paw Tag", radius: "rounded-[2rem]" },
+const variantOptions: { variant: TagVariant; label: string; helper: string }[] = [
+  {
+    variant: "Lightweight",
+    label: "Lightweight Tag",
+    helper: "Recommended for cats, small pets, and pets that prefer a lighter tag.",
+  },
+  {
+    variant: "Standard",
+    label: "Standard Tag",
+    helper: "Recommended for dogs and owners who prefer a more solid everyday tag.",
+  },
 ];
 
 const steps = [
   "Select Pet",
   "Choose Tag Type",
-  "Choose Design",
+  "Choose Tag Style",
   "Preview",
   "Delivery Details",
   "Confirm Order",
@@ -104,7 +113,10 @@ export function TagOrderFlow({
   initialTagType = "MyPetLink QR Pet Tag",
   replacementForTagId,
 }: TagOrderFlowProps) {
-  const [availablePets, setAvailablePets] = useState(pets);
+  const apiMode = isApiConfigured();
+  const [availablePets, setAvailablePets] = useState<Pet[]>(
+    apiMode ? [] : pets
+  );
   const orderablePets = useMemo(
     () => getActivePets(availablePets),
     [availablePets]
@@ -116,12 +128,15 @@ export function TagOrderFlow({
       : orderablePets[0]?.id ?? "";
   const [step, setStep] = useState(0);
   const [petId, setPetId] = useState(initialPetId);
-  const [shape, setShape] = useState<TagShape>("Round");
+  const [variant, setVariant] = useState<TagVariant>("Standard");
   const [delivery, setDelivery] = useState<DeliveryDetails>(emptyDelivery);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [createdOrder, setCreatedOrder] = useState<TagOrder | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedTagType, setSelectedTagType] = useState<TagType | null>(null);
+  const [loadingPets, setLoadingPets] = useState(apiMode);
+  const [loadError, setLoadError] = useState("");
+  const [formError, setFormError] = useState("");
 
   const orderPrefsKey = useSyncExternalStore(
     subscribeNoop,
@@ -143,29 +158,62 @@ export function TagOrderFlow({
     [orderablePets, petId]
   );
   const estimatedPrice = getEstimatedTagPrice(tagType);
-  const shapeOption =
-    shapeOptions.find((option) => option.shape === shape) ?? shapeOptions[0];
-  const shapeLabel = shapeOption.label;
+  const variantOption =
+    variantOptions.find((option) => option.variant === variant) ?? variantOptions[1];
+  const variantLabel = variantOption.label;
 
   useEffect(() => {
     let active = true;
 
-    getPets().then((response) => {
-      if (!active) {
-        return;
+    async function loadPets() {
+      setLoadingPets(true);
+      setLoadError("");
+
+      try {
+        const response = await getPets();
+
+        if (!active) {
+          return;
+        }
+
+        const nextPets =
+          preselectedPetId &&
+          !response.data.some((pet) => pet.id === preselectedPetId)
+            ? [
+                pets.find((pet) => pet.id === preselectedPetId),
+                ...response.data,
+              ].filter((pet): pet is Pet => Boolean(pet))
+            : response.data;
+
+        setAvailablePets(nextPets);
+
+        const nextOrderablePets = getActivePets(nextPets);
+        setPetId((current) => {
+          if (current && nextOrderablePets.some((pet) => pet.id === current)) {
+            return current;
+          }
+
+          if (
+            preselectedPetId &&
+            nextOrderablePets.some((pet) => pet.id === preselectedPetId)
+          ) {
+            return preselectedPetId;
+          }
+
+          return nextOrderablePets[0]?.id ?? "";
+        });
+      } catch (caught) {
+        if (active) {
+          setLoadError(getFriendlyTagErrorMessage(caught));
+        }
+      } finally {
+        if (active) {
+          setLoadingPets(false);
+        }
       }
+    }
 
-      const nextPets =
-        preselectedPetId &&
-        !response.data.some((pet) => pet.id === preselectedPetId)
-          ? [
-              pets.find((pet) => pet.id === preselectedPetId),
-              ...response.data,
-            ].filter((pet): pet is Pet => Boolean(pet))
-          : response.data;
-
-      setAvailablePets(nextPets);
-    });
+    void loadPets();
 
     return () => {
       active = false;
@@ -198,14 +246,14 @@ export function TagOrderFlow({
       <EmptyState
         title="Physical tags are for active profiles"
         description={`${preselectedPet.name} is not an active pet profile. Memorial and archived profiles keep existing tag history, but new physical tags can only be ordered for active pets.`}
-        actionHref={`/pets/${preselectedPet.id}/tags`}
+        actionHref={ownerRoutes.petTags(preselectedPet.id)}
         actionLabel="View Smart Tags"
       />
     );
   }
 
   const deliveryValid = isDeliveryValid(delivery);
-  const previewReady = Boolean(selectedPet) && Boolean(tagType) && Boolean(shape);
+  const previewReady = Boolean(selectedPet) && Boolean(tagType) && Boolean(variant);
 
   function isStepReachable(index: number) {
     switch (index) {
@@ -237,8 +285,8 @@ export function TagOrderFlow({
     if (stepIndex === 1 && !tagType) {
       nextErrors.tagType = "Choose a tag type.";
     }
-    if (stepIndex === 2 && !shape) {
-      nextErrors.shape = "Choose a tag design.";
+    if (stepIndex === 2 && !variant) {
+      nextErrors.variant = "Choose a tag style.";
     }
     if (stepIndex === 4) {
       if (!delivery.recipientName.trim()) {
@@ -292,7 +340,7 @@ export function TagOrderFlow({
     setErrors(nextErrors);
 
     if (Object.keys(nextErrors).length > 0) {
-      setStep(nextErrors.petId ? 0 : nextErrors.tagType ? 1 : nextErrors.shape ? 2 : 4);
+      setStep(nextErrors.petId ? 0 : nextErrors.tagType ? 1 : nextErrors.variant ? 2 : 4);
       return;
     }
 
@@ -301,15 +349,41 @@ export function TagOrderFlow({
     }
 
     setIsSubmitting(true);
-    const response = await createTagOrder({
-      petId: selectedPet.id,
-      tagType,
-      shape,
-      delivery: { ...delivery, phone: normalizeStoredPhone(delivery.phone) },
-      replacementForTagId: replacementFor,
-    });
-    setCreatedOrder(response.data.order);
-    setIsSubmitting(false);
+    setFormError("");
+
+    try {
+      const response = await createTagOrder({
+        petId: selectedPet.id,
+        tagType,
+        variant,
+        delivery: { ...delivery, phone: normalizeStoredPhone(delivery.phone) },
+        replacementForTagId: replacementFor,
+      });
+      setCreatedOrder(response.data.order);
+    } catch (caught) {
+      setFormError(getFriendlyTagErrorMessage(caught));
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  if (loadingPets) {
+    return (
+      <div className="brand-card rounded-[1.75rem] p-6 text-sm font-semibold text-pet-muted">
+        Loading pet profiles...
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <EmptyState
+        title="Pet profiles could not load"
+        description={loadError}
+        actionHref={ownerRoutes.dashboard}
+        actionLabel="Back to Dashboard"
+      />
+    );
   }
 
   if (!orderablePets.length) {
@@ -317,7 +391,7 @@ export function TagOrderFlow({
       <EmptyState
         title="No active profiles available"
         description="A physical tag needs an active pet profile so finders can contact you quickly."
-        actionHref="/pets/new"
+        actionHref={ownerRoutes.petNew}
         actionLabel="Add Pet"
       />
     );
@@ -341,17 +415,17 @@ export function TagOrderFlow({
           <SummaryItem label="Status" value={createdOrder.status} />
         </div>
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-          <CTAButton href="/orders" icon="record">
+          <CTAButton href={ownerRoutes.orders} icon="record">
             View Orders
           </CTAButton>
           <CTAButton
-            href={`/pets/${selectedPet.id}/tags`}
+            href={ownerRoutes.petTags(selectedPet.id)}
             icon="tag"
             variant="secondary"
           >
             View Smart Tags
           </CTAButton>
-          <CTAButton href="/dashboard" variant="outline">
+          <CTAButton href={ownerRoutes.dashboard} variant="outline">
             Go to Dashboard
           </CTAButton>
         </div>
@@ -410,7 +484,7 @@ export function TagOrderFlow({
       <div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Link
           className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
-          href={selectedPet ? `/pets/${selectedPet.id}/tags` : "/tags"}
+          href={selectedPet ? ownerRoutes.petTags(selectedPet.id) : ownerRoutes.tags}
         >
           Cancel
         </Link>
@@ -444,6 +518,11 @@ export function TagOrderFlow({
           )}
         </div>
       </div>
+      {formError ? (
+        <p className="mt-4 rounded-[1.25rem] border border-[#ffd2c9] bg-[#fff4f1] px-4 py-3 text-sm font-bold text-[#a63c2e]">
+          {formError}
+        </p>
+      ) : null}
     </section>
   );
 
@@ -517,28 +596,29 @@ export function TagOrderFlow({
     if (step === 2) {
       return (
         <StepShell
-          title="Choose Design"
-          description="Pick a shape that feels right for your pet."
+          title="Choose Tag Style"
+          description="Pick the tag style that suits your pet best."
         >
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {shapeOptions.map((option) => (
+          <div className="grid gap-4 sm:grid-cols-2">
+            {variantOptions.map((option) => (
               <button
-                className={`min-h-36 rounded-[1.25rem] border p-4 text-center transition ${
-                  shape === option.shape
+                className={`min-h-36 rounded-[1.25rem] border p-5 text-left transition ${
+                  variant === option.variant
                     ? "border-pet-coral bg-pet-apricot"
                     : "border-pet-border bg-pet-cream"
                 }`}
-                key={option.shape}
-                onClick={() => setShape(option.shape)}
+                key={option.variant}
+                onClick={() => setVariant(option.variant)}
                 type="button"
               >
-                <span
-                  className={`mx-auto grid h-14 w-14 place-items-center bg-white text-pet-coral ${option.radius}`}
-                >
+                <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white text-pet-coral">
                   <Icon name="tag" className="h-6 w-6" />
                 </span>
-                <span className="mt-3 block text-sm font-black text-pet-ink">
+                <span className="mt-3 block text-base font-black text-pet-ink">
                   {option.label}
+                </span>
+                <span className="mt-1 block text-sm font-semibold leading-6 text-pet-muted">
+                  {option.helper}
                 </span>
               </button>
             ))}
@@ -561,7 +641,7 @@ export function TagOrderFlow({
           <div className="grid gap-6 lg:grid-cols-[300px_1fr] lg:items-start">
             <TagMockup
               petName={selectedPet?.name ?? "Your pet"}
-              radius={shapeOption.radius}
+              radius="rounded-full"
               isNfc={tagType === "MyPetLink QR + NFC Smart Tag"}
             />
             <div className="grid gap-4">
@@ -571,7 +651,7 @@ export function TagOrderFlow({
               <div className="grid gap-3 sm:grid-cols-2">
                 <SummaryItem label="Selected pet" value={selectedPet?.name ?? "Pet"} />
                 <SummaryItem label="Tag type" value={tagType} />
-                <SummaryItem label="Design" value={shapeLabel} />
+                <SummaryItem label="Tag variant" value={variantLabel} />
                 <SummaryItem label="Estimated price" value={estimatedPrice} />
               </div>
               <div className="rounded-[1.25rem] bg-pet-cream p-4">
@@ -586,7 +666,8 @@ export function TagOrderFlow({
                   <span className="font-black text-pet-teal">
                     {selectedPet?.qrSafetyPath ?? "/q/{safetyCode}"}
                   </span>
-                  . The physical tag scan link is assigned to the tag order.
+                  . The physical tag code appears after our team assigns a
+                  physical tag from inventory.
                 </p>
               </div>
             </div>
@@ -716,7 +797,7 @@ export function TagOrderFlow({
         <div className="grid gap-3 sm:grid-cols-2">
           <SummaryItem label="Selected pet" value={selectedPet?.name ?? "Pet"} />
           <SummaryItem label="Tag type" value={tagType} />
-          <SummaryItem label="Design" value={shapeLabel} />
+          <SummaryItem label="Tag variant" value={variantLabel} />
           <SummaryItem label="Tag price" value={estimatedPrice} />
           <SummaryItem label="Delivery fee" value={paymentConfig.deliveryFee} />
           <SummaryItem label="Total amount" value={estimatedPrice} />

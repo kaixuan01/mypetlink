@@ -10,10 +10,16 @@ import { PetAvatar } from "@/components/ui/PetAvatar";
 import { getPetSummaryLabel } from "@/lib/petDisplay";
 import { getActivePets } from "@/lib/petLifecycle";
 import { ownerRoutes, tagPath } from "@/lib/routes";
+import { isApiConfigured } from "@/services/apiConfig";
 import { isOwnerAuthenticated, loginMockOwner } from "@/services/authService";
 import { getPets } from "@/services/petService";
-import { activateTag, getFinderState } from "@/services/tagService";
-import type { FinderResult, Pet } from "@/types";
+import {
+  activateTag,
+  getFinderState,
+  getFriendlyTagErrorMessage,
+  getAllTags,
+} from "@/services/tagService";
+import type { FinderResult, Pet, PetTag } from "@/types";
 
 type TagActivationFlowProps = {
   initialResult: FinderResult;
@@ -32,69 +38,133 @@ export function TagActivationFlow({
   initialResult,
   tagCode,
 }: TagActivationFlowProps) {
+  const apiMode = isApiConfigured();
   const [result, setResult] = useState(initialResult);
   const [authed, setAuthed] = useState(() => isOwnerAuthenticated());
   const [pets, setPets] = useState<Pet[]>([]);
+  const [ownerTags, setOwnerTags] = useState<PetTag[]>([]);
+  const [ownerDataLoaded, setOwnerDataLoaded] = useState(false);
   const [selectedPetId, setSelectedPetId] = useState(() =>
     getPreferredPetId(initialResult)
   );
   const [submitting, setSubmitting] = useState(false);
   const [activatedPet, setActivatedPet] = useState<Pet | null>(null);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     let active = true;
 
-    getFinderState(tagCode).then((next) => {
-      if (active) {
-        setResult(next);
-        setSelectedPetId((current) => current || getPreferredPetId(next));
-      }
-    });
-
-    getPets().then((response) => {
-      if (active) {
-        const activePets = getActivePets(response.data);
-        setPets(activePets);
-        const preferredPetId = getPreferredPetId(initialResult);
-        setSelectedPetId((current) => {
-          if (current && activePets.some((pet) => pet.id === current)) {
-            return current;
-          }
-
-          if (
-            preferredPetId &&
-            activePets.some((pet) => pet.id === preferredPetId)
-          ) {
-            return preferredPetId;
-          }
-
-          return activePets[0]?.id || "";
-        });
-      }
-    });
+    getFinderState(tagCode)
+      .then((next) => {
+        if (active) {
+          setResult(next);
+          setSelectedPetId((current) => current || getPreferredPetId(next));
+          setError("");
+        }
+      })
+      .catch((caught) => {
+        if (active) {
+          setError(getFriendlyTagErrorMessage(caught));
+        }
+      });
 
     return () => {
       active = false;
     };
-  }, [initialResult, tagCode]);
+  }, [tagCode]);
+
+  useEffect(() => {
+    if (!authed) {
+      return;
+    }
+
+    let active = true;
+
+    Promise.all([getPets(), getAllTags()])
+      .then(([petResponse, tagResponse]) => {
+        if (active) {
+          const activePets = getActivePets(petResponse.data);
+          setPets(activePets);
+          setOwnerTags(tagResponse.data);
+          const preferredPetId = getPreferredPetId(initialResult);
+          setSelectedPetId((current) => {
+            if (current && activePets.some((pet) => pet.id === current)) {
+              return current;
+            }
+
+            if (
+              preferredPetId &&
+              activePets.some((pet) => pet.id === preferredPetId)
+            ) {
+              return preferredPetId;
+            }
+
+            return activePets[0]?.id || "";
+          });
+          setOwnerDataLoaded(true);
+        }
+      })
+      .catch((caught) => {
+        if (active) {
+          setError(getFriendlyTagErrorMessage(caught));
+          setOwnerDataLoaded(true);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [authed, initialResult]);
 
   function handleSignIn() {
+    if (apiMode) {
+      window.location.href = `/login?redirect=${encodeURIComponent(
+        tagPath(tagCode)
+      )}`;
+      return;
+    }
+
     loginMockOwner();
     setAuthed(true);
   }
 
   async function handleActivate() {
-    if (!selectedPetId) {
+    const assigned = getOwnedAssignedTag(ownerTags, tagCode);
+
+    if (!assigned && !selectedPetId) {
       return;
     }
 
     setSubmitting(true);
-    const response = await activateTag(tagCode, selectedPetId);
-    setSubmitting(false);
+    setError("");
 
-    if (response.data) {
-      setActivatedPet(pets.find((pet) => pet.id === selectedPetId) ?? null);
+    try {
+      const response = await activateTag(tagCode, assigned ? undefined : selectedPetId);
+
+      if (response.data) {
+        setActivatedPet(
+          pets.find((pet) => pet.id === (assigned?.petId ?? selectedPetId)) ?? null
+        );
+      }
+    } catch (caught) {
+      setError(getFriendlyTagErrorMessage(caught));
+    } finally {
+      setSubmitting(false);
     }
+  }
+
+  if (error && !authed) {
+    return (
+      <ActivationShell>
+        <ActivationCard
+          description={error}
+          icon="shield"
+          tagCode={tagCode}
+          title="Tag status unavailable"
+          tone="soft"
+        />
+      </ActivationShell>
+    );
   }
 
   if (activatedPet) {
@@ -170,16 +240,89 @@ export function TagActivationFlow({
     );
   }
 
-  if (result.state === "pending" && result.status !== "Delivered") {
+  if (result.state === "pending" && !authed) {
     return (
       <ActivationShell>
         <ActivationCard
-          description="This physical tag is still being prepared. Activation will be available after the tag is delivered."
+          description="Sign in to the MyPetLink account that ordered this tag. We will check the order before activation."
+          icon="shield"
+          tagCode={result.tagCode}
+          title="Sign in to activate this tag"
+          tone="teal"
+        >
+          <CTAButton
+            className="min-h-14 text-base"
+            icon="paw"
+            onClick={handleSignIn}
+            fullWidth
+          >
+            Continue with owner account
+          </CTAButton>
+        </ActivationCard>
+      </ActivationShell>
+    );
+  }
+
+  if (result.state === "pending" && authed && !ownerDataLoaded) {
+    return (
+      <ActivationShell>
+        <ActivationCard
+          description="Checking this tag against your owner account."
           icon="tag"
           tagCode={result.tagCode}
-          title="This tag is not active yet"
+          title="Checking tag ownership"
           tone="soft"
         />
+      </ActivationShell>
+    );
+  }
+
+  if (result.state === "pending") {
+    const assigned = getOwnedAssignedTag(ownerTags, tagCode);
+    const assignedPet = assigned?.petId
+      ? pets.find((pet) => pet.id === assigned.petId)
+      : undefined;
+
+    if (!assigned || !assignedPet) {
+      return (
+        <ActivationShell>
+          <ActivationCard
+            description="This tag is linked to another MyPetLink account. Please sign in with the account that ordered this tag."
+            icon="shield"
+            tagCode={result.tagCode}
+            title="This tag is linked to another account"
+            tone="soft"
+          />
+        </ActivationShell>
+      );
+    }
+
+    return (
+      <ActivationShell>
+        <ActivationCard
+          description="This tag is already linked to your order. Activate it when you have received the physical tag."
+          icon="tag"
+          tagCode={result.tagCode}
+          title={`Activate this tag for ${assignedPet.name}`}
+          tone="teal"
+        >
+          <div className="grid gap-3">
+            {error ? (
+              <p className="rounded-[1.25rem] border border-[#ffd2c9] bg-[#fff4f1] px-4 py-3 text-center text-sm font-bold text-[#a63c2e]">
+                {error}
+              </p>
+            ) : null}
+            <CTAButton
+              className="min-h-14 text-base"
+              disabled={submitting}
+              icon="paw"
+              onClick={handleActivate}
+              fullWidth
+            >
+              {submitting ? "Activating..." : "Activate Tag"}
+            </CTAButton>
+          </div>
+        </ActivationCard>
       </ActivationShell>
     );
   }
@@ -221,6 +364,20 @@ export function TagActivationFlow({
     );
   }
 
+  if (error && !pets.length) {
+    return (
+      <ActivationShell>
+        <ActivationCard
+          description={error}
+          icon="shield"
+          tagCode={tagCode}
+          title="Pet profiles could not load"
+          tone="soft"
+        />
+      </ActivationShell>
+    );
+  }
+
   if (!pets.length) {
     return (
       <ActivationShell>
@@ -242,18 +399,10 @@ export function TagActivationFlow({
   return (
     <ActivationShell>
       <ActivationCard
-        description={
-          result.state === "pending"
-            ? "This delivered tag is ready to activate. Confirm which pet it belongs to."
-            : "Choose which pet this tag belongs to. You can change this later from Smart Tags."
-        }
+        description="Choose which pet this tag belongs to. You can change this later from Smart Tags."
         icon="tag"
         tagCode={tagCode}
-        title={
-          result.state === "pending"
-            ? "Activate your delivered tag"
-            : "Activate your MyPetLink Tag"
-        }
+        title="Activate your MyPetLink Tag"
         tone="teal"
       >
         <div className="grid gap-3 text-left">
@@ -289,6 +438,11 @@ export function TagActivationFlow({
         </div>
 
         <div className="mt-5 grid gap-3">
+          {error ? (
+            <p className="rounded-[1.25rem] border border-[#ffd2c9] bg-[#fff4f1] px-4 py-3 text-center text-sm font-bold text-[#a63c2e]">
+              {error}
+            </p>
+          ) : null}
           <CTAButton
             className="min-h-14 text-base"
             disabled={!selectedPetId || submitting}
@@ -307,6 +461,18 @@ export function TagActivationFlow({
         </div>
       </ActivationCard>
     </ActivationShell>
+  );
+}
+
+function getOwnedAssignedTag(tags: PetTag[], tagCode: string) {
+  const normalized = tagCode.trim().toLowerCase();
+
+  return tags.find(
+    (tag) =>
+      tag.tagCode.toLowerCase() === normalized &&
+      Boolean(tag.petId) &&
+      !tag.isArchived &&
+      ["Pending", "Preparing", "Delivered"].includes(tag.status)
   );
 }
 

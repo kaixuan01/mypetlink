@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MyPetLink.Api.Common;
 using MyPetLink.Api.DTOs;
 using MyPetLink.Api.Services;
 
@@ -16,19 +17,25 @@ public sealed class TagScanController : ApiControllerBase
         _tagScanService = tagScanService;
     }
 
-    // TODO: Resolve physical tag state and record scan analytics without precise location unless consent is explicit.
     [HttpGet("{tagCode}")]
-    public Task<IActionResult> Resolve(string tagCode, CancellationToken cancellationToken)
+    public async Task<IActionResult> Resolve(string tagCode, CancellationToken cancellationToken)
     {
-        return PlaceholderAsync(_tagScanService, "GET /api/v1/public/tags/{tagCode}", cancellationToken);
+        var context = new TagScanContext(
+            HttpContext.Connection.RemoteIpAddress?.ToString(),
+            Request.Headers["User-Agent"].ToString(),
+            Request.Headers["Referer"].ToString());
+        var response = await _tagScanService.ResolveAsync(tagCode, context, cancellationToken);
+
+        return Ok(ApiEnvelope.Ok(response, HttpContext));
     }
 
     [HttpPost("{tagCode}/scan-location-consent")]
-    public Task<IActionResult> SubmitLocationConsent(
+    public async Task<IActionResult> SubmitLocationConsent(
         string tagCode,
         [FromBody] SubmitScanLocationConsentRequest request,
         CancellationToken cancellationToken)
     {
-        return PlaceholderAsync(_tagScanService, "POST /api/v1/public/tags/{tagCode}/scan-location-consent", cancellationToken);
+        await _tagScanService.SubmitLocationConsentAsync(tagCode, request, cancellationToken);
+        return Ok(ApiEnvelope.Ok(new { accepted = true }, HttpContext));
     }
 }

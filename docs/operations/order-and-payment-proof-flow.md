@@ -2,6 +2,8 @@
 
 Phase 1 uses manual payment proof review. There is no payment gateway, no automatic payment confirmation, and no subscription billing.
 
+Status (2026-07-04): this flow is implemented end to end. Owner submission uses `POST /api/v1/orders/{orderNumber}/payment-proof`; admin review uses `/api/v1/admin/orders/{orderId}/confirm-payment`, `/reject-payment-proof`, `/mark-preparing`, `/mark-shipped`, `/mark-delivered`, and `/cancel` (plus `/api/v1/admin/payment-proofs/{id}/approve|reject`, which share the same transition logic). All admin transitions are audited. Payment proofs remain metadata only until file storage exists.
+
 ## Product Rules
 
 - Smart tags are optional one-time add-ons.
@@ -19,11 +21,9 @@ Phase 1 uses manual payment proof review. There is no payment gateway, no automa
 2. Owner chooses tag type:
    - QR Pet Tag
    - QR + NFC Smart Tag
-3. Owner chooses shape:
-   - Round
-   - Bone
-   - Rounded Square
-   - Paw
+3. Owner chooses tag variant:
+   - Lightweight Tag (recommended for cats/small pets)
+   - Standard Tag (recommended for dogs/medium-large pets)
 4. Owner enters delivery details.
 5. Owner confirms order.
 6. Backend creates:
@@ -43,7 +43,9 @@ Important:
 
 ## Payment Proof Storage
 
-Payment proof upload must use the reusable media system and provider-neutral file metadata.
+Current owner slice: payment proof submission stores metadata only. The frontend captures the selected filename, optional payment reference, and optional owner note; the backend creates a metadata-only `MediaFiles` row plus a `PaymentProofs` row. It does not upload or store actual file bytes, base64 payloads, or local uploaded files yet.
+
+Future real upload/storage must use the reusable media system and provider-neutral file metadata.
 
 Required file metadata:
 
@@ -71,6 +73,54 @@ Rules:
 - Admin preview/download should use controlled URLs or signed URLs.
 - Keep rejected proof history.
 - Uploading proof never confirms payment automatically.
+- Until real storage is implemented, `StorageProvider = MetadataOnly` means the proof is an owner-submitted metadata placeholder, not a retrievable file.
+
+## Payment Proof Attempt History
+
+Each payment proof upload creates its own `PaymentProofs` row; attempts are never overwritten. On resubmission, only a still-`PendingReview` proof is marked `Superseded` — a `Rejected` proof is preserved as history with its `RejectionReason` and `ReviewedAt`. This means an order can carry multiple proof rows (e.g. `Rejected` -> `PendingReview`), which together form the resubmission trail.
+
+The owner order detail response includes a `paymentProofs` array (newest first, each with `status`, `uploadedAt`, `reviewedAt`, and `rejectionReason`) and a derived `timeline` array (see below). The admin order detail and payment proof pages read the same `paymentProofs` array to show the full attempt history — attempt number, status, submitted timestamp, reviewed timestamp, and rejection reason. No file bytes are stored; proofs remain metadata only.
+
+## Order Documents (PDF)
+
+Owners and admins download order documents as PDFs generated server-side (QuestPDF) from authoritative order data. There is no customer-facing TXT download.
+
+Two document types, gated by payment status:
+
+- **Order Summary PDF** — available in any state before payment is confirmed (Pending Payment, Payment Proof Submitted, rejected/resubmission needed). Titled "Order Summary". Never shows "Official Receipt" or "Paid".
+- **Official Receipt PDF** — available only after admin confirms payment (Payment Confirmed, Preparing Tag, Shipped, Delivered). Titled "Official Receipt", shows "PAID", the payment confirmed date/time, and a Receipt No. (`MPL-RCP-…` derived from the order number).
+
+Endpoints (return `application/pdf`):
+
+- Owner: `GET /api/v1/orders/{orderNumber}/summary.pdf`, `GET /api/v1/orders/{orderNumber}/receipt.pdf`
+- Admin: `GET /api/v1/admin/orders/{orderId}/summary.pdf`, `GET /api/v1/admin/orders/{orderId}/receipt.pdf`
+
+Rules:
+
+- Owner endpoints require auth and only serve the owner's own order; admin endpoints require the admin policy and can serve any order.
+- The receipt endpoints return `422 receipt_not_available` ("Receipt is available after payment is confirmed.") when `PaymentConfirmedAt` is not set.
+- Filenames: `MyPetLink-Order-{OrderNumber}.pdf` and `MyPetLink-Receipt-{OrderNumber}.pdf`.
+- Documents are generated on demand; no PDF files are stored or committed. Payment proofs remain metadata only; there is no payment gateway.
+- No SST is claimed (shown as "SST: Not applicable"); no tax registration numbers are printed.
+
+## Order Status Timeline
+
+The owner order detail response includes a `timeline` array built by the backend from the payment proof attempts and order lifecycle timestamps. It is the source of truth for the owner-facing status history; the frontend renders it directly and only falls back to a status-derived timeline in demo mode.
+
+Event `type` values and rules:
+
+- `OrderCreated` — always first, uses `TagOrders.CreatedAt`.
+- `PaymentProofSubmitted` — the first proof upload.
+- `PaymentProofResubmitted` — every proof upload after the first.
+- `PaymentProofRejected` — emitted for each `Rejected` proof, timestamped with `ReviewedAt`, carrying the admin `RejectionReason`. When no reason was supplied, a friendly fallback ("Please upload a clearer payment proof.") is shown instead of hiding the event.
+- `PaymentConfirmed` — uses `PaymentConfirmedAt`; only "Payment confirmed" wording is used after admin confirmation (never for a plain proof upload).
+- `PreparingTag` — surfaced once the order reaches preparation. It has no dedicated timestamp column, so `occurredAt` is `null` and the UI shows "Time not available" rather than hiding the step.
+- `Shipped`, `Delivered` — use `ShippedAt` / `DeliveredAt`.
+- `Cancelled` — uses `CancelledAt`.
+
+Each event carries a `statusTone`: `completed`, `current`, `warning` (rejected proof), or `cancelled`. The most recent event is promoted to `current` unless it is a rejection (`warning`) or cancellation (`cancelled`). `occurredAt` is a `DateTimeOffset`; the frontend formats it in the viewer's local timezone as e.g. `04 Jul 2026, 8:25 PM` (date + time, no seconds).
+
+No migration was required for this history — the existing `PaymentProofs` columns (`Status`, `UploadedAt`, `ReviewedAt`, `RejectionReason`) and order lifecycle timestamps already carry everything the timeline needs.
 
 ## Order Statuses
 
@@ -119,14 +169,15 @@ Trigger:
 
 Required current state:
 
-- order `PendingPayment`
-- payment `Pending` or `Rejected`
+- order `PendingPayment` or `PaymentProofSubmitted`
+- payment `Pending`, `ProofSubmitted`, or `Rejected`
 
 Result:
 
 - order `PaymentProofSubmitted`
 - payment `ProofSubmitted`
 - new proof `PendingReview`
+- prior pending proof metadata is marked `Superseded`
 
 Owner portal shows:
 
@@ -157,7 +208,72 @@ Owner portal shows:
 
 - payment confirmed
 - receipt available
-- tag preparation is next
+- physical tag assignment is next
+
+### Admin assigns inventory tag
+
+Trigger:
+
+- Admin calls `POST /api/v1/admin/orders/{orderId}/assign-tag`.
+
+Required current state:
+
+- order `PaymentConfirmed`
+- order has no linked tag yet
+- selected inventory tag is `Unclaimed`, unarchived, and has no owner, pet, or order
+- tag type and variant match the order
+
+Result:
+
+- inventory tag is linked to the order owner, selected pet, and order
+- tag moves to `Preparing`
+- order stores the linked tag id
+- audit logs are written for the order and tag
+
+Owner portal shows:
+
+- physical tag assigned from inventory
+- tag is not active yet and does not expose owner contact
+
+Stock is consumed at assignment, not at order creation.
+
+### Admin changes the assigned tag (before shipping)
+
+Trigger:
+
+- Admin calls `POST /api/v1/admin/orders/{orderId}/change-assigned-tag` with `newTagId` (and optional `reason`).
+
+Required current state:
+
+- order `PaymentConfirmed` or `PreparingTag`
+- order already has an assigned tag that has not shipped/activated (`Pending`/`Preparing`)
+- new tag is a different, available (`Unclaimed`) tag matching the order type/variant
+
+Result:
+
+- old tag returns to `Unclaimed` inventory with owner/pet/order links cleared
+- new tag is linked and `Preparing`; order points at the new tag
+- audit logs record old and new tag codes and the reason
+
+### Admin replaces the tag (after shipping/delivery/activation)
+
+Trigger:
+
+- Admin calls `POST /api/v1/admin/orders/{orderId}/replace-tag` with `newTagId`, required `reason`, optional `note`.
+
+Required current state:
+
+- order `Shipped`/`Delivered`, or the assigned tag is `Active`
+- order has an assigned tag
+- pet is Active (Memorial/archived pets cannot receive an active replacement)
+- new tag is a different, available tag matching the order type/variant
+
+Result:
+
+- old tag becomes `Replaced` (its `/t` page no longer shows owner contact) but keeps owner/pet/order history
+- new tag is linked and `Preparing`, records `ReplacementForTagId`, and the order returns to `PreparingTag`
+- owner sees "A replacement tag is being prepared"; the replaced tag appears under inactive/history
+- audit logs record old and new tag codes and the reason
 
 ### Admin rejects proof
 
@@ -198,6 +314,7 @@ Trigger:
 Required current state:
 
 - order `PaymentConfirmed`
+- assigned inventory tag exists
 
 Result:
 
@@ -239,6 +356,7 @@ Trigger:
 Required current state:
 
 - order `Shipped`
+- assigned inventory tag exists
 
 Result:
 
@@ -250,33 +368,38 @@ Result:
 Owner portal shows:
 
 - delivered
-- activation available for delivered tag
+- waiting for owner activation
+- View Tag Scan Page / Copy Tag Link actions, not a direct Activate Tag button
 
 ### Owner activates delivered tag
 
 Trigger:
 
-- Owner calls `POST /api/v1/tags/{tagCode}/activate`.
+- Owner scans or taps the physical tag and completes activation from `/t/:tagCode`.
+- The frontend then calls `POST /api/v1/tags/{tagCode}/activate` from that scan activation flow.
 
 Required state:
 
-- tag `Delivered`
-- linked order `Delivered`
+- assigned portal tag is `Pending`, `Preparing`, or `Delivered`
 - pet belongs to owner and is Active
 
 Result:
 
 - tag `Active`
 - `ActivatedAt` recorded
+- if the linked order is still `Shipped`, the order may be marked `Delivered`
 - scan link `/t/:tagCode` opens pet QR Safety content
 - audit log written
 
 ## Cancellation Rules
 
-Allowed before shipping:
+Current owner API allows cancellation only while:
 
 - `PendingPayment`
 - `PaymentProofSubmitted`
+
+Future admin cancellation may additionally allow:
+
 - `PaymentConfirmed`
 - `PreparingTag`
 
@@ -290,7 +413,7 @@ Result:
 - order `Cancelled`
 - linked unactivated tag archived
 - order history remains visible
-- audit log written
+- audit log written when audit integration is enabled for this mutation
 
 ## Invalid Transitions
 
@@ -310,15 +433,18 @@ Owner order list/detail should show:
 
 - order number
 - selected pet
-- tag type and shape
+- tag type and variant
 - amount
 - payment status
 - order status
 - payment proof upload/resubmission area when needed
 - rejection reason if rejected
+- a chronological status timeline including payment proof submitted, rejected (with reason), and resubmitted events, each with date and time
 - receipt only after payment confirmed
 - delivery tracking status
-- activation prompt when delivered tag is ready
+- waiting-for-owner-activation copy for assigned inactive tags
+- View Tag Scan Page and Copy Tag Link actions
+- no direct Activate Tag button from order detail
 
 ## Admin Portal Reflection
 
@@ -328,11 +454,12 @@ Admin order/payment proof pages should show:
 - owner
 - pet
 - amount
-- tag type and shape
+- tag type and variant
 - current order status
 - current payment status
 - payment proof metadata and preview/download
 - payment reference and owner note
+- payment proof attempt history (attempt number, status, submitted and reviewed timestamps, rejection reason)
 - rejection reason history
 - delivery details
 - linked tag

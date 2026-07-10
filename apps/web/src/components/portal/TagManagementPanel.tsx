@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
+import { QrCodeButton } from "@/components/qr/QrCodeButton";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
@@ -15,7 +16,8 @@ import {
   isArchivedPet,
   isMemorialPet,
 } from "@/lib/petLifecycle";
-import { activatePath, ownerRoutes, tagPath } from "@/lib/routes";
+import { ownerRoutes, tagPath } from "@/lib/routes";
+import { getEnvBaseUrl, getSiteBaseUrl, toAbsoluteUrl } from "@/lib/siteUrl";
 import {
   compareTagsForDisplay,
   getTagAvailableActions,
@@ -34,12 +36,14 @@ import { getPets } from "@/services/petService";
 import {
   archiveTag,
   disableTag,
+  getFriendlyTagErrorMessage,
   getAllTags,
   getOrders,
   getPetTags,
   reportTagLost,
   restoreTag,
 } from "@/services/tagService";
+import { isApiConfigured } from "@/services/apiConfig";
 import type { Pet, PetTag, TagOrder, TagStatus } from "@/types";
 
 type TagManagementPanelProps = {
@@ -76,10 +80,16 @@ export function TagManagementPanel({
   petId,
 }: TagManagementPanelProps) {
   const router = useRouter();
-  const [pets, setPets] = useState(initialPets);
-  const [tags, setTags] = useState(initialTags);
-  const [orders, setOrders] = useState(initialOrders);
+  const apiMode = isApiConfigured();
+  const [pets, setPets] = useState(apiMode ? [] : initialPets);
+  const [tags, setTags] = useState<PetTag[]>(apiMode ? [] : initialTags);
+  const [orders, setOrders] = useState<TagOrder[]>(
+    apiMode ? [] : initialOrders
+  );
   const [filter, setFilter] = useState<TagFilter>("active");
+  const [loading, setLoading] = useState(apiMode);
+  const [loadError, setLoadError] = useState("");
+  const [actionError, setActionError] = useState("");
   // "" means "All pets". On a pet-scoped route (petId set) we default to that
   // pet; changing the selector there navigates instead of cross-filtering.
   const [selectedPetId, setSelectedPetId] = useState(petId ?? "");
@@ -90,11 +100,6 @@ export function TagManagementPanel({
   const [lostTag, setLostTag] = useState<PetTag | null>(null);
   const [disableTagTarget, setDisableTagTarget] = useState<PetTag | null>(null);
   const [archiveTagTarget, setArchiveTagTarget] = useState<PetTag | null>(null);
-  const origin = useSyncExternalStore(
-    subscribeToOrigin,
-    getBrowserOrigin,
-    getServerOrigin
-  );
   const petMap = useMemo(
     () => new Map(pets.map((pet) => [pet.id, pet])),
     [pets]
@@ -145,17 +150,36 @@ export function TagManagementPanel({
 
   useEffect(() => {
     let active = true;
-    const tagRequest = petId ? getPetTags(petId) : getAllTags();
 
-    Promise.all([tagRequest, getOrders(), getPets()]).then(
-      ([tagResponse, orderResponse, petsResponse]) => {
+    async function loadTags() {
+      setLoading(true);
+      setLoadError("");
+
+      try {
+        const tagRequest = petId ? getPetTags(petId) : getAllTags();
+        const [tagResponse, orderResponse, petsResponse] = await Promise.all([
+          tagRequest,
+          getOrders(),
+          getPets(),
+        ]);
+
         if (active) {
           setTags(tagResponse.data);
           setOrders(orderResponse.data);
           setPets(petsResponse.data);
         }
+      } catch (caught) {
+        if (active) {
+          setLoadError(getFriendlyTagErrorMessage(caught));
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
       }
-    );
+    }
+
+    void loadTags();
 
     return () => {
       active = false;
@@ -167,13 +191,18 @@ export function TagManagementPanel({
       return;
     }
 
-    const response = await disableTag(disableTagTarget.id);
+    try {
+      setActionError("");
+      const response = await disableTag(disableTagTarget.id);
 
-    if (response.data) {
-      replaceTag(response.data);
+      if (response.data) {
+        replaceTag(response.data);
+      }
+    } catch (caught) {
+      setActionError(getFriendlyTagErrorMessage(caught));
+    } finally {
+      setDisableTagTarget(null);
     }
-
-    setDisableTagTarget(null);
   }
 
   async function handleReportLost() {
@@ -181,14 +210,19 @@ export function TagManagementPanel({
       return;
     }
 
-    const response = await reportTagLost(lostTag.id);
+    try {
+      setActionError("");
+      const response = await reportTagLost(lostTag.id);
 
-    if (response.data) {
-      replaceTag(response.data);
-      setFilter("inactive");
+      if (response.data) {
+        replaceTag(response.data);
+        setFilter("inactive");
+      }
+    } catch (caught) {
+      setActionError(getFriendlyTagErrorMessage(caught));
+    } finally {
+      setLostTag(null);
     }
-
-    setLostTag(null);
   }
 
   async function handleArchive() {
@@ -196,30 +230,60 @@ export function TagManagementPanel({
       return;
     }
 
-    const response = await archiveTag(archiveTagTarget.id);
+    try {
+      setActionError("");
+      const response = await archiveTag(archiveTagTarget.id);
 
-    if (response.data) {
-      replaceTag(response.data);
-      setFilter("archived");
+      if (response.data) {
+        replaceTag(response.data);
+        setFilter("archived");
+      }
+    } catch (caught) {
+      setActionError(getFriendlyTagErrorMessage(caught));
+    } finally {
+      setArchiveTagTarget(null);
     }
-
-    setArchiveTagTarget(null);
   }
 
   async function handleRestore(tag: PetTag) {
-    const response = await restoreTag(tag.id);
+    try {
+      setActionError("");
+      const response = await restoreTag(tag.id);
 
-    if (response.data) {
-      replaceTag(response.data);
-      setFilter(
-        inactiveTagStatuses.includes(response.data.status) ? "inactive" : "active"
-      );
+      if (response.data) {
+        replaceTag(response.data);
+        setFilter(
+          inactiveTagStatuses.includes(response.data.status) ? "inactive" : "active"
+        );
+      }
+    } catch (caught) {
+      setActionError(getFriendlyTagErrorMessage(caught));
     }
   }
 
   function replaceTag(updatedTag: PetTag) {
     setTags((current) =>
       current.map((tag) => (tag.id === updatedTag.id ? updatedTag : tag))
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="brand-card rounded-[1.75rem] p-6 text-sm font-semibold text-pet-muted">
+        Loading Smart Tags...
+      </div>
+    );
+  }
+
+  if (loadError && !tags.length) {
+    return (
+      <EmptyState
+        icon="tag"
+        title="Smart Tags could not load"
+        description={loadError}
+        actionHref={ownerRoutes.dashboard}
+        actionLabel="Back to Dashboard"
+      />
     );
   }
 
@@ -237,6 +301,18 @@ export function TagManagementPanel({
 
   return (
     <>
+      {actionError ? (
+        <div className="mb-4 rounded-[1.25rem] border border-[#ffd2c9] bg-[#fff4f1] px-4 py-3 text-sm font-bold text-[#a63c2e]">
+          {actionError}
+        </div>
+      ) : null}
+
+      {loadError ? (
+        <div className="mb-4 rounded-[1.25rem] border border-[#ffd2c9] bg-[#fff4f1] px-4 py-3 text-sm font-bold text-[#a63c2e]">
+          {loadError}
+        </div>
+      ) : null}
+
       <div className="mb-4 flex flex-col gap-3 rounded-[1.5rem] border border-pet-border bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
           {pets.length > 1 ? (
@@ -300,7 +376,6 @@ export function TagManagementPanel({
               onReportLost={() => setLostTag(tag)}
               onRestore={() => handleRestore(tag)}
               order={getTagOrder(tag, orders)}
-              origin={origin}
               tag={tag}
             />
           ))}
@@ -374,7 +449,6 @@ function TagCard({
   onReportLost,
   onRestore,
   order,
-  origin,
   tag,
 }: {
   linkedPet?: Pet;
@@ -383,10 +457,10 @@ function TagCard({
   onReportLost: () => void;
   onRestore: () => void;
   order?: TagOrder;
-  origin: string;
   tag: PetTag;
 }) {
-  const [copyMessage, setCopyMessage] = useState("");
+  const base = useSyncExternalStore(subscribeNoop, getSiteBaseUrl, getEnvBaseUrl);
+  const [copyStatus, setCopyStatus] = useState("");
   const productName = tag.hasNfc
     ? "MyPetLink QR + NFC Smart Tag"
     : "MyPetLink QR Pet Tag";
@@ -406,7 +480,7 @@ function TagCard({
       })
     : "";
   const scanPath = tagPath(tag.tagCode);
-  const scanUrl = origin ? `${origin}${scanPath}` : scanPath;
+  const scanUrl = toAbsoluteUrl(scanPath, base);
   const codeLabel =
     isPending || tag.status === "Unassigned" ? "Reserved tag code" : "Tag code";
   const detailItems = [
@@ -416,17 +490,6 @@ function TagCard({
     ["Delivered date", tag.deliveredDate ?? "Not delivered yet"],
     [scanDisplay.label, scanDisplay.value],
   ].filter((item): item is [string, string] => Boolean(item));
-
-  async function handleCopyScanLink() {
-    try {
-      await navigator.clipboard.writeText(scanUrl);
-      setCopyMessage("Tag scan link copied.");
-    } catch {
-      setCopyMessage("Copy unavailable. Select and copy the link.");
-    }
-
-    window.setTimeout(() => setCopyMessage(""), 2500);
-  }
 
   return (
     <article className="brand-card rounded-[1.75rem] p-5" key={tag.id}>
@@ -445,42 +508,43 @@ function TagCard({
             {tag.tagCode}
           </h2>
           <p className="mt-1 text-sm text-pet-muted">
-            {productName} - {tag.shape}
+            {productName} - {tag.variant} Tag
           </p>
-          {isActive ? (
+          {isActive || isInactive ? (
             <div className="mt-4 rounded-[1.25rem] bg-pet-cream p-4">
               <p className="text-xs font-bold uppercase text-pet-muted">
-                Physical Tag Scan Link
+                Physical Tag Scan Page
               </p>
-              <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-                <p className="min-w-0 break-all text-sm font-bold text-pet-teal">
-                  {scanUrl}
-                </p>
-                <button
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-pet-border bg-white px-4 py-2 text-sm font-bold text-pet-ink transition hover:bg-white/80"
-                  onClick={handleCopyScanLink}
-                  type="button"
-                >
-                  <Icon name="copy" className="h-4 w-4" />
-                  <span className="sm:hidden">Copy</span>
-                  <span className="hidden sm:inline">Copy Tag Scan Link</span>
-                </button>
-              </div>
-              {copyMessage ? (
-                <p className="mt-2 text-xs font-bold text-pet-sage">
-                  {copyMessage}
-                </p>
-              ) : null}
+              <p className="mt-1 text-sm font-bold text-pet-ink">
+                Use the physical tag QR when you need to view, copy, or download
+                the scan page code.
+              </p>
+              <QrCodeButton
+                className="mt-3 inline-flex min-h-10 items-center justify-center rounded-full border border-pet-border bg-white px-4 py-2 text-sm font-extrabold text-pet-ink transition hover:bg-pet-cream"
+                fileNameBase={`${tag.tagCode}-physical-tag-qr`}
+                helperText="This is the QR printed on your physical tag. If the tag is lost or disabled, the scan page will stop showing your contact details."
+                label="Show Physical Tag QR"
+                targetPath={scanPath}
+                title="Physical Tag QR"
+                viewLabel={isActive ? "View Tag Scan Page" : "View Inactive Tag Page"}
+                warning={
+                  isActive
+                    ? undefined
+                    : "This tag is inactive. Scanning it shows an inactive tag page and never reveals owner contact details."
+                }
+              />
             </div>
           ) : isPending || tag.status === "Unassigned" ? (
             <div className="mt-4 rounded-[1.25rem] bg-pet-cream p-4">
               <p className="text-xs font-bold uppercase text-pet-muted">
-                Physical tag scan link
+                Physical Tag Scan Page
               </p>
               <p className="mt-1 text-sm font-bold text-pet-ink">
                 {tag.status === "Unassigned"
-                  ? "Activate this reserved tag to turn on its scan page."
-                  : "Tag scan link will be available after activation."}
+                  ? "Scan or open the physical tag link to activate this tag for a pet."
+                  : tag.petId
+                    ? "Waiting for owner activation. Scan or tap the physical tag when you receive it."
+                    : "Physical tag QR will appear after an inventory tag is assigned."}
               </p>
             </div>
           ) : null}
@@ -520,8 +584,9 @@ function TagCard({
         </p>
       ) : isPending ? (
         <p className="mt-4 rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted">
-          Physical tag scan link is not active yet. Scan history appears after
-          activation.
+          Waiting for owner activation. Scan or tap the physical tag when you
+          receive it to activate it. It will not show owner contact details
+          before activation.
         </p>
       ) : null}
 
@@ -562,6 +627,24 @@ function TagCard({
             View Status
           </CTAButton>
         ) : null}
+        {actions.includes("copy-tag-scan-link") ? (
+          <button
+            className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
+            onClick={() => {
+              void copyText(scanUrl).then((copied) => {
+                setCopyStatus(
+                  copied
+                    ? "Tag Scan Page link copied."
+                    : "Copy unavailable. Select and copy the link."
+                );
+                window.setTimeout(() => setCopyStatus(""), 2500);
+              });
+            }}
+            type="button"
+          >
+            Copy Tag Link
+          </button>
+        ) : null}
         {actions.includes("pay-by-qr") && orderHref ? (
           <CTAButton href={orderHref} icon="record" variant="coral" fullWidth>
             Pay by QR
@@ -570,11 +653,6 @@ function TagCard({
         {actions.includes("view-payment-status") && orderHref ? (
           <CTAButton href={orderHref} icon="record" variant="secondary" fullWidth>
             View Payment Status
-          </CTAButton>
-        ) : null}
-        {actions.includes("activate-tag") ? (
-          <CTAButton href={activatePath(tag.tagCode)} icon="paw" fullWidth>
-            Activate Tag
           </CTAButton>
         ) : null}
         {actions.includes("view-order") && orderHref ? (
@@ -634,8 +712,44 @@ function TagCard({
           </button>
         ) : null}
       </div>
+      {copyStatus ? (
+        <p className="mt-3 text-xs font-bold text-pet-sage" role="status">
+          {copyStatus}
+        </p>
+      ) : null}
     </article>
   );
+}
+
+function subscribeNoop() {
+  return () => {};
+}
+
+async function copyText(text: string) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // Try the textarea copy path below.
+    }
+  }
+
+  const textArea = document.createElement("textarea");
+  textArea.value = text;
+  textArea.setAttribute("readonly", "true");
+  textArea.style.position = "fixed";
+  textArea.style.left = "-9999px";
+  document.body.appendChild(textArea);
+  textArea.select();
+
+  try {
+    return document.execCommand("copy");
+  } catch {
+    return false;
+  } finally {
+    document.body.removeChild(textArea);
+  }
 }
 
 function getTagEmptyState(filter: TagFilter, petName?: string) {
@@ -688,18 +802,6 @@ function getTagEmptyState(filter: TagFilter, petName?: string) {
         orderLabel,
       };
   }
-}
-
-function subscribeToOrigin() {
-  return () => {};
-}
-
-function getBrowserOrigin() {
-  return window.location.origin;
-}
-
-function getServerOrigin() {
-  return "https://mypetlink.pages.dev";
 }
 
 function getStatusTone(

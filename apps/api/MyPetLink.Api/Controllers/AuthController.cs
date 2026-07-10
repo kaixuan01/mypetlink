@@ -1,5 +1,8 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MyPetLink.Api.Auth;
+using MyPetLink.Api.Common;
 using MyPetLink.Api.DTOs;
 using MyPetLink.Api.Services;
 
@@ -15,32 +18,61 @@ public sealed class AuthController : ApiControllerBase
         _authService = authService;
     }
 
-    // TODO: Validate Google ID tokens, create/update users, and issue JWT/refresh tokens.
     [AllowAnonymous]
     [HttpPost("google")]
-    public Task<IActionResult> Google([FromBody] GoogleLoginRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> Google([FromBody] GoogleLoginRequest request, CancellationToken cancellationToken)
     {
-        return PlaceholderAsync(_authService, "POST /api/v1/auth/google", cancellationToken);
+        var response = await _authService.SignInWithGoogleAsync(
+            request,
+            GetAuthClientContext(),
+            cancellationToken);
+
+        return Ok(ApiEnvelope.Ok(response, HttpContext));
     }
 
     [AllowAnonymous]
     [HttpPost("refresh")]
-    public Task<IActionResult> Refresh([FromBody] RefreshTokenRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> Refresh([FromBody] RefreshTokenRequest request, CancellationToken cancellationToken)
     {
-        return PlaceholderAsync(_authService, "POST /api/v1/auth/refresh", cancellationToken);
+        var response = await _authService.RefreshAsync(
+            request,
+            GetAuthClientContext(),
+            cancellationToken);
+
+        return Ok(ApiEnvelope.Ok(response, HttpContext));
     }
 
     [Authorize]
     [HttpPost("logout")]
-    public Task<IActionResult> Logout([FromBody] LogoutRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> Logout([FromBody] LogoutRequest request, CancellationToken cancellationToken)
     {
-        return PlaceholderAsync(_authService, "POST /api/v1/auth/logout", cancellationToken);
+        await _authService.LogoutAsync(request, GetAuthClientContext(), cancellationToken);
+        return NoContent();
     }
 
     [Authorize]
     [HttpGet("me")]
-    public Task<IActionResult> Me(CancellationToken cancellationToken)
+    public async Task<IActionResult> Me(CancellationToken cancellationToken)
     {
-        return PlaceholderAsync(_authService, "GET /api/v1/auth/me", cancellationToken);
+        var response = await _authService.GetCurrentSessionAsync(
+            UserIdFromClaims(),
+            cancellationToken);
+
+        return Ok(ApiEnvelope.Ok(response, HttpContext));
+    }
+
+    private AuthClientContext GetAuthClientContext()
+    {
+        var userAgent = Request.Headers.TryGetValue("User-Agent", out var values)
+            ? values.ToString()
+            : null;
+
+        return new AuthClientContext(HttpContext.Connection.RemoteIpAddress?.ToString(), userAgent);
+    }
+
+    private Guid? UserIdFromClaims()
+    {
+        var current = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        return Guid.TryParse(current, out var userId) ? userId : null;
     }
 }
