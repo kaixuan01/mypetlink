@@ -1,8 +1,10 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using MyPetLink.Api.Common;
 using MyPetLink.Api.Data;
 using MyPetLink.Api.DTOs;
 using MyPetLink.Api.Entities;
+using MyPetLink.Api.Storage;
 
 namespace MyPetLink.Api.Services;
 
@@ -12,10 +14,12 @@ public sealed class MemoryService : SkeletonService, IMemoryService
     private const string FamilyOnlyApiVisibility = "FamilyOnly";
 
     private readonly MyPetLinkDbContext _dbContext;
+    private readonly CloudflareR2Options _r2Options;
 
-    public MemoryService(MyPetLinkDbContext dbContext)
+    public MemoryService(MyPetLinkDbContext dbContext, IOptions<CloudflareR2Options> r2Options)
     {
         _dbContext = dbContext;
+        _r2Options = r2Options.Value;
     }
 
     public async Task<(IReadOnlyCollection<MemoryResponse> Items, int Total)> ListForPetAsync(
@@ -57,7 +61,7 @@ public sealed class MemoryService : SkeletonService, IMemoryService
             .Take(pageSize)
             .ToListAsync(cancellationToken);
 
-        return (memories.Select(ToResponse).ToArray(), total);
+        return (await ToResponsesAsync(memories, cancellationToken), total);
     }
 
     public async Task<MemoryResponse> CreateAsync(
@@ -95,7 +99,10 @@ public sealed class MemoryService : SkeletonService, IMemoryService
         _dbContext.PetMemories.Add(memory);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        return ToResponse(memory);
+        await AttachMediaToMemoryAsync(user.Id, memory, request.MediaFileIds, cancellationToken);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return await ToResponseAsync(memory, cancellationToken);
     }
 
     public async Task<MemoryResponse> GetAsync(
@@ -104,7 +111,7 @@ public sealed class MemoryService : SkeletonService, IMemoryService
         CancellationToken cancellationToken = default)
     {
         var memory = await LoadOwnedMemoryAsync(currentUserId, memoryId, trackChanges: false, cancellationToken);
-        return ToResponse(memory);
+        return await ToResponseAsync(memory, cancellationToken);
     }
 
     public async Task<MemoryResponse> UpdateAsync(
@@ -168,8 +175,14 @@ public sealed class MemoryService : SkeletonService, IMemoryService
             memory.TimelineNote = NormalizeOptional(request.TimelineNote);
         }
 
+        if (request.MediaFileIds is not null)
+        {
+            var userId = RequireUserId(currentUserId);
+            await ReplaceMemoryMediaAsync(userId, memory, request.MediaFileIds, cancellationToken);
+        }
+
         await _dbContext.SaveChangesAsync(cancellationToken);
-        return ToResponse(memory);
+        return await ToResponseAsync(memory, cancellationToken);
     }
 
     public async Task ArchiveAsync(
@@ -288,8 +301,6 @@ public sealed class MemoryService : SkeletonService, IMemoryService
             errors["visibility"] = ["Visibility is required."];
         }
 
-        ValidateMediaPlaceholder(request.MediaFileIds, errors);
-
         if (errors.Count > 0)
         {
             throw ValidationFailed(errors);
@@ -310,21 +321,9 @@ public sealed class MemoryService : SkeletonService, IMemoryService
             ValidateRequired(request.Type, "type", "Moment category cannot be empty.", errors);
         }
 
-        ValidateMediaPlaceholder(request.MediaFileIds, errors);
-
         if (errors.Count > 0)
         {
             throw ValidationFailed(errors);
-        }
-    }
-
-    private static void ValidateMediaPlaceholder(
-        IReadOnlyCollection<Guid>? mediaFileIds,
-        IDictionary<string, string[]> errors)
-    {
-        if (mediaFileIds is { Count: > 0 })
-        {
-            errors["mediaFileIds"] = ["Photo and video upload is not available for memories yet."];
         }
     }
 
@@ -351,7 +350,149 @@ public sealed class MemoryService : SkeletonService, IMemoryService
         });
     }
 
-    private static MemoryResponse ToResponse(PetMemory memory)
+    private async Task<IReadOnlyCollection<MemoryResponse>> ToResponsesAsync(
+        IReadOnlyCollection<PetMemory> memories,
+        CancellationToken cancellationToken)
+    {
+        var mediaByMemory = await LoadMemoryMediaAsync(memories.Select(memory => memory.Id).ToArray(), cancellationToken);
+
+        return memories
+            .Select(memory => ToResponse(
+                memory,
+                mediaByMemory.TryGetValue(memory.Id, out var media) ? media : Array.Empty<MemoryMediaResponse>()))
+            .ToArray();
+    }
+
+    private async Task<MemoryResponse> ToResponseAsync(PetMemory memory, CancellationToken cancellationToken)
+    {
+        var mediaByMemory = await LoadMemoryMediaAsync([memory.Id], cancellationToken);
+        return ToResponse(
+            memory,
+            mediaByMemory.TryGetValue(memory.Id, out var media) ? media : Array.Empty<MemoryMediaResponse>());
+    }
+
+    private async Task<Dictionary<Guid, MemoryMediaResponse[]>> LoadMemoryMediaAsync(
+        IReadOnlyCollection<Guid> memoryIds,
+        CancellationToken cancellationToken)
+    {
+        if (memoryIds.Count == 0)
+        {
+            return new Dictionary<Guid, MemoryMediaResponse[]>();
+        }
+
+        var links = await _dbContext.MediaFileLinks
+            .AsNoTracking()
+            .Include(link => link.MediaFile)
+            .Where(link =>
+                memoryIds.Contains(link.OwnerId)
+                && link.OwnerType == MediaOwnerType.PetMemory
+                && link.ArchivedAt == null
+                && link.MediaFile.UploadStatus == MediaUploadStatus.Ready
+                && link.MediaFile.DeletedAt == null)
+            .OrderBy(link => link.SortOrder)
+            .ToListAsync(cancellationToken);
+
+        return links
+            .GroupBy(link => link.OwnerId)
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .Select(link => new MemoryMediaResponse(
+                        link.MediaFileId,
+                        link.MediaFile.MediaType == MediaFileType.Video ? "video" : "image",
+                        PetDtoMapper.ResolvePublicMediaUrl(link.MediaFile, _r2Options.PublicBaseUrl),
+                        link.Caption,
+                        link.AltText,
+                        link.SortOrder))
+                    .ToArray());
+    }
+
+    private async Task AttachMediaToMemoryAsync(
+        Guid userId,
+        PetMemory memory,
+        IReadOnlyCollection<Guid>? mediaFileIds,
+        CancellationToken cancellationToken)
+    {
+        if (mediaFileIds is null || mediaFileIds.Count == 0)
+        {
+            return;
+        }
+
+        await ReplaceMemoryMediaAsync(userId, memory, mediaFileIds, cancellationToken);
+    }
+
+    private async Task ReplaceMemoryMediaAsync(
+        Guid userId,
+        PetMemory memory,
+        IReadOnlyCollection<Guid> mediaFileIds,
+        CancellationToken cancellationToken)
+    {
+        var distinctIds = mediaFileIds.Where(id => id != Guid.Empty).Distinct().ToArray();
+
+        if (distinctIds.Length != mediaFileIds.Count)
+        {
+            throw ValidationFailed(new Dictionary<string, string[]>
+            {
+                ["mediaFileIds"] = ["Media files must be unique."]
+            });
+        }
+
+        var mediaFiles = await _dbContext.MediaFiles
+            .Where(media =>
+                distinctIds.Contains(media.Id)
+                && media.OwnerUserId == userId
+                && media.PetId == memory.PetId
+                && media.UploadStatus == MediaUploadStatus.Ready
+                && media.DeletedAt == null
+                && (media.Category == MediaUploadCategory.MomentImage
+                    || media.Category == MediaUploadCategory.MomentVideo))
+            .ToListAsync(cancellationToken);
+
+        if (mediaFiles.Count != distinctIds.Length)
+        {
+            throw ValidationFailed(new Dictionary<string, string[]>
+            {
+                ["mediaFileIds"] = ["One or more media files are not available."]
+            });
+        }
+
+        var existingLinks = await _dbContext.MediaFileLinks
+            .Where(link => link.OwnerType == MediaOwnerType.PetMemory && link.OwnerId == memory.Id)
+            .ToListAsync(cancellationToken);
+        var now = DateTimeOffset.UtcNow;
+
+        foreach (var link in existingLinks.Where(link => !distinctIds.Contains(link.MediaFileId)))
+        {
+            link.ArchivedAt ??= now;
+        }
+
+        for (var index = 0; index < distinctIds.Length; index++)
+        {
+            var mediaId = distinctIds[index];
+            var link = existingLinks.FirstOrDefault(item => item.MediaFileId == mediaId);
+
+            if (link is null)
+            {
+                _dbContext.MediaFileLinks.Add(new MediaFileLink
+                {
+                    MediaFileId = mediaId,
+                    OwnerType = MediaOwnerType.PetMemory,
+                    OwnerId = memory.Id,
+                    SortOrder = index,
+                    CreatedAt = now
+                });
+            }
+            else
+            {
+                link.SortOrder = index;
+                link.ArchivedAt = null;
+            }
+        }
+
+        memory.CoverMediaFileId = distinctIds.FirstOrDefault() == Guid.Empty ? null : distinctIds.First();
+    }
+
+    private static MemoryResponse ToResponse(PetMemory memory, IReadOnlyCollection<MemoryMediaResponse> media)
     {
         return new MemoryResponse(
             memory.Id,
@@ -364,7 +505,7 @@ public sealed class MemoryService : SkeletonService, IMemoryService
             memory.ShowOnPublicProfile,
             memory.ShowInLifeTimeline,
             memory.TimelineNote,
-            Array.Empty<MemoryMediaResponse>(),
+            media,
             memory.CoverMediaFileId,
             memory.CreatedAt,
             memory.UpdatedAt,

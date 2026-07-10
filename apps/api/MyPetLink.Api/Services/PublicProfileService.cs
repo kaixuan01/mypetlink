@@ -1,18 +1,22 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using MyPetLink.Api.Common;
 using MyPetLink.Api.Data;
 using MyPetLink.Api.DTOs;
 using MyPetLink.Api.Entities;
+using MyPetLink.Api.Storage;
 
 namespace MyPetLink.Api.Services;
 
 public sealed class PublicProfileService : SkeletonService, IPublicProfileService
 {
     private readonly MyPetLinkDbContext _dbContext;
+    private readonly CloudflareR2Options _r2Options;
 
-    public PublicProfileService(MyPetLinkDbContext dbContext)
+    public PublicProfileService(MyPetLinkDbContext dbContext, IOptions<CloudflareR2Options> r2Options)
     {
         _dbContext = dbContext;
+        _r2Options = r2Options.Value;
     }
 
     public async Task<PublicPetProfileResponse> GetByPublicSlugAsync(
@@ -34,6 +38,10 @@ public sealed class PublicProfileService : SkeletonService, IPublicProfileServic
             .Include(item => item.Pet)
                 .ThenInclude(pet => pet.Contact)
             .Include(item => item.Pet)
+                .ThenInclude(pet => pet.ProfileMediaFile)
+            .Include(item => item.Pet)
+                .ThenInclude(pet => pet.CoverMediaFile)
+            .Include(item => item.Pet)
                 .ThenInclude(pet => pet.Memories)
             .Include(item => item.Pet)
                 .ThenInclude(pet => pet.CareRecords)
@@ -53,7 +61,7 @@ public sealed class PublicProfileService : SkeletonService, IPublicProfileServic
             throw NotFound();
         }
 
-        var memories = profile.ShowMoments
+        var publicMemories = profile.ShowMoments
             ? pet.Memories
                 .Where(memory =>
                     memory.DeletedAt == null
@@ -62,6 +70,12 @@ public sealed class PublicProfileService : SkeletonService, IPublicProfileServic
                     && (memory.ShowOnPublicProfile || memory.ShowInLifeTimeline))
                 .OrderByDescending(memory => memory.MomentDate)
                 .ThenByDescending(memory => memory.CreatedAt)
+                .ToArray()
+            : Array.Empty<PetMemory>();
+        var memoryMedia = publicMemories.Length == 0
+            ? new Dictionary<Guid, MemoryMediaResponse[]>()
+            : await LoadPublicMemoryMediaAsync(publicMemories.Select(memory => memory.Id).ToArray(), cancellationToken);
+        var memories = publicMemories
                 .Select(memory => new PublicMemorySummaryResponse(
                     memory.Title,
                     memory.MomentDate,
@@ -69,9 +83,9 @@ public sealed class PublicProfileService : SkeletonService, IPublicProfileServic
                     memory.Caption,
                     memory.ShowOnPublicProfile,
                     memory.ShowInLifeTimeline,
-                    memory.TimelineNote))
-                .ToArray()
-            : Array.Empty<PublicMemorySummaryResponse>();
+                    memory.TimelineNote,
+                    memoryMedia.TryGetValue(memory.Id, out var media) ? media : Array.Empty<MemoryMediaResponse>()))
+                .ToArray();
 
         var careRecords = profile.ShowCareBadges
             ? pet.CareRecords
@@ -101,10 +115,44 @@ public sealed class PublicProfileService : SkeletonService, IPublicProfileServic
             pet.LostModeEnabled && pet.LifecycleStatus == PetLifecycleStatus.Active,
             profile.ShowOwnerName ? PetDtoMapper.ResolveOwnerDisplayName(pet) : null,
             profile.ShowGeneralArea ? PetDtoMapper.ResolveGeneralArea(pet) : null,
+            PetDtoMapper.ResolvePublicMediaUrl(pet.ProfileMediaFile, _r2Options.PublicBaseUrl),
+            PetDtoMapper.ResolvePublicMediaUrl(pet.CoverMediaFile, _r2Options.PublicBaseUrl),
             pet.Bio,
             pet.LifecycleStatus == PetLifecycleStatus.Memorial ? pet.MemorialMessage : null,
             memories,
             careRecords);
+    }
+
+    private async Task<Dictionary<Guid, MemoryMediaResponse[]>> LoadPublicMemoryMediaAsync(
+        IReadOnlyCollection<Guid> memoryIds,
+        CancellationToken cancellationToken)
+    {
+        var links = await _dbContext.MediaFileLinks
+            .AsNoTracking()
+            .Include(link => link.MediaFile)
+            .Where(link =>
+                memoryIds.Contains(link.OwnerId)
+                && link.OwnerType == MediaOwnerType.PetMemory
+                && link.ArchivedAt == null
+                && link.MediaFile.UploadStatus == MediaUploadStatus.Ready
+                && link.MediaFile.IsPublic
+                && link.MediaFile.DeletedAt == null)
+            .OrderBy(link => link.SortOrder)
+            .ToListAsync(cancellationToken);
+
+        return links
+            .GroupBy(link => link.OwnerId)
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .Select(link => new MemoryMediaResponse(
+                        link.MediaFileId,
+                        link.MediaFile.MediaType == MediaFileType.Video ? "video" : "image",
+                        PetDtoMapper.ResolvePublicMediaUrl(link.MediaFile, _r2Options.PublicBaseUrl),
+                        link.Caption,
+                        link.AltText,
+                        link.SortOrder))
+                    .ToArray());
     }
 
     private static ApiException NotFound()

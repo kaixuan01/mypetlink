@@ -8,6 +8,7 @@ type ImageUploadFieldProps = {
   label: string;
   value: string;
   onChange: (dataUrl: string) => void;
+  onFileSelected?: (file?: File) => void;
   helper?: string;
   error?: string;
   shape?: "square" | "wide";
@@ -18,6 +19,7 @@ export function ImageUploadField({
   label,
   value,
   onChange,
+  onFileSelected,
   helper,
   error,
   shape = "wide",
@@ -45,6 +47,7 @@ export function ImageUploadField({
 
     try {
       const dataUrl = await readImageAsDataUrl(file);
+      onFileSelected?.(file);
       onChange(dataUrl);
     } catch (caught) {
       setLocalError(
@@ -91,6 +94,7 @@ export function ImageUploadField({
               className="inline-flex min-h-10 items-center gap-2 rounded-full border border-pet-border bg-white px-4 py-2 text-sm font-bold text-pet-coral transition hover:bg-pet-apricot"
               onClick={() => {
                 setLocalError("");
+                onFileSelected?.(undefined);
                 onChange("");
               }}
               type="button"
@@ -112,7 +116,7 @@ export function ImageUploadField({
             {isReading ? "Adding photo..." : "Click to upload a photo"}
           </span>
           <span className="text-xs font-semibold text-pet-muted">
-            JPG or PNG, up to 8MB
+            JPG, PNG, or WebP, up to 10MB
           </span>
         </label>
       )}

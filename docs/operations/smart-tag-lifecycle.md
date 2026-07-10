@@ -2,6 +2,8 @@
 
 This document defines Phase 1 smart tag lifecycle rules. The owner Smart Tags + Orders backend slice is implemented. As of 2026-07-04 the admin side is implemented too: registry list/search (`/api/v1/admin/tags`), audited status actions (`disable`, `mark-lost`, `replace`, `archive`, `restore`), inventory generation (`POST /api/v1/admin/tag-inventory/generate`), and manufacturer CSV export (`GET /api/v1/admin/tag-inventory/export`). Real file storage remains planned later.
 
+> **Launch state:** new Smart Tag **ordering is disabled** for the initial free-profiles launch (`Features:SmartTagOrderingEnabled = false`). Owners can still use free QR Safety Pages and Public Share Profiles; the owner UI shows "Smart Tags coming soon". The `/t/:tagCode` scan behaviour and all lifecycle rules below stay intact for existing/test tags and for when ordering is re-enabled — do not promote `/t` as orderable while the flag is off.
+
 ## Route And QR Model
 
 Three distinct public routes, each with its own QR code shown in the UI:

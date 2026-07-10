@@ -138,6 +138,33 @@ public enum MediaOwnerType
     Other
 }
 
+public enum MediaFileType
+{
+    Image,
+    Video,
+    Document
+}
+
+public enum MediaUploadCategory
+{
+    Other,
+    PetProfilePhoto,
+    PetCoverPhoto,
+    MomentImage,
+    MomentVideo,
+    VaccinationDocument,
+    MedicalDocument,
+    OrderReceipt
+}
+
+public enum MediaUploadStatus
+{
+    Pending,
+    Ready,
+    Failed,
+    Deleted
+}
+
 public enum TagScanResolvedState
 {
     Active,

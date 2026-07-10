@@ -176,6 +176,33 @@ public interface ICareRecordService : ISkeletonService
         CancellationToken cancellationToken = default);
 }
 
+public interface IMediaService : ISkeletonService
+{
+    Task<MediaUploadResponse> InitializeUploadAsync(
+        Guid? currentUserId,
+        InitializeMediaUploadRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<CompleteMediaUploadResponse> CompleteUploadAsync(
+        Guid? currentUserId,
+        Guid mediaId,
+        CancellationToken cancellationToken = default);
+
+    Task DeleteAsync(
+        Guid? currentUserId,
+        Guid mediaId,
+        CancellationToken cancellationToken = default);
+
+    Task<MediaDownloadUrlResponse> CreatePrivateDownloadUrlAsync(
+        Guid? currentUserId,
+        Guid mediaId,
+        CancellationToken cancellationToken = default);
+
+    Task<int> DeleteStalePendingUploadsAsync(
+        TimeSpan olderThan,
+        CancellationToken cancellationToken = default);
+}
+
 public interface IQrSafetyService : ISkeletonService
 {
     Task<PublicSafetyPageResponse> GetBySafetyCodeAsync(

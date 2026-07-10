@@ -16,7 +16,8 @@ You will need three sessions to cover auth: **anonymous** (no token), a **non-ad
 | Check | Request | Expected |
 | --- | --- | --- |
 | Health | `GET {API}/api/v1/health` | `200` `{ "status": "ok", "service": "MyPetLink.Api" }` |
-| Swagger (dev only) | open `{API}/swagger` | UI loads (disabled in Production) |
+| Swagger (dev only) | open `{API}/swagger` | Local Development: UI loads. Production: `404`. |
+| Dev test login guard | `POST {API}/api/v1/dev/test-login` | Local Development only: session response. Production: `404`. |
 | Auth required | `GET {API}/api/v1/auth/me` (no token) | `401` |
 | Admin anonymous | `GET {API}/api/v1/admin/auth/check` (no token) | `401` |
 | Admin non-admin | `GET {API}/api/v1/admin/auth/check` (owner token) | `403` |
@@ -39,16 +40,16 @@ curl -s -H "Authorization: Bearer $ADMIN" "$API/api/v1/admin/auth/check"        
 5. **QR Safety `/q`** — open `/q/:safetyCode`; renders finder-first content.
 6. **Care record** — create one on the pet; edit it; reload and confirm it persists.
 7. **Memory (public + private)** — create a Public memory and a Private memory; confirm the public one appears on `/p/`, the private one does not.
-8. **Smart tag order** — order a tag; confirm the price is set server-side (owner does not send it).
-9. **Payment proof** — submit a proof; confirm it records metadata only (file name/reference, no file bytes).
-10. **Order Summary PDF** — before payment is confirmed, download the Order Summary PDF; confirm it opens, is titled "Order Summary", and does not show "Official Receipt" or "Paid". Confirm no `.txt` download remains.
+8. **Smart tag ordering flag** — for the initial free-profiles launch, confirm Smart Tag order CTAs are hidden/coming soon and direct `POST {API}/api/v1/orders` returns `403 feature_disabled`. If ordering is explicitly enabled later, order a tag and confirm the price is set server-side (owner does not send it).
+9. **Payment proof** — only when ordering is enabled: submit a proof; confirm it records metadata only (file name/reference, no file bytes).
+10. **Order Summary PDF** — only when ordering is enabled: before payment is confirmed, download the Order Summary PDF; confirm it opens, is titled "Order Summary", and does not show "Official Receipt" or "Paid". Confirm no `.txt` download remains.
 11. **Logout** — session clears; a protected page (`/pets`) redirects to `/login`.
 
 ## 3. Admin flow (frontend, admin account)
 
 1. **Dashboard** — `/admin` loads real counts.
 2. **Orders** — `/admin/orders` lists real orders with filters.
-3. **Confirm payment** — on the submitted-proof order, click Confirm Payment; owner order reflects Payment Confirmed. Owner can now download the **Receipt PDF** (shows "PAID" + confirmed date); admin can download the same Order Summary / Receipt PDFs from `/admin/orders`.
+3. **Confirm payment** — only when ordering is enabled: on the submitted-proof order, click Confirm Payment; owner order reflects Payment Confirmed. Owner can now download the **Receipt PDF** (shows "PAID" + confirmed date); admin can download the same Order Summary / Receipt PDFs from `/admin/orders`.
 4. **Assign inventory tag** — assign a matching (same tag type + variant) unclaimed inventory tag to the confirmed order; confirm a wrong-variant tag is rejected. The owner order now shows the assigned physical tag, but it is not active yet.
 5. **Preparing** — Mark Preparing; linked tag stays Preparing.
 6. **Shipped** — Mark Shipped (optionally with tracking number).

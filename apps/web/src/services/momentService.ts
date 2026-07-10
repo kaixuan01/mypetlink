@@ -8,6 +8,7 @@ import {
 } from "@/services/mockApi";
 import { apiRequest, isApiClientError } from "@/services/apiClient";
 import { canUseApi } from "@/services/apiConfig";
+import { uploadMediaFile } from "@/services/mediaService";
 import type {
   BackendMemory,
   BackendMemoryMedia,
@@ -143,19 +144,34 @@ export async function createPetMoment(
   payload: PetMomentPayload
 ) {
   if (canUseApi()) {
-    assertNoBackendMedia(payload.media);
-
     const response = await apiRequest<BackendMemory>(
       `/api/v1/pets/${encodeURIComponent(petId)}/memories`,
       {
         method: "POST",
-        body: buildBackendMomentPayload(payload),
+        body: buildBackendMomentPayload({ ...payload, media: [] }),
       }
     );
-    const moment = response.data ? mapBackendMoment(response.data) : null;
+    let moment = response.data ? mapBackendMoment(response.data) : null;
 
     if (!moment) {
       throw new Error("Moment was not returned after saving.");
+    }
+
+    if (payload.media?.length) {
+      const media = await uploadMomentMediaFiles(petId, moment.id, payload.media);
+      const updateResponse = await apiRequest<BackendMemory>(
+        `/api/v1/memories/${encodeURIComponent(moment.id)}`,
+        {
+          method: "PUT",
+          body: buildBackendMomentPayload({
+            ...payload,
+            media,
+            coverMediaId: payload.coverMediaId,
+          }),
+        }
+      );
+
+      moment = updateResponse.data ? mapBackendMoment(updateResponse.data) : moment;
     }
 
     return apiResponse(moment, response.meta);
@@ -187,17 +203,23 @@ export async function createPetMoment(
 
 export async function updatePetMoment(
   momentId: string,
-  payload: PetMomentPayload
+  payload: PetMomentPayload,
+  petId?: string
 ) {
   if (canUseApi()) {
-    assertNoBackendMedia(payload.media);
-
     try {
+      const media = payload.media?.some((item) => item.sourceFile)
+        ? await uploadMomentMediaFiles(
+            requirePetIdForMediaUpload(petId),
+            momentId,
+            payload.media
+          )
+        : stripTransientMediaFiles(payload.media);
       const response = await apiRequest<BackendMemory>(
         `/api/v1/memories/${encodeURIComponent(momentId)}`,
         {
           method: "PUT",
-          body: buildBackendMomentPayload(payload),
+          body: buildBackendMomentPayload({ ...payload, media }),
         }
       );
 
@@ -315,6 +337,7 @@ function buildBackendMomentPayload(payload: PetMomentPayload) {
     showOnPublicProfile: isPublic && Boolean(payload.showOnPublicProfile),
     showInLifeTimeline: isPublic && Boolean(payload.showInLifeTimeline),
     timelineNote: payload.timelineNote,
+    mediaFileIds: toBackendMediaFileIds(payload.media, payload.coverMediaId),
   };
 }
 
@@ -347,7 +370,8 @@ function mapBackendPublicMoment(
     date: toDisplayDate(moment.momentDate),
     type: fromBackendMomentType(moment.type),
     caption: moment.caption ?? "",
-    media: [],
+    media: (moment.media ?? []).map(mapBackendMedia),
+    coverMediaId: moment.media?.[0]?.id,
     visibility: "Public",
     showOnPublicProfile: moment.showOnPublicProfile,
     showInLifeTimeline: moment.showInLifeTimeline,
@@ -358,7 +382,7 @@ function mapBackendPublicMoment(
 function mapBackendMedia(media: BackendMemoryMedia): MomentMedia {
   return {
     id: media.id,
-    type: media.type === "video" ? "video" : "image",
+    type: media.type.toLowerCase() === "video" ? "video" : "image",
     url: media.url ?? "",
     caption: media.caption ?? undefined,
     altText: media.altText ?? undefined,
@@ -398,12 +422,67 @@ function fromBackendMomentType(type?: string | null): MomentType {
   }
 }
 
-function assertNoBackendMedia(media?: MomentMedia[]) {
-  if (media?.length) {
-    throw new Error(
-      "Photo and video upload is coming later. Save the memory without media for now."
-    );
+async function uploadMomentMediaFiles(
+  petId: string,
+  momentId: string,
+  media: MomentMedia[]
+) {
+  const ordered = [...media].sort((a, b) => a.sortOrder - b.sortOrder);
+  const uploaded: MomentMedia[] = [];
+
+  for (const item of ordered) {
+    if (!item.sourceFile) {
+      uploaded.push({ ...item, sourceFile: undefined });
+      continue;
+    }
+
+    const completed = await uploadMediaFile({
+      file: item.sourceFile,
+      category: item.type === "video" ? "MomentVideo" : "MomentImage",
+      petId,
+      momentId,
+    });
+
+    uploaded.push({
+      id: completed.mediaId,
+      type: item.type,
+      url: completed.publicUrl ?? item.url ?? "",
+      altText: item.altText ?? completed.originalFileName,
+      caption: item.caption,
+      sortOrder: item.sortOrder,
+    });
   }
+
+  return uploaded;
+}
+
+function stripTransientMediaFiles(media?: MomentMedia[]) {
+  return media?.map((item) => ({ ...item, sourceFile: undefined }));
+}
+
+function requirePetIdForMediaUpload(petId?: string) {
+  if (!petId) {
+    throw new Error("Pet profile is required before uploading media.");
+  }
+
+  return petId;
+}
+
+function toBackendMediaFileIds(media?: MomentMedia[], coverMediaId?: string) {
+  if (!media?.length) {
+    return [];
+  }
+
+  const ids = [...media]
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map((item) => item.id)
+    .filter(Boolean);
+
+  if (!coverMediaId || !ids.includes(coverMediaId)) {
+    return ids;
+  }
+
+  return [coverMediaId, ...ids.filter((id) => id !== coverMediaId)];
 }
 
 function toDisplayDate(value?: string | null) {

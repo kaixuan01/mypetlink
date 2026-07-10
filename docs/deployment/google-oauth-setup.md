@@ -20,7 +20,8 @@ MyPetLink signs in with **Google Identity Services (GIS)**: the frontend renders
    - Name: e.g. "MyPetLink Web".
    - **Authorized JavaScript origins** — add each origin that serves the button:
      - Local dev: `http://localhost:3000`
-     - Production frontend: `https://mypetlink.com.my` (and `https://www.mypetlink.com.my` if used)
+     - Production frontend: `https://mypetlink.com.my`
+     - Production `www` frontend: `https://www.mypetlink.com.my` if `www` is served or redirected through Cloudflare Pages
    - **Authorized redirect URIs**: leave empty for the GIS ID-token flow.
    - The **backend origin** (`https://api.mypetlink.com.my`) does **not** need to be listed — the API validates tokens server-side and does not render the button.
 4. Copy the generated **Client ID** (`<id>.apps.googleusercontent.com`).
@@ -38,6 +39,7 @@ MyPetLink signs in with **Google Identity Services (GIS)**: the frontend renders
 - Set `NEXT_PUBLIC_GOOGLE_CLIENT_ID` in Cloudflare Pages (Production) and **rebuild** the frontend (value is baked at build time).
 - Set `GoogleAuth:ClientId` in the API host to the **same** client id.
 - Publish the OAuth consent screen so non-test users can sign in.
+- Do not add `https://api.mypetlink.com.my` as a JavaScript origin unless the API itself later renders a Google button. The current API only validates ID tokens posted by the frontend.
 
 ## How to test
 

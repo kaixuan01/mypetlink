@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using MyPetLink.Api.Common;
 using MyPetLink.Api.Data;
 using MyPetLink.Api.DTOs;
@@ -14,10 +15,12 @@ public sealed class OrderService : SkeletonService, IOrderService
     private const string Currency = "MYR";
 
     private readonly MyPetLinkDbContext _dbContext;
+    private readonly FeatureOptions _features;
 
-    public OrderService(MyPetLinkDbContext dbContext)
+    public OrderService(MyPetLinkDbContext dbContext, IOptions<FeatureOptions> features)
     {
         _dbContext = dbContext;
+        _features = features.Value;
     }
 
     public async Task<(IReadOnlyCollection<TagOrderResponse> Items, int Total)> ListAsync(
@@ -79,6 +82,11 @@ public sealed class OrderService : SkeletonService, IOrderService
         CreateTagOrderRequest request,
         CancellationToken cancellationToken = default)
     {
+        if (!_features.SmartTagOrderingEnabled)
+        {
+            throw FeatureDisabled();
+        }
+
         var userId = RequireUserId(currentUserId);
         await EnsureUserExistsAsync(userId, cancellationToken);
         ValidateCreateRequest(request);
@@ -175,7 +183,7 @@ public sealed class OrderService : SkeletonService, IOrderService
         }
 
         var mediaFile = request.MediaFileId.HasValue
-            ? await LoadOwnedMediaFileAsync(userId, request.MediaFileId.Value, cancellationToken)
+            ? await LoadOwnedMediaFileAsync(userId, order.Id, request.MediaFileId.Value, cancellationToken)
             : CreateMetadataOnlyMediaFile(userId, request.FileName);
         var fileName = NormalizeOptional(request.FileName)
             ?? NormalizeOptional(mediaFile.OriginalFileName)
@@ -342,6 +350,7 @@ public sealed class OrderService : SkeletonService, IOrderService
 
     private async Task<MediaFile> LoadOwnedMediaFileAsync(
         Guid userId,
+        Guid orderId,
         Guid mediaFileId,
         CancellationToken cancellationToken)
     {
@@ -349,10 +358,26 @@ public sealed class OrderService : SkeletonService, IOrderService
             file =>
                 file.Id == mediaFileId
                 && file.OwnerUserId == userId
+                && file.UploadStatus == MediaUploadStatus.Ready
+                && file.Category == MediaUploadCategory.OrderReceipt
+                && !file.IsPublic
                 && file.DeletedAt == null,
             cancellationToken);
 
-        return mediaFile ?? throw NotFound("Payment proof file was not found.");
+        if (mediaFile is null)
+        {
+            throw NotFound("Payment proof file was not found.");
+        }
+
+        var linkedToOrder = await _dbContext.MediaFileLinks.AnyAsync(
+            link =>
+                link.MediaFileId == mediaFile.Id
+                && link.OwnerType == MediaOwnerType.TagOrder
+                && link.OwnerId == orderId
+                && link.ArchivedAt == null,
+            cancellationToken);
+
+        return linkedToOrder ? mediaFile : throw NotFound("Payment proof file was not found.");
     }
 
     private static MediaFile CreateMetadataOnlyMediaFile(Guid userId, string? fileName)
@@ -528,6 +553,14 @@ public sealed class OrderService : SkeletonService, IOrderService
     private static ApiException InvalidState(string message)
     {
         return new ApiException(StatusCodes.Status422UnprocessableEntity, "invalid_order_state", message);
+    }
+
+    private static ApiException FeatureDisabled()
+    {
+        return new ApiException(
+            StatusCodes.Status403Forbidden,
+            "feature_disabled",
+            "Smart Tag ordering is not available yet. Your free QR Safety Page is still active.");
     }
 
     private static ApiException NotFound(string message)

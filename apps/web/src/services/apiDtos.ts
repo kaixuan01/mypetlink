@@ -100,6 +100,10 @@ export type BackendPetDetail = {
   safetyCode: string;
   publicProfilePath: string;
   qrSafetyPath: string;
+  profileMediaId?: string | null;
+  coverMediaId?: string | null;
+  profilePhotoUrl?: string | null;
+  coverPhotoUrl?: string | null;
   contact: BackendPetContact;
   visibility: BackendPetVisibility;
   safetyNote?: string | null;
@@ -122,6 +126,10 @@ export type BackendPetListItem = Pick<
   | "lostModeEnabled"
   | "publicProfilePath"
   | "qrSafetyPath"
+  | "profileMediaId"
+  | "coverMediaId"
+  | "profilePhotoUrl"
+  | "coverPhotoUrl"
   | "createdAt"
   | "updatedAt"
 >;
@@ -137,6 +145,8 @@ export type BackendPublicPetProfile = {
   ownerDisplayName?: string | null;
   generalArea?: string | null;
   bio?: string | null;
+  profilePhotoUrl?: string | null;
+  coverPhotoUrl?: string | null;
   memorialMessage?: string | null;
   memories: BackendPublicMemory[];
   careRecords: BackendPublicCareRecord[];
@@ -179,6 +189,7 @@ export type BackendPublicMemory = {
   showOnPublicProfile: boolean;
   showInLifeTimeline: boolean;
   timelineNote?: string | null;
+  media: BackendMemoryMedia[];
 };
 
 export type BackendCareRecordType =
@@ -237,6 +248,8 @@ export type BackendPublicSafetyPage = {
   lostMessage?: string | null;
   lostRewardNote?: string | null;
   lostExtraContactInstruction?: string | null;
+  profilePhotoUrl?: string | null;
+  coverPhotoUrl?: string | null;
   showFoundLocationAction: boolean;
   contact?: {
     ownerDisplayName?: string | null;
@@ -383,4 +396,52 @@ export type BackendTagScanPage = {
   tagCode: string;
   status?: BackendSmartTagStatus | string | null;
   profile?: BackendPublicSafetyPage | null;
+};
+
+export type BackendMediaUploadCategory =
+  | "Other"
+  | "PetProfilePhoto"
+  | "PetCoverPhoto"
+  | "MomentImage"
+  | "MomentVideo"
+  | "VaccinationDocument"
+  | "MedicalDocument"
+  | "OrderReceipt";
+
+export type BackendMediaFileType = "Image" | "Video" | "Document";
+
+export type BackendMediaUploadStatus =
+  | "Pending"
+  | "Ready"
+  | "Failed"
+  | "Deleted";
+
+export type BackendMediaUploadResponse = {
+  mediaId: string;
+  category: BackendMediaUploadCategory;
+  mediaType: BackendMediaFileType;
+  status: BackendMediaUploadStatus;
+  isPublic: boolean;
+  uploadUrl: string;
+  method: "PUT";
+  requiredHeaders: Record<string, string>;
+  expiresAt: string;
+};
+
+export type BackendCompleteMediaUploadResponse = {
+  mediaId: string;
+  category: BackendMediaUploadCategory;
+  mediaType: BackendMediaFileType;
+  status: BackendMediaUploadStatus;
+  isPublic: boolean;
+  publicUrl?: string | null;
+  completedAt: string;
+};
+
+export type BackendMediaDownloadUrlResponse = {
+  mediaId: string;
+  downloadUrl: string;
+  expiresAt: string;
+  contentType: string;
+  originalFileName: string;
 };

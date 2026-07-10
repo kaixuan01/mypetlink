@@ -275,6 +275,8 @@ function normalizePet(pet: Pet): Pet {
     coverPhotoLabel: cleanMediaLabel(pet.coverPhotoLabel),
     photoUrl: pet.photoUrl ?? "",
     coverUrl: pet.coverUrl ?? "",
+    profileMediaId: pet.profileMediaId,
+    coverMediaId: pet.coverMediaId,
     profileTheme: pet.profileTheme ?? "default",
     lifecycleStatus: normalizeLifecycleStatus(pet.lifecycleStatus),
     previousLifecycleStatus:
@@ -451,8 +453,10 @@ export function mapBackendPetToFrontend(
     photoTone: getPhotoTone(species.species),
     profilePhotoLabel: "",
     coverPhotoLabel: "",
-    photoUrl: "",
-    coverUrl: "",
+    photoUrl: pet.profilePhotoUrl ?? "",
+    coverUrl: pet.coverPhotoUrl ?? "",
+    profileMediaId: pet.profileMediaId ?? undefined,
+    coverMediaId: pet.coverMediaId ?? undefined,
     profileTheme: getProfileTheme(detail?.profileTheme),
     lifecycleStatus: pet.lifecycleStatus,
     previousLifecycleStatus:
@@ -536,8 +540,8 @@ function mapBackendPublicProfile(profile: BackendPublicPetProfile): PublicPetPro
       photoTone: getPhotoTone(species.species),
       profilePhotoLabel: "",
       coverPhotoLabel: "",
-      photoUrl: "",
-      coverUrl: "",
+      photoUrl: profile.profilePhotoUrl ?? "",
+      coverUrl: profile.coverPhotoUrl ?? "",
       profileTheme: "default",
       lifecycleStatus: profile.lifecycleStatus,
       previousLifecycleStatus:
@@ -612,8 +616,8 @@ export function mapBackendSafetyPage(page: BackendPublicSafetyPage): PublicPetPr
       photoTone: getPhotoTone(species.species),
       profilePhotoLabel: "",
       coverPhotoLabel: "",
-      photoUrl: "",
-      coverUrl: "",
+      photoUrl: page.profilePhotoUrl ?? "",
+      coverUrl: page.coverPhotoUrl ?? "",
       profileTheme: "default",
       lifecycleStatus: page.lifecycleStatus,
       previousLifecycleStatus:

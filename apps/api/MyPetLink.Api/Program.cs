@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 using MyPetLink.Api.Auth;
 using MyPetLink.Api.Common;
@@ -24,6 +25,11 @@ const string FrontendCorsPolicy = "MyPetLinkFrontend";
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
 builder.Services.Configure<GoogleAuthOptions>(builder.Configuration.GetSection(GoogleAuthOptions.SectionName));
 builder.Services.Configure<StorageOptions>(builder.Configuration.GetSection(StorageOptions.SectionName));
+builder.Services.AddOptions<CloudflareR2Options>()
+    .Bind(builder.Configuration.GetSection(CloudflareR2Options.SectionName))
+    .ValidateOnStart();
+builder.Services.AddSingleton<IValidateOptions<CloudflareR2Options>, CloudflareR2OptionsValidator>();
+builder.Services.Configure<FeatureOptions>(builder.Configuration.GetSection(FeatureOptions.SectionName));
 builder.Services.Configure<AdminSeedOptions>(builder.Configuration.GetSection(AdminSeedOptions.SectionName));
 
 builder.Services.AddHttpContextAccessor();
@@ -186,6 +192,7 @@ builder.Services.AddScoped<IPetService, PetService>();
 builder.Services.AddScoped<IPublicProfileService, PublicProfileService>();
 builder.Services.AddScoped<IMemoryService, MemoryService>();
 builder.Services.AddScoped<ICareRecordService, CareRecordService>();
+builder.Services.AddScoped<IMediaService, MediaService>();
 builder.Services.AddScoped<IQrSafetyService, QrSafetyService>();
 builder.Services.AddScoped<ITagScanService, TagScanService>();
 builder.Services.AddScoped<ISmartTagService, SmartTagService>();
@@ -195,6 +202,7 @@ builder.Services.AddScoped<IPaymentProofService, PaymentProofService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<IFileStorageProvider, LocalFileStorageProvider>();
+builder.Services.AddSingleton<IObjectStorageService, CloudflareR2StorageService>();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>

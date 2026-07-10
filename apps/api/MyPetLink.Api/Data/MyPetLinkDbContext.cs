@@ -206,6 +206,8 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.Property(item => item.LifecycleStatus).HasConversion<string>().HasMaxLength(32);
             entity.Property(item => item.PreviousLifecycleStatus).HasConversion<string>().HasMaxLength(32);
             entity.HasIndex(item => item.OwnerUserId);
+            entity.HasIndex(item => item.ProfileMediaFileId);
+            entity.HasIndex(item => item.CoverMediaFileId);
             entity.HasIndex(item => new { item.OwnerUserId, item.LifecycleStatus });
             entity.HasIndex(item => item.LifecycleStatus);
             entity.HasIndex(item => item.LostModeEnabled);
@@ -213,6 +215,14 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasOne(item => item.OwnerUser)
                 .WithMany(user => user.Pets)
                 .HasForeignKey(item => item.OwnerUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.ProfileMediaFile)
+                .WithMany()
+                .HasForeignKey(item => item.ProfileMediaFileId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.CoverMediaFile)
+                .WithMany()
+                .HasForeignKey(item => item.CoverMediaFileId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -306,15 +316,40 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.Property(item => item.ContentType).HasMaxLength(120);
             entity.Property(item => item.StorageProvider).HasMaxLength(64);
             entity.Property(item => item.StoragePath).HasMaxLength(600);
+            entity.Property(item => item.BucketName).HasMaxLength(160);
+            entity.Property(item => item.ObjectKey).HasMaxLength(600);
+            entity.Property(item => item.ThumbnailObjectKey).HasMaxLength(600);
+            entity.Property(item => item.MediaType)
+                .HasConversion<string>()
+                .HasMaxLength(32);
+            entity.Property(item => item.Category)
+                .HasConversion<string>()
+                .HasMaxLength(64);
+            entity.Property(item => item.UploadStatus)
+                .HasConversion<string>()
+                .HasMaxLength(32);
             entity.Property(item => item.Sha256).HasMaxLength(128);
             entity.HasIndex(item => item.OwnerUserId);
+            entity.HasIndex(item => item.PetId);
             entity.HasIndex(item => item.StorageProvider);
+            entity.HasIndex(item => new { item.BucketName, item.ObjectKey })
+                .IsUnique()
+                .HasFilter("[ObjectKey] <> ''");
+            entity.HasIndex(item => item.MediaType);
+            entity.HasIndex(item => item.Category);
+            entity.HasIndex(item => item.UploadStatus);
+            entity.HasIndex(item => item.IsPublic);
             entity.HasIndex(item => item.Sha256);
             entity.HasIndex(item => item.UploadedAt);
+            entity.HasIndex(item => item.CompletedAt);
             entity.HasIndex(item => item.DeletedAt);
             entity.HasOne(item => item.OwnerUser)
                 .WithMany()
                 .HasForeignKey(item => item.OwnerUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.Pet)
+                .WithMany(pet => pet.MediaFiles)
+                .HasForeignKey(item => item.PetId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

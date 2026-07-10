@@ -93,9 +93,56 @@ Key decisions:
 
 See [`environment-variables.md`](environment-variables.md) for the full table with secret flags and the real config-key names (note: the backend connection-string key is `ConnectionStrings__MyPetLinkDb`, not `DefaultConnection`).
 
+Required production values for the current target:
+
+Backend Azure App Service:
+
+- `ASPNETCORE_ENVIRONMENT=Production`
+- `ConnectionStrings__MyPetLinkDb=<Azure SQL connection string>` (secret; store as an App Service SQL Server connection string)
+- `Jwt__SigningKey=<long random secret, at least 32 chars>` (secret)
+- `Jwt__Issuer=MyPetLink.Api`
+- `Jwt__Audience=MyPetLink.Production`
+- `GoogleAuth__ClientId=<same Web client id as frontend>`
+- `Cors__AllowedOrigins__0=https://mypetlink.com.my`
+- `Cors__AllowedOrigins__1=https://www.mypetlink.com.my` if `www` is served
+- `Features__SmartTagOrderingEnabled=false` for the initial free-profiles launch
+
+Frontend Cloudflare Pages:
+
+- `NEXT_PUBLIC_SITE_URL=https://mypetlink.com.my`
+- `NEXT_PUBLIC_API_BASE_URL=https://api.mypetlink.com.my`
+- `NEXT_PUBLIC_GOOGLE_CLIENT_ID=<same Web client id as backend>`
+- `NEXT_PUBLIC_SMART_TAG_ORDERING_ENABLED=false` for the initial free-profiles launch
+
+`PublicApp__BaseUrl=https://mypetlink.com.my` is not currently consumed by the .NET API; public link generation uses `NEXT_PUBLIC_SITE_URL` in the static frontend.
+
 ## 4. Google OAuth production setup
 
 See [`google-oauth-setup.md`](google-oauth-setup.md).
+
+Authorized JavaScript origins:
+
+- `https://mypetlink.com.my`
+- `https://www.mypetlink.com.my` if the `www` host is served or redirected through Cloudflare Pages
+
+No Authorized redirect URI is required for the current Google Identity Services ID-token flow. The API subdomain does not render the Google button; it only validates the posted ID token.
+
+## 4a. DNS and custom domains
+
+Target domains:
+
+| Host | Target | Purpose |
+| --- | --- | --- |
+| `mypetlink.com.my` | Cloudflare Pages custom domain | Production frontend |
+| `www.mypetlink.com.my` | Cloudflare Pages custom domain or redirect to apex | Production `www` frontend |
+| `api.mypetlink.com.my` | Azure App Service custom domain | .NET API |
+
+Implementation notes:
+
+- Add `mypetlink.com.my` and `www.mypetlink.com.my` as custom domains in the Cloudflare Pages project, then create the DNS records Cloudflare Pages requests.
+- Add `api.mypetlink.com.my` as a custom domain in Azure App Service, verify ownership using the Azure-provided TXT/CNAME validation record, then bind TLS.
+- Keep frontend and API on separate origins. CORS must allow only the frontend origin(s), never `*`.
+- After DNS is live, test `https://mypetlink.com.my`, `https://www.mypetlink.com.my`, and `https://api.mypetlink.com.my/api/v1/health`.
 
 ## 5. Database deployment plan
 
@@ -116,6 +163,18 @@ Do **not** create new migrations. Production uses the existing `InitialCreate` m
 4. **Verify tables** (expect 24 including `__EFMigrationsHistory`): `Users`, `ExternalLogins`, `RefreshTokens`, `OwnerProfiles`, `AdminUsers`, `Plans`, `PlanLimits`, `Pets`, `PetContacts`, `PetPublicProfiles`, `PetSafetySettings`, `PetMemories`, `CareRecords`, `MediaFiles`, `MediaFileLinks`, `SmartTagBatches`, `SmartTags`, `TagOrders`, `PaymentProofs`, `TagScans`, `FoundReports`, `AuditLogs`, `AppSettings`.
 5. **Seed data.** The `InitialCreate` migration already seeds via EF `HasData` (idempotent, safe for prod): the **Free** plan (Available), the **Premium** plan (ComingSoon), **PlanLimits** for both (Free = 3 pets / 10 memories per pet), and 5 **AppSettings** (tag prices, Premium/GPS status labels, manual payment mode). No separate seed script is needed for these.
 6. **Seed the first admin** manually — see [`first-admin-setup.md`](first-admin-setup.md). This is **not** part of any migration.
+
+Connection string shape for Azure SQL:
+
+```txt
+Server=tcp:<server-name>.database.windows.net,1433;Initial Catalog=<database-name>;Persist Security Info=False;User ID=<user>;Password=<password>;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;
+```
+
+Azure SQL firewall/network requirements:
+
+- Allow the Azure App Service outbound access to the database. The simplest Phase 1 option is to enable the Azure SQL setting that allows Azure services/resources to access the server, then tighten later with VNet integration/private endpoints when needed.
+- If applying migrations from a local machine, temporarily allow that machine's public IP, run the migration/script, then remove the rule.
+- Keep the production database connection string out of source control and local `.env` files.
 
 ### Backup strategy
 

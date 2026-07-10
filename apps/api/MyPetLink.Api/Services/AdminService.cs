@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using MyPetLink.Api.Common;
 using MyPetLink.Api.Data;
 using MyPetLink.Api.DTOs;
@@ -16,11 +17,16 @@ public sealed class AdminService : SkeletonService, IAdminService
 
     private readonly MyPetLinkDbContext _dbContext;
     private readonly IAuditLogService _auditLogService;
+    private readonly FeatureOptions _features;
 
-    public AdminService(MyPetLinkDbContext dbContext, IAuditLogService auditLogService)
+    public AdminService(
+        MyPetLinkDbContext dbContext,
+        IAuditLogService auditLogService,
+        IOptions<FeatureOptions> features)
     {
         _dbContext = dbContext;
         _auditLogService = auditLogService;
+        _features = features.Value;
     }
 
     // --- Dashboard ------------------------------------------------------------
@@ -986,6 +992,8 @@ public sealed class AdminService : SkeletonService, IAdminService
             .AsNoTracking()
             .Include(pet => pet.PublicProfile)
             .Include(pet => pet.SafetySetting)
+            .Include(pet => pet.ProfileMediaFile)
+            .Include(pet => pet.CoverMediaFile)
             .Where(pet => pet.OwnerUserId == ownerUserId && pet.DeletedAt == null)
             .OrderByDescending(pet => pet.CreatedAt)
             .ToListAsync(cancellationToken);
@@ -1003,7 +1011,7 @@ public sealed class AdminService : SkeletonService, IAdminService
 
         return new AdminOwnerDetailResponse(
             owner,
-            pets.Select(PetDtoMapper.ToListItem).ToArray(),
+            pets.Select(pet => PetDtoMapper.ToListItem(pet)).ToArray(),
             orders.Select(TagDtoMapper.ToOrderResponse).ToArray(),
             tags.Select(TagDtoMapper.ToSmartTagResponse).ToArray());
     }
@@ -1054,6 +1062,8 @@ public sealed class AdminService : SkeletonService, IAdminService
             .Include(pet => pet.OwnerUser)
             .Include(pet => pet.PublicProfile)
             .Include(pet => pet.SafetySetting)
+            .Include(pet => pet.ProfileMediaFile)
+            .Include(pet => pet.CoverMediaFile)
             .OrderByDescending(pet => pet.CreatedAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
@@ -1082,6 +1092,8 @@ public sealed class AdminService : SkeletonService, IAdminService
             .Include(item => item.Contact)
             .Include(item => item.PublicProfile)
             .Include(item => item.SafetySetting)
+            .Include(item => item.ProfileMediaFile)
+            .Include(item => item.CoverMediaFile)
             .SingleOrDefaultAsync(item => item.Id == petId, cancellationToken)
             ?? throw NotFound("Pet was not found.");
 
@@ -1118,7 +1130,8 @@ public sealed class AdminService : SkeletonService, IAdminService
                 PremiumStatus: "Coming Soon",
                 GpsStatus: "Coming Later",
                 PaymentGatewayEnabled: false,
-                FileStorageEnabled: false));
+                FileStorageEnabled: false,
+                SmartTagOrderingEnabled: _features.SmartTagOrderingEnabled));
     }
 
     public async Task<(IReadOnlyCollection<AdminAuditLogResponse> Items, int Total)> ListAuditLogsAsync(

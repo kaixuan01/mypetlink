@@ -2,6 +2,8 @@
 
 Phase 1 uses manual payment proof review. There is no payment gateway, no automatic payment confirmation, and no subscription billing.
 
+> **Launch state (Smart Tag ordering disabled):** the initial launch is free pet profiles only. `Features:SmartTagOrderingEnabled` defaults to `false`, so **creating a new order (`POST /api/v1/orders`) is blocked with `403 feature_disabled`** and the owner UI shows a "Smart Tags coming soon" state instead of ordering CTAs. Everything below still describes the full flow for when ordering is re-enabled; nothing was removed. Payment-proof, fulfilment, assignment, and admin transitions on already-created orders remain available.
+
 Status (2026-07-04): this flow is implemented end to end. Owner submission uses `POST /api/v1/orders/{orderNumber}/payment-proof`; admin review uses `/api/v1/admin/orders/{orderId}/confirm-payment`, `/reject-payment-proof`, `/mark-preparing`, `/mark-shipped`, `/mark-delivered`, and `/cancel` (plus `/api/v1/admin/payment-proofs/{id}/approve|reject`, which share the same transition logic). All admin transitions are audited. Payment proofs remain metadata only until file storage exists.
 
 ## Product Rules

@@ -76,6 +76,8 @@ export type Pet = {
   coverPhotoLabel: string;
   photoUrl: string;
   coverUrl: string;
+  profileMediaId?: string;
+  coverMediaId?: string;
   profileTheme: PetProfileThemeId;
   lifecycleStatus: PetLifecycleStatus;
   previousLifecycleStatus?: Exclude<PetLifecycleStatus, "Archived">;
@@ -240,6 +242,7 @@ export type MomentMedia = {
   caption?: string;
   altText?: string;
   sortOrder: number;
+  sourceFile?: File;
 };
 
 // Frontend MVP limit for media items per memory. Premium albums can raise this

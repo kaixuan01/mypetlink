@@ -61,6 +61,7 @@ export function MomentMediaField({
           id: createMediaId(),
           type: "image",
           url,
+          sourceFile: file,
           sortOrder: 0,
         });
       }
@@ -93,6 +94,7 @@ export function MomentMediaField({
       type: "video",
       url: "",
       altText: file.name,
+      sourceFile: file,
       sortOrder: 0,
     };
 

@@ -401,6 +401,19 @@ namespace MyPetLink.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("BucketName")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("datetimeoffset");
+
                     b.Property<string>("ContentType")
                         .IsRequired()
                         .HasMaxLength(120)
@@ -421,12 +434,28 @@ namespace MyPetLink.Api.Migrations
                     b.Property<int?>("Height")
                         .HasColumnType("int");
 
+                    b.Property<bool>("IsPublic")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("MediaType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("ObjectKey")
+                        .IsRequired()
+                        .HasMaxLength(600)
+                        .HasColumnType("nvarchar(600)");
+
                     b.Property<string>("OriginalFileName")
                         .IsRequired()
                         .HasMaxLength(260)
                         .HasColumnType("nvarchar(260)");
 
                     b.Property<Guid?>("OwnerUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("PetId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Sha256")
@@ -449,6 +478,15 @@ namespace MyPetLink.Api.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
 
+                    b.Property<string>("ThumbnailObjectKey")
+                        .HasMaxLength(600)
+                        .HasColumnType("nvarchar(600)");
+
+                    b.Property<string>("UploadStatus")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
                     b.Property<DateTimeOffset>("UploadedAt")
                         .HasColumnType("datetimeoffset");
 
@@ -457,15 +495,31 @@ namespace MyPetLink.Api.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Category");
+
+                    b.HasIndex("CompletedAt");
+
                     b.HasIndex("DeletedAt");
 
+                    b.HasIndex("IsPublic");
+
+                    b.HasIndex("MediaType");
+
                     b.HasIndex("OwnerUserId");
+
+                    b.HasIndex("PetId");
 
                     b.HasIndex("Sha256");
 
                     b.HasIndex("StorageProvider");
 
+                    b.HasIndex("UploadStatus");
+
                     b.HasIndex("UploadedAt");
+
+                    b.HasIndex("BucketName", "ObjectKey")
+                        .IsUnique()
+                        .HasFilter("[ObjectKey] <> ''");
 
                     b.ToTable("MediaFiles", (string)null);
                 });
@@ -686,6 +740,9 @@ namespace MyPetLink.Api.Migrations
                     b.Property<string>("Color")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<Guid?>("CoverMediaFileId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
 
@@ -760,6 +817,9 @@ namespace MyPetLink.Api.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("nvarchar(32)");
 
+                    b.Property<Guid?>("ProfileMediaFileId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("ProfileTheme")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -786,6 +846,8 @@ namespace MyPetLink.Api.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CoverMediaFileId");
+
                     b.HasIndex("CreatedAt");
 
                     b.HasIndex("LifecycleStatus");
@@ -793,6 +855,8 @@ namespace MyPetLink.Api.Migrations
                     b.HasIndex("LostModeEnabled");
 
                     b.HasIndex("OwnerUserId");
+
+                    b.HasIndex("ProfileMediaFileId");
 
                     b.HasIndex("OwnerUserId", "LifecycleStatus");
 
@@ -1763,7 +1827,14 @@ namespace MyPetLink.Api.Migrations
                         .HasForeignKey("OwnerUserId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("MyPetLink.Api.Entities.Pet", "Pet")
+                        .WithMany("MediaFiles")
+                        .HasForeignKey("PetId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("OwnerUser");
+
+                    b.Navigation("Pet");
                 });
 
             modelBuilder.Entity("MyPetLink.Api.Entities.MediaFileLink", b =>
@@ -1824,13 +1895,27 @@ namespace MyPetLink.Api.Migrations
 
             modelBuilder.Entity("MyPetLink.Api.Entities.Pet", b =>
                 {
+                    b.HasOne("MyPetLink.Api.Entities.MediaFile", "CoverMediaFile")
+                        .WithMany()
+                        .HasForeignKey("CoverMediaFileId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("MyPetLink.Api.Entities.User", "OwnerUser")
                         .WithMany("Pets")
                         .HasForeignKey("OwnerUserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("MyPetLink.Api.Entities.MediaFile", "ProfileMediaFile")
+                        .WithMany()
+                        .HasForeignKey("ProfileMediaFileId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("CoverMediaFile");
+
                     b.Navigation("OwnerUser");
+
+                    b.Navigation("ProfileMediaFile");
                 });
 
             modelBuilder.Entity("MyPetLink.Api.Entities.PetContact", b =>
@@ -2021,6 +2106,8 @@ namespace MyPetLink.Api.Migrations
                     b.Navigation("CareRecords");
 
                     b.Navigation("Contact");
+
+                    b.Navigation("MediaFiles");
 
                     b.Navigation("Memories");
 

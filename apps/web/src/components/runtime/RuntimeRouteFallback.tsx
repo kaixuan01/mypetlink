@@ -17,6 +17,7 @@ import { RecordsManager } from "@/components/portal/RecordsManager";
 import { OrderDetailView } from "@/components/portal/OrderDetailView";
 import { TagFinderView } from "@/components/portal/TagFinderView";
 import { TagManagementPanel } from "@/components/portal/TagManagementPanel";
+import { SmartTagsComingSoon } from "@/components/portal/SmartTagsComingSoon";
 import { TagOrderFlow } from "@/components/portal/TagOrderFlow";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -36,6 +37,7 @@ import {
   tagNotFoundTitle,
   tagScanPageTitle,
 } from "@/lib/pageTitles";
+import { smartTagOrderingEnabled } from "@/lib/features";
 import { parsePublicProfileParam, ownerRoutes } from "@/lib/routes";
 import { isApiClientError } from "@/services/apiClient";
 import { isApiConfigured } from "@/services/apiConfig";
@@ -507,9 +509,11 @@ function OwnerRuntimeView({
           title={`${pet.name}'s MyPetLink Smart Tags`}
           description="One pet can have multiple tags for different collars, replacements, or upgrades."
           action={
-            <CTAButton href={ownerRoutes.petTagOrder(pet.id)} icon="tag">
-              Order Physical Tag
-            </CTAButton>
+            smartTagOrderingEnabled ? (
+              <CTAButton href={ownerRoutes.petTagOrder(pet.id)} icon="tag">
+                Order Physical Tag
+              </CTAButton>
+            ) : undefined
           }
         />
         <TagManagementPanel
@@ -523,6 +527,19 @@ function OwnerRuntimeView({
   }
 
   if (section === "tag-order") {
+    if (!smartTagOrderingEnabled) {
+      return (
+        <AppLayout>
+          <PageHeader
+            eyebrow="Physical tags"
+            title="Smart Tags coming soon"
+            description="Smart Tag ordering is not open yet. Your pet's free QR Safety Page is already active."
+          />
+          <SmartTagsComingSoon petId={pet.id} />
+        </AppLayout>
+      );
+    }
+
     const orderPets = pets.some((item) => item.id === pet.id)
       ? pets
       : [pet, ...pets];

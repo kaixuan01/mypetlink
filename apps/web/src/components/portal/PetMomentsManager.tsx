@@ -222,13 +222,13 @@ export function PetMomentsManager({
         date: formatDisplayDate(form.date),
         type: form.type || "Other",
         caption: form.caption.trim(),
-        media: apiMode ? [] : form.media,
-        coverMediaId: apiMode ? undefined : form.coverMediaId,
+        media: form.media,
+        coverMediaId: form.coverMediaId,
         visibility: form.visibility,
         showOnPublicProfile: form.showOnPublicProfile,
         showInLifeTimeline: form.showInLifeTimeline,
         timelineNote: form.timelineNote,
-      });
+      }, pet.id);
 
       const savedMoment = response.data;
 
@@ -524,20 +524,13 @@ export function PetMomentsManager({
                 />
               </Field>
 
-              {apiMode ? (
-                <div className="rounded-[1.25rem] border border-pet-border bg-pet-cream p-4 text-sm font-semibold leading-6 text-pet-muted">
-                  Photo and video upload is coming later. You can still save the
-                  memory details, visibility, and timeline settings now.
-                </div>
-              ) : (
-                <MomentMediaField
-                  items={form.media}
-                  coverMediaId={form.coverMediaId}
-                  onChange={(media, coverMediaId) =>
-                    setForm((current) => ({ ...current, media, coverMediaId }))
-                  }
-                />
-              )}
+              <MomentMediaField
+                items={form.media}
+                coverMediaId={form.coverMediaId}
+                onChange={(media, coverMediaId) =>
+                  setForm((current) => ({ ...current, media, coverMediaId }))
+                }
+              />
 
               <div className="grid gap-3 md:grid-cols-2">
                 <MomentCheckbox

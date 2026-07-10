@@ -111,3 +111,29 @@ None are release blockers.
 ## 11. Release-candidate readiness
 
 **Release-candidate ready for Phase 1**, pending a final human smoke of the browser-only UI polish (follow-up 1). All build/lint/migration gates pass, and the full authenticated E2E chain — auth/access control, pet lifecycle, care records, memories, inventory, order + payment reject/resubmit/confirm, tag assign/change/replace, `/t` activation and contact protection, PDF gating, and admin portal — was executed live with **0 failures** and no blocker bugs. Security-critical gates (admin policy, owner scoping, `/t` contact protection, receipt gating, dev-login Production 404, production copy) all hold.
+
+---
+
+## 12. Final browser smoke test
+
+The previously code-verified browser-only checks were now executed in a real browser (Claude Preview) against the running dev servers, driving authenticated sessions via the Development dev-login API injected into `localStorage`.
+
+1. **Date/time:** 2026-07-08, ~ afternoon (UTC+8, MYT).
+2. **Browser used:** Chromium via Claude Preview MCP (`http://localhost:3000`), backend `http://localhost:5281` (Development).
+3. **Commit tested:** `9c28200` (`docs: prepare production deployment checklist`), on branch `feature/connect-admin-apis` (Smart Tag ordering disabled for launch; frontend `NEXT_PUBLIC_SMART_TAG_ORDERING_ENABLED` unset → off).
+4. **UI checks passed/failed:** 10 groups, **all passed, 0 failed, 0 blocked**:
+   - **Auth/access (owner + admin):** owner session → Owner Portal loads; admin session → Admin Portal loads (full nav); owner → `/admin` shows "This account does not have operations access" (denied), not the dashboard.
+   - **Owner Smart Tags UI (`/tags`):** coming-soon notice shown; **no "Order tag" CTA**; **no "Activate Tag" button**; waiting-activation wording; actions are "View Tag Scan Page" / "Copy Tag Link".
+   - **Physical tag `/t`:** active → finder safety content; lost & replaced → "This tag is no longer active", **no owner contact**; unknown → "Tag not found"; delivered portal tag → correct owner sees **"Activate Tag"** with the pet pre-linked (**no pet selection**); other owner → "linked to another account" (blocked); after activation → state `active`, "Tag activated".
+   - **QR modal (Pet Details):** large QR not shown by default; "Show QR" opens a modal; **Share Profile QR → `/p/{petSlug}`**, **QR Safety QR → `/q/{safetyCode}`**; client-generated PNG (no external service, target derived from the pet code so reopening yields the same code).
+   - **Order UI:** pending order → **Download Order Summary PDF only**; confirmed order → **Download Receipt PDF** + "Paid"; tag type (QR + NFC) and variant (Lightweight/Standard) shown; **no Circle/Round/Shape/Design wording**.
+   - **Admin assignment UI:** Tag Inventory has a **Lightweight/Standard variant** dropdown + Variant column (no shape); orders list offers status-appropriate **Assign / Change Assigned Tag / Replace Tag**; assign modal is clean and shows the order's variant; after shipping the list offers Replace Tag (change gated — proven `422` in the API regression).
+   - **Error/connection:** backend stopped → friendly "MyPetLink is having trouble connecting right now. Please try again in a moment." The customer copy exposes **no** backend/API/database/route wording; the "Developer hint" line is present only because this is a Development build (stripped in production — see below); no infinite refresh.
+   - **Dynamic routes:** unknown `/p`, `/q`, `/t` → not-found / no-contact states, URL stable, **no infinite refresh loop**.
+   - **Production build scan:** `/dev-login` route **absent** from the export; **no "Developer hint"** string in production `.js` chunks; no `dev-login`/`test-login` strings in the export output.
+5. **Bugs found/fixed:** none — no code changes required.
+6. **Remaining follow-ups:**
+   - The task referenced a `/dev-login` **page**; that page was intentionally removed earlier (dev login is API-only via `POST /api/v1/dev/test-login`, per `apps/api/README.md`). Authenticated sessions were driven through that API + `localStorage` injection. No action needed; noted so the script wording can be updated.
+   - Physical Tag QR (`/t`) modal target was confirmed via the tag scan-link path + the API regression rather than a dedicated Pet-Details QR card (physical-tag QR lives on the tag/admin surfaces).
+   - Follow-ups 1–4 from §10 still stand (optional Playwright harness, persisted runner, seeded dataset, 400-vs-422 note).
+7. **Release readiness:** **Confirmed release-candidate ready for Phase 1.** Every remaining browser-only UI check now passes in a real browser with 0 failures and no blocker bugs, complementing the earlier 0-failure authenticated API regression.

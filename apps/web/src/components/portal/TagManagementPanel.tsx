@@ -9,6 +9,8 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
 import { SegmentedTabs, type SegmentedTab } from "@/components/ui/SegmentedTabs";
+import { SmartTagsComingSoon } from "@/components/portal/SmartTagsComingSoon";
+import { smartTagOrderingEnabled } from "@/lib/features";
 import { formatOrderNumber } from "@/lib/orders";
 import {
   getActivePets,
@@ -146,7 +148,8 @@ export function TagManagementPanel({
         ? orderablePets[0]?.id ?? ""
         : "";
   const orderHref = orderPetId ? ownerRoutes.petTagOrder(orderPetId) : "";
-  const showOrderButton = Boolean(orderHref);
+  // Ordering CTAs are hidden while Smart Tag ordering is disabled for launch.
+  const showOrderButton = Boolean(orderHref) && smartTagOrderingEnabled;
 
   useEffect(() => {
     let active = true;
@@ -288,6 +291,10 @@ export function TagManagementPanel({
   }
 
   if (!tags.length) {
+    if (!smartTagOrderingEnabled) {
+      return <SmartTagsComingSoon petId={petId} />;
+    }
+
     return (
       <EmptyState
         icon="tag"
@@ -301,6 +308,13 @@ export function TagManagementPanel({
 
   return (
     <>
+      {!smartTagOrderingEnabled ? (
+        <div className="mb-4 rounded-[1.25rem] border border-pet-border bg-pet-cream px-4 py-3 text-sm font-semibold leading-6 text-pet-muted">
+          New Smart Tag ordering is coming soon. Your existing tags below still
+          work, and every pet&apos;s free QR Safety Page stays active.
+        </div>
+      ) : null}
+
       {actionError ? (
         <div className="mb-4 rounded-[1.25rem] border border-[#ffd2c9] bg-[#fff4f1] px-4 py-3 text-sm font-bold text-[#a63c2e]">
           {actionError}

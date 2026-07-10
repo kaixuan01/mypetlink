@@ -22,6 +22,7 @@ import {
 import { getMemoryLimitState } from "@/lib/planLimits";
 import { getPetProfileTheme } from "@/lib/petProfileThemes";
 import { isActivePet, isArchivedPet, isMemorialPet } from "@/lib/petLifecycle";
+import { smartTagOrderingEnabled } from "@/lib/features";
 import { ownerRoutes, tagPath } from "@/lib/routes";
 import { getServerFallbackBaseUrl, toAbsoluteUrl } from "@/lib/siteUrl";
 import { getTagScanDisplay, isActivePhysicalTagForPet } from "@/lib/tagStatus";
@@ -510,7 +511,7 @@ function OverviewTab({
           >
             Manage Smart Tags
           </CTAButton>
-          {isActiveProfile ? (
+          {isActiveProfile && smartTagOrderingEnabled ? (
             <CTAButton
               href={ownerRoutes.petTagOrder(pet.id)}
               variant="outline"

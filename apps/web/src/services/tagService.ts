@@ -552,6 +552,7 @@ type SubmitPaymentInput = {
   paymentReference?: string;
   paymentNote?: string;
   paymentProofName?: string;
+  mediaFileId?: string;
 };
 
 // Phase 1 manual payment: record the owner's receipt / screenshot file name and
@@ -568,6 +569,7 @@ export async function submitOrderPayment(
       {
         method: "POST",
         body: {
+          mediaFileId: proof.mediaFileId,
           fileName: proof.paymentProofName,
           paymentMethod: "QR Payment",
           paymentReference: proof.paymentReference,

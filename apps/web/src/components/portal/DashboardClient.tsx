@@ -12,6 +12,7 @@ import { CTAButton } from "@/components/ui/CTAButton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { PetAvatar } from "@/components/ui/PetAvatar";
+import { smartTagOrderingEnabled } from "@/lib/features";
 import { isActiveOrder } from "@/lib/orders";
 import { getPetSummaryLabel } from "@/lib/petDisplay";
 import { getActivePets, getMemorialPets } from "@/lib/petLifecycle";
@@ -286,11 +287,13 @@ export function DashboardClient({
               icon="heart"
               label="Add Pet Moment"
             />
-            <ActionTile
-              href={orderTagHref}
-              icon="tag"
-              label="Order Physical Tag"
-            />
+            {smartTagOrderingEnabled ? (
+              <ActionTile
+                href={orderTagHref}
+                icon="tag"
+                label="Order Physical Tag"
+              />
+            ) : null}
             <ActionTile
               href={ownerRoutes.orders}
               icon="record"

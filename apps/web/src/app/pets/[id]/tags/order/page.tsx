@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AppLayout } from "@/components/layouts/AppLayout";
+import { SmartTagsComingSoon } from "@/components/portal/SmartTagsComingSoon";
 import { TagOrderFlow } from "@/components/portal/TagOrderFlow";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { staticPetIdParams } from "@/data/staticRouteParams";
+import { smartTagOrderingEnabled } from "@/lib/features";
 import { loadingTitle, ownerPetPageTitle } from "@/lib/pageTitles";
 import { getPetById, getPets } from "@/services/petService";
 
@@ -39,6 +41,20 @@ export default async function PetTagOrderPage({ params }: PetTagOrderPageProps) 
   }
 
   const selectedPet = pet.data;
+
+  if (!smartTagOrderingEnabled) {
+    return (
+      <AppLayout>
+        <PageHeader
+          eyebrow="Physical tags"
+          title="Smart Tags coming soon"
+          description="Smart Tag ordering is not open yet. Your pet's free QR Safety Page is already active."
+        />
+        <SmartTagsComingSoon petId={selectedPet.id} />
+      </AppLayout>
+    );
+  }
+
   const pets = await getPets();
   const orderPets = pets.data.some((item) => item.id === selectedPet.id)
     ? pets.data

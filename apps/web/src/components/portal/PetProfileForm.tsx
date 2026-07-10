@@ -40,6 +40,7 @@ import {
   PET_TYPE_OPTIONS,
 } from "@/lib/petDisplay";
 import { isActivePet, isArchivedPet, isMemorialPet } from "@/lib/petLifecycle";
+import { smartTagOrderingEnabled } from "@/lib/features";
 import { ownerRoutes, publicProfilePath } from "@/lib/routes";
 import {
   createPet,
@@ -50,6 +51,8 @@ import {
   updatePet,
   updatePetLifecycle,
 } from "@/services/petService";
+import { canUseApi } from "@/services/apiConfig";
+import { deleteMedia, uploadMediaFile } from "@/services/mediaService";
 import type {
   Pet,
   PetLifecycleStatus,
@@ -216,6 +219,8 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
   const [errors, setErrors] = useState<FormErrors>({});
   const [formError, setFormError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [profilePhotoFile, setProfilePhotoFile] = useState<File | undefined>();
+  const [coverPhotoFile, setCoverPhotoFile] = useState<File | undefined>();
   const [success, setSuccess] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
   const [statusAction, setStatusAction] = useState<
@@ -238,6 +243,9 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
       } else if (initialPet) {
         setForm(toFormState(initialPet, settings));
       }
+
+      setProfilePhotoFile(undefined);
+      setCoverPhotoFile(undefined);
     }, 0);
 
     return () => window.clearTimeout(timer);
@@ -434,17 +442,40 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
     try {
       if (mode === "create") {
         const response = await createPet(payload);
-        setCreatedPet(response.data);
-        setCurrentPet(response.data);
-        setForm(toFormState(response.data, ownerSettings));
+        let savedPet = response.data;
+
+        try {
+          savedPet = await syncPetMedia(savedPet, null);
+          setProfilePhotoFile(undefined);
+          setCoverPhotoFile(undefined);
+        } catch (mediaError) {
+          setFormError(getMediaUploadErrorMessage(mediaError));
+        }
+
+        setCreatedPet(savedPet);
+        setCurrentPet(savedPet);
+        setForm(toFormState(savedPet, ownerSettings));
       } else if (currentPet) {
+        const previousPet = currentPet;
         const response = await updatePet(currentPet.id, payload);
 
         if (response.data) {
-          setCurrentPet(response.data);
-          setSavedPet(response.data);
-          setForm(toFormState(response.data, ownerSettings));
-          setSuccess("Changes saved. Public profile and QR safety page are updated.");
+          let savedPet = response.data;
+
+          try {
+            savedPet = await syncPetMedia(savedPet, previousPet);
+            setProfilePhotoFile(undefined);
+            setCoverPhotoFile(undefined);
+            setSuccess(
+              "Changes saved. Public profile and QR safety page are updated."
+            );
+          } catch (mediaError) {
+            setFormError(getMediaUploadErrorMessage(mediaError));
+          }
+
+          setCurrentPet(savedPet);
+          setSavedPet(savedPet);
+          setForm(toFormState(savedPet, ownerSettings));
           router.refresh();
         } else {
           setFormError(
@@ -457,6 +488,50 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  async function syncPetMedia(savedPet: Pet, previousPet: Pet | null) {
+    if (!canUseApi()) {
+      return savedPet;
+    }
+
+    let nextPet = savedPet;
+
+    if (profilePhotoFile) {
+      const uploaded = await uploadMediaFile({
+        file: profilePhotoFile,
+        category: "PetProfilePhoto",
+        petId: savedPet.id,
+      });
+
+      nextPet = {
+        ...nextPet,
+        profileMediaId: uploaded.mediaId,
+        photoUrl: uploaded.publicUrl ?? nextPet.photoUrl,
+      };
+    } else if (!form.photoUrl && previousPet?.profileMediaId) {
+      await deleteMedia(previousPet.profileMediaId);
+      nextPet = { ...nextPet, profileMediaId: undefined, photoUrl: "" };
+    }
+
+    if (coverPhotoFile) {
+      const uploaded = await uploadMediaFile({
+        file: coverPhotoFile,
+        category: "PetCoverPhoto",
+        petId: savedPet.id,
+      });
+
+      nextPet = {
+        ...nextPet,
+        coverMediaId: uploaded.mediaId,
+        coverUrl: uploaded.publicUrl ?? nextPet.coverUrl,
+      };
+    } else if (!form.coverUrl && previousPet?.coverMediaId) {
+      await deleteMedia(previousPet.coverMediaId);
+      nextPet = { ...nextPet, coverMediaId: undefined, coverUrl: "" };
+    }
+
+    return nextPet;
   }
 
   async function handleStatusAction() {
@@ -556,7 +631,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
           >
             View QR Safety Page
           </CTAButton>
-          {isActivePet(createdPet) ? (
+          {isActivePet(createdPet) && smartTagOrderingEnabled ? (
             <CTAButton
               href={ownerRoutes.petTagOrder(createdPet.id)}
               icon="tag"
@@ -830,6 +905,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
                 shape="square"
                 value={form.photoUrl}
                 onChange={(dataUrl) => updateField("photoUrl", dataUrl)}
+                onFileSelected={setProfilePhotoFile}
                 emptyIcon={<Icon name="paw" className="h-5 w-5" />}
               />
 
@@ -838,6 +914,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
                 helper="A warm wide banner for the public profile."
                 value={form.coverUrl}
                 onChange={(dataUrl) => updateField("coverUrl", dataUrl)}
+                onFileSelected={setCoverPhotoFile}
               />
             </div>
           </div>
@@ -1627,6 +1704,16 @@ function PetTypeSelector({
       ) : null}
     </div>
   );
+}
+
+function getMediaUploadErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return `Profile details were saved, but the photo upload needs another try. ${error.message}`;
+  }
+
+  return `Profile details were saved, but the photo upload needs another try. ${getFriendlyApiErrorMessage(
+    error
+  )}`;
 }
 
 function toFormState(
