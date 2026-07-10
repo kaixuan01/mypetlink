@@ -5,6 +5,8 @@ import { Badge } from "@/components/ui/Badge";
 import { Icon } from "@/components/ui/Icon";
 import { paymentConfig } from "@/config/payment";
 import { formatDeliverySummary, formatOrderNumber } from "@/lib/orders";
+import { canUseApi } from "@/services/apiConfig";
+import { uploadMediaFile } from "@/services/mediaService";
 import {
   getFriendlyTagErrorMessage,
   submitOrderPayment,
@@ -30,6 +32,8 @@ export function ManualPaymentPanel({
   const [transactionReference, setTransactionReference] = useState("");
   const [paymentNote, setPaymentNote] = useState("");
   const [proofName, setProofName] = useState("");
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -57,12 +61,22 @@ export function ManualPaymentPanel({
 
     setError("");
     setIsSubmitting(true);
+    setUploadProgress(0);
 
     try {
+      const uploadedProof = canUseApi()
+        ? await uploadMediaFile({
+            file: requireProofFile(proofFile),
+            category: "OrderReceipt",
+            orderId: order.id,
+            onProgress: setUploadProgress,
+          })
+        : null;
       const response = await submitOrderPayment(order.id, {
         paymentReference: transactionReference,
         paymentNote,
         paymentProofName: proofName,
+        mediaFileId: uploadedProof?.mediaId,
       });
 
       if (response.data.order) {
@@ -184,7 +198,10 @@ export function ManualPaymentPanel({
               accept="image/*,application/pdf"
               className="block w-full text-sm text-pet-muted file:mr-3 file:rounded-full file:border-0 file:bg-pet-teal file:px-4 file:py-2 file:text-sm file:font-bold file:text-white"
               onChange={(event) => {
-                setProofName(event.target.files?.[0]?.name ?? "");
+                const file = event.target.files?.[0] ?? null;
+                setProofFile(file);
+                setProofName(file?.name ?? "");
+                setUploadProgress(0);
                 setError("");
               }}
               required
@@ -197,6 +214,11 @@ export function ManualPaymentPanel({
             {proofName ? (
               <span className="text-xs font-semibold text-pet-sage">
                 Attached: {proofName}
+              </span>
+            ) : null}
+            {uploadProgress > 0 && uploadProgress < 100 ? (
+              <span className="text-xs font-semibold text-pet-teal">
+                Uploading: {uploadProgress}%
               </span>
             ) : null}
           </label>
@@ -250,6 +272,14 @@ export function ManualPaymentPanel({
       </div>
     </section>
   );
+}
+
+function requireProofFile(file: File | null) {
+  if (!file) {
+    throw new Error("Upload a receipt or screenshot so we can verify your payment.");
+  }
+
+  return file;
 }
 
 function SummaryRow({ label, value }: { label: string; value: string }) {

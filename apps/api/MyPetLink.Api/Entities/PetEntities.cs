@@ -3,6 +3,8 @@ namespace MyPetLink.Api.Entities;
 public sealed class Pet : AuditableEntity
 {
     public Guid OwnerUserId { get; set; }
+    public Guid? ProfileMediaFileId { get; set; }
+    public Guid? CoverMediaFileId { get; set; }
     public string Slug { get; set; } = "";
     public string Name { get; set; } = "";
     public string Species { get; set; } = "";
@@ -36,9 +38,12 @@ public sealed class Pet : AuditableEntity
     public DateTimeOffset? DeletedAt { get; set; }
 
     public User OwnerUser { get; set; } = null!;
+    public MediaFile? ProfileMediaFile { get; set; }
+    public MediaFile? CoverMediaFile { get; set; }
     public PetContact? Contact { get; set; }
     public PetPublicProfile? PublicProfile { get; set; }
     public PetSafetySetting? SafetySetting { get; set; }
+    public ICollection<MediaFile> MediaFiles { get; set; } = new List<MediaFile>();
     public ICollection<PetMemory> Memories { get; set; } = new List<PetMemory>();
     public ICollection<CareRecord> CareRecords { get; set; } = new List<CareRecord>();
     public ICollection<SmartTag> SmartTags { get; set; } = new List<SmartTag>();

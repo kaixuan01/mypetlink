@@ -1,18 +1,22 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using MyPetLink.Api.Common;
 using MyPetLink.Api.Data;
 using MyPetLink.Api.DTOs;
 using MyPetLink.Api.Entities;
+using MyPetLink.Api.Storage;
 
 namespace MyPetLink.Api.Services;
 
 public sealed class QrSafetyService : SkeletonService, IQrSafetyService
 {
     private readonly MyPetLinkDbContext _dbContext;
+    private readonly CloudflareR2Options _r2Options;
 
-    public QrSafetyService(MyPetLinkDbContext dbContext)
+    public QrSafetyService(MyPetLinkDbContext dbContext, IOptions<CloudflareR2Options> r2Options)
     {
         _dbContext = dbContext;
+        _r2Options = r2Options.Value;
     }
 
     public async Task<PublicSafetyPageResponse> GetBySafetyCodeAsync(
@@ -31,6 +35,10 @@ public sealed class QrSafetyService : SkeletonService, IQrSafetyService
                     .ThenInclude(user => user.OwnerProfile)
             .Include(item => item.Pet)
                 .ThenInclude(pet => pet.Contact)
+            .Include(item => item.Pet)
+                .ThenInclude(pet => pet.ProfileMediaFile)
+            .Include(item => item.Pet)
+                .ThenInclude(pet => pet.CoverMediaFile)
             .SingleOrDefaultAsync(item => item.SafetyCode == safetyCode.Trim(), cancellationToken);
 
         if (safetySetting is null
@@ -66,6 +74,8 @@ public sealed class QrSafetyService : SkeletonService, IQrSafetyService
                 LostMessage: null,
                 LostRewardNote: null,
                 LostExtraContactInstruction: null,
+                ProfilePhotoUrl: PetDtoMapper.ResolvePublicMediaUrl(pet.ProfileMediaFile, _r2Options.PublicBaseUrl),
+                CoverPhotoUrl: PetDtoMapper.ResolvePublicMediaUrl(pet.CoverMediaFile, _r2Options.PublicBaseUrl),
                 ShowFoundLocationAction: false,
                 Contact: null);
         }
@@ -96,6 +106,8 @@ public sealed class QrSafetyService : SkeletonService, IQrSafetyService
             pet.LostModeEnabled ? pet.LostMessage : null,
             pet.LostModeEnabled ? pet.LostRewardNote : null,
             pet.LostModeEnabled ? pet.LostExtraContactInstruction : null,
+            PetDtoMapper.ResolvePublicMediaUrl(pet.ProfileMediaFile, _r2Options.PublicBaseUrl),
+            PetDtoMapper.ResolvePublicMediaUrl(pet.CoverMediaFile, _r2Options.PublicBaseUrl),
             safetySetting.ShowFoundLocationAction,
             contact);
     }

@@ -992,6 +992,8 @@ public sealed class AdminService : SkeletonService, IAdminService
             .AsNoTracking()
             .Include(pet => pet.PublicProfile)
             .Include(pet => pet.SafetySetting)
+            .Include(pet => pet.ProfileMediaFile)
+            .Include(pet => pet.CoverMediaFile)
             .Where(pet => pet.OwnerUserId == ownerUserId && pet.DeletedAt == null)
             .OrderByDescending(pet => pet.CreatedAt)
             .ToListAsync(cancellationToken);
@@ -1009,7 +1011,7 @@ public sealed class AdminService : SkeletonService, IAdminService
 
         return new AdminOwnerDetailResponse(
             owner,
-            pets.Select(PetDtoMapper.ToListItem).ToArray(),
+            pets.Select(pet => PetDtoMapper.ToListItem(pet)).ToArray(),
             orders.Select(TagDtoMapper.ToOrderResponse).ToArray(),
             tags.Select(TagDtoMapper.ToSmartTagResponse).ToArray());
     }
@@ -1060,6 +1062,8 @@ public sealed class AdminService : SkeletonService, IAdminService
             .Include(pet => pet.OwnerUser)
             .Include(pet => pet.PublicProfile)
             .Include(pet => pet.SafetySetting)
+            .Include(pet => pet.ProfileMediaFile)
+            .Include(pet => pet.CoverMediaFile)
             .OrderByDescending(pet => pet.CreatedAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
@@ -1088,6 +1092,8 @@ public sealed class AdminService : SkeletonService, IAdminService
             .Include(item => item.Contact)
             .Include(item => item.PublicProfile)
             .Include(item => item.SafetySetting)
+            .Include(item => item.ProfileMediaFile)
+            .Include(item => item.CoverMediaFile)
             .SingleOrDefaultAsync(item => item.Id == petId, cancellationToken)
             ?? throw NotFound("Pet was not found.");
 

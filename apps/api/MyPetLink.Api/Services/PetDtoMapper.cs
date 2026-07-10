@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using MyPetLink.Api.DTOs;
 using MyPetLink.Api.Entities;
+using MyPetLink.Api.Storage;
 
 namespace MyPetLink.Api.Services;
 
@@ -123,7 +124,7 @@ internal static class PetDtoMapper
             contact?.GeneralAreaOverride);
     }
 
-    public static PetListItemResponse ToListItem(Pet pet)
+    public static PetListItemResponse ToListItem(Pet pet, string? publicBaseUrl = null)
     {
         var publicCode = pet.PublicProfile?.PublicCode ?? "";
         var safetyCode = pet.SafetySetting?.SafetyCode ?? "";
@@ -134,6 +135,10 @@ internal static class PetDtoMapper
             pet.Name,
             pet.Species,
             pet.CustomSpecies,
+            pet.ProfileMediaFileId,
+            pet.CoverMediaFileId,
+            ResolvePublicMediaUrl(pet.ProfileMediaFile, publicBaseUrl),
+            ResolvePublicMediaUrl(pet.CoverMediaFile, publicBaseUrl),
             publicSlug,
             publicCode,
             safetyCode,
@@ -145,7 +150,7 @@ internal static class PetDtoMapper
             pet.UpdatedAt);
     }
 
-    public static PetDetailResponse ToDetail(Pet pet)
+    public static PetDetailResponse ToDetail(Pet pet, string? publicBaseUrl = null)
     {
         var publicCode = pet.PublicProfile?.PublicCode ?? "";
         var safetyCode = pet.SafetySetting?.SafetyCode ?? "";
@@ -163,6 +168,10 @@ internal static class PetDtoMapper
             pet.AdoptionDay,
             pet.GeneralArea,
             pet.Bio,
+            pet.ProfileMediaFileId,
+            pet.CoverMediaFileId,
+            ResolvePublicMediaUrl(pet.ProfileMediaFile, publicBaseUrl),
+            ResolvePublicMediaUrl(pet.CoverMediaFile, publicBaseUrl),
             pet.ProfileTheme,
             pet.LifecycleStatus,
             pet.LostModeEnabled,
@@ -247,6 +256,20 @@ internal static class PetDtoMapper
     public static string? NormalizeOptional(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
+    public static string? ResolvePublicMediaUrl(MediaFile? media, string? publicBaseUrl)
+    {
+        if (media is null
+            || !media.IsPublic
+            || media.UploadStatus != MediaUploadStatus.Ready
+            || media.DeletedAt.HasValue)
+        {
+            return null;
+        }
+
+        var url = MediaUrlBuilder.BuildPublicUrl(publicBaseUrl, media.ObjectKey);
+        return string.IsNullOrWhiteSpace(url) ? null : url;
     }
 
     private static string Slugify(string value)

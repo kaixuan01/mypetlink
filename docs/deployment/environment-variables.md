@@ -31,9 +31,18 @@ Local dev equivalents live in `apps/web/.env.local` (gitignored): `NEXT_PUBLIC_A
 | `Jwt__RefreshTokenDays` | `Jwt:RefreshTokenDays` | No | Refresh token lifetime. Recommended 30. |
 | `GoogleAuth__ClientId` | `GoogleAuth:ClientId` | No (public by design) | Google Web client id the API validates incoming ID tokens against. **Must equal `NEXT_PUBLIC_GOOGLE_CLIENT_ID`.** |
 | `Cors__AllowedOrigins__0` | `Cors:AllowedOrigins[0]` | No | First allowed browser origin (the production frontend), e.g. `https://mypetlink.com.my`. Add `__1`, `__2` for more (e.g. `https://www.mypetlink.com.my`). |
-| `Storage__Provider` | `Storage:Provider` | No | `Local` in Phase 1 (no real object storage yet). |
-| `Storage__LocalRoot` | `Storage:LocalRoot` | No | Local upload root; unused for real files in Phase 1. |
-| `Storage__PublicBaseUrl` | `Storage:PublicBaseUrl` | No | Reserved for future storage; leave empty in Phase 1. |
+| `Storage__Provider` | `Storage:Provider` | No | Set to `CloudflareR2` for production media uploads. Use `Local` only when intentionally disabling R2 in development. |
+| `Storage__LocalRoot` | `Storage:LocalRoot` | No | Local upload root used only when `Storage:Provider=Local`. |
+| `Storage__PublicBaseUrl` | `Storage:PublicBaseUrl` | No | Local storage public base URL; leave empty when using Cloudflare R2. |
+| `CloudflareR2__AccountId` | `CloudflareR2:AccountId` | No | Cloudflare account id used to derive the R2 S3 service URL. |
+| `CloudflareR2__AccessKeyId` | `CloudflareR2:AccessKeyId` | **Yes** | R2 S3 access key id. |
+| `CloudflareR2__SecretAccessKey` | `CloudflareR2:SecretAccessKey` | **Yes** | R2 S3 secret access key. |
+| `CloudflareR2__ServiceUrl` | `CloudflareR2:ServiceUrl` | No | Optional explicit service URL, e.g. `https://<accountId>.r2.cloudflarestorage.com`. |
+| `CloudflareR2__PublicBucketName` | `CloudflareR2:PublicBucketName` | No | Public media bucket. Default: `mypetlink-public-media`. |
+| `CloudflareR2__PrivateBucketName` | `CloudflareR2:PrivateBucketName` | No | Private files bucket. Default: `mypetlink-private-files`. |
+| `CloudflareR2__PublicBaseUrl` | `CloudflareR2:PublicBaseUrl` | No | Public media custom domain. Default: `https://media.mypetlink.com.my`. |
+| `CloudflareR2__PresignedUploadExpiryMinutes` | `CloudflareR2:PresignedUploadExpiryMinutes` | No | Signed PUT URL lifetime. Default: `5`. |
+| `CloudflareR2__PresignedDownloadExpiryMinutes` | `CloudflareR2:PresignedDownloadExpiryMinutes` | No | Signed private GET URL lifetime. Default: `5`. |
 | `Features__SmartTagOrderingEnabled` | `Features:SmartTagOrderingEnabled` | No | Backend feature flag for creating new Smart Tag orders. Keep `false` for the free-profiles launch; set `true` only when physical tags are ready. |
 | `ASPNETCORE_ENVIRONMENT` | — | No | Set to `Production`. Disables Swagger and the dev-only CORS fallback (localhost origins). |
 
@@ -53,5 +62,7 @@ The five operational `AppSettings` rows (tag prices `RM19.90` / `RM39.90`, `prem
 ## Where each secret goes
 
 - **Cloudflare Pages**: set `NEXT_PUBLIC_*` in the Pages project → Settings → Environment variables (Production scope), then redeploy.
-- **Azure App Service**: `ASPNETCORE_ENVIRONMENT`, `Jwt__SigningKey`, `Jwt__Issuer`, `Jwt__Audience`, `GoogleAuth__ClientId`, `Cors__AllowedOrigins__0`, and `Features__SmartTagOrderingEnabled` as Application settings; `ConnectionStrings__MyPetLinkDb` under Connection strings (type: SQLServer). For stronger secret handling, reference Azure Key Vault.
+- **Azure App Service**: `ASPNETCORE_ENVIRONMENT`, `Jwt__SigningKey`, `Jwt__Issuer`, `Jwt__Audience`, `GoogleAuth__ClientId`, `Cors__AllowedOrigins__0`, `Storage__Provider`, `CloudflareR2__*`, and `Features__SmartTagOrderingEnabled` as Application settings; `ConnectionStrings__MyPetLinkDb` under Connection strings (type: SQLServer). For stronger secret handling, reference Azure Key Vault.
 - **Local dev**: backend secrets via `dotnet user-secrets`; frontend via `apps/web/.env.local` (gitignored). Never commit either.
+
+See [Cloudflare R2 Media Setup](../cloudflare-r2-media-setup.md) for bucket, CORS, custom domain, and troubleshooting details.

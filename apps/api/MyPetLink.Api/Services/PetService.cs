@@ -1,9 +1,11 @@
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using MyPetLink.Api.Common;
 using MyPetLink.Api.Data;
 using MyPetLink.Api.DTOs;
 using MyPetLink.Api.Entities;
+using MyPetLink.Api.Storage;
 
 namespace MyPetLink.Api.Services;
 
@@ -13,10 +15,12 @@ public sealed class PetService : SkeletonService, IPetService
     private static readonly Regex E164Pattern = new(@"^\+[1-9]\d{6,14}$", RegexOptions.Compiled);
 
     private readonly MyPetLinkDbContext _dbContext;
+    private readonly CloudflareR2Options _r2Options;
 
-    public PetService(MyPetLinkDbContext dbContext)
+    public PetService(MyPetLinkDbContext dbContext, IOptions<CloudflareR2Options> r2Options)
     {
         _dbContext = dbContext;
+        _r2Options = r2Options.Value;
     }
 
     public async Task<(IReadOnlyCollection<PetListItemResponse> Items, int Total)> ListAsync(
@@ -31,6 +35,8 @@ public sealed class PetService : SkeletonService, IPetService
             .AsNoTracking()
             .Include(pet => pet.PublicProfile)
             .Include(pet => pet.SafetySetting)
+            .Include(pet => pet.ProfileMediaFile)
+            .Include(pet => pet.CoverMediaFile)
             .Where(pet => pet.OwnerUserId == userId && pet.DeletedAt == null);
 
         query = ApplyLifecycleFilter(query, lifecycleStatus);
@@ -43,7 +49,7 @@ public sealed class PetService : SkeletonService, IPetService
             .Take(pageSize)
             .ToListAsync(cancellationToken);
 
-        var items = pets.Select(PetDtoMapper.ToListItem).ToArray();
+        var items = pets.Select(ToListItem).ToArray();
 
         return (items, total);
     }
@@ -113,7 +119,7 @@ public sealed class PetService : SkeletonService, IPetService
         _dbContext.Pets.Add(pet);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        return PetDtoMapper.ToDetail(pet);
+        return ToDetail(pet);
     }
 
     public async Task<PetDetailResponse> GetAsync(
@@ -122,7 +128,7 @@ public sealed class PetService : SkeletonService, IPetService
         CancellationToken cancellationToken = default)
     {
         var pet = await LoadOwnedPetAsync(currentUserId, petId, trackChanges: false, cancellationToken);
-        return PetDtoMapper.ToDetail(pet);
+        return ToDetail(pet);
     }
 
     public async Task<PetDetailResponse> UpdateAsync(
@@ -215,7 +221,7 @@ public sealed class PetService : SkeletonService, IPetService
         }
 
         await _dbContext.SaveChangesAsync(cancellationToken);
-        return PetDtoMapper.ToDetail(pet);
+        return ToDetail(pet);
     }
 
     public async Task<PetDetailResponse> MarkMemorialAsync(
@@ -245,7 +251,7 @@ public sealed class PetService : SkeletonService, IPetService
         pet.ArchivedAt = null;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
-        return PetDtoMapper.ToDetail(pet);
+        return ToDetail(pet);
     }
 
     public async Task<PetDetailResponse> RestoreActiveAsync(
@@ -257,7 +263,7 @@ public sealed class PetService : SkeletonService, IPetService
 
         if (pet.LifecycleStatus == PetLifecycleStatus.Active)
         {
-            return PetDtoMapper.ToDetail(pet);
+            return ToDetail(pet);
         }
 
         await EnsureCanRestoreActivePetAsync(pet, cancellationToken);
@@ -270,7 +276,7 @@ public sealed class PetService : SkeletonService, IPetService
         pet.ShowMemorialOnPublicProfile = false;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
-        return PetDtoMapper.ToDetail(pet);
+        return ToDetail(pet);
     }
 
     public async Task<PetDetailResponse> ArchiveAsync(
@@ -290,7 +296,7 @@ public sealed class PetService : SkeletonService, IPetService
         pet.LostModeEnabled = false;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
-        return PetDtoMapper.ToDetail(pet);
+        return ToDetail(pet);
     }
 
     private async Task<User> LoadOwnerUserAsync(Guid? currentUserId, CancellationToken cancellationToken)
@@ -344,6 +350,8 @@ public sealed class PetService : SkeletonService, IPetService
             .Include(pet => pet.Contact)
             .Include(pet => pet.PublicProfile)
             .Include(pet => pet.SafetySetting)
+            .Include(pet => pet.ProfileMediaFile)
+            .Include(pet => pet.CoverMediaFile)
             .Where(pet => pet.Id == petId && pet.OwnerUserId == userId && pet.DeletedAt == null);
 
         if (!trackChanges)
@@ -358,6 +366,16 @@ public sealed class PetService : SkeletonService, IPetService
         }
 
         return pet;
+    }
+
+    private PetListItemResponse ToListItem(Pet pet)
+    {
+        return PetDtoMapper.ToListItem(pet, _r2Options.PublicBaseUrl);
+    }
+
+    private PetDetailResponse ToDetail(Pet pet)
+    {
+        return PetDtoMapper.ToDetail(pet, _r2Options.PublicBaseUrl);
     }
 
     private static IQueryable<Pet> ApplyLifecycleFilter(IQueryable<Pet> query, string? lifecycleStatus)

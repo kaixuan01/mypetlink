@@ -12,6 +12,8 @@ public sealed record PublicPetProfileResponse(
     bool LostModeEnabled,
     string? OwnerDisplayName,
     string? GeneralArea,
+    string? ProfilePhotoUrl,
+    string? CoverPhotoUrl,
     string? Bio,
     string? MemorialMessage,
     IReadOnlyCollection<PublicMemorySummaryResponse> Memories,
@@ -24,7 +26,8 @@ public sealed record PublicMemorySummaryResponse(
     string? Caption,
     bool ShowOnPublicProfile,
     bool ShowInLifeTimeline,
-    string? TimelineNote);
+    string? TimelineNote,
+    IReadOnlyCollection<MemoryMediaResponse> Media);
 
 public sealed record PublicCareSummaryResponse(
     string Type,
@@ -55,6 +58,8 @@ public sealed record PublicSafetyPageResponse(
     string? LostMessage,
     string? LostRewardNote,
     string? LostExtraContactInstruction,
+    string? ProfilePhotoUrl,
+    string? CoverPhotoUrl,
     bool ShowFoundLocationAction,
     PublicSafetyContactResponse? Contact);
 

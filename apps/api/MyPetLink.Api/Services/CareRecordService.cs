@@ -102,6 +102,9 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
         _dbContext.CareRecords.Add(record);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
+        await ReplaceRecordMediaAsync(userId, record, request.MediaFileIds, cancellationToken);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
         return ToResponse(record);
     }
 
@@ -162,6 +165,12 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
         if (request.PublicVisibility.HasValue)
         {
             record.PublicVisibility = request.PublicVisibility.Value;
+        }
+
+        if (request.MediaFileIds is not null)
+        {
+            var userId = RequireUserId(currentUserId);
+            await ReplaceRecordMediaAsync(userId, record, request.MediaFileIds, cancellationToken);
         }
 
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -253,7 +262,6 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
         }
 
         ValidateDueDate(request.Date, request.DueDate, errors);
-        ValidateMediaPlaceholder(request.MediaFileIds, errors);
 
         if (errors.Count > 0)
         {
@@ -273,7 +281,6 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
         var recordDate = request.Date ?? current.RecordDate;
         var dueDate = request.DueDate ?? current.DueDate;
         ValidateDueDate(recordDate, dueDate, errors);
-        ValidateMediaPlaceholder(request.MediaFileIds, errors);
 
         if (errors.Count > 0)
         {
@@ -303,13 +310,77 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
         }
     }
 
-    private static void ValidateMediaPlaceholder(
+    private async Task ReplaceRecordMediaAsync(
+        Guid userId,
+        CareRecord record,
         IReadOnlyCollection<Guid>? mediaFileIds,
-        IDictionary<string, string[]> errors)
+        CancellationToken cancellationToken)
     {
-        if (mediaFileIds is { Count: > 0 })
+        if (mediaFileIds is null)
         {
-            errors["mediaFileIds"] = ["File attachments are not available for care records yet."];
+            return;
+        }
+
+        var distinctIds = mediaFileIds.Where(id => id != Guid.Empty).Distinct().ToArray();
+
+        if (distinctIds.Length != mediaFileIds.Count)
+        {
+            throw ValidationFailed(new Dictionary<string, string[]>
+            {
+                ["mediaFileIds"] = ["Media files must be unique."]
+            });
+        }
+
+        var mediaFiles = await _dbContext.MediaFiles
+            .Where(media =>
+                distinctIds.Contains(media.Id)
+                && media.OwnerUserId == userId
+                && media.PetId == record.PetId
+                && media.UploadStatus == MediaUploadStatus.Ready
+                && media.DeletedAt == null
+                && (media.Category == MediaUploadCategory.VaccinationDocument
+                    || media.Category == MediaUploadCategory.MedicalDocument))
+            .ToListAsync(cancellationToken);
+
+        if (mediaFiles.Count != distinctIds.Length)
+        {
+            throw ValidationFailed(new Dictionary<string, string[]>
+            {
+                ["mediaFileIds"] = ["One or more files are not available."]
+            });
+        }
+
+        var existingLinks = await _dbContext.MediaFileLinks
+            .Where(link => link.OwnerType == MediaOwnerType.CareRecord && link.OwnerId == record.Id)
+            .ToListAsync(cancellationToken);
+        var now = DateTimeOffset.UtcNow;
+
+        foreach (var link in existingLinks.Where(link => !distinctIds.Contains(link.MediaFileId)))
+        {
+            link.ArchivedAt ??= now;
+        }
+
+        for (var index = 0; index < distinctIds.Length; index++)
+        {
+            var mediaId = distinctIds[index];
+            var link = existingLinks.FirstOrDefault(item => item.MediaFileId == mediaId);
+
+            if (link is null)
+            {
+                _dbContext.MediaFileLinks.Add(new MediaFileLink
+                {
+                    MediaFileId = mediaId,
+                    OwnerType = MediaOwnerType.CareRecord,
+                    OwnerId = record.Id,
+                    SortOrder = index,
+                    CreatedAt = now
+                });
+            }
+            else
+            {
+                link.SortOrder = index;
+                link.ArchivedAt = null;
+            }
         }
     }
 

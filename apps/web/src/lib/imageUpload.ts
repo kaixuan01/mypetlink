@@ -1,10 +1,9 @@
-// Phase 0 mock media handling. Real cloud storage arrives in Phase 1; until
-// then images are downscaled in the browser and persisted as data URLs in the
-// same localStorage mock collections as the rest of the pet data. Downscaling
-// keeps each image small enough to stay well within the localStorage quota.
+// Images are downscaled in the browser for local previews and prepared as
+// bounded JPEG files before direct cloud uploads.
 
-export const MAX_IMAGE_SOURCE_BYTES = 8 * 1024 * 1024; // 8MB raw file guard
+export const MAX_IMAGE_SOURCE_BYTES = 10 * 1024 * 1024; // 10MB raw file guard
 const MAX_IMAGE_DIMENSION = 720;
+const MAX_UPLOAD_IMAGE_DIMENSION = 1600;
 const OUTPUT_QUALITY = 0.82;
 
 export type ImageReadResult = {
@@ -15,16 +14,29 @@ export function isImageFile(file: File) {
   return file.type.startsWith("image/");
 }
 
-// Reads an image File, downscales it so its longest edge is at most
-// MAX_IMAGE_DIMENSION, and returns a compressed JPEG data URL. Rejects
-// non-image files and files larger than the source guard.
 export async function readImageAsDataUrl(file: File): Promise<string> {
+  const canvas = await drawImageToCanvas(file, MAX_IMAGE_DIMENSION);
+  return canvas.toDataURL("image/jpeg", OUTPUT_QUALITY);
+}
+
+export async function prepareImageFileForUpload(file: File): Promise<File> {
+  const canvas = await drawImageToCanvas(file, MAX_UPLOAD_IMAGE_DIMENSION);
+  const blob = await canvasToBlob(canvas, "image/jpeg", OUTPUT_QUALITY);
+  const fileName = toJpegFileName(file.name);
+
+  return new File([blob], fileName, {
+    type: "image/jpeg",
+    lastModified: Date.now(),
+  });
+}
+
+async function drawImageToCanvas(file: File, maxDimension: number) {
   if (!isImageFile(file)) {
     throw new Error("Please choose an image file.");
   }
 
   if (file.size > MAX_IMAGE_SOURCE_BYTES) {
-    throw new Error("Image is too large. Please choose a file under 8MB.");
+    throw new Error("Image is too large. Please choose a file under 10MB.");
   }
 
   const objectUrl = URL.createObjectURL(file);
@@ -34,7 +46,7 @@ export async function readImageAsDataUrl(file: File): Promise<string> {
     const { width, height } = scaleToFit(
       image.naturalWidth,
       image.naturalHeight,
-      MAX_IMAGE_DIMENSION
+      maxDimension
     );
 
     const canvas = document.createElement("canvas");
@@ -49,7 +61,7 @@ export async function readImageAsDataUrl(file: File): Promise<string> {
 
     context.drawImage(image, 0, 0, width, height);
 
-    return canvas.toDataURL("image/jpeg", OUTPUT_QUALITY);
+    return canvas;
   } finally {
     URL.revokeObjectURL(objectUrl);
   }
@@ -76,4 +88,32 @@ function scaleToFit(width: number, height: number, max: number) {
     width: Math.round(width * ratio),
     height: Math.round(height * ratio),
   };
+}
+
+function canvasToBlob(
+  canvas: HTMLCanvasElement,
+  type: string,
+  quality: number
+): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (blob) {
+          resolve(blob);
+          return;
+        }
+
+        reject(new Error("Could not process this image. Please try another file."));
+      },
+      type,
+      quality
+    );
+  });
+}
+
+function toJpegFileName(fileName: string) {
+  const trimmed = fileName.trim() || "image";
+  const base = trimmed.replace(/\.[^.]+$/, "") || "image";
+
+  return `${base}.jpg`;
 }

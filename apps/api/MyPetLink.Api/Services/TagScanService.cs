@@ -1,18 +1,22 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using MyPetLink.Api.Common;
 using MyPetLink.Api.Data;
 using MyPetLink.Api.DTOs;
 using MyPetLink.Api.Entities;
+using MyPetLink.Api.Storage;
 
 namespace MyPetLink.Api.Services;
 
 public sealed class TagScanService : SkeletonService, ITagScanService
 {
     private readonly MyPetLinkDbContext _dbContext;
+    private readonly CloudflareR2Options _r2Options;
 
-    public TagScanService(MyPetLinkDbContext dbContext)
+    public TagScanService(MyPetLinkDbContext dbContext, IOptions<CloudflareR2Options> r2Options)
     {
         _dbContext = dbContext;
+        _r2Options = r2Options.Value;
     }
 
     public async Task<TagScanPageResponse> ResolveAsync(
@@ -36,6 +40,10 @@ public sealed class TagScanService : SkeletonService, ITagScanService
                 .ThenInclude(pet => pet!.Contact)
             .Include(item => item.Pet)
                 .ThenInclude(pet => pet!.SafetySetting)
+            .Include(item => item.Pet)
+                .ThenInclude(pet => pet!.ProfileMediaFile)
+            .Include(item => item.Pet)
+                .ThenInclude(pet => pet!.CoverMediaFile)
             .SingleOrDefaultAsync(
                 item => item.TagCode == normalizedCode && item.DeletedAt == null,
                 cancellationToken);
@@ -76,7 +84,7 @@ public sealed class TagScanService : SkeletonService, ITagScanService
             return new TagScanPageResponse("inactive", tag.TagCode, tag.Status.ToString(), null);
         }
 
-        var profile = BuildSafetyProfile(tag.Pet!);
+        var profile = BuildSafetyProfile(tag.Pet!, _r2Options.PublicBaseUrl);
 
         if (profile is null)
         {
@@ -164,7 +172,7 @@ public sealed class TagScanService : SkeletonService, ITagScanService
             or SmartTagStatus.Archived;
     }
 
-    private static PublicSafetyPageResponse? BuildSafetyProfile(Pet pet)
+    private static PublicSafetyPageResponse? BuildSafetyProfile(Pet pet, string? publicBaseUrl)
     {
         var safetySetting = pet.SafetySetting;
 
@@ -199,6 +207,8 @@ public sealed class TagScanService : SkeletonService, ITagScanService
             pet.LostModeEnabled ? pet.LostMessage : null,
             pet.LostModeEnabled ? pet.LostRewardNote : null,
             pet.LostModeEnabled ? pet.LostExtraContactInstruction : null,
+            PetDtoMapper.ResolvePublicMediaUrl(pet.ProfileMediaFile, publicBaseUrl),
+            PetDtoMapper.ResolvePublicMediaUrl(pet.CoverMediaFile, publicBaseUrl),
             safetySetting.ShowFoundLocationAction,
             contact);
     }
