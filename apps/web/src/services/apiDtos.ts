@@ -72,6 +72,12 @@ export type BackendPetContact = {
   generalAreaOverride?: string | null;
 };
 
+export type BackendPetAgeInfo = {
+  source: "ExactBirthday" | "EstimatedBirthYear" | "Unknown";
+  ageInYears?: number | null;
+  displayLabel: string;
+};
+
 export type BackendPetDetail = {
   id: string;
   name: string;
@@ -81,9 +87,12 @@ export type BackendPetDetail = {
   gender?: string | null;
   color?: string | null;
   birthday?: string | null;
+  estimatedBirthYear?: number | null;
+  age?: BackendPetAgeInfo;
   adoptionDay?: string | null;
   generalArea?: string | null;
   bio?: string | null;
+  personalityTags?: string[] | null;
   profileTheme: string;
   lifecycleStatus: PetLifecycleStatus;
   lostModeEnabled: boolean;
@@ -119,6 +128,9 @@ export type BackendPetListItem = Pick<
   | "name"
   | "species"
   | "customSpecies"
+  | "birthday"
+  | "estimatedBirthYear"
+  | "age"
   | "publicSlug"
   | "publicCode"
   | "safetyCode"
@@ -130,6 +142,7 @@ export type BackendPetListItem = Pick<
   | "coverMediaId"
   | "profilePhotoUrl"
   | "coverPhotoUrl"
+  | "personalityTags"
   | "createdAt"
   | "updatedAt"
 >;
@@ -140,11 +153,19 @@ export type BackendPublicPetProfile = {
   name: string;
   species: string;
   customSpecies?: string | null;
+  breed?: string | null;
+  gender?: string | null;
+  color?: string | null;
+  birthday?: string | null;
+  estimatedBirthYear?: number | null;
+  age?: BackendPetAgeInfo;
+  adoptionDay?: string | null;
   lifecycleStatus: PetLifecycleStatus;
   lostModeEnabled: boolean;
   ownerDisplayName?: string | null;
   generalArea?: string | null;
   bio?: string | null;
+  personalityTags?: string[] | null;
   profilePhotoUrl?: string | null;
   coverPhotoUrl?: string | null;
   memorialMessage?: string | null;
@@ -238,6 +259,9 @@ export type BackendPublicSafetyPage = {
   state: "Active" | "LostMode" | "Memorial" | string;
   name: string;
   species: string;
+  birthday?: string | null;
+  estimatedBirthYear?: number | null;
+  age?: BackendPetAgeInfo;
   lifecycleStatus: PetLifecycleStatus;
   lostModeEnabled: boolean;
   generalArea?: string | null;

@@ -201,6 +201,7 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.Property(item => item.Name).HasMaxLength(120);
             entity.Property(item => item.Species).HasMaxLength(80);
             entity.Property(item => item.CustomSpecies).HasMaxLength(120);
+            entity.Property(item => item.EstimatedBirthYear).HasColumnType("smallint");
             entity.Property(item => item.GeneralArea).HasMaxLength(200);
             entity.Property(item => item.ProfileTheme).HasMaxLength(64);
             entity.Property(item => item.LifecycleStatus).HasConversion<string>().HasMaxLength(32);

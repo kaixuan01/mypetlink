@@ -287,7 +287,7 @@ Key fields:
 - `Name`
 - `Species`, `CustomSpecies`
 - `Breed`, `Gender`, `Color`
-- `Birthday`, `AdoptionDay`, `EstimatedAgeLabel`
+- `Birthday`, `EstimatedBirthYear`, `AdoptionDay`, `EstimatedAgeLabel` (legacy compatibility)
 - `GeneralArea`
 - `ProfileTheme`
 - `LifecycleStatus`

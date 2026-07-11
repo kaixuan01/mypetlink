@@ -13,6 +13,7 @@ public sealed class Pet : AuditableEntity
     public string? Gender { get; set; }
     public string? Color { get; set; }
     public DateOnly? Birthday { get; set; }
+    public short? EstimatedBirthYear { get; set; }
     public DateOnly? AdoptionDay { get; set; }
     public string? EstimatedAgeLabel { get; set; }
     public string? GeneralArea { get; set; }

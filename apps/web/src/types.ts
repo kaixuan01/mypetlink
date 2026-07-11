@@ -1,3 +1,5 @@
+import type { PetAgeMode, PetAgeSource } from "@/lib/petAge";
+
 export type ApiResponse<T> = {
   data: T;
   meta: {
@@ -64,7 +66,9 @@ export type Pet = {
   gender: string;
   color: string;
   ageLabel: string;
-  estimatedAge?: string;
+  ageSource?: PetAgeSource;
+  ageInformationMode?: PetAgeMode;
+  estimatedBirthYear?: number;
   birthday: string;
   adoptionDay: string;
   createdAt: string;
@@ -138,6 +142,9 @@ export type PublicPetProfile = Pick<
   | "gender"
   | "color"
   | "ageLabel"
+  | "ageSource"
+  | "ageInformationMode"
+  | "estimatedBirthYear"
   | "birthday"
   | "adoptionDay"
   | "generalArea"

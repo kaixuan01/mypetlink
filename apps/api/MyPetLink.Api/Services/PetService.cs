@@ -60,7 +60,7 @@ public sealed class PetService : SkeletonService, IPetService
         CancellationToken cancellationToken = default)
     {
         var user = await LoadOwnerUserAsync(currentUserId, cancellationToken);
-        ValidateCreateRequest(request);
+        var age = ValidateCreateRequest(request);
         ValidateContact(request.Contact);
         await EnsureCanCreateActivePetAsync(user, cancellationToken);
 
@@ -80,10 +80,12 @@ public sealed class PetService : SkeletonService, IPetService
             Breed = PetDtoMapper.NormalizeOptional(request.Breed),
             Gender = PetDtoMapper.NormalizeOptional(request.Gender),
             Color = PetDtoMapper.NormalizeOptional(request.Color),
-            Birthday = request.Birthday,
+            Birthday = age.Birthday,
+            EstimatedBirthYear = age.EstimatedBirthYear,
             AdoptionDay = request.AdoptionDay,
             GeneralArea = PetDtoMapper.NormalizeOptional(request.GeneralArea) ?? user.OwnerProfile!.DefaultGeneralArea,
             Bio = PetDtoMapper.NormalizeOptional(request.Bio),
+            PersonalityTagsJson = PetDtoMapper.SerializePersonalityTags(request.PersonalityTags),
             ProfileTheme = PetDtoMapper.NormalizeOptional(request.ProfileTheme) ?? "default",
             LifecycleStatus = PetLifecycleStatus.Active,
             LostModeEnabled = false,
@@ -138,7 +140,7 @@ public sealed class PetService : SkeletonService, IPetService
         CancellationToken cancellationToken = default)
     {
         var pet = await LoadOwnedPetAsync(currentUserId, petId, trackChanges: true, cancellationToken);
-        ValidateUpdateRequest(request);
+        var ageUpdate = ValidateUpdateRequest(request);
         ValidateContact(request.Contact);
         await EnsurePetPublicArtifactsAsync(pet, cancellationToken);
 
@@ -175,9 +177,11 @@ public sealed class PetService : SkeletonService, IPetService
             pet.Color = PetDtoMapper.NormalizeOptional(request.Color);
         }
 
-        if (request.Birthday.HasValue)
+        if (ageUpdate is not null)
         {
-            pet.Birthday = request.Birthday;
+            pet.Birthday = ageUpdate.Birthday;
+            pet.EstimatedBirthYear = ageUpdate.EstimatedBirthYear;
+            pet.EstimatedAgeLabel = null;
         }
 
         if (request.AdoptionDay.HasValue)
@@ -193,6 +197,13 @@ public sealed class PetService : SkeletonService, IPetService
         if (request.Bio is not null)
         {
             pet.Bio = PetDtoMapper.NormalizeOptional(request.Bio);
+        }
+
+        // A provided list (including an empty one) replaces the saved tags, so the
+        // owner can add, remove, replace, or clear them. Null means "no change".
+        if (request.PersonalityTags is not null)
+        {
+            pet.PersonalityTagsJson = PetDtoMapper.SerializePersonalityTags(request.PersonalityTags);
         }
 
         if (request.ProfileTheme is not null)
@@ -584,20 +595,28 @@ public sealed class PetService : SkeletonService, IPetService
         return pet.PublicProfile;
     }
 
-    private static void ValidateCreateRequest(CreatePetRequest request)
+    private static NormalizedPetAge ValidateCreateRequest(CreatePetRequest request)
     {
         var errors = new Dictionary<string, string[]>();
         ValidateRequired(request.Name, "name", "Pet name is required.", errors);
         ValidateRequired(request.Species, "species", "Species is required.", errors);
-        ValidateDates(request.Birthday, request.AdoptionDay, errors);
+        ValidateAgeRanges(request.Birthday, request.EstimatedBirthYear, errors);
+        ValidateDates(null, request.AdoptionDay, errors);
+        var age = NormalizeAgeInput(
+            request.AgeInformationMode,
+            request.Birthday,
+            request.EstimatedBirthYear,
+            errors);
 
         if (errors.Count > 0)
         {
             throw ValidationFailed(errors);
         }
+
+        return age;
     }
 
-    private static void ValidateUpdateRequest(UpdatePetRequest request)
+    private static NormalizedPetAge? ValidateUpdateRequest(UpdatePetRequest request)
     {
         var errors = new Dictionary<string, string[]>();
 
@@ -611,11 +630,95 @@ public sealed class PetService : SkeletonService, IPetService
             ValidateRequired(request.Species, "species", "Species cannot be empty.", errors);
         }
 
-        ValidateDates(request.Birthday, request.AdoptionDay, errors);
+        ValidateAgeRanges(request.Birthday, request.EstimatedBirthYear, errors);
+        ValidateDates(null, request.AdoptionDay, errors);
+        var hasAgeUpdate = request.AgeInformationMode.HasValue
+            || request.Birthday.HasValue
+            || request.EstimatedBirthYear.HasValue;
+        var age = hasAgeUpdate
+            ? NormalizeAgeInput(
+                request.AgeInformationMode,
+                request.Birthday,
+                request.EstimatedBirthYear,
+                errors)
+            : null;
 
         if (errors.Count > 0)
         {
             throw ValidationFailed(errors);
+        }
+
+        return age;
+    }
+
+    private static NormalizedPetAge NormalizeAgeInput(
+        PetAgeMode? requestedMode,
+        DateOnly? birthday,
+        short? estimatedBirthYear,
+        IDictionary<string, string[]> errors)
+    {
+        var mode = requestedMode
+            ?? (birthday.HasValue
+                ? PetAgeMode.ExactBirthday
+                : estimatedBirthYear.HasValue
+                    ? PetAgeMode.EstimatedBirthYear
+                    : PetAgeMode.Unknown);
+
+        switch (mode)
+        {
+            case PetAgeMode.ExactBirthday:
+                if (!birthday.HasValue)
+                {
+                    errors["birthday"] = ["Birthday is required when Exact birthday is selected."];
+                }
+
+                return new NormalizedPetAge(birthday, null);
+
+            case PetAgeMode.EstimatedBirthYear:
+                if (!estimatedBirthYear.HasValue)
+                {
+                    errors["estimatedBirthYear"] =
+                        ["Estimated birth year is required when Estimated birth year is selected."];
+                }
+
+                return new NormalizedPetAge(null, estimatedBirthYear);
+
+            default:
+                return new NormalizedPetAge(null, null);
+        }
+    }
+
+    private static void ValidateAgeRanges(
+        DateOnly? birthday,
+        short? estimatedBirthYear,
+        IDictionary<string, string[]> errors)
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        if (birthday.HasValue)
+        {
+            if (birthday.Value > today)
+            {
+                errors["birthday"] = ["Birthday cannot be in the future."];
+            }
+            else if (birthday.Value.Year < PetAgeCalculator.MinimumSupportedYear)
+            {
+                errors["birthday"] =
+                    [$"Birthday must be in {PetAgeCalculator.MinimumSupportedYear} or later."];
+            }
+        }
+
+        if (estimatedBirthYear.HasValue)
+        {
+            if (estimatedBirthYear.Value > today.Year)
+            {
+                errors["estimatedBirthYear"] = ["Estimated birth year cannot be in the future."];
+            }
+            else if (estimatedBirthYear.Value < PetAgeCalculator.MinimumSupportedYear)
+            {
+                errors["estimatedBirthYear"] =
+                    [$"Estimated birth year must be {PetAgeCalculator.MinimumSupportedYear} or later."];
+            }
         }
     }
 
@@ -633,6 +736,8 @@ public sealed class PetService : SkeletonService, IPetService
             errors["adoptionDay"] = ["Adoption day cannot be in the future."];
         }
     }
+
+    private sealed record NormalizedPetAge(DateOnly? Birthday, short? EstimatedBirthYear);
 
     private static void ValidateContact(PetContactRequest? request)
     {

@@ -33,12 +33,14 @@ import {
   type OwnerSettings,
 } from "@/lib/ownerSettings";
 import {
-  buildAgeLabelFromDate,
-  ESTIMATED_AGE_OPTIONS,
-  formatEstimatedAgeLabel,
-  parseEstimatedAgeValue,
-  PET_TYPE_OPTIONS,
-} from "@/lib/petDisplay";
+  applyPetAgeMode,
+  calculatePetAge,
+  getEstimatedBirthYearOptions,
+  getPetAgeMode,
+  MINIMUM_PET_BIRTH_YEAR,
+  type PetAgeMode,
+} from "@/lib/petAge";
+import { PET_TYPE_OPTIONS } from "@/lib/petDisplay";
 import { isActivePet, isArchivedPet, isMemorialPet } from "@/lib/petLifecycle";
 import { smartTagOrderingEnabled } from "@/lib/features";
 import { ownerRoutes, publicProfilePath } from "@/lib/routes";
@@ -73,8 +75,9 @@ type FormState = {
   breed: string;
   gender: string;
   color: string;
+  ageInformationMode: PetAgeMode;
   birthdayDate: string;
-  estimatedAge: string;
+  estimatedBirthYear: string;
   photoUrl: string;
   coverUrl: string;
   profileTheme: PetProfileThemeId;
@@ -129,8 +132,9 @@ const fieldTab: Record<keyof FormState, EditTab> = {
   breed: "basic",
   gender: "basic",
   color: "basic",
+  ageInformationMode: "basic",
   birthdayDate: "basic",
-  estimatedAge: "basic",
+  estimatedBirthYear: "basic",
   bio: "basic",
   personalityTags: "basic",
   favoriteFood: "basic",
@@ -171,8 +175,9 @@ const emptyForm: FormState = {
   breed: "",
   gender: "",
   color: "",
+  ageInformationMode: "Unknown",
   birthdayDate: "",
-  estimatedAge: "",
+  estimatedBirthYear: "",
   photoUrl: "",
   coverUrl: "",
   profileTheme: "default",
@@ -299,12 +304,28 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
     setForm((current) => ({
       ...current,
       birthdayDate: value,
-      estimatedAge: value ? "" : current.estimatedAge,
+      estimatedBirthYear: "",
     }));
     setErrors((current) => ({
       ...current,
       birthdayDate: undefined,
-      estimatedAge: undefined,
+      estimatedBirthYear: undefined,
+    }));
+    setFormError("");
+    setSuccess("");
+  }
+
+  function updateAgeInformationMode(ageInformationMode: PetAgeMode) {
+    setForm((current) => ({
+      ...current,
+      ageInformationMode,
+      ...applyPetAgeMode(ageInformationMode, current),
+    }));
+    setErrors((current) => ({
+      ...current,
+      ageInformationMode: undefined,
+      birthdayDate: undefined,
+      estimatedBirthYear: undefined,
     }));
     setFormError("");
     setSuccess("");
@@ -379,11 +400,30 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
       nextErrors.phone = "Please enter a valid phone number.";
     }
 
-    if (form.birthdayDate) {
-      if (!isValidDate(form.birthdayDate)) {
+    if (form.ageInformationMode === "ExactBirthday") {
+      if (!form.birthdayDate) {
+        nextErrors.birthdayDate = "Choose your pet's birthday.";
+      } else if (!isValidDate(form.birthdayDate)) {
         nextErrors.birthdayDate = "Choose a valid birthday.";
       } else if (new Date(`${form.birthdayDate}T00:00:00`) > new Date()) {
         nextErrors.birthdayDate = "Birthday cannot be in the future.";
+      } else if (Number(form.birthdayDate.slice(0, 4)) < MINIMUM_PET_BIRTH_YEAR) {
+        nextErrors.birthdayDate = `Birthday must be in ${MINIMUM_PET_BIRTH_YEAR} or later.`;
+      }
+    }
+
+    if (form.ageInformationMode === "EstimatedBirthYear") {
+      const estimatedBirthYear = Number(form.estimatedBirthYear);
+      const currentYear = new Date().getUTCFullYear();
+
+      if (!form.estimatedBirthYear) {
+        nextErrors.estimatedBirthYear = "Choose an estimated birth year.";
+      } else if (
+        !Number.isInteger(estimatedBirthYear) ||
+        estimatedBirthYear < MINIMUM_PET_BIRTH_YEAR ||
+        estimatedBirthYear > currentYear
+      ) {
+        nextErrors.estimatedBirthYear = `Choose a year from ${MINIMUM_PET_BIRTH_YEAR} to ${currentYear}.`;
       }
     }
 
@@ -404,7 +444,6 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
     enforceMax(nextErrors, "customSpecies", form.customSpecies, 60);
     enforceMax(nextErrors, "gender", form.gender, 40);
     enforceMax(nextErrors, "color", form.color, 80);
-    enforceMax(nextErrors, "estimatedAge", form.estimatedAge, 60);
     enforceMax(nextErrors, "generalArea", form.generalArea, 120);
     enforceMax(nextErrors, "bio", form.bio, 320);
     enforceMax(nextErrors, "safetyNote", form.safetyNote, 260);
@@ -785,48 +824,80 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
               value={form.color}
             />
 
-            <Field
-              error={errors.birthdayDate}
-              helper="Leave this blank if you only know an estimated age."
-              label="Birthday"
-            >
-              <input
+            <Field label="Age information">
+              <select
                 className="brand-input"
-                onChange={(event) => updateBirthday(event.target.value)}
-                type="date"
-                value={form.birthdayDate}
-              />
+                onChange={(event) =>
+                  updateAgeInformationMode(event.target.value as PetAgeMode)
+                }
+                value={form.ageInformationMode}
+              >
+                <option value="ExactBirthday">Exact birthday</option>
+                <option value="EstimatedBirthYear">Estimated birth year</option>
+                <option value="Unknown">Unknown</option>
+              </select>
             </Field>
 
-            {form.birthdayDate ? (
-              <Field label="Age display">
-                <div className="rounded-[1.25rem] bg-pet-cream px-4 py-3 text-sm font-bold text-pet-ink">
-                  {buildAgeLabelFromDate(
-                    new Date(`${form.birthdayDate}T00:00:00`)
-                  )}
-                </div>
-              </Field>
-            ) : (
+            {form.ageInformationMode === "ExactBirthday" ? (
               <Field
-                error={errors.estimatedAge}
-                helper="Use this only when the birthday is not known."
-                label="Estimated age"
+                error={errors.birthdayDate}
+                helper="Use this when you know your pet's full birth date."
+                label="Exact birthday"
+              >
+                <input
+                  className="brand-input"
+                  max={new Date().toISOString().slice(0, 10)}
+                  min={`${MINIMUM_PET_BIRTH_YEAR}-01-01`}
+                  onChange={(event) => updateBirthday(event.target.value)}
+                  type="date"
+                  value={form.birthdayDate}
+                />
+              </Field>
+            ) : null}
+
+            {form.ageInformationMode === "EstimatedBirthYear" ? (
+              <Field
+                error={errors.estimatedBirthYear}
+                helper="Use this when you only know approximately which year your pet was born. Their age will update automatically."
+                label="Estimated birth year"
               >
                 <select
                   className="brand-input"
                   onChange={(event) =>
-                    updateField("estimatedAge", event.target.value)
+                    updateField("estimatedBirthYear", event.target.value)
                   }
-                  value={form.estimatedAge || "unknown"}
+                  value={form.estimatedBirthYear}
                 >
-                  {ESTIMATED_AGE_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
+                  <option value="">Choose a year</option>
+                  {getEstimatedBirthYearOptions().map((year) => (
+                    <option key={year} value={year}>
+                      {year}
                     </option>
                   ))}
                 </select>
               </Field>
-            )}
+            ) : null}
+
+            {form.ageInformationMode === "Unknown" ? (
+              <div className="rounded-[1.25rem] bg-pet-cream px-4 py-3 text-sm leading-6 text-pet-muted">
+                Choose this when the birth date and estimated year are not known.
+              </div>
+            ) : null}
+
+            <Field label="Age display">
+              <div className="rounded-[1.25rem] bg-pet-cream px-4 py-3 text-sm font-bold text-pet-ink">
+                {calculatePetAge({
+                  birthday:
+                    form.ageInformationMode === "ExactBirthday"
+                      ? form.birthdayDate
+                      : null,
+                  estimatedBirthYear:
+                    form.ageInformationMode === "EstimatedBirthYear"
+                      ? Number(form.estimatedBirthYear) || null
+                      : null,
+                }).displayLabel}
+              </div>
+            </Field>
           </div>
 
           <div className="mt-4 grid min-w-0 gap-4 lg:grid-cols-[1.1fr_0.9fr]">
@@ -1746,6 +1817,7 @@ function toFormState(
 
   const visibility = mergeVisibility(pet.visibility);
   const contact = getEffectivePetContact(pet, ownerSettings);
+  const ageInformationMode = getPetAgeMode(pet);
 
   return {
     name: pet.name,
@@ -1754,10 +1826,15 @@ function toFormState(
     breed: pet.breed,
     gender: pet.gender,
     color: pet.color,
-    birthdayDate: parseDisplayDate(pet.birthday),
-    estimatedAge: parseDisplayDate(pet.birthday)
-      ? ""
-      : parseEstimatedAgeValue(pet.ageLabel),
+    ageInformationMode,
+    birthdayDate:
+      ageInformationMode === "ExactBirthday"
+        ? parseDisplayDate(pet.birthday)
+        : "",
+    estimatedBirthYear:
+      ageInformationMode === "EstimatedBirthYear" && pet.estimatedBirthYear
+        ? String(pet.estimatedBirthYear)
+        : "",
     photoUrl: pet.photoUrl ?? "",
     coverUrl: pet.coverUrl ?? "",
     profileTheme: pet.profileTheme ?? "default",
@@ -1798,12 +1875,18 @@ function buildPayload(
   ownerSettings: OwnerSettings = defaultOwnerSettings
 ): PetPayload {
   const name = form.name.trim();
-  const birthday = form.birthdayDate
-    ? formatDisplayDate(form.birthdayDate)
-    : "Not set";
-  const ageLabel = form.birthdayDate
-    ? buildAgeLabelFromDate(new Date(`${form.birthdayDate}T00:00:00`))
-    : formatEstimatedAgeLabel(form.estimatedAge || "unknown");
+  const birthday =
+    form.ageInformationMode === "ExactBirthday" && form.birthdayDate
+      ? formatDisplayDate(form.birthdayDate)
+      : "Not set";
+  const estimatedBirthYear =
+    form.ageInformationMode === "EstimatedBirthYear"
+      ? Number(form.estimatedBirthYear) || undefined
+      : undefined;
+  const ageLabel = calculatePetAge({
+    birthday,
+    estimatedBirthYear,
+  }).displayLabel;
 
   return {
     name,
@@ -1814,6 +1897,8 @@ function buildPayload(
     breed: form.breed.trim() || "Mixed breed",
     gender: form.gender.trim() || "Not set",
     color: form.color.trim() || "Not set",
+    ageInformationMode: form.ageInformationMode,
+    estimatedBirthYear,
     birthday,
     ageLabel,
     adoptionDay: form.adoptionDate ? formatDisplayDate(form.adoptionDate) : "Not set",
@@ -2279,13 +2364,28 @@ function parseDisplayDate(value: string) {
 }
 
 function splitTags(value: string) {
-  const tags = value
-    .split(",")
-    .map((tag) => tag.trim())
-    .filter(Boolean)
-    .slice(0, 6);
+  // Return exactly what the owner typed, de-duplicated. An empty field clears
+  // all tags — never fall back to sample/default tags.
+  const seen = new Set<string>();
+  const tags: string[] = [];
 
-  return tags.length ? tags : ["Loved", "Family pet"];
+  for (const raw of value.split(",")) {
+    const tag = raw.trim();
+    const key = tag.toLowerCase();
+
+    if (!tag || seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    tags.push(tag);
+
+    if (tags.length >= 12) {
+      break;
+    }
+  }
+
+  return tags;
 }
 
 function getInitial(name: string) {

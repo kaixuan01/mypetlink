@@ -12,7 +12,7 @@ This documents the local preview data model in `apps/web`. Owner auth, owner pro
 
 ## Pet model (`Pet`)
 
-Core identity: `id` (`pet_{slug}`), `slug`, `name`, `species` (+ `customSpecies`), `breed`, `gender`, `color`, `ageLabel`/`birthday`/`adoptionDay`, `generalArea`, photo fields, `profileTheme`.
+Core identity: `id` (`pet_{slug}`), `slug`, `name`, `species` (+ `customSpecies`), `breed`, `gender`, `color`, `birthday`/`estimatedBirthYear`/calculated `ageLabel`/`adoptionDay`, `generalArea`, photo fields, `profileTheme`.
 
 Public identifiers:
 - `publicCode` — stable lowercase 4-char code; final segment of the share URL `/p/{slug}-{publicCode}`. Lookup is always by `publicCode`, never slug.

@@ -276,7 +276,7 @@ Auth: owner.
 
 Request:
 
-- basic profile fields: `name`, `species`, `customSpecies`, `breed`, `gender`, `color`, `birthday`, `adoptionDay`, `generalArea`, `bio`, `profileTheme`
+- basic profile fields: `name`, `species`, `customSpecies`, `breed`, `gender`, `color`, `ageInformationMode`, `birthday`, `estimatedBirthYear`, `adoptionDay`, `generalArea`, `bio`, `profileTheme`
 - contact/safety fields: `contact`, `visibility`, `safetyNote`, `emergencyNote`
 
 Response:

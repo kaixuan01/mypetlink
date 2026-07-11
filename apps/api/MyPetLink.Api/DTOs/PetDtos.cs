@@ -3,6 +3,25 @@ using MyPetLink.Api.Entities;
 
 namespace MyPetLink.Api.DTOs;
 
+public enum PetAgeMode
+{
+    ExactBirthday,
+    EstimatedBirthYear,
+    Unknown
+}
+
+public enum PetAgeSource
+{
+    ExactBirthday,
+    EstimatedBirthYear,
+    Unknown
+}
+
+public sealed record PetAgeInfoResponse(
+    PetAgeSource Source,
+    int? AgeInYears,
+    string DisplayLabel);
+
 public sealed record PetContactRequest(
     bool UseOwnerDefaults,
     [MaxLength(200)]
@@ -40,12 +59,15 @@ public sealed record CreatePetRequest(
     string? Gender,
     [MaxLength(120)]
     string? Color,
+    PetAgeMode? AgeInformationMode,
     DateOnly? Birthday,
+    short? EstimatedBirthYear,
     DateOnly? AdoptionDay,
     [MaxLength(200)]
     string? GeneralArea,
     [MaxLength(2000)]
     string? Bio,
+    IReadOnlyList<string>? PersonalityTags,
     [MaxLength(64)]
     string? ProfileTheme,
     PetContactRequest? Contact,
@@ -68,12 +90,15 @@ public sealed record UpdatePetRequest(
     string? Gender,
     [MaxLength(120)]
     string? Color,
+    PetAgeMode? AgeInformationMode,
     DateOnly? Birthday,
+    short? EstimatedBirthYear,
     DateOnly? AdoptionDay,
     [MaxLength(200)]
     string? GeneralArea,
     [MaxLength(2000)]
     string? Bio,
+    IReadOnlyList<string>? PersonalityTags,
     [MaxLength(64)]
     string? ProfileTheme,
     PetContactRequest? Contact,
@@ -109,10 +134,14 @@ public sealed record PetListItemResponse(
     string Name,
     string Species,
     string? CustomSpecies,
+    DateOnly? Birthday,
+    short? EstimatedBirthYear,
+    PetAgeInfoResponse Age,
     Guid? ProfileMediaId,
     Guid? CoverMediaId,
     string? ProfilePhotoUrl,
     string? CoverPhotoUrl,
+    IReadOnlyList<string> PersonalityTags,
     string PublicSlug,
     string PublicCode,
     string SafetyCode,
@@ -132,9 +161,12 @@ public sealed record PetDetailResponse(
     string? Gender,
     string? Color,
     DateOnly? Birthday,
+    short? EstimatedBirthYear,
+    PetAgeInfoResponse Age,
     DateOnly? AdoptionDay,
     string? GeneralArea,
     string? Bio,
+    IReadOnlyList<string> PersonalityTags,
     Guid? ProfileMediaId,
     Guid? CoverMediaId,
     string? ProfilePhotoUrl,

@@ -78,6 +78,76 @@ internal static class PetDtoMapper
         return JsonSerializer.Serialize(visibility, JsonOptions);
     }
 
+    // Personality tags are stored as a JSON array in Pet.PersonalityTagsJson.
+    // Parse/Serialize both run the same normalization so what is read back always
+    // matches what was saved: trimmed, de-duplicated (case-insensitive), capped
+    // in length and count, and never replaced with defaults.
+    public const int MaxPersonalityTags = 12;
+    public const int MaxPersonalityTagLength = 40;
+
+    public static IReadOnlyList<string> ParsePersonalityTags(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return Array.Empty<string>();
+        }
+
+        try
+        {
+            var tags = JsonSerializer.Deserialize<List<string>>(json, JsonOptions);
+            return NormalizePersonalityTags(tags);
+        }
+        catch (JsonException)
+        {
+            return Array.Empty<string>();
+        }
+    }
+
+    public static string SerializePersonalityTags(IEnumerable<string>? tags)
+    {
+        return JsonSerializer.Serialize(NormalizePersonalityTags(tags), JsonOptions);
+    }
+
+    public static IReadOnlyList<string> NormalizePersonalityTags(IEnumerable<string>? tags)
+    {
+        if (tags is null)
+        {
+            return Array.Empty<string>();
+        }
+
+        var result = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var raw in tags)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                continue;
+            }
+
+            var tag = raw.Trim();
+
+            if (tag.Length > MaxPersonalityTagLength)
+            {
+                tag = tag[..MaxPersonalityTagLength].Trim();
+            }
+
+            if (tag.Length == 0 || !seen.Add(tag))
+            {
+                continue;
+            }
+
+            result.Add(tag);
+
+            if (result.Count >= MaxPersonalityTags)
+            {
+                break;
+            }
+        }
+
+        return result;
+    }
+
     public static PetVisibilityResponse ToVisibilityResponse(PetVisibilityRequest visibility)
     {
         return new PetVisibilityResponse(
@@ -135,10 +205,14 @@ internal static class PetDtoMapper
             pet.Name,
             pet.Species,
             pet.CustomSpecies,
+            pet.Birthday,
+            pet.EstimatedBirthYear,
+            PetAgeCalculator.Calculate(pet.Birthday, pet.EstimatedBirthYear),
             pet.ProfileMediaFileId,
             pet.CoverMediaFileId,
             ResolvePublicMediaUrl(pet.ProfileMediaFile, publicBaseUrl),
             ResolvePublicMediaUrl(pet.CoverMediaFile, publicBaseUrl),
+            ParsePersonalityTags(pet.PersonalityTagsJson),
             publicSlug,
             publicCode,
             safetyCode,
@@ -165,9 +239,12 @@ internal static class PetDtoMapper
             pet.Gender,
             pet.Color,
             pet.Birthday,
+            pet.EstimatedBirthYear,
+            PetAgeCalculator.Calculate(pet.Birthday, pet.EstimatedBirthYear),
             pet.AdoptionDay,
             pet.GeneralArea,
             pet.Bio,
+            ParsePersonalityTags(pet.PersonalityTagsJson),
             pet.ProfileMediaFileId,
             pet.CoverMediaFileId,
             ResolvePublicMediaUrl(pet.ProfileMediaFile, publicBaseUrl),

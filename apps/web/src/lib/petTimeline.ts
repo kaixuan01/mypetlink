@@ -34,7 +34,7 @@ export type PetTimelineItem = {
 
 type TimelinePet = Pick<
   Pet | PublicPetProfile,
-  "name" | "birthday" | "adoptionDay" | "visibility"
+  "name" | "birthday" | "estimatedBirthYear" | "adoptionDay" | "visibility"
 >;
 
 const MONTHS = [
@@ -119,6 +119,18 @@ export function buildPetTimeline(
       group: "birth",
       isPublic: visibility.showBirthdayOnTimeline,
       sortValue: parseTimelineDate(pet.birthday),
+    });
+  } else if (pet.estimatedBirthYear) {
+    const estimatedDate = `Estimated ${pet.estimatedBirthYear}`;
+    items.push({
+      id: "auto-birth",
+      title: `${pet.name} was born`,
+      date: estimatedDate,
+      description: "Estimated birth year.",
+      source: "auto",
+      group: "birth",
+      isPublic: visibility.showBirthdayOnTimeline,
+      sortValue: parseTimelineDate(estimatedDate),
     });
   }
 

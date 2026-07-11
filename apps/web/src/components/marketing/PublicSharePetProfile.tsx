@@ -777,6 +777,14 @@ function AboutTab({
     { label: "Gender", value: profile.gender },
     { label: "Age", value: getPetAgeLabel(profile) },
     { label: "Birthday", value: profile.birthday },
+    ...(profile.estimatedBirthYear
+      ? [
+          {
+            label: "Estimated birth year",
+            value: String(profile.estimatedBirthYear),
+          },
+        ]
+      : []),
     ...(isMemorialPet(profile) && profile.memorial.passedAwayDate
       ? [{ label: "Remembered since", value: profile.memorial.passedAwayDate }]
       : []),

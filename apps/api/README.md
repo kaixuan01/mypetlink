@@ -298,6 +298,11 @@ dotnet tool restore
 
 The `InitialCreate` migration exists in `apps/api/MyPetLink.Api/Migrations/` and creates all 23 Phase 1 tables plus the Free/Premium plan, plan limit, and app-setting seed rows.
 
+`AddEstimatedBirthYear` is an additive pet-age migration. It adds nullable
+`Pets.EstimatedBirthYear`, preserves `Birthday` and the legacy
+`EstimatedAgeLabel`, and only backfills clearly parseable numeric legacy labels.
+See [`../../docs/database/pet-age-migration.md`](../../docs/database/pet-age-migration.md).
+
 Create the local database / apply migrations (run from the repository root):
 
 ```bash

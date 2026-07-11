@@ -5,6 +5,7 @@ import {
   getDefaultPetVisibility,
   readOwnerSettings,
 } from "@/lib/ownerSettings";
+import { calculatePetAge, getPetAgeMode } from "@/lib/petAge";
 import { getPetAgeLabel, PET_TYPE_OPTIONS } from "@/lib/petDisplay";
 import {
   getCountedPetProfiles,
@@ -254,6 +255,15 @@ function normalizePet(pet: Pet): Pet {
     pet.createdAt ?? pet.updatedAt ?? "2026-01-01T00:00:00.000Z";
   const updatedAt = pet.updatedAt ?? createdAt;
   const species = normalizeSpecies(pet);
+  const legacyEstimatedYear = pet.birthday?.match(/^Estimated (\d{4})$/i);
+  const estimatedBirthYear =
+    pet.estimatedBirthYear ??
+    (legacyEstimatedYear ? Number(legacyEstimatedYear[1]) : undefined);
+  const birthday = legacyEstimatedYear ? "Not set" : pet.birthday ?? "Not set";
+  const age = calculatePetAge({
+    birthday,
+    estimatedBirthYear,
+  });
 
   return {
     ...pet,
@@ -262,12 +272,11 @@ function normalizePet(pet: Pet): Pet {
     updatedAt,
     gender: pet.gender ?? "Not set",
     color: pet.color ?? "Not set",
-    ageLabel: getPetAgeLabel({
-      birthday: pet.birthday ?? "Not set",
-      ageLabel: pet.ageLabel ?? "Age not set",
-      estimatedAge: pet.estimatedAge,
-    }),
-    birthday: pet.birthday ?? "Not set",
+    ageLabel: age.displayLabel,
+    ageSource: age.source,
+    ageInformationMode: age.source,
+    estimatedBirthYear,
+    birthday,
     adoptionDay: pet.adoptionDay ?? "Not set",
     photoInitial: pet.photoInitial ?? getPetInitial(pet.name),
     photoTone: pet.photoTone ?? (species.species === "Cat" ? "mint" : "apricot"),
@@ -298,9 +307,9 @@ function normalizePet(pet: Pet): Pet {
     bio:
       pet.bio ??
       `${pet.name} has a safe MyPetLink profile ready for family and friends.`,
-    personalityTags: pet.personalityTags?.length
-      ? pet.personalityTags
-      : ["Loved", "Family pet"],
+    // Preserve exactly what was saved, including an intentionally empty list.
+    // Never substitute default/sample tags.
+    personalityTags: pet.personalityTags ?? [],
     favoriteFood: pet.favoriteFood ?? "Not set",
     favoriteToy: pet.favoriteToy ?? "Not set",
     safetyNote:
@@ -416,13 +425,14 @@ export function mapBackendPetToFrontend(
   const ownerSettings = readOwnerSettings();
   const publicSlug = pet.publicSlug || PetDtoFallbackSlug(pet.name, pet.publicCode);
   const slug = getSlugFromPublicSlug(publicSlug, pet.publicCode);
-  const birthday = detail ? toDisplayDate(detail.birthday) : "Not set";
+  const birthday = toDisplayDate(pet.birthday);
+  const estimatedBirthYear = pet.estimatedBirthYear ?? undefined;
   const adoptionDay = detail ? toDisplayDate(detail.adoptionDay) : "Not set";
   const ageLabel = getPetAgeLabel({
     birthday,
-    ageLabel: "Age unknown",
-    estimatedAge: "",
+    estimatedBirthYear,
   });
+  const age = pet.age ?? calculatePetAge({ birthday, estimatedBirthYear });
   const visibility = mergeVisibility(detail?.visibility ?? defaultVisibility);
   const contact = detail?.contact;
   const phone = contact?.phoneE164 ?? ownerSettings.phoneNumber;
@@ -444,6 +454,9 @@ export function mapBackendPetToFrontend(
     gender: detail?.gender || "Not set",
     color: detail?.color || "Not set",
     ageLabel,
+    ageSource: age.source,
+    ageInformationMode: age.source,
+    estimatedBirthYear,
     birthday,
     adoptionDay,
     createdAt: pet.createdAt,
@@ -477,7 +490,7 @@ export function mapBackendPetToFrontend(
     bio:
       detail?.bio ||
       `${pet.name} has a safe MyPetLink profile ready for family and friends.`,
-    personalityTags: ["Loved", "Family pet"],
+    personalityTags: pet.personalityTags ?? [],
     favoriteFood: "Not set",
     favoriteToy: "Not set",
     safetyNote:
@@ -519,6 +532,10 @@ export function mapBackendPetToFrontend(
 function mapBackendPublicProfile(profile: BackendPublicPetProfile): PublicPetProfile {
   const species = normalizeBackendSpecies(profile.species, profile.customSpecies);
   const slug = getSlugFromPublicSlug(profile.publicSlug, profile.publicCode);
+  const birthday = toDisplayDate(profile.birthday);
+  const estimatedBirthYear = profile.estimatedBirthYear ?? undefined;
+  const age =
+    profile.age ?? calculatePetAge({ birthday, estimatedBirthYear });
 
   return toPublicProfile(
     normalizePet({
@@ -527,12 +544,15 @@ function mapBackendPublicProfile(profile: BackendPublicPetProfile): PublicPetPro
       name: profile.name,
       species: species.species,
       customSpecies: species.customSpecies,
-      breed: "Not set",
-      gender: "Not set",
-      color: "Not set",
-      ageLabel: "Age unknown",
-      birthday: "Not set",
-      adoptionDay: "Not set",
+      breed: profile.breed ?? "Not set",
+      gender: profile.gender ?? "Not set",
+      color: profile.color ?? "Not set",
+      ageLabel: age.displayLabel,
+      ageSource: age.source,
+      ageInformationMode: age.source,
+      estimatedBirthYear,
+      birthday,
+      adoptionDay: toDisplayDate(profile.adoptionDay),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       generalArea: profile.generalArea ?? "",
@@ -561,7 +581,7 @@ function mapBackendPublicProfile(profile: BackendPublicPetProfile): PublicPetPro
       bio:
         profile.bio ??
         `${profile.name} has a safe MyPetLink profile ready for family and friends.`,
-      personalityTags: ["Loved", "Family pet"],
+      personalityTags: profile.personalityTags ?? [],
       favoriteFood: "Not set",
       favoriteToy: "Not set",
       safetyNote: "",
@@ -595,6 +615,9 @@ export function mapBackendSafetyPage(page: BackendPublicSafetyPage): PublicPetPr
   const contact = page.contact;
   const phone = contact?.phoneE164 ?? "";
   const whatsapp = contact?.whatsappE164 ?? "";
+  const birthday = toDisplayDate(page.birthday);
+  const estimatedBirthYear = page.estimatedBirthYear ?? undefined;
+  const age = page.age ?? calculatePetAge({ birthday, estimatedBirthYear });
 
   return toPublicProfile(
     normalizePet({
@@ -606,8 +629,11 @@ export function mapBackendSafetyPage(page: BackendPublicSafetyPage): PublicPetPr
       breed: "Not set",
       gender: "Not set",
       color: "Not set",
-      ageLabel: "Age unknown",
-      birthday: "Not set",
+      ageLabel: age.displayLabel,
+      ageSource: age.source,
+      ageInformationMode: age.source,
+      estimatedBirthYear,
+      birthday,
       adoptionDay: "Not set",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -676,6 +702,13 @@ function PetDtoFallbackSlug(name: string, publicCode: string) {
 }
 
 function buildBackendPetPayload(payload: PetPayload) {
+  const hasAgeInformation =
+    "ageInformationMode" in payload ||
+    "birthday" in payload ||
+    "estimatedBirthYear" in payload;
+  const ageInformationMode =
+    payload.ageInformationMode ?? getPetAgeMode(payload);
+
   return {
     name: payload.name,
     species: payload.species,
@@ -683,10 +716,28 @@ function buildBackendPetPayload(payload: PetPayload) {
     breed: payload.breed,
     gender: payload.gender,
     color: payload.color,
-    birthday: toIsoDate(payload.birthday),
+    ...(hasAgeInformation
+      ? {
+          ageInformationMode,
+          birthday:
+            ageInformationMode === "ExactBirthday"
+              ? toIsoDate(payload.birthday)
+              : null,
+          estimatedBirthYear:
+            ageInformationMode === "EstimatedBirthYear"
+              ? payload.estimatedBirthYear ?? null
+              : null,
+        }
+      : {}),
     adoptionDay: toIsoDate(payload.adoptionDay),
     generalArea: payload.generalArea,
     bio: payload.bio,
+    // Only send tags when the caller actually provided them. A partial update
+    // (e.g. toggling Lost Mode) omits the field so the backend leaves the saved
+    // tags untouched; a full save sends the exact selection (including []).
+    ...(payload.personalityTags !== undefined
+      ? { personalityTags: payload.personalityTags }
+      : {}),
     profileTheme: payload.profileTheme,
     contact: {
       useOwnerDefaults: payload.contactOverride?.useOwnerDefaults ?? true,
@@ -821,6 +872,9 @@ export function toPublicProfile(pet: Pet): PublicPetProfile {
     gender: pet.gender,
     color: pet.color,
     ageLabel: pet.ageLabel,
+    ageSource: pet.ageSource,
+    ageInformationMode: pet.ageInformationMode,
+    estimatedBirthYear: pet.estimatedBirthYear,
     birthday: pet.birthday,
     adoptionDay: pet.adoptionDay,
     generalArea: pet.generalArea,
@@ -982,7 +1036,9 @@ export async function createPet(payload: PetPayload) {
     breed: payload.breed ?? "Mixed breed",
     gender: payload.gender ?? "Unknown",
     color: payload.color ?? "Not set",
-    ageLabel: payload.ageLabel ?? "Age not set",
+    ageLabel: "Age unknown",
+    ageInformationMode: payload.ageInformationMode,
+    estimatedBirthYear: payload.estimatedBirthYear,
     birthday: payload.birthday ?? "Not set",
     adoptionDay: payload.adoptionDay ?? "Not set",
     createdAt: now,
@@ -1009,7 +1065,7 @@ export async function createPet(payload: PetPayload) {
     bio:
       payload.bio ??
       `${petName} has a safe MyPetLink profile ready for family and friends.`,
-    personalityTags: payload.personalityTags ?? ["Loved", "Family pet"],
+    personalityTags: payload.personalityTags ?? [],
     favoriteFood: payload.favoriteFood ?? "Not set",
     favoriteToy: payload.favoriteToy ?? "Not set",
     safetyNote: payload.safetyNote ?? "No safety note yet.",
@@ -1031,9 +1087,10 @@ export async function createPet(payload: PetPayload) {
     qrStatus: payload.qrStatus ?? "active",
   };
 
-  writeStoredCollection(PET_STORAGE_KEY, [pet, ...pets]);
+  const normalizedPet = normalizePet(pet);
+  writeStoredCollection(PET_STORAGE_KEY, [normalizedPet, ...pets]);
 
-  return mockResponse(pet);
+  return mockResponse(normalizedPet);
 }
 
 export async function updatePet(id: string, payload: PetPayload) {
@@ -1122,14 +1179,18 @@ export async function updatePet(id: string, payload: PetPayload) {
       }
     : null;
 
-  if (updatedPet) {
+  const normalizedUpdatedPet = updatedPet
+    ? normalizePet(updatedPet as Pet)
+    : null;
+
+  if (normalizedUpdatedPet) {
     writeStoredCollection(
       PET_STORAGE_KEY,
-      pets.map((item) => (item.id === id ? updatedPet : item))
+      pets.map((item) => (item.id === id ? normalizedUpdatedPet : item))
     );
   }
 
-  return mockResponse(updatedPet);
+  return mockResponse(normalizedUpdatedPet);
 }
 
 export function getCountedProfileCount(pets: Pet[]) {

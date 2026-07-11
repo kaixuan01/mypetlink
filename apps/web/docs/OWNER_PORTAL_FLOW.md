@@ -113,7 +113,7 @@ dashboard. Its tabs are **Basic Info | Photos | Theme | Public Profile | Contact
 
 | Edit tab          | Configures                                                          |
 | ----------------- | ------------------------------------------------------------------ |
-| Basic Info        | name, species, breed, gender, color, birthday/age, description, personality, favourites |
+| Basic Info        | name, species, breed, gender, color, exact birthday/estimated birth year/unknown age, description, personality, favourites |
 | Photos            | profile + cover photo, live preview                                |
 | Theme             | `profileTheme` (applies to **both** the public share profile and the QR safety page) |
 | Public Profile    | slug, adoption day, share-page visibility flags, **Public Profile URL** (`/p/{slug}-{publicCode}`) + View Public Profile |
