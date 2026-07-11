@@ -12,6 +12,7 @@ These are `NEXT_PUBLIC_*`, so they are **baked into the static bundle at build t
 | --- | --- | --- | --- |
 | `NEXT_PUBLIC_SITE_URL` | No | Canonical public site URL (no trailing slash). Used to build absolute share links and to generate QR codes (`/p`, `/q`, `/t`) client-side. **Must be set before the production build**, or QR/link URLs fall back to a placeholder host. | `https://mypetlink.com.my` |
 | `NEXT_PUBLIC_API_BASE_URL` | No | Base URL of the production .NET API (no trailing slash) | `https://api.mypetlink.com.my` |
+| `NEXT_PUBLIC_MEDIA_BASE_URL` | No | Optional public media domain (no trailing slash). The API already returns ready-to-render absolute photo URLs, so this is only a fallback used to resolve bare object keys. Must be an absolute `https://` URL if set. | `https://media.mypetlink.com.my` |
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | No (public by design) | Google OAuth Web client id used by the GIS button | `<id>.apps.googleusercontent.com` |
 | `NEXT_PUBLIC_SMART_TAG_ORDERING_ENABLED` | No | Frontend build-time feature flag for Smart Tag order CTAs. Keep `false` or unset for the free-profiles launch; set `true` only when the backend flag is also enabled and physical tags are ready. | `false` |
 
@@ -38,9 +39,9 @@ Local dev equivalents live in `apps/web/.env.local` (gitignored): `NEXT_PUBLIC_A
 | `CloudflareR2__AccessKeyId` | `CloudflareR2:AccessKeyId` | **Yes** | R2 S3 access key id. |
 | `CloudflareR2__SecretAccessKey` | `CloudflareR2:SecretAccessKey` | **Yes** | R2 S3 secret access key. |
 | `CloudflareR2__ServiceUrl` | `CloudflareR2:ServiceUrl` | No | Optional explicit service URL, e.g. `https://<accountId>.r2.cloudflarestorage.com`. |
-| `CloudflareR2__PublicBucketName` | `CloudflareR2:PublicBucketName` | No | Public media bucket. Default: `mypetlink-public-media`. |
-| `CloudflareR2__PrivateBucketName` | `CloudflareR2:PrivateBucketName` | No | Private files bucket. Default: `mypetlink-private-files`. |
-| `CloudflareR2__PublicBaseUrl` | `CloudflareR2:PublicBaseUrl` | No | Public media custom domain. Default: `https://media.mypetlink.com.my`. |
+| `CloudflareR2__PublicBucketName` | `CloudflareR2:PublicBucketName` | No | Public media bucket (pet profile/cover photos, public moments). Default: `mypetlink-public-media`. Must differ from the private bucket. |
+| `CloudflareR2__PrivateBucketName` | `CloudflareR2:PrivateBucketName` | No | Private files bucket (documents, receipts). Default: `mypetlink-private-files`. |
+| `CloudflareR2__PublicBaseUrl` | `CloudflareR2:PublicBaseUrl` | No | Public media custom domain. **Must be an absolute `https://` URL** (e.g. `https://media.mypetlink.com.my`), never a bucket name — a non-URL value makes public photo URLs render as broken relative links and the API fails validation at startup. |
 | `CloudflareR2__PresignedUploadExpiryMinutes` | `CloudflareR2:PresignedUploadExpiryMinutes` | No | Signed PUT URL lifetime. Default: `5`. |
 | `CloudflareR2__PresignedDownloadExpiryMinutes` | `CloudflareR2:PresignedDownloadExpiryMinutes` | No | Signed private GET URL lifetime. Default: `5`. |
 | `Features__SmartTagOrderingEnabled` | `Features:SmartTagOrderingEnabled` | No | Backend feature flag for creating new Smart Tag orders. Keep `false` for the free-profiles launch; set `true` only when physical tags are ready. |

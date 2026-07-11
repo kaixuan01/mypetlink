@@ -6,6 +6,7 @@ import {
   mediaCountLabel,
   sortedMedia,
 } from "@/lib/momentMedia";
+import { resolveMediaUrl } from "@/lib/mediaUrl";
 import type { PetMoment } from "@/types";
 
 type PetMomentCardProps = {
@@ -32,7 +33,8 @@ export function PetMomentCard({
   const media = sortedMedia(moment.media ?? []);
   const cover = getCoverMedia(moment);
   const countLabel = mediaCountLabel(media);
-  const coverIsImage = cover?.type === "image" && Boolean(cover.url);
+  const coverUrl = cover?.type === "image" ? resolveMediaUrl(cover.url) : "";
+  const coverIsImage = Boolean(coverUrl);
   const mediaTitle = media.length
     ? countLabel ?? "Memory media"
     : "Memory note";
@@ -74,7 +76,7 @@ export function PetMomentCard({
             <img
               alt={cover?.altText ?? moment.title}
               className="absolute inset-0 h-full w-full object-cover"
-              src={cover?.url}
+              src={coverUrl}
             />
             <span className="absolute inset-0 bg-gradient-to-t from-[#0d1b3d]/30 to-transparent" />
           </>
@@ -111,18 +113,22 @@ export function PetMomentCard({
             </div>
             {extraThumbs.length ? (
               <div className="flex shrink-0 -space-x-2">
-                {extraThumbs.map((item) => (
+                {extraThumbs.map((item) => {
+                  const thumbUrl =
+                    item.type === "image" ? resolveMediaUrl(item.url) : "";
+
+                  return (
                   <span
                     className="grid h-9 w-9 place-items-center overflow-hidden rounded-lg border-2 border-white bg-pet-apricot/60 text-pet-coral"
                     key={item.id}
                   >
-                    {item.type === "image" && item.url ? (
+                    {thumbUrl ? (
                       <>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           alt={item.altText ?? "Moment media"}
                           className="h-full w-full object-cover"
-                          src={item.url}
+                          src={thumbUrl}
                         />
                       </>
                     ) : (
@@ -132,7 +138,8 @@ export function PetMomentCard({
                       />
                     )}
                   </span>
-                ))}
+                  );
+                })}
               </div>
             ) : null}
           </div>

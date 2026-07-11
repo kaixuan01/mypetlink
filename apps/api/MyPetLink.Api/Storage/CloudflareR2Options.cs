@@ -56,6 +56,31 @@ public sealed class CloudflareR2OptionsValidator : IValidateOptions<CloudflareR2
         Require(options.PrivateBucketName, $"{CloudflareR2Options.SectionName}:PrivateBucketName", failures);
         Require(options.PublicBaseUrl, $"{CloudflareR2Options.SectionName}:PublicBaseUrl", failures);
 
+        // PublicBaseUrl must be an absolute http(s) URL (for example
+        // https://media.mypetlink.com.my). A non-URL value such as a bucket name
+        // would cause public photo URLs to be emitted as relative paths, which
+        // the browser then requests from the wrong host.
+        if (!string.IsNullOrWhiteSpace(options.PublicBaseUrl) && !IsAbsoluteHttpUrl(options.PublicBaseUrl))
+        {
+            failures.Add(
+                $"{CloudflareR2Options.SectionName}:PublicBaseUrl must be an absolute http(s) URL, " +
+                "for example https://media.mypetlink.com.my.");
+        }
+
+        // Public and private media must live in different buckets so profile and
+        // cover photos are never stored in (or served from) the private bucket.
+        if (!string.IsNullOrWhiteSpace(options.PublicBucketName)
+            && !string.IsNullOrWhiteSpace(options.PrivateBucketName)
+            && string.Equals(
+                options.PublicBucketName.Trim(),
+                options.PrivateBucketName.Trim(),
+                StringComparison.OrdinalIgnoreCase))
+        {
+            failures.Add(
+                $"{CloudflareR2Options.SectionName}:PublicBucketName and " +
+                $"{CloudflareR2Options.SectionName}:PrivateBucketName must be different buckets.");
+        }
+
         if (options.PresignedUploadExpiryMinutes <= 0 || options.PresignedUploadExpiryMinutes > 60)
         {
             failures.Add($"{CloudflareR2Options.SectionName}:PresignedUploadExpiryMinutes must be between 1 and 60.");
@@ -77,6 +102,13 @@ public sealed class CloudflareR2OptionsValidator : IValidateOptions<CloudflareR2
         {
             failures.Add($"{key} must be configured when Storage:Provider is CloudflareR2.");
         }
+    }
+
+    private static bool IsAbsoluteHttpUrl(string? value)
+    {
+        return !string.IsNullOrWhiteSpace(value)
+            && Uri.TryCreate(value.Trim(), UriKind.Absolute, out var uri)
+            && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
     }
 }
 

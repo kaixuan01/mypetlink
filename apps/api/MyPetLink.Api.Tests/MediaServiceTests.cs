@@ -19,6 +19,7 @@ public sealed class MediaServiceTests
     private static readonly Guid OtherUserId = Guid.Parse("22222222-2222-2222-2222-222222222222");
     private static readonly Guid PetId = Guid.Parse("33333333-3333-3333-3333-333333333333");
     private static readonly Guid OtherPetId = Guid.Parse("44444444-4444-4444-4444-444444444444");
+    private static readonly Guid MomentId = Guid.Parse("55555555-5555-5555-5555-555555555555");
 
     [Fact]
     public async Task InitializeUploadAsync_ForValidImage_CreatesPendingPublicMedia()
@@ -230,6 +231,45 @@ public sealed class MediaServiceTests
         Assert.Equal("application/pdf", response.ContentType);
     }
 
+    [Theory]
+    [InlineData("PetProfilePhoto", "mypetlink-public-media", true)]
+    [InlineData("PetCoverPhoto", "mypetlink-public-media", true)]
+    [InlineData("MomentImage", "mypetlink-public-media", true)]
+    [InlineData("VaccinationDocument", "mypetlink-private-files", false)]
+    [InlineData("MedicalDocument", "mypetlink-private-files", false)]
+    public async Task InitializeUploadAsync_MapsCategoryToCorrectBucket(
+        string category,
+        string expectedBucket,
+        bool expectedPublic)
+    {
+        using var harness = await MediaHarness.CreateAsync();
+        var uploadCategory = Enum.Parse<MediaUploadCategory>(category);
+        var isDocument = uploadCategory is MediaUploadCategory.VaccinationDocument
+            or MediaUploadCategory.MedicalDocument;
+
+        var request = new InitializeMediaUploadRequest(
+            uploadCategory == MediaUploadCategory.MomentImage ? null : PetId,
+            uploadCategory == MediaUploadCategory.MomentImage ? MomentId : null,
+            null,
+            null,
+            uploadCategory,
+            isDocument ? "record.pdf" : "photo.jpg",
+            isDocument ? "application/pdf" : "image/jpeg",
+            1024,
+            800,
+            600,
+            null);
+
+        var response = await harness.Service.InitializeUploadAsync(UserId, request);
+        var media = await harness.Db.MediaFiles.SingleAsync(item => item.Id == response.MediaId);
+
+        Assert.Equal(expectedBucket, media.BucketName);
+        Assert.Equal(expectedPublic, media.IsPublic);
+        // The bucket name is never part of the object key.
+        Assert.DoesNotContain("mypetlink-public-media", media.ObjectKey);
+        Assert.DoesNotContain("mypetlink-private-files", media.ObjectKey);
+    }
+
     [Fact]
     public void BuildPublicUrl_EncodesObjectKeySegments()
     {
@@ -243,7 +283,109 @@ public sealed class MediaServiceTests
     }
 
     [Fact]
+    public void BuildPublicUrl_DoesNotIncludeBucketNameInPath()
+    {
+        var url = MediaUrlBuilder.BuildPublicUrl(
+            "https://media.mypetlink.com.my",
+            "pets/abc/profile/photo.jpg");
+
+        Assert.Equal("https://media.mypetlink.com.my/pets/abc/profile/photo.jpg", url);
+        Assert.DoesNotContain("mypetlink-public-media", url);
+        Assert.DoesNotContain("mypetlink-private-files", url);
+    }
+
+    [Fact]
+    public void BuildPublicUrl_NormalizesLeadingSlashInObjectKey()
+    {
+        var url = MediaUrlBuilder.BuildPublicUrl(
+            "https://media.mypetlink.com.my",
+            "/pets/abc/profile/photo.jpg");
+
+        Assert.Equal("https://media.mypetlink.com.my/pets/abc/profile/photo.jpg", url);
+    }
+
+    [Fact]
+    public void BuildPublicUrl_WithTrailingSlashBase_DoesNotDoubleSlash()
+    {
+        var url = MediaUrlBuilder.BuildPublicUrl(
+            "https://media.mypetlink.com.my/",
+            "pets/abc/profile/photo.jpg");
+
+        Assert.Equal("https://media.mypetlink.com.my/pets/abc/profile/photo.jpg", url);
+        Assert.DoesNotContain(".my//", url);
+    }
+
+    [Fact]
+    public void BuildPublicUrl_WithAbsoluteObjectKey_ReturnsItUnchanged()
+    {
+        var absolute = "https://media.mypetlink.com.my/pets/abc/profile/photo.jpg";
+
+        var url = MediaUrlBuilder.BuildPublicUrl("https://media.mypetlink.com.my", absolute);
+
+        Assert.Equal(absolute, url);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("mypetlink-private-files")]
+    [InlineData("media.mypetlink.com.my")]
+    public void BuildPublicUrl_WhenBaseIsNotAbsoluteUrl_ReturnsEmpty(string base_)
+    {
+        // A missing or misconfigured base (e.g. a bucket name) must never produce
+        // a relative URL that the browser would resolve against the wrong host.
+        var url = MediaUrlBuilder.BuildPublicUrl(base_, "pets/abc/profile/photo.jpg");
+
+        Assert.Equal("", url);
+    }
+
+    [Fact]
     public void CloudflareR2OptionsValidator_RequiresSecretsWhenProviderIsR2()
+    {
+        var validator = R2Validator();
+
+        var result = validator.Validate(
+            Options.DefaultName,
+            new CloudflareR2Options { AccountId = "account" });
+
+        Assert.True(result.Failed);
+    }
+
+    [Fact]
+    public void CloudflareR2OptionsValidator_RejectsNonAbsolutePublicBaseUrl()
+    {
+        var validator = R2Validator();
+
+        var result = validator.Validate(
+            Options.DefaultName,
+            ValidR2Options(publicBaseUrl: "mypetlink-private-files"));
+
+        Assert.True(result.Failed);
+        Assert.Contains(result.Failures, message => message.Contains("PublicBaseUrl"));
+    }
+
+    [Fact]
+    public void CloudflareR2OptionsValidator_RejectsSamePublicAndPrivateBucket()
+    {
+        var validator = R2Validator();
+
+        var result = validator.Validate(
+            Options.DefaultName,
+            ValidR2Options(privateBucketName: "mypetlink-public-media"));
+
+        Assert.True(result.Failed);
+    }
+
+    [Fact]
+    public void CloudflareR2OptionsValidator_AcceptsValidConfiguration()
+    {
+        var validator = R2Validator();
+
+        var result = validator.Validate(Options.DefaultName, ValidR2Options());
+
+        Assert.True(result.Succeeded);
+    }
+
+    private static CloudflareR2OptionsValidator R2Validator()
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -251,13 +393,25 @@ public sealed class MediaServiceTests
                 ["Storage:Provider"] = "CloudflareR2"
             })
             .Build();
-        var validator = new CloudflareR2OptionsValidator(configuration);
 
-        var result = validator.Validate(
-            Options.DefaultName,
-            new CloudflareR2Options { AccountId = "account" });
+        return new CloudflareR2OptionsValidator(configuration);
+    }
 
-        Assert.True(result.Failed);
+    private static CloudflareR2Options ValidR2Options(
+        string publicBaseUrl = "https://media.mypetlink.com.my",
+        string privateBucketName = "mypetlink-private-files")
+    {
+        return new CloudflareR2Options
+        {
+            AccountId = "account-id",
+            AccessKeyId = "access-key",
+            SecretAccessKey = "secret-key",
+            PublicBucketName = "mypetlink-public-media",
+            PrivateBucketName = privateBucketName,
+            PublicBaseUrl = publicBaseUrl,
+            PresignedUploadExpiryMinutes = 5,
+            PresignedDownloadExpiryMinutes = 5
+        };
     }
 
     private static async Task<CompletedMedia> InitializeAndCompleteProfileImageAsync(
@@ -370,6 +524,12 @@ public sealed class MediaServiceTests
                     Species = "Cat",
                     Slug = "luna"
                 });
+            db.PetMemories.Add(new PetMemory
+            {
+                Id = MomentId,
+                PetId = PetId,
+                Title = "Beach day"
+            });
             await db.SaveChangesAsync();
 
             return harness;

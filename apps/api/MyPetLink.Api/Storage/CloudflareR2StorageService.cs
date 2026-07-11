@@ -106,12 +106,7 @@ public sealed class CloudflareR2StorageService : IObjectStorageService
 
     public string GetPublicUrl(string objectKey)
     {
-        if (string.IsNullOrWhiteSpace(_options.PublicBaseUrl))
-        {
-            return "";
-        }
-
-        return $"{_options.PublicBaseUrl.Trim().TrimEnd('/')}/{MediaUrlBuilder.EscapeObjectKey(objectKey)}";
+        return MediaUrlBuilder.BuildPublicUrl(_options.PublicBaseUrl, objectKey);
     }
 
     private IAmazonS3 CreateClient()
@@ -163,14 +158,41 @@ public sealed class CloudflareR2StorageService : IObjectStorageService
 
 public static class MediaUrlBuilder
 {
+    // The single source of truth for turning a stored object key into a public
+    // media URL. Everything that renders a public photo (pet profile/cover,
+    // moment media, QR safety, tag scan) resolves through here so the same
+    // MediaFile always produces the same absolute URL.
     public static string BuildPublicUrl(string? publicBaseUrl, string? objectKey)
     {
-        if (string.IsNullOrWhiteSpace(publicBaseUrl) || string.IsNullOrWhiteSpace(objectKey))
+        if (string.IsNullOrWhiteSpace(objectKey))
         {
             return "";
         }
 
-        return $"{publicBaseUrl.Trim().TrimEnd('/')}/{EscapeObjectKey(objectKey)}";
+        var trimmedKey = objectKey.Trim();
+
+        // Already a full URL (a value that was resolved earlier): return it as-is
+        // instead of prefixing the base again.
+        if (IsAbsoluteHttpUrl(trimmedKey))
+        {
+            return trimmedKey;
+        }
+
+        // The public base must be an absolute http(s) URL. If it is missing or
+        // misconfigured (for example set to a bucket name), never fall back to a
+        // relative value: the browser would resolve it against the current page
+        // and request the wrong host (e.g. mypetlink.com.my/<bucket>/pets/...).
+        if (!IsAbsoluteHttpUrl(publicBaseUrl))
+        {
+            return "";
+        }
+
+        var normalizedBase = publicBaseUrl!.Trim().TrimEnd('/');
+
+        // Split on '/' with RemoveEmptyEntries so a leading slash or duplicate
+        // slashes in the object key never produce a malformed or double-slashed
+        // URL. The bucket name is intentionally never part of the object key.
+        return $"{normalizedBase}/{EscapeObjectKey(trimmedKey)}";
     }
 
     public static string EscapeObjectKey(string objectKey)
@@ -179,6 +201,13 @@ public static class MediaUrlBuilder
             '/',
             objectKey.Split('/', StringSplitOptions.RemoveEmptyEntries)
                 .Select(Uri.EscapeDataString));
+    }
+
+    private static bool IsAbsoluteHttpUrl(string? value)
+    {
+        return !string.IsNullOrWhiteSpace(value)
+            && Uri.TryCreate(value.Trim(), UriKind.Absolute, out var uri)
+            && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
     }
 }
 

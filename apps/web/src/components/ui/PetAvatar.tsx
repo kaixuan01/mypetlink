@@ -1,5 +1,6 @@
 import type { Pet, PublicPetProfile } from "@/types";
 import { Icon } from "@/components/ui/Icon";
+import { resolveMediaUrl } from "@/lib/mediaUrl";
 
 type PetAvatarProps = {
   pet: Pick<Pet | PublicPetProfile, "photoInitial" | "photoTone" | "species"> & {
@@ -27,7 +28,9 @@ export function PetAvatar({ pet, size = "md" }: PetAvatarProps) {
       ? "before:-top-3 before:left-3 before:rotate-[-18deg] after:-top-3 after:right-3 after:rotate-[18deg]"
       : "before:top-3 before:-left-3 before:rotate-[18deg] after:top-3 after:-right-3 after:rotate-[-18deg]";
 
-  if (pet.photoUrl) {
+  const photoUrl = resolveMediaUrl(pet.photoUrl);
+
+  if (photoUrl) {
     return (
       <div
         className={[
@@ -35,12 +38,13 @@ export function PetAvatar({ pet, size = "md" }: PetAvatarProps) {
           sizes[size],
         ].join(" ")}
       >
-        {/* Data-URL preview; static export + local mock means no next/image. */}
+        {/* Absolute media URL or local data-URL preview; static export + local
+            mock means no next/image. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           alt="Pet portrait"
           className="h-full w-full object-cover"
-          src={pet.photoUrl}
+          src={photoUrl}
         />
       </div>
     );
