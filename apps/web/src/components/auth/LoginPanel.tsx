@@ -73,6 +73,8 @@ export function LoginPanel() {
     }
 
     let cancelled = false;
+    let renderedWidth = 0;
+    let resizeObserver: ResizeObserver | null = null;
 
     async function handleCredential(idToken: string) {
       setSigningIn(true);
@@ -86,6 +88,27 @@ export function LoginPanel() {
       } finally {
         setSigningIn(false);
       }
+    }
+
+    function renderGoogleButton() {
+      if (cancelled || !window.google || !googleButtonRef.current) {
+        return;
+      }
+
+      const availableWidth = Math.floor(googleButtonRef.current.clientWidth);
+      if (availableWidth < 120 || availableWidth === renderedWidth) {
+        return;
+      }
+
+      renderedWidth = availableWidth;
+      googleButtonRef.current.innerHTML = "";
+      window.google.accounts.id.renderButton(googleButtonRef.current, {
+        theme: "outline",
+        size: "large",
+        text: "continue_with",
+        shape: "pill",
+        width: Math.min(400, availableWidth),
+      });
     }
 
     function initializeGoogle() {
@@ -103,14 +126,9 @@ export function LoginPanel() {
           }
         },
       });
-      googleButtonRef.current.innerHTML = "";
-      window.google.accounts.id.renderButton(googleButtonRef.current, {
-        theme: "outline",
-        size: "large",
-        text: "continue_with",
-        shape: "pill",
-        width: 320,
-      });
+      renderGoogleButton();
+      resizeObserver = new ResizeObserver(renderGoogleButton);
+      resizeObserver.observe(googleButtonRef.current);
       setGoogleReady(true);
     }
 
@@ -118,6 +136,7 @@ export function LoginPanel() {
       initializeGoogle();
       return () => {
         cancelled = true;
+        resizeObserver?.disconnect();
       };
     }
 
@@ -135,6 +154,7 @@ export function LoginPanel() {
 
     return () => {
       cancelled = true;
+      resizeObserver?.disconnect();
     };
   }, [apiMode, googleClientId, router]);
 
@@ -145,29 +165,32 @@ export function LoginPanel() {
   }
 
   return (
-    <div className="brand-card rounded-[2rem] p-6 sm:p-8">
-      <BrandLogo className="h-9 w-auto" />
+    <div className="brand-card mx-auto w-full min-w-0 max-w-full rounded-[2rem] p-5 min-[361px]:p-6 sm:p-8">
+      <BrandLogo className="h-9 w-auto max-w-full" />
       <h1 className="mt-6 text-2xl font-black text-pet-ink sm:text-3xl">
         Welcome to MyPetLink
       </h1>
-      <p className="mt-3 text-sm leading-6 text-pet-muted">
+      <p className="mt-3 min-w-0 break-words text-sm leading-6 text-pet-muted">
         Sign in to manage your pet profiles, safety contacts, and QR pages.
       </p>
 
       {error ? (
         <div
-          className="mt-5 rounded-2xl border border-[#ffd5cf] bg-[#fff1ee] p-4 text-sm font-bold leading-6 text-[#a63c2e]"
+          className="mt-5 min-w-0 break-words rounded-2xl border border-[#ffd5cf] bg-[#fff1ee] p-4 text-sm font-bold leading-6 text-[#a63c2e]"
           role="alert"
         >
           {error}
         </div>
       ) : null}
 
-      <div className="mt-6 grid gap-3">
+      <div className="mt-6 grid min-w-0 gap-3">
         {apiMode ? (
           googleClientId ? (
             <>
-              <div className="flex min-h-12 justify-center" ref={googleButtonRef} />
+              <div
+                className="flex min-h-12 w-full min-w-0 max-w-full justify-center"
+                ref={googleButtonRef}
+              />
               {!googleReady || signingIn ? (
                 <p className="text-center text-xs font-bold text-pet-muted">
                   {signingIn ? "Signing you in..." : "Loading Google sign-in..."}
@@ -182,12 +205,14 @@ export function LoginPanel() {
           )
         ) : (
           <button
-            className="inline-flex min-h-12 items-center justify-center gap-3 rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-extrabold text-pet-ink shadow-sm transition hover:bg-pet-cream focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pet-teal"
+            className="inline-flex min-h-12 w-full min-w-0 max-w-full items-center justify-center gap-3 rounded-full border border-pet-border bg-white px-4 py-3 text-sm font-extrabold text-pet-ink shadow-sm transition hover:bg-pet-cream focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pet-teal min-[361px]:px-5"
             onClick={handleProviderLogin}
             type="button"
           >
-            <GoogleMark />
-            Continue with Google
+            <span className="shrink-0">
+              <GoogleMark />
+            </span>
+            <span className="min-w-0 truncate">Continue with Google</span>
           </button>
         )}
       </div>

@@ -17,7 +17,13 @@ const publicNav = [
   { href: "/privacy", label: "Privacy" },
 ];
 
-export function PublicLayout({ children }: { children: React.ReactNode }) {
+export function PublicLayout({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
   const [loggedIn, setLoggedIn] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -45,11 +51,13 @@ export function PublicLayout({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className="min-h-screen bg-pet-cream">
+    <div
+      className={`min-h-screen w-full max-w-full bg-pet-cream ${className}`}
+    >
       <header className="sticky top-0 z-30 border-b border-pet-border bg-[#fff8f2]/92 backdrop-blur">
-        <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between gap-4">
-            <Link href="/" className="flex items-center">
+        <div className="mx-auto w-full min-w-0 max-w-7xl px-3 py-4 min-[361px]:px-4 sm:px-6 lg:px-8">
+          <div className="flex min-w-0 items-center justify-between gap-4">
+            <Link href="/" className="flex min-w-0 items-center">
               <BrandLogo className="h-14 w-auto max-w-[235px]" priority />
             </Link>
 
@@ -119,8 +127,8 @@ export function PublicLayout({ children }: { children: React.ReactNode }) {
       </header>
       <main>{children}</main>
       <footer className="border-t border-pet-border bg-white">
-        <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:px-6 md:grid-cols-[1.2fr_0.8fr] lg:px-8">
-          <div>
+        <div className="mx-auto grid w-full min-w-0 max-w-7xl gap-8 px-3 py-10 min-[361px]:px-4 sm:px-6 md:grid-cols-[1.2fr_0.8fr] lg:px-8">
+          <div className="min-w-0">
             <BrandLogo className="h-16 w-auto max-w-[260px]" />
             <p className="mt-4 max-w-xl text-sm leading-6 text-pet-muted">
               Built for Malaysian pet owners who want safer public QR profiles,
@@ -136,10 +144,10 @@ export function PublicLayout({ children }: { children: React.ReactNode }) {
               <p>
                 Business Registration No.: {siteConfig.businessRegistrationNo}
               </p>
-              <p>
+              <p className="min-w-0 truncate" title={siteConfig.supportEmail}>
                 <a
                   href={`mailto:${siteConfig.supportEmail}`}
-                  className="hover:text-pet-teal transition"
+                  className="transition hover:text-pet-teal"
                 >
                   {siteConfig.supportEmail}
                 </a>
