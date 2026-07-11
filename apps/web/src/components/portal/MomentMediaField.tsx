@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { readImageAsDataUrl } from "@/lib/imageUpload";
 import { createMediaId, sortedMedia } from "@/lib/momentMedia";
+import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { MAX_MOMENT_MEDIA, type MomentMedia } from "@/types";
 
 type MomentMediaFieldProps = {
@@ -133,21 +134,31 @@ export function MomentMediaField({
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {ordered.map((item) => {
             const isCover = item.id === activeCover;
+            const mediaUrl = resolveMediaUrl(item.url);
 
             return (
               <div
                 className="group relative aspect-square overflow-hidden rounded-2xl border border-pet-border bg-pet-cream"
                 key={item.id}
               >
-                {item.type === "image" && item.url ? (
+                {item.type === "image" && mediaUrl ? (
                   <>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       alt={item.altText ?? "Moment media"}
                       className="h-full w-full object-cover"
-                      src={item.url}
+                      src={mediaUrl}
                     />
                   </>
+                ) : item.type === "video" && mediaUrl ? (
+                  <video
+                    aria-label={item.altText ?? "Moment video"}
+                    className="h-full w-full object-cover"
+                    controls
+                    playsInline
+                    preload="metadata"
+                    src={mediaUrl}
+                  />
                 ) : (
                   <div className="grid h-full w-full place-items-center bg-pet-apricot/50 text-pet-coral">
                     <div className="grid place-items-center gap-1 px-2 text-center">

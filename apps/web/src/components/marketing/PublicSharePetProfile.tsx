@@ -12,7 +12,7 @@ import { PetMomentCard } from "@/components/portal/PetMomentCard";
 import { ShareProfileLink } from "@/components/share/ShareProfileLink";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon } from "@/components/ui/Icon";
-import { PetAvatar } from "@/components/ui/PetAvatar";
+import { PetPhotoViewer } from "@/components/ui/PetPhotoViewer";
 import {
   getPetProfileTheme,
   type PetProfileTheme,
@@ -33,6 +33,7 @@ import {
   getPetTypeLabel,
 } from "@/lib/petDisplay";
 import { isActivePet, isArchivedPet, isMemorialPet } from "@/lib/petLifecycle";
+import { resolveMediaUrl } from "@/lib/mediaUrl";
 import {
   getCallLink,
   getWhatsAppLink,
@@ -248,6 +249,7 @@ export function PublicSharePetProfile({
   const canCall = visibility.showPhone && Boolean(phoneE164);
   const canContact = isActiveProfile && (canWhatsapp || canCall);
   const lostModeDetails = profile.lostMode;
+  const coverPhotoUrl = resolveMediaUrl(profile.coverUrl);
 
   const publicMoments = visibility.showMoments
     ? moments.filter(
@@ -320,8 +322,8 @@ export function PublicSharePetProfile({
           <div
             className="h-28 w-full bg-cover bg-center"
             style={
-              profile.coverUrl
-                ? { backgroundImage: `url(${profile.coverUrl})` }
+              coverPhotoUrl
+                ? { backgroundImage: `url(${coverPhotoUrl})` }
                 : { background: theme.gradients.cover }
             }
           />
@@ -331,7 +333,7 @@ export function PublicSharePetProfile({
                 className="rounded-full border-4"
                 style={{ borderColor: theme.colors.surface }}
               >
-                <PetAvatar pet={profile} size="xl" />
+                <PetPhotoViewer pet={profile} size="xl" />
               </span>
             </div>
             <h1
@@ -906,7 +908,7 @@ function MomentsTab({
   }
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
+    <div className="grid gap-5">
       {publicMoments.map((moment) => (
         <PetMomentCard
           key={moment.id}

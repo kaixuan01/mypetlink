@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon } from "@/components/ui/Icon";
-import { PetAvatar } from "@/components/ui/PetAvatar";
+import { PetPhotoViewer } from "@/components/ui/PetPhotoViewer";
 import {
   defaultOwnerSettings,
   getEffectivePetContact,
@@ -74,7 +74,9 @@ export function QrSafetyPageView({ pet }: QrSafetyPageViewProps) {
             background: `linear-gradient(135deg, ${theme.colors.primarySoft}, #ffffff)`,
           }}
         >
-          <PetAvatar pet={pet} size="xl" />
+          <div className="flex justify-center">
+            <PetPhotoViewer pet={pet} size="xl" />
+          </div>
           <p
             className="mt-5 text-sm font-bold uppercase text-pet-teal"
             style={{ color: theme.colors.primary }}
@@ -164,7 +166,9 @@ export function QrSafetyPageView({ pet }: QrSafetyPageViewProps) {
           background: `linear-gradient(135deg, ${theme.colors.primarySoft}, #ffffff)`,
         }}
       >
-        <PetAvatar pet={pet} size="xl" />
+        <div className="flex justify-center">
+          <PetPhotoViewer pet={pet} size="xl" />
+        </div>
         <p
           className="mt-5 text-sm font-bold uppercase text-pet-teal"
           style={{ color: theme.colors.primary }}
