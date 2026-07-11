@@ -1,6 +1,7 @@
-using System.Data.Common;
 using System.Text.Json;
+using Microsoft.Extensions.Options;
 using MyPetLink.Api.Common;
+using MyPetLink.Api.Data;
 
 namespace MyPetLink.Api.Middleware;
 
@@ -16,7 +17,10 @@ public sealed class ErrorHandlingMiddleware
         _logger = logger;
     }
 
-    public async Task InvokeAsync(HttpContext context)
+    public async Task InvokeAsync(
+        HttpContext context,
+        IDatabaseTransientExceptionClassifier transientClassifier,
+        IOptions<DatabaseResilienceOptions> resilienceOptions)
     {
         try
         {
@@ -41,12 +45,25 @@ public sealed class ErrorHandlingMiddleware
 
             await JsonSerializer.SerializeAsync(context.Response.Body, response, JsonOptions, context.RequestAborted);
         }
-        catch (DbException exception)
+        catch (Exception exception) when (
+            !context.RequestAborted.IsCancellationRequested
+            && transientClassifier.IsTransient(exception))
         {
-            // Database unreachable / connectivity failure. Surface a safe 503 so
-            // the client shows a temporary connection issue rather than a 500.
-            // Full details are logged server-side only, never returned.
-            _logger.LogError(exception, "Database connectivity failure.");
+            var retryAfterSeconds = Math.Clamp(
+                resilienceOptions.Value.ApiRetryAfterSeconds,
+                1,
+                60);
+            var requestId = ApiEnvelope.GetRequestId(context);
+
+            _logger.LogWarning(
+                exception,
+                "Temporary database availability event after provider retries. " +
+                "RequestId={RequestId} Method={Method} Path={Path} SqlErrorNumber={SqlErrorNumber} ExceptionType={ExceptionType}.",
+                requestId,
+                context.Request.Method,
+                context.Request.Path,
+                transientClassifier.GetPrimarySqlErrorNumber(exception),
+                exception.GetType().Name);
 
             if (context.Response.HasStarted)
             {
@@ -56,11 +73,13 @@ public sealed class ErrorHandlingMiddleware
             context.Response.Clear();
             context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
             context.Response.ContentType = "application/json";
+            context.Response.Headers.RetryAfter = retryAfterSeconds.ToString();
 
             var response = ApiEnvelope.Error(
                 context,
-                "service_unavailable",
-                "MyPetLink is having trouble connecting right now. Please try again in a moment.");
+                "database_waking_up",
+                "MyPetLink is getting things ready. Please hold on for a little moment.",
+                retryAfterSeconds: retryAfterSeconds);
 
             await JsonSerializer.SerializeAsync(context.Response.Body, response, JsonOptions, context.RequestAborted);
         }

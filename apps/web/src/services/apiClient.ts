@@ -1,9 +1,19 @@
-import { getApiBaseUrl } from "@/services/apiConfig";
+import {
+  getApiBaseUrl,
+  getFrontendResilienceConfig,
+} from "@/services/apiConfig";
 import {
   clearStoredAuthSession,
   readStoredAuthSession,
   updateStoredAuthTokens,
 } from "@/services/authStorage";
+import {
+  createWakeUpRequestId,
+  markWakeUpFailed,
+  markWakeUpRetrying,
+  markWakeUpSucceeded,
+  registerWakeUpCancellation,
+} from "@/services/serviceWakeUp";
 
 type ApiEnvelope<T> = {
   data?: T;
@@ -17,32 +27,37 @@ type ApiEnvelope<T> = {
     page?: number | null;
     pageSize?: number | null;
     total?: number | null;
+    retryAfterSeconds?: number | null;
   };
 };
 
 export type ApiRequestOptions = {
-  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  method?: "GET" | "HEAD" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
   auth?: boolean;
   retryOnUnauthorized?: boolean;
+  signal?: AbortSignal;
 };
 
 export class ApiClientError extends Error {
   status: number;
   code: string;
   details?: Record<string, string[]> | null;
+  retryAfterSeconds?: number;
 
   constructor(
     status: number,
     code: string,
     message: string,
-    details?: Record<string, string[]> | null
+    details?: Record<string, string[]> | null,
+    retryAfterSeconds?: number
   ) {
     super(message);
     this.name = "ApiClientError";
     this.status = status;
     this.code = code;
     this.details = details;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 
@@ -84,21 +99,13 @@ async function request<T>(
     headers.set("Authorization", `Bearer ${session.accessToken}`);
   }
 
-  let response: Response;
-
-  try {
-    response = await fetch(`${baseUrl}${path}`, {
-      method: options.method ?? (hasBody ? "POST" : "GET"),
-      headers,
-      body: hasBody ? JSON.stringify(options.body) : undefined,
-    });
-  } catch {
-    throw new ApiClientError(
-      0,
-      "service_unavailable",
-      "We could not reach MyPetLink right now. Please try again."
-    );
-  }
+  const method = options.method ?? (hasBody ? "POST" : "GET");
+  const response = await fetchWithDatabaseWakeRetry(`${baseUrl}${path}`, {
+    method,
+    headers,
+    body: hasBody ? JSON.stringify(options.body) : undefined,
+    signal: options.signal,
+  });
 
   if (
     response.status === 401 &&
@@ -123,8 +130,11 @@ async function request<T>(
     throw new ApiClientError(
       response.status,
       error?.code ?? `http_${response.status}`,
-      error?.message ?? "Something went wrong.",
-      error?.details
+      error?.code === "database_waking_up"
+        ? "MyPetLink needs a little more time. Please try again in a moment."
+        : error?.message ?? "Something went wrong.",
+      error?.details,
+      envelope.meta?.retryAfterSeconds ?? undefined
     );
   }
 
@@ -138,7 +148,11 @@ export type BlobResponse = { blob: Blob; fileName?: string };
 // so we surface the friendly server message.
 export async function apiRequestBlob(
   path: string,
-  options: { auth?: boolean; retryOnUnauthorized?: boolean } = {}
+  options: {
+    auth?: boolean;
+    retryOnUnauthorized?: boolean;
+    signal?: AbortSignal;
+  } = {}
 ): Promise<BlobResponse> {
   const baseUrl = getApiBaseUrl();
 
@@ -156,7 +170,11 @@ export async function apiRequestBlob(
 async function requestBlob(
   baseUrl: string,
   path: string,
-  options: { auth?: boolean; retryOnUnauthorized?: boolean }
+  options: {
+    auth?: boolean;
+    retryOnUnauthorized?: boolean;
+    signal?: AbortSignal;
+  }
 ): Promise<BlobResponse> {
   const headers = new Headers();
   const session = options.auth === false ? null : readStoredAuthSession();
@@ -165,17 +183,11 @@ async function requestBlob(
     headers.set("Authorization", `Bearer ${session.accessToken}`);
   }
 
-  let response: Response;
-
-  try {
-    response = await fetch(`${baseUrl}${path}`, { method: "GET", headers });
-  } catch {
-    throw new ApiClientError(
-      0,
-      "service_unavailable",
-      "We could not reach MyPetLink right now. Please try again."
-    );
-  }
+  const response = await fetchWithDatabaseWakeRetry(`${baseUrl}${path}`, {
+    method: "GET",
+    headers,
+    signal: options.signal,
+  });
 
   if (
     response.status === 401 &&
@@ -195,7 +207,10 @@ async function requestBlob(
 
       if (envelope.error) {
         code = envelope.error.code ?? code;
-        message = envelope.error.message ?? message;
+        message =
+          envelope.error.code === "database_waking_up"
+            ? "MyPetLink needs a little more time. Please try again in a moment."
+            : envelope.error.message ?? message;
       }
     } catch {
       // Non-JSON error body; keep the default message.
@@ -255,19 +270,41 @@ async function refreshAccessToken(baseUrl: string) {
       body: JSON.stringify({ refreshToken: session.refreshToken }),
     });
   } catch {
-    return false;
+    throw new ApiClientError(
+      0,
+      "service_unavailable",
+      "We could not reach MyPetLink right now. Please try again."
+    );
   }
 
-  if (!response.ok) {
-    clearStoredAuthSession();
-    return false;
-  }
-
-  const envelope = (await response.json()) as ApiEnvelope<{
+  const envelope = (await readEnvelope<{
     accessToken: string;
     refreshToken: string;
     expiresIn: number;
-  }>;
+  }>(response));
+
+  if (!response.ok) {
+    if (response.status === 503 && envelope.error?.code === "database_waking_up") {
+      throw new ApiClientError(
+        response.status,
+        envelope.error.code,
+        "MyPetLink needs a little more time. Please try again in a moment.",
+        envelope.error.details,
+        envelope.meta?.retryAfterSeconds ?? undefined
+      );
+    }
+
+    if (response.status === 400 || response.status === 401) {
+      clearStoredAuthSession();
+      return false;
+    }
+
+    throw new ApiClientError(
+      response.status,
+      envelope.error?.code ?? `http_${response.status}`,
+      envelope.error?.message ?? "We couldn't confirm your session. Please try again."
+    );
+  }
 
   if (!envelope.data?.accessToken || !envelope.data.refreshToken) {
     clearStoredAuthSession();
@@ -276,4 +313,137 @@ async function refreshAccessToken(baseUrl: string) {
 
   updateStoredAuthTokens(envelope.data);
   return true;
+}
+
+const fallbackRetryDelaysMs = [2000, 4000, 7000, 10000];
+
+async function fetchWithDatabaseWakeRetry(
+  url: string,
+  init: RequestInit & { method: string }
+) {
+  const method = init.method.toUpperCase();
+  const safeToRetry = method === "GET" || method === "HEAD";
+  const resilience = getFrontendResilienceConfig();
+  const requestId = safeToRetry ? createWakeUpRequestId() : null;
+  const navigationController = safeToRetry ? new AbortController() : null;
+  const callerSignal = init.signal;
+  const forwardCallerAbort = () => navigationController?.abort();
+  callerSignal?.addEventListener("abort", forwardCallerAbort, { once: true });
+  if (callerSignal?.aborted) navigationController?.abort();
+  const requestInit = navigationController
+    ? { ...init, signal: navigationController.signal }
+    : init;
+  const unregisterCancellation =
+    requestId && navigationController
+      ? registerWakeUpCancellation(requestId, () => navigationController.abort())
+      : () => undefined;
+  let totalWaitMs = 0;
+
+  try {
+    for (let attempt = 1; attempt <= resilience.maxAttempts; attempt += 1) {
+      throwIfAborted(requestInit.signal);
+
+      let response: Response;
+      try {
+        response = await fetch(url, requestInit);
+      } catch (error) {
+        if (requestId) markWakeUpSucceeded(requestId);
+        if (isAbortError(error) || requestInit.signal?.aborted) throw error;
+
+        throw new ApiClientError(
+          0,
+          "service_unavailable",
+          "We could not reach MyPetLink right now. Please try again."
+        );
+      }
+
+      const wakeUpResponse = await isDatabaseWakeUpResponse(response);
+      if (!wakeUpResponse || !safeToRetry || !requestId) {
+        if (requestId) markWakeUpSucceeded(requestId);
+        return response;
+      }
+
+      const retryAfterMs = parseRetryAfterMs(response.headers.get("Retry-After"));
+      const delayMs = Math.min(
+        retryAfterMs ?? retryDelayWithJitter(attempt),
+        Math.max(0, resilience.maximumWaitMs - totalWaitMs)
+      );
+      const canRetry =
+        attempt < resilience.maxAttempts &&
+        delayMs > 0 &&
+        totalWaitMs + delayMs <= resilience.maximumWaitMs;
+
+      if (!canRetry) {
+        markWakeUpFailed(requestId, attempt);
+        return response;
+      }
+
+      markWakeUpRetrying(requestId, attempt);
+      try {
+        await abortableDelay(delayMs, requestInit.signal);
+      } catch (error) {
+        markWakeUpSucceeded(requestId);
+        throw error;
+      }
+      totalWaitMs += delayMs;
+    }
+
+    throw new Error("Unreachable retry state.");
+  } finally {
+    unregisterCancellation();
+    callerSignal?.removeEventListener("abort", forwardCallerAbort);
+  }
+}
+
+async function isDatabaseWakeUpResponse(response: Response) {
+  if (response.status !== 503) return false;
+
+  try {
+    const envelope = (await response.clone().json()) as ApiEnvelope<unknown>;
+    return envelope.error?.code === "database_waking_up";
+  } catch {
+    return false;
+  }
+}
+
+function parseRetryAfterMs(value: string | null) {
+  if (!value) return null;
+
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1000;
+
+  const date = Date.parse(value);
+  return Number.isFinite(date) ? Math.max(0, date - Date.now()) : null;
+}
+
+function retryDelayWithJitter(attempt: number) {
+  const base = fallbackRetryDelaysMs[Math.min(attempt - 1, fallbackRetryDelaysMs.length - 1)];
+  return Math.round(base * (0.9 + Math.random() * 0.2));
+}
+
+function abortableDelay(delayMs: number, signal?: AbortSignal | null) {
+  return new Promise<void>((resolve, reject) => {
+    const finish = () => {
+      signal?.removeEventListener("abort", abort);
+      resolve();
+    };
+    const timer = window.setTimeout(finish, delayMs);
+    const abort = () => {
+      window.clearTimeout(timer);
+      signal?.removeEventListener("abort", abort);
+      reject(new DOMException("The request was cancelled.", "AbortError"));
+    };
+
+    signal?.addEventListener("abort", abort, { once: true });
+  });
+}
+
+function throwIfAborted(signal?: AbortSignal | null) {
+  if (signal?.aborted) {
+    throw new DOMException("The request was cancelled.", "AbortError");
+  }
+}
+
+function isAbortError(error: unknown) {
+  return error instanceof DOMException && error.name === "AbortError";
 }

@@ -31,6 +31,12 @@ builder.Services.AddOptions<CloudflareR2Options>()
 builder.Services.AddSingleton<IValidateOptions<CloudflareR2Options>, CloudflareR2OptionsValidator>();
 builder.Services.Configure<FeatureOptions>(builder.Configuration.GetSection(FeatureOptions.SectionName));
 builder.Services.Configure<AdminSeedOptions>(builder.Configuration.GetSection(AdminSeedOptions.SectionName));
+builder.Services.Configure<DatabaseResilienceOptions>(
+    builder.Configuration.GetSection(DatabaseResilienceOptions.SectionName));
+
+var databaseResilience = builder.Configuration
+    .GetSection(DatabaseResilienceOptions.SectionName)
+    .Get<DatabaseResilienceOptions>() ?? new DatabaseResilienceOptions();
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddDbContext<MyPetLinkDbContext>(options =>
@@ -40,8 +46,17 @@ builder.Services.AddDbContext<MyPetLinkDbContext>(options =>
         ? "Server=(localdb)\\MSSQLLocalDB;Database=MyPetLinkDev;Trusted_Connection=True;TrustServerCertificate=True;"
         : configuredConnectionString;
 
-    options.UseSqlServer(connectionString);
+    options.UseSqlServer(connectionString, sqlOptions =>
+        sqlOptions.EnableRetryOnFailure(
+            maxRetryCount: Math.Clamp(databaseResilience.MaxRetryCount, 0, 20),
+            maxRetryDelay: TimeSpan.FromSeconds(Math.Clamp(
+                databaseResilience.MaxRetryDelaySeconds,
+                1,
+                60)),
+            errorNumbersToAdd: null));
 });
+builder.Services.AddScoped<IDatabaseTransientExceptionClassifier, DatabaseTransientExceptionClassifier>();
+builder.Services.AddScoped<IDatabaseReadinessProbe, DatabaseReadinessProbe>();
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
@@ -246,29 +261,43 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapGet("/health", (HttpContext context) =>
     Results.Ok(ApiEnvelope.Ok(new { status = "ok" }, context))).AllowAnonymous();
+app.MapGet("/health/live", (HttpContext context) =>
+    Results.Ok(ApiEnvelope.Ok(new { status = "ok" }, context))).AllowAnonymous();
 app.MapGet("/api/v1/health", (HttpContext context) =>
     Results.Ok(ApiEnvelope.Ok(new { status = "ok", service = "MyPetLink.Api" }, context))).AllowAnonymous();
+app.MapGet("/api/v1/health/live", (HttpContext context) =>
+    Results.Ok(ApiEnvelope.Ok(new { status = "ok" }, context))).AllowAnonymous();
 
 // Readiness probe: verifies the database is reachable. Returns 200 when ready,
 // 503 when the database is unavailable. CanConnectAsync never throws, so a DB
 // outage yields a clean 503 rather than an exception.
-app.MapGet("/api/v1/health/ready", async (HttpContext context, MyPetLinkDbContext dbContext) =>
+static async Task<IResult> ReadinessResult(
+    HttpContext context,
+    IDatabaseReadinessProbe readinessProbe,
+    IOptions<DatabaseResilienceOptions> resilienceOptions)
 {
-    var databaseReady = await dbContext.Database.CanConnectAsync(context.RequestAborted);
+    var databaseReady = await readinessProbe.IsReadyAsync(context.RequestAborted);
 
     if (!databaseReady)
     {
+        var retryAfterSeconds = Math.Clamp(resilienceOptions.Value.ApiRetryAfterSeconds, 1, 60);
+        context.Response.Headers.RetryAfter = retryAfterSeconds.ToString();
+
         return Results.Json(
             ApiEnvelope.Error(
                 context,
-                "service_unavailable",
-                "MyPetLink is having trouble connecting right now. Please try again in a moment."),
+                "not_ready",
+                "MyPetLink is not ready yet.",
+                retryAfterSeconds: retryAfterSeconds),
             statusCode: StatusCodes.Status503ServiceUnavailable);
     }
 
-    return Results.Ok(ApiEnvelope.Ok(
-        new { status = "ready", service = "MyPetLink.Api", database = "up" },
-        context));
-}).AllowAnonymous();
+    return Results.Ok(ApiEnvelope.Ok(new { status = "ready" }, context));
+}
+
+app.MapGet("/health/ready", ReadinessResult).AllowAnonymous();
+app.MapGet("/api/v1/health/ready", ReadinessResult).AllowAnonymous();
 
 app.Run();
+
+public partial class Program;

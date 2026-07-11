@@ -219,8 +219,13 @@ select {
   animation: paw-step 1s ease-in-out infinite;
 }
 
+.wake-paw {
+  animation: paw-step 1.2s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .paw-step {
+  .paw-step,
+  .wake-paw {
     animation: none;
     opacity: 0.7;
   }

@@ -169,14 +169,14 @@ public sealed class MediaService : SkeletonService, IMediaService
         var now = DateTimeOffset.UtcNow;
         var mediaToDelete = new List<MediaFile>();
 
-        await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
         media.UploadStatus = MediaUploadStatus.Ready;
         media.CompletedAt = now;
         media.UploadedAt = now;
 
         await ApplyCompletedAssociationAsync(userId, media, mediaToDelete, cancellationToken);
+        // One SaveChanges call is atomic and can be retried by the configured
+        // SQL execution strategy without a user-managed transaction boundary.
         await _dbContext.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
 
         foreach (var oldMedia in mediaToDelete)
         {
@@ -224,11 +224,11 @@ public sealed class MediaService : SkeletonService, IMediaService
                 "This file is already attached to a submitted payment record.");
         }
 
-        await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
         await DetachMediaReferencesAsync(userId, media, cancellationToken);
         MarkDeleted(media);
+        // Keep the detach and soft-delete in the same implicit transaction so
+        // the provider execution strategy owns any transient retry.
         await _dbContext.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
 
         await TryDeleteObjectAsync(media, cancellationToken);
     }

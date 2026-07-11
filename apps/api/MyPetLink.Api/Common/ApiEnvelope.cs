@@ -15,7 +15,8 @@ public sealed record ApiMeta(
     string RequestId,
     int? Page = null,
     int? PageSize = null,
-    int? Total = null);
+    int? Total = null,
+    int? RetryAfterSeconds = null);
 
 public sealed record PlaceholderResponse(string Feature, string Message);
 
@@ -37,11 +38,12 @@ public static class ApiEnvelope
         HttpContext httpContext,
         string code,
         string message,
-        IReadOnlyDictionary<string, string[]>? details = null)
+        IReadOnlyDictionary<string, string[]>? details = null,
+        int? retryAfterSeconds = null)
     {
         return new ApiErrorResponse(
             new ApiError(code, message, details),
-            new ApiMeta(GetRequestId(httpContext)));
+            new ApiMeta(GetRequestId(httpContext), RetryAfterSeconds: retryAfterSeconds));
     }
 
     public static Dictionary<string, string[]> ModelStateErrors(ActionContext context)

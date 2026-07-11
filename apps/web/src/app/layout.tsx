@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Noto_Sans, Poppins } from "next/font/google";
 import { siteConfig } from "@/config/site";
+import { ServiceWakeUpState } from "@/components/ui/ServiceWakeUpState";
 import "./globals.css";
 
 const poppins = Poppins({
@@ -74,7 +75,10 @@ export default function RootLayout({
       lang="en"
       className={`${poppins.variable} ${notoSans.variable} h-full antialiased`}
     >
-      <body className="min-h-full bg-pet-cream text-pet-ink">{children}</body>
+      <body className="min-h-full bg-pet-cream text-pet-ink">
+        {children}
+        <ServiceWakeUpState />
+      </body>
     </html>
   );
 }

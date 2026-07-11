@@ -4,11 +4,15 @@ namespace MyPetLink.Api.Middleware;
 
 public sealed class RequestContextMiddleware
 {
+    private readonly ILogger<RequestContextMiddleware> _logger;
     private readonly RequestDelegate _next;
 
-    public RequestContextMiddleware(RequestDelegate next)
+    public RequestContextMiddleware(
+        RequestDelegate next,
+        ILogger<RequestContextMiddleware> logger)
     {
         _next = next;
+        _logger = logger;
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -24,6 +28,14 @@ public sealed class RequestContextMiddleware
         context.Items[RequestContextKeys.RequestId] = requestId;
         context.Response.Headers["X-Request-Id"] = requestId;
 
-        await _next(context);
+        using (_logger.BeginScope(new Dictionary<string, object>
+        {
+            ["RequestId"] = requestId,
+            ["RequestPath"] = context.Request.Path.Value ?? "",
+            ["RequestMethod"] = context.Request.Method
+        }))
+        {
+            await _next(context);
+        }
     }
 }
