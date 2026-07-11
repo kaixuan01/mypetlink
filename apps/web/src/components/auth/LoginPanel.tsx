@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { BrandLogo } from "@/components/brand/BrandLogo";
 import {
   loginMockOwner,
   loginWithGoogleIdToken,
@@ -63,9 +62,16 @@ export function LoginPanel() {
   const apiMode = isApiConfigured();
   const googleClientId = getGoogleClientId();
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
+  const errorRef = useRef<HTMLDivElement | null>(null);
   const [error, setError] = useState("");
   const [signingIn, setSigningIn] = useState(false);
   const [googleReady, setGoogleReady] = useState(!apiMode);
+
+  useEffect(() => {
+    if (error) {
+      errorRef.current?.focus();
+    }
+  }, [error]);
 
   useEffect(() => {
     if (!apiMode || !googleClientId) {
@@ -165,25 +171,23 @@ export function LoginPanel() {
   }
 
   return (
-    <div className="brand-card mx-auto w-full min-w-0 max-w-full rounded-[2rem] p-5 min-[361px]:p-6 sm:p-8">
-      <BrandLogo className="h-9 w-auto max-w-full" />
-      <h1 className="mt-6 text-2xl font-black text-pet-ink sm:text-3xl">
-        Welcome to MyPetLink
-      </h1>
-      <p className="mt-3 min-w-0 break-words text-sm leading-6 text-pet-muted">
-        Sign in to manage your pet profiles, safety contacts, and QR pages.
+    <section
+      aria-labelledby="owner-sign-in-title"
+      className="brand-card mx-auto w-full min-w-0 max-w-xl rounded-[1.75rem] p-4 min-[361px]:p-5 sm:p-7"
+    >
+      <h2 className="text-xl font-black text-pet-ink sm:text-2xl" id="owner-sign-in-title">
+        Continue with Google
+      </h2>
+      <p className="mt-2 min-w-0 break-words text-sm leading-6 text-pet-muted">
+        Use your Google account to securely open your owner portal.
       </p>
 
-      {error ? (
-        <div
-          className="mt-5 min-w-0 break-words rounded-2xl border border-[#ffd5cf] bg-[#fff1ee] p-4 text-sm font-bold leading-6 text-[#a63c2e]"
-          role="alert"
-        >
-          {error}
-        </div>
-      ) : null}
-
-      <div className="mt-6 grid min-w-0 gap-3">
+      <div
+        aria-busy={signingIn}
+        aria-label="Google sign-in action"
+        className="mt-4 grid min-h-12 min-w-0 gap-2"
+        role="group"
+      >
         {apiMode ? (
           googleClientId ? (
             <>
@@ -192,15 +196,21 @@ export function LoginPanel() {
                 ref={googleButtonRef}
               />
               {!googleReady || signingIn ? (
-                <p className="text-center text-xs font-bold text-pet-muted">
+                <p
+                  className="text-center text-xs font-bold text-pet-muted"
+                  role="status"
+                >
                   {signingIn ? "Signing you in..." : "Loading Google sign-in..."}
                 </p>
               ) : null}
             </>
           ) : (
-            <div className="rounded-2xl bg-pet-cream p-4 text-sm font-semibold leading-6 text-pet-muted">
-              Google sign-in needs a client ID in local settings before you can
-              continue.
+            <div
+              className="rounded-2xl bg-pet-cream p-4 text-sm font-semibold leading-6 text-pet-muted"
+              role="status"
+            >
+              Google sign-in is temporarily unavailable. Please try again in a
+              moment.
             </div>
           )
         ) : (
@@ -217,11 +227,22 @@ export function LoginPanel() {
         )}
       </div>
 
-      <p className="mt-5 rounded-2xl bg-pet-cream p-4 text-xs leading-5 text-pet-muted">
+      {error ? (
+        <div
+          className="mt-3 min-w-0 break-words rounded-2xl border border-[#ffd5cf] bg-[#fff1ee] p-3.5 text-sm font-bold leading-6 text-[#a63c2e]"
+          ref={errorRef}
+          role="alert"
+          tabIndex={-1}
+        >
+          {error}
+        </div>
+      ) : null}
+
+      <p className="mt-4 rounded-2xl bg-pet-cream p-3.5 text-xs leading-5 text-pet-muted">
         No password required. Your pet profiles stay connected to your owner
         account.
       </p>
-    </div>
+    </section>
   );
 }
 

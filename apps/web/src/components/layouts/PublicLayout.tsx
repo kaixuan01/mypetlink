@@ -20,9 +20,11 @@ const publicNav = [
 export function PublicLayout({
   children,
   className = "",
+  compactHeader = false,
 }: {
   children: React.ReactNode;
   className?: string;
+  compactHeader?: boolean;
 }) {
   const [loggedIn, setLoggedIn] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -55,10 +57,25 @@ export function PublicLayout({
       className={`min-h-screen w-full max-w-full bg-pet-cream ${className}`}
     >
       <header className="sticky top-0 z-30 border-b border-pet-border bg-[#fff8f2]/92 backdrop-blur">
-        <div className="mx-auto w-full min-w-0 max-w-7xl px-3 py-4 min-[361px]:px-4 sm:px-6 lg:px-8">
-          <div className="flex min-w-0 items-center justify-between gap-4">
+        <div
+          className={`mx-auto w-full min-w-0 max-w-7xl px-3 min-[361px]:px-4 sm:px-6 lg:px-8 ${
+            compactHeader ? "py-2.5 sm:py-3 lg:py-4" : "py-4"
+          }`}
+        >
+          <div
+            className={`flex min-w-0 items-center justify-between ${
+              compactHeader ? "gap-2 min-[361px]:gap-3 sm:gap-4" : "gap-4"
+            }`}
+          >
             <Link href="/" className="flex min-w-0 items-center">
-              <BrandLogo className="h-14 w-auto max-w-[235px]" priority />
+              <BrandLogo
+                className={`w-auto ${
+                  compactHeader
+                    ? "h-10 max-w-[calc(100vw-5.5rem)] object-contain object-left min-[361px]:h-11 sm:h-12 lg:h-14 lg:max-w-[235px]"
+                    : "h-14 max-w-[235px]"
+                }`}
+                priority
+              />
             </Link>
 
             {/* Desktop nav */}
