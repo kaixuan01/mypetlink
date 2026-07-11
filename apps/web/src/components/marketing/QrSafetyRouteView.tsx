@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { QrSafetyPageView } from "@/components/marketing/QrSafetyPageView";
 import { FinderShell } from "@/components/portal/TagFinderView";
 import { Icon } from "@/components/ui/Icon";
+import { PetProfileLoading } from "@/components/ui/PetProfileLoading";
 import {
   loadingTitle,
   qrSafetyNotFoundTitle,
@@ -78,7 +79,7 @@ export function QrSafetyRouteView({
       ) : profile ? (
         <QrSafetyPageView pet={profile} />
       ) : !loaded ? (
-        <SafetyPageLoadingCard />
+        <PetProfileLoading />
       ) : (
         <SafetyPageNotFoundCard safetyCode={safetyCode} />
       )}
@@ -97,22 +98,6 @@ function SafetyPageUnavailableCard({ message }: { message: string }) {
       </h1>
       <p className="mx-auto mt-3 max-w-sm text-sm font-semibold leading-6 text-pet-muted">
         {message}
-      </p>
-    </article>
-  );
-}
-
-function SafetyPageLoadingCard() {
-  return (
-    <article className="brand-card mx-auto max-w-xl rounded-[2rem] p-6 text-center sm:p-8">
-      <span className="mx-auto grid h-16 w-16 place-items-center rounded-[1.5rem] bg-[#e8f3ff] text-pet-teal">
-        <Icon name="shield" className="h-7 w-7" />
-      </span>
-      <h1 className="mt-5 text-3xl font-black text-pet-ink">
-        Loading QR Safety Page
-      </h1>
-      <p className="mx-auto mt-3 max-w-sm text-sm font-semibold leading-6 text-pet-muted">
-        Checking the latest saved pet safety details for this link.
       </p>
     </article>
   );

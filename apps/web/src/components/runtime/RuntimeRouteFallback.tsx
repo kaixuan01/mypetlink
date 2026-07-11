@@ -21,6 +21,7 @@ import { SmartTagsComingSoon } from "@/components/portal/SmartTagsComingSoon";
 import { TagOrderFlow } from "@/components/portal/TagOrderFlow";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { PetProfileLoading } from "@/components/ui/PetProfileLoading";
 import { formatOrderNumber } from "@/lib/orders";
 import {
   genericNotFoundTitle,
@@ -577,18 +578,8 @@ function OwnerRuntimeView({
 
 function RuntimeLoading() {
   return (
-    <main className="grid min-h-screen place-items-center bg-pet-cream px-4">
-      <div className="brand-card w-full max-w-md rounded-[2rem] p-8 text-center">
-        <div className="flex justify-center">
-          <BrandLogo className="h-12 w-auto max-w-[200px]" />
-        </div>
-        <p className="mt-6 text-sm font-extrabold uppercase text-pet-teal">
-          Loading page
-        </p>
-        <h1 className="mt-2 text-2xl font-black text-pet-ink">
-          Fetching the latest saved details
-        </h1>
-      </div>
+    <main className="min-h-screen bg-pet-cream">
+      <PetProfileLoading />
     </main>
   );
 }

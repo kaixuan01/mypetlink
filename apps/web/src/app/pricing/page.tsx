@@ -7,7 +7,12 @@ import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon } from "@/components/ui/Icon";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { mockPlans } from "@/data/mockPlans";
-import { gpsSafety, phase1Positioning, smartTagAddOns } from "@/lib/planLimits";
+import {
+  gpsSafety,
+  phase1Positioning,
+  smartTagAddOns,
+  smartTagAddOnsStatus,
+} from "@/lib/planLimits";
 
 export const metadata: Metadata = {
   title: "Pricing",
@@ -22,7 +27,7 @@ const smartTagFeatures = [
   "Opens the pet-level QR Safety Page",
   "QR scan and NFC tap open the same safety page",
   "Finder-friendly contact page",
-  "Can be ordered after creating a pet profile",
+  "An add-on for your free pet profile",
 ];
 
 const gpsFeatures = [
@@ -53,15 +58,15 @@ export default function PricingPage() {
             />
 
             <PricingCard
-              badge="Optional add-on"
+              badge={smartTagAddOnsStatus.status}
               title="Smart Tag Add-ons"
-              price="One-time add-ons"
+              price={`From ${smartTagAddOnsStatus.startingPrice}`}
               note="Optional physical tags that connect to your pet's QR Safety Page."
               features={smartTagFeatures}
               action={
-                <CreateProfileCTA fullWidth variant="secondary">
-                  Create Pet Profile
-                </CreateProfileCTA>
+                <CTAButton disabled fullWidth variant="secondary">
+                  Coming Soon
+                </CTAButton>
               }
             >
               <div className="mt-5 grid gap-3">

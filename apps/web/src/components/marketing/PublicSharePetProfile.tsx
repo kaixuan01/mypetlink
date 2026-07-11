@@ -13,6 +13,7 @@ import { ShareProfileLink } from "@/components/share/ShareProfileLink";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon } from "@/components/ui/Icon";
 import { PetPhotoViewer } from "@/components/ui/PetPhotoViewer";
+import { PetProfileLoading } from "@/components/ui/PetProfileLoading";
 import {
   getPetProfileTheme,
   type PetProfileTheme,
@@ -209,20 +210,18 @@ export function PublicSharePetProfile({
   }, [apiMode, initialProfile]);
 
   if (!profile) {
+    if (!loaded && !loadError) {
+      return <PetProfileLoading />;
+    }
+
     return (
       <PublicProfileStatusCard
         message={
           loadError ||
-          (loaded
-            ? "We could not find a public MyPetLink profile for this link."
-            : "Checking the latest saved public profile for this link.")
+          "We could not find a public MyPetLink profile for this link."
         }
         title={
-          loadError
-            ? "Profile temporarily unavailable"
-            : loaded
-              ? "Pet profile not found"
-              : "Loading pet profile"
+          loadError ? "Profile temporarily unavailable" : "Pet profile not found"
         }
       />
     );

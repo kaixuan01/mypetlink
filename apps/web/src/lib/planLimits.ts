@@ -56,6 +56,17 @@ export const smartTagAddOns = [
   },
 ] as const;
 
+// Marketing status for the physical Smart Tag add-ons. The tags are not yet
+// available to purchase, so public pages present them as "Coming Soon". This is
+// the single source of truth for the landing and pricing pages so they never
+// disagree on status, price, or copy.
+export const smartTagAddOnsStatus = {
+  status: "Coming Soon",
+  startingPrice: smartTagAddOns[0].price,
+  shortDescription:
+    "One-time QR and QR + NFC smart pet tag add-ons, coming soon.",
+} as const;
+
 export const gpsSafety = {
   name: "GPS Safety",
   status: "Coming Later",

@@ -10,7 +10,7 @@ import {
   freePlanLimits,
   phase1Positioning,
   premiumPlan,
-  smartTagAddOns,
+  smartTagAddOnsStatus,
 } from "@/lib/planLimits";
 import { getPetSummaryLabel } from "@/lib/petDisplay";
 import { publicRoutes, samplePet } from "@/lib/routes";
@@ -232,7 +232,7 @@ export default function Home() {
             description="MyPetLink keeps the friendly page you share separate from the emergency page a finder sees."
           />
           <div className="grid gap-4 md:grid-cols-2">
-            <article className="brand-card rounded-[1.75rem] p-6">
+            <article className="brand-card flex flex-col rounded-[1.75rem] p-6">
               <div className="flex items-center gap-3">
                 <span className="grid h-11 w-11 place-items-center rounded-2xl bg-[#fdeada] text-pet-coral">
                   <Icon name="heart" className="h-5 w-5" />
@@ -241,16 +241,26 @@ export default function Home() {
                   Public Share Profile
                 </h3>
               </div>
-              <code className="mt-4 inline-block rounded-full bg-pet-cream px-3 py-1 text-xs font-bold text-pet-muted">
-                /p/{"{petSlug}-{publicCode}"}
-              </code>
+              <span className="mt-4 inline-flex w-fit rounded-full bg-[#fdeada] px-3 py-1 text-xs font-black text-pet-coral">
+                Share with friends &amp; family
+              </span>
               <p className="mt-4 text-sm leading-6 text-pet-muted">
-                A friendly, shareable page for friends, family, social media, and
-                pet communities. Shows About, Moments, and Timeline.
+                A friendly, shareable page for family, friends, social media, and
+                pet communities. Show your pet&apos;s story, moments, and
+                timeline in one beautiful profile.
               </p>
+              <div className="mt-auto pt-5">
+                <CTAButton
+                  href={publicRoutes.publicProfile(pet)}
+                  icon="heart"
+                  variant="secondary"
+                >
+                  See Sample Profile
+                </CTAButton>
+              </div>
             </article>
 
-            <article className="brand-card rounded-[1.75rem] p-6">
+            <article className="brand-card flex flex-col rounded-[1.75rem] p-6">
               <div className="flex items-center gap-3">
                 <span className="grid h-11 w-11 place-items-center rounded-2xl bg-[#e8f3ff] text-pet-teal">
                   <Icon name="qr" className="h-5 w-5" />
@@ -259,14 +269,24 @@ export default function Home() {
                   QR Safety Page
                 </h3>
               </div>
-              <code className="mt-4 inline-block rounded-full bg-pet-cream px-3 py-1 text-xs font-bold text-pet-muted">
-                /q/{"{safetyCode}"}
-              </code>
+              <span className="mt-4 inline-flex w-fit rounded-full bg-[#e8f3ff] px-3 py-1 text-xs font-black text-pet-teal">
+                Help finders contact you
+              </span>
               <p className="mt-4 text-sm leading-6 text-pet-muted">
-                The finder-first page for people who find your pet. It supports
-                QR downloads and active physical tags, with WhatsApp, call, and
-                found-location actions.
+                A finder-first safety page that helps someone contact you quickly
+                when your pet is found. It can show WhatsApp, call, safety notes,
+                and found-location actions based on the owner&apos;s privacy
+                settings.
               </p>
+              <div className="mt-auto pt-5">
+                <CTAButton
+                  href={publicRoutes.qrSafetyPage(pet)}
+                  icon="qr"
+                  variant="outline"
+                >
+                  See Safety Page
+                </CTAButton>
+              </div>
             </article>
           </div>
         </div>
@@ -314,7 +334,7 @@ export default function Home() {
           <PageHeader
             eyebrow="Smart tag add-on"
             title="Start free. Add a physical tag when you want one."
-            description="Smart tags are optional one-time purchases that connect to your pet's QR Safety Page."
+            description="Smart tags are optional one-time add-ons that connect to your pet's QR Safety Page. Coming soon."
           />
           <div className="grid gap-4 md:grid-cols-2">
             {smartTags.map((tag) => (
@@ -332,6 +352,7 @@ export default function Home() {
                     <h3 className="text-lg font-black text-pet-ink">
                       {tag.name}
                     </h3>
+                    <Badge tone="teal">Coming Soon</Badge>
                     {tag.highlighted ? (
                       <Badge tone="mint">QR + NFC</Badge>
                     ) : null}
@@ -369,10 +390,10 @@ export default function Home() {
               note={`Up to ${freePlanLimits.maxPets} pet profiles and ${freePlanLimits.maxMemoriesPerPet} pet memories per pet.`}
             />
             <PricingPreviewCard
-              badge="Available now"
+              badge={smartTagAddOnsStatus.status}
               title="Smart Tag Add-ons"
-              price={`from ${smartTagAddOns[0].price}`}
-              note="One-time physical QR and QR + NFC smart tag add-ons."
+              price={`From ${smartTagAddOnsStatus.startingPrice}`}
+              note={smartTagAddOnsStatus.shortDescription}
             />
             <PricingPreviewCard
               badge="Coming Soon"

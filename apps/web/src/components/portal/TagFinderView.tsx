@@ -8,6 +8,7 @@ import { QrSafetyPageView } from "@/components/marketing/QrSafetyPageView";
 import { TagActivationFlow } from "@/components/portal/TagActivationFlow";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon, type IconName } from "@/components/ui/Icon";
+import { PetProfileLoading } from "@/components/ui/PetProfileLoading";
 import {
   loadingTitle,
   setPageTitle,
@@ -65,13 +66,7 @@ export function TagFinderView({ initialResult, tagCode }: TagFinderViewProps) {
   if (!loaded) {
     return (
       <FinderShell>
-        <FinderCard
-          description="Checking the latest saved tag details for this scan link."
-          icon="tag"
-          tagCode={tagCode}
-          title="Loading tag"
-          tone="teal"
-        />
+        <PetProfileLoading />
       </FinderShell>
     );
   }
