@@ -13,6 +13,9 @@ export const metadata: Metadata = {
 
 export default async function SamplePage() {
   const profile = await getPublicPetProfileByPublicCode(samplePet.publicCode);
+  // Fall back to the static sample pet so the sample cards always render (and
+  // link correctly) even where the live profile is not fetched at build time.
+  const pet = profile.data ?? samplePet;
 
   return (
     <PublicLayout>
@@ -23,18 +26,18 @@ export default async function SamplePage() {
             title="See MyPetLink in two real situations"
             description="See the friendly profile owners share, and the QR Safety Page a finder can use to contact the owner quickly."
           />
-          {profile.data ? (
+          {(
             <div className="grid gap-5 lg:grid-cols-2">
               <article className="brand-card overflow-hidden rounded-[2rem]">
                 <div className="brand-paw-dots bg-pet-apricot p-6">
                   <div className="flex items-center gap-4">
-                    <PetAvatar pet={profile.data} size="lg" />
+                    <PetAvatar pet={pet} size="lg" />
                     <div>
                       <p className="text-sm font-bold uppercase text-pet-coral">
                         Public Share Profile
                       </p>
                       <h2 className="mt-2 text-3xl font-black text-pet-ink">
-                        {profile.data.name}&apos;s mini website
+                        {pet.name}&apos;s mini website
                       </h2>
                       <p className="mt-2 text-sm leading-6 text-pet-muted">
                         A warm pet page for family and friends, with approved
@@ -58,7 +61,7 @@ export default async function SamplePage() {
                     </div>
                   ))}
                   <CTAButton
-                    href={publicRoutes.publicProfile(profile.data)}
+                    href={publicRoutes.publicProfile(pet)}
                     icon="heart"
                     className="mt-2"
                   >
@@ -78,7 +81,7 @@ export default async function SamplePage() {
                         QR Safety Page
                       </p>
                       <h2 className="mt-2 text-3xl font-black text-pet-ink">
-                        Found {profile.data.name}?
+                        Found {pet.name}?
                       </h2>
                       <p className="mt-2 text-sm leading-6 text-pet-muted">
                         A contact-focused pet page for finders, with large
@@ -102,7 +105,7 @@ export default async function SamplePage() {
                     </div>
                   ))}
                   <CTAButton
-                    href={publicRoutes.qrSafetyPage(profile.data)}
+                    href={publicRoutes.qrSafetyPage(pet)}
                     icon="qr"
                     variant="coral"
                     className="mt-2"
@@ -112,7 +115,7 @@ export default async function SamplePage() {
                 </div>
               </article>
             </div>
-          ) : null}
+          )}
         </div>
       </section>
     </PublicLayout>
