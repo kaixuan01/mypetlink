@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { BrandLogo } from "@/components/brand/BrandLogo";
+import { MomentMediaCarousel } from "@/components/moments/MomentMediaCarousel";
 import { PetMomentCard } from "@/components/portal/PetMomentCard";
 import { ShareProfileLink } from "@/components/share/ShareProfileLink";
 import { CTAButton } from "@/components/ui/CTAButton";
@@ -35,6 +36,7 @@ import {
 } from "@/lib/petDisplay";
 import { isActivePet, isArchivedPet, isMemorialPet } from "@/lib/petLifecycle";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
+import { getPublicProfileMoments } from "@/lib/momentMedia";
 import {
   getCallLink,
   getWhatsAppLink,
@@ -250,12 +252,10 @@ export function PublicSharePetProfile({
   const lostModeDetails = profile.lostMode;
   const coverPhotoUrl = resolveMediaUrl(profile.coverUrl);
 
-  const publicMoments = visibility.showMoments
-    ? moments.filter(
-        (moment) =>
-          moment.visibility === "Public" && moment.showOnPublicProfile
-      )
-    : [];
+  const publicMoments = getPublicProfileMoments(
+    moments,
+    visibility.showMoments
+  );
   const careRecords = visibility.showCareBadges
     ? records.filter((record) => record.publicVisibility !== "Private").slice(0, 4)
     : [];
@@ -967,35 +967,40 @@ function TimelineTab({
       <div className="mt-5 grid gap-3">
         {events.map((event) => (
           <div
-            className="flex items-start gap-3 rounded-[1.25rem] bg-pet-cream p-4"
+            className="overflow-hidden rounded-[1.25rem] bg-pet-cream"
             key={event.id}
             style={{ background: theme.colors.surfaceAlt }}
           >
-            <span
-              className="mt-1 h-3 w-3 shrink-0 rounded-full"
-              style={{ background: theme.colors.timelineDot }}
-            />
-            <div className="min-w-0">
-              <p
-                className="text-xs font-bold uppercase text-pet-muted"
-                style={{ color: theme.colors.mutedText }}
-              >
-                {event.date}
-              </p>
-              <p
-                className="mt-0.5 font-black text-pet-ink"
-                style={{ color: theme.colors.text }}
-              >
-                {event.title}
-              </p>
-              {event.description ? (
+            {event.moment?.media.length ? (
+              <MomentMediaCarousel compact moment={event.moment} theme={theme} />
+            ) : null}
+            <div className="flex items-start gap-3 p-4">
+              <span
+                className="mt-1 h-3 w-3 shrink-0 rounded-full"
+                style={{ background: theme.colors.timelineDot }}
+              />
+              <div className="min-w-0">
                 <p
-                  className="mt-1 text-sm leading-6 text-pet-muted"
+                  className="text-xs font-bold uppercase text-pet-muted"
                   style={{ color: theme.colors.mutedText }}
                 >
-                  {event.description}
+                  {event.date}
                 </p>
-              ) : null}
+                <p
+                  className="mt-0.5 font-black text-pet-ink"
+                  style={{ color: theme.colors.text }}
+                >
+                  {event.title}
+                </p>
+                {event.description ? (
+                  <p
+                    className="mt-1 text-sm leading-6 text-pet-muted"
+                    style={{ color: theme.colors.mutedText }}
+                  >
+                    {event.description}
+                  </p>
+                ) : null}
+              </div>
             </div>
           </div>
         ))}

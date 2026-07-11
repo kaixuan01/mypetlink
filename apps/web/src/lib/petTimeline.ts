@@ -29,6 +29,8 @@ export type PetTimelineItem = {
   isPublic: boolean;
   /** Linked moment id, for owner "edit" routing. */
   momentId?: string;
+  /** Source moment for the shared media carousel on timeline surfaces. */
+  moment?: PetMoment;
   sortValue: number;
 };
 
@@ -163,6 +165,7 @@ export function buildPetTimeline(
     items.push({
       id: `moment-${moment.id}`,
       momentId: moment.id,
+      moment,
       title: moment.title,
       date: moment.date,
       description: moment.timelineNote?.trim() || moment.caption || undefined,

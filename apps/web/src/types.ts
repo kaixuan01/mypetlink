@@ -246,6 +246,8 @@ export type MomentMedia = {
   id: string;
   type: MomentMediaType;
   url?: string;
+  posterUrl?: string;
+  durationSeconds?: number;
   caption?: string;
   altText?: string;
   sortOrder: number;

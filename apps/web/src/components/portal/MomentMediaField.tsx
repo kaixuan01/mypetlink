@@ -1,9 +1,16 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { VideoPoster } from "@/components/moments/VideoPoster";
 import { Icon } from "@/components/ui/Icon";
 import { readImageAsDataUrl } from "@/lib/imageUpload";
-import { createMediaId, sortedMedia } from "@/lib/momentMedia";
+import {
+  createMediaId,
+  makeCoverMedia,
+  moveMedia,
+  reindexMedia,
+  sortedMedia,
+} from "@/lib/momentMedia";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { MAX_MOMENT_MEDIA, type MomentMedia } from "@/types";
 
@@ -16,7 +23,6 @@ type MomentMediaFieldProps = {
 
 export function MomentMediaField({
   items,
-  coverMediaId,
   onChange,
   max = MAX_MOMENT_MEDIA,
 }: MomentMediaFieldProps) {
@@ -26,21 +32,12 @@ export function MomentMediaField({
   const [error, setError] = useState<string | null>(null);
 
   const ordered = sortedMedia(items);
-  const activeCover =
-    ordered.find((item) => item.id === coverMediaId)?.id ?? ordered[0]?.id;
+  const activeCover = ordered[0]?.id;
   const isFull = ordered.length >= max;
 
-  function reindex(next: MomentMedia[]): MomentMedia[] {
-    return next.map((item, index) => ({ ...item, sortOrder: index }));
-  }
-
-  function commit(next: MomentMedia[], cover?: string) {
-    const reindexed = reindex(next);
-    const nextCover =
-      cover && reindexed.some((item) => item.id === cover)
-        ? cover
-        : reindexed[0]?.id;
-    onChange(reindexed, nextCover);
+  function commit(next: MomentMedia[]) {
+    const reindexed = reindexMedia(next);
+    onChange(reindexed, reindexed[0]?.id);
   }
 
   async function handleAddPhotos(fileList: FileList | null) {
@@ -67,7 +64,7 @@ export function MomentMediaField({
         });
       }
 
-      commit([...ordered, ...added], activeCover ?? added[0]?.id);
+      commit([...ordered, ...added]);
     } catch (readError) {
       setError(
         readError instanceof Error
@@ -93,13 +90,13 @@ export function MomentMediaField({
     const next: MomentMedia = {
       id: createMediaId(),
       type: "video",
-      url: "",
+      url: URL.createObjectURL(file),
       altText: file.name,
       sourceFile: file,
       sortOrder: 0,
     };
 
-    commit([...ordered, next], activeCover);
+    commit([...ordered, next]);
 
     if (videoInputRef.current) {
       videoInputRef.current.value = "";
@@ -107,14 +104,21 @@ export function MomentMediaField({
   }
 
   function handleRemove(id: string) {
-    commit(
-      ordered.filter((item) => item.id !== id),
-      activeCover === id ? undefined : activeCover
-    );
+    const removed = ordered.find((item) => item.id === id);
+    if (removed?.url?.startsWith("blob:")) {
+      URL.revokeObjectURL(removed.url);
+    }
+    commit(ordered.filter((item) => item.id !== id));
   }
 
   function handleSetCover(id: string) {
-    onChange(ordered, id);
+    const next = makeCoverMedia(ordered, id);
+    onChange(next, next[0]?.id);
+  }
+
+  function handleMove(id: string, offset: -1 | 1) {
+    const next = moveMedia(ordered, id, offset);
+    onChange(next, next[0]?.id);
   }
 
   return (
@@ -132,70 +136,87 @@ export function MomentMediaField({
 
       {ordered.length ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {ordered.map((item) => {
+          {ordered.map((item, index) => {
             const isCover = item.id === activeCover;
             const mediaUrl = resolveMediaUrl(item.url);
 
             return (
               <div
-                className="group relative aspect-square overflow-hidden rounded-2xl border border-pet-border bg-pet-cream"
+                className="group overflow-hidden rounded-2xl border border-pet-border bg-white"
                 key={item.id}
               >
-                {item.type === "image" && mediaUrl ? (
-                  <>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      alt={item.altText ?? "Moment media"}
-                      className="h-full w-full object-cover"
-                      src={mediaUrl}
+                <div className="relative aspect-square overflow-hidden bg-pet-cream">
+                  {item.type === "image" && mediaUrl ? (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        alt={item.altText ?? "Moment media"}
+                        className="h-full w-full object-cover"
+                        src={mediaUrl}
+                      />
+                    </>
+                  ) : item.type === "video" ? (
+                    <VideoPoster
+                      alt={item.altText ?? "Moment video"}
+                      durationSeconds={item.durationSeconds}
+                      posterUrl={item.posterUrl}
+                      url={item.url}
                     />
-                  </>
-                ) : item.type === "video" && mediaUrl ? (
-                  <video
-                    aria-label={item.altText ?? "Moment video"}
-                    className="h-full w-full object-cover"
-                    controls
-                    playsInline
-                    preload="metadata"
-                    src={mediaUrl}
-                  />
-                ) : (
-                  <div className="grid h-full w-full place-items-center bg-pet-apricot/50 text-pet-coral">
-                    <div className="grid place-items-center gap-1 px-2 text-center">
-                      <Icon name="record" className="h-6 w-6" />
-                      <span className="text-[0.65rem] font-bold uppercase tracking-wide">
-                        {item.type === "video" ? "Video" : "Photo"}
-                      </span>
+                  ) : (
+                    <div className="grid h-full w-full place-items-center bg-pet-apricot/50 text-pet-coral">
+                      <Icon name="heart" className="h-6 w-6" />
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {isCover ? (
-                  <span className="absolute left-2 top-2 rounded-full bg-pet-ink/85 px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-wide text-white">
-                    Cover
-                  </span>
-                ) : null}
+                  {isCover ? (
+                    <span className="absolute left-2 top-2 rounded-full bg-pet-ink/85 px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-wide text-white">
+                      Cover
+                    </span>
+                  ) : null}
 
-                <button
-                  aria-label="Remove media"
-                  className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-white/90 text-pet-ink shadow-sm transition hover:bg-white"
-                  onClick={() => handleRemove(item.id)}
-                  type="button"
-                >
-                  <span aria-hidden="true" className="text-base leading-none">
-                    &times;
-                  </span>
-                </button>
-
-                {!isCover ? (
                   <button
-                    className="absolute inset-x-2 bottom-2 rounded-full bg-white/90 px-2 py-1 text-[0.65rem] font-bold text-pet-ink opacity-0 shadow-sm transition group-hover:opacity-100 focus-visible:opacity-100"
-                    onClick={() => handleSetCover(item.id)}
+                    aria-label={`Remove ${item.type} ${index + 1}`}
+                    className="absolute right-2 top-2 grid h-11 w-11 place-items-center rounded-full bg-white/90 text-xl text-pet-ink shadow-sm transition hover:bg-white"
+                    onClick={() => handleRemove(item.id)}
                     type="button"
                   >
-                    Set as cover
+                    <span aria-hidden="true" className="leading-none">&times;</span>
                   </button>
-                ) : null}
+                </div>
+
+                <div className="grid grid-cols-2 gap-1 border-t border-pet-border p-1.5">
+                  <button
+                    aria-label={`Move ${item.type} ${index + 1} earlier`}
+                    className="min-h-11 rounded-xl text-lg font-black text-pet-ink transition hover:bg-pet-cream disabled:cursor-not-allowed disabled:opacity-30"
+                    disabled={index === 0}
+                    onClick={() => handleMove(item.id, -1)}
+                    type="button"
+                  >
+                    <span aria-hidden="true">&#8592;</span>
+                  </button>
+                  <button
+                    aria-label={`Move ${item.type} ${index + 1} later`}
+                    className="min-h-11 rounded-xl text-lg font-black text-pet-ink transition hover:bg-pet-cream disabled:cursor-not-allowed disabled:opacity-30"
+                    disabled={index === ordered.length - 1}
+                    onClick={() => handleMove(item.id, 1)}
+                    type="button"
+                  >
+                    <span aria-hidden="true">&#8594;</span>
+                  </button>
+                  {!isCover ? (
+                    <button
+                      className="col-span-2 min-h-11 rounded-xl bg-pet-cream px-2 text-xs font-bold text-pet-ink transition hover:bg-pet-apricot"
+                      onClick={() => handleSetCover(item.id)}
+                      type="button"
+                    >
+                      Make first &amp; set as cover
+                    </button>
+                  ) : (
+                    <span className="col-span-2 grid min-h-11 place-items-center text-xs font-bold text-pet-muted">
+                      First in carousel
+                    </span>
+                  )}
+                </div>
               </div>
             );
           })}

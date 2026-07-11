@@ -179,6 +179,8 @@ export type BackendMemoryMedia = {
   id: string;
   type: "image" | "video" | string;
   url?: string | null;
+  posterUrl?: string | null;
+  durationSeconds?: number | null;
   caption?: string | null;
   altText?: string | null;
   sortOrder: number;

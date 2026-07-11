@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { MomentMediaThumbnail } from "@/components/moments/MomentMediaThumbnail";
 import {
   getQrStatusBadge,
   getSmartTagStatusBadge,
@@ -410,10 +411,11 @@ function OverviewTab({
           <div className="grid gap-2">
             {recentMoments.map((moment) => (
               <div
-                className="flex items-center justify-between gap-2 rounded-[1rem] bg-pet-cream px-4 py-3"
+                className="flex items-center gap-3 rounded-[1rem] bg-pet-cream p-2.5"
                 key={moment.id}
               >
-                <div className="min-w-0">
+                <MomentMediaThumbnail moment={moment} />
+                <div className="min-w-0 flex-1">
                   <p className="truncate font-bold text-pet-ink">
                     {moment.title}
                   </p>

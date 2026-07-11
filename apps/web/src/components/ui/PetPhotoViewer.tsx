@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MediaViewer } from "@/components/ui/MediaViewer";
+import { MomentMediaViewer } from "@/components/moments/MomentMediaViewer";
 import { PetAvatar } from "@/components/ui/PetAvatar";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import type { Pet, PublicPetProfile } from "@/types";
@@ -22,16 +22,16 @@ export function PetPhotoViewer({ pet, size = "xl" }: PetPhotoViewerProps) {
   return (
     <>
       <button
-        aria-label={`Enlarge ${pet.name}'s photo`}
+        aria-label={`View ${pet.name}'s photo full size`}
         className="rounded-[2rem] transition hover:scale-[1.02] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-pet-teal"
         onClick={() => setOpen(true)}
         type="button"
       >
         <PetAvatar pet={pet} size={size} />
       </button>
-      <MediaViewer
+      <MomentMediaViewer
         activeIndex={0}
-        items={[{ id: `${pet.name}-profile-photo`, type: "image", url: photoUrl, altText: `${pet.name}'s profile photo` }]}
+        items={[{ id: `${pet.name}-profile-photo`, type: "image", url: photoUrl, altText: `${pet.name}'s profile photo`, sortOrder: 0 }]}
         onActiveIndexChange={() => undefined}
         onClose={() => setOpen(false)}
         open={open}

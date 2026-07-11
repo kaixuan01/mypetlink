@@ -1,5 +1,9 @@
 import { mockMoments } from "@/data/mockMoments";
-import { createMediaId } from "@/lib/momentMedia";
+import {
+  createMediaId,
+  mediaIdsInSortOrder,
+  sortedMedia,
+} from "@/lib/momentMedia";
 import {
   mockDelay,
   mockResponse,
@@ -42,14 +46,18 @@ function getMomentCollection() {
 }
 
 function normalizeMediaItems(media: MomentMedia[]): MomentMedia[] {
-  return media.map((item, index) => ({
-    id: item.id || createMediaId(),
-    type: item.type === "video" ? "video" : "image",
-    url: item.url ?? "",
-    caption: item.caption,
-    altText: item.altText,
-    sortOrder: typeof item.sortOrder === "number" ? item.sortOrder : index,
-  }));
+  return sortedMedia(
+    media.map((item, index) => ({
+      id: item.id || createMediaId(),
+      type: item.type === "video" ? "video" : "image",
+      url: item.url ?? "",
+      posterUrl: item.posterUrl,
+      durationSeconds: item.durationSeconds,
+      caption: item.caption,
+      altText: item.altText,
+      sortOrder: typeof item.sortOrder === "number" ? item.sortOrder : index,
+    }))
+  );
 }
 
 function normalizeMoment(moment: PetMoment): PetMoment {
@@ -337,7 +345,7 @@ function buildBackendMomentPayload(payload: PetMomentPayload) {
     showOnPublicProfile: isPublic && Boolean(payload.showOnPublicProfile),
     showInLifeTimeline: isPublic && Boolean(payload.showInLifeTimeline),
     timelineNote: payload.timelineNote,
-    mediaFileIds: toBackendMediaFileIds(payload.media, payload.coverMediaId),
+    mediaFileIds: mediaIdsInSortOrder(payload.media),
   };
 }
 
@@ -349,7 +357,7 @@ function mapBackendMoment(moment: BackendMemory): PetMoment {
     date: toDisplayDate(moment.date),
     type: fromBackendMomentType(moment.type),
     caption: moment.caption ?? "",
-    media: (moment.media ?? []).map(mapBackendMedia),
+    media: sortedMedia((moment.media ?? []).map(mapBackendMedia)),
     coverMediaId: moment.coverMediaId ?? undefined,
     visibility: fromBackendVisibility(moment.visibility),
     showOnPublicProfile: moment.showOnPublicProfile,
@@ -363,6 +371,8 @@ function mapBackendPublicMoment(
   petId: string,
   index: number
 ): PetMoment {
+  const media = sortedMedia((moment.media ?? []).map(mapBackendMedia));
+
   return {
     id: `public_${petId}_${index}_${slugPart(moment.title)}`,
     petId,
@@ -370,8 +380,8 @@ function mapBackendPublicMoment(
     date: toDisplayDate(moment.momentDate),
     type: fromBackendMomentType(moment.type),
     caption: moment.caption ?? "",
-    media: (moment.media ?? []).map(mapBackendMedia),
-    coverMediaId: moment.media?.[0]?.id,
+    media,
+    coverMediaId: media[0]?.id,
     visibility: "Public",
     showOnPublicProfile: moment.showOnPublicProfile,
     showInLifeTimeline: moment.showInLifeTimeline,
@@ -384,6 +394,8 @@ function mapBackendMedia(media: BackendMemoryMedia): MomentMedia {
     id: media.id,
     type: media.type.toLowerCase() === "video" ? "video" : "image",
     url: media.url ?? "",
+    posterUrl: media.posterUrl ?? undefined,
+    durationSeconds: media.durationSeconds ?? undefined,
     caption: media.caption ?? undefined,
     altText: media.altText ?? undefined,
     sortOrder: typeof media.sortOrder === "number" ? media.sortOrder : 0,
@@ -466,23 +478,6 @@ function requirePetIdForMediaUpload(petId?: string) {
   }
 
   return petId;
-}
-
-function toBackendMediaFileIds(media?: MomentMedia[], coverMediaId?: string) {
-  if (!media?.length) {
-    return [];
-  }
-
-  const ids = [...media]
-    .sort((a, b) => a.sortOrder - b.sortOrder)
-    .map((item) => item.id)
-    .filter(Boolean);
-
-  if (!coverMediaId || !ids.includes(coverMediaId)) {
-    return ids;
-  }
-
-  return [coverMediaId, ...ids.filter((id) => id !== coverMediaId)];
 }
 
 function toDisplayDate(value?: string | null) {

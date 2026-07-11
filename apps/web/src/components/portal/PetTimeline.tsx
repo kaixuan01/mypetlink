@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { MomentMediaCarousel } from "@/components/moments/MomentMediaCarousel";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -167,39 +168,44 @@ function TimelineRow({ item, pet }: { item: PetTimelineItem; pet: Pet }) {
       : ownerRoutes.petEdit(pet.id);
 
   return (
-    <article className="grid gap-3 rounded-[1.25rem] bg-pet-cream p-4 sm:grid-cols-[1fr_auto] sm:items-start">
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          {item.source === "auto" ? (
-            <Badge tone="teal">Auto milestone</Badge>
-          ) : (
-            <Badge tone="soft">{item.typeLabel}</Badge>
-          )}
-          {item.visibility ? (
-            <Badge tone={visibilityTone[item.visibility]}>
-              {item.visibility}
+    <article className="overflow-hidden rounded-[1.25rem] bg-pet-cream">
+      {item.moment?.media.length ? (
+        <MomentMediaCarousel compact moment={item.moment} />
+      ) : null}
+      <div className="grid gap-3 p-4 sm:grid-cols-[1fr_auto] sm:items-start">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            {item.source === "auto" ? (
+              <Badge tone="teal">Auto milestone</Badge>
+            ) : (
+              <Badge tone="soft">{item.typeLabel}</Badge>
+            )}
+            {item.visibility ? (
+              <Badge tone={visibilityTone[item.visibility]}>
+                {item.visibility}
+              </Badge>
+            ) : null}
+            <Badge tone={publiclyShown ? "mint" : "soft"}>
+              {publiclyShown ? "Shown on public profile" : "Hidden from public"}
             </Badge>
-          ) : null}
-          <Badge tone={publiclyShown ? "mint" : "soft"}>
-            {publiclyShown ? "Shown on public profile" : "Hidden from public"}
-          </Badge>
-        </div>
-        <p className="mt-2 text-xs font-bold uppercase text-pet-muted">
-          {item.date}
-        </p>
-        <h3 className="mt-1 text-lg font-black text-pet-ink">{item.title}</h3>
-        {item.description ? (
-          <p className="mt-1 text-sm leading-6 text-pet-muted">
-            {item.description}
+          </div>
+          <p className="mt-2 text-xs font-bold uppercase text-pet-muted">
+            {item.date}
           </p>
-        ) : null}
+          <h3 className="mt-1 text-lg font-black text-pet-ink">{item.title}</h3>
+          {item.description ? (
+            <p className="mt-1 text-sm leading-6 text-pet-muted">
+              {item.description}
+            </p>
+          ) : null}
+        </div>
+        <Link
+          className="inline-flex min-h-11 items-center justify-center rounded-full border border-pet-border bg-white px-4 py-2 text-sm font-bold text-pet-ink transition hover:bg-white/70 sm:self-center"
+          href={editHref}
+        >
+          {item.source === "moment" ? "Edit in Moments" : "Edit pet details"}
+        </Link>
       </div>
-      <Link
-        className="inline-flex min-h-10 items-center justify-center rounded-full border border-pet-border bg-white px-4 py-2 text-sm font-bold text-pet-ink transition hover:bg-white/70 sm:self-center"
-        href={editHref}
-      >
-        {item.source === "moment" ? "Edit in Moments" : "Edit pet details"}
-      </Link>
     </article>
   );
 }
