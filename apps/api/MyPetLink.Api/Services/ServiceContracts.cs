@@ -463,6 +463,9 @@ public interface IAdminService : ISkeletonService
 
     Task<AdminSettingsResponse> GetSettingsAsync(CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyCollection<AdminPlanResponse>> ListPlansAsync(
+        CancellationToken cancellationToken = default);
+
     Task<(IReadOnlyCollection<AdminAuditLogResponse> Items, int Total)> ListAuditLogsAsync(
         int page,
         int pageSize,

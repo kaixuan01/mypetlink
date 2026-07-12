@@ -1,24 +1,21 @@
 import type { Metadata } from "next";
 import { AdminDashboard } from "@/components/admin/AdminDashboard";
-import { AdminLayout } from "@/components/layouts/AdminLayout";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { getAdminData } from "@/services/adminService";
+import { EMPTY_ADMIN_DATA } from "@/services/adminService";
 
 export const metadata: Metadata = {
   title: "Admin Overview",
 };
 
-export default async function AdminPage() {
-  const data = await getAdminData();
-
+export default function AdminPage() {
   return (
-    <AdminLayout>
+    <>
       <PageHeader
         eyebrow="Admin"
         title="Operations overview"
         description="Track owners, pets, payment proofs, orders, and smart tags from one workspace."
       />
-      <AdminDashboard initialData={data} />
-    </AdminLayout>
+      <AdminDashboard initialData={EMPTY_ADMIN_DATA} />
+    </>
   );
 }

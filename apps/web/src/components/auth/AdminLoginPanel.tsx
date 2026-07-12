@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
 import { isApiClientError } from "@/services/apiClient";
-import { canUseApi } from "@/services/apiConfig";
+import { isApiConfigured } from "@/services/apiConfig";
 import {
   checkAdminAccess,
   isOwnerAuthenticated,
@@ -13,7 +13,7 @@ import {
 
 export function AdminLoginPanel() {
   const router = useRouter();
-  const apiMode = canUseApi();
+  const apiMode = isApiConfigured();
   const [checking, setChecking] = useState(false);
   const [message, setMessage] = useState("");
 

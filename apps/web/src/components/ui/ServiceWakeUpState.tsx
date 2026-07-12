@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useLayoutEffect, useRef, useSyncExternalStore } from "react";
 import { Icon } from "@/components/ui/Icon";
 import {
   clearWakeUpState,
@@ -28,7 +28,10 @@ export function ServiceWakeUpState() {
     getServerServiceWakeUpSnapshot
   );
 
-  useEffect(() => {
+  // Cancel requests owned by the page we are leaving before the next page's
+  // passive effects register their requests. A passive effect here races with
+  // the destination page and can abort its brand-new first request.
+  useLayoutEffect(() => {
     if (previousPathname.current !== pathname) {
       cancelActiveWakeUpRequests();
       previousPathname.current = pathname;

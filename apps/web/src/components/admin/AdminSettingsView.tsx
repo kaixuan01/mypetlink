@@ -1,93 +1,79 @@
-import {
-  AdminDetailItem,
-  AdminNotice,
-  AdminSection,
-} from "@/components/admin/AdminPanels";
-import { paymentConfig } from "@/config/payment";
-import { siteConfig } from "@/config/site";
-import { gpsSafety, premiumPlan, smartTagAddOns } from "@/lib/planLimits";
+"use client";
 
-// Read-only operations settings overview. Editing these values arrives with a
-// later update; today they are managed in the product configuration.
+import { useEffect, useState } from "react";
+import { AdminDetailItem, AdminNotice, AdminSection } from "@/components/admin/AdminPanels";
+import { apiRequest } from "@/services/apiClient";
+import { isApiConfigured } from "@/services/apiConfig";
+
+type AdminSettingsResponse = {
+  settings: { key: string; valueJson: string; category: string; description?: string | null }[];
+  features: {
+    premiumStatus: string;
+    gpsStatus: string;
+    paymentGatewayEnabled: boolean;
+    fileStorageEnabled: boolean;
+    smartTagOrderingEnabled: boolean;
+  };
+};
+
+function displayValue(value: string) {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return typeof parsed === "string" ? parsed : JSON.stringify(parsed);
+  } catch {
+    return value;
+  }
+}
+
 export function AdminSettingsView() {
+  const apiMode = isApiConfigured();
+  const [data, setData] = useState<AdminSettingsResponse | null>(null);
+  const [status, setStatus] = useState<"loading" | "ready" | "error">(
+    apiMode ? "loading" : "ready"
+  );
+
+  useEffect(() => {
+    let active = true;
+    if (!apiMode) {
+      return () => { active = false; };
+    }
+    apiRequest<AdminSettingsResponse>("/api/v1/admin/settings")
+      .then((response) => {
+        if (active) {
+          setData(response.data ?? null);
+          setStatus("ready");
+        }
+      })
+      .catch(() => {
+        if (active) setStatus("error");
+      });
+    return () => { active = false; };
+  }, [apiMode]);
+
+  if (status === "loading") {
+    return <p className="rounded-2xl border border-slate-200 bg-white p-6 text-sm font-semibold text-slate-500">Loading settings...</p>;
+  }
+  if (status === "error") {
+    return <p className="rounded-2xl border border-red-200 bg-white p-6 text-sm font-bold text-[#a63c2e]">We couldn&apos;t load settings. Please try again. Your data has not been changed.</p>;
+  }
+
   return (
     <div className="grid gap-4">
-      <AdminNotice>
-        These settings are read-only in this early launch phase. Editable
-        operations settings are coming later.
-      </AdminNotice>
-
-      <AdminSection
-        title="Order settings"
-        description="How tag orders are processed today."
-      >
+      <AdminNotice>These settings are read-only. Editable operations settings are coming later.</AdminNotice>
+      <AdminSection title="Feature availability" description="Current product availability.">
         <div className="grid gap-2 p-4 sm:grid-cols-2 lg:grid-cols-3">
-          <AdminDetailItem label="Payment mode" value="Manual payment proof review" />
-          <AdminDetailItem label="Delivery fee" value={paymentConfig.deliveryFee} />
-          <AdminDetailItem
-            label="Merchant QR"
-            value={paymentConfig.merchantQrLabel}
-          />
+          <AdminDetailItem label="Premium" value={data?.features.premiumStatus ?? "Coming later"} />
+          <AdminDetailItem label="GPS Safety" value={data?.features.gpsStatus ?? "Coming later"} />
+          <AdminDetailItem label="Smart Tag ordering" value={data?.features.smartTagOrderingEnabled ? "Available" : "Unavailable"} />
         </div>
       </AdminSection>
-
-      <AdminSection
-        title="Payment proof instructions"
-        description="What owners see during checkout."
-      >
-        <div className="grid gap-2 p-4">
-          <AdminDetailItem label="Instructions" value={paymentConfig.instructions} />
-          <AdminDetailItem label="Support note" value={paymentConfig.supportText} />
-        </div>
-      </AdminSection>
-
-      <AdminSection
-        title="Tag product pricing"
-        description="Smart tags are optional one-time add-ons."
-      >
-        <div className="grid gap-2 p-4 sm:grid-cols-2">
-          {smartTagAddOns.map((addOn) => (
-            <AdminDetailItem
-              key={addOn.type}
-              label={addOn.name}
-              value={`${addOn.price} (${addOn.billingNote})`}
-            />
+      <AdminSection title="Operations settings" description="Configuration currently used by MyPetLink.">
+        <div className="grid gap-2 p-4 sm:grid-cols-2 lg:grid-cols-3">
+          {(data?.settings ?? []).map((setting) => (
+            <AdminDetailItem key={setting.key} label={setting.description || setting.key} value={displayValue(setting.valueJson)} />
           ))}
-        </div>
-      </AdminSection>
-
-      <AdminSection
-        title="Feature availability"
-        description="Current phase feature flags."
-      >
-        <div className="grid gap-2 p-4 sm:grid-cols-2 lg:grid-cols-3">
-          <AdminDetailItem label="Free Profile" value="Available now" />
-          <AdminDetailItem label={premiumPlan.name} value={premiumPlan.status} />
-          <AdminDetailItem label={gpsSafety.name} value={gpsSafety.status} />
-        </div>
-      </AdminSection>
-
-      <AdminSection
-        title="Support contact"
-        description="Shown on receipts and support pages."
-      >
-        <div className="grid gap-2 p-4 sm:grid-cols-2">
-          <AdminDetailItem label="Support email" value={siteConfig.supportEmail} />
-          <AdminDetailItem label="Website" value={siteConfig.url} />
-        </div>
-      </AdminSection>
-
-      <AdminSection
-        title="Legal / company info"
-        description="Registered business details."
-      >
-        <div className="grid gap-2 p-4 sm:grid-cols-2 lg:grid-cols-3">
-          <AdminDetailItem label="Company" value={siteConfig.companyName} />
-          <AdminDetailItem
-            label="Business Registration No."
-            value={siteConfig.businessRegistrationNo}
-          />
-          <AdminDetailItem label="Country" value={siteConfig.country} />
+          {data && data.settings.length === 0 ? <p className="text-sm font-semibold text-slate-500">No operations settings have been configured yet.</p> : null}
+          {!data ? <p className="text-sm font-semibold text-slate-500">Settings are available when connected to MyPetLink.</p> : null}
         </div>
       </AdminSection>
     </div>

@@ -1,19 +1,16 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { AdminOrdersManager } from "@/components/admin/AdminOrdersManager";
-import { AdminLayout } from "@/components/layouts/AdminLayout";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { getAdminData } from "@/services/adminService";
+import { EMPTY_ADMIN_DATA } from "@/services/adminService";
 
 export const metadata: Metadata = {
   title: "Admin Orders",
 };
 
-export default async function AdminOrdersPage() {
-  const data = await getAdminData();
-
+export default function AdminOrdersPage() {
   return (
-    <AdminLayout>
+    <>
       <PageHeader
         eyebrow="Admin"
         title="Tag orders"
@@ -26,8 +23,8 @@ export default async function AdminOrdersPage() {
           </div>
         }
       >
-        <AdminOrdersManager initialData={data} />
+        <AdminOrdersManager initialData={EMPTY_ADMIN_DATA} />
       </Suspense>
-    </AdminLayout>
+    </>
   );
 }

@@ -129,6 +129,24 @@ public sealed record AdminSettingsResponse(
     IReadOnlyCollection<AdminSettingItemResponse> Settings,
     AdminFeatureFlagsResponse Features);
 
+public sealed record AdminPlanResponse(
+    Guid Id,
+    string Code,
+    string Name,
+    string Status,
+    string PriceLabel,
+    string? BillingNote,
+    string? Description,
+    int MaxPets,
+    int MaxMemoriesPerPet,
+    int MaxMediaPerMemory,
+    int MaxFamilyMembers,
+    int MaxCareRecords,
+    int ScanHistoryDays,
+    bool AllowsSmartTagAddOns,
+    bool AllowsFoundReports,
+    bool AllowsAdvancedThemes);
+
 public sealed record AdminAuditLogResponse(
     Guid Id,
     Guid? ActorId,

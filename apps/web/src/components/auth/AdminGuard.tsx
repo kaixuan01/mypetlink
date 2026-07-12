@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { canUseApi } from "@/services/apiConfig";
+import { canUseApi, isApiConfigured } from "@/services/apiConfig";
 import {
   checkAdminAccess,
   clearCachedAdminAccess,
@@ -26,17 +26,10 @@ type GuardState =
 // no re-check and no flash — instead of re-verifying and briefly showing an error
 // during every normal page transition.
 function initialGuardState(): GuardState {
-  if (typeof window === "undefined" || !canUseApi()) {
-    return "ready";
-  }
-
-  const cached = getCachedAdminAccess();
-
-  if (cached) {
-    return cached.access?.admin.isActive ? "ready" : "denied";
-  }
-
-  return "initializing";
+  // Use the public build configuration so server and client produce the same
+  // first render. Reading localStorage or the in-memory access cache here made
+  // hydration render a different tree from the static Admin HTML.
+  return isApiConfigured() ? "initializing" : "ready";
 }
 
 export function AdminGuard({ children }: { children: React.ReactNode }) {
@@ -67,12 +60,18 @@ export function AdminGuard({ children }: { children: React.ReactNode }) {
     // initial state already reflects it, so there is nothing to re-check here —
     // this is what stops every menu click from re-verifying (and re-erroring).
     const cached = getCachedAdminAccess();
+    let active = true;
 
     if (cached && retryToken === 0) {
-      return;
+      Promise.resolve().then(() => {
+        if (active) {
+          setState(cached.access?.admin.isActive ? "ready" : "denied");
+        }
+      });
+      return () => {
+        active = false;
+      };
     }
-
-    let active = true;
 
     checkAdminAccess()
       .then((access) => {

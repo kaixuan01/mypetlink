@@ -1108,7 +1108,34 @@ public sealed class AdminService : SkeletonService, IAdminService
             tags.Select(TagDtoMapper.ToSmartTagResponse).ToArray());
     }
 
-    // --- Settings and audit logs ------------------------------------------------------------
+    // --- Plans, settings and audit logs -----------------------------------------------------
+
+    public async Task<IReadOnlyCollection<AdminPlanResponse>> ListPlansAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.Plans
+            .AsNoTracking()
+            .Include(plan => plan.Limit)
+            .OrderBy(plan => plan.Name)
+            .Select(plan => new AdminPlanResponse(
+                plan.Id,
+                plan.Code,
+                plan.Name,
+                plan.Status.ToString(),
+                plan.PriceLabel,
+                plan.BillingNote,
+                plan.Description,
+                plan.Limit != null ? plan.Limit.MaxPets : 0,
+                plan.Limit != null ? plan.Limit.MaxMemoriesPerPet : 0,
+                plan.Limit != null ? plan.Limit.MaxMediaPerMemory : 0,
+                plan.Limit != null ? plan.Limit.MaxFamilyMembers : 0,
+                plan.Limit != null ? plan.Limit.MaxCareRecords : 0,
+                plan.Limit != null ? plan.Limit.ScanHistoryDays : 0,
+                plan.Limit != null && plan.Limit.AllowsSmartTagAddOns,
+                plan.Limit != null && plan.Limit.AllowsFoundReports,
+                plan.Limit != null && plan.Limit.AllowsAdvancedThemes))
+            .ToListAsync(cancellationToken);
+    }
 
     public async Task<AdminSettingsResponse> GetSettingsAsync(CancellationToken cancellationToken = default)
     {

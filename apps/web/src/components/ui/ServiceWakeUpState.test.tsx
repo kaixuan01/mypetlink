@@ -1,11 +1,13 @@
 // @vitest-environment jsdom
 
 import { cleanup, render, screen } from "@testing-library/react";
+import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clearWakeUpState,
   markWakeUpFailed,
   markWakeUpRetrying,
+  registerWakeUpCancellation,
 } from "@/services/serviceWakeUp";
 import { ServiceWakeUpState } from "./ServiceWakeUpState";
 
@@ -55,5 +57,23 @@ describe("ServiceWakeUpState", () => {
     expect(screen.getByRole("status").textContent).toContain(
       "Your pet information is safe"
     );
+  });
+
+  it("cancels the previous route before the destination registers its request", () => {
+    const cancelled: string[] = [];
+    function RouteRequest() {
+      const route = pathname;
+      useEffect(
+        () => registerWakeUpCancellation(route, () => cancelled.push(route)),
+        [route]
+      );
+      return null;
+    }
+
+    const view = render(<><ServiceWakeUpState /><RouteRequest /></>);
+    pathname = "/admin/pets";
+    view.rerender(<><ServiceWakeUpState /><RouteRequest /></>);
+
+    expect(cancelled).toEqual(["/dashboard"]);
   });
 });

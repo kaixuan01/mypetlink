@@ -1,22 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { AdminSection, AdminTable } from "@/components/admin/AdminPanels";
 import { Badge } from "@/components/ui/Badge";
 import {
-  buildOwnerSummaries,
   getOwnerSummaries,
-  type AdminData,
   type AdminOwnerSummary,
 } from "@/services/adminService";
 
-export function AdminUsersManager({ initialData }: { initialData: AdminData }) {
-  const initialOwners = useMemo(
-    () => buildOwnerSummaries(initialData),
-    [initialData]
-  );
-  const [owners, setOwners] = useState<AdminOwnerSummary[]>(initialOwners);
+export function AdminUsersManager() {
+  // API-backed pages must never render local fixture owners while their first
+  // request is loading or after it fails. initialData is intentionally empty
+  // in the production Admin route; local demo data is loaded by the service.
+  const [owners, setOwners] = useState<AdminOwnerSummary[]>([]);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -48,7 +45,11 @@ export function AdminUsersManager({ initialData }: { initialData: AdminData }) {
         <p className="px-4 pt-3 text-sm font-bold text-[#a63c2e]">{error}</p>
       ) : null}
       <div className="p-4">
-        <AdminTable
+        {owners.length === 0 && !error ? (
+          <p className="rounded-xl bg-slate-50 px-4 py-6 text-center text-sm font-semibold text-slate-500">
+            No owner accounts yet. Owner accounts will appear here after registration.
+          </p>
+        ) : <AdminTable
           headers={[
             "Owner",
             "Email",
@@ -99,7 +100,7 @@ export function AdminUsersManager({ initialData }: { initialData: AdminData }) {
               </td>
             </tr>
           ))}
-        </AdminTable>
+        </AdminTable>}
       </div>
     </AdminSection>
   );

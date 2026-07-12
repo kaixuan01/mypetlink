@@ -12,6 +12,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/services/apiConfig", () => ({
   canUseApi: () => true,
+  isApiConfigured: () => true,
 }));
 
 type AccessSnapshot = { access: { admin: { isActive: boolean } } | null } | null;

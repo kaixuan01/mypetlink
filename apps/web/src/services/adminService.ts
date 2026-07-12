@@ -1,6 +1,3 @@
-import { mockPlans } from "@/data/mockPlans";
-import { mockPets } from "@/data/mockPets";
-import { mockUsers } from "@/data/mockUsers";
 import { readOwnerSettings } from "@/lib/ownerSettings";
 import {
   getPetLifecycleStatus,
@@ -33,9 +30,9 @@ import type {
   BackendTagOrder,
 } from "@/services/apiDtos";
 import type {
-  AdminDashboard,
   MockUser,
   Pet,
+  Plan,
   PetTag,
   TagOrder,
 } from "@/types";
@@ -151,39 +148,31 @@ function formatBackendDate(value?: string | null) {
   }).format(parsed);
 }
 
-export async function getAdminDashboard() {
-  await mockDelay();
-  const dashboard: AdminDashboard = {
-    totalUsers: mockUsers.filter((user) => user.role === "owner").length,
-    totalPets: mockPets.length,
-    activeQrProfiles: mockPets.filter(
-      (pet) => isActivePet(pet) && pet.qrStatus === "active"
-    ).length,
-    newProfilesThisMonth: 6,
-  };
-
-  return mockResponse(dashboard);
-}
-
-export async function getAdminPets() {
-  await mockDelay();
-  return mockResponse(mockPets, {
-    page: 1,
-    pageSize: mockPets.length,
-    total: mockPets.length,
-  });
-}
-
-export async function getAdminUsers() {
-  await mockDelay();
-  return mockResponse(mockUsers, {
-    page: 1,
-    pageSize: mockUsers.length,
-    total: mockUsers.length,
-  });
-}
-
 export async function getAdminPlans() {
+  if (canUseAdminApi()) {
+    const response = await apiRequest<BackendAdminPlan[]>("/api/v1/admin/plans");
+    const plans: Plan[] = (response.data ?? []).map((plan) => ({
+      id: plan.id,
+      tier: plan.code.toLowerCase().includes("premium") ? "Premium" : "Free",
+      name: plan.name,
+      price: plan.priceLabel,
+      billingNote: plan.billingNote ?? "",
+      description: plan.description ?? "",
+      comingSoon: plan.status.toLowerCase() !== "available",
+      features: [
+        `Up to ${plan.maxPets} pet profiles`,
+        `Up to ${plan.maxMemoriesPerPet} memories per pet`,
+        `Up to ${plan.maxMediaPerMemory} media items per memory`,
+        `Up to ${plan.maxCareRecords} care records`,
+        ...(plan.allowsSmartTagAddOns ? ["Smart Tag add-ons"] : []),
+        ...(plan.allowsFoundReports ? ["Found reports"] : []),
+        ...(plan.allowsAdvancedThemes ? ["Advanced themes"] : []),
+      ],
+    }));
+    return { ...response, data: plans };
+  }
+
+  const { mockPlans } = await import("@/data/mockPlans");
   await mockDelay();
   return mockResponse(mockPlans, {
     page: 1,
@@ -202,12 +191,35 @@ export type AdminData = {
   orders: TagOrder[];
 };
 
-export async function getAdminData(): Promise<AdminData> {
+type BackendAdminPlan = {
+  id: string;
+  code: string;
+  name: string;
+  status: string;
+  priceLabel: string;
+  billingNote?: string | null;
+  description?: string | null;
+  maxPets: number;
+  maxMemoriesPerPet: number;
+  maxMediaPerMemory: number;
+  maxCareRecords: number;
+  allowsSmartTagAddOns: boolean;
+  allowsFoundReports: boolean;
+  allowsAdvancedThemes: boolean;
+};
+
+export const EMPTY_ADMIN_DATA: AdminData = Object.freeze({
+  pets: [],
+  tags: [],
+  orders: [],
+});
+
+export async function getAdminData(signal?: AbortSignal): Promise<AdminData> {
   if (canUseAdminApi()) {
     const [pets, tags, orders] = await Promise.all([
-      apiRequest<BackendAdminPetListItem[]>("/api/v1/admin/pets?page=1&pageSize=100"),
-      apiRequest<BackendAdminSmartTag[]>("/api/v1/admin/tags?page=1&pageSize=100"),
-      apiRequest<BackendAdminTagOrder[]>("/api/v1/admin/orders?page=1&pageSize=100"),
+      apiRequest<BackendAdminPetListItem[]>("/api/v1/admin/pets?page=1&pageSize=100", { signal }),
+      apiRequest<BackendAdminSmartTag[]>("/api/v1/admin/tags?page=1&pageSize=100", { signal }),
+      apiRequest<BackendAdminTagOrder[]>("/api/v1/admin/orders?page=1&pageSize=100", { signal }),
     ]);
 
     return {
@@ -302,9 +314,9 @@ export type AdminOwnerSummary = {
 // owner account by the owner display name carried on each pet. Pets whose
 // display name matches no owner account (the portal lets the owner rename
 // their contact display) are attributed to the signed-in demo owner account.
-export function getPetsForOwner(user: MockUser, pets: Pet[]) {
+export function getPetsForOwner(user: MockUser, pets: Pet[], users: MockUser[]) {
   const ownerNames = new Set(
-    mockUsers.filter((item) => item.role === "owner").map((item) => item.name)
+    users.filter((item) => item.role === "owner").map((item) => item.name)
   );
   const settings = readOwnerSettings();
   const isPortalOwner =
@@ -342,14 +354,21 @@ export async function getOwnerSummaries(): Promise<AdminOwnerSummary[]> {
     }));
   }
 
-  return buildOwnerSummaries(await getAdminData());
+  const [{ mockUsers }, data] = await Promise.all([
+    import("@/data/mockUsers"),
+    getAdminData(),
+  ]);
+  return buildOwnerSummaries(data, mockUsers);
 }
 
-export function buildOwnerSummaries(data: AdminData): AdminOwnerSummary[] {
-  return mockUsers
+export function buildOwnerSummaries(
+  data: AdminData,
+  users: MockUser[]
+): AdminOwnerSummary[] {
+  return users
     .filter((user) => user.role === "owner")
     .map((user) => {
-      const ownedPets = getPetsForOwner(user, data.pets);
+      const ownedPets = getPetsForOwner(user, data.pets, users);
       const ownedPetIds = new Set(ownedPets.map((pet) => pet.id));
       const orders = data.orders.filter((order) => ownedPetIds.has(order.petId));
 
@@ -380,7 +399,7 @@ export function buildDashboardSummary(data: AdminData): AdminDashboardSummary {
     tag.petId ? petMap.get(tag.petId) : undefined;
 
   return {
-    totalOwners: mockUsers.filter((user) => user.role === "owner").length,
+    totalOwners: new Set(data.pets.map((pet) => pet.owner.name)).size,
     totalPets: data.pets.length,
     pendingPaymentProofs: data.orders.filter(
       (order) => order.status === "Payment Submitted"

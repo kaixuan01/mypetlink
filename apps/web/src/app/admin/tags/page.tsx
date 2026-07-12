@@ -1,19 +1,16 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { AdminTagsManager } from "@/components/admin/AdminTagsManager";
-import { AdminLayout } from "@/components/layouts/AdminLayout";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { getAdminData } from "@/services/adminService";
+import { EMPTY_ADMIN_DATA } from "@/services/adminService";
 
 export const metadata: Metadata = {
   title: "Admin Smart Tags",
 };
 
-export default async function AdminTagsPage() {
-  const data = await getAdminData();
-
+export default function AdminTagsPage() {
   return (
-    <AdminLayout>
+    <>
       <PageHeader
         eyebrow="Admin"
         title="Smart tags"
@@ -26,8 +23,8 @@ export default async function AdminTagsPage() {
           </div>
         }
       >
-        <AdminTagsManager initialData={data} />
+        <AdminTagsManager initialData={EMPTY_ADMIN_DATA} />
       </Suspense>
-    </AdminLayout>
+    </>
   );
 }
