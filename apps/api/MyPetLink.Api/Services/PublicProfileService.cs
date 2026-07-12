@@ -124,6 +124,8 @@ public sealed class PublicProfileService : SkeletonService, IPublicProfileServic
             profile.ShowGeneralArea ? PetDtoMapper.ResolveGeneralArea(pet) : null,
             PetDtoMapper.ResolvePublicMediaUrl(pet.ProfileMediaFile, _r2Options.PublicBaseUrl),
             PetDtoMapper.ResolvePublicMediaUrl(pet.CoverMediaFile, _r2Options.PublicBaseUrl),
+            pet.CoverPositionX,
+            pet.CoverPositionY,
             pet.Bio,
             PetDtoMapper.ParsePersonalityTags(pet.PersonalityTagsJson),
             pet.LifecycleStatus == PetLifecycleStatus.Memorial ? pet.MemorialMessage : null,

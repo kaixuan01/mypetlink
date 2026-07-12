@@ -62,6 +62,7 @@ public sealed class PetService : SkeletonService, IPetService
         var user = await LoadOwnerUserAsync(currentUserId, cancellationToken);
         var age = ValidateCreateRequest(request);
         ValidateContact(request.Contact);
+        ValidateCoverPosition(request.CoverPositionX, request.CoverPositionY);
         await EnsureCanCreateActivePetAsync(user, cancellationToken);
 
         var publicCode = await GenerateUniquePublicCodeAsync(cancellationToken);
@@ -86,6 +87,8 @@ public sealed class PetService : SkeletonService, IPetService
             GeneralArea = PetDtoMapper.NormalizeOptional(request.GeneralArea) ?? user.OwnerProfile!.DefaultGeneralArea,
             Bio = PetDtoMapper.NormalizeOptional(request.Bio),
             PersonalityTagsJson = PetDtoMapper.SerializePersonalityTags(request.PersonalityTags),
+            CoverPositionX = request.CoverPositionX ?? 50,
+            CoverPositionY = request.CoverPositionY ?? 50,
             ProfileTheme = PetDtoMapper.NormalizeOptional(request.ProfileTheme) ?? "default",
             LifecycleStatus = PetLifecycleStatus.Active,
             LostModeEnabled = false,
@@ -142,6 +145,7 @@ public sealed class PetService : SkeletonService, IPetService
         var pet = await LoadOwnedPetAsync(currentUserId, petId, trackChanges: true, cancellationToken);
         var ageUpdate = ValidateUpdateRequest(request);
         ValidateContact(request.Contact);
+        ValidateCoverPosition(request.CoverPositionX, request.CoverPositionY);
         await EnsurePetPublicArtifactsAsync(pet, cancellationToken);
 
         if (request.Name is not null)
@@ -209,6 +213,16 @@ public sealed class PetService : SkeletonService, IPetService
         if (request.ProfileTheme is not null)
         {
             pet.ProfileTheme = PetDtoMapper.NormalizeOptional(request.ProfileTheme) ?? "default";
+        }
+
+        if (request.CoverPositionX.HasValue)
+        {
+            pet.CoverPositionX = request.CoverPositionX.Value;
+        }
+
+        if (request.CoverPositionY.HasValue)
+        {
+            pet.CoverPositionY = request.CoverPositionY.Value;
         }
 
         if (request.SafetyNote is not null)
@@ -749,6 +763,26 @@ public sealed class PetService : SkeletonService, IPetService
         ValidatePhone(request.PhoneE164, "contact.phoneE164", errors);
         ValidatePhone(request.WhatsappE164, "contact.whatsappE164", errors);
         ValidatePhone(request.EmergencyContactE164, "contact.emergencyContactE164", errors);
+
+        if (errors.Count > 0)
+        {
+            throw ValidationFailed(errors);
+        }
+    }
+
+    private static void ValidateCoverPosition(byte? positionX, byte? positionY)
+    {
+        var errors = new Dictionary<string, string[]>();
+
+        if (positionX > 100)
+        {
+            errors["coverPositionX"] = ["Cover horizontal position must be between 0 and 100."];
+        }
+
+        if (positionY > 100)
+        {
+            errors["coverPositionY"] = ["Cover vertical position must be between 0 and 100."];
+        }
 
         if (errors.Count > 0)
         {

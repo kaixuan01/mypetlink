@@ -32,6 +32,10 @@ import {
   isApiClientError,
 } from "@/services/apiClient";
 import { canUseApi } from "@/services/apiConfig";
+import {
+  getOwnerSession,
+  isOwnerAuthenticated,
+} from "@/services/authService";
 import type {
   BackendPetDetail,
   BackendPetListItem,
@@ -49,6 +53,15 @@ import type {
 } from "@/types";
 
 const PET_STORAGE_KEY = "mypetlink_pets";
+const DEFAULT_LOCAL_OWNER_USER_ID = "usr_aina";
+
+function normalizeCoverPosition(value?: number | null) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return 50;
+  }
+
+  return Math.min(100, Math.max(0, Math.round(value)));
+}
 
 const defaultVisibility: Pet["visibility"] = {
   showOwnerName: true,
@@ -284,6 +297,8 @@ function normalizePet(pet: Pet): Pet {
     coverPhotoLabel: cleanMediaLabel(pet.coverPhotoLabel),
     photoUrl: pet.photoUrl ?? "",
     coverUrl: pet.coverUrl ?? "",
+    coverPositionX: normalizeCoverPosition(pet.coverPositionX),
+    coverPositionY: normalizeCoverPosition(pet.coverPositionY),
     profileMediaId: pet.profileMediaId,
     coverMediaId: pet.coverMediaId,
     profileTheme: pet.profileTheme ?? "default",
@@ -468,6 +483,8 @@ export function mapBackendPetToFrontend(
     coverPhotoLabel: "",
     photoUrl: pet.profilePhotoUrl ?? "",
     coverUrl: pet.coverPhotoUrl ?? "",
+    coverPositionX: normalizeCoverPosition(pet.coverPositionX),
+    coverPositionY: normalizeCoverPosition(pet.coverPositionY),
     profileMediaId: pet.profileMediaId ?? undefined,
     coverMediaId: pet.coverMediaId ?? undefined,
     profileTheme: getProfileTheme(detail?.profileTheme),
@@ -562,6 +579,8 @@ function mapBackendPublicProfile(profile: BackendPublicPetProfile): PublicPetPro
       coverPhotoLabel: "",
       photoUrl: profile.profilePhotoUrl ?? "",
       coverUrl: profile.coverPhotoUrl ?? "",
+      coverPositionX: normalizeCoverPosition(profile.coverPositionX),
+      coverPositionY: normalizeCoverPosition(profile.coverPositionY),
       profileTheme: "default",
       lifecycleStatus: profile.lifecycleStatus,
       previousLifecycleStatus:
@@ -644,6 +663,8 @@ export function mapBackendSafetyPage(page: BackendPublicSafetyPage): PublicPetPr
       coverPhotoLabel: "",
       photoUrl: page.profilePhotoUrl ?? "",
       coverUrl: page.coverPhotoUrl ?? "",
+      coverPositionX: normalizeCoverPosition(page.coverPositionX),
+      coverPositionY: normalizeCoverPosition(page.coverPositionY),
       profileTheme: "default",
       lifecycleStatus: page.lifecycleStatus,
       previousLifecycleStatus:
@@ -716,6 +737,8 @@ function buildBackendPetPayload(payload: PetPayload) {
     breed: payload.breed,
     gender: payload.gender,
     color: payload.color,
+    coverPositionX: payload.coverPositionX,
+    coverPositionY: payload.coverPositionY,
     ...(hasAgeInformation
       ? {
           ageInformationMode,
@@ -828,6 +851,48 @@ export async function getPets() {
   });
 }
 
+/**
+ * Resolves ownership without adding a private owner id to the public profile.
+ * API pet lists are already scoped to the JWT user by OwnerUserId. Local
+ * preview performs the same comparison against the private stored owner key.
+ */
+export async function getOwnedPetByPublicCode(publicCode: string) {
+  if (!isOwnerAuthenticated()) {
+    return mockResponse<Pet | null>(null);
+  }
+
+  const normalizedCode = publicCode.trim().toLowerCase();
+
+  if (canUseApi()) {
+    const response = await getPets();
+    return apiResponse(
+      {
+        data:
+          response.data.find(
+            (pet) => pet.publicCode.toLowerCase() === normalizedCode
+          ) ?? null,
+        meta: response.meta,
+      },
+      null
+    );
+  }
+
+  await mockDelay();
+  const ownerUserId = getOwnerSession()?.id;
+
+  if (!ownerUserId) {
+    return mockResponse<Pet | null>(null);
+  }
+
+  const pet = getPetCollection().find(
+    (item) =>
+      item.publicCode.toLowerCase() === normalizedCode &&
+      (item.ownerUserId ?? DEFAULT_LOCAL_OWNER_USER_ID) === ownerUserId
+  );
+
+  return mockResponse<Pet | null>(pet ?? null);
+}
+
 export async function getPetById(id: string) {
   if (canUseApi()) {
     try {
@@ -884,6 +949,8 @@ export function toPublicProfile(pet: Pet): PublicPetProfile {
     coverPhotoLabel: "",
     photoUrl: pet.photoUrl,
     coverUrl: pet.coverUrl,
+    coverPositionX: normalizeCoverPosition(pet.coverPositionX),
+    coverPositionY: normalizeCoverPosition(pet.coverPositionY),
     profileTheme: pet.profileTheme,
     lifecycleStatus: pet.lifecycleStatus,
     previousLifecycleStatus: pet.previousLifecycleStatus,
@@ -1028,6 +1095,7 @@ export async function createPet(payload: PetPayload) {
   const pet: Pet = {
     ...mockPets[0],
     id: `pet_${slug}`,
+    ownerUserId: getOwnerSession()?.id ?? DEFAULT_LOCAL_OWNER_USER_ID,
     slug,
     name: petName,
     species: payload.species ?? "Dog",
@@ -1051,6 +1119,8 @@ export async function createPet(payload: PetPayload) {
     coverPhotoLabel: payload.coverPhotoLabel ?? "",
     photoUrl: payload.photoUrl ?? "",
     coverUrl: payload.coverUrl ?? "",
+    coverPositionX: normalizeCoverPosition(payload.coverPositionX),
+    coverPositionY: normalizeCoverPosition(payload.coverPositionY),
     profileTheme: payload.profileTheme ?? "default",
     lifecycleStatus: payload.lifecycleStatus ?? "Active",
     previousLifecycleStatus:

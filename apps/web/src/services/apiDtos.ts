@@ -113,6 +113,8 @@ export type BackendPetDetail = {
   coverMediaId?: string | null;
   profilePhotoUrl?: string | null;
   coverPhotoUrl?: string | null;
+  coverPositionX?: number | null;
+  coverPositionY?: number | null;
   contact: BackendPetContact;
   visibility: BackendPetVisibility;
   safetyNote?: string | null;
@@ -142,6 +144,8 @@ export type BackendPetListItem = Pick<
   | "coverMediaId"
   | "profilePhotoUrl"
   | "coverPhotoUrl"
+  | "coverPositionX"
+  | "coverPositionY"
   | "personalityTags"
   | "createdAt"
   | "updatedAt"
@@ -168,6 +172,8 @@ export type BackendPublicPetProfile = {
   personalityTags?: string[] | null;
   profilePhotoUrl?: string | null;
   coverPhotoUrl?: string | null;
+  coverPositionX?: number | null;
+  coverPositionY?: number | null;
   memorialMessage?: string | null;
   memories: BackendPublicMemory[];
   careRecords: BackendPublicCareRecord[];
@@ -276,6 +282,8 @@ export type BackendPublicSafetyPage = {
   lostExtraContactInstruction?: string | null;
   profilePhotoUrl?: string | null;
   coverPhotoUrl?: string | null;
+  coverPositionX?: number | null;
+  coverPositionY?: number | null;
   showFoundLocationAction: boolean;
   contact?: {
     ownerDisplayName?: string | null;

@@ -3,6 +3,7 @@ import type { Pet } from "@/types";
 export const mockPets: Pet[] = [
   {
     id: "pet_milo",
+    ownerUserId: "usr_aina",
     slug: "milo",
     name: "Milo",
     species: "Dog",
@@ -24,6 +25,8 @@ export const mockPets: Pet[] = [
     coverPhotoLabel: "Cover image added",
     photoUrl: "",
     coverUrl: "",
+    coverPositionX: 50,
+    coverPositionY: 50,
     profileTheme: "mint",
     lifecycleStatus: "Active",
     previousLifecycleStatus: "Active",
@@ -83,6 +86,7 @@ export const mockPets: Pet[] = [
   },
   {
     id: "pet_luna",
+    ownerUserId: "usr_aina",
     slug: "luna",
     name: "Luna",
     species: "Cat",
@@ -103,6 +107,8 @@ export const mockPets: Pet[] = [
     coverPhotoLabel: "Cover image added",
     photoUrl: "",
     coverUrl: "",
+    coverPositionX: 50,
+    coverPositionY: 50,
     profileTheme: "lavender",
     lifecycleStatus: "Active",
     previousLifecycleStatus: "Active",

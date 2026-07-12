@@ -58,6 +58,8 @@ export type PetLostMode = {
 
 export type Pet = {
   id: string;
+  /** Private local-preview ownership key. Never include this in PublicPetProfile. */
+  ownerUserId?: string;
   slug: string;
   name: string;
   species: PetSpecies;
@@ -80,6 +82,8 @@ export type Pet = {
   coverPhotoLabel: string;
   photoUrl: string;
   coverUrl: string;
+  coverPositionX: number;
+  coverPositionY: number;
   profileMediaId?: string;
   coverMediaId?: string;
   profileTheme: PetProfileThemeId;
@@ -154,6 +158,8 @@ export type PublicPetProfile = Pick<
   | "coverPhotoLabel"
   | "photoUrl"
   | "coverUrl"
+  | "coverPositionX"
+  | "coverPositionY"
   | "profileTheme"
   | "lifecycleStatus"
   | "previousLifecycleStatus"

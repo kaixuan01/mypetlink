@@ -4,14 +4,17 @@ import Link from "next/link";
 import {
   useEffect,
   useState,
-  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import { BrandLogo } from "@/components/brand/BrandLogo";
+import {
+  PrivateMemorialOwnerAction,
+  PublicProfileOwnerControls,
+} from "@/components/marketing/PublicProfileOwnerControls";
 import { MomentMediaCarousel } from "@/components/moments/MomentMediaCarousel";
 import { PetMomentCard } from "@/components/portal/PetMomentCard";
-import { ShareProfileLink } from "@/components/share/ShareProfileLink";
 import { CTAButton } from "@/components/ui/CTAButton";
+import { CoverPhoto } from "@/components/ui/CoverPhoto";
 import { Icon } from "@/components/ui/Icon";
 import { PetPhotoViewer } from "@/components/ui/PetPhotoViewer";
 import { PetProfileLoading } from "@/components/ui/PetProfileLoading";
@@ -43,10 +46,8 @@ import {
   normalizeStoredPhone,
 } from "@/lib/phone";
 import { getPublicTimeline, type PetTimelineItem } from "@/lib/petTimeline";
-import { ownerRoutes } from "@/lib/routes";
 import { isApiClientError } from "@/services/apiClient";
 import { isApiConfigured } from "@/services/apiConfig";
-import { isOwnerAuthenticated } from "@/services/authService";
 import { getPublicPetMoments } from "@/services/momentService";
 import { getPublicPetProfileByPublicCode } from "@/services/petService";
 import {
@@ -117,12 +118,6 @@ export function PublicSharePetProfile({
   const [ownerSettings, setOwnerSettings] =
     useState<OwnerSettings>(defaultOwnerSettings);
   const [activeTab, setActiveTab] = useState<TabId>("about");
-  const isOwner = useSyncExternalStore(
-    subscribeToAuth,
-    isOwnerAuthenticated,
-    getServerAuth
-  );
-
   useEffect(() => {
     if (profile) {
       setAbsolutePageTitle(publicPetProfileDocumentTitle(profile.name));
@@ -263,11 +258,7 @@ export function PublicSharePetProfile({
 
   if (isMemorial && !profile.memorial.showMemorialOnPublicProfile) {
     return (
-      <PrivateMemorialProfile
-        isOwner={isOwner}
-        profile={profile}
-        theme={theme}
-      />
+      <PrivateMemorialProfile profile={profile} theme={theme} />
     );
   }
 
@@ -318,13 +309,12 @@ export function PublicSharePetProfile({
             borderColor: theme.colors.border,
           }}
         >
-          <div
-            className="h-28 w-full bg-cover bg-center"
-            style={
-              coverPhotoUrl
-                ? { backgroundImage: `url(${coverPhotoUrl})` }
-                : { background: theme.gradients.cover }
-            }
+          <CoverPhoto
+            alt={`${profile.name} cover photo`}
+            fallbackStyle={{ background: theme.gradients.cover }}
+            positionX={profile.coverPositionX}
+            positionY={profile.coverPositionY}
+            src={coverPhotoUrl}
           />
           <div className="px-6 pb-6 text-center">
             <div className="-mt-14 flex justify-center">
@@ -507,51 +497,7 @@ export function PublicSharePetProfile({
           </section>
         ) : null}
 
-        {/* Owners previewing their own page get a small admin bar; normal
-            visitors just get a compact share button (no raw URL box). */}
-        {isOwner ? (
-          <section
-            className="mt-6 flex flex-col items-center gap-3 rounded-[1.5rem] border border-pet-border bg-white/80 p-4 sm:flex-row sm:justify-between"
-            style={{
-              background: theme.colors.surface,
-              borderColor: theme.colors.border,
-            }}
-          >
-            <span
-              className="inline-flex items-center gap-2 text-xs font-black uppercase text-pet-muted"
-              style={{ color: theme.colors.mutedText }}
-            >
-              <Icon name="heart" className="h-4 w-4" />
-              Viewing as public
-            </span>
-            <div className="flex flex-wrap items-center justify-center gap-2">
-              <ShareProfileLink
-                path={profile.publicProfilePath}
-                petName={profile.name}
-                compact
-                theme={theme}
-              />
-              <CTAButton
-                href={ownerRoutes.petEdit(profile.id)}
-                variant="secondary"
-                icon="settings"
-                className="min-h-10"
-              >
-                Back to Edit
-              </CTAButton>
-            </div>
-          </section>
-        ) : (
-          <div className="mt-6 flex justify-center">
-            <ShareProfileLink
-              path={profile.publicProfilePath}
-              petName={profile.name}
-              showShareButton
-              compact
-              theme={theme}
-            />
-          </div>
-        )}
+        <PublicProfileOwnerControls profile={profile} theme={theme} />
 
         {isActiveProfile && !lostMode && canContact ? (
           <div className="mt-3">
@@ -682,11 +628,9 @@ function PublicProfileStatusCard({
 }
 
 function PrivateMemorialProfile({
-  isOwner,
   profile,
   theme,
 }: {
-  isOwner: boolean;
   profile: PublicPetProfile;
   theme: PetProfileTheme;
 }) {
@@ -742,16 +686,7 @@ function PrivateMemorialProfile({
             {profile.name}&apos;s owner has kept this memorial profile from
             public view.
           </p>
-          {isOwner ? (
-            <CTAButton
-              className="mt-6"
-              href={ownerRoutes.petEdit(profile.id)}
-              icon="settings"
-              variant="secondary"
-            >
-              Edit Memorial Settings
-            </CTAButton>
-          ) : null}
+          <PrivateMemorialOwnerAction profile={profile} />
         </section>
       </main>
     </article>
@@ -1027,14 +962,6 @@ function ThemedBadge({
       {children}
     </span>
   );
-}
-
-function subscribeToAuth() {
-  return () => {};
-}
-
-function getServerAuth() {
-  return false;
 }
 
 function mergeVisibility(

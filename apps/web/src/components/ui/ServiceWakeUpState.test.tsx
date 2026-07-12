@@ -63,10 +63,15 @@ describe("ServiceWakeUpState", () => {
     const cancelled: string[] = [];
     function RouteRequest() {
       const route = pathname;
-      useEffect(
-        () => registerWakeUpCancellation(route, () => cancelled.push(route)),
-        [route]
-      );
+      useEffect(() => {
+        const unregister = registerWakeUpCancellation(route, () => {
+          cancelled.push(route);
+        });
+
+        return () => {
+          unregister();
+        };
+      }, [route]);
       return null;
     }
 

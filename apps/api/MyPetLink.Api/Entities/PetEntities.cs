@@ -5,6 +5,8 @@ public sealed class Pet : AuditableEntity
     public Guid OwnerUserId { get; set; }
     public Guid? ProfileMediaFileId { get; set; }
     public Guid? CoverMediaFileId { get; set; }
+    public byte CoverPositionX { get; set; } = 50;
+    public byte CoverPositionY { get; set; } = 50;
     public string Slug { get; set; } = "";
     public string Name { get; set; } = "";
     public string Species { get; set; } = "";

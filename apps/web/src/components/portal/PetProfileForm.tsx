@@ -14,6 +14,7 @@ import { ImageUploadField } from "@/components/portal/ImageUploadField";
 import { ShareProfileLink } from "@/components/share/ShareProfileLink";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { CoverPhoto } from "@/components/ui/CoverPhoto";
 import { FormSection } from "@/components/ui/FormSection";
 import { Icon } from "@/components/ui/Icon";
 import { PetAvatar } from "@/components/ui/PetAvatar";
@@ -79,6 +80,8 @@ type FormState = {
   estimatedBirthYear: string;
   photoUrl: string;
   coverUrl: string;
+  coverPositionX: number;
+  coverPositionY: number;
   profileTheme: PetProfileThemeId;
   lifecycleStatus: PetLifecycleStatus;
   passedAwayDate: string;
@@ -159,6 +162,8 @@ const fieldTab: Record<keyof FormState, EditTab> = {
   favoriteToy: "basic",
   photoUrl: "photos",
   coverUrl: "photos",
+  coverPositionX: "photos",
+  coverPositionY: "photos",
   profileTheme: "theme",
   lifecycleStatus: "public",
   passedAwayDate: "public",
@@ -198,6 +203,8 @@ const emptyForm: FormState = {
   estimatedBirthYear: "",
   photoUrl: "",
   coverUrl: "",
+  coverPositionX: 50,
+  coverPositionY: 50,
   profileTheme: "default",
   lifecycleStatus: "Active",
   passedAwayDate: "",
@@ -973,20 +980,26 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
           description="Add the pet photos you want saved with this profile. The Theme tab controls the public page colors."
         >
           <div className="grid min-w-0 gap-4 lg:grid-cols-[0.8fr_1.2fr]">
-            <div className="brand-soft-card min-w-0 rounded-[1.5rem] p-5">
-              <p className="text-sm font-black text-pet-ink">Profile preview</p>
-              <div className="mt-5 flex items-center gap-4">
-                <PetAvatar pet={previewPet} size="lg" />
-                <div>
-                  <p className="font-black text-pet-ink">
-                    {form.name || "Your pet"}
-                  </p>
-                  <p className="mt-1 text-sm text-pet-muted">
-                    {form.photoUrl
-                      ? "Portrait ready"
-                      : "Add a portrait when you are ready"}
-                  </p>
+            <div className="brand-soft-card min-w-0 overflow-hidden rounded-[1.5rem]">
+              <CoverPhoto
+                alt={`${form.name || "Your pet"} cover preview`}
+                fallbackStyle={{ background: selectedTheme.gradients.cover }}
+                positionX={form.coverPositionX}
+                positionY={form.coverPositionY}
+                src={form.coverUrl}
+              />
+              <div className="px-5 pb-5 text-center">
+                <div className="-mt-12 flex justify-center">
+                  <span className="rounded-full border-4 border-white">
+                    <PetAvatar pet={previewPet} size="lg" />
+                  </span>
                 </div>
+                <p className="mt-3 font-black text-pet-ink">
+                  {form.name || "Your pet"}
+                </p>
+                <p className="mt-1 text-sm text-pet-muted">
+                  Public profile preview
+                </p>
               </div>
             </div>
 
@@ -1005,9 +1018,38 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
                 label="Cover photo"
                 helper="A warm wide banner for the public profile."
                 value={form.coverUrl}
-                onChange={(dataUrl) => updateField("coverUrl", dataUrl)}
+                onChange={(dataUrl) => {
+                  updateField("coverUrl", dataUrl);
+                  if (dataUrl !== form.coverUrl) {
+                    updateField("coverPositionX", 50);
+                    updateField("coverPositionY", 50);
+                  }
+                }}
                 onFileSelected={setCoverPhotoFile}
+                positionX={form.coverPositionX}
+                positionY={form.coverPositionY}
               />
+
+              {form.coverUrl ? (
+                <fieldset className="grid min-w-0 gap-4 rounded-[1.25rem] border border-pet-border bg-pet-cream p-4 md:col-span-2">
+                  <legend className="text-sm font-black text-pet-ink">
+                    Adjust cover position
+                  </legend>
+                  <p className="-mt-3 text-xs font-semibold leading-5 text-pet-muted">
+                    Move the focus until your pet sits naturally in the banner.
+                  </p>
+                  <CoverPositionControl
+                    axis="Horizontal"
+                    onChange={(value) => updateField("coverPositionX", value)}
+                    value={form.coverPositionX}
+                  />
+                  <CoverPositionControl
+                    axis="Vertical"
+                    onChange={(value) => updateField("coverPositionY", value)}
+                    value={form.coverPositionY}
+                  />
+                </fieldset>
+              ) : null}
             </div>
           </div>
         </FormSection>
@@ -1850,6 +1892,8 @@ function toFormState(
         : "",
     photoUrl: pet.photoUrl ?? "",
     coverUrl: pet.coverUrl ?? "",
+    coverPositionX: pet.coverPositionX ?? 50,
+    coverPositionY: pet.coverPositionY ?? 50,
     profileTheme: pet.profileTheme ?? "default",
     lifecycleStatus: pet.lifecycleStatus ?? "Active",
     passedAwayDate: parseDisplayDate(pet.memorial?.passedAwayDate ?? ""),
@@ -1921,6 +1965,8 @@ function buildPayload(
     photoTone: form.species === "Cat" ? "mint" : "apricot",
     photoUrl: form.photoUrl,
     coverUrl: form.coverUrl,
+    coverPositionX: form.coverPositionX,
+    coverPositionY: form.coverPositionY,
     profilePhotoLabel: form.photoUrl ? "Profile photo added" : "",
     coverPhotoLabel: form.coverUrl ? "Cover photo added" : "",
     profileTheme: form.profileTheme,
@@ -2007,6 +2053,34 @@ function TextInput({
         value={value}
       />
     </Field>
+  );
+}
+
+function CoverPositionControl({
+  axis,
+  onChange,
+  value,
+}: {
+  axis: "Horizontal" | "Vertical";
+  onChange: (value: number) => void;
+  value: number;
+}) {
+  return (
+    <label className="grid min-w-0 gap-2">
+      <span className="flex items-center justify-between gap-3 text-xs font-bold text-pet-ink">
+        {axis} position
+        <span className="text-pet-muted">{value}%</span>
+      </span>
+      <input
+        aria-label={`${axis} cover position`}
+        className="w-full accent-pet-teal"
+        max={100}
+        min={0}
+        onChange={(event) => onChange(Number(event.target.value))}
+        type="range"
+        value={value}
+      />
+    </label>
   );
 }
 

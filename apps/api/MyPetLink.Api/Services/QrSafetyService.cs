@@ -79,6 +79,8 @@ public sealed class QrSafetyService : SkeletonService, IQrSafetyService
                 LostExtraContactInstruction: null,
                 ProfilePhotoUrl: PetDtoMapper.ResolvePublicMediaUrl(pet.ProfileMediaFile, _r2Options.PublicBaseUrl),
                 CoverPhotoUrl: PetDtoMapper.ResolvePublicMediaUrl(pet.CoverMediaFile, _r2Options.PublicBaseUrl),
+                CoverPositionX: pet.CoverPositionX,
+                CoverPositionY: pet.CoverPositionY,
                 ShowFoundLocationAction: false,
                 Contact: null);
         }
@@ -114,6 +116,8 @@ public sealed class QrSafetyService : SkeletonService, IQrSafetyService
             pet.LostModeEnabled ? pet.LostExtraContactInstruction : null,
             PetDtoMapper.ResolvePublicMediaUrl(pet.ProfileMediaFile, _r2Options.PublicBaseUrl),
             PetDtoMapper.ResolvePublicMediaUrl(pet.CoverMediaFile, _r2Options.PublicBaseUrl),
+            pet.CoverPositionX,
+            pet.CoverPositionY,
             safetySetting.ShowFoundLocationAction,
             contact);
     }

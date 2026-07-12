@@ -2,6 +2,7 @@
 
 import { useId, useRef, useState, type ReactNode } from "react";
 import { Icon } from "@/components/ui/Icon";
+import { getCoverObjectPosition } from "@/components/ui/CoverPhoto";
 import { readImageAsDataUrl } from "@/lib/imageUpload";
 
 type ImageUploadFieldProps = {
@@ -13,6 +14,8 @@ type ImageUploadFieldProps = {
   error?: string;
   shape?: "square" | "wide";
   emptyIcon?: ReactNode;
+  positionX?: number;
+  positionY?: number;
 };
 
 export function ImageUploadField({
@@ -24,6 +27,8 @@ export function ImageUploadField({
   error,
   shape = "wide",
   emptyIcon,
+  positionX,
+  positionY,
 }: ImageUploadFieldProps) {
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -79,6 +84,11 @@ export function ImageUploadField({
               alt={`${label} preview`}
               className="h-full w-full object-cover"
               src={value}
+              style={
+                shape === "wide"
+                  ? { objectPosition: getCoverObjectPosition(positionX, positionY) }
+                  : undefined
+              }
             />
           </div>
           <div className="flex flex-wrap gap-2">

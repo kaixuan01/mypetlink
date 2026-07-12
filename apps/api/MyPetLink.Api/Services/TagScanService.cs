@@ -212,6 +212,8 @@ public sealed class TagScanService : SkeletonService, ITagScanService
             pet.LostModeEnabled ? pet.LostExtraContactInstruction : null,
             PetDtoMapper.ResolvePublicMediaUrl(pet.ProfileMediaFile, publicBaseUrl),
             PetDtoMapper.ResolvePublicMediaUrl(pet.CoverMediaFile, publicBaseUrl),
+            pet.CoverPositionX,
+            pet.CoverPositionY,
             safetySetting.ShowFoundLocationAction,
             contact);
     }

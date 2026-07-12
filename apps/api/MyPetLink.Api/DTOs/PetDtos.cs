@@ -75,7 +75,9 @@ public sealed record CreatePetRequest(
     [MaxLength(2000)]
     string? SafetyNote,
     [MaxLength(2000)]
-    string? EmergencyNote);
+    string? EmergencyNote,
+    [Range(0, 100)] byte? CoverPositionX = null,
+    [Range(0, 100)] byte? CoverPositionY = null);
 
 public sealed record UpdatePetRequest(
     [MaxLength(120)]
@@ -106,7 +108,9 @@ public sealed record UpdatePetRequest(
     [MaxLength(2000)]
     string? SafetyNote,
     [MaxLength(2000)]
-    string? EmergencyNote);
+    string? EmergencyNote,
+    [Range(0, 100)] byte? CoverPositionX = null,
+    [Range(0, 100)] byte? CoverPositionY = null);
 
 public sealed record PetContactResponse(
     bool UseOwnerDefaults,
@@ -141,6 +145,8 @@ public sealed record PetListItemResponse(
     Guid? CoverMediaId,
     string? ProfilePhotoUrl,
     string? CoverPhotoUrl,
+    byte CoverPositionX,
+    byte CoverPositionY,
     IReadOnlyList<string> PersonalityTags,
     string PublicSlug,
     string PublicCode,
@@ -171,6 +177,8 @@ public sealed record PetDetailResponse(
     Guid? CoverMediaId,
     string? ProfilePhotoUrl,
     string? CoverPhotoUrl,
+    byte CoverPositionX,
+    byte CoverPositionY,
     string ProfileTheme,
     PetLifecycleStatus LifecycleStatus,
     bool LostModeEnabled,

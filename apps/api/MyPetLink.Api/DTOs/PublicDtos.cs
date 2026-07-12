@@ -21,6 +21,8 @@ public sealed record PublicPetProfileResponse(
     string? GeneralArea,
     string? ProfilePhotoUrl,
     string? CoverPhotoUrl,
+    byte CoverPositionX,
+    byte CoverPositionY,
     string? Bio,
     IReadOnlyList<string> PersonalityTags,
     string? MemorialMessage,
@@ -71,6 +73,8 @@ public sealed record PublicSafetyPageResponse(
     string? LostExtraContactInstruction,
     string? ProfilePhotoUrl,
     string? CoverPhotoUrl,
+    byte CoverPositionX,
+    byte CoverPositionY,
     bool ShowFoundLocationAction,
     PublicSafetyContactResponse? Contact);
 

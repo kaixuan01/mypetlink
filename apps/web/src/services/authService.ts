@@ -17,18 +17,21 @@ const OWNER_KEY = "mypetlink_mock_owner";
 const ADMIN_KEY = "mypetlink_mock_admin";
 
 export type MockSession = {
+  id: string;
   role: "owner" | "admin";
   name: string;
   email: string;
 };
 
 const ownerSession: MockSession = {
+  id: "usr_aina",
   role: "owner",
   name: "Aina Rahman",
   email: "aina@example.com",
 };
 
 const adminSession: MockSession = {
+  id: "usr_admin",
   role: "admin",
   name: "MyPetLink Admin",
   email: "admin@mypetlink.com.my",
@@ -61,7 +64,7 @@ export function loginMockAdmin() {
   return adminSession;
 }
 
-export function getOwnerSession() {
+export function getOwnerSession(): MockSession | null {
   if (canUseApi()) {
     const session = readStoredAuthSession();
 
@@ -70,6 +73,7 @@ export function getOwnerSession() {
     }
 
     return {
+      id: session.user.id,
       role: "owner" as const,
       name:
         session.ownerProfile?.ownerDisplayName ??
