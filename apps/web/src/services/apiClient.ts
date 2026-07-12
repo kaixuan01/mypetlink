@@ -254,7 +254,24 @@ async function readEnvelope<T>(response: Response): Promise<ApiEnvelope<T>> {
   }
 }
 
-async function refreshAccessToken(baseUrl: string) {
+let inFlightRefresh: Promise<boolean> | null = null;
+
+// Single-flight token refresh: when several authenticated requests receive 401
+// at the same time (common on the Admin Portal, which loads its access check and
+// several data lists together), they all share ONE refresh call. Refresh tokens
+// are single-use/rotating on the backend, so firing multiple refreshes with the
+// same token would let one rotate it and the rest present a now-revoked token —
+// which previously cleared the freshly-issued session and produced the
+// intermittent "couldn't confirm your access" error.
+function refreshAccessToken(baseUrl: string): Promise<boolean> {
+  inFlightRefresh ??= performTokenRefresh(baseUrl).finally(() => {
+    inFlightRefresh = null;
+  });
+
+  return inFlightRefresh;
+}
+
+async function performTokenRefresh(baseUrl: string): Promise<boolean> {
   const session = readStoredAuthSession();
 
   if (!session?.refreshToken) {
@@ -444,6 +461,11 @@ function throwIfAborted(signal?: AbortSignal | null) {
   }
 }
 
-function isAbortError(error: unknown) {
-  return error instanceof DOMException && error.name === "AbortError";
+export function isAbortError(error: unknown) {
+  return (
+    (typeof DOMException !== "undefined" &&
+      error instanceof DOMException &&
+      error.name === "AbortError") ||
+    (error instanceof Error && error.name === "AbortError")
+  );
 }

@@ -87,6 +87,8 @@ export function getAdminSession() {
 }
 
 export function logoutOwner() {
+  clearCachedAdminAccess();
+
   if (canUseApi()) {
     const refreshToken = readStoredAuthSession()?.refreshToken;
 
@@ -140,9 +142,28 @@ export type AdminAccessCheck = {
   };
 };
 
+// Verified Admin access for the current session, kept in memory so navigating
+// between Admin menu items reuses it instead of re-calling the check endpoint on
+// every remount. Cleared on logout and on session expiry; a full page reload
+// (new module instance) re-verifies. This never replaces backend authorization —
+// every protected Admin endpoint is still enforced server-side on each call.
+export type AdminAccessSnapshot = { access: AdminAccessCheck | null };
+
+let cachedAdminAccess: AdminAccessSnapshot | null = null;
+
+export function getCachedAdminAccess() {
+  return cachedAdminAccess;
+}
+
+export function clearCachedAdminAccess() {
+  cachedAdminAccess = null;
+}
+
 export async function checkAdminAccess() {
   const response = await apiRequest<AdminAccessCheck>("/api/v1/admin/auth/check");
-  return response.data ?? null;
+  const access = response.data ?? null;
+  cachedAdminAccess = { access };
+  return access;
 }
 
 export async function loginWithGoogleIdToken(idToken: string) {
