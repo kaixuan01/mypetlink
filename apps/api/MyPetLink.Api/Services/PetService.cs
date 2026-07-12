@@ -282,9 +282,8 @@ public sealed class PetService : SkeletonService, IPetService
         pet.PreviousLifecycleStatus = pet.LifecycleStatus;
         pet.LifecycleStatus = PetLifecycleStatus.Active;
         pet.ArchivedAt = null;
-        pet.MemorialPassedAwayDate = null;
-        pet.MemorialMessage = null;
-        pet.ShowMemorialOnPublicProfile = false;
+        // Memorial details belong to the pet's history. Restoring finder and
+        // active-list behavior must not silently erase the owner's date or note.
 
         await _dbContext.SaveChangesAsync(cancellationToken);
         return ToDetail(pet);

@@ -41,14 +41,13 @@ import {
   type PetAgeMode,
 } from "@/lib/petAge";
 import { PET_TYPE_OPTIONS } from "@/lib/petDisplay";
-import { isActivePet, isArchivedPet, isMemorialPet } from "@/lib/petLifecycle";
+import { isActivePet } from "@/lib/petLifecycle";
 import { smartTagOrderingEnabled } from "@/lib/features";
 import { ownerRoutes, publicProfilePath } from "@/lib/routes";
 import {
   createPet,
   getFriendlyApiErrorMessage,
   getPetById,
-  restorePetProfile,
   slugifyPetSlug,
   updatePet,
   updatePetLifecycle,
@@ -121,6 +120,25 @@ const editTabs: (SegmentedTab & { id: EditTab })[] = [
   { id: "theme", label: "Theme" },
   { id: "public", label: "Public Profile", mobileLabel: "Public" },
   { id: "contact", label: "Contact & Safety", mobileLabel: "Safety" },
+];
+
+const lifecycleOptions: {
+  status: PetLifecycleStatus;
+  description: string;
+}[] = [
+  {
+    status: "Active",
+    description: "Your pet profile is visible and works normally.",
+  },
+  {
+    status: "Memorial",
+    description: "Keep this profile as a gentle place for memories.",
+  },
+  {
+    status: "Archived",
+    description:
+      "Hide this pet from your active list and public pages. You can restore it later.",
+  },
 ];
 
 // Which tab each field lives on, so a validation error can pull the owner to
@@ -227,9 +245,8 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
   const [profilePhotoFile, setProfilePhotoFile] = useState<File | undefined>();
   const [coverPhotoFile, setCoverPhotoFile] = useState<File | undefined>();
   const [success, setSuccess] = useState("");
-  const [statusMessage, setStatusMessage] = useState("");
   const [statusAction, setStatusAction] = useState<
-    "active" | "memorial" | "archive" | "restore" | null
+    "active" | "memorial" | "archive" | null
   >(null);
   const origin = useSyncExternalStore(
     subscribeToOrigin,
@@ -282,7 +299,6 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
     setErrors((current) => ({ ...current, [key]: undefined }));
     setFormError("");
     setSuccess("");
-    setStatusMessage("");
   }
 
   function updateSpecies(species: PetSpecies) {
@@ -472,6 +488,39 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
       return;
     }
 
+    if (
+      mode === "edit" &&
+      currentPet &&
+      form.lifecycleStatus !== currentPet.lifecycleStatus
+    ) {
+      if (
+        currentPet.lifecycleStatus === "Archived" &&
+        form.lifecycleStatus === "Memorial"
+      ) {
+        setFormError(
+          "Restore this profile to Active before moving it to Memorial."
+        );
+        return;
+      }
+
+      setStatusAction(
+        form.lifecycleStatus === "Memorial"
+          ? "memorial"
+          : form.lifecycleStatus === "Archived"
+            ? "archive"
+            : "active"
+      );
+      return;
+    }
+
+    await saveChanges();
+  }
+
+  async function saveChanges() {
+    if (isSubmitting) {
+      return;
+    }
+
     setIsSubmitting(true);
     setSuccess("");
     setFormError("");
@@ -496,10 +545,42 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
         setForm(toFormState(savedPet, ownerSettings));
       } else if (currentPet) {
         const previousPet = currentPet;
-        const response = await updatePet(currentPet.id, payload);
+        // Lifecycle changes use the dedicated, owner-authorized endpoints. Keep
+        // the ordinary profile update pinned to the saved lifecycle so local
+        // demo mode follows the same contract as the API.
+        const response = await updatePet(currentPet.id, {
+          ...payload,
+          lifecycleStatus: currentPet.lifecycleStatus,
+          previousLifecycleStatus: currentPet.previousLifecycleStatus,
+          memorial: currentPet.memorial,
+        });
 
         if (response.data) {
           let savedPet = response.data;
+
+          if (
+            form.lifecycleStatus !== previousPet.lifecycleStatus ||
+            form.lifecycleStatus === "Memorial"
+          ) {
+            const lifecycleResponse = await updatePetLifecycle(
+              currentPet.id,
+              form.lifecycleStatus,
+              {
+                passedAwayDate: form.passedAwayDate
+                  ? formatDisplayDate(form.passedAwayDate)
+                  : previousPet.memorial.passedAwayDate,
+                memorialMessage: form.memorialMessage.trim(),
+                showMemorialOnPublicProfile:
+                  form.showMemorialOnPublicProfile,
+              }
+            );
+
+            if (!lifecycleResponse.data) {
+              throw new Error("We could not update this pet profile.");
+            }
+
+            savedPet = lifecycleResponse.data;
+          }
 
           try {
             savedPet = await syncPetMedia(savedPet, previousPet);
@@ -526,6 +607,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
       setFormError(getFriendlyApiErrorMessage(caught));
     } finally {
       setIsSubmitting(false);
+      setStatusAction(null);
     }
   }
 
@@ -571,67 +653,6 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
     }
 
     return nextPet;
-  }
-
-  async function handleStatusAction() {
-    if (!currentPet || !statusAction) {
-      return;
-    }
-
-    try {
-      if (statusAction === "restore") {
-        const response = await restorePetProfile(currentPet.id);
-
-        if (response.data.pet) {
-          setCurrentPet(response.data.pet);
-          setForm(toFormState(response.data.pet, ownerSettings));
-          setStatusMessage(`${response.data.pet.name} is back in your main list.`);
-          router.refresh();
-        } else {
-          setStatusMessage(
-            response.data.blockedReason ??
-              "You've reached the Free profile limit. Archive another pet first, or wait for Premium plans for more profiles."
-          );
-        }
-
-        return;
-      }
-
-      const nextStatus: PetLifecycleStatus =
-        statusAction === "memorial"
-          ? "Memorial"
-          : statusAction === "active"
-            ? "Active"
-            : "Archived";
-      const response = await updatePetLifecycle(currentPet.id, nextStatus, {
-        passedAwayDate: form.passedAwayDate
-          ? formatDisplayDate(form.passedAwayDate)
-          : currentPet.memorial.passedAwayDate,
-        memorialMessage: form.memorialMessage.trim(),
-        showMemorialOnPublicProfile: form.showMemorialOnPublicProfile,
-      });
-
-      if (response.data) {
-        setCurrentPet(response.data);
-        setForm(toFormState(response.data, ownerSettings));
-        setStatusMessage(
-          nextStatus === "Memorial"
-            ? `${response.data.name} is now in Memorial Mode.`
-            : nextStatus === "Active"
-              ? `${response.data.name} is back in your active pet list.`
-              : `${response.data.name} has been archived.`
-        );
-        router.refresh();
-      } else {
-        setStatusMessage(
-          "We could not find this pet profile. Please return to My Pets and try again."
-        );
-      }
-    } catch (caught) {
-      setStatusMessage(getFriendlyApiErrorMessage(caught));
-    } finally {
-      setStatusAction(null);
-    }
   }
 
   if (createdPet) {
@@ -1033,51 +1054,86 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
           description="Settings for the shareable profile at /p/{slug}-{publicCode}. This is the friendly page you share with friends and family."
         >
           <div className="grid min-w-0 gap-4">
+            {mode === "edit" && currentPet ? (
             <div className="rounded-[1.5rem] border border-pet-border bg-white p-5">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                  <h2 className="text-lg font-black text-pet-ink">
-                    Profile status
-                  </h2>
-                  <p className="mt-2 text-sm leading-6 text-pet-muted">
-                    Use Memorial Mode to keep this pet&apos;s profile as a
-                    gentle place for memories. Archived profiles are hidden from
-                    your main list.
-                  </p>
+              <fieldset aria-describedby="profile-status-help profile-status-pending">
+                <legend className="text-lg font-black text-pet-ink">
+                  Profile status &amp; visibility
+                </legend>
+                <p className="mt-2 text-sm font-bold text-pet-ink">
+                  Currently {currentPet.lifecycleStatus}
+                </p>
+                <p id="profile-status-help" className="mt-1 text-sm leading-6 text-pet-muted">
+                  Choose the profile state you want, then use Save Changes to apply it.
+                </p>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  {lifecycleOptions.map((option) => {
+                    const selected = form.lifecycleStatus === option.status;
+                    const current = currentPet.lifecycleStatus === option.status;
+                    const disabled =
+                      currentPet.lifecycleStatus === "Archived" &&
+                      option.status === "Memorial";
+
+                    return (
+                      <label
+                        className={`relative flex min-h-36 cursor-pointer flex-col rounded-[1.25rem] border p-4 transition focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-pet-teal ${
+                          selected
+                            ? "border-pet-teal bg-[#e8f3ff]"
+                            : "border-pet-border bg-white hover:bg-pet-cream"
+                        } ${disabled ? "cursor-not-allowed opacity-55" : ""}`}
+                        key={option.status}
+                      >
+                        <input
+                          checked={selected}
+                          className="sr-only"
+                          disabled={disabled}
+                          name="lifecycleStatus"
+                          onChange={() => updateField("lifecycleStatus", option.status)}
+                          type="radio"
+                          value={option.status}
+                        />
+                        <span className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-black text-pet-ink">{option.status}</span>
+                          {current ? (
+                            <span className="rounded-full bg-white px-2.5 py-1 text-[0.65rem] font-black uppercase tracking-wide text-pet-teal">
+                              Current
+                            </span>
+                          ) : null}
+                        </span>
+                        <span className="mt-3 text-xs font-semibold leading-5 text-pet-muted">
+                          {option.description}
+                        </span>
+                        {disabled ? (
+                          <span className="mt-auto pt-2 text-xs font-bold text-pet-muted">
+                            Restore to Active first.
+                          </span>
+                        ) : null}
+                      </label>
+                    );
+                  })}
                 </div>
-                <span className="inline-flex w-fit rounded-full bg-pet-cream px-3 py-1 text-xs font-black uppercase text-pet-muted">
-                  {form.lifecycleStatus}
-                </span>
-              </div>
 
-              <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                {(["Active", "Memorial", "Archived"] as PetLifecycleStatus[]).map(
-                  (status) => (
-                    <button
-                      aria-pressed={form.lifecycleStatus === status}
-                      className={`min-h-12 rounded-2xl border px-4 py-3 text-sm font-black transition ${
-                        form.lifecycleStatus === status
-                          ? "border-pet-teal bg-[#e8f3ff] text-pet-teal"
-                          : "border-pet-border bg-white text-pet-muted hover:bg-pet-cream"
-                      }`}
-                      key={status}
-                      onClick={() => updateField("lifecycleStatus", status)}
-                      type="button"
-                    >
-                      {status}
-                    </button>
-                  )
+                {form.lifecycleStatus !== currentPet.lifecycleStatus ? (
+                  <p
+                    aria-live="polite"
+                    className="mt-4 rounded-[1rem] bg-[#fffbea] px-4 py-3 text-xs font-bold text-[#856a00]"
+                    id="profile-status-pending"
+                    role="status"
+                  >
+                    Status will change to {form.lifecycleStatus} when you save.
+                  </p>
+                ) : (
+                  <span id="profile-status-pending" />
                 )}
-              </div>
+              </fieldset>
 
-              {form.lifecycleStatus === "Memorial" ||
-              (currentPet ? isMemorialPet(currentPet) : false) ||
-              currentPet?.previousLifecycleStatus === "Memorial" ? (
+              {form.lifecycleStatus === "Memorial" ? (
                 <div className="mt-4 grid gap-4 lg:grid-cols-2">
                   <Field
                     error={errors.passedAwayDate}
-                    helper="Optional. This can appear on the memorial profile."
-                    label="Passed away date"
+                    helper="Optional. Share this only if it feels right for you."
+                    label="Date of passing, optional"
                   >
                     <input
                       className="brand-input"
@@ -1091,7 +1147,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
                   <Field
                     error={errors.memorialMessage}
                     helper="A gentle note for friends and family. Maximum 240 characters."
-                    label="Memorial message"
+                    label="Memorial message, optional"
                   >
                     <textarea
                       className="brand-input min-h-28"
@@ -1106,7 +1162,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
                   <div className="lg:col-span-2">
                     <Checkbox
                       checked={form.showMemorialOnPublicProfile}
-                      label="Show memorial notice on public profile"
+                      label="Show this memorial on the public profile"
                       onChange={(value) =>
                         updateField("showMemorialOnPublicProfile", value)
                       }
@@ -1115,53 +1171,8 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
                 </div>
               ) : null}
 
-              {statusMessage ? (
-                <p className="mt-4 rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted">
-                  {statusMessage}
-                </p>
-              ) : null}
-
-              {mode === "edit" && currentPet ? (
-                <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-                  {!isArchivedPet(currentPet) ? (
-                    <>
-                      {isMemorialPet(currentPet) ? (
-                        <button
-                          className="inline-flex min-h-12 flex-1 items-center justify-center rounded-full border border-pet-teal bg-[#e8f3ff] px-5 py-3 text-sm font-bold text-pet-teal transition hover:bg-[#d8edff]"
-                          onClick={() => setStatusAction("active")}
-                          type="button"
-                        >
-                          Restore to Active
-                        </button>
-                      ) : (
-                        <button
-                          className="inline-flex min-h-12 flex-1 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
-                          onClick={() => setStatusAction("memorial")}
-                          type="button"
-                        >
-                          Move to Memorial
-                        </button>
-                      )}
-                      <button
-                        className="inline-flex min-h-12 flex-1 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-bold text-pet-muted transition hover:bg-pet-cream"
-                        onClick={() => setStatusAction("archive")}
-                        type="button"
-                      >
-                        Archive Pet
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      className="inline-flex min-h-12 flex-1 items-center justify-center rounded-full border border-pet-teal bg-[#e8f3ff] px-5 py-3 text-sm font-bold text-pet-teal transition hover:bg-[#d8edff]"
-                      onClick={() => setStatusAction("restore")}
-                      type="button"
-                    >
-                      Restore to List
-                    </button>
-                  )}
-                </div>
-              ) : null}
             </div>
+            ) : null}
 
             <div className="grid min-w-0 gap-4 lg:grid-cols-2">
               <Field
@@ -1565,12 +1576,15 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
 
       {statusAction ? (
         <ConfirmDialog
-          cancelLabel="Cancel"
+          cancelLabel={getStatusActionCopy(statusAction, form.name).cancelLabel}
           confirmLabel={getStatusActionCopy(statusAction, form.name).confirmLabel}
           destructive={statusAction === "archive"}
           message={getStatusActionCopy(statusAction, form.name).message}
           onCancel={() => setStatusAction(null)}
-          onConfirm={() => void handleStatusAction()}
+          onConfirm={() => {
+            setStatusAction(null);
+            void saveChanges();
+          }}
           open={Boolean(statusAction)}
           title={getStatusActionCopy(statusAction, form.name).title}
         />
@@ -1580,7 +1594,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
 }
 
 function getStatusActionCopy(
-  action: "active" | "memorial" | "archive" | "restore",
+  action: "active" | "memorial" | "archive",
   petName: string
 ) {
   const name = petName || "this pet";
@@ -1590,30 +1604,29 @@ function getStatusActionCopy(
       title: "Restore to Active?",
       message: `This will show ${name} in active pet pages again and use the pet's QR Safety settings for finder contact actions.`,
       confirmLabel: "Restore to Active",
+      cancelLabel: "Keep Current Status",
     };
   }
 
   if (action === "memorial") {
     return {
-      title: "Move to Memorial?",
-      message: `This keeps ${name}'s profile, memories, and timeline, but the QR Safety Page will no longer show emergency finder contact actions.`,
-      confirmLabel: "Move to Memorial",
+      title: "Move this profile to Memorial?",
+      message: "This will turn the profile into a gentle place for memories. You can review the memorial details before saving.",
+      confirmLabel: "Continue to Memorial",
+      cancelLabel: "Cancel",
     };
   }
 
   if (action === "archive") {
     return {
-      title: "Archive this pet?",
-      message: `This hides ${name} from your main pet list. Memories, records, tags, and order history stay saved.`,
-      confirmLabel: "Archive Pet",
+      title: "Archive this pet profile?",
+      message: "This pet will be hidden from your active pet list and public pages. You can restore it later.",
+      confirmLabel: "Archive Profile",
+      cancelLabel: "Keep Active",
     };
   }
 
-  return {
-    title: "Restore this pet?",
-    message: `This will show ${name} in your main pet list again and count toward your Free profile limit.`,
-    confirmLabel: "Restore to List",
-  };
+  return { title: "", message: "", confirmLabel: "", cancelLabel: "Cancel" };
 }
 
 function UrlDisplay({ label, url }: { label: string; url: string }) {

@@ -24,6 +24,7 @@ export function ConfirmDialog({
   onConfirm,
 }: ConfirmDialogProps) {
   const confirmRef = useRef<HTMLButtonElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!open) {
@@ -36,6 +37,24 @@ export function ConfirmDialog({
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         onCancel();
+        return;
+      }
+
+      if (event.key === "Tab") {
+        const focusable = panelRef.current?.querySelectorAll<HTMLButtonElement>(
+          "button:not([disabled])"
+        );
+        if (!focusable?.length) return;
+
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
       }
     }
 
@@ -67,7 +86,10 @@ export function ConfirmDialog({
         onClick={onCancel}
         type="button"
       />
-      <div className="relative w-full max-w-lg rounded-t-[2rem] bg-white p-5 shadow-2xl sm:rounded-[2rem] sm:p-6">
+      <div
+        className="relative w-full max-w-lg rounded-t-[2rem] bg-white p-5 shadow-2xl sm:rounded-[2rem] sm:p-6"
+        ref={panelRef}
+      >
         <h2 className="text-2xl font-black text-pet-ink">{title}</h2>
         <p className="mt-3 text-sm leading-6 text-pet-muted">{message}</p>
         <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
