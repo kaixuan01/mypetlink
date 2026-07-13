@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { AppLayout } from "@/components/layouts/AppLayout";
@@ -39,9 +40,18 @@ import {
   tagScanPageTitle,
 } from "@/lib/pageTitles";
 import { smartTagOrderingEnabled } from "@/lib/features";
+import {
+  getCurrentLocalDestination,
+  ownerLoginPath,
+} from "@/lib/authRedirect";
 import { parsePublicProfileParam, ownerRoutes } from "@/lib/routes";
 import { isApiClientError } from "@/services/apiClient";
 import { isApiConfigured } from "@/services/apiConfig";
+import {
+  getCurrentOwnerSession,
+  isOwnerAuthenticated,
+  logoutOwner,
+} from "@/services/authService";
 import { getPublicPetMoments, getPetMoments } from "@/services/momentService";
 import {
   getPetById,
@@ -89,7 +99,7 @@ type RuntimeRoute =
 type RuntimeState =
   | { status: "loading" }
   | { status: "unavailable"; message: string; title: string }
-  | { status: "not-found"; title: string }
+  | { status: "not-found"; title: string; owner?: boolean }
   | {
       status: "public";
       profile: PublicPetProfile;
@@ -125,6 +135,7 @@ type RuntimeState =
     };
 
 export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
+  const router = useRouter();
   const [state, setState] = useState<RuntimeState>({ status: "loading" });
 
   useEffect(() => {
@@ -253,6 +264,31 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
         return;
       }
 
+      if (route.kind === "order" || route.kind === "owner") {
+        const fallback =
+          route.kind === "owner"
+            ? ownerRoutes.petProfile(route.petId)
+            : ownerRoutes.orders;
+        const returnTo = getCurrentLocalDestination(fallback);
+
+        // Real API identifiers cannot be pre-rendered by the static export, so
+        // private routes are resolved through this fallback. Confirm the
+        // session before asking whether any owner resource exists; otherwise
+        // an expired 401 can be mistaken for the static host's not-found state.
+        if (!isOwnerAuthenticated()) {
+          router.replace(ownerLoginPath(returnTo));
+          return;
+        }
+
+        if (apiMode) {
+          await getCurrentOwnerSession();
+
+          if (!active) {
+            return;
+          }
+        }
+      }
+
       if (route.kind === "order") {
         const [orderResponse, petsResponse, tagsResponse] = await Promise.all([
           getOrder(route.orderKey),
@@ -294,7 +330,7 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
       }
 
       if (!petResponse.data) {
-        setState({ status: "not-found", title: petNotFoundTitle });
+        setState({ status: "not-found", title: petNotFoundTitle, owner: true });
         return;
       }
 
@@ -317,13 +353,34 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
 
     resolveRoute().catch((caught) => {
       if (active) {
-        if (isApiClientError(caught) && caught.status === 0) {
+        const status = isApiClientError(caught) ? caught.status : -1;
+
+        if ((route.kind === "owner" || route.kind === "order") && status === 401) {
+          logoutOwner();
+          const fallback =
+            route.kind === "owner"
+              ? ownerRoutes.petProfile(route.petId)
+              : ownerRoutes.orders;
+          router.replace(
+            ownerLoginPath(
+              getCurrentLocalDestination(fallback)
+            )
+          );
+          return;
+        }
+
+        if (status === 0 || status >= 500) {
           setState({
             status: "unavailable",
             title: "MyPetLink temporarily unavailable",
             message:
               "We could not reach MyPetLink right now. Please try again.",
           });
+          return;
+        }
+
+        if (route.kind === "owner" && (status === 403 || status === 404)) {
+          setState({ status: "not-found", title: petNotFoundTitle, owner: true });
           return;
         }
 
@@ -334,13 +391,17 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [router]);
 
   if (state.status === "loading") {
     return <RuntimeLoading />;
   }
 
   if (state.status === "not-found") {
+    if (state.owner) {
+      return <OwnerPetNotFound />;
+    }
+
     return <>{children}</>;
   }
 
@@ -395,6 +456,25 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
   }
 
   return <OwnerRuntimeView state={state} />;
+}
+
+function OwnerPetNotFound() {
+  return (
+    <AppLayout>
+      <section className="brand-card rounded-[1.75rem] p-6">
+        <p className="text-sm font-bold uppercase text-pet-teal">Pet not found</p>
+        <h1 className="mt-2 text-2xl font-black text-pet-ink">
+          We couldn&rsquo;t find this pet profile.
+        </h1>
+        <p className="mt-3 max-w-xl text-sm font-semibold leading-6 text-pet-muted">
+          It may have been removed, or it may not belong to this account.
+        </p>
+        <CTAButton className="mt-5" href={ownerRoutes.pets} variant="secondary">
+          Back to My Pets
+        </CTAButton>
+      </section>
+    </AppLayout>
+  );
 }
 
 function RuntimeUnavailable({

@@ -10,6 +10,10 @@ import {
 import { canUseApi } from "@/services/apiConfig";
 import { isApiClientError } from "@/services/apiClient";
 import { getOwnerProfileSettings } from "@/services/ownerProfileService";
+import {
+  getCurrentLocalDestination,
+  ownerLoginPath,
+} from "@/lib/authRedirect";
 
 // Development builds only; inlined by Next at build time so it is always false
 // in the production bundle. Used to gate a developer-only hint.
@@ -30,8 +34,10 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const [errorKind, setErrorKind] = useState<GuardError>(null);
 
   useEffect(() => {
+    const returnTo = getCurrentLocalDestination(pathname);
+
     if (!isOwnerAuthenticated()) {
-      router.replace(`/login?redirect=${encodeURIComponent(pathname)}`);
+      router.replace(ownerLoginPath(returnTo));
       return;
     }
 
@@ -61,7 +67,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
           if (status === 401) {
             logoutOwner();
-            router.replace(`/login?redirect=${encodeURIComponent(pathname)}`);
+            router.replace(ownerLoginPath(returnTo));
             return;
           }
 
@@ -109,7 +115,11 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
             </button>
             <button
               className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-extrabold text-pet-ink transition hover:bg-pet-cream"
-              onClick={() => router.replace("/login")}
+              onClick={() =>
+                router.replace(
+                  ownerLoginPath(getCurrentLocalDestination(pathname))
+                )
+              }
               type="button"
             >
               Go to Login

@@ -22,11 +22,17 @@ navigation. Public pages (scan, share, marketing) must **not** use `AppLayout`.
 
 ### Sign-in continuation
 
-`AuthGuard` sends unauthenticated users to `/login?redirect={path}`.
-`LoginPanel` honors a `redirect` query param (guarded with
-`redirect.startsWith("/")` and not `//` to prevent open redirects) and returns
-the user to where they were headed. Without a redirect, login falls back to the
-dashboard. Do not bypass this.
+`AuthGuard` sends unauthenticated users to `/login?redirect={local path}` and
+preserves the current query string and fragment where applicable. `LoginPanel`
+honors that destination only after `src/lib/authRedirect.ts` validates and
+normalizes it as a local URL. External, protocol-relative, encoded-backslash,
+control-character, and login-loop destinations fall back to the dashboard.
+
+Static hosting resolves runtime API pet ids through `RuntimeRouteFallback`.
+That fallback must confirm the owner session before loading the pet or any
+related owner data. A failed refresh/401 returns to login; only an authenticated
+403/404 becomes the privacy-preserving **Pet not found** state. Temporary
+connection/server failures remain retryable and must never become not found.
 
 ---
 

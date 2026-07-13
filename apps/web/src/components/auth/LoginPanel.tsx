@@ -8,6 +8,7 @@ import {
 } from "@/services/authService";
 import { getGoogleClientId, isApiConfigured } from "@/services/apiConfig";
 import { isApiClientError } from "@/services/apiClient";
+import { resolveOwnerPostLoginPath } from "@/lib/authRedirect";
 
 declare global {
   interface Window {
@@ -249,12 +250,7 @@ export function LoginPanel() {
 function navigateAfterLogin(router: ReturnType<typeof useRouter>) {
   const params = new URLSearchParams(window.location.search);
   const redirect = params.get("redirect") ?? params.get("next");
-  const destination =
-    redirect && redirect.startsWith("/") && !redirect.startsWith("//")
-      ? redirect
-      : "/dashboard";
-
-  router.replace(destination);
+  router.replace(resolveOwnerPostLoginPath(redirect));
 }
 
 function getLoginErrorMessage(error: unknown) {

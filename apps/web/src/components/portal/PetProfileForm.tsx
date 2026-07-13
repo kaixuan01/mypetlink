@@ -44,6 +44,10 @@ import {
 import { PET_TYPE_OPTIONS } from "@/lib/petDisplay";
 import { isActivePet } from "@/lib/petLifecycle";
 import { smartTagOrderingEnabled } from "@/lib/features";
+import {
+  getCurrentLocalDestination,
+  ownerLoginPath,
+} from "@/lib/authRedirect";
 import { ownerRoutes, publicProfilePath } from "@/lib/routes";
 import {
   createPet,
@@ -54,6 +58,8 @@ import {
   updatePetLifecycle,
 } from "@/services/petService";
 import { canUseApi } from "@/services/apiConfig";
+import { isApiClientError } from "@/services/apiClient";
+import { logoutOwner } from "@/services/authService";
 import { deleteMedia, uploadMediaFile } from "@/services/mediaService";
 import type {
   Pet,
@@ -116,6 +122,7 @@ type FormState = {
 type FormErrors = Partial<Record<keyof FormState, string>>;
 
 type EditTab = "basic" | "photos" | "theme" | "public" | "contact";
+type EditPetLoadState = "checking" | "ready" | "not-found" | "error";
 
 const editTabs: (SegmentedTab & { id: EditTab })[] = [
   { id: "basic", label: "Basic Info", mobileLabel: "Info" },
@@ -238,6 +245,7 @@ const emptyForm: FormState = {
 
 export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
   const router = useRouter();
+  const initialPetId = initialPet?.id;
   const [ownerSettings, setOwnerSettings] =
     useState<OwnerSettings>(defaultOwnerSettings);
   const [form, setForm] = useState<FormState>(() =>
@@ -252,6 +260,10 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
   const [profilePhotoFile, setProfilePhotoFile] = useState<File | undefined>();
   const [coverPhotoFile, setCoverPhotoFile] = useState<File | undefined>();
   const [success, setSuccess] = useState("");
+  const [editPetLoadState, setEditPetLoadState] = useState<EditPetLoadState>(
+    mode === "edit" ? "checking" : "ready"
+  );
+  const [editPetLoadError, setEditPetLoadError] = useState("");
   const [statusAction, setStatusAction] = useState<
     "active" | "memorial" | "archive" | null
   >(null);
@@ -281,25 +293,58 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
   }, [initialPet, mode]);
 
   useEffect(() => {
-    if (mode !== "edit" || !initialPet?.id) {
+    if (mode !== "edit" || !initialPetId) {
       return;
     }
 
     let active = true;
+    const petId = initialPetId;
 
-    getPetById(initialPet.id).then((response) => {
-      if (!active || !response.data) {
-        return;
+    async function loadPet() {
+      try {
+        setEditPetLoadState("checking");
+        setEditPetLoadError("");
+        const response = await getPetById(petId);
+
+        if (!active) {
+          return;
+        }
+
+        if (!response.data) {
+          setCurrentPet(null);
+          setEditPetLoadState("not-found");
+          return;
+        }
+
+        setCurrentPet(response.data);
+        setForm(toFormState(response.data, readOwnerSettings()));
+        setEditPetLoadState("ready");
+      } catch (caught) {
+        if (!active) {
+          return;
+        }
+
+        if (isExpiredSessionError(caught)) {
+          logoutOwner();
+          router.replace(
+            ownerLoginPath(
+              getCurrentLocalDestination(ownerRoutes.petEdit(petId))
+            )
+          );
+          return;
+        }
+
+        setEditPetLoadError(getFriendlyApiErrorMessage(caught));
+        setEditPetLoadState("error");
       }
+    }
 
-      setCurrentPet(response.data);
-      setForm(toFormState(response.data, readOwnerSettings()));
-    });
+    void loadPet();
 
     return () => {
       active = false;
     };
-  }, [initialPet?.id, mode]);
+  }, [initialPetId, mode, router]);
 
   function updateField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -544,6 +589,16 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
           setProfilePhotoFile(undefined);
           setCoverPhotoFile(undefined);
         } catch (mediaError) {
+          if (
+            redirectAfterExpiredSession(
+              mediaError,
+              router,
+              ownerRoutes.petEdit(savedPet.id)
+            )
+          ) {
+            return;
+          }
+
           setFormError(getMediaUploadErrorMessage(mediaError));
         }
 
@@ -597,6 +652,16 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
               "Changes saved. Public profile and QR safety page are updated."
             );
           } catch (mediaError) {
+            if (
+              redirectAfterExpiredSession(
+                mediaError,
+                router,
+                ownerRoutes.petEdit(previousPet.id)
+              )
+            ) {
+              return;
+            }
+
             setFormError(getMediaUploadErrorMessage(mediaError));
           }
 
@@ -611,6 +676,14 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
         }
       }
     } catch (caught) {
+      const fallback = currentPet
+        ? ownerRoutes.petEdit(currentPet.id)
+        : ownerRoutes.petNew;
+
+      if (redirectAfterExpiredSession(caught, router, fallback)) {
+        return;
+      }
+
       setFormError(getFriendlyApiErrorMessage(caught));
     } finally {
       setIsSubmitting(false);
@@ -660,6 +733,56 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
     }
 
     return nextPet;
+  }
+
+  if (mode === "edit" && editPetLoadState === "checking") {
+    return (
+      <section className="brand-card rounded-[1.75rem] p-6" role="status">
+        <p className="text-sm font-semibold text-pet-muted">
+          Loading this pet profile...
+        </p>
+      </section>
+    );
+  }
+
+  if (mode === "edit" && editPetLoadState === "not-found") {
+    return (
+      <section className="brand-card rounded-[1.75rem] p-6">
+        <p className="text-sm font-bold uppercase text-pet-teal">Pet not found</p>
+        <h2 className="mt-2 text-2xl font-black text-pet-ink">
+          We couldn&rsquo;t find this pet profile.
+        </h2>
+        <p className="mt-3 max-w-xl text-sm font-semibold leading-6 text-pet-muted">
+          It may have been removed, or it may not belong to this account.
+        </p>
+        <CTAButton className="mt-5" href={ownerRoutes.pets} variant="secondary">
+          Back to My Pets
+        </CTAButton>
+      </section>
+    );
+  }
+
+  if (mode === "edit" && editPetLoadState === "error") {
+    return (
+      <section className="brand-card rounded-[1.75rem] p-6">
+        <p className="text-sm font-bold uppercase text-pet-teal">
+          Could not load pet
+        </p>
+        <h2 className="mt-2 text-2xl font-black text-pet-ink">
+          This pet profile is temporarily unavailable.
+        </h2>
+        <p className="mt-3 max-w-xl text-sm font-semibold leading-6 text-pet-muted">
+          {editPetLoadError}
+        </p>
+        <button
+          className="mt-5 inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-extrabold text-pet-ink transition hover:bg-pet-cream"
+          onClick={() => window.location.reload()}
+          type="button"
+        >
+          Try Again
+        </button>
+      </section>
+    );
   }
 
   if (createdPet) {
@@ -1840,6 +1963,26 @@ function getMediaUploadErrorMessage(error: unknown) {
   return `Profile details were saved, but the photo upload needs another try. ${getFriendlyApiErrorMessage(
     error
   )}`;
+}
+
+function isExpiredSessionError(error: unknown) {
+  return isApiClientError(error) && error.status === 401;
+}
+
+function redirectAfterExpiredSession(
+  error: unknown,
+  router: { replace: (href: string) => void },
+  fallback: string
+) {
+  if (!isExpiredSessionError(error)) {
+    return false;
+  }
+
+  logoutOwner();
+  router.replace(
+    ownerLoginPath(getCurrentLocalDestination(fallback))
+  );
+  return true;
 }
 
 function toFormState(

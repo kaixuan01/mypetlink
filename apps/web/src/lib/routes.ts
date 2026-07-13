@@ -93,6 +93,11 @@ export const publicRoutes = {
   physicalTag: (tag: Pick<PetTag, "tagCode">) => getTagScanPath(tag),
 };
 
+export const authRoutes = {
+  ownerLogin: "/login",
+  adminLogin: "/admin/login",
+} as const;
+
 export const marketingRoutes = {
   home: "/",
   pricing: "/pricing",

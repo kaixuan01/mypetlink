@@ -3,20 +3,33 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockPets } from "@/data/mockPets";
+import { ApiClientError } from "@/services/apiClient";
 import type { Pet, PetPayload } from "@/types";
 
 const mocks = vi.hoisted(() => ({
   refresh: vi.fn(),
+  replace: vi.fn(),
+  router: null as null | {
+    refresh: ReturnType<typeof vi.fn>;
+    replace: ReturnType<typeof vi.fn>;
+  },
+  logoutOwner: vi.fn(),
   getPetById: vi.fn(),
   updatePet: vi.fn(),
   updatePetLifecycle: vi.fn(),
 }));
 
+mocks.router = { refresh: mocks.refresh, replace: mocks.replace };
+
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ refresh: mocks.refresh }),
+  useRouter: () => mocks.router,
 }));
 
 vi.mock("@/services/apiConfig", () => ({ canUseApi: () => false }));
+
+vi.mock("@/services/authService", () => ({
+  logoutOwner: (...args: unknown[]) => mocks.logoutOwner(...args),
+}));
 
 vi.mock("@/services/petService", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/services/petService")>();
@@ -38,8 +51,8 @@ function activePet(): Pet {
   };
 }
 
-function openPublicProfile() {
-  fireEvent.click(screen.getByRole("tab", { name: /Public Profile/ }));
+async function openPublicProfile() {
+  fireEvent.click(await screen.findByRole("tab", { name: /Public Profile/ }));
 }
 
 function clickSave() {
@@ -51,6 +64,7 @@ describe("PetProfileForm lifecycle workflow", () => {
 
   beforeEach(() => {
     pet = activePet();
+    window.history.replaceState({}, "", `/pets/${pet.id}/edit`);
     mocks.getPetById.mockResolvedValue({ data: pet });
     mocks.updatePet.mockImplementation(
       async (_id: string, payload: PetPayload) => ({ data: { ...pet, ...payload } })
@@ -60,6 +74,8 @@ describe("PetProfileForm lifecycle workflow", () => {
         data: { ...pet, lifecycleStatus: status, memorial: { ...pet.memorial, ...memorial } },
       })
     );
+    mocks.replace.mockReset();
+    mocks.logoutOwner.mockReset();
   });
 
   afterEach(() => {
@@ -69,7 +85,7 @@ describe("PetProfileForm lifecycle workflow", () => {
 
   it("marks the saved Active state as Current and stages Memorial locally", async () => {
     render(<PetProfileForm initialPet={pet} mode="edit" />);
-    openPublicProfile();
+    await openPublicProfile();
 
     expect(screen.getByText("Currently Active")).toBeTruthy();
     expect(screen.getByText("Current")).toBeTruthy();
@@ -86,7 +102,7 @@ describe("PetProfileForm lifecycle workflow", () => {
 
   it("confirms Active to Memorial through Save Changes only", async () => {
     render(<PetProfileForm initialPet={pet} mode="edit" />);
-    openPublicProfile();
+    await openPublicProfile();
     fireEvent.click(screen.getByRole("radio", { name: /^Memorial/ }));
     clickSave();
 
@@ -109,9 +125,9 @@ describe("PetProfileForm lifecycle workflow", () => {
     );
   });
 
-  it("confirms Active to Archived and has no duplicate lifecycle action buttons", () => {
+  it("confirms Active to Archived and has no duplicate lifecycle action buttons", async () => {
     render(<PetProfileForm initialPet={pet} mode="edit" />);
-    openPublicProfile();
+    await openPublicProfile();
 
     expect(screen.queryByRole("button", { name: "Move to Memorial" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Archive Pet" })).toBeNull();
@@ -123,13 +139,66 @@ describe("PetProfileForm lifecycle workflow", () => {
     expect(screen.getByText("Archive this pet profile?")).toBeTruthy();
   });
 
-  it("requires an archived profile to restore to Active before Memorial", () => {
+  it("requires an archived profile to restore to Active before Memorial", async () => {
     pet = { ...pet, lifecycleStatus: "Archived", previousLifecycleStatus: "Memorial" };
     mocks.getPetById.mockResolvedValue({ data: pet });
     render(<PetProfileForm initialPet={pet} mode="edit" />);
-    openPublicProfile();
+    await openPublicProfile();
 
     expect(screen.getByRole("radio", { name: /^Memorial/ }).hasAttribute("disabled")).toBe(true);
     expect(screen.getByRole("radio", { name: /^Active/ }).hasAttribute("disabled")).toBe(false);
+  });
+
+  it("shows Pet Not Found only after an authenticated pet lookup returns empty", async () => {
+    mocks.getPetById.mockResolvedValueOnce({ data: null });
+    render(<PetProfileForm initialPet={pet} mode="edit" />);
+
+    expect(await screen.findByText("Pet not found")).toBeTruthy();
+    expect(screen.queryByRole("form")).toBeNull();
+  });
+
+  it("shows a retryable error instead of Pet Not Found for a connection failure", async () => {
+    mocks.getPetById.mockRejectedValueOnce(
+      new ApiClientError(0, "service_unavailable", "Please try again")
+    );
+    render(<PetProfileForm initialPet={pet} mode="edit" />);
+
+    expect(
+      await screen.findByText("This pet profile is temporarily unavailable.")
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Try Again" })).toBeTruthy();
+    expect(screen.queryByText("Pet not found")).toBeNull();
+  });
+
+  it("redirects if the session expires during edit-page revalidation", async () => {
+    mocks.getPetById.mockRejectedValueOnce(
+      new ApiClientError(401, "unauthorized", "Session expired")
+    );
+    render(<PetProfileForm initialPet={pet} mode="edit" />);
+
+    await waitFor(() => expect(mocks.logoutOwner).toHaveBeenCalledOnce());
+    expect(mocks.replace).toHaveBeenCalledWith(
+      `/login?redirect=${encodeURIComponent(`/pets/${pet.id}/edit`)}`
+    );
+    expect(screen.queryByText("Pet not found")).toBeNull();
+  });
+
+  it("redirects to login when the session expires while saving", async () => {
+    window.history.replaceState({}, "", `/pets/${pet.id}/edit?tab=photos`);
+    mocks.updatePet.mockRejectedValueOnce(
+      new ApiClientError(401, "unauthorized", "Session expired")
+    );
+    render(<PetProfileForm initialPet={pet} mode="edit" />);
+
+    await screen.findByRole("tab", { name: /Basic Info/ });
+    clickSave();
+
+    await waitFor(() => expect(mocks.logoutOwner).toHaveBeenCalledOnce());
+    expect(mocks.replace).toHaveBeenCalledWith(
+      `/login?redirect=${encodeURIComponent(
+        `/pets/${pet.id}/edit?tab=photos`
+      )}`
+    );
+    expect(screen.queryByText("Session expired")).toBeNull();
   });
 });

@@ -64,6 +64,7 @@ function installGoogleButton() {
 
 describe("OwnerLoginExperience", () => {
   beforeEach(() => {
+    window.history.replaceState({}, "", "/login");
     authMocks.apiMode = false;
     authMocks.clientId = "";
     authMocks.credentialCallback = null;
@@ -111,6 +112,36 @@ describe("OwnerLoginExperience", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
     expect(authMocks.loginMockOwner).toHaveBeenCalledOnce();
+    expect(authMocks.replace).toHaveBeenCalledWith("/dashboard");
+  });
+
+  it("returns the owner to the requested Edit Pet page after sign-in", () => {
+    window.history.replaceState(
+      {},
+      "",
+      `/login?redirect=${encodeURIComponent(
+        "/pets/owner-pet-id/edit?tab=photos"
+      )}`
+    );
+    render(<OwnerLoginExperience />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
+
+    expect(authMocks.replace).toHaveBeenCalledWith(
+      "/pets/owner-pet-id/edit?tab=photos"
+    );
+  });
+
+  it("rejects an external post-login redirect", () => {
+    window.history.replaceState(
+      {},
+      "",
+      `/login?redirect=${encodeURIComponent("https://evil.example/account")}`
+    );
+    render(<OwnerLoginExperience />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
+
     expect(authMocks.replace).toHaveBeenCalledWith("/dashboard");
   });
 
