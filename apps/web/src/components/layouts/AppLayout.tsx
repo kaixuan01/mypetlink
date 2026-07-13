@@ -6,7 +6,10 @@ import { useSyncExternalStore } from "react";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { MobileBottomNav } from "@/components/layouts/MobileBottomNav";
-import { GlobalAddMenu } from "@/components/portal/GlobalAddMenu";
+import {
+  OwnerHeaderActionsProvider,
+  OwnerPortalHeader,
+} from "@/components/portal/OwnerHeaderActions";
 import { Icon } from "@/components/ui/Icon";
 import {
   isOwnerNavItemActive,
@@ -49,7 +52,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthGuard>
-      <div className="min-h-screen overflow-x-hidden bg-pet-cream pb-[calc(var(--owner-bottom-nav-height)_+_env(safe-area-inset-bottom)_+_1rem)] lg:flex lg:pb-0">
+      <OwnerHeaderActionsProvider>
+        <div className="min-h-screen overflow-x-hidden bg-pet-cream pb-[calc(var(--owner-bottom-nav-height)_+_env(safe-area-inset-bottom)_+_1rem)] lg:flex lg:pb-0">
         <aside
           className={`hidden shrink-0 border-r border-pet-border bg-white/90 shadow-xl shadow-[#0d1b3d]/5 backdrop-blur transition-[width] duration-300 ease-in-out lg:sticky lg:top-0 lg:flex lg:h-dvh lg:flex-col lg:overflow-hidden ${
             collapsed ? "px-3 py-5 lg:w-20" : "p-5 lg:w-72"
@@ -136,12 +140,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             }`}
           >
             {collapsed ? (
-              <GlobalAddMenu variant="icon" />
-            ) : (
-              <GlobalAddMenu variant="full" />
-            )}
-
-            {collapsed ? (
               <SidebarTooltipWrap label="Logout">
                 <button
                   aria-label="Logout"
@@ -166,24 +164,15 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </aside>
 
         <div className="min-w-0 flex-1">
-          <header className="sticky top-0 z-20 border-b border-pet-border bg-pet-cream/92 px-4 py-4 backdrop-blur lg:hidden">
-            <div className="flex items-center justify-between gap-3">
-              <Link href="/dashboard" className="flex items-center gap-3">
-                <BrandLogo markOnly className="h-10 w-10" />
-                <span className="text-sm font-black text-pet-ink">
-                  MyPetLink
-                </span>
-              </Link>
-              <GlobalAddMenu variant="compact" />
-            </div>
-          </header>
+          <OwnerPortalHeader />
           <main className="mx-auto min-w-0 w-full max-w-7xl px-4 pb-[calc(var(--owner-bottom-nav-height)_+_env(safe-area-inset-bottom)_+_1rem)] pt-5 sm:px-6 lg:px-8 lg:py-8">
             {children}
           </main>
         </div>
 
         <MobileBottomNav />
-      </div>
+        </div>
+      </OwnerHeaderActionsProvider>
     </AuthGuard>
   );
 }

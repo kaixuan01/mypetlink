@@ -7,6 +7,7 @@ type EmptyStateProps = {
   description: string;
   actionLabel?: string;
   actionHref?: string;
+  actionOnClick?: () => void;
 };
 
 export function EmptyState({
@@ -15,6 +16,7 @@ export function EmptyState({
   description,
   actionLabel,
   actionHref,
+  actionOnClick,
 }: EmptyStateProps) {
   return (
     <div className="brand-paw-dots brand-soft-card rounded-[1.75rem] border-dashed p-8 text-center">
@@ -25,8 +27,13 @@ export function EmptyState({
       <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-pet-muted">
         {description}
       </p>
-      {actionLabel && actionHref ? (
-        <CTAButton href={actionHref} icon="plus" className="mt-5">
+      {actionLabel && (actionHref || actionOnClick) ? (
+        <CTAButton
+          href={actionHref}
+          icon="plus"
+          className="mt-5"
+          onClick={actionOnClick}
+        >
           {actionLabel}
         </CTAButton>
       ) : null}
