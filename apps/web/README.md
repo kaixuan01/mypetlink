@@ -65,7 +65,9 @@ Use Cloudflare Pages as a static site deployment for this frontend-only staging 
 - Root directory: `apps/web` (this app lives inside the MyPetLink monorepo)
 - Build command: `npm run build`
 - Build output directory: `out`
-- Node.js version: use Cloudflare Pages default Node 20 or newer
+- Node.js version: Node 22 (tracked in `.nvmrc`)
+
+Cloudflare Pages build settings should set `NODE_VERSION=22` for both Production and Preview if the project has an explicit Node override or still uses an older build image. The current Pages v3 image defaults to Node 22 and also reads this app-root `.nvmrc`.
 
 This project is configured with Next.js static export, so `npm run build` writes the deployable site to the `out` folder. Public marketing pages are indexable; Owner Portal, Admin Portal, QR Safety, tag-scan, and normal owner-created public profiles remain excluded according to [`docs/SEO_INDEXING_POLICY.md`](docs/SEO_INDEXING_POLICY.md).
 

@@ -53,6 +53,7 @@ After this restructure, update the Cloudflare Pages project settings to build fr
 - Root directory: `apps/web`
 - Build command: `npm run build`
 - Build output directory: `out`
+- Node.js version: `22` (from `apps/web/.nvmrc`)
 
 The web app uses Next.js static export (`output: "export"` in production builds), so `npm run build` writes the deployable site to `apps/web/out`.
 
