@@ -247,6 +247,8 @@ internal static class PetDtoMapper
             pet.GeneralArea,
             pet.Bio,
             ParsePersonalityTags(pet.PersonalityTagsJson),
+            pet.FavoriteFood,
+            pet.FavoriteToy,
             pet.ProfileMediaFileId,
             pet.CoverMediaFileId,
             ResolvePublicMediaUrl(pet.ProfileMediaFile, publicBaseUrl),

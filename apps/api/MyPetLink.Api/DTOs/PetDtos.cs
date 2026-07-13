@@ -77,7 +77,9 @@ public sealed record CreatePetRequest(
     [MaxLength(2000)]
     string? EmergencyNote,
     [Range(0, 100)] byte? CoverPositionX = null,
-    [Range(0, 100)] byte? CoverPositionY = null);
+    [Range(0, 100)] byte? CoverPositionY = null,
+    [MaxLength(80)] string? FavoriteFood = null,
+    [MaxLength(80)] string? FavoriteToy = null);
 
 public sealed record UpdatePetRequest(
     [MaxLength(120)]
@@ -110,7 +112,9 @@ public sealed record UpdatePetRequest(
     [MaxLength(2000)]
     string? EmergencyNote,
     [Range(0, 100)] byte? CoverPositionX = null,
-    [Range(0, 100)] byte? CoverPositionY = null);
+    [Range(0, 100)] byte? CoverPositionY = null,
+    [MaxLength(80)] string? FavoriteFood = null,
+    [MaxLength(80)] string? FavoriteToy = null);
 
 public sealed record PetContactResponse(
     bool UseOwnerDefaults,
@@ -173,6 +177,8 @@ public sealed record PetDetailResponse(
     string? GeneralArea,
     string? Bio,
     IReadOnlyList<string> PersonalityTags,
+    string? FavoriteFood,
+    string? FavoriteToy,
     Guid? ProfileMediaId,
     Guid? CoverMediaId,
     string? ProfilePhotoUrl,

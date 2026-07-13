@@ -206,7 +206,12 @@ export function DashboardClient({
         </div>
       </section>
 
-      <PlanSummaryCard compact initialPets={allPets} />
+      <PlanSummaryCard
+        compact
+        initialMoments={allMoments}
+        initialPets={allPets}
+        refreshOnMount={false}
+      />
 
       <DashboardSection
         title="Your pets"

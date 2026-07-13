@@ -509,8 +509,8 @@ export function mapBackendPetToFrontend(
       detail?.bio ||
       `${pet.name} has a safe MyPetLink profile ready for family and friends.`,
     personalityTags: pet.personalityTags ?? [],
-    favoriteFood: "Not set",
-    favoriteToy: "Not set",
+    favoriteFood: detail?.favoriteFood ?? "Not set",
+    favoriteToy: detail?.favoriteToy ?? "Not set",
     safetyNote:
       detail?.safetyNote || "Please contact the owner if this pet is found.",
     emergencyNote:
@@ -602,8 +602,8 @@ function mapBackendPublicProfile(profile: BackendPublicPetProfile): PublicPetPro
         profile.bio ??
         `${profile.name} has a safe MyPetLink profile ready for family and friends.`,
       personalityTags: profile.personalityTags ?? [],
-      favoriteFood: "Not set",
-      favoriteToy: "Not set",
+      favoriteFood: profile.favoriteFood ?? "Not set",
+      favoriteToy: profile.favoriteToy ?? "Not set",
       safetyNote: "",
       emergencyNote: "",
       lostModeEnabled: profile.lostModeEnabled,
@@ -723,7 +723,7 @@ function PetDtoFallbackSlug(name: string, publicCode: string) {
   return `${slugifyPetSlug(name) || "pet"}-${publicCode}`;
 }
 
-function buildBackendPetPayload(payload: PetPayload) {
+export function buildBackendPetPayload(payload: PetPayload) {
   const hasAgeInformation =
     "ageInformationMode" in payload ||
     "birthday" in payload ||
@@ -761,6 +761,12 @@ function buildBackendPetPayload(payload: PetPayload) {
     // tags untouched; a full save sends the exact selection (including []).
     ...(payload.personalityTags !== undefined
       ? { personalityTags: payload.personalityTags }
+      : {}),
+    ...(payload.favoriteFood !== undefined
+      ? { favoriteFood: payload.favoriteFood }
+      : {}),
+    ...(payload.favoriteToy !== undefined
+      ? { favoriteToy: payload.favoriteToy }
       : {}),
     profileTheme: payload.profileTheme,
     contact: {

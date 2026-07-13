@@ -727,6 +727,7 @@ function AboutTab({
     ...(visibility.showGeneralArea
       ? [{ label: "General area", value: generalArea }]
       : []),
+    { label: "Favourite food", value: profile.favoriteFood },
     { label: "Favourite toy", value: profile.favoriteToy },
   ].filter((detail) => detail.value && detail.value !== "Not set");
 

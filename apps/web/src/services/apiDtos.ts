@@ -93,6 +93,8 @@ export type BackendPetDetail = {
   generalArea?: string | null;
   bio?: string | null;
   personalityTags?: string[] | null;
+  favoriteFood?: string | null;
+  favoriteToy?: string | null;
   profileTheme: string;
   lifecycleStatus: PetLifecycleStatus;
   lostModeEnabled: boolean;
@@ -170,6 +172,8 @@ export type BackendPublicPetProfile = {
   generalArea?: string | null;
   bio?: string | null;
   personalityTags?: string[] | null;
+  favoriteFood?: string | null;
+  favoriteToy?: string | null;
   profilePhotoUrl?: string | null;
   coverPhotoUrl?: string | null;
   coverPositionX?: number | null;

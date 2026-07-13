@@ -2127,8 +2127,10 @@ function buildPayload(
       form.bio.trim() ||
       `${name} is loved dearly and has a safe profile for family and friends.`,
     personalityTags: splitTags(form.personalityTags),
-    favoriteFood: form.favoriteFood.trim() || "Not set",
-    favoriteToy: form.favoriteToy.trim() || "Not set",
+    // Empty strings are intentional clear operations. The API normalizes them
+    // to NULL while omitted fields remain unchanged for partial updates.
+    favoriteFood: form.favoriteFood.trim(),
+    favoriteToy: form.favoriteToy.trim(),
     safetyNote:
       form.safetyNote.trim() || "Please contact the owner if this pet is found.",
     emergencyNote:

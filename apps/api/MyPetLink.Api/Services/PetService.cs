@@ -87,6 +87,8 @@ public sealed class PetService : SkeletonService, IPetService
             GeneralArea = PetDtoMapper.NormalizeOptional(request.GeneralArea) ?? user.OwnerProfile!.DefaultGeneralArea,
             Bio = PetDtoMapper.NormalizeOptional(request.Bio),
             PersonalityTagsJson = PetDtoMapper.SerializePersonalityTags(request.PersonalityTags),
+            FavoriteFood = PetDtoMapper.NormalizeOptional(request.FavoriteFood),
+            FavoriteToy = PetDtoMapper.NormalizeOptional(request.FavoriteToy),
             CoverPositionX = request.CoverPositionX ?? 50,
             CoverPositionY = request.CoverPositionY ?? 50,
             ProfileTheme = PetDtoMapper.NormalizeOptional(request.ProfileTheme) ?? "default",
@@ -208,6 +210,16 @@ public sealed class PetService : SkeletonService, IPetService
         if (request.PersonalityTags is not null)
         {
             pet.PersonalityTagsJson = PetDtoMapper.SerializePersonalityTags(request.PersonalityTags);
+        }
+
+        if (request.FavoriteFood is not null)
+        {
+            pet.FavoriteFood = PetDtoMapper.NormalizeOptional(request.FavoriteFood);
+        }
+
+        if (request.FavoriteToy is not null)
+        {
+            pet.FavoriteToy = PetDtoMapper.NormalizeOptional(request.FavoriteToy);
         }
 
         if (request.ProfileTheme is not null)

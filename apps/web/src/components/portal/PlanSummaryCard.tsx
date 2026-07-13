@@ -12,21 +12,40 @@ import {
 import { ownerRoutes } from "@/lib/routes";
 import { getPetMoments } from "@/services/momentService";
 import { getPets } from "@/services/petService";
-import type { Pet } from "@/types";
+import type { Pet, PetMoment } from "@/types";
 
 type PlanSummaryCardProps = {
   initialPets?: Pet[];
+  initialMoments?: PetMoment[];
   compact?: boolean;
+  refreshOnMount?: boolean;
 };
 
 export function PlanSummaryCard({
   initialPets = [],
+  initialMoments,
   compact = false,
+  refreshOnMount = true,
 }: PlanSummaryCardProps) {
-  const [pets, setPets] = useState(initialPets);
-  const [memoryCounts, setMemoryCounts] = useState<Record<string, number>>({});
+  const [loadedPets, setLoadedPets] = useState<Pet[] | null>(null);
+  const [loadedMemoryCounts, setLoadedMemoryCounts] = useState<Record<
+    string,
+    number
+  > | null>(null);
+  const providedMemoryCounts = useMemo(
+    () => buildMemoryCounts(initialMoments ?? []),
+    [initialMoments]
+  );
+  const pets = refreshOnMount ? (loadedPets ?? initialPets) : initialPets;
+  const memoryCounts = refreshOnMount
+    ? (loadedMemoryCounts ?? providedMemoryCounts)
+    : providedMemoryCounts;
 
   useEffect(() => {
+    if (!refreshOnMount) {
+      return;
+    }
+
     let active = true;
 
     getPets().then(async (petsResponse) => {
@@ -41,14 +60,14 @@ export function PlanSummaryCard({
         return;
       }
 
-      setPets(petsResponse.data);
-      setMemoryCounts(Object.fromEntries(counts));
+      setLoadedPets(petsResponse.data);
+      setLoadedMemoryCounts(Object.fromEntries(counts));
     });
 
     return () => {
       active = false;
     };
-  }, []);
+  }, [refreshOnMount]);
 
   const countedPets = getCountedPetProfiles(pets);
   const petLimit = getPetLimitStateFromPets(pets);
@@ -117,4 +136,11 @@ export function PlanSummaryCard({
       </p>
     </section>
   );
+}
+
+function buildMemoryCounts(moments: PetMoment[]) {
+  return moments.reduce<Record<string, number>>((counts, moment) => {
+    counts[moment.petId] = (counts[moment.petId] ?? 0) + 1;
+    return counts;
+  }, {});
 }

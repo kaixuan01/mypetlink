@@ -201,4 +201,56 @@ describe("PetProfileForm lifecycle workflow", () => {
     );
     expect(screen.queryByText("Session expired")).toBeNull();
   });
+
+  it("initializes, saves, and reloads favourite food and toy values", async () => {
+    pet = {
+      ...pet,
+      favoriteFood: "Ikan kembung 🐟",
+      favoriteToy: "毛绒小鼠 🐭",
+    };
+    mocks.getPetById.mockResolvedValue({ data: pet });
+    render(<PetProfileForm initialPet={pet} mode="edit" />);
+
+    const food = await screen.findByLabelText("Favourite food");
+    const toy = screen.getByLabelText("Favourite toy");
+    expect(food).toHaveProperty("value", "Ikan kembung 🐟");
+    expect(toy).toHaveProperty("value", "毛绒小鼠 🐭");
+    expect(food).toHaveProperty("maxLength", 80);
+    expect(toy).toHaveProperty("maxLength", 80);
+
+    fireEvent.change(food, { target: { value: "参巴 ikan 🐟" } });
+    fireEvent.change(toy, { target: { value: "Bola kegemaran 🎾" } });
+    clickSave();
+
+    await waitFor(() =>
+      expect(mocks.updatePet).toHaveBeenCalledWith(
+        pet.id,
+        expect.objectContaining({
+          favoriteFood: "参巴 ikan 🐟",
+          favoriteToy: "Bola kegemaran 🎾",
+        })
+      )
+    );
+    expect(await screen.findByDisplayValue("参巴 ikan 🐟")).toBeTruthy();
+    expect(screen.getByDisplayValue("Bola kegemaran 🎾")).toBeTruthy();
+  });
+
+  it("sends explicit empty values when both favourite fields are cleared", async () => {
+    render(<PetProfileForm initialPet={pet} mode="edit" />);
+    const food = await screen.findByLabelText("Favourite food");
+    const toy = screen.getByLabelText("Favourite toy");
+
+    fireEvent.change(food, { target: { value: "" } });
+    fireEvent.change(toy, { target: { value: "" } });
+    clickSave();
+
+    await waitFor(() =>
+      expect(mocks.updatePet).toHaveBeenCalledWith(
+        pet.id,
+        expect.objectContaining({ favoriteFood: "", favoriteToy: "" })
+      )
+    );
+    expect(screen.getByLabelText("Favourite food")).toHaveProperty("value", "");
+    expect(screen.getByLabelText("Favourite toy")).toHaveProperty("value", "");
+  });
 });
