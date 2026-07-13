@@ -31,11 +31,8 @@ vi.mock("@/services/tagService", () => ({
 vi.mock("@/components/portal/PlanSummaryCard", () => ({
   PlanSummaryCard: (props: unknown) => {
     mocks.planSummaryProps(props);
-    return null;
+    return <div data-testid="plan-summary-card" />;
   },
-}));
-vi.mock("@/components/portal/PlanAwareAddPetButton", () => ({
-  PlanAwareAddPetButton: () => <button type="button">Add Pet</button>,
 }));
 
 const { DashboardClient } = await import("./DashboardClient");
@@ -82,22 +79,18 @@ describe("DashboardClient API-mode initialization", () => {
     expect(mocks.getPets).toHaveBeenCalledOnce();
 
     resolvePets?.({ data: [] });
-    await screen.findByText("No active pets yet");
-    expect(mocks.planSummaryProps).toHaveBeenCalledWith(
-      expect.objectContaining({
-        initialMoments: [],
-        initialPets: [],
-        refreshOnMount: false,
-      })
-    );
+    await screen.findByText("Welcome to MyPetLink");
   });
 
-  it("renders the legitimate empty state for an empty API response", async () => {
+  it("shows the zero-pet onboarding empty state for an empty API response", async () => {
     mocks.getPets.mockResolvedValue({ data: [] });
     renderDashboard();
 
-    expect(await screen.findByText("No active pets yet")).toBeTruthy();
-    expect(screen.queryByText("Milo")).toBeNull();
+    expect(await screen.findByText("Welcome to MyPetLink")).toBeTruthy();
+    expect(screen.getByText("Add your first pet")).toBeTruthy();
+    // No dashboard statistics or plan card for a brand-new owner.
+    expect(screen.queryByTestId("plan-summary-card")).toBeNull();
+    expect(screen.queryByText("Quick actions")).toBeNull();
   });
 
   it("renders a retryable error without falling back to mock pets", async () => {
@@ -108,5 +101,78 @@ describe("DashboardClient API-mode initialization", () => {
     expect(screen.getByText("Please try again.")).toBeTruthy();
     expect(screen.queryByText("Milo")).toBeNull();
     await waitFor(() => expect(mocks.getPets).toHaveBeenCalledOnce());
+  });
+
+  it("keeps the dashboard usable when a secondary request fails", async () => {
+    mocks.getPets.mockResolvedValue({ data: [mockPets[0]] });
+    mocks.getOrders.mockRejectedValue(new Error("orders down"));
+    renderDashboard();
+
+    // Pets still render even though the orders request failed.
+    expect(await screen.findByText("Milo")).toBeTruthy();
+    expect(screen.queryByText("Could not load your dashboard")).toBeNull();
+  });
+});
+
+describe("DashboardClient with pets", () => {
+  beforeEach(() => {
+    mocks.getPets.mockResolvedValue({ data: [mockPets[0]] });
+    mocks.getPetMoments.mockResolvedValue({ data: [] });
+    mocks.getPetRecords.mockResolvedValue({ data: [] });
+    mocks.getAllTags.mockResolvedValue({ data: [] });
+    mocks.getOrders.mockResolvedValue({ data: [] });
+    mocks.planSummaryProps.mockReset();
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it("has no Add Pet button in the welcome area or quick actions", async () => {
+    renderDashboard();
+
+    await screen.findByText("Milo");
+    // The only global create entry point lives in the app shell, not the page.
+    expect(screen.queryByRole("button", { name: /add pet/i })).toBeNull();
+    expect(screen.queryByRole("link", { name: /^add pet$/i })).toBeNull();
+    expect(screen.queryByText("Add your first pet")).toBeNull();
+  });
+
+  it("shows quick actions without a duplicate Add Pet destination", async () => {
+    renderDashboard();
+
+    await screen.findByText("Quick actions");
+    const quickLabels = ["Care Record", "Add Moment", "QR Safety Page", "Orders"];
+    for (const label of quickLabels) {
+      expect(screen.getByText(label)).toBeTruthy();
+    }
+  });
+
+  it("uses singular statistic labels for a single pet", async () => {
+    renderDashboard();
+
+    await screen.findByText("Milo");
+    expect(screen.getByText("active pet")).toBeTruthy();
+    expect(screen.getByText("QR safety page")).toBeTruthy();
+    expect(screen.getByText("pending orders")).toBeTruthy();
+  });
+
+  it("renders Your Pets above Plan usage", async () => {
+    renderDashboard();
+
+    await screen.findByText("Milo");
+    const body = document.body.textContent ?? "";
+    expect(body.indexOf("Your pets")).toBeGreaterThan(-1);
+    expect(body.indexOf("Your pets")).toBeLessThan(body.indexOf("Plan usage"));
+  });
+
+  it("passes dashboard-loaded data into the plan card without re-fetching", async () => {
+    renderDashboard();
+
+    await screen.findByText("Milo");
+    expect(mocks.planSummaryProps).toHaveBeenCalledWith(
+      expect.objectContaining({ refreshOnMount: false })
+    );
   });
 });

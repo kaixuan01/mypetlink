@@ -41,8 +41,11 @@ it("uses dashboard-provided pets and moments without issuing duplicate requests"
     />
   );
 
-  expect(screen.getByText(pet.name)).toBeTruthy();
-  expect(screen.getByText(/1 of .* pet memories used/)).toBeTruthy();
+  expect(screen.getByText(`${pet.name} memories`)).toBeTruthy();
+  expect(screen.getByText("1 / 10")).toBeTruthy();
+  // The compact plan card no longer includes its own Add Pet button.
+  expect(screen.queryByRole("link", { name: /add pet/i })).toBeNull();
+  expect(screen.queryByRole("button", { name: /add pet/i })).toBeNull();
   expect(mocks.getPets).not.toHaveBeenCalled();
   expect(mocks.getPetMoments).not.toHaveBeenCalled();
 });

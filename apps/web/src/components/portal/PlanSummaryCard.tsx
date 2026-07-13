@@ -2,14 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
-import { CTAButton } from "@/components/ui/CTAButton";
 import {
   freePlanLimits,
   getCountedPetProfiles,
   getPetLimitStateFromPets,
-  premiumPlan,
 } from "@/lib/planLimits";
-import { ownerRoutes } from "@/lib/routes";
 import { getPetMoments } from "@/services/momentService";
 import { getPets } from "@/services/petService";
 import type { Pet, PetMoment } from "@/types";
@@ -85,56 +82,74 @@ export function PlanSummaryCard({
 
   return (
     <section className="brand-card rounded-[1.5rem] p-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge tone="mint">Current plan: Free</Badge>
-            <Badge tone="teal">Premium Coming Soon</Badge>
-          </div>
-          <h2 className="mt-3 text-lg font-black text-pet-ink">
-            {petLimit.usageLabel}
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-pet-muted">
-            Smart tags are optional one-time add-ons. Basic safety features stay
-            included with your free profile.
-          </p>
-          {petLimit.isOverLimit ? (
-            <p className="mt-3 rounded-[1.25rem] bg-pet-cream p-4 text-sm font-semibold leading-6 text-pet-muted">
-              {petLimit.message}
-            </p>
-          ) : null}
-        </div>
-        <CTAButton
-          disabled={!petLimit.canCreate}
-          href={petLimit.canCreate ? ownerRoutes.petNew : undefined}
-          icon="plus"
-          variant={petLimit.canCreate ? "coral" : "secondary"}
-          className="shrink-0"
-        >
-          {petLimit.canCreate ? "Add Pet" : "Limit Reached"}
-        </CTAButton>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-black text-pet-ink">Current plan: Free</p>
+        <Badge tone="teal">Premium coming soon</Badge>
       </div>
 
-      {topMemoryRows.length ? (
-        <div className="mt-4 grid gap-2 sm:grid-cols-2">
-          {topMemoryRows.map((pet) => (
-            <div className="rounded-[1rem] bg-pet-cream p-3" key={pet.id}>
-              <p className="truncate text-sm font-black text-pet-ink">
-                {pet.name}
-              </p>
-              <p className="mt-1 text-xs font-bold text-pet-muted">
-                {pet.count} of {freePlanLimits.maxMemoriesPerPet} pet memories
-                used
-              </p>
-            </div>
-          ))}
-        </div>
-      ) : null}
+      <div className="mt-4 grid gap-3">
+        <UsageRow
+          label="Pet profiles"
+          used={petLimit.count}
+          max={petLimit.max}
+        />
+        {topMemoryRows.map((pet) => (
+          <UsageRow
+            key={pet.id}
+            label={`${pet.name} memories`}
+            used={pet.count}
+            max={freePlanLimits.maxMemoriesPerPet}
+          />
+        ))}
+      </div>
 
-      <p className="mt-4 text-xs font-semibold leading-5 text-pet-muted">
-        {premiumPlan.description}
-      </p>
+      {petLimit.isOverLimit ? (
+        <p className="mt-4 rounded-[1.25rem] bg-pet-cream p-4 text-xs font-semibold leading-5 text-pet-muted">
+          {petLimit.message}
+        </p>
+      ) : null}
     </section>
+  );
+}
+
+function UsageRow({
+  label,
+  used,
+  max,
+}: {
+  label: string;
+  used: number;
+  max: number;
+}) {
+  const percent = max > 0 ? Math.min(100, Math.round((used / max) * 100)) : 0;
+  const atLimit = used >= max;
+
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-3">
+        <span className="min-w-0 truncate text-sm font-bold text-pet-ink">
+          {label}
+        </span>
+        <span
+          className={`shrink-0 text-sm font-black ${
+            atLimit ? "text-pet-coral" : "text-pet-muted"
+          }`}
+        >
+          {used} / {max}
+        </span>
+      </div>
+      <div
+        aria-hidden="true"
+        className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-pet-cream"
+      >
+        <div
+          className={`h-full rounded-full ${
+            atLimit ? "bg-pet-coral" : "bg-pet-teal"
+          }`}
+          style={{ width: `${percent}%` }}
+        />
+      </div>
+    </div>
   );
 }
 

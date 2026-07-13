@@ -6,7 +6,7 @@ import { useSyncExternalStore } from "react";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { MobileBottomNav } from "@/components/layouts/MobileBottomNav";
-import { PlanAwareAddPetButton } from "@/components/portal/PlanAwareAddPetButton";
+import { GlobalAddMenu } from "@/components/portal/GlobalAddMenu";
 import { Icon } from "@/components/ui/Icon";
 import {
   isOwnerNavItemActive,
@@ -49,7 +49,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthGuard>
-      <div className="min-h-screen overflow-x-hidden bg-pet-cream pb-[calc(8.5rem+env(safe-area-inset-bottom))] lg:flex lg:pb-0">
+      <div className="min-h-screen overflow-x-hidden bg-pet-cream pb-[calc(var(--owner-bottom-nav-height)_+_env(safe-area-inset-bottom)_+_1rem)] lg:flex lg:pb-0">
         <aside
           className={`hidden shrink-0 border-r border-pet-border bg-white/90 shadow-xl shadow-[#0d1b3d]/5 backdrop-blur transition-[width] duration-300 ease-in-out lg:sticky lg:top-0 lg:flex lg:h-dvh lg:flex-col lg:overflow-hidden ${
             collapsed ? "px-3 py-5 lg:w-20" : "p-5 lg:w-72"
@@ -136,17 +136,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             }`}
           >
             {collapsed ? (
-              <SidebarTooltipWrap label="Add Pet">
-                <Link
-                  aria-label="Add Pet"
-                  className="grid h-11 w-11 place-items-center rounded-full bg-pet-coral text-white shadow-lg shadow-[#ff7a6e]/20 transition hover:bg-[#f26155]"
-                  href="/pets/new"
-                >
-                  <Icon name="plus" className="h-5 w-5" />
-                </Link>
-              </SidebarTooltipWrap>
+              <GlobalAddMenu variant="icon" />
             ) : (
-              <PlanAwareAddPetButton fullWidth />
+              <GlobalAddMenu variant="full" />
             )}
 
             {collapsed ? (
@@ -182,10 +174,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   MyPetLink
                 </span>
               </Link>
-              <PlanAwareAddPetButton compact />
+              <GlobalAddMenu variant="compact" />
             </div>
           </header>
-          <main className="mx-auto min-w-0 w-full max-w-7xl px-4 pb-[calc(8.5rem+env(safe-area-inset-bottom))] pt-5 sm:px-6 lg:px-8 lg:py-8">
+          <main className="mx-auto min-w-0 w-full max-w-7xl px-4 pb-[calc(var(--owner-bottom-nav-height)_+_env(safe-area-inset-bottom)_+_1rem)] pt-5 sm:px-6 lg:px-8 lg:py-8">
             {children}
           </main>
         </div>

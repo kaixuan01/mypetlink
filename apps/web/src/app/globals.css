@@ -3,6 +3,10 @@
 :root {
   --background: #fff8f2;
   --foreground: #0d1b3d;
+  /* Height the fixed Owner Portal mobile bottom navigation occupies, including
+     its own bottom offset. Used to pad scrollable content so the last item is
+     never hidden behind the nav. Safe-area inset is added on top in the calc. */
+  --owner-bottom-nav-height: 5.25rem;
 }
 
 @theme inline {
