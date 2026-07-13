@@ -12,6 +12,7 @@ import robots from "@/app/robots";
 import sitemap from "@/app/sitemap";
 import { marketingRoutes, samplePet } from "@/lib/routes";
 import {
+  buildIndexableRobots,
   canonicalUrl,
   createPublicProfileMetadata,
   createUnavailablePublicProfileMetadata,
@@ -37,6 +38,34 @@ describe("SEO route policy", () => {
       expect(robotsPolicy(metadata).index).toBe(true);
       expect(robotsPolicy(metadata).follow).toBe(true);
     }
+  });
+
+  it("never emits noindex on the homepage and adds rich-result directives", () => {
+    const robots = homeMetadata.robots as Record<string, unknown> & {
+      googleBot?: Record<string, unknown>;
+    };
+
+    expect(robots.index).toBe(true);
+    expect(robots.follow).toBe(true);
+    expect(robots["max-image-preview"]).toBe("large");
+    expect(robots["max-snippet"]).toBe(-1);
+    expect(robots["max-video-preview"]).toBe(-1);
+    expect(robots.googleBot?.index).toBe(true);
+    expect(JSON.stringify(homeMetadata).toLowerCase()).not.toContain("noindex");
+  });
+
+  it("environment-safe indexing: production indexes, preview (NEXT_PUBLIC_NOINDEX) is noindex", () => {
+    // Production default (flag off): indexable with rich directives.
+    const production = buildIndexableRobots(false) as Record<string, unknown>;
+    expect(production.index).toBe(true);
+    expect(production.follow).toBe(true);
+    expect(production["max-image-preview"]).toBe("large");
+
+    // Preview/staging opt-out (flag on): noindex, nofollow.
+    expect(robotsPolicy({ robots: buildIndexableRobots(true) }).index).toBe(false);
+    expect(robotsPolicy({ robots: buildIndexableRobots(true) }).follow).toBe(
+      false
+    );
   });
 
   it("keeps login, Owner Portal, and Admin Portal pages noindex", () => {

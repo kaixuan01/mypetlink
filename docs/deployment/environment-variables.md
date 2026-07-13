@@ -15,6 +15,7 @@ These are `NEXT_PUBLIC_*`, so they are **baked into the static bundle at build t
 | `NEXT_PUBLIC_MEDIA_BASE_URL` | No | Optional public media domain (no trailing slash). The API already returns ready-to-render absolute photo URLs, so this is only a fallback used to resolve bare object keys. Must be an absolute `https://` URL if set. | `https://media.mypetlink.com.my` |
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | No (public by design) | Google OAuth Web client id used by the GIS button | `<id>.apps.googleusercontent.com` |
 | `NEXT_PUBLIC_SMART_TAG_ORDERING_ENABLED` | No | Frontend build-time feature flag for Smart Tag order CTAs. Keep `false` or unset for the free-profiles launch; set `true` only when the backend flag is also enabled and physical tags are ready. | `false` |
+| `NEXT_PUBLIC_NOINDEX` | No | Search-indexing guard for the static build. **Leave unset in Production** — public marketing/profile pages are then indexable by default (so production can never accidentally inherit a preview `noindex`). Set to `true` **only in the Preview/staging Cloudflare Pages environment** to force `noindex,nofollow` on those deploys. Private routes (login, owner/admin portal, edit/checkout, non-sample public profiles, QR/tag pages) stay `noindex` regardless of this flag. | `true` (Preview only) |
 
 Cloudflare Pages Functions also consume this request-time variable:
 
