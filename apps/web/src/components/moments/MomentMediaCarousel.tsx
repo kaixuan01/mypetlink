@@ -6,7 +6,7 @@ import {
   MomentMediaViewer,
   pauseMediaElements,
 } from "@/components/moments/MomentMediaViewer";
-import { VideoPoster } from "@/components/moments/VideoPoster";
+import { MomentVideoPlayer } from "@/components/moments/MomentVideoPlayer";
 import { sortedMedia } from "@/lib/momentMedia";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import type { PetProfileTheme } from "@/lib/petProfileThemes";
@@ -30,10 +30,12 @@ export function MomentMediaCarousel({
 }: MomentMediaCarouselProps) {
   const media = useMemo(() => sortedMedia(moment.media ?? []), [moment.media]);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [viewerIndex, setViewerIndex] = useState(0);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [hasSwiped, setHasSwiped] = useState(false);
   const carouselRef = useRef<HTMLDivElement>(null);
   const pointerOriginRef = useRef<PointerOrigin | null>(null);
+  const suppressClicksUntilRef = useRef(0);
   const safeIndex = Math.min(Math.max(activeIndex, 0), media.length - 1);
   const activeItem = media[safeIndex] ?? media[0];
   const activeUrl = resolveMediaUrl(activeItem?.url);
@@ -43,11 +45,25 @@ export function MomentMediaCarousel({
     if (!media.length) return;
     pauseMediaElements(carouselRef.current);
     setActiveIndex((index + media.length) % media.length);
-    if (fromSwipe) setHasSwiped(true);
+    if (fromSwipe) {
+      setHasSwiped(true);
+      suppressClicksUntilRef.current = Date.now() + 250;
+    }
   }
 
   function selectRelative(offset: number, fromSwipe = false) {
     selectIndex(safeIndex + offset, fromSwipe);
+  }
+
+  function openViewer(index: number) {
+    pauseMediaElements(carouselRef.current);
+    setViewerIndex(index);
+    setViewerOpen(true);
+  }
+
+  function stopControlPointer(event: React.PointerEvent<HTMLElement>) {
+    event.stopPropagation();
+    pointerOriginRef.current = null;
   }
 
   if (!media.length) {
@@ -87,6 +103,13 @@ export function MomentMediaCarousel({
             ? "aspect-[16/10] max-h-[28rem]"
             : "aspect-[4/5] max-h-[46rem] sm:aspect-[4/3]"
         }`}
+        onClickCapture={(event) => {
+          if (Date.now() < suppressClicksUntilRef.current) {
+            event.preventDefault();
+            event.stopPropagation();
+            suppressClicksUntilRef.current = 0;
+          }
+        }}
         onKeyDown={(event) => {
           if (!hasMultiple) return;
           if (event.key === "ArrowLeft") {
@@ -99,6 +122,11 @@ export function MomentMediaCarousel({
           }
         }}
         onPointerDown={(event) => {
+          const target = event.target as Element;
+          if (target.closest('[data-carousel-control="true"]')) {
+            pointerOriginRef.current = null;
+            return;
+          }
           pointerOriginRef.current = { x: event.clientX, y: event.clientY };
         }}
         onPointerUp={(event) => {
@@ -122,39 +150,43 @@ export function MomentMediaCarousel({
           <img
             alt=""
             aria-hidden="true"
-            className="absolute inset-0 h-full w-full scale-110 object-cover opacity-25 blur-2xl"
+            className="absolute inset-0 h-full w-full scale-110 object-cover opacity-25 blur-2xl motion-reduce:scale-100"
             src={activeUrl}
           />
         ) : null}
-        <div className="absolute inset-0 bg-gradient-to-b from-white/5 via-transparent to-black/20" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/5 via-transparent to-black/20" />
 
         {activeUrl && activeItem.type === "video" ? (
-          <button
-            aria-label={`Open ${moment.title} video ${safeIndex + 1} of ${media.length}`}
-            className="absolute inset-0 h-full w-full cursor-zoom-in"
-            onClick={() => setViewerOpen(true)}
-            type="button"
-          >
-            <VideoPoster
+          <div className="absolute inset-0">
+            <MomentVideoPlayer
               alt={activeItem.altText ?? `${moment.title} video`}
+              compact={compact}
               durationSeconds={activeItem.durationSeconds}
               posterUrl={activeItem.posterUrl}
               url={activeItem.url}
             />
-          </button>
+          </div>
         ) : activeUrl ? (
           <button
             aria-label={`Open ${moment.title} photo ${safeIndex + 1} of ${media.length}`}
-            className="absolute inset-0 h-full w-full cursor-zoom-in"
-            onClick={() => setViewerOpen(true)}
+            className="group/media absolute inset-0 h-full w-full cursor-zoom-in"
+            onClick={(event) => {
+              event.stopPropagation();
+              openViewer(safeIndex);
+            }}
             type="button"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               alt={activeItem.altText ?? `${moment.title} photo`}
-              className="h-full w-full object-contain"
+              className="h-full w-full object-contain transition duration-300 group-hover/media:scale-[1.015] motion-reduce:transition-none motion-reduce:group-hover/media:scale-100"
               src={activeUrl}
             />
+            <span className="pointer-events-none absolute inset-0 grid place-items-center bg-black/0 opacity-0 transition group-hover/media:bg-black/15 group-hover/media:opacity-100 group-focus-visible/media:bg-black/15 group-focus-visible/media:opacity-100 motion-reduce:transition-none">
+              <span className="grid h-14 w-14 place-items-center rounded-full bg-black/60 text-white shadow-xl backdrop-blur-sm">
+                <ExpandIcon className="h-6 w-6" />
+              </span>
+            </span>
           </button>
         ) : (
           <div className="absolute inset-0 grid place-items-center px-6 text-center text-sm font-bold text-white/75">
@@ -162,11 +194,22 @@ export function MomentMediaCarousel({
           </div>
         )}
 
-        <MediaCounter
-          className="absolute right-3 top-3 z-10"
-          current={safeIndex + 1}
-          total={media.length}
-        />
+        <div className="absolute right-3 top-3 z-20 flex items-start gap-2">
+          <MediaCounter className="mt-2" current={safeIndex + 1} total={media.length} />
+          <button
+            aria-label={`Expand ${activeItem.type} ${safeIndex + 1} of ${media.length}`}
+            className="grid h-11 w-11 place-items-center rounded-full border border-white/15 bg-black/60 text-white shadow-lg backdrop-blur-sm transition hover:bg-black/80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white motion-reduce:transition-none"
+            data-carousel-control="true"
+            onClick={(event) => {
+              event.stopPropagation();
+              openViewer(safeIndex);
+            }}
+            onPointerDown={stopControlPointer}
+            type="button"
+          >
+            <ExpandIcon className="h-5 w-5" />
+          </button>
+        </div>
 
         {hasMultiple && !hasSwiped ? (
           <span className="pointer-events-none absolute bottom-3 left-3 z-10 rounded-full bg-black/60 px-3 py-1.5 text-[0.68rem] font-black text-white/90 backdrop-blur-sm sm:hidden">
@@ -178,40 +221,55 @@ export function MomentMediaCarousel({
           <>
             <button
               aria-label="Previous media"
-              className="absolute left-3 top-1/2 z-10 hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-black/40 text-2xl font-light text-white shadow-md backdrop-blur-sm transition hover:bg-black/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:grid"
-              onClick={() => selectRelative(-1)}
+              className="absolute left-3 top-1/2 z-10 hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-white/15 bg-black/55 text-white shadow-lg backdrop-blur-sm transition hover:bg-black/75 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white motion-reduce:transition-none sm:grid"
+              data-carousel-control="true"
+              onClick={(event) => {
+                event.stopPropagation();
+                selectRelative(-1);
+              }}
+              onPointerDown={stopControlPointer}
               type="button"
             >
-              <span aria-hidden="true">&#8249;</span>
+              <ChevronIcon className="h-6 w-6" direction="left" />
             </button>
             <button
               aria-label="Next media"
-              className="absolute right-3 top-1/2 z-10 hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-black/40 text-2xl font-light text-white shadow-md backdrop-blur-sm transition hover:bg-black/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:grid"
-              onClick={() => selectRelative(1)}
+              className="absolute right-3 top-1/2 z-10 hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-white/15 bg-black/55 text-white shadow-lg backdrop-blur-sm transition hover:bg-black/75 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white motion-reduce:transition-none sm:grid"
+              data-carousel-control="true"
+              onClick={(event) => {
+                event.stopPropagation();
+                selectRelative(1);
+              }}
+              onPointerDown={stopControlPointer}
               type="button"
             >
-              <span aria-hidden="true">&#8250;</span>
+              <ChevronIcon className="h-6 w-6" direction="right" />
             </button>
 
             <div
               aria-label="Choose media"
-              className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 items-center"
+              className="absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 items-center"
               role="group"
             >
               {media.map((item, index) => (
                 <button
                   aria-label={`Show ${item.type} ${index + 1} of ${media.length}`}
                   aria-pressed={index === safeIndex}
-                  className="grid h-11 w-11 place-items-center"
+                  className="grid h-11 w-11 place-items-center focus-visible:outline-2 focus-visible:outline-offset-[-6px] focus-visible:outline-white"
+                  data-carousel-control="true"
                   key={item.id}
-                  onClick={() => selectIndex(index)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    selectIndex(index);
+                  }}
+                  onPointerDown={stopControlPointer}
                   type="button"
                 >
                   <span
                     className={`block rounded-full transition-all motion-reduce:transition-none ${
                       index === safeIndex
-                        ? "h-2.5 w-2.5 bg-white"
-                        : "h-2 w-2 bg-white/50"
+                        ? "h-2.5 w-2.5 bg-white shadow-sm"
+                        : "h-2 w-2 bg-white/55"
                     }`}
                   />
                 </button>
@@ -226,15 +284,55 @@ export function MomentMediaCarousel({
       </div>
 
       <MomentMediaViewer
-        activeIndex={safeIndex}
+        activeIndex={viewerIndex}
         caption={moment.caption}
         date={moment.date}
         items={media}
-        onActiveIndexChange={setActiveIndex}
+        onActiveIndexChange={setViewerIndex}
         onClose={() => setViewerOpen(false)}
         open={viewerOpen}
         title={moment.title}
       />
     </>
+  );
+}
+
+function ExpandIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+    >
+      <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" />
+    </svg>
+  );
+}
+
+function ChevronIcon({
+  className = "",
+  direction,
+}: {
+  className?: string;
+  direction: "left" | "right";
+}) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2.5"
+      viewBox="0 0 24 24"
+    >
+      <path d={direction === "left" ? "m15 18-6-6 6-6" : "m9 18 6-6-6-6"} />
+    </svg>
   );
 }
