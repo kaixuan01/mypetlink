@@ -2,11 +2,13 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { PublicSharePetProfile } from "@/components/marketing/PublicSharePetProfile";
 import { staticPublicPetParams } from "@/data/staticRouteParams";
-import {
-  loadingTitle,
-  publicPetProfileDocumentTitle,
-} from "@/lib/pageTitles";
+import { loadingTitle } from "@/lib/pageTitles";
 import { parsePublicProfileParam } from "@/lib/routes";
+import {
+  createPublicProfileMetadata,
+  directAccessPageMetadata,
+  isSearchIndexableSample,
+} from "@/lib/seo";
 import { getPublicPetMoments } from "@/services/momentService";
 import { getPublicPetProfileByPublicCode } from "@/services/petService";
 import { getPetRecords } from "@/services/recordService";
@@ -28,11 +30,18 @@ export async function generateMetadata({
   const { publicCode } = parsePublicProfileParam(slug);
   const profile = await getPublicPetProfileByPublicCode(publicCode);
 
-  return {
-    title: profile.data
-      ? { absolute: publicPetProfileDocumentTitle(profile.data.name) }
-      : loadingTitle,
-  };
+  if (!profile.data) {
+    return {
+      ...directAccessPageMetadata,
+      title: loadingTitle,
+    };
+  }
+
+  return createPublicProfileMetadata({
+    name: profile.data.name,
+    path: profile.data.publicProfilePath,
+    isSearchSample: isSearchIndexableSample(profile.data.publicCode),
+  });
 }
 
 export default async function PublicPetPage({ params }: PublicPetPageProps) {

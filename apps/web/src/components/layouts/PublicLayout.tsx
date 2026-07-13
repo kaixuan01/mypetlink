@@ -6,15 +6,16 @@ import { BrandLogo } from "@/components/brand/BrandLogo";
 import { CreateProfileCTA } from "@/components/marketing/CreateProfileCTA";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { siteConfig } from "@/config/site";
+import { marketingRoutes } from "@/lib/routes";
 import { isOwnerAuthenticated } from "@/services/authService";
 
 const publicNav = [
-  { href: "/", label: "Home" },
-  { href: "/#how-it-works", label: "How It Works" },
-  { href: "/sample", label: "Sample Profile" },
-  { href: "/#smart-tags", label: "Smart Tags" },
-  { href: "/pricing", label: "Pricing" },
-  { href: "/privacy", label: "Privacy" },
+  { href: marketingRoutes.home, label: "Home" },
+  { href: marketingRoutes.howItWorks, label: "How It Works" },
+  { href: marketingRoutes.petProfile, label: "Pet Profiles" },
+  { href: marketingRoutes.smartPetTags, label: "Smart Tags" },
+  { href: marketingRoutes.pricing, label: "Pricing" },
+  { href: marketingRoutes.sample, label: "Topu Sample" },
 ];
 
 export function PublicLayout({
@@ -172,10 +173,25 @@ export function PublicLayout({
             </div>
           </div>
           <nav className="flex flex-wrap items-start gap-4 text-sm font-bold text-pet-muted md:justify-end">
-            <Link href="/privacy" className="hover:text-pet-teal transition">
+            <Link href={marketingRoutes.howItWorks} className="hover:text-pet-teal transition">
+              How It Works
+            </Link>
+            <Link href={marketingRoutes.petProfile} className="hover:text-pet-teal transition">
+              Pet Profile Guide
+            </Link>
+            <Link href={marketingRoutes.smartPetTags} className="hover:text-pet-teal transition">
+              Smart Pet Tags
+            </Link>
+            <Link href={marketingRoutes.pricing} className="hover:text-pet-teal transition">
+              Pricing
+            </Link>
+            <Link href={marketingRoutes.sample} className="hover:text-pet-teal transition">
+              Topu Sample Profile
+            </Link>
+            <Link href={marketingRoutes.privacy} className="hover:text-pet-teal transition">
               Privacy Notice
             </Link>
-            <Link href="/terms" className="hover:text-pet-teal transition">
+            <Link href={marketingRoutes.terms} className="hover:text-pet-teal transition">
               Terms of Use
             </Link>
           </nav>

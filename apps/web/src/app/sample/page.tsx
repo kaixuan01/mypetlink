@@ -4,12 +4,16 @@ import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon } from "@/components/ui/Icon";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PetAvatar } from "@/components/ui/PetAvatar";
-import { publicRoutes, samplePet } from "@/lib/routes";
+import { marketingRoutes, publicRoutes, samplePet } from "@/lib/routes";
+import { createMarketingMetadata } from "@/lib/seo";
 import { getPublicPetProfileByPublicCode } from "@/services/petService";
 
-export const metadata: Metadata = {
-  title: "Sample Experiences",
-};
+export const metadata: Metadata = createMarketingMetadata({
+  path: marketingRoutes.sample,
+  title: "Topu Sample Pet Profile and QR Safety Page | MyPetLink",
+  description:
+    "Explore Topu's sample Public Share Profile and QR Safety Page to see the difference between everyday pet sharing and finder contact.",
+});
 
 export default async function SamplePage() {
   const profile = await getPublicPetProfileByPublicCode(samplePet.publicCode);

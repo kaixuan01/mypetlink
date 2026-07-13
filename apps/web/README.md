@@ -67,7 +67,7 @@ Use Cloudflare Pages as a static site deployment for this frontend-only staging 
 - Build output directory: `out`
 - Node.js version: use Cloudflare Pages default Node 20 or newer
 
-This project is configured with Next.js static export, so `npm run build` writes the deployable site to the `out` folder. The staging build includes `noindex,nofollow` metadata and a restrictive `robots.txt`.
+This project is configured with Next.js static export, so `npm run build` writes the deployable site to the `out` folder. Public marketing pages are indexable; Owner Portal, Admin Portal, QR Safety, tag-scan, and normal owner-created public profiles remain excluded according to [`docs/SEO_INDEXING_POLICY.md`](docs/SEO_INDEXING_POLICY.md).
 
 ## Public Website Routes
 

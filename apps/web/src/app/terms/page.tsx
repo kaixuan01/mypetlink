@@ -3,10 +3,15 @@ import Link from "next/link";
 import { LegalBulletList, LegalHero, LegalSection } from "@/components/marketing/LegalNotice";
 import { PublicLayout } from "@/components/layouts/PublicLayout";
 import { siteConfig } from "@/config/site";
+import { marketingRoutes } from "@/lib/routes";
+import { createMarketingMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Terms of Use",
-};
+export const metadata: Metadata = createMarketingMetadata({
+  path: marketingRoutes.terms,
+  title: "Terms of Use | MyPetLink Malaysia",
+  description:
+    "Review the terms for MyPetLink pet profiles, QR Safety Pages, optional smart tags, owner content, finder contact, and service use.",
+});
 
 const lastUpdated = "1 July 2026";
 

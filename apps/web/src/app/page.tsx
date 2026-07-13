@@ -13,12 +13,19 @@ import {
   smartTagAddOnsStatus,
 } from "@/lib/planLimits";
 import { getPetSummaryLabel } from "@/lib/petDisplay";
-import { publicRoutes, samplePet } from "@/lib/routes";
+import { marketingRoutes, publicRoutes, samplePet } from "@/lib/routes";
+import {
+  createMarketingMetadata,
+  homepageStructuredData,
+} from "@/lib/seo";
 import type { Pet } from "@/types";
 
-export const metadata: Metadata = {
-  title: "A Safer Profile for Your Pet",
-};
+export const metadata: Metadata = createMarketingMetadata({
+  path: marketingRoutes.home,
+  title: "MyPetLink Malaysia | Smart Pet Profiles, QR & NFC Pet Tags",
+  description:
+    "Create a free shareable pet profile, keep important pet details together, and help lost pets get home faster with MyPetLink QR and NFC pet tags in Malaysia.",
+});
 
 const whyItMatters: { icon: IconName; title: string; description: string }[] = [
   {
@@ -102,12 +109,12 @@ const faqs = [
   {
     question: "Is this a GPS tracker?",
     answer:
-      "Not yet. MyPetLink starts with QR safety profiles, care records, and memories. GPS Safety is coming later.",
+      "No. A MyPetLink QR or NFC tag opens your pet's safety page when someone scans or taps it; it does not provide live location tracking. GPS Safety is a separate feature planned for later.",
   },
   {
     question: "Do I need the NFC tag?",
     answer:
-      "No. A physical QR tag works with any phone camera. QR + NFC is an optional one-time add-on.",
+      "No. The QR Pet Tag works with a phone camera. The QR + NFC Smart Tag adds tap support, while both options open the same owner-approved safety page.",
   },
   {
     question: "Will my full address be public?",
@@ -119,6 +126,16 @@ const faqs = [
     answer:
       "Yes. A pet-level QR Safety Page with basic WhatsApp and call owner contact is included on the Free plan.",
   },
+  {
+    question: "Can I create a pet profile without buying a tag?",
+    answer:
+      "Yes. Every owner can start with a free Public Share Profile and QR Safety Page. Physical QR and QR + NFC tags are optional one-time add-ons.",
+  },
+  {
+    question: "Is MyPetLink available for pets in Malaysia?",
+    answer:
+      "Yes. MyPetLink is built for Malaysian pet owners and supports profiles for cats, dogs, and other pets.",
+  },
 ];
 
 export default function Home() {
@@ -126,6 +143,12 @@ export default function Home() {
 
   return (
     <PublicLayout>
+      <script
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(homepageStructuredData).replace(/</g, "\\u003c"),
+        }}
+        type="application/ld+json"
+      />
       {/* 1. Hero */}
       <section className="brand-peach-section overflow-hidden">
         <div className="mx-auto grid max-w-7xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:px-8 lg:py-24">
@@ -143,11 +166,11 @@ export default function Home() {
                 Create Free Pet Profile
               </CreateProfileCTA>
               <CTAButton
-                href={publicRoutes.publicProfile(pet)}
+                href={marketingRoutes.sample}
                 icon="heart"
                 variant="secondary"
               >
-                View Sample Public Profile
+                Explore Topu&apos;s Sample
               </CTAButton>
               <CTAButton
                 href={publicRoutes.qrSafetyPage(pet)}
@@ -157,7 +180,7 @@ export default function Home() {
                 View Sample QR Safety Page
               </CTAButton>
             </div>
-            <p className="mt-6 text-sm font-bold text-pet-muted">
+              <p className="mt-6 text-sm font-bold text-pet-muted">
               Free covers basic pet safety and sharing. Physical QR and QR + NFC
               tags are one-time add-ons. Premium care features are coming soon.
             </p>
@@ -249,13 +272,19 @@ export default function Home() {
                 pet communities. Show your pet&apos;s story, moments, and
                 timeline in one beautiful profile.
               </p>
+              <p className="mt-3 max-w-xl text-sm leading-6 text-pet-muted">
+                MyPetLink works for cats, dogs, and other pets across Malaysia.
+                A finder scans the QR code or taps an NFC tag, opens the
+                owner-approved lost-pet contact page, then uses WhatsApp or Call
+                Owner when those options are enabled.
+              </p>
               <div className="mt-auto pt-5">
                 <CTAButton
-                  href={publicRoutes.publicProfile(pet)}
+                  href={marketingRoutes.petProfile}
                   icon="heart"
                   variant="secondary"
                 >
-                  See Sample Profile
+                  Learn About Pet Profiles
                 </CTAButton>
               </div>
             </article>
@@ -280,11 +309,11 @@ export default function Home() {
               </p>
               <div className="mt-auto pt-5">
                 <CTAButton
-                  href={publicRoutes.qrSafetyPage(pet)}
+                  href={marketingRoutes.howItWorks}
                   icon="qr"
                   variant="outline"
                 >
-                  See Safety Page
+                  See How Finder Contact Works
                 </CTAButton>
               </div>
             </article>
@@ -335,6 +364,11 @@ export default function Home() {
             eyebrow="Smart tag add-on"
             title="Start free. Add a physical tag when you want one."
             description="Smart tags are optional one-time add-ons that connect to your pet's QR Safety Page. Coming soon."
+            action={
+              <CTAButton href={marketingRoutes.smartPetTags} variant="secondary">
+                Compare Smart Tags
+              </CTAButton>
+            }
           />
           <div className="grid gap-4 md:grid-cols-2">
             {smartTags.map((tag) => (
@@ -374,7 +408,7 @@ export default function Home() {
             eyebrow="Pricing"
             title="Free profile now. Premium coming soon. Smart tags are optional add-ons."
             action={
-              <CTAButton href="/pricing" variant="secondary">
+              <CTAButton href={marketingRoutes.pricing} variant="secondary">
                 View Pricing
               </CTAButton>
             }

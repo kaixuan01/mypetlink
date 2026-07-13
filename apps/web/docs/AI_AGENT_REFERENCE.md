@@ -26,6 +26,8 @@ not a pattern to copy.
 4. [`PUBLIC_PROFILE_ROUTING.md`](./PUBLIC_PROFILE_ROUTING.md) â€” how the public
    `/t/{tagCode}`, `/activate/{tagCode}`, and `/p/{slug}-{publicCode}` routes
    resolve and what each state renders.
+5. [`SEO_INDEXING_POLICY.md`](./SEO_INDEXING_POLICY.md) — canonical-host,
+   sitemap, robots, and route-level indexing rules.
 
 ---
 

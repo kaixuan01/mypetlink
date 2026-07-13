@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { QrSafetyRouteView } from "@/components/marketing/QrSafetyRouteView";
 import { staticQrSafetyParams } from "@/data/staticRouteParams";
 import { loadingTitle, qrSafetyPageTitle } from "@/lib/pageTitles";
+import { qrSafetyPath } from "@/lib/routes";
+import { canonicalUrl, directAccessRobots } from "@/lib/seo";
 import { getPublicPetProfileBySafetyCode } from "@/services/petService";
 
 type QrSafetyPageProps = {
@@ -22,6 +24,10 @@ export async function generateMetadata({
 
   return {
     title: profile.data ? qrSafetyPageTitle(profile.data.name) : loadingTitle,
+    alternates: {
+      canonical: canonicalUrl(qrSafetyPath(safetyCode)),
+    },
+    robots: directAccessRobots,
   };
 }
 

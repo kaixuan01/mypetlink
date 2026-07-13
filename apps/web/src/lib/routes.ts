@@ -1,4 +1,4 @@
-import { mockPets } from "@/data/mockPets";
+import { samplePet } from "@/data/samplePet";
 import type { Pet, PetTag } from "@/types";
 
 // Central route map for MyPetLink so every page links consistently.
@@ -93,6 +93,17 @@ export const publicRoutes = {
   physicalTag: (tag: Pick<PetTag, "tagCode">) => getTagScanPath(tag),
 };
 
+export const marketingRoutes = {
+  home: "/",
+  pricing: "/pricing",
+  howItWorks: "/how-it-works",
+  smartPetTags: "/smart-pet-tags",
+  petProfile: "/pet-profile",
+  sample: "/sample",
+  privacy: "/privacy",
+  terms: "/terms",
+} as const;
+
 // The public param is "{slug}-{publicCode}". A slug can contain hyphens
 // (e.g. "milo-the-dog"), so the publicCode is always the final segment.
 export function parsePublicProfileParam(param: string) {
@@ -109,33 +120,4 @@ export function parsePublicProfileParam(param: string) {
   };
 }
 
-// Landing-page / marketing sample pet ("Topu"). This is intentionally separate
-// from the Owner Portal demo data (mockPets) so the portal preview is unchanged.
-// The slug, publicCode, and safetyCode match the real published sample profile,
-// so the "View Sample Public Profile" and "View Sample QR Safety Page" links
-// resolve to the live pages:
-//   /p/topu-pnpr4ipnr6ppelnsn   and   /q/sl3j2b2q3e2oqhe4iamqa
-export const samplePet: Pet = {
-  ...mockPets[0],
-  id: "sample_topu",
-  slug: "topu",
-  name: "Topu",
-  photoInitial: "T",
-  publicCode: "pnpr4ipnr6ppelnsn",
-  safetyCode: "sl3j2b2q3e2oqhe4iamqa",
-  qrSafetyPath: "/q/sl3j2b2q3e2oqhe4iamqa",
-  finderProfileUrl: "/q/sl3j2b2q3e2oqhe4iamqa",
-  publicProfilePath: "/p/topu-pnpr4ipnr6ppelnsn",
-  bio: "Topu is a gentle rescue dog who loves evening walks, belly rubs, and watching rain from the balcony.",
-  emergencyNote:
-    "If Topu looks distressed, keep him shaded and avoid feeding unfamiliar treats.",
-  lostMode: {
-    ...mockPets[0].lostMode,
-    lostMessage:
-      "Topu is currently missing. If you have found Topu, please contact the owner immediately.",
-  },
-  owner: {
-    ...mockPets[0].owner,
-    name: "Topu's owner",
-  },
-};
+export { samplePet };

@@ -13,10 +13,15 @@ import {
   smartTagAddOns,
   smartTagAddOnsStatus,
 } from "@/lib/planLimits";
+import { marketingRoutes } from "@/lib/routes";
+import { createMarketingMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Pricing",
-};
+export const metadata: Metadata = createMarketingMetadata({
+  path: marketingRoutes.pricing,
+  title: "MyPetLink Pricing | Free Pet Profiles and Smart Tag Add-ons",
+  description:
+    "Start with a free MyPetLink pet profile, then compare optional one-time QR and QR + NFC smart tag add-ons in Malaysian Ringgit.",
+});
 
 const freePlan = mockPlans.find((plan) => plan.id === "plan_free") ?? mockPlans[0];
 const premium = mockPlans.find((plan) => plan.id === "plan_premium") ?? mockPlans[1];

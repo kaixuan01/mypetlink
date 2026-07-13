@@ -19,41 +19,34 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteConfig.url),
   applicationName: siteConfig.productName,
   title: {
-    default: "MyPetLink - A Safe and Shareable Profile for Your Pet",
+    default: "MyPetLink Malaysia | Smart Pet Profiles, QR & NFC Pet Tags",
     template: "%s | MyPetLink",
   },
   description:
-    "Create a QR safety profile for your pet, manage care records, save precious memories, and order optional QR or QR + NFC smart tags.",
+    "Create a free shareable pet profile, keep important pet details together, and help lost pets get home faster with MyPetLink QR and NFC pet tags in Malaysia.",
   openGraph: {
-    title: "MyPetLink - A Safe and Shareable Profile for Your Pet",
+    title: "MyPetLink Malaysia | Smart Pet Profiles, QR & NFC Pet Tags",
     description:
-      "Create a QR safety profile for your pet, manage care records, save precious memories, and order optional QR or QR + NFC smart tags.",
+      "Create a free shareable pet profile and add an optional QR or QR + NFC pet tag for extra safety in Malaysia.",
     siteName: siteConfig.productName,
     url: siteConfig.url,
+    locale: "en_MY",
     type: "website",
     images: [
       {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "MyPetLink pet safety profile preview",
+        alt: "MyPetLink pet safety and share profile",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "MyPetLink - A Safe and Shareable Profile for Your Pet",
+    title: "MyPetLink Malaysia | Smart Pet Profiles, QR & NFC Pet Tags",
     description:
-      "Create a QR safety profile for your pet, manage care records, save precious memories, and order optional QR or QR + NFC smart tags.",
+      "Create a free shareable pet profile and add an optional QR or QR + NFC pet tag for extra safety in Malaysia.",
     images: ["/og-image.png"],
-  },
-  robots: {
-    index: false,
-    follow: false,
-    googleBot: {
-      index: false,
-      follow: false,
-    },
   },
   icons: {
     icon: [

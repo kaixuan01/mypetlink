@@ -1,16 +1,11 @@
-"use client";
+import type { Metadata } from "next";
+import { AdminRouteShell } from "@/components/layouts/AdminRouteShell";
+import { privatePageMetadata } from "@/lib/seo";
 
-import { usePathname } from "next/navigation";
-import { AdminLayout } from "@/components/layouts/AdminLayout";
+export const metadata: Metadata = privatePageMetadata;
 
 export default function AdminRootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const pathname = usePathname();
-
-  if (pathname === "/admin/login") {
-    return children;
-  }
-
-  return <AdminLayout>{children}</AdminLayout>;
+  return <AdminRouteShell>{children}</AdminRouteShell>;
 }

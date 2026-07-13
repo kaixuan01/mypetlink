@@ -1,6 +1,7 @@
 import { mockOrders } from "@/data/mockOrders";
 import { mockPets } from "@/data/mockPets";
 import { mockTags } from "@/data/mockTags";
+import { samplePet } from "@/data/samplePet";
 import { formatOrderNumber } from "@/lib/orders";
 import {
   derivePublicCode,
@@ -16,7 +17,7 @@ export function staticPublicPetParams() {
   // Use the same canonical publicCode the pet service produces, so the
   // statically-exported /p/{slug}-{publicCode} route always matches the URL
   // shown in the owner portal.
-  return mockPets.map((pet) => ({
+  return [...mockPets, samplePet].map((pet) => ({
     slug: `${pet.slug}-${pet.publicCode ?? derivePublicCode(pet.id)}`,
   }));
 }
@@ -28,7 +29,7 @@ export function staticTagCodeParams() {
 }
 
 export function staticQrSafetyParams() {
-  return mockPets.flatMap((pet) => {
+  return [...mockPets, samplePet].flatMap((pet) => {
     const safetyCode = pet.safetyCode ?? deriveSafetyCode(pet.id);
     return Array.from(new Set([safetyCode, safetyCode.toLowerCase()])).map(
       (code) => ({ safetyCode: code })

@@ -8,10 +8,15 @@ import {
 import { PublicLayout } from "@/components/layouts/PublicLayout";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { siteConfig } from "@/config/site";
+import { marketingRoutes } from "@/lib/routes";
+import { createMarketingMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Privacy Notice",
-};
+export const metadata: Metadata = createMarketingMetadata({
+  path: marketingRoutes.privacy,
+  title: "Privacy Notice | MyPetLink Malaysia",
+  description:
+    "Read how MyPetLink handles pet profiles, owner contact choices, QR safety information, account data, and privacy in Malaysia.",
+});
 
 const lastUpdated = "1 July 2026";
 

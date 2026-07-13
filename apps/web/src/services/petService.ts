@@ -1,4 +1,5 @@
 import { mockPets } from "@/data/mockPets";
+import { samplePet } from "@/data/samplePet";
 import { mockRecords } from "@/data/mockRecords";
 import {
   defaultOwnerSettings,
@@ -1009,7 +1010,7 @@ export async function getPublicPetProfileByPublicCode(publicCode: string) {
 
   await mockDelay();
   const normalized = publicCode.trim().toLowerCase();
-  const pet = getPetCollection().find(
+  const pet = [...getPetCollection(), normalizePet(samplePet)].find(
     (item) => item.publicCode.toLowerCase() === normalized
   );
 
@@ -1046,7 +1047,7 @@ export async function getPublicPetProfileBySafetyCode(safetyCode: string) {
 
   await mockDelay();
   const normalized = safetyCode.trim().toLowerCase();
-  const pet = getPetCollection().find(
+  const pet = [...getPetCollection(), normalizePet(samplePet)].find(
     (item) => item.safetyCode.toLowerCase() === normalized
   );
 
