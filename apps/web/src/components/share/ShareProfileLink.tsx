@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { Icon } from "@/components/ui/Icon";
+import { addPublicProfileShareVersion } from "@/lib/publicProfileSocial";
 import { getServerFallbackBaseUrl } from "@/lib/siteUrl";
 import type { PetProfileTheme } from "@/lib/petProfileThemes";
 
@@ -13,6 +14,7 @@ type ShareProfileLinkProps = {
   showShareButton?: boolean;
   compact?: boolean;
   copyLabel?: string;
+  shareVersion?: string;
   theme?: PetProfileTheme;
 };
 
@@ -24,6 +26,7 @@ export function ShareProfileLink({
   showShareButton = false,
   compact = false,
   copyLabel = "Copy Link",
+  shareVersion,
   theme,
 }: ShareProfileLinkProps) {
   const origin = useSyncExternalStore(
@@ -37,12 +40,13 @@ export function ShareProfileLink({
   } | null>(null);
 
   const fullUrl = useMemo(() => {
-    if (path.startsWith("http")) {
-      return path;
+    const sharePath = addPublicProfileShareVersion(path, shareVersion);
+    if (sharePath.startsWith("http")) {
+      return sharePath;
     }
 
-    return `${origin}${path.startsWith("/") ? path : `/${path}`}`;
-  }, [origin, path]);
+    return `${origin}${sharePath.startsWith("/") ? sharePath : `/${sharePath}`}`;
+  }, [origin, path, shareVersion]);
   const visibleStatus = status?.url === fullUrl ? status.message : "";
 
   useEffect(() => {

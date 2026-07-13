@@ -1,6 +1,13 @@
 import type { Metadata } from "next";
 import { siteConfig } from "@/config/site";
+import {
+  getPublicProfileSocialImagePath,
+  isPublicProfileShareable,
+  publicProfileSocialImageContentType,
+  publicProfileSocialImageSize,
+} from "@/lib/publicProfileSocial";
 import { marketingRoutes, samplePet } from "@/lib/routes";
+import type { PublicPetProfile } from "@/types";
 
 export const indexableRobots: NonNullable<Metadata["robots"]> = {
   index: true,
@@ -85,19 +92,22 @@ export function createMarketingMetadata({
 }
 
 export function createPublicProfileMetadata({
-  name,
-  path,
+  profile,
   isSearchSample,
 }: {
-  name: string;
-  path: string;
+  profile: PublicPetProfile;
   isSearchSample: boolean;
 }): Metadata {
-  const title = `${name}'s Pet Profile | MyPetLink Malaysia`;
-  const description = isSearchSample
-    ? `Meet ${name} on MyPetLink and see how a shareable pet profile brings pet details, memories, and safe owner-approved information together.`
-    : `${name}'s owner-approved public pet profile on MyPetLink.`;
-  const canonical = canonicalUrl(path);
+  if (!isPublicProfileShareable(profile)) {
+    return createUnavailablePublicProfileMetadata();
+  }
+
+  const title = `Meet ${profile.name} | MyPetLink`;
+  const description = `View ${profile.name}'s owner-approved pet profile, memories and safety information.`;
+  const twitterDescription = `View ${profile.name}'s owner-approved pet profile on MyPetLink.`;
+  const canonical = canonicalUrl(profile.publicProfilePath);
+  const socialImage = canonicalUrl(getPublicProfileSocialImagePath(profile));
+  const imageAlt = `${profile.name}'s pet profile on MyPetLink`;
 
   return {
     title: { absolute: title },
@@ -111,13 +121,60 @@ export function createPublicProfileMetadata({
       siteName: siteConfig.productName,
       locale: "en_MY",
       type: "website",
-      images: [canonicalUrl("/og-image.png")],
+      images: [
+        {
+          url: socialImage,
+          secureUrl: socialImage,
+          type: publicProfileSocialImageContentType,
+          width: publicProfileSocialImageSize.width,
+          height: publicProfileSocialImageSize.height,
+          alt: imageAlt,
+        },
+      ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description: twitterDescription,
+      images: [{ url: socialImage, alt: imageAlt }],
+    },
+  };
+}
+
+export function createUnavailablePublicProfileMetadata(): Metadata {
+  const title = "Pet Profile Unavailable | MyPetLink";
+  const description =
+    "This MyPetLink pet profile is unavailable or is not shared publicly.";
+  const image = canonicalUrl("/og-image.png");
+
+  return {
+    title: { absolute: title },
+    description,
+    alternates: { canonical: canonicalUrl(marketingRoutes.petProfile) },
+    robots: directAccessRobots,
+    openGraph: {
+      title,
+      description,
+      url: canonicalUrl(marketingRoutes.petProfile),
+      siteName: siteConfig.productName,
+      locale: "en_MY",
+      type: "website",
+      images: [
+        {
+          url: image,
+          secureUrl: image,
+          type: "image/png",
+          width: 1200,
+          height: 630,
+          alt: "MyPetLink pet profile",
+        },
+      ],
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
-      images: [canonicalUrl("/og-image.png")],
+      images: [{ url: image, alt: "MyPetLink pet profile" }],
     },
   };
 }

@@ -2,11 +2,11 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { PublicSharePetProfile } from "@/components/marketing/PublicSharePetProfile";
 import { staticPublicPetParams } from "@/data/staticRouteParams";
-import { loadingTitle } from "@/lib/pageTitles";
 import { parsePublicProfileParam } from "@/lib/routes";
+import { isPublicProfileShareable } from "@/lib/publicProfileSocial";
 import {
   createPublicProfileMetadata,
-  directAccessPageMetadata,
+  createUnavailablePublicProfileMetadata,
   isSearchIndexableSample,
 } from "@/lib/seo";
 import { getPublicPetMoments } from "@/services/momentService";
@@ -28,20 +28,19 @@ export async function generateMetadata({
 }: PublicPetPageProps): Promise<Metadata> {
   const { slug } = await params;
   const { publicCode } = parsePublicProfileParam(slug);
-  const profile = await getPublicPetProfileByPublicCode(publicCode);
+  try {
+    const profile = await getPublicPetProfileByPublicCode(publicCode);
+    if (!profile.data || !isPublicProfileShareable(profile.data)) {
+      return createUnavailablePublicProfileMetadata();
+    }
 
-  if (!profile.data) {
-    return {
-      ...directAccessPageMetadata,
-      title: loadingTitle,
-    };
+    return createPublicProfileMetadata({
+      profile: profile.data,
+      isSearchSample: isSearchIndexableSample(profile.data.publicCode),
+    });
+  } catch {
+    return createUnavailablePublicProfileMetadata();
   }
-
-  return createPublicProfileMetadata({
-    name: profile.data.name,
-    path: profile.data.publicProfilePath,
-    isSearchSample: isSearchIndexableSample(profile.data.publicCode),
-  });
 }
 
 export default async function PublicPetPage({ params }: PublicPetPageProps) {
@@ -49,7 +48,7 @@ export default async function PublicPetPage({ params }: PublicPetPageProps) {
   const { publicCode } = parsePublicProfileParam(slug);
   const profile = await getPublicPetProfileByPublicCode(publicCode);
 
-  if (!profile.data) {
+  if (!profile.data || !isPublicProfileShareable(profile.data)) {
     notFound();
   }
 

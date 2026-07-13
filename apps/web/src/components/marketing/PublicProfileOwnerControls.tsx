@@ -5,6 +5,7 @@ import { ShareProfileLink } from "@/components/share/ShareProfileLink";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon } from "@/components/ui/Icon";
 import type { PetProfileTheme } from "@/lib/petProfileThemes";
+import { getPublicProfileShareVersion } from "@/lib/publicProfileSocial";
 import { ownerRoutes } from "@/lib/routes";
 import { isOwnerAuthenticated } from "@/services/authService";
 import { getOwnedPetByPublicCode } from "@/services/petService";
@@ -64,6 +65,7 @@ export function PublicProfileOwnerControls({
         <ShareProfileLink
           path={profile.publicProfilePath}
           petName={profile.name}
+          shareVersion={getPublicProfileShareVersion(profile)}
           showShareButton
           compact
           theme={theme}
@@ -92,6 +94,7 @@ export function PublicProfileOwnerControls({
         <ShareProfileLink
           path={profile.publicProfilePath}
           petName={profile.name}
+          shareVersion={getPublicProfileShareVersion(profile)}
           compact
           theme={theme}
         />

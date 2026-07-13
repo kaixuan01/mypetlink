@@ -20,8 +20,16 @@ vi.mock("@/services/petService", () => ({
 }));
 
 vi.mock("@/components/share/ShareProfileLink", () => ({
-  ShareProfileLink: ({ showShareButton }: { showShareButton?: boolean }) => (
-    <button type="button">{showShareButton ? "Share profile" : "Copy Link"}</button>
+  ShareProfileLink: ({
+    shareVersion,
+    showShareButton,
+  }: {
+    shareVersion?: string;
+    showShareButton?: boolean;
+  }) => (
+    <button data-share-version={shareVersion} type="button">
+      {showShareButton ? "Share profile" : "Copy Link"}
+    </button>
   ),
 }));
 
@@ -61,6 +69,9 @@ describe("PublicProfileOwnerControls", () => {
 
     expect(await screen.findByText(/viewing as public/i)).toBeTruthy();
     expect(screen.getByText("Copy Link")).toBeTruthy();
+    expect(
+      screen.getByText("Copy Link").getAttribute("data-share-version")
+    ).toMatch(/^[a-z0-9]+$/);
     expect(
       (screen.getByRole("link", { name: "Back to Edit" }) as HTMLAnchorElement)
         .getAttribute("href")
