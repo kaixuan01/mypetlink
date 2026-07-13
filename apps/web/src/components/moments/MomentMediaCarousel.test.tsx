@@ -105,7 +105,11 @@ describe("MomentMediaCarousel", () => {
     fireEvent.loadedMetadata(preview);
 
     const playButton = screen.getByRole("button", { name: "Play First video" });
-    expect(playButton.className).toContain("h-16");
+    const overlay = screen.getByTestId("moment-video-center-overlay");
+    expect(playButton.dataset.videoSurface).toBe("true");
+    expect(overlay.className).toContain("h-16");
+    expect(overlay.className).toContain("pointer-events-none");
+    expect(overlay.dataset.state).toBe("play");
     expect(preview.preload).toBe("metadata");
     expect(preview.autoplay).toBe(false);
     expect(preview.controls).toBe(false);
@@ -119,10 +123,49 @@ describe("MomentMediaCarousel", () => {
     expect(playMock).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.getByRole("button", { name: "Pause First video" })).toBeTruthy();
+    expect(screen.getByTestId("moment-video-center-overlay").dataset.state).toBe(
+      "pause"
+    );
 
-    fireEvent.click(screen.getByLabelText("First video"));
+    fireEvent.click(screen.getByRole("button", { name: "Pause First video" }));
     expect(pauseMock).toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Play First video" })).toBeTruthy();
+    expect(screen.getByTestId("moment-video-center-overlay").dataset.state).toBe(
+      "play"
+    );
+  });
+
+  it("fades the Pause feedback after 500ms while playback continues", () => {
+    vi.useFakeTimers();
+    render(<MomentMediaCarousel moment={makeMoment([video])} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Play First video" }));
+    const overlay = screen.getByTestId("moment-video-center-overlay");
+    expect(overlay.dataset.state).toBe("pause");
+    expect(screen.getByRole("button", { name: "Pause First video" })).toBeTruthy();
+
+    act(() => vi.advanceTimersByTime(499));
+    expect(overlay.dataset.state).toBe("pause");
+    act(() => vi.advanceTimersByTime(1));
+    expect(overlay.dataset.state).toBe("hidden");
+    expect(overlay.className).toContain("opacity-0");
+    expect(screen.getByRole("button", { name: "Pause First video" })).toBeTruthy();
+
+    vi.useRealTimers();
+  });
+
+  it("isolates the video control layer from full-surface playback toggles", () => {
+    render(<MomentMediaCarousel moment={makeMoment([video])} />);
+    const nativeVideo = screen.getByLabelText("First video");
+    const counter = screen.getByLabelText("Media 1 of 1");
+
+    fireEvent.click(nativeVideo);
+    fireEvent.click(counter);
+    expect(playMock).not.toHaveBeenCalled();
+    expect(pauseMock).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Play First video" }));
+    expect(playMock).toHaveBeenCalledTimes(1);
   });
 
   it("opens the viewer only from Expand for a video and at the correct index", () => {
@@ -138,6 +181,37 @@ describe("MomentMediaCarousel", () => {
     expect(within(dialog).getByLabelText("Media 2 of 2").textContent).toBe("2 / 2");
     expect(within(dialog).getByLabelText("First video")).toBeTruthy();
     expect(within(dialog).getByRole("button", { name: "Play First video" })).toBeTruthy();
+  });
+
+  it("keeps viewer native controls separate from its full-surface playback action", () => {
+    render(
+      <MomentMediaCarousel
+        moment={makeMoment([video, { ...photoOne, sortOrder: 1 }])}
+      />
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Expand video 1 of 2" }));
+    const dialog = screen.getByRole("dialog", { name: "Beach day media viewer" });
+    const slide = within(dialog).getByRole("group", { name: "Media slide" });
+    const nativeVideo = within(dialog).getByLabelText(
+      "First video"
+    ) as HTMLVideoElement;
+    const surface = within(dialog).getByRole("button", {
+      name: "Play First video",
+    });
+
+    expect(nativeVideo.controls).toBe(true);
+    expect(surface.className).toContain("bottom-12");
+    fireEvent.click(nativeVideo);
+    expect(playMock).not.toHaveBeenCalled();
+    fireEvent.pointerDown(nativeVideo, { clientX: 220, clientY: 400 });
+    fireEvent.pointerUp(slide, { clientX: 100, clientY: 400 });
+    expect(within(dialog).getByLabelText("First video")).toBeTruthy();
+
+    fireEvent.click(surface);
+    expect(playMock).toHaveBeenCalledTimes(1);
+    expect(
+      within(dialog).getByTestId("moment-video-center-overlay").dataset.state
+    ).toBe("pause");
   });
 
   it("opens the viewer when a photo is selected", () => {
@@ -354,7 +428,10 @@ describe("MomentMediaCarousel", () => {
     expect(carousel.style.maxWidth).toBe("100%");
     expect(carousel.className).toContain("overflow-hidden");
     expect(carousel.className).toContain("w-full");
-    expect(screen.getByRole("button", { name: "Play First video" }).className).toContain(
+    expect(screen.getByRole("button", { name: "Play First video" }).dataset.videoSurface).toBe(
+      "true"
+    );
+    expect(screen.getByTestId("moment-video-center-overlay").className).toContain(
       "h-16"
     );
   });

@@ -216,7 +216,7 @@ export function MomentMediaViewer({
           }}
           onPointerDown={(event) => {
             const target = event.target as Element;
-            if (target.closest("button")) {
+            if (target.closest('button:not([data-video-surface="true"])')) {
               pointerOriginRef.current = null;
               return;
             }

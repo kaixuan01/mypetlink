@@ -20,6 +20,7 @@ type ActivePlayback = {
 };
 
 let activePlayback: ActivePlayback | null = null;
+const pauseFeedbackDurationMs = 500;
 
 export function pauseActiveMomentVideo() {
   const current = activePlayback;
@@ -40,8 +41,12 @@ export function MomentVideoPlayer({
   const [loading, setLoading] = useState(true);
   const [measuredDuration, setMeasuredDuration] = useState<number>();
   const [paused, setPaused] = useState(true);
+  const [pauseFeedbackVisible, setPauseFeedbackVisible] = useState(false);
   const [unavailable, setUnavailable] = useState(false);
   const instanceIdRef = useRef(Symbol("moment-video"));
+  const pauseFeedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
   const rootRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const videoUrl = resolveMediaUrl(url);
@@ -55,11 +60,33 @@ export function MomentVideoPlayer({
     }
   }, []);
 
+  const clearPauseFeedbackTimer = useCallback(() => {
+    if (pauseFeedbackTimeoutRef.current) {
+      clearTimeout(pauseFeedbackTimeoutRef.current);
+      pauseFeedbackTimeoutRef.current = null;
+    }
+  }, []);
+
+  const hidePauseFeedback = useCallback(() => {
+    clearPauseFeedbackTimer();
+    setPauseFeedbackVisible(false);
+  }, [clearPauseFeedbackTimer]);
+
+  const showPauseFeedback = useCallback(() => {
+    clearPauseFeedbackTimer();
+    setPauseFeedbackVisible(true);
+    pauseFeedbackTimeoutRef.current = setTimeout(() => {
+      pauseFeedbackTimeoutRef.current = null;
+      setPauseFeedbackVisible(false);
+    }, pauseFeedbackDurationMs);
+  }, [clearPauseFeedbackTimer]);
+
   const pauseVideo = useCallback(() => {
     videoRef.current?.pause();
     setPaused(true);
+    hidePauseFeedback();
     clearActivePlayback();
-  }, [clearActivePlayback]);
+  }, [clearActivePlayback, hidePauseFeedback]);
 
   async function playVideo() {
     const video = videoRef.current;
@@ -81,9 +108,11 @@ export function MomentVideoPlayer({
     try {
       const playResult = video.play();
       setPaused(false);
+      showPauseFeedback();
       if (playResult) await playResult;
     } catch {
       setPaused(true);
+      hidePauseFeedback();
       clearActivePlayback();
     }
   }
@@ -113,9 +142,10 @@ export function MomentVideoPlayer({
   useEffect(
     () => () => {
       videoRef.current?.pause();
+      clearPauseFeedbackTimer();
       clearActivePlayback();
     },
-    [clearActivePlayback]
+    [clearActivePlayback, clearPauseFeedbackTimer]
   );
 
   if (!videoUrl || unavailable) {
@@ -135,6 +165,8 @@ export function MomentVideoPlayer({
     : paused
       ? `Play ${alt}`
       : `Pause ${alt}`;
+  const showPlayIcon = paused || ended;
+  const centerOverlayVisible = showPlayIcon || pauseFeedbackVisible;
 
   return (
     <div
@@ -149,13 +181,11 @@ export function MomentVideoPlayer({
         key={videoUrl}
         muted={!viewerMode}
         onCanPlay={() => setLoading(false)}
-        onClick={(event) => {
-          event.stopPropagation();
-          togglePlayback();
-        }}
+        onClick={(event) => event.stopPropagation()}
         onEnded={() => {
           setEnded(true);
           setPaused(true);
+          hidePauseFeedback();
           clearActivePlayback();
         }}
         onError={() => setUnavailable(true)}
@@ -174,11 +204,14 @@ export function MomentVideoPlayer({
         }}
         onPause={() => {
           setPaused(true);
+          hidePauseFeedback();
           clearActivePlayback();
         }}
+        onPointerDown={(event) => event.stopPropagation()}
         onPlay={() => {
           setEnded(false);
           setPaused(false);
+          showPauseFeedback();
         }}
         onWaiting={() => setLoading(true)}
         playsInline
@@ -186,6 +219,20 @@ export function MomentVideoPlayer({
         preload="metadata"
         ref={videoRef}
         src={videoUrl}
+      />
+
+      <button
+        aria-label={playbackLabel}
+        aria-pressed={!showPlayIcon}
+        className={`absolute inset-x-0 top-0 z-10 cursor-pointer rounded-[inherit] focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-white ${
+          viewerMode ? "bottom-12" : "bottom-0"
+        }`}
+        data-video-surface="true"
+        onClick={(event) => {
+          event.stopPropagation();
+          togglePlayback();
+        }}
+        type="button"
       />
 
       {loading ? (
@@ -197,20 +244,21 @@ export function MomentVideoPlayer({
         </span>
       ) : null}
 
-      <button
-        aria-label={playbackLabel}
-        className={`absolute left-1/2 top-1/2 z-10 grid -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-white/30 bg-black/65 text-white shadow-2xl backdrop-blur-sm transition hover:scale-105 hover:bg-black/80 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white motion-reduce:transition-none motion-reduce:hover:scale-100 ${
+      <span
+        aria-hidden="true"
+        className={`pointer-events-none absolute left-1/2 top-1/2 z-20 grid -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-white/30 bg-black/65 text-white shadow-2xl backdrop-blur-sm transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none ${
           compact ? "h-12 w-12" : viewerMode ? "h-20 w-20" : "h-16 w-16"
-        } ${paused || ended ? "opacity-100" : "opacity-35 sm:opacity-0 sm:group-hover/video:opacity-80 sm:focus-visible:opacity-100"}`}
-        data-carousel-control="true"
-        onClick={(event) => {
-          event.stopPropagation();
-          togglePlayback();
-        }}
-        onPointerDown={(event) => event.stopPropagation()}
-        type="button"
+        } ${
+          centerOverlayVisible
+            ? "scale-100 opacity-100"
+            : "scale-90 opacity-0"
+        }`}
+        data-state={
+          showPlayIcon ? "play" : pauseFeedbackVisible ? "pause" : "hidden"
+        }
+        data-testid="moment-video-center-overlay"
       >
-        {paused || ended ? (
+        {showPlayIcon ? (
           <svg
             aria-hidden="true"
             className={`${compact ? "h-5 w-5" : viewerMode ? "h-9 w-9" : "h-7 w-7"} ml-1 fill-current`}
@@ -227,7 +275,7 @@ export function MomentVideoPlayer({
             <path d="M7 5h4v14H7zM13 5h4v14h-4z" />
           </svg>
         )}
-      </button>
+      </span>
 
       {!viewerMode && duration ? (
         <span
