@@ -12,6 +12,7 @@ Work top to bottom. Do not merge `feature/connect-admin-apis` into `main` until 
 - [ ] Google OAuth: production frontend origin added to Authorized JavaScript origins; consent screen published; frontend and backend use the same client id.
 - [ ] **Manual Google popup login test passes** on a preview/prod frontend (real account → `/dashboard`, `/api/v1/auth/me` returns the user).
 - [ ] Frontend production env set in Cloudflare Pages (`NEXT_PUBLIC_SITE_URL=https://mypetlink.com.my`, `NEXT_PUBLIC_API_BASE_URL=https://api.mypetlink.com.my`, `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, `NEXT_PUBLIC_SMART_TAG_ORDERING_ENABLED=false`) and the frontend **rebuilt** so values are baked in.
+- [ ] Pages Functions runtime env includes `PUBLIC_API_BASE_URL=https://api.mypetlink.com.my`; `/p/*` and `/social/pets/*` are present in the deployed Functions routes.
 - [ ] Backend env set: `ASPNETCORE_ENVIRONMENT=Production`, `ConnectionStrings__MyPetLinkDb`, `Jwt__SigningKey`, `Jwt__Issuer`, `Jwt__Audience`, `GoogleAuth__ClientId`, `Cors__AllowedOrigins__0=https://mypetlink.com.my`, `Cors__AllowedOrigins__1=https://www.mypetlink.com.my` if `www` is served, and `Features__SmartTagOrderingEnabled=false` for the free-profiles launch.
 - [ ] Smart Tag ordering flag confirmed for the intended launch: backend `Features__SmartTagOrderingEnabled` and frontend `NEXT_PUBLIC_SMART_TAG_ORDERING_ENABLED` both **false** for the free-profiles launch (default), or both **true** only when physical tags are ready. Mismatched values (frontend shows CTAs but backend blocks) should be avoided.
 - [ ] Confirm `PublicApp__BaseUrl` is not required by the current backend; public links are generated from frontend `NEXT_PUBLIC_SITE_URL=https://mypetlink.com.my`.
@@ -26,6 +27,8 @@ Owner:
 - [ ] Login with Google.
 - [ ] Create a pet; confirm backend-generated public slug + safety code.
 - [ ] Public share `/p/:publicSlug` renders (no owner email/address/internal ids).
+- [ ] Create another pet **after** the frontend deployment. Its raw `/p/:publicSlug` HTML contains that pet's metadata and its `/social/pets/:publicSlug.jpg?v=...` returns a 1200 x 630 JPEG without another deployment.
+- [ ] Update that post-deployment pet's name or public photo. Its metadata/card version changes without redeploying, the second card request is a cache hit, and WhatsApp shows the updated pet-specific preview.
 - [ ] QR Safety `/q/:safetyCode` renders finder-first content.
 - [ ] Create a care record; edit it; confirm it persists after reload.
 - [ ] Create a memory (public) and a private memory; confirm the public one appears on `/p/`, the private one does not.

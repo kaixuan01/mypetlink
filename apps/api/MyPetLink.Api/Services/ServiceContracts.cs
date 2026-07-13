@@ -104,6 +104,17 @@ public interface IPublicProfileService : ISkeletonService
     Task<PublicPetProfileResponse> GetByPublicSlugAsync(
         string publicSlug,
         CancellationToken cancellationToken = default);
+
+    Task<PublicProfileSocialResponse> GetSocialByPublicSlugAsync(
+        string publicSlug,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IPublicProfileSocialCardRenderer
+{
+    Task<byte[]> RenderAsync(
+        PublicProfileSocialResponse profile,
+        CancellationToken cancellationToken = default);
 }
 
 public interface IMemoryService : ISkeletonService

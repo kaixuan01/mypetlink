@@ -199,6 +199,17 @@ internal static class PetDtoMapper
         var publicCode = pet.PublicProfile?.PublicCode ?? "";
         var safetyCode = pet.SafetySetting?.SafetyCode ?? "";
         var publicSlug = ResolvePublicSlug(pet);
+        var age = PetAgeCalculator.Calculate(pet.Birthday, pet.EstimatedBirthYear);
+        var profilePhotoUrl = ResolvePublicMediaUrl(pet.ProfileMediaFile, publicBaseUrl);
+        var coverPhotoUrl = ResolvePublicMediaUrl(pet.CoverMediaFile, publicBaseUrl);
+        var publicProfileVersion = pet.PublicProfile is null
+            ? null
+            : PublicProfileVersion.Create(
+                pet.PublicProfile,
+                pet,
+                age.DisplayLabel,
+                profilePhotoUrl,
+                coverPhotoUrl);
 
         return new PetListItemResponse(
             pet.Id,
@@ -207,16 +218,17 @@ internal static class PetDtoMapper
             pet.CustomSpecies,
             pet.Birthday,
             pet.EstimatedBirthYear,
-            PetAgeCalculator.Calculate(pet.Birthday, pet.EstimatedBirthYear),
+            age,
             pet.ProfileMediaFileId,
             pet.CoverMediaFileId,
-            ResolvePublicMediaUrl(pet.ProfileMediaFile, publicBaseUrl),
-            ResolvePublicMediaUrl(pet.CoverMediaFile, publicBaseUrl),
+            profilePhotoUrl,
+            coverPhotoUrl,
             pet.CoverPositionX,
             pet.CoverPositionY,
             ParsePersonalityTags(pet.PersonalityTagsJson),
             publicSlug,
             publicCode,
+            publicProfileVersion,
             safetyCode,
             pet.LifecycleStatus,
             pet.LostModeEnabled,
@@ -231,6 +243,17 @@ internal static class PetDtoMapper
         var publicCode = pet.PublicProfile?.PublicCode ?? "";
         var safetyCode = pet.SafetySetting?.SafetyCode ?? "";
         var publicSlug = ResolvePublicSlug(pet);
+        var age = PetAgeCalculator.Calculate(pet.Birthday, pet.EstimatedBirthYear);
+        var profilePhotoUrl = ResolvePublicMediaUrl(pet.ProfileMediaFile, publicBaseUrl);
+        var coverPhotoUrl = ResolvePublicMediaUrl(pet.CoverMediaFile, publicBaseUrl);
+        var publicProfileVersion = pet.PublicProfile is null
+            ? null
+            : PublicProfileVersion.Create(
+                pet.PublicProfile,
+                pet,
+                age.DisplayLabel,
+                profilePhotoUrl,
+                coverPhotoUrl);
 
         return new PetDetailResponse(
             pet.Id,
@@ -242,7 +265,7 @@ internal static class PetDtoMapper
             pet.Color,
             pet.Birthday,
             pet.EstimatedBirthYear,
-            PetAgeCalculator.Calculate(pet.Birthday, pet.EstimatedBirthYear),
+            age,
             pet.AdoptionDay,
             pet.GeneralArea,
             pet.Bio,
@@ -251,8 +274,8 @@ internal static class PetDtoMapper
             pet.FavoriteToy,
             pet.ProfileMediaFileId,
             pet.CoverMediaFileId,
-            ResolvePublicMediaUrl(pet.ProfileMediaFile, publicBaseUrl),
-            ResolvePublicMediaUrl(pet.CoverMediaFile, publicBaseUrl),
+            profilePhotoUrl,
+            coverPhotoUrl,
             pet.CoverPositionX,
             pet.CoverPositionY,
             pet.ProfileTheme,
@@ -268,6 +291,7 @@ internal static class PetDtoMapper
             pet.ShowMemorialOnPublicProfile,
             publicCode,
             publicSlug,
+            publicProfileVersion,
             safetyCode,
             $"/p/{publicSlug}",
             $"/q/{safetyCode}",

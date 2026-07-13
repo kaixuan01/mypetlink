@@ -23,6 +23,10 @@ import {
 import { getMemoryLimitState } from "@/lib/planLimits";
 import { getPetProfileTheme } from "@/lib/petProfileThemes";
 import { isActivePet, isArchivedPet, isMemorialPet } from "@/lib/petLifecycle";
+import {
+  addPublicProfileShareVersion,
+  getPublicProfileShareVersion,
+} from "@/lib/publicProfileSocial";
 import { smartTagOrderingEnabled } from "@/lib/features";
 import { ownerRoutes, tagPath } from "@/lib/routes";
 import { getServerFallbackBaseUrl, toAbsoluteUrl } from "@/lib/siteUrl";
@@ -199,6 +203,10 @@ function OverviewTab({
   const [ownerSettings, setOwnerSettings] =
     useState<OwnerSettings>(defaultOwnerSettings);
   const effectiveContact = getEffectivePetContact(pet, ownerSettings);
+  const publicProfileSharePath = addPublicProfileShareVersion(
+    pet.publicProfilePath,
+    getPublicProfileShareVersion(pet)
+  );
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -222,9 +230,9 @@ function OverviewTab({
           copyMessage="Public Share Profile link copied."
           fileNameBase={`${pet.slug}-share-profile-qr`}
           helperText="Share your pet's public profile with friends and family."
-          path={pet.publicProfilePath}
+          path={publicProfileSharePath}
           qrTitle="Share Profile QR"
-          url={toAbsoluteUrl(pet.publicProfilePath, origin)}
+          url={toAbsoluteUrl(publicProfileSharePath, origin)}
           viewLabel={isMemorial ? "View Memorial Profile" : "View Public Profile"}
         />
         <div className="mt-auto flex flex-col gap-3 sm:flex-row pt-1">

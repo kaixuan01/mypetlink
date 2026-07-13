@@ -103,11 +103,12 @@ export function createPublicProfileMetadata({
   }
 
   const title = `Meet ${profile.name} | MyPetLink`;
-  const description = `View ${profile.name}'s owner-approved pet profile, memories and safety information.`;
+  const description = `View ${profile.name}'s owner-approved pet profile, memories and safety information on MyPetLink.`;
+  const openGraphDescription = `View ${profile.name}'s owner-approved pet profile, memories and safety information.`;
   const twitterDescription = `View ${profile.name}'s owner-approved pet profile on MyPetLink.`;
   const canonical = canonicalUrl(profile.publicProfilePath);
   const socialImage = canonicalUrl(getPublicProfileSocialImagePath(profile));
-  const imageAlt = `${profile.name}'s pet profile on MyPetLink`;
+  const imageAlt = `${profile.name}'s profile on MyPetLink`;
 
   return {
     title: { absolute: title },
@@ -116,7 +117,7 @@ export function createPublicProfileMetadata({
     robots: isSearchSample ? indexableRobots : directAccessRobots,
     openGraph: {
       title,
-      description,
+      description: openGraphDescription,
       url: canonical,
       siteName: siteConfig.productName,
       locale: "en_MY",

@@ -5,6 +5,7 @@ namespace MyPetLink.Api.DTOs;
 public sealed record PublicPetProfileResponse(
     string PublicCode,
     string PublicSlug,
+    string PublicProfileVersion,
     string Name,
     string Species,
     string? CustomSpecies,
@@ -30,6 +31,22 @@ public sealed record PublicPetProfileResponse(
     string? MemorialMessage,
     IReadOnlyCollection<PublicMemorySummaryResponse> Memories,
     IReadOnlyCollection<PublicCareSummaryResponse> CareRecords);
+
+public sealed record PublicProfileSocialResponse(
+    string PublicCode,
+    string PublicSlug,
+    string PublicProfileVersion,
+    string Name,
+    string Species,
+    string? CustomSpecies,
+    string? Breed,
+    string AgeDisplayLabel,
+    PetLifecycleStatus LifecycleStatus,
+    bool LostModeEnabled,
+    string? ProfilePhotoUrl,
+    string? CoverPhotoUrl,
+    byte CoverPositionX,
+    byte CoverPositionY);
 
 public sealed record PublicMemorySummaryResponse(
     string Title,

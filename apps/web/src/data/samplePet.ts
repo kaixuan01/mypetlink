@@ -1,4 +1,8 @@
 import { mockPets } from "@/data/mockPets";
+import {
+  indexableSamplePublicCode,
+  indexableSamplePublicSlug,
+} from "@/data/publicSample";
 import type { Pet } from "@/types";
 
 /**
@@ -32,11 +36,11 @@ export const samplePet: Pet = {
   coverPositionX: 50,
   coverPositionY: 0,
   profileTheme: "default",
-  publicCode: "pnpr4ipnr6ppelnsn",
+  publicCode: indexableSamplePublicCode,
   safetyCode: "sl3j2b2q3e2oqhe4iamqa",
   qrSafetyPath: "/q/sl3j2b2q3e2oqhe4iamqa",
   finderProfileUrl: "/q/sl3j2b2q3e2oqhe4iamqa",
-  publicProfilePath: "/p/topu-pnpr4ipnr6ppelnsn",
+  publicProfilePath: `/p/${indexableSamplePublicSlug}`,
   bio: "Curious, friendly, and always looking for treats.",
   personalityTags: ["Curious", "Friendly", "Treat lover"],
   safetyNote: "Please contact the owner if this pet is found.",

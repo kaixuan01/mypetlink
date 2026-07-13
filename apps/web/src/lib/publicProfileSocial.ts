@@ -30,6 +30,7 @@ type SocialProfileFields = Pick<
   | "photoInitial"
   | "photoUrl"
   | "publicProfilePath"
+  | "publicProfileVersion"
   | "species"
   | "visibility"
 >;
@@ -72,6 +73,11 @@ export function toPublicProfileSocialCardData(
 }
 
 export function getPublicProfileShareVersion(profile: SocialProfileFields) {
+  const serverVersion = profile.publicProfileVersion?.trim().toLowerCase();
+  if (serverVersion && /^[a-z0-9]{8,64}$/.test(serverVersion)) {
+    return serverVersion;
+  }
+
   const visibility = Object.entries(profile.visibility)
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([key, value]) => `${key}:${value ? 1 : 0}`)
@@ -95,7 +101,7 @@ export function getPublicProfileShareVersion(profile: SocialProfileFields) {
 export function getPublicProfileSocialImagePath(profile: SocialProfileFields) {
   const slug = getPublicProfileSlug(profile.publicProfilePath);
   const version = getPublicProfileShareVersion(profile);
-  return `/share/pets/${encodeURIComponent(slug)}.jpg?v=${version}`;
+  return `/social/pets/${encodeURIComponent(slug)}.jpg?v=${version}`;
 }
 
 export function addPublicProfileShareVersion(path: string, version?: string) {

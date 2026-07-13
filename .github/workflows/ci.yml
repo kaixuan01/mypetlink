@@ -7,6 +7,7 @@ on:
   pull_request:
   push:
     branches:
+      - main
       - "feature/**"
       - "docs/**"
 
@@ -34,6 +35,12 @@ jobs:
       - name: Lint web
         run: npm run lint:web
 
+      - name: Type-check web and Pages Functions
+        run: npm run typecheck:web
+
+      - name: Test web
+        run: npm run test:web
+
       - name: Build web
         # Public, non-secret placeholders. The frontend is a static export,
         # so these only need to be present, not real. Never put a real
@@ -43,6 +50,9 @@ jobs:
           NEXT_PUBLIC_API_BASE_URL: http://localhost:5281
           NEXT_PUBLIC_GOOGLE_CLIENT_ID: ci-placeholder.apps.googleusercontent.com
         run: npm run build:web
+
+      - name: Compile Cloudflare Pages Functions
+        run: npm run build:web-functions
 
   api:
     name: API (.NET 8 build)
@@ -56,7 +66,10 @@ jobs:
           dotnet-version: "8.0.x"
 
       - name: Restore
-        run: dotnet restore apps/api/MyPetLink.Api/MyPetLink.Api.csproj
+        run: dotnet restore apps/api/MyPetLink.Api.sln
 
       - name: Build (Release)
-        run: dotnet build apps/api/MyPetLink.Api/MyPetLink.Api.csproj --configuration Release --no-restore
+        run: dotnet build apps/api/MyPetLink.Api.sln --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test apps/api/MyPetLink.Api.sln --configuration Release --no-build

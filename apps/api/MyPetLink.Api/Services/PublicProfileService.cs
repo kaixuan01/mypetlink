@@ -105,9 +105,24 @@ public sealed class PublicProfileService : SkeletonService, IPublicProfileServic
                 .ToArray()
             : Array.Empty<PublicCareSummaryResponse>();
 
+        var age = PetAgeCalculator.Calculate(pet.Birthday, pet.EstimatedBirthYear);
+        var profilePhotoUrl = PetDtoMapper.ResolvePublicMediaUrl(
+            pet.ProfileMediaFile,
+            _r2Options.PublicBaseUrl);
+        var coverPhotoUrl = PetDtoMapper.ResolvePublicMediaUrl(
+            pet.CoverMediaFile,
+            _r2Options.PublicBaseUrl);
+        var publicProfileVersion = PublicProfileVersion.Create(
+            profile,
+            pet,
+            age.DisplayLabel,
+            profilePhotoUrl,
+            coverPhotoUrl);
+
         return new PublicPetProfileResponse(
             profile.PublicCode,
             PetDtoMapper.ResolvePublicSlug(pet),
+            publicProfileVersion,
             pet.Name,
             pet.Species,
             pet.CustomSpecies,
@@ -116,14 +131,14 @@ public sealed class PublicProfileService : SkeletonService, IPublicProfileServic
             pet.Color,
             pet.Birthday,
             pet.EstimatedBirthYear,
-            PetAgeCalculator.Calculate(pet.Birthday, pet.EstimatedBirthYear),
+            age,
             pet.AdoptionDay,
             pet.LifecycleStatus,
             pet.LostModeEnabled && pet.LifecycleStatus == PetLifecycleStatus.Active,
             profile.ShowOwnerName ? PetDtoMapper.ResolveOwnerDisplayName(pet) : null,
             profile.ShowGeneralArea ? PetDtoMapper.ResolveGeneralArea(pet) : null,
-            PetDtoMapper.ResolvePublicMediaUrl(pet.ProfileMediaFile, _r2Options.PublicBaseUrl),
-            PetDtoMapper.ResolvePublicMediaUrl(pet.CoverMediaFile, _r2Options.PublicBaseUrl),
+            profilePhotoUrl,
+            coverPhotoUrl,
             pet.CoverPositionX,
             pet.CoverPositionY,
             pet.Bio,
@@ -133,6 +148,65 @@ public sealed class PublicProfileService : SkeletonService, IPublicProfileServic
             pet.LifecycleStatus == PetLifecycleStatus.Memorial ? pet.MemorialMessage : null,
             memories,
             careRecords);
+    }
+
+    public async Task<PublicProfileSocialResponse> GetSocialByPublicSlugAsync(
+        string publicSlug,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(publicSlug))
+        {
+            throw NotFound();
+        }
+
+        var publicCode = PetDtoMapper.ExtractPublicCode(publicSlug);
+        var profile = await _dbContext.PetPublicProfiles
+            .AsNoTracking()
+            .Include(item => item.Pet)
+                .ThenInclude(pet => pet.ProfileMediaFile)
+            .Include(item => item.Pet)
+                .ThenInclude(pet => pet.CoverMediaFile)
+            .SingleOrDefaultAsync(item => item.PublicCode == publicCode, cancellationToken);
+
+        if (profile is null
+            || !profile.IsPublicProfileEnabled
+            || profile.Pet.DeletedAt.HasValue
+            || profile.Pet.LifecycleStatus == PetLifecycleStatus.Archived
+            || (profile.Pet.LifecycleStatus == PetLifecycleStatus.Memorial
+                && !profile.Pet.ShowMemorialOnPublicProfile))
+        {
+            throw NotFound();
+        }
+
+        var pet = profile.Pet;
+        var age = PetAgeCalculator.Calculate(pet.Birthday, pet.EstimatedBirthYear);
+        var profilePhotoUrl = PetDtoMapper.ResolvePublicMediaUrl(
+            pet.ProfileMediaFile,
+            _r2Options.PublicBaseUrl);
+        var coverPhotoUrl = PetDtoMapper.ResolvePublicMediaUrl(
+            pet.CoverMediaFile,
+            _r2Options.PublicBaseUrl);
+
+        return new PublicProfileSocialResponse(
+            profile.PublicCode,
+            PetDtoMapper.ResolvePublicSlug(pet),
+            PublicProfileVersion.Create(
+                profile,
+                pet,
+                age.DisplayLabel,
+                profilePhotoUrl,
+                coverPhotoUrl),
+            pet.Name,
+            pet.Species,
+            pet.CustomSpecies,
+            pet.Breed,
+            age.DisplayLabel,
+            pet.LifecycleStatus,
+            pet.LostModeEnabled && pet.LifecycleStatus == PetLifecycleStatus.Active,
+            profilePhotoUrl,
+            coverPhotoUrl,
+            pet.CoverPositionX,
+            pet.CoverPositionY);
     }
 
     private async Task<Dictionary<Guid, MemoryMediaResponse[]>> LoadPublicMemoryMediaAsync(

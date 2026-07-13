@@ -16,6 +16,14 @@ These are `NEXT_PUBLIC_*`, so they are **baked into the static bundle at build t
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | No (public by design) | Google OAuth Web client id used by the GIS button | `<id>.apps.googleusercontent.com` |
 | `NEXT_PUBLIC_SMART_TAG_ORDERING_ENABLED` | No | Frontend build-time feature flag for Smart Tag order CTAs. Keep `false` or unset for the free-profiles launch; set `true` only when the backend flag is also enabled and physical tags are ready. | `false` |
 
+Cloudflare Pages Functions also consume this request-time variable:
+
+| Variable | Secret? | Purpose | Example shape |
+| --- | --- | --- | --- |
+| `PUBLIC_API_BASE_URL` | No | Azure API origin used by the `/p/*` metadata Function and `/social/pets/*` card Function. Set it for Production and Preview. `NEXT_PUBLIC_API_BASE_URL` is accepted only as a compatibility fallback. | `https://api.mypetlink.com.my` |
+
+This runtime value lets newly created and updated profiles receive metadata without rebuilding the static frontend. No R2 binding is required for social cards; the Functions use Cloudflare Cache and the API reads existing public media URLs. See [Dynamic public-profile social previews](dynamic-social-previews.md).
+
 QR codes are generated entirely in the browser from these URLs — no external QR service is called. If `NEXT_PUBLIC_SITE_URL` is unset, the app falls back to `NEXT_PUBLIC_APP_URL`, then to `window.location.origin` in the browser.
 
 Local dev equivalents live in `apps/web/.env.local` (gitignored): `NEXT_PUBLIC_API_BASE_URL=http://localhost:5281`, `NEXT_PUBLIC_APP_URL=http://localhost:3000` (used as the QR base locally), and the dev Google client id.
