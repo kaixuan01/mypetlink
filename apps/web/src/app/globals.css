@@ -272,10 +272,29 @@ select {
   animation: paw-step 1.2s ease-in-out infinite;
 }
 
+/* Gentle entrance for the session-checking screen so the delayed loader fades
+   in instead of popping. Runs once; removed for reduced-motion users. */
+@keyframes session-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.session-fade-in {
+  animation: session-fade-in 220ms ease-out both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .owner-action-panel,
   .paw-step,
-  .wake-paw {
+  .wake-paw,
+  .session-fade-in {
     animation: none;
   }
 

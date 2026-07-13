@@ -1,13 +1,17 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import {
+  SessionCheckingScreen,
+  type SessionCheckState,
+} from "@/components/auth/SessionCheckingScreen";
 import {
   getCurrentOwnerSession,
   isOwnerAuthenticated,
   logoutOwner,
 } from "@/services/authService";
-import { canUseApi } from "@/services/apiConfig";
+import { canUseApi, getFrontendResilienceConfig } from "@/services/apiConfig";
 import { isApiClientError } from "@/services/apiClient";
 import { getOwnerProfileSettings } from "@/services/ownerProfileService";
 import {
@@ -19,10 +23,32 @@ import {
 // in the production bundle. Used to gate a developer-only hint.
 const isDevelopment = process.env.NODE_ENV === "development";
 
-type GuardError = "connection" | "session" | null;
+// Staged loading behaviour. A check that finishes inside LOADER_DELAY_MS never
+// shows the loader at all (no flash on fast navigations); a check still running
+// at SLOW_HINT_DELAY_MS switches to the "taking longer than usual" hint.
+export const LOADER_DELAY_MS = 250;
+export const SLOW_HINT_DELAY_MS = 5000;
 
-// Backend/database unavailable and other transient service failures should read
-// as a temporary connection issue, never as "not found".
+// The session request itself can legitimately take up to the database wake-up
+// retry window (serverless SQL warming up), so the guard timeout must sit
+// safely beyond it — never racing a legitimate token refresh or wake retry.
+export function getSessionCheckTimeoutMs() {
+  return getFrontendResilienceConfig().maximumWaitMs + 15_000;
+}
+
+// Once a session has been verified against the API in this app load, remounting
+// the guard (every in-portal navigation remounts the page tree) renders the
+// destination immediately and revalidates in the background instead of blocking
+// the whole portal behind a repeat check. Cleared on logout/expiry via the 401
+// path below; a full reload (new module instance) always re-verifies first.
+let ownerSessionVerifiedThisLoad = false;
+
+export function resetOwnerSessionVerificationForTests() {
+  ownerSessionVerifiedThisLoad = false;
+}
+
+type GuardStatus = "ready" | SessionCheckState;
+
 function isConnectionFailure(status: number) {
   return status === 0 || (status >= 500 && status <= 599);
 }
@@ -30,8 +56,11 @@ function isConnectionFailure(status: number) {
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [ready, setReady] = useState(false);
-  const [errorKind, setErrorKind] = useState<GuardError>(null);
+  const [status, setStatus] = useState<GuardStatus>("waiting");
+  const [errorDetail, setErrorDetail] = useState("");
+  const [attempt, setAttempt] = useState(0);
+  // Blocks duplicate Retry submissions between click and state update.
+  const retryLockRef = useRef(false);
 
   useEffect(() => {
     const returnTo = getCurrentLocalDestination(pathname);
@@ -41,106 +70,164 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    if (canUseApi()) {
-      let active = true;
+    if (!canUseApi()) {
+      // Local/mock mode has no session endpoint to confirm against.
+      const timer = window.setTimeout(() => setStatus("ready"), 0);
+      return () => window.clearTimeout(timer);
+    }
 
-      Promise.resolve()
-        .then(() => {
+    let active = true;
+    const timers: number[] = [];
+
+    function schedule(delayMs: number, run: () => void) {
+      timers.push(
+        window.setTimeout(() => {
           if (active) {
-            setReady(false);
-            setErrorKind(null);
+            run();
           }
+        }, delayMs)
+      );
+    }
 
-          return Promise.all([getCurrentOwnerSession(), getOwnerProfileSettings()]);
-        })
-        .then(() => {
-          if (active) {
-            setReady(true);
-          }
-        })
-        .catch((caught) => {
-          if (!active) {
-            return;
-          }
+    function clearStageTimers() {
+      for (const timer of timers) {
+        window.clearTimeout(timer);
+      }
+      timers.length = 0;
+    }
 
-          const status = isApiClientError(caught) ? caught.status : -1;
+    function settleFailure(caught: unknown) {
+      if (!active) {
+        return;
+      }
 
-          if (status === 401) {
-            logoutOwner();
-            router.replace(ownerLoginPath(returnTo));
-            return;
-          }
+      const failureStatus = isApiClientError(caught) ? caught.status : -1;
 
-          setErrorKind(isConnectionFailure(status) ? "connection" : "session");
-        });
+      if (failureStatus === 401) {
+        ownerSessionVerifiedThisLoad = false;
+        logoutOwner();
+        router.replace(ownerLoginPath(returnTo));
+        return;
+      }
+
+      // navigator.onLine is a hint only: it distinguishes the copy shown for a
+      // network-level failure, never the auth outcome itself.
+      if (
+        failureStatus === 0 &&
+        typeof navigator !== "undefined" &&
+        navigator.onLine === false
+      ) {
+        setStatus("offline");
+        return;
+      }
+
+      // A network/service failure is reported as a connection problem, never
+      // as an expired session.
+      setErrorDetail(
+        isConnectionFailure(failureStatus)
+          ? "MyPetLink is having trouble connecting right now."
+          : "We couldn't confirm your session."
+      );
+      setStatus("error");
+    }
+
+    const check = Promise.all([
+      getCurrentOwnerSession(),
+      getOwnerProfileSettings(),
+    ]);
+
+    if (ownerSessionVerifiedThisLoad) {
+      // Fast path: render immediately, revalidate in the background. A 401
+      // still signs out and redirects; transient failures are left to the
+      // page's own data requests to surface. Deferred a microtask so the
+      // effect body never sets state synchronously.
+      queueMicrotask(() => {
+        if (active) {
+          setStatus("ready");
+        }
+      });
+      check.catch((caught) => {
+        const failureStatus = isApiClientError(caught) ? caught.status : -1;
+
+        if (active && failureStatus === 401) {
+          ownerSessionVerifiedThisLoad = false;
+          logoutOwner();
+          router.replace(ownerLoginPath(returnTo));
+        }
+      });
 
       return () => {
         active = false;
       };
     }
 
-    const timer = window.setTimeout(() => setReady(true), 0);
-    return () => window.clearTimeout(timer);
-  }, [pathname, router]);
-
-  if (errorKind) {
-    const isConnection = errorKind === "connection";
-
-    return (
-      <div className="grid min-h-screen place-items-center bg-pet-cream px-4">
-        <div className="brand-card max-w-md rounded-[2rem] p-6 text-center">
-          <p className="text-sm font-bold uppercase text-pet-teal">
-            {isConnection ? "Connection issue" : "Something went wrong"}
-          </p>
-          <h1 className="mt-2 text-2xl font-black text-pet-ink">
-            We couldn&rsquo;t load your account
-          </h1>
-          <p className="mt-3 text-sm font-semibold leading-6 text-pet-muted">
-            {isConnection
-              ? "MyPetLink is having trouble connecting right now. Please try again in a moment."
-              : "We couldn't confirm your session. Please try again."}
-          </p>
-          {isDevelopment && isConnection ? (
-            <p className="mt-3 rounded-[1rem] bg-pet-cream px-4 py-2 text-xs font-semibold leading-5 text-pet-muted">
-              Developer hint: Check that the API and local database are running.
-            </p>
-          ) : null}
-          <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:justify-center">
-            <button
-              className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-teal bg-pet-teal px-5 py-3 text-sm font-extrabold text-white transition hover:bg-[#0f5fd0]"
-              onClick={() => window.location.reload()}
-              type="button"
-            >
-              Try Again
-            </button>
-            <button
-              className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-extrabold text-pet-ink transition hover:bg-pet-cream"
-              onClick={() =>
-                router.replace(
-                  ownerLoginPath(getCurrentLocalDestination(pathname))
-                )
-              }
-              type="button"
-            >
-              Go to Login
-            </button>
-          </div>
-        </div>
-      </div>
+    // The staged loader starts from "waiting": the initial mount state and the
+    // Retry handler both reset to it, so nothing needs a synchronous setState
+    // here. A pathname change while already "ready" revalidates silently in
+    // the background (the stage timers below only advance loading states).
+    schedule(LOADER_DELAY_MS, () =>
+      setStatus((current) => (current === "waiting" ? "checking" : current))
     );
+    schedule(SLOW_HINT_DELAY_MS, () =>
+      setStatus((current) => (current === "checking" ? "slow" : current))
+    );
+    schedule(getSessionCheckTimeoutMs(), () =>
+      setStatus((current) =>
+        current === "checking" || current === "slow" || current === "waiting"
+          ? "timeout"
+          : current
+      )
+    );
+
+    check
+      .then(() => {
+        if (active) {
+          // A check that finishes after the timeout screen appeared still
+          // succeeds — better to open the portal than strand the user.
+          ownerSessionVerifiedThisLoad = true;
+          setStatus("ready");
+        }
+      })
+      .catch(settleFailure)
+      .finally(() => {
+        clearStageTimers();
+        if (active) {
+          retryLockRef.current = false;
+        }
+      });
+
+    return () => {
+      active = false;
+      clearStageTimers();
+    };
+  }, [pathname, router, attempt]);
+
+  function handleRetry() {
+    if (retryLockRef.current) {
+      return;
+    }
+
+    retryLockRef.current = true;
+    setStatus("waiting");
+    setErrorDetail("");
+    setAttempt((current) => current + 1);
   }
 
-  if (!ready) {
-    return (
-      <div className="grid min-h-screen place-items-center bg-pet-cream px-4">
-        <div className="brand-card rounded-[2rem] p-6 text-center">
-          <p className="text-sm font-semibold text-pet-muted">
-            Checking your session...
-          </p>
-        </div>
-      </div>
-    );
+  if (status === "ready") {
+    return children;
   }
 
-  return children;
+  return (
+    <SessionCheckingScreen
+      detail={status === "error" ? errorDetail : undefined}
+      devHint={
+        isDevelopment && status === "error"
+          ? "Developer hint: Check that the API and local database are running."
+          : undefined
+      }
+      loginHref={ownerLoginPath(getCurrentLocalDestination(pathname))}
+      onRetry={handleRetry}
+      state={status}
+    />
+  );
 }
