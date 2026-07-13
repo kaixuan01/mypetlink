@@ -45,3 +45,6 @@ next-env.d.ts
 
 # turbo
 .turbo/
+
+# Cloudflare local tooling output
+.wrangler/

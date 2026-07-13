@@ -97,6 +97,8 @@ export type Pet = {
   qrSafetyPath: string;
   finderProfileUrl: string;
   publicProfilePath: string;
+  /** Opaque version of owner-approved public fields used for social previews. */
+  publicProfileVersion?: string;
   bio: string;
   personalityTags: string[];
   favoriteFood: string;
@@ -170,6 +172,7 @@ export type PublicPetProfile = Pick<
   | "qrSafetyPath"
   | "finderProfileUrl"
   | "publicProfilePath"
+  | "publicProfileVersion"
   | "bio"
   | "personalityTags"
   | "favoriteFood"

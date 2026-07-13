@@ -174,8 +174,12 @@ Implemented public read endpoints:
 
 ```txt
 GET /api/v1/public/pets/{publicSlug}
+GET /api/v1/public/pets/{publicSlug}/social
+GET /api/v1/public/pets/{publicSlug}/social-card.jpg?v={publicProfileVersion}
 GET /api/v1/public/safety/{safetyCode}
 ```
+
+The `/social` response is a restricted owner-approved projection for Cloudflare Pages Functions. It excludes contact details, account identifiers, private records, private moments, and internal database ids. The JPEG endpoint lazily renders and caches a 1200 x 630 public social card. Both endpoints return unavailable/not found for private, archived, deleted, or otherwise non-shareable profiles. See [`../../docs/deployment/dynamic-social-previews.md`](../../docs/deployment/dynamic-social-previews.md).
 
 Implemented owner Care Records endpoints:
 

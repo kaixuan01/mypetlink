@@ -15,6 +15,15 @@ These are `NEXT_PUBLIC_*`, so they are **baked into the static bundle at build t
 | `NEXT_PUBLIC_MEDIA_BASE_URL` | No | Optional public media domain (no trailing slash). The API already returns ready-to-render absolute photo URLs, so this is only a fallback used to resolve bare object keys. Must be an absolute `https://` URL if set. | `https://media.mypetlink.com.my` |
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | No (public by design) | Google OAuth Web client id used by the GIS button | `<id>.apps.googleusercontent.com` |
 | `NEXT_PUBLIC_SMART_TAG_ORDERING_ENABLED` | No | Frontend build-time feature flag for Smart Tag order CTAs. Keep `false` or unset for the free-profiles launch; set `true` only when the backend flag is also enabled and physical tags are ready. | `false` |
+| `NEXT_PUBLIC_NOINDEX` | No | Search-indexing guard for the static build. **Leave unset in Production** — public marketing/profile pages are then indexable by default (so production can never accidentally inherit a preview `noindex`). Set to `true` **only in the Preview/staging Cloudflare Pages environment** to force `noindex,nofollow` on those deploys. Private routes (login, owner/admin portal, edit/checkout, non-sample public profiles, QR/tag pages) stay `noindex` regardless of this flag. | `true` (Preview only) |
+
+Cloudflare Pages Functions also consume this request-time variable:
+
+| Variable | Secret? | Purpose | Example shape |
+| --- | --- | --- | --- |
+| `PUBLIC_API_BASE_URL` | No | Azure API origin used by the `/p/*` metadata Function and `/social/pets/*` card Function. Set it for Production and Preview. `NEXT_PUBLIC_API_BASE_URL` is accepted only as a compatibility fallback. | `https://api.mypetlink.com.my` |
+
+This runtime value lets newly created and updated profiles receive metadata without rebuilding the static frontend. No R2 binding is required for social cards; the Functions use Cloudflare Cache and the API reads existing public media URLs. See [Dynamic public-profile social previews](dynamic-social-previews.md).
 
 QR codes are generated entirely in the browser from these URLs — no external QR service is called. If `NEXT_PUBLIC_SITE_URL` is unset, the app falls back to `NEXT_PUBLIC_APP_URL`, then to `window.location.origin` in the browser.
 

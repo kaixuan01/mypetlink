@@ -9,15 +9,6 @@ import {
 import { marketingRoutes, samplePet } from "@/lib/routes";
 import type { PublicPetProfile } from "@/types";
 
-export const indexableRobots: NonNullable<Metadata["robots"]> = {
-  index: true,
-  follow: true,
-  googleBot: {
-    index: true,
-    follow: true,
-  },
-};
-
 export const privateRobots: NonNullable<Metadata["robots"]> = {
   index: false,
   follow: false,
@@ -35,6 +26,36 @@ export const directAccessRobots: NonNullable<Metadata["robots"]> = {
     follow: true,
   },
 };
+
+// Rich-result directives for pages we want eligible in Google Search.
+const richIndexDirectives = {
+  index: true,
+  follow: true,
+  "max-image-preview": "large",
+  "max-snippet": -1,
+  "max-video-preview": -1,
+} as const;
+
+// Environment-safe indexing rule. Production is indexable **by default** so a
+// production deploy can never accidentally inherit a preview "noindex" (the
+// original bug was a global noindex baked into the layout). A preview / staging
+// deployment opts OUT by setting `NEXT_PUBLIC_NOINDEX=true` in that environment
+// only; production leaves it unset.
+export function buildIndexableRobots(
+  previewNoindex: boolean
+): NonNullable<Metadata["robots"]> {
+  if (previewNoindex) {
+    return privateRobots;
+  }
+
+  return {
+    ...richIndexDirectives,
+    googleBot: { ...richIndexDirectives },
+  };
+}
+
+export const indexableRobots: NonNullable<Metadata["robots"]> =
+  buildIndexableRobots(process.env.NEXT_PUBLIC_NOINDEX === "true");
 
 export const privatePageMetadata: Metadata = {
   robots: privateRobots,
@@ -103,11 +124,12 @@ export function createPublicProfileMetadata({
   }
 
   const title = `Meet ${profile.name} | MyPetLink`;
-  const description = `View ${profile.name}'s owner-approved pet profile, memories and safety information.`;
+  const description = `View ${profile.name}'s owner-approved pet profile, memories and safety information on MyPetLink.`;
+  const openGraphDescription = `View ${profile.name}'s owner-approved pet profile, memories and safety information.`;
   const twitterDescription = `View ${profile.name}'s owner-approved pet profile on MyPetLink.`;
   const canonical = canonicalUrl(profile.publicProfilePath);
   const socialImage = canonicalUrl(getPublicProfileSocialImagePath(profile));
-  const imageAlt = `${profile.name}'s pet profile on MyPetLink`;
+  const imageAlt = `${profile.name}'s profile on MyPetLink`;
 
   return {
     title: { absolute: title },
@@ -116,7 +138,7 @@ export function createPublicProfileMetadata({
     robots: isSearchSample ? indexableRobots : directAccessRobots,
     openGraph: {
       title,
-      description,
+      description: openGraphDescription,
       url: canonical,
       siteName: siteConfig.productName,
       locale: "en_MY",

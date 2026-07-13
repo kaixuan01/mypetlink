@@ -108,6 +108,7 @@ export type BackendPetDetail = {
   showMemorialOnPublicProfile: boolean;
   publicCode: string;
   publicSlug: string;
+  publicProfileVersion?: string | null;
   safetyCode: string;
   publicProfilePath: string;
   qrSafetyPath: string;
@@ -137,6 +138,7 @@ export type BackendPetListItem = Pick<
   | "age"
   | "publicSlug"
   | "publicCode"
+  | "publicProfileVersion"
   | "safetyCode"
   | "lifecycleStatus"
   | "lostModeEnabled"
@@ -156,6 +158,7 @@ export type BackendPetListItem = Pick<
 export type BackendPublicPetProfile = {
   publicCode: string;
   publicSlug: string;
+  publicProfileVersion?: string;
   name: string;
   species: string;
   customSpecies?: string | null;

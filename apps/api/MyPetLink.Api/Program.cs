@@ -39,6 +39,13 @@ var databaseResilience = builder.Configuration
     .Get<DatabaseResilienceOptions>() ?? new DatabaseResilienceOptions();
 
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddMemoryCache();
+builder.Services.AddHttpClient("PublicProfileSocialMedia")
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+    {
+        AllowAutoRedirect = false,
+        AutomaticDecompression = System.Net.DecompressionMethods.All
+    });
 builder.Services.AddDbContext<MyPetLinkDbContext>(options =>
 {
     var configuredConnectionString = builder.Configuration.GetConnectionString("MyPetLinkDb");
@@ -205,6 +212,7 @@ builder.Services.AddScoped<IExternalTokenValidator, GoogleTokenValidator>();
 builder.Services.AddScoped<IAuthorizationHandler, ActiveAdminRequirementHandler>();
 builder.Services.AddScoped<IPetService, PetService>();
 builder.Services.AddScoped<IPublicProfileService, PublicProfileService>();
+builder.Services.AddSingleton<IPublicProfileSocialCardRenderer, PublicProfileSocialCardRenderer>();
 builder.Services.AddScoped<IMemoryService, MemoryService>();
 builder.Services.AddScoped<ICareRecordService, CareRecordService>();
 builder.Services.AddScoped<IMediaService, MediaService>();

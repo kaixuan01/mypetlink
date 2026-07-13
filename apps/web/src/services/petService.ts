@@ -500,6 +500,7 @@ export function mapBackendPetToFrontend(
     },
     qrStatus: "active",
     publicCode: pet.publicCode,
+    publicProfileVersion: pet.publicProfileVersion ?? undefined,
     safetyCode: pet.safetyCode,
     qrSafetyEnabled: true,
     qrSafetyPath: safetyPath,
@@ -555,7 +556,7 @@ function mapBackendPublicProfile(profile: BackendPublicPetProfile): PublicPetPro
   const age =
     profile.age ?? calculatePetAge({ birthday, estimatedBirthYear });
 
-  return toPublicProfile(
+  const mapped = toPublicProfile(
     normalizePet({
       id: profile.publicCode,
       slug,
@@ -626,6 +627,11 @@ function mapBackendPublicProfile(profile: BackendPublicPetProfile): PublicPetPro
       medications: [],
     })
   );
+
+  return {
+    ...mapped,
+    publicProfileVersion: profile.publicProfileVersion,
+  };
 }
 
 export function mapBackendSafetyPage(page: BackendPublicSafetyPage): PublicPetProfile {

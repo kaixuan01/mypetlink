@@ -43,6 +43,7 @@ import {
 } from "@/lib/petAge";
 import { PET_TYPE_OPTIONS } from "@/lib/petDisplay";
 import { isActivePet } from "@/lib/petLifecycle";
+import { getPublicProfileShareVersion } from "@/lib/publicProfileSocial";
 import { smartTagOrderingEnabled } from "@/lib/features";
 import {
   getCurrentLocalDestination,
@@ -802,6 +803,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
           className="mt-5"
           path={createdPet.publicProfilePath}
           petName={createdPet.name}
+          shareVersion={getPublicProfileShareVersion(createdPet)}
         />
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">
           <CTAButton
@@ -1714,6 +1716,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
         <ShareProfileLink
           path={savedPet.publicProfilePath}
           petName={savedPet.name}
+          shareVersion={getPublicProfileShareVersion(savedPet)}
         />
       ) : null}
 

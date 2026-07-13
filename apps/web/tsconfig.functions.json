@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["esnext"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "types": ["@cloudflare/workers-types"]
+  },
+  "include": [
+    "edge/**/*.ts",
+    "functions/**/*.ts",
+    "functions/**/*.d.ts",
+    "src/data/publicSample.ts"
+  ],
+  "exclude": ["edge/**/*.test.ts"]
+}
