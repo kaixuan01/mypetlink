@@ -1,22 +1,30 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { forwardRef, useCallback, useEffect, useId, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
+import { createPortal } from "react-dom";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { getActivePets } from "@/lib/petLifecycle";
 import { getPetLimitStateFromPets } from "@/lib/planLimits";
-import { ownerRoutes } from "@/lib/routes";
-import { getPets } from "@/services/petService";
+import { marketingRoutes, ownerRoutes } from "@/lib/routes";
 import type { Pet } from "@/types";
 
-type GlobalAddMenuVariant = "compact" | "full" | "icon";
-
 type GlobalAddMenuProps = {
-  variant?: GlobalAddMenuVariant;
-  className?: string;
+  pets: Pet[];
+  loading?: boolean;
+  loadFailed?: boolean;
 };
+
+type PetSelectionAction = "moment" | "record";
 
 type MenuAction = {
   key: string;
@@ -28,86 +36,140 @@ type MenuAction = {
   disabled?: boolean;
 };
 
+type AnchorPosition = {
+  top: number;
+  right: number;
+};
+
 const TRIGGER_LABEL = "Add a pet, care record, or moment";
 
-// One shared create entry point for the Owner Portal. Opens a responsive
-// action menu (anchored popover on larger screens, bottom sheet on phones)
-// with Add Pet, Add Care Record, and Add Pet Moment. Care Record and Pet
-// Moment route to the existing pet-selection flows (/records, /moments), which
-// preselect the only pet, offer the switcher when there are several, and guide
-// owners with no pets to create their first one.
+/**
+ * Dashboard-only multi-create action. The backdrop and panel are portalled as
+ * one unit so neither can be trapped by the sticky header's backdrop-filter
+ * containing block or the desktop sidebar's overflow clipping.
+ */
 export function GlobalAddMenu({
-  variant = "compact",
-  className = "",
+  pets,
+  loading = false,
+  loadFailed = false,
 }: GlobalAddMenuProps) {
+  const pathname = usePathname();
   const router = useRouter();
   const menuId = useId();
+  const menuTitleId = useId();
   const [open, setOpen] = useState(false);
-  const [pets, setPets] = useState<Pet[] | null>(null);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [selectingPetFor, setSelectingPetFor] =
+    useState<PetSelectionAction | null>(null);
   const [showLimitDialog, setShowLimitDialog] = useState(false);
-
+  const [anchor, setAnchor] = useState<AnchorPosition>({ top: 0, right: 16 });
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const lastPathnameRef = useRef(pathname);
 
-  useEffect(() => {
-    let active = true;
+  const activePets = getActivePets(pets);
+  const limit = getPetLimitStateFromPets(pets);
 
-    getPets()
-      .then((response) => {
-        if (active) {
-          setPets(response.data);
-          setLoadFailed(false);
-        }
-      })
-      .catch(() => {
-        if (active) {
-          setPets([]);
-          setLoadFailed(true);
-        }
-      });
+  const updateAnchor = useCallback(() => {
+    const trigger = triggerRef.current;
 
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  // Closing never touches the trigger ref during render; focus restoration is
-  // handled in the Escape handler (an event context) where reading the ref is
-  // safe.
-  const closeMenu = useCallback(() => {
-    setOpen(false);
-  }, []);
-
-  // Focus the first actionable item when the menu opens.
-  useEffect(() => {
-    if (!open) {
+    if (!trigger) {
       return;
     }
 
-    const focusable = panelRef.current?.querySelector<HTMLElement>(
-      "[data-add-menu-item]:not([aria-disabled='true'])"
-    );
-    focusable?.focus();
-  }, [open]);
+    const rect = trigger.getBoundingClientRect();
+    setAnchor({
+      top: rect.bottom + 8,
+      right: Math.max(16, window.innerWidth - rect.right),
+    });
+  }, []);
 
-  // Escape closes and restores focus; Tab stays within the open panel.
+  const dismissMenu = useCallback(() => {
+    setOpen(false);
+    setSelectingPetFor(null);
+  }, []);
+
+  const closeMenu = useCallback((restoreFocus = true) => {
+    dismissMenu();
+
+    if (restoreFocus) {
+      queueMicrotask(() => triggerRef.current?.focus());
+    }
+  }, [dismissMenu]);
+
+  useEffect(() => {
+    if (lastPathnameRef.current === pathname) {
+      return;
+    }
+
+    lastPathnameRef.current = pathname;
+    queueMicrotask(() => closeMenu(false));
+  }, [closeMenu, pathname]);
+
   useEffect(() => {
     if (!open) {
       return undefined;
     }
 
+    function handleViewportChange() {
+      updateAnchor();
+    }
+
+    window.addEventListener("resize", handleViewportChange);
+    window.addEventListener("scroll", handleViewportChange, true);
+
+    return () => {
+      window.removeEventListener("resize", handleViewportChange);
+      window.removeEventListener("scroll", handleViewportChange, true);
+    };
+  }, [open, updateAnchor]);
+
+  useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+
+    const desktop = window.matchMedia?.("(min-width: 640px)").matches ?? false;
+
+    if (desktop) {
+      return undefined;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+
+    queueMicrotask(() => {
+      panelRef.current
+        ?.querySelector<HTMLElement>(
+          "[data-add-menu-item]:not([aria-disabled='true'])"
+        )
+        ?.focus();
+    });
+
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         event.preventDefault();
-        setOpen(false);
-        triggerRef.current?.focus();
+
+        if (selectingPetFor) {
+          setSelectingPetFor(null);
+        } else {
+          closeMenu();
+        }
         return;
       }
 
       const items = Array.from(
         panelRef.current?.querySelectorAll<HTMLElement>(
-          "[data-add-menu-item]:not([aria-disabled='true'])"
+          "[data-add-menu-focusable]:not([aria-disabled='true'])"
         ) ?? []
       );
 
@@ -115,22 +177,21 @@ export function GlobalAddMenu({
         return;
       }
 
-      const currentIndex = items.indexOf(
-        document.activeElement as HTMLElement
-      );
+      const currentIndex = items.indexOf(document.activeElement as HTMLElement);
 
       if (event.key === "ArrowDown") {
         event.preventDefault();
-        const next = items[(currentIndex + 1) % items.length];
-        next?.focus();
+        items[(currentIndex + 1) % items.length]?.focus();
       } else if (event.key === "ArrowUp") {
         event.preventDefault();
-        const prev =
-          items[(currentIndex - 1 + items.length) % items.length];
-        prev?.focus();
-      } else if (event.key === "Tab") {
+        items[(currentIndex - 1 + items.length) % items.length]?.focus();
+      } else if (
+        event.key === "Tab" &&
+        !(window.matchMedia?.("(min-width: 640px)").matches ?? false)
+      ) {
         const first = items[0];
         const last = items[items.length - 1];
+
         if (event.shiftKey && document.activeElement === first) {
           event.preventDefault();
           last.focus();
@@ -143,196 +204,282 @@ export function GlobalAddMenu({
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [open]);
+  }, [closeMenu, open, selectingPetFor]);
 
-  const activePets = pets ? getActivePets(pets) : [];
-  const hasPets = activePets.length > 0;
-  const limit = pets ? getPetLimitStateFromPets(pets) : null;
-  const isLoading = pets === null;
+  const actions = buildActions({
+    activePets,
+    limitReached: !limit.canCreate,
+    loadFailed,
+    loading,
+    onLimitReached: () => {
+      dismissMenu();
+      setShowLimitDialog(true);
+    },
+    onSelectPet: setSelectingPetFor,
+  });
 
-  const addPetAction: MenuAction = (() => {
-    if (loadFailed) {
-      return {
+  function toggleMenu() {
+    if (open) {
+      closeMenu();
+      return;
+    }
+
+    updateAnchor();
+    setSelectingPetFor(null);
+    setOpen(true);
+  }
+
+  const panelStyle = {
+    "--owner-add-anchor-top": `${anchor.top}px`,
+    "--owner-add-anchor-right": `${anchor.right}px`,
+  } as CSSProperties;
+
+  const overlay =
+    open && typeof document !== "undefined"
+      ? createPortal(
+          <>
+            <button
+              aria-label="Close add menu"
+              className="owner-action-backdrop fixed inset-0 cursor-default bg-pet-ink/25 backdrop-blur-[2px] sm:bg-transparent sm:backdrop-blur-none"
+              data-owner-action-backdrop
+              onClick={() => closeMenu()}
+              type="button"
+            />
+            <div
+              aria-labelledby={menuTitleId}
+              className="owner-action-panel fixed overflow-y-auto rounded-[1.5rem] border border-pet-border bg-white p-2 shadow-2xl shadow-[#0d1b3d]/20"
+              data-owner-action-panel
+              id={menuId}
+              ref={panelRef}
+              role="menu"
+              style={panelStyle}
+            >
+              <div className="flex items-center justify-between gap-3 px-2 py-1.5">
+                <div className="min-w-0">
+                  <p
+                    className="truncate text-sm font-black text-pet-ink"
+                    id={menuTitleId}
+                  >
+                    {selectingPetFor
+                      ? selectingPetFor === "record"
+                        ? "Choose a pet for the record"
+                        : "Choose a pet for the moment"
+                      : "What would you like to add?"}
+                  </p>
+                  <p className="mt-0.5 text-xs font-semibold text-pet-muted sm:hidden">
+                    {selectingPetFor
+                      ? "Your choice opens the correct pet flow."
+                      : "Create one new item."}
+                  </p>
+                </div>
+                <button
+                  aria-label={
+                    selectingPetFor ? "Back to add actions" : "Close action sheet"
+                  }
+                  className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-pet-border bg-white text-pet-muted transition hover:bg-pet-cream hover:text-pet-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pet-teal"
+                  data-add-menu-focusable
+                  onClick={() =>
+                    selectingPetFor
+                      ? setSelectingPetFor(null)
+                      : closeMenu()
+                  }
+                  type="button"
+                >
+                  {selectingPetFor ? (
+                    <svg
+                      aria-hidden="true"
+                      className="h-5 w-5"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      viewBox="0 0 24 24"
+                    >
+                      <path d="m14 6-6 6 6 6" />
+                    </svg>
+                  ) : (
+                    <Icon name="plus" className="h-5 w-5 rotate-45" />
+                  )}
+                </button>
+              </div>
+
+              <div className="mt-1 grid gap-1">
+                {selectingPetFor
+                  ? activePets.map((pet) => (
+                      <MenuActionItem
+                        action={{
+                          key: pet.id,
+                          label: pet.name,
+                          description:
+                            selectingPetFor === "record"
+                              ? "Add a care record for this pet"
+                              : "Add a moment for this pet",
+                          icon: selectingPetFor === "record" ? "record" : "heart",
+                          href:
+                            selectingPetFor === "record"
+                              ? ownerRoutes.petRecords(pet.id, { create: true })
+                              : ownerRoutes.petMomentNew(pet.id),
+                        }}
+                        key={pet.id}
+                        onSelect={() => closeMenu(false)}
+                      />
+                    ))
+                  : actions.map((action) => (
+                      <MenuActionItem
+                        action={action}
+                        key={action.key}
+                        onSelect={() => closeMenu(false)}
+                      />
+                    ))}
+              </div>
+            </div>
+          </>,
+          document.body
+        )
+      : null;
+
+  return (
+    <>
+      <button
+        aria-controls={menuId}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        aria-label={TRIGGER_LABEL}
+        className="inline-flex min-h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border border-pet-coral bg-pet-coral px-3 py-2 text-sm font-extrabold text-white shadow-sm transition hover:bg-[#f26155] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pet-teal min-[360px]:px-4"
+        data-owner-header-action
+        onClick={toggleMenu}
+        ref={triggerRef}
+        type="button"
+      >
+        <Icon aria-hidden="true" name="plus" className="h-4 w-4" />
+        Add
+      </button>
+
+      {overlay}
+
+      {showLimitDialog && typeof document !== "undefined"
+        ? createPortal(
+            <ConfirmDialog
+              cancelLabel="Close"
+              confirmLabel="View pricing"
+              message={limit.message}
+              onCancel={() => setShowLimitDialog(false)}
+              onConfirm={() => {
+                setShowLimitDialog(false);
+                router.push(marketingRoutes.pricing);
+              }}
+              open
+              title="Free profile limit reached"
+            />,
+            document.body
+          )
+        : null}
+    </>
+  );
+}
+
+function buildActions({
+  activePets,
+  limitReached,
+  loadFailed,
+  loading,
+  onLimitReached,
+  onSelectPet,
+}: {
+  activePets: Pet[];
+  limitReached: boolean;
+  loadFailed: boolean;
+  loading: boolean;
+  onLimitReached: () => void;
+  onSelectPet: (action: PetSelectionAction) => void;
+}): MenuAction[] {
+  const petDependentDescription = loadFailed
+    ? "We couldn't load your pets. Please try again."
+    : "Create a pet first";
+
+  const addPetAction: MenuAction = loadFailed
+    ? {
         key: "add-pet",
         label: "Add Pet",
         description: "We couldn't check your plan. Please try again.",
         icon: "pets",
         disabled: true,
-      };
-    }
+      }
+    : loading
+      ? {
+          key: "add-pet",
+          label: "Add Pet",
+          description: "Checking your plan...",
+          icon: "pets",
+          disabled: true,
+        }
+      : limitReached
+        ? {
+            key: "add-pet",
+            label: "Add Pet",
+            description: "Free profile limit reached",
+            icon: "pets",
+            onSelect: onLimitReached,
+          }
+        : {
+            key: "add-pet",
+            label: "Add Pet",
+            description: "Create a new pet profile",
+            icon: "pets",
+            href: ownerRoutes.petNew,
+          };
 
-    if (isLoading) {
+  const getPetAction = (
+    action: PetSelectionAction,
+    label: string,
+    description: string,
+    icon: IconName
+  ): MenuAction => {
+    if (!activePets.length) {
       return {
-        key: "add-pet",
-        label: "Add Pet",
-        description: "Checking your plan...",
-        icon: "pets",
+        key: `add-${action}`,
+        label,
+        description: petDependentDescription,
+        icon,
         disabled: true,
       };
     }
 
-    if (limit?.canCreate) {
+    if (activePets.length === 1) {
+      const pet = activePets[0];
       return {
-        key: "add-pet",
-        label: "Add Pet",
-        description: "Create a new pet profile",
-        icon: "pets",
-        href: ownerRoutes.petNew,
+        key: `add-${action}`,
+        label,
+        description,
+        icon,
+        href:
+          action === "record"
+            ? ownerRoutes.petRecords(pet.id, { create: true })
+            : ownerRoutes.petMomentNew(pet.id),
       };
     }
 
     return {
-      key: "add-pet",
-      label: "Add Pet",
-      description: "Free profile limit reached",
-      icon: "pets",
-      onSelect: () => {
-        closeMenu();
-        setShowLimitDialog(true);
-      },
+      key: `add-${action}`,
+      label,
+      description: `${description} — choose a pet`,
+      icon,
+      onSelect: () => onSelectPet(action),
     };
-  })();
-
-  const petDependentDescription = loadFailed
-    ? "We couldn't load your pets. Please try again."
-    : "Add your first pet to use this";
-
-  const addRecordAction: MenuAction = {
-    key: "add-record",
-    label: "Add Care Record",
-    description: hasPets ? "Log a vaccine, vet visit, or note" : petDependentDescription,
-    icon: "record",
-    href: hasPets ? ownerRoutes.records : undefined,
-    disabled: !hasPets,
   };
 
-  const addMomentAction: MenuAction = {
-    key: "add-moment",
-    label: "Add Pet Moment",
-    description: hasPets ? "Save a photo or memory" : petDependentDescription,
-    icon: "heart",
-    href: hasPets ? ownerRoutes.moments : undefined,
-    disabled: !hasPets,
-  };
-
-  const actions = [addPetAction, addRecordAction, addMomentAction];
-
-  // Header trigger opens downward; sidebar triggers sit near the bottom of the
-  // page and open upward so the panel is never clipped off-screen.
-  const panelPositionClass =
-    variant === "compact"
-      ? "sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:top-[calc(100%_+_0.5rem)] sm:w-72"
-      : variant === "full"
-        ? "sm:absolute sm:inset-x-auto sm:top-auto sm:left-0 sm:bottom-[calc(100%_+_0.5rem)] sm:w-full"
-        : "sm:absolute sm:inset-x-auto sm:top-auto sm:left-0 sm:bottom-[calc(100%_+_0.5rem)] sm:w-64";
-
-  return (
-    <div className={`relative ${className}`.trim()}>
-      <MenuTrigger
-        variant={variant}
-        open={open}
-        menuId={menuId}
-        ref={triggerRef}
-        onClick={() => setOpen((value) => !value)}
-      />
-
-      {open ? (
-        <>
-          <button
-            aria-label="Close add menu"
-            className="fixed inset-0 z-40 cursor-default bg-pet-ink/25 backdrop-blur-[2px] sm:bg-transparent sm:backdrop-blur-none"
-            onClick={() => closeMenu()}
-            type="button"
-          />
-          <div
-            aria-label="Add"
-            className={`fixed inset-x-3 bottom-[calc(var(--owner-bottom-nav-height)_+_env(safe-area-inset-bottom))] z-50 rounded-[1.5rem] border border-pet-border bg-white p-2 shadow-2xl shadow-[#0d1b3d]/20 ${panelPositionClass}`}
-            id={menuId}
-            ref={panelRef}
-            role="menu"
-          >
-            {actions.map((action) => (
-              <MenuActionItem
-                action={action}
-                key={action.key}
-                onSelect={() => closeMenu()}
-              />
-            ))}
-          </div>
-        </>
-      ) : null}
-
-      <ConfirmDialog
-        cancelLabel="Close"
-        confirmLabel="View pricing"
-        message={
-          limit?.message ??
-          "You've reached the Free profile limit. Premium plans for more pets are coming soon. Your existing pet profiles remain active."
-        }
-        onCancel={() => setShowLimitDialog(false)}
-        onConfirm={() => {
-          setShowLimitDialog(false);
-          router.push("/pricing");
-        }}
-        open={showLimitDialog}
-        title="Free profile limit reached"
-      />
-    </div>
-  );
+  return [
+    addPetAction,
+    getPetAction(
+      "record",
+      "Add Care Record",
+      "Log a vaccine, vet visit, or note",
+      "record"
+    ),
+    getPetAction("moment", "Add Moment", "Save a photo or memory", "heart"),
+  ];
 }
-
-const MenuTrigger = forwardRef<
-  HTMLButtonElement,
-  {
-    variant: GlobalAddMenuVariant;
-    open: boolean;
-    menuId: string;
-    onClick: () => void;
-  }
->(function MenuTrigger({ variant, open, menuId, onClick }, ref) {
-  const shared = {
-    "aria-label": TRIGGER_LABEL,
-    "aria-haspopup": "menu" as const,
-    "aria-expanded": open,
-    "aria-controls": menuId,
-    onClick,
-    ref,
-    type: "button" as const,
-  };
-
-  if (variant === "icon") {
-    return (
-      <button
-        {...shared}
-        className="grid h-11 w-11 place-items-center rounded-full bg-pet-coral text-white shadow-lg shadow-[#ff7a6e]/20 transition hover:bg-[#f26155]"
-      >
-        <Icon name="plus" className="h-5 w-5" />
-      </button>
-    );
-  }
-
-  if (variant === "full") {
-    return (
-      <button
-        {...shared}
-        className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-pet-coral bg-pet-coral px-5 py-3 text-sm font-extrabold text-white shadow-lg shadow-[#ff7a6e]/20 transition hover:bg-[#f26155]"
-      >
-        <Icon name="plus" className="h-4 w-4" />
-        Add
-      </button>
-    );
-  }
-
-  return (
-    <button
-      {...shared}
-      className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-pet-coral bg-pet-coral px-4 py-2 text-sm font-extrabold text-white shadow-sm transition hover:bg-[#f26155]"
-    >
-      <Icon name="plus" className="h-4 w-4" />
-      Add
-    </button>
-  );
-});
 
 function MenuActionItem({
   action,
@@ -364,7 +511,7 @@ function MenuActionItem({
   );
 
   const baseClass =
-    "flex w-full min-h-14 items-center gap-3 rounded-[1.1rem] px-3 py-2.5 text-left transition";
+    "flex min-h-14 w-full items-center gap-3 rounded-[1.1rem] px-3 py-2.5 text-left transition focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-pet-teal";
 
   if (action.disabled) {
     return (
@@ -382,6 +529,7 @@ function MenuActionItem({
     return (
       <Link
         className={`${baseClass} hover:bg-pet-cream`}
+        data-add-menu-focusable
         data-add-menu-item
         href={action.href}
         onClick={onSelect}
@@ -395,10 +543,9 @@ function MenuActionItem({
   return (
     <button
       className={`${baseClass} hover:bg-pet-cream`}
+      data-add-menu-focusable
       data-add-menu-item
-      onClick={() => {
-        action.onSelect?.();
-      }}
+      onClick={action.onSelect}
       role="menuitem"
       type="button"
     >

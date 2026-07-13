@@ -1,13 +1,16 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type FormEvent,
   type ReactNode,
 } from "react";
 import { RecordCard } from "@/components/portal/RecordCard";
+import { useOwnerHeaderPageContext } from "@/components/portal/OwnerHeaderActions";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -69,7 +72,7 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<CareRecord | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [loading, setLoading] = useState(apiMode);
+  const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [actionError, setActionError] = useState("");
   const [formError, setFormError] = useState("");
@@ -77,6 +80,7 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [errors, setErrors] = useState<FormErrors>({});
   const [deleteTarget, setDeleteTarget] = useState<CareRecord | null>(null);
+  const autoOpenKeyRef = useRef("");
 
   const groupedRecords = useMemo(
     () =>
@@ -126,7 +130,7 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
     setFormError("");
   }
 
-  function openAddForm() {
+  const openAddForm = useCallback(() => {
     setEditingRecord(null);
     setForm(emptyForm);
     setErrors({});
@@ -134,7 +138,32 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
     setFormError("");
     setSuccess("");
     setIsOpen(true);
-  }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const url = new URL(window.location.href);
+    const autoOpenKey = `${petId}:${url.search}`;
+
+    if (
+      url.searchParams.get("create") !== "1" ||
+      autoOpenKeyRef.current === autoOpenKey
+    ) {
+      return;
+    }
+
+    autoOpenKeyRef.current = autoOpenKey;
+    queueMicrotask(openAddForm);
+    url.searchParams.delete("create");
+    window.history.replaceState(
+      window.history.state,
+      "",
+      `${url.pathname}${url.search}${url.hash}`
+    );
+  }, [openAddForm, petId]);
 
   function openEditForm(record: CareRecord) {
     setEditingRecord(record);
@@ -258,9 +287,17 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
     }
   }
 
+  useOwnerHeaderPageContext({
+    section: "records",
+    petId,
+    status: loading ? "loading" : loadError ? "error" : "ready",
+    itemCount: records.length,
+    onCreate: openAddForm,
+  });
+
   return (
     <>
-      <div className="brand-card mb-6 flex flex-col gap-4 rounded-[1.75rem] p-5 sm:flex-row sm:items-center sm:justify-between">
+      <div className="brand-card mb-6 rounded-[1.75rem] p-5">
         <div>
           <h2 className="text-xl font-black text-pet-ink">Care records</h2>
           <p className="mt-1 text-sm leading-6 text-pet-muted">
@@ -268,9 +305,6 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
             allergy notes as your pet&apos;s care changes.
           </p>
         </div>
-        <CTAButton icon="plus" onClick={openAddForm} variant="coral">
-          Add Record
-        </CTAButton>
       </div>
 
       {success ? (
@@ -315,6 +349,8 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
           icon="record"
           title="No care records yet"
           description="Add your pet's first record so important health details are easy to find later."
+          actionLabel="Add first care record"
+          actionOnClick={openAddForm}
         />
       ) : (
         <div className="grid gap-6">

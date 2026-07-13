@@ -9,6 +9,7 @@ import {
 } from "react";
 import { MomentMediaField } from "@/components/portal/MomentMediaField";
 import { PetMomentCard } from "@/components/portal/PetMomentCard";
+import { useOwnerHeaderPageContext } from "@/components/portal/OwnerHeaderActions";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -98,7 +99,7 @@ export function PetMomentsManager({
   const [form, setForm] = useState<FormState>(emptyForm);
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [loading, setLoading] = useState(apiMode);
+  const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [actionError, setActionError] = useState("");
   const [formError, setFormError] = useState("");
@@ -273,6 +274,14 @@ export function PetMomentsManager({
     }
   }
 
+  useOwnerHeaderPageContext({
+    section: "moments",
+    petId: pet.id,
+    status: loading ? "loading" : loadError ? "error" : "ready",
+    itemCount: moments.length,
+    canCreate: canCreateMemory,
+  });
+
   return (
     <>
       <section className="grid gap-4 md:grid-cols-4">
@@ -332,18 +341,6 @@ export function PetMomentsManager({
               variant="secondary"
             >
               View Life Timeline
-            </CTAButton>
-            <CTAButton
-              disabled={!canCreateMemory}
-              href={
-                canCreateMemory
-                  ? ownerRoutes.petMomentNew(pet.id)
-                  : undefined
-              }
-              icon="plus"
-              variant={canCreateMemory ? "coral" : "secondary"}
-            >
-              {canCreateMemory ? "Add Memory" : "Unavailable"}
             </CTAButton>
           </div>
         </div>

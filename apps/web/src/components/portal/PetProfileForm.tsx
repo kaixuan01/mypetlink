@@ -1661,7 +1661,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
               variant="outline"
               fullWidth
             >
-              Add Pet Moment
+              Add Moment
             </CTAButton>
             <CTAButton
               href={ownerRoutes.petTags(currentPet.id)}

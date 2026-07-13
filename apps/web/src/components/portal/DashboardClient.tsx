@@ -426,7 +426,7 @@ function UpcomingCareSection({
             className="text-sm font-bold text-pet-teal transition hover:text-[#0f5fd0]"
             href={ownerRoutes.records}
           >
-            Add care record
+            View care records
           </Link>
         </div>
       )}
@@ -464,8 +464,8 @@ function QuickActions({ firstPet }: { firstPet?: Pet }) {
   return (
     <DashboardSection title="Quick actions">
       <div className="grid grid-cols-2 gap-3">
-        <ActionTile href={ownerRoutes.records} icon="record" label="Care Record" />
-        <ActionTile href={ownerRoutes.moments} icon="heart" label="Add Moment" />
+        <ActionTile href={ownerRoutes.records} icon="record" label="Care Records" />
+        <ActionTile href={ownerRoutes.moments} icon="heart" label="Moments" />
         <ActionTile
           href={qrProfileHref}
           icon="qr"

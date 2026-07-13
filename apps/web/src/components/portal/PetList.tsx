@@ -144,7 +144,7 @@ export function PetList({
         title="No pets yet"
         description="Create your first profile to generate a safe QR page."
         actionHref={ownerRoutes.petNew}
-        actionLabel="Add Pet"
+        actionLabel="Add your first pet"
       />
     );
   }
@@ -184,8 +184,6 @@ export function PetList({
         <EmptyState
           title={empty.title}
           description={empty.description}
-          actionHref={empty.actionHref}
-          actionLabel={empty.actionLabel}
         />
       )}
     </div>
@@ -213,7 +211,5 @@ function getPetEmptyState(filter: PetLifecycleFilter) {
     title: "No active profiles in this view.",
     description:
       "Add a pet profile or restore one from Archived when you want it back in your main list.",
-    actionHref: ownerRoutes.petNew,
-    actionLabel: "Add Pet",
   };
 }

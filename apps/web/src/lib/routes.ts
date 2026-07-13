@@ -15,6 +15,10 @@ type TagOrderOptions = {
   replacementFor?: string;
 };
 
+type PetRecordsOptions = {
+  create?: boolean;
+};
+
 export const ownerRoutes = {
   dashboard: "/dashboard",
   pets: "/pets",
@@ -31,7 +35,8 @@ export const ownerRoutes = {
   settings: "/settings",
   petProfile: (petId: string) => `/pets/${petId}`,
   petEdit: (petId: string) => `/pets/${petId}/edit`,
-  petRecords: (petId: string) => `/pets/${petId}/records`,
+  petRecords: (petId: string, options: PetRecordsOptions = {}) =>
+    `/pets/${petId}/records${options.create ? "?create=1" : ""}`,
   petMoments: (petId: string) => `/pets/${petId}/moments`,
   petMomentNew: (petId: string) => `/pets/${petId}/moments/new`,
   petTimeline: (petId: string) => `/pets/${petId}/timeline`,

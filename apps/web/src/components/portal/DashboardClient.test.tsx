@@ -143,7 +143,7 @@ describe("DashboardClient with pets", () => {
     renderDashboard();
 
     await screen.findByText("Quick actions");
-    const quickLabels = ["Care Record", "Add Moment", "QR Safety Page", "Orders"];
+    const quickLabels = ["Care Records", "Moments", "QR Safety Page", "Orders"];
     for (const label of quickLabels) {
       expect(screen.getByText(label)).toBeTruthy();
     }

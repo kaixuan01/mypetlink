@@ -15,7 +15,24 @@ Every owner page renders inside **`AppLayout`**
   owner (mock auth via `src/services/authService.ts`, `localStorage` key
   `mypetlink_mock_owner`).
 - Renders the desktop sidebar nav and, on mobile, the `MobileBottomNav`.
-- Provides the "Add Pet" CTA and logout.
+- Provides the route-aware header action and logout.
+
+Header create actions are resolved centrally by
+`src/lib/ownerHeaderActions.ts` and rendered by
+`src/components/portal/OwnerHeaderActions.tsx`:
+
+| Owner context | Header action |
+| ------------- | ------------- |
+| Dashboard with pets | **Add** menu: Add Pet, Add Care Record, Add Moment |
+| Populated pet list | **Add Pet** |
+| Populated Moments section or tab | **Add Moment** for the current pet |
+| Populated Care Records section or tab | **Add Record** for the current pet |
+| Tags, orders, settings, edit/detail flows | No generic create action |
+
+A true empty state keeps one explanatory content CTA instead of duplicating it
+in the header. The Dashboard Add menu is an anchored desktop popover and a
+mobile action sheet; its panel and backdrop are portalled together so sticky
+headers, backdrop filters, and sidebar overflow cannot clip or mis-layer it.
 
 If you add a portal page, render it inside `AppLayout` so it inherits auth and
 navigation. Public pages (scan, share, marketing) must **not** use `AppLayout`.

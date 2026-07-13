@@ -456,7 +456,7 @@ function OverviewTab({
             icon="plus"
             fullWidth
           >
-            {memoryLimit.canCreate ? "Add Memory" : "Memory Limit Reached"}
+            {memoryLimit.canCreate ? "Add Moment" : "Memory Limit Reached"}
           </CTAButton>
         </div>
       </SectionCard>

@@ -1,22 +1,24 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockPets } from "@/data/mockPets";
 import type { Pet } from "@/types";
 
 const mocks = vi.hoisted(() => ({
-  getPets: vi.fn(),
+  pathname: "/dashboard",
   push: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/dashboard",
+  usePathname: () => mocks.pathname,
   useRouter: () => ({ push: mocks.push }),
-}));
-vi.mock("@/services/petService", () => ({
-  getPets: (...args: unknown[]) => mocks.getPets(...args),
-  getFriendlyApiErrorMessage: () => "Please try again.",
 }));
 
 const { GlobalAddMenu } = await import("./GlobalAddMenu");
@@ -25,110 +27,188 @@ function makePets(count: number): Pet[] {
   return Array.from({ length: count }, (_, index) => ({
     ...mockPets[0],
     id: `pet_${index}`,
-    name: `Pet ${index}`,
+    name: `Pet ${index + 1}`,
     lifecycleStatus: "Active",
   }));
 }
 
-async function openMenu() {
-  const trigger = screen.getByRole("button", {
+function renderMenu(pets = makePets(1)) {
+  return render(<GlobalAddMenu pets={pets} />);
+}
+
+function getTrigger() {
+  return screen.getByRole("button", {
     name: /add a pet, care record, or moment/i,
   });
+}
+
+function openMenu() {
+  const trigger = getTrigger();
   fireEvent.click(trigger);
   return trigger;
 }
 
 describe("GlobalAddMenu", () => {
   beforeEach(() => {
-    mocks.getPets.mockReset();
+    mocks.pathname = "/dashboard";
     mocks.push.mockReset();
+    document.body.style.overflow = "";
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    });
   });
 
   afterEach(() => {
     cleanup();
+    document.body.style.overflow = "";
     vi.clearAllMocks();
   });
 
-  it("exposes an accessible trigger that toggles aria-expanded", async () => {
-    mocks.getPets.mockResolvedValue({ data: makePets(1) });
-    render(<GlobalAddMenu variant="compact" />);
+  it("opens a visible portalled action surface above its backdrop", () => {
+    renderMenu();
+    const trigger = openMenu();
 
-    const trigger = screen.getByRole("button", {
-      name: /add a pet, care record, or moment/i,
-    });
-    expect(trigger.getAttribute("aria-expanded")).toBe("false");
-    expect(trigger.getAttribute("aria-haspopup")).toBe("menu");
+    const panel = screen.getByRole("menu");
+    const backdrop = screen.getByRole("button", { name: /close add menu/i });
 
-    fireEvent.click(trigger);
     expect(trigger.getAttribute("aria-expanded")).toBe("true");
+    expect(panel.classList.contains("owner-action-panel")).toBe(true);
+    expect(backdrop.classList.contains("owner-action-backdrop")).toBe(true);
+    expect(panel.parentElement).toBe(document.body);
+    expect(backdrop.parentElement).toBe(document.body);
   });
 
-  it("offers Add Pet, Add Care Record, and Add Pet Moment with correct routes", async () => {
-    mocks.getPets.mockResolvedValue({ data: makePets(1) });
-    render(<GlobalAddMenu variant="compact" />);
-    await openMenu();
+  it("offers the three approved actions and preselects the only pet", () => {
+    renderMenu(makePets(1));
+    openMenu();
 
-    const addPet = await screen.findByRole("menuitem", {
-      name: /create a new pet profile/i,
-    });
-    const addRecord = screen.getByRole("menuitem", {
-      name: /log a vaccine, vet visit, or note/i,
-    });
-    const addMoment = screen.getByRole("menuitem", {
-      name: /save a photo or memory/i,
-    });
-
-    expect(addPet.getAttribute("href")).toBe("/pets/new");
-    expect(addRecord.getAttribute("href")).toBe("/records");
-    expect(addMoment.getAttribute("href")).toBe("/moments");
+    expect(
+      screen.getByRole("menuitem", { name: /create a new pet profile/i })
+        .getAttribute("href")
+    ).toBe("/pets/new");
+    expect(
+      screen.getByRole("menuitem", {
+        name: /log a vaccine, vet visit, or note/i,
+      }).getAttribute("href")
+    ).toBe("/pets/pet_0/records?create=1");
+    expect(
+      screen.getByRole("menuitem", { name: /save a photo or memory/i })
+        .getAttribute("href")
+    ).toBe("/pets/pet_0/moments/new");
   });
 
-  it("disables record and moment actions when there are no pets", async () => {
-    mocks.getPets.mockResolvedValue({ data: [] });
-    render(<GlobalAddMenu variant="compact" />);
-    await openMenu();
+  it("disables pet-dependent actions with a visible zero-pet explanation", () => {
+    renderMenu([]);
+    openMenu();
 
-    // Add Pet is still available for a brand-new owner.
-    const addPet = await screen.findByRole("menuitem", {
-      name: /create a new pet profile/i,
-    });
-    expect(addPet.getAttribute("href")).toBe("/pets/new");
-
-    const recordAndMoment = screen.getAllByText(/add your first pet to use this/i);
-    expect(recordAndMoment).toHaveLength(2);
-
-    const disabled = screen
-      .getAllByRole("menuitem")
-      .filter((item) => item.getAttribute("aria-disabled") === "true");
-    expect(disabled).toHaveLength(2);
+    expect(screen.getAllByText("Create a pet first")).toHaveLength(2);
+    expect(
+      screen
+        .getAllByRole("menuitem")
+        .filter((item) => item.getAttribute("aria-disabled") === "true")
+    ).toHaveLength(2);
   });
 
-  it("keeps Add Pet reachable at the plan limit and explains the limit", async () => {
-    mocks.getPets.mockResolvedValue({ data: makePets(3) });
-    render(<GlobalAddMenu variant="compact" />);
-    await openMenu();
+  it("asks which pet to use when several pets exist", () => {
+    renderMenu(makePets(2));
+    openMenu();
 
-    const addPet = await screen.findByRole("menuitem", {
-      name: /free profile limit reached/i,
-    });
-    // It is a button (opens the limit explanation), not a navigation link.
-    expect(addPet.tagName).toBe("BUTTON");
+    fireEvent.click(
+      screen.getByRole("menuitem", {
+        name: /log a vaccine, vet visit, or note.*choose a pet/i,
+      })
+    );
 
-    fireEvent.click(addPet);
+    expect(screen.getByText("Choose a pet for the record")).toBeTruthy();
+    expect(
+      screen.getByRole("menuitem", { name: /pet 1.*add a care record/i })
+        .getAttribute("href")
+    ).toBe("/pets/pet_0/records?create=1");
+    expect(
+      screen.getByRole("menuitem", { name: /pet 2.*add a care record/i })
+        .getAttribute("href")
+    ).toBe("/pets/pet_1/records?create=1");
+  });
+
+  it("keeps Add Pet available at the plan limit and explains the limit", () => {
+    renderMenu(makePets(3));
+    openMenu();
+
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: /free profile limit reached/i })
+    );
+
+    expect(screen.queryByRole("menu")).toBeNull();
     expect(
       screen.getByText("Free profile limit reached", { selector: "h2" })
     ).toBeTruthy();
   });
 
-  it("closes on Escape and restores focus to the trigger", async () => {
-    mocks.getPets.mockResolvedValue({ data: makePets(1) });
-    render(<GlobalAddMenu variant="compact" />);
-    const trigger = await openMenu();
+  it("closes on outside click and fully removes the backdrop", async () => {
+    renderMenu();
+    const trigger = openMenu();
 
-    expect(screen.getByRole("menu")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /close add menu/i }));
 
-    fireEvent.keyDown(document, { key: "Escape" });
-    expect(screen.queryByRole("menu")).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+    expect(document.querySelector("[data-owner-action-backdrop]")).toBeNull();
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
     expect(document.activeElement).toBe(trigger);
+  });
+
+  it("closes on Escape, restores focus, and restores body scrolling", async () => {
+    renderMenu();
+    const trigger = openMenu();
+
+    await waitFor(() => expect(document.body.style.overflow).toBe("hidden"));
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+    expect(document.body.style.overflow).toBe("");
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it("closes before following a selected action", () => {
+    renderMenu();
+    openMenu();
+
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: /save a photo or memory/i })
+    );
+
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(document.querySelector("[data-owner-action-backdrop]")).toBeNull();
+  });
+
+  it("cleans up overlay and scroll state when the route changes", async () => {
+    const view = renderMenu();
+    openMenu();
+    await waitFor(() => expect(document.body.style.overflow).toBe("hidden"));
+
+    mocks.pathname = "/pets";
+    view.rerender(<GlobalAddMenu pets={makePets(1)} />);
+
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+    expect(document.body.style.overflow).toBe("");
+  });
+
+  it("remains usable after repeated open and close cycles", () => {
+    renderMenu();
+    const trigger = getTrigger();
+
+    for (let index = 0; index < 3; index += 1) {
+      fireEvent.click(trigger);
+      expect(screen.getByRole("menu")).toBeTruthy();
+      fireEvent.keyDown(document, { key: "Escape" });
+      expect(screen.queryByRole("menu")).toBeNull();
+    }
+
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
   });
 });

@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { AppLayout } from "@/components/layouts/AppLayout";
-import { PlanAwareAddPetButton } from "@/components/portal/PlanAwareAddPetButton";
 import { PetList } from "@/components/portal/PetList";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { getPets } from "@/services/petService";
@@ -23,7 +22,6 @@ export default async function PetsPage() {
         eyebrow="My pets"
         title="Your pets at a glance"
         description="A quick overview of every pet. Tap Manage to open a pet's records, moments, smart tags, and settings."
-        action={<PlanAwareAddPetButton />}
       />
       <PetList
         initialOrders={orders.data}
