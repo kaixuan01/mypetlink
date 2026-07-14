@@ -67,6 +67,24 @@ it("applies the pet's saved focal position to the public profile cover", async (
   expect(cover.style.objectPosition).toBe("31% 68%");
 });
 
+it("applies the saved theme to the full public profile", async () => {
+  const profile = { ...mockPets[0], profileTheme: "lavender" as const };
+  publicProfileMocks.profile = profile;
+
+  const { container } = render(
+    <PublicSharePetProfile
+      initialMoments={[]}
+      initialProfile={profile}
+      initialRecords={[]}
+    />
+  );
+
+  await screen.findByText(`About ${profile.name}`);
+  const themedProfile = container.querySelector("[data-profile-theme]");
+  expect(themedProfile?.getAttribute("data-profile-theme")).toBe("lavender");
+  expect(themedProfile?.getAttribute("style")).toContain("linear-gradient");
+});
+
 it("shows favourite foods and toys as compact separated values", async () => {
   const profile = {
     ...mockPets[0],

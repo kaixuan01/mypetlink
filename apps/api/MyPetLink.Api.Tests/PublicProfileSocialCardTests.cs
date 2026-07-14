@@ -127,6 +127,14 @@ public sealed class PublicProfileSocialCardTests
             "https://media.mypetlink.com.my/profile/one.jpg",
             "https://media.mypetlink.com.my/cover/one.jpg");
         pet.Name = "Topu";
+        pet.ProfileTheme = "mint";
+        var newTheme = PublicProfileVersion.Create(
+            publicProfile,
+            pet,
+            "Under 1 year old",
+            "https://media.mypetlink.com.my/profile/one.jpg",
+            "https://media.mypetlink.com.my/cover/one.jpg");
+        pet.ProfileTheme = "default";
         var newProfilePhoto = PublicProfileVersion.Create(
             publicProfile,
             pet,
@@ -155,7 +163,18 @@ public sealed class PublicProfileSocialCardTests
             "https://media.mypetlink.com.my/cover/one.jpg");
 
         Assert.Equal(16, original.Length);
-        Assert.Equal(6, new[] { original, renamed, newProfilePhoto, newCoverPhoto, lost, privateVersion }.Distinct().Count());
+        Assert.Equal(
+            7,
+            new[]
+            {
+                original,
+                renamed,
+                newTheme,
+                newProfilePhoto,
+                newCoverPhoto,
+                lost,
+                privateVersion
+            }.Distinct().Count());
     }
 
     [Fact]

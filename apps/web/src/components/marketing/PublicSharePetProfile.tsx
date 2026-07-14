@@ -281,6 +281,7 @@ export function PublicSharePetProfile({
   return (
     <article
       className="min-h-screen bg-pet-cream"
+      data-profile-theme={theme.id}
       style={{ background: theme.gradients.page, color: theme.colors.text }}
     >
       <header

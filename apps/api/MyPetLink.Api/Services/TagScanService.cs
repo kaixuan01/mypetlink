@@ -214,6 +214,7 @@ public sealed class TagScanService : SkeletonService, ITagScanService
             PetDtoMapper.ResolvePublicMediaUrl(pet.CoverMediaFile, publicBaseUrl),
             pet.CoverPositionX,
             pet.CoverPositionY,
+            pet.ProfileTheme,
             safetySetting.ShowFoundLocationAction,
             contact);
     }

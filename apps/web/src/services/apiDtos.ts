@@ -172,6 +172,7 @@ export type BackendPublicPetProfile = {
   estimatedBirthYear?: number | null;
   age?: BackendPetAgeInfo;
   adoptionDay?: string | null;
+  profileTheme: string;
   lifecycleStatus: PetLifecycleStatus;
   lostModeEnabled: boolean;
   ownerDisplayName?: string | null;
@@ -297,6 +298,7 @@ export type BackendPublicSafetyPage = {
   coverPhotoUrl?: string | null;
   coverPositionX?: number | null;
   coverPositionY?: number | null;
+  profileTheme: string;
   showFoundLocationAction: boolean;
   contact?: {
     ownerDisplayName?: string | null;

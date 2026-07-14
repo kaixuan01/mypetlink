@@ -66,6 +66,7 @@ export function QrSafetyPageView({ pet }: QrSafetyPageViewProps) {
     return (
       <article
         className="brand-card mx-auto max-w-xl rounded-[2rem] p-5 sm:p-6"
+        data-profile-theme={theme.id}
         style={{ borderColor: theme.colors.border }}
       >
         <div
@@ -158,6 +159,7 @@ export function QrSafetyPageView({ pet }: QrSafetyPageViewProps) {
   return (
     <article
       className="brand-card mx-auto max-w-xl rounded-[2rem] p-5 sm:p-6"
+      data-profile-theme={theme.id}
       style={{ borderColor: theme.colors.border }}
     >
       <div

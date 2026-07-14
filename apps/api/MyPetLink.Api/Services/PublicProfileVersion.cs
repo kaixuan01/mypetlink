@@ -33,6 +33,7 @@ public static class PublicProfileVersion
             coverPhotoUrl ?? string.Empty,
             pet.CoverPositionX.ToString(CultureInfo.InvariantCulture),
             pet.CoverPositionY.ToString(CultureInfo.InvariantCulture),
+            pet.ProfileTheme,
             pet.LifecycleStatus.ToString(),
             pet.LostModeEnabled ? "lost" : "regular"
         };

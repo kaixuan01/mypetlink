@@ -16,6 +16,7 @@ public sealed record PublicPetProfileResponse(
     short? EstimatedBirthYear,
     PetAgeInfoResponse Age,
     DateOnly? AdoptionDay,
+    string ProfileTheme,
     PetLifecycleStatus LifecycleStatus,
     bool LostModeEnabled,
     string? OwnerDisplayName,
@@ -94,6 +95,7 @@ public sealed record PublicSafetyPageResponse(
     string? CoverPhotoUrl,
     byte CoverPositionX,
     byte CoverPositionY,
+    string ProfileTheme,
     bool ShowFoundLocationAction,
     PublicSafetyContactResponse? Contact);
 

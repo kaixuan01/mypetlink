@@ -177,9 +177,18 @@ export const petProfileThemes: PetProfileTheme[] = [
   },
 ];
 
-export function getPetProfileTheme(themeId?: PetProfileThemeId) {
+export function resolvePetProfileThemeId(
+  themeId?: string | null
+): PetProfileThemeId {
   return (
-    petProfileThemes.find((theme) => theme.id === themeId) ??
+    petProfileThemes.find((theme) => theme.id === themeId)?.id ?? "default"
+  );
+}
+
+export function getPetProfileTheme(themeId?: string | null) {
+  const resolvedThemeId = resolvePetProfileThemeId(themeId);
+  return (
+    petProfileThemes.find((theme) => theme.id === resolvedThemeId) ??
     petProfileThemes[0]
   );
 }

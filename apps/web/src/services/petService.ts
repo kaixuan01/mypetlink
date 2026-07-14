@@ -8,6 +8,7 @@ import {
 } from "@/lib/ownerSettings";
 import { calculatePetAge, getPetAgeMode } from "@/lib/petAge";
 import { getPetAgeLabel, PET_TYPE_OPTIONS } from "@/lib/petDisplay";
+import { resolvePetProfileThemeId } from "@/lib/petProfileThemes";
 import {
   getCountedPetProfiles,
   getPetLifecycleStatus,
@@ -435,9 +436,7 @@ function toIsoDate(value?: string | null) {
 }
 
 function getProfileTheme(value?: string | null): Pet["profileTheme"] {
-  return ["default", "mint", "peach", "sky", "lavender"].includes(value ?? "")
-    ? (value as Pet["profileTheme"])
-    : "default";
+  return resolvePetProfileThemeId(value);
 }
 
 function getPhotoTone(species: Pet["species"]): Pet["photoTone"] {
@@ -570,7 +569,9 @@ export function mapBackendPetToFrontend(
   });
 }
 
-function mapBackendPublicProfile(profile: BackendPublicPetProfile): PublicPetProfile {
+export function mapBackendPublicProfile(
+  profile: BackendPublicPetProfile
+): PublicPetProfile {
   const species = normalizeBackendSpecies(profile.species, profile.customSpecies);
   const slug = getSlugFromPublicSlug(profile.publicSlug, profile.publicCode);
   const birthday = toDisplayDate(profile.birthday);
@@ -605,7 +606,7 @@ function mapBackendPublicProfile(profile: BackendPublicPetProfile): PublicPetPro
       coverUrl: profile.coverPhotoUrl ?? "",
       coverPositionX: normalizeCoverPosition(profile.coverPositionX),
       coverPositionY: normalizeCoverPosition(profile.coverPositionY),
-      profileTheme: "default",
+      profileTheme: getProfileTheme(profile.profileTheme),
       lifecycleStatus: profile.lifecycleStatus,
       previousLifecycleStatus:
         profile.lifecycleStatus === "Memorial" ? "Memorial" : "Active",
@@ -694,7 +695,7 @@ export function mapBackendSafetyPage(page: BackendPublicSafetyPage): PublicPetPr
       coverUrl: page.coverPhotoUrl ?? "",
       coverPositionX: normalizeCoverPosition(page.coverPositionX),
       coverPositionY: normalizeCoverPosition(page.coverPositionY),
-      profileTheme: "default",
+      profileTheme: getProfileTheme(page.profileTheme),
       lifecycleStatus: page.lifecycleStatus,
       previousLifecycleStatus:
         page.lifecycleStatus === "Memorial" ? "Memorial" : "Active",

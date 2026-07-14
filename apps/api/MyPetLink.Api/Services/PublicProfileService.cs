@@ -133,6 +133,7 @@ public sealed class PublicProfileService : SkeletonService, IPublicProfileServic
             pet.EstimatedBirthYear,
             age,
             pet.AdoptionDay,
+            pet.ProfileTheme,
             pet.LifecycleStatus,
             pet.LostModeEnabled && pet.LifecycleStatus == PetLifecycleStatus.Active,
             profile.ShowOwnerName ? PetDtoMapper.ResolveOwnerDisplayName(pet) : null,

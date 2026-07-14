@@ -141,6 +141,56 @@ describe("PetProfileForm lifecycle workflow", () => {
     );
   });
 
+  it("initializes the Theme tab from the saved profile theme", async () => {
+    pet = { ...pet, profileTheme: "lavender" };
+    mocks.getPetById.mockResolvedValue({ data: pet });
+    render(<PetProfileForm initialPet={pet} mode="edit" />);
+
+    fireEvent.click(await screen.findByRole("tab", { name: /Theme/ }));
+
+    expect(
+      screen.getByRole("button", { name: /Lavender/ }).getAttribute("aria-pressed")
+    ).toBe("true");
+    expect(
+      screen.getByRole("button", { name: /Mint Green/ }).getAttribute("aria-pressed")
+    ).toBe("false");
+  });
+
+  it("keeps a selected theme across tabs and reloads the saved value", async () => {
+    pet = { ...pet, profileTheme: "lavender" };
+    mocks.getPetById.mockResolvedValue({ data: pet });
+    render(<PetProfileForm initialPet={pet} mode="edit" />);
+
+    fireEvent.click(await screen.findByRole("tab", { name: /Theme/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Mint Green/ }));
+    expect(
+      screen.getByText(/Save changes to update .*public profile and QR safety page/)
+    ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("tab", { name: /Photos/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Theme/ }));
+    expect(
+      screen.getByRole("button", { name: /Mint Green/ }).getAttribute("aria-pressed")
+    ).toBe("true");
+
+    clickSave();
+    await waitFor(() =>
+      expect(mocks.updatePet).toHaveBeenCalledWith(
+        pet.id,
+        expect.objectContaining({ profileTheme: "mint" })
+      )
+    );
+
+    cleanup();
+    pet = { ...pet, profileTheme: "mint" };
+    mocks.getPetById.mockResolvedValue({ data: pet });
+    render(<PetProfileForm initialPet={pet} mode="edit" />);
+    fireEvent.click(await screen.findByRole("tab", { name: /Theme/ }));
+    expect(
+      screen.getByRole("button", { name: /Mint Green/ }).getAttribute("aria-pressed")
+    ).toBe("true");
+  });
+
   it("confirms Active to Memorial through Save Changes only", async () => {
     render(<PetProfileForm initialPet={pet} mode="edit" />);
     await openPublicProfile();

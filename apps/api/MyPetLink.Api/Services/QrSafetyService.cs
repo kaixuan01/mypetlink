@@ -81,6 +81,7 @@ public sealed class QrSafetyService : SkeletonService, IQrSafetyService
                 CoverPhotoUrl: PetDtoMapper.ResolvePublicMediaUrl(pet.CoverMediaFile, _r2Options.PublicBaseUrl),
                 CoverPositionX: pet.CoverPositionX,
                 CoverPositionY: pet.CoverPositionY,
+                ProfileTheme: pet.ProfileTheme,
                 ShowFoundLocationAction: false,
                 Contact: null);
         }
@@ -118,6 +119,7 @@ public sealed class QrSafetyService : SkeletonService, IQrSafetyService
             PetDtoMapper.ResolvePublicMediaUrl(pet.CoverMediaFile, _r2Options.PublicBaseUrl),
             pet.CoverPositionX,
             pet.CoverPositionY,
+            pet.ProfileTheme,
             safetySetting.ShowFoundLocationAction,
             contact);
     }
