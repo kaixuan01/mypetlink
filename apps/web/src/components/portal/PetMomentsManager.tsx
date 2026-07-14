@@ -475,7 +475,7 @@ export function PetMomentsManager({
 
                 <Field label="Moment category" error={errors.type}>
                   <select
-                    className="brand-input"
+                    className="brand-input brand-select"
                     onChange={(event) =>
                       updateField("type", event.target.value as FormState["type"])
                     }
@@ -492,7 +492,7 @@ export function PetMomentsManager({
 
                 <Field label="Visibility" error={errors.visibility}>
                   <select
-                    className="brand-input"
+                    className="brand-input brand-select"
                     onChange={(event) =>
                       updateField(
                         "visibility",

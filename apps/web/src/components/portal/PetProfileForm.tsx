@@ -1095,14 +1095,10 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
             </button>
           </div>
 
-          {/* Preferences: one balanced column per picker on wide screens,
-              two on tablet, one on mobile. */}
-          <div className="mt-6 min-w-0">
-            <h3 className="text-base font-black text-pet-ink">Preferences</h3>
-            <p className="mt-1 text-sm leading-6 text-pet-muted">
-              Optional details that make the profile feel personal.
-            </p>
-            <div className="mt-4 grid min-w-0 content-start gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {/* Tag pickers continue the About your pet section: one balanced
+              column per picker on wide screens, two on tablet, one on mobile. */}
+          <div className="mt-5 min-w-0">
+            <div className="grid min-w-0 content-start gap-5 md:grid-cols-2 xl:grid-cols-3">
               <TagListInput
                 error={errors.personalityTags}
                 label="Personality tags"
@@ -1697,7 +1693,9 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
         </FormSection>
       ) : null}
 
-      {mode === "edit" && currentPet ? (
+      {/* Shown on the Info tab only so the other edit tabs stay focused on
+          their own content instead of repeating these shortcuts. */}
+      {mode === "edit" && currentPet && tab === "basic" ? (
         <div className="brand-card flex min-w-0 flex-col gap-3 rounded-[1.5rem] p-5">
           <p className="text-sm font-black text-pet-ink">
             Manage {form.name || currentPet.name}&apos;s content

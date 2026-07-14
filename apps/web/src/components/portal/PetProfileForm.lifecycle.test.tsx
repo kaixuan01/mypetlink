@@ -337,4 +337,38 @@ describe("PetProfileForm lifecycle workflow", () => {
       )
     );
   });
+
+  it("keeps the tag pickers in About your pet without a Preferences heading", async () => {
+    render(<PetProfileForm initialPet={pet} mode="edit" />);
+
+    await screen.findByText("About your pet");
+    expect(screen.queryByText("Preferences")).toBeNull();
+    expect(
+      screen.queryByText("Optional details that make the profile feel personal.")
+    ).toBeNull();
+    for (const label of ["Personality tags", "Favourite foods", "Favourite toys"]) {
+      expect(screen.getByText(label)).toBeTruthy();
+    }
+  });
+
+  it("shows the manage-content shortcuts on the Info tab only", async () => {
+    render(<PetProfileForm initialPet={pet} mode="edit" />);
+
+    expect(
+      await screen.findByText(`Manage ${pet.name}'s content`)
+    ).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Manage Care Records/ })).toBeTruthy();
+
+    for (const tabName of [/Photos/, /Theme/, /Public Profile/, /Contact & Safety/]) {
+      fireEvent.click(screen.getByRole("tab", { name: tabName }));
+      expect(screen.queryByText(`Manage ${pet.name}'s content`)).toBeNull();
+      expect(
+        screen.queryByRole("link", { name: /Manage Care Records/ })
+      ).toBeNull();
+    }
+
+    // Returning to Info brings the single instance back.
+    fireEvent.click(screen.getByRole("tab", { name: /Basic Info/ }));
+    expect(screen.getByText(`Manage ${pet.name}'s content`)).toBeTruthy();
+  });
 });

@@ -419,7 +419,7 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
               <div className="grid gap-4 md:grid-cols-2">
                 <Field label="Record Type" error={errors.type}>
                   <select
-                    className="brand-input"
+                    className="brand-input brand-select"
                     onChange={(event) =>
                       updateField("type", event.target.value as FormState["type"])
                     }
@@ -474,7 +474,7 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
 
                 <Field label="Public visibility" error={errors.publicVisibility}>
                   <select
-                    className="brand-input"
+                    className="brand-input brand-select"
                     onChange={(event) =>
                       updateField(
                         "publicVisibility",
