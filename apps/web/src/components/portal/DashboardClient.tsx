@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { OwnerContactSetupCard } from "@/components/portal/OwnerContactSetupCard";
 import { PlanSummaryCard } from "@/components/portal/PlanSummaryCard";
 import { getQrStatusBadge } from "@/components/portal/ProfileAccessStatus";
 import { Badge } from "@/components/ui/Badge";
@@ -9,6 +10,11 @@ import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { PetAvatar } from "@/components/ui/PetAvatar";
 import { isActiveOrder } from "@/lib/orders";
+import {
+  hasUsableOwnerContact,
+  readOwnerSettings,
+  subscribeOwnerSettings,
+} from "@/lib/ownerSettings";
 import { getPetSummaryLabel } from "@/lib/petDisplay";
 import { getActivePets, getMemorialPets } from "@/lib/petLifecycle";
 import { ownerRoutes } from "@/lib/routes";
@@ -27,6 +33,18 @@ type DashboardClientProps = {
   initialTags: PetTag[];
   initialOrders: TagOrder[];
 };
+
+// Stable boolean snapshots for useSyncExternalStore (owner settings live in
+// localStorage and are refreshed by the session check / settings saves).
+function getHasOwnerContactSnapshot() {
+  return hasUsableOwnerContact(readOwnerSettings());
+}
+
+function getServerHasOwnerContactSnapshot() {
+  // Never flash the reminder during SSR/hydration; the client snapshot takes
+  // over immediately after mount.
+  return true;
+}
 
 export function DashboardClient({
   initialPets,
@@ -47,6 +65,11 @@ export function DashboardClient({
   const [orders, setOrders] = useState<TagOrder[]>(apiMode ? [] : initialOrders);
   const [loading, setLoading] = useState(apiMode);
   const [error, setError] = useState("");
+  const hasOwnerContact = useSyncExternalStore(
+    subscribeOwnerSettings,
+    getHasOwnerContactSnapshot,
+    getServerHasOwnerContactSnapshot
+  );
 
   useEffect(() => {
     let active = true;
@@ -165,7 +188,12 @@ export function DashboardClient({
   // Zero-pet owners get a single, focused onboarding call to action instead of
   // an empty dashboard of zero-value statistics.
   if (!pets.length && !memorialPets.length) {
-    return <ZeroPetWelcome />;
+    return (
+      <div className="grid gap-6">
+        {!hasOwnerContact ? <OwnerContactSetupCard /> : null}
+        <ZeroPetWelcome />
+      </div>
+    );
   }
 
   const stats: DashboardStatData[] = [
@@ -194,6 +222,8 @@ export function DashboardClient({
 
   return (
     <div className="grid gap-6">
+      {!hasOwnerContact ? <OwnerContactSetupCard /> : null}
+
       <section className="brand-soft-card overflow-hidden rounded-[1.75rem] p-5 sm:p-6">
         <p className="text-xs font-extrabold uppercase text-pet-teal">
           Owner portal
@@ -497,10 +527,10 @@ function QuickActions({ firstPet }: { firstPet?: Pet }) {
           target={firstPet ? "_blank" : undefined}
         />
         <ActionTile
-          ariaLabel="Update owner profile and contact details"
-          href={ownerRoutes.settings}
-          icon="settings"
-          label="Owner Profile"
+          ariaLabel="Update owner contact details"
+          href={ownerRoutes.settingsOwnerContact}
+          icon="phone"
+          label="Owner Contact"
         />
         <ActionTile
           ariaLabel="View orders"

@@ -3,6 +3,7 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockPets } from "@/data/mockPets";
+import { OWNER_SETTINGS_STORAGE_KEY } from "@/lib/ownerSettings";
 
 const mocks = vi.hoisted(() => ({
   getPets: vi.fn(),
@@ -122,11 +123,13 @@ describe("DashboardClient with pets", () => {
     mocks.getAllTags.mockResolvedValue({ data: [] });
     mocks.getOrders.mockResolvedValue({ data: [] });
     mocks.planSummaryProps.mockReset();
+    window.localStorage.clear();
   });
 
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
+    window.localStorage.clear();
   });
 
   it("has no Add Pet button in the welcome area or quick actions", async () => {
@@ -148,7 +151,7 @@ describe("DashboardClient with pets", () => {
       "Care Records",
       "Moments",
       "QR Safety",
-      "Owner Profile",
+      "Owner Contact",
       "Orders",
     ];
     for (const label of quickLabels) {
@@ -156,7 +159,7 @@ describe("DashboardClient with pets", () => {
     }
   });
 
-  it("points Manage Pet and Owner Profile at the correct routes", async () => {
+  it("points Manage Pet and Owner Contact at the correct routes", async () => {
     renderDashboard();
 
     await screen.findByText("Quick actions");
@@ -167,11 +170,39 @@ describe("DashboardClient with pets", () => {
     ).toBe(`/pets/${mockPets[0].id}`);
     expect(
       screen
-        .getByRole("link", {
-          name: "Update owner profile and contact details",
-        })
+        .getByRole("link", { name: "Update owner contact details" })
         .getAttribute("href")
-    ).toBe("/settings");
+    ).toBe("/settings#owner-contact");
+  });
+
+  it("shows the contact setup reminder only when no usable contact exists", async () => {
+    window.localStorage.setItem(
+      OWNER_SETTINGS_STORAGE_KEY,
+      JSON.stringify({ phoneNumber: "", whatsappNumber: "" })
+    );
+    renderDashboard();
+
+    await screen.findByText("Milo");
+    expect(screen.getByText("Add your contact details")).toBeTruthy();
+    expect(
+      screen.getByText("Help finders contact you if your pet is lost.")
+    ).toBeTruthy();
+    expect(
+      screen
+        .getByRole("link", { name: /add contact details/i })
+        .getAttribute("href")
+    ).toBe("/settings#owner-contact");
+  });
+
+  it("hides the contact setup reminder once contact details exist", async () => {
+    window.localStorage.setItem(
+      OWNER_SETTINGS_STORAGE_KEY,
+      JSON.stringify({ phoneNumber: "+60123456789", whatsappNumber: "" })
+    );
+    renderDashboard();
+
+    await screen.findByText("Milo");
+    expect(screen.queryByText("Add your contact details")).toBeNull();
   });
 
   it("uses singular statistic labels for a single pet", async () => {

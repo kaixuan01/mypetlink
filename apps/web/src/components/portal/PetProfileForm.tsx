@@ -12,6 +12,7 @@ import {
 import { useRouter } from "next/navigation";
 import { ImageUploadField } from "@/components/portal/ImageUploadField";
 import { ShareProfileLink } from "@/components/share/ShareProfileLink";
+import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { CoverPhoto } from "@/components/ui/CoverPhoto";
@@ -30,9 +31,11 @@ import {
   defaultOwnerSettings,
   getDefaultPetVisibility,
   getEffectivePetContact,
+  hasUsableOwnerContact,
   readOwnerSettings,
   type OwnerSettings,
 } from "@/lib/ownerSettings";
+import { OwnerContactSetupCard } from "@/components/portal/OwnerContactSetupCard";
 import {
   applyPetAgeMode,
   calculatePetAge,
@@ -794,6 +797,8 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
 
   if (createdPet) {
     return (
+      <div className="grid gap-5">
+      {!hasUsableOwnerContact(ownerSettings) ? <OwnerContactSetupCard /> : null}
       <section className="rounded-[1.75rem] border border-pet-mint bg-[#e8f8f0] p-6 shadow-sm">
         <p className="text-sm font-bold uppercase text-pet-sage">
           Profile ready
@@ -850,6 +855,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
           </CTAButton>
         </div>
       </section>
+      </div>
     );
   }
 
@@ -1519,24 +1525,41 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
             <div className="rounded-[1.5rem] border border-pet-border bg-white p-5">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div>
-                  <h2 className="text-lg font-black text-pet-ink">
-                    Contact details for this pet
-                  </h2>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-lg font-black text-pet-ink">
+                      Contact details for this pet
+                    </h2>
+                    <Badge tone={form.useOwnerDefaults ? "teal" : "warm"}>
+                      {form.useOwnerDefaults
+                        ? "Owner defaults"
+                        : "Custom for this pet"}
+                    </Badge>
+                  </div>
                   <p className="mt-2 text-sm leading-6 text-pet-muted">
                     {form.useOwnerDefaults
-                      ? "Using your account contact details from Settings."
+                      ? "Using your owner contact details from Owner Profile & Contact."
                       : `Using different contact details for ${
                           form.name || "this pet"
                         }.`}
                   </p>
                   <p className="mt-2 text-xs font-semibold leading-5 text-pet-muted">
                     These settings only apply to {form.name || "this pet"}.
-                    Account defaults are managed in Settings.
+                    Owner defaults are managed in Owner Profile &amp; Contact.
                   </p>
                 </div>
-                <CTAButton href={ownerRoutes.settings} variant="outline">
-                  Edit account settings
-                </CTAButton>
+                {form.useOwnerDefaults ? (
+                  <CTAButton
+                    href={ownerRoutes.settingsOwnerContact}
+                    icon="phone"
+                    variant="outline"
+                  >
+                    Edit Owner Contact
+                  </CTAButton>
+                ) : (
+                  <CTAButton href={ownerRoutes.settings} variant="outline">
+                    Owner Profile &amp; Contact
+                  </CTAButton>
+                )}
               </div>
 
               <ContactSummary

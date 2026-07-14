@@ -33,6 +33,9 @@ export const ownerRoutes = {
   orderDetail: (orderNumber: string) =>
     `/orders/view?order=${encodeURIComponent(orderNumber)}`,
   settings: "/settings",
+  // Deep link straight to the Owner Contact Details section of the settings
+  // page (used by Home quick actions and contact reminders).
+  settingsOwnerContact: "/settings#owner-contact",
   petProfile: (petId: string) => `/pets/${petId}`,
   petEdit: (petId: string) => `/pets/${petId}/edit`,
   petRecords: (petId: string, options: PetRecordsOptions = {}) =>

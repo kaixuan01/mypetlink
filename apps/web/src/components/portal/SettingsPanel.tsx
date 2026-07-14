@@ -191,16 +191,10 @@ export function SettingsPanel() {
         </div>
       ) : null}
 
-      <div className="brand-soft-card rounded-[1.5rem] p-5 text-sm leading-6 text-pet-muted">
-        These settings are used as defaults for new pet profiles. You can
-        override them for each pet from that pet&apos;s Edit Pet Details page.
-      </div>
-
-      <PlanSummaryCard />
-
       <FormSection
-        title="Owner profile and contact"
-        description="Account-level details used when you create a new pet profile."
+        id="owner-contact"
+        title="Owner Contact Details"
+        description="These details help finders contact you quickly if your pet is ever lost. They are also used as the defaults for new pet profiles."
       >
         <div className="grid gap-4 md:grid-cols-2">
           <TextField
@@ -237,6 +231,11 @@ export function SettingsPanel() {
         </p>
       </FormSection>
 
+      <div className="brand-soft-card rounded-[1.5rem] p-5 text-sm leading-6 text-pet-muted">
+        The settings below are used as defaults for new pet profiles. You can
+        override them for each pet from that pet&apos;s Edit Pet Details page.
+      </div>
+
       <FormSection
         title="Privacy defaults"
         description="Choose what new pet profiles should show by default. Existing pets keep their own settings unless you update them."
@@ -271,6 +270,8 @@ export function SettingsPanel() {
           ))}
         </div>
       </FormSection>
+
+      <PlanSummaryCard />
 
       <div className="brand-card flex flex-col gap-3 rounded-[1.5rem] p-5 sm:flex-row sm:items-center sm:justify-between">
         <div>

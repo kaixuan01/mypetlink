@@ -76,9 +76,9 @@ export const ownerNavItems: OwnerNavItem[] = [
   {
     id: "settings",
     href: ownerRoutes.settings,
-    label: "Settings",
-    mobileLabel: "Settings",
-    icon: "settings",
+    label: "Owner Profile & Contact",
+    mobileLabel: "Profile",
+    icon: "phone",
     mobilePriority: "low",
   },
 ];

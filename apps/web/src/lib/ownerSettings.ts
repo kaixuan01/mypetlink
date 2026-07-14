@@ -1,4 +1,4 @@
-import { normalizeStoredPhone } from "@/lib/phone";
+import { isValidE164, normalizeStoredPhone } from "@/lib/phone";
 import type { Pet, PublicPetProfile } from "@/types";
 
 export const OWNER_SETTINGS_STORAGE_KEY = "mypetlink_owner_settings";
@@ -129,6 +129,20 @@ export function subscribeOwnerSettings(callback: () => void): () => void {
     ownerSettingsListeners.delete(callback);
     window.removeEventListener("storage", handleStorage);
   };
+}
+
+/**
+ * Whether the owner has at least one contact number a finder could actually
+ * use (a valid phone or WhatsApp number). Drives the "Add your contact
+ * details" reminder — it never blocks any flow.
+ */
+export function hasUsableOwnerContact(
+  settings: Pick<OwnerSettings, "phoneNumber" | "whatsappNumber">
+): boolean {
+  return (
+    isValidE164(normalizeStoredPhone(settings.phoneNumber)) ||
+    isValidE164(normalizeStoredPhone(settings.whatsappNumber))
+  );
 }
 
 /** Owner display name for owner-facing UI, with a safe fallback. */

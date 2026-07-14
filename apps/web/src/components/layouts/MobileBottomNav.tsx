@@ -137,7 +137,7 @@ export function MobileBottomNav() {
               <div>
                 <h2 className="text-lg font-black text-pet-ink">More</h2>
                 <p className="mt-1 text-xs font-semibold text-pet-muted">
-                  Owner tools and account settings.
+                  Contact details, owner tools, and account preferences.
                 </p>
               </div>
               <button
@@ -249,7 +249,6 @@ function MoreMenuLink({
         <Icon name={item.icon} className="h-5 w-5 shrink-0" />
         <span className="truncate">{item.label}</span>
       </span>
-      {active ? <span className="text-xs font-black">Active</span> : null}
     </Link>
   );
 }
