@@ -43,6 +43,12 @@ import {
 } from "@/lib/petAge";
 import { PET_TYPE_OPTIONS } from "@/lib/petDisplay";
 import { isActivePet } from "@/lib/petLifecycle";
+import {
+  genderQuickPicks,
+  getBioTemplates,
+  getPetSuggestions,
+  MAX_PERSONALITY_TAGS,
+} from "@/lib/petSuggestions";
 import { getPublicProfileShareVersion } from "@/lib/publicProfileSocial";
 import { smartTagOrderingEnabled } from "@/lib/features";
 import {
@@ -878,6 +884,8 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
       ? `${origin}${currentPet.qrSafetyPath}`
       : currentPet?.qrSafetyPath ?? "";
   const selectedTheme = getPetProfileTheme(form.profileTheme);
+  // Species-aware field suggestions (personality, foods, toys, breeds).
+  const suggestions = getPetSuggestions(form.species);
   const saveLabel = mode === "create" ? "Save Pet" : "Save Changes";
   const cancelHref =
     mode === "edit" && currentPet ? ownerRoutes.petProfile(currentPet.id) : "/pets";
@@ -950,23 +958,41 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
               />
             ) : null}
 
-            <TextInput
-              error={errors.breed}
-              label="Breed"
-              maxLength={80}
-              onChange={(value) => updateField("breed", value)}
-              placeholder="Mixed breed"
-              value={form.breed}
-            />
+            <Field error={errors.breed} label="Breed">
+              <input
+                className="brand-input"
+                list={suggestions.breeds.length ? "pet-breed-suggestions" : undefined}
+                maxLength={80}
+                onChange={(event) => updateField("breed", event.target.value)}
+                placeholder="Mixed breed"
+                type="text"
+                value={form.breed}
+              />
+              {suggestions.breeds.length ? (
+                <datalist id="pet-breed-suggestions">
+                  {suggestions.breeds.map((breed) => (
+                    <option key={breed} value={breed} />
+                  ))}
+                </datalist>
+              ) : null}
+            </Field>
 
-            <TextInput
-              error={errors.gender}
-              label="Gender"
-              maxLength={40}
-              onChange={(value) => updateField("gender", value)}
-              placeholder="Male, female, unknown"
-              value={form.gender}
-            />
+            <div className="grid min-w-0 content-start gap-2">
+              <TextInput
+                error={errors.gender}
+                label="Gender"
+                maxLength={40}
+                onChange={(value) => updateField("gender", value)}
+                placeholder="Male, female, unknown"
+                value={form.gender}
+              />
+              <SuggestionChips
+                label="Quick picks for gender"
+                onPick={(value) => updateField("gender", value)}
+                options={[...genderQuickPicks]}
+                selectedValue={form.gender}
+              />
+            </div>
 
             <TextInput
               error={errors.color}
@@ -1054,46 +1080,67 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
           </div>
 
           <div className="mt-4 grid min-w-0 gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-            <Field
-              error={errors.bio}
-              helper="A few friendly details make the page feel personal."
-              label="Short bio / description"
-            >
-              <textarea
-                className="brand-input min-h-32"
-                maxLength={320}
-                onChange={(event) => updateField("bio", event.target.value)}
-                placeholder="Milo is gentle, snack-loving, and happiest after evening walks."
-                value={form.bio}
+            <div className="grid min-w-0 content-start gap-2">
+              <Field
+                error={errors.bio}
+                helper="A few friendly details make the page feel personal."
+                label="Short bio / description"
+              >
+                <textarea
+                  className="brand-input min-h-32"
+                  maxLength={320}
+                  onChange={(event) => updateField("bio", event.target.value)}
+                  placeholder="Milo is gentle, snack-loving, and happiest after evening walks."
+                  value={form.bio}
+                />
+              </Field>
+              <SuggestionChips
+                label="Bio starters"
+                onPick={(value) => updateField("bio", value)}
+                options={getBioTemplates(form.name)}
+                title="Need a starting point? Tap one and edit it:"
               />
-            </Field>
+            </div>
 
             <div className="grid min-w-0 gap-4">
-              <TextInput
+              <PersonalityTagPicker
                 error={errors.personalityTags}
-                helper="Personality tags make your pet profile feel more personal."
-                label="Personality tags"
-                maxLength={160}
                 onChange={(value) => updateField("personalityTags", value)}
-                placeholder="Gentle, loyal, playful"
+                suggestions={suggestions.personality}
                 value={form.personalityTags}
               />
-              <TextInput
-                error={errors.favoriteFood}
-                label="Favourite food"
-                maxLength={80}
-                onChange={(value) => updateField("favoriteFood", value)}
-                placeholder="Beef treats"
-                value={form.favoriteFood}
-              />
-              <TextInput
-                error={errors.favoriteToy}
-                label="Favourite toy"
-                maxLength={80}
-                onChange={(value) => updateField("favoriteToy", value)}
-                placeholder="Blue squeaky ball"
-                value={form.favoriteToy}
-              />
+              <div className="grid min-w-0 content-start gap-2">
+                <TextInput
+                  error={errors.favoriteFood}
+                  label="Favourite food"
+                  maxLength={80}
+                  onChange={(value) => updateField("favoriteFood", value)}
+                  placeholder="Beef treats"
+                  value={form.favoriteFood}
+                />
+                <SuggestionChips
+                  label="Favourite food suggestions"
+                  onPick={(value) => updateField("favoriteFood", value)}
+                  options={suggestions.foods}
+                  selectedValue={form.favoriteFood}
+                />
+              </div>
+              <div className="grid min-w-0 content-start gap-2">
+                <TextInput
+                  error={errors.favoriteToy}
+                  label="Favourite toy"
+                  maxLength={80}
+                  onChange={(value) => updateField("favoriteToy", value)}
+                  placeholder="Blue squeaky ball"
+                  value={form.favoriteToy}
+                />
+                <SuggestionChips
+                  label="Favourite toy suggestions"
+                  onPick={(value) => updateField("favoriteToy", value)}
+                  options={suggestions.toys}
+                  selectedValue={form.favoriteToy}
+                />
+              </div>
             </div>
           </div>
         </FormSection>
@@ -1910,12 +1957,18 @@ function PetTypeSelector({
     <div className="relative" ref={wrapperRef}>
       <button
         aria-expanded={open}
+        aria-haspopup="listbox"
         className="brand-input flex min-h-12 items-center justify-between gap-3 text-left"
         onClick={() => setOpen((current) => !current)}
         type="button"
       >
         <span>{value}</span>
-        <Icon name="settings" className="h-4 w-4 text-pet-muted" />
+        <Icon
+          name="chevron"
+          className={`h-4 w-4 shrink-0 text-pet-muted transition-transform duration-150 ${
+            open ? "rotate-180" : ""
+          }`}
+        />
       </button>
 
       {open ? (
@@ -2171,6 +2224,177 @@ function buildPayload(
       showHealthSummary: form.showHealthSummary,
     },
   };
+}
+
+// A wrapping row of tappable suggestion chips. Suggestions only fill or toggle
+// a value — custom input always stays available in the field itself.
+function SuggestionChips({
+  label,
+  options,
+  onPick,
+  selectedValue,
+  title,
+  disabled = false,
+}: {
+  label: string;
+  options: string[];
+  onPick: (value: string) => void;
+  selectedValue?: string;
+  title?: string;
+  disabled?: boolean;
+}) {
+  if (!options.length) {
+    return null;
+  }
+
+  const normalizedSelected = (selectedValue ?? "").trim().toLowerCase();
+
+  return (
+    <div aria-label={label} role="group">
+      {title ? (
+        <p className="mb-1.5 text-xs leading-5 text-pet-muted">{title}</p>
+      ) : null}
+      <div className="flex min-w-0 flex-wrap gap-2">
+        {options.map((option) => {
+          const selected =
+            normalizedSelected !== "" &&
+            option.trim().toLowerCase() === normalizedSelected;
+
+          return (
+            <button
+              className={`inline-flex min-h-9 items-center rounded-full border px-3 py-1.5 text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                selected
+                  ? "border-pet-teal bg-[#e8f3ff] text-pet-teal"
+                  : "border-pet-border bg-white text-pet-muted hover:border-pet-teal hover:text-pet-teal"
+              }`}
+              disabled={disabled}
+              key={option}
+              onClick={() => onPick(selected ? "" : option)}
+              type="button"
+            >
+              {option}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Personality tags as selectable chips plus custom input. The value stays the
+// same comma-joined string the form has always saved, so existing pets, the
+// save payload, and the API mapping are unchanged.
+function PersonalityTagPicker({
+  value,
+  onChange,
+  suggestions,
+  error,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  suggestions: string[];
+  error?: string;
+}) {
+  const [draft, setDraft] = useState("");
+  const tags = splitTags(value);
+  const selectedKeys = new Set(tags.map((tag) => tag.toLowerCase()));
+  const canAdd = tags.length < MAX_PERSONALITY_TAGS;
+  const remainingSuggestions = suggestions.filter(
+    (suggestion) => !selectedKeys.has(suggestion.toLowerCase())
+  );
+
+  function commit(nextTags: string[]) {
+    onChange(nextTags.join(", "));
+  }
+
+  function addTag(raw: string) {
+    const tag = raw.replace(/,/g, " ").replace(/\s+/g, " ").trim();
+
+    if (!tag || !canAdd || selectedKeys.has(tag.toLowerCase())) {
+      return;
+    }
+
+    commit([...tags, tag]);
+    setDraft("");
+  }
+
+  function removeTag(tag: string) {
+    commit(tags.filter((current) => current !== tag));
+  }
+
+  return (
+    <div className="grid min-w-0 gap-2">
+      <span className="flex items-baseline justify-between gap-2">
+        <span className="text-sm font-bold text-pet-ink">Personality tags</span>
+        <span className="text-xs font-bold text-pet-muted">
+          {tags.length}/{MAX_PERSONALITY_TAGS}
+        </span>
+      </span>
+
+      {tags.length ? (
+        <div className="flex min-w-0 flex-wrap gap-2">
+          {tags.map((tag) => (
+            <button
+              aria-label={`Remove tag ${tag}`}
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-pet-teal bg-[#e8f3ff] px-3 py-1.5 text-xs font-bold text-pet-teal transition hover:bg-[#d8edff]"
+              key={tag}
+              onClick={() => removeTag(tag)}
+              type="button"
+            >
+              {tag}
+              <Icon name="plus" className="h-3 w-3 rotate-45" />
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="flex min-w-0 gap-2">
+        <input
+          aria-label="Add a personality tag"
+          className="brand-input min-w-0 flex-1"
+          disabled={!canAdd}
+          maxLength={30}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              addTag(draft);
+            }
+          }}
+          placeholder={canAdd ? "Add your own tag" : "Tag limit reached"}
+          type="text"
+          value={draft}
+        />
+        <button
+          className="inline-flex min-h-12 shrink-0 items-center justify-center rounded-full border border-pet-border bg-white px-4 text-sm font-bold text-pet-ink transition hover:bg-pet-cream disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={!canAdd || !draft.trim()}
+          onClick={() => addTag(draft)}
+          type="button"
+        >
+          Add
+        </button>
+      </div>
+
+      <SuggestionChips
+        disabled={!canAdd}
+        label="Suggested personality tags"
+        onPick={(option) => {
+          if (option) {
+            addTag(option);
+          }
+        }}
+        options={remainingSuggestions}
+      />
+
+      <span className="text-xs leading-5 text-pet-muted">
+        Pick up to {MAX_PERSONALITY_TAGS}, or add your own. Tap a selected tag
+        to remove it.
+      </span>
+      {error ? (
+        <span className="text-xs font-bold text-[#a63c2e]">{error}</span>
+      ) : null}
+    </div>
+  );
 }
 
 function TextInput({
