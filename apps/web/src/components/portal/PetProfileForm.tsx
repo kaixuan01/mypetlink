@@ -12,6 +12,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { ImageUploadField } from "@/components/portal/ImageUploadField";
+import { LostModeControl } from "@/components/portal/LostModeControl";
 import { ShareProfileLink } from "@/components/share/ShareProfileLink";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
@@ -1479,32 +1480,12 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
           description="Choose what finders see on your pet's QR Safety Page. Your full address is never shown."
         >
           <div className="grid min-w-0 gap-4">
-            <p className="rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted">
-              Lost Mode tells finders your pet is missing and shows urgent
-              instructions on the QR Safety Page.
-            </p>
             {mode === "edit" && currentPet ? (
-              <div className="flex flex-col gap-3 rounded-[1.25rem] border border-pet-border bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm font-black text-pet-ink">
-                    Lost Mode status
-                  </p>
-                  <p className="mt-1 text-xs font-semibold leading-5 text-pet-muted">
-                    {currentPet.lostModeEnabled
-                      ? `${currentPet.name} is currently marked missing.`
-                      : `Mark ${currentPet.name} as missing from the pet management page if needed.`}
-                  </p>
-                </div>
-                <CTAButton
-                  href={ownerRoutes.petProfile(currentPet.id)}
-                  icon="shield"
-                  variant="outline"
-                  className="sm:w-auto"
-                  fullWidth
-                >
-                  Manage Lost Mode
-                </CTAButton>
-              </div>
+              <LostModeControl
+                onPetChange={setCurrentPet}
+                pet={currentPet}
+                variant="compact"
+              />
             ) : null}
 
             <div className="rounded-[1.5rem] border border-pet-border bg-white p-5">

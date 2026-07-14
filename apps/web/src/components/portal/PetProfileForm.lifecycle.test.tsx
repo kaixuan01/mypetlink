@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   getPetById: vi.fn(),
   updatePet: vi.fn(),
   updatePetLifecycle: vi.fn(),
+  updatePetLostMode: vi.fn(),
 }));
 
 mocks.router = { refresh: mocks.refresh, replace: mocks.replace };
@@ -41,6 +42,8 @@ vi.mock("@/services/petService", async (importOriginal) => {
     getPetById: (...args: unknown[]) => mocks.getPetById(...args),
     updatePet: (...args: unknown[]) => mocks.updatePet(...args),
     updatePetLifecycle: (...args: unknown[]) => mocks.updatePetLifecycle(...args),
+    updatePetLostMode: (...args: unknown[]) =>
+      mocks.updatePetLostMode(...args),
   };
 });
 
@@ -75,6 +78,15 @@ describe("PetProfileForm lifecycle workflow", () => {
     mocks.updatePetLifecycle.mockImplementation(
       async (_id: string, status: Pet["lifecycleStatus"], memorial: Pet["memorial"]) => ({
         data: { ...pet, lifecycleStatus: status, memorial: { ...pet.memorial, ...memorial } },
+      })
+    );
+    mocks.updatePetLostMode.mockImplementation(
+      async (_id: string, enabled: boolean, lostMode: Pet["lostMode"]) => ({
+        data: {
+          ...pet,
+          lostModeEnabled: enabled,
+          lostMode: { ...pet.lostMode, ...lostMode },
+        },
       })
     );
     mocks.replace.mockReset();
@@ -189,6 +201,33 @@ describe("PetProfileForm lifecycle workflow", () => {
     expect(
       screen.getByRole("button", { name: /Mint Green/ }).getAttribute("aria-pressed")
     ).toBe("true");
+  });
+
+  it("manages Lost Mode directly from Contact & Safety", async () => {
+    render(<PetProfileForm initialPet={pet} mode="edit" />);
+
+    fireEvent.click(
+      await screen.findByRole("tab", { name: /Contact & Safety/ })
+    );
+
+    expect(screen.queryByText("Manage Lost Mode")).toBeNull();
+    fireEvent.click(
+      screen.getByRole("button", { name: `Mark ${pet.name} as Lost` })
+    );
+    expect(screen.getByText(`Mark ${pet.name} as lost?`)).toBeTruthy();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Activate Lost Mode" })
+    );
+
+    await waitFor(() =>
+      expect(mocks.updatePetLostMode).toHaveBeenCalledWith(
+        pet.id,
+        true,
+        expect.objectContaining({ lostMessage: expect.any(String) })
+      )
+    );
+    expect(await screen.findByText("On")).toBeTruthy();
   });
 
   it("confirms Active to Memorial through Save Changes only", async () => {

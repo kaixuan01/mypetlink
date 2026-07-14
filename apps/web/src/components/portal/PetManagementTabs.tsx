@@ -9,10 +9,10 @@ import {
 import { PetMomentsManager } from "@/components/portal/PetMomentsManager";
 import { RecordsManager } from "@/components/portal/RecordsManager";
 import { TagManagementPanel } from "@/components/portal/TagManagementPanel";
+import { LostModeControl } from "@/components/portal/LostModeControl";
 import { QrCodeButton } from "@/components/qr/QrCodeButton";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
-import { DateInput } from "@/components/ui/DateInput";
 import { Icon } from "@/components/ui/Icon";
 import { SegmentedTabs, type SegmentedTab } from "@/components/ui/SegmentedTabs";
 import {
@@ -34,12 +34,11 @@ import { getServerFallbackBaseUrl, toAbsoluteUrl } from "@/lib/siteUrl";
 import { getTagScanDisplay, isActivePhysicalTagForPet } from "@/lib/tagStatus";
 import { isApiConfigured } from "@/services/apiConfig";
 import { getPetMoments } from "@/services/momentService";
-import { getPetById, updatePetLostMode } from "@/services/petService";
+import { getPetById } from "@/services/petService";
 import { getPetRecords } from "@/services/recordService";
 import type {
   CareRecord,
   Pet,
-  PetLostMode,
   PetMoment,
   PetTag,
   TagOrder,
@@ -236,26 +235,6 @@ function OverviewTab({
           url={toAbsoluteUrl(publicProfileSharePath, origin)}
           viewLabel={isMemorial ? "View Memorial Profile" : "View Public Profile"}
         />
-        <div className="mt-auto flex flex-col gap-3 sm:flex-row pt-1">
-          <CTAButton
-            href={pet.publicProfilePath}
-            variant="secondary"
-            icon="heart"
-            target="_blank"
-            rel="noopener noreferrer"
-            fullWidth
-          >
-            {isMemorial ? "View Memorial Profile" : "View Public Profile"}
-          </CTAButton>
-          <CTAButton
-            href={ownerRoutes.petEdit(pet.id)}
-            variant="outline"
-            icon="settings"
-            fullWidth
-          >
-            Edit Public Profile Settings
-          </CTAButton>
-        </div>
       </SectionCard>
 
       {/* QR Safety Page */}
@@ -295,26 +274,6 @@ function OverviewTab({
           <p className="mt-1 font-black text-pet-ink">
             {effectiveContact.generalArea}
           </p>
-        </div>
-        <div className="mt-auto flex flex-col gap-3 sm:flex-row pt-1">
-          <CTAButton
-            href={pet.qrSafetyPath}
-            variant="secondary"
-            icon="qr"
-            target="_blank"
-            rel="noopener noreferrer"
-            fullWidth
-          >
-            View QR Safety Page
-          </CTAButton>
-          <CTAButton
-            href={ownerRoutes.petEdit(pet.id)}
-            variant="outline"
-            icon="settings"
-            fullWidth
-          >
-            Edit Safety Settings
-          </CTAButton>
         </div>
       </SectionCard>
 
@@ -359,7 +318,7 @@ function OverviewTab({
           </CTAButton>
         </SectionCard>
       ) : (
-        <LostModeCard pet={pet} onPetChange={onPetChange} />
+        <LostModeControl pet={pet} onPetChange={onPetChange} />
       )}
 
       {/* Care Records */}
@@ -655,234 +614,6 @@ async function copyText(text: string) {
   }
 }
 
-function LostModeCard({
-  onPetChange,
-  pet,
-}: {
-  onPetChange: (pet: Pet) => void;
-  pet: Pet;
-}) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [draft, setDraft] = useState<PetLostMode>(() =>
-    getLostModeDraft(pet)
-  );
-
-  async function saveLostMode() {
-    setIsSaving(true);
-    const response = await updatePetLostMode(pet.id, true, {
-      ...draft,
-      lostMessage:
-        draft.lostMessage.trim() ||
-        `${pet.name} is currently missing. If you have found ${pet.name}, please contact the owner immediately.`,
-    });
-
-    if (response.data) {
-      onPetChange(response.data);
-    }
-
-    setIsSaving(false);
-    setIsEditing(false);
-  }
-
-  async function turnOffLostMode() {
-    setIsSaving(true);
-    const response = await updatePetLostMode(pet.id, false, draft);
-
-    if (response.data) {
-      onPetChange(response.data);
-    }
-
-    setIsSaving(false);
-  }
-
-  function openLostModeEditor() {
-    setDraft(getLostModeDraft(pet));
-    setIsEditing(true);
-  }
-
-  return (
-    <>
-      <SectionCard
-        icon="shield"
-        title="Lost Mode"
-        badge={
-          pet.lostModeEnabled ? (
-            <Badge tone="danger">Lost Mode Active</Badge>
-          ) : (
-            <Badge tone="soft">Off</Badge>
-          )
-        }
-        description="Use this only when your pet is actually missing. Finders will see a clearer missing pet notice."
-      >
-        {pet.lostModeEnabled ? (
-          <div className="grid gap-3">
-            <div className="rounded-[1.25rem] bg-[#fff1ee] p-4">
-              <p className="text-sm font-black text-pet-coral">
-                {pet.name} is currently missing
-              </p>
-              <p className="mt-2 text-sm leading-6 text-pet-muted">
-                {pet.lostMode.lostMessage}
-              </p>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <MiniInfo
-                label="Last seen area"
-                value={pet.lostMode.lastSeenArea || "Not set"}
-              />
-              <MiniInfo
-                label="Last seen date/time"
-                value={pet.lostMode.lastSeenDateTime || "Not set"}
-              />
-            </div>
-            {pet.lostMode.rewardNote ? (
-              <MiniInfo label="Reward note" value={pet.lostMode.rewardNote} />
-            ) : null}
-          </div>
-        ) : (
-          <p className="rounded-[1.25rem] bg-pet-cream p-4 text-sm font-semibold leading-6 text-pet-muted">
-            Lost Mode adds a missing pet banner to the public profile and makes
-            the QR safety page more urgent while active tags still work.
-          </p>
-        )}
-
-        <div className="mt-auto flex flex-col gap-3 sm:flex-row pt-1">
-          <CTAButton
-            icon="shield"
-            onClick={openLostModeEditor}
-            variant={pet.lostModeEnabled ? "secondary" : "coral"}
-            fullWidth
-          >
-            {pet.lostModeEnabled ? "Edit Lost Mode" : `Mark ${pet.name} as Lost`}
-          </CTAButton>
-          {pet.lostModeEnabled ? (
-            <button
-              className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream disabled:cursor-wait disabled:opacity-70"
-              disabled={isSaving}
-              onClick={turnOffLostMode}
-              type="button"
-            >
-              Turn Off Lost Mode
-            </button>
-          ) : null}
-        </div>
-      </SectionCard>
-
-      {isEditing ? (
-        <div
-          aria-modal="true"
-          className="fixed inset-0 z-50 grid place-items-end bg-pet-ink/35 p-0 backdrop-blur-sm sm:place-items-center sm:p-4"
-          role="dialog"
-        >
-          <div className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-t-[2rem] bg-white p-5 shadow-2xl sm:rounded-[2rem] sm:p-6">
-            <h2 className="text-2xl font-black text-pet-ink">
-              {pet.lostModeEnabled ? "Edit Lost Mode" : `Mark ${pet.name} as lost?`}
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-pet-muted">
-              Lost Mode tells finders your pet is missing. It does not disable
-              your active tags.
-            </p>
-
-            <div className="mt-5 grid gap-4">
-              <LostModeField label="Last seen area">
-                <input
-                  className="brand-input"
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      lastSeenArea: event.target.value,
-                    }))
-                  }
-                  placeholder="Petaling Jaya, Selangor"
-                  type="text"
-                  value={draft.lastSeenArea}
-                />
-              </LostModeField>
-              <LostModeField label="Last seen date/time">
-                <DateInput
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      lastSeenDateTime: event.target.value,
-                    }))
-                  }
-                  type="datetime-local"
-                  value={draft.lastSeenDateTime}
-                />
-              </LostModeField>
-              <LostModeField label="Message for finder">
-                <textarea
-                  className="brand-input min-h-28"
-                  maxLength={260}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      lostMessage: event.target.value,
-                    }))
-                  }
-                  value={draft.lostMessage}
-                />
-              </LostModeField>
-              <LostModeField label="Reward note optional">
-                <input
-                  className="brand-input"
-                  maxLength={120}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      rewardNote: event.target.value,
-                    }))
-                  }
-                  placeholder="Reward offered for safe return"
-                  type="text"
-                  value={draft.rewardNote}
-                />
-              </LostModeField>
-              <LostModeField label="Extra contact instruction optional">
-                <input
-                  className="brand-input"
-                  maxLength={160}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      extraContactInstruction: event.target.value,
-                    }))
-                  }
-                  placeholder="Please WhatsApp first if possible"
-                  type="text"
-                  value={draft.extraContactInstruction}
-                />
-              </LostModeField>
-            </div>
-
-            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-              <button
-                className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
-                onClick={() => setIsEditing(false)}
-                type="button"
-              >
-                Cancel
-              </button>
-              <button
-                className="inline-flex min-h-12 items-center justify-center rounded-full bg-pet-coral px-5 py-3 text-sm font-bold text-white transition hover:bg-[#f26155] disabled:cursor-wait disabled:opacity-70"
-                disabled={isSaving}
-                onClick={saveLostMode}
-                type="button"
-              >
-                {isSaving
-                  ? "Saving..."
-                  : pet.lostModeEnabled
-                    ? "Save Lost Mode"
-                    : "Activate Lost Mode"}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-    </>
-  );
-}
-
 function PrivacyTab({ pet }: { pet: Pet }) {
   const publicStatuses = [
     { label: "Owner name", enabled: pet.visibility.showOwnerName },
@@ -936,44 +667,6 @@ function PrivacyTab({ pet }: { pet: Pet }) {
       </SectionCard>
     </div>
   );
-}
-
-function MiniInfo({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-[1.25rem] bg-pet-cream p-4">
-      <p className="text-xs font-bold uppercase text-pet-muted">{label}</p>
-      <p className="mt-1 break-words text-sm font-black text-pet-ink">
-        {value}
-      </p>
-    </div>
-  );
-}
-
-function LostModeField({
-  children,
-  label,
-}: {
-  children: React.ReactNode;
-  label: string;
-}) {
-  return (
-    <label className="grid gap-2">
-      <span className="text-sm font-black text-pet-ink">{label}</span>
-      {children}
-    </label>
-  );
-}
-
-function getLostModeDraft(pet: Pet): PetLostMode {
-  return {
-    lastSeenArea: pet.lostMode.lastSeenArea || pet.generalArea,
-    lastSeenDateTime: pet.lostMode.lastSeenDateTime || "",
-    lostMessage:
-      pet.lostMode.lostMessage ||
-      `${pet.name} is currently missing. If you have found ${pet.name}, please contact the owner immediately.`,
-    rewardNote: pet.lostMode.rewardNote || "",
-    extraContactInstruction: pet.lostMode.extraContactInstruction || "",
-  };
 }
 
 function SectionCard({

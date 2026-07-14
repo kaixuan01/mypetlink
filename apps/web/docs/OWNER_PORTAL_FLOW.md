@@ -118,10 +118,11 @@ consistent. Records, Moments, and Smart Tag are reached **through this hub** (it
 tabs) or via the deep routes that render the same manager components â€” never as
 disconnected standalone dashboards.
 
-Pet-level **Lost Mode** lives on the pet management Overview tab. Use **Mark
-{Pet} as Lost**, **Edit Lost Mode**, and **Turn Off Lost Mode** there. Do not use
-`tag.status === "Lost"` to mark the pet as missing; that status means a physical
-tag has been deactivated.
+Pet-level **Lost Mode** uses the same shared control on the pet management
+Overview tab and in **Edit Pet -> Contact & Safety**. Owners can mark the pet as
+lost or found directly from either place; both update the same saved pet state
+and immediately refresh their local view. Do not use `tag.status === "Lost"` to
+mark the pet as missing; that status means a physical tag has been deactivated.
 
 The pet hub and edit form use the shared responsive `SegmentedTabs` component.
 It measures the available tab row width and keeps the row to one line by moving
