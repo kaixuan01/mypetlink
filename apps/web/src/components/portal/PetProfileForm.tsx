@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { CoverPhoto } from "@/components/ui/CoverPhoto";
+import { DateInput } from "@/components/ui/DateInput";
 import { FormSection } from "@/components/ui/FormSection";
 import { Icon } from "@/components/ui/Icon";
 import { PetAvatar } from "@/components/ui/PetAvatar";
@@ -1027,12 +1028,10 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
                 helper="Use this when you know your pet's full birth date."
                 label="Exact birthday"
               >
-                <input
-                  className="brand-input brand-date-input"
+                <DateInput
                   max={new Date().toISOString().slice(0, 10)}
                   min={`${MINIMUM_PET_BIRTH_YEAR}-01-01`}
                   onChange={(event) => updateBirthday(event.target.value)}
-                  type="date"
                   value={form.birthdayDate}
                 />
               </Field>
@@ -1349,12 +1348,10 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
                     helper="Optional. Share this only if it feels right for you."
                     label="Date of passing, optional"
                   >
-                    <input
-                      className="brand-input brand-date-input"
+                    <DateInput
                       onChange={(event) =>
                         updateField("passedAwayDate", event.target.value)
                       }
-                      type="date"
                       value={form.passedAwayDate}
                     />
                   </Field>
@@ -1407,12 +1404,10 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
               </Field>
 
               <Field error={errors.adoptionDate} label="Adoption day">
-                <input
-                  className="brand-input brand-date-input"
+                <DateInput
                   onChange={(event) =>
                     updateField("adoptionDate", event.target.value)
                   }
-                  type="date"
                   value={form.adoptionDate}
                 />
               </Field>

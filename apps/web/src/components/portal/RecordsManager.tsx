@@ -13,6 +13,7 @@ import { RecordCard } from "@/components/portal/RecordCard";
 import { useOwnerHeaderPageContext } from "@/components/portal/OwnerHeaderActions";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { DateInput } from "@/components/ui/DateInput";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
 import {
@@ -444,10 +445,8 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
                 </Field>
 
                 <Field label="Date" error={errors.date}>
-                  <input
-                    className="brand-input"
+                  <DateInput
                     onChange={(event) => updateField("date", event.target.value)}
-                    type="date"
                     value={form.date}
                   />
                 </Field>
@@ -465,12 +464,10 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
                 </Field>
 
                 <Field label="Next Due Date" error={errors.dueDate}>
-                  <input
-                    className="brand-input"
+                  <DateInput
                     onChange={(event) =>
                       updateField("dueDate", event.target.value)
                     }
-                    type="date"
                     value={form.dueDate}
                   />
                 </Field>

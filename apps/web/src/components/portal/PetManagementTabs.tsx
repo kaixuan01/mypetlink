@@ -12,6 +12,7 @@ import { TagManagementPanel } from "@/components/portal/TagManagementPanel";
 import { QrCodeButton } from "@/components/qr/QrCodeButton";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
+import { DateInput } from "@/components/ui/DateInput";
 import { Icon } from "@/components/ui/Icon";
 import { SegmentedTabs, type SegmentedTab } from "@/components/ui/SegmentedTabs";
 import {
@@ -798,8 +799,7 @@ function LostModeCard({
                 />
               </LostModeField>
               <LostModeField label="Last seen date/time">
-                <input
-                  className="brand-input"
+                <DateInput
                   onChange={(event) =>
                     setDraft((current) => ({
                       ...current,

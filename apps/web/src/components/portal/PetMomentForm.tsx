@@ -5,6 +5,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { MomentMediaField } from "@/components/portal/MomentMediaField";
 import { PetMomentCard } from "@/components/portal/PetMomentCard";
 import { CTAButton } from "@/components/ui/CTAButton";
+import { DateInput } from "@/components/ui/DateInput";
 import { getMemoryLimitState } from "@/lib/planLimits";
 import { isArchivedPet } from "@/lib/petLifecycle";
 import { ownerRoutes } from "@/lib/routes";
@@ -269,10 +270,8 @@ export function PetMomentForm({ pet }: { pet: Pet }) {
           </Field>
 
           <Field label="Date" error={errors.date}>
-            <input
-              className="brand-input"
+            <DateInput
               onChange={(event) => updateField("date", event.target.value)}
-              type="date"
               value={form.date}
             />
           </Field>

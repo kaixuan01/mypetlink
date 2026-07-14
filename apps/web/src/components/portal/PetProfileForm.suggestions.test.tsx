@@ -184,7 +184,7 @@ describe("gender segmented control", () => {
 });
 
 describe("pet detail dropdown indicators", () => {
-  it("uses one shared custom chevron for searchable controls and native hooks for age controls", () => {
+  it("uses shared custom indicators for searchable, select, and date controls", () => {
     renderCreateForm();
 
     for (const name of ["Pet type", "Breed"]) {
@@ -210,7 +210,11 @@ describe("pet detail dropdown indicators", () => {
     ) as HTMLInputElement;
     expect(birthday.type).toBe("date");
     expect(birthday.classList.contains("brand-date-input")).toBe(true);
-    expect(birthday.closest("label")?.querySelector("svg")).toBeNull();
+    expect(
+      birthday
+        .closest("label")
+        ?.querySelectorAll(".brand-date-indicator svg")
+    ).toHaveLength(1);
   });
 
   it("preserves the conditional native age controls when the age mode changes", () => {

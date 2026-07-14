@@ -19,6 +19,7 @@ export type IconName =
   | "search"
   | "copy"
   | "more"
+  | "calendar"
   | "chevron";
 
 type IconProps = SVGProps<SVGSVGElement> & {
@@ -162,6 +163,14 @@ const paths: Record<IconName, ReactNode> = {
       <circle cx="5" cy="12" r="1.5" />
       <circle cx="12" cy="12" r="1.5" />
       <circle cx="19" cy="12" r="1.5" />
+    </>
+  ),
+  calendar: (
+    <>
+      <rect height="16" rx="2" width="18" x="3" y="5" />
+      <path d="M8 3v4" />
+      <path d="M16 3v4" />
+      <path d="M3 10h18" />
     </>
   ),
   chevron: <path d="m6 9 6 6 6-6" />,

@@ -121,6 +121,26 @@ describe("PetProfileForm lifecycle workflow", () => {
     ).toBe(true);
   });
 
+  it("loads and saves Adoption day through the shared date control", async () => {
+    render(<PetProfileForm initialPet={pet} mode="edit" />);
+    await openPublicProfile();
+
+    const adoptionDay = (await screen.findByLabelText(
+      /Adoption day/
+    )) as HTMLInputElement;
+    expect(adoptionDay.value).toBe("2021-08-18");
+
+    fireEvent.change(adoptionDay, { target: { value: "2026-01-19" } });
+    clickSave();
+
+    await waitFor(() =>
+      expect(mocks.updatePet).toHaveBeenCalledWith(
+        pet.id,
+        expect.objectContaining({ adoptionDay: "19 Jan 2026" })
+      )
+    );
+  });
+
   it("confirms Active to Memorial through Save Changes only", async () => {
     render(<PetProfileForm initialPet={pet} mode="edit" />);
     await openPublicProfile();

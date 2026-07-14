@@ -12,6 +12,7 @@ import { PetMomentCard } from "@/components/portal/PetMomentCard";
 import { useOwnerHeaderPageContext } from "@/components/portal/OwnerHeaderActions";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { DateInput } from "@/components/ui/DateInput";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
 import { getMemoryLimitState } from "@/lib/planLimits";
@@ -464,12 +465,10 @@ export function PetMomentsManager({
                 </Field>
 
                 <Field label="Date" error={errors.date}>
-                  <input
-                    className="brand-input"
+                  <DateInput
                     onChange={(event) =>
                       updateField("date", event.target.value)
                     }
-                    type="date"
                     value={form.date}
                   />
                 </Field>
