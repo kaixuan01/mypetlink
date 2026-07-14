@@ -261,6 +261,22 @@ function normalizeSpecies(pet: Pet): Pick<Pet, "species" | "customSpecies"> {
   };
 }
 
+// Favourite foods/toys are multi-value. Older data may still carry a single
+// string (legacy API responses or previously stored pets); wrap it as a
+// one-item list. "Not set" was the old single-value placeholder — never a
+// real value.
+export function toFavoriteList(
+  list?: readonly string[] | null,
+  legacySingle?: string | null
+): string[] {
+  if (Array.isArray(list)) {
+    return list.map((item) => item.trim()).filter(Boolean);
+  }
+
+  const single = legacySingle?.trim();
+  return single && single !== "Not set" ? [single] : [];
+}
+
 function normalizePet(pet: Pet): Pet {
   const publicCode = canonicalPublicCode(pet);
   const safetyCode = canonicalSafetyCode(pet);
@@ -326,8 +342,14 @@ function normalizePet(pet: Pet): Pet {
     // Preserve exactly what was saved, including an intentionally empty list.
     // Never substitute default/sample tags.
     personalityTags: pet.personalityTags ?? [],
-    favoriteFood: pet.favoriteFood ?? "Not set",
-    favoriteToy: pet.favoriteToy ?? "Not set",
+    favoriteFoods: toFavoriteList(
+      pet.favoriteFoods,
+      (pet as Pet & { favoriteFood?: string }).favoriteFood
+    ),
+    favoriteToys: toFavoriteList(
+      pet.favoriteToys,
+      (pet as Pet & { favoriteToy?: string }).favoriteToy
+    ),
     safetyNote:
       pet.safetyNote ?? "Please contact the owner if this pet is found.",
     emergencyNote: pet.emergencyNote ?? "Keep calm and contact the owner first.",
@@ -510,8 +532,8 @@ export function mapBackendPetToFrontend(
       detail?.bio ||
       `${pet.name} has a safe MyPetLink profile ready for family and friends.`,
     personalityTags: pet.personalityTags ?? [],
-    favoriteFood: detail?.favoriteFood ?? "Not set",
-    favoriteToy: detail?.favoriteToy ?? "Not set",
+    favoriteFoods: toFavoriteList(detail?.favoriteFoods, detail?.favoriteFood),
+    favoriteToys: toFavoriteList(detail?.favoriteToys, detail?.favoriteToy),
     safetyNote:
       detail?.safetyNote || "Please contact the owner if this pet is found.",
     emergencyNote:
@@ -603,8 +625,8 @@ function mapBackendPublicProfile(profile: BackendPublicPetProfile): PublicPetPro
         profile.bio ??
         `${profile.name} has a safe MyPetLink profile ready for family and friends.`,
       personalityTags: profile.personalityTags ?? [],
-      favoriteFood: profile.favoriteFood ?? "Not set",
-      favoriteToy: profile.favoriteToy ?? "Not set",
+      favoriteFoods: toFavoriteList(profile.favoriteFoods, profile.favoriteFood),
+      favoriteToys: toFavoriteList(profile.favoriteToys, profile.favoriteToy),
       safetyNote: "",
       emergencyNote: "",
       lostModeEnabled: profile.lostModeEnabled,
@@ -693,8 +715,8 @@ export function mapBackendSafetyPage(page: BackendPublicSafetyPage): PublicPetPr
       publicProfilePath: "",
       bio: "",
       personalityTags: [],
-      favoriteFood: "Not set",
-      favoriteToy: "Not set",
+      favoriteFoods: [],
+      favoriteToys: [],
       safetyNote: page.safetyNote ?? "",
       emergencyNote: page.emergencyNote ?? "",
       lostModeEnabled: page.lostModeEnabled || page.state === "LostMode",
@@ -768,11 +790,11 @@ export function buildBackendPetPayload(payload: PetPayload) {
     ...(payload.personalityTags !== undefined
       ? { personalityTags: payload.personalityTags }
       : {}),
-    ...(payload.favoriteFood !== undefined
-      ? { favoriteFood: payload.favoriteFood }
+    ...(payload.favoriteFoods !== undefined
+      ? { favoriteFoods: payload.favoriteFoods }
       : {}),
-    ...(payload.favoriteToy !== undefined
-      ? { favoriteToy: payload.favoriteToy }
+    ...(payload.favoriteToys !== undefined
+      ? { favoriteToys: payload.favoriteToys }
       : {}),
     profileTheme: payload.profileTheme,
     contact: {
@@ -976,8 +998,8 @@ export function toPublicProfile(pet: Pet): PublicPetProfile {
     publicProfilePath: pet.publicProfilePath,
     bio: pet.bio,
     personalityTags: pet.personalityTags,
-    favoriteFood: pet.favoriteFood,
-    favoriteToy: pet.favoriteToy,
+    favoriteFoods: pet.favoriteFoods,
+    favoriteToys: pet.favoriteToys,
     safetyNote: pet.safetyNote,
     emergencyNote: pet.emergencyNote,
     lostModeEnabled: pet.lostModeEnabled,
@@ -1149,8 +1171,8 @@ export async function createPet(payload: PetPayload) {
       payload.bio ??
       `${petName} has a safe MyPetLink profile ready for family and friends.`,
     personalityTags: payload.personalityTags ?? [],
-    favoriteFood: payload.favoriteFood ?? "Not set",
-    favoriteToy: payload.favoriteToy ?? "Not set",
+    favoriteFoods: payload.favoriteFoods ?? [],
+    favoriteToys: payload.favoriteToys ?? [],
     safetyNote: payload.safetyNote ?? "No safety note yet.",
     emergencyNote: payload.emergencyNote ?? "No emergency note yet.",
     lostModeEnabled: payload.lostModeEnabled ?? false,

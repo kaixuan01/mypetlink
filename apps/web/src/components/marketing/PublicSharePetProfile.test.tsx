@@ -67,11 +67,11 @@ it("applies the pet's saved focal position to the public profile cover", async (
   expect(cover.style.objectPosition).toBe("31% 68%");
 });
 
-it("shows optional favourite food and toy values on the Public Share Profile", async () => {
+it("shows favourite foods and toys as compact separated values", async () => {
   const profile = {
     ...mockPets[0],
-    favoriteFood: "Ayam kukus 🍗",
-    favoriteToy: "Bola rotan 🎾",
+    favoriteFoods: ["Ayam kukus 🍗", "Tuna"],
+    favoriteToys: ["Bola rotan 🎾"],
   };
   publicProfileMocks.profile = profile;
 
@@ -83,17 +83,20 @@ it("shows optional favourite food and toy values on the Public Share Profile", a
     />
   );
 
-  expect(await screen.findByText("Favourite food")).toBeTruthy();
-  expect(screen.getByText("Ayam kukus 🍗")).toBeTruthy();
-  expect(screen.getByText("Favourite toy")).toBeTruthy();
+  expect(await screen.findByText("Favourite foods")).toBeTruthy();
+  expect(screen.getByText("Ayam kukus 🍗 · Tuna")).toBeTruthy();
+  expect(screen.getByText("Favourite toys")).toBeTruthy();
   expect(screen.getByText("Bola rotan 🎾")).toBeTruthy();
+  // Never raw JSON.
+  expect(document.body.textContent).not.toContain("[");
+  expect(document.body.textContent).not.toContain("object Object");
 });
 
-it("does not render empty favourite field labels on the Public Share Profile", async () => {
+it("hides favourite sections entirely when no values are saved", async () => {
   const profile = {
     ...mockPets[0],
-    favoriteFood: "Not set",
-    favoriteToy: "Not set",
+    favoriteFoods: [],
+    favoriteToys: [],
   };
   publicProfileMocks.profile = profile;
 
@@ -106,6 +109,6 @@ it("does not render empty favourite field labels on the Public Share Profile", a
   );
 
   await screen.findByText(`About ${profile.name}`);
-  expect(screen.queryByText("Favourite food")).toBeNull();
-  expect(screen.queryByText("Favourite toy")).toBeNull();
+  expect(screen.queryByText("Favourite foods")).toBeNull();
+  expect(screen.queryByText("Favourite toys")).toBeNull();
 });

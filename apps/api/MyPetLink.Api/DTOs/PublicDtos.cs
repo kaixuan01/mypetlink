@@ -26,8 +26,8 @@ public sealed record PublicPetProfileResponse(
     byte CoverPositionY,
     string? Bio,
     IReadOnlyList<string> PersonalityTags,
-    string? FavoriteFood,
-    string? FavoriteToy,
+    IReadOnlyList<string> FavoriteFoods,
+    IReadOnlyList<string> FavoriteToys,
     string? MemorialMessage,
     IReadOnlyCollection<PublicMemorySummaryResponse> Memories,
     IReadOnlyCollection<PublicCareSummaryResponse> CareRecords);

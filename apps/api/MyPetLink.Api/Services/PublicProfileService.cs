@@ -143,8 +143,8 @@ public sealed class PublicProfileService : SkeletonService, IPublicProfileServic
             pet.CoverPositionY,
             pet.Bio,
             PetDtoMapper.ParsePersonalityTags(pet.PersonalityTagsJson),
-            pet.FavoriteFood,
-            pet.FavoriteToy,
+            PetDtoMapper.ParseFavoriteList(pet.FavoriteFoodsJson),
+            PetDtoMapper.ParseFavoriteList(pet.FavoriteToysJson),
             pet.LifecycleStatus == PetLifecycleStatus.Memorial ? pet.MemorialMessage : null,
             memories,
             careRecords);

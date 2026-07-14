@@ -78,6 +78,10 @@ public sealed record CreatePetRequest(
     string? EmergencyNote,
     [Range(0, 100)] byte? CoverPositionX = null,
     [Range(0, 100)] byte? CoverPositionY = null,
+    IReadOnlyList<string>? FavoriteFoods = null,
+    IReadOnlyList<string>? FavoriteToys = null,
+    // Legacy single-value fields, still accepted from older clients. Ignored
+    // when the list fields are provided.
     [MaxLength(80)] string? FavoriteFood = null,
     [MaxLength(80)] string? FavoriteToy = null);
 
@@ -113,6 +117,10 @@ public sealed record UpdatePetRequest(
     string? EmergencyNote,
     [Range(0, 100)] byte? CoverPositionX = null,
     [Range(0, 100)] byte? CoverPositionY = null,
+    IReadOnlyList<string>? FavoriteFoods = null,
+    IReadOnlyList<string>? FavoriteToys = null,
+    // Legacy single-value fields, still accepted from older clients. Ignored
+    // when the list fields are provided.
     [MaxLength(80)] string? FavoriteFood = null,
     [MaxLength(80)] string? FavoriteToy = null);
 
@@ -178,8 +186,8 @@ public sealed record PetDetailResponse(
     string? GeneralArea,
     string? Bio,
     IReadOnlyList<string> PersonalityTags,
-    string? FavoriteFood,
-    string? FavoriteToy,
+    IReadOnlyList<string> FavoriteFoods,
+    IReadOnlyList<string> FavoriteToys,
     Guid? ProfileMediaId,
     Guid? CoverMediaId,
     string? ProfilePhotoUrl,

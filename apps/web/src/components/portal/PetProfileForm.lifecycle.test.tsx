@@ -202,55 +202,65 @@ describe("PetProfileForm lifecycle workflow", () => {
     expect(screen.queryByText("Session expired")).toBeNull();
   });
 
-  it("initializes, saves, and reloads favourite food and toy values", async () => {
+  it("initializes, saves, and reloads favourite food and toy lists", async () => {
     pet = {
       ...pet,
-      favoriteFood: "Ikan kembung 🐟",
-      favoriteToy: "毛绒小鼠 🐭",
+      favoriteFoods: ["Ikan kembung 🐟"],
+      favoriteToys: ["毛绒小鼠 🐭"],
     };
     mocks.getPetById.mockResolvedValue({ data: pet });
     render(<PetProfileForm initialPet={pet} mode="edit" />);
 
-    const food = await screen.findByLabelText("Favourite food");
-    const toy = screen.getByLabelText("Favourite toy");
-    expect(food).toHaveProperty("value", "Ikan kembung 🐟");
-    expect(toy).toHaveProperty("value", "毛绒小鼠 🐭");
-    expect(food).toHaveProperty("maxLength", 80);
-    expect(toy).toHaveProperty("maxLength", 80);
+    // Saved values load as removable chips.
+    expect(
+      await screen.findByRole("button", { name: "Remove Ikan kembung 🐟" })
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Remove 毛绒小鼠 🐭" })
+    ).toBeTruthy();
 
-    fireEvent.change(food, { target: { value: "参巴 ikan 🐟" } });
-    fireEvent.change(toy, { target: { value: "Bola kegemaran 🎾" } });
+    // Add a second food through the custom input.
+    const foodInput = screen.getByLabelText("Favourite foods: add your own");
+    fireEvent.change(foodInput, { target: { value: "参巴 ikan 🐟" } });
+    fireEvent.keyDown(foodInput, { key: "Enter" });
     clickSave();
 
     await waitFor(() =>
       expect(mocks.updatePet).toHaveBeenCalledWith(
         pet.id,
         expect.objectContaining({
-          favoriteFood: "参巴 ikan 🐟",
-          favoriteToy: "Bola kegemaran 🎾",
+          favoriteFoods: ["Ikan kembung 🐟", "参巴 ikan 🐟"],
+          favoriteToys: ["毛绒小鼠 🐭"],
         })
       )
     );
-    expect(await screen.findByDisplayValue("参巴 ikan 🐟")).toBeTruthy();
-    expect(screen.getByDisplayValue("Bola kegemaran 🎾")).toBeTruthy();
+    expect(
+      await screen.findByRole("button", { name: "Remove 参巴 ikan 🐟" })
+    ).toBeTruthy();
   });
 
-  it("sends explicit empty values when both favourite fields are cleared", async () => {
+  it("sends explicit empty lists when both favourite fields are cleared", async () => {
+    pet = {
+      ...pet,
+      favoriteFoods: ["Beef treats"],
+      favoriteToys: ["Blue squeaky ball"],
+    };
+    mocks.getPetById.mockResolvedValue({ data: pet });
     render(<PetProfileForm initialPet={pet} mode="edit" />);
-    const food = await screen.findByLabelText("Favourite food");
-    const toy = screen.getByLabelText("Favourite toy");
 
-    fireEvent.change(food, { target: { value: "" } });
-    fireEvent.change(toy, { target: { value: "" } });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Remove Beef treats" })
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Remove Blue squeaky ball" })
+    );
     clickSave();
 
     await waitFor(() =>
       expect(mocks.updatePet).toHaveBeenCalledWith(
         pet.id,
-        expect.objectContaining({ favoriteFood: "", favoriteToy: "" })
+        expect.objectContaining({ favoriteFoods: [], favoriteToys: [] })
       )
     );
-    expect(screen.getByLabelText("Favourite food")).toHaveProperty("value", "");
-    expect(screen.getByLabelText("Favourite toy")).toHaveProperty("value", "");
   });
 });

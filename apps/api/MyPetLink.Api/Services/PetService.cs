@@ -87,8 +87,10 @@ public sealed class PetService : SkeletonService, IPetService
             GeneralArea = PetDtoMapper.NormalizeOptional(request.GeneralArea) ?? user.OwnerProfile!.DefaultGeneralArea,
             Bio = PetDtoMapper.NormalizeOptional(request.Bio),
             PersonalityTagsJson = PetDtoMapper.SerializePersonalityTags(request.PersonalityTags),
-            FavoriteFood = PetDtoMapper.NormalizeOptional(request.FavoriteFood),
-            FavoriteToy = PetDtoMapper.NormalizeOptional(request.FavoriteToy),
+            FavoriteFoodsJson = PetDtoMapper.SerializeFavoriteList(
+                ResolveFavoriteItems(request.FavoriteFoods, request.FavoriteFood)),
+            FavoriteToysJson = PetDtoMapper.SerializeFavoriteList(
+                ResolveFavoriteItems(request.FavoriteToys, request.FavoriteToy)),
             CoverPositionX = request.CoverPositionX ?? 50,
             CoverPositionY = request.CoverPositionY ?? 50,
             ProfileTheme = PetDtoMapper.NormalizeOptional(request.ProfileTheme) ?? "default",
@@ -212,14 +214,18 @@ public sealed class PetService : SkeletonService, IPetService
             pet.PersonalityTagsJson = PetDtoMapper.SerializePersonalityTags(request.PersonalityTags);
         }
 
-        if (request.FavoriteFood is not null)
+        // Favourite lists follow the same replace-or-no-change rule. The legacy
+        // single-value fields are still honoured when a list is not provided.
+        if (request.FavoriteFoods is not null || request.FavoriteFood is not null)
         {
-            pet.FavoriteFood = PetDtoMapper.NormalizeOptional(request.FavoriteFood);
+            pet.FavoriteFoodsJson = PetDtoMapper.SerializeFavoriteList(
+                ResolveFavoriteItems(request.FavoriteFoods, request.FavoriteFood));
         }
 
-        if (request.FavoriteToy is not null)
+        if (request.FavoriteToys is not null || request.FavoriteToy is not null)
         {
-            pet.FavoriteToy = PetDtoMapper.NormalizeOptional(request.FavoriteToy);
+            pet.FavoriteToysJson = PetDtoMapper.SerializeFavoriteList(
+                ResolveFavoriteItems(request.FavoriteToys, request.FavoriteToy));
         }
 
         if (request.ProfileTheme is not null)
@@ -412,6 +418,27 @@ public sealed class PetService : SkeletonService, IPetService
     private PetDetailResponse ToDetail(Pet pet)
     {
         return PetDtoMapper.ToDetail(pet, _r2Options.PublicBaseUrl);
+    }
+
+    // Prefers the multi-value list; falls back to the legacy single-value field
+    // from older clients (wrapped as a one-item list, empty string clears).
+    private static IReadOnlyList<string>? ResolveFavoriteItems(
+        IReadOnlyList<string>? items,
+        string? legacySingleValue)
+    {
+        if (items is not null)
+        {
+            return items;
+        }
+
+        if (legacySingleValue is null)
+        {
+            return null;
+        }
+
+        return string.IsNullOrWhiteSpace(legacySingleValue)
+            ? Array.Empty<string>()
+            : new[] { legacySingleValue };
     }
 
     private static IQueryable<Pet> ApplyLifecycleFilter(IQueryable<Pet> query, string? lifecycleStatus)

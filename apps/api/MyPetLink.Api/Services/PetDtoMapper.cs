@@ -78,29 +78,19 @@ internal static class PetDtoMapper
         return JsonSerializer.Serialize(visibility, JsonOptions);
     }
 
-    // Personality tags are stored as a JSON array in Pet.PersonalityTagsJson.
+    // Personality tags and favourite foods/toys are stored as JSON arrays
+    // (Pet.PersonalityTagsJson / FavoriteFoodsJson / FavoriteToysJson).
     // Parse/Serialize both run the same normalization so what is read back always
     // matches what was saved: trimmed, de-duplicated (case-insensitive), capped
     // in length and count, and never replaced with defaults.
     public const int MaxPersonalityTags = 12;
     public const int MaxPersonalityTagLength = 40;
+    public const int MaxFavoriteItems = 3;
+    public const int MaxFavoriteItemLength = 80;
 
     public static IReadOnlyList<string> ParsePersonalityTags(string? json)
     {
-        if (string.IsNullOrWhiteSpace(json))
-        {
-            return Array.Empty<string>();
-        }
-
-        try
-        {
-            var tags = JsonSerializer.Deserialize<List<string>>(json, JsonOptions);
-            return NormalizePersonalityTags(tags);
-        }
-        catch (JsonException)
-        {
-            return Array.Empty<string>();
-        }
+        return ParseStringList(json, MaxPersonalityTagLength, MaxPersonalityTags);
     }
 
     public static string SerializePersonalityTags(IEnumerable<string>? tags)
@@ -110,7 +100,51 @@ internal static class PetDtoMapper
 
     public static IReadOnlyList<string> NormalizePersonalityTags(IEnumerable<string>? tags)
     {
-        if (tags is null)
+        return NormalizeStringList(tags, MaxPersonalityTagLength, MaxPersonalityTags);
+    }
+
+    public static IReadOnlyList<string> ParseFavoriteList(string? json)
+    {
+        return ParseStringList(json, MaxFavoriteItemLength, MaxFavoriteItems);
+    }
+
+    public static string SerializeFavoriteList(IEnumerable<string>? items)
+    {
+        return JsonSerializer.Serialize(NormalizeFavoriteList(items), JsonOptions);
+    }
+
+    public static IReadOnlyList<string> NormalizeFavoriteList(IEnumerable<string>? items)
+    {
+        return NormalizeStringList(items, MaxFavoriteItemLength, MaxFavoriteItems);
+    }
+
+    private static IReadOnlyList<string> ParseStringList(
+        string? json,
+        int maxItemLength,
+        int maxItems)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return Array.Empty<string>();
+        }
+
+        try
+        {
+            var items = JsonSerializer.Deserialize<List<string>>(json, JsonOptions);
+            return NormalizeStringList(items, maxItemLength, maxItems);
+        }
+        catch (JsonException)
+        {
+            return Array.Empty<string>();
+        }
+    }
+
+    private static IReadOnlyList<string> NormalizeStringList(
+        IEnumerable<string>? values,
+        int maxItemLength,
+        int maxItems)
+    {
+        if (values is null)
         {
             return Array.Empty<string>();
         }
@@ -118,28 +152,28 @@ internal static class PetDtoMapper
         var result = new List<string>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var raw in tags)
+        foreach (var raw in values)
         {
             if (string.IsNullOrWhiteSpace(raw))
             {
                 continue;
             }
 
-            var tag = raw.Trim();
+            var item = raw.Trim();
 
-            if (tag.Length > MaxPersonalityTagLength)
+            if (item.Length > maxItemLength)
             {
-                tag = tag[..MaxPersonalityTagLength].Trim();
+                item = item[..maxItemLength].Trim();
             }
 
-            if (tag.Length == 0 || !seen.Add(tag))
+            if (item.Length == 0 || !seen.Add(item))
             {
                 continue;
             }
 
-            result.Add(tag);
+            result.Add(item);
 
-            if (result.Count >= MaxPersonalityTags)
+            if (result.Count >= maxItems)
             {
                 break;
             }
@@ -270,8 +304,8 @@ internal static class PetDtoMapper
             pet.GeneralArea,
             pet.Bio,
             ParsePersonalityTags(pet.PersonalityTagsJson),
-            pet.FavoriteFood,
-            pet.FavoriteToy,
+            ParseFavoriteList(pet.FavoriteFoodsJson),
+            ParseFavoriteList(pet.FavoriteToysJson),
             pet.ProfileMediaFileId,
             pet.CoverMediaFileId,
             profilePhotoUrl,

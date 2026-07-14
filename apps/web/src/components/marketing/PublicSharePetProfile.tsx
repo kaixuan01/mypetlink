@@ -727,8 +727,10 @@ function AboutTab({
     ...(visibility.showGeneralArea
       ? [{ label: "General area", value: generalArea }]
       : []),
-    { label: "Favourite food", value: profile.favoriteFood },
-    { label: "Favourite toy", value: profile.favoriteToy },
+    // Multi-value favourites render as compact "·"-separated text; the filter
+    // below hides them entirely when the owner saved none.
+    { label: "Favourite foods", value: profile.favoriteFoods.join(" · ") },
+    { label: "Favourite toys", value: profile.favoriteToys.join(" · ") },
   ].filter((detail) => detail.value && detail.value !== "Not set");
 
   return (

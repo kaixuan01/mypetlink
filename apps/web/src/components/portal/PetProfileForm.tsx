@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
@@ -47,7 +48,6 @@ import {
 import { PET_TYPE_OPTIONS } from "@/lib/petDisplay";
 import { isActivePet } from "@/lib/petLifecycle";
 import {
-  genderQuickPicks,
   getBioTemplates,
   getPetSuggestions,
   MAX_PERSONALITY_TAGS,
@@ -104,9 +104,9 @@ type FormState = {
   memorialMessage: string;
   showMemorialOnPublicProfile: boolean;
   bio: string;
-  personalityTags: string;
-  favoriteFood: string;
-  favoriteToy: string;
+  personalityTags: string[];
+  favoriteFoods: string[];
+  favoriteToys: string[];
   adoptionDate: string;
   slug: string;
   generalArea: string;
@@ -175,8 +175,8 @@ const fieldTab: Record<keyof FormState, EditTab> = {
   estimatedBirthYear: "basic",
   bio: "basic",
   personalityTags: "basic",
-  favoriteFood: "basic",
-  favoriteToy: "basic",
+  favoriteFoods: "basic",
+  favoriteToys: "basic",
   photoUrl: "photos",
   coverUrl: "photos",
   coverPositionX: "photos",
@@ -228,9 +228,9 @@ const emptyForm: FormState = {
   memorialMessage: "",
   showMemorialOnPublicProfile: true,
   bio: "",
-  personalityTags: "",
-  favoriteFood: "",
-  favoriteToy: "",
+  personalityTags: [],
+  favoriteFoods: [],
+  favoriteToys: [],
   adoptionDate: "",
   slug: "",
   generalArea: "",
@@ -283,6 +283,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
     getServerOrigin
   );
   const [tab, setTab] = useState<EditTab>("basic");
+  const [bioSheetOpen, setBioSheetOpen] = useState(false);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -526,9 +527,8 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
     enforceMax(nextErrors, "bio", form.bio, 320);
     enforceMax(nextErrors, "safetyNote", form.safetyNote, 260);
     enforceMax(nextErrors, "emergencyNote", form.emergencyNote, 260);
-    enforceMax(nextErrors, "personalityTags", form.personalityTags, 160);
-    enforceMax(nextErrors, "favoriteFood", form.favoriteFood, 80);
-    enforceMax(nextErrors, "favoriteToy", form.favoriteToy, 80);
+    // Personality tags and favourite lists are length- and count-capped at
+    // entry time by their pickers, so no free-text length check is needed here.
     enforceMax(nextErrors, "ownerName", form.ownerName, 80);
     enforceMax(nextErrors, "memorialMessage", form.memorialMessage, 240);
 
@@ -965,40 +965,19 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
             ) : null}
 
             <Field error={errors.breed} label="Breed">
-              <input
-                className="brand-input"
-                list={suggestions.breeds.length ? "pet-breed-suggestions" : undefined}
-                maxLength={80}
-                onChange={(event) => updateField("breed", event.target.value)}
-                placeholder="Mixed breed"
-                type="text"
+              <BreedSelector
+                breeds={suggestions.breeds}
+                onChange={(value) => updateField("breed", value)}
                 value={form.breed}
               />
-              {suggestions.breeds.length ? (
-                <datalist id="pet-breed-suggestions">
-                  {suggestions.breeds.map((breed) => (
-                    <option key={breed} value={breed} />
-                  ))}
-                </datalist>
-              ) : null}
             </Field>
 
-            <div className="grid min-w-0 content-start gap-2">
-              <TextInput
-                error={errors.gender}
-                label="Gender"
-                maxLength={40}
+            <Field error={errors.gender} label="Gender">
+              <GenderSegmentedControl
                 onChange={(value) => updateField("gender", value)}
-                placeholder="Male, female, unknown"
                 value={form.gender}
               />
-              <SuggestionChips
-                label="Quick picks for gender"
-                onPick={(value) => updateField("gender", value)}
-                options={[...genderQuickPicks]}
-                selectedValue={form.gender}
-              />
-            </div>
+            </Field>
 
             <TextInput
               error={errors.color}
@@ -1100,55 +1079,55 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
                   value={form.bio}
                 />
               </Field>
-              <SuggestionChips
-                label="Bio starters"
-                onPick={(value) => updateField("bio", value)}
-                options={getBioTemplates(form.name)}
-                title="Need a starting point? Tap one and edit it:"
-              />
+              <button
+                className="justify-self-start text-sm font-bold text-pet-teal underline-offset-2 hover:underline"
+                onClick={() => setBioSheetOpen(true)}
+                type="button"
+              >
+                Need inspiration?
+              </button>
             </div>
 
             <div className="grid min-w-0 gap-4">
-              <PersonalityTagPicker
+              <TagListInput
                 error={errors.personalityTags}
-                onChange={(value) => updateField("personalityTags", value)}
+                label="Personality tags"
+                max={MAX_PERSONALITY_TAGS}
+                onChange={(values) => updateField("personalityTags", values)}
+                placeholder="Add your own tag"
                 suggestions={suggestions.personality}
-                value={form.personalityTags}
+                values={form.personalityTags}
               />
-              <div className="grid min-w-0 content-start gap-2">
-                <TextInput
-                  error={errors.favoriteFood}
-                  label="Favourite food"
-                  maxLength={80}
-                  onChange={(value) => updateField("favoriteFood", value)}
-                  placeholder="Beef treats"
-                  value={form.favoriteFood}
-                />
-                <SuggestionChips
-                  label="Favourite food suggestions"
-                  onPick={(value) => updateField("favoriteFood", value)}
-                  options={suggestions.foods}
-                  selectedValue={form.favoriteFood}
-                />
-              </div>
-              <div className="grid min-w-0 content-start gap-2">
-                <TextInput
-                  error={errors.favoriteToy}
-                  label="Favourite toy"
-                  maxLength={80}
-                  onChange={(value) => updateField("favoriteToy", value)}
-                  placeholder="Blue squeaky ball"
-                  value={form.favoriteToy}
-                />
-                <SuggestionChips
-                  label="Favourite toy suggestions"
-                  onPick={(value) => updateField("favoriteToy", value)}
-                  options={suggestions.toys}
-                  selectedValue={form.favoriteToy}
-                />
-              </div>
+              <TagListInput
+                error={errors.favoriteFoods}
+                label="Favourite foods"
+                max={3}
+                onChange={(values) => updateField("favoriteFoods", values)}
+                placeholder="Add a food"
+                suggestions={suggestions.foods}
+                values={form.favoriteFoods}
+              />
+              <TagListInput
+                error={errors.favoriteToys}
+                label="Favourite toys"
+                max={3}
+                onChange={(values) => updateField("favoriteToys", values)}
+                placeholder="Add a toy"
+                suggestions={suggestions.toys}
+                values={form.favoriteToys}
+              />
             </div>
           </div>
+
+          <BioTemplateSheet
+            onClose={() => setBioSheetOpen(false)}
+            onPick={(template) => {
+              updateField("bio", template);
+              setBioSheetOpen(false);
+            }}
+            open={bioSheetOpen}
+            petName={form.name}
+          />
         </FormSection>
       ) : null}
 
@@ -1793,8 +1772,9 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
       {/* Spacer so the last fields clear the fixed mobile action bar. */}
       <div aria-hidden="true" className="h-40 lg:hidden" />
 
-      {/* Sticky mobile action bar, kept above the bottom navigation. */}
-      <div className="fixed inset-x-3 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-20 max-w-[calc(100vw-1.5rem)] lg:hidden">
+      {/* Sticky mobile action bar, positioned above the bottom navigation using
+          the shared nav-height token plus safe-area inset. */}
+      <div className="fixed inset-x-3 bottom-[calc(var(--owner-bottom-nav-height)+env(safe-area-inset-bottom)+0.5rem)] z-20 max-w-[calc(100vw-1.5rem)] lg:hidden">
         <div className="brand-card flex min-w-0 items-center gap-2 rounded-full p-2">
           <Link
             className="inline-flex min-h-11 min-w-0 flex-1 items-center justify-center rounded-full border border-pet-border bg-white px-4 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
@@ -2123,9 +2103,9 @@ function toFormState(
     showMemorialOnPublicProfile:
       pet.memorial?.showMemorialOnPublicProfile ?? true,
     bio: pet.bio,
-    personalityTags: pet.personalityTags.join(", "),
-    favoriteFood: pet.favoriteFood === "Not set" ? "" : pet.favoriteFood,
-    favoriteToy: pet.favoriteToy === "Not set" ? "" : pet.favoriteToy,
+    personalityTags: [...pet.personalityTags],
+    favoriteFoods: [...pet.favoriteFoods],
+    favoriteToys: [...pet.favoriteToys],
     adoptionDate: parseDisplayDate(pet.adoptionDay),
     slug: pet.slug,
     generalArea: contact.generalArea,
@@ -2205,11 +2185,11 @@ function buildPayload(
     bio:
       form.bio.trim() ||
       `${name} is loved dearly and has a safe profile for family and friends.`,
-    personalityTags: splitTags(form.personalityTags),
-    // Empty strings are intentional clear operations. The API normalizes them
-    // to NULL while omitted fields remain unchanged for partial updates.
-    favoriteFood: form.favoriteFood.trim(),
-    favoriteToy: form.favoriteToy.trim(),
+    personalityTags: normalizeTagList(form.personalityTags, 12),
+    // Empty lists are intentional clear operations; omitted fields remain
+    // unchanged for partial updates.
+    favoriteFoods: normalizeTagList(form.favoriteFoods, 3),
+    favoriteToys: normalizeTagList(form.favoriteToys, 3),
     safetyNote:
       form.safetyNote.trim() || "Please contact the owner if this pet is found.",
     emergencyNote:
@@ -2251,120 +2231,98 @@ function buildPayload(
 
 // A wrapping row of tappable suggestion chips. Suggestions only fill or toggle
 // a value — custom input always stays available in the field itself.
-function SuggestionChips({
-  label,
-  options,
-  onPick,
-  selectedValue,
-  title,
-  disabled = false,
-}: {
-  label: string;
-  options: string[];
-  onPick: (value: string) => void;
-  selectedValue?: string;
-  title?: string;
-  disabled?: boolean;
-}) {
-  if (!options.length) {
-    return null;
+// Shared multi-value chip field: removable selected chips, species-aware
+// suggestions (a short initial row with "More suggestions"), and custom input.
+// Duplicates are blocked case-insensitively and values are trimmed.
+const INITIAL_SUGGESTION_COUNT = 6;
+
+function normalizeTagList(values: string[], max: number): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const raw of values) {
+    const value = raw.replace(/\s+/g, " ").trim();
+    const key = value.toLowerCase();
+
+    if (!value || seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    result.push(value);
+
+    if (result.length >= max) {
+      break;
+    }
   }
 
-  const normalizedSelected = (selectedValue ?? "").trim().toLowerCase();
-
-  return (
-    <div aria-label={label} role="group">
-      {title ? (
-        <p className="mb-1.5 text-xs leading-5 text-pet-muted">{title}</p>
-      ) : null}
-      <div className="flex min-w-0 flex-wrap gap-2">
-        {options.map((option) => {
-          const selected =
-            normalizedSelected !== "" &&
-            option.trim().toLowerCase() === normalizedSelected;
-
-          return (
-            <button
-              className={`inline-flex min-h-9 items-center rounded-full border px-3 py-1.5 text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-50 ${
-                selected
-                  ? "border-pet-teal bg-[#e8f3ff] text-pet-teal"
-                  : "border-pet-border bg-white text-pet-muted hover:border-pet-teal hover:text-pet-teal"
-              }`}
-              disabled={disabled}
-              key={option}
-              onClick={() => onPick(selected ? "" : option)}
-              type="button"
-            >
-              {option}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
+  return result;
 }
 
-// Personality tags as selectable chips plus custom input. The value stays the
-// same comma-joined string the form has always saved, so existing pets, the
-// save payload, and the API mapping are unchanged.
-function PersonalityTagPicker({
-  value,
+function TagListInput({
+  label,
+  values,
   onChange,
   suggestions,
+  max,
+  placeholder,
   error,
 }: {
-  value: string;
-  onChange: (value: string) => void;
+  label: string;
+  values: string[];
+  onChange: (values: string[]) => void;
   suggestions: string[];
+  max: number;
+  placeholder: string;
   error?: string;
 }) {
   const [draft, setDraft] = useState("");
-  const tags = splitTags(value);
-  const selectedKeys = new Set(tags.map((tag) => tag.toLowerCase()));
-  const canAdd = tags.length < MAX_PERSONALITY_TAGS;
+  const [showAllSuggestions, setShowAllSuggestions] = useState(false);
+  const selectedKeys = new Set(values.map((value) => value.toLowerCase()));
+  const canAdd = values.length < max;
   const remainingSuggestions = suggestions.filter(
     (suggestion) => !selectedKeys.has(suggestion.toLowerCase())
   );
+  const visibleSuggestions = showAllSuggestions
+    ? remainingSuggestions
+    : remainingSuggestions.slice(0, INITIAL_SUGGESTION_COUNT);
+  const hiddenCount = remainingSuggestions.length - visibleSuggestions.length;
 
-  function commit(nextTags: string[]) {
-    onChange(nextTags.join(", "));
-  }
+  function addValue(raw: string) {
+    const value = raw.replace(/,/g, " ").replace(/\s+/g, " ").trim();
 
-  function addTag(raw: string) {
-    const tag = raw.replace(/,/g, " ").replace(/\s+/g, " ").trim();
-
-    if (!tag || !canAdd || selectedKeys.has(tag.toLowerCase())) {
+    if (!value || !canAdd || selectedKeys.has(value.toLowerCase())) {
       return;
     }
 
-    commit([...tags, tag]);
+    onChange([...values, value]);
     setDraft("");
   }
 
-  function removeTag(tag: string) {
-    commit(tags.filter((current) => current !== tag));
+  function removeValue(value: string) {
+    onChange(values.filter((current) => current !== value));
   }
 
   return (
     <div className="grid min-w-0 gap-2">
       <span className="flex items-baseline justify-between gap-2">
-        <span className="text-sm font-bold text-pet-ink">Personality tags</span>
+        <span className="text-sm font-bold text-pet-ink">{label}</span>
         <span className="text-xs font-bold text-pet-muted">
-          {tags.length}/{MAX_PERSONALITY_TAGS}
+          {values.length}/{max}
         </span>
       </span>
 
-      {tags.length ? (
+      {values.length ? (
         <div className="flex min-w-0 flex-wrap gap-2">
-          {tags.map((tag) => (
+          {values.map((value) => (
             <button
-              aria-label={`Remove tag ${tag}`}
+              aria-label={`Remove ${value}`}
               className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-pet-teal bg-[#e8f3ff] px-3 py-1.5 text-xs font-bold text-pet-teal transition hover:bg-[#d8edff]"
-              key={tag}
-              onClick={() => removeTag(tag)}
+              key={value}
+              onClick={() => removeValue(value)}
               type="button"
             >
-              {tag}
+              {value}
               <Icon name="plus" className="h-3 w-3 rotate-45" />
             </button>
           ))}
@@ -2373,49 +2331,341 @@ function PersonalityTagPicker({
 
       <div className="flex min-w-0 gap-2">
         <input
-          aria-label="Add a personality tag"
+          aria-label={`${label}: add your own`}
           className="brand-input min-w-0 flex-1"
           disabled={!canAdd}
-          maxLength={30}
+          maxLength={label === "Personality tags" ? 30 : 80}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Enter") {
               event.preventDefault();
-              addTag(draft);
+              addValue(draft);
             }
           }}
-          placeholder={canAdd ? "Add your own tag" : "Tag limit reached"}
+          placeholder={canAdd ? placeholder : `Limit of ${max} reached`}
           type="text"
           value={draft}
         />
         <button
           className="inline-flex min-h-12 shrink-0 items-center justify-center rounded-full border border-pet-border bg-white px-4 text-sm font-bold text-pet-ink transition hover:bg-pet-cream disabled:cursor-not-allowed disabled:opacity-50"
           disabled={!canAdd || !draft.trim()}
-          onClick={() => addTag(draft)}
+          onClick={() => addValue(draft)}
           type="button"
         >
           Add
         </button>
       </div>
 
-      <SuggestionChips
-        disabled={!canAdd}
-        label="Suggested personality tags"
-        onPick={(option) => {
-          if (option) {
-            addTag(option);
-          }
-        }}
-        options={remainingSuggestions}
-      />
+      {visibleSuggestions.length ? (
+        <div aria-label={`Suggested ${label.toLowerCase()}`} role="group">
+          <div className="flex min-w-0 flex-wrap gap-2">
+            {visibleSuggestions.map((option) => (
+              <button
+                className="inline-flex min-h-9 items-center rounded-full border border-pet-border bg-white px-3 py-1.5 text-xs font-bold text-pet-muted transition hover:border-pet-teal hover:text-pet-teal disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={!canAdd}
+                key={option}
+                onClick={() => addValue(option)}
+                type="button"
+              >
+                {option}
+              </button>
+            ))}
+            {hiddenCount > 0 ? (
+              <button
+                className="inline-flex min-h-9 items-center rounded-full px-3 py-1.5 text-xs font-bold text-pet-teal transition hover:underline"
+                onClick={() => setShowAllSuggestions(true)}
+                type="button"
+              >
+                More suggestions ({hiddenCount})
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
 
-      <span className="text-xs leading-5 text-pet-muted">
-        Pick up to {MAX_PERSONALITY_TAGS}, or add your own. Tap a selected tag
-        to remove it.
-      </span>
       {error ? (
         <span className="text-xs font-bold text-[#a63c2e]">{error}</span>
       ) : null}
+    </div>
+  );
+}
+
+// Single segmented control for gender. A legacy custom value (e.g. "Male
+// (neutered)") keeps its saved text and highlights the matching option until
+// the owner picks one.
+function GenderSegmentedControl({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const normalized = value.trim().toLowerCase();
+
+  return (
+    <div
+      className="grid grid-cols-3 gap-1 rounded-full border border-pet-border bg-white p-1"
+      role="radiogroup"
+      aria-label="Gender"
+    >
+      {(["Male", "Female", "Unknown"] as const).map((option) => {
+        const selected =
+          normalized === option.toLowerCase() ||
+          (option !== "Unknown" && normalized.startsWith(option.toLowerCase()));
+
+        return (
+          <button
+            aria-checked={selected}
+            className={`min-h-10 rounded-full px-2 text-sm font-bold transition ${
+              selected
+                ? "bg-[#e8f3ff] text-pet-teal"
+                : "text-pet-muted hover:bg-pet-cream hover:text-pet-ink"
+            }`}
+            key={option}
+            onClick={() => onChange(option)}
+            role="radio"
+            type="button"
+          >
+            {option}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// Searchable breed dropdown (same interaction and chevron as Pet Type).
+// Always offers Mixed breed, Unknown, and Other; Other reveals custom input.
+function BreedSelector({
+  breeds,
+  value,
+  onChange,
+}: {
+  breeds: string[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const options = useMemo(() => {
+    const seen = new Set<string>();
+    const merged: string[] = [];
+
+    for (const option of [...breeds, "Mixed breed", "Unknown", "Other"]) {
+      const key = option.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        merged.push(option);
+      }
+    }
+
+    return merged;
+  }, [breeds]);
+  // Custom mode: explicit "Other" selection, or an existing saved breed that
+  // is not one of the offered options.
+  const [customMode, setCustomMode] = useState(
+    () => Boolean(value) && !options.some((option) => option === value)
+  );
+  const normalizedQuery = query.trim().toLowerCase();
+  const visibleOptions = options.filter((option) =>
+    option.toLowerCase().includes(normalizedQuery)
+  );
+
+  useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      if (!wrapperRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
+  function selectOption(option: string) {
+    if (option === "Other") {
+      setCustomMode(true);
+      onChange("");
+    } else {
+      setCustomMode(false);
+      onChange(option);
+    }
+
+    setQuery("");
+    setOpen(false);
+  }
+
+  return (
+    <div className="grid min-w-0 gap-2">
+      <div className="relative" ref={wrapperRef}>
+        <button
+          aria-expanded={open}
+          aria-haspopup="listbox"
+          className="brand-input flex min-h-12 w-full items-center justify-between gap-3 text-left"
+          onClick={() => setOpen((current) => !current)}
+          type="button"
+        >
+          <span className={value || customMode ? "" : "text-pet-muted"}>
+            {customMode ? "Other" : value || "Select breed"}
+          </span>
+          <Icon
+            name="chevron"
+            className={`h-4 w-4 shrink-0 text-pet-muted transition-transform duration-150 ${
+              open ? "rotate-180" : ""
+            }`}
+          />
+        </button>
+
+        {open ? (
+          <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-30 overflow-hidden rounded-[1.25rem] border border-pet-border bg-white p-2 shadow-xl shadow-[#0d1b3d]/12">
+            <input
+              aria-label="Search breed"
+              autoFocus
+              className="brand-input min-h-11"
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search breed"
+              type="search"
+              value={query}
+            />
+            <div className="mt-2 max-h-64 overflow-y-auto pr-1">
+              {(visibleOptions.length ? visibleOptions : ["Other"]).map(
+                (option) => {
+                  const selected = customMode
+                    ? option === "Other"
+                    : option === value;
+
+                  return (
+                    <button
+                      className={`flex min-h-11 w-full items-center justify-between rounded-2xl px-4 py-2 text-left text-sm font-bold transition ${
+                        selected
+                          ? "bg-[#e8f3ff] text-pet-teal"
+                          : "text-pet-ink hover:bg-pet-cream"
+                      }`}
+                      key={option}
+                      onClick={() => selectOption(option)}
+                      type="button"
+                    >
+                      <span>{option}</span>
+                      {selected ? (
+                        <span className="text-xs text-pet-teal">Selected</span>
+                      ) : null}
+                    </button>
+                  );
+                }
+              )}
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      {customMode ? (
+        <input
+          aria-label="Enter breed"
+          className="brand-input"
+          maxLength={80}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder="Enter breed"
+          type="text"
+          value={value}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+// Bio starter templates in a bottom sheet, opened only on request so the main
+// form stays compact. Selecting one fills the textarea with editable text.
+function BioTemplateSheet({
+  open,
+  petName,
+  onPick,
+  onClose,
+}: {
+  open: boolean;
+  petName: string;
+  onPick: (template: string) => void;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose, open]);
+
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <div
+      aria-label="Bio starters"
+      aria-modal="true"
+      className="fixed inset-0 z-50 grid place-items-end bg-pet-ink/35 p-0 backdrop-blur-sm sm:place-items-center sm:p-4"
+      role="dialog"
+    >
+      <button
+        aria-label="Close bio starters"
+        className="absolute inset-0 cursor-default"
+        onClick={onClose}
+        type="button"
+      />
+      <div className="relative w-full max-w-lg rounded-t-[2rem] bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-2xl sm:rounded-[2rem] sm:p-6">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-black text-pet-ink">
+              Need a starting point?
+            </h2>
+            <p className="mt-1 text-sm leading-6 text-pet-muted">
+              Tap one and edit it to match your pet.
+            </p>
+          </div>
+          <button
+            aria-label="Close"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-pet-cream text-pet-muted transition hover:text-pet-ink"
+            onClick={onClose}
+            type="button"
+          >
+            <Icon name="plus" className="h-5 w-5 rotate-45" />
+          </button>
+        </div>
+        <div className="mt-4 grid gap-2">
+          {getBioTemplates(petName).map((template) => (
+            <button
+              className="rounded-[1.25rem] border border-pet-border bg-pet-cream px-4 py-3 text-left text-sm font-semibold leading-6 text-pet-ink transition hover:border-pet-teal hover:bg-white"
+              key={template}
+              onClick={() => onPick(template)}
+              type="button"
+            >
+              {template}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -2843,31 +3093,6 @@ function parseDisplayDate(value: string) {
   }
 
   return `${year}-${String(monthIndex + 1).padStart(2, "0")}-${day}`;
-}
-
-function splitTags(value: string) {
-  // Return exactly what the owner typed, de-duplicated. An empty field clears
-  // all tags — never fall back to sample/default tags.
-  const seen = new Set<string>();
-  const tags: string[] = [];
-
-  for (const raw of value.split(",")) {
-    const tag = raw.trim();
-    const key = tag.toLowerCase();
-
-    if (!tag || seen.has(key)) {
-      continue;
-    }
-
-    seen.add(key);
-    tags.push(tag);
-
-    if (tags.length >= 12) {
-      break;
-    }
-  }
-
-  return tags;
 }
 
 function getInitial(name: string) {

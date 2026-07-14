@@ -93,6 +93,9 @@ export type BackendPetDetail = {
   generalArea?: string | null;
   bio?: string | null;
   personalityTags?: string[] | null;
+  favoriteFoods?: string[] | null;
+  favoriteToys?: string[] | null;
+  /** Legacy single-value fields still emitted by older API responses. */
   favoriteFood?: string | null;
   favoriteToy?: string | null;
   profileTheme: string;
@@ -175,6 +178,9 @@ export type BackendPublicPetProfile = {
   generalArea?: string | null;
   bio?: string | null;
   personalityTags?: string[] | null;
+  favoriteFoods?: string[] | null;
+  favoriteToys?: string[] | null;
+  /** Legacy single-value fields still emitted by older API responses. */
   favoriteFood?: string | null;
   favoriteToy?: string | null;
   profilePhotoUrl?: string | null;

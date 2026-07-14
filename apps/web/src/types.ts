@@ -101,8 +101,8 @@ export type Pet = {
   publicProfileVersion?: string;
   bio: string;
   personalityTags: string[];
-  favoriteFood: string;
-  favoriteToy: string;
+  favoriteFoods: string[];
+  favoriteToys: string[];
   safetyNote: string;
   emergencyNote: string;
   lostModeEnabled: boolean;
@@ -175,8 +175,8 @@ export type PublicPetProfile = Pick<
   | "publicProfileVersion"
   | "bio"
   | "personalityTags"
-  | "favoriteFood"
-  | "favoriteToy"
+  | "favoriteFoods"
+  | "favoriteToys"
   | "safetyNote"
   | "emergencyNote"
   | "lostModeEnabled"

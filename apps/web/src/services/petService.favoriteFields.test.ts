@@ -6,6 +6,7 @@ import {
   buildBackendPetPayload,
   getPets,
   mapBackendPetToFrontend,
+  toFavoriteList,
 } from "@/services/petService";
 
 function backendPet(
@@ -49,38 +50,50 @@ afterEach(() => {
   window.localStorage.clear();
 });
 
-describe("pet favourite field API mapping", () => {
+describe("pet favourite list API mapping", () => {
   it("includes saved multilingual values in the backend request payload", () => {
     const payload = buildBackendPetPayload({
       name: "Topu",
-      favoriteFood: "参巴 ikan 🐟",
-      favoriteToy: "Bola kegemaran 🎾",
+      favoriteFoods: ["参巴 ikan 🐟", "Ayam"],
+      favoriteToys: ["Bola kegemaran 🎾"],
     });
 
     expect(payload).toMatchObject({
-      favoriteFood: "参巴 ikan 🐟",
-      favoriteToy: "Bola kegemaran 🎾",
+      favoriteFoods: ["参巴 ikan 🐟", "Ayam"],
+      favoriteToys: ["Bola kegemaran 🎾"],
     });
   });
 
-  it("preserves empty strings as explicit clear operations", () => {
+  it("preserves empty lists as explicit clear operations", () => {
     const payload = buildBackendPetPayload({
-      favoriteFood: "",
-      favoriteToy: "",
+      favoriteFoods: [],
+      favoriteToys: [],
     });
 
-    expect(payload).toHaveProperty("favoriteFood", "");
-    expect(payload).toHaveProperty("favoriteToy", "");
+    expect(payload).toHaveProperty("favoriteFoods", []);
+    expect(payload).toHaveProperty("favoriteToys", []);
   });
 
   it("does not add favourite fields to an unrelated partial update", () => {
     const payload = buildBackendPetPayload({ lostModeEnabled: true });
 
-    expect(payload).not.toHaveProperty("favoriteFood");
-    expect(payload).not.toHaveProperty("favoriteToy");
+    expect(payload).not.toHaveProperty("favoriteFoods");
+    expect(payload).not.toHaveProperty("favoriteToys");
   });
 
-  it("maps API response values back into the owner form model", () => {
+  it("maps API list responses back into the owner model", () => {
+    const pet = mapBackendPetToFrontend(
+      backendPet({
+        favoriteFoods: ["Ayam kukus 🍗", "Tuna"],
+        favoriteToys: ["毛绒老鼠 🐭"],
+      })
+    );
+
+    expect(pet.favoriteFoods).toEqual(["Ayam kukus 🍗", "Tuna"]);
+    expect(pet.favoriteToys).toEqual(["毛绒老鼠 🐭"]);
+  });
+
+  it("wraps legacy single-value API responses as one-item lists", () => {
     const pet = mapBackendPetToFrontend(
       backendPet({
         favoriteFood: "Ayam kukus 🍗",
@@ -88,8 +101,17 @@ describe("pet favourite field API mapping", () => {
       })
     );
 
-    expect(pet.favoriteFood).toBe("Ayam kukus 🍗");
-    expect(pet.favoriteToy).toBe("毛绒老鼠 🐭");
+    expect(pet.favoriteFoods).toEqual(["Ayam kukus 🍗"]);
+    expect(pet.favoriteToys).toEqual(["毛绒老鼠 🐭"]);
+  });
+
+  it("normalizes legacy values through toFavoriteList", () => {
+    expect(toFavoriteList(undefined, "  Tuna  ")).toEqual(["Tuna"]);
+    expect(toFavoriteList(undefined, "Not set")).toEqual([]);
+    expect(toFavoriteList(undefined, null)).toEqual([]);
+    // An explicit list wins over the legacy single value.
+    expect(toFavoriteList([], "Tuna")).toEqual([]);
+    expect(toFavoriteList([" A ", "", "B"], null)).toEqual(["A", "B"]);
   });
 
   it("keeps intentional local-preview mock mode available without API configuration", async () => {

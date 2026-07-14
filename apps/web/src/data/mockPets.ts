@@ -44,8 +44,8 @@ export const mockPets: Pet[] = [
     publicProfilePath: "/p/milo-k7q2",
     bio: "Milo is a gentle rescue dog who loves evening walks, belly rubs, and watching rain from the balcony.",
     personalityTags: ["Gentle", "Food motivated", "Loyal", "Sleepy after walks"],
-    favoriteFood: "Beef treats",
-    favoriteToy: "Blue squeaky ball",
+    favoriteFoods: ["Beef treats"],
+    favoriteToys: ["Blue squeaky ball"],
     safetyNote:
       "Friendly but nervous around traffic. Please contact the owner before moving him far from the found area.",
     emergencyNote:
@@ -126,8 +126,8 @@ export const mockPets: Pet[] = [
     publicProfilePath: "/p/luna-m4r8",
     bio: "Luna is a soft-spoken indoor cat with a big curious heart and a strict biscuit inspection routine.",
     personalityTags: ["Curious", "Quiet", "Window watcher", "Treat detective"],
-    favoriteFood: "Tuna flakes",
-    favoriteToy: "Feather wand",
+    favoriteFoods: ["Tuna flakes"],
+    favoriteToys: ["Feather wand"],
     safetyNote:
       "Shy with strangers. Please call first and keep her in a quiet, enclosed area if possible.",
     emergencyNote: "Indoor cat. May hide under cars or drains when frightened.",

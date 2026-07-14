@@ -27,102 +27,89 @@ function personalityGroup() {
   return screen.getByRole("group", { name: "Suggested personality tags" });
 }
 
-function addCustomTag(tag: string) {
-  const input = screen.getByLabelText("Add a personality tag");
-  fireEvent.change(input, { target: { value: tag } });
-  fireEvent.click(screen.getByRole("button", { name: "Add" }));
+function addCustom(fieldLabel: string, value: string) {
+  const input = screen.getByLabelText(`${fieldLabel}: add your own`);
+  fireEvent.change(input, { target: { value } });
+  fireEvent.keyDown(input, { key: "Enter" });
 }
 
-describe("PetProfileForm personality tag picker", () => {
-  beforeEach(() => {
-    window.history.replaceState({}, "", "/pets/new");
-  });
+beforeEach(() => {
+  window.history.replaceState({}, "", "/pets/new");
+});
 
-  afterEach(() => {
-    cleanup();
-    vi.clearAllMocks();
-  });
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
-  it("shows dog suggestions by default and selects a tag on tap", () => {
+describe("personality tag picker", () => {
+  it("shows a limited suggestion row with More suggestions for the rest", () => {
     renderCreateForm();
 
-    const brave = within(personalityGroup()).getByRole("button", {
-      name: "Brave",
+    const group = personalityGroup();
+    // Dog has 8 suggestions; 6 initial + a More button revealing the rest.
+    expect(within(group).getAllByRole("button")).toHaveLength(7);
+    const more = within(group).getByRole("button", {
+      name: /More suggestions \(2\)/,
     });
-    fireEvent.click(brave);
+    fireEvent.click(more);
+    expect(within(group).getAllByRole("button")).toHaveLength(8);
+  });
 
-    // Selected as a removable chip and no longer offered as a suggestion.
-    expect(
-      screen.getByRole("button", { name: "Remove tag Brave" })
-    ).toBeTruthy();
+  it("selects a suggested tag and removes it on tap", () => {
+    renderCreateForm();
+
+    fireEvent.click(
+      within(personalityGroup()).getByRole("button", { name: "Brave" })
+    );
+    expect(screen.getByRole("button", { name: "Remove Brave" })).toBeTruthy();
     expect(
       within(personalityGroup()).queryByRole("button", { name: "Brave" })
     ).toBeNull();
     expect(screen.getByText("1/5")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove Brave" }));
+    expect(screen.queryByRole("button", { name: "Remove Brave" })).toBeNull();
   });
 
-  it("adds trimmed custom tags and prevents duplicates", () => {
+  it("adds trimmed custom tags, prevents duplicates, and caps at five", () => {
     renderCreateForm();
 
-    addCustomTag("  Snuggly  ");
-    addCustomTag("snuggly");
-
+    addCustom("Personality tags", "  Snuggly  ");
+    addCustom("Personality tags", "snuggly");
     expect(
-      screen.getAllByRole("button", { name: "Remove tag Snuggly" })
+      screen.getAllByRole("button", { name: "Remove Snuggly" })
     ).toHaveLength(1);
-    expect(screen.getByText("1/5")).toBeTruthy();
-  });
 
-  it("removes a selected tag when tapped", () => {
-    renderCreateForm();
-
-    addCustomTag("Snuggly");
-    fireEvent.click(screen.getByRole("button", { name: "Remove tag Snuggly" }));
-
-    expect(
-      screen.queryByRole("button", { name: "Remove tag Snuggly" })
-    ).toBeNull();
-    expect(screen.getByText("0/5")).toBeTruthy();
-  });
-
-  it("limits selections to five tags", () => {
-    renderCreateForm();
-
-    for (const tag of ["One", "Two", "Three", "Four", "Five", "Six"]) {
-      addCustomTag(tag);
+    for (const tag of ["Two", "Three", "Four", "Five", "Six"]) {
+      addCustom("Personality tags", tag);
     }
 
     expect(screen.getByText("5/5")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Remove tag Six" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Remove Six" })).toBeNull();
     expect(
-      (screen.getByLabelText("Add a personality tag") as HTMLInputElement)
-        .disabled
+      (
+        screen.getByLabelText(
+          "Personality tags: add your own"
+        ) as HTMLInputElement
+      ).disabled
     ).toBe(true);
   });
 
   it("preserves selected tags and swaps suggestions when Pet Type changes", () => {
     renderCreateForm();
 
-    addCustomTag("Snuggly");
+    addCustom("Personality tags", "Snuggly");
     fireEvent.click(
       within(personalityGroup()).getByRole("button", { name: "Brave" })
     );
 
-    // Switch Dog -> Cat through the pet type dropdown (the trigger button is
-    // labelled by its wrapping "Pet type" field label).
     const trigger = screen.getByRole("button", { name: "Pet type" });
-    expect(trigger.textContent).toContain("Dog");
     fireEvent.click(trigger);
     fireEvent.click(screen.getByRole("button", { name: /^Cat$/ }));
 
-    // Custom and previously selected tags survive the species change.
-    expect(
-      screen.getByRole("button", { name: "Remove tag Snuggly" })
-    ).toBeTruthy();
-    expect(
-      screen.getByRole("button", { name: "Remove tag Brave" })
-    ).toBeTruthy();
-    // Suggestions are now cat-flavoured.
+    expect(screen.getByRole("button", { name: "Remove Snuggly" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Remove Brave" })).toBeTruthy();
     expect(
       within(personalityGroup()).getByRole("button", { name: "Cuddly" })
     ).toBeTruthy();
@@ -132,88 +119,117 @@ describe("PetProfileForm personality tag picker", () => {
   });
 });
 
-describe("PetProfileForm other field suggestions", () => {
-  beforeEach(() => {
-    window.history.replaceState({}, "", "/pets/new");
-  });
-
-  afterEach(() => {
-    cleanup();
-    vi.clearAllMocks();
-  });
-
-  it("fills favourite food and toy from species suggestions", () => {
+describe("favourite foods and toys", () => {
+  it("adds suggested and custom values as removable chips with a limit of three", () => {
     renderCreateForm();
 
     fireEvent.click(
       within(
-        screen.getByRole("group", { name: "Favourite food suggestions" })
+        screen.getByRole("group", { name: "Suggested favourite foods" })
       ).getByRole("button", { name: "Chicken" })
     );
-    fireEvent.click(
-      within(
-        screen.getByRole("group", { name: "Favourite toy suggestions" })
-      ).getByRole("button", { name: "Squeaky ball" })
-    );
+    addCustom("Favourite foods", "Rendang");
+    addCustom("Favourite foods", "rendang");
+    addCustom("Favourite foods", "Kibble");
+    addCustom("Favourite foods", "Fourth");
 
-    expect(screen.getByLabelText("Favourite food")).toHaveProperty(
-      "value",
-      "Chicken"
-    );
-    expect(screen.getByLabelText("Favourite toy")).toHaveProperty(
-      "value",
-      "Squeaky ball"
-    );
+    expect(screen.getByRole("button", { name: "Remove Chicken" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Remove Rendang" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Remove Kibble" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Remove Fourth" })).toBeNull();
+    expect(screen.getByText("3/3")).toBeTruthy();
   });
 
-  it("sets gender from a quick pick while keeping custom input available", () => {
+  it("offers species toys and allows removal", () => {
     renderCreateForm();
 
     fireEvent.click(
       within(
-        screen.getByRole("group", { name: "Quick picks for gender" })
-      ).getByRole("button", { name: "Female" })
+        screen.getByRole("group", { name: "Suggested favourite toys" })
+      ).getByRole("button", { name: "Squeaky ball" })
     );
-    expect(screen.getByLabelText("Gender")).toHaveProperty("value", "Female");
+    expect(
+      screen.getByRole("button", { name: "Remove Squeaky ball" })
+    ).toBeTruthy();
 
-    fireEvent.change(screen.getByLabelText("Gender"), {
-      target: { value: "Female (spayed)" },
+    fireEvent.click(screen.getByRole("button", { name: "Remove Squeaky ball" }));
+    expect(
+      screen.queryByRole("button", { name: "Remove Squeaky ball" })
+    ).toBeNull();
+  });
+});
+
+describe("gender segmented control", () => {
+  it("uses a single segmented control with three options", () => {
+    renderCreateForm();
+
+    const group = screen.getByRole("radiogroup", { name: "Gender" });
+    const options = within(group).getAllByRole("radio");
+    expect(options.map((option) => option.textContent)).toEqual([
+      "Male",
+      "Female",
+      "Unknown",
+    ]);
+
+    fireEvent.click(within(group).getByRole("radio", { name: "Female" }));
+    expect(
+      within(group)
+        .getByRole("radio", { name: "Female" })
+        .getAttribute("aria-checked")
+    ).toBe("true");
+  });
+});
+
+describe("breed selector", () => {
+  it("is searchable and always offers Mixed breed, Unknown, and Other", () => {
+    renderCreateForm();
+
+    fireEvent.click(screen.getByRole("button", { name: "Breed" }));
+    for (const option of ["Mixed breed", "Unknown", "Other"]) {
+      expect(screen.getByRole("button", { name: option })).toBeTruthy();
+    }
+
+    fireEvent.change(screen.getByLabelText("Search breed"), {
+      target: { value: "poo" },
     });
-    expect(screen.getByLabelText("Gender")).toHaveProperty(
-      "value",
-      "Female (spayed)"
-    );
+    expect(screen.getByRole("button", { name: "Poodle" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Corgi" })).toBeNull();
   });
 
-  it("fills the bio from a personalized starter template", () => {
+  it("reveals custom input when Other is selected", () => {
+    renderCreateForm();
+
+    fireEvent.click(screen.getByRole("button", { name: "Breed" }));
+    fireEvent.click(screen.getByRole("button", { name: "Other" }));
+
+    const custom = screen.getByLabelText("Enter breed");
+    fireEvent.change(custom, { target: { value: "Axolotl mix" } });
+    expect(custom).toHaveProperty("value", "Axolotl mix");
+  });
+});
+
+describe("bio inspiration sheet", () => {
+  it("opens templates on request and inserts editable text", () => {
     renderCreateForm();
 
     fireEvent.change(screen.getByLabelText(/Pet name/), {
       target: { value: "Topu" },
     });
 
-    const starters = screen.getByRole("group", { name: "Bio starters" });
-    const firstStarter = within(starters).getAllByRole("button")[0];
-    fireEvent.click(firstStarter);
+    // Templates are not expanded in the main form.
+    expect(screen.queryByRole("dialog", { name: "Bio starters" })).toBeNull();
 
+    fireEvent.click(screen.getByRole("button", { name: "Need inspiration?" }));
+    const sheet = screen.getByRole("dialog", { name: "Bio starters" });
+    const firstTemplate = within(sheet)
+      .getAllByRole("button")
+      .find((button) => button.textContent?.includes("Topu"));
+    fireEvent.click(firstTemplate!);
+
+    expect(screen.queryByRole("dialog", { name: "Bio starters" })).toBeNull();
     const bio = screen.getByLabelText(
       /Short bio \/ description/
     ) as HTMLTextAreaElement;
     expect(bio.value).toContain("Topu");
-  });
-
-  it("offers breed autocomplete options for the selected species", () => {
-    renderCreateForm();
-
-    const breed = screen.getByLabelText("Breed") as HTMLInputElement;
-    expect(breed.getAttribute("list")).toBe("pet-breed-suggestions");
-
-    const datalist = document.getElementById("pet-breed-suggestions");
-    expect(datalist).toBeTruthy();
-    expect(
-      [...(datalist?.querySelectorAll("option") ?? [])].map((option) =>
-        option.getAttribute("value")
-      )
-    ).toContain("Poodle");
   });
 });

@@ -22,77 +22,133 @@ public sealed class PetFavoriteFieldsTests
     private static readonly Guid PetId = Guid.Parse("72222222-2222-2222-2222-222222222222");
 
     [Fact]
-    public void CreateAndUpdateDtos_AcceptFavoriteFieldsWithinTheLimit()
-    {
-        var createFoodLimit = GetParameterLimit<CreatePetRequest>(nameof(CreatePetRequest.FavoriteFood));
-        var updateToyLimit = GetParameterLimit<UpdatePetRequest>(nameof(UpdatePetRequest.FavoriteToy));
-
-        Assert.True(createFoodLimit.IsValid("参巴 ikan 🐟"));
-        Assert.True(updateToyLimit.IsValid("Bola kegemaran 🎾"));
-    }
-
-    [Fact]
-    public void CreateAndUpdateDtos_RejectFavoriteFieldsOverEightyCharacters()
+    public void LegacySingleValueDtoFields_KeepTheEightyCharacterLimit()
     {
         var tooLong = new string('x', 81);
 
-        Assert.False(GetParameterLimit<CreatePetRequest>(nameof(CreatePetRequest.FavoriteFood)).IsValid(tooLong));
-        Assert.False(GetParameterLimit<UpdatePetRequest>(nameof(UpdatePetRequest.FavoriteToy)).IsValid(tooLong));
+        Assert.True(GetParameterLimit<CreatePetRequest>("FavoriteFood").IsValid("参巴 ikan 🐟"));
+        Assert.False(GetParameterLimit<CreatePetRequest>("FavoriteFood").IsValid(tooLong));
+        Assert.False(GetParameterLimit<UpdatePetRequest>("FavoriteToy").IsValid(tooLong));
     }
 
     [Fact]
-    public async Task UpdateAsync_PersistsAndReturnsMultilingualFavoriteFields()
+    public async Task UpdateAsync_TrimsDeduplicatesAndCapsFavoritesAtThree()
     {
         using var harness = await PetHarness.CreateAsync();
 
         var response = await harness.Service.UpdateAsync(
             UserId,
             PetId,
-            UpdateRequest("Ayam kukus 🍗", "毛绒小鼠 🐭"));
+            UpdateRequest(
+                foods: [" Tuna ", "tuna", "", "Chicken", "Salmon", "Beef"],
+                toys: null));
+
+        Assert.Equal(["Tuna", "Chicken", "Salmon"], response.FavoriteFoods);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_CapsFavoriteItemLengthAtEighty()
+    {
+        using var harness = await PetHarness.CreateAsync();
+
+        var response = await harness.Service.UpdateAsync(
+            UserId,
+            PetId,
+            UpdateRequest(foods: [new string('x', 100)], toys: null));
+
+        Assert.Equal(80, Assert.Single(response.FavoriteFoods).Length);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_PersistsAndReturnsMultilingualFavoriteLists()
+    {
+        using var harness = await PetHarness.CreateAsync();
+
+        var response = await harness.Service.UpdateAsync(
+            UserId,
+            PetId,
+            UpdateRequest(
+                foods: ["Ayam kukus 🍗", "Ikan bilis"],
+                toys: ["毛绒小鼠 🐭"]));
         var saved = await harness.Db.Pets.SingleAsync(pet => pet.Id == PetId);
         var reloaded = await harness.Service.GetAsync(UserId, PetId);
 
-        Assert.Equal("Ayam kukus 🍗", saved.FavoriteFood);
-        Assert.Equal("毛绒小鼠 🐭", saved.FavoriteToy);
-        Assert.Equal(saved.FavoriteFood, response.FavoriteFood);
-        Assert.Equal(saved.FavoriteToy, response.FavoriteToy);
-        Assert.Equal(saved.FavoriteFood, reloaded.FavoriteFood);
-        Assert.Equal(saved.FavoriteToy, reloaded.FavoriteToy);
+        Assert.Equal(
+            ["Ayam kukus 🍗", "Ikan bilis"],
+            System.Text.Json.JsonSerializer.Deserialize<List<string>>(saved.FavoriteFoodsJson));
+        Assert.Equal(
+            ["毛绒小鼠 🐭"],
+            System.Text.Json.JsonSerializer.Deserialize<List<string>>(saved.FavoriteToysJson));
+        Assert.Equal(["Ayam kukus 🍗", "Ikan bilis"], response.FavoriteFoods);
+        Assert.Equal(["毛绒小鼠 🐭"], response.FavoriteToys);
+        Assert.Equal(response.FavoriteFoods, reloaded.FavoriteFoods);
+        Assert.Equal(response.FavoriteToys, reloaded.FavoriteToys);
     }
 
     [Fact]
-    public async Task UpdateAsync_NormalizesClearedFavoriteFieldsToNull()
+    public async Task UpdateAsync_EmptyListsClearSavedFavorites()
     {
         using var harness = await PetHarness.CreateAsync(
-            favoriteFood: "Beef treats",
-            favoriteToy: "Blue ball");
+            foodsJson: """["Beef treats"]""",
+            toysJson: """["Blue ball"]""");
 
         var response = await harness.Service.UpdateAsync(
             UserId,
             PetId,
-            UpdateRequest("  ", ""));
+            UpdateRequest(foods: [], toys: []));
         var saved = await harness.Db.Pets.SingleAsync(pet => pet.Id == PetId);
 
-        Assert.Null(saved.FavoriteFood);
-        Assert.Null(saved.FavoriteToy);
-        Assert.Null(response.FavoriteFood);
-        Assert.Null(response.FavoriteToy);
+        Assert.Equal("[]", saved.FavoriteFoodsJson);
+        Assert.Equal("[]", saved.FavoriteToysJson);
+        Assert.Empty(response.FavoriteFoods);
+        Assert.Empty(response.FavoriteToys);
     }
 
     [Fact]
-    public async Task UpdateAsync_OmittedFavoriteFieldsLeaveExistingValuesUnchanged()
+    public async Task UpdateAsync_OmittedFavoriteListsLeaveExistingValuesUnchanged()
     {
         using var harness = await PetHarness.CreateAsync(
-            favoriteFood: "Tuna",
-            favoriteToy: "Mouse");
+            foodsJson: """["Tuna"]""",
+            toysJson: """["Mouse"]""");
 
         var response = await harness.Service.UpdateAsync(
             UserId,
             PetId,
-            UpdateRequest(null, null));
+            UpdateRequest(foods: null, toys: null));
 
-        Assert.Equal("Tuna", response.FavoriteFood);
-        Assert.Equal("Mouse", response.FavoriteToy);
+        Assert.Equal(["Tuna"], response.FavoriteFoods);
+        Assert.Equal(["Mouse"], response.FavoriteToys);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_LegacySingleValuesStillSaveAsOneItemLists()
+    {
+        using var harness = await PetHarness.CreateAsync();
+
+        var response = await harness.Service.UpdateAsync(
+            UserId,
+            PetId,
+            UpdateRequest(
+                foods: null,
+                toys: null,
+                legacyFood: "Salmon",
+                legacyToy: " Feather wand "));
+
+        Assert.Equal(["Salmon"], response.FavoriteFoods);
+        Assert.Equal(["Feather wand"], response.FavoriteToys);
+    }
+
+    [Fact]
+    public async Task CreateAsync_AcceptsFavoriteListsAndNormalizesDuplicates()
+    {
+        using var harness = await PetHarness.CreateAsync();
+
+        var created = await harness.Service.CreateAsync(
+            UserId,
+            CreateRequest(foods: ["Tuna", " tuna", "Chicken"], toys: null));
+
+        Assert.Equal(["Tuna", "Chicken"], created.FavoriteFoods);
+        Assert.Empty(created.FavoriteToys);
     }
 
     [Fact]
@@ -104,14 +160,14 @@ public sealed class PetFavoriteFieldsTests
             harness.Service.UpdateAsync(
                 OtherUserId,
                 PetId,
-                UpdateRequest("Tuna", "Mouse")));
+                UpdateRequest(foods: ["Tuna"], toys: ["Mouse"])));
 
         Assert.Equal(StatusCodes.Status404NotFound, exception.StatusCode);
         Assert.Equal("not_found", exception.Code);
     }
 
     [Fact]
-    public async Task UpdateEndpoint_ReturnsThePersistedFavoriteFields()
+    public async Task UpdateEndpoint_ReturnsThePersistedFavoriteLists()
     {
         using var harness = await PetHarness.CreateAsync();
         var controller = new PetsController(
@@ -126,29 +182,45 @@ public sealed class PetFavoriteFieldsTests
 
         var result = await controller.Update(
             PetId,
-            UpdateRequest("Ikan bilis", "Bola rotan"),
+            UpdateRequest(foods: ["Ikan bilis"], toys: ["Bola rotan", "Tali"]),
             CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result);
         var envelope = Assert.IsType<ApiResponse<PetDetailResponse>>(ok.Value);
-        Assert.Equal("Ikan bilis", envelope.Data.FavoriteFood);
-        Assert.Equal("Bola rotan", envelope.Data.FavoriteToy);
+        Assert.Equal(["Ikan bilis"], envelope.Data.FavoriteFoods);
+        Assert.Equal(["Bola rotan", "Tali"], envelope.Data.FavoriteToys);
     }
 
     [Fact]
-    public async Task PublicProfile_ReturnsFavoriteFieldsWithoutChangingSafetyData()
+    public async Task PublicProfile_ReturnsFavoriteListsWithoutChangingSafetyData()
     {
         using var harness = await PetHarness.CreateAsync(
-            favoriteFood: "Salmon",
-            favoriteToy: "Feather wand");
+            foodsJson: """["Salmon","Chicken"]""",
+            toysJson: """["Feather wand"]""");
         var service = new PublicProfileService(
             harness.Db,
             Options.Create(new CloudflareR2Options()));
 
         var response = await service.GetByPublicSlugAsync("topu-pub123");
 
-        Assert.Equal("Salmon", response.FavoriteFood);
-        Assert.Equal("Feather wand", response.FavoriteToy);
+        Assert.Equal(["Salmon", "Chicken"], response.FavoriteFoods);
+        Assert.Equal(["Feather wand"], response.FavoriteToys);
+    }
+
+    [Fact]
+    public async Task PublicProfile_ReturnsEmptyListsForLegacyOrInvalidJson()
+    {
+        using var harness = await PetHarness.CreateAsync(
+            foodsJson: "not json",
+            toysJson: "");
+        var service = new PublicProfileService(
+            harness.Db,
+            Options.Create(new CloudflareR2Options()));
+
+        var response = await service.GetByPublicSlugAsync("topu-pub123");
+
+        Assert.Empty(response.FavoriteFoods);
+        Assert.Empty(response.FavoriteToys);
     }
 
     private static MaxLengthAttribute GetParameterLimit<TRequest>(string parameterName)
@@ -163,10 +235,12 @@ public sealed class PetFavoriteFieldsTests
             parameter.GetCustomAttribute(typeof(MaxLengthAttribute)));
     }
 
-    private static CreatePetRequest CreateRequest(string? favoriteFood, string? favoriteToy)
+    private static CreatePetRequest CreateRequest(
+        IReadOnlyList<string>? foods,
+        IReadOnlyList<string>? toys)
     {
         return new CreatePetRequest(
-            Name: "Topu",
+            Name: "Topu Junior",
             Species: "Cat",
             CustomSpecies: null,
             Breed: null,
@@ -184,11 +258,15 @@ public sealed class PetFavoriteFieldsTests
             Visibility: null,
             SafetyNote: null,
             EmergencyNote: null,
-            FavoriteFood: favoriteFood,
-            FavoriteToy: favoriteToy);
+            FavoriteFoods: foods,
+            FavoriteToys: toys);
     }
 
-    private static UpdatePetRequest UpdateRequest(string? favoriteFood, string? favoriteToy)
+    private static UpdatePetRequest UpdateRequest(
+        IReadOnlyList<string>? foods,
+        IReadOnlyList<string>? toys,
+        string? legacyFood = null,
+        string? legacyToy = null)
     {
         return new UpdatePetRequest(
             Name: null,
@@ -209,8 +287,10 @@ public sealed class PetFavoriteFieldsTests
             Visibility: null,
             SafetyNote: null,
             EmergencyNote: null,
-            FavoriteFood: favoriteFood,
-            FavoriteToy: favoriteToy);
+            FavoriteFoods: foods,
+            FavoriteToys: toys,
+            FavoriteFood: legacyFood,
+            FavoriteToy: legacyToy);
     }
 
     private sealed class TestCurrentUserService : ICurrentUserService
@@ -241,8 +321,8 @@ public sealed class PetFavoriteFieldsTests
         public PetService Service { get; }
 
         public static async Task<PetHarness> CreateAsync(
-            string? favoriteFood = null,
-            string? favoriteToy = null)
+            string foodsJson = "[]",
+            string toysJson = "[]")
         {
             var options = new DbContextOptionsBuilder<MyPetLinkDbContext>()
                 .UseInMemoryDatabase(Guid.NewGuid().ToString("N"))
@@ -254,7 +334,28 @@ public sealed class PetFavoriteFieldsTests
                 Email = "owner@example.com",
                 NormalizedEmail = "OWNER@EXAMPLE.COM",
                 DisplayName = "Owner",
-                Status = UserStatus.Active
+                Status = UserStatus.Active,
+                OwnerProfile = new OwnerProfile
+                {
+                    UserId = UserId,
+                    OwnerDisplayName = "Owner",
+                    DefaultGeneralArea = "Petaling Jaya",
+                    Plan = new Plan
+                    {
+                        Code = "free",
+                        Name = "Free",
+                        PriceLabel = "RM0",
+                        Limit = new PlanLimit
+                        {
+                            MaxPets = 3,
+                            MaxMemoriesPerPet = 10,
+                            MaxMediaPerMemory = 4,
+                            MaxFamilyMembers = 1,
+                            MaxCareRecords = 100,
+                            ScanHistoryDays = 0
+                        }
+                    }
+                }
             };
             var pet = new Pet
             {
@@ -264,8 +365,8 @@ public sealed class PetFavoriteFieldsTests
                 Slug = "topu-pub123",
                 Name = "Topu",
                 Species = "Cat",
-                FavoriteFood = favoriteFood,
-                FavoriteToy = favoriteToy,
+                FavoriteFoodsJson = foodsJson,
+                FavoriteToysJson = toysJson,
                 PublicProfile = new PetPublicProfile
                 {
                     PublicCode = "pub123",
