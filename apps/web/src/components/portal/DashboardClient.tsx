@@ -459,21 +459,55 @@ function ReminderItem({ record, pet }: { record: CareRecord; pet?: Pet }) {
 }
 
 function QuickActions({ firstPet }: { firstPet?: Pet }) {
-  const qrProfileHref = firstPet ? firstPet.qrSafetyPath : ownerRoutes.pets;
+  // Both pet-scoped actions use the current pet (the owner's first active pet on
+  // this dashboard) and fall back to the Pets page when there is none, rather
+  // than hardcoding an id or failing silently.
+  const managePetHref = firstPet
+    ? ownerRoutes.petProfile(firstPet.id)
+    : ownerRoutes.pets;
+  const qrSafetyHref = firstPet ? firstPet.qrSafetyPath : ownerRoutes.pets;
 
   return (
     <DashboardSection title="Quick actions">
-      <div className="grid grid-cols-2 gap-3">
-        <ActionTile href={ownerRoutes.records} icon="record" label="Care Records" />
-        <ActionTile href={ownerRoutes.moments} icon="heart" label="Moments" />
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <ActionTile
-          href={qrProfileHref}
+          ariaLabel="Manage pet profile"
+          href={managePetHref}
+          icon="pets"
+          label="Manage Pet"
+        />
+        <ActionTile
+          ariaLabel="Manage care records"
+          href={ownerRoutes.records}
+          icon="record"
+          label="Care Records"
+        />
+        <ActionTile
+          ariaLabel="View pet moments"
+          href={ownerRoutes.moments}
+          icon="heart"
+          label="Moments"
+        />
+        <ActionTile
+          ariaLabel="Open QR Safety Page"
+          href={qrSafetyHref}
           icon="qr"
-          label="QR Safety Page"
+          label="QR Safety"
           rel={firstPet ? "noopener noreferrer" : undefined}
           target={firstPet ? "_blank" : undefined}
         />
-        <ActionTile href={ownerRoutes.orders} icon="record" label="Orders" />
+        <ActionTile
+          ariaLabel="Update owner profile and contact details"
+          href={ownerRoutes.settings}
+          icon="settings"
+          label="Owner Profile"
+        />
+        <ActionTile
+          ariaLabel="View orders"
+          href={ownerRoutes.orders}
+          icon="record"
+          label="Orders"
+        />
       </div>
     </DashboardSection>
   );
@@ -483,18 +517,21 @@ function ActionTile({
   href,
   icon,
   label,
+  ariaLabel,
   target,
   rel,
 }: {
   href: string;
   icon: IconName;
   label: string;
+  ariaLabel: string;
   target?: string;
   rel?: string;
 }) {
   return (
     <Link
-      className="brand-card flex min-h-[3.75rem] items-center gap-2.5 rounded-[1.25rem] px-3.5 py-3 text-sm font-extrabold text-pet-ink transition hover:border-pet-teal hover:bg-pet-cream"
+      aria-label={ariaLabel}
+      className="brand-card flex min-h-[5.5rem] min-w-0 flex-col items-center justify-center gap-2 rounded-[1.25rem] px-2 py-3 text-center text-sm font-extrabold text-pet-ink transition hover:border-pet-teal hover:bg-pet-cream"
       href={href}
       rel={rel}
       target={target}
@@ -502,7 +539,9 @@ function ActionTile({
       <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#e8f3ff] text-pet-teal">
         <Icon name={icon} className="h-4 w-4" />
       </span>
-      <span className="min-w-0 truncate">{label}</span>
+      <span className="min-w-0 max-w-full whitespace-normal leading-tight [overflow-wrap:anywhere]">
+        {label}
+      </span>
     </Link>
   );
 }

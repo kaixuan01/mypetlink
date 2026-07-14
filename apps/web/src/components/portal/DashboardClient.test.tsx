@@ -143,10 +143,35 @@ describe("DashboardClient with pets", () => {
     renderDashboard();
 
     await screen.findByText("Quick actions");
-    const quickLabels = ["Care Records", "Moments", "QR Safety Page", "Orders"];
+    const quickLabels = [
+      "Manage Pet",
+      "Care Records",
+      "Moments",
+      "QR Safety",
+      "Owner Profile",
+      "Orders",
+    ];
     for (const label of quickLabels) {
       expect(screen.getByText(label)).toBeTruthy();
     }
+  });
+
+  it("points Manage Pet and Owner Profile at the correct routes", async () => {
+    renderDashboard();
+
+    await screen.findByText("Quick actions");
+    expect(
+      screen
+        .getByRole("link", { name: "Manage pet profile" })
+        .getAttribute("href")
+    ).toBe(`/pets/${mockPets[0].id}`);
+    expect(
+      screen
+        .getByRole("link", {
+          name: "Update owner profile and contact details",
+        })
+        .getAttribute("href")
+    ).toBe("/settings");
   });
 
   it("uses singular statistic labels for a single pet", async () => {
