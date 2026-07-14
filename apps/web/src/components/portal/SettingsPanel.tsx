@@ -79,9 +79,12 @@ const notificationOptions: { key: NotificationKey; label: string }[] = [
 export function SettingsPanel() {
   const router = useRouter();
   const apiMode = isApiConfigured();
-  const [settings, setSettings] = useState<OwnerSettings>(defaultOwnerSettings);
+  // null = the authenticated owner's data has not resolved yet. The form (and
+  // Save) only render with real values — never sample/default personal data.
+  const [settings, setSettings] = useState<OwnerSettings | null>(null);
   const [saved, setSaved] = useState(false);
-  const [loading, setLoading] = useState(apiMode);
+  const [loadError, setLoadError] = useState("");
+  const [retryToken, setRetryToken] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -92,24 +95,29 @@ export function SettingsPanel() {
       .then((response) => {
         if (active) {
           setSettings(response.data);
-          setError("");
+          setLoadError("");
         }
       })
       .catch((caught) => {
-        if (active) {
-          setError(getSettingsErrorMessage(caught));
+        if (!active) {
+          return;
         }
-      })
-      .finally(() => {
-        if (active) {
-          setLoading(false);
+
+        // No profile yet: start a brand-new, empty owner profile — never a
+        // sample one.
+        if (isApiClientError(caught) && caught.status === 404) {
+          setSettings(structuredClone(defaultOwnerSettings));
+          setLoadError("");
+          return;
         }
+
+        setLoadError(getSettingsErrorMessage(caught));
       });
 
     return () => {
       active = false;
     };
-  }, []);
+  }, [retryToken]);
 
   function updateField(
     field:
@@ -120,31 +128,44 @@ export function SettingsPanel() {
       | "defaultGeneralArea",
     value: string
   ) {
-    setSettings((current) => ({ ...current, [field]: value }));
+    setSettings((current) => (current ? { ...current, [field]: value } : current));
     setSaved(false);
   }
 
   function updatePrivacy(key: PrivacyKey, value: boolean) {
-    setSettings((current) => ({
-      ...current,
-      privacyDefaults: { ...current.privacyDefaults, [key]: value },
-    }));
+    setSettings((current) =>
+      current
+        ? {
+            ...current,
+            privacyDefaults: { ...current.privacyDefaults, [key]: value },
+          }
+        : current
+    );
     setSaved(false);
   }
 
   function updateNotification(key: NotificationKey, value: boolean) {
-    setSettings((current) => ({
-      ...current,
-      notificationPreferences: {
-        ...current.notificationPreferences,
-        [key]: value,
-      },
-    }));
+    setSettings((current) =>
+      current
+        ? {
+            ...current,
+            notificationPreferences: {
+              ...current.notificationPreferences,
+              [key]: value,
+            },
+          }
+        : current
+    );
     setSaved(false);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (!settings) {
+      return;
+    }
+
     setSaving(true);
     setError("");
 
@@ -165,14 +186,35 @@ export function SettingsPanel() {
     router.replace("/");
   }
 
+  if (!settings && loadError) {
+    return (
+      <section className="brand-card rounded-[1.75rem] p-6 text-center">
+        <p className="text-sm font-extrabold uppercase text-[#a63c2e]">
+          Connection needed
+        </p>
+        <h2 className="mt-2 text-xl font-black text-pet-ink">
+          We couldn&rsquo;t load your details
+        </h2>
+        <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-6 text-pet-muted">
+          {loadError}
+        </p>
+        <CTAButton
+          className="mt-5"
+          onClick={() => setRetryToken((token) => token + 1)}
+          variant="secondary"
+        >
+          Retry
+        </CTAButton>
+      </section>
+    );
+  }
+
+  if (!settings) {
+    return <SettingsSkeleton />;
+  }
+
   return (
     <form className="grid gap-5" onSubmit={handleSubmit}>
-      {loading ? (
-        <div className="brand-card rounded-[1.75rem] p-5 text-sm font-semibold text-pet-muted">
-          Loading your account defaults...
-        </div>
-      ) : null}
-
       {error ? (
         <div
           className="rounded-[1.25rem] border border-[#ffd5cf] bg-[#fff1ee] p-4 text-sm font-bold text-[#a63c2e]"
@@ -200,12 +242,14 @@ export function SettingsPanel() {
           <TextField
             label="Owner display name"
             onChange={(value) => updateField("ownerDisplayName", value)}
+            placeholder="e.g. Sarah Tan"
             value={settings.ownerDisplayName}
           />
           <TextField
             disabled={apiMode}
             label="Email"
             onChange={(value) => updateField("email", value)}
+            placeholder="you@example.com"
             type="email"
             value={settings.email}
           />
@@ -222,6 +266,7 @@ export function SettingsPanel() {
           <TextField
             label="Default general area"
             onChange={(value) => updateField("defaultGeneralArea", value)}
+            placeholder="e.g. Petaling Jaya, Selangor"
             value={settings.defaultGeneralArea}
           />
         </div>
@@ -302,12 +347,14 @@ function TextField({
   value,
   onChange,
   disabled = false,
+  placeholder,
   type = "text",
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
+  placeholder?: string;
   type?: "email" | "text";
 }) {
   return (
@@ -317,10 +364,39 @@ function TextField({
         className="brand-input"
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
         type={type}
         value={value}
       />
     </label>
+  );
+}
+
+// Form-shaped placeholder shown while the owner's saved details load. It
+// deliberately contains no field values at all.
+function SettingsSkeleton() {
+  return (
+    <div aria-live="polite" className="grid gap-5" role="status">
+      <span className="sr-only">Loading your saved details</span>
+      {[0, 1, 2].map((section) => (
+        <section
+          aria-hidden="true"
+          className="brand-card rounded-[1.75rem] p-5 sm:p-6"
+          key={section}
+        >
+          <div className="h-5 w-48 animate-pulse rounded-full bg-pet-cream" />
+          <div className="mt-2 h-3.5 w-72 max-w-full animate-pulse rounded-full bg-pet-cream" />
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
+            {[0, 1, 2, 3].map((field) => (
+              <div className="grid gap-2" key={field}>
+                <div className="h-3.5 w-32 animate-pulse rounded-full bg-pet-cream" />
+                <div className="h-12 animate-pulse rounded-2xl bg-pet-cream" />
+              </div>
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
   );
 }
 

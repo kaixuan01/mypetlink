@@ -902,7 +902,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
 
   return (
     <form
-      className="grid min-w-0 gap-5 pb-[calc(7rem+env(safe-area-inset-bottom))] lg:pb-0"
+      className="mx-auto grid w-full min-w-0 max-w-[1140px] gap-5 pb-[calc(7rem+env(safe-area-inset-bottom))] lg:pb-0"
       onSubmit={handleSubmit}
     >
       {success ? (
@@ -1000,6 +1000,25 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
                 <option value="EstimatedBirthYear">Estimated birth year</option>
                 <option value="Unknown">Unknown</option>
               </select>
+              {/* Compact calculated-age summary; intentionally not styled like
+                  an input because it is not editable. */}
+              <span className="text-xs font-semibold leading-5 text-pet-muted">
+                Age shown on profiles:{" "}
+                <span className="font-black text-pet-ink">
+                  {
+                    calculatePetAge({
+                      birthday:
+                        form.ageInformationMode === "ExactBirthday"
+                          ? form.birthdayDate
+                          : null,
+                      estimatedBirthYear:
+                        form.ageInformationMode === "EstimatedBirthYear"
+                          ? Number(form.estimatedBirthYear) || null
+                          : null,
+                    }).displayLabel
+                  }
+                </span>
+              </span>
             </Field>
 
             {form.ageInformationMode === "ExactBirthday" ? (
@@ -1047,48 +1066,44 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
                 Choose this when the birth date and estimated year are not known.
               </div>
             ) : null}
-
-            <Field label="Age display">
-              <div className="rounded-[1.25rem] bg-pet-cream px-4 py-3 text-sm font-bold text-pet-ink">
-                {calculatePetAge({
-                  birthday:
-                    form.ageInformationMode === "ExactBirthday"
-                      ? form.birthdayDate
-                      : null,
-                  estimatedBirthYear:
-                    form.ageInformationMode === "EstimatedBirthYear"
-                      ? Number(form.estimatedBirthYear) || null
-                      : null,
-                }).displayLabel}
-              </div>
-            </Field>
           </div>
 
-          <div className="mt-4 grid min-w-0 gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-            <div className="grid min-w-0 content-start gap-2">
-              <Field
-                error={errors.bio}
-                helper="A few friendly details make the page feel personal."
-                label="Short bio / description"
-              >
-                <textarea
-                  className="brand-input min-h-32"
-                  maxLength={320}
-                  onChange={(event) => updateField("bio", event.target.value)}
-                  placeholder="Milo is gentle, snack-loving, and happiest after evening walks."
-                  value={form.bio}
-                />
-              </Field>
-              <button
-                className="justify-self-start text-sm font-bold text-pet-teal underline-offset-2 hover:underline"
-                onClick={() => setBioSheetOpen(true)}
-                type="button"
-              >
-                Need inspiration?
-              </button>
-            </div>
+          {/* About your pet: the bio spans the full content width so desktop
+              never shows a lopsided half-empty column. */}
+          <div className="mt-6 grid min-w-0 gap-2">
+            <h3 className="text-base font-black text-pet-ink">
+              About your pet
+            </h3>
+            <Field
+              error={errors.bio}
+              helper="A few friendly details make the page feel personal."
+              label="Short bio / description"
+            >
+              <textarea
+                className="brand-input min-h-32"
+                maxLength={320}
+                onChange={(event) => updateField("bio", event.target.value)}
+                placeholder="Milo is gentle, snack-loving, and happiest after evening walks."
+                value={form.bio}
+              />
+            </Field>
+            <button
+              className="justify-self-start text-sm font-bold text-pet-teal underline-offset-2 hover:underline"
+              onClick={() => setBioSheetOpen(true)}
+              type="button"
+            >
+              Need inspiration?
+            </button>
+          </div>
 
-            <div className="grid min-w-0 gap-4">
+          {/* Preferences: one balanced column per picker on wide screens,
+              two on tablet, one on mobile. */}
+          <div className="mt-6 min-w-0">
+            <h3 className="text-base font-black text-pet-ink">Preferences</h3>
+            <p className="mt-1 text-sm leading-6 text-pet-muted">
+              Optional details that make the profile feel personal.
+            </p>
+            <div className="mt-4 grid min-w-0 content-start gap-5 md:grid-cols-2 xl:grid-cols-3">
               <TagListInput
                 error={errors.personalityTags}
                 label="Personality tags"
@@ -1724,41 +1739,40 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
         </div>
       ) : null}
 
-      {/* Desktop action bar. On mobile the sticky bar below handles Save/Cancel. */}
-      <div className="hidden rounded-[1.5rem] p-5 brand-card lg:flex lg:flex-row lg:items-center lg:justify-between">
+      {/* Desktop actions: a compact right-aligned row (no full-width card).
+          On mobile the sticky bar below handles Save/Cancel. */}
+      <div className="hidden lg:flex lg:flex-wrap lg:items-center lg:justify-end lg:gap-3">
+        {mode === "edit" && currentPet ? (
+          <>
+            <CTAButton
+              href={profilePath}
+              icon="heart"
+              variant="secondary"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              View Public Profile
+            </CTAButton>
+            <CTAButton
+              href={currentPet.qrSafetyPath}
+              icon="qr"
+              variant="outline"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              View QR Safety Page
+            </CTAButton>
+          </>
+        ) : null}
         <Link
           className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
           href={cancelHref}
         >
           Cancel
         </Link>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
-          {mode === "edit" && currentPet ? (
-            <>
-              <CTAButton
-                href={profilePath}
-                icon="heart"
-                variant="secondary"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                View Public Profile
-              </CTAButton>
-              <CTAButton
-                href={currentPet.qrSafetyPath}
-                icon="qr"
-                variant="outline"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                View QR Safety Page
-              </CTAButton>
-            </>
-          ) : null}
-          <CTAButton disabled={isSubmitting} type="submit" variant="coral">
-            {isSubmitting ? "Saving..." : saveLabel}
-          </CTAButton>
-        </div>
+        <CTAButton disabled={isSubmitting} type="submit" variant="coral">
+          {isSubmitting ? "Saving..." : saveLabel}
+        </CTAButton>
       </div>
 
       {savedPet ? (
@@ -2304,7 +2318,7 @@ function TagListInput({
   }
 
   return (
-    <div className="grid min-w-0 gap-2">
+    <div className="grid min-w-0 content-start gap-2">
       <span className="flex items-baseline justify-between gap-2">
         <span className="text-sm font-bold text-pet-ink">{label}</span>
         <span className="text-xs font-bold text-pet-muted">

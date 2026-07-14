@@ -1,4 +1,5 @@
 import { isValidE164, normalizeStoredPhone } from "@/lib/phone";
+import { isApiConfigured } from "@/services/apiConfig";
 import type { Pet, PublicPetProfile } from "@/types";
 
 export const OWNER_SETTINGS_STORAGE_KEY = "mypetlink_owner_settings";
@@ -50,12 +51,15 @@ type LegacySettings = Partial<{
   notifications: Partial<OwnerNotificationPreferences>;
 }>;
 
+// Neutral defaults: privacy/notification presets only, NO personal data. This
+// is the safe fallback shape everywhere — production must never show sample
+// names or phone numbers as if they were the signed-in owner's saved details.
 export const defaultOwnerSettings: OwnerSettings = {
-  ownerDisplayName: "Aina Rahman",
-  email: "aina@example.com",
-  whatsappNumber: "+60123456789",
-  phoneNumber: "+60123456789",
-  defaultGeneralArea: "Petaling Jaya, Selangor",
+  ownerDisplayName: "",
+  email: "",
+  whatsappNumber: "",
+  phoneNumber: "",
+  defaultGeneralArea: "",
   privacyDefaults: {
     showOwnerName: true,
     showGeneralArea: true,
@@ -76,6 +80,23 @@ export const defaultOwnerSettings: OwnerSettings = {
   },
 };
 
+// Demo owner used ONLY by the explicit local-preview mock mode (no API
+// configured). A production API failure can never reach these values because
+// readOwnerSettings checks the build-time API configuration, not request
+// success.
+export const sampleOwnerSettings: OwnerSettings = {
+  ...defaultOwnerSettings,
+  ownerDisplayName: "Aina Rahman",
+  email: "aina@example.com",
+  whatsappNumber: "+60123456789",
+  phoneNumber: "+60123456789",
+  defaultGeneralArea: "Petaling Jaya, Selangor",
+};
+
+function fallbackOwnerSettings(): OwnerSettings {
+  return isApiConfigured() ? defaultOwnerSettings : sampleOwnerSettings;
+}
+
 export function readOwnerSettings(): OwnerSettings {
   if (typeof window === "undefined") {
     return defaultOwnerSettings;
@@ -84,14 +105,14 @@ export function readOwnerSettings(): OwnerSettings {
   const value = window.localStorage.getItem(OWNER_SETTINGS_STORAGE_KEY);
 
   if (!value) {
-    return defaultOwnerSettings;
+    return fallbackOwnerSettings();
   }
 
   try {
     return normalizeOwnerSettings(JSON.parse(value));
   } catch {
     window.localStorage.removeItem(OWNER_SETTINGS_STORAGE_KEY);
-    return defaultOwnerSettings;
+    return fallbackOwnerSettings();
   }
 }
 

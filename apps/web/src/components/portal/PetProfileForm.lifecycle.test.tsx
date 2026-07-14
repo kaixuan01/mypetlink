@@ -25,7 +25,10 @@ vi.mock("next/navigation", () => ({
   useRouter: () => mocks.router,
 }));
 
-vi.mock("@/services/apiConfig", () => ({ canUseApi: () => false }));
+vi.mock("@/services/apiConfig", () => ({
+  canUseApi: () => false,
+  isApiConfigured: () => false,
+}));
 
 vi.mock("@/services/authService", () => ({
   logoutOwner: (...args: unknown[]) => mocks.logoutOwner(...args),

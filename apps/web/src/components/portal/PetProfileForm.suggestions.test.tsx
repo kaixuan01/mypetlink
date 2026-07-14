@@ -15,7 +15,10 @@ vi.mock("next/navigation", () => ({
   useRouter: () => mocks.router,
 }));
 
-vi.mock("@/services/apiConfig", () => ({ canUseApi: () => false }));
+vi.mock("@/services/apiConfig", () => ({
+  canUseApi: () => false,
+  isApiConfigured: () => false,
+}));
 
 const { PetProfileForm } = await import("./PetProfileForm");
 
