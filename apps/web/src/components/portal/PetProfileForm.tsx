@@ -990,7 +990,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
 
             <Field label="Age information">
               <select
-                className="brand-input"
+                className="brand-input brand-select"
                 onChange={(event) =>
                   updateAgeInformationMode(event.target.value as PetAgeMode)
                 }
@@ -1028,7 +1028,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
                 label="Exact birthday"
               >
                 <input
-                  className="brand-input"
+                  className="brand-input brand-date-input"
                   max={new Date().toISOString().slice(0, 10)}
                   min={`${MINIMUM_PET_BIRTH_YEAR}-01-01`}
                   onChange={(event) => updateBirthday(event.target.value)}
@@ -1045,7 +1045,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
                 label="Estimated birth year"
               >
                 <select
-                  className="brand-input"
+                  className="brand-input brand-select"
                   onChange={(event) =>
                     updateField("estimatedBirthYear", event.target.value)
                   }
@@ -1350,7 +1350,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
                     label="Date of passing, optional"
                   >
                     <input
-                      className="brand-input"
+                      className="brand-input brand-date-input"
                       onChange={(event) =>
                         updateField("passedAwayDate", event.target.value)
                       }
@@ -1408,7 +1408,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
 
               <Field error={errors.adoptionDate} label="Adoption day">
                 <input
-                  className="brand-input"
+                  className="brand-input brand-date-input"
                   onChange={(event) =>
                     updateField("adoptionDate", event.target.value)
                   }
@@ -1922,6 +1922,12 @@ function ContactSummary({
   );
 }
 
+const DROPDOWN_TRIGGER_CLASS_NAME =
+  "brand-input flex min-h-12 items-center justify-between gap-4 text-left";
+const DROPDOWN_VALUE_CLASS_NAME = "min-w-0 truncate";
+const DROPDOWN_CHEVRON_CLASS_NAME =
+  "pointer-events-none h-4 w-4 shrink-0 text-pet-muted transition-transform duration-150";
+
 function PetTypeSelector({
   onChange,
   value,
@@ -1975,14 +1981,14 @@ function PetTypeSelector({
       <button
         aria-expanded={open}
         aria-haspopup="listbox"
-        className="brand-input flex min-h-12 items-center justify-between gap-3 text-left"
+        className={DROPDOWN_TRIGGER_CLASS_NAME}
         onClick={() => setOpen((current) => !current)}
         type="button"
       >
-        <span>{value}</span>
+        <span className={DROPDOWN_VALUE_CLASS_NAME}>{value}</span>
         <Icon
           name="chevron"
-          className={`h-4 w-4 shrink-0 text-pet-muted transition-transform duration-150 ${
+          className={`${DROPDOWN_CHEVRON_CLASS_NAME} ${
             open ? "rotate-180" : ""
           }`}
         />
@@ -2531,16 +2537,20 @@ function BreedSelector({
         <button
           aria-expanded={open}
           aria-haspopup="listbox"
-          className="brand-input flex min-h-12 w-full items-center justify-between gap-3 text-left"
+          className={DROPDOWN_TRIGGER_CLASS_NAME}
           onClick={() => setOpen((current) => !current)}
           type="button"
         >
-          <span className={value || customMode ? "" : "text-pet-muted"}>
+          <span
+            className={`${DROPDOWN_VALUE_CLASS_NAME} ${
+              value || customMode ? "" : "text-pet-muted"
+            }`}
+          >
             {customMode ? "Other" : value || "Select breed"}
           </span>
           <Icon
             name="chevron"
-            className={`h-4 w-4 shrink-0 text-pet-muted transition-transform duration-150 ${
+            className={`${DROPDOWN_CHEVRON_CLASS_NAME} ${
               open ? "rotate-180" : ""
             }`}
           />

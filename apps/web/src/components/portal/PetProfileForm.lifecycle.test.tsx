@@ -103,6 +103,24 @@ describe("PetProfileForm lifecycle workflow", () => {
     expect(mocks.updatePetLifecycle).not.toHaveBeenCalled();
   });
 
+  it("uses the shared native date control for adoption and memorial dates", async () => {
+    render(<PetProfileForm initialPet={pet} mode="edit" />);
+    await openPublicProfile();
+
+    expect(
+      (await screen.findByLabelText(/Adoption day/)).classList.contains(
+        "brand-date-input"
+      )
+    ).toBe(true);
+
+    fireEvent.click(screen.getByRole("radio", { name: /^Memorial/ }));
+    expect(
+      screen
+        .getByLabelText(/Date of passing, optional/)
+        .classList.contains("brand-date-input")
+    ).toBe(true);
+  });
+
   it("confirms Active to Memorial through Save Changes only", async () => {
     render(<PetProfileForm initialPet={pet} mode="edit" />);
     await openPublicProfile();
@@ -203,6 +221,39 @@ describe("PetProfileForm lifecycle workflow", () => {
       )}`
     );
     expect(screen.queryByText("Session expired")).toBeNull();
+  });
+
+  it("loads an existing exact birthday and long custom breed without overlap-prone fallback text", async () => {
+    pet = {
+      ...pet,
+      species: "Cat",
+      breed: "Domestic Longhair",
+      ageInformationMode: "ExactBirthday",
+      ageSource: "ExactBirthday",
+      birthday: "12 Oct 2023",
+      estimatedBirthYear: undefined,
+    };
+    mocks.getPetById.mockResolvedValue({ data: pet });
+
+    render(<PetProfileForm initialPet={pet} mode="edit" />);
+
+    const birthday = (await screen.findByLabelText(
+      /Exact birthday/
+    )) as HTMLInputElement;
+    expect(birthday.value).toBe("2023-10-12");
+    expect(birthday.classList.contains("brand-date-input")).toBe(true);
+
+    const ageMode = screen.getByLabelText(
+      /Age information/
+    ) as HTMLSelectElement;
+    expect(ageMode.value).toBe("ExactBirthday");
+    expect(ageMode.classList.contains("brand-select")).toBe(true);
+    expect(screen.getByRole("button", { name: /^Breed/ }).textContent).toBe(
+      "Other"
+    );
+    expect((screen.getByLabelText("Enter breed") as HTMLInputElement).value).toBe(
+      "Domestic Longhair"
+    );
   });
 
   it("initializes, saves, and reloads favourite food and toy lists", async () => {

@@ -183,6 +183,56 @@ describe("gender segmented control", () => {
   });
 });
 
+describe("pet detail dropdown indicators", () => {
+  it("uses one shared custom chevron for searchable controls and native hooks for age controls", () => {
+    renderCreateForm();
+
+    for (const name of ["Pet type", "Breed"]) {
+      const trigger = screen.getByRole("button", { name });
+      const icons = trigger.querySelectorAll("svg");
+
+      expect(icons).toHaveLength(1);
+      expect(icons[0].classList.contains("pointer-events-none")).toBe(true);
+      expect(
+        trigger.querySelector("span")?.classList.contains("truncate")
+      ).toBe(true);
+    }
+
+    const ageMode = screen.getByLabelText(
+      /Age information/
+    ) as HTMLSelectElement;
+    expect(ageMode.classList.contains("brand-select")).toBe(true);
+    expect(ageMode.querySelector("svg")).toBeNull();
+
+    fireEvent.change(ageMode, { target: { value: "ExactBirthday" } });
+    const birthday = screen.getByLabelText(
+      /Exact birthday/
+    ) as HTMLInputElement;
+    expect(birthday.type).toBe("date");
+    expect(birthday.classList.contains("brand-date-input")).toBe(true);
+    expect(birthday.closest("label")?.querySelector("svg")).toBeNull();
+  });
+
+  it("preserves the conditional native age controls when the age mode changes", () => {
+    renderCreateForm();
+
+    const ageMode = screen.getByLabelText(
+      /Age information/
+    ) as HTMLSelectElement;
+    fireEvent.change(ageMode, { target: { value: "EstimatedBirthYear" } });
+
+    expect(screen.queryByLabelText(/Exact birthday/)).toBeNull();
+    const estimatedYear = screen.getByLabelText(
+      /Estimated birth year/
+    ) as HTMLSelectElement;
+    expect(estimatedYear.classList.contains("brand-select")).toBe(true);
+
+    fireEvent.change(ageMode, { target: { value: "Unknown" } });
+    expect(screen.queryByLabelText(/Estimated birth year/)).toBeNull();
+    expect(screen.getByText(/birth date and estimated year are not known/i)).toBeTruthy();
+  });
+});
+
 describe("breed selector", () => {
   it("is searchable and always offers Mixed breed, Unknown, and Other", () => {
     renderCreateForm();
