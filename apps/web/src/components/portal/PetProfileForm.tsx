@@ -887,12 +887,11 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
   const profilePath = currentPet
     ? publicProfilePath(profileSlug, currentPet.publicCode)
     : "";
-  const publicProfileFullUrl =
-    profilePath && origin ? `${origin}${profilePath}` : profilePath;
   const finderFullUrl =
     origin && currentPet
       ? `${origin}${currentPet.qrSafetyPath}`
       : currentPet?.qrSafetyPath ?? "";
+  const shareProfilePet = savedPet ?? currentPet;
   const selectedTheme = getPetProfileTheme(form.profileTheme);
   // Species-aware field suggestions (personality, foods, toys, breeds).
   const suggestions = getPetSuggestions(form.species);
@@ -1520,16 +1519,21 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
               </div>
             </details>
 
-            <div className="brand-card min-w-0 rounded-[1.5rem] p-5">
-              {publicProfileFullUrl ? (
-                <UrlDisplay label="Public Profile URL" url={publicProfileFullUrl} />
-              ) : (
+            {shareProfilePet ? (
+              <ShareProfileLink
+                copyButtonFullWidth
+                path={shareProfilePet.publicProfilePath}
+                petName={shareProfilePet.name}
+                shareVersion={getPublicProfileShareVersion(shareProfilePet)}
+              />
+            ) : (
+              <div className="brand-card min-w-0 rounded-[1.5rem] p-5">
                 <p className="text-sm font-semibold leading-6 text-pet-muted">
                   Your public profile link will be ready right after you save
                   this pet.
                 </p>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </FormSection>
       ) : null}
@@ -1808,14 +1812,6 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
           {isSubmitting ? "Saving..." : saveLabel}
         </CTAButton>
       </div>
-
-      {savedPet ? (
-        <ShareProfileLink
-          path={savedPet.publicProfilePath}
-          petName={savedPet.name}
-          shareVersion={getPublicProfileShareVersion(savedPet)}
-        />
-      ) : null}
 
       {/* Spacer so the last fields clear the fixed mobile action bar. */}
       <div aria-hidden="true" className="h-40 lg:hidden" />

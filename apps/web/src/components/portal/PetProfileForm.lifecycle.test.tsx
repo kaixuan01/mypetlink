@@ -574,6 +574,44 @@ describe("PetProfileForm lifecycle workflow", () => {
     ).toBeTruthy();
   });
 
+  it("shows one complete versioned share link only on the Public Profile tab", async () => {
+    render(<PetProfileForm initialPet={pet} mode="edit" />);
+    await screen.findByRole("tab", { name: /Public Profile/ });
+
+    expect(
+      screen.queryByRole("textbox", { name: "Share profile link" })
+    ).toBeNull();
+
+    fireEvent.click(screen.getByRole("tab", { name: /Photos/ }));
+    expect(
+      screen.queryByRole("textbox", { name: "Share profile link" })
+    ).toBeNull();
+
+    fireEvent.click(screen.getByRole("tab", { name: /Theme/ }));
+    expect(
+      screen.queryByRole("textbox", { name: "Share profile link" })
+    ).toBeNull();
+
+    fireEvent.click(screen.getByRole("tab", { name: /Contact & Safety/ }));
+    expect(
+      screen.queryByRole("textbox", { name: "Share profile link" })
+    ).toBeNull();
+
+    fireEvent.click(screen.getByRole("tab", { name: /Public Profile/ }));
+    const displayedUrls = screen.getAllByRole("textbox", {
+      name: "Share profile link",
+    });
+
+    expect(displayedUrls).toHaveLength(1);
+    expect(displayedUrls[0].textContent).toMatch(
+      /^http:\/\/localhost(?::\d+)?\/p\/[^?]+\?share=[a-z0-9]+$/
+    );
+    expect(screen.getAllByRole("button", { name: "Copy Link" })).toHaveLength(
+      1
+    );
+    expect(screen.queryByText("Public Profile URL")).toBeNull();
+  });
+
   it("sends explicit empty lists when both favourite fields are cleared", async () => {
     pet = {
       ...pet,

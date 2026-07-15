@@ -14,6 +14,7 @@ type ShareProfileLinkProps = {
   showShareButton?: boolean;
   compact?: boolean;
   copyLabel?: string;
+  copyButtonFullWidth?: boolean;
   shareVersion?: string;
   theme?: PetProfileTheme;
 };
@@ -26,6 +27,7 @@ export function ShareProfileLink({
   showShareButton = false,
   compact = false,
   copyLabel = "Copy Link",
+  copyButtonFullWidth = false,
   shareVersion,
   theme,
 }: ShareProfileLinkProps) {
@@ -157,7 +159,7 @@ export function ShareProfileLink({
   return (
     <section
       className={[
-        "rounded-[1.75rem] border border-pet-border bg-white/95 p-5 shadow-lg shadow-[#0d1b3d]/5",
+        "min-w-0 rounded-[1.75rem] border border-pet-border bg-white/95 p-5 shadow-lg shadow-[#0d1b3d]/5",
         className,
       ]
         .filter(Boolean)
@@ -171,7 +173,7 @@ export function ShareProfileLink({
           : undefined
       }
     >
-      <div className="grid gap-3">
+      <div className="grid min-w-0 gap-3">
         <p
           className="text-xs font-bold uppercase text-pet-muted"
           style={theme ? { color: theme.colors.mutedText } : undefined}
@@ -181,7 +183,7 @@ export function ShareProfileLink({
         <div
           aria-label={label}
           aria-readonly="true"
-          className="select-all break-all rounded-[1.25rem] border border-pet-border bg-pet-cream px-4 py-3 text-sm font-bold leading-6 text-pet-ink shadow-inner shadow-[#0d1b3d]/5 sm:text-base"
+          className="min-w-0 max-w-full select-all whitespace-normal rounded-[1.25rem] border border-pet-border bg-pet-cream px-4 py-3 text-sm font-bold leading-6 text-pet-ink shadow-inner shadow-[#0d1b3d]/5 [overflow-wrap:anywhere] sm:text-base"
           style={
             theme
               ? {
@@ -198,7 +200,12 @@ export function ShareProfileLink({
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
           <button
-            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-pet-teal bg-pet-teal px-5 py-3 text-sm font-extrabold text-white shadow-lg shadow-[#1570ef]/20 transition hover:bg-[#0f5fd0] sm:w-auto"
+            className={[
+              "inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-pet-teal bg-pet-teal px-5 py-3 text-sm font-extrabold text-white shadow-lg shadow-[#1570ef]/20 transition hover:bg-[#0f5fd0]",
+              copyButtonFullWidth ? "" : "sm:w-auto",
+            ]
+              .filter(Boolean)
+              .join(" ")}
             style={
               theme
                 ? {
