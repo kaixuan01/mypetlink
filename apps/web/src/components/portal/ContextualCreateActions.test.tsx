@@ -1,23 +1,31 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockMoments } from "@/data/mockMoments";
 import { mockPets } from "@/data/mockPets";
 import { mockRecords } from "@/data/mockRecords";
 
 const mocks = vi.hoisted(() => ({
+  createRecord: vi.fn(),
   getPetMoments: vi.fn(),
   getPetRecords: vi.fn(),
+  updateRecord: vi.fn(),
 }));
 
 vi.mock("@/services/apiConfig", () => ({ isApiConfigured: () => false }));
 vi.mock("@/services/recordService", () => ({
-  createRecord: vi.fn(),
+  createRecord: (...args: unknown[]) => mocks.createRecord(...args),
   deleteRecord: vi.fn(),
   getFriendlyRecordErrorMessage: () => "Please try again.",
   getPetRecords: (...args: unknown[]) => mocks.getPetRecords(...args),
-  updateRecord: vi.fn(),
+  updateRecord: (...args: unknown[]) => mocks.updateRecord(...args),
 }));
 vi.mock("@/services/momentService", () => ({
   deletePetMoment: vi.fn(),
@@ -26,8 +34,17 @@ vi.mock("@/services/momentService", () => ({
   updatePetMoment: vi.fn(),
 }));
 vi.mock("@/components/portal/RecordCard", () => ({
-  RecordCard: ({ record }: { record: { title: string } }) => (
-    <article>{record.title}</article>
+  RecordCard: ({
+    record,
+    onEdit,
+  }: {
+    record: { title: string };
+    onEdit?: () => void;
+  }) => (
+    <article>
+      {record.title}
+      {onEdit ? <button onClick={onEdit}>Edit</button> : null}
+    </article>
   ),
 }));
 vi.mock("@/components/portal/PetMomentCard", () => ({
@@ -43,6 +60,8 @@ describe("contextual create actions", () => {
   beforeEach(() => {
     mocks.getPetRecords.mockReset();
     mocks.getPetMoments.mockReset();
+    mocks.createRecord.mockReset();
+    mocks.updateRecord.mockReset();
     window.history.replaceState({}, "", "/pets/pet_milo/records");
   });
 
@@ -87,6 +106,99 @@ describe("contextual create actions", () => {
     expect(await screen.findByRole("dialog")).toBeTruthy();
     expect(screen.getByText("Save a care record")).toBeTruthy();
     expect(window.location.search).toBe("");
+  });
+
+  it("updates Care Record date wording without clearing entered dates", async () => {
+    mocks.getPetRecords.mockResolvedValue({ data: [] });
+    render(<RecordsManager petId={mockPets[0].id} initialRecords={[]} />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: /add first care record/i })
+    );
+
+    const primaryDate = screen.getByLabelText("Record Date") as HTMLInputElement;
+    const nextDate = screen.getByLabelText(
+      /Next Care Date/
+    ) as HTMLInputElement;
+    fireEvent.change(primaryDate, { target: { value: "2020-06-15" } });
+    fireEvent.change(nextDate, { target: { value: "2020-07-15" } });
+
+    fireEvent.change(screen.getByLabelText("Record Type"), {
+      target: { value: "Grooming" },
+    });
+
+    expect(screen.getByText("Grooming Date")).toBeTruthy();
+    expect(screen.getByText("Next Grooming Date (Optional)")).toBeTruthy();
+    expect(
+      screen.getByText(/Record when this grooming happened/)
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/WhatsApp reminders will be available with Premium/)
+    ).toBeTruthy();
+    expect(
+      (screen.getByLabelText("Grooming Date") as HTMLInputElement).value
+    ).toBe("2020-06-15");
+    expect(
+      (screen.getByLabelText(/Next Grooming Date/) as HTMLInputElement).value
+    ).toBe("2020-07-15");
+    expect(primaryDate.max).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it("rejects a future primary date with record-specific guidance", async () => {
+    mocks.getPetRecords.mockResolvedValue({ data: [] });
+    render(<RecordsManager petId={mockPets[0].id} initialRecords={[]} />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: /add first care record/i })
+    );
+    fireEvent.change(screen.getByLabelText("Record Type"), {
+      target: { value: "Grooming" },
+    });
+    fireEvent.change(screen.getByLabelText("Title"), {
+      target: { value: "Booked grooming" },
+    });
+
+    const future = new Date();
+    future.setDate(future.getDate() + 1);
+    const futureValue = [
+      future.getFullYear(),
+      String(future.getMonth() + 1).padStart(2, "0"),
+      String(future.getDate()).padStart(2, "0"),
+    ].join("-");
+    fireEvent.change(screen.getByLabelText("Grooming Date"), {
+      target: { value: futureValue },
+    });
+    fireEvent.submit(
+      screen.getByRole("button", { name: "Save Record" }).closest("form")!
+    );
+
+    expect(
+      screen.getByText(
+        "Grooming date cannot be in the future. Use Next Grooming Date for future care or reminders."
+      )
+    ).toBeTruthy();
+    expect(mocks.createRecord).not.toHaveBeenCalled();
+  });
+
+  it("allows an existing optional next date to be cleared on edit", async () => {
+    const record = mockRecords[0];
+    mocks.getPetRecords.mockResolvedValue({ data: [record] });
+    mocks.updateRecord.mockResolvedValue({
+      data: { ...record, dueDate: undefined },
+    });
+    render(<RecordsManager petId={mockPets[0].id} initialRecords={[record]} />);
+
+    expect(await screen.findByText(record.title)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    fireEvent.change(screen.getByLabelText(/Next Vaccination Due Date/), {
+      target: { value: "" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save Changes" }));
+
+    await waitFor(() => expect(mocks.updateRecord).toHaveBeenCalledOnce());
+    expect(mocks.updateRecord.mock.calls[0][1]).toMatchObject({
+      dueDate: undefined,
+    });
   });
 
   it("does not expose a create action when Records fail to load", async () => {

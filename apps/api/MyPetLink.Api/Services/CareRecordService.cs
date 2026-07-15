@@ -8,6 +8,7 @@ namespace MyPetLink.Api.Services;
 
 public sealed class CareRecordService : SkeletonService, ICareRecordService
 {
+    private static readonly TimeSpan MalaysiaUtcOffset = TimeSpan.FromHours(8);
     private readonly MyPetLinkDbContext _dbContext;
 
     public CareRecordService(MyPetLinkDbContext dbContext)
@@ -84,7 +85,7 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
             throw InvalidState("Archived pets must be restored before adding new care records.");
         }
 
-        ValidateCreateRequest(request);
+        ValidateCreateRequest(request, GetMalaysiaToday());
 
         var record = new CareRecord
         {
@@ -130,7 +131,7 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
             throw InvalidState("Archived care records cannot be updated.");
         }
 
-        ValidateUpdateRequest(request, record);
+        ValidateUpdateRequest(request, record, GetMalaysiaToday());
 
         if (request.Type.HasValue)
         {
@@ -147,7 +148,11 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
             record.RecordDate = request.Date;
         }
 
-        if (request.DueDate.HasValue)
+        if (request.ClearDueDate == true)
+        {
+            record.DueDate = null;
+        }
+        else if (request.DueDate.HasValue)
         {
             record.DueDate = request.DueDate;
         }
@@ -240,7 +245,9 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
         return record ?? throw NotFound("Care record was not found.");
     }
 
-    private static void ValidateCreateRequest(CreateCareRecordRequest request)
+    private static void ValidateCreateRequest(
+        CreateCareRecordRequest request,
+        DateOnly today)
     {
         var errors = new Dictionary<string, string[]>();
 
@@ -261,6 +268,7 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
             errors["publicVisibility"] = ["Public visibility is required."];
         }
 
+        ValidateRecordDate(request.Type, request.Date, today, errors);
         ValidateDueDate(request.Date, request.DueDate, errors);
 
         if (errors.Count > 0)
@@ -269,7 +277,10 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
         }
     }
 
-    private static void ValidateUpdateRequest(UpdateCareRecordRequest request, CareRecord current)
+    private static void ValidateUpdateRequest(
+        UpdateCareRecordRequest request,
+        CareRecord current,
+        DateOnly today)
     {
         var errors = new Dictionary<string, string[]>();
 
@@ -278,14 +289,53 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
             ValidateRequired(request.Title, "title", "Title cannot be empty.", errors);
         }
 
+        var recordType = request.Type ?? current.Type;
         var recordDate = request.Date ?? current.RecordDate;
-        var dueDate = request.DueDate ?? current.DueDate;
+        var dueDate = request.ClearDueDate == true
+            ? null
+            : request.DueDate ?? current.DueDate;
+        ValidateRecordDate(recordType, recordDate, today, errors);
         ValidateDueDate(recordDate, dueDate, errors);
 
         if (errors.Count > 0)
         {
             throw ValidationFailed(errors);
         }
+    }
+
+    private static void ValidateRecordDate(
+        CareRecordType? recordType,
+        DateOnly? recordDate,
+        DateOnly today,
+        IDictionary<string, string[]> errors)
+    {
+        if (recordDate.HasValue && recordDate.Value > today)
+        {
+            errors["date"] = [GetFutureRecordDateMessage(recordType)];
+        }
+    }
+
+    private static string GetFutureRecordDateMessage(CareRecordType? recordType)
+    {
+        return recordType switch
+        {
+            CareRecordType.Vaccine =>
+                "Vaccination date cannot be in the future. Use Next Vaccination Due Date for future reminders.",
+            CareRecordType.Deworming =>
+                "Deworming date cannot be in the future. Use Next Deworming Due Date for future care or reminders.",
+            CareRecordType.Grooming =>
+                "Grooming date cannot be in the future. Use Next Grooming Date for future care or reminders.",
+            CareRecordType.VetVisit =>
+                "Visit date cannot be in the future. Use Next Follow-up Date for future care or reminders.",
+            CareRecordType.Medication =>
+                "Start date cannot be in the future. Use Next Review Date for future care or reminders.",
+            CareRecordType.Surgery =>
+                "Surgery date cannot be in the future. Use Next Follow-up Date for future care or reminders.",
+            CareRecordType.LabTest =>
+                "Test date cannot be in the future. Use Next Follow-up Date for future care or reminders.",
+            _ =>
+                "Care date cannot be in the future. Use the next care date for future care or reminders."
+        };
     }
 
     private static void ValidateDueDate(
@@ -423,8 +473,14 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
             return "complete";
         }
 
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = GetMalaysiaToday();
         return record.DueDate.Value <= today.AddDays(30) ? "due-soon" : "upcoming";
+    }
+
+    private static DateOnly GetMalaysiaToday()
+    {
+        var malaysiaNow = DateTimeOffset.UtcNow.ToOffset(MalaysiaUtcOffset);
+        return DateOnly.FromDateTime(malaysiaNow.DateTime);
     }
 
     private static void ValidateRequired(

@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { PetAvatar } from "@/components/ui/PetAvatar";
+import { getCareRecordDateTerminology } from "@/lib/careRecordTerminology";
 import { isActiveOrder } from "@/lib/orders";
 import {
   hasUsableOwnerContact,
@@ -465,6 +466,8 @@ function UpcomingCareSection({
 }
 
 function ReminderItem({ record, pet }: { record: CareRecord; pet?: Pet }) {
+  const dateTerminology = getCareRecordDateTerminology(record.type);
+
   return (
     <div className="flex min-w-0 items-center gap-3 rounded-[1.25rem] bg-pet-cream px-4 py-3">
       <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white text-pet-teal">
@@ -475,7 +478,8 @@ function ReminderItem({ record, pet }: { record: CareRecord; pet?: Pet }) {
           {record.type}
         </p>
         <p className="mt-0.5 truncate text-xs font-semibold text-pet-muted">
-          {pet?.name ?? "Pet"} - due {record.dueDate}
+          {pet?.name ?? "Pet"} - {dateTerminology.nextDateLabel}:{" "}
+          {record.dueDate}
         </p>
       </div>
       <Badge

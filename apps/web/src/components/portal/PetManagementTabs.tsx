@@ -22,6 +22,7 @@ import {
   type OwnerSettings,
 } from "@/lib/ownerSettings";
 import { getMemoryLimitState } from "@/lib/planLimits";
+import { getCareRecordDateTerminology } from "@/lib/careRecordTerminology";
 import { getPetProfileTheme } from "@/lib/petProfileThemes";
 import { isActivePet, isArchivedPet, isMemorialPet } from "@/lib/petLifecycle";
 import {
@@ -339,6 +340,7 @@ function OverviewTab({
                     {record.title}
                   </p>
                   <p className="mt-0.5 text-xs font-bold text-pet-muted">
+                    {getCareRecordDateTerminology(record.type).primaryDateLabel}:{" "}
                     {record.date}
                   </p>
                 </div>

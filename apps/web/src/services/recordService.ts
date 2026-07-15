@@ -92,7 +92,7 @@ export async function updateRecord(recordId: string, payload: RecordPayload) {
         `/api/v1/care-records/${encodeURIComponent(recordId)}`,
         {
           method: "PUT",
-          body: buildBackendRecordPayload(payload),
+          body: buildBackendRecordPayload(payload, { allowDueDateClear: true }),
         }
       );
 
@@ -217,12 +217,24 @@ function apiResponse<T>(
   };
 }
 
-function buildBackendRecordPayload(payload: RecordPayload) {
+export function buildBackendRecordPayload(
+  payload: RecordPayload,
+  { allowDueDateClear = false }: { allowDueDateClear?: boolean } = {}
+) {
+  const dueDate = toIsoDate(payload.dueDate);
+  const dueDateWasProvided = Object.prototype.hasOwnProperty.call(
+    payload,
+    "dueDate"
+  );
+
   return {
     type: payload.type ? toBackendRecordType(payload.type) : undefined,
     title: payload.title,
     date: toIsoDate(payload.date),
-    dueDate: toIsoDate(payload.dueDate),
+    dueDate,
+    ...(allowDueDateClear && dueDateWasProvided && dueDate === null
+      ? { clearDueDate: true }
+      : {}),
     provider: payload.provider,
     notes: payload.notes,
     publicVisibility: payload.publicVisibility

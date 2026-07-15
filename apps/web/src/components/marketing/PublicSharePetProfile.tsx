@@ -18,6 +18,7 @@ import { CoverPhoto } from "@/components/ui/CoverPhoto";
 import { Icon } from "@/components/ui/Icon";
 import { PetPhotoViewer } from "@/components/ui/PetPhotoViewer";
 import { PetProfileLoading } from "@/components/ui/PetProfileLoading";
+import { getCareRecordDateTerminology } from "@/lib/careRecordTerminology";
 import {
   getPetProfileTheme,
   type PetProfileTheme,
@@ -818,6 +819,7 @@ function AboutTab({
                     className="text-xs font-bold text-pet-muted"
                     style={{ color: theme.colors.mutedText }}
                   >
+                    {getCareRecordDateTerminology(record.type).primaryDateLabel}:{" "}
                     {record.date}
                   </span>
                 </div>

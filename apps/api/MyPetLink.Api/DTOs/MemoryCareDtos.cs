@@ -81,7 +81,8 @@ public sealed record UpdateCareRecordRequest(
     [MaxLength(2000)]
     string? Notes,
     CareRecordPublicVisibility? PublicVisibility,
-    IReadOnlyCollection<Guid>? MediaFileIds);
+    IReadOnlyCollection<Guid>? MediaFileIds,
+    bool? ClearDueDate = null);
 
 public sealed record CareRecordResponse(
     Guid Id,

@@ -1,8 +1,11 @@
 "use client";
 
 import {
+  cloneElement,
+  isValidElement,
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -17,6 +20,13 @@ import { DateInput } from "@/components/ui/DateInput";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
 import {
+  careRecordTypes,
+  getCareRecordDateTerminology,
+  getLocalTodayDateInputValue,
+  isFutureCareRecordDate,
+  isValidDateInputValue,
+} from "@/lib/careRecordTerminology";
+import {
   createRecord,
   deleteRecord,
   getFriendlyRecordErrorMessage,
@@ -25,18 +35,6 @@ import {
 } from "@/services/recordService";
 import { isApiConfigured } from "@/services/apiConfig";
 import type { CareRecord, RecordType } from "@/types";
-
-const recordTypes: RecordType[] = [
-  "Vaccine",
-  "Deworming",
-  "Grooming",
-  "Vet Visit",
-  "Medication",
-  "Allergy",
-  "Surgery",
-  "Lab Test",
-  "Other",
-];
 
 type FormState = {
   type: "" | RecordType;
@@ -85,12 +83,14 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
 
   const groupedRecords = useMemo(
     () =>
-      recordTypes.map((type) => ({
+      careRecordTypes.map((type) => ({
         type,
         records: records.filter((record) => record.type === type),
       })),
     [records]
   );
+  const dateTerminology = getCareRecordDateTerminology(form.type);
+  const today = getLocalTodayDateInputValue();
 
   useEffect(() => {
     let active = true;
@@ -197,16 +197,17 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
 
     if (!form.date) {
       nextErrors.date = "Choose the record date.";
-    } else if (!isValidDate(form.date)) {
-      nextErrors.date = "Choose a valid record date.";
+    } else if (!isValidDateInputValue(form.date)) {
+      nextErrors.date = `Choose a valid ${dateTerminology.primaryDateLabel.toLowerCase()}.`;
+    } else if (isFutureCareRecordDate(form.date, today)) {
+      nextErrors.date = dateTerminology.futureDateValidationMessage;
     }
 
     if (form.dueDate) {
-      if (!isValidDate(form.dueDate)) {
-        nextErrors.dueDate = "Choose a valid next due date.";
+      if (!isValidDateInputValue(form.dueDate)) {
+        nextErrors.dueDate = `Choose a valid ${dateTerminology.nextDateLabel.toLowerCase()}.`;
       } else if (form.date && form.dueDate < form.date) {
-        nextErrors.dueDate =
-          "Next due date cannot be earlier than the record date.";
+        nextErrors.dueDate = `${dateTerminology.nextDateLabel} cannot be earlier than the ${dateTerminology.primaryDateLabel.toLowerCase()}.`;
       }
     }
 
@@ -426,7 +427,7 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
                     value={form.type}
                   >
                     <option value="">Select type</option>
-                    {recordTypes.map((type) => (
+                    {careRecordTypes.map((type) => (
                       <option key={type} value={type}>
                         {type}
                       </option>
@@ -444,8 +445,13 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
                   />
                 </Field>
 
-                <Field label="Date" error={errors.date}>
+                <Field
+                  label={dateTerminology.primaryDateLabel}
+                  helper={dateTerminology.primaryDateHelper}
+                  error={errors.date}
+                >
                   <DateInput
+                    max={today}
                     onChange={(event) => updateField("date", event.target.value)}
                     value={form.date}
                   />
@@ -463,7 +469,11 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
                   />
                 </Field>
 
-                <Field label="Next Due Date" error={errors.dueDate}>
+                <Field
+                  label={`${dateTerminology.nextDateLabel} (Optional)`}
+                  helper={dateTerminology.nextDateHelper}
+                  error={errors.dueDate}
+                >
                   <DateInput
                     onChange={(event) =>
                       updateField("dueDate", event.target.value)
@@ -552,28 +562,55 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
 
 function Field({
   label,
+  helper,
   error,
   children,
 }: {
   label: string;
+  helper?: string;
   error?: string;
   children: ReactNode;
 }) {
+  const generatedId = useId();
+  const helperId = helper ? `${generatedId}-helper` : undefined;
+  const errorId = error ? `${generatedId}-error` : undefined;
+  const describedBy = [helperId, errorId].filter(Boolean).join(" ") || undefined;
+  const control = isValidElement<FieldControlProps>(children)
+    ? cloneElement(children, {
+        id: children.props.id ?? generatedId,
+        "aria-describedby": [children.props["aria-describedby"], describedBy]
+          .filter(Boolean)
+          .join(" ") || undefined,
+      })
+    : children;
+
   return (
-    <label className="grid gap-2">
-      <span className="text-sm font-bold text-pet-ink">{label}</span>
-      {children}
-      {error ? (
-        <span className="text-xs font-bold text-[#a63c2e]">{error}</span>
+    <div className="grid gap-2">
+      <label className="text-sm font-bold text-pet-ink" htmlFor={generatedId}>
+        {label}
+      </label>
+      {helper ? (
+        <span
+          className="text-xs font-medium leading-5 text-pet-muted"
+          id={helperId}
+        >
+          {helper}
+        </span>
       ) : null}
-    </label>
+      {control}
+      {error ? (
+        <span className="text-xs font-bold text-[#a63c2e]" id={errorId}>
+          {error}
+        </span>
+      ) : null}
+    </div>
   );
 }
 
-function isValidDate(value: string) {
-  const date = new Date(`${value}T00:00:00`);
-  return !Number.isNaN(date.getTime());
-}
+type FieldControlProps = {
+  id?: string;
+  "aria-describedby"?: string;
+};
 
 function formatDisplayDate(value: string) {
   return new Intl.DateTimeFormat("en-GB", {

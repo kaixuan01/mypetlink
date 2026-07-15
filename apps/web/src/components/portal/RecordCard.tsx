@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/Badge";
+import { getCareRecordDateTerminology } from "@/lib/careRecordTerminology";
 import type { CareRecord } from "@/types";
 
 type RecordCardProps = {
@@ -14,6 +15,8 @@ const visibilityTone = {
 } as const;
 
 export function RecordCard({ record, onDelete, onEdit }: RecordCardProps) {
+  const dateTerminology = getCareRecordDateTerminology(record.type);
+
   return (
     <article className="brand-card rounded-[1.5rem] p-5">
       <div className="flex items-start justify-between gap-4">
@@ -25,11 +28,14 @@ export function RecordCard({ record, onDelete, onEdit }: RecordCardProps) {
             {record.title}
           </h3>
           <p className="mt-1 text-sm text-pet-muted">
+            <span className="font-bold">{dateTerminology.primaryDateLabel}:</span>{" "}
             {record.date} - {record.provider}
           </p>
         </div>
         {record.dueDate ? (
-          <Badge tone="teal">Due {record.dueDate}</Badge>
+          <Badge tone="teal">
+            {dateTerminology.nextDateLabel}: {record.dueDate}
+          </Badge>
         ) : null}
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2">
