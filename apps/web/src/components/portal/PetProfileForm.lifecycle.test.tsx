@@ -65,6 +65,30 @@ async function openPhotos() {
   fireEvent.click(await screen.findByRole("tab", { name: /Photos/ }));
 }
 
+function loadCoverPreviewGeometry({
+  naturalWidth,
+  naturalHeight,
+  width = 500,
+  height = 200,
+}: {
+  naturalWidth: number;
+  naturalHeight: number;
+  width?: number;
+  height?: number;
+}) {
+  const image = screen.getByAltText(
+    "Milo public profile cover preview"
+  ) as HTMLImageElement;
+  Object.defineProperties(image, {
+    naturalWidth: { configurable: true, value: naturalWidth },
+    naturalHeight: { configurable: true, value: naturalHeight },
+  });
+  (image.parentElement as HTMLDivElement).getBoundingClientRect = () =>
+    ({ width, height }) as DOMRect;
+  fireEvent.load(image);
+  return image;
+}
+
 function clickSave() {
   fireEvent.click(screen.getAllByRole("button", { name: "Save Changes" })[0]);
 }
@@ -218,6 +242,10 @@ describe("PetProfileForm lifecycle workflow", () => {
     mocks.getPetById.mockResolvedValue({ data: pet });
     render(<PetProfileForm initialPet={pet} mode="edit" />);
     await openPhotos();
+    const publicPreview = loadCoverPreviewGeometry({
+      naturalWidth: 1600,
+      naturalHeight: 400,
+    });
 
     const horizontal = screen.getByRole("slider", {
       name: "Horizontal cover position",
@@ -225,9 +253,6 @@ describe("PetProfileForm lifecycle workflow", () => {
     const vertical = screen.getByRole("slider", {
       name: "Vertical cover position",
     }) as HTMLInputElement;
-    const publicPreview = screen.getByAltText(
-      "Milo public profile cover preview"
-    ) as HTMLImageElement;
     const coverSource = screen.getByAltText(
       "Cover photo preview"
     ) as HTMLImageElement;
@@ -241,14 +266,30 @@ describe("PetProfileForm lifecycle workflow", () => {
     expect(coverSource.style.objectPosition).toBe("");
     expect(coverSource.classList.contains("object-contain")).toBe(true);
     expect(profileSource.style.objectPosition).toBe("");
+    expect(horizontal.disabled).toBe(false);
+    expect(vertical.disabled).toBe(true);
+    expect(
+      screen.getByText(
+        "This photo already fits vertically in the cover area."
+      )
+    ).toBeTruthy();
 
-    fireEvent.change(horizontal, { target: { value: "22" } });
+    fireEvent.change(horizontal, { target: { value: "0" } });
     expect(vertical.value).toBe("68");
-    expect(publicPreview.style.objectPosition).toBe("22% 68%");
+    expect(publicPreview.style.objectPosition).toBe("0% 68%");
 
-    fireEvent.change(vertical, { target: { value: "83" } });
-    expect(horizontal.value).toBe("22");
-    expect(publicPreview.style.objectPosition).toBe("22% 83%");
+    loadCoverPreviewGeometry({ naturalWidth: 1080, naturalHeight: 607 });
+    expect(horizontal.disabled).toBe(true);
+    expect(vertical.disabled).toBe(false);
+    expect(
+      screen.getByText(
+        "This photo already fits horizontally in the cover area."
+      )
+    ).toBeTruthy();
+
+    fireEvent.change(vertical, { target: { value: "100" } });
+    expect(horizontal.value).toBe("0");
+    expect(publicPreview.style.objectPosition).toBe("0% 100%");
     expect(
       screen.getByText("Save changes to keep this cover position.")
     ).toBeTruthy();
@@ -269,11 +310,8 @@ describe("PetProfileForm lifecycle workflow", () => {
     mocks.getPetById.mockResolvedValue({ data: pet });
     render(<PetProfileForm initialPet={pet} mode="edit" />);
     await openPhotos();
+    loadCoverPreviewGeometry({ naturalWidth: 1080, naturalHeight: 607 });
 
-    fireEvent.change(
-      screen.getByRole("slider", { name: "Horizontal cover position" }),
-      { target: { value: "22" } }
-    );
     fireEvent.change(
       screen.getByRole("slider", { name: "Vertical cover position" }),
       { target: { value: "83" } }
@@ -283,12 +321,18 @@ describe("PetProfileForm lifecycle workflow", () => {
     await waitFor(() =>
       expect(mocks.updatePet).toHaveBeenCalledWith(
         pet.id,
-        expect.objectContaining({ coverPositionX: 22, coverPositionY: 83 })
+        expect.objectContaining({ coverPositionX: 31, coverPositionY: 83 })
       )
     );
+    expect(mocks.refresh).not.toHaveBeenCalled();
+    expect(
+      (screen.getByRole("slider", {
+        name: "Vertical cover position",
+      }) as HTMLInputElement).value
+    ).toBe("83");
 
     cleanup();
-    pet = { ...pet, coverPositionX: 22, coverPositionY: 83 };
+    pet = { ...pet, coverPositionX: 31, coverPositionY: 83 };
     mocks.getPetById.mockResolvedValue({ data: pet });
     render(<PetProfileForm initialPet={pet} mode="edit" />);
     await openPhotos();
@@ -296,7 +340,7 @@ describe("PetProfileForm lifecycle workflow", () => {
       (screen.getByRole("slider", {
         name: "Horizontal cover position",
       }) as HTMLInputElement).value
-    ).toBe("22");
+    ).toBe("31");
     expect(
       (screen.getByRole("slider", {
         name: "Vertical cover position",
@@ -315,15 +359,16 @@ describe("PetProfileForm lifecycle workflow", () => {
     mocks.updatePet.mockRejectedValueOnce(new Error("Connection failed"));
     render(<PetProfileForm initialPet={pet} mode="edit" />);
     await openPhotos();
+    loadCoverPreviewGeometry({ naturalWidth: 1080, naturalHeight: 607 });
 
-    const horizontal = screen.getByRole("slider", {
-      name: "Horizontal cover position",
+    const vertical = screen.getByRole("slider", {
+      name: "Vertical cover position",
     }) as HTMLInputElement;
-    fireEvent.change(horizontal, { target: { value: "12" } });
+    fireEvent.change(vertical, { target: { value: "12" } });
     clickSave();
 
     await waitFor(() => expect(mocks.updatePet).toHaveBeenCalledOnce());
-    expect(horizontal.value).toBe("12");
+    expect(vertical.value).toBe("12");
     expect(
       screen.getByText("Save changes to keep this cover position.")
     ).toBeTruthy();

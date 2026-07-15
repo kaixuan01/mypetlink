@@ -23,6 +23,7 @@ public sealed class PublicProfilesController : ApiControllerBase
     [HttpGet("pets/{publicSlug}")]
     public async Task<IActionResult> GetByPublicSlug(string publicSlug, CancellationToken cancellationToken)
     {
+        SetDynamicProfileResponseHeaders();
         var response = await _publicProfileService.GetByPublicSlugAsync(publicSlug, cancellationToken);
         return Ok(ApiEnvelope.Ok(response, HttpContext));
     }
@@ -30,6 +31,7 @@ public sealed class PublicProfilesController : ApiControllerBase
     [HttpGet("profiles/{publicCode}")]
     public async Task<IActionResult> GetByPublicCode(string publicCode, CancellationToken cancellationToken)
     {
+        SetDynamicProfileResponseHeaders();
         var response = await _publicProfileService.GetByPublicSlugAsync(publicCode, cancellationToken);
         return Ok(ApiEnvelope.Ok(response, HttpContext));
     }
@@ -39,6 +41,7 @@ public sealed class PublicProfilesController : ApiControllerBase
         string publicSlug,
         CancellationToken cancellationToken)
     {
+        SetDynamicProfileResponseHeaders();
         var response = await _publicProfileService.GetSocialByPublicSlugAsync(publicSlug, cancellationToken);
         return Ok(ApiEnvelope.Ok(response, HttpContext));
     }
@@ -72,5 +75,13 @@ public sealed class PublicProfilesController : ApiControllerBase
         _ = requestedVersion;
         var jpeg = await _socialCardRenderer.RenderAsync(profile, cancellationToken);
         return File(jpeg, "image/jpeg");
+    }
+
+    private void SetDynamicProfileResponseHeaders()
+    {
+        // Pet details can change immediately after an owner save. Keep these
+        // restricted public projections out of browser and intermediary caches;
+        // versioned social-card images retain their separate cache policy.
+        Response.Headers.CacheControl = "no-store";
     }
 }

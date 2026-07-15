@@ -227,6 +227,7 @@ export async function fetchPublicSocialProfile(
       fetcher,
       url,
       {
+        cache: "no-store",
         headers: {
           Accept: "application/json",
           "User-Agent": "MyPetLink-Cloudflare-Social/1.0",

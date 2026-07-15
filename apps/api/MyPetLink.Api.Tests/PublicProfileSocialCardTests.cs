@@ -147,6 +147,16 @@ public sealed class PublicProfileSocialCardTests
             "Under 1 year old",
             "https://media.mypetlink.com.my/profile/one.jpg",
             "https://media.mypetlink.com.my/cover/two.jpg");
+        pet.CoverPositionX = 0;
+        pet.CoverPositionY = 100;
+        var newCoverPosition = PublicProfileVersion.Create(
+            publicProfile,
+            pet,
+            "Under 1 year old",
+            "https://media.mypetlink.com.my/profile/one.jpg",
+            "https://media.mypetlink.com.my/cover/one.jpg");
+        pet.CoverPositionX = 50;
+        pet.CoverPositionY = 50;
         pet.LostModeEnabled = true;
         var lost = PublicProfileVersion.Create(
             publicProfile,
@@ -164,7 +174,7 @@ public sealed class PublicProfileSocialCardTests
 
         Assert.Equal(16, original.Length);
         Assert.Equal(
-            7,
+            8,
             new[]
             {
                 original,
@@ -172,6 +182,7 @@ public sealed class PublicProfileSocialCardTests
                 newTheme,
                 newProfilePhoto,
                 newCoverPhoto,
+                newCoverPosition,
                 lost,
                 privateVersion
             }.Distinct().Count());

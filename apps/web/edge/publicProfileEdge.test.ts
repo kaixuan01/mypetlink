@@ -69,7 +69,13 @@ describe("Cloudflare public-profile edge metadata", () => {
   });
 
   it("reads a new profile from the restricted API without static discovery", async () => {
-    const fetcher = vi.fn(async () => jsonResponse({ data: newPet }));
+    const fetcher = vi.fn(
+      async (input: URL | RequestInfo, init?: RequestInit) => {
+        void input;
+        void init;
+        return jsonResponse({ data: newPet });
+      }
+    );
 
     const result = await fetchPublicSocialProfile(
       { PUBLIC_API_BASE_URL: "https://api.mypetlink.test" },
@@ -82,6 +88,7 @@ describe("Cloudflare public-profile edge metadata", () => {
     expect(String(fetcher.mock.calls[0][0])).toContain(
       "/api/v1/public/pets/nori-futurepet1234/social"
     );
+    expect(fetcher.mock.calls[0][1]).toMatchObject({ cache: "no-store" });
   });
 
   it("keeps the application HTML operational with generic metadata on API failure", async () => {

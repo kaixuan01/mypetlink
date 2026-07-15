@@ -126,6 +126,7 @@ export function PublicSharePetProfile({
 
   useEffect(() => {
     let active = true;
+    let loadInFlight = false;
     const settingsTimer = window.setTimeout(() => {
       if (active) {
         setOwnerSettings(readOwnerSettings());
@@ -133,6 +134,11 @@ export function PublicSharePetProfile({
     }, 0);
 
     async function loadProfile() {
+      if (loadInFlight) {
+        return;
+      }
+
+      loadInFlight = true;
       setLoadError("");
 
       try {
@@ -195,14 +201,26 @@ export function PublicSharePetProfile({
         setRecords([]);
         setLoadError(getPublicProfileErrorMessage(caught));
         setLoaded(true);
+      } finally {
+        loadInFlight = false;
       }
     }
 
+    const refreshVisibleProfile = () => {
+      if (document.visibilityState === "visible") {
+        void loadProfile();
+      }
+    };
+
     void loadProfile();
+    window.addEventListener("focus", refreshVisibleProfile);
+    document.addEventListener("visibilitychange", refreshVisibleProfile);
 
     return () => {
       active = false;
       window.clearTimeout(settingsTimer);
+      window.removeEventListener("focus", refreshVisibleProfile);
+      document.removeEventListener("visibilitychange", refreshVisibleProfile);
     };
   }, [apiMode, initialProfile]);
 

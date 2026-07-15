@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+// @vitest-environment jsdom
+
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   getPetProfileTheme,
   petProfileThemes,
@@ -10,9 +12,15 @@ import type {
 } from "@/services/apiDtos";
 import {
   buildBackendPetPayload,
+  getPublicPetProfileByPublicCode,
   mapBackendPublicProfile,
   mapBackendSafetyPage,
 } from "@/services/petService";
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
+});
 
 function publicProfile(
   profileTheme: string
@@ -78,5 +86,25 @@ describe("pet profile theme API mapping", () => {
       "sky",
       "lavender",
     ]);
+  });
+
+  it("bypasses browser caches when loading a dynamic public profile", async () => {
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "https://api.mypetlink.test");
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        void input;
+        void init;
+        return new Response(JSON.stringify({ data: publicProfile("mint") }), {
+          headers: { "Content-Type": "application/json" },
+          status: 200,
+        });
+      }
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getPublicPetProfileByPublicCode("public-code");
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ cache: "no-store" });
   });
 });

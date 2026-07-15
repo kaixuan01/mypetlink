@@ -33,6 +33,32 @@ public sealed class PetServiceCoverPositionTests
     }
 
     [Fact]
+    public async Task UpdateAsync_PreservesZeroAndTheUnchangedAxisInPublicProjection()
+    {
+        using var harness = await PetHarness.CreateAsync();
+
+        var horizontal = await harness.Service.UpdateAsync(
+            UserId,
+            PetId,
+            PositionRequest(0, null));
+        var vertical = await harness.Service.UpdateAsync(
+            UserId,
+            PetId,
+            PositionRequest(null, 100));
+        var saved = await harness.Db.Pets.SingleAsync(pet => pet.Id == PetId);
+        var publicProfile = await harness.PublicProfileService.GetByPublicSlugAsync("milo-p123");
+
+        Assert.Equal((byte)0, horizontal.CoverPositionX);
+        Assert.Equal((byte)50, horizontal.CoverPositionY);
+        Assert.Equal((byte)0, vertical.CoverPositionX);
+        Assert.Equal((byte)100, vertical.CoverPositionY);
+        Assert.Equal((byte)0, saved.CoverPositionX);
+        Assert.Equal((byte)100, saved.CoverPositionY);
+        Assert.Equal((byte)0, publicProfile.CoverPositionX);
+        Assert.Equal((byte)100, publicProfile.CoverPositionY);
+    }
+
+    [Fact]
     public async Task UpdateAsync_RejectsCoverFocalPositionOutsidePercentageRange()
     {
         using var harness = await PetHarness.CreateAsync();
@@ -44,7 +70,7 @@ public sealed class PetServiceCoverPositionTests
         Assert.Contains("coverPositionX", exception.Details!.Keys);
     }
 
-    private static UpdatePetRequest PositionRequest(byte positionX, byte positionY)
+    private static UpdatePetRequest PositionRequest(byte? positionX, byte? positionY)
     {
         return new UpdatePetRequest(
             Name: null,
@@ -74,17 +100,19 @@ public sealed class PetServiceCoverPositionTests
         private PetHarness(MyPetLinkDbContext db)
         {
             Db = db;
-            Service = new PetService(
-                db,
-                Options.Create(new CloudflareR2Options
-                {
-                    PublicBaseUrl = "https://media.mypetlink.test"
-                }));
+            var r2Options = Options.Create(new CloudflareR2Options
+            {
+                PublicBaseUrl = "https://media.mypetlink.test"
+            });
+            Service = new PetService(db, r2Options);
+            PublicProfileService = new PublicProfileService(db, r2Options);
         }
 
         public MyPetLinkDbContext Db { get; }
 
         public PetService Service { get; }
+
+        public PublicProfileService PublicProfileService { get; }
 
         public static async Task<PetHarness> CreateAsync()
         {

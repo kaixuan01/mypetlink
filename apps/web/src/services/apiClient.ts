@@ -35,6 +35,7 @@ export type ApiRequestOptions = {
   method?: "GET" | "HEAD" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
   auth?: boolean;
+  cache?: RequestCache;
   retryOnUnauthorized?: boolean;
   signal?: AbortSignal;
 };
@@ -104,6 +105,7 @@ async function request<T>(
     method,
     headers,
     body: hasBody ? JSON.stringify(options.body) : undefined,
+    cache: options.cache,
     signal: options.signal,
   });
 

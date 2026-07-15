@@ -30,6 +30,7 @@ import {
   petProfileThemes,
   type PetProfileTheme,
 } from "@/lib/petProfileThemes";
+import type { CoverCropMetrics } from "@/lib/coverCrop";
 import {
   defaultOwnerSettings,
   getDefaultPetVisibility,
@@ -271,6 +272,8 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [profilePhotoFile, setProfilePhotoFile] = useState<File | undefined>();
   const [coverPhotoFile, setCoverPhotoFile] = useState<File | undefined>();
+  const [coverCropMetrics, setCoverCropMetrics] =
+    useState<CoverCropMetrics | null>(null);
   const [success, setSuccess] = useState("");
   const [editPetLoadState, setEditPetLoadState] = useState<EditPetLoadState>(
     mode === "edit" ? "checking" : "ready"
@@ -680,7 +683,6 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
           setCurrentPet(savedPet);
           setSavedPet(savedPet);
           setForm(toFormState(savedPet, ownerSettings));
-          router.refresh();
         } else {
           setFormError(
             "We could not find this pet profile. Please return to My Pets and try again."
@@ -1215,6 +1217,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
                   <CoverPhoto
                     alt={`${form.name || "Your pet"} public profile cover preview`}
                     fallbackStyle={{ background: selectedTheme.gradients.cover }}
+                    onCropMetricsChange={setCoverCropMetrics}
                     positionX={form.coverPositionX}
                     positionY={form.coverPositionY}
                     src={form.coverUrl}
@@ -1244,11 +1247,21 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
                     </p>
                     <CoverPositionControl
                       axis="Horizontal"
+                      description={getCoverAxisDescription(
+                        coverCropMetrics,
+                        "Horizontal"
+                      )}
+                      disabled={!coverCropMetrics?.canMoveX}
                       onChange={(value) => updateField("coverPositionX", value)}
                       value={form.coverPositionX}
                     />
                     <CoverPositionControl
                       axis="Vertical"
+                      description={getCoverAxisDescription(
+                        coverCropMetrics,
+                        "Vertical"
+                      )}
+                      disabled={!coverCropMetrics?.canMoveY}
                       onChange={(value) => updateField("coverPositionY", value)}
                       value={form.coverPositionY}
                     />
@@ -2748,10 +2761,14 @@ function TextInput({
 
 function CoverPositionControl({
   axis,
+  description,
+  disabled,
   onChange,
   value,
 }: {
   axis: "Horizontal" | "Vertical";
+  description?: string;
+  disabled?: boolean;
   onChange: (value: number) => void;
   value: number;
 }) {
@@ -2763,15 +2780,35 @@ function CoverPositionControl({
       </span>
       <input
         aria-label={`${axis} cover position`}
-        className="w-full accent-pet-teal"
+        className="w-full accent-pet-teal disabled:cursor-not-allowed disabled:opacity-45"
+        disabled={disabled}
         max={100}
         min={0}
         onChange={(event) => onChange(Number(event.target.value))}
         type="range"
         value={value}
       />
+      {description ? (
+        <span className="text-xs font-semibold leading-5 text-pet-muted">
+          {description}
+        </span>
+      ) : null}
     </label>
   );
+}
+
+function getCoverAxisDescription(
+  metrics: CoverCropMetrics | null,
+  axis: "Horizontal" | "Vertical"
+) {
+  if (!metrics) {
+    return "Checking how this photo fits in the cover area.";
+  }
+
+  const canMove = axis === "Horizontal" ? metrics.canMoveX : metrics.canMoveY;
+  return canMove
+    ? undefined
+    : `This photo already fits ${axis.toLowerCase()}ly in the cover area.`;
 }
 
 function Field({

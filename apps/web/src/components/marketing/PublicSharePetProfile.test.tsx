@@ -1,11 +1,18 @@
 // @vitest-environment jsdom
 
-import { afterEach, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { mockPets } from "@/data/mockPets";
 
 const publicProfileMocks = vi.hoisted(() => ({
   profile: null as (typeof mockPets)[number] | null,
+  getProfile: vi.fn(),
 }));
 
 vi.mock("@/services/apiConfig", () => ({
@@ -13,9 +20,8 @@ vi.mock("@/services/apiConfig", () => ({
 }));
 
 vi.mock("@/services/petService", () => ({
-  getPublicPetProfileByPublicCode: async () => ({
-    data: publicProfileMocks.profile,
-  }),
+  getPublicPetProfileByPublicCode: (...args: unknown[]) =>
+    publicProfileMocks.getProfile(...args),
 }));
 
 vi.mock("@/services/momentService", () => ({
@@ -44,7 +50,16 @@ const { PublicSharePetProfile } = await import(
   "@/components/marketing/PublicSharePetProfile"
 );
 
-afterEach(cleanup);
+beforeEach(() => {
+  publicProfileMocks.getProfile.mockImplementation(async () => ({
+    data: publicProfileMocks.profile,
+  }));
+});
+
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 it("applies the pet's saved focal position to the public profile cover", async () => {
   const profile = {
@@ -65,6 +80,36 @@ it("applies the pet's saved focal position to the public profile cover", async (
 
   const cover = (await screen.findByAltText("Milo cover photo")) as HTMLImageElement;
   expect(cover.style.objectPosition).toBe("31% 68%");
+});
+
+it("refreshes an already-open profile when the visitor returns to its tab", async () => {
+  const profile = {
+    ...mockPets[0],
+    coverUrl: "https://media.mypetlink.test/milo-cover.jpg",
+    coverPositionX: 31,
+    coverPositionY: 68,
+  };
+  publicProfileMocks.profile = profile;
+
+  render(
+    <PublicSharePetProfile
+      initialMoments={[]}
+      initialProfile={profile}
+      initialRecords={[]}
+    />
+  );
+
+  const cover = (await screen.findByAltText("Milo cover photo")) as HTMLImageElement;
+  await waitFor(() => expect(publicProfileMocks.getProfile).toHaveBeenCalledOnce());
+  publicProfileMocks.profile = {
+    ...profile,
+    coverPositionX: 0,
+    coverPositionY: 100,
+  };
+  fireEvent.focus(window);
+
+  await waitFor(() => expect(cover.style.objectPosition).toBe("0% 100%"));
+  expect(publicProfileMocks.getProfile).toHaveBeenCalledTimes(2);
 });
 
 it("applies the saved theme to the full public profile", async () => {

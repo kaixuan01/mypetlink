@@ -1,4 +1,16 @@
-import type { CSSProperties } from "react";
+"use client";
+
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  type CSSProperties,
+} from "react";
+import {
+  calculateCoverCropMetrics,
+  PET_COVER_ASPECT_RATIO,
+  type CoverCropMetrics,
+} from "@/lib/coverCrop";
 
 export const DEFAULT_COVER_POSITION = 50;
 
@@ -9,6 +21,7 @@ type CoverPhotoProps = {
   positionY?: number | null;
   className?: string;
   fallbackStyle?: CSSProperties;
+  onCropMetricsChange?: (metrics: CoverCropMetrics | null) => void;
 };
 
 export function getCoverPosition(value?: number | null) {
@@ -26,10 +39,7 @@ export function getCoverObjectPosition(
   return `${getCoverPosition(positionX)}% ${getCoverPosition(positionY)}%`;
 }
 
-/**
- * Shared full-width pet cover. Its 160px mobile / 208px desktop height keeps
- * the banner substantial while object-fit: cover prevents stretching or gaps.
- */
+/** Shared public-profile cover with one aspect ratio and crop implementation. */
 export function CoverPhoto({
   alt,
   src,
@@ -37,11 +47,63 @@ export function CoverPhoto({
   positionY,
   className = "",
   fallbackStyle,
+  onCropMetricsChange,
 }: CoverPhotoProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
+  const metricsCallbackRef = useRef(onCropMetricsChange);
+
+  useEffect(() => {
+    metricsCallbackRef.current = onCropMetricsChange;
+  }, [onCropMetricsChange]);
+
+  const measureCrop = useCallback(() => {
+    const container = containerRef.current;
+    const image = imageRef.current;
+    if (!container || !image) {
+      metricsCallbackRef.current?.(null);
+      return;
+    }
+
+    const bounds = container.getBoundingClientRect();
+    const metrics = calculateCoverCropMetrics({
+      naturalWidth: image.naturalWidth,
+      naturalHeight: image.naturalHeight,
+      containerWidth: bounds.width,
+      containerHeight: bounds.height,
+    });
+    metricsCallbackRef.current?.(metrics);
+  }, []);
+
+  useEffect(() => {
+    metricsCallbackRef.current?.(null);
+    if (!src) {
+      return;
+    }
+
+    const container = containerRef.current;
+    let observer: ResizeObserver | null = null;
+    if (container && typeof ResizeObserver !== "undefined") {
+      observer = new ResizeObserver(measureCrop);
+      observer.observe(container);
+    }
+    window.addEventListener("resize", measureCrop);
+    measureCrop();
+
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", measureCrop);
+    };
+  }, [measureCrop, src]);
+
   return (
     <div
-      className={`relative h-40 w-full overflow-hidden sm:h-52 ${className}`}
-      style={src ? undefined : fallbackStyle}
+      className={`relative w-full overflow-hidden ${className}`}
+      ref={containerRef}
+      style={{
+        aspectRatio: PET_COVER_ASPECT_RATIO,
+        ...(src ? {} : fallbackStyle),
+      }}
     >
       {src ? (
         // Public media and local data-URL previews are intentionally unoptimized.
@@ -49,6 +111,9 @@ export function CoverPhoto({
         <img
           alt={alt}
           className="absolute inset-0 h-full w-full object-cover"
+          onError={() => metricsCallbackRef.current?.(null)}
+          onLoad={measureCrop}
+          ref={imageRef}
           src={src}
           style={{ objectPosition: getCoverObjectPosition(positionX, positionY) }}
         />

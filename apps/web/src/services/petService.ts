@@ -1022,7 +1022,7 @@ export async function getPublicPetProfileByPublicCode(publicCode: string) {
     try {
       const response = await apiRequest<BackendPublicPetProfile>(
         `/api/v1/public/pets/${encodeURIComponent(publicCode)}`,
-        { auth: false }
+        { auth: false, cache: "no-store" }
       );
 
       return apiResponse(
