@@ -19,24 +19,28 @@ export type OwnerHeaderAction =
       type: "home-menu";
       label: "Add";
       ariaLabel: string;
+      compactTitle: "Home";
     }
   | {
       type: "add-pet";
       label: "Add Pet";
       ariaLabel: string;
       limitReached: boolean;
+      compactTitle: "My pets";
     }
   | {
       type: "link";
       label: "Add Moment";
       ariaLabel: string;
       href: string;
+      compactTitle: string;
     }
   | {
       type: "button";
       label: "Add Record";
       ariaLabel: string;
       onClick: () => void;
+      compactTitle: "Care records";
     };
 
 type OwnerHeaderActionContext = {
@@ -72,6 +76,7 @@ export function getOwnerHeaderAction({
           type: "home-menu",
           label: "Add",
           ariaLabel: "Add a pet, care record, or moment",
+          compactTitle: "Home",
         }
       : null;
   }
@@ -86,6 +91,7 @@ export function getOwnerHeaderAction({
       label: "Add Pet",
       ariaLabel: "Add Pet",
       limitReached: !getPetLimitStateFromPets(pets).canCreate,
+      compactTitle: "My pets",
     };
   }
 
@@ -117,11 +123,18 @@ export function getOwnerHeaderAction({
       return null;
     }
 
+    const pet = pets.find((item) => item.id === pageContext.petId);
+
+    if (!pet) {
+      return null;
+    }
+
     return {
       type: "link",
       label: "Add Moment",
       ariaLabel: "Add Moment for the current pet",
       href: ownerRoutes.petMomentNew(pageContext.petId),
+      compactTitle: `${pet.name}'s memories`,
     };
   }
 
@@ -131,6 +144,7 @@ export function getOwnerHeaderAction({
       label: "Add Record",
       ariaLabel: "Add Care Record for the current pet",
       onClick: pageContext.onCreate,
+      compactTitle: "Care records",
     };
   }
 

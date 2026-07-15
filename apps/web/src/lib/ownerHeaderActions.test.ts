@@ -50,7 +50,11 @@ function resolve({
 
 describe("getOwnerHeaderAction", () => {
   it("shows the generic menu only on a populated Home dashboard", () => {
-    expect(resolve()).toMatchObject({ type: "home-menu", label: "Add" });
+    expect(resolve()).toMatchObject({
+      type: "home-menu",
+      label: "Add",
+      compactTitle: "Home",
+    });
     expect(resolve({ currentPets: [] })).toBeNull();
     expect(resolve({ petsStatus: "loading" })).toBeNull();
   });
@@ -60,6 +64,7 @@ describe("getOwnerHeaderAction", () => {
       type: "add-pet",
       label: "Add Pet",
       limitReached: false,
+      compactTitle: "My pets",
     });
     expect(resolve({ pathname: "/pets", currentPets: [] })).toBeNull();
     expect(
@@ -77,6 +82,7 @@ describe("getOwnerHeaderAction", () => {
       type: "link",
       label: "Add Moment",
       href: "/pets/pet_0/moments/new",
+      compactTitle: "Pet 1's memories",
     });
   });
 
@@ -120,7 +126,11 @@ describe("getOwnerHeaderAction", () => {
       }),
     });
 
-    expect(action).toMatchObject({ type: "button", label: "Add Record" });
+    expect(action).toMatchObject({
+      type: "button",
+      label: "Add Record",
+      compactTitle: "Care records",
+    });
     if (action?.type === "button") {
       action.onClick();
     }

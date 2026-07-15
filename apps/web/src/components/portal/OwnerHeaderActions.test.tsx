@@ -1,6 +1,14 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockPets } from "@/data/mockPets";
 import type { OwnerHeaderPageContext } from "@/lib/ownerHeaderActions";
@@ -11,6 +19,10 @@ const mocks = vi.hoisted(() => ({
   pathname: "/dashboard",
   push: vi.fn(),
 }));
+
+let intersectionCallback: IntersectionObserverCallback | null = null;
+let observedOrigin: Element | null = null;
+const disconnectObserver = vi.fn();
 
 vi.mock("next/navigation", () => ({
   usePathname: () => mocks.pathname,
@@ -63,10 +75,51 @@ describe("OwnerHeaderActions", () => {
     mocks.pathname = "/dashboard";
     mocks.getPets.mockReset();
     mocks.push.mockReset();
+    intersectionCallback = null;
+    observedOrigin = null;
+    disconnectObserver.mockReset();
+
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: vi.fn().mockReturnValue({
+        matches: true,
+        media: "(max-width: 1023px)",
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }),
+    });
+
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class MockIntersectionObserver {
+        constructor(callback: IntersectionObserverCallback) {
+          intersectionCallback = callback;
+        }
+
+        disconnect() {
+          disconnectObserver();
+        }
+
+        observe(target: Element) {
+          observedOrigin = target;
+        }
+
+        takeRecords() {
+          return [];
+        }
+
+        unobserve() {}
+
+        readonly root = null;
+        readonly rootMargin = "0px";
+        readonly thresholds = [0];
+      }
+    );
   });
 
   afterEach(() => {
     cleanup();
+    vi.unstubAllGlobals();
     vi.clearAllMocks();
   });
 
@@ -125,6 +178,113 @@ describe("OwnerHeaderActions", () => {
     });
     expect(action.getAttribute("href")).toBe("/pets/pet_0/moments/new");
     expect(screen.queryByRole("link", { name: "Add Pet" })).toBeNull();
+  });
+
+  it("shows one compact mobile action after the original passes above the viewport", async () => {
+    mocks.pathname = "/pets/pet_0/moments";
+    const currentPets = makePets(1);
+    currentPets[0].name = "A very long pet name that must stay on one line";
+    mocks.getPets.mockResolvedValue({ data: currentPets });
+    render(
+      <HeaderHarness
+        pageContext={{
+          section: "moments",
+          petId: "pet_0",
+          status: "ready",
+          itemCount: 2,
+          canCreate: true,
+        }}
+      />
+    );
+
+    const originalAction = await screen.findByRole("link", {
+      name: /add moment for the current pet/i,
+    });
+    expect(observedOrigin).toBeTruthy();
+    expect(document.querySelector("[data-owner-compact-action-bar]")).toBeNull();
+
+    notifyIntersection({ isIntersecting: false, bottom: -1 });
+
+    const compactBar = await waitFor(() => {
+      const bar = document.querySelector<HTMLElement>(
+        "[data-owner-compact-action-bar]"
+      );
+      expect(bar).toBeTruthy();
+      return bar as HTMLElement;
+    });
+    const compactAction = within(compactBar).getByRole("link", {
+      name: /add moment for the current pet/i,
+    });
+    expect(compactAction.getAttribute("href")).toBe(
+      originalAction.getAttribute("href")
+    );
+    expect(
+      within(compactBar).getByText(currentPets[0].name + "'s memories")
+        .classList
+    ).toContain("truncate");
+    expect(originalAction.parentElement?.getAttribute("aria-hidden")).toBe(
+      "true"
+    );
+    expect(
+      screen.getAllByRole("link", {
+        name: /add moment for the current pet/i,
+      })
+    ).toHaveLength(1);
+
+    notifyIntersection({ isIntersecting: true, bottom: 44 });
+
+    await waitFor(() =>
+      expect(
+        document.querySelector("[data-owner-compact-action-bar]")
+      ).toBeNull()
+    );
+    expect(
+      screen.getByRole("link", { name: /add moment for the current pet/i })
+    ).toBe(originalAction);
+  });
+
+  it("does not show the compact action while the original is below the viewport", async () => {
+    mocks.pathname = "/pets";
+    mocks.getPets.mockResolvedValue({ data: makePets(1) });
+    render(<HeaderHarness />);
+
+    await screen.findByRole("link", { name: "Add Pet" });
+    notifyIntersection({ isIntersecting: false, bottom: 720 });
+
+    expect(document.querySelector("[data-owner-compact-action-bar]")).toBeNull();
+  });
+
+  it("does not observe or render a compact action in the desktop layout", async () => {
+    vi.mocked(window.matchMedia).mockReturnValue({
+      matches: false,
+      media: "(max-width: 1023px)",
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    } as unknown as MediaQueryList);
+    mocks.pathname = "/pets";
+    mocks.getPets.mockResolvedValue({ data: makePets(1) });
+    render(<HeaderHarness />);
+
+    await screen.findByRole("link", { name: "Add Pet" });
+
+    expect(observedOrigin).toBeNull();
+    expect(document.querySelector("[data-owner-compact-action-bar]")).toBeNull();
+  });
+
+  it("disconnects the visibility observer when route navigation removes the action", async () => {
+    mocks.pathname = "/pets";
+    mocks.getPets.mockResolvedValue({ data: makePets(1) });
+    const view = render(<HeaderHarness />);
+
+    await screen.findByRole("link", { name: "Add Pet" });
+    expect(observedOrigin).toBeTruthy();
+
+    mocks.pathname = "/settings";
+    view.rerender(<HeaderHarness />);
+
+    await waitFor(() => expect(disconnectObserver).toHaveBeenCalled());
+    expect(screen.queryByRole("link", { name: "Add Pet" })).toBeNull();
+    expect(document.querySelector("[data-owner-compact-action-bar]")).toBeNull();
   });
 
   it("invokes the current Records manager create flow", async () => {
@@ -202,3 +362,25 @@ describe("OwnerHeaderActions", () => {
   );
 });
 
+function notifyIntersection({
+  bottom,
+  isIntersecting,
+}: {
+  bottom: number;
+  isIntersecting: boolean;
+}) {
+  if (!intersectionCallback || !observedOrigin) {
+    throw new Error("The primary action is not being observed.");
+  }
+
+  const entry = {
+    boundingClientRect: { bottom },
+    intersectionRatio: isIntersecting ? 1 : 0,
+    isIntersecting,
+    target: observedOrigin,
+  } as IntersectionObserverEntry;
+
+  act(() => {
+    intersectionCallback?.([entry], {} as IntersectionObserver);
+  });
+}

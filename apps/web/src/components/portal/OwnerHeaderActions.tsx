@@ -163,7 +163,7 @@ export function OwnerPortalHeader() {
 
   return (
     <header
-      className={`sticky top-0 z-20 border-b border-pet-border bg-pet-cream/92 px-4 py-4 backdrop-blur lg:border-0 lg:bg-transparent lg:px-8 lg:pb-0 lg:pt-5 lg:backdrop-blur-none ${
+      className={`relative z-20 border-b border-pet-border bg-pet-cream/92 px-4 py-4 backdrop-blur lg:border-0 lg:bg-transparent lg:px-8 lg:pb-0 lg:pt-5 lg:backdrop-blur-none ${
         action ? "" : "lg:hidden"
       }`}
     >
@@ -179,16 +179,123 @@ export function OwnerPortalHeader() {
           </span>
         </Link>
         {action && ownerHeader ? (
-          <div className="ml-auto shrink-0">
-            <OwnerHeaderActionView
-              action={action}
-              pets={ownerHeader.pets ?? []}
-              petsStatus={ownerHeader.petsStatus}
-            />
-          </div>
+          <PagePrimaryAction
+            key={pathname}
+            pageTitle={action.compactTitle}
+            renderAction={() => (
+              <OwnerHeaderActionView
+                action={action}
+                pets={ownerHeader.pets ?? []}
+                petsStatus={ownerHeader.petsStatus}
+              />
+            )}
+          />
         ) : null}
       </div>
     </header>
+  );
+}
+
+/**
+ * Keeps the full Owner Portal header in the document flow, then mirrors its
+ * single resolved action in a compact mobile app bar only after the original
+ * action has passed above the viewport. The fixed copy is portalled so header
+ * backdrop filters and layout overflow cannot create a trapping containing
+ * block or clip it.
+ */
+function PagePrimaryAction({
+  pageTitle,
+  renderAction,
+}: {
+  pageTitle: string;
+  renderAction: () => ReactNode;
+}) {
+  const originRef = useRef<HTMLDivElement | null>(null);
+  const [compactVisible, setCompactVisible] = useState(false);
+
+  useEffect(() => {
+    const origin = originRef.current;
+
+    if (!origin || typeof IntersectionObserver === "undefined") {
+      return undefined;
+    }
+
+    const observedOrigin = origin;
+    const mobileLayout = window.matchMedia("(max-width: 1023px)");
+    let observer: IntersectionObserver | null = null;
+
+    function stopObserving() {
+      observer?.disconnect();
+      observer = null;
+    }
+
+    function observeForCurrentLayout() {
+      stopObserving();
+
+      if (!mobileLayout.matches) {
+        setCompactVisible(false);
+        return;
+      }
+
+      observer = new IntersectionObserver(
+        ([entry]) => {
+          if (!entry) {
+            return;
+          }
+
+          // Only reveal after the original has passed above the viewport. An
+          // element below the viewport must not produce a premature action bar.
+          const passedAbove =
+            !entry.isIntersecting && entry.boundingClientRect.bottom <= 0;
+          setCompactVisible(passedAbove);
+        },
+        { threshold: 0 }
+      );
+      observer.observe(observedOrigin);
+    }
+
+    observeForCurrentLayout();
+    mobileLayout.addEventListener("change", observeForCurrentLayout);
+
+    return () => {
+      stopObserving();
+      mobileLayout.removeEventListener("change", observeForCurrentLayout);
+    };
+  }, []);
+
+  const compactBar =
+    compactVisible && typeof document !== "undefined"
+      ? createPortal(
+          <div
+            className="owner-sticky-action-bar fixed inset-x-0 top-0 border-b border-pet-border bg-white/95 pt-[env(safe-area-inset-top)] shadow-md shadow-[#0d1b3d]/8 backdrop-blur lg:hidden"
+            data-owner-compact-action-bar
+          >
+            <div className="mx-auto flex min-h-14 w-full max-w-7xl items-center gap-2.5 px-3 min-[360px]:px-4 sm:px-6">
+              <p
+                className="min-w-0 flex-1 truncate text-sm font-black text-pet-ink"
+                title={pageTitle}
+              >
+                {pageTitle}
+              </p>
+              <div className="shrink-0">{renderAction()}</div>
+            </div>
+          </div>,
+          document.body
+        )
+      : null;
+
+  return (
+    <>
+      <div
+        aria-hidden={compactVisible || undefined}
+        className="ml-auto shrink-0"
+        inert={compactVisible}
+        ref={originRef}
+      >
+        {renderAction()}
+      </div>
+      {compactBar}
+    </>
   );
 }
 

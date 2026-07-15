@@ -10,8 +10,10 @@
      its own bottom offset. Used to pad scrollable content so the last item is
      never hidden behind the nav. Safe-area inset is added on top in the calc. */
   --owner-bottom-nav-height: 5.25rem;
-  /* Owner Portal layering order: page 0, sticky header 20, bottom nav 30,
-     interactive backdrop 40, action surfaces 50, notifications 60+. */
+  /* Owner Portal layering order: page 0, original header 20, compact mobile
+     action bar 25, bottom nav 30, interactive backdrop 40, action surfaces 50,
+     notifications 60+. */
+  --owner-layer-sticky-action: 25;
   --owner-layer-backdrop: 40;
   --owner-layer-surface: 50;
 }
@@ -185,6 +187,23 @@ select {
   background-size: var(--brand-control-indicator-size)
     var(--brand-control-indicator-size);
   padding-inline-end: var(--brand-control-indicator-space);
+}
+
+.owner-sticky-action-bar {
+  z-index: var(--owner-layer-sticky-action);
+  animation: owner-sticky-action-in 180ms ease-out;
+}
+
+@keyframes owner-sticky-action-in {
+  from {
+    opacity: 0;
+    transform: translateY(-0.35rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .brand-input[aria-haspopup="listbox"] {
@@ -365,6 +384,7 @@ select {
 
 @media (prefers-reduced-motion: reduce) {
   .owner-action-panel,
+  .owner-sticky-action-bar,
   .paw-step,
   .wake-paw,
   .session-fade-in {
