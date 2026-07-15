@@ -61,6 +61,10 @@ async function openPublicProfile() {
   fireEvent.click(await screen.findByRole("tab", { name: /Public Profile/ }));
 }
 
+async function openPhotos() {
+  fireEvent.click(await screen.findByRole("tab", { name: /Photos/ }));
+}
+
 function clickSave() {
   fireEvent.click(screen.getAllByRole("button", { name: "Save Changes" })[0]);
 }
@@ -201,6 +205,129 @@ describe("PetProfileForm lifecycle workflow", () => {
     expect(
       screen.getByRole("button", { name: /Mint Green/ }).getAttribute("aria-pressed")
     ).toBe("true");
+  });
+
+  it("uses one shared two-axis cover preview while keeping source photos neutral", async () => {
+    pet = {
+      ...pet,
+      photoUrl: "/profile.jpg",
+      coverUrl: "/cover.jpg",
+      coverPositionX: 31,
+      coverPositionY: 68,
+    };
+    mocks.getPetById.mockResolvedValue({ data: pet });
+    render(<PetProfileForm initialPet={pet} mode="edit" />);
+    await openPhotos();
+
+    const horizontal = screen.getByRole("slider", {
+      name: "Horizontal cover position",
+    }) as HTMLInputElement;
+    const vertical = screen.getByRole("slider", {
+      name: "Vertical cover position",
+    }) as HTMLInputElement;
+    const publicPreview = screen.getByAltText(
+      "Milo public profile cover preview"
+    ) as HTMLImageElement;
+    const coverSource = screen.getByAltText(
+      "Cover photo preview"
+    ) as HTMLImageElement;
+    const profileSource = screen.getByAltText(
+      "Profile photo preview"
+    ) as HTMLImageElement;
+
+    expect(horizontal.value).toBe("31");
+    expect(vertical.value).toBe("68");
+    expect(publicPreview.style.objectPosition).toBe("31% 68%");
+    expect(coverSource.style.objectPosition).toBe("");
+    expect(coverSource.classList.contains("object-contain")).toBe(true);
+    expect(profileSource.style.objectPosition).toBe("");
+
+    fireEvent.change(horizontal, { target: { value: "22" } });
+    expect(vertical.value).toBe("68");
+    expect(publicPreview.style.objectPosition).toBe("22% 68%");
+
+    fireEvent.change(vertical, { target: { value: "83" } });
+    expect(horizontal.value).toBe("22");
+    expect(publicPreview.style.objectPosition).toBe("22% 83%");
+    expect(
+      screen.getByText("Save changes to keep this cover position.")
+    ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset to Centre" }));
+    expect(horizontal.value).toBe("50");
+    expect(vertical.value).toBe("50");
+    expect(publicPreview.style.objectPosition).toBe("50% 50%");
+  });
+
+  it("saves both cover axes and restores their saved values after reload", async () => {
+    pet = {
+      ...pet,
+      coverUrl: "/cover.jpg",
+      coverPositionX: 31,
+      coverPositionY: 68,
+    };
+    mocks.getPetById.mockResolvedValue({ data: pet });
+    render(<PetProfileForm initialPet={pet} mode="edit" />);
+    await openPhotos();
+
+    fireEvent.change(
+      screen.getByRole("slider", { name: "Horizontal cover position" }),
+      { target: { value: "22" } }
+    );
+    fireEvent.change(
+      screen.getByRole("slider", { name: "Vertical cover position" }),
+      { target: { value: "83" } }
+    );
+    clickSave();
+
+    await waitFor(() =>
+      expect(mocks.updatePet).toHaveBeenCalledWith(
+        pet.id,
+        expect.objectContaining({ coverPositionX: 22, coverPositionY: 83 })
+      )
+    );
+
+    cleanup();
+    pet = { ...pet, coverPositionX: 22, coverPositionY: 83 };
+    mocks.getPetById.mockResolvedValue({ data: pet });
+    render(<PetProfileForm initialPet={pet} mode="edit" />);
+    await openPhotos();
+    expect(
+      (screen.getByRole("slider", {
+        name: "Horizontal cover position",
+      }) as HTMLInputElement).value
+    ).toBe("22");
+    expect(
+      (screen.getByRole("slider", {
+        name: "Vertical cover position",
+      }) as HTMLInputElement).value
+    ).toBe("83");
+  });
+
+  it("keeps unsaved cover-position feedback after a failed save", async () => {
+    pet = {
+      ...pet,
+      coverUrl: "/cover.jpg",
+      coverPositionX: 31,
+      coverPositionY: 68,
+    };
+    mocks.getPetById.mockResolvedValue({ data: pet });
+    mocks.updatePet.mockRejectedValueOnce(new Error("Connection failed"));
+    render(<PetProfileForm initialPet={pet} mode="edit" />);
+    await openPhotos();
+
+    const horizontal = screen.getByRole("slider", {
+      name: "Horizontal cover position",
+    }) as HTMLInputElement;
+    fireEvent.change(horizontal, { target: { value: "12" } });
+    clickSave();
+
+    await waitFor(() => expect(mocks.updatePet).toHaveBeenCalledOnce());
+    expect(horizontal.value).toBe("12");
+    expect(
+      screen.getByText("Save changes to keep this cover position.")
+    ).toBeTruthy();
+    expect(screen.queryByText(/Changes saved/)).toBeNull();
   });
 
   it("manages Lost Mode directly from Contact & Safety", async () => {

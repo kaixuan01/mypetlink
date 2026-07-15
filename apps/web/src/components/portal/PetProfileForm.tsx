@@ -901,6 +901,11 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
     mode === "edit" &&
     currentPet &&
     form.profileTheme !== currentPet.profileTheme;
+  const hasUnsavedCoverPositionChange =
+    mode === "edit" &&
+    currentPet &&
+    (form.coverPositionX !== currentPet.coverPositionX ||
+      form.coverPositionY !== currentPet.coverPositionY);
 
   return (
     <form
@@ -1147,30 +1152,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
           title="Photos"
           description="Add the pet photos you want saved with this profile. The Theme tab controls the public page colors."
         >
-          <div className="grid min-w-0 gap-4 lg:grid-cols-[0.8fr_1.2fr]">
-            <div className="brand-soft-card min-w-0 overflow-hidden rounded-[1.5rem]">
-              <CoverPhoto
-                alt={`${form.name || "Your pet"} cover preview`}
-                fallbackStyle={{ background: selectedTheme.gradients.cover }}
-                positionX={form.coverPositionX}
-                positionY={form.coverPositionY}
-                src={form.coverUrl}
-              />
-              <div className="px-5 pb-5 text-center">
-                <div className="-mt-12 flex justify-center">
-                  <span className="rounded-full border-4 border-white">
-                    <PetAvatar pet={previewPet} size="lg" />
-                  </span>
-                </div>
-                <p className="mt-3 font-black text-pet-ink">
-                  {form.name || "Your pet"}
-                </p>
-                <p className="mt-1 text-sm text-pet-muted">
-                  Public profile preview
-                </p>
-              </div>
-            </div>
-
+          <div className="grid min-w-0 gap-5">
             <div className="grid min-w-0 gap-4 md:grid-cols-2">
               <ImageUploadField
                 label="Profile photo"
@@ -1194,31 +1176,96 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
                   }
                 }}
                 onFileSelected={setCoverPhotoFile}
-                positionX={form.coverPositionX}
-                positionY={form.coverPositionY}
               />
-
-              {form.coverUrl ? (
-                <fieldset className="grid min-w-0 gap-4 rounded-[1.25rem] border border-pet-border bg-pet-cream p-4 md:col-span-2">
-                  <legend className="text-sm font-black text-pet-ink">
-                    Adjust cover position
-                  </legend>
-                  <p className="-mt-3 text-xs font-semibold leading-5 text-pet-muted">
-                    Move the focus until your pet sits naturally in the banner.
-                  </p>
-                  <CoverPositionControl
-                    axis="Horizontal"
-                    onChange={(value) => updateField("coverPositionX", value)}
-                    value={form.coverPositionX}
-                  />
-                  <CoverPositionControl
-                    axis="Vertical"
-                    onChange={(value) => updateField("coverPositionY", value)}
-                    value={form.coverPositionY}
-                  />
-                </fieldset>
-              ) : null}
             </div>
+
+            <section
+              aria-labelledby="cover-preview-heading"
+              className="grid min-w-0 gap-4 rounded-[1.5rem] border border-pet-border bg-white p-4 sm:p-5"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3
+                    className="text-base font-black text-pet-ink"
+                    id="cover-preview-heading"
+                  >
+                    Cover preview &amp; position
+                  </h3>
+                  <p className="mt-1 text-xs font-semibold leading-5 text-pet-muted">
+                    Adjust the same cover view that appears on the Public Share
+                    Profile.
+                  </p>
+                </div>
+                {form.coverUrl ? (
+                  <button
+                    className="min-h-11 rounded-full border border-pet-border bg-white px-4 text-xs font-black text-pet-ink transition hover:border-pet-teal focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pet-teal"
+                    onClick={() => {
+                      updateField("coverPositionX", 50);
+                      updateField("coverPositionY", 50);
+                    }}
+                    type="button"
+                  >
+                    Reset to Centre
+                  </button>
+                ) : null}
+              </div>
+
+              <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(16rem,0.65fr)] lg:items-start">
+                <div className="brand-soft-card min-w-0 overflow-hidden rounded-[1.5rem]">
+                  <CoverPhoto
+                    alt={`${form.name || "Your pet"} public profile cover preview`}
+                    fallbackStyle={{ background: selectedTheme.gradients.cover }}
+                    positionX={form.coverPositionX}
+                    positionY={form.coverPositionY}
+                    src={form.coverUrl}
+                  />
+                  <div className="px-5 pb-5 text-center">
+                    <div className="-mt-12 flex justify-center">
+                      <span className="rounded-full border-4 border-white">
+                        <PetAvatar pet={previewPet} size="lg" />
+                      </span>
+                    </div>
+                    <p className="mt-3 font-black text-pet-ink">
+                      {form.name || "Your pet"}
+                    </p>
+                    <p className="mt-1 text-sm text-pet-muted">
+                      Public Share Profile preview
+                    </p>
+                  </div>
+                </div>
+
+                {form.coverUrl ? (
+                  <fieldset className="grid min-w-0 gap-4 rounded-[1.25rem] border border-pet-border bg-pet-cream p-4">
+                    <legend className="px-1 text-sm font-black text-pet-ink">
+                      Adjust cover position
+                    </legend>
+                    <p className="text-xs font-semibold leading-5 text-pet-muted">
+                      Move the focus until your pet sits naturally in the banner.
+                    </p>
+                    <CoverPositionControl
+                      axis="Horizontal"
+                      onChange={(value) => updateField("coverPositionX", value)}
+                      value={form.coverPositionX}
+                    />
+                    <CoverPositionControl
+                      axis="Vertical"
+                      onChange={(value) => updateField("coverPositionY", value)}
+                      value={form.coverPositionY}
+                    />
+                    {hasUnsavedCoverPositionChange ? (
+                      <p className="rounded-[1rem] bg-[#fffbea] px-3 py-2 text-xs font-bold leading-5 text-[#856a00]">
+                        Save changes to keep this cover position.
+                      </p>
+                    ) : null}
+                  </fieldset>
+                ) : (
+                  <div className="rounded-[1.25rem] border border-dashed border-pet-border bg-pet-cream p-4 text-sm font-semibold leading-6 text-pet-muted">
+                    Add a cover photo to adjust its horizontal and vertical
+                    position.
+                  </div>
+                )}
+              </div>
+            </section>
           </div>
         </FormSection>
       ) : null}
