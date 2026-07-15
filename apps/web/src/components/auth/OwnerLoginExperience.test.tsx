@@ -180,7 +180,9 @@ describe("OwnerLoginExperience", () => {
     expect(
       action.compareDocumentPosition(alert) & Node.DOCUMENT_POSITION_FOLLOWING
     ).not.toBe(0);
-    expect(document.activeElement).toBe(alert);
+    await waitFor(() => {
+      expect(document.activeElement).toBe(alert);
+    });
   });
 
   it("does not repeat a large MyPetLink logo inside the login card", () => {

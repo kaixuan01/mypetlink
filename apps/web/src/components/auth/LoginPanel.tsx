@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   loginMockOwner,
@@ -68,9 +68,9 @@ export function LoginPanel() {
   const [signingIn, setSigningIn] = useState(false);
   const [googleReady, setGoogleReady] = useState(!apiMode);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (error) {
-      errorRef.current?.focus();
+      errorRef.current?.focus({ preventScroll: true });
     }
   }, [error]);
 
