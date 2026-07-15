@@ -35,7 +35,7 @@ const copy: Record<
     eyebrow: "Care Records",
     title: (name) => `${name}'s health and care history`,
     description:
-      "Keep vaccines, deworming, grooming, vet visits, medication, and allergy notes in one place.",
+      "Keep vaccines, deworming, grooming, vet visits, medication, surgery, and lab tests in one place.",
   },
 };
 

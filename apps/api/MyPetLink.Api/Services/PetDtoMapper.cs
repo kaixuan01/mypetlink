@@ -78,8 +78,9 @@ internal static class PetDtoMapper
         return JsonSerializer.Serialize(visibility, JsonOptions);
     }
 
-    // Personality tags and favourite foods/toys are stored as JSON arrays
-    // (Pet.PersonalityTagsJson / FavoriteFoodsJson / FavoriteToysJson).
+    // Personality tags, favourite foods/toys, and allergies are stored as JSON
+    // arrays (Pet.PersonalityTagsJson / FavoriteFoodsJson / FavoriteToysJson /
+    // AllergiesJson).
     // Parse/Serialize both run the same normalization so what is read back always
     // matches what was saved: trimmed, de-duplicated (case-insensitive), capped
     // in length and count, and never replaced with defaults.
@@ -87,6 +88,8 @@ internal static class PetDtoMapper
     public const int MaxPersonalityTagLength = 40;
     public const int MaxFavoriteItems = 3;
     public const int MaxFavoriteItemLength = 80;
+    public const int MaxAllergies = 8;
+    public const int MaxAllergyLength = 80;
 
     public static IReadOnlyList<string> ParsePersonalityTags(string? json)
     {
@@ -116,6 +119,21 @@ internal static class PetDtoMapper
     public static IReadOnlyList<string> NormalizeFavoriteList(IEnumerable<string>? items)
     {
         return NormalizeStringList(items, MaxFavoriteItemLength, MaxFavoriteItems);
+    }
+
+    public static IReadOnlyList<string> ParseAllergies(string? json)
+    {
+        return ParseStringList(json, MaxAllergyLength, MaxAllergies);
+    }
+
+    public static string SerializeAllergies(IEnumerable<string>? allergies)
+    {
+        return JsonSerializer.Serialize(NormalizeAllergies(allergies), JsonOptions);
+    }
+
+    public static IReadOnlyList<string> NormalizeAllergies(IEnumerable<string>? allergies)
+    {
+        return NormalizeStringList(allergies, MaxAllergyLength, MaxAllergies);
     }
 
     private static IReadOnlyList<string> ParseStringList(
@@ -306,6 +324,7 @@ internal static class PetDtoMapper
             ParsePersonalityTags(pet.PersonalityTagsJson),
             ParseFavoriteList(pet.FavoriteFoodsJson),
             ParseFavoriteList(pet.FavoriteToysJson),
+            ParseAllergies(pet.AllergiesJson),
             pet.ProfileMediaFileId,
             pet.CoverMediaFileId,
             profilePhotoUrl,

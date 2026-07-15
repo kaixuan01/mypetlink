@@ -13,6 +13,7 @@ import {
 import { useRouter } from "next/navigation";
 import { ImageUploadField } from "@/components/portal/ImageUploadField";
 import { LostModeControl } from "@/components/portal/LostModeControl";
+import { MobileFormActionBar } from "@/components/portal/MobileFormActionBar";
 import { ShareProfileLink } from "@/components/share/ShareProfileLink";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
@@ -110,6 +111,7 @@ type FormState = {
   personalityTags: string[];
   favoriteFoods: string[];
   favoriteToys: string[];
+  allergies: string[];
   adoptionDate: string;
   slug: string;
   generalArea: string;
@@ -143,6 +145,19 @@ const editTabs: (SegmentedTab & { id: EditTab })[] = [
   { id: "theme", label: "Theme" },
   { id: "public", label: "Public Profile", mobileLabel: "Public" },
   { id: "contact", label: "Contact & Safety", mobileLabel: "Safety" },
+];
+
+const MAX_ALLERGIES = 8;
+const MAX_ALLERGY_LENGTH = 80;
+const allergySuggestions = [
+  "Chicken",
+  "Beef",
+  "Dairy",
+  "Eggs",
+  "Fish",
+  "Penicillin",
+  "Flea bites",
+  "Pollen",
 ];
 
 const lifecycleOptions: {
@@ -180,6 +195,7 @@ const fieldTab: Record<keyof FormState, EditTab> = {
   personalityTags: "basic",
   favoriteFoods: "basic",
   favoriteToys: "basic",
+  allergies: "contact",
   photoUrl: "photos",
   coverUrl: "photos",
   coverPositionX: "photos",
@@ -234,6 +250,7 @@ const emptyForm: FormState = {
   personalityTags: [],
   favoriteFoods: [],
   favoriteToys: [],
+  allergies: [],
   adoptionDate: "",
   slug: "",
   generalArea: "",
@@ -532,8 +549,8 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
     enforceMax(nextErrors, "bio", form.bio, 320);
     enforceMax(nextErrors, "safetyNote", form.safetyNote, 260);
     enforceMax(nextErrors, "emergencyNote", form.emergencyNote, 260);
-    // Personality tags and favourite lists are length- and count-capped at
-    // entry time by their pickers, so no free-text length check is needed here.
+    // Multi-value fields are length- and count-capped at entry time by their
+    // shared picker, so no separate free-text length check is needed here.
     enforceMax(nextErrors, "ownerName", form.ownerName, 80);
     enforceMax(nextErrors, "memorialMessage", form.memorialMessage, 240);
 
@@ -1110,6 +1127,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
                 error={errors.personalityTags}
                 label="Personality tags"
                 max={MAX_PERSONALITY_TAGS}
+                maxLength={30}
                 onChange={(values) => updateField("personalityTags", values)}
                 placeholder="Add your own tag"
                 suggestions={suggestions.personality}
@@ -1513,7 +1531,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
               <div className="grid gap-3 px-5 pb-5">
                 <Checkbox
                   checked={form.showHealthSummary}
-                  label="Allow public care record details"
+                  label="Allow public health and care details"
                   onChange={(value) => updateField("showHealthSummary", value)}
                 />
               </div>
@@ -1551,6 +1569,20 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
                 variant="compact"
               />
             ) : null}
+
+            <div className="rounded-[1.5rem] border border-pet-border bg-white p-5">
+              <TagListInput
+                error={errors.allergies}
+                helper="Add anything finders, carers, or vets should avoid."
+                label="Allergies"
+                max={MAX_ALLERGIES}
+                maxLength={MAX_ALLERGY_LENGTH}
+                onChange={(values) => updateField("allergies", values)}
+                placeholder="Add a known allergy"
+                suggestions={allergySuggestions}
+                values={form.allergies}
+              />
+            </div>
 
             <div className="rounded-[1.5rem] border border-pet-border bg-white p-5">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -1813,28 +1845,19 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
         </CTAButton>
       </div>
 
-      {/* Spacer so the last fields clear the fixed mobile action bar. */}
-      <div aria-hidden="true" className="h-40 lg:hidden" />
-
-      {/* Sticky mobile action bar, positioned above the bottom navigation using
-          the shared nav-height token plus safe-area inset. */}
-      <div className="fixed inset-x-3 bottom-[calc(var(--owner-bottom-nav-height)+env(safe-area-inset-bottom)+0.5rem)] z-20 max-w-[calc(100vw-1.5rem)] lg:hidden">
-        <div className="brand-card flex min-w-0 items-center gap-2 rounded-full p-2">
+      <MobileFormActionBar
+        disabled={isSubmitting}
+        pending={isSubmitting}
+        primaryLabel={saveLabel}
+        secondaryAction={
           <Link
             className="inline-flex min-h-11 min-w-0 flex-1 items-center justify-center rounded-full border border-pet-border bg-white px-4 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
             href={cancelHref}
           >
             Cancel
           </Link>
-          <button
-            className="inline-flex min-h-11 min-w-0 flex-1 items-center justify-center rounded-full bg-pet-coral px-4 text-sm font-bold text-white shadow-lg shadow-[#ff7a6e]/20 transition hover:bg-[#f26155] disabled:cursor-wait disabled:opacity-70"
-            disabled={isSubmitting}
-            type="submit"
-          >
-            {isSubmitting ? "Saving..." : saveLabel}
-          </button>
-        </div>
-      </div>
+        }
+      />
 
       {statusAction ? (
         <ConfirmDialog
@@ -2156,6 +2179,7 @@ function toFormState(
     personalityTags: [...pet.personalityTags],
     favoriteFoods: [...pet.favoriteFoods],
     favoriteToys: [...pet.favoriteToys],
+    allergies: [...pet.allergies],
     adoptionDate: parseDisplayDate(pet.adoptionDay),
     slug: pet.slug,
     generalArea: contact.generalArea,
@@ -2240,6 +2264,7 @@ function buildPayload(
     // unchanged for partial updates.
     favoriteFoods: normalizeTagList(form.favoriteFoods, 3),
     favoriteToys: normalizeTagList(form.favoriteToys, 3),
+    allergies: normalizeTagList(form.allergies, MAX_ALLERGIES),
     safetyNote:
       form.safetyNote.trim() || "Please contact the owner if this pet is found.",
     emergencyNote:
@@ -2317,6 +2342,8 @@ function TagListInput({
   max,
   placeholder,
   error,
+  helper,
+  maxLength = 80,
 }: {
   label: string;
   values: string[];
@@ -2325,6 +2352,8 @@ function TagListInput({
   max: number;
   placeholder: string;
   error?: string;
+  helper?: string;
+  maxLength?: number;
 }) {
   const [draft, setDraft] = useState("");
   const [showAllSuggestions, setShowAllSuggestions] = useState(false);
@@ -2362,6 +2391,12 @@ function TagListInput({
         </span>
       </span>
 
+      {helper ? (
+        <span className="text-xs font-semibold leading-5 text-pet-muted">
+          {helper}
+        </span>
+      ) : null}
+
       {values.length ? (
         <div className="flex min-w-0 flex-wrap gap-2">
           {values.map((value) => (
@@ -2384,7 +2419,7 @@ function TagListInput({
           aria-label={`${label}: add your own`}
           className="brand-input min-w-0 flex-1"
           disabled={!canAdd}
-          maxLength={label === "Personality tags" ? 30 : 80}
+          maxLength={maxLength}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Enter") {

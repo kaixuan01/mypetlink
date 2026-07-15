@@ -6,6 +6,7 @@ import {
   buildBackendPetPayload,
   getPets,
   mapBackendPetToFrontend,
+  toPublicProfile,
   toFavoriteList,
 } from "@/services/petService";
 
@@ -51,6 +52,38 @@ afterEach(() => {
 });
 
 describe("pet favourite list API mapping", () => {
+  it("maps allergies through request, clear, and response flows", () => {
+    expect(
+      buildBackendPetPayload({ allergies: ["Chicken", "Penicillin 💊"] })
+    ).toHaveProperty("allergies", ["Chicken", "Penicillin 💊"]);
+    expect(buildBackendPetPayload({ allergies: [] })).toHaveProperty(
+      "allergies",
+      []
+    );
+    expect(buildBackendPetPayload({ lostModeEnabled: true })).not.toHaveProperty(
+      "allergies"
+    );
+
+    const pet = mapBackendPetToFrontend(
+      backendPet({ allergies: ["Chicken", "花粉"] })
+    );
+    expect(pet.allergies).toEqual(["Chicken", "花粉"]);
+  });
+
+  it("removes allergies from the local public projection unless health details are enabled", () => {
+    const pet = mapBackendPetToFrontend(
+      backendPet({ allergies: ["Chicken", "Penicillin"] })
+    );
+
+    expect(toPublicProfile(pet).allergies).toEqual([]);
+    expect(
+      toPublicProfile({
+        ...pet,
+        visibility: { ...pet.visibility, showHealthSummary: true },
+      }).allergies
+    ).toEqual(["Chicken", "Penicillin"]);
+  });
+
   it("includes saved multilingual values in the backend request payload", () => {
     const payload = buildBackendPetPayload({
       name: "Topu",

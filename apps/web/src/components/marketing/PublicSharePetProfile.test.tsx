@@ -175,3 +175,42 @@ it("hides favourite sections entirely when no values are saved", async () => {
   expect(screen.queryByText("Favourite foods")).toBeNull();
   expect(screen.queryByText("Favourite toys")).toBeNull();
 });
+
+it("shows allergies only when public health details are enabled", async () => {
+  const hiddenProfile = {
+    ...mockPets[0],
+    // The public projection removes health data when the owner has not enabled
+    // public health details.
+    allergies: [],
+    visibility: { ...mockPets[0].visibility, showHealthSummary: false },
+  };
+  publicProfileMocks.profile = hiddenProfile;
+  const { unmount } = render(
+    <PublicSharePetProfile
+      initialMoments={[]}
+      initialProfile={hiddenProfile}
+      initialRecords={[]}
+    />
+  );
+
+  await screen.findByText(`About ${hiddenProfile.name}`);
+  expect(screen.queryByText("Known allergies")).toBeNull();
+  unmount();
+
+  const visibleProfile = {
+    ...hiddenProfile,
+    allergies: ["Chicken", "Penicillin"],
+    visibility: { ...hiddenProfile.visibility, showHealthSummary: true },
+  };
+  publicProfileMocks.profile = visibleProfile;
+  render(
+    <PublicSharePetProfile
+      initialMoments={[]}
+      initialProfile={visibleProfile}
+      initialRecords={[]}
+    />
+  );
+
+  expect(await screen.findByText("Known allergies")).toBeTruthy();
+  expect(screen.getByText("Chicken · Penicillin")).toBeTruthy();
+});

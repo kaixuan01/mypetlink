@@ -177,6 +177,7 @@ export type PublicPetProfile = Pick<
   | "personalityTags"
   | "favoriteFoods"
   | "favoriteToys"
+  | "allergies"
   | "safetyNote"
   | "emergencyNote"
   | "lostModeEnabled"
@@ -431,7 +432,6 @@ export type PetPayload = Partial<
     | "publicProfilePath"
     | "createdAt"
     | "updatedAt"
-    | "allergies"
     | "medications"
   >
 >;

@@ -63,3 +63,6 @@
 | Full Public/Safety/privacy/media/responsive matrix | **NOT TESTED in this phase** |
 
 No Playwright/Cypress dependency was added; existing Vitest/Testing Library and xUnit infrastructure was reused.
+
+## Canonical F-01 verification statement (consistent across all audit docs)
+F-01 (Favourite Food/Toy) was verified through local API and database round-trip testing, and through Public Profile browser rendering. The signed-in Owner Portal Edit Pet form save/reload flow was **not** verified and remains **LIVE-TEST REQUIRED**. Production was not tested. Do not describe F-01 as a complete signed-in browser round-trip.

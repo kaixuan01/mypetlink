@@ -751,6 +751,9 @@ function AboutTab({
     // below hides them entirely when the owner saved none.
     { label: "Favourite foods", value: profile.favoriteFoods.join(" · ") },
     { label: "Favourite toys", value: profile.favoriteToys.join(" · ") },
+    ...(profile.allergies.length
+      ? [{ label: "Known allergies", value: profile.allergies.join(" · ") }]
+      : []),
   ].filter((detail) => detail.value && detail.value !== "Not set");
 
   return (

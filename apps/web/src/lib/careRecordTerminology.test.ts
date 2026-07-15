@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   careRecordTypes,
+  newCareRecordTypes,
   getCareRecordDateTerminology,
   getLocalTodayDateInputValue,
   isFutureCareRecordDate,
@@ -20,6 +21,11 @@ describe("care record date terminology", () => {
       "Lab Test",
       "Other",
     ]);
+  });
+
+  it("keeps Allergy only for legacy record compatibility", () => {
+    expect(careRecordTypes).toContain("Allergy");
+    expect(newCareRecordTypes).not.toContain("Allergy");
   });
 
   it("provides record-specific labels, helpers, and validation copy", () => {

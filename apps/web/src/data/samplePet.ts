@@ -43,6 +43,7 @@ export const samplePet: Pet = {
   publicProfilePath: `/p/${indexableSamplePublicSlug}`,
   bio: "Curious, friendly, and always looking for treats.",
   personalityTags: ["Curious", "Friendly", "Treat lover"],
+  allergies: [],
   safetyNote: "Please contact the owner if this pet is found.",
   emergencyNote: "Keep calm and contact the owner first.",
   lostMode: {

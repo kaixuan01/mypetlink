@@ -146,6 +146,9 @@ public sealed class PublicProfileService : SkeletonService, IPublicProfileServic
             PetDtoMapper.ParsePersonalityTags(pet.PersonalityTagsJson),
             PetDtoMapper.ParseFavoriteList(pet.FavoriteFoodsJson),
             PetDtoMapper.ParseFavoriteList(pet.FavoriteToysJson),
+            profile.ShowHealthSummary
+                ? PetDtoMapper.ParseAllergies(pet.AllergiesJson)
+                : Array.Empty<string>(),
             pet.LifecycleStatus == PetLifecycleStatus.Memorial ? pet.MemorialMessage : null,
             memories,
             careRecords);

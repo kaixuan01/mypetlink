@@ -91,6 +91,7 @@ public sealed class PetService : SkeletonService, IPetService
                 ResolveFavoriteItems(request.FavoriteFoods, request.FavoriteFood)),
             FavoriteToysJson = PetDtoMapper.SerializeFavoriteList(
                 ResolveFavoriteItems(request.FavoriteToys, request.FavoriteToy)),
+            AllergiesJson = PetDtoMapper.SerializeAllergies(request.Allergies),
             CoverPositionX = request.CoverPositionX ?? 50,
             CoverPositionY = request.CoverPositionY ?? 50,
             ProfileTheme = PetDtoMapper.NormalizeOptional(request.ProfileTheme) ?? "default",
@@ -226,6 +227,13 @@ public sealed class PetService : SkeletonService, IPetService
         {
             pet.FavoriteToysJson = PetDtoMapper.SerializeFavoriteList(
                 ResolveFavoriteItems(request.FavoriteToys, request.FavoriteToy));
+        }
+
+        // A supplied empty list explicitly clears known allergies. Null keeps
+        // the current saved value for partial-update callers.
+        if (request.Allergies is not null)
+        {
+            pet.AllergiesJson = PetDtoMapper.SerializeAllergies(request.Allergies);
         }
 
         if (request.ProfileTheme is not null)

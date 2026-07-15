@@ -99,6 +99,48 @@ public sealed class CareRecordServiceTests
         Assert.Null(record.DueDate);
     }
 
+    [Fact]
+    public async Task LegacyAllergyRecord_RemainsReadableAndEditableWithoutTypeConversion()
+    {
+        using var harness = await CareRecordHarness.CreateAsync();
+        var record = new CareRecord
+        {
+            PetId = PetId,
+            Type = CareRecordType.Allergy,
+            Title = "Legacy allergy note",
+            RecordDate = MalaysiaToday().AddDays(-30),
+            PublicVisibility = CareRecordPublicVisibility.Private
+        };
+        harness.Db.CareRecords.Add(record);
+        await harness.Db.SaveChangesAsync();
+
+        var listed = await harness.Service.ListForPetAsync(
+            OwnerId,
+            PetId,
+            page: 1,
+            pageSize: 20,
+            type: null,
+            fromDate: null,
+            toDate: null,
+            includeArchived: false);
+        var response = await harness.Service.UpdateAsync(
+            OwnerId,
+            record.Id,
+            new UpdateCareRecordRequest(
+                Type: null,
+                Title: "Updated legacy allergy note",
+                Date: null,
+                DueDate: null,
+                Provider: null,
+                Notes: null,
+                PublicVisibility: null,
+                MediaFileIds: null));
+
+        Assert.Equal(CareRecordType.Allergy, Assert.Single(listed.Items).Type);
+        Assert.Equal(CareRecordType.Allergy, response.Type);
+        Assert.Equal("Updated legacy allergy note", response.Title);
+    }
+
     private static CreateCareRecordRequest CreateRequest(
         CareRecordType type,
         DateOnly date)

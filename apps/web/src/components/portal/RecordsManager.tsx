@@ -21,6 +21,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
 import {
   careRecordTypes,
+  newCareRecordTypes,
   getCareRecordDateTerminology,
   getLocalTodayDateInputValue,
   isFutureCareRecordDate,
@@ -77,16 +78,22 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
   const [formError, setFormError] = useState("");
   const [success, setSuccess] = useState("");
   const [form, setForm] = useState<FormState>(emptyForm);
+  const selectableRecordTypes =
+    editingRecord?.type === "Allergy" ? careRecordTypes : newCareRecordTypes;
   const [errors, setErrors] = useState<FormErrors>({});
   const [deleteTarget, setDeleteTarget] = useState<CareRecord | null>(null);
   const autoOpenKeyRef = useRef("");
 
   const groupedRecords = useMemo(
     () =>
-      careRecordTypes.map((type) => ({
-        type,
-        records: records.filter((record) => record.type === type),
-      })),
+      careRecordTypes
+        .map((type) => ({
+          type,
+          records: records.filter((record) => record.type === type),
+        }))
+        // Allergy is read-compatible for historical records, but it is not a
+        // current dated care category and should not appear as an empty group.
+        .filter((group) => group.type !== "Allergy" || group.records.length > 0),
     [records]
   );
   const dateTerminology = getCareRecordDateTerminology(form.type);
@@ -303,8 +310,8 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
         <div>
           <h2 className="text-xl font-black text-pet-ink">Care records</h2>
           <p className="mt-1 text-sm leading-6 text-pet-muted">
-            Add vaccines, deworming, grooming, vet visits, medication, and
-            allergy notes as your pet&apos;s care changes.
+            Add vaccines, deworming, grooming, vet visits, medication, surgery,
+            and lab tests as your pet&apos;s care changes.
           </p>
         </div>
       </div>
@@ -427,7 +434,7 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
                     value={form.type}
                   >
                     <option value="">Select type</option>
-                    {careRecordTypes.map((type) => (
+                    {selectableRecordTypes.map((type) => (
                       <option key={type} value={type}>
                         {type}
                       </option>

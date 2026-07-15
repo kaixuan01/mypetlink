@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
+import { MobileFormActionBar } from "@/components/portal/MobileFormActionBar";
 import { PlanSummaryCard } from "@/components/portal/PlanSummaryCard";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { FormSection } from "@/components/ui/FormSection";
@@ -82,6 +83,7 @@ export function SettingsPanel() {
   // null = the authenticated owner's data has not resolved yet. The form (and
   // Save) only render with real values — never sample/default personal data.
   const [settings, setSettings] = useState<OwnerSettings | null>(null);
+  const [savedSettings, setSavedSettings] = useState<OwnerSettings | null>(null);
   const [saved, setSaved] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [retryToken, setRetryToken] = useState(0);
@@ -94,7 +96,9 @@ export function SettingsPanel() {
     getOwnerProfileSettings()
       .then((response) => {
         if (active) {
-          setSettings(response.data);
+          const loaded = structuredClone(response.data);
+          setSettings(loaded);
+          setSavedSettings(structuredClone(loaded));
           setLoadError("");
         }
       })
@@ -106,7 +110,9 @@ export function SettingsPanel() {
         // No profile yet: start a brand-new, empty owner profile — never a
         // sample one.
         if (isApiClientError(caught) && caught.status === 404) {
-          setSettings(structuredClone(defaultOwnerSettings));
+          const empty = structuredClone(defaultOwnerSettings);
+          setSettings(empty);
+          setSavedSettings(structuredClone(empty));
           setLoadError("");
           return;
         }
@@ -162,7 +168,7 @@ export function SettingsPanel() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!settings) {
+    if (!settings || !savedSettings || !isSettingsDirty(settings, savedSettings)) {
       return;
     }
 
@@ -171,7 +177,9 @@ export function SettingsPanel() {
 
     try {
       const response = await updateOwnerProfileSettings(settings);
-      setSettings(response.data);
+      const savedResponse = structuredClone(response.data);
+      setSettings(savedResponse);
+      setSavedSettings(structuredClone(savedResponse));
       setSaved(true);
       window.setTimeout(() => setSaved(false), 3500);
     } catch (caught) {
@@ -213,8 +221,10 @@ export function SettingsPanel() {
     return <SettingsSkeleton />;
   }
 
+  const dirty = savedSettings ? isSettingsDirty(settings, savedSettings) : false;
+
   return (
-    <form className="grid gap-5" onSubmit={handleSubmit}>
+    <form className="grid gap-5" id="owner-settings-form" onSubmit={handleSubmit}>
       {error ? (
         <div
           className="rounded-[1.25rem] border border-[#ffd5cf] bg-[#fff1ee] p-4 text-sm font-bold text-[#a63c2e]"
@@ -232,6 +242,12 @@ export function SettingsPanel() {
           Account defaults saved.
         </div>
       ) : null}
+
+      <div className="sticky top-4 z-10 hidden justify-end lg:flex">
+        <CTAButton disabled={!dirty || saving} type="submit" variant="coral">
+          {saving ? "Saving..." : "Save Settings"}
+        </CTAButton>
+      </div>
 
       <FormSection
         id="owner-contact"
@@ -322,7 +338,7 @@ export function SettingsPanel() {
         <div>
           <h2 className="text-lg font-black text-pet-ink">Account actions</h2>
           <p className="mt-1 text-sm text-pet-muted">
-            Save your preferences or sign out of the owner portal.
+            Sign out of the owner portal on this device.
           </p>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row">
@@ -333,13 +349,21 @@ export function SettingsPanel() {
           >
             Logout
           </button>
-          <CTAButton type="submit" variant="coral">
-            {saving ? "Saving..." : "Save Settings"}
-          </CTAButton>
         </div>
       </div>
+
+      <MobileFormActionBar
+        disabled={!dirty}
+        formId="owner-settings-form"
+        pending={saving}
+        primaryLabel="Save Settings"
+      />
     </form>
   );
+}
+
+function isSettingsDirty(current: OwnerSettings, saved: OwnerSettings) {
+  return JSON.stringify(current) !== JSON.stringify(saved);
 }
 
 function TextField({

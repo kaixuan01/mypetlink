@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 
 type ConfirmDialogProps = {
   open: boolean;
@@ -25,6 +25,8 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   const confirmRef = useRef<HTMLButtonElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const titleId = useId();
+  const messageId = useId();
 
   useEffect(() => {
     if (!open) {
@@ -76,6 +78,8 @@ export function ConfirmDialog({
 
   return (
     <div
+      aria-describedby={messageId}
+      aria-labelledby={titleId}
       aria-modal="true"
       className="fixed inset-0 z-50 grid place-items-end bg-pet-ink/35 p-0 backdrop-blur-sm sm:place-items-center sm:p-4"
       role="dialog"
@@ -90,8 +94,8 @@ export function ConfirmDialog({
         className="relative w-full max-w-lg rounded-t-[2rem] bg-white p-5 shadow-2xl sm:rounded-[2rem] sm:p-6"
         ref={panelRef}
       >
-        <h2 className="text-2xl font-black text-pet-ink">{title}</h2>
-        <p className="mt-3 text-sm leading-6 text-pet-muted">{message}</p>
+        <h2 className="text-2xl font-black text-pet-ink" id={titleId}>{title}</h2>
+        <p className="mt-3 text-sm leading-6 text-pet-muted" id={messageId}>{message}</p>
         <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <button
             className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"

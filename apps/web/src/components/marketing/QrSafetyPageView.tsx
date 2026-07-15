@@ -230,6 +230,24 @@ export function QrSafetyPageView({ pet }: QrSafetyPageViewProps) {
         </section>
       ) : null}
 
+      {pet.allergies.length ? (
+        <section
+          aria-labelledby="known-allergies-heading"
+          className="mt-5 rounded-[1.5rem] border-2 border-[#e98a78] bg-[#fff1ee] p-4"
+        >
+          <div
+            className="flex items-center gap-2 text-sm font-black text-[#8f2f24]"
+            id="known-allergies-heading"
+          >
+            <Icon name="shield" className="h-4 w-4 shrink-0" />
+            Known allergies
+          </div>
+          <p className="mt-2 break-words text-base font-black leading-7 text-pet-ink">
+            {pet.allergies.join(" · ")}
+          </p>
+        </section>
+      ) : null}
+
       <div className="mt-5 grid gap-3">
         {visibility.showWhatsapp && whatsappE164 ? (
           <CTAButton

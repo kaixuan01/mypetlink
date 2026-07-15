@@ -33,11 +33,12 @@ public sealed class Pet : AuditableEntity
     public string? LostExtraContactInstruction { get; set; }
     public string? Bio { get; set; }
     public string PersonalityTagsJson { get; set; } = "[]";
-    // Favourite foods/toys are stored as JSON arrays (same pattern as
-    // PersonalityTagsJson) so multiple values never rely on fragile
-    // comma-separated strings.
+    // Favourite foods/toys and known allergies are stored as JSON arrays
+    // (same pattern as PersonalityTagsJson) so multiple values never rely on
+    // fragile comma-separated strings.
     public string FavoriteFoodsJson { get; set; } = "[]";
     public string FavoriteToysJson { get; set; } = "[]";
+    public string AllergiesJson { get; set; } = "[]";
     public string? SafetyNote { get; set; }
     public string? EmergencyNote { get; set; }
     public DateTimeOffset? ArchivedAt { get; set; }

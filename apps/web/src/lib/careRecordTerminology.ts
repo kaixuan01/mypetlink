@@ -12,6 +12,12 @@ export const careRecordTypes = [
   "Other",
 ] as const satisfies readonly RecordType[];
 
+// Allergy remains in the legacy-compatible type registry so historical rows
+// continue to render and edit. New care records are limited to dated events.
+export const newCareRecordTypes = careRecordTypes.filter(
+  (type): type is Exclude<RecordType, "Allergy"> => type !== "Allergy"
+);
+
 export type CareRecordDateTerminology = {
   primaryDateLabel: string;
   primaryDateHelper: string;

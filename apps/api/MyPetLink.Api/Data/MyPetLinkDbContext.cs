@@ -206,6 +206,7 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.Property(item => item.ProfileTheme).HasMaxLength(64);
             entity.Property(item => item.CoverPositionX).HasDefaultValue((byte)50);
             entity.Property(item => item.CoverPositionY).HasDefaultValue((byte)50);
+            entity.Property(item => item.AllergiesJson).HasDefaultValue("[]");
             entity.Property(item => item.LifecycleStatus).HasConversion<string>().HasMaxLength(32);
             entity.Property(item => item.PreviousLifecycleStatus).HasConversion<string>().HasMaxLength(32);
             entity.HasIndex(item => item.OwnerUserId);

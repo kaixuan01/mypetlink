@@ -82,6 +82,7 @@ public sealed class QrSafetyService : SkeletonService, IQrSafetyService
                 CoverPositionX: pet.CoverPositionX,
                 CoverPositionY: pet.CoverPositionY,
                 ProfileTheme: pet.ProfileTheme,
+                Allergies: PetDtoMapper.ParseAllergies(pet.AllergiesJson),
                 ShowFoundLocationAction: false,
                 Contact: null);
         }
@@ -120,6 +121,7 @@ public sealed class QrSafetyService : SkeletonService, IQrSafetyService
             pet.CoverPositionX,
             pet.CoverPositionY,
             pet.ProfileTheme,
+            PetDtoMapper.ParseAllergies(pet.AllergiesJson),
             safetySetting.ShowFoundLocationAction,
             contact);
     }

@@ -574,6 +574,48 @@ describe("PetProfileForm lifecycle workflow", () => {
     ).toBeTruthy();
   });
 
+  it("initializes, normalizes, saves, and clears known allergies", async () => {
+    pet = { ...pet, allergies: ["Chicken", "Penicillin 💊"] };
+    mocks.getPetById.mockResolvedValue({ data: pet });
+    render(<PetProfileForm initialPet={pet} mode="edit" />);
+
+    fireEvent.click(await screen.findByRole("tab", { name: /Contact & Safety/ }));
+    expect(screen.getByRole("button", { name: "Remove Chicken" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Remove Penicillin 💊" })
+    ).toBeTruthy();
+
+    const input = screen.getByLabelText("Allergies: add your own");
+    fireEvent.change(input, { target: { value: "  花粉  " } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    fireEvent.change(input, { target: { value: "chicken" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    clickSave();
+
+    await waitFor(() =>
+      expect(mocks.updatePet).toHaveBeenCalledWith(
+        pet.id,
+        expect.objectContaining({
+          allergies: ["Chicken", "Penicillin 💊", "花粉"],
+        })
+      )
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove Chicken" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Remove Penicillin 💊" })
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Remove 花粉" }));
+    clickSave();
+
+    await waitFor(() =>
+      expect(mocks.updatePet).toHaveBeenLastCalledWith(
+        pet.id,
+        expect.objectContaining({ allergies: [] })
+      )
+    );
+  });
+
   it("shows one complete versioned share link only on the Public Profile tab", async () => {
     render(<PetProfileForm initialPet={pet} mode="edit" />);
     await screen.findByRole("tab", { name: /Public Profile/ });

@@ -48,7 +48,7 @@ export default async function RecordsPage({ params }: RecordsPageProps) {
       <PageHeader
         eyebrow="Care Records"
         title={`${pet.data.name}'s health and care history`}
-        description="Keep vaccines, deworming, grooming, vet visits, medication, and allergy notes in one place."
+        description="Keep vaccines, deworming, grooming, vet visits, medication, surgery, and lab tests in one place."
       />
 
       <PetSwitcher activePetId={pet.data.id} pets={pets.data} section="records" />

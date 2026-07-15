@@ -215,6 +215,7 @@ public sealed class TagScanService : SkeletonService, ITagScanService
             pet.CoverPositionX,
             pet.CoverPositionY,
             pet.ProfileTheme,
+            PetDtoMapper.ParseAllergies(pet.AllergiesJson),
             safetySetting.ShowFoundLocationAction,
             contact);
     }

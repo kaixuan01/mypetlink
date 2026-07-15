@@ -83,7 +83,8 @@ public sealed record CreatePetRequest(
     // Legacy single-value fields, still accepted from older clients. Ignored
     // when the list fields are provided.
     [MaxLength(80)] string? FavoriteFood = null,
-    [MaxLength(80)] string? FavoriteToy = null);
+    [MaxLength(80)] string? FavoriteToy = null,
+    IReadOnlyList<string>? Allergies = null);
 
 public sealed record UpdatePetRequest(
     [MaxLength(120)]
@@ -122,7 +123,8 @@ public sealed record UpdatePetRequest(
     // Legacy single-value fields, still accepted from older clients. Ignored
     // when the list fields are provided.
     [MaxLength(80)] string? FavoriteFood = null,
-    [MaxLength(80)] string? FavoriteToy = null);
+    [MaxLength(80)] string? FavoriteToy = null,
+    IReadOnlyList<string>? Allergies = null);
 
 public sealed record PetContactResponse(
     bool UseOwnerDefaults,
@@ -188,6 +190,7 @@ public sealed record PetDetailResponse(
     IReadOnlyList<string> PersonalityTags,
     IReadOnlyList<string> FavoriteFoods,
     IReadOnlyList<string> FavoriteToys,
+    IReadOnlyList<string> Allergies,
     Guid? ProfileMediaId,
     Guid? CoverMediaId,
     string? ProfilePhotoUrl,

@@ -95,6 +95,7 @@ export type BackendPetDetail = {
   personalityTags?: string[] | null;
   favoriteFoods?: string[] | null;
   favoriteToys?: string[] | null;
+  allergies?: string[] | null;
   /** Legacy single-value fields still emitted by older API responses. */
   favoriteFood?: string | null;
   favoriteToy?: string | null;
@@ -181,6 +182,7 @@ export type BackendPublicPetProfile = {
   personalityTags?: string[] | null;
   favoriteFoods?: string[] | null;
   favoriteToys?: string[] | null;
+  allergies?: string[] | null;
   /** Legacy single-value fields still emitted by older API responses. */
   favoriteFood?: string | null;
   favoriteToy?: string | null;
@@ -299,6 +301,7 @@ export type BackendPublicSafetyPage = {
   coverPositionX?: number | null;
   coverPositionY?: number | null;
   profileTheme: string;
+  allergies?: string[] | null;
   showFoundLocationAction: boolean;
   contact?: {
     ownerDisplayName?: string | null;

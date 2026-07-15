@@ -144,6 +144,44 @@ describe("contextual create actions", () => {
     expect(primaryDate.max).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 
+  it("does not offer Allergy for a new Care Record", async () => {
+    mocks.getPetRecords.mockResolvedValue({ data: [] });
+    render(<RecordsManager petId={mockPets[0].id} initialRecords={[]} />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: /add first care record/i })
+    );
+
+    const type = screen.getByLabelText("Record Type") as HTMLSelectElement;
+    expect(Array.from(type.options).map((option) => option.value)).not.toContain(
+      "Allergy"
+    );
+    expect(screen.queryByRole("heading", { name: "Allergy" })).toBeNull();
+  });
+
+  it("retains Allergy while explicitly editing a legacy record", async () => {
+    const legacyRecord = {
+      ...mockRecords[0],
+      id: "legacy-allergy",
+      type: "Allergy" as const,
+      title: "Legacy allergy note",
+    };
+    mocks.getPetRecords.mockResolvedValue({ data: [legacyRecord] });
+    render(
+      <RecordsManager petId={mockPets[0].id} initialRecords={[legacyRecord]} />
+    );
+
+    expect(await screen.findByText("Legacy allergy note")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+
+    const type = screen.getByLabelText("Record Type") as HTMLSelectElement;
+    expect(type.value).toBe("Allergy");
+    expect(Array.from(type.options).map((option) => option.value)).toContain(
+      "Allergy"
+    );
+    expect(screen.getByRole("heading", { name: "Allergy" })).toBeTruthy();
+  });
+
   it("rejects a future primary date with record-specific guidance", async () => {
     mocks.getPetRecords.mockResolvedValue({ data: [] });
     render(<RecordsManager petId={mockPets[0].id} initialRecords={[]} />);

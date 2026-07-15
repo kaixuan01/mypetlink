@@ -1,4 +1,4 @@
-﻿# MyPetLink Owner Portal Flow
+# MyPetLink Owner Portal Flow
 
 > Read [`AI_AGENT_REFERENCE.md`](./AI_AGENT_REFERENCE.md) first. This document
 > describes the **signed-in owner portal** only. Public scan/share routes are in

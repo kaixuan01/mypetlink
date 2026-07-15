@@ -29,6 +29,7 @@ public sealed record PublicPetProfileResponse(
     IReadOnlyList<string> PersonalityTags,
     IReadOnlyList<string> FavoriteFoods,
     IReadOnlyList<string> FavoriteToys,
+    IReadOnlyList<string> Allergies,
     string? MemorialMessage,
     IReadOnlyCollection<PublicMemorySummaryResponse> Memories,
     IReadOnlyCollection<PublicCareSummaryResponse> CareRecords);
@@ -96,6 +97,7 @@ public sealed record PublicSafetyPageResponse(
     byte CoverPositionX,
     byte CoverPositionY,
     string ProfileTheme,
+    IReadOnlyList<string> Allergies,
     bool ShowFoundLocationAction,
     PublicSafetyContactResponse? Contact);
 

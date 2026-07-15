@@ -1,6 +1,13 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { defaultOwnerSettings, type OwnerSettings } from "@/lib/ownerSettings";
 
@@ -96,7 +103,88 @@ describe("SettingsPanel loading behaviour", () => {
     render(<SettingsPanel />);
 
     expect(await screen.findByDisplayValue("Real Owner")).toBeTruthy();
-    expect(screen.getByRole("button", { name: /save settings/i })).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: /save settings/i })).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Logout" })).toBeTruthy();
+    expect(
+      within(screen.getByTestId("mobile-form-actions")).queryByRole("button", {
+        name: "Logout",
+      })
+    ).toBeNull();
+  });
+
+  it("keeps desktop and mobile Save actions disabled until a setting changes", async () => {
+    mocks.getOwnerProfileSettings.mockResolvedValue({
+      data: ownerData({ ownerDisplayName: "Real Owner" }),
+    });
+
+    render(<SettingsPanel />);
+    const name = await screen.findByDisplayValue("Real Owner");
+    const initialButtons = screen.getAllByRole("button", { name: "Save Settings" });
+    expect(initialButtons).toHaveLength(2);
+    initialButtons.forEach((button) =>
+      expect((button as HTMLButtonElement).disabled).toBe(true)
+    );
+
+    fireEvent.change(name, { target: { value: "Updated Owner" } });
+    screen
+      .getAllByRole("button", { name: "Save Settings" })
+      .forEach((button) =>
+        expect((button as HTMLButtonElement).disabled).toBe(false)
+      );
+  });
+
+  it("saves from the mobile action bar and resets the dirty baseline on success", async () => {
+    const loaded = ownerData({ ownerDisplayName: "Real Owner" });
+    mocks.getOwnerProfileSettings.mockResolvedValue({ data: loaded });
+    mocks.updateOwnerProfileSettings.mockImplementation(async (settings) => ({
+      data: settings,
+    }));
+
+    render(<SettingsPanel />);
+    fireEvent.change(await screen.findByDisplayValue("Real Owner"), {
+      target: { value: "Updated Owner" },
+    });
+    const mobileActions = screen.getByTestId("mobile-form-actions");
+    fireEvent.click(within(mobileActions).getByRole("button", { name: "Save Settings" }));
+
+    await waitFor(() => expect(mocks.updateOwnerProfileSettings).toHaveBeenCalledOnce());
+    expect(mocks.updateOwnerProfileSettings.mock.calls[0][0].ownerDisplayName).toBe(
+      "Updated Owner"
+    );
+    await waitFor(() =>
+      screen
+        .getAllByRole("button", { name: "Save Settings" })
+        .forEach((button) =>
+          expect((button as HTMLButtonElement).disabled).toBe(true)
+        )
+    );
+    expect(screen.getByText("Account defaults saved.")).toBeTruthy();
+  });
+
+  it("retains unsaved values and an enabled Save action after a failed save", async () => {
+    mocks.getOwnerProfileSettings.mockResolvedValue({
+      data: ownerData({ ownerDisplayName: "Real Owner" }),
+    });
+    mocks.updateOwnerProfileSettings.mockRejectedValue(new Error("offline"));
+
+    render(<SettingsPanel />);
+    const name = await screen.findByDisplayValue("Real Owner");
+    fireEvent.change(name, { target: { value: "Still Unsaved" } });
+    fireEvent.click(
+      within(screen.getByTestId("mobile-form-actions")).getByRole("button", {
+        name: "Save Settings",
+      })
+    );
+
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    expect((screen.getByLabelText("Owner display name") as HTMLInputElement).value).toBe(
+      "Still Unsaved"
+    );
+    screen
+      .getAllByRole("button", { name: "Save Settings" })
+      .forEach((button) =>
+        expect((button as HTMLButtonElement).disabled).toBe(false)
+      );
   });
 
   it("shows empty inputs with placeholders for an empty owner profile", async () => {

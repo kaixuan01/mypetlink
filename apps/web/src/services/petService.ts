@@ -351,6 +351,7 @@ function normalizePet(pet: Pet): Pet {
       pet.favoriteToys,
       (pet as Pet & { favoriteToy?: string }).favoriteToy
     ),
+    allergies: pet.allergies ?? [],
     safetyNote:
       pet.safetyNote ?? "Please contact the owner if this pet is found.",
     emergencyNote: pet.emergencyNote ?? "Keep calm and contact the owner first.",
@@ -564,7 +565,7 @@ export function mapBackendPetToFrontend(
       generalArea: contact?.generalAreaOverride ?? undefined,
     },
     visibility,
-    allergies: [],
+    allergies: detail?.allergies ?? [],
     medications: [],
   });
 }
@@ -646,7 +647,7 @@ export function mapBackendPublicProfile(
         showWhatsapp: false,
         showEmergencyNote: false,
       },
-      allergies: [],
+      allergies: profile.allergies ?? [],
       medications: [],
     })
   );
@@ -742,7 +743,7 @@ export function mapBackendSafetyPage(page: BackendPublicSafetyPage): PublicPetPr
         showWhatsapp: Boolean(whatsapp),
         showEmergencyNote: Boolean(page.emergencyNote),
       },
-      allergies: [],
+      allergies: page.allergies ?? [],
       medications: [],
     })
   );
@@ -796,6 +797,9 @@ export function buildBackendPetPayload(payload: PetPayload) {
       : {}),
     ...(payload.favoriteToys !== undefined
       ? { favoriteToys: payload.favoriteToys }
+      : {}),
+    ...(payload.allergies !== undefined
+      ? { allergies: payload.allergies }
       : {}),
     profileTheme: payload.profileTheme,
     contact: {
@@ -1001,6 +1005,9 @@ export function toPublicProfile(pet: Pet): PublicPetProfile {
     personalityTags: pet.personalityTags,
     favoriteFoods: pet.favoriteFoods,
     favoriteToys: pet.favoriteToys,
+    // Public API responses already project only owner-approved health data.
+    // Mirror that privacy boundary in local/static mode as well.
+    allergies: pet.visibility.showHealthSummary ? pet.allergies : [],
     safetyNote: pet.safetyNote,
     emergencyNote: pet.emergencyNote,
     lostModeEnabled: pet.lostModeEnabled,
@@ -1188,7 +1195,7 @@ export async function createPet(payload: PetPayload) {
       payload.visibility,
       getDefaultPetVisibility(ownerSettings)
     ),
-    allergies: [],
+    allergies: payload.allergies ?? [],
     medications: [],
     qrStatus: payload.qrStatus ?? "active",
   };

@@ -162,7 +162,7 @@ export const mockPets: Pet[] = [
       showAdoptionDayOnTimeline: true,
       showHealthSummary: false,
     },
-    allergies: ["No allergies recorded."],
+    allergies: [],
     medications: ["Monthly flea prevention recorded."],
   },
 ];
