@@ -349,6 +349,30 @@ public sealed class PetService : SkeletonService, IPetService
         return ToDetail(pet);
     }
 
+    public async Task<PetDetailResponse> UpdateLostModeAsync(
+        Guid? currentUserId,
+        Guid petId,
+        UpdateLostModeRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var pet = await LoadOwnedPetAsync(currentUserId, petId, trackChanges: true, cancellationToken);
+
+        if (pet.LifecycleStatus != PetLifecycleStatus.Active)
+        {
+            throw InvalidState("Lost Mode can only be changed for an active pet profile.");
+        }
+
+        pet.LostModeEnabled = request.Enabled;
+        pet.LostLastSeenArea = PetDtoMapper.NormalizeOptional(request.LastSeenArea);
+        pet.LostLastSeenDateTime = request.LastSeenDateTime;
+        pet.LostMessage = PetDtoMapper.NormalizeOptional(request.LostMessage);
+        pet.LostRewardNote = PetDtoMapper.NormalizeOptional(request.RewardNote);
+        pet.LostExtraContactInstruction = PetDtoMapper.NormalizeOptional(request.ExtraContactInstruction);
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return ToDetail(pet);
+    }
+
     private async Task<User> LoadOwnerUserAsync(Guid? currentUserId, CancellationToken cancellationToken)
     {
         var userId = RequireUserId(currentUserId);

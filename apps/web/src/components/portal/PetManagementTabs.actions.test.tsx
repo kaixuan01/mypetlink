@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   getPetById: vi.fn(),
   getPetMoments: vi.fn(),
   getPetRecords: vi.fn(),
+  updatePetLostMode: vi.fn(),
   writeText: vi.fn(),
 }));
 
@@ -26,6 +27,8 @@ vi.mock("@/services/petService", async (importOriginal) => {
   return {
     ...actual,
     getPetById: (...args: unknown[]) => mocks.getPetById(...args),
+    updatePetLostMode: (...args: unknown[]) =>
+      mocks.updatePetLostMode(...args),
   };
 });
 
@@ -50,6 +53,11 @@ beforeEach(() => {
   mocks.getPetById.mockResolvedValue({ data: pet });
   mocks.getPetMoments.mockResolvedValue({ data: [] });
   mocks.getPetRecords.mockResolvedValue({ data: [] });
+  mocks.updatePetLostMode.mockImplementation(
+    async (_id: string, enabled: boolean, lostMode: typeof pet.lostMode) => ({
+      data: { ...pet, lostModeEnabled: enabled, lostMode },
+    })
+  );
   mocks.writeText.mockResolvedValue(undefined);
   Object.defineProperty(navigator, "clipboard", {
     configurable: true,
@@ -93,4 +101,40 @@ it("keeps one complete action set on each public profile card", async () => {
   fireEvent.click(screen.getAllByRole("button", { name: "Copy Link" })[0]);
   await waitFor(() => expect(mocks.writeText).toHaveBeenCalledTimes(1));
   expect(await screen.findByText("Public Share Profile link copied.")).toBeTruthy();
+});
+
+it("round-trips the shared Lost Mode control from the pet Overview", async () => {
+  const pet = structuredClone(mockPets[0]);
+  render(
+    <PetManagementTabs moments={[]} pet={pet} records={[]} tags={[]} />
+  );
+
+  await screen.findByText("Lost Mode");
+  fireEvent.click(
+    screen.getByRole("button", { name: `Mark ${pet.name} as Lost` })
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Activate Lost Mode" }));
+
+  expect(await screen.findByText("On")).toBeTruthy();
+  expect(
+    screen.getByRole("button", { name: `Mark ${pet.name} as Found` })
+  ).toBeTruthy();
+  expect(screen.getByRole("status").textContent).toContain(
+    "Lost Mode is now on"
+  );
+
+  fireEvent.click(
+    screen.getByRole("button", { name: `Mark ${pet.name} as Found` })
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Mark as Found" }));
+
+  await waitFor(() =>
+    expect(mocks.updatePetLostMode).toHaveBeenLastCalledWith(
+      pet.id,
+      false,
+      expect.objectContaining(pet.lostMode)
+    )
+  );
+  expect(await screen.findByText("Off")).toBeTruthy();
+  expect(screen.getByRole("status").textContent).toContain("Lost Mode is off");
 });

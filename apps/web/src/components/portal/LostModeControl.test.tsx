@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockPets } from "@/data/mockPets";
@@ -33,6 +33,14 @@ function Harness({ initialPet }: { initialPet: Pet }) {
   return (
     <LostModeControl pet={pet} onPetChange={setPet} variant="compact" />
   );
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((complete) => {
+    resolve = complete;
+  });
+  return { promise, resolve };
 }
 
 describe("LostModeControl", () => {
@@ -116,5 +124,53 @@ describe("LostModeControl", () => {
     );
     expect(screen.getByRole("dialog")).toBeTruthy();
     expect(screen.getByText("Off")).toBeTruthy();
+  });
+
+  it("does not show success when the server returns the old state", async () => {
+    const pet = petWithLostMode(false);
+    mocks.updatePetLostMode.mockResolvedValueOnce({ data: pet });
+    render(<Harness initialPet={pet} />);
+
+    fireEvent.click(screen.getByRole("button", { name: `Mark ${pet.name} as Lost` }));
+    fireEvent.click(screen.getByRole("button", { name: "Activate Lost Mode" }));
+
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    expect(screen.getByText("Off")).toBeTruthy();
+    expect(screen.queryByText(/Lost Mode is now on/)).toBeNull();
+    expect(screen.getByRole("dialog")).toBeTruthy();
+  });
+
+  it("prevents duplicate submissions while an update is pending", async () => {
+    const pet = petWithLostMode(false);
+    const pending = deferred<{ data: Pet }>();
+    mocks.updatePetLostMode.mockReturnValueOnce(pending.promise);
+    render(<Harness initialPet={pet} />);
+
+    fireEvent.click(screen.getByRole("button", { name: `Mark ${pet.name} as Lost` }));
+    const activate = screen.getByRole("button", { name: "Activate Lost Mode" });
+    fireEvent.click(activate);
+    fireEvent.click(activate);
+
+    expect(mocks.updatePetLostMode).toHaveBeenCalledOnce();
+    expect((activate as HTMLButtonElement).disabled).toBe(true);
+    pending.resolve({ data: petWithLostMode(true) });
+    expect(await screen.findByText("On")).toBeTruthy();
+  });
+
+  it("uses non-submitting buttons inside a parent form", () => {
+    const pet = petWithLostMode(false);
+    const onSubmit = vi.fn((event: FormEvent) => event.preventDefault());
+    render(
+      <form onSubmit={onSubmit}>
+        <Harness initialPet={pet} />
+      </form>
+    );
+
+    const action = screen.getByRole("button", {
+      name: `Mark ${pet.name} as Lost`,
+    }) as HTMLButtonElement;
+    expect(action.type).toBe("button");
+    fireEvent.click(action);
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 });

@@ -136,6 +136,21 @@ public sealed class PublicProfileService : SkeletonService, IPublicProfileServic
             pet.ProfileTheme,
             pet.LifecycleStatus,
             pet.LostModeEnabled && pet.LifecycleStatus == PetLifecycleStatus.Active,
+            pet.LostModeEnabled && pet.LifecycleStatus == PetLifecycleStatus.Active
+                ? pet.LostLastSeenArea
+                : null,
+            pet.LostModeEnabled && pet.LifecycleStatus == PetLifecycleStatus.Active
+                ? pet.LostLastSeenDateTime
+                : null,
+            pet.LostModeEnabled && pet.LifecycleStatus == PetLifecycleStatus.Active
+                ? pet.LostMessage
+                : null,
+            pet.LostModeEnabled && pet.LifecycleStatus == PetLifecycleStatus.Active
+                ? pet.LostRewardNote
+                : null,
+            pet.LostModeEnabled && pet.LifecycleStatus == PetLifecycleStatus.Active
+                ? pet.LostExtraContactInstruction
+                : null,
             profile.ShowOwnerName ? PetDtoMapper.ResolveOwnerDisplayName(pet) : null,
             profile.ShowGeneralArea ? PetDtoMapper.ResolveGeneralArea(pet) : null,
             profilePhotoUrl,

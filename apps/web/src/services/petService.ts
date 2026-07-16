@@ -436,6 +436,35 @@ function toIsoDate(value?: string | null) {
   return `${year}-${String(monthIndex + 1).padStart(2, "0")}-${day.padStart(2, "0")}`;
 }
 
+function toApiDateTime(value?: string | null) {
+  if (!value?.trim()) {
+    return null;
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
+
+function toDateTimeLocalValue(value?: string | null) {
+  if (!value?.trim()) {
+    return "";
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) {
+    return value;
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(
+    parsed.getDate()
+  )}T${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`;
+}
+
 function getProfileTheme(value?: string | null): Pet["profileTheme"] {
   return resolvePetProfileThemeId(value);
 }
@@ -541,7 +570,7 @@ export function mapBackendPetToFrontend(
     lostModeEnabled: pet.lostModeEnabled,
     lostMode: {
       lastSeenArea: detail?.lostLastSeenArea ?? generalArea,
-      lastSeenDateTime: detail?.lostLastSeenDateTime ?? "",
+      lastSeenDateTime: toDateTimeLocalValue(detail?.lostLastSeenDateTime),
       lostMessage:
         detail?.lostMessage ??
         `${pet.name} is currently missing. If you have found ${pet.name}, please contact the owner immediately.`,
@@ -632,7 +661,15 @@ export function mapBackendPublicProfile(
       safetyNote: "",
       emergencyNote: "",
       lostModeEnabled: profile.lostModeEnabled,
-      lostMode: getDefaultLostMode(profile.name, profile.generalArea ?? ""),
+      lostMode: mergeLostMode(profile.name, profile.generalArea ?? "", {
+        lastSeenArea:
+          profile.lostLastSeenArea ?? profile.generalArea ?? "",
+        lastSeenDateTime: profile.lostLastSeenDateTime ?? "",
+        lostMessage: profile.lostMessage ?? "",
+        rewardNote: profile.lostRewardNote ?? "",
+        extraContactInstruction:
+          profile.lostExtraContactInstruction ?? "",
+      }),
       owner: {
         name: profile.ownerDisplayName ?? "",
         phone: "",
@@ -1068,7 +1105,7 @@ export async function getPublicPetProfileBySafetyCode(safetyCode: string) {
     try {
       const response = await apiRequest<BackendPublicSafetyPage>(
         `/api/v1/public/safety/${encodeURIComponent(safetyCode)}`,
-        { auth: false }
+        { auth: false, cache: "no-store" }
       );
 
       return apiResponse(
@@ -1480,6 +1517,42 @@ export async function updatePetLostMode(
   lostModeEnabled: boolean,
   lostMode?: Partial<PetLostMode>
 ) {
+  if (canUseApi()) {
+    try {
+      const response = await apiRequest<BackendPetDetail>(
+        `/api/v1/pets/${encodeURIComponent(id)}/lost-mode`,
+        {
+          method: "POST",
+          body: {
+            enabled: lostModeEnabled,
+            lastSeenArea: lostMode?.lastSeenArea?.trim() || null,
+            lastSeenDateTime: toApiDateTime(lostMode?.lastSeenDateTime),
+            lostMessage: lostMode?.lostMessage?.trim() || null,
+            rewardNote: lostMode?.rewardNote?.trim() || null,
+            extraContactInstruction:
+              lostMode?.extraContactInstruction?.trim() || null,
+          },
+        }
+      );
+
+      return apiResponse(
+        {
+          data: response.data
+            ? mapBackendPetToFrontend(response.data)
+            : null,
+          meta: response.meta,
+        },
+        null
+      );
+    } catch (error) {
+      if (isNotFoundLike(error)) {
+        return apiNullResponse<Pet>();
+      }
+
+      throw error;
+    }
+  }
+
   const pet = await getPetById(id);
 
   if (!pet.data) {

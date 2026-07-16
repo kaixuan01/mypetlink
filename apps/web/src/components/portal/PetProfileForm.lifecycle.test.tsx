@@ -400,6 +400,25 @@ describe("PetProfileForm lifecycle workflow", () => {
       )
     );
     expect(await screen.findByText("On")).toBeTruthy();
+
+    const foundAction = screen.getByRole("button", {
+      name: `Mark ${pet.name} as Found`,
+    }) as HTMLButtonElement;
+    expect(foundAction.type).toBe("button");
+    fireEvent.click(foundAction);
+    fireEvent.click(screen.getByRole("button", { name: "Mark as Found" }));
+
+    await waitFor(() =>
+      expect(mocks.updatePetLostMode).toHaveBeenLastCalledWith(
+        pet.id,
+        false,
+        expect.objectContaining(pet.lostMode)
+      )
+    );
+    expect(await screen.findByText("Off")).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toContain(
+      "Lost Mode is off"
+    );
   });
 
   it("confirms Active to Memorial through Save Changes only", async () => {

@@ -176,6 +176,38 @@ it("hides favourite sections entirely when no values are saved", async () => {
   expect(screen.queryByText("Favourite toys")).toBeNull();
 });
 
+it("adds and removes the missing-pet notice from the saved Lost Mode value", async () => {
+  const lostProfile = { ...mockPets[0], lostModeEnabled: true };
+  publicProfileMocks.profile = lostProfile;
+  const { unmount } = render(
+    <PublicSharePetProfile
+      initialMoments={[]}
+      initialProfile={lostProfile}
+      initialRecords={[]}
+    />
+  );
+
+  expect(
+    await screen.findByText(`${lostProfile.name} is currently missing`)
+  ).toBeTruthy();
+  unmount();
+
+  const foundProfile = { ...lostProfile, lostModeEnabled: false };
+  publicProfileMocks.profile = foundProfile;
+  render(
+    <PublicSharePetProfile
+      initialMoments={[]}
+      initialProfile={foundProfile}
+      initialRecords={[]}
+    />
+  );
+
+  await screen.findByText(`About ${foundProfile.name}`);
+  expect(
+    screen.queryByText(`${foundProfile.name} is currently missing`)
+  ).toBeNull();
+});
+
 it("shows allergies only when public health details are enabled", async () => {
   const hiddenProfile = {
     ...mockPets[0],

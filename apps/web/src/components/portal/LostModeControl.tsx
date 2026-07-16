@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { DateInput } from "@/components/ui/DateInput";
@@ -27,59 +27,60 @@ export function LostModeControl({
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [hasError, setHasError] = useState(false);
+  const savingRef = useRef(false);
   const [draft, setDraft] = useState<PetLostMode>(() =>
     getLostModeDraft(pet)
   );
 
-  async function saveLostMode() {
+  async function changeLostMode(enabled: boolean) {
+    if (savingRef.current) {
+      return;
+    }
+
+    savingRef.current = true;
     setIsSaving(true);
     setMessage("");
     setHasError(false);
 
     try {
-      const response = await updatePetLostMode(pet.id, true, {
+      const response = await updatePetLostMode(pet.id, enabled, {
         ...draft,
         lostMessage:
           draft.lostMessage.trim() ||
           `${pet.name} is currently missing. If you have found ${pet.name}, please contact the owner immediately.`,
       });
 
-      if (!response.data) {
-        throw new Error("Pet not found");
+      const savedPet = response.data;
+      if (!savedPet || savedPet.lostModeEnabled !== enabled) {
+        throw new Error("Lost Mode update was not confirmed");
       }
 
-      onPetChange(response.data);
-      setMessage(`Lost Mode is now on for ${pet.name}.`);
-      setIsEditing(false);
+      onPetChange(savedPet);
+      setDraft(getLostModeDraft(savedPet));
+      setMessage(
+        savedPet.lostModeEnabled
+          ? `Lost Mode is now on for ${savedPet.name}.`
+          : `${savedPet.name} is now marked as found. Lost Mode is off.`
+      );
+      if (savedPet.lostModeEnabled) {
+        setIsEditing(false);
+      }
     } catch (caught) {
       setHasError(true);
       setMessage(getFriendlyApiErrorMessage(caught));
     } finally {
+      savingRef.current = false;
       setIsSaving(false);
     }
   }
 
-  async function markAsFound() {
+  function saveLostMode() {
+    void changeLostMode(true);
+  }
+
+  function markAsFound() {
     setConfirmingFound(false);
-    setIsSaving(true);
-    setMessage("");
-    setHasError(false);
-
-    try {
-      const response = await updatePetLostMode(pet.id, false, draft);
-
-      if (!response.data) {
-        throw new Error("Pet not found");
-      }
-
-      onPetChange(response.data);
-      setMessage(`${pet.name} is now marked as found. Lost Mode is off.`);
-    } catch (caught) {
-      setHasError(true);
-      setMessage(getFriendlyApiErrorMessage(caught));
-    } finally {
-      setIsSaving(false);
-    }
+    void changeLostMode(false);
   }
 
   function openLostModeEditor() {

@@ -37,3 +37,16 @@ it("hides the allergy safety section when none are saved", async () => {
   await screen.findByText("MyPetLink safety page");
   expect(screen.queryByText("Known allergies")).toBeNull();
 });
+
+it("adds and removes the urgent finder state from the saved Lost Mode value", async () => {
+  const lostPet = { ...mockPets[0], lostModeEnabled: true };
+  const { unmount } = render(<QrSafetyPageView pet={lostPet} />);
+
+  expect(await screen.findByText(`${lostPet.name} is currently missing`)).toBeTruthy();
+  expect(screen.getByText("Lost Mode Active")).toBeTruthy();
+  unmount();
+
+  render(<QrSafetyPageView pet={{ ...lostPet, lostModeEnabled: false }} />);
+  expect(await screen.findByText(`Found ${lostPet.name}?`)).toBeTruthy();
+  expect(screen.queryByText("Lost Mode Active")).toBeNull();
+});

@@ -13,6 +13,7 @@ import type {
 import {
   buildBackendPetPayload,
   getPublicPetProfileByPublicCode,
+  getPublicPetProfileBySafetyCode,
   mapBackendPublicProfile,
   mapBackendSafetyPage,
 } from "@/services/petService";
@@ -103,6 +104,26 @@ describe("pet profile theme API mapping", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await getPublicPetProfileByPublicCode("public-code");
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ cache: "no-store" });
+  });
+
+  it("bypasses browser caches when refreshing the QR Safety Page", async () => {
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "https://api.mypetlink.test");
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        void input;
+        void init;
+        return new Response(JSON.stringify({ data: safetyProfile("mint") }), {
+          headers: { "Content-Type": "application/json" },
+          status: 200,
+        });
+      }
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getPublicPetProfileBySafetyCode("safety-code");
 
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(fetchMock.mock.calls[0][1]).toMatchObject({ cache: "no-store" });

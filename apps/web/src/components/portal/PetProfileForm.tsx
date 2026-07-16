@@ -306,6 +306,21 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
   );
   const [tab, setTab] = useState<EditTab>("basic");
   const [bioSheetOpen, setBioSheetOpen] = useState(false);
+  const contactLostModeRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (mode !== "edit" || tab !== "contact") {
+      return undefined;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      if (window.innerWidth < 1024) {
+        contactLostModeRef.current?.scrollIntoView({ block: "start" });
+      }
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [mode, tab]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -1563,11 +1578,13 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
         >
           <div className="grid min-w-0 gap-4">
             {mode === "edit" && currentPet ? (
-              <LostModeControl
-                onPetChange={setCurrentPet}
-                pet={currentPet}
-                variant="compact"
-              />
+              <div className="scroll-mt-24" ref={contactLostModeRef}>
+                <LostModeControl
+                  onPetChange={setCurrentPet}
+                  pet={currentPet}
+                  variant="compact"
+                />
+              </div>
             ) : null}
 
             <div className="rounded-[1.5rem] border border-pet-border bg-white p-5">

@@ -727,7 +727,7 @@ export async function getFinderState(tagCode: string): Promise<FinderResult> {
   if (canUseApi()) {
     const response = await apiRequest<BackendTagScanPage>(
       `/api/v1/public/tags/${encodeURIComponent(tagCode)}`,
-      { auth: false }
+      { auth: false, cache: "no-store" }
     );
     const data = response.data;
 

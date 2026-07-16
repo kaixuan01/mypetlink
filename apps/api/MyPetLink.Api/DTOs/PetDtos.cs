@@ -243,8 +243,12 @@ public sealed record MarkPetMemorialRequest(
 
 public sealed record UpdateLostModeRequest(
     bool Enabled,
+    [MaxLength(200)]
     string? LastSeenArea,
     DateTimeOffset? LastSeenDateTime,
+    [MaxLength(260)]
     string? LostMessage,
+    [MaxLength(120)]
     string? RewardNote,
+    [MaxLength(160)]
     string? ExtraContactInstruction);

@@ -97,6 +97,12 @@ public interface IPetService : ISkeletonService
         Guid? currentUserId,
         Guid petId,
         CancellationToken cancellationToken = default);
+
+    Task<PetDetailResponse> UpdateLostModeAsync(
+        Guid? currentUserId,
+        Guid petId,
+        UpdateLostModeRequest request,
+        CancellationToken cancellationToken = default);
 }
 
 public interface IPublicProfileService : ISkeletonService

@@ -111,8 +111,17 @@ public sealed class PetsController : ApiControllerBase
     }
 
     [HttpPost("{petId:guid}/lost-mode")]
-    public Task<IActionResult> LostMode(Guid petId, [FromBody] UpdateLostModeRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> LostMode(
+        Guid petId,
+        [FromBody] UpdateLostModeRequest request,
+        CancellationToken cancellationToken)
     {
-        return PlaceholderAsync(_petService, "POST /api/v1/pets/{petId}/lost-mode", cancellationToken);
+        var response = await _petService.UpdateLostModeAsync(
+            _currentUserService.Current.UserId,
+            petId,
+            request,
+            cancellationToken);
+
+        return Ok(ApiEnvelope.Ok(response, HttpContext));
     }
 }

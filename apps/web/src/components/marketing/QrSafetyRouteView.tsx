@@ -34,8 +34,14 @@ export function QrSafetyRouteView({
 
   useEffect(() => {
     let active = true;
+    let loadInFlight = false;
 
     async function loadSafetyPage() {
+      if (loadInFlight) {
+        return;
+      }
+
+      loadInFlight = true;
       setLoadError("");
 
       try {
@@ -51,13 +57,25 @@ export function QrSafetyRouteView({
           setLoadError(getSafetyPageErrorMessage(caught));
           setLoaded(true);
         }
+      } finally {
+        loadInFlight = false;
       }
     }
 
+    const refreshVisibleSafetyPage = () => {
+      if (document.visibilityState === "visible") {
+        void loadSafetyPage();
+      }
+    };
+
     void loadSafetyPage();
+    window.addEventListener("focus", refreshVisibleSafetyPage);
+    document.addEventListener("visibilitychange", refreshVisibleSafetyPage);
 
     return () => {
       active = false;
+      window.removeEventListener("focus", refreshVisibleSafetyPage);
+      document.removeEventListener("visibilitychange", refreshVisibleSafetyPage);
     };
   }, [safetyCode]);
 

@@ -176,6 +176,11 @@ export type BackendPublicPetProfile = {
   profileTheme: string;
   lifecycleStatus: PetLifecycleStatus;
   lostModeEnabled: boolean;
+  lostLastSeenArea?: string | null;
+  lostLastSeenDateTime?: string | null;
+  lostMessage?: string | null;
+  lostRewardNote?: string | null;
+  lostExtraContactInstruction?: string | null;
   ownerDisplayName?: string | null;
   generalArea?: string | null;
   bio?: string | null;
