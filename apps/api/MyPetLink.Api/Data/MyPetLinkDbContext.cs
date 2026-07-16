@@ -250,6 +250,7 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.ToTable("PetPublicProfiles");
             entity.Property(item => item.PublicCode).HasMaxLength(80);
             entity.Property(item => item.SlugSnapshot).HasMaxLength(160);
+            entity.Property(item => item.ShowAllergiesOnPublicProfile).HasDefaultValue(false);
             entity.HasIndex(item => item.PublicCode).IsUnique();
             entity.HasIndex(item => item.PetId).IsUnique();
             entity.HasIndex(item => new { item.IsPublicProfileEnabled, item.UpdatedAt });

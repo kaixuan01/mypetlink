@@ -86,11 +86,11 @@ public sealed class PetAllergyFieldsTests
     }
 
     [Fact]
-    public async Task PublicProfile_UsesHealthVisibilityWhileQrSafetyAlwaysReturnsAllergies()
+    public async Task PublicProfile_UsesExplicitAllergyVisibilityWhileQrSafetyAlwaysReturnsAllergies()
     {
         using var hiddenHarness = await PetHarness.CreateAsync(
             """["Chicken","Penicillin"]""",
-            showHealthSummary: false);
+            showAllergiesOnPublicProfile: false);
         var publicService = new PublicProfileService(
             hiddenHarness.Db,
             Options.Create(new CloudflareR2Options()));
@@ -102,14 +102,51 @@ public sealed class PetAllergyFieldsTests
         var safety = await safetyService.GetBySafetyCodeAsync("safe-topu");
 
         Assert.Empty(hiddenPublic.Allergies);
+        Assert.Equal("safe-topu", hiddenPublic.SafetyCode);
         Assert.Equal(["Chicken", "Penicillin"], safety.Allergies);
 
         var profile = await hiddenHarness.Db.PetPublicProfiles.SingleAsync();
-        profile.ShowHealthSummary = true;
+        profile.ShowAllergiesOnPublicProfile = true;
         await hiddenHarness.Db.SaveChangesAsync();
 
         var visiblePublic = await publicService.GetByPublicSlugAsync("topu-pub123");
         Assert.Equal(["Chicken", "Penicillin"], visiblePublic.Allergies);
+
+        var safetySetting = await hiddenHarness.Db.PetSafetySettings.SingleAsync();
+        safetySetting.QrSafetyEnabled = false;
+        await hiddenHarness.Db.SaveChangesAsync();
+
+        var withoutSafetyPage = await publicService.GetByPublicSlugAsync("topu-pub123");
+        Assert.Null(withoutSafetyPage.SafetyCode);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_PersistsAndReloadsPublicAllergyVisibility()
+    {
+        using var harness = await PetHarness.CreateAsync("""["Chicken"]""");
+        var visibility = new PetVisibilityRequest(
+            ShowOwnerName: false,
+            ShowGeneralArea: true,
+            ShowPhone: false,
+            ShowWhatsapp: true,
+            ShowEmergencyNote: true,
+            ShowCareBadges: true,
+            ShowMoments: true,
+            ShowTimeline: true,
+            ShowBirthdayOnTimeline: false,
+            ShowAdoptionDayOnTimeline: false,
+            ShowHealthSummary: false,
+            ShowAllergiesOnPublicProfile: true);
+
+        var updated = await harness.Service.UpdateAsync(
+            OwnerId,
+            PetId,
+            UpdateRequest(null, visibility));
+        var reloaded = await harness.Service.GetAsync(OwnerId, PetId);
+
+        Assert.True(updated.Visibility.ShowAllergiesOnPublicProfile);
+        Assert.True(reloaded.Visibility.ShowAllergiesOnPublicProfile);
+        Assert.True((await harness.Db.PetPublicProfiles.SingleAsync()).ShowAllergiesOnPublicProfile);
     }
 
     private static CreatePetRequest CreateRequest(IReadOnlyList<string>? allergies)
@@ -136,7 +173,9 @@ public sealed class PetAllergyFieldsTests
             Allergies: allergies);
     }
 
-    private static UpdatePetRequest UpdateRequest(IReadOnlyList<string>? allergies)
+    private static UpdatePetRequest UpdateRequest(
+        IReadOnlyList<string>? allergies,
+        PetVisibilityRequest? visibility = null)
     {
         return new UpdatePetRequest(
             Name: null,
@@ -154,7 +193,7 @@ public sealed class PetAllergyFieldsTests
             PersonalityTags: null,
             ProfileTheme: null,
             Contact: null,
-            Visibility: null,
+            Visibility: visibility,
             SafetyNote: null,
             EmergencyNote: null,
             Allergies: allergies);
@@ -173,7 +212,7 @@ public sealed class PetAllergyFieldsTests
 
         public static async Task<PetHarness> CreateAsync(
             string allergiesJson = "[]",
-            bool showHealthSummary = false)
+            bool showAllergiesOnPublicProfile = false)
         {
             var options = new DbContextOptionsBuilder<MyPetLinkDbContext>()
                 .UseInMemoryDatabase(Guid.NewGuid().ToString("N"))
@@ -223,7 +262,8 @@ public sealed class PetAllergyFieldsTests
                     PublicCode = "pub123",
                     SlugSnapshot = "topu-pub123",
                     IsPublicProfileEnabled = true,
-                    ShowHealthSummary = showHealthSummary
+                    ShowHealthSummary = false,
+                    ShowAllergiesOnPublicProfile = showAllergiesOnPublicProfile
                 },
                 SafetySetting = new PetSafetySetting
                 {

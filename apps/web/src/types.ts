@@ -132,6 +132,7 @@ export type Pet = {
     showBirthdayOnTimeline: boolean;
     showAdoptionDayOnTimeline: boolean;
     showHealthSummary: boolean;
+    showAllergiesOnPublicProfile: boolean;
   };
   allergies: string[];
   medications: string[];

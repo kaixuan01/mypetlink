@@ -33,6 +33,7 @@ export function SegmentedTabs({
 }: SegmentedTabsProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const tabListRef = useRef<HTMLDivElement | null>(null);
+  const measureRowRef = useRef<HTMLDivElement | null>(null);
   const measureRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const moreMeasureRef = useRef<HTMLButtonElement | null>(null);
   const menuId = useId();
@@ -105,6 +106,15 @@ export function SegmentedTabs({
 
     if (tabListRef.current) {
       observer?.observe(tabListRef.current);
+    }
+
+    // The measurement row is content-sized, so it resizes when tab label
+    // widths settle late (web font load, stylesheet apply, breakpoint label
+    // swap) even though the tab list container keeps the same width. Without
+    // this, a measurement taken before fonts load can leave overflowing tabs
+    // clipped instead of collapsed into More.
+    if (measureRowRef.current) {
+      observer?.observe(measureRowRef.current);
     }
 
     window.addEventListener("resize", computeVisibleTabs);
@@ -226,6 +236,7 @@ export function SegmentedTabs({
         <div
           aria-hidden="true"
           className="pointer-events-none absolute left-0 top-0 -z-10 flex min-w-0 flex-nowrap gap-1 rounded-full border border-transparent p-1 opacity-0"
+          ref={measureRowRef}
         >
           {tabs.map((tab) => (
             <button

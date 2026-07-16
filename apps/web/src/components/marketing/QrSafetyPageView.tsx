@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { LostModeFinderDetails } from "@/components/marketing/LostModeFinderDetails";
+import { SafetyAllergies } from "@/components/marketing/SafetyAllergies";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon } from "@/components/ui/Icon";
 import { PetPhotoViewer } from "@/components/ui/PetPhotoViewer";
@@ -48,7 +50,7 @@ export function QrSafetyPageView({ pet }: QrSafetyPageViewProps) {
   const phoneE164 = normalizeStoredPhone(effectiveContact.phoneNumber);
   const safetySummary = [
     getPetTypeLabel(pet),
-    pet.breed && pet.breed !== "Not set" ? pet.breed : pet.color,
+    [pet.breed, pet.color].find((value) => value && value !== "Not set"),
     getPetAgeLabel(pet),
   ]
     .filter(Boolean)
@@ -205,47 +207,14 @@ export function QrSafetyPageView({ pet }: QrSafetyPageViewProps) {
             {lostMode.lostMessage ||
               `If you have found ${pet.name}, please contact the owner immediately.`}
           </p>
-          <div className="mt-3 grid gap-2 text-xs font-bold text-pet-muted sm:grid-cols-2">
-            {lostMode.lastSeenArea ? (
-              <span className="rounded-[1rem] bg-white px-4 py-3">
-                Last seen: {lostMode.lastSeenArea}
-              </span>
-            ) : null}
-            {lostMode.lastSeenDateTime ? (
-              <span className="rounded-[1rem] bg-white px-4 py-3">
-                Time: {lostMode.lastSeenDateTime}
-              </span>
-            ) : null}
-            {lostMode.rewardNote ? (
-              <span className="rounded-[1rem] bg-white px-4 py-3 sm:col-span-2">
-                {lostMode.rewardNote}
-              </span>
-            ) : null}
-            {lostMode.extraContactInstruction ? (
-              <span className="rounded-[1rem] bg-white px-4 py-3 sm:col-span-2">
-                {lostMode.extraContactInstruction}
-              </span>
-            ) : null}
-          </div>
+          <LostModeFinderDetails className="mt-3" lostMode={lostMode} />
         </section>
       ) : null}
 
       {pet.allergies.length ? (
-        <section
-          aria-labelledby="known-allergies-heading"
-          className="mt-5 rounded-[1.5rem] border-2 border-[#e98a78] bg-[#fff1ee] p-4"
-        >
-          <div
-            className="flex items-center gap-2 text-sm font-black text-[#8f2f24]"
-            id="known-allergies-heading"
-          >
-            <Icon name="shield" className="h-4 w-4 shrink-0" />
-            Known allergies
-          </div>
-          <p className="mt-2 break-words text-base font-black leading-7 text-pet-ink">
-            {pet.allergies.join(" · ")}
-          </p>
-        </section>
+        <div className="mt-5">
+          <SafetyAllergies allergies={pet.allergies} />
+        </div>
       ) : null}
 
       <div className="mt-5 grid gap-3">
@@ -374,6 +343,7 @@ function mergeVisibility(
     showBirthdayOnTimeline: true,
     showAdoptionDayOnTimeline: true,
     showHealthSummary: false,
+    showAllergiesOnPublicProfile: false,
     ...visibility,
   };
 }

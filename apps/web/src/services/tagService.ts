@@ -28,6 +28,7 @@ import {
   getPets,
   mapBackendSafetyPage,
   toPublicProfile,
+  toQrSafetyProfile,
 } from "@/services/petService";
 import type {
   BackendCreateTagOrderResult,
@@ -844,7 +845,7 @@ export async function getFinderState(tagCode: string): Promise<FinderResult> {
   return {
     state: "active",
     tagCode: tag.tagCode,
-    profile: toPublicProfile(pet),
+    profile: toQrSafetyProfile(pet),
   };
 }
 

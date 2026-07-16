@@ -82,6 +82,7 @@ public sealed class PetPublicProfile : AuditableEntity
     public bool ShowBirthdayOnTimeline { get; set; }
     public bool ShowAdoptionDayOnTimeline { get; set; }
     public bool ShowHealthSummary { get; set; }
+    public bool ShowAllergiesOnPublicProfile { get; set; }
     public bool IsPublicProfileEnabled { get; set; } = true;
 
     public Pet Pet { get; set; } = null!;

@@ -11,6 +11,8 @@ import {
   PrivateMemorialOwnerAction,
   PublicProfileOwnerControls,
 } from "@/components/marketing/PublicProfileOwnerControls";
+import { LostModeFinderDetails } from "@/components/marketing/LostModeFinderDetails";
+import { SafetyAllergies } from "@/components/marketing/SafetyAllergies";
 import { MomentMediaCarousel } from "@/components/moments/MomentMediaCarousel";
 import { PetMomentCard } from "@/components/portal/PetMomentCard";
 import { CTAButton } from "@/components/ui/CTAButton";
@@ -41,6 +43,7 @@ import {
 import { isActivePet, isArchivedPet, isMemorialPet } from "@/lib/petLifecycle";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { getPublicProfileMoments } from "@/lib/momentMedia";
+import { getQrSafetyPath } from "@/lib/routes";
 import {
   getCallLink,
   getWhatsAppLink,
@@ -83,6 +86,7 @@ const fallbackVisibility: Pet["visibility"] = {
   showBirthdayOnTimeline: true,
   showAdoptionDayOnTimeline: true,
   showHealthSummary: false,
+  showAllergiesOnPublicProfile: false,
 };
 
 // The shareable public profile (/p/{slug}-{publicCode}). This is the friendly,
@@ -112,9 +116,6 @@ export function PublicSharePetProfile({
     !apiMode &&
       isActivePet(initialProfile) &&
       (initialLostMode || initialProfile.lostModeEnabled)
-  );
-  const [safetyPagePath, setSafetyPagePath] = useState(
-    apiMode ? "" : initialProfile.qrSafetyPath
   );
   const [ownerSettings, setOwnerSettings] =
     useState<OwnerSettings>(defaultOwnerSettings);
@@ -160,7 +161,6 @@ export function PublicSharePetProfile({
 
         const nextProfile = profileResponse.data;
         setProfile(nextProfile);
-        setSafetyPagePath(nextProfile.qrSafetyPath);
         setLostMode(isActivePet(nextProfile) && nextProfile.lostModeEnabled);
 
         if (apiMode) {
@@ -264,6 +264,10 @@ export function PublicSharePetProfile({
   const canCall = visibility.showPhone && Boolean(phoneE164);
   const canContact = isActiveProfile && (canWhatsapp || canCall);
   const lostModeDetails = profile.lostMode;
+  const safetyPagePath =
+    profile.qrSafetyEnabled && profile.safetyCode
+      ? getQrSafetyPath(profile)
+      : "";
   const coverPhotoUrl = resolveMediaUrl(profile.coverUrl);
 
   const publicMoments = getPublicProfileMoments(
@@ -456,28 +460,10 @@ export function PublicSharePetProfile({
               {lostModeDetails.lostMessage ||
                 `If you have seen ${profile.name}, please contact the owner.`}
             </p>
-            <div className="mt-4 grid gap-2 text-left text-xs font-bold text-pet-muted sm:grid-cols-2">
-              {lostModeDetails.lastSeenArea ? (
-                <span className="rounded-[1rem] bg-white px-4 py-3">
-                  Last seen: {lostModeDetails.lastSeenArea}
-                </span>
-              ) : null}
-              {lostModeDetails.lastSeenDateTime ? (
-                <span className="rounded-[1rem] bg-white px-4 py-3">
-                  Time: {lostModeDetails.lastSeenDateTime}
-                </span>
-              ) : null}
-              {lostModeDetails.rewardNote ? (
-                <span className="rounded-[1rem] bg-white px-4 py-3 sm:col-span-2">
-                  {lostModeDetails.rewardNote}
-                </span>
-              ) : null}
-              {lostModeDetails.extraContactInstruction ? (
-                <span className="rounded-[1rem] bg-white px-4 py-3 sm:col-span-2">
-                  {lostModeDetails.extraContactInstruction}
-                </span>
-              ) : null}
-            </div>
+            <LostModeFinderDetails
+              className="mt-4"
+              lostMode={lostModeDetails}
+            />
             <div className="mt-4 grid gap-3">
               {canWhatsapp ? (
                 <CTAButton
@@ -502,17 +488,19 @@ export function PublicSharePetProfile({
                   I found this pet - Call Owner
                 </CTAButton>
               ) : null}
-              <CTAButton
-                href={safetyPagePath}
-                icon="qr"
-                target="_blank"
-                rel="noopener noreferrer"
-                variant="outline"
-                fullWidth
-                className="min-h-12 bg-white"
-              >
-                Open QR Safety Page
-              </CTAButton>
+              {safetyPagePath ? (
+                <CTAButton
+                  href={safetyPagePath}
+                  icon="qr"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  variant="outline"
+                  fullWidth
+                  className="min-h-12 bg-white"
+                >
+                  Open QR Safety Page
+                </CTAButton>
+              ) : null}
             </div>
           </section>
         ) : null}
@@ -751,9 +739,6 @@ function AboutTab({
     // below hides them entirely when the owner saved none.
     { label: "Favourite foods", value: profile.favoriteFoods.join(" · ") },
     { label: "Favourite toys", value: profile.favoriteToys.join(" · ") },
-    ...(profile.allergies.length
-      ? [{ label: "Known allergies", value: profile.allergies.join(" · ") }]
-      : []),
   ].filter((detail) => detail.value && detail.value !== "Not set");
 
   return (
@@ -771,6 +756,11 @@ function AboutTab({
         >
           About {profile.name}
         </h2>
+        {profile.allergies.length ? (
+          <div className="mt-4">
+            <SafetyAllergies allergies={profile.allergies} variant="public" />
+          </div>
+        ) : null}
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           {details.map((detail) => (
             <div

@@ -17,6 +17,7 @@ export type OwnerPrivacyDefaults = Pick<
   | "showBirthdayOnTimeline"
   | "showAdoptionDayOnTimeline"
   | "showHealthSummary"
+  | "showAllergiesOnPublicProfile"
 >;
 
 export type OwnerNotificationPreferences = {
@@ -72,6 +73,7 @@ export const defaultOwnerSettings: OwnerSettings = {
     showBirthdayOnTimeline: true,
     showAdoptionDayOnTimeline: true,
     showHealthSummary: false,
+    showAllergiesOnPublicProfile: false,
   },
   notificationPreferences: {
     whatsappReminders: true,

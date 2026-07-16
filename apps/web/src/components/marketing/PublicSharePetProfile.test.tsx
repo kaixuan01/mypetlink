@@ -9,6 +9,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { mockPets } from "@/data/mockPets";
+import { getQrSafetyPath } from "@/lib/routes";
 
 const publicProfileMocks = vi.hoisted(() => ({
   profile: null as (typeof mockPets)[number] | null,
@@ -176,8 +177,20 @@ it("hides favourite sections entirely when no values are saved", async () => {
   expect(screen.queryByText("Favourite toys")).toBeNull();
 });
 
-it("adds and removes the missing-pet notice from the saved Lost Mode value", async () => {
-  const lostProfile = { ...mockPets[0], lostModeEnabled: true };
+it("adds and removes labeled finder details from the saved Lost Mode value", async () => {
+  const rawTimestamp = "2026-07-16T07:42:00+00:00";
+  const lostProfile = {
+    ...mockPets[0],
+    lostModeEnabled: true,
+    lostMode: {
+      ...mockPets[0].lostMode,
+      lastSeenArea: "Ampang, Kuala Lumpur",
+      lastSeenDateTime: rawTimestamp,
+      lostMessage: "Please help Milo get home safely.",
+      rewardNote: "RM50 reward offered",
+      extraContactInstruction: "Please call me directly",
+    },
+  };
   publicProfileMocks.profile = lostProfile;
   const { unmount } = render(
     <PublicSharePetProfile
@@ -190,6 +203,21 @@ it("adds and removes the missing-pet notice from the saved Lost Mode value", asy
   expect(
     await screen.findByText(`${lostProfile.name} is currently missing`)
   ).toBeTruthy();
+  expect(screen.getByText("Please help Milo get home safely.")).toBeTruthy();
+  expect(screen.getByText("Last seen area")).toBeTruthy();
+  expect(screen.getByText("Ampang, Kuala Lumpur")).toBeTruthy();
+  expect(screen.getByText("Last seen")).toBeTruthy();
+  expect(screen.getByText("16 Jul 2026, 3:42 PM")).toBeTruthy();
+  expect(screen.getByText("Reward")).toBeTruthy();
+  expect(screen.getByText("RM50 reward offered")).toBeTruthy();
+  expect(screen.getByText("Contact instructions")).toBeTruthy();
+  expect(screen.getByText("Please call me directly")).toBeTruthy();
+  expect(document.body.textContent).not.toContain(rawTimestamp);
+  const safetyLink = screen.getByRole("link", {
+    name: "Open QR Safety Page",
+  });
+  expect(safetyLink.getAttribute("href")).toBe(getQrSafetyPath(lostProfile));
+  expect(safetyLink.getAttribute("href")).not.toContain(lostProfile.slug);
   unmount();
 
   const foundProfile = { ...lostProfile, lostModeEnabled: false };
@@ -208,13 +236,42 @@ it("adds and removes the missing-pet notice from the saved Lost Mode value", asy
   ).toBeNull();
 });
 
-it("shows allergies only when public health details are enabled", async () => {
+it("does not render a broken QR action when no safety identifier is available", async () => {
+  const profile = {
+    ...mockPets[0],
+    lostModeEnabled: true,
+    safetyCode: "",
+    qrSafetyEnabled: false,
+    qrSafetyPath: "",
+  };
+  publicProfileMocks.profile = profile;
+
+  render(
+    <PublicSharePetProfile
+      initialMoments={[]}
+      initialProfile={profile}
+      initialRecords={[]}
+    />
+  );
+
+  expect(
+    await screen.findByText(`${profile.name} is currently missing`)
+  ).toBeTruthy();
+  expect(
+    screen.queryByRole("link", { name: "Open QR Safety Page" })
+  ).toBeNull();
+});
+
+it("shows allergies only when explicit Public Profile visibility is enabled", async () => {
   const hiddenProfile = {
     ...mockPets[0],
-    // The public projection removes health data when the owner has not enabled
-    // public health details.
+    // The public projection removes allergies when the owner has not enabled
+    // the dedicated Public Profile visibility setting.
     allergies: [],
-    visibility: { ...mockPets[0].visibility, showHealthSummary: false },
+    visibility: {
+      ...mockPets[0].visibility,
+      showAllergiesOnPublicProfile: false,
+    },
   };
   publicProfileMocks.profile = hiddenProfile;
   const { unmount } = render(
@@ -232,7 +289,10 @@ it("shows allergies only when public health details are enabled", async () => {
   const visibleProfile = {
     ...hiddenProfile,
     allergies: ["Chicken", "Penicillin"],
-    visibility: { ...hiddenProfile.visibility, showHealthSummary: true },
+    visibility: {
+      ...hiddenProfile.visibility,
+      showAllergiesOnPublicProfile: true,
+    },
   };
   publicProfileMocks.profile = visibleProfile;
   render(
@@ -244,5 +304,7 @@ it("shows allergies only when public health details are enabled", async () => {
   );
 
   expect(await screen.findByText("Known allergies")).toBeTruthy();
-  expect(screen.getByText("Chicken · Penicillin")).toBeTruthy();
+  expect(screen.getByText("Chicken")).toBeTruthy();
+  expect(screen.getByText("Penicillin")).toBeTruthy();
+  expect(document.body.textContent).not.toContain('["Chicken"');
 });

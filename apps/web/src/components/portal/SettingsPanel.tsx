@@ -69,6 +69,10 @@ const privacyDefaults: { key: PrivacyKey; label: string }[] = [
     key: "showHealthSummary",
     label: "Allow public care record details",
   },
+  {
+    key: "showAllergiesOnPublicProfile",
+    label: "Show allergies on Public Profiles",
+  },
 ];
 
 const notificationOptions: { key: NotificationKey; label: string }[] = [

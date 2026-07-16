@@ -45,6 +45,8 @@ public sealed class PublicProfileService : SkeletonService, IPublicProfileServic
                 .ThenInclude(pet => pet.Memories)
             .Include(item => item.Pet)
                 .ThenInclude(pet => pet.CareRecords)
+            .Include(item => item.Pet)
+                .ThenInclude(pet => pet.SafetySetting)
             .SingleOrDefaultAsync(item => item.PublicCode == publicCode, cancellationToken);
 
         if (profile is null
@@ -123,6 +125,10 @@ public sealed class PublicProfileService : SkeletonService, IPublicProfileServic
             profile.PublicCode,
             PetDtoMapper.ResolvePublicSlug(pet),
             publicProfileVersion,
+            pet.LifecycleStatus == PetLifecycleStatus.Active
+                && pet.SafetySetting?.QrSafetyEnabled == true
+                ? pet.SafetySetting.SafetyCode
+                : null,
             pet.Name,
             pet.Species,
             pet.CustomSpecies,
@@ -161,7 +167,7 @@ public sealed class PublicProfileService : SkeletonService, IPublicProfileServic
             PetDtoMapper.ParsePersonalityTags(pet.PersonalityTagsJson),
             PetDtoMapper.ParseFavoriteList(pet.FavoriteFoodsJson),
             PetDtoMapper.ParseFavoriteList(pet.FavoriteToysJson),
-            profile.ShowHealthSummary
+            profile.ShowAllergiesOnPublicProfile
                 ? PetDtoMapper.ParseAllergies(pet.AllergiesJson)
                 : Array.Empty<string>(),
             pet.LifecycleStatus == PetLifecycleStatus.Memorial ? pet.MemorialMessage : null,

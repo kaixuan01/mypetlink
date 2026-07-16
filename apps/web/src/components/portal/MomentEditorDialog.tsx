@@ -11,6 +11,7 @@ import {
 import { MomentMediaField } from "@/components/portal/MomentMediaField";
 import { DateInput } from "@/components/ui/DateInput";
 import { Icon } from "@/components/ui/Icon";
+import { useModalDialogFocus } from "@/lib/useModalDialogFocus";
 import type {
   MomentMedia,
   MomentType,
@@ -97,61 +98,17 @@ export function MomentEditorDialog({
   const [errors, setErrors] = useState<FormErrors>({});
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const closeRef = useRef<HTMLButtonElement | null>(null);
-  const requestCloseRef = useRef(onRequestClose);
   const dirty = valuesFingerprint(form) !== valuesFingerprint(initialValues);
 
-  useEffect(() => {
-    requestCloseRef.current = onRequestClose;
-  }, [onRequestClose]);
+  useModalDialogFocus({
+    dialogRef,
+    initialFocusRef: closeRef,
+    onEscape: onRequestClose,
+  });
 
   useEffect(() => {
     onDirtyChange?.(dirty);
   }, [dirty, onDirtyChange]);
-
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    const previousActive = document.activeElement as HTMLElement | null;
-    document.body.style.overflow = "hidden";
-    closeRef.current?.focus();
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        requestCloseRef.current();
-        return;
-      }
-
-      if (event.key !== "Tab") {
-        return;
-      }
-
-      const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
-      );
-
-      if (!focusable?.length) {
-        return;
-      }
-
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    }
-
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      document.removeEventListener("keydown", handleKeyDown);
-      previousActive?.focus?.();
-    };
-  }, []);
 
   useEffect(() => {
     if (!dirty) {

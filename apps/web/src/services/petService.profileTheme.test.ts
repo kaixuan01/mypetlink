@@ -109,6 +109,31 @@ describe("pet profile theme API mapping", () => {
     expect(fetchMock.mock.calls[0][1]).toMatchObject({ cache: "no-store" });
   });
 
+  it("maps the public profile safety identifier to the canonical QR route", () => {
+    const mapped = mapBackendPublicProfile({
+      ...publicProfile("mint"),
+      safetyCode: "safety-qr-123",
+    });
+
+    expect(mapped.safetyCode).toBe("safety-qr-123");
+    expect(mapped.qrSafetyPath).toBe("/q/safety-qr-123");
+    expect(mapped.qrSafetyPath).not.toContain(mapped.slug);
+
+    const withoutSafetyPage = mapBackendPublicProfile(publicProfile("mint"));
+    expect(withoutSafetyPage.qrSafetyEnabled).toBe(false);
+    expect(withoutSafetyPage.qrSafetyPath).toBe("");
+  });
+
+  it("keeps QR allergies independent from regular Public Profile visibility", () => {
+    const mapped = mapBackendSafetyPage({
+      ...safetyProfile("mint"),
+      allergies: ["Chicken", "Penicillin"],
+    });
+
+    expect(mapped.visibility.showAllergiesOnPublicProfile).toBe(false);
+    expect(mapped.allergies).toEqual(["Chicken", "Penicillin"]);
+  });
+
   it("bypasses browser caches when refreshing the QR Safety Page", async () => {
     vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "https://api.mypetlink.test");
     const fetchMock = vi.fn(

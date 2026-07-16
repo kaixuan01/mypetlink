@@ -1,10 +1,12 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { DateInput } from "@/components/ui/DateInput";
 import { Icon } from "@/components/ui/Icon";
+import { formatFinderDateTime } from "@/lib/dateTime";
+import { useModalDialogFocus } from "@/lib/useModalDialogFocus";
 import {
   getFriendlyApiErrorMessage,
   updatePetLostMode,
@@ -28,6 +30,7 @@ export function LostModeControl({
   const [message, setMessage] = useState("");
   const [hasError, setHasError] = useState(false);
   const savingRef = useRef(false);
+  const editorTitleId = useId();
   const [draft, setDraft] = useState<PetLostMode>(() =>
     getLostModeDraft(pet)
   );
@@ -111,7 +114,10 @@ export function LostModeControl({
               />
               <MiniInfo
                 label="Last seen date/time"
-                value={pet.lostMode.lastSeenDateTime || "Not set"}
+                value={
+                  formatFinderDateTime(pet.lostMode.lastSeenDateTime) ||
+                  "Not set"
+                }
               />
               {pet.lostMode.rewardNote ? (
                 <div className="sm:col-span-2">
@@ -221,13 +227,15 @@ export function LostModeControl({
       )}
 
       {isEditing ? (
-        <div
-          aria-modal="true"
-          className="fixed inset-0 z-50 grid place-items-end bg-pet-ink/35 p-0 backdrop-blur-sm sm:place-items-center sm:p-4"
-          role="dialog"
+        <LostModeEditorShell
+          labelledBy={editorTitleId}
+          onEscape={() => {
+            if (!savingRef.current) {
+              setIsEditing(false);
+            }
+          }}
         >
-          <div className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-t-[2rem] bg-white p-5 shadow-2xl sm:rounded-[2rem] sm:p-6">
-            <h2 className="text-2xl font-black text-pet-ink">
+            <h2 className="text-2xl font-black text-pet-ink" id={editorTitleId}>
               {pet.lostModeEnabled
                 ? "Edit Lost Mode"
                 : `Mark ${pet.name} as lost?`}
@@ -277,7 +285,10 @@ export function LostModeControl({
                   value={draft.lostMessage}
                 />
               </LostModeField>
-              <LostModeField label="Reward note optional">
+              <LostModeField
+                helper="For example: RM50 reward offered."
+                label="Reward note (optional)"
+              >
                 <input
                   className="brand-input"
                   maxLength={120}
@@ -287,12 +298,14 @@ export function LostModeControl({
                       rewardNote: event.target.value,
                     }))
                   }
-                  placeholder="Reward offered for safe return"
                   type="text"
                   value={draft.rewardNote}
                 />
               </LostModeField>
-              <LostModeField label="Extra contact instruction optional">
+              <LostModeField
+                helper="For example: Please call instead of messaging."
+                label="Contact instructions (optional)"
+              >
                 <input
                   className="brand-input"
                   maxLength={160}
@@ -302,7 +315,6 @@ export function LostModeControl({
                       extraContactInstruction: event.target.value,
                     }))
                   }
-                  placeholder="Please WhatsApp first if possible"
                   type="text"
                   value={draft.extraContactInstruction}
                 />
@@ -340,8 +352,7 @@ export function LostModeControl({
                     : "Activate Lost Mode"}
               </button>
             </div>
-          </div>
-        </div>
+        </LostModeEditorShell>
       ) : null}
 
       <ConfirmDialog
@@ -353,6 +364,38 @@ export function LostModeControl({
         title={`Mark ${pet.name} as found?`}
       />
     </>
+  );
+}
+
+// Mounted only while the editor is open so the shared modal focus behavior
+// (initial focus, Tab trap, Escape, focus restore) applies per opening.
+function LostModeEditorShell({
+  children,
+  labelledBy,
+  onEscape,
+}: {
+  children: React.ReactNode;
+  labelledBy: string;
+  onEscape: () => void;
+}) {
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+
+  useModalDialogFocus({ dialogRef, onEscape });
+
+  return (
+    <div
+      aria-labelledby={labelledBy}
+      aria-modal="true"
+      className="fixed inset-0 z-50 grid place-items-end bg-pet-ink/35 p-0 backdrop-blur-sm sm:place-items-center sm:p-4"
+      role="dialog"
+    >
+      <div
+        className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-t-[2rem] bg-white p-5 shadow-2xl sm:rounded-[2rem] sm:p-6"
+        ref={dialogRef}
+      >
+        {children}
+      </div>
+    </div>
   );
 }
 
@@ -369,14 +412,21 @@ function MiniInfo({ label, value }: { label: string; value: string }) {
 
 function LostModeField({
   children,
+  helper,
   label,
 }: {
   children: React.ReactNode;
+  helper?: string;
   label: string;
 }) {
   return (
     <label className="grid gap-2">
       <span className="text-sm font-black text-pet-ink">{label}</span>
+      {helper ? (
+        <span className="text-xs font-semibold leading-5 text-pet-muted">
+          {helper}
+        </span>
+      ) : null}
       {children}
     </label>
   );

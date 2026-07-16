@@ -77,6 +77,7 @@ const defaultVisibility: Pet["visibility"] = {
   showBirthdayOnTimeline: true,
   showAdoptionDayOnTimeline: true,
   showHealthSummary: false,
+  showAllergiesOnPublicProfile: false,
 };
 
 type BackendListEnvelope<T> = {
@@ -608,6 +609,8 @@ export function mapBackendPublicProfile(
   const estimatedBirthYear = profile.estimatedBirthYear ?? undefined;
   const age =
     profile.age ?? calculatePetAge({ birthday, estimatedBirthYear });
+  const safetyCode = profile.safetyCode?.trim() ?? "";
+  const safetyPath = safetyCode ? qrSafetyPath(safetyCode) : "";
 
   const mapped = toPublicProfile(
     normalizePet({
@@ -647,10 +650,10 @@ export function mapBackendPublicProfile(
       },
       qrStatus: "active",
       publicCode: profile.publicCode,
-      safetyCode: "",
-      qrSafetyEnabled: true,
-      qrSafetyPath: "",
-      finderProfileUrl: "",
+      safetyCode,
+      qrSafetyEnabled: Boolean(safetyCode),
+      qrSafetyPath: safetyPath,
+      finderProfileUrl: safetyPath,
       publicProfilePath: publicProfilePath(slug, profile.publicCode),
       bio:
         profile.bio ??
@@ -683,6 +686,7 @@ export function mapBackendPublicProfile(
         showPhone: false,
         showWhatsapp: false,
         showEmergencyNote: false,
+        showAllergiesOnPublicProfile: Boolean(profile.allergies?.length),
       },
       allergies: profile.allergies ?? [],
       medications: [],
@@ -692,6 +696,10 @@ export function mapBackendPublicProfile(
   return {
     ...mapped,
     publicProfileVersion: profile.publicProfileVersion,
+    safetyCode,
+    qrSafetyEnabled: Boolean(safetyCode),
+    qrSafetyPath: safetyPath,
+    finderProfileUrl: safetyPath,
   };
 }
 
@@ -706,7 +714,7 @@ export function mapBackendSafetyPage(page: BackendPublicSafetyPage): PublicPetPr
   const estimatedBirthYear = page.estimatedBirthYear ?? undefined;
   const age = page.age ?? calculatePetAge({ birthday, estimatedBirthYear });
 
-  return toPublicProfile(
+  return toQrSafetyProfile(
     normalizePet({
       id: page.safetyCode,
       slug,
@@ -1042,9 +1050,11 @@ export function toPublicProfile(pet: Pet): PublicPetProfile {
     personalityTags: pet.personalityTags,
     favoriteFoods: pet.favoriteFoods,
     favoriteToys: pet.favoriteToys,
-    // Public API responses already project only owner-approved health data.
-    // Mirror that privacy boundary in local/static mode as well.
-    allergies: pet.visibility.showHealthSummary ? pet.allergies : [],
+    // Public API responses already project allergies only when the owner has
+    // explicitly enabled their regular Public Profile visibility.
+    allergies: pet.visibility.showAllergiesOnPublicProfile
+      ? pet.allergies
+      : [],
     safetyNote: pet.safetyNote,
     emergencyNote: pet.emergencyNote,
     lostModeEnabled: pet.lostModeEnabled,
@@ -1055,6 +1065,16 @@ export function toPublicProfile(pet: Pet): PublicPetProfile {
       ...defaultVisibility,
       ...pet.visibility,
     },
+  };
+}
+
+// The QR Safety Page is a finder-first safety surface. Known allergies are
+// intentionally always included there, independently of the owner's regular
+// Public Profile allergy visibility choice.
+export function toQrSafetyProfile(pet: Pet): PublicPetProfile {
+  return {
+    ...toPublicProfile(pet),
+    allergies: pet.allergies,
   };
 }
 
@@ -1134,7 +1154,7 @@ export async function getPublicPetProfileBySafetyCode(safetyCode: string) {
     return mockResponse<PublicPetProfile | null>(null);
   }
 
-  return mockResponse(toPublicProfile(pet));
+  return mockResponse(toQrSafetyProfile(pet));
 }
 
 export async function createPet(payload: PetPayload) {

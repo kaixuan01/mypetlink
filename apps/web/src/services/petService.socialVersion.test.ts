@@ -35,6 +35,7 @@ describe("owner pet social version mapping", () => {
         showBirthdayOnTimeline: true,
         showAdoptionDayOnTimeline: true,
         showHealthSummary: false,
+        showAllergiesOnPublicProfile: false,
       },
       createdAt: "2026-07-13T00:00:00.000Z",
       updatedAt: "2026-07-13T00:00:00.000Z",

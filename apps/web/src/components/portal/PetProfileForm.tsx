@@ -132,6 +132,7 @@ type FormState = {
   showBirthdayOnTimeline: boolean;
   showAdoptionDayOnTimeline: boolean;
   showHealthSummary: boolean;
+  showAllergiesOnPublicProfile: boolean;
 };
 
 type FormErrors = Partial<Record<keyof FormState, string>>;
@@ -221,6 +222,7 @@ const fieldTab: Record<keyof FormState, EditTab> = {
   showBirthdayOnTimeline: "public",
   showAdoptionDayOnTimeline: "public",
   showHealthSummary: "public",
+  showAllergiesOnPublicProfile: "public",
   showGeneralArea: "contact",
   showWhatsapp: "contact",
   showPhone: "contact",
@@ -271,6 +273,7 @@ const emptyForm: FormState = {
   showBirthdayOnTimeline: true,
   showAdoptionDayOnTimeline: true,
   showHealthSummary: false,
+  showAllergiesOnPublicProfile: false,
 };
 
 export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
@@ -1537,6 +1540,20 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
                   updateField("showAdoptionDayOnTimeline", value)
                 }
               />
+              <div className="grid gap-1">
+                <Checkbox
+                  checked={form.showAllergiesOnPublicProfile}
+                  label="Show allergies on Public Profile"
+                  onChange={(value) =>
+                    updateField("showAllergiesOnPublicProfile", value)
+                  }
+                />
+                <p className="pl-9 text-xs font-semibold leading-5 text-pet-muted">
+                  Allergies are always shown on the QR Safety Page for pet
+                  safety. Choose whether to also show them on the regular
+                  Public Profile.
+                </p>
+              </div>
             </PrivacyGroup>
 
             <details className="rounded-[1.5rem] border border-pet-border bg-white">
@@ -2159,6 +2176,8 @@ function toFormState(
       showBirthdayOnTimeline: visibility.showBirthdayOnTimeline,
       showAdoptionDayOnTimeline: visibility.showAdoptionDayOnTimeline,
       showHealthSummary: visibility.showHealthSummary,
+      showAllergiesOnPublicProfile:
+        visibility.showAllergiesOnPublicProfile,
     };
   }
 
@@ -2217,6 +2236,8 @@ function toFormState(
     showBirthdayOnTimeline: visibility.showBirthdayOnTimeline,
     showAdoptionDayOnTimeline: visibility.showAdoptionDayOnTimeline,
     showHealthSummary: visibility.showHealthSummary,
+    showAllergiesOnPublicProfile:
+      visibility.showAllergiesOnPublicProfile,
   };
 }
 
@@ -2317,6 +2338,7 @@ function buildPayload(
       showBirthdayOnTimeline: form.showBirthdayOnTimeline,
       showAdoptionDayOnTimeline: form.showAdoptionDayOnTimeline,
       showHealthSummary: form.showHealthSummary,
+      showAllergiesOnPublicProfile: form.showAllergiesOnPublicProfile,
     },
   };
 }
@@ -3244,6 +3266,7 @@ function mergeVisibility(
     showBirthdayOnTimeline: true,
     showAdoptionDayOnTimeline: true,
     showHealthSummary: false,
+    showAllergiesOnPublicProfile: false,
     ...visibility,
   };
 }

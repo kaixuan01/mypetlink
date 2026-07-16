@@ -40,6 +40,7 @@ export type BackendPetVisibility = {
   showBirthdayOnTimeline: boolean;
   showAdoptionDayOnTimeline: boolean;
   showHealthSummary: boolean;
+  showAllergiesOnPublicProfile: boolean;
 };
 
 export type BackendOwnerProfile = {
@@ -163,6 +164,7 @@ export type BackendPublicPetProfile = {
   publicCode: string;
   publicSlug: string;
   publicProfileVersion?: string;
+  safetyCode?: string | null;
   name: string;
   species: string;
   customSpecies?: string | null;

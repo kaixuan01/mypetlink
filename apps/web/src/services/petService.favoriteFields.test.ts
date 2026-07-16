@@ -39,6 +39,7 @@ function backendPet(
       showBirthdayOnTimeline: true,
       showAdoptionDayOnTimeline: true,
       showHealthSummary: false,
+      showAllergiesOnPublicProfile: false,
     },
     createdAt: "2026-07-01T00:00:00.000Z",
     updatedAt: "2026-07-01T00:00:00.000Z",
@@ -70,7 +71,7 @@ describe("pet favourite list API mapping", () => {
     expect(pet.allergies).toEqual(["Chicken", "花粉"]);
   });
 
-  it("removes allergies from the local public projection unless health details are enabled", () => {
+  it("removes allergies from the local public projection unless allergy visibility is enabled", () => {
     const pet = mapBackendPetToFrontend(
       backendPet({ allergies: ["Chicken", "Penicillin"] })
     );
@@ -79,7 +80,10 @@ describe("pet favourite list API mapping", () => {
     expect(
       toPublicProfile({
         ...pet,
-        visibility: { ...pet.visibility, showHealthSummary: true },
+        visibility: {
+          ...pet.visibility,
+          showAllergiesOnPublicProfile: true,
+        },
       }).allergies
     ).toEqual(["Chicken", "Penicillin"]);
   });

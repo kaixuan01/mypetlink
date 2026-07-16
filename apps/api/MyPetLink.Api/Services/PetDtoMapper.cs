@@ -24,7 +24,8 @@ internal static class PetDtoMapper
         ShowTimeline: true,
         ShowBirthdayOnTimeline: false,
         ShowAdoptionDayOnTimeline: false,
-        ShowHealthSummary: false);
+        ShowHealthSummary: false,
+        ShowAllergiesOnPublicProfile: false);
 
     public static readonly PetVisibilityResponse DefaultVisibility = ToVisibilityResponse(DefaultVisibilityRequest);
 
@@ -213,7 +214,8 @@ internal static class PetDtoMapper
             visibility.ShowTimeline,
             visibility.ShowBirthdayOnTimeline,
             visibility.ShowAdoptionDayOnTimeline,
-            visibility.ShowHealthSummary);
+            visibility.ShowHealthSummary,
+            visibility.ShowAllergiesOnPublicProfile);
     }
 
     public static PetVisibilityResponse ToVisibilityResponse(Pet pet)
@@ -232,7 +234,8 @@ internal static class PetDtoMapper
             publicProfile?.ShowTimeline ?? DefaultVisibility.ShowTimeline,
             publicProfile?.ShowBirthdayOnTimeline ?? DefaultVisibility.ShowBirthdayOnTimeline,
             publicProfile?.ShowAdoptionDayOnTimeline ?? DefaultVisibility.ShowAdoptionDayOnTimeline,
-            publicProfile?.ShowHealthSummary ?? DefaultVisibility.ShowHealthSummary);
+            publicProfile?.ShowHealthSummary ?? DefaultVisibility.ShowHealthSummary,
+            publicProfile?.ShowAllergiesOnPublicProfile ?? DefaultVisibility.ShowAllergiesOnPublicProfile);
     }
 
     public static PetContactResponse ToContactResponse(PetContact? contact)

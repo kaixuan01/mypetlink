@@ -70,6 +70,12 @@ describe("LostModeControl", () => {
     fireEvent.click(screen.getByRole("button", { name: `Mark ${pet.name} as Lost` }));
     expect(screen.getByRole("dialog")).toBeTruthy();
     expect(screen.getByText(`Mark ${pet.name} as lost?`)).toBeTruthy();
+    expect(screen.getByText("Reward note (optional)")).toBeTruthy();
+    expect(screen.getByText("For example: RM50 reward offered.")).toBeTruthy();
+    expect(screen.getByText("Contact instructions (optional)")).toBeTruthy();
+    expect(
+      screen.getByText("For example: Please call instead of messaging.")
+    ).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Activate Lost Mode" }));
 
@@ -155,6 +161,62 @@ describe("LostModeControl", () => {
     expect((activate as HTMLButtonElement).disabled).toBe(true);
     pending.resolve({ data: petWithLostMode(true) });
     expect(await screen.findByText("On")).toBeTruthy();
+  });
+
+  it("closes the Lost Mode editor with Escape and returns focus to the trigger", () => {
+    const pet = petWithLostMode(false);
+    render(<Harness initialPet={pet} />);
+
+    const trigger = screen.getByRole("button", {
+      name: `Mark ${pet.name} as Lost`,
+    });
+    trigger.focus();
+    fireEvent.click(trigger);
+    const dialog = screen.getByRole("dialog");
+    expect(dialog.getAttribute("aria-labelledby")).toBeTruthy();
+    expect(dialog.contains(document.activeElement)).toBe(true);
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(mocks.updatePetLostMode).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it("keeps Tab and Shift+Tab focus inside the Lost Mode editor", () => {
+    const pet = petWithLostMode(false);
+    render(<Harness initialPet={pet} />);
+
+    fireEvent.click(screen.getByRole("button", { name: `Mark ${pet.name} as Lost` }));
+    const dialog = screen.getByRole("dialog");
+    const focusable = dialog.querySelectorAll<HTMLElement>(
+      "button, input, textarea"
+    );
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+
+    last.focus();
+    fireEvent.keyDown(document, { key: "Tab" });
+    expect(document.activeElement).toBe(first);
+
+    fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(last);
+  });
+
+  it("shows the owner card last-seen time in finder-friendly format", () => {
+    const rawValue = "2026-07-16T15:42";
+    const pet = {
+      ...petWithLostMode(true),
+      lostMode: {
+        ...petWithLostMode(true).lostMode,
+        lastSeenDateTime: rawValue,
+      },
+    };
+    render(<LostModeControl onPetChange={() => undefined} pet={pet} variant="card" />);
+
+    expect(screen.getByText("Last seen date/time")).toBeTruthy();
+    expect(screen.getByText("16 Jul 2026, 3:42 PM")).toBeTruthy();
+    expect(document.body.textContent).not.toContain(rawValue);
   });
 
   it("uses non-submitting buttons inside a parent form", () => {

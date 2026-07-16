@@ -111,6 +111,7 @@ public sealed class PetService : SkeletonService, IPetService
                 ShowBirthdayOnTimeline = visibility.ShowBirthdayOnTimeline,
                 ShowAdoptionDayOnTimeline = visibility.ShowAdoptionDayOnTimeline,
                 ShowHealthSummary = visibility.ShowHealthSummary,
+                ShowAllergiesOnPublicProfile = visibility.ShowAllergiesOnPublicProfile,
                 IsPublicProfileEnabled = true
             },
             SafetySetting = new PetSafetySetting
@@ -558,7 +559,8 @@ public sealed class PetService : SkeletonService, IPetService
             defaults.ShowTimeline,
             defaults.ShowBirthdayOnTimeline,
             defaults.ShowAdoptionDayOnTimeline,
-            defaults.ShowHealthSummary);
+            defaults.ShowHealthSummary,
+            defaults.ShowAllergiesOnPublicProfile);
     }
 
     private static PetContact BuildPetContact(PetContactRequest? request, User user)
@@ -616,6 +618,7 @@ public sealed class PetService : SkeletonService, IPetService
         publicProfile.ShowBirthdayOnTimeline = visibility.ShowBirthdayOnTimeline;
         publicProfile.ShowAdoptionDayOnTimeline = visibility.ShowAdoptionDayOnTimeline;
         publicProfile.ShowHealthSummary = visibility.ShowHealthSummary;
+        publicProfile.ShowAllergiesOnPublicProfile = visibility.ShowAllergiesOnPublicProfile;
 
         if (pet.SafetySetting is null)
         {

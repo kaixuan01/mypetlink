@@ -46,7 +46,8 @@ public sealed record PetVisibilityRequest(
     bool ShowTimeline,
     bool ShowBirthdayOnTimeline,
     bool ShowAdoptionDayOnTimeline,
-    bool ShowHealthSummary);
+    bool ShowHealthSummary,
+    bool ShowAllergiesOnPublicProfile = false);
 
 public sealed record CreatePetRequest(
     [Required, MaxLength(120)] string Name,
@@ -145,7 +146,8 @@ public sealed record PetVisibilityResponse(
     bool ShowTimeline,
     bool ShowBirthdayOnTimeline,
     bool ShowAdoptionDayOnTimeline,
-    bool ShowHealthSummary);
+    bool ShowHealthSummary,
+    bool ShowAllergiesOnPublicProfile);
 
 public sealed record PetListItemResponse(
     Guid Id,

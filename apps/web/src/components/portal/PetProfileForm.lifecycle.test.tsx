@@ -635,6 +635,64 @@ describe("PetProfileForm lifecycle workflow", () => {
     );
   });
 
+  it("saves and reloads the explicit Public Profile allergy visibility", async () => {
+    pet = {
+      ...pet,
+      allergies: ["Chicken"],
+      visibility: {
+        ...pet.visibility,
+        showAllergiesOnPublicProfile: false,
+      },
+    };
+    mocks.getPetById.mockResolvedValue({ data: pet });
+    render(<PetProfileForm initialPet={pet} mode="edit" />);
+    await openPublicProfile();
+
+    const visibility = screen.getByRole("checkbox", {
+      name: "Show allergies on Public Profile",
+    }) as HTMLInputElement;
+    expect(visibility.checked).toBe(false);
+    expect(
+      screen.getByText(
+        /Allergies are always shown on the QR Safety Page for pet safety/
+      )
+    ).toBeTruthy();
+
+    fireEvent.click(visibility);
+    clickSave();
+
+    await waitFor(() =>
+      expect(mocks.updatePet).toHaveBeenCalledWith(
+        pet.id,
+        expect.objectContaining({
+          visibility: expect.objectContaining({
+            showAllergiesOnPublicProfile: true,
+          }),
+        })
+      )
+    );
+
+    cleanup();
+    pet = {
+      ...pet,
+      visibility: {
+        ...pet.visibility,
+        showAllergiesOnPublicProfile: true,
+      },
+    };
+    mocks.getPetById.mockResolvedValue({ data: pet });
+    render(<PetProfileForm initialPet={pet} mode="edit" />);
+    await openPublicProfile();
+
+    expect(
+      (
+        screen.getByRole("checkbox", {
+          name: "Show allergies on Public Profile",
+        }) as HTMLInputElement
+      ).checked
+    ).toBe(true);
+  });
+
   it("shows one complete versioned share link only on the Public Profile tab", async () => {
     render(<PetProfileForm initialPet={pet} mode="edit" />);
     await screen.findByRole("tab", { name: /Public Profile/ });

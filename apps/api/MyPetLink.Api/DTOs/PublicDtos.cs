@@ -6,6 +6,7 @@ public sealed record PublicPetProfileResponse(
     string PublicCode,
     string PublicSlug,
     string PublicProfileVersion,
+    string? SafetyCode,
     string Name,
     string Species,
     string? CustomSpecies,
