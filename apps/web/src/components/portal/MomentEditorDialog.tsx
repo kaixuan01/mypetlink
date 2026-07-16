@@ -304,12 +304,6 @@ export function MomentEditorDialog({
                   />
                 </Field>
               ) : null}
-
-              <div className="rounded-[1.25rem] border border-pet-border bg-white p-4 text-sm leading-6 text-pet-muted">
-                {form.visibility === "Public"
-                  ? "Preview: this moment will appear where you selected it: Pet Memories, Life Timeline, or both."
-                  : "Private and family-only memories stay inside the owner workspace until family access is available."}
-              </div>
             </div>
           </div>
 

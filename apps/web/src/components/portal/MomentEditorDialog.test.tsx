@@ -53,6 +53,18 @@ describe("MomentEditorDialog", () => {
       expect(screen.getByTestId("shared-moment-media")).toBeTruthy();
       expect(screen.getByLabelText("Show on Public Profile")).toBeTruthy();
       expect(screen.getByLabelText("Show in Life Timeline")).toBeTruthy();
+      expect(
+        screen.getByText("Public memories appear in the Pet Memories gallery.")
+      ).toBeTruthy();
+      expect(
+        screen.getByText(
+          "Timeline moments appear in your pet's Life Timeline when visibility allows."
+        )
+      ).toBeTruthy();
+      expect(screen.queryByText(/Preview: this moment/i)).toBeNull();
+      expect(
+        screen.queryByText(/Private and family-only memories stay inside/i)
+      ).toBeNull();
     }
   );
 
@@ -71,6 +83,16 @@ describe("MomentEditorDialog", () => {
 
     expect((screen.getByLabelText("Title") as HTMLInputElement).value).toBe("Beach day");
     expect((screen.getByLabelText("Date") as HTMLInputElement).value).toBe("2026-07-12");
+    expect(
+      (screen.getByLabelText("Show on Public Profile") as HTMLInputElement)
+        .checked
+    ).toBe(true);
+    expect(
+      (screen.getByLabelText("Show in Life Timeline") as HTMLInputElement)
+        .checked
+    ).toBe(false);
+    fireEvent.click(screen.getByLabelText("Show on Public Profile"));
+    fireEvent.click(screen.getByLabelText("Show in Life Timeline"));
     fireEvent.change(screen.getByLabelText("Caption"), {
       target: { value: "Updated caption" },
     });
@@ -83,6 +105,8 @@ describe("MomentEditorDialog", () => {
       type: "Outdoor / Trip",
       caption: "Updated caption",
       visibility: "Public",
+      showOnPublicProfile: false,
+      showInLifeTimeline: true,
     });
   });
 
