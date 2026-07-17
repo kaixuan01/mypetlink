@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { AdminOrdersManager } from "@/components/admin/AdminOrdersManager";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { EMPTY_ADMIN_DATA } from "@/services/adminService";
 
 export const metadata: Metadata = {
   title: "Admin Orders",
@@ -23,7 +22,7 @@ export default function AdminOrdersPage() {
           </div>
         }
       >
-        <AdminOrdersManager initialData={EMPTY_ADMIN_DATA} />
+        <AdminOrdersManager />
       </Suspense>
     </>
   );

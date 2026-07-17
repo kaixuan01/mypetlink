@@ -707,11 +707,19 @@ namespace MyPetLink.Api.Migrations
 
                     b.HasIndex("OrderId");
 
+                    b.HasIndex("PaymentReference");
+
+                    b.HasIndex("ReviewedAt");
+
                     b.HasIndex("ReviewedByAdminUserId");
 
                     b.HasIndex("Status");
 
+                    b.HasIndex("UpdatedAt");
+
                     b.HasIndex("UploadedAt");
+
+                    b.HasIndex("Status", "UploadedAt");
 
                     b.ToTable("PaymentProofs", (string)null);
                 });
@@ -878,6 +886,10 @@ namespace MyPetLink.Api.Migrations
                     b.HasIndex("OwnerUserId");
 
                     b.HasIndex("ProfileMediaFileId");
+
+                    b.HasIndex("Species");
+
+                    b.HasIndex("UpdatedAt");
 
                     b.HasIndex("OwnerUserId", "LifecycleStatus");
 
@@ -1353,6 +1365,13 @@ namespace MyPetLink.Api.Migrations
                     b.Property<DateTimeOffset?>("DeliveredAt")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<string>("FulfilmentStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)")
+                        .HasDefaultValue("Generated");
+
                     b.Property<bool>("HasNfc")
                         .HasColumnType("bit");
 
@@ -1368,8 +1387,20 @@ namespace MyPetLink.Api.Migrations
                     b.Property<Guid?>("PetId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<DateTimeOffset?>("PrintedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("ReceivedAt")
+                        .HasColumnType("datetimeoffset");
+
                     b.Property<Guid?>("ReplacementForTagId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("SentToOwnerAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("SentToResellerAt")
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -1391,7 +1422,13 @@ namespace MyPetLink.Api.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ActivatedAt");
+
                     b.HasIndex("BatchId");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("FulfilmentStatus");
 
                     b.HasIndex("LastScannedAt");
 
@@ -1407,6 +1444,10 @@ namespace MyPetLink.Api.Migrations
 
                     b.HasIndex("TagCode")
                         .IsUnique();
+
+                    b.HasIndex("UpdatedAt");
+
+                    b.HasIndex("FulfilmentStatus", "CreatedAt");
 
                     b.HasIndex("Status", "PetId");
 
@@ -1604,10 +1645,14 @@ namespace MyPetLink.Api.Migrations
 
                     b.HasIndex("CreatedAt");
 
+                    b.HasIndex("DeliveredAt");
+
                     b.HasIndex("OrderNumber")
                         .IsUnique();
 
                     b.HasIndex("OwnerUserId");
+
+                    b.HasIndex("PaymentConfirmedAt");
 
                     b.HasIndex("PaymentStatus");
 
@@ -1615,9 +1660,13 @@ namespace MyPetLink.Api.Migrations
 
                     b.HasIndex("ReplacementForTagId");
 
+                    b.HasIndex("ShippedAt");
+
                     b.HasIndex("SmartTagId");
 
                     b.HasIndex("Status");
+
+                    b.HasIndex("UpdatedAt");
 
                     b.HasIndex("PaymentStatus", "CreatedAt");
 
@@ -1767,6 +1816,8 @@ namespace MyPetLink.Api.Migrations
                         .IsUnique();
 
                     b.HasIndex("Status");
+
+                    b.HasIndex("UpdatedAt");
 
                     b.ToTable("Users", (string)null);
                 });

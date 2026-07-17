@@ -3,11 +3,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import {
-  freePlanLimits,
   getCountedPetProfiles,
+  getEffectivePlanLimits,
   getPetLimitStateFromPets,
 } from "@/lib/planLimits";
 import { getPetMoments } from "@/services/momentService";
+import {
+  getOwnerPlanSummary,
+  type OwnerPlanSummary,
+} from "@/services/ownerProfileService";
 import { getPets } from "@/services/petService";
 import type { Pet, PetMoment } from "@/types";
 
@@ -25,6 +29,7 @@ export function PlanSummaryCard({
   refreshOnMount = true,
 }: PlanSummaryCardProps) {
   const [loadedPets, setLoadedPets] = useState<Pet[] | null>(null);
+  const [planSummary, setPlanSummary] = useState<OwnerPlanSummary | null>(null);
   const [loadedMemoryCounts, setLoadedMemoryCounts] = useState<Record<
     string,
     number
@@ -44,6 +49,16 @@ export function PlanSummaryCard({
     }
 
     let active = true;
+
+    getOwnerPlanSummary()
+      .then((summary) => {
+        if (active) {
+          setPlanSummary(summary);
+        }
+      })
+      .catch(() => {
+        // The baseline limits still apply; the card stays usable.
+      });
 
     getPets().then(async (petsResponse) => {
       const counts = await Promise.all(
@@ -68,6 +83,9 @@ export function PlanSummaryCard({
 
   const countedPets = getCountedPetProfiles(pets);
   const petLimit = getPetLimitStateFromPets(pets);
+  const planName = planSummary?.planName ?? getEffectivePlanLimits().planName;
+  const maxMemoriesPerPet =
+    planSummary?.maxMemoriesPerPet ?? getEffectivePlanLimits().maxMemoriesPerPet;
   const topMemoryRows = useMemo(
     () =>
       countedPets
@@ -83,7 +101,7 @@ export function PlanSummaryCard({
   return (
     <section className="brand-card rounded-[1.5rem] p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm font-black text-pet-ink">Current plan: Free</p>
+        <p className="text-sm font-black text-pet-ink">Current plan: {planName}</p>
         <Badge tone="teal">Premium coming soon</Badge>
       </div>
 
@@ -98,7 +116,7 @@ export function PlanSummaryCard({
             key={pet.id}
             label={`${pet.name} memories`}
             used={pet.count}
-            max={freePlanLimits.maxMemoriesPerPet}
+            max={maxMemoriesPerPet}
           />
         ))}
       </div>

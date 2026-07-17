@@ -73,7 +73,14 @@ export function activatePath(tagCode: string) {
 }
 
 export function publicProfilePath(slug: string, publicCode: string) {
-  return `/p/${slug}-${publicCode}`.toLowerCase();
+  const normalizedSlug = slug.trim();
+  const normalizedCode = publicCode.trim();
+  const suffix = `-${normalizedCode}`.toLowerCase();
+  const resolvedSlug = normalizedSlug.toLowerCase().endsWith(suffix)
+    ? normalizedSlug
+    : `${normalizedSlug}-${normalizedCode}`;
+
+  return `/p/${resolvedSlug}`.toLowerCase();
 }
 
 // Canonical helper for the shareable public profile of a pet.
@@ -104,6 +111,29 @@ export const publicRoutes = {
 export const authRoutes = {
   ownerLogin: "/login",
   adminLogin: "/admin/login",
+} as const;
+
+export const adminRoutes = {
+  pets: "/admin/pets",
+  pet: (petId: string) => `/admin/pets?petProfile=${encodeURIComponent(petId)}`,
+  owners: "/admin/users",
+  owner: (ownerId: string) => `/admin/users?owner=${encodeURIComponent(ownerId)}`,
+  petsForOwner: (ownerId: string) => `/admin/pets?ownerId=${encodeURIComponent(ownerId)}`,
+  orders: "/admin/orders",
+  ordersForOwner: (ownerId: string) => `/admin/orders?ownerId=${encodeURIComponent(ownerId)}`,
+  paymentProofs: "/admin/payment-proofs",
+  paymentProofsForOwner: (ownerId: string) => `/admin/payment-proofs?ownerId=${encodeURIComponent(ownerId)}`,
+  smartTags: "/admin/tags",
+  smartTag: (tagId: string) => `/admin/tags?tag=${encodeURIComponent(tagId)}`,
+  smartTagsForPet: (petId: string) => `/admin/tags?pet=${encodeURIComponent(petId)}`,
+  smartTagsForOwner: (ownerId: string) => `/admin/tags?ownerId=${encodeURIComponent(ownerId)}`,
+  order: (orderId: string) => `/admin/orders?order=${encodeURIComponent(orderId)}`,
+  plans: "/admin/plans",
+  ownerPlans: "/admin/plans?view=owners",
+  ownerPlansForPlan: (planCode: string) =>
+    `/admin/plans?view=owners&plan=${encodeURIComponent(planCode)}`,
+  ownerPlan: (ownerId: string) =>
+    `/admin/plans?view=owners&ownerPlan=${encodeURIComponent(ownerId)}`,
 } as const;
 
 export const marketingRoutes = {

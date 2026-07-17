@@ -424,6 +424,17 @@ export async function getStoredTagsForAdmin() {
   });
 }
 
+// Local-data helpers for the Admin Tag Inventory listing: read the stored tag
+// collection synchronously and persist an updated copy. Used when the app runs
+// on local data only.
+export function readAdminTagCollection(): PetTag[] {
+  return getTagCollection();
+}
+
+export function writeAdminTagCollection(tags: PetTag[]) {
+  writeStoredCollection(TAG_STORAGE_KEY, tags);
+}
+
 export async function getOrders() {
   if (canUseOwnerTagApi()) {
     const response = await apiRequest<BackendTagOrder[]>(
@@ -1250,10 +1261,11 @@ export async function adminMarkOrderPreparing(orderId: string) {
   return mockResponse(updatedOrder);
 }
 
-export async function adminMarkOrderShipped(orderId: string) {
+export async function adminMarkOrderShipped(orderId: string, trackingNumber?: string) {
   if (canUseOwnerTagApi()) {
     return runAdminOrderAction(
-      `/api/v1/admin/orders/${encodeURIComponent(orderId)}/mark-shipped`
+      `/api/v1/admin/orders/${encodeURIComponent(orderId)}/mark-shipped`,
+      { trackingNumber: trackingNumber?.trim() || null }
     );
   }
 
@@ -1269,6 +1281,7 @@ export async function adminMarkOrderShipped(orderId: string) {
     ...order,
     status: "Shipped",
     shippedDate: formatToday(),
+    trackingNumber: trackingNumber?.trim() || order.trackingNumber,
     trackingStatus: `On the way to ${order.delivery.city || "you"}`,
   };
 
@@ -1310,10 +1323,11 @@ export async function adminMarkOrderDelivered(orderId: string) {
 
 // Cancelling archives a linked tag that never became active, so it stops
 // appearing in the owner's active/pending tag lists.
-export async function adminCancelOrder(orderId: string) {
+export async function adminCancelOrder(orderId: string, reason: string) {
   if (canUseOwnerTagApi()) {
     return runAdminOrderAction(
-      `/api/v1/admin/orders/${encodeURIComponent(orderId)}/cancel`
+      `/api/v1/admin/orders/${encodeURIComponent(orderId)}/cancel`,
+      { reason }
     );
   }
 
@@ -1328,7 +1342,7 @@ export async function adminCancelOrder(orderId: string) {
     "Preparing",
   ];
 
-  if (!order || !cancellable.includes(order.status)) {
+  if (!order || !reason.trim() || !cancellable.includes(order.status)) {
     return mockResponse<TagOrder | null>(null);
   }
 

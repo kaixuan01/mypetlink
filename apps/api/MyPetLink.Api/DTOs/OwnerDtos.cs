@@ -9,6 +9,18 @@ public sealed record OwnerContactSettingsResponse(
     string? WhatsappE164,
     string? DefaultGeneralArea);
 
+// The owner's current plan with the limits the backend actually enforces.
+// This is the single source the Owner Portal should display, so usage meters
+// can never disagree with create/restore enforcement.
+public sealed record OwnerPlanSummaryResponse(
+    string Code,
+    string Name,
+    string Status,
+    int MaxPets,
+    int MaxMemoriesPerPet,
+    int MaxMediaPerMemory,
+    int MaxCareRecords);
+
 public sealed record OwnerProfileResponse(
     Guid UserId,
     Guid OwnerProfileId,
@@ -21,6 +33,7 @@ public sealed record OwnerProfileResponse(
     PetVisibilityResponse DefaultPrivacy,
     JsonElement NotificationPreferences,
     string PlanCode,
+    OwnerPlanSummaryResponse Plan,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
 

@@ -9,9 +9,8 @@ import {
   getTagOrder,
 } from "@/lib/tagStatus";
 import { apiRequest } from "@/services/apiClient";
-import { canUseApi, getApiBaseUrl } from "@/services/apiConfig";
+import { canUseApi } from "@/services/apiConfig";
 import { readStoredAuthSession } from "@/services/authStorage";
-import { mockDelay, mockResponse } from "@/services/mockApi";
 import { getPets, mapBackendPetToFrontend } from "@/services/petService";
 import {
   archiveTag,
@@ -32,7 +31,6 @@ import type {
 import type {
   MockUser,
   Pet,
-  Plan,
   PetTag,
   TagOrder,
 } from "@/types";
@@ -57,6 +55,38 @@ type BackendAdminSmartTag = {
   owner?: BackendAdminOwnerRef | null;
   petLifecycleStatus?: string | null;
 };
+
+type BackendAdminSmartTagListItem = {
+  id: string;
+  tagCode: string;
+  petId?: string | null;
+  ownerUserId?: string | null;
+  orderId?: string | null;
+  orderNumber?: string | null;
+  petName?: string | null;
+  batchNumber?: string | null;
+  hasNfc: boolean;
+  variant: string;
+  status: BackendSmartTag["status"];
+  isArchived: boolean;
+  createdAt: string;
+  updatedAt: string;
+  activatedAt?: string | null;
+  lastScannedAt?: string | null;
+  replacementForTagId?: string | null;
+};
+
+function mapAdminSmartTagListItem(item: BackendAdminSmartTag | BackendAdminSmartTagListItem) {
+  if ("tag" in item) {
+    return mapBackendTag(item.tag);
+  }
+
+  return mapBackendTag({
+    ...item,
+    batchNo: item.batchNumber,
+    archivedAt: item.isArchived ? item.updatedAt : null,
+  });
+}
 
 type BackendAdminTagOrder = {
   order: BackendTagOrder;
@@ -148,39 +178,6 @@ function formatBackendDate(value?: string | null) {
   }).format(parsed);
 }
 
-export async function getAdminPlans() {
-  if (canUseAdminApi()) {
-    const response = await apiRequest<BackendAdminPlan[]>("/api/v1/admin/plans");
-    const plans: Plan[] = (response.data ?? []).map((plan) => ({
-      id: plan.id,
-      tier: plan.code.toLowerCase().includes("premium") ? "Premium" : "Free",
-      name: plan.name,
-      price: plan.priceLabel,
-      billingNote: plan.billingNote ?? "",
-      description: plan.description ?? "",
-      comingSoon: plan.status.toLowerCase() !== "available",
-      features: [
-        `Up to ${plan.maxPets} pet profiles`,
-        `Up to ${plan.maxMemoriesPerPet} memories per pet`,
-        `Up to ${plan.maxMediaPerMemory} media items per memory`,
-        `Up to ${plan.maxCareRecords} care records`,
-        ...(plan.allowsSmartTagAddOns ? ["Smart Tag add-ons"] : []),
-        ...(plan.allowsFoundReports ? ["Found reports"] : []),
-        ...(plan.allowsAdvancedThemes ? ["Advanced themes"] : []),
-      ],
-    }));
-    return { ...response, data: plans };
-  }
-
-  const { mockPlans } = await import("@/data/mockPlans");
-  await mockDelay();
-  return mockResponse(mockPlans, {
-    page: 1,
-    pageSize: mockPlans.length,
-    total: mockPlans.length,
-  });
-}
-
 // --- Shared-state admin views ------------------------------------------------
 // Everything below reads through petService/tagService, i.e. the same stored
 // collections the owner portal uses, so admin and owner views never diverge.
@@ -189,23 +186,6 @@ export type AdminData = {
   pets: Pet[];
   tags: PetTag[];
   orders: TagOrder[];
-};
-
-type BackendAdminPlan = {
-  id: string;
-  code: string;
-  name: string;
-  status: string;
-  priceLabel: string;
-  billingNote?: string | null;
-  description?: string | null;
-  maxPets: number;
-  maxMemoriesPerPet: number;
-  maxMediaPerMemory: number;
-  maxCareRecords: number;
-  allowsSmartTagAddOns: boolean;
-  allowsFoundReports: boolean;
-  allowsAdvancedThemes: boolean;
 };
 
 export const EMPTY_ADMIN_DATA: AdminData = Object.freeze({
@@ -218,13 +198,13 @@ export async function getAdminData(signal?: AbortSignal): Promise<AdminData> {
   if (canUseAdminApi()) {
     const [pets, tags, orders] = await Promise.all([
       apiRequest<BackendAdminPetListItem[]>("/api/v1/admin/pets?page=1&pageSize=100", { signal }),
-      apiRequest<BackendAdminSmartTag[]>("/api/v1/admin/tags?page=1&pageSize=100", { signal }),
+      apiRequest<(BackendAdminSmartTag | BackendAdminSmartTagListItem)[]>("/api/v1/admin/tags?page=1&pageSize=100", { signal }),
       apiRequest<BackendAdminTagOrder[]>("/api/v1/admin/orders?page=1&pageSize=100", { signal }),
     ]);
 
     return {
       pets: (pets.data ?? []).map(mapAdminPet),
-      tags: (tags.data ?? []).map((item) => mapBackendTag(item.tag)),
+      tags: (tags.data ?? []).map(mapAdminSmartTagListItem),
       orders: (orders.data ?? []).map((item) => mapBackendOrder(item.order)),
     };
   }
@@ -251,12 +231,12 @@ export type AdminTagAction =
 export async function runAdminTagAction(tagId: string, action: AdminTagAction) {
   if (canUseAdminApi()) {
     const backendAction = action === "mark-replaced" ? "replace" : action;
-    const response = await apiRequest<BackendAdminSmartTag>(
+    const response = await apiRequest<BackendAdminSmartTag | BackendAdminSmartTagListItem>(
       `/api/v1/admin/tags/${encodeURIComponent(tagId)}/${backendAction}`,
       { method: "POST", body: {} }
     );
 
-    return response.data ? mapBackendTag(response.data.tag) : null;
+    return response.data ? mapAdminSmartTagListItem(response.data) : null;
   }
 
   const handlers = {
@@ -269,37 +249,6 @@ export async function runAdminTagAction(tagId: string, action: AdminTagAction) {
 
   const response = await handlers[action](tagId);
   return response.data;
-}
-
-// CSV export. API mode downloads the server CSV (authoritative inventory);
-// demo mode returns null so callers keep the client-side CSV fallback.
-export async function downloadAdminInventoryCsv(): Promise<boolean> {
-  if (!canUseAdminApi()) {
-    return false;
-  }
-
-  const session = readStoredAuthSession();
-  const response = await fetch(`${getApiBaseUrl()}/api/v1/admin/tag-inventory/export`, {
-    headers: session?.accessToken
-      ? { Authorization: `Bearer ${session.accessToken}` }
-      : undefined,
-  });
-
-  if (!response.ok) {
-    throw new Error("Could not export the tag inventory right now.");
-  }
-
-  const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-
-  link.href = url;
-  link.download = "mypetlink-tag-inventory.csv";
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-  return true;
 }
 
 export type AdminOwnerSummary = {

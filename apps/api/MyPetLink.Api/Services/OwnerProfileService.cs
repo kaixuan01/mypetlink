@@ -1,10 +1,10 @@
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using MyPetLink.Api.Common;
 using MyPetLink.Api.Data;
 using MyPetLink.Api.DTOs;
 using MyPetLink.Api.Entities;
+using MyPetLink.Api.Validation;
 
 namespace MyPetLink.Api.Services;
 
@@ -12,8 +12,6 @@ public sealed class OwnerProfileService : SkeletonService, IOwnerProfileService
 {
     private const string FreePlanCode = "Free";
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-    private static readonly Regex E164Pattern = new(@"^\+[1-9]\d{6,14}$", RegexOptions.Compiled);
-
     private readonly MyPetLinkDbContext _dbContext;
 
     public OwnerProfileService(MyPetLinkDbContext dbContext)
@@ -187,6 +185,14 @@ public sealed class OwnerProfileService : SkeletonService, IOwnerProfileService
             privacyDefaults,
             notificationPreferences,
             ownerProfile.Plan.Code,
+            new OwnerPlanSummaryResponse(
+                ownerProfile.Plan.Code,
+                ownerProfile.Plan.Name,
+                ownerProfile.Plan.Status.ToString(),
+                ownerProfile.Plan.Limit?.MaxPets ?? 0,
+                ownerProfile.Plan.Limit?.MaxMemoriesPerPet ?? 0,
+                ownerProfile.Plan.Limit?.MaxMediaPerMemory ?? 0,
+                ownerProfile.Plan.Limit?.MaxCareRecords ?? 0),
             ownerProfile.CreatedAt,
             ownerProfile.UpdatedAt);
     }
@@ -221,7 +227,7 @@ public sealed class OwnerProfileService : SkeletonService, IOwnerProfileService
             return;
         }
 
-        if (!E164Pattern.IsMatch(normalized))
+        if (!PhoneNumberRules.IsUsableE164(normalized))
         {
             errors[fieldName] = ["Use E.164 format, for example +60123456789."];
         }

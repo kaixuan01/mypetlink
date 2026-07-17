@@ -264,6 +264,51 @@ public sealed class MediaService : SkeletonService, IMediaService
             media.OriginalFileName);
     }
 
+    public async Task<MediaDownloadUrlResponse> CreateAdminPaymentProofDownloadUrlAsync(
+        Guid? currentUserId,
+        Guid paymentProofId,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = RequireUserId(currentUserId);
+        var isAdmin = await _dbContext.AdminUsers.AnyAsync(
+            admin => admin.UserId == userId && admin.IsActive && admin.DisabledAt == null,
+            cancellationToken);
+        if (!isAdmin)
+        {
+            throw new ApiException(StatusCodes.Status403Forbidden, "forbidden", "Admin access is required.");
+        }
+
+        var media = await _dbContext.PaymentProofs
+            .AsNoTracking()
+            .Where(proof => proof.Id == paymentProofId)
+            .Select(proof => proof.MediaFile)
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (media is null
+            || media.IsPublic
+            || media.UploadStatus != MediaUploadStatus.Ready
+            || media.DeletedAt.HasValue
+            || !string.Equals(media.BucketName, _r2Options.PrivateBucketName, StringComparison.Ordinal)
+            || string.IsNullOrWhiteSpace(media.ObjectKey))
+        {
+            throw NotFound("Payment proof file was not found.");
+        }
+
+        var presigned = _objectStorage.CreatePresignedDownloadUrl(new CreatePresignedDownloadUrlRequest(
+            media.BucketName,
+            media.ObjectKey,
+            TimeSpan.FromMinutes(Math.Max(1, _r2Options.PresignedDownloadExpiryMinutes)),
+            media.OriginalFileName,
+            media.ContentType));
+
+        return new MediaDownloadUrlResponse(
+            media.Id,
+            presigned.Url,
+            presigned.ExpiresAt,
+            media.ContentType,
+            media.OriginalFileName);
+    }
+
     public async Task<int> DeleteStalePendingUploadsAsync(
         TimeSpan olderThan,
         CancellationToken cancellationToken = default)

@@ -3,7 +3,7 @@ import { AdminUsersManager } from "@/components/admin/AdminUsersManager";
 import { PageHeader } from "@/components/ui/PageHeader";
 
 export const metadata: Metadata = {
-  title: "Admin Users",
+  title: "Admin Owners",
 };
 
 export default function AdminUsersPage() {

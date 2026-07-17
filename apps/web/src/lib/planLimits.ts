@@ -4,6 +4,10 @@ import type { Pet } from "@/types";
 export const phase1Positioning =
   "Create a free pet profile first. Add a physical QR or QR + NFC smart tag when you want extra safety. Premium care features are coming soon.";
 
+// Baseline Free-plan values used when the app runs on local data only. When
+// the MyPetLink service is connected, the owner's real plan limits (the same
+// values the service enforces) are adopted via adoptServerPlanLimits and take
+// precedence everywhere below.
 export const freePlanLimits = {
   planName: "Free",
   maxPets: 3,
@@ -15,6 +19,44 @@ export const freePlanLimits = {
   basicQrDownload: true,
   smartTagAddOnAllowed: true,
 } as const;
+
+export type EffectivePlanLimits = {
+  planName: string;
+  maxPets: number;
+  maxMemoriesPerPet: number;
+};
+
+let serverPlanLimits: EffectivePlanLimits | null = null;
+
+// Called whenever the owner's profile is loaded from the service, so every
+// limit check and usage meter in the portal reflects the enforced plan.
+export function adoptServerPlanLimits(
+  plan?: {
+    name?: string | null;
+    maxPets?: number | null;
+    maxMemoriesPerPet?: number | null;
+  } | null
+) {
+  if (!plan || !plan.maxPets || plan.maxPets <= 0 || !plan.maxMemoriesPerPet || plan.maxMemoriesPerPet <= 0) {
+    return;
+  }
+
+  serverPlanLimits = {
+    planName: plan.name || freePlanLimits.planName,
+    maxPets: plan.maxPets,
+    maxMemoriesPerPet: plan.maxMemoriesPerPet,
+  };
+}
+
+export function getEffectivePlanLimits(): EffectivePlanLimits {
+  return (
+    serverPlanLimits ?? {
+      planName: freePlanLimits.planName,
+      maxPets: freePlanLimits.maxPets,
+      maxMemoriesPerPet: freePlanLimits.maxMemoriesPerPet,
+    }
+  );
+}
 
 export const premiumPlan = {
   name: "Premium Plan",
@@ -75,7 +117,7 @@ export const gpsSafety = {
 } as const;
 
 export function getPetLimitState(petCount: number) {
-  const max = freePlanLimits.maxPets;
+  const { planName, maxPets: max } = getEffectivePlanLimits();
   const isAtLimit = petCount >= max;
   const isOverLimit = petCount > max;
 
@@ -86,8 +128,8 @@ export function getPetLimitState(petCount: number) {
     isAtLimit,
     isOverLimit,
     usageLabel: isOverLimit
-      ? `Free plan - ${petCount} pet profiles saved during early access`
-      : `Free plan - ${petCount} of ${max} pet profiles used`,
+      ? `${planName} plan - ${petCount} pet profiles saved during early access`
+      : `${planName} plan - ${petCount} of ${max} pet profiles used`,
     message: isOverLimit
       ? "You're currently above the new Free limit because you joined during early access. Your existing pet profiles remain active. New profiles may require Premium when it becomes available."
       : "You've reached the Free profile limit. Premium plans for more pets are coming soon. Your existing pet profiles remain active.",
@@ -103,7 +145,7 @@ export function getPetLimitStateFromPets(pets: Pet[]) {
 }
 
 export function getMemoryLimitState(memoryCount: number) {
-  const max = freePlanLimits.maxMemoriesPerPet;
+  const max = getEffectivePlanLimits().maxMemoriesPerPet;
   const isAtLimit = memoryCount >= max;
   const isOverLimit = memoryCount > max;
 

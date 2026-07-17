@@ -290,6 +290,16 @@ export type TagType = "MyPetLink QR Pet Tag" | "MyPetLink QR + NFC Smart Tag";
 // pets, Standard for dogs/medium-large pets. Applies to both QR and QR + NFC.
 export type TagVariant = "Lightweight" | "Standard";
 
+// Physical fulfilment progress of a tag, tracked separately from TagStatus:
+// a tag can be Unassigned (lifecycle) while already SentToReseller
+// (fulfilment). Values use stable codes; UI shows friendly labels.
+export type TagFulfilmentStatus =
+  | "Generated"
+  | "Printed"
+  | "SentToReseller"
+  | "Received"
+  | "SentToOwner";
+
 export type TagStatus =
   | "Unassigned"
   | "Pending"
@@ -311,6 +321,7 @@ export type PetTag = {
   hasNfc: boolean;
   variant: TagVariant;
   status: TagStatus;
+  fulfilmentStatus?: TagFulfilmentStatus;
   batchNo?: string;
   orderedDate?: string;
   deliveredDate?: string;

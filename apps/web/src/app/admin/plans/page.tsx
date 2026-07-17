@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { AdminPlansView } from "@/components/admin/AdminPlansView";
+import { Suspense } from "react";
+import { AdminPlansManager } from "@/components/admin/AdminPlansManager";
 import { PageHeader } from "@/components/ui/PageHeader";
 
 export const metadata: Metadata = {
@@ -12,9 +13,17 @@ export default function AdminPlansPage() {
       <PageHeader
         eyebrow="Admin"
         title="Plans"
-        description="Review plan names, prices, billing notes, and included features."
+        description="Review plan packages, their limits, and how each owner's usage compares."
       />
-      <AdminPlansView />
+      <Suspense
+        fallback={
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm font-semibold text-slate-500">
+            Loading plans...
+          </div>
+        }
+      >
+        <AdminPlansManager />
+      </Suspense>
     </>
   );
 }

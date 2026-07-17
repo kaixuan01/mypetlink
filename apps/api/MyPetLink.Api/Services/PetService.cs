@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using MyPetLink.Api.Common;
@@ -6,14 +5,13 @@ using MyPetLink.Api.Data;
 using MyPetLink.Api.DTOs;
 using MyPetLink.Api.Entities;
 using MyPetLink.Api.Storage;
+using MyPetLink.Api.Validation;
 
 namespace MyPetLink.Api.Services;
 
 public sealed class PetService : SkeletonService, IPetService
 {
     private const string FreePlanCode = "Free";
-    private static readonly Regex E164Pattern = new(@"^\+[1-9]\d{6,14}$", RegexOptions.Compiled);
-
     private readonly MyPetLinkDbContext _dbContext;
     private readonly CloudflareR2Options _r2Options;
 
@@ -879,7 +877,7 @@ public sealed class PetService : SkeletonService, IPetService
     private static void ValidatePhone(string? value, string fieldName, IDictionary<string, string[]> errors)
     {
         var normalized = PetDtoMapper.NormalizeOptional(value);
-        if (!string.IsNullOrWhiteSpace(normalized) && !E164Pattern.IsMatch(normalized))
+        if (!string.IsNullOrWhiteSpace(normalized) && !PhoneNumberRules.IsUsableE164(normalized))
         {
             errors[fieldName] = ["Use E.164 format, for example +60123456789."];
         }

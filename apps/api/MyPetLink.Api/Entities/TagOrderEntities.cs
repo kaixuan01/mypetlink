@@ -31,6 +31,13 @@ public sealed class SmartTag : AuditableEntity
     // Tag variant: "Lightweight" or "Standard" (formerly the physical shape).
     public string Variant { get; set; } = "Standard";
     public SmartTagStatus Status { get; set; } = SmartTagStatus.Unclaimed;
+    // Physical fulfilment progress, tracked separately from the lifecycle
+    // Status above. Timestamps record when each fulfilment step happened.
+    public TagFulfilmentStatus FulfilmentStatus { get; set; } = TagFulfilmentStatus.Generated;
+    public DateTimeOffset? PrintedAt { get; set; }
+    public DateTimeOffset? SentToResellerAt { get; set; }
+    public DateTimeOffset? ReceivedAt { get; set; }
+    public DateTimeOffset? SentToOwnerAt { get; set; }
     public DateTimeOffset? ActivatedAt { get; set; }
     public DateTimeOffset? DeliveredAt { get; set; }
     public DateTimeOffset? LastScannedAt { get; set; }

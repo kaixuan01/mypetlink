@@ -60,6 +60,16 @@ export type BackendOwnerProfile = {
   defaultPrivacy: BackendPetVisibility;
   notificationPreferences: Record<string, unknown>;
   planCode: string;
+  // Current plan with the limits the service actually enforces.
+  plan?: {
+    code: string;
+    name: string;
+    status: string;
+    maxPets: number;
+    maxMemoriesPerPet: number;
+    maxMediaPerMemory: number;
+    maxCareRecords: number;
+  } | null;
   createdAt: string;
   updatedAt: string;
 };

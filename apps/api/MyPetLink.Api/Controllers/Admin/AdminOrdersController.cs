@@ -14,18 +14,56 @@ namespace MyPetLink.Api.Controllers.Admin;
 [Route("api/v1/admin/orders")]
 public sealed class AdminOrdersController : ApiControllerBase
 {
+    private const int MaxSelectedIds = 500;
     private readonly IAdminService _adminService;
+    private readonly IAdminOrderQueryService _orderQueryService;
     private readonly IOrderDocumentService _orderDocumentService;
     private readonly ICurrentUserService _currentUserService;
 
     public AdminOrdersController(
         IAdminService adminService,
+        IAdminOrderQueryService orderQueryService,
         IOrderDocumentService orderDocumentService,
         ICurrentUserService currentUserService)
     {
         _adminService = adminService;
+        _orderQueryService = orderQueryService;
         _orderDocumentService = orderDocumentService;
         _currentUserService = currentUserService;
+    }
+
+    [HttpGet("table")]
+    public async Task<IActionResult> Table(
+        [FromQuery] AdminOrderQuery query,
+        CancellationToken cancellationToken)
+    {
+        var (items, total) = await _orderQueryService.ListAsync(query, cancellationToken);
+        return Ok(ApiEnvelope.Ok(items, HttpContext, query.Page, query.PageSize, total));
+    }
+
+    [HttpGet("counts")]
+    public async Task<IActionResult> Counts(
+        [FromQuery] AdminOrderQuery query,
+        CancellationToken cancellationToken)
+    {
+        var counts = await _orderQueryService.CountByStageAsync(query, cancellationToken);
+        return Ok(ApiEnvelope.Ok(counts, HttpContext));
+    }
+
+    [HttpGet("export")]
+    public async Task<IActionResult> Export(
+        [FromQuery] AdminOrderQuery query,
+        [FromQuery] string? format,
+        [FromQuery] string? ids,
+        CancellationToken cancellationToken)
+    {
+        var export = await _orderQueryService.ExportAsync(
+            _currentUserService.Current.UserId,
+            query,
+            format,
+            ParseSelectedIds(ids),
+            cancellationToken);
+        return File(export.Content, export.ContentType, export.FileName);
     }
 
     [HttpGet]
@@ -201,11 +239,15 @@ public sealed class AdminOrdersController : ApiControllerBase
     }
 
     [HttpPost("{orderId:guid}/cancel")]
-    public async Task<IActionResult> Cancel(Guid orderId, CancellationToken cancellationToken)
+    public async Task<IActionResult> Cancel(
+        Guid orderId,
+        [FromBody] CancelOrderRequest request,
+        CancellationToken cancellationToken)
     {
         var response = await _adminService.CancelOrderAsync(
             _currentUserService.Current.UserId,
             orderId,
+            request.Reason,
             cancellationToken);
 
         return Ok(ApiEnvelope.Ok(response, HttpContext));
@@ -227,4 +269,33 @@ public sealed class AdminOrdersController : ApiControllerBase
         var document = await _orderDocumentService.GetAdminReceiptAsync(orderId, cancellationToken);
         return File(document.Content, document.ContentType, document.FileName);
     }
+
+    private static IReadOnlyCollection<Guid>? ParseSelectedIds(string? ids)
+    {
+        if (string.IsNullOrWhiteSpace(ids)) return null;
+
+        var parts = ids.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Length > MaxSelectedIds)
+        {
+            throw InvalidIds($"Select at most {MaxSelectedIds} rows for an export.");
+        }
+
+        var parsed = new List<Guid>(parts.Length);
+        foreach (var part in parts)
+        {
+            if (!Guid.TryParse(part, out var id))
+            {
+                throw InvalidIds("The selected rows could not be read. Please reselect them.");
+            }
+            parsed.Add(id);
+        }
+
+        return parsed;
+    }
+
+    private static ApiException InvalidIds(string message) => new(
+        StatusCodes.Status400BadRequest,
+        "validation_failed",
+        "Please check the submitted fields.",
+        new Dictionary<string, string[]> { ["ids"] = [message] });
 }

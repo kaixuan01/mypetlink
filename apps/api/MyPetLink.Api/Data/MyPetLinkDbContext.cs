@@ -96,6 +96,7 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasIndex(item => item.NormalizedEmail).IsUnique();
             entity.HasIndex(item => item.Status);
             entity.HasIndex(item => item.CreatedAt);
+            entity.HasIndex(item => item.UpdatedAt);
         });
 
         modelBuilder.Entity<ExternalLogin>(entity =>
@@ -215,7 +216,9 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasIndex(item => new { item.OwnerUserId, item.LifecycleStatus });
             entity.HasIndex(item => item.LifecycleStatus);
             entity.HasIndex(item => item.LostModeEnabled);
+            entity.HasIndex(item => item.Species);
             entity.HasIndex(item => item.CreatedAt);
+            entity.HasIndex(item => item.UpdatedAt);
             entity.HasOne(item => item.OwnerUser)
                 .WithMany(user => user.Pets)
                 .HasForeignKey(item => item.OwnerUserId)
@@ -397,6 +400,10 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.Property(item => item.TagCode).HasMaxLength(32);
             entity.Property(item => item.Variant).HasMaxLength(80);
             entity.Property(item => item.Status).HasConversion<string>().HasMaxLength(32);
+            entity.Property(item => item.FulfilmentStatus)
+                .HasConversion<string>()
+                .HasMaxLength(32)
+                .HasDefaultValue(TagFulfilmentStatus.Generated);
             entity.HasIndex(item => item.TagCode).IsUnique();
             entity.HasIndex(item => item.OwnerUserId);
             entity.HasIndex(item => item.PetId);
@@ -405,6 +412,11 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasIndex(item => item.Status);
             entity.HasIndex(item => new { item.Status, item.PetId });
             entity.HasIndex(item => item.LastScannedAt);
+            entity.HasIndex(item => item.ActivatedAt);
+            entity.HasIndex(item => item.CreatedAt);
+            entity.HasIndex(item => item.UpdatedAt);
+            entity.HasIndex(item => item.FulfilmentStatus);
+            entity.HasIndex(item => new { item.FulfilmentStatus, item.CreatedAt });
             entity.HasOne(item => item.OwnerUser)
                 .WithMany()
                 .HasForeignKey(item => item.OwnerUserId)
@@ -453,6 +465,10 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasIndex(item => item.Status);
             entity.HasIndex(item => item.PaymentStatus);
             entity.HasIndex(item => item.CreatedAt);
+            entity.HasIndex(item => item.UpdatedAt);
+            entity.HasIndex(item => item.PaymentConfirmedAt);
+            entity.HasIndex(item => item.ShippedAt);
+            entity.HasIndex(item => item.DeliveredAt);
             entity.HasIndex(item => new { item.Status, item.CreatedAt });
             entity.HasIndex(item => new { item.PaymentStatus, item.CreatedAt });
             entity.HasOne(item => item.OwnerUser)
@@ -490,6 +506,10 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasIndex(item => item.Status);
             entity.HasIndex(item => item.UploadedAt);
             entity.HasIndex(item => item.ReviewedByAdminUserId);
+            entity.HasIndex(item => item.ReviewedAt);
+            entity.HasIndex(item => item.PaymentReference);
+            entity.HasIndex(item => item.UpdatedAt);
+            entity.HasIndex(item => new { item.Status, item.UploadedAt });
             entity.HasOne(item => item.Order)
                 .WithMany(order => order.PaymentProofs)
                 .HasForeignKey(item => item.OrderId)

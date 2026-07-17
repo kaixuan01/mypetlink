@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 
 type ConfirmDialogProps = {
   open: boolean;
@@ -11,6 +11,7 @@ type ConfirmDialogProps = {
   destructive?: boolean;
   onCancel: () => void;
   onConfirm: () => void;
+  children?: ReactNode;
 };
 
 export function ConfirmDialog({
@@ -22,6 +23,7 @@ export function ConfirmDialog({
   destructive = false,
   onCancel,
   onConfirm,
+  children,
 }: ConfirmDialogProps) {
   const confirmRef = useRef<HTMLButtonElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -96,6 +98,7 @@ export function ConfirmDialog({
       >
         <h2 className="text-2xl font-black text-pet-ink" id={titleId}>{title}</h2>
         <p className="mt-3 text-sm leading-6 text-pet-muted" id={messageId}>{message}</p>
+        {children ? <div className="mt-4">{children}</div> : null}
         <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <button
             className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"

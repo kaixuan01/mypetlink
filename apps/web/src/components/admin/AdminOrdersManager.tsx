@@ -1,31 +1,34 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  AdminActionButton,
-  AdminDetailItem,
-  AdminFilterTabs,
-  AdminSection,
-  AdminTable,
-} from "@/components/admin/AdminPanels";
-import { OrderDocumentButtons } from "@/components/admin/OrderDocumentButtons";
-import {
-  TagAssignmentModal,
-  type TagAssignmentMode,
-} from "@/components/admin/TagAssignmentModal";
-import { orderStatusTone } from "@/components/admin/adminDisplay";
+import { useEffect, useMemo, useState } from "react";
+import { AdminOrderDetailDrawer } from "@/components/admin/AdminOrderDetailDrawer";
+import { AdminSection } from "@/components/admin/AdminPanels";
+import { TagAssignmentModal, type TagAssignmentMode } from "@/components/admin/TagAssignmentModal";
+import { formatAdminDate, getTagTypeLabel } from "@/components/admin/adminDisplay";
+import { AdminBulkActionBar } from "@/components/admin/table/AdminBulkActionBar";
+import { AdminDataTable, type AdminColumn } from "@/components/admin/table/AdminDataTable";
+import { AdminExportMenu, type AdminExportFormat } from "@/components/admin/table/AdminExportMenu";
+import { AdminFilterBar, type AdminFilterDef } from "@/components/admin/table/AdminFilterBar";
+import { AdminSearchInput } from "@/components/admin/table/AdminSearchInput";
+import { useAdminTableQuery } from "@/components/admin/table/useAdminTableQuery";
 import { Badge } from "@/components/ui/Badge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import type { AdminOrderAction } from "@/lib/orders";
 import {
-  formatFullDeliveryAddress,
-  formatOrderNumber,
-  getAdminOrderActions,
-  getOrderStatusDisplay,
-  getPaymentStatusLabel,
-  type AdminOrderAction,
-} from "@/lib/orders";
-import { getAdminData, type AdminData } from "@/services/adminService";
+  countAdminOrders,
+  downloadAdminOrdersExport,
+  fulfilmentStatusLabels,
+  getAdminOrderExportFormats,
+  getAdminOrderSummary,
+  listAdminOrders,
+  paymentStatusLabels,
+  type AdminOrder,
+  type AdminOrderCounts,
+  type AdminOrderDetail,
+  type AdminOrderListParams,
+} from "@/services/adminOrderService";
+import { listTagInventory } from "@/services/adminTagInventoryService";
+import { isAbortError } from "@/services/apiClient";
 import {
   adminAssignInventoryTag,
   adminCancelOrder,
@@ -36,679 +39,568 @@ import {
   adminMarkOrderShipped,
   adminRejectOrderPayment,
   adminReplaceTag,
+  getFriendlyTagErrorMessage,
 } from "@/services/tagService";
-import type { OrderStatus, PetTag, TagOrder } from "@/types";
+import type { PetTag } from "@/types";
 
-type OrderFilter = OrderStatus | "all";
+const filterKeys = [
+  "stage",
+  "paymentStatus",
+  "fulfilmentStatus",
+  "hasProof",
+  "paymentMethod",
+  "type",
+  "variant",
+  "assigned",
+  "tracking",
+  "owner",
+  "ownerId",
+  "pet",
+  "orderNumber",
+  "location",
+  "amountMin",
+  "amountMax",
+  "createdFrom",
+  "createdTo",
+  "updatedFrom",
+  "updatedTo",
+  "proofSubmittedFrom",
+  "proofSubmittedTo",
+  "paymentConfirmedFrom",
+  "paymentConfirmedTo",
+  "shippedFrom",
+  "shippedTo",
+  "deliveredFrom",
+  "deliveredTo",
+] as const;
 
-const filterDefs: { id: OrderFilter; label: string }[] = [
-  { id: "Pending Payment", label: "Pending Payment" },
-  { id: "Payment Submitted", label: "Payment Proof Submitted" },
-  { id: "Payment Confirmed", label: "Payment Confirmed" },
-  { id: "Preparing", label: "Preparing Tag" },
-  { id: "Shipped", label: "Shipped" },
-  { id: "Delivered", label: "Delivered" },
-  { id: "Cancelled", label: "Cancelled" },
-  { id: "all", label: "All" },
+const filterDefs: AdminFilterDef[] = [
+  {
+    type: "select",
+    key: "paymentStatus",
+    label: "Payment",
+    options: Object.entries(paymentStatusLabels).map(([value, label]) => ({ value, label })),
+  },
+  { type: "text", key: "paymentMethod", label: "Payment method", advanced: true },
+  {
+    type: "select",
+    key: "fulfilmentStatus",
+    label: "Fulfilment",
+    options: Object.entries(fulfilmentStatusLabels).map(([value, label]) => ({ value, label })),
+  },
+  {
+    type: "select",
+    key: "hasProof",
+    label: "Payment proof",
+    options: [
+      { value: "true", label: "Submitted" },
+      { value: "false", label: "Not submitted" },
+    ],
+  },
+  {
+    type: "select",
+    key: "type",
+    label: "Tag type",
+    options: [
+      { value: "QR", label: "QR Pet Tag" },
+      { value: "QR_NFC", label: "QR + NFC Smart Tag" },
+    ],
+  },
+  {
+    type: "select",
+    key: "variant",
+    label: "Variant",
+    advanced: true,
+    options: [
+      { value: "Lightweight", label: "Lightweight Tag" },
+      { value: "Standard", label: "Standard Tag" },
+    ],
+  },
+  {
+    type: "select",
+    key: "assigned",
+    label: "Assigned tag",
+    advanced: true,
+    options: [
+      { value: "true", label: "Assigned" },
+      { value: "false", label: "Awaiting assignment" },
+    ],
+  },
+  {
+    type: "select",
+    key: "tracking",
+    label: "Tracking",
+    advanced: true,
+    options: [
+      { value: "true", label: "Has tracking number" },
+      { value: "false", label: "No tracking number" },
+    ],
+  },
+  { type: "text", key: "owner", label: "Customer", placeholder: "Name, email, phone", advanced: true },
+  { type: "text", key: "pet", label: "Pet", advanced: true },
+  { type: "text", key: "orderNumber", label: "Order number", placeholder: "MPL-ORD-…", advanced: true },
+  { type: "text", key: "location", label: "Delivery city / state", advanced: true },
+  { type: "text", key: "amountMin", label: "Minimum amount", advanced: true },
+  { type: "text", key: "amountMax", label: "Maximum amount", advanced: true },
+  { type: "date-range", key: "created", label: "Created", advanced: true },
+  { type: "date-range", key: "updated", label: "Updated", advanced: true },
+  { type: "date-range", key: "proofSubmitted", label: "Proof submitted", advanced: true },
+  { type: "date-range", key: "paymentConfirmed", label: "Payment confirmed", advanced: true },
+  { type: "date-range", key: "shipped", label: "Shipped", advanced: true },
+  { type: "date-range", key: "delivered", label: "Delivered", advanced: true },
 ];
 
-const actionLabels: Record<AdminOrderAction, string> = {
-  "confirm-payment": "Confirm Payment",
-  "reject-payment": "Request Resubmission",
-  "assign-tag": "Assign Inventory Tag",
-  "change-tag": "Change Assigned Tag",
-  "replace-tag": "Replace Tag",
-  "mark-preparing": "Mark Preparing",
-  "mark-shipped": "Mark Shipped",
-  "mark-delivered": "Mark Delivered",
-  "cancel-order": "Cancel Order",
+const emptyCounts: AdminOrderCounts = {
+  all: 0,
+  awaitingPayment: 0,
+  paymentReview: 0,
+  readyToPrepare: 0,
+  preparing: 0,
+  shipped: 0,
+  delivered: 0,
+  cancelled: 0,
 };
 
-// Which admin actions open the assign/change/replace inventory modal.
-const tagModalActions: Partial<Record<AdminOrderAction, TagAssignmentMode>> = {
-  "assign-tag": "assign",
-  "change-tag": "change",
-  "replace-tag": "replace",
-};
+const shortcuts: { value: string; label: string; count: keyof AdminOrderCounts }[] = [
+  { value: "", label: "All", count: "all" },
+  { value: "awaiting-payment", label: "Awaiting Payment", count: "awaitingPayment" },
+  { value: "payment-review", label: "Payment Review", count: "paymentReview" },
+  { value: "ready-to-prepare", label: "Ready to Prepare", count: "readyToPrepare" },
+  { value: "preparing", label: "Preparing", count: "preparing" },
+  { value: "shipped", label: "Shipped", count: "shipped" },
+  { value: "delivered", label: "Delivered", count: "delivered" },
+  { value: "cancelled", label: "Cancelled", count: "cancelled" },
+];
 
-export function AdminOrdersManager({ initialData }: { initialData: AdminData }) {
-  const searchParams = useSearchParams();
-  const requestedOrder = searchParams.get("order") ?? "";
-  const [data, setData] = useState(initialData);
-  const [filter, setFilter] = useState<OrderFilter>("all");
-  const [openOverride, setOpenOverride] = useState<string | null>(null);
-  const [message, setMessage] = useState("");
-  const [pendingCancelId, setPendingCancelId] = useState("");
-  const [pendingRejectId, setPendingRejectId] = useState("");
-  const [tagModal, setTagModal] = useState<{
-    orderId: string;
-    mode: TagAssignmentMode;
+type PendingAction = { action: Exclude<AdminOrderAction, "assign-tag" | "change-tag" | "replace-tag">; detail: AdminOrderDetail };
+
+export function AdminOrdersManager() {
+  const { query, actions, hasActiveFilters } = useAdminTableQuery({
+    filterKeys,
+    defaultSortBy: "createdAt",
+    allowedSortIds: [
+      "orderNumber",
+      "createdAt",
+      "updatedAt",
+      "customer",
+      "amount",
+      "paymentStatus",
+      "proofSubmittedAt",
+      "paymentConfirmedAt",
+      "fulfilmentStatus",
+      "shippedAt",
+      "deliveredAt",
+    ],
+    allowedFilterValues: {
+      stage: shortcuts.map((item) => item.value).filter(Boolean),
+      paymentStatus: Object.keys(paymentStatusLabels),
+      fulfilmentStatus: Object.keys(fulfilmentStatusLabels),
+      hasProof: ["true", "false"],
+      type: ["QR", "QR_NFC"],
+      variant: ["Lightweight", "Standard"],
+      assigned: ["true", "false"],
+      tracking: ["true", "false"],
+    },
+  });
+
+  const listParams = useMemo<AdminOrderListParams>(() => ({
+    page: query.page,
+    pageSize: query.pageSize,
+    search: query.search || undefined,
+    stage: query.filters.stage,
+    paymentStatus: query.filters.paymentStatus,
+    fulfilmentStatus: query.filters.fulfilmentStatus,
+    hasProof: query.filters.hasProof,
+    paymentMethod: query.filters.paymentMethod,
+    tagType: query.filters.type,
+    variant: query.filters.variant,
+    hasAssignedTag: query.filters.assigned,
+    hasTracking: query.filters.tracking,
+    owner: query.filters.owner,
+    ownerId: isGuid(query.filters.ownerId) ? query.filters.ownerId : undefined,
+    pet: query.filters.pet,
+    orderNumber: query.filters.orderNumber,
+    deliveryLocation: query.filters.location,
+    amountMin: query.filters.amountMin,
+    amountMax: query.filters.amountMax,
+    createdFrom: query.filters.createdFrom,
+    createdTo: query.filters.createdTo,
+    updatedFrom: query.filters.updatedFrom,
+    updatedTo: query.filters.updatedTo,
+    proofSubmittedFrom: query.filters.proofSubmittedFrom,
+    proofSubmittedTo: query.filters.proofSubmittedTo,
+    paymentConfirmedFrom: query.filters.paymentConfirmedFrom,
+    paymentConfirmedTo: query.filters.paymentConfirmedTo,
+    shippedFrom: query.filters.shippedFrom,
+    shippedTo: query.filters.shippedTo,
+    deliveredFrom: query.filters.deliveredFrom,
+    deliveredTo: query.filters.deliveredTo,
+    sortBy: query.sortBy,
+    sortDir: query.sortDir,
+  }), [query]);
+
+  const paramsKey = useMemo(() => JSON.stringify(listParams), [listParams]);
+  const [reloadKey, setReloadKey] = useState(0);
+  const fetchKey = `${paramsKey}:${reloadKey}`;
+  const [state, setState] = useState<{
+    key: string;
+    items: AdminOrder[];
+    total: number;
+    counts: AdminOrderCounts;
+    error: string;
   } | null>(null);
-  const [tagModalBusy, setTagModalBusy] = useState(false);
-
-  const refresh = useCallback(async () => {
-    setData(await getAdminData());
-  }, []);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectionScope, setSelectionScope] = useState(paramsKey);
+  if (selectionScope !== paramsKey) {
+    setSelectionScope(paramsKey);
+    setSelectedIds(new Set());
+  }
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [exportBusy, setExportBusy] = useState(false);
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const [reason, setReason] = useState("");
+  const [trackingNumber, setTrackingNumber] = useState("");
+  const [dialogError, setDialogError] = useState("");
+  const [tagModal, setTagModal] = useState<{ mode: TagAssignmentMode; detail: AdminOrderDetail; tags: PetTag[] } | null>(null);
+  const [detachedOrder, setDetachedOrder] = useState<AdminOrder | null>(null);
 
   useEffect(() => {
-    let active = true;
-
-    getAdminData()
-      .then((next) => {
-        if (active) {
-          setData(next);
-        }
+    const controller = new AbortController();
+    const params = JSON.parse(paramsKey) as AdminOrderListParams;
+    Promise.all([
+      listAdminOrders(params, controller.signal),
+      countAdminOrders(params, controller.signal),
+    ])
+      .then(([list, counts]) => {
+        if (!controller.signal.aborted) setState({ key: fetchKey, items: list.items, total: list.total, counts, error: "" });
       })
-      .catch(() => {
-        if (active) {
-          setMessage("We could not load orders. Please refresh to try again.");
+      .catch((caught) => {
+        if (!controller.signal.aborted && !isAbortError(caught)) {
+          setState({ key: fetchKey, items: [], total: 0, counts: emptyCounts, error: "We couldn't load tag orders. Please try again." });
         }
       });
+    return () => controller.abort();
+  }, [fetchKey, paramsKey]);
 
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  // ?order= deep-links open a specific order (e.g. from the payment proof
-  // queue); toggling in the UI overrides the deep link.
-  const requestedOrderId = useMemo(() => {
-    if (!requestedOrder) {
-      return "";
-    }
-
-    const normalized = requestedOrder.trim().toLowerCase();
-    return (
-      data.orders.find(
-        (order) =>
-          order.id.toLowerCase() === normalized ||
-          formatOrderNumber(order).toLowerCase() === normalized
-      )?.id ?? ""
-    );
-  }, [requestedOrder, data.orders]);
-
-  const openOrderId = openOverride ?? requestedOrderId;
-
-  const petMap = useMemo(
-    () => new Map(data.pets.map((pet) => [pet.id, pet])),
-    [data.pets]
+  const loading = state?.key !== fetchKey;
+  const items = useMemo(
+    () => (state?.key === fetchKey ? state.items : []),
+    [fetchKey, state]
   );
-  const tagsById = useMemo(
-    () => new Map(data.tags.map((tag) => [tag.id, tag])),
-    [data.tags]
-  );
+  const total = state?.key === fetchKey ? state.total : 0;
+  const counts = state?.key === fetchKey ? state.counts : emptyCounts;
+  const listError = state?.key === fetchKey ? state.error : "";
+  const openOrderId = actions.getExtraParam("order");
 
-  const counts = useMemo(() => {
-    const map = new Map<OrderFilter, number>();
-    map.set("all", data.orders.length);
-
-    for (const order of data.orders) {
-      map.set(order.status, (map.get(order.status) ?? 0) + 1);
-    }
-
-    return map;
-  }, [data.orders]);
-
-  const visibleOrders = useMemo(
-    () =>
-      filter === "all"
-        ? data.orders
-        : data.orders.filter((order) => order.status === filter),
-    [data.orders, filter]
-  );
-
-  async function runAction(order: TagOrder, action: AdminOrderAction) {
-    if (action === "cancel-order") {
-      setPendingCancelId(order.id);
+  useEffect(() => {
+    if (!openOrderId || items.some((item) => item.id === openOrderId || item.orderNumber === openOrderId)) {
       return;
     }
+    const controller = new AbortController();
+    getAdminOrderSummary(openOrderId, controller.signal)
+      .then((order) => {
+        if (!controller.signal.aborted) setDetachedOrder(order);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setMessage("This order could not be opened.");
+      });
+    return () => controller.abort();
+  }, [items, openOrderId]);
 
-    if (action === "reject-payment") {
-      setPendingRejectId(order.id);
-      return;
-    }
+  const openOrder = items.find((item) => item.id === openOrderId || item.orderNumber === openOrderId)
+    ?? (detachedOrder && (detachedOrder.id === openOrderId || detachedOrder.orderNumber === openOrderId) ? detachedOrder : null);
 
-    const modalMode = tagModalActions[action];
-    if (modalMode) {
-      setTagModal({ orderId: order.id, mode: modalMode });
-      return;
-    }
-
-    const handlers: Record<
-      Extract<
-        AdminOrderAction,
-        "confirm-payment" | "mark-preparing" | "mark-shipped" | "mark-delivered"
-      >,
-      (id: string) => Promise<{ data: TagOrder | null }>
-    > = {
-      "confirm-payment": adminConfirmOrderPayment,
-      "mark-preparing": adminMarkOrderPreparing,
-      "mark-shipped": adminMarkOrderShipped,
-      "mark-delivered": adminMarkOrderDelivered,
-    };
-
-    const handler = handlers[action as keyof typeof handlers];
-    if (!handler) {
-      return;
-    }
-
-    const result = await handler(order.id);
-    await refresh();
-    setMessage(
-      result.data
-        ? `${formatOrderNumber(order)} updated to ${getOrderStatusDisplay(result.data.status)}.`
-        : "This order could not be updated from its current status."
-    );
+  function refresh() {
+    setReloadKey((value) => value + 1);
   }
 
-  async function submitTagModal(input: {
-    tagId: string;
-    reason: string;
-    note: string;
-  }) {
-    if (!tagModal) {
-      return;
-    }
-
-    const order = data.orders.find((item) => item.id === tagModal.orderId);
-    if (!order) {
-      setTagModal(null);
-      return;
-    }
-
-    setTagModalBusy(true);
-
+  async function runExport(format: AdminExportFormat, scope: "filtered" | "selected") {
+    setExportBusy(true);
     try {
-      const result =
-        tagModal.mode === "assign"
-          ? await adminAssignInventoryTag(order.id, input.tagId)
-          : tagModal.mode === "change"
-            ? await adminChangeAssignedTag(order.id, input.tagId, input.reason)
-            : await adminReplaceTag(order.id, input.tagId, input.reason, input.note);
-
-      await refresh();
-      setMessage(
-        result.data
-          ? tagModal.mode === "assign"
-            ? `Inventory tag assigned to ${formatOrderNumber(order)}.`
-            : tagModal.mode === "change"
-              ? `Assigned tag changed for ${formatOrderNumber(order)}.`
-              : `Replacement tag issued for ${formatOrderNumber(order)}.`
-          : "This tag action could not be completed from the order's current status."
-      );
-
-      if (result.data) {
-        setTagModal(null);
-      }
+      await downloadAdminOrdersExport(listParams, format, scope === "selected" ? [...selectedIds] : undefined);
+      setMessage(scope === "selected" ? `${selectedIds.size} selected order${selectedIds.size === 1 ? "" : "s"} exported.` : "Filtered tag orders exported.");
+    } catch (caught) {
+      setMessage(getFriendlyTagErrorMessage(caught));
     } finally {
-      setTagModalBusy(false);
+      setExportBusy(false);
     }
   }
 
-  async function confirmCancel() {
-    const order = data.orders.find((item) => item.id === pendingCancelId);
-    setPendingCancelId("");
-
-    if (!order) {
+  async function requestAction(action: AdminOrderAction, detail: AdminOrderDetail) {
+    setMessage("");
+    if (action === "assign-tag" || action === "change-tag" || action === "replace-tag") {
+      setBusy(true);
+      try {
+        const inventory = await listTagInventory({
+          page: 1,
+          pageSize: 100,
+          status: "Unclaimed",
+          tagType: detail.order.tagType.includes("NFC") ? "QR_NFC" : "QR",
+          variant: detail.order.variant,
+          sortBy: "tagCode",
+          sortDir: "asc",
+        });
+        const tags: PetTag[] = inventory.items.map((tag) => ({
+          id: tag.id,
+          tagCode: tag.tagCode,
+          hasNfc: tag.hasNfc,
+          variant: tag.variant,
+          status: "Unassigned",
+          batchNo: tag.batchNo,
+          orderedDate: formatAdminDate(tag.generatedAt),
+        }));
+        setTagModal({ mode: action === "assign-tag" ? "assign" : action === "change-tag" ? "change" : "replace", detail, tags });
+      } catch (caught) {
+        setMessage(getFriendlyTagErrorMessage(caught));
+      } finally {
+        setBusy(false);
+      }
       return;
     }
 
-    const result = await adminCancelOrder(order.id);
-    await refresh();
-    setMessage(
-      result.data
-        ? `${formatOrderNumber(order)} has been cancelled.`
-        : "This order could not be cancelled from its current status."
-    );
+    setReason("");
+    setTrackingNumber(detail.order.trackingNumber ?? "");
+    setDialogError("");
+    setPendingAction({ action, detail });
   }
 
-  async function confirmReject() {
-    const order = data.orders.find((item) => item.id === pendingRejectId);
-    setPendingRejectId("");
-
-    if (!order) {
+  async function confirmAction() {
+    if (!pendingAction || busy) return;
+    if ((pendingAction.action === "reject-payment" || pendingAction.action === "cancel-order") && !reason.trim()) {
+      setDialogError("Enter a reason before continuing.");
       return;
     }
 
-    const result = await adminRejectOrderPayment(
-      order.id,
-      "We could not verify this payment proof. Please resubmit your receipt or screenshot."
-    );
-    await refresh();
-    setMessage(
-      result.data
-        ? `${formatOrderNumber(order)} returned to Pending Payment for resubmission.`
-        : "This payment proof could not be updated from its current status."
-    );
+    setBusy(true);
+    setDialogError("");
+    try {
+      const id = pendingAction.detail.order.id;
+      const result = pendingAction.action === "confirm-payment"
+        ? await adminConfirmOrderPayment(id)
+        : pendingAction.action === "reject-payment"
+          ? await adminRejectOrderPayment(id, reason)
+          : pendingAction.action === "mark-preparing"
+            ? await adminMarkOrderPreparing(id)
+            : pendingAction.action === "mark-shipped"
+              ? await adminMarkOrderShipped(id, trackingNumber)
+              : pendingAction.action === "mark-delivered"
+                ? await adminMarkOrderDelivered(id)
+                : await adminCancelOrder(id, reason);
+      if (!result.data) throw new Error("This action is no longer available for the order's current status.");
+      setMessage(actionSuccess(pendingAction.action, pendingAction.detail.order.orderNumber ?? id));
+      setPendingAction(null);
+      setSelectedIds(new Set());
+      refresh();
+    } catch (caught) {
+      setDialogError(getFriendlyTagErrorMessage(caught));
+    } finally {
+      setBusy(false);
+    }
   }
+
+  async function submitTag(input: { tagId: string; reason: string; note: string }) {
+    if (!tagModal || busy) return;
+    setBusy(true);
+    try {
+      const id = tagModal.detail.order.id;
+      const result = tagModal.mode === "assign"
+        ? await adminAssignInventoryTag(id, input.tagId)
+        : tagModal.mode === "change"
+          ? await adminChangeAssignedTag(id, input.tagId, input.reason)
+          : await adminReplaceTag(id, input.tagId, input.reason, input.note);
+      if (!result.data) throw new Error("This tag action is no longer available for the order's current status.");
+      setMessage(tagModal.mode === "assign" ? "Inventory tag assigned." : tagModal.mode === "change" ? "Assigned tag changed." : "Replacement tag issued.");
+      setTagModal(null);
+      refresh();
+    } catch (caught) {
+      setMessage(getFriendlyTagErrorMessage(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const columns: AdminColumn<AdminOrder>[] = [
+    {
+      id: "orderNumber",
+      header: "Order number",
+      sortId: "orderNumber",
+      cell: (order) => (
+        <button className="whitespace-nowrap font-bold text-[#1b4f9c] underline-offset-2 hover:underline" onClick={() => actions.setExtraParam("order", order.id)} type="button">
+          {order.orderNumber}
+        </button>
+      ),
+    },
+    {
+      id: "customer",
+      header: "Customer",
+      sortId: "customer",
+      cell: (order) => <span className="block min-w-32"><span className="block font-bold text-slate-900">{order.ownerName}</span><span className="block text-xs text-slate-500">{order.ownerEmail}</span></span>,
+    },
+    { id: "pet", header: "Pet", cell: (order) => <span className="whitespace-nowrap text-slate-600">{order.petName}</span> },
+    { id: "item", header: "Item", cell: (order) => <span className="whitespace-nowrap text-slate-600">{getTagTypeLabel(order.hasNfc)} · {order.variant}</span> },
+    { id: "amount", header: "Amount", sortId: "amount", cell: (order) => <span className="whitespace-nowrap font-bold text-slate-700">{order.currency} {(order.amount + order.deliveryFee).toFixed(2)}</span> },
+    {
+      id: "paymentStatus",
+      header: "Payment",
+      sortId: "paymentStatus",
+      cell: (order) => <Badge tone={order.paymentStatus === "Confirmed" ? "mint" : order.paymentStatus === "Rejected" ? "danger" : "warm"}>{paymentStatusLabels[order.paymentStatus]}</Badge>,
+    },
+    {
+      id: "proof",
+      header: "Payment proof",
+      sortId: "proofSubmittedAt",
+      cell: (order) => <span className="whitespace-nowrap text-slate-600">{order.hasPaymentProof ? order.latestPaymentProofStatus?.replace(/([a-z])([A-Z])/g, "$1 $2") ?? "Submitted" : "—"}</span>,
+    },
+    {
+      id: "fulfilmentStatus",
+      header: "Fulfilment",
+      sortId: "fulfilmentStatus",
+      cell: (order) => <Badge tone={order.fulfilmentStatus === "Delivered" ? "mint" : order.fulfilmentStatus === "Cancelled" ? "danger" : "teal"}>{fulfilmentStatusLabels[order.fulfilmentStatus]}</Badge>,
+    },
+    { id: "assignedTag", header: "Assigned tag", cell: (order) => <span className="whitespace-nowrap font-mono text-xs font-bold text-slate-600">{order.assignedTagCode ?? "—"}</span> },
+    { id: "createdAt", header: "Created", sortId: "createdAt", cell: (order) => <span className="whitespace-nowrap text-slate-600">{formatAdminDate(order.createdAt)}</span> },
+    { id: "updatedAt", header: "Updated", sortId: "updatedAt", hideable: true, defaultHidden: true, cell: (order) => <span className="whitespace-nowrap text-slate-600">{formatAdminDate(order.updatedAt)}</span> },
+    { id: "tracking", header: "Tracking", hideable: true, defaultHidden: true, cell: (order) => <span className="whitespace-nowrap text-slate-600">{order.trackingNumber ?? "—"}</span> },
+  ];
+
+  const dialog = dialogCopy(pendingAction?.action);
 
   return (
-    <AdminSection
-      title="Tag orders"
-      description="Review orders, confirm manual payments, and move orders through preparation and delivery."
-    >
-      <AdminFilterTabs
-        active={filter}
-        filters={filterDefs.map((def) => ({
-          ...def,
-          count: counts.get(def.id) ?? 0,
-        }))}
-        onChange={setFilter}
-      />
-      {message ? (
-        <p className="px-4 pt-3 text-sm font-bold text-[#1b4f9c]">{message}</p>
-      ) : null}
-      <div className="p-4">
-        {visibleOrders.length === 0 ? (
-          <p className="rounded-xl bg-slate-50 px-4 py-6 text-center text-sm font-semibold text-slate-500">
-            No orders in this status.
-          </p>
-        ) : (
-          <AdminTable
-            headers={[
-              "Order",
-              "Owner",
-              "Pet",
-              "Tag type",
-              "Amount",
-              "Payment",
-              "Status",
-              "Created",
-              "Delivery",
-              "Actions",
-            ]}
-          >
-            {visibleOrders.map((order) => {
-              const pet = petMap.get(order.petId);
-              const actions = getAdminOrderActions(order);
-              const open = openOrderId === order.id;
-
-              return (
-                <OrderRow
-                  actions={actions}
-                  key={order.id}
-                  linkedTag={order.tagId ? tagsById.get(order.tagId) : undefined}
-                  onAction={(action) => void runAction(order, action)}
-                  onToggle={() =>
-                    setOpenOverride(openOrderId === order.id ? "" : order.id)
-                  }
-                  open={open}
-                  order={order}
-                  ownerName={pet?.owner.name ?? "Owner"}
-                  petName={pet?.name ?? "Pet profile"}
-                />
-              );
-            })}
-          </AdminTable>
-        )}
+    <AdminSection title="Tag orders" description="Review payments and move paid orders through tag assignment, preparation, shipping, and delivery.">
+      <div className="overflow-x-auto border-b border-slate-200 px-4 pt-3">
+        <div className="flex min-w-max gap-1" aria-label="Order stage shortcuts">
+          {shortcuts.map((shortcut) => (
+            <button
+              aria-current={(query.filters.stage ?? "") === shortcut.value ? "page" : undefined}
+              className={`min-h-10 rounded-t-xl px-3 text-xs font-extrabold ${(query.filters.stage ?? "") === shortcut.value ? "bg-slate-950 text-white" : "text-slate-500 hover:bg-slate-50"}`}
+              key={shortcut.label}
+              onClick={() => actions.setFilter("stage", shortcut.value || null)}
+              type="button"
+            >
+              {shortcut.label} <span className="opacity-70">{loading ? "…" : counts[shortcut.count]}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
-      <ConfirmDialog
-        confirmLabel="Cancel Order"
-        destructive
-        message="The order will be marked as Cancelled and its unprepared tag will be removed from the owner's tag list. This does not delete the order history."
-        onCancel={() => setPendingCancelId("")}
-        onConfirm={() => void confirmCancel()}
-        open={Boolean(pendingCancelId)}
-        title="Cancel this order?"
-      />
-      <ConfirmDialog
-        confirmLabel="Request Resubmission"
-        destructive
-        message="The order will return to Pending Payment with a friendly note asking the owner to resubmit their receipt. The order is not cancelled."
-        onCancel={() => setPendingRejectId("")}
-        onConfirm={() => void confirmReject()}
-        open={Boolean(pendingRejectId)}
-        title="Request payment proof resubmission?"
+      <AdminFilterBar
+        endSlot={<AdminExportMenu busy={exportBusy} formats={getAdminOrderExportFormats()} onExport={(format, scope) => void runExport(format, scope)} selectedCount={selectedIds.size} />}
+        filters={filterDefs}
+        hasActiveFilters={hasActiveFilters}
+        onClearAll={actions.clearAllFilters}
+        onFilterChange={actions.setFilter}
+        onFiltersChange={actions.setFilters}
+        searchSlot={<AdminSearchInput onChange={actions.setSearch} placeholder="Search order, customer, pet, tag, tracking…" value={query.search} />}
+        values={query.filters}
       />
 
-      {(() => {
-        if (!tagModal) {
-          return null;
-        }
+      {message ? <p className="px-4 pt-3 text-sm font-bold text-[#1b4f9c]" role="status">{message}</p> : null}
 
-        const order = data.orders.find((item) => item.id === tagModal.orderId);
-        if (!order) {
-          return null;
-        }
+      <AdminDataTable
+        columns={columns}
+        emptyDescription={hasActiveFilters ? "Try changing or clearing the filters above." : "New customer tag orders will appear here."}
+        emptyTitle={hasActiveFilters ? "No orders match these filters." : "No tag orders yet."}
+        error={listError || undefined}
+        loading={loading}
+        onPageChange={actions.setPage}
+        onPageSizeChange={actions.setPageSize}
+        onRetry={refresh}
+        onRowOpen={(order) => actions.setExtraParam("order", order.id)}
+        onSelectedIdsChange={setSelectedIds}
+        onSortChange={actions.setSort}
+        page={query.page}
+        pageSize={query.pageSize}
+        rowKey={(order) => order.id}
+        rowOpenLabel="View"
+        rows={items}
+        selectable
+        selectedIds={selectedIds}
+        sortBy={query.sortBy}
+        sortDir={query.sortDir}
+        stickyFirstColumn
+        total={total}
+      />
 
-        const pet = petMap.get(order.petId);
+      <AdminBulkActionBar
+        actions={[{ id: "export-selected", label: "Export selected CSV", onClick: () => void runExport("csv", "selected"), tone: "primary" }]}
+        busy={exportBusy}
+        onClearSelection={() => setSelectedIds(new Set())}
+        selectedCount={selectedIds.size}
+      />
 
-        return (
-          <TagAssignmentModal
-            availableTags={getAssignableInventoryTags(order, data.tags)}
-            busy={tagModalBusy}
-            currentTag={order.tagId ? tagsById.get(order.tagId) : undefined}
-            mode={tagModal.mode}
-            onCancel={() => setTagModal(null)}
-            onSubmit={(input) => void submitTagModal(input)}
-            order={order}
-            ownerName={pet?.owner.name ?? "Owner"}
-            petName={pet?.name ?? "Pet profile"}
-          />
-        );
-      })()}
+      {openOrder ? (
+        <AdminOrderDetailDrawer
+          busy={busy}
+          onAction={(action, detail) => void requestAction(action, detail)}
+          onClose={() => actions.setExtraParam("order", null)}
+          refreshKey={reloadKey}
+          summary={openOrder}
+        />
+      ) : null}
+
+      <ConfirmDialog
+        confirmLabel={busy ? "Working…" : dialog.confirmLabel}
+        destructive={pendingAction?.action === "reject-payment" || pendingAction?.action === "cancel-order"}
+        message={dialog.message}
+        onCancel={() => !busy && setPendingAction(null)}
+        onConfirm={() => void confirmAction()}
+        open={pendingAction !== null}
+        title={dialog.title}
+      >
+        {pendingAction?.action === "reject-payment" || pendingAction?.action === "cancel-order" ? (
+          <label className="grid gap-1 text-sm font-bold text-slate-700">
+            Reason
+            <textarea className="min-h-24 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-semibold outline-none focus:border-slate-400" maxLength={600} onChange={(event) => setReason(event.target.value)} value={reason} />
+          </label>
+        ) : pendingAction?.action === "mark-shipped" ? (
+          <label className="grid gap-1 text-sm font-bold text-slate-700">
+            Tracking number (optional)
+            <input className="min-h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 font-semibold outline-none focus:border-slate-400" maxLength={120} onChange={(event) => setTrackingNumber(event.target.value)} value={trackingNumber} />
+          </label>
+        ) : null}
+        {dialogError ? <p className="mt-2 text-sm font-bold text-red-700" role="alert">{dialogError}</p> : null}
+      </ConfirmDialog>
+
+      {tagModal ? (
+        <TagAssignmentModal
+          availableTags={tagModal.tags}
+          busy={busy}
+          currentTag={tagModal.detail.order.tagId ? { id: tagModal.detail.order.tagId, tagCode: tagModal.detail.backendOrder?.smartTagCode ?? "Assigned tag", hasNfc: tagModal.detail.order.tagType.includes("NFC"), variant: tagModal.detail.order.variant, status: tagModal.detail.order.status === "Delivered" ? "Delivered" : "Preparing" } : undefined}
+          mode={tagModal.mode}
+          onCancel={() => !busy && setTagModal(null)}
+          onSubmit={(input) => void submitTag(input)}
+          order={tagModal.detail.order}
+          ownerName={tagModal.detail.owner.name}
+          petName={tagModal.detail.order.petName ?? "Pet profile"}
+        />
+      ) : null}
     </AdminSection>
   );
 }
 
-function OrderRow({
-  order,
-  ownerName,
-  petName,
-  actions,
-  linkedTag,
-  open,
-  onToggle,
-  onAction,
-}: {
-  order: TagOrder;
-  ownerName: string;
-  petName: string;
-  actions: AdminOrderAction[];
-  linkedTag?: PetTag;
-  open: boolean;
-  onToggle: () => void;
-  onAction: (action: AdminOrderAction) => void;
-}) {
-  return (
-    <>
-      <tr className="align-top">
-        <td className="whitespace-nowrap px-4 py-3 font-bold text-slate-950">
-          {formatOrderNumber(order)}
-        </td>
-        <td className="whitespace-nowrap px-4 py-3 text-slate-600">{ownerName}</td>
-        <td className="whitespace-nowrap px-4 py-3 text-slate-600">{petName}</td>
-        <td className="whitespace-nowrap px-4 py-3 text-slate-600">
-          {order.tagType.includes("NFC") ? "QR + NFC" : "QR"}
-        </td>
-        <td className="whitespace-nowrap px-4 py-3 text-slate-600">
-          {order.estimatedPrice}
-        </td>
-        <td className="whitespace-nowrap px-4 py-3 text-slate-600">
-          {getPaymentStatusLabel(order)}
-        </td>
-        <td className="whitespace-nowrap px-4 py-3">
-          <Badge tone={orderStatusTone[order.status]}>
-            {getOrderStatusDisplay(order.status)}
-          </Badge>
-        </td>
-        <td className="whitespace-nowrap px-4 py-3 text-slate-600">
-          {order.orderedDate}
-        </td>
-        <td className="max-w-52 px-4 py-3 text-slate-600">
-          {order.trackingStatus || "Not started"}
-        </td>
-        <td className="px-4 py-3">
-          <div className="flex flex-wrap gap-1.5">
-            <AdminActionButton onClick={onToggle}>
-              {open ? "Close" : "View"}
-            </AdminActionButton>
-            {actions.map((action) => (
-              <AdminActionButton
-                key={action}
-                onClick={() => onAction(action)}
-                tone={
-                  action === "cancel-order" ||
-                  action === "reject-payment" ||
-                  action === "replace-tag"
-                    ? "danger"
-                    : "primary"
-                }
-              >
-                {actionLabels[action]}
-              </AdminActionButton>
-            ))}
-          </div>
-        </td>
-      </tr>
-      {open ? (
-        <tr>
-          <td className="bg-slate-50/60 px-4 py-4" colSpan={10}>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              <AdminDetailItem label="Pet" value={petName} />
-              <AdminDetailItem label="Tag variant" value={`${order.variant} Tag`} />
-              <AdminDetailItem
-                label="Payment method"
-                value={order.paymentMethod ?? "QR Payment"}
-              />
-              <AdminDetailItem
-                label="Payment reference"
-                value={order.paymentReference ?? "Not submitted"}
-              />
-              <AdminDetailItem
-                label="Payment proof"
-                value={order.paymentProofName ?? "Not submitted"}
-              />
-              <AdminDetailItem
-                label="Proof submitted"
-                value={order.paymentSubmittedDate ?? "Not submitted"}
-              />
-              <AdminDetailItem
-                label="Payment confirmed"
-                value={order.paymentConfirmedDate ?? "Not confirmed"}
-              />
-              <AdminDetailItem
-                label="Resubmission note"
-                value={order.paymentRejectionReason ?? "None"}
-              />
-              <AdminDetailItem
-                label="Recipient"
-                value={order.delivery.recipientName}
-              />
-              <AdminDetailItem
-                label="Delivery phone"
-                value={order.delivery.phone}
-              />
-              <AdminDetailItem
-                label="Delivery address"
-                value={formatFullDeliveryAddress(order)}
-              />
-              <AdminDetailItem
-                label="Delivery notes"
-                value={order.delivery.notes || "None"}
-              />
-              <AdminDetailItem
-                label="Shipped"
-                value={order.shippedDate ?? "Not shipped"}
-              />
-              <AdminDetailItem
-                label="Delivered"
-                value={order.deliveredDate ?? "Not delivered"}
-              />
-              <AdminDetailItem
-                label="Assigned tag"
-                value={
-                  linkedTag
-                    ? `${linkedTag.tagCode} · ${getTagAssignmentLabel(order, linkedTag)}`
-                    : getTagAssignmentLabel(order, undefined)
-                }
-              />
-              <AdminDetailItem
-                label="Latest update"
-                value={order.trackingStatus || "Not started"}
-              />
-            </div>
-            <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
-              <p className="text-xs font-black uppercase tracking-wide text-slate-500">
-                Inventory tag
-              </p>
-              {linkedTag ? (
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <span className="font-mono text-sm font-bold text-slate-950">
-                    {linkedTag.tagCode}
-                  </span>
-                  <Badge tone="soft">
-                    {getTagAssignmentLabel(order, linkedTag)}
-                  </Badge>
-                </div>
-              ) : (
-                <p className="mt-1 text-sm font-semibold leading-6 text-slate-500">
-                  {order.status === "Payment Confirmed"
-                    ? "No tag assigned yet. Use Assign Inventory Tag to fulfil this order."
-                    : "No tag assigned yet."}
-                </p>
-              )}
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {actions.includes("assign-tag") ? (
-                  <AdminActionButton
-                    onClick={() => onAction("assign-tag")}
-                    tone="primary"
-                  >
-                    Assign Inventory Tag
-                  </AdminActionButton>
-                ) : null}
-                {actions.includes("change-tag") ? (
-                  <AdminActionButton
-                    onClick={() => onAction("change-tag")}
-                    tone="primary"
-                  >
-                    Change Assigned Tag
-                  </AdminActionButton>
-                ) : null}
-                {actions.includes("replace-tag") ? (
-                  <AdminActionButton
-                    onClick={() => onAction("replace-tag")}
-                    tone="danger"
-                  >
-                    Replace Tag
-                  </AdminActionButton>
-                ) : null}
-              </div>
-            </div>
-            <OrderDocumentButtons order={order} />
-            <ProofHistory order={order} />
-          </td>
-        </tr>
-      ) : null}
-    </>
-  );
+function dialogCopy(action?: PendingAction["action"]) {
+  if (action === "confirm-payment") return { title: "Confirm this payment?", message: "The latest submitted proof will be approved and fulfilment can begin.", confirmLabel: "Confirm payment" };
+  if (action === "reject-payment") return { title: "Reject this payment proof?", message: "The owner will be asked to submit a new proof. The reason is required.", confirmLabel: "Reject proof" };
+  if (action === "mark-preparing") return { title: "Start preparing this tag?", message: "The assigned inventory tag will move into preparation.", confirmLabel: "Start preparing" };
+  if (action === "mark-shipped") return { title: "Mark this order shipped?", message: "The order and assigned tag will be recorded as sent to the owner.", confirmLabel: "Mark shipped" };
+  if (action === "mark-delivered") return { title: "Mark this order delivered?", message: "The delivery timestamp and tag status will be updated.", confirmLabel: "Mark delivered" };
+  if (action === "cancel-order") return { title: "Cancel this order?", message: "Unshipped assigned stock will return to available inventory. The reason is required and recorded in the audit history.", confirmLabel: "Cancel order" };
+  return { title: "Confirm action", message: "Review this order before continuing.", confirmLabel: "Confirm" };
 }
 
-function getAssignableInventoryTags(order: TagOrder, tags: PetTag[]) {
-  const needsNfc = order.tagType.includes("NFC");
-
-  return tags.filter(
-    (tag) =>
-      !tag.isArchived &&
-      !tag.petId &&
-      tag.status === "Unassigned" &&
-      tag.hasNfc === needsNfc &&
-      tag.variant === order.variant
-  );
+function actionSuccess(action: PendingAction["action"], orderNumber: string) {
+  const result: Record<PendingAction["action"], string> = {
+    "confirm-payment": "Payment confirmed",
+    "reject-payment": "Payment proof rejected",
+    "mark-preparing": "Preparation started",
+    "mark-shipped": "Order marked shipped",
+    "mark-delivered": "Order marked delivered",
+    "cancel-order": "Order cancelled",
+  };
+  return `${result[action]} for ${orderNumber}.`;
 }
 
-// Clear, non-technical status for the tag assigned to an order.
-function getTagAssignmentLabel(order: TagOrder, tag?: PetTag): string {
-  if (!tag) {
-    return order.status === "Payment Confirmed"
-      ? "No tag assigned"
-      : "No tag yet";
-  }
-
-  if (tag.status === "Active") {
-    return "Active";
-  }
-
-  if (tag.status === "Replaced") {
-    return "Replaced";
-  }
-
-  if (order.status === "Shipped") {
-    return "Shipped, waiting activation";
-  }
-
-  if (order.status === "Delivered") {
-    return "Delivered, waiting activation";
-  }
-
-  if (tag.status === "Preparing") {
-    return "Assigned, preparing";
-  }
-
-  return "Assigned";
-}
-
-const proofStatusLabels: Record<
-  NonNullable<TagOrder["paymentProofs"]>[number]["status"],
-  string
-> = {
-  PendingReview: "Awaiting review",
-  Approved: "Approved",
-  Rejected: "Rejected / resubmission requested",
-  Superseded: "Replaced by a newer upload",
-};
-
-// Payment proof attempt history for the admin. Each resubmission is kept as its
-// own row, so a rejected-then-resubmitted order shows the full trail with the
-// rejection reason and reviewed timestamp rather than only the latest upload.
-function ProofHistory({ order }: { order: TagOrder }) {
-  const proofs = order.paymentProofs ?? [];
-
-  if (proofs.length === 0) {
-    return null;
-  }
-
-  return (
-    <div className="mt-4">
-      <p className="text-xs font-black uppercase tracking-wide text-slate-500">
-        Payment proof history ({proofs.length}{" "}
-        {proofs.length === 1 ? "attempt" : "attempts"})
-      </p>
-      <ol className="mt-2 grid gap-2">
-        {proofs.map((proof, index) => {
-          const attemptNumber = proofs.length - index;
-
-          return (
-            <li
-              className="rounded-xl border border-slate-200 bg-white p-3"
-              key={proof.id}
-            >
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm font-black text-slate-950">
-                  Attempt {attemptNumber}
-                </span>
-                <Badge
-                  tone={
-                    proof.status === "Approved"
-                      ? "mint"
-                      : proof.status === "Rejected"
-                        ? "danger"
-                        : proof.status === "PendingReview"
-                          ? "warm"
-                          : "soft"
-                  }
-                >
-                  {proofStatusLabels[proof.status]}
-                </Badge>
-              </div>
-              <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                <AdminDetailItem
-                  label="Uploaded file"
-                  value={proof.originalFileName || "Not provided"}
-                />
-                <AdminDetailItem
-                  label="Reference"
-                  value={proof.paymentReference ?? "Not provided"}
-                />
-                <AdminDetailItem
-                  label="Submitted"
-                  value={proof.submittedLabel ?? "Time not available"}
-                />
-                <AdminDetailItem
-                  label="Reviewed"
-                  value={proof.reviewedLabel ?? "Not reviewed"}
-                />
-              </div>
-              {proof.status === "Rejected" && proof.rejectionReason ? (
-                <p className="mt-2 rounded-lg bg-[#fff4f1] px-3 py-2 text-xs font-bold text-[#a63c2e]">
-                  Reason: {proof.rejectionReason}
-                </p>
-              ) : null}
-            </li>
-          );
-        })}
-      </ol>
-    </div>
-  );
+function isGuid(value?: string) {
+  return Boolean(value && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value));
 }

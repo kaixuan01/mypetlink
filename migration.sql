@@ -2120,3 +2120,333 @@ GO
 
 COMMIT;
 GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260716181516_AddTagFulfilmentStatus'
+)
+BEGIN
+    ALTER TABLE [SmartTags] ADD [FulfilmentStatus] nvarchar(32) NOT NULL DEFAULT N'Generated';
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260716181516_AddTagFulfilmentStatus'
+)
+BEGIN
+    ALTER TABLE [SmartTags] ADD [PrintedAt] datetimeoffset NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260716181516_AddTagFulfilmentStatus'
+)
+BEGIN
+    ALTER TABLE [SmartTags] ADD [ReceivedAt] datetimeoffset NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260716181516_AddTagFulfilmentStatus'
+)
+BEGIN
+    ALTER TABLE [SmartTags] ADD [SentToOwnerAt] datetimeoffset NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260716181516_AddTagFulfilmentStatus'
+)
+BEGIN
+    ALTER TABLE [SmartTags] ADD [SentToResellerAt] datetimeoffset NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260716181516_AddTagFulfilmentStatus'
+)
+BEGIN
+    UPDATE t
+    SET t.FulfilmentStatus = N'SentToOwner',
+        t.SentToOwnerAt = COALESCE(o.ShippedAt, t.DeliveredAt, t.ActivatedAt)
+    FROM [SmartTags] t
+    INNER JOIN [TagOrders] o ON o.Id = t.OrderId
+    WHERE o.ShippedAt IS NOT NULL
+       OR o.DeliveredAt IS NOT NULL
+       OR t.DeliveredAt IS NOT NULL
+       OR t.ActivatedAt IS NOT NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260716181516_AddTagFulfilmentStatus'
+)
+BEGIN
+    UPDATE [SmartTags]
+    SET FulfilmentStatus = N'Received',
+        ReceivedAt = ActivatedAt
+    WHERE OrderId IS NULL
+      AND ActivatedAt IS NOT NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260716181516_AddTagFulfilmentStatus'
+)
+BEGIN
+    UPDATE t
+    SET t.FulfilmentStatus = N'SentToReseller',
+        t.SentToResellerAt = b.SentToResellerAt,
+        t.PrintedAt = b.PrintedAt
+    FROM [SmartTags] t
+    INNER JOIN [SmartTagBatches] b ON b.Id = t.BatchId
+    WHERE t.FulfilmentStatus = N'Generated'
+      AND b.SentToResellerAt IS NOT NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260716181516_AddTagFulfilmentStatus'
+)
+BEGIN
+    UPDATE t
+    SET t.FulfilmentStatus = N'Printed',
+        t.PrintedAt = b.PrintedAt
+    FROM [SmartTags] t
+    INNER JOIN [SmartTagBatches] b ON b.Id = t.BatchId
+    WHERE t.FulfilmentStatus = N'Generated'
+      AND b.PrintedAt IS NOT NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260716181516_AddTagFulfilmentStatus'
+)
+BEGIN
+    CREATE INDEX [IX_SmartTags_CreatedAt] ON [SmartTags] ([CreatedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260716181516_AddTagFulfilmentStatus'
+)
+BEGIN
+    CREATE INDEX [IX_SmartTags_FulfilmentStatus] ON [SmartTags] ([FulfilmentStatus]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260716181516_AddTagFulfilmentStatus'
+)
+BEGIN
+    CREATE INDEX [IX_SmartTags_FulfilmentStatus_CreatedAt] ON [SmartTags] ([FulfilmentStatus], [CreatedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260716181516_AddTagFulfilmentStatus'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260716181516_AddTagFulfilmentStatus', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260717000154_AddSmartTagQueryIndexes'
+)
+BEGIN
+    CREATE INDEX [IX_SmartTags_ActivatedAt] ON [SmartTags] ([ActivatedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260717000154_AddSmartTagQueryIndexes'
+)
+BEGIN
+    CREATE INDEX [IX_SmartTags_UpdatedAt] ON [SmartTags] ([UpdatedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260717000154_AddSmartTagQueryIndexes'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260717000154_AddSmartTagQueryIndexes', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260717002730_AddAdminOrderQueryIndexes'
+)
+BEGIN
+    CREATE INDEX [IX_TagOrders_DeliveredAt] ON [TagOrders] ([DeliveredAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260717002730_AddAdminOrderQueryIndexes'
+)
+BEGIN
+    CREATE INDEX [IX_TagOrders_PaymentConfirmedAt] ON [TagOrders] ([PaymentConfirmedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260717002730_AddAdminOrderQueryIndexes'
+)
+BEGIN
+    CREATE INDEX [IX_TagOrders_ShippedAt] ON [TagOrders] ([ShippedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260717002730_AddAdminOrderQueryIndexes'
+)
+BEGIN
+    CREATE INDEX [IX_TagOrders_UpdatedAt] ON [TagOrders] ([UpdatedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260717002730_AddAdminOrderQueryIndexes'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260717002730_AddAdminOrderQueryIndexes', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260717020159_AddAdminPaymentAndPetProfileQueryIndexes'
+)
+BEGIN
+    CREATE INDEX [IX_Pets_Species] ON [Pets] ([Species]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260717020159_AddAdminPaymentAndPetProfileQueryIndexes'
+)
+BEGIN
+    CREATE INDEX [IX_Pets_UpdatedAt] ON [Pets] ([UpdatedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260717020159_AddAdminPaymentAndPetProfileQueryIndexes'
+)
+BEGIN
+    CREATE INDEX [IX_PaymentProofs_PaymentReference] ON [PaymentProofs] ([PaymentReference]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260717020159_AddAdminPaymentAndPetProfileQueryIndexes'
+)
+BEGIN
+    CREATE INDEX [IX_PaymentProofs_ReviewedAt] ON [PaymentProofs] ([ReviewedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260717020159_AddAdminPaymentAndPetProfileQueryIndexes'
+)
+BEGIN
+    CREATE INDEX [IX_PaymentProofs_Status_UploadedAt] ON [PaymentProofs] ([Status], [UploadedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260717020159_AddAdminPaymentAndPetProfileQueryIndexes'
+)
+BEGIN
+    CREATE INDEX [IX_PaymentProofs_UpdatedAt] ON [PaymentProofs] ([UpdatedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260717020159_AddAdminPaymentAndPetProfileQueryIndexes'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260717020159_AddAdminPaymentAndPetProfileQueryIndexes', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260717025444_AddAdminOwnerQueryIndex'
+)
+BEGIN
+    CREATE INDEX [IX_Users_UpdatedAt] ON [Users] ([UpdatedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260717025444_AddAdminOwnerQueryIndex'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260717025444_AddAdminOwnerQueryIndex', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO

@@ -34,3 +34,27 @@ export const lifecycleTone: Record<PetLifecycleStatus, BadgeTone> = {
 export function getTagTypeLabel(hasNfc: boolean) {
   return hasNfc ? "QR + NFC" : "QR";
 }
+
+export function formatAdminDate(value?: string | null) {
+  if (!value) return "—";
+  const parsed = Date.parse(value);
+  if (Number.isNaN(parsed)) return "—";
+  return new Intl.DateTimeFormat("en-MY", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(parsed));
+}
+
+export function formatAdminDateTime(value?: string | null) {
+  if (!value) return "—";
+  const parsed = Date.parse(value);
+  if (Number.isNaN(parsed)) return "—";
+  return new Intl.DateTimeFormat("en-MY", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(parsed));
+}

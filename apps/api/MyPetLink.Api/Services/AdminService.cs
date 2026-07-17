@@ -1,5 +1,4 @@
-using System.Security.Cryptography;
-using System.Text;
+using System.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using MyPetLink.Api.Common;
@@ -167,36 +166,13 @@ public sealed class AdminService : SkeletonService, IAdminService
         Guid orderId,
         CancellationToken cancellationToken = default)
     {
-        var admin = await RequireAdminAsync(currentUserId, cancellationToken);
-        var order = await LoadOrderAsync(orderId, trackChanges: true, cancellationToken);
-
-        if (order.Status != OrderStatus.PaymentProofSubmitted)
-        {
-            throw InvalidState("Payment can only be confirmed after a payment proof is submitted.");
-        }
-
-        var pendingProof = LatestPendingProof(order)
-            ?? throw InvalidState("There is no payment proof waiting for review on this order.");
-
-        var oldState = OrderStateSnapshot(order);
-        var now = DateTimeOffset.UtcNow;
-
-        pendingProof.Status = PaymentProofStatus.Approved;
-        pendingProof.ReviewedByAdminUserId = admin.Id;
-        pendingProof.ReviewedAt = now;
-        pendingProof.RejectionReason = null;
-
-        order.Status = OrderStatus.PaymentConfirmed;
-        order.PaymentStatus = PaymentStatus.Confirmed;
-        order.PaymentConfirmedAt ??= now;
-        order.TrackingStatus = "Payment confirmed. Tag preparation is next.";
-
-        _auditLogService.Append(
-            admin.Id, ActorType.Admin, "order.confirm-payment", "TagOrder", order.Id,
-            oldState, OrderStateSnapshot(order));
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
-        return ToAdminOrderResponse(order);
+        return await ReviewPaymentProofAsync(
+            currentUserId,
+            orderId,
+            paymentProofId: null,
+            approve: true,
+            reason: null,
+            cancellationToken);
     }
 
     public async Task<AdminTagOrderResponse> RejectPaymentProofAsync(
@@ -205,36 +181,13 @@ public sealed class AdminService : SkeletonService, IAdminService
         string? reason,
         CancellationToken cancellationToken = default)
     {
-        var admin = await RequireAdminAsync(currentUserId, cancellationToken);
-        var order = await LoadOrderAsync(orderId, trackChanges: true, cancellationToken);
-
-        if (order.Status != OrderStatus.PaymentProofSubmitted)
-        {
-            throw InvalidState("Only orders with a submitted payment proof can be sent back for resubmission.");
-        }
-
-        var pendingProof = LatestPendingProof(order)
-            ?? throw InvalidState("There is no payment proof waiting for review on this order.");
-
-        var oldState = OrderStateSnapshot(order);
-        var friendlyReason = NormalizeOptional(reason)
-            ?? "We could not verify this payment proof. Please resubmit your receipt or screenshot.";
-
-        pendingProof.Status = PaymentProofStatus.Rejected;
-        pendingProof.ReviewedByAdminUserId = admin.Id;
-        pendingProof.ReviewedAt = DateTimeOffset.UtcNow;
-        pendingProof.RejectionReason = friendlyReason;
-
-        order.Status = OrderStatus.PendingPayment;
-        order.PaymentStatus = PaymentStatus.Rejected;
-        order.TrackingStatus = "Payment proof needs to be resubmitted.";
-
-        _auditLogService.Append(
-            admin.Id, ActorType.Admin, "order.reject-payment-proof", "TagOrder", order.Id,
-            oldState, OrderStateSnapshot(order));
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
-        return ToAdminOrderResponse(order);
+        return await ReviewPaymentProofAsync(
+            currentUserId,
+            orderId,
+            paymentProofId: null,
+            approve: false,
+            reason,
+            cancellationToken);
     }
 
     public async Task<AdminTagOrderResponse> AssignInventoryTagAsync(
@@ -508,7 +461,10 @@ public sealed class AdminService : SkeletonService, IAdminService
         order.TrackingStatus = string.IsNullOrWhiteSpace(order.City)
             ? "Tag is on the way."
             : $"On the way to {order.City}.";
-        RequireAssignedOrderTag(order, "ship");
+        var shippedTag = RequireAssignedOrderTag(order, "ship");
+        // The physical tag has left our hands for the owner; keep the
+        // fulfilment trail in sync with the order without touching lifecycle.
+        AdminTagInventoryService.MarkSentToOwner(shippedTag, now);
 
         _auditLogService.Append(
             admin.Id, ActorType.Admin, "order.mark-shipped", "TagOrder", order.Id,
@@ -555,6 +511,7 @@ public sealed class AdminService : SkeletonService, IAdminService
     public async Task<AdminTagOrderResponse> CancelOrderAsync(
         Guid? currentUserId,
         Guid orderId,
+        string? reason,
         CancellationToken cancellationToken = default)
     {
         var admin = await RequireAdminAsync(currentUserId, cancellationToken);
@@ -565,22 +522,38 @@ public sealed class AdminService : SkeletonService, IAdminService
             throw InvalidState("Shipped, delivered, or already cancelled orders cannot be cancelled.");
         }
 
+        var normalizedReason = NormalizeOptional(reason)
+            ?? throw ValidationFailed("reason", "Enter a reason for cancelling this order.");
         var oldState = OrderStateSnapshot(order);
         var now = DateTimeOffset.UtcNow;
+        var assignedTag = order.SmartTag;
+        var oldTagState = assignedTag is null ? null : TagStateSnapshot(assignedTag);
         order.Status = OrderStatus.Cancelled;
         order.CancelledAt ??= now;
         order.TrackingStatus = "Cancelled";
 
-        if (order.SmartTag is not null
-            && order.SmartTag.Status is SmartTagStatus.Pending or SmartTagStatus.Preparing or SmartTagStatus.Delivered)
+        // An assigned tag that has not shipped or activated returns to unclaimed
+        // stock. This keeps inventory reusable without changing shipped history.
+        if (assignedTag is not null
+            && assignedTag.Status is SmartTagStatus.Pending or SmartTagStatus.Preparing)
         {
-            order.SmartTag.Status = SmartTagStatus.Archived;
-            order.SmartTag.ArchivedAt ??= now;
+            ReturnTagToInventory(assignedTag, now);
+            order.SmartTagId = null;
+            order.SmartTag = null;
+
+            _auditLogService.Append(
+                admin.Id,
+                ActorType.Admin,
+                "tag.unassign-from-cancelled-order",
+                "SmartTag",
+                assignedTag.Id,
+                oldTagState,
+                TagStateSnapshot(assignedTag, $"Order cancelled: {normalizedReason}"));
         }
 
         _auditLogService.Append(
             admin.Id, ActorType.Admin, "order.cancel", "TagOrder", order.Id,
-            oldState, OrderStateSnapshot(order));
+            oldState, new { state = OrderStateSnapshot(order), reason = normalizedReason });
 
         await _dbContext.SaveChangesAsync(cancellationToken);
         return ToAdminOrderResponse(order);
@@ -652,7 +625,13 @@ public sealed class AdminService : SkeletonService, IAdminService
         CancellationToken cancellationToken = default)
     {
         var orderId = await ResolveProofOrderIdAsync(paymentProofId, cancellationToken);
-        return await ConfirmPaymentAsync(currentUserId, orderId, cancellationToken);
+        return await ReviewPaymentProofAsync(
+            currentUserId,
+            orderId,
+            paymentProofId,
+            approve: true,
+            reason: null,
+            cancellationToken);
     }
 
     public async Task<AdminTagOrderResponse> RejectPaymentProofByIdAsync(
@@ -662,7 +641,13 @@ public sealed class AdminService : SkeletonService, IAdminService
         CancellationToken cancellationToken = default)
     {
         var orderId = await ResolveProofOrderIdAsync(paymentProofId, cancellationToken);
-        return await RejectPaymentProofAsync(currentUserId, orderId, reason, cancellationToken);
+        return await ReviewPaymentProofAsync(
+            currentUserId,
+            orderId,
+            paymentProofId,
+            approve: false,
+            reason,
+            cancellationToken);
     }
 
     // --- Smart tags --------------------------------------------------------------
@@ -803,120 +788,6 @@ public sealed class AdminService : SkeletonService, IAdminService
 
         await _dbContext.SaveChangesAsync(cancellationToken);
         return ToAdminTagResponse(tag);
-    }
-
-    // --- Tag inventory -------------------------------------------------------------
-
-    public async Task<AdminGenerateTagsResponse> GenerateTagInventoryAsync(
-        Guid? currentUserId,
-        AdminGenerateTagsRequest request,
-        CancellationToken cancellationToken = default)
-    {
-        var admin = await RequireAdminAsync(currentUserId, cancellationToken);
-        var hasNfc = ParseTagType(request.TagType);
-        var variant = TagVariants.Normalize(request.Variant);
-        var now = DateTimeOffset.UtcNow;
-        var batchNo = NormalizeOptional(request.BatchNumber)
-            ?? await GenerateBatchNumberAsync(now, cancellationToken);
-
-        var batchNoInUse = await _dbContext.SmartTagBatches
-            .AnyAsync(batch => batch.BatchNo == batchNo, cancellationToken);
-
-        if (batchNoInUse)
-        {
-            throw ValidationFailed("batchNumber", "This batch number is already in use.");
-        }
-
-        var batch = new SmartTagBatch
-        {
-            BatchNo = batchNo,
-            Quantity = request.Quantity,
-            HasNfc = hasNfc,
-            Variant = variant,
-            GeneratedByAdminUserId = admin.Id,
-            GeneratedAt = now
-        };
-
-        _dbContext.SmartTagBatches.Add(batch);
-
-        var tags = new List<SmartTag>(request.Quantity);
-
-        for (var index = 0; index < request.Quantity; index++)
-        {
-            tags.Add(new SmartTag
-            {
-                TagCode = await GenerateUniqueTagCodeAsync(tags, cancellationToken),
-                Batch = batch,
-                HasNfc = hasNfc,
-                Variant = variant,
-                Status = SmartTagStatus.Unclaimed
-            });
-        }
-
-        _dbContext.SmartTags.AddRange(tags);
-
-        _auditLogService.Append(
-            admin.Id, ActorType.Admin, "tag-inventory.generate", "SmartTagBatch", batch.Id,
-            null, new { batchNo, request.Quantity, tagType = hasNfc ? "QR_NFC" : "QR", variant });
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
-        return new AdminGenerateTagsResponse(
-            batchNo,
-            tags.Count,
-            tags.Select(TagDtoMapper.ToSmartTagResponse).ToArray());
-    }
-
-    public async Task<(string FileName, string Csv)> ExportTagInventoryCsvAsync(
-        string? batchNumber,
-        CancellationToken cancellationToken = default)
-    {
-        var query = VisibleTagsBase()
-            .AsNoTracking()
-            .Where(tag => tag.BatchId != null || tag.Status == SmartTagStatus.Unclaimed);
-        var normalizedBatch = NormalizeOptional(batchNumber);
-
-        if (normalizedBatch is not null)
-        {
-            query = query.Where(tag => tag.Batch != null && tag.Batch.BatchNo == normalizedBatch);
-        }
-
-        var tags = await query
-            .Include(tag => tag.Batch)
-            .OrderBy(tag => tag.Batch!.BatchNo)
-            .ThenBy(tag => tag.TagCode)
-            .ToListAsync(cancellationToken);
-
-        var builder = new StringBuilder();
-        builder.AppendLine("tag_code,tag_type,batch_number,status,created_at");
-
-        foreach (var tag in tags)
-        {
-            builder.AppendLine(string.Join(',',
-                CsvField(tag.TagCode),
-                CsvField(tag.HasNfc ? "QR_NFC" : "QR"),
-                CsvField(tag.Batch?.BatchNo ?? ""),
-                CsvField(tag.ArchivedAt.HasValue ? "Archived" : tag.Status.ToString()),
-                CsvField(tag.CreatedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss"))));
-        }
-
-        var exportedBatches = await _dbContext.SmartTagBatches
-            .Where(batch => normalizedBatch == null || batch.BatchNo == normalizedBatch)
-            .ToListAsync(cancellationToken);
-        var exportedAt = DateTimeOffset.UtcNow;
-
-        foreach (var batch in exportedBatches)
-        {
-            batch.ExportedAt = exportedAt;
-        }
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
-        var fileName = normalizedBatch is null
-            ? "mypetlink-tag-inventory.csv"
-            : $"mypetlink-tag-inventory-{normalizedBatch}.csv";
-
-        return (fileName, builder.ToString());
     }
 
     // --- Owners ----------------------------------------------------------------------
@@ -1108,34 +979,7 @@ public sealed class AdminService : SkeletonService, IAdminService
             tags.Select(TagDtoMapper.ToSmartTagResponse).ToArray());
     }
 
-    // --- Plans, settings and audit logs -----------------------------------------------------
-
-    public async Task<IReadOnlyCollection<AdminPlanResponse>> ListPlansAsync(
-        CancellationToken cancellationToken = default)
-    {
-        return await _dbContext.Plans
-            .AsNoTracking()
-            .Include(plan => plan.Limit)
-            .OrderBy(plan => plan.Name)
-            .Select(plan => new AdminPlanResponse(
-                plan.Id,
-                plan.Code,
-                plan.Name,
-                plan.Status.ToString(),
-                plan.PriceLabel,
-                plan.BillingNote,
-                plan.Description,
-                plan.Limit != null ? plan.Limit.MaxPets : 0,
-                plan.Limit != null ? plan.Limit.MaxMemoriesPerPet : 0,
-                plan.Limit != null ? plan.Limit.MaxMediaPerMemory : 0,
-                plan.Limit != null ? plan.Limit.MaxFamilyMembers : 0,
-                plan.Limit != null ? plan.Limit.MaxCareRecords : 0,
-                plan.Limit != null ? plan.Limit.ScanHistoryDays : 0,
-                plan.Limit != null && plan.Limit.AllowsSmartTagAddOns,
-                plan.Limit != null && plan.Limit.AllowsFoundReports,
-                plan.Limit != null && plan.Limit.AllowsAdvancedThemes))
-            .ToListAsync(cancellationToken);
-    }
+    // --- Settings and audit logs -----------------------------------------------------
 
     public async Task<AdminSettingsResponse> GetSettingsAsync(CancellationToken cancellationToken = default)
     {
@@ -1337,6 +1181,112 @@ public sealed class AdminService : SkeletonService, IAdminService
         return orderId ?? throw NotFound("Payment proof was not found.");
     }
 
+    private async Task<AdminTagOrderResponse> ReviewPaymentProofAsync(
+        Guid? currentUserId,
+        Guid orderId,
+        Guid? paymentProofId,
+        bool approve,
+        string? reason,
+        CancellationToken cancellationToken)
+    {
+        var normalizedReason = approve
+            ? null
+            : NormalizeOptional(reason) ?? throw ValidationFailed("reason", "Enter a reason for rejecting this payment proof.");
+        var strategy = _dbContext.Database.CreateExecutionStrategy();
+
+        return await strategy.ExecuteAsync(async () =>
+        {
+            // A serializable transaction prevents two Admin requests from
+            // reviewing the same pending proof concurrently. In-memory tests use
+            // the same state checks without a provider transaction.
+            _dbContext.ChangeTracker.Clear();
+            await using var transaction = _dbContext.Database.IsRelational()
+                ? await _dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken)
+                : null;
+
+            var admin = await RequireAdminAsync(currentUserId, cancellationToken);
+            var order = await LoadOrderAsync(orderId, trackChanges: true, cancellationToken);
+            if (order.Status != OrderStatus.PaymentProofSubmitted || order.PaymentStatus != PaymentStatus.ProofSubmitted)
+            {
+                throw InvalidState(approve
+                    ? "Payment can only be confirmed while its submitted proof is waiting for review."
+                    : "Only orders with a submitted payment proof can be sent back for resubmission.");
+            }
+
+            var latestPendingProof = LatestPendingProof(order)
+                ?? throw InvalidState("There is no payment proof waiting for review on this order.");
+            var proof = paymentProofId.HasValue
+                ? order.PaymentProofs.SingleOrDefault(item => item.Id == paymentProofId.Value)
+                    ?? throw NotFound("Payment proof was not found.")
+                : latestPendingProof;
+
+            if (proof.Status != PaymentProofStatus.PendingReview)
+            {
+                throw InvalidState("This payment proof has already been reviewed and cannot be reviewed again.");
+            }
+            if (proof.Id != latestPendingProof.Id)
+            {
+                throw InvalidState("Only the latest submitted payment proof can be reviewed.");
+            }
+            if (order.PaymentProofs.Any(item => item.Id != proof.Id && item.Status == PaymentProofStatus.Approved))
+            {
+                throw InvalidState("This order already has an approved payment proof.");
+            }
+
+            var oldOrderState = OrderStateSnapshot(order);
+            var oldProofState = PaymentProofStateSnapshot(proof);
+            var now = DateTimeOffset.UtcNow;
+            foreach (var stalePending in order.PaymentProofs.Where(item => item.Id != proof.Id && item.Status == PaymentProofStatus.PendingReview))
+            {
+                stalePending.Status = PaymentProofStatus.Superseded;
+                stalePending.UpdatedAt = now;
+            }
+            proof.Status = approve ? PaymentProofStatus.Approved : PaymentProofStatus.Rejected;
+            proof.ReviewedByAdminUserId = admin.Id;
+            proof.ReviewedAt = now;
+            proof.RejectionReason = normalizedReason;
+            proof.UpdatedAt = now;
+
+            if (approve)
+            {
+                order.Status = OrderStatus.PaymentConfirmed;
+                order.PaymentStatus = PaymentStatus.Confirmed;
+                order.PaymentConfirmedAt ??= now;
+                order.TrackingStatus = "Payment confirmed. Tag preparation is next.";
+            }
+            else
+            {
+                order.Status = OrderStatus.PendingPayment;
+                order.PaymentStatus = PaymentStatus.Rejected;
+                order.TrackingStatus = "Payment proof needs to be resubmitted.";
+            }
+            order.UpdatedAt = now;
+
+            var proofAction = approve ? "payment-proof.approve" : "payment-proof.reject";
+            var orderAction = approve ? "order.confirm-payment" : "order.reject-payment-proof";
+            _auditLogService.Append(
+                admin.Id,
+                ActorType.Admin,
+                proofAction,
+                "PaymentProof",
+                proof.Id,
+                oldProofState,
+                new { state = PaymentProofStateSnapshot(proof), reason = normalizedReason, orderId = order.Id });
+            _auditLogService.Append(
+                admin.Id,
+                ActorType.Admin,
+                orderAction,
+                "TagOrder",
+                order.Id,
+                oldOrderState,
+                new { state = OrderStateSnapshot(order), paymentProofId = proof.Id, reason = normalizedReason });
+
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            if (transaction is not null) await transaction.CommitAsync(cancellationToken);
+            return ToAdminOrderResponse(order);
+        });
+    }
+
     private static SmartTag RequireAssignedOrderTag(TagOrder order, string actionLabel)
     {
         var tag = order.SmartTag;
@@ -1441,65 +1391,6 @@ public sealed class AdminService : SkeletonService, IAdminService
         }
     }
 
-    private async Task<string> GenerateBatchNumberAsync(DateTimeOffset now, CancellationToken cancellationToken)
-    {
-        for (var attempt = 0; attempt < 12; attempt++)
-        {
-            var candidate = $"BATCH-{now:yyyyMM}-{RandomNumberGenerator.GetInt32(1000, 10000)}";
-            var exists = await _dbContext.SmartTagBatches
-                .AnyAsync(batch => batch.BatchNo == candidate, cancellationToken);
-
-            if (!exists)
-            {
-                return candidate;
-            }
-        }
-
-        throw new ApiException(
-            StatusCodes.Status500InternalServerError,
-            "batch_number_generation_failed",
-            "Could not generate a batch number. Please try again.");
-    }
-
-    private async Task<string> GenerateUniqueTagCodeAsync(
-        IReadOnlyCollection<SmartTag> pendingTags,
-        CancellationToken cancellationToken)
-    {
-        for (var attempt = 0; attempt < 12; attempt++)
-        {
-            var code = $"MPL-{RandomToken(4)}-{RandomToken(4)}";
-
-            if (pendingTags.Any(tag => tag.TagCode == code))
-            {
-                continue;
-            }
-
-            var exists = await _dbContext.SmartTags.AnyAsync(tag => tag.TagCode == code, cancellationToken);
-
-            if (!exists)
-            {
-                return code;
-            }
-        }
-
-        throw new ApiException(
-            StatusCodes.Status500InternalServerError,
-            "tag_code_generation_failed",
-            "Could not generate a tag code. Please try again.");
-    }
-
-    private static string RandomToken(int length)
-    {
-        const string alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-        return string.Create(length, alphabet, static (span, chars) =>
-        {
-            for (var index = 0; index < span.Length; index++)
-            {
-                span[index] = chars[RandomNumberGenerator.GetInt32(chars.Length)];
-            }
-        });
-    }
-
     private static AdminTagOrderResponse ToAdminOrderResponse(TagOrder order)
     {
         return new AdminTagOrderResponse(
@@ -1557,6 +1448,17 @@ public sealed class AdminService : SkeletonService, IAdminService
         };
     }
 
+    private static object PaymentProofStateSnapshot(PaymentProof proof)
+    {
+        return new
+        {
+            status = proof.Status.ToString(),
+            reviewedByAdminUserId = proof.ReviewedByAdminUserId,
+            reviewedAt = proof.ReviewedAt,
+            rejectionReason = proof.RejectionReason
+        };
+    }
+
     private static object TagStateSnapshot(SmartTag tag, string? reason = null)
     {
         return new
@@ -1602,13 +1504,6 @@ public sealed class AdminService : SkeletonService, IAdminService
         }
 
         throw ValidationFailed(field, message);
-    }
-
-    private static string CsvField(string value)
-    {
-        return value.Contains(',') || value.Contains('"')
-            ? $"\"{value.Replace("\"", "\"\"")}\""
-            : value;
     }
 
     private static string? NormalizeOptional(string? value)

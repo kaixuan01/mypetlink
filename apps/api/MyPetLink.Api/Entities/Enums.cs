@@ -77,6 +77,18 @@ public enum TagType
     QrNfcSmartTag
 }
 
+// Physical inventory/fulfilment state of a tag. This is deliberately separate
+// from SmartTagStatus: a tag can be Unclaimed (lifecycle) while already
+// SentToReseller (fulfilment), and fulfilment actions never change lifecycle.
+public enum TagFulfilmentStatus
+{
+    Generated,
+    Printed,
+    SentToReseller,
+    Received,
+    SentToOwner
+}
+
 public enum MemoryVisibility
 {
     Public,

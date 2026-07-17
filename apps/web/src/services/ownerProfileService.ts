@@ -5,6 +5,11 @@ import {
   writeOwnerSettings,
   type OwnerSettings,
 } from "@/lib/ownerSettings";
+import {
+  adoptServerPlanLimits,
+  freePlanLimits,
+  getEffectivePlanLimits,
+} from "@/lib/planLimits";
 import { apiRequest } from "@/services/apiClient";
 import { canUseApi } from "@/services/apiConfig";
 import type { BackendOwnerProfile } from "@/services/apiDtos";
@@ -19,6 +24,7 @@ export async function getOwnerProfileSettings(): Promise<ApiResponse<OwnerSettin
   }
 
   const response = await apiRequest<BackendOwnerProfile>("/api/v1/owner/profile");
+  adoptServerPlanLimits(response.data?.plan);
   const settings = mapOwnerProfileToSettings(response.data);
   writeOwnerSettings(settings);
 
@@ -53,6 +59,7 @@ export async function updateOwnerProfileSettings(
       notificationPreferences: settings.notificationPreferences,
     },
   });
+  adoptServerPlanLimits(response.data?.plan);
   const updatedSettings = mapOwnerProfileToSettings(response.data);
   writeOwnerSettings(updatedSettings);
 
@@ -62,6 +69,43 @@ export async function updateOwnerProfileSettings(
       requestId: response.meta?.requestId ?? `api_${Date.now()}`,
       source: "api",
     },
+  };
+}
+
+export type OwnerPlanSummary = {
+  planName: string;
+  planStatus: string;
+  maxPets: number;
+  maxMemoriesPerPet: number;
+};
+
+// The owner's current plan and enforced limits — the same values the service
+// checks when creating pets or memories. On local data the baseline Free plan
+// applies.
+export async function getOwnerPlanSummary(): Promise<OwnerPlanSummary> {
+  if (canUseApi()) {
+    try {
+      const response = await apiRequest<BackendOwnerProfile>("/api/v1/owner/profile");
+      adoptServerPlanLimits(response.data?.plan);
+
+      const limits = getEffectivePlanLimits();
+      return {
+        planName: response.data?.plan?.name ?? limits.planName,
+        planStatus: response.data?.plan?.status ?? "Available",
+        maxPets: limits.maxPets,
+        maxMemoriesPerPet: limits.maxMemoriesPerPet,
+      };
+    } catch {
+      // Fall through to the last adopted (or baseline) limits below.
+    }
+  }
+
+  const limits = getEffectivePlanLimits();
+  return {
+    planName: limits.planName || freePlanLimits.planName,
+    planStatus: "Available",
+    maxPets: limits.maxPets,
+    maxMemoriesPerPet: limits.maxMemoriesPerPet,
   };
 }
 

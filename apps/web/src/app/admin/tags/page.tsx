@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { AdminTagsManager } from "@/components/admin/AdminTagsManager";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { EMPTY_ADMIN_DATA } from "@/services/adminService";
 
 export const metadata: Metadata = {
   title: "Admin Smart Tags",
@@ -23,7 +22,7 @@ export default function AdminTagsPage() {
           </div>
         }
       >
-        <AdminTagsManager initialData={EMPTY_ADMIN_DATA} />
+        <AdminTagsManager />
       </Suspense>
     </>
   );

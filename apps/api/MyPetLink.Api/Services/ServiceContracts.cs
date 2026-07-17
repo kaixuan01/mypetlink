@@ -215,6 +215,11 @@ public interface IMediaService : ISkeletonService
         Guid mediaId,
         CancellationToken cancellationToken = default);
 
+    Task<MediaDownloadUrlResponse> CreateAdminPaymentProofDownloadUrlAsync(
+        Guid? currentUserId,
+        Guid paymentProofId,
+        CancellationToken cancellationToken = default);
+
     Task<int> DeleteStalePendingUploadsAsync(
         TimeSpan olderThan,
         CancellationToken cancellationToken = default);
@@ -400,6 +405,7 @@ public interface IAdminService : ISkeletonService
     Task<AdminTagOrderResponse> CancelOrderAsync(
         Guid? currentUserId,
         Guid orderId,
+        string? reason,
         CancellationToken cancellationToken = default);
 
     Task<(IReadOnlyCollection<AdminPaymentProofResponse> Items, int Total)> ListPaymentProofsAsync(
@@ -448,15 +454,6 @@ public interface IAdminService : ISkeletonService
         string? reason,
         CancellationToken cancellationToken = default);
 
-    Task<AdminGenerateTagsResponse> GenerateTagInventoryAsync(
-        Guid? currentUserId,
-        AdminGenerateTagsRequest request,
-        CancellationToken cancellationToken = default);
-
-    Task<(string FileName, string Csv)> ExportTagInventoryCsvAsync(
-        string? batchNumber,
-        CancellationToken cancellationToken = default);
-
     Task<(IReadOnlyCollection<AdminOwnerListItemResponse> Items, int Total)> ListOwnersAsync(
         int page,
         int pageSize,
@@ -480,9 +477,6 @@ public interface IAdminService : ISkeletonService
 
     Task<AdminSettingsResponse> GetSettingsAsync(CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyCollection<AdminPlanResponse>> ListPlansAsync(
-        CancellationToken cancellationToken = default);
-
     Task<(IReadOnlyCollection<AdminAuditLogResponse> Items, int Total)> ListAuditLogsAsync(
         int page,
         int pageSize,
@@ -492,6 +486,178 @@ public interface IAdminService : ISkeletonService
         Guid? actorId,
         DateTimeOffset? fromDate,
         DateTimeOffset? toDate,
+        CancellationToken cancellationToken = default);
+}
+
+// Tag Inventory: server-side listing, generation, bulk fulfilment updates,
+// and filtered CSV/Excel exports for the Admin Portal.
+public interface IAdminTagInventoryService : ISkeletonService
+{
+    Task<(IReadOnlyCollection<AdminTagInventoryItemResponse> Items, int Total)> ListAsync(
+        AdminTagInventoryQuery query,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminGenerateTagsResponse> GenerateAsync(
+        Guid? currentUserId,
+        AdminGenerateTagsRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminTagInventoryBulkActionResponse> BulkUpdateFulfilmentAsync(
+        Guid? currentUserId,
+        AdminTagInventoryBulkActionRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminTagInventoryExport> ExportAsync(
+        Guid? currentUserId,
+        AdminTagInventoryQuery query,
+        string? format,
+        IReadOnlyCollection<Guid>? tagIds,
+        CancellationToken cancellationToken = default);
+}
+
+// Read-only, privacy-conscious owner support query surface.
+public interface IAdminOwnerQueryService : ISkeletonService
+{
+    Task<(IReadOnlyCollection<AdminOwnerSupportItemResponse> Items, int Total)> ListAsync(
+        AdminOwnerQuery query,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminOwnerCountsResponse> CountAsync(
+        AdminOwnerQuery query,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminOwnerDetailResponseV2> GetAsync(
+        Guid? currentUserId,
+        Guid ownerUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminTagInventoryExport> ExportAsync(
+        Guid? currentUserId,
+        AdminOwnerQuery query,
+        string? format,
+        IReadOnlyCollection<Guid>? ownerIds,
+        CancellationToken cancellationToken = default);
+}
+
+// Read-only Plans surface: plan definitions (seeded configuration) and
+// owner-plan usage rows. No plan mutations exist yet by design.
+public interface IAdminPlanQueryService : ISkeletonService
+{
+    Task<IReadOnlyCollection<AdminPlanDefinitionResponse>> ListDefinitionsAsync(
+        CancellationToken cancellationToken = default);
+
+    Task<(IReadOnlyCollection<AdminOwnerPlanItemResponse> Items, int Total)> ListOwnersAsync(
+        AdminOwnerPlanQuery query,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminOwnerPlanCountsResponse> CountAsync(
+        AdminOwnerPlanQuery query,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminOwnerPlanDetailResponse> GetOwnerAsync(
+        Guid? currentUserId,
+        Guid ownerUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminTagInventoryExport> ExportAsync(
+        Guid? currentUserId,
+        AdminOwnerPlanQuery query,
+        string? format,
+        IReadOnlyCollection<Guid>? ownerIds,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IAdminSmartTagService : ISkeletonService
+{
+    Task<(IReadOnlyCollection<AdminSmartTagItemResponse> Items, int Total)> ListAsync(
+        AdminSmartTagQuery query,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminSmartTagStatusCountsResponse> CountByStatusAsync(
+        AdminSmartTagQuery query,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminSmartTagItemResponse> GetAsync(Guid tagId, CancellationToken cancellationToken = default);
+
+    Task<AdminSmartTagItemResponse> UpdateStatusAsync(
+        Guid? currentUserId,
+        Guid tagId,
+        string action,
+        string? reason,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminSmartTagBulkActionResponse> BulkUpdateAsync(
+        Guid? currentUserId,
+        AdminSmartTagBulkActionRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminTagInventoryExport> ExportAsync(
+        Guid? currentUserId,
+        AdminSmartTagQuery query,
+        string? format,
+        IReadOnlyCollection<Guid>? tagIds,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IAdminOrderQueryService : ISkeletonService
+{
+    Task<(IReadOnlyCollection<AdminOrderListItemResponse> Items, int Total)> ListAsync(
+        AdminOrderQuery query,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminOrderStatusCountsResponse> CountByStageAsync(
+        AdminOrderQuery query,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminTagInventoryExport> ExportAsync(
+        Guid? currentUserId,
+        AdminOrderQuery query,
+        string? format,
+        IReadOnlyCollection<Guid>? orderIds,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IAdminPaymentProofQueryService : ISkeletonService
+{
+    Task<(IReadOnlyCollection<AdminPaymentProofListItemResponse> Items, int Total)> ListAsync(
+        AdminPaymentProofQuery query,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminPaymentProofCountsResponse> CountByStatusAsync(
+        AdminPaymentProofQuery query,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminPaymentProofListItemResponse> GetAsync(
+        Guid paymentProofId,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminTagInventoryExport> ExportAsync(
+        Guid? currentUserId,
+        AdminPaymentProofQuery query,
+        string? format,
+        IReadOnlyCollection<Guid>? paymentProofIds,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IAdminPetProfileQueryService : ISkeletonService
+{
+    Task<(IReadOnlyCollection<AdminPetProfileItemResponse> Items, int Total)> ListAsync(
+        AdminPetProfileQuery query,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminPetProfileCountsResponse> CountByStatusAsync(
+        AdminPetProfileQuery query,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminPetProfileDetailResponse> GetAsync(
+        Guid petId,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminTagInventoryExport> ExportAsync(
+        Guid? currentUserId,
+        AdminPetProfileQuery query,
+        string? format,
+        IReadOnlyCollection<Guid>? petIds,
         CancellationToken cancellationToken = default);
 }
 

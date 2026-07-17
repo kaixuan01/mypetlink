@@ -16,7 +16,9 @@ export function AdminSection({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+    // min-w-0 lets the section shrink inside grid/flex parents so wide tables
+    // scroll within their own container instead of stretching the page.
+    <section className="min-w-0 rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="flex flex-col gap-3 border-b border-slate-200 p-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="text-lg font-black text-slate-950">{title}</h2>
@@ -150,7 +152,7 @@ export function AdminFilterTabs<T extends string>({
 
 export function AdminNotice({ children }: { children: ReactNode }) {
   return (
-    <div className="rounded-xl border border-[#cfe3ff] bg-[#f0f7ff] px-4 py-3 text-sm font-semibold text-[#1b4f9c]">
+    <div className="min-w-0 rounded-xl border border-[#cfe3ff] bg-[#f0f7ff] px-4 py-3 text-sm font-semibold text-[#1b4f9c]">
       {children}
     </div>
   );

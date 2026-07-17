@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AdminActionButton,
@@ -30,6 +31,8 @@ export function AdminPaymentProofsManager({
 }: {
   initialData: AdminData;
 }) {
+  const searchParams = useSearchParams();
+  const selectedOwnerId = searchParams.get("ownerId") ?? "";
   const [data, setData] = useState(initialData);
   const [filter, setFilter] = useState<ProofFilter>("queue");
   const [message, setMessage] = useState("");
@@ -65,8 +68,12 @@ export function AdminPaymentProofsManager({
   );
 
   const submissions = useMemo(
-    () => data.orders.filter((order) => order.paymentSubmittedDate),
-    [data.orders]
+    () => data.orders.filter((order) => {
+      if (!order.paymentSubmittedDate) return false;
+      if (!selectedOwnerId) return true;
+      return petMap.get(order.petId)?.ownerUserId === selectedOwnerId;
+    }),
+    [data.orders, petMap, selectedOwnerId]
   );
 
   const queue = submissions.filter(
