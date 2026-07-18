@@ -9,16 +9,14 @@ import { getSafetyProfileBadge } from "@/components/portal/ProfileAccessStatus";
 import { QrCodeButton } from "@/components/qr/QrCodeButton";
 import { toAbsoluteUrl } from "@/lib/siteUrl";
 import {
+  publicProfilesEnabled,
   safetyProfilesOwnerUiEnabled,
-  smartTagsEnabled,
-  tagOrdersEnabled,
 } from "@/lib/features";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { PetAvatar } from "@/components/ui/PetAvatar";
 import { getCareRecordDateTerminology } from "@/lib/careRecordTerminology";
-import { isActiveOrder } from "@/lib/orders";
 import {
   hasUsableOwnerContact,
   readOwnerSettings,
@@ -31,20 +29,16 @@ import {
   getPublicProfileShareVersion,
 } from "@/lib/publicProfileSocial";
 import { ownerRoutes } from "@/lib/routes";
-import { isActivePhysicalTagForPet } from "@/lib/tagStatus";
 import { isApiConfigured } from "@/services/apiConfig";
 import { getPetMoments } from "@/services/momentService";
 import { getFriendlyApiErrorMessage, getPets } from "@/services/petService";
 import { getPetRecords } from "@/services/recordService";
-import { getAllTags, getOrders } from "@/services/tagService";
-import type { CareRecord, Pet, PetMoment, PetTag, TagOrder } from "@/types";
+import type { CareRecord, Pet, PetMoment } from "@/types";
 
 type DashboardClientProps = {
   initialPets: Pet[];
   initialRecords: CareRecord[];
   initialMoments: PetMoment[];
-  initialTags: PetTag[];
-  initialOrders: TagOrder[];
 };
 
 // Stable boolean snapshots for useSyncExternalStore (owner settings live in
@@ -63,8 +57,6 @@ export function DashboardClient({
   initialPets,
   initialRecords,
   initialMoments,
-  initialTags,
-  initialOrders,
 }: DashboardClientProps) {
   const apiMode = isApiConfigured();
   const [allPets, setAllPets] = useState<Pet[]>(apiMode ? [] : initialPets);
@@ -74,8 +66,6 @@ export function DashboardClient({
   const [allMoments, setAllMoments] = useState<PetMoment[]>(
     apiMode ? [] : initialMoments
   );
-  const [tags, setTags] = useState<PetTag[]>(apiMode ? [] : initialTags);
-  const [orders, setOrders] = useState<TagOrder[]>(apiMode ? [] : initialOrders);
   const [loading, setLoading] = useState(apiMode);
   const [error, setError] = useState("");
   const hasOwnerContact = useSyncExternalStore(
@@ -115,19 +105,10 @@ export function DashboardClient({
       // Secondary requests are resilient: a single failure leaves that section
       // empty instead of blocking the whole dashboard.
       const activePets = getActivePets(petsData);
-      const [recordResults, momentResults, tagsResult, ordersResult] =
-        await Promise.all([
-          Promise.allSettled(activePets.map((pet) => getPetRecords(pet.id))),
-          Promise.allSettled(activePets.map((pet) => getPetMoments(pet.id))),
-          // Tag and order data only feed hidden widgets while those features
-          // are off, so skip the requests entirely.
-          smartTagsEnabled
-            ? getAllTags().catch(() => ({ data: [] as PetTag[] }))
-            : { data: [] as PetTag[] },
-          tagOrdersEnabled
-            ? getOrders().catch(() => ({ data: [] as TagOrder[] }))
-            : { data: [] as TagOrder[] },
-        ]);
+      const [recordResults, momentResults] = await Promise.all([
+        Promise.allSettled(activePets.map((pet) => getPetRecords(pet.id))),
+        Promise.allSettled(activePets.map((pet) => getPetMoments(pet.id))),
+      ]);
 
       if (!active) {
         return;
@@ -135,8 +116,6 @@ export function DashboardClient({
 
       setAllRecords(collectFulfilled(recordResults));
       setAllMoments(collectFulfilled(momentResults));
-      setTags(tagsResult.data);
-      setOrders(ordersResult.data);
       setLoading(false);
     }
 
@@ -149,14 +128,6 @@ export function DashboardClient({
 
   const pets = getActivePets(allPets);
   const memorialPets = getMemorialPets(allPets);
-  const petById = useMemo(
-    () => new Map(allPets.map((pet) => [pet.id, pet])),
-    [allPets]
-  );
-  const pendingOrders = orders.filter((order) => isActiveOrder(order.status));
-  const activeSmartTags = tags.filter((tag) =>
-    Boolean(tag.petId && isActivePhysicalTagForPet(tag, petById.get(tag.petId)))
-  ).length;
   const publicProfileCount = pets.filter(
     (pet) => pet.publicProfileEnabled
   ).length;
@@ -221,32 +192,11 @@ export function DashboardClient({
   // zero-value cards; upcoming care has its own section below.
   const stats: DashboardStatData[] = [
     { label: "Pets", value: pets.length, href: ownerRoutes.pets },
-    { label: "Public profiles", value: publicProfileCount },
+    ...(publicProfilesEnabled
+      ? [{ label: "Public profiles", value: publicProfileCount }]
+      : []),
     { label: "Memories", value: allMoments.length, href: ownerRoutes.moments },
   ];
-
-  if (smartTagsEnabled) {
-    stats.push({
-      label: "Smart tags",
-      value: activeSmartTags,
-      href: ownerRoutes.tags,
-    });
-  }
-
-  if (tagOrdersEnabled) {
-    stats.push({
-      label: "Pending orders",
-      value: pendingOrders.length,
-      href: ownerRoutes.orders,
-    });
-  }
-
-  if (memorialPets.length) {
-    stats.push({
-      label: "Memorial profiles",
-      value: memorialPets.length,
-    });
-  }
 
   return (
     <div className="grid gap-6">
@@ -260,7 +210,7 @@ export function DashboardClient({
           Welcome back
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-pet-muted">
-          Manage your pets, safety profiles, care records, and moments.
+          Manage your pet profiles, care records, and moments in one place.
         </p>
         {lostModePets.length ? <LostModeAlert pets={lostModePets} /> : null}
         <div
@@ -274,7 +224,9 @@ export function DashboardClient({
         </div>
       </section>
 
-      {pets.length ? <ShareProfilesSection pets={pets} /> : null}
+      {publicProfilesEnabled && pets.length ? (
+        <ShareProfilesSection pets={pets} />
+      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
         <div className="grid content-start gap-6">
@@ -614,7 +566,8 @@ function PetSummaryRow({ pet }: { pet: Pet }) {
   const safetyBadge = safetyProfilesOwnerUiEnabled
     ? getSafetyProfileBadge(pet)
     : null;
-  const showPrivateBadge = !safetyBadge && !pet.publicProfileEnabled;
+  const showPrivateBadge =
+    publicProfilesEnabled && !safetyBadge && !pet.publicProfileEnabled;
 
   return (
     <Link
@@ -755,14 +708,6 @@ function QuickActions() {
           icon="pets"
           label="Manage Pets"
         />
-        {tagOrdersEnabled ? (
-          <ActionTile
-            ariaLabel="View orders"
-            href={ownerRoutes.orders}
-            icon="record"
-            label="Orders"
-          />
-        ) : null}
       </div>
     </DashboardSection>
   );
@@ -786,7 +731,7 @@ function ActionTile({
   return (
     <Link
       aria-label={ariaLabel}
-      className="brand-card flex min-h-[5.5rem] min-w-0 flex-col items-center justify-center gap-2 rounded-[1.25rem] px-2 py-3 text-center text-sm font-extrabold text-pet-ink transition hover:border-pet-teal hover:bg-pet-cream"
+      className="brand-card flex min-h-[5.5rem] min-w-0 flex-col items-center justify-center gap-2 rounded-[1.25rem] px-2 py-3 text-center font-extrabold text-pet-ink transition hover:border-pet-teal hover:bg-pet-cream"
       href={href}
       rel={rel}
       target={target}
@@ -794,7 +739,7 @@ function ActionTile({
       <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#e8f3ff] text-pet-teal">
         <Icon name={icon} className="h-4 w-4" />
       </span>
-      <span className="min-w-0 max-w-full whitespace-normal leading-tight [overflow-wrap:anywhere]">
+      <span className="min-w-0 max-w-full whitespace-nowrap text-xs leading-tight sm:text-sm">
         {label}
       </span>
     </Link>

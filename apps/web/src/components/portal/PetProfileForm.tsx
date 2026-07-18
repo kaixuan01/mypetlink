@@ -59,9 +59,11 @@ import {
 import { getPublicProfileShareVersion } from "@/lib/publicProfileSocial";
 import { getSafetyProfileStatusView } from "@/lib/safetyProfile";
 import {
+  publicProfilesEnabled,
   safetyProfilesOwnerUiEnabled,
   smartTagOrderingEnabled,
   smartTagsEnabled,
+  tagOrdersEnabled,
 } from "@/lib/features";
 import {
   getCurrentLocalDestination,
@@ -754,9 +756,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
             savedPet = await syncPetMedia(savedPet, previousPet);
             setProfilePhotoFile(undefined);
             setCoverPhotoFile(undefined);
-            setSuccess(
-              "Changes saved. Public Profile and Safety Profile are updated."
-            );
+            setSuccess("Changes saved.");
           } catch (mediaError) {
             if (
               redirectAfterExpiredSession(
@@ -902,24 +902,27 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
           {createdPet.name}&apos;s profile is ready.
         </h2>
         <p className="mt-3 max-w-2xl text-sm leading-6 text-pet-muted">
-          You can keep adding care records, moments, and safety details from
-          the owner portal.
+          You can keep adding care records and moments from the owner portal.
         </p>
-        <ShareProfileLink
-          className="mt-5"
-          path={createdPet.publicProfilePath}
-          petName={createdPet.name}
-          shareVersion={getPublicProfileShareVersion(createdPet)}
-        />
+        {publicProfilesEnabled && createdPet.publicProfileEnabled ? (
+          <ShareProfileLink
+            className="mt-5"
+            path={createdPet.publicProfilePath}
+            petName={createdPet.name}
+            shareVersion={getPublicProfileShareVersion(createdPet)}
+          />
+        ) : null}
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-          <CTAButton
-            href={createdPet.publicProfilePath}
-            icon="heart"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            View Public Profile
-          </CTAButton>
+          {publicProfilesEnabled && createdPet.publicProfileEnabled ? (
+            <CTAButton
+              href={createdPet.publicProfilePath}
+              icon="heart"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              View Public Profile
+            </CTAButton>
+          ) : null}
           {safetyProfilesOwnerUiEnabled ? (
             <CTAButton
               href={createdPet.qrSafetyPath}
@@ -931,7 +934,9 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
               View Safety Profile
             </CTAButton>
           ) : null}
-          {isActivePet(createdPet) && smartTagsEnabled && smartTagOrderingEnabled ? (
+          {isActivePet(createdPet) &&
+          tagOrdersEnabled &&
+          smartTagOrderingEnabled ? (
             <CTAButton
               href={ownerRoutes.petTagOrder(createdPet.id)}
               icon="tag"
@@ -2011,9 +2016,13 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
             Manage {form.name || currentPet.name}&apos;s content
           </p>
           <p className="-mt-1 text-xs leading-5 text-pet-muted">
-            Records, memories, and smart tags are managed on their own pages.
+            Records and memories are managed on their own pages.
           </p>
-          <div className="grid min-w-0 gap-3 sm:grid-cols-3">
+          <div
+            className={`grid min-w-0 gap-3 ${
+              smartTagsEnabled ? "sm:grid-cols-3" : "sm:grid-cols-2"
+            }`}
+          >
             <CTAButton
               href={ownerRoutes.petRecords(currentPet.id)}
               icon="record"
@@ -2030,14 +2039,16 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
             >
               Add Moment
             </CTAButton>
-            <CTAButton
-              href={ownerRoutes.petTags(currentPet.id)}
-              icon="tag"
-              variant="outline"
-              fullWidth
-            >
-              Manage Smart Tags
-            </CTAButton>
+            {smartTagsEnabled ? (
+              <CTAButton
+                href={ownerRoutes.petTags(currentPet.id)}
+                icon="tag"
+                variant="outline"
+                fullWidth
+              >
+                Manage Smart Tags
+              </CTAButton>
+            ) : null}
           </div>
         </div>
       ) : null}
@@ -2047,15 +2058,17 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
       <div className="hidden lg:flex lg:flex-wrap lg:items-center lg:justify-end lg:gap-3">
         {mode === "edit" && currentPet ? (
           <>
-            <CTAButton
-              href={profilePath}
-              icon="heart"
-              variant="secondary"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              View Public Profile
-            </CTAButton>
+            {publicProfilesEnabled && currentPet.publicProfileEnabled ? (
+              <CTAButton
+                href={profilePath}
+                icon="heart"
+                variant="secondary"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                View Public Profile
+              </CTAButton>
+            ) : null}
             {safetyProfilesOwnerUiEnabled ? (
               <CTAButton
                 href={currentPet.qrSafetyPath}

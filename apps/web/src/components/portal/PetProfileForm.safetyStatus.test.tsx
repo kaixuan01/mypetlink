@@ -14,6 +14,14 @@ const mocks = vi.hoisted(() => ({
   updatePetLostMode: vi.fn(),
 }));
 
+vi.mock("@/lib/features", () => ({
+  publicProfilesEnabled: true,
+  safetyProfilesOwnerUiEnabled: true,
+  smartTagOrderingEnabled: false,
+  smartTagsEnabled: false,
+  tagOrdersEnabled: false,
+}));
+
 vi.mock("next/navigation", () => ({
   useRouter: () => mocks.router,
 }));

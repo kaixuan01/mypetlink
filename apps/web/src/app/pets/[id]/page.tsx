@@ -4,11 +4,13 @@ import { AppLayout } from "@/components/layouts/AppLayout";
 import { PetDetailHeader } from "@/components/portal/PetDetailHeader";
 import { PetManagementTabs } from "@/components/portal/PetManagementTabs";
 import { staticPetIdParams } from "@/data/staticRouteParams";
+import { smartTagsEnabled } from "@/lib/features";
 import { loadingTitle, ownerPetPageTitle } from "@/lib/pageTitles";
 import { getPetMoments } from "@/services/momentService";
 import { getPetById } from "@/services/petService";
 import { getPetRecords } from "@/services/recordService";
 import { getOrders, getPetTags } from "@/services/tagService";
+import type { PetTag, TagOrder } from "@/types";
 
 type PetDetailPageProps = {
   params: Promise<{ id: string }>;
@@ -40,22 +42,32 @@ export default async function PetDetailPage({ params }: PetDetailPageProps) {
   }
 
   const pet = petResponse.data;
-  const records = await getPetRecords(pet.id);
-  const tags = await getPetTags(pet.id);
-  const moments = await getPetMoments(pet.id);
-  const orders = await getOrders();
-  const petOrders = orders.data.filter((order) => order.petId === pet.id);
+  const [records, moments] = await Promise.all([
+    getPetRecords(pet.id),
+    getPetMoments(pet.id),
+  ]);
+  let tags: PetTag[] = [];
+  let petOrders: TagOrder[] = [];
+
+  if (smartTagsEnabled) {
+    const [tagResponse, orderResponse] = await Promise.all([
+      getPetTags(pet.id),
+      getOrders(),
+    ]);
+    tags = tagResponse.data;
+    petOrders = orderResponse.data.filter((order) => order.petId === pet.id);
+  }
 
   return (
     <AppLayout>
-      <PetDetailHeader pet={pet} petOrders={petOrders} tags={tags.data} />
+      <PetDetailHeader pet={pet} petOrders={petOrders} tags={tags} />
 
       <PetManagementTabs
         pet={pet}
         records={records.data}
         moments={moments.data}
         orders={petOrders}
-        tags={tags.data}
+        tags={tags}
       />
     </AppLayout>
   );

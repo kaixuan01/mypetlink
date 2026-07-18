@@ -32,17 +32,25 @@ export function MobileBottomNav() {
   const [availableWidth, setAvailableWidth] = useState(430);
   const [moreOpen, setMoreOpen] = useState(false);
   const activeId = getActiveOwnerNavItemId(pathname);
-  const primaryIds =
-    availableWidth < 380
+  // The launch navigation is always Home / Pets / Moments / More, including
+  // at 320px. When Tags returns, the older adaptive layout can still reduce
+  // the number of direct feature slots at very narrow widths.
+  const primaryIds = tagsAvailable
+    ? availableWidth < 380
       ? narrowPrimaryIds
-      : widePrimaryIds.slice(0, getPrimaryCount(availableWidth));
+      : widePrimaryIds.slice(0, getPrimaryCount(availableWidth))
+    : widePrimaryIds;
   const primaryItems = primaryIds
     .map((id) => ownerNavItems.find((item) => item.id === id))
     .filter((item): item is OwnerNavItem => Boolean(item));
   const hiddenItems = ownerNavItems.filter(
     (item) => !primaryIds.includes(item.id)
   );
-  const moreActive = hiddenItems.some((item) => item.id === activeId);
+  const activeItemIsAvailable = ownerNavItems.some(
+    (item) => item.id === activeId
+  );
+  const moreActive =
+    !activeItemIsAvailable || hiddenItems.some((item) => item.id === activeId);
   const gridTemplateColumns = `repeat(${primaryItems.length + 1}, minmax(0, 1fr))`;
 
   useEffect(() => {

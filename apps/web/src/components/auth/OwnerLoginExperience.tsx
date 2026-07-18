@@ -6,7 +6,7 @@ const portalBenefits: Array<{
   icon: IconName;
   label: string;
 }> = [
-  { icon: "shield", label: "Create Safety Profiles" },
+  { icon: "heart", label: "Share Public Profiles" },
   { icon: "record", label: "Manage care records" },
   { icon: "heart", label: "Save pet memories" },
   { icon: "tag", label: "Smart Tag add-ons — Coming Soon" },

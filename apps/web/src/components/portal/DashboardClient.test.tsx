@@ -1,18 +1,23 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockPets } from "@/data/mockPets";
-import { mockTags } from "@/data/mockTags";
 import { OWNER_SETTINGS_STORAGE_KEY } from "@/lib/ownerSettings";
 
 const mocks = vi.hoisted(() => ({
   getPets: vi.fn(),
   getPetMoments: vi.fn(),
   getPetRecords: vi.fn(),
-  getAllTags: vi.fn(),
-  getOrders: vi.fn(),
   planSummaryProps: vi.fn(),
+  writeText: vi.fn(),
+  share: vi.fn(),
 }));
 
 vi.mock("@/services/apiConfig", () => ({ isApiConfigured: () => true }));
@@ -25,10 +30,6 @@ vi.mock("@/services/momentService", () => ({
 }));
 vi.mock("@/services/recordService", () => ({
   getPetRecords: (...args: unknown[]) => mocks.getPetRecords(...args),
-}));
-vi.mock("@/services/tagService", () => ({
-  getAllTags: (...args: unknown[]) => mocks.getAllTags(...args),
-  getOrders: (...args: unknown[]) => mocks.getOrders(...args),
 }));
 vi.mock("@/components/portal/PlanSummaryCard", () => ({
   PlanSummaryCard: (props: unknown) => {
@@ -43,10 +44,8 @@ function renderDashboard() {
   render(
     <DashboardClient
       initialMoments={[]}
-      initialOrders={[]}
       initialPets={[mockPets[0]]}
       initialRecords={[]}
-      initialTags={[]}
     />
   );
 }
@@ -56,8 +55,6 @@ describe("DashboardClient API-mode initialization", () => {
     mocks.getPets.mockReset();
     mocks.getPetMoments.mockResolvedValue({ data: [] });
     mocks.getPetRecords.mockResolvedValue({ data: [] });
-    mocks.getAllTags.mockResolvedValue({ data: [] });
-    mocks.getOrders.mockResolvedValue({ data: [] });
     mocks.planSummaryProps.mockReset();
   });
 
@@ -107,7 +104,7 @@ describe("DashboardClient API-mode initialization", () => {
 
   it("keeps the dashboard usable when a secondary request fails", async () => {
     mocks.getPets.mockResolvedValue({ data: [mockPets[0]] });
-    mocks.getOrders.mockRejectedValue(new Error("orders down"));
+    mocks.getPetRecords.mockRejectedValueOnce(new Error("records down"));
     renderDashboard();
 
     // Pets still render even though the orders request failed.
@@ -125,9 +122,18 @@ describe("DashboardClient with pets", () => {
     });
     mocks.getPetMoments.mockResolvedValue({ data: [] });
     mocks.getPetRecords.mockResolvedValue({ data: [] });
-    mocks.getAllTags.mockResolvedValue({ data: [] });
-    mocks.getOrders.mockResolvedValue({ data: [] });
     mocks.planSummaryProps.mockReset();
+    mocks.writeText.mockReset();
+    mocks.writeText.mockResolvedValue(undefined);
+    mocks.share.mockReset();
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: mocks.writeText },
+    });
+    Object.defineProperty(navigator, "share", {
+      configurable: true,
+      value: undefined,
+    });
     window.localStorage.clear();
   });
 
@@ -154,9 +160,8 @@ describe("DashboardClient with pets", () => {
     const quickLabels = [
       "Care Records",
       "Moments",
-      "Safety Profile",
       "Owner Contact",
-      "Orders",
+      "Manage Pets",
     ];
     for (const label of quickLabels) {
       expect(screen.getByText(label)).toBeTruthy();
@@ -205,31 +210,35 @@ describe("DashboardClient with pets", () => {
     expect(screen.queryByText("Add your contact details")).toBeNull();
   });
 
-  it("uses singular statistic labels for a single pet", async () => {
+  it("shows only launched-product statistics", async () => {
     renderDashboard();
 
     await screen.findAllByText("Milo");
-    expect(screen.getByText("active pet")).toBeTruthy();
-    expect(screen.getByText("active safety profile")).toBeTruthy();
-    expect(screen.getByText("active smart tags")).toBeTruthy();
-    expect(screen.getByText("pending orders")).toBeTruthy();
+    expect(screen.getByText("Pets")).toBeTruthy();
+    expect(screen.getAllByText("Public profiles").length).toBeGreaterThan(0);
+    expect(screen.getByText("Memories")).toBeTruthy();
+    expect(screen.queryByText(/safety profile/i)).toBeNull();
+    expect(screen.queryByText(/smart tags/i)).toBeNull();
+    expect(screen.queryByText(/pending orders/i)).toBeNull();
   });
 
-  it("puts Public Share Profile actions immediately below Welcome", async () => {
+  it("puts Public Profile actions immediately below Welcome", async () => {
     renderDashboard();
 
-    await screen.findByText("Share your pet profiles");
+    await screen.findByText("Share your pets");
     const body = document.body.textContent ?? "";
     expect(body.indexOf("Welcome back")).toBeLessThan(
-      body.indexOf("Share your pet profiles")
+      body.indexOf("Share your pets")
     );
-    expect(body.indexOf("Share your pet profiles")).toBeLessThan(
+    expect(body.indexOf("Share your pets")).toBeLessThan(
       body.indexOf("Your pets")
     );
 
-    expect(screen.getByRole("button", { name: "Copy Link" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Show QR" })).toBeTruthy();
-    const viewProfile = screen.getByRole("link", { name: "View Profile" });
+    expect(
+      screen.getByRole("button", { name: "Share Milo's profile" })
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "QR code" })).toBeTruthy();
+    const viewProfile = screen.getByRole("link", { name: "View profile" });
     expect(viewProfile.getAttribute("href")?.startsWith(mockPets[0].publicProfilePath)).toBe(
       true
     );
@@ -237,13 +246,78 @@ describe("DashboardClient with pets", () => {
     expect(viewProfile.getAttribute("rel")).toBe("noopener noreferrer");
   });
 
-  it("moves the active smart tag count into Welcome and removes Safety overview", async () => {
-    mocks.getAllTags.mockResolvedValue({ data: [mockTags[0]] });
+  it("does not fetch or render hidden tag and order dashboard data", async () => {
     renderDashboard();
 
     await screen.findAllByText("Milo");
-    expect(screen.getByText("active smart tag")).toBeTruthy();
-    expect(screen.queryByText("Safety overview")).toBeNull();
+    expect(screen.queryByText(/smart tag/i)).toBeNull();
+    expect(screen.queryByText(/order/i)).toBeNull();
+  });
+
+  it("uses the native share sheet with the versioned Public Profile URL", async () => {
+    mocks.share.mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "share", {
+      configurable: true,
+      value: mocks.share,
+    });
+    renderDashboard();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Share Milo's profile" })
+    );
+
+    await waitFor(() => expect(mocks.share).toHaveBeenCalledOnce());
+    expect(mocks.share).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Milo on MyPetLink",
+        url: expect.stringMatching(/\/p\/.+\?share=/),
+      })
+    );
+    expect(mocks.writeText).not.toHaveBeenCalled();
+  });
+
+  it("copies the Public Profile URL when native sharing is unavailable", async () => {
+    renderDashboard();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Share Milo's profile" })
+    );
+
+    await waitFor(() => expect(mocks.writeText).toHaveBeenCalledOnce());
+    expect(mocks.writeText.mock.calls[0]?.[0]).toMatch(/\/p\/.+\?share=/);
+    expect((await screen.findByRole("status")).textContent).toContain(
+      "Milo's profile link copied."
+    );
+  });
+
+  it("does not report an error when the native share sheet is cancelled", async () => {
+    mocks.share.mockRejectedValue(new DOMException("Cancelled", "AbortError"));
+    Object.defineProperty(navigator, "share", {
+      configurable: true,
+      value: mocks.share,
+    });
+    renderDashboard();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Share Milo's profile" })
+    );
+
+    await waitFor(() => expect(mocks.share).toHaveBeenCalledOnce());
+    expect(mocks.writeText).not.toHaveBeenCalled();
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("does not expose share, QR, or preview actions for a private profile", async () => {
+    mocks.getPets.mockResolvedValue({
+      data: [{ ...mockPets[0], publicProfileEnabled: false }],
+    });
+    renderDashboard();
+
+    expect((await screen.findAllByText("Private")).length).toBeGreaterThan(0);
+    expect(screen.getByRole("link", { name: "Enable profile" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /share .* profile/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: "QR code" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "View profile" })).toBeNull();
   });
 
   it("shows a one-pet Lost Mode alert linking directly to that pet", async () => {

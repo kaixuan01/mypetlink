@@ -11,10 +11,8 @@ export default function DashboardPage() {
     <AppLayout>
       <DashboardClient
         initialMoments={[]}
-        initialOrders={[]}
         initialPets={[]}
         initialRecords={[]}
-        initialTags={[]}
       />
     </AppLayout>
   );

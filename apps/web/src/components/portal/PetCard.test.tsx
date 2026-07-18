@@ -7,7 +7,7 @@ import { PetCard } from "./PetCard";
 
 afterEach(cleanup);
 
-it("keeps one Public Profile action on the pet card", () => {
+it("keeps one accessible Public Profile action on the pet card", () => {
   const pet = mockPets[0];
   render(<PetCard pet={pet} />);
 
@@ -18,41 +18,23 @@ it("keeps one Public Profile action on the pet card", () => {
   fireEvent.click(screen.getByRole("button", { name: "More actions" }));
 
   expect(screen.queryByRole("link", { name: "View public profile" })).toBeNull();
-  expect(
-    screen.getByRole("link", { name: "View Safety Profile" }).getAttribute("href")
-  ).toBe(pet.qrSafetyPath);
+  expect(screen.queryByRole("link", { name: "View Safety Profile" })).toBeNull();
+  expect(screen.queryByRole("link", { name: "Smart tags" })).toBeNull();
+  expect(screen.queryByRole("link", { name: "Order tag" })).toBeNull();
 });
 
-it("shows Safety Profile status independently from Smart Tag linkage", () => {
-  // Visible contact and no linked tag: the profile is active while the tag
-  // line reports no linkage. Neither state may leak into the other.
+it("hides Safety Profile and Smart Tag status while their owner UI is disabled", () => {
   render(<PetCard pet={mockPets[0]} tags={[]} orders={[]} />);
 
-  expect(screen.getByText("Safety Profile Active")).toBeTruthy();
-  expect(screen.getByText("No Smart Tag Linked")).toBeTruthy();
-  expect(screen.queryByText("QR Safety Active")).toBeNull();
+  expect(screen.queryByText("Safety Profile Active")).toBeNull();
+  expect(screen.queryByText("No Smart Tag Linked")).toBeNull();
 });
 
-it("shows Contact Update Needed when no visible usable contact exists", () => {
-  // The pet uses its own contact details, and they are empty — the owner's
-  // account-level numbers must not mask the missing pet contact.
-  const pet = {
-    ...mockPets[0],
-    owner: { ...mockPets[0].owner, phone: "", whatsapp: "" },
-    contactOverride: {
-      useOwnerDefaults: false,
-      phoneNumber: "",
-      whatsappNumber: "",
-    },
-  };
+it("shows management instead of public actions for a private profile", () => {
+  const pet = { ...mockPets[0], publicProfileEnabled: false };
   render(<PetCard pet={pet} tags={[]} orders={[]} />);
 
-  expect(screen.getByText("Contact Update Needed")).toBeTruthy();
-});
-
-it("shows Safety Profile Off when the owner disabled public access", () => {
-  const pet = { ...mockPets[0], qrSafetyEnabled: false };
-  render(<PetCard pet={pet} tags={[]} orders={[]} />);
-
-  expect(screen.getByText("Safety Profile Off")).toBeTruthy();
+  expect(screen.getByText("Private")).toBeTruthy();
+  expect(screen.getByRole("link", { name: "Enable Profile" })).toBeTruthy();
+  expect(screen.queryByRole("link", { name: "Public Profile" })).toBeNull();
 });

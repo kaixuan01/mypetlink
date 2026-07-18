@@ -14,9 +14,11 @@ import { PetAvatar } from "@/components/ui/PetAvatar";
 import { getPetSummaryLabel } from "@/lib/petDisplay";
 import { isActivePet, isArchivedPet, isMemorialPet } from "@/lib/petLifecycle";
 import {
+  publicProfilesEnabled,
   safetyProfilesOwnerUiEnabled,
   smartTagOrderingEnabled,
   smartTagsEnabled,
+  tagOrdersEnabled,
 } from "@/lib/features";
 import { ownerRoutes } from "@/lib/routes";
 import {
@@ -49,7 +51,7 @@ const moreLinks = (pet: Pet) => {
   if (smartTagsEnabled) {
     links.push({ label: "Smart tags", href: ownerRoutes.petTags(pet.id) });
 
-    if (isActivePet(pet) && smartTagOrderingEnabled) {
+    if (isActivePet(pet) && tagOrdersEnabled && smartTagOrderingEnabled) {
       links.push({ label: "Order tag", href: ownerRoutes.petTagOrder(pet.id) });
     }
   }
@@ -82,10 +84,15 @@ export function PetCard({
   const tagBadge = smartTagsEnabled
     ? getSmartTagStatusBadge(tags, orders, pet)
     : null;
-  const showPrivateBadge =
-    !safetyBadge && !pet.publicProfileEnabled && !isMemorialPet(pet);
   const isMemorial = isMemorialPet(pet);
   const isArchived = isArchivedPet(pet);
+  const publicProfileAccessible =
+    publicProfilesEnabled &&
+    pet.publicProfileEnabled &&
+    !isArchived &&
+    (!isMemorial || pet.memorial.showMemorialOnPublicProfile);
+  const showPrivateBadge =
+    publicProfilesEnabled && !publicProfileAccessible && !isArchived;
   const confirmCopy = getConfirmCopy(confirmAction, pet);
 
   async function handleLifecycleUpdate(status: PetLifecycleStatus) {
@@ -181,15 +188,27 @@ export function PetCard({
         <CTAButton href={ownerRoutes.petProfile(pet.id)} fullWidth>
           {isArchived ? "View Profile" : "Manage"}
         </CTAButton>
-        <CTAButton
-          href={pet.publicProfilePath}
-          variant="secondary"
-          target="_blank"
-          rel="noopener noreferrer"
-          fullWidth
-        >
-          {isMemorial ? "Memorial Profile" : "Public Profile"}
-        </CTAButton>
+        {publicProfilesEnabled ? (
+          publicProfileAccessible ? (
+            <CTAButton
+              href={pet.publicProfilePath}
+              variant="secondary"
+              target="_blank"
+              rel="noopener noreferrer"
+              fullWidth
+            >
+              {isMemorial ? "Memorial Profile" : "Public Profile"}
+            </CTAButton>
+          ) : (
+            <CTAButton
+              href={`${ownerRoutes.petEdit(pet.id)}?tab=public`}
+              variant="secondary"
+              fullWidth
+            >
+              {isMemorial ? "Manage Public Profile" : "Enable Profile"}
+            </CTAButton>
+          )
+        ) : null}
         <button
           aria-expanded={menuOpen}
           aria-label="More actions"

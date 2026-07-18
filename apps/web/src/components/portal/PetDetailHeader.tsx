@@ -6,6 +6,7 @@ import { ProfileAccessBadges } from "@/components/portal/ProfileAccessStatus";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { PetAvatar } from "@/components/ui/PetAvatar";
+import { publicProfilesEnabled } from "@/lib/features";
 import { getPetSummaryLabel } from "@/lib/petDisplay";
 import { isArchivedPet, isMemorialPet } from "@/lib/petLifecycle";
 import { ownerRoutes } from "@/lib/routes";
@@ -41,6 +42,11 @@ export function PetDetailHeader({
 
   const isMemorial = isMemorialPet(currentPet);
   const isArchived = isArchivedPet(currentPet);
+  const canViewMemorialProfile =
+    publicProfilesEnabled &&
+    isMemorial &&
+    currentPet.publicProfileEnabled &&
+    currentPet.memorial.showMemorialOnPublicProfile;
 
   return (
     <section className="brand-card mb-6 rounded-[1.75rem] p-5 sm:rounded-[2rem] sm:p-6">
@@ -74,7 +80,7 @@ export function PetDetailHeader({
           >
             {isMemorial ? "Edit Memorial" : "Edit Pet Details"}
           </CTAButton>
-          {isMemorial || isArchived ? (
+          {canViewMemorialProfile ? (
             <CTAButton
               href={currentPet.publicProfilePath}
               icon="heart"
@@ -84,7 +90,7 @@ export function PetDetailHeader({
               fullWidth
               className="sm:w-auto"
             >
-              {isMemorial ? "View Memorial Profile" : "View Profile"}
+              View Memorial Profile
             </CTAButton>
           ) : null}
         </div>

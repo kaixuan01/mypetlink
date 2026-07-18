@@ -30,9 +30,11 @@ import {
   getPublicProfileShareVersion,
 } from "@/lib/publicProfileSocial";
 import {
+  publicProfilesEnabled,
   safetyProfilesOwnerUiEnabled,
   smartTagOrderingEnabled,
   smartTagsEnabled,
+  tagOrdersEnabled,
 } from "@/lib/features";
 import { ownerRoutes, tagPath } from "@/lib/routes";
 import { getTagScanDisplay, isActivePhysicalTagForPet } from "@/lib/tagStatus";
@@ -66,7 +68,9 @@ const tabs: (SegmentedTab & { id: TabId })[] = [
   ...(smartTagsEnabled
     ? [{ id: "tag", label: "Smart Tag", mobileLabel: "Tag" } as SegmentedTab & { id: TabId }]
     : []),
-  { id: "privacy", label: "Privacy" },
+  ...(publicProfilesEnabled || safetyProfilesOwnerUiEnabled
+    ? [{ id: "privacy", label: "Privacy" } as SegmentedTab & { id: TabId }]
+    : []),
 ];
 
 export function PetManagementTabs({
@@ -200,6 +204,10 @@ function OverviewTab({
   const isMemorial = isMemorialPet(pet);
   const isArchived = isArchivedPet(pet);
   const isActiveProfile = isActivePet(pet);
+  const publicProfileAccessible =
+    pet.publicProfileEnabled &&
+    !isArchived &&
+    (!isMemorial || pet.memorial.showMemorialOnPublicProfile);
   const [ownerSettings, setOwnerSettings] =
     useState<OwnerSettings>(defaultOwnerSettings);
   const effectiveContact = getEffectivePetContact(pet, ownerSettings);
@@ -219,22 +227,47 @@ function OverviewTab({
   return (
     <div className="grid min-w-0 gap-5 lg:grid-cols-2">
       {/* Public Share Profile */}
-      <SectionCard
-        icon="heart"
-        title="Public Share Profile"
-        badge={<Badge tone="mint">{theme.name} theme</Badge>}
-        description="The friendly page you share with family, friends, and pet communities."
-      >
-        <PublicLinkActions
-          copyLabel="Copy Link"
-          copyMessage="Public Share Profile link copied."
-          fileNameBase={`${pet.slug}-share-profile-qr`}
-          helperText="Share your pet's public profile with friends and family."
-          path={publicProfileSharePath}
-          qrTitle="Share Profile QR"
-          viewLabel={isMemorial ? "View Memorial Profile" : "View Public Profile"}
-        />
-      </SectionCard>
+      {publicProfilesEnabled ? (
+        <SectionCard
+          icon="heart"
+          title="Public Share Profile"
+          badge={
+            <Badge tone={publicProfileAccessible ? "mint" : "soft"}>
+              {publicProfileAccessible ? "Public" : "Private"}
+            </Badge>
+          }
+          description={`The ${theme.name.toLowerCase()}-theme profile you share with family, friends, and pet communities.`}
+        >
+          {publicProfileAccessible ? (
+            <PublicLinkActions
+              copyLabel="Copy Link"
+              copyMessage="Public Share Profile link copied."
+              fileNameBase={`${pet.slug}-share-profile-qr`}
+              helperText="Share your pet's public profile with friends and family."
+              path={publicProfileSharePath}
+              qrTitle="Share Profile QR"
+              viewLabel={
+                isMemorial ? "View Memorial Profile" : "View Public Profile"
+              }
+            />
+          ) : (
+            <div className="grid gap-3">
+              <p className="text-sm leading-6 text-pet-muted">
+                This profile is private, so share, QR, and preview actions are
+                unavailable.
+              </p>
+              <CTAButton
+                href={`${ownerRoutes.petEdit(pet.id)}?tab=public`}
+                icon="settings"
+                variant="outline"
+                fullWidth
+              >
+                Manage Public Profile
+              </CTAButton>
+            </div>
+          )}
+        </SectionCard>
+      ) : null}
 
       {/* Safety Profile */}
       {safetyProfilesOwnerUiEnabled ? (
@@ -509,7 +542,7 @@ function OverviewTab({
           >
             Manage Smart Tags
           </CTAButton>
-          {isActiveProfile && smartTagOrderingEnabled ? (
+          {isActiveProfile && tagOrdersEnabled && smartTagOrderingEnabled ? (
             <CTAButton
               href={ownerRoutes.petTagOrder(pet.id)}
               variant="outline"
@@ -542,23 +575,25 @@ function PrivacyTab({ pet }: { pet: Pet }) {
 
   return (
     <div className="grid min-w-0 gap-5 lg:grid-cols-2">
-      <SectionCard
-        icon="heart"
-        title="Public profile visibility"
-        description="What friends and family see on the shareable public profile."
-      >
-        <StatusGrid items={publicStatuses} />
-        <div className="mt-auto pt-1">
-          <CTAButton
-            href={ownerRoutes.petEdit(pet.id)}
-            variant="outline"
-            icon="settings"
-            fullWidth
-          >
-            Edit public profile settings
-          </CTAButton>
-        </div>
-      </SectionCard>
+      {publicProfilesEnabled ? (
+        <SectionCard
+          icon="heart"
+          title="Public profile visibility"
+          description="What friends and family see on the shareable public profile."
+        >
+          <StatusGrid items={publicStatuses} />
+          <div className="mt-auto pt-1">
+            <CTAButton
+              href={ownerRoutes.petEdit(pet.id)}
+              variant="outline"
+              icon="settings"
+              fullWidth
+            >
+              Edit public profile settings
+            </CTAButton>
+          </div>
+        </SectionCard>
+      ) : null}
 
       {safetyProfilesOwnerUiEnabled ? (
         <SectionCard

@@ -70,7 +70,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-it("keeps one complete action set on each public profile card", async () => {
+it("keeps one Public Profile action set and hides unreleased owner tools", async () => {
   const pet = structuredClone(mockPets[0]);
   render(
     <PetManagementTabs
@@ -86,11 +86,10 @@ it("keeps one complete action set on each public profile card", async () => {
   expect(
     screen.getAllByRole("link", { name: "View Public Profile" })
   ).toHaveLength(1);
-  expect(
-    screen.getAllByRole("link", { name: "View Safety Profile" })
-  ).toHaveLength(1);
-  expect(screen.getAllByRole("button", { name: "Copy Link" })).toHaveLength(2);
-  expect(screen.getAllByRole("button", { name: "Show QR" })).toHaveLength(2);
+  expect(screen.queryByRole("link", { name: "View Safety Profile" })).toBeNull();
+  expect(screen.getAllByRole("button", { name: "Copy Link" })).toHaveLength(1);
+  expect(screen.getAllByRole("button", { name: "Show QR" })).toHaveLength(1);
+  expect(screen.queryByRole("tab", { name: "Smart Tag" })).toBeNull();
   expect(screen.queryByText("Edit Public Profile Settings")).toBeNull();
   expect(screen.queryByText("Edit Safety Settings")).toBeNull();
 
@@ -101,6 +100,21 @@ it("keeps one complete action set on each public profile card", async () => {
   fireEvent.click(screen.getAllByRole("button", { name: "Copy Link" })[0]);
   await waitFor(() => expect(mocks.writeText).toHaveBeenCalledTimes(1));
   expect(await screen.findByText("Public Share Profile link copied.")).toBeTruthy();
+});
+
+it("does not expose public actions when the pet profile is private", async () => {
+  const pet = { ...structuredClone(mockPets[0]), publicProfileEnabled: false };
+  mocks.getPetById.mockResolvedValue({ data: pet });
+  render(
+    <PetManagementTabs moments={[]} pet={pet} records={[]} tags={[]} />
+  );
+
+  await screen.findByText("Private");
+  expect(screen.getByText(/share, QR, and preview actions are unavailable/i)).toBeTruthy();
+  expect(screen.getByRole("link", { name: "Manage Public Profile" })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Copy Link" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Show QR" })).toBeNull();
+  expect(screen.queryByRole("link", { name: "View Public Profile" })).toBeNull();
 });
 
 it("round-trips the shared Lost Mode control from the pet Overview", async () => {

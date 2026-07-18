@@ -64,8 +64,8 @@ routes and must never point at a specific pet id.
 | ---------- | ------------ | ------------------------------------------------ |
 | Dashboard  | `/dashboard` | Overview + quick actions                         |
 | My Pets    | `/pets`      | Pet list; `/pets/new` to add                     |
-| Records    | `/records`   | Generic landing â†’ first pet, then pet switcher   |
-| Moments    | `/moments`   | Generic landing â†’ first pet, then pet switcher   |
+| Records    | `/records`   | General landing; multiple pets require an explicit choice |
+| Moments    | `/moments`   | General landing; multiple pets require an explicit choice |
 | Smart Tags | `/tags`      | All tags across pets                             |
 | Orders     | `/orders`    | Tag order history and payment status             |
 | Settings   | `/settings`  | Account/profile settings                         |
@@ -74,11 +74,11 @@ routes and must never point at a specific pet id.
 section - e.g. `/pets/{id}/records` highlights **Records**,
 `/pets/{id}/moments` and `/pets/{id}/moments/new` highlight **Moments**.
 
-On mobile, the bottom nav renders the highest-priority modules directly and
-puts the rest into a **More** bottom sheet. The normal direct set is
-**Home / Pets / Moments / Tags / More**; narrower widths can reduce the direct
-items, but hidden modules must remain reachable from **More**. If the active
-route belongs to a hidden module such as Records, Orders, or Settings, the
+On mobile, the current release renders **Home / Pets / Moments / More**.
+Records and Owner Profile & Contact remain in the **More** bottom sheet. Smart
+Tags and tag Orders return to this same shared navigation when their build-time
+availability flags are enabled; their direct routes remain compatible while
+the entry points are hidden. If the active route belongs to a More item, the
 **More** button shows the active state.
 
 ---
@@ -189,9 +189,9 @@ use it instead of hand-writing the query.
 Both sections are **pet-aware**. The pattern:
 
 - **Generic route** (`/records`, `/moments`): `GenericPetSection` loads the pet
-  list, selects the **first pet**, fetches that pet's data, and renders the
-  section. If there are no pets it shows an `EmptyState` linking to
-  `ownerRoutes.petNew`.
+  list. A single pet opens immediately; when multiple pets exist, the owner
+  chooses one before any pet-specific content is fetched. If there are no pets
+  it shows an `EmptyState` linking to `ownerRoutes.petNew`.
 - **Specific route** (`/pets/{id}/records`, `/pets/{id}/moments`): the server
   page loads that pet and renders the section for it.
 - Both render a **`PetSwitcher`** at the top. It self-fetches the live pet list,
@@ -201,12 +201,12 @@ Both sections are **pet-aware**. The pattern:
 
 The section managers (`RecordsManager`, `PetMomentsManager`) re-fetch their data
 whenever the active `petId` changes, so switching pets updates the title, stats,
-cards, and timeline. **There is no hardcoded "first pet" logic beyond
-`pets[0]`** â€” never special-case a named pet.
+cards, and timeline. Never special-case a named pet or silently select one of
+several pets.
 
-When adding a new pet-aware section, follow this exact shape: generic landing â†’
-first pet, specific route â†’ that pet, `PetSwitcher` on top, manager re-fetches on
-`petId` change.
+When adding a new pet-aware section, follow this shape: generic landing,
+explicit choice when needed, specific route for that pet, `PetSwitcher` on top,
+and manager re-fetches on `petId` change.
 
 ---
 

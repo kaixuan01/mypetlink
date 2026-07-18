@@ -145,7 +145,7 @@ export function PetList({
     return (
       <EmptyState
         title="No pets yet"
-        description="Create your first profile to get a Safety Profile ready for finders."
+        description="Create your first pet profile to start adding photos, memories, and care records."
         actionHref={ownerRoutes.petNew}
         actionLabel="Add your first pet"
       />

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { QrCodeCard } from "@/components/qr/QrCodeCard";
+import { useModalDialogFocus } from "@/lib/useModalDialogFocus";
 
 type QrCodeButtonProps = {
   title: string;
@@ -36,39 +37,82 @@ export function QrCodeButton({
 
   return (
     <>
-      <button className={className} onClick={() => setOpen(true)} type="button">
+      <button
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        className={className}
+        onClick={() => setOpen(true)}
+        type="button"
+      >
         {label}
       </button>
       {open ? (
-        <div
-          aria-modal="true"
-          className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 p-4 backdrop-blur-sm"
-          onClick={() => setOpen(false)}
-          role="dialog"
-        >
-          <div
-            className="w-full max-w-md"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <QrCodeCard
-              className="bg-white shadow-2xl"
-              fileNameBase={fileNameBase}
-              helperText={helperText}
-              targetPath={targetPath}
-              title={title}
-              viewLabel={viewLabel}
-              warning={warning}
-            />
-            <button
-              className="mt-3 inline-flex min-h-10 w-full items-center justify-center rounded-full border border-white/40 bg-white/90 px-4 py-2 text-sm font-extrabold text-slate-800 transition hover:bg-white"
-              onClick={() => setOpen(false)}
-              type="button"
-            >
-              Close
-            </button>
-          </div>
-        </div>
+        <QrCodeDialog
+          fileNameBase={fileNameBase}
+          helperText={helperText}
+          onClose={() => setOpen(false)}
+          targetPath={targetPath}
+          title={title}
+          viewLabel={viewLabel}
+          warning={warning}
+        />
       ) : null}
     </>
+  );
+}
+
+function QrCodeDialog({
+  title,
+  targetPath,
+  helperText,
+  viewLabel,
+  fileNameBase,
+  warning,
+  onClose,
+}: Omit<QrCodeButtonProps, "className" | "label"> & { onClose: () => void }) {
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const closeRef = useRef<HTMLButtonElement | null>(null);
+
+  useModalDialogFocus({
+    dialogRef,
+    initialFocusRef: closeRef,
+    onEscape: onClose,
+  });
+
+  return (
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 p-4 backdrop-blur-sm"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div
+        aria-label={title}
+        aria-modal="true"
+        className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto"
+        ref={dialogRef}
+        role="dialog"
+      >
+        <QrCodeCard
+          className="bg-white shadow-2xl"
+          fileNameBase={fileNameBase}
+          helperText={helperText}
+          targetPath={targetPath}
+          title={title}
+          viewLabel={viewLabel}
+          warning={warning}
+        />
+        <button
+          className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-full border border-white/40 bg-white/90 px-4 py-2 text-sm font-extrabold text-slate-800 transition hover:bg-white"
+          onClick={onClose}
+          ref={closeRef}
+          type="button"
+        >
+          Close
+        </button>
+      </div>
+    </div>
   );
 }

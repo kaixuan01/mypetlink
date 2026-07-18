@@ -1,5 +1,8 @@
 import type { IconName } from "@/components/ui/Icon";
-import { smartTagsEnabled, tagOrdersEnabled } from "@/lib/features";
+import {
+  ownerProductFeatures,
+  type OwnerProductFeatures,
+} from "@/lib/features";
 import { ownerRoutes } from "@/lib/routes";
 
 export type OwnerNavItemId =
@@ -88,19 +91,23 @@ const allOwnerNavItems: OwnerNavItem[] = [
   },
 ];
 
-export const ownerNavItems: OwnerNavItem[] = allOwnerNavItems.filter(
-  (item) => {
+export function getOwnerNavItems(
+  features: OwnerProductFeatures = ownerProductFeatures
+) {
+  return allOwnerNavItems.filter((item) => {
     if (item.id === "tags") {
-      return smartTagsEnabled;
+      return features.smartTagsEnabled;
     }
 
     if (item.id === "orders") {
-      return tagOrdersEnabled;
+      return features.tagOrdersEnabled;
     }
 
     return true;
-  }
-);
+  });
+}
+
+export const ownerNavItems: OwnerNavItem[] = getOwnerNavItems();
 
 export function getOwnerNavItemById(id: OwnerNavItemId) {
   return ownerNavItems.find((item) => item.id === id);

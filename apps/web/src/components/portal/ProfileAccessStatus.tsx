@@ -235,6 +235,10 @@ export function ProfileAccessStatus({
   const items = getAccessItems({ orders, pet, tags });
   const showActiveTagSummary = !pet || isActivePet(pet);
 
+  if (!items.length) {
+    return null;
+  }
+
   return (
     <section className="brand-card rounded-[1.75rem] p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
