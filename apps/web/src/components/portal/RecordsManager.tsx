@@ -300,7 +300,6 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
     section: "records",
     petId,
     status: loading ? "loading" : loadError ? "error" : "ready",
-    itemCount: records.length,
     onCreate: openAddForm,
   });
 

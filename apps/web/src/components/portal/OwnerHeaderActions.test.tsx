@@ -10,12 +10,16 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { mockMoments } from "@/data/mockMoments";
 import { mockPets } from "@/data/mockPets";
+import { mockRecords } from "@/data/mockRecords";
 import type { OwnerHeaderPageContext } from "@/lib/ownerHeaderActions";
 import type { Pet } from "@/types";
 
 const mocks = vi.hoisted(() => ({
   getPets: vi.fn(),
+  getPetMoments: vi.fn(),
+  getPetRecords: vi.fn(),
   pathname: "/dashboard",
   push: vi.fn(),
 }));
@@ -33,11 +37,32 @@ vi.mock("@/services/petService", () => ({
   getPets: (...args: unknown[]) => mocks.getPets(...args),
 }));
 
+vi.mock("@/services/apiConfig", () => ({
+  isApiConfigured: () => true,
+}));
+
+vi.mock("@/services/momentService", () => ({
+  getPetMoments: (...args: unknown[]) => mocks.getPetMoments(...args),
+  deletePetMoment: vi.fn(),
+  updatePetMoment: vi.fn(),
+  getFriendlyMomentErrorMessage: () => "We couldn't load this right now.",
+}));
+
+vi.mock("@/services/recordService", () => ({
+  getPetRecords: (...args: unknown[]) => mocks.getPetRecords(...args),
+  createRecord: vi.fn(),
+  deleteRecord: vi.fn(),
+  updateRecord: vi.fn(),
+  getFriendlyRecordErrorMessage: () => "We couldn't load this right now.",
+}));
+
 const {
   OwnerHeaderActionsProvider,
   OwnerPortalHeader,
   useOwnerHeaderPageContext,
 } = await import("./OwnerHeaderActions");
+const { PetMomentsManager } = await import("./PetMomentsManager");
+const { RecordsManager } = await import("./RecordsManager");
 
 function makePets(count: number): Pet[] {
   return Array.from({ length: count }, (_, index) => ({
@@ -167,7 +192,6 @@ describe("OwnerHeaderActions", () => {
           section: "moments",
           petId: "pet_0",
           status: "ready",
-          itemCount: 2,
           canCreate: true,
         }}
       />
@@ -191,7 +215,6 @@ describe("OwnerHeaderActions", () => {
           section: "moments",
           petId: "pet_0",
           status: "ready",
-          itemCount: 2,
           canCreate: true,
         }}
       />
@@ -297,7 +320,6 @@ describe("OwnerHeaderActions", () => {
           section: "records",
           petId: "pet_0",
           status: "ready",
-          itemCount: 1,
           onCreate,
         }}
       />
@@ -312,7 +334,7 @@ describe("OwnerHeaderActions", () => {
     expect(screen.queryByRole("link", { name: "Add Pet" })).toBeNull();
   });
 
-  it("hides the section action during loading and for its true empty state", async () => {
+  it("hides the section action only while loading, then shows it once ready", async () => {
     mocks.pathname = "/moments";
     mocks.getPets.mockResolvedValue({ data: makePets(1) });
     const view = render(
@@ -321,7 +343,6 @@ describe("OwnerHeaderActions", () => {
           section: "moments",
           petId: "pet_0",
           status: "loading",
-          itemCount: 1,
           canCreate: true,
         }}
       />
@@ -336,12 +357,129 @@ describe("OwnerHeaderActions", () => {
           section: "moments",
           petId: "pet_0",
           status: "ready",
-          itemCount: 0,
           canCreate: true,
         }}
       />
     );
-    expect(screen.queryByRole("link", { name: /add moment/i })).toBeNull();
+    expect(
+      await screen.findByRole("link", { name: /add moment/i })
+    ).toBeTruthy();
+  });
+
+  it("shows Add Moment for a pet whose memories are empty", async () => {
+    mocks.pathname = "/pets/pet_0/moments";
+    const currentPets = makePets(2);
+    mocks.getPets.mockResolvedValue({ data: currentPets });
+    mocks.getPetMoments.mockResolvedValue({ data: [] });
+    render(
+      <OwnerHeaderActionsProvider>
+        <OwnerPortalHeader />
+        <PetMomentsManager initialMoments={[]} pet={currentPets[0]} />
+      </OwnerHeaderActionsProvider>
+    );
+
+    const action = await screen.findByRole("link", {
+      name: /add moment for the current pet/i,
+    });
+    expect(action.getAttribute("href")).toBe("/pets/pet_0/moments/new");
+    expect(screen.getByText("No pet moments yet")).toBeTruthy();
+  });
+
+  it("keeps the correct Add Moment target when switching between a populated and an empty pet", async () => {
+    const currentPets = makePets(2);
+    mocks.getPets.mockResolvedValue({ data: currentPets });
+    mocks.getPetMoments.mockImplementation((petId: unknown) =>
+      Promise.resolve({
+        data:
+          petId === "pet_0"
+            ? [{ ...mockMoments[0], id: "moment_a", petId: "pet_0" }]
+            : [],
+      })
+    );
+
+    mocks.pathname = "/pets/pet_0/moments";
+    const view = render(
+      <OwnerHeaderActionsProvider>
+        <OwnerPortalHeader />
+        <PetMomentsManager initialMoments={[]} pet={currentPets[0]} />
+      </OwnerHeaderActionsProvider>
+    );
+    const populatedAction = await screen.findByRole("link", {
+      name: /add moment for the current pet/i,
+    });
+    expect(populatedAction.getAttribute("href")).toBe(
+      "/pets/pet_0/moments/new"
+    );
+
+    mocks.pathname = "/pets/pet_1/moments";
+    view.rerender(
+      <OwnerHeaderActionsProvider>
+        <OwnerPortalHeader />
+        <PetMomentsManager initialMoments={[]} pet={currentPets[1]} />
+      </OwnerHeaderActionsProvider>
+    );
+    await waitFor(() =>
+      expect(
+        screen
+          .getByRole("link", { name: /add moment for the current pet/i })
+          .getAttribute("href")
+      ).toBe("/pets/pet_1/moments/new")
+    );
+
+    mocks.pathname = "/pets/pet_0/moments";
+    view.rerender(
+      <OwnerHeaderActionsProvider>
+        <OwnerPortalHeader />
+        <PetMomentsManager initialMoments={[]} pet={currentPets[0]} />
+      </OwnerHeaderActionsProvider>
+    );
+    await waitFor(() =>
+      expect(
+        screen
+          .getByRole("link", { name: /add moment for the current pet/i })
+          .getAttribute("href")
+      ).toBe("/pets/pet_0/moments/new")
+    );
+  });
+
+  it("shows Add Record for a pet with zero care records", async () => {
+    mocks.pathname = "/pets/pet_0/records";
+    mocks.getPets.mockResolvedValue({ data: makePets(1) });
+    mocks.getPetRecords.mockResolvedValue({ data: [] });
+    render(
+      <OwnerHeaderActionsProvider>
+        <OwnerPortalHeader />
+        <RecordsManager initialRecords={[]} petId="pet_0" />
+      </OwnerHeaderActionsProvider>
+    );
+
+    expect(
+      await screen.findByRole("button", {
+        name: /add care record for the current pet/i,
+      })
+    ).toBeTruthy();
+    expect(screen.getByText("No care records yet")).toBeTruthy();
+  });
+
+  it("shows Add Record for a pet with existing care records", async () => {
+    mocks.pathname = "/pets/pet_0/records";
+    mocks.getPets.mockResolvedValue({ data: makePets(1) });
+    mocks.getPetRecords.mockResolvedValue({
+      data: [{ ...mockRecords[0], id: "rec_a", petId: "pet_0" }],
+    });
+    render(
+      <OwnerHeaderActionsProvider>
+        <OwnerPortalHeader />
+        <RecordsManager initialRecords={[]} petId="pet_0" />
+      </OwnerHeaderActionsProvider>
+    );
+
+    expect(
+      await screen.findByRole("button", {
+        name: /add care record for the current pet/i,
+      })
+    ).toBeTruthy();
+    expect(screen.queryByText("No care records yet")).toBeNull();
   });
 
   it.each(["/tags", "/orders", "/settings", "/pets/pet_0/edit"])(

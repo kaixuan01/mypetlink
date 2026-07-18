@@ -23,7 +23,6 @@ function pageContext(
     pathname: "/moments",
     petId: "pet_0",
     status: "ready",
-    itemCount: 1,
     canCreate: true,
     ...overrides,
   };
@@ -101,18 +100,82 @@ describe("getOwnerHeaderAction", () => {
     ).toBeNull();
   });
 
-  it("hides a Moments action while loading, empty, unavailable, or missing pet context", () => {
+  it("hides a Moments action while loading, unavailable, or missing pet context", () => {
     for (const context of [
       pageContext({ status: "loading" }),
       pageContext({ status: "error" }),
-      pageContext({ itemCount: 0 }),
       pageContext({ canCreate: false }),
+      pageContext({ canCreate: undefined }),
       pageContext({ petId: "stale_pet" }),
     ]) {
       expect(
         resolve({ pathname: "/moments", currentPageContext: context })
       ).toBeNull();
     }
+  });
+
+  it("shows the section action again once a loading or failed load becomes ready", () => {
+    // The same registered context transitions loading -> error -> ready; only
+    // the final ready state may decide visibility, so a retry that succeeds
+    // always restores the action.
+    expect(
+      resolve({
+        pathname: "/moments",
+        currentPageContext: pageContext({ status: "loading" }),
+      })
+    ).toBeNull();
+    expect(
+      resolve({
+        pathname: "/moments",
+        currentPageContext: pageContext({ status: "error" }),
+      })
+    ).toBeNull();
+    expect(
+      resolve({
+        pathname: "/moments",
+        currentPageContext: pageContext({ status: "ready" }),
+      })
+    ).toMatchObject({ type: "link", label: "Add Moment" });
+  });
+
+  it("switching between pets keeps the action pointed at the current pet", () => {
+    const twoPets = pets(2);
+
+    const first = resolve({
+      pathname: "/pets/pet_0/moments",
+      currentPets: twoPets,
+      currentPageContext: pageContext({ pathname: "/pets/pet_0/moments" }),
+    });
+    expect(first).toMatchObject({
+      type: "link",
+      href: "/pets/pet_0/moments/new",
+      compactTitle: "Pet 1's memories",
+    });
+
+    const second = resolve({
+      pathname: "/pets/pet_1/moments",
+      currentPets: twoPets,
+      currentPageContext: pageContext({
+        pathname: "/pets/pet_1/moments",
+        petId: "pet_1",
+      }),
+    });
+    expect(second).toMatchObject({
+      type: "link",
+      href: "/pets/pet_1/moments/new",
+      compactTitle: "Pet 2's memories",
+    });
+
+    const backToFirst = resolve({
+      pathname: "/pets/pet_0/moments",
+      currentPets: twoPets,
+      currentPageContext: pageContext({ pathname: "/pets/pet_0/moments" }),
+    });
+    expect(backToFirst).toMatchObject({
+      type: "link",
+      href: "/pets/pet_0/moments/new",
+      compactTitle: "Pet 1's memories",
+    });
   });
 
   it("exposes the registered Add Record callback for populated care records", () => {

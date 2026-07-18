@@ -122,7 +122,7 @@ export function useOwnerHeaderPageContext(
   const registerPageContext = useContext(
     OwnerHeaderActionsContext
   )?.registerPageContext;
-  const { canCreate, itemCount, onCreate, petId, section, status } = context;
+  const { canCreate, onCreate, petId, section, status } = context;
 
   useEffect(() => {
     if (!registerPageContext) {
@@ -131,21 +131,12 @@ export function useOwnerHeaderPageContext(
 
     return registerPageContext({
       canCreate,
-      itemCount,
       onCreate,
       petId,
       section,
       status,
     });
-  }, [
-    canCreate,
-    itemCount,
-    onCreate,
-    petId,
-    registerPageContext,
-    section,
-    status,
-  ]);
+  }, [canCreate, onCreate, petId, registerPageContext, section, status]);
 }
 
 export function OwnerPortalHeader() {

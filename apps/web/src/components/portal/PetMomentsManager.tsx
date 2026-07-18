@@ -269,7 +269,6 @@ export function PetMomentsManager({
     section: "moments",
     petId: pet.id,
     status: loading ? "loading" : loadError ? "error" : "ready",
-    itemCount: moments.length,
     canCreate: canCreateMemory,
   });
 

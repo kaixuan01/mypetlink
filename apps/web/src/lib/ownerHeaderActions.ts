@@ -9,7 +9,6 @@ export type OwnerHeaderPageContext = {
   pathname: string;
   petId: string;
   status: "loading" | "ready" | "error";
-  itemCount: number;
   canCreate?: boolean;
   onCreate?: () => void;
 };
@@ -109,10 +108,11 @@ export function getOwnerHeaderAction({
         /^\/pets\/[^/]+\/records$/.test(pathname) ||
         petHubRoute;
 
+  // Item counts and empty states never gate the primary action: a pet with
+  // zero moments or records must still offer its Add action.
   if (
     !sectionRoute ||
     pageContext.status !== "ready" ||
-    pageContext.itemCount === 0 ||
     !pets.some((pet) => pet.id === pageContext.petId)
   ) {
     return null;
