@@ -127,7 +127,7 @@ public sealed class PetService : SkeletonService, IPetService
             }
         };
 
-        pet.Contact = BuildPetContact(request.Contact, user);
+        pet.Contact = BuildPetContact(request.Contact);
 
         _dbContext.Pets.Add(pet);
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -266,7 +266,7 @@ public sealed class PetService : SkeletonService, IPetService
 
         if (request.Contact is not null)
         {
-            ApplyPetContact(pet, request.Contact, pet.OwnerUser);
+            ApplyPetContact(pet, request.Contact);
         }
 
         if (request.Visibility is not null)
@@ -577,48 +577,39 @@ public sealed class PetService : SkeletonService, IPetService
             defaults.ShowAllergiesOnPublicProfile);
     }
 
-    private static PetContact BuildPetContact(PetContactRequest? request, User user)
+    private static PetContact BuildPetContact(PetContactRequest? request)
     {
         if (request is null)
         {
             return new PetContact
             {
-                UseOwnerDefaults = true,
-                OwnerDisplayName = user.OwnerProfile?.OwnerDisplayName ?? user.DisplayName,
-                PhoneE164 = user.PhoneE164,
-                WhatsappE164 = user.WhatsappE164,
-                GeneralAreaOverride = user.OwnerProfile?.DefaultGeneralArea
+                UseOwnerDefaults = true
             };
         }
 
+        var useOwnerDefaults = request.UseOwnerDefaults;
         return new PetContact
         {
-            UseOwnerDefaults = request.UseOwnerDefaults,
-            OwnerDisplayName = request.UseOwnerDefaults
-                ? user.OwnerProfile?.OwnerDisplayName ?? user.DisplayName
-                : PetDtoMapper.NormalizeOptional(request.OwnerDisplayName),
-            PhoneE164 = request.UseOwnerDefaults ? user.PhoneE164 : PetDtoMapper.NormalizeOptional(request.PhoneE164),
-            WhatsappE164 = request.UseOwnerDefaults ? user.WhatsappE164 : PetDtoMapper.NormalizeOptional(request.WhatsappE164),
-            EmergencyContactE164 = PetDtoMapper.NormalizeOptional(request.EmergencyContactE164),
-            GeneralAreaOverride = request.UseOwnerDefaults
-                ? user.OwnerProfile?.DefaultGeneralArea
-                : PetDtoMapper.NormalizeOptional(request.GeneralAreaOverride)
+            UseOwnerDefaults = useOwnerDefaults,
+            OwnerDisplayName = useOwnerDefaults ? null : PetDtoMapper.NormalizeOptional(request.OwnerDisplayName),
+            PhoneE164 = useOwnerDefaults ? null : PetDtoMapper.NormalizeOptional(request.PhoneE164),
+            WhatsappE164 = useOwnerDefaults ? null : PetDtoMapper.NormalizeOptional(request.WhatsappE164),
+            EmergencyContactE164 = useOwnerDefaults ? null : PetDtoMapper.NormalizeOptional(request.EmergencyContactE164),
+            GeneralAreaOverride = useOwnerDefaults ? null : PetDtoMapper.NormalizeOptional(request.GeneralAreaOverride)
         };
     }
 
-    private static void ApplyPetContact(Pet pet, PetContactRequest request, User user)
+    private static void ApplyPetContact(Pet pet, PetContactRequest request)
     {
         pet.Contact ??= new PetContact { PetId = pet.Id };
         pet.Contact.UseOwnerDefaults = request.UseOwnerDefaults;
-        pet.Contact.OwnerDisplayName = request.UseOwnerDefaults
-            ? user.OwnerProfile?.OwnerDisplayName ?? user.DisplayName
-            : PetDtoMapper.NormalizeOptional(request.OwnerDisplayName);
-        pet.Contact.PhoneE164 = request.UseOwnerDefaults ? user.PhoneE164 : PetDtoMapper.NormalizeOptional(request.PhoneE164);
-        pet.Contact.WhatsappE164 = request.UseOwnerDefaults ? user.WhatsappE164 : PetDtoMapper.NormalizeOptional(request.WhatsappE164);
-        pet.Contact.EmergencyContactE164 = PetDtoMapper.NormalizeOptional(request.EmergencyContactE164);
-        pet.Contact.GeneralAreaOverride = request.UseOwnerDefaults
-            ? user.OwnerProfile?.DefaultGeneralArea
-            : PetDtoMapper.NormalizeOptional(request.GeneralAreaOverride);
+        pet.Contact.OwnerDisplayName = request.UseOwnerDefaults ? null : PetDtoMapper.NormalizeOptional(request.OwnerDisplayName);
+        pet.Contact.PhoneE164 = request.UseOwnerDefaults ? null : PetDtoMapper.NormalizeOptional(request.PhoneE164);
+        pet.Contact.WhatsappE164 = request.UseOwnerDefaults ? null : PetDtoMapper.NormalizeOptional(request.WhatsappE164);
+        pet.Contact.EmergencyContactE164 = request.UseOwnerDefaults
+            ? null
+            : PetDtoMapper.NormalizeOptional(request.EmergencyContactE164);
+        pet.Contact.GeneralAreaOverride = request.UseOwnerDefaults ? null : PetDtoMapper.NormalizeOptional(request.GeneralAreaOverride);
     }
 
     private static void ApplyVisibility(Pet pet, PetVisibilityRequest visibility)

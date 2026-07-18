@@ -29,7 +29,11 @@ import {
   addPublicProfileShareVersion,
   getPublicProfileShareVersion,
 } from "@/lib/publicProfileSocial";
-import { smartTagOrderingEnabled } from "@/lib/features";
+import {
+  safetyProfilesOwnerUiEnabled,
+  smartTagOrderingEnabled,
+  smartTagsEnabled,
+} from "@/lib/features";
 import { ownerRoutes, tagPath } from "@/lib/routes";
 import { getTagScanDisplay, isActivePhysicalTagForPet } from "@/lib/tagStatus";
 import { isApiConfigured } from "@/services/apiConfig";
@@ -58,7 +62,10 @@ const tabs: (SegmentedTab & { id: TabId })[] = [
   { id: "overview", label: "Overview" },
   { id: "records", label: "Care Records", mobileLabel: "Records" },
   { id: "moments", label: "Moments" },
-  { id: "tag", label: "Smart Tag", mobileLabel: "Tag" },
+  // The Smart Tag tab returns automatically when the feature relaunches.
+  ...(smartTagsEnabled
+    ? [{ id: "tag", label: "Smart Tag", mobileLabel: "Tag" } as SegmentedTab & { id: TabId }]
+    : []),
   { id: "privacy", label: "Privacy" },
 ];
 
@@ -230,6 +237,7 @@ function OverviewTab({
       </SectionCard>
 
       {/* Safety Profile */}
+      {safetyProfilesOwnerUiEnabled ? (
       <SectionCard
         icon="qr"
         title="Safety Profile"
@@ -294,6 +302,7 @@ function OverviewTab({
           </p>
         </div>
       </SectionCard>
+      ) : null}
 
       {isMemorial ? (
         <SectionCard
@@ -441,6 +450,7 @@ function OverviewTab({
       </SectionCard>
 
       {/* Smart Tags */}
+      {smartTagsEnabled ? (
       <SectionCard
         icon="tag"
         title="Smart Tags"
@@ -511,6 +521,7 @@ function OverviewTab({
           ) : null}
         </div>
       </SectionCard>
+      ) : null}
     </div>
   );
 }
@@ -549,23 +560,25 @@ function PrivacyTab({ pet }: { pet: Pet }) {
         </div>
       </SectionCard>
 
-      <SectionCard
-        icon="qr"
-        title="Safety Profile visibility"
-        description="What a finder sees after opening the Safety Profile by QR code, NFC tag, or link."
-      >
-        <StatusGrid items={safetyStatuses} />
-        <div className="mt-auto pt-1">
-          <CTAButton
-            href={ownerRoutes.petEdit(pet.id)}
-            variant="outline"
-            icon="settings"
-            fullWidth
-          >
-            Edit Safety Profile settings
-          </CTAButton>
-        </div>
-      </SectionCard>
+      {safetyProfilesOwnerUiEnabled ? (
+        <SectionCard
+          icon="qr"
+          title="Safety Profile visibility"
+          description="What a finder sees after opening the Safety Profile by QR code, NFC tag, or link."
+        >
+          <StatusGrid items={safetyStatuses} />
+          <div className="mt-auto pt-1">
+            <CTAButton
+              href={ownerRoutes.petEdit(pet.id)}
+              variant="outline"
+              icon="settings"
+              fullWidth
+            >
+              Edit Safety Profile settings
+            </CTAButton>
+          </div>
+        </SectionCard>
+      ) : null}
     </div>
   );
 }

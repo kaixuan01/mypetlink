@@ -47,6 +47,8 @@ export function PhoneNumberInput({
   required,
 }: PhoneNumberInputProps) {
   const inputId = useId();
+  const helperId = `${inputId}-helper`;
+  const errorId = `${inputId}-error`;
   const [draft, setDraft] = useState<Draft>(() => draftFromValue(value));
 
   // Re-sync from props when the parent changes the value externally (e.g. a
@@ -82,14 +84,20 @@ export function PhoneNumberInput({
   }
 
   return (
-    <label className="grid w-full min-w-0 gap-2" htmlFor={inputId}>
-      <span className="text-sm font-bold text-pet-ink">
+    <div className="grid w-full min-w-0 gap-2">
+      <label className="text-sm font-bold text-pet-ink" htmlFor={inputId}>
         {label}
         {required ? <span className="text-pet-coral"> *</span> : null}
-      </span>
+      </label>
       <div className="phone-input-shell">
         <CountryCodeSelect value={draft.country.dialCode} onChange={handleCountry} />
         <input
+          aria-describedby={
+            [helper ? helperId : "", error ? errorId : ""]
+              .filter(Boolean)
+              .join(" ") || undefined
+          }
+          aria-invalid={Boolean(error)}
           autoComplete="tel-national"
           className="phone-number-field"
           id={inputId}
@@ -101,11 +109,15 @@ export function PhoneNumberInput({
         />
       </div>
       {helper ? (
-        <span className="text-xs leading-5 text-pet-muted">{helper}</span>
+        <span className="text-xs leading-5 text-pet-muted" id={helperId}>
+          {helper}
+        </span>
       ) : null}
       {error ? (
-        <span className="text-xs font-bold text-[#a63c2e]">{error}</span>
+        <span className="text-xs font-bold text-[#a63c2e]" id={errorId}>
+          {error}
+        </span>
       ) : null}
-    </label>
+    </div>
   );
 }

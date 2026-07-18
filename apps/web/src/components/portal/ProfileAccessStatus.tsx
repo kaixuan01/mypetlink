@@ -1,6 +1,10 @@
 import { Badge } from "@/components/ui/Badge";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import {
+  safetyProfilesOwnerUiEnabled,
+  smartTagsEnabled,
+} from "@/lib/features";
+import {
   isActivePet,
   isArchivedPet,
   isMemorialPet,
@@ -138,13 +142,22 @@ function getAccessItems({
   orders?: TagOrder[];
   tags?: PetTag[];
 }): AccessItem[] {
-  const items = [getSafetyProfileBadge(pet)];
+  // Unreleased features contribute no badges, so every consumer of this list
+  // (pet headers, status panels) hides them consistently.
+  const items: AccessItem[] = [];
 
-  if (tags) {
+  if (safetyProfilesOwnerUiEnabled) {
+    items.push(getSafetyProfileBadge(pet));
+  }
+
+  if (smartTagsEnabled && tags) {
     items.push(getSmartTagStatusBadge(tags, orders, pet));
   }
 
-  const nfcBadge = showNfc && tags ? getNfcStatusBadge(tags, orders, pet) : null;
+  const nfcBadge =
+    smartTagsEnabled && showNfc && tags
+      ? getNfcStatusBadge(tags, orders, pet)
+      : null;
 
   if (nfcBadge) {
     items.push(nfcBadge);
@@ -186,6 +199,10 @@ export function ProfileAccessBadges({
     showNfc,
     tags,
   });
+
+  if (!items.length) {
+    return null;
+  }
 
   return (
     <div

@@ -67,15 +67,12 @@ public sealed class OwnerProfileService : SkeletonService, IOwnerProfileService
             ownerProfile.OwnerDisplayName = displayName;
         }
 
-        if (request.PhoneE164 is not null)
-        {
-            user.PhoneE164 = NormalizeOptional(request.PhoneE164);
-        }
-
-        if (request.WhatsappE164 is not null)
-        {
-            user.WhatsappE164 = NormalizeOptional(request.WhatsappE164);
-        }
+        // This is a PUT endpoint: nullable contact properties describe the
+        // complete desired state. Null or whitespace explicitly clears the
+        // corresponding optional number instead of being treated as a patch
+        // omission and silently retaining the previous database value.
+        user.PhoneE164 = NormalizeOptional(request.PhoneE164);
+        user.WhatsappE164 = NormalizeOptional(request.WhatsappE164);
 
         if (request.DefaultGeneralArea is not null)
         {

@@ -8,6 +8,7 @@ import {
   getPetsByFilter,
   type PetLifecycleFilter,
 } from "@/lib/petLifecycle";
+import { smartTagsEnabled } from "@/lib/features";
 import { ownerRoutes } from "@/lib/routes";
 import { isApiConfigured } from "@/services/apiConfig";
 import {
@@ -61,7 +62,9 @@ export function PetList({
 
         setPets(petsResponse.data);
 
-        if (apiMode) {
+        // Tag and order data only feed the tag chip on pet cards, which is
+        // hidden while Smart Tags is unreleased.
+        if (apiMode || !smartTagsEnabled) {
           setTags([]);
           setOrders([]);
           return;

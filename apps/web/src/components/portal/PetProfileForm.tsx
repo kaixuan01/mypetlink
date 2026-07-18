@@ -58,7 +58,11 @@ import {
 } from "@/lib/petSuggestions";
 import { getPublicProfileShareVersion } from "@/lib/publicProfileSocial";
 import { getSafetyProfileStatusView } from "@/lib/safetyProfile";
-import { smartTagOrderingEnabled } from "@/lib/features";
+import {
+  safetyProfilesOwnerUiEnabled,
+  smartTagOrderingEnabled,
+  smartTagsEnabled,
+} from "@/lib/features";
 import {
   getCurrentLocalDestination,
   ownerLoginPath,
@@ -140,13 +144,18 @@ type FormState = {
 
 type FormErrors = Partial<Record<keyof FormState, string>>;
 
-type EditTab = "basic" | "photos" | "theme" | "public" | "contact";
+type EditTab = "basic" | "appearance" | "public" | "contact";
+
+// Former tab ids that may still arrive via saved links or login redirects.
+const legacyEditTabAliases: Record<string, EditTab> = {
+  photos: "appearance",
+  theme: "appearance",
+};
 type EditPetLoadState = "checking" | "ready" | "not-found" | "error";
 
 const editTabs: (SegmentedTab & { id: EditTab })[] = [
   { id: "basic", label: "Basic Info", mobileLabel: "Info" },
-  { id: "photos", label: "Photos" },
-  { id: "theme", label: "Theme" },
+  { id: "appearance", label: "Appearance" },
   { id: "public", label: "Public Profile", mobileLabel: "Public" },
   { id: "contact", label: "Contact & Safety", mobileLabel: "Safety" },
 ];
@@ -200,11 +209,11 @@ const fieldTab: Record<keyof FormState, EditTab> = {
   favoriteFoods: "basic",
   favoriteToys: "basic",
   allergies: "contact",
-  photoUrl: "photos",
-  coverUrl: "photos",
-  coverPositionX: "photos",
-  coverPositionY: "photos",
-  profileTheme: "theme",
+  photoUrl: "appearance",
+  coverUrl: "appearance",
+  coverPositionX: "appearance",
+  coverPositionY: "appearance",
+  profileTheme: "appearance",
   lifecycleStatus: "public",
   passedAwayDate: "public",
   memorialMessage: "public",
@@ -336,13 +345,25 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
   }
 
   // Deep links (e.g. the pet hub's Update Contact action) can open a specific
-  // tab with ?tab=contact so owners never land on the wrong section. Applied
-  // after hydration so the server-rendered markup stays stable.
+  // tab with ?tab=contact so owners never land on the wrong section. Retired
+  // tab ids (photos, theme) map to their replacement so old links keep
+  // working. Applied after hydration so the server-rendered markup stays
+  // stable.
   useEffect(() => {
     const requested = new URL(window.location.href).searchParams.get("tab");
 
-    if (requested && editTabs.some((item) => item.id === requested)) {
-      queueMicrotask(() => setTab(requested as EditTab));
+    if (!requested) {
+      return;
+    }
+
+    const resolved =
+      legacyEditTabAliases[requested] ??
+      (editTabs.some((item) => item.id === requested)
+        ? (requested as EditTab)
+        : null);
+
+    if (resolved) {
+      queueMicrotask(() => setTab(resolved));
     }
   }, []);
 
@@ -899,16 +920,18 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
           >
             View Public Profile
           </CTAButton>
-          <CTAButton
-            href={createdPet.qrSafetyPath}
-            icon="qr"
-            variant="secondary"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            View Safety Profile
-          </CTAButton>
-          {isActivePet(createdPet) && smartTagOrderingEnabled ? (
+          {safetyProfilesOwnerUiEnabled ? (
+            <CTAButton
+              href={createdPet.qrSafetyPath}
+              icon="qr"
+              variant="secondary"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              View Safety Profile
+            </CTAButton>
+          ) : null}
+          {isActivePet(createdPet) && smartTagsEnabled && smartTagOrderingEnabled ? (
             <CTAButton
               href={ownerRoutes.petTagOrder(createdPet.id)}
               icon="tag"
@@ -993,8 +1016,12 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
       form.coverPositionY !== currentPet.coverPositionY);
 
   return (
+    // Bottom clearance on mobile comes from one place only: the action bar's
+    // reserved spacer (plus the app shell's bottom-nav padding). Stacking a
+    // third padding here previously left a large dead zone under the fixed
+    // Save bar.
     <form
-      className="mx-auto grid w-full min-w-0 max-w-[1140px] gap-5 pb-[calc(7rem+env(safe-area-inset-bottom))] lg:pb-0"
+      className="mx-auto grid w-full min-w-0 max-w-[1140px] gap-5"
       onSubmit={handleSubmit}
     >
       {success ? (
@@ -1233,13 +1260,22 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
         </FormSection>
       ) : null}
 
-      {tab === "photos" ? (
+      {tab === "appearance" ? (
         <FormSection
-          title="Photos"
-          description="Add the pet photos you want saved with this profile. The Theme tab controls the public page colors."
+          title="Appearance"
+          description={`Customize the photos and theme shown on ${
+            form.name || "your pet"
+          }'s public profile and safety page.`}
         >
-          <div className="grid min-w-0 gap-5">
-            <div className="grid min-w-0 gap-4 md:grid-cols-2">
+          <div className="grid min-w-0 gap-6">
+            <section aria-labelledby="appearance-photos-heading" className="grid min-w-0 gap-4">
+              <h3
+                className="text-base font-black text-pet-ink"
+                id="appearance-photos-heading"
+              >
+                Photos
+              </h3>
+              <div className="grid min-w-0 gap-4 md:grid-cols-2">
               <ImageUploadField
                 label="Profile photo"
                 helper="Used for this pet's avatar across the portal and public pages."
@@ -1363,41 +1399,44 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
                 )}
               </div>
             </section>
-          </div>
-        </FormSection>
-      ) : null}
+            </section>
 
-      {tab === "theme" ? (
-        <FormSection
-          title="Profile Theme"
-          description={`Applied to both ${
-            form.name || "your pet"
-          }'s Public Share Profile and Safety Profile.`}
-        >
-          <div className="grid min-w-0 gap-4">
-            <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-5">
-              {petProfileThemes.map((theme) => (
-                <ThemeOptionCard
-                  key={theme.id}
-                  name={form.name || "Your pet"}
-                  onSelect={() => updateField("profileTheme", theme.id)}
-                  selected={form.profileTheme === theme.id}
-                  theme={theme}
-                />
-              ))}
-            </div>
+            <div aria-hidden="true" className="border-t border-pet-border" />
 
-            {hasUnsavedThemeChange ? (
-              <p className="rounded-[1rem] bg-[#fffbea] px-4 py-3 text-xs font-bold text-[#856a00]">
-                Save changes to update {form.name || "your pet"}&apos;s public
-                profile and Safety Profile.
-              </p>
-            ) : null}
+            <section
+              aria-labelledby="appearance-theme-heading"
+              className="grid min-w-0 gap-4"
+            >
+              <h3
+                className="text-base font-black text-pet-ink"
+                id="appearance-theme-heading"
+              >
+                Profile Theme
+              </h3>
+              <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                {petProfileThemes.map((theme) => (
+                  <ThemeOptionCard
+                    key={theme.id}
+                    name={form.name || "Your pet"}
+                    onSelect={() => updateField("profileTheme", theme.id)}
+                    selected={form.profileTheme === theme.id}
+                    theme={theme}
+                  />
+                ))}
+              </div>
 
-            <ThemePreviewPanel
-              petName={form.name || "Your pet"}
-              theme={selectedTheme}
-            />
+              {hasUnsavedThemeChange ? (
+                <p className="rounded-[1rem] bg-[#fffbea] px-4 py-3 text-xs font-bold text-[#856a00]">
+                  Save changes to update {form.name || "your pet"}&apos;s public
+                  profile and Safety Profile.
+                </p>
+              ) : null}
+
+              <ThemePreviewPanel
+                petName={form.name || "Your pet"}
+                theme={selectedTheme}
+              />
+            </section>
           </div>
         </FormSection>
       ) : null}
@@ -1679,6 +1718,10 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
               </div>
             ) : null}
 
+            {/* Owner-facing Safety Profile management is temporarily hidden
+                while the feature is unreleased; the settings below (contact,
+                finder visibility, safety information) stay available. */}
+            {safetyProfilesOwnerUiEnabled ? (
             <div className="rounded-[1.5rem] border border-pet-border bg-white p-5">
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-lg font-black text-pet-ink">
@@ -1757,6 +1800,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
                 ) : null}
               </div>
             </div>
+            ) : null}
 
             <div
               className="scroll-mt-24 rounded-[1.5rem] border border-pet-border bg-white p-5"
@@ -2012,15 +2056,17 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
             >
               View Public Profile
             </CTAButton>
-            <CTAButton
-              href={currentPet.qrSafetyPath}
-              icon="qr"
-              variant="outline"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              View Safety Profile
-            </CTAButton>
+            {safetyProfilesOwnerUiEnabled ? (
+              <CTAButton
+                href={currentPet.qrSafetyPath}
+                icon="qr"
+                variant="outline"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                View Safety Profile
+              </CTAButton>
+            ) : null}
           </>
         ) : null}
         <Link

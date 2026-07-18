@@ -63,6 +63,34 @@ it("hides the allergy safety section when none are saved", async () => {
   expect(screen.queryByText("Known allergies")).toBeNull();
 });
 
+it("does not render broken contact actions when both optional numbers are empty", async () => {
+  const pet = {
+    ...mockPets[0],
+    owner: {
+      ...mockPets[0].owner,
+      phone: "",
+      whatsapp: "",
+      emergencyContact: "",
+    },
+    contactOverride: {
+      useOwnerDefaults: false,
+      phoneNumber: "",
+      whatsappNumber: "",
+    },
+    visibility: {
+      ...mockPets[0].visibility,
+      showPhone: true,
+      showWhatsapp: true,
+    },
+  };
+
+  render(<QrSafetyPageView pet={pet} />);
+
+  await screen.findByText("MyPetLink Safety Profile");
+  expect(screen.queryByRole("link", { name: "Call Owner" })).toBeNull();
+  expect(screen.queryByRole("link", { name: "WhatsApp Owner" })).toBeNull();
+});
+
 it("adds labeled finder details and removes the urgent state when found", async () => {
   const rawTimestamp = "2026-07-16T07:42:00+00:00";
   const lostPet = {

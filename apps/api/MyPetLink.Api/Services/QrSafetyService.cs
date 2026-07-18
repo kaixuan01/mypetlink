@@ -89,7 +89,7 @@ public sealed class QrSafetyService : SkeletonService, IQrSafetyService
 
         var phone = safetySetting.ShowPhone ? PetDtoMapper.ResolvePhone(pet) : null;
         var whatsapp = safetySetting.ShowWhatsapp ? PetDtoMapper.ResolveWhatsapp(pet) : null;
-        var emergencyContact = safetySetting.ShowPhone ? pet.Contact?.EmergencyContactE164 : null;
+        var emergencyContact = safetySetting.ShowPhone ? PetDtoMapper.ResolveEmergencyContact(pet) : null;
         var contact = phone is null && whatsapp is null && emergencyContact is null
             ? null
             : new PublicSafetyContactResponse(

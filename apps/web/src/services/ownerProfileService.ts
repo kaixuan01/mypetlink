@@ -48,19 +48,34 @@ export async function updateOwnerProfileSettings(
     };
   }
 
+  const expectedPhoneNumber = normalizeOptionalContactNumber(settings.phoneNumber);
+  const expectedWhatsappNumber = normalizeOptionalContactNumber(
+    settings.whatsappNumber
+  );
   const response = await apiRequest<BackendOwnerProfile>("/api/v1/owner/profile", {
     method: "PUT",
     body: {
-      displayName: settings.ownerDisplayName,
-      phoneE164: settings.phoneNumber || null,
-      whatsappE164: settings.whatsappNumber || null,
-      defaultGeneralArea: settings.defaultGeneralArea,
+      displayName: settings.ownerDisplayName.trim(),
+      phoneE164: expectedPhoneNumber || null,
+      whatsappE164: expectedWhatsappNumber || null,
+      defaultGeneralArea: settings.defaultGeneralArea.trim(),
       privacyDefaults: settings.privacyDefaults,
       notificationPreferences: settings.notificationPreferences,
     },
   });
   adoptServerPlanLimits(response.data?.plan);
   const updatedSettings = mapOwnerProfileToSettings(response.data);
+
+  // A successful HTTP response is not enough: the returned representation
+  // must confirm that both independently optional contact values were saved.
+  // This prevents a stale API response from producing a false success state.
+  if (
+    updatedSettings.phoneNumber !== expectedPhoneNumber ||
+    updatedSettings.whatsappNumber !== expectedWhatsappNumber
+  ) {
+    throw new Error("The saved contact details did not match the requested values.");
+  }
+
   writeOwnerSettings(updatedSettings);
 
   return {
@@ -70,6 +85,10 @@ export async function updateOwnerProfileSettings(
       source: "api",
     },
   };
+}
+
+function normalizeOptionalContactNumber(value: string): string {
+  return value.trim();
 }
 
 export type OwnerPlanSummary = {

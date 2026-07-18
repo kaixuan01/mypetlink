@@ -43,7 +43,7 @@ export function PublicLinkActions({
     : "min-h-12 px-4 py-2 text-sm";
 
   async function handleCopy() {
-    const copied = await copyText(url);
+    const copied = await copyTextToClipboard(url);
     setStatus(copied ? copyMessage : "Copy unavailable. Select and copy the link.");
     window.setTimeout(() => setStatus(""), 2500);
   }
@@ -121,7 +121,8 @@ function getServerOrigin() {
   return getServerFallbackBaseUrl();
 }
 
-async function copyText(text: string) {
+/** Clipboard write with a legacy textarea fallback; returns whether it copied. */
+export async function copyTextToClipboard(text: string) {
   if (navigator.clipboard?.writeText) {
     try {
       await navigator.clipboard.writeText(text);

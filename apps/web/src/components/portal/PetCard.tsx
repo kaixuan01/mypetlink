@@ -13,7 +13,11 @@ import { Icon } from "@/components/ui/Icon";
 import { PetAvatar } from "@/components/ui/PetAvatar";
 import { getPetSummaryLabel } from "@/lib/petDisplay";
 import { isActivePet, isArchivedPet, isMemorialPet } from "@/lib/petLifecycle";
-import { smartTagOrderingEnabled } from "@/lib/features";
+import {
+  safetyProfilesOwnerUiEnabled,
+  smartTagOrderingEnabled,
+  smartTagsEnabled,
+} from "@/lib/features";
 import { ownerRoutes } from "@/lib/routes";
 import {
   getFriendlyApiErrorMessage,
@@ -40,18 +44,23 @@ const moreLinks = (pet: Pet) => {
     { label: "Edit profile", href: ownerRoutes.petEdit(pet.id) },
     { label: "Care records", href: ownerRoutes.petRecords(pet.id) },
     { label: "Moments", href: ownerRoutes.petMoments(pet.id) },
-    { label: "Smart tags", href: ownerRoutes.petTags(pet.id) },
   ];
 
-  if (isActivePet(pet) && smartTagOrderingEnabled) {
-    links.push({ label: "Order tag", href: ownerRoutes.petTagOrder(pet.id) });
+  if (smartTagsEnabled) {
+    links.push({ label: "Smart tags", href: ownerRoutes.petTags(pet.id) });
+
+    if (isActivePet(pet) && smartTagOrderingEnabled) {
+      links.push({ label: "Order tag", href: ownerRoutes.petTagOrder(pet.id) });
+    }
   }
 
-  links.push({
-    label: "View Safety Profile",
-    href: pet.qrSafetyPath,
-    external: true,
-  });
+  if (safetyProfilesOwnerUiEnabled) {
+    links.push({
+      label: "View Safety Profile",
+      href: pet.qrSafetyPath,
+      external: true,
+    });
+  }
 
   return links;
 };
@@ -67,8 +76,14 @@ export function PetCard({
   const [confirmAction, setConfirmAction] = useState<
     "active" | "memorial" | "archive" | "restore" | null
   >(null);
-  const safetyBadge = getSafetyProfileBadge(pet);
-  const tagBadge = getSmartTagStatusBadge(tags, orders, pet);
+  const safetyBadge = safetyProfilesOwnerUiEnabled
+    ? getSafetyProfileBadge(pet)
+    : null;
+  const tagBadge = smartTagsEnabled
+    ? getSmartTagStatusBadge(tags, orders, pet)
+    : null;
+  const showPrivateBadge =
+    !safetyBadge && !pet.publicProfileEnabled && !isMemorialPet(pet);
   const isMemorial = isMemorialPet(pet);
   const isArchived = isArchivedPet(pet);
   const confirmCopy = getConfirmCopy(confirmAction, pet);
@@ -129,15 +144,20 @@ export function PetCard({
             <h3 className="text-xl font-black text-pet-ink">{pet.name}</h3>
             {isMemorial ? <Badge tone="soft">Memorial</Badge> : null}
             {isArchived ? <Badge tone="soft">Archived</Badge> : null}
-            <Badge tone={safetyBadge.tone}>{safetyBadge.label}</Badge>
+            {safetyBadge ? (
+              <Badge tone={safetyBadge.tone}>{safetyBadge.label}</Badge>
+            ) : null}
+            {showPrivateBadge ? <Badge tone="soft">Private</Badge> : null}
           </div>
           <p className="mt-1 text-sm text-pet-muted">
             {getPetSummaryLabel(pet)}
           </p>
-          <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-pet-cream px-3 py-1 text-xs font-bold text-pet-muted">
-            <Icon name="tag" className="h-3.5 w-3.5 text-pet-teal" />
-            {tagBadge.label}
-          </div>
+          {tagBadge ? (
+            <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-pet-cream px-3 py-1 text-xs font-bold text-pet-muted">
+              <Icon name="tag" className="h-3.5 w-3.5 text-pet-teal" />
+              {tagBadge.label}
+            </div>
+          ) : null}
           {isMemorial || isArchived || pet.emergencyNote ? (
             <p className="mt-3 line-clamp-2 text-sm leading-6 text-pet-muted">
               {isMemorial

@@ -12,14 +12,18 @@ import {
 } from "@/lib/ownerNavigation";
 import { logoutOwner } from "@/services/authService";
 
-const widePrimaryIds: OwnerNavItemId[] = [
-  "dashboard",
-  "pets",
-  "moments",
-  "tags",
-];
+// Primary slots adapt to product availability: while Smart Tags is hidden,
+// Moments takes the Tags slot so no dead tab is left behind. Records stays in
+// the More menu while only four primary items fit.
+const tagsAvailable = ownerNavItems.some((item) => item.id === "tags");
 
-const narrowPrimaryIds: OwnerNavItemId[] = ["dashboard", "pets", "tags"];
+const widePrimaryIds: OwnerNavItemId[] = tagsAvailable
+  ? ["dashboard", "pets", "moments", "tags"]
+  : ["dashboard", "pets", "moments"];
+
+const narrowPrimaryIds: OwnerNavItemId[] = tagsAvailable
+  ? ["dashboard", "pets", "tags"]
+  : ["dashboard", "pets", "moments"];
 
 export function MobileBottomNav() {
   const pathname = usePathname();

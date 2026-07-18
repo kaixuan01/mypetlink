@@ -161,6 +161,77 @@ describe("SettingsPanel loading behaviour", () => {
     expect(screen.getByText("Account defaults saved.")).toBeTruthy();
   });
 
+  it("clears WhatsApp independently and keeps it empty after save and reload", async () => {
+    const loaded = ownerData({
+      ownerDisplayName: "Real Owner",
+      phoneNumber: "+60123334444",
+      whatsappNumber: "+60128889999",
+    });
+    const persisted = { ...loaded, whatsappNumber: "" };
+    mocks.getOwnerProfileSettings.mockResolvedValue({ data: loaded });
+    mocks.updateOwnerProfileSettings.mockResolvedValue({ data: persisted });
+
+    const firstRender = render(<SettingsPanel />);
+    const whatsapp = (await screen.findByLabelText(
+      "WhatsApp number"
+    )) as HTMLInputElement;
+    fireEvent.change(whatsapp, { target: { value: "" } });
+    fireEvent.click(
+      within(screen.getByTestId("mobile-form-actions")).getByRole("button", {
+        name: "Save Settings",
+      })
+    );
+
+    await waitFor(() =>
+      expect(mocks.updateOwnerProfileSettings).toHaveBeenCalledWith(
+        expect.objectContaining({
+          phoneNumber: "+60123334444",
+          whatsappNumber: "",
+        })
+      )
+    );
+    await waitFor(() => expect(whatsapp.value).toBe(""));
+    expect(
+      (screen.getByLabelText("Phone number") as HTMLInputElement).value
+    ).toBe("123334444");
+    expect(screen.getByText("Account defaults saved.")).toBeTruthy();
+
+    firstRender.unmount();
+    mocks.getOwnerProfileSettings.mockResolvedValue({ data: persisted });
+    render(<SettingsPanel />);
+
+    expect(
+      (await screen.findByLabelText("WhatsApp number") as HTMLInputElement).value
+    ).toBe("");
+    expect(
+      (screen.getByLabelText("Phone number") as HTMLInputElement).value
+    ).toBe("123334444");
+  });
+
+  it("does not show success when the server does not confirm the clear", async () => {
+    const loaded = ownerData({
+      ownerDisplayName: "Real Owner",
+      whatsappNumber: "+60128889999",
+    });
+    mocks.getOwnerProfileSettings.mockResolvedValue({ data: loaded });
+    mocks.updateOwnerProfileSettings.mockRejectedValue(
+      new Error("The saved contact details did not match the requested values.")
+    );
+
+    render(<SettingsPanel />);
+    fireEvent.change(await screen.findByLabelText("WhatsApp number"), {
+      target: { value: "" },
+    });
+    fireEvent.click(
+      within(screen.getByTestId("mobile-form-actions")).getByRole("button", {
+        name: "Save Settings",
+      })
+    );
+
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    expect(screen.queryByText("Account defaults saved.")).toBeNull();
+  });
+
   it("retains unsaved values and an enabled Save action after a failed save", async () => {
     mocks.getOwnerProfileSettings.mockResolvedValue({
       data: ownerData({ ownerDisplayName: "Real Owner" }),

@@ -262,6 +262,41 @@ it("does not render a broken QR action when no safety identifier is available", 
   ).toBeNull();
 });
 
+it("does not render broken contact actions when optional owner numbers are empty", async () => {
+  const profile = {
+    ...mockPets[0],
+    owner: {
+      ...mockPets[0].owner,
+      phone: "",
+      whatsapp: "",
+      emergencyContact: "",
+    },
+    contactOverride: {
+      useOwnerDefaults: false,
+      phoneNumber: "",
+      whatsappNumber: "",
+    },
+    visibility: {
+      ...mockPets[0].visibility,
+      showPhone: true,
+      showWhatsapp: true,
+    },
+  };
+  publicProfileMocks.profile = profile;
+
+  render(
+    <PublicSharePetProfile
+      initialMoments={[]}
+      initialProfile={profile}
+      initialRecords={[]}
+    />
+  );
+
+  await screen.findByText(`About ${profile.name}`);
+  expect(screen.queryByRole("link", { name: "Call Owner" })).toBeNull();
+  expect(screen.queryByRole("link", { name: "WhatsApp Owner" })).toBeNull();
+});
+
 it("shows allergies only when explicit Public Profile visibility is enabled", async () => {
   const hiddenProfile = {
     ...mockPets[0],

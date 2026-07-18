@@ -1,4 +1,5 @@
 import type { IconName } from "@/components/ui/Icon";
+import { smartTagsEnabled, tagOrdersEnabled } from "@/lib/features";
 import { ownerRoutes } from "@/lib/routes";
 
 export type OwnerNavItemId =
@@ -20,7 +21,11 @@ export type OwnerNavItem = {
   showInMobilePrimary?: boolean;
 };
 
-export const ownerNavItems: OwnerNavItem[] = [
+// Every owner navigation surface (desktop sidebar, mobile bottom nav, More
+// menu) renders from this single list, so hiding an unreleased feature here
+// removes it everywhere — including keyboard navigation — without touching
+// its routes or data.
+const allOwnerNavItems: OwnerNavItem[] = [
   {
     id: "dashboard",
     href: ownerRoutes.dashboard,
@@ -82,6 +87,20 @@ export const ownerNavItems: OwnerNavItem[] = [
     mobilePriority: "low",
   },
 ];
+
+export const ownerNavItems: OwnerNavItem[] = allOwnerNavItems.filter(
+  (item) => {
+    if (item.id === "tags") {
+      return smartTagsEnabled;
+    }
+
+    if (item.id === "orders") {
+      return tagOrdersEnabled;
+    }
+
+    return true;
+  }
+);
 
 export function getOwnerNavItemById(id: OwnerNavItemId) {
   return ownerNavItems.find((item) => item.id === id);

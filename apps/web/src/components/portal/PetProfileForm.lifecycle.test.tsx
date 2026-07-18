@@ -61,8 +61,8 @@ async function openPublicProfile() {
   fireEvent.click(await screen.findByRole("tab", { name: /Public Profile/ }));
 }
 
-async function openPhotos() {
-  fireEvent.click(await screen.findByRole("tab", { name: /Photos/ }));
+async function openAppearance() {
+  fireEvent.click(await screen.findByRole("tab", { name: /Appearance/ }));
 }
 
 function loadCoverPreviewGeometry({
@@ -181,12 +181,12 @@ describe("PetProfileForm lifecycle workflow", () => {
     );
   });
 
-  it("initializes the Theme tab from the saved profile theme", async () => {
+  it("initializes the Appearance tab from the saved profile theme", async () => {
     pet = { ...pet, profileTheme: "lavender" };
     mocks.getPetById.mockResolvedValue({ data: pet });
     render(<PetProfileForm initialPet={pet} mode="edit" />);
 
-    fireEvent.click(await screen.findByRole("tab", { name: /Theme/ }));
+    fireEvent.click(await screen.findByRole("tab", { name: /Appearance/ }));
 
     expect(
       screen.getByRole("button", { name: /Lavender/ }).getAttribute("aria-pressed")
@@ -196,19 +196,38 @@ describe("PetProfileForm lifecycle workflow", () => {
     ).toBe("false");
   });
 
+  it("maps legacy photos and theme links to the Appearance tab", async () => {
+    for (const legacy of ["photos", "theme"]) {
+      window.history.replaceState({}, "", `/pets/${pet.id}/edit?tab=${legacy}`);
+      mocks.getPetById.mockResolvedValue({ data: pet });
+      render(<PetProfileForm initialPet={pet} mode="edit" />);
+
+      expect(
+        await screen.findByRole("heading", { name: "Appearance" })
+      ).toBeTruthy();
+      expect(screen.getByText("Profile photo")).toBeTruthy();
+      expect(
+        screen.getByRole("heading", { name: "Profile Theme" })
+      ).toBeTruthy();
+      cleanup();
+    }
+
+    window.history.replaceState({}, "", `/pets/${pet.id}/edit`);
+  });
+
   it("keeps a selected theme across tabs and reloads the saved value", async () => {
     pet = { ...pet, profileTheme: "lavender" };
     mocks.getPetById.mockResolvedValue({ data: pet });
     render(<PetProfileForm initialPet={pet} mode="edit" />);
 
-    fireEvent.click(await screen.findByRole("tab", { name: /Theme/ }));
+    fireEvent.click(await screen.findByRole("tab", { name: /Appearance/ }));
     fireEvent.click(screen.getByRole("button", { name: /Mint Green/ }));
     expect(
       screen.getByText(/Save changes to update .*public profile and Safety Profile/)
     ).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("tab", { name: /Photos/ }));
-    fireEvent.click(screen.getByRole("tab", { name: /Theme/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Basic Info/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Appearance/ }));
     expect(
       screen.getByRole("button", { name: /Mint Green/ }).getAttribute("aria-pressed")
     ).toBe("true");
@@ -225,7 +244,7 @@ describe("PetProfileForm lifecycle workflow", () => {
     pet = { ...pet, profileTheme: "mint" };
     mocks.getPetById.mockResolvedValue({ data: pet });
     render(<PetProfileForm initialPet={pet} mode="edit" />);
-    fireEvent.click(await screen.findByRole("tab", { name: /Theme/ }));
+    fireEvent.click(await screen.findByRole("tab", { name: /Appearance/ }));
     expect(
       screen.getByRole("button", { name: /Mint Green/ }).getAttribute("aria-pressed")
     ).toBe("true");
@@ -241,7 +260,7 @@ describe("PetProfileForm lifecycle workflow", () => {
     };
     mocks.getPetById.mockResolvedValue({ data: pet });
     render(<PetProfileForm initialPet={pet} mode="edit" />);
-    await openPhotos();
+    await openAppearance();
     const publicPreview = loadCoverPreviewGeometry({
       naturalWidth: 1600,
       naturalHeight: 400,
@@ -309,7 +328,7 @@ describe("PetProfileForm lifecycle workflow", () => {
     };
     mocks.getPetById.mockResolvedValue({ data: pet });
     render(<PetProfileForm initialPet={pet} mode="edit" />);
-    await openPhotos();
+    await openAppearance();
     loadCoverPreviewGeometry({ naturalWidth: 1080, naturalHeight: 607 });
 
     fireEvent.change(
@@ -335,7 +354,7 @@ describe("PetProfileForm lifecycle workflow", () => {
     pet = { ...pet, coverPositionX: 31, coverPositionY: 83 };
     mocks.getPetById.mockResolvedValue({ data: pet });
     render(<PetProfileForm initialPet={pet} mode="edit" />);
-    await openPhotos();
+    await openAppearance();
     expect(
       (screen.getByRole("slider", {
         name: "Horizontal cover position",
@@ -358,7 +377,7 @@ describe("PetProfileForm lifecycle workflow", () => {
     mocks.getPetById.mockResolvedValue({ data: pet });
     mocks.updatePet.mockRejectedValueOnce(new Error("Connection failed"));
     render(<PetProfileForm initialPet={pet} mode="edit" />);
-    await openPhotos();
+    await openAppearance();
     loadCoverPreviewGeometry({ naturalWidth: 1080, naturalHeight: 607 });
 
     const vertical = screen.getByRole("slider", {
@@ -701,12 +720,7 @@ describe("PetProfileForm lifecycle workflow", () => {
       screen.queryByRole("textbox", { name: "Share profile link" })
     ).toBeNull();
 
-    fireEvent.click(screen.getByRole("tab", { name: /Photos/ }));
-    expect(
-      screen.queryByRole("textbox", { name: "Share profile link" })
-    ).toBeNull();
-
-    fireEvent.click(screen.getByRole("tab", { name: /Theme/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Appearance/ }));
     expect(
       screen.queryByRole("textbox", { name: "Share profile link" })
     ).toBeNull();
@@ -777,7 +791,7 @@ describe("PetProfileForm lifecycle workflow", () => {
     ).toBeTruthy();
     expect(screen.getByRole("link", { name: /Manage Care Records/ })).toBeTruthy();
 
-    for (const tabName of [/Photos/, /Theme/, /Public Profile/, /Contact & Safety/]) {
+    for (const tabName of [/Appearance/, /Public Profile/, /Contact & Safety/]) {
       fireEvent.click(screen.getByRole("tab", { name: tabName }));
       expect(screen.queryByText(`Manage ${pet.name}'s content`)).toBeNull();
       expect(

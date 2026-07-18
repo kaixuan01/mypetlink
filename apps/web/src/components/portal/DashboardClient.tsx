@@ -4,9 +4,15 @@ import Link from "next/link";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { OwnerContactSetupCard } from "@/components/portal/OwnerContactSetupCard";
 import { PlanSummaryCard } from "@/components/portal/PlanSummaryCard";
-import { PublicLinkActions } from "@/components/portal/PublicLinkActions";
+import { copyTextToClipboard } from "@/components/portal/PublicLinkActions";
 import { getSafetyProfileBadge } from "@/components/portal/ProfileAccessStatus";
-import { getSafetyProfileStatus } from "@/lib/safetyProfile";
+import { QrCodeButton } from "@/components/qr/QrCodeButton";
+import { toAbsoluteUrl } from "@/lib/siteUrl";
+import {
+  safetyProfilesOwnerUiEnabled,
+  smartTagsEnabled,
+  tagOrdersEnabled,
+} from "@/lib/features";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon, type IconName } from "@/components/ui/Icon";
@@ -113,8 +119,14 @@ export function DashboardClient({
         await Promise.all([
           Promise.allSettled(activePets.map((pet) => getPetRecords(pet.id))),
           Promise.allSettled(activePets.map((pet) => getPetMoments(pet.id))),
-          getAllTags().catch(() => ({ data: [] as PetTag[] })),
-          getOrders().catch(() => ({ data: [] as TagOrder[] })),
+          // Tag and order data only feed hidden widgets while those features
+          // are off, so skip the requests entirely.
+          smartTagsEnabled
+            ? getAllTags().catch(() => ({ data: [] as PetTag[] }))
+            : { data: [] as PetTag[] },
+          tagOrdersEnabled
+            ? getOrders().catch(() => ({ data: [] as TagOrder[] }))
+            : { data: [] as TagOrder[] },
         ]);
 
       if (!active) {
@@ -137,17 +149,16 @@ export function DashboardClient({
 
   const pets = getActivePets(allPets);
   const memorialPets = getMemorialPets(allPets);
-  const firstPet = pets[0];
   const petById = useMemo(
     () => new Map(allPets.map((pet) => [pet.id, pet])),
     [allPets]
   );
   const pendingOrders = orders.filter((order) => isActiveOrder(order.status));
-  const activeSafetyProfiles = pets.filter(
-    (pet) => getSafetyProfileStatus(pet) === "active"
-  ).length;
   const activeSmartTags = tags.filter((tag) =>
     Boolean(tag.petId && isActivePhysicalTagForPet(tag, petById.get(tag.petId)))
+  ).length;
+  const publicProfileCount = pets.filter(
+    (pet) => pet.publicProfileEnabled
   ).length;
   const lostModePets = pets.filter((pet) => pet.lostModeEnabled);
   const upcomingRecords = useMemo(
@@ -205,39 +216,34 @@ export function DashboardClient({
     );
   }
 
+  // Launched-product summary only: counts reuse the data this dashboard
+  // already loads (no extra per-pet requests). Hidden features contribute no
+  // zero-value cards; upcoming care has its own section below.
   const stats: DashboardStatData[] = [
-    { label: pluralize(pets.length, "active pet", "active pets"), value: pets.length, href: ownerRoutes.pets },
-    {
-      label: pluralize(
-        activeSafetyProfiles,
-        "active safety profile",
-        "active safety profiles"
-      ),
-      value: activeSafetyProfiles,
-    },
-    {
-      label: pluralize(
-        activeSmartTags,
-        "active smart tag",
-        "active smart tags"
-      ),
+    { label: "Pets", value: pets.length, href: ownerRoutes.pets },
+    { label: "Public profiles", value: publicProfileCount },
+    { label: "Memories", value: allMoments.length, href: ownerRoutes.moments },
+  ];
+
+  if (smartTagsEnabled) {
+    stats.push({
+      label: "Smart tags",
       value: activeSmartTags,
       href: ownerRoutes.tags,
-    },
-    {
-      label: pluralize(pendingOrders.length, "pending order", "pending orders"),
+    });
+  }
+
+  if (tagOrdersEnabled) {
+    stats.push({
+      label: "Pending orders",
       value: pendingOrders.length,
       href: ownerRoutes.orders,
-    },
-  ];
+    });
+  }
 
   if (memorialPets.length) {
     stats.push({
-      label: pluralize(
-        memorialPets.length,
-        "memorial profile",
-        "memorial profiles"
-      ),
+      label: "Memorial profiles",
       value: memorialPets.length,
     });
   }
@@ -257,7 +263,11 @@ export function DashboardClient({
           Manage your pets, safety profiles, care records, and moments.
         </p>
         {lostModePets.length ? <LostModeAlert pets={lostModePets} /> : null}
-        <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+        <div
+          className={`mt-4 grid grid-cols-2 gap-2.5 ${
+            stats.length >= 4 ? "sm:grid-cols-4" : "sm:grid-cols-3"
+          }`}
+        >
           {stats.map((stat) => (
             <DashboardStat key={stat.label} {...stat} />
           ))}
@@ -273,7 +283,7 @@ export function DashboardClient({
         </div>
 
         <div className="grid content-start gap-6">
-          <QuickActions firstPet={firstPet} />
+          <QuickActions />
           <DashboardSection title="Plan usage">
             <PlanSummaryCard
               compact
@@ -361,8 +371,8 @@ function ZeroPetWelcome() {
         Welcome to MyPetLink
       </h1>
       <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-pet-muted sm:text-base">
-        Create your first pet profile to start adding safety details, memories,
-        care records, and QR information.
+        Create your first pet profile to start adding photos, memories, and
+        care records you can share.
       </p>
       <CTAButton
         className="mt-6"
@@ -400,24 +410,25 @@ function ShareProfilesSection({ pets }: { pets: Pet[] }) {
   return (
     <section
       aria-labelledby="share-pet-profiles-heading"
-      className="brand-card rounded-[1.75rem] p-5 sm:p-6"
+      className="brand-card rounded-[1.75rem] p-4 sm:p-6"
     >
       <div className="flex items-start gap-3">
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[#e8f3ff] text-pet-teal">
+        <span className="hidden h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[#e8f3ff] text-pet-teal sm:grid">
           <Icon name="heart" className="h-5 w-5" />
         </span>
         <div className="min-w-0">
           <p className="text-xs font-extrabold uppercase text-pet-teal">
-            Public Share Profiles
+            Public profiles
           </p>
           <h2
-            className="mt-1 text-xl font-black leading-tight text-pet-ink sm:text-2xl"
+            className="mt-0.5 text-lg font-black leading-tight text-pet-ink sm:text-2xl"
             id="share-pet-profiles-heading"
           >
-            Share your pet profiles
+            Share your pets
           </h2>
-          <p className="mt-1.5 text-sm leading-6 text-pet-muted">
-            Send a profile link or let someone scan the QR.
+          <p className="mt-1 text-sm leading-5 text-pet-muted">
+            Share a profile link, show its QR code, or preview what others
+            will see.
           </p>
         </div>
       </div>
@@ -432,38 +443,128 @@ function ShareProfilesSection({ pets }: { pets: Pet[] }) {
 }
 
 function ShareProfileCard({ pet }: { pet: Pet }) {
+  const isPublic = pet.publicProfileEnabled;
   const sharePath = addPublicProfileShareVersion(
     pet.publicProfilePath,
     getPublicProfileShareVersion(pet)
   );
 
   return (
-    <article className="min-w-0 rounded-[1.25rem] bg-pet-cream p-3.5">
-      <div className="flex min-w-0 items-center gap-3">
+    <article className="min-w-0 rounded-[1.25rem] bg-pet-cream p-3">
+      <div className="flex min-w-0 items-center gap-2.5">
         <PetAvatar pet={pet} size="sm" />
-        <div className="min-w-0">
-          <h3 className="truncate text-base font-black text-pet-ink">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+          <h3 className="min-w-0 truncate text-base font-black text-pet-ink">
             {pet.name}
           </h3>
-          <p className="mt-0.5 text-xs font-bold text-pet-muted">
-            Public Share Profile
-          </p>
+          {!isPublic ? <Badge tone="soft">Private</Badge> : null}
         </div>
       </div>
       <div className="mt-3">
-        <PublicLinkActions
-          compact
-          copyLabel="Copy Link"
-          copyMessage={`${pet.name}'s Public Share Profile link copied.`}
-          fileNameBase={`${pet.slug}-share-profile-qr`}
-          helperText={`Share ${pet.name}'s public profile with friends and family.`}
-          path={sharePath}
-          qrTitle={`${pet.name}'s Share Profile QR`}
-          showUrl={false}
-          viewLabel="View Profile"
-        />
+        {isPublic ? (
+          <ShareProfileActions pet={pet} sharePath={sharePath} />
+        ) : (
+          <div className="grid min-w-0 gap-2">
+            <p className="text-xs font-semibold leading-5 text-pet-muted">
+              This profile is private, so it has no shareable link right now.
+            </p>
+            <Link
+              className="inline-flex min-h-11 items-center justify-center gap-1.5 self-start rounded-full border border-pet-border bg-white px-4 text-xs font-extrabold text-pet-ink transition hover:bg-white/70"
+              href={`${ownerRoutes.petEdit(pet.id)}?tab=public`}
+            >
+              Enable profile
+            </Link>
+          </div>
+        )}
       </div>
     </article>
+  );
+}
+
+/**
+ * Public Profile share actions: one primary Share action (native share sheet
+ * on supporting browsers, copy-link fallback elsewhere) plus compact QR and
+ * preview actions. On phones the primary action spans the full card width and
+ * the two secondary actions sit side by side; on wider screens all three fit
+ * one row. Labels never wrap.
+ */
+function ShareProfileActions({
+  pet,
+  sharePath,
+}: {
+  pet: Pet;
+  sharePath: string;
+}) {
+  const [status, setStatus] = useState("");
+
+  async function handleShare() {
+    const url = toAbsoluteUrl(sharePath, window.location.origin);
+
+    if (typeof navigator.share === "function") {
+      try {
+        await navigator.share({
+          title: `${pet.name} on MyPetLink`,
+          text: `Meet ${pet.name}! See photos and their story on MyPetLink.`,
+          url,
+        });
+        return;
+      } catch (caught) {
+        // The owner closing the share sheet is not an error; anything else
+        // falls back to copying the link.
+        if ((caught as DOMException)?.name === "AbortError") {
+          return;
+        }
+      }
+    }
+
+    const copied = await copyTextToClipboard(url);
+    setStatus(
+      copied
+        ? `${pet.name}'s profile link copied.`
+        : "Copy unavailable. Open View profile and copy the address."
+    );
+    window.setTimeout(() => setStatus(""), 2500);
+  }
+
+  const secondaryClass =
+    "inline-flex min-h-11 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border border-pet-border bg-white px-2 text-xs font-extrabold text-pet-ink transition hover:bg-white/70";
+
+  return (
+    <div className="grid min-w-0 gap-2">
+      <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3">
+        <button
+          aria-label={`Share ${pet.name}'s profile`}
+          className="col-span-2 inline-flex min-h-11 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border border-pet-teal bg-pet-teal px-3 text-xs font-extrabold text-white shadow-sm transition hover:bg-[#0f5fd0] sm:col-span-1"
+          onClick={handleShare}
+          type="button"
+        >
+          <Icon name="copy" className="h-4 w-4 shrink-0" />
+          Share profile
+        </button>
+        <QrCodeButton
+          className={secondaryClass}
+          fileNameBase={`${pet.slug}-share-profile-qr`}
+          helperText={`Share ${pet.name}'s public profile with friends and family.`}
+          label="QR code"
+          targetPath={sharePath}
+          title={`${pet.name}'s profile QR`}
+          viewLabel="View profile"
+        />
+        <Link
+          className={secondaryClass}
+          href={sharePath}
+          rel="noopener noreferrer"
+          target="_blank"
+        >
+          View profile
+        </Link>
+      </div>
+      {status ? (
+        <p className="text-xs font-bold text-pet-sage" role="status">
+          {status}
+        </p>
+      ) : null}
+    </div>
   );
 }
 
@@ -507,7 +608,13 @@ function PetSummarySection({ pets }: { pets: Pet[] }) {
 }
 
 function PetSummaryRow({ pet }: { pet: Pet }) {
-  const safetyBadge = getSafetyProfileBadge(pet);
+  // The pet itself stays visually dominant. While Safety Profile UI is
+  // hidden, the only badge worth showing is a Private marker for pets whose
+  // Public Profile is switched off — a Public badge on every row adds nothing.
+  const safetyBadge = safetyProfilesOwnerUiEnabled
+    ? getSafetyProfileBadge(pet)
+    : null;
+  const showPrivateBadge = !safetyBadge && !pet.publicProfileEnabled;
 
   return (
     <Link
@@ -516,13 +623,20 @@ function PetSummaryRow({ pet }: { pet: Pet }) {
     >
       <PetAvatar pet={pet} size="sm" />
       <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
           <h3 className="min-w-0 truncate text-base font-black text-pet-ink">
             {pet.name}
           </h3>
-          <Badge className="shrink-0" tone={safetyBadge.tone}>
-            {safetyBadge.label}
-          </Badge>
+          {safetyBadge ? (
+            <Badge className="shrink-0" tone={safetyBadge.tone}>
+              {safetyBadge.label}
+            </Badge>
+          ) : null}
+          {showPrivateBadge ? (
+            <Badge className="shrink-0" tone="soft">
+              Private
+            </Badge>
+          ) : null}
         </div>
         <p className="mt-0.5 truncate text-xs font-semibold text-pet-muted">
           {getPetSummaryLabel(pet)}
@@ -610,15 +724,13 @@ function ReminderItem({ record, pet }: { record: CareRecord; pet?: Pet }) {
   );
 }
 
-function QuickActions({ firstPet }: { firstPet?: Pet }) {
-  // The Safety Profile tile uses the owner's first active pet on this
-  // dashboard and falls back to the Pets page when there is none, rather than
-  // hardcoding an id.
-  const safetyProfileHref = firstPet ? firstPet.qrSafetyPath : ownerRoutes.pets;
-
+function QuickActions() {
+  // Every tile opens an all-pets list or a general management page. Actions
+  // that need one specific pet start from that pet's own card instead — the
+  // dashboard never silently picks a pet on the owner's behalf.
   return (
     <DashboardSection title="Quick actions">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <ActionTile
           ariaLabel="Manage care records"
           href={ownerRoutes.records}
@@ -632,25 +744,25 @@ function QuickActions({ firstPet }: { firstPet?: Pet }) {
           label="Moments"
         />
         <ActionTile
-          ariaLabel="Open Safety Profile"
-          href={safetyProfileHref}
-          icon="qr"
-          label="Safety Profile"
-          rel={firstPet ? "noopener noreferrer" : undefined}
-          target={firstPet ? "_blank" : undefined}
-        />
-        <ActionTile
           ariaLabel="Update owner contact details"
           href={ownerRoutes.settingsOwnerContact}
           icon="phone"
           label="Owner Contact"
         />
         <ActionTile
-          ariaLabel="View orders"
-          href={ownerRoutes.orders}
-          icon="record"
-          label="Orders"
+          ariaLabel="Manage pets"
+          href={ownerRoutes.pets}
+          icon="pets"
+          label="Manage Pets"
         />
+        {tagOrdersEnabled ? (
+          <ActionTile
+            ariaLabel="View orders"
+            href={ownerRoutes.orders}
+            icon="record"
+            label="Orders"
+          />
+        ) : null}
       </div>
     </DashboardSection>
   );
@@ -695,10 +807,6 @@ function collectFulfilled<T>(
   return results.flatMap((result) =>
     result.status === "fulfilled" ? result.value.data : []
   );
-}
-
-function pluralize(count: number, singular: string, plural: string) {
-  return count === 1 ? singular : plural;
 }
 
 function getRecordStatusLabel(record: CareRecord) {

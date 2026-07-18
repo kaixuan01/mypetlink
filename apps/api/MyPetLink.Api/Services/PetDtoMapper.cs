@@ -239,15 +239,20 @@ internal static class PetDtoMapper
             publicProfile?.ShowAllergiesOnPublicProfile ?? DefaultVisibility.ShowAllergiesOnPublicProfile);
     }
 
-    public static PetContactResponse ToContactResponse(PetContact? contact)
+    public static PetContactResponse ToContactResponse(Pet pet)
     {
+        var contact = pet.Contact;
+        var usesOwnerDefaults = contact?.UseOwnerDefaults ?? true;
+
         return new PetContactResponse(
-            contact?.UseOwnerDefaults ?? true,
-            contact?.OwnerDisplayName,
-            contact?.PhoneE164,
-            contact?.WhatsappE164,
-            contact?.EmergencyContactE164,
-            contact?.GeneralAreaOverride);
+            usesOwnerDefaults,
+            usesOwnerDefaults ? ResolveOwnerDisplayName(pet) : NormalizeOptional(contact?.OwnerDisplayName),
+            usesOwnerDefaults ? ResolvePhone(pet) : NormalizeOptional(contact?.PhoneE164),
+            usesOwnerDefaults ? ResolveWhatsapp(pet) : NormalizeOptional(contact?.WhatsappE164),
+            usesOwnerDefaults ? null : NormalizeOptional(contact?.EmergencyContactE164),
+            usesOwnerDefaults
+                ? NormalizeOptional(pet.OwnerUser.OwnerProfile?.DefaultGeneralArea)
+                : NormalizeOptional(contact?.GeneralAreaOverride));
     }
 
     public static PetListItemResponse ToListItem(Pet pet, string? publicBaseUrl = null)
@@ -355,7 +360,7 @@ internal static class PetDtoMapper
             safetyCode,
             $"/p/{publicSlug}",
             $"/q/{safetyCode}",
-            ToContactResponse(pet.Contact),
+            ToContactResponse(pet),
             ToVisibilityResponse(pet),
             pet.SafetyNote,
             pet.EmergencyNote,
@@ -389,8 +394,7 @@ internal static class PetDtoMapper
             return NormalizeOptional(pet.Contact.OwnerDisplayName);
         }
 
-        return NormalizeOptional(pet.Contact?.OwnerDisplayName)
-            ?? NormalizeOptional(pet.OwnerUser.OwnerProfile?.OwnerDisplayName)
+        return NormalizeOptional(pet.OwnerUser.OwnerProfile?.OwnerDisplayName)
             ?? NormalizeOptional(pet.OwnerUser.DisplayName);
     }
 
@@ -421,7 +425,7 @@ internal static class PetDtoMapper
         string? Resolve(string? overrideValue, string? ownerValue)
             => contact?.UseOwnerDefaults == false
                 ? NormalizeOptional(overrideValue)
-                : NormalizeOptional(overrideValue) ?? NormalizeOptional(ownerValue);
+                : NormalizeOptional(ownerValue);
 
         var whatsapp = setting.ShowWhatsapp
             ? Resolve(contact?.WhatsappE164, pet.OwnerUser?.WhatsappE164)
@@ -441,8 +445,7 @@ internal static class PetDtoMapper
             return NormalizeOptional(pet.Contact.PhoneE164);
         }
 
-        return NormalizeOptional(pet.Contact?.PhoneE164)
-            ?? NormalizeOptional(pet.OwnerUser.PhoneE164);
+        return NormalizeOptional(pet.OwnerUser.PhoneE164);
     }
 
     public static string? ResolveWhatsapp(Pet pet)
@@ -452,8 +455,14 @@ internal static class PetDtoMapper
             return NormalizeOptional(pet.Contact.WhatsappE164);
         }
 
-        return NormalizeOptional(pet.Contact?.WhatsappE164)
-            ?? NormalizeOptional(pet.OwnerUser.WhatsappE164);
+        return NormalizeOptional(pet.OwnerUser.WhatsappE164);
+    }
+
+    public static string? ResolveEmergencyContact(Pet pet)
+    {
+        return pet.Contact?.UseOwnerDefaults == false
+            ? NormalizeOptional(pet.Contact.EmergencyContactE164)
+            : null;
     }
 
     public static string? NormalizeOptional(string? value)

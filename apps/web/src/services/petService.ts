@@ -504,8 +504,16 @@ export function mapBackendPetToFrontend(
   const age = pet.age ?? calculatePetAge({ birthday, estimatedBirthYear });
   const visibility = mergeVisibility(detail?.visibility ?? defaultVisibility);
   const contact = detail?.contact;
-  const phone = contact?.phoneE164 ?? ownerSettings.phoneNumber;
-  const whatsapp = contact?.whatsappE164 ?? ownerSettings.whatsappNumber;
+  // A detail response is authoritative. An explicit null means that channel
+  // is absent and must not be replaced with an older browser-cached owner
+  // value. List projections have no contact object, so only those use the
+  // current local owner settings for their non-public display model.
+  const phone = detail
+    ? contact?.phoneE164 ?? ""
+    : ownerSettings.phoneNumber;
+  const whatsapp = detail
+    ? contact?.whatsappE164 ?? ""
+    : ownerSettings.whatsappNumber;
   const generalArea =
     detail?.generalArea ??
     contact?.generalAreaOverride ??
@@ -811,6 +819,7 @@ export function buildBackendPetPayload(payload: PetPayload) {
     "estimatedBirthYear" in payload;
   const ageInformationMode =
     payload.ageInformationMode ?? getPetAgeMode(payload);
+  const useOwnerDefaults = payload.contactOverride?.useOwnerDefaults ?? true;
 
   return {
     name: payload.name,
@@ -854,18 +863,24 @@ export function buildBackendPetPayload(payload: PetPayload) {
       : {}),
     profileTheme: payload.profileTheme,
     contact: {
-      useOwnerDefaults: payload.contactOverride?.useOwnerDefaults ?? true,
-      ownerDisplayName:
-        payload.contactOverride?.ownerDisplayName ?? payload.owner?.name,
-      phoneE164:
-        payload.contactOverride?.phoneNumber ?? payload.owner?.phone ?? null,
-      whatsappE164:
-        payload.contactOverride?.whatsappNumber ??
-        payload.owner?.whatsapp ??
-        null,
-      emergencyContactE164: payload.owner?.emergencyContact ?? null,
-      generalAreaOverride:
-        payload.contactOverride?.generalArea ?? payload.generalArea ?? null,
+      useOwnerDefaults,
+      ownerDisplayName: useOwnerDefaults
+        ? null
+        : payload.contactOverride?.ownerDisplayName ?? payload.owner?.name,
+      phoneE164: useOwnerDefaults
+        ? null
+        : payload.contactOverride?.phoneNumber ?? payload.owner?.phone ?? null,
+      whatsappE164: useOwnerDefaults
+        ? null
+        : payload.contactOverride?.whatsappNumber ??
+          payload.owner?.whatsapp ??
+          null,
+      emergencyContactE164: useOwnerDefaults
+        ? null
+        : payload.owner?.emergencyContact ?? null,
+      generalAreaOverride: useOwnerDefaults
+        ? null
+        : payload.contactOverride?.generalArea ?? payload.generalArea ?? null,
     },
     visibility: payload.visibility,
     safetyNote: payload.safetyNote,
@@ -901,13 +916,12 @@ function getUniquePetSlug(rawSlug: string, petName: string, pets: Pet[]) {
 
 function getDefaultOwner(petName: string): Pet["owner"] {
   const settings = readOwnerSettings();
-  const phone = settings.phoneNumber || settings.whatsappNumber;
 
   return {
     name: settings.ownerDisplayName || `${petName}'s owner`,
-    phone,
-    whatsapp: settings.whatsappNumber || settings.phoneNumber,
-    emergencyContact: phone || settings.whatsappNumber,
+    phone: settings.phoneNumber,
+    whatsapp: settings.whatsappNumber,
+    emergencyContact: settings.phoneNumber || settings.whatsappNumber,
   };
 }
 
