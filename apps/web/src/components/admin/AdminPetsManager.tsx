@@ -1,5 +1,6 @@
 "use client";
 
+import { dateOnlyOrUndefined, isGuid } from "@/lib/adminListShared";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminNotice, AdminSection } from "@/components/admin/AdminPanels";
@@ -50,7 +51,7 @@ const filters: AdminFilterDef[] = [
     { value: "unavailable", label: "Unavailable" },
     { value: "setup-issue", label: "Setup issue" },
   ] },
-  { type: "select", key: "qrSafety", label: "QR Safety", options: [
+  { type: "select", key: "qrSafety", label: "Safety Profile", options: [
     { value: "accessible", label: "Accessible" },
     { value: "unavailable", label: "Unavailable" },
     { value: "setup-issue", label: "Setup issue" },
@@ -161,10 +162,10 @@ export function AdminPetsManager() {
     tagType: query.filters.tagType,
     owner: query.filters.owner,
     ownerId: isGuid(query.filters.ownerId) ? query.filters.ownerId : undefined,
-    createdFrom: isDateOnly(query.filters.createdFrom) ? query.filters.createdFrom : undefined,
-    createdTo: isDateOnly(query.filters.createdTo) ? query.filters.createdTo : undefined,
-    updatedFrom: isDateOnly(query.filters.updatedFrom) ? query.filters.updatedFrom : undefined,
-    updatedTo: isDateOnly(query.filters.updatedTo) ? query.filters.updatedTo : undefined,
+    createdFrom: dateOnlyOrUndefined(query.filters.createdFrom),
+    createdTo: dateOnlyOrUndefined(query.filters.createdTo),
+    updatedFrom: dateOnlyOrUndefined(query.filters.updatedFrom),
+    updatedTo: dateOnlyOrUndefined(query.filters.updatedTo),
     sortBy: query.sortBy,
     sortDir: query.sortDir,
   }), [query]);
@@ -249,8 +250,8 @@ export function AdminPetsManager() {
     if (pet.qrSafetyAccessible && pet.safetyCode) {
       const path = qrSafetyPath(pet.safetyCode);
       list.push(
-        { label: "Open QR Safety Page", href: path, external: true },
-        { label: "Copy QR Safety link", onSelect: () => void copyLink(path, "QR Safety link") }
+        { label: "Open Safety Profile", href: path, external: true },
+        { label: "Copy Safety Profile link", onSelect: () => void copyLink(path, "Safety Profile link") }
       );
     }
     if (pet.ownerId) list.push({ label: "View owner", href: adminRoutes.owner(pet.ownerId) });
@@ -275,7 +276,7 @@ export function AdminPetsManager() {
     { id: "owner", header: "Owner", sortId: "owner", cell: (pet) => <Link className="font-bold text-slate-800 hover:underline" href={adminRoutes.owner(pet.ownerId)}>{pet.ownerName}<span className="block text-xs font-semibold text-slate-500">{pet.ownerEmail || "—"}</span></Link> },
     { id: "type", header: "Type / Breed", sortId: "petType", cell: (pet) => <span className="whitespace-nowrap">{pet.customSpecies || pet.species}{pet.breed ? ` · ${pet.breed}` : ""}</span> },
     { id: "publicProfile", header: "Public Profile", cell: (pet) => <RouteBadge accessible={pet.publicProfileAccessible} issue={pet.publicProfileSetupIssue} /> },
-    { id: "qrSafety", header: "QR Safety", cell: (pet) => <RouteBadge accessible={pet.qrSafetyAccessible} issue={pet.qrSafetySetupIssue} /> },
+    { id: "qrSafety", header: "Safety Profile", cell: (pet) => <RouteBadge accessible={pet.qrSafetyAccessible} issue={pet.qrSafetySetupIssue} /> },
     { id: "tags", header: "Smart Tags", sortId: "smartTagCount", cell: (pet) => pet.totalSmartTagCount === 0 ? <Badge tone="soft">No physical tag</Badge> : <div className="whitespace-nowrap"><Badge tone={pet.activeSmartTagCount > 0 ? "mint" : "soft"}>{pet.activeSmartTagCount > 0 ? `${pet.activeSmartTagCount} active` : "No active tags"}</Badge><p className="mt-1 text-xs font-semibold text-slate-400">{pet.totalSmartTagCount} linked</p></div> },
     { id: "lifecycle", header: "Lifecycle", sortId: "lifecycle", cell: (pet) => <Badge tone={lifecycleTone[pet.lifecycle]}>{pet.lifecycle}</Badge> },
     { id: "lostMode", header: "Lost Mode", sortId: "lostMode", cell: (pet) => <Badge tone={pet.lostModeEnabled ? "danger" : "soft"}>{pet.lostModeEnabled ? "On" : "Off"}</Badge> },
@@ -307,7 +308,7 @@ export function AdminPetsManager() {
   return (
     <div className="grid gap-4">
       <AdminNotice>
-        Every pet can have a pet-level QR Safety Page without a physical tag. Physical Smart Tags and inventory remain separate operational records.
+        Every pet can have a pet-level Safety Profile without a physical tag. Physical Smart Tags and inventory remain separate operational records.
       </AdminNotice>
       <AdminSection title="Pet profiles" description="Investigate pet identity, owner relationships, route availability, Lost Mode, safety details, and linked Smart Tags.">
         <nav aria-label="Pet profile status shortcuts" className="flex gap-1 overflow-x-auto border-b border-slate-200 px-4 pt-3">
@@ -369,10 +370,4 @@ function RouteBadge({ accessible, issue }: { accessible: boolean; issue: boolean
   return <Badge tone={issue ? "danger" : accessible ? "mint" : "soft"}>{issue ? "Setup issue" : accessible ? "Accessible" : "Unavailable"}</Badge>;
 }
 
-function isGuid(value?: string) {
-  return Boolean(value && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value));
-}
 
-function isDateOnly(value?: string) {
-  return Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value));
-}

@@ -61,7 +61,7 @@ const pillars: {
     icon: "shield",
     title: "Safety",
     points: [
-      "QR Safety Page",
+      "Safety Profile",
       "Basic QR download",
       "WhatsApp / call contact",
       "Emergency note",
@@ -109,12 +109,12 @@ const faqs = [
   {
     question: "Is this a GPS tracker?",
     answer:
-      "No. A MyPetLink QR or NFC tag opens your pet's safety page when someone scans or taps it; it does not provide live location tracking. GPS Safety is a separate feature planned for later.",
+      "No. A MyPetLink QR or NFC tag opens your pet's Safety Profile when someone scans or taps it; it does not provide live location tracking. GPS Safety is a separate feature planned for later.",
   },
   {
     question: "Do I need the NFC tag?",
     answer:
-      "No. The QR Pet Tag works with a phone camera. The QR + NFC Smart Tag adds tap support, while both options open the same owner-approved safety page.",
+      "No. The QR Pet Tag works with a phone camera. The QR + NFC Smart Tag adds tap support, while both options open the same owner-approved Safety Profile.",
   },
   {
     question: "Will my full address be public?",
@@ -124,12 +124,12 @@ const faqs = [
   {
     question: "Can Free users get finder contact?",
     answer:
-      "Yes. A pet-level QR Safety Page with basic WhatsApp and call owner contact is included on the Free plan.",
+      "Yes. A pet-level Safety Profile with basic WhatsApp and call owner contact is included on the Free plan.",
   },
   {
     question: "Can I create a pet profile without buying a tag?",
     answer:
-      "Yes. Every owner can start with a free Public Share Profile and QR Safety Page. Physical QR and QR + NFC tags are optional one-time add-ons.",
+      "Yes. Every owner can start with a free Public Share Profile and Safety Profile. Physical QR and QR + NFC tags are optional one-time add-ons.",
   },
   {
     question: "Is MyPetLink available for pets in Malaysia?",
@@ -158,7 +158,7 @@ export default function Home() {
               A safer profile for your pet.
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-8 text-pet-muted">
-              Create a shareable pet profile and QR Safety Page for free. Add a
+              Create a shareable pet profile and Safety Profile for free. Add a
               physical smart tag when you want extra safety.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -177,7 +177,7 @@ export default function Home() {
                 icon="qr"
                 variant="outline"
               >
-                View Sample QR Safety Page
+                View Sample Safety Profile
               </CTAButton>
             </div>
               <p className="mt-6 text-sm font-bold text-pet-muted">
@@ -246,7 +246,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 4. Public Share Profile vs QR Safety Profile */}
+      {/* 4. Public Share Profile vs Safety Profile */}
       <section className="bg-pet-cream">
         <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
           <PageHeader
@@ -295,14 +295,14 @@ export default function Home() {
                   <Icon name="qr" className="h-5 w-5" />
                 </span>
                 <h3 className="text-xl font-black text-pet-ink">
-                  QR Safety Page
+                  Safety Profile
                 </h3>
               </div>
               <span className="mt-4 inline-flex w-fit rounded-full bg-[#e8f3ff] px-3 py-1 text-xs font-black text-pet-teal">
                 Help finders contact you
               </span>
               <p className="mt-4 text-sm leading-6 text-pet-muted">
-                A finder-first safety page that helps someone contact you quickly
+                A finder-first Safety Profile that helps someone contact you quickly
                 when your pet is found. It can show WhatsApp, call, safety notes,
                 and found-location actions based on the owner&apos;s privacy
                 settings.
@@ -363,7 +363,7 @@ export default function Home() {
           <PageHeader
             eyebrow="Smart tag add-on"
             title="Start free. Add a physical tag when you want one."
-            description="Smart tags are optional one-time add-ons that connect to your pet's QR Safety Page. Coming soon."
+            description="Smart tags are optional one-time add-ons that connect to your pet's Safety Profile. Coming soon."
             action={
               <CTAButton href={marketingRoutes.smartPetTags} variant="secondary">
                 Compare Smart Tags

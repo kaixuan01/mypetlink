@@ -204,7 +204,7 @@ describe("PetProfileForm lifecycle workflow", () => {
     fireEvent.click(await screen.findByRole("tab", { name: /Theme/ }));
     fireEvent.click(screen.getByRole("button", { name: /Mint Green/ }));
     expect(
-      screen.getByText(/Save changes to update .*public profile and QR safety page/)
+      screen.getByText(/Save changes to update .*public profile and Safety Profile/)
     ).toBeTruthy();
 
     fireEvent.click(screen.getByRole("tab", { name: /Photos/ }));
@@ -654,7 +654,7 @@ describe("PetProfileForm lifecycle workflow", () => {
     expect(visibility.checked).toBe(false);
     expect(
       screen.getByText(
-        /Allergies are always shown on the QR Safety Page for pet safety/
+        /Allergies are always shown on the Safety Profile for pet safety/
       )
     ).toBeTruthy();
 

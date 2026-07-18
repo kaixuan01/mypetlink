@@ -53,7 +53,7 @@ public sealed class QrSafetyService : SkeletonService, IQrSafetyService
             throw new ApiException(
                 StatusCodes.Status403Forbidden,
                 "qr_safety_disabled",
-                "This QR Safety Page is not available.");
+                "This Safety Profile is not available.");
         }
 
         var pet = safetySetting.Pet;
@@ -131,6 +131,6 @@ public sealed class QrSafetyService : SkeletonService, IQrSafetyService
         return new ApiException(
             StatusCodes.Status404NotFound,
             "qr_safety_not_found",
-            "This QR Safety Page is not available.");
+            "This Safety Profile is not available.");
     }
 }

@@ -94,6 +94,14 @@ export type Pet = {
   publicCode: string;
   safetyCode: string;
   qrSafetyEnabled: boolean;
+  /** Whether the shareable Public Profile page is publicly accessible. */
+  publicProfileEnabled: boolean;
+  /**
+   * Server-computed Safety Profile readiness: at least one visible, non-empty
+   * finder contact method (WhatsApp or phone). Absent for locally stored pets,
+   * where it is derived from visibility and contact fields instead.
+   */
+  hasUsableSafetyContact?: boolean;
   qrSafetyPath: string;
   finderProfileUrl: string;
   publicProfilePath: string;

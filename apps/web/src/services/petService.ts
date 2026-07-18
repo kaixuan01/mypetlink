@@ -329,6 +329,7 @@ function normalizePet(pet: Pet): Pet {
     publicCode,
     safetyCode,
     qrSafetyEnabled: pet.qrSafetyEnabled ?? pet.qrStatus !== "paused",
+    publicProfileEnabled: pet.publicProfileEnabled ?? true,
     qrSafetyPath: safetyPath,
     // Always recompute from the canonical code so a stored/drifted path can
     // never point at a route that was not statically exported.
@@ -550,11 +551,13 @@ export function mapBackendPetToFrontend(
       showMemorialOnPublicProfile:
         detail?.showMemorialOnPublicProfile ?? true,
     },
-    qrStatus: "active",
+    qrStatus: (pet.qrSafetyEnabled ?? true) ? "active" : "paused",
     publicCode: pet.publicCode,
     publicProfileVersion: pet.publicProfileVersion ?? undefined,
     safetyCode: pet.safetyCode,
-    qrSafetyEnabled: true,
+    qrSafetyEnabled: pet.qrSafetyEnabled ?? true,
+    publicProfileEnabled: pet.publicProfileEnabled ?? true,
+    hasUsableSafetyContact: pet.hasUsableSafetyContact,
     qrSafetyPath: safetyPath,
     finderProfileUrl: safetyPath,
     publicProfilePath: publicProfilePath(slug, pet.publicCode),
@@ -652,6 +655,8 @@ export function mapBackendPublicProfile(
       publicCode: profile.publicCode,
       safetyCode,
       qrSafetyEnabled: Boolean(safetyCode),
+      // The page was served, so its own access switch is on by definition.
+      publicProfileEnabled: true,
       qrSafetyPath: safetyPath,
       finderProfileUrl: safetyPath,
       publicProfilePath: publicProfilePath(slug, profile.publicCode),
@@ -757,6 +762,7 @@ export function mapBackendSafetyPage(page: BackendPublicSafetyPage): PublicPetPr
       publicCode: "",
       safetyCode: page.safetyCode,
       qrSafetyEnabled: true,
+      publicProfileEnabled: true,
       qrSafetyPath: safetyPath,
       finderProfileUrl: safetyPath,
       publicProfilePath: "",
@@ -864,6 +870,14 @@ export function buildBackendPetPayload(payload: PetPayload) {
     visibility: payload.visibility,
     safetyNote: payload.safetyNote,
     emergencyNote: payload.emergencyNote,
+    // Only send the page-access switches when the caller changed them, so
+    // partial updates never flip the saved settings.
+    ...(payload.qrSafetyEnabled !== undefined
+      ? { qrSafetyEnabled: payload.qrSafetyEnabled }
+      : {}),
+    ...(payload.publicProfileEnabled !== undefined
+      ? { publicProfileEnabled: payload.publicProfileEnabled }
+      : {}),
   };
 }
 
@@ -1068,7 +1082,7 @@ export function toPublicProfile(pet: Pet): PublicPetProfile {
   };
 }
 
-// The QR Safety Page is a finder-first safety surface. Known allergies are
+// The Safety Profile is a finder-first safety surface. Known allergies are
 // intentionally always included there, independently of the owner's regular
 // Public Profile allergy visibility choice.
 export function toQrSafetyProfile(pet: Pet): PublicPetProfile {
@@ -1113,7 +1127,9 @@ export async function getPublicPetProfileByPublicCode(publicCode: string) {
     (item) => item.publicCode.toLowerCase() === normalized
   );
 
-  if (!pet) {
+  // Public Profile access is independent from the Safety Profile switch: only
+  // the Public Profile's own setting hides this page.
+  if (!pet || !pet.publicProfileEnabled) {
     return mockResponse<PublicPetProfile | null>(null);
   }
 
@@ -1229,6 +1245,7 @@ export async function createPet(payload: PetPayload) {
     publicCode,
     safetyCode,
     qrSafetyEnabled: payload.qrSafetyEnabled ?? true,
+    publicProfileEnabled: payload.publicProfileEnabled ?? true,
     qrSafetyPath: safetyPath,
     finderProfileUrl: safetyPath,
     publicProfilePath: publicProfilePath(slug, publicCode),

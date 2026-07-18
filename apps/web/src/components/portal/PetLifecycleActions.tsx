@@ -162,7 +162,7 @@ function getActionCopy(
   if (action === "active") {
     return {
       title: "Restore to Active?",
-      message: `This will show ${petName} in active pet pages again and use the pet's QR Safety settings for finder contact actions.`,
+      message: `This will show ${petName} in active pet pages again and use the pet's Safety Profile settings for finder contact actions.`,
       confirmLabel: "Restore to Active",
     };
   }
@@ -170,7 +170,7 @@ function getActionCopy(
   if (action === "memorial") {
     return {
       title: "Move to Memorial?",
-      message: `This keeps ${petName}'s profile, memories, and timeline, but the QR Safety Page will no longer show emergency finder contact actions.`,
+      message: `This keeps ${petName}'s profile, memories, and timeline, but the Safety Profile will no longer show emergency finder contact actions.`,
       confirmLabel: "Move to Memorial",
     };
   }

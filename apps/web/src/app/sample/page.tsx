@@ -10,9 +10,9 @@ import { getPublicPetProfileByPublicCode } from "@/services/petService";
 
 export const metadata: Metadata = createMarketingMetadata({
   path: marketingRoutes.sample,
-  title: "Topu Sample Pet Profile and QR Safety Page | MyPetLink",
+  title: "Topu Sample Pet Profile and Safety Profile | MyPetLink",
   description:
-    "Explore Topu's sample Public Share Profile and QR Safety Page to see the difference between everyday pet sharing and finder contact.",
+    "Explore Topu's sample Public Share Profile and Safety Profile to see the difference between everyday pet sharing and finder contact.",
 });
 
 export default async function SamplePage() {
@@ -28,7 +28,7 @@ export default async function SamplePage() {
           <PageHeader
             eyebrow="Sample experiences"
             title="See MyPetLink in two real situations"
-            description="See the friendly profile owners share, and the QR Safety Page a finder can use to contact the owner quickly."
+            description="See the friendly profile owners share, and the Safety Profile a finder can use to contact the owner quickly."
           />
           {(
             <div className="grid gap-5 lg:grid-cols-2">
@@ -82,7 +82,7 @@ export default async function SamplePage() {
                     </span>
                     <div>
                       <p className="text-sm font-bold uppercase text-pet-teal">
-                        QR Safety Page
+                        Safety Profile
                       </p>
                       <h2 className="mt-2 text-3xl font-black text-pet-ink">
                         Found {pet.name}?
@@ -114,7 +114,7 @@ export default async function SamplePage() {
                     variant="coral"
                     className="mt-2"
                   >
-                    View Sample QR Safety Page
+                    View Sample Safety Profile
                   </CTAButton>
                 </div>
               </article>

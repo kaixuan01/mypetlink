@@ -1,3 +1,4 @@
+import { buildAdminListQuery, csvCell, triggerDownload } from "@/lib/adminListShared";
 import { fulfilmentStatusLabels, paymentStatusLabels, type AdminOrderFulfilmentStatus, type AdminOrderPaymentStatus } from "@/services/adminOrderService";
 import { canUseAdminApi } from "@/services/adminService";
 import { apiRequest, apiRequestBlob } from "@/services/apiClient";
@@ -116,15 +117,7 @@ function mapBackend(item: BackendPaymentProofItem): AdminPaymentProof {
 }
 
 function buildQuery(params: AdminPaymentProofListParams, omitPaging = false) {
-  const query = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined && value !== "" && (!omitPaging || (key !== "page" && key !== "pageSize"))) query.set(key, String(value));
-  }
-  for (const key of ["submittedTo", "reviewedTo"] as const) {
-    const value = query.get(key);
-    if (value && /^\d{4}-\d{2}-\d{2}$/.test(value)) query.set(key, `${value}T23:59:59Z`);
-  }
-  return query.toString();
+  return buildAdminListQuery(params, { dateOnlyToKeys: ["submittedTo", "reviewedTo"], omitPaging });
 }
 
 export async function listAdminPaymentProofs(params: AdminPaymentProofListParams, signal?: AbortSignal) {
@@ -210,7 +203,7 @@ export async function downloadAdminPaymentProofsExport(params: AdminPaymentProof
     ["Order Number", "Customer Name", "Customer Email", "Expected Amount", "Payment Reference", "Payment Method", "Review Status", "Submitted At", "Reviewer", "Reviewed At", "Rejection Reason", "Order Payment Status"],
     ...rows.map((row) => [row.orderNumber, row.ownerName, row.ownerEmail, `${row.currency} ${row.expectedAmount.toFixed(2)}`, row.paymentReference ?? "", row.paymentMethod, paymentProofStatusLabels[row.status], row.submittedAt, row.reviewerName ?? "", row.reviewedAt ?? "", row.rejectionReason ?? "", paymentStatusLabels[row.orderPaymentStatus]]),
   ];
-  const csv = data.map((row) => row.map((cell) => `"${cell.replaceAll('"', '""')}"`).join(",")).join("\n");
+  const csv = data.map((row) => row.map(csvCell).join(",")).join("\n");
   triggerDownload(new Blob([csv], { type: "text/csv;charset=utf-8" }), "mypetlink-payment-proofs.csv");
 }
 
@@ -344,13 +337,5 @@ function dateInRange(value?: string, from?: string, to?: string) {
   return true;
 }
 
-function triggerDownload(blob: Blob, name: string) {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = name;
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
-}
 
 export { fulfilmentStatusLabels, paymentStatusLabels };

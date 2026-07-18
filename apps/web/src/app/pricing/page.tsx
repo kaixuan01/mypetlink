@@ -29,8 +29,8 @@ const premium = mockPlans.find((plan) => plan.id === "plan_premium") ?? mockPlan
 const smartTagFeatures = [
   "One-time purchase",
   "Works with the free pet profile",
-  "Opens the pet-level QR Safety Page",
-  "QR scan and NFC tap open the same safety page",
+  "Opens the pet-level Safety Profile",
+  "QR scan and NFC tap open the same Safety Profile",
   "Finder-friendly contact page",
   "An add-on for your free pet profile",
 ];
@@ -66,7 +66,7 @@ export default function PricingPage() {
               badge={smartTagAddOnsStatus.status}
               title="Smart Tag Add-ons"
               price={`From ${smartTagAddOnsStatus.startingPrice}`}
-              note="Optional physical tags that connect to your pet's QR Safety Page."
+              note="Optional physical tags that connect to your pet's Safety Profile."
               features={smartTagFeatures}
               action={
                 <CTAButton disabled fullWidth variant="secondary">

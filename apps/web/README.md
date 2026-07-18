@@ -18,7 +18,7 @@ The owner pet flow can now run against the .NET backend API when `NEXT_PUBLIC_AP
 ## Phase 1 Product Rules
 
 - Free Profile is RM0 and available now, with up to 3 pets and up to 10 memories per pet.
-- Every pet gets a Public Share Profile and pet-level QR Safety Page without buying a physical tag.
+- Every pet gets a Public Share Profile and pet-level Safety Profile without buying a physical tag.
 - QR Pet Tag (RM19.90) and QR + NFC Smart Tag (RM39.90) are optional one-time add-ons.
 - Premium Plan is Coming Soon only; there is no subscription, upgrade, or payment flow in this frontend MVP.
 - GPS Safety is Coming Later.
@@ -80,7 +80,7 @@ This project is configured with Next.js static export, so `npm run build` writes
 - `/terms` - Terms of Use
 - `/login` - Owner login
 - `/p/milo-k7q2` - Public Share Profile for family, friends, and pet communities
-- `/q/MPL-SAFE-MILO` - Pet-level QR Safety Page for finders
+- `/q/MPL-SAFE-MILO` - Pet-level Safety Profile for finders
 - `/t/8KX29A` - Physical tag scan link; active tags show safety content and inactive tags show an inactive tag page
 
 ## Owner Portal Routes

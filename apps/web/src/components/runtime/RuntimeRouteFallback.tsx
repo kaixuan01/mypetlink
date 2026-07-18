@@ -614,7 +614,7 @@ function OwnerRuntimeView({
           <PageHeader
             eyebrow="Physical tags"
             title="Smart Tags coming soon"
-            description="Smart Tag ordering is not open yet. Your pet's free QR Safety Page is already active."
+            description="Smart Tag ordering is not open yet. Your pet's free Safety Profile is already active."
           />
           <SmartTagsComingSoon petId={pet.id} />
         </AppLayout>

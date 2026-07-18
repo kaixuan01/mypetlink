@@ -1,3 +1,4 @@
+import { buildAdminListQuery, csvCell, triggerDownload } from "@/lib/adminListShared";
 import { canUseAdminApi } from "@/services/adminService";
 import { apiRequest, apiRequestBlob } from "@/services/apiClient";
 import { mockDelay } from "@/services/mockApi";
@@ -140,17 +141,7 @@ function mapBackend(item: BackendItem): AdminSmartTag {
 }
 
 function buildQuery(params: AdminSmartTagListParams, omitPaging = false) {
-  const query = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined && value !== "" && (!omitPaging || (key !== "page" && key !== "pageSize"))) {
-      query.set(key, String(value));
-    }
-  }
-  for (const key of ["activatedTo", "createdTo", "lastScannedTo"] as const) {
-    const value = query.get(key);
-    if (value && /^\d{4}-\d{2}-\d{2}$/.test(value)) query.set(key, `${value}T23:59:59Z`);
-  }
-  return query.toString();
+  return buildAdminListQuery(params, { dateOnlyToKeys: ["activatedTo", "createdTo", "lastScannedTo"], omitPaging });
 }
 
 export async function listAdminSmartTags(params: AdminSmartTagListParams, signal?: AbortSignal) {
@@ -173,6 +164,20 @@ export async function countAdminSmartTags(params: AdminSmartTagListParams, signa
   await mockDelay();
   const withoutStatus = { ...params, status: undefined };
   return countsFor(filterLocal(await loadLocalRows(), withoutStatus));
+}
+
+// Single-tag lookup for deep links (e.g. an order pointing at its assigned
+// tag) whose target is not on the currently loaded page.
+export async function getAdminSmartTag(tagId: string, signal?: AbortSignal): Promise<AdminSmartTag> {
+  if (canUseAdminApi()) {
+    const response = await apiRequest<BackendItem>(`/api/v1/admin/tags/${encodeURIComponent(tagId)}`, { signal });
+    if (!response.data) throw new Error("This Smart Tag could not be found.");
+    return mapBackend(response.data);
+  }
+  await mockDelay();
+  const tag = (await loadLocalRows()).find((row) => row.id === tagId);
+  if (!tag) throw new Error("This Smart Tag could not be found.");
+  return tag;
 }
 
 export async function runAdminSmartTagAction(tagId: string, action: AdminSmartTagAction, reason?: string) {
@@ -224,14 +229,10 @@ export async function downloadAdminSmartTagsExport(params: AdminSmartTagListPara
   if (selectedIds?.length) { const selected = new Set(selectedIds); rows = rows.filter((row) => selected.has(row.id)); }
   const data = [["Tag Code", "Tag Type", "Variant", "Lifecycle Status", "Pet", "Owner", "Order", "Activated", "Last Scanned", "Scan Count", "Created", "Updated"],
     ...rows.map((row) => [row.tagCode, row.hasNfc ? "QR + NFC Smart Tag" : "QR Pet Tag", row.variant, smartTagLifecycleLabel(row), row.petName ?? "", row.ownerName ?? "", row.orderNumber ?? "", row.activatedAt ?? "", row.lastScannedAt ?? "", String(row.scanCount), row.createdAt, row.updatedAt])];
-  const csv = data.map((row) => row.map((cell) => `"${cell.replaceAll('"', '""')}"`).join(",")).join("\n");
+  const csv = data.map((row) => row.map(csvCell).join(",")).join("\n");
   triggerDownload(new Blob([csv], { type: "text/csv;charset=utf-8" }), "mypetlink-smart-tags.csv");
 }
 
-function triggerDownload(blob: Blob, name: string) {
-  const url = URL.createObjectURL(blob); const link = document.createElement("a");
-  link.href = url; link.download = name; document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url);
-}
 
 async function loadLocalRows(): Promise<AdminSmartTag[]> {
   const [petsResponse, ordersResponse] = await Promise.all([getPets(), getStoredOrdersForAdmin()]);

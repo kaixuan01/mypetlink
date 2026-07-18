@@ -1,5 +1,6 @@
 "use client";
 
+import { dateOnlyOrUndefined } from "@/lib/adminListShared";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminNotice, AdminSection } from "@/components/admin/AdminPanels";
 import { AdminOwnerDetailDrawer } from "@/components/admin/AdminOwnerDetailDrawer";
@@ -128,10 +129,10 @@ export function AdminUsersManager() {
     plan: query.filters.plan,
     petUsageNearLimit: query.filters.petUsageNearLimit,
     memoryUsageNearLimit: query.filters.memoryUsageNearLimit,
-    joinedFrom: isDateOnly(query.filters.joinedFrom) ? query.filters.joinedFrom : undefined,
-    joinedTo: isDateOnly(query.filters.joinedTo) ? query.filters.joinedTo : undefined,
-    updatedFrom: isDateOnly(query.filters.updatedFrom) ? query.filters.updatedFrom : undefined,
-    updatedTo: isDateOnly(query.filters.updatedTo) ? query.filters.updatedTo : undefined,
+    joinedFrom: dateOnlyOrUndefined(query.filters.joinedFrom),
+    joinedTo: dateOnlyOrUndefined(query.filters.joinedTo),
+    updatedFrom: dateOnlyOrUndefined(query.filters.updatedFrom),
+    updatedTo: dateOnlyOrUndefined(query.filters.updatedTo),
     sortBy: query.sortBy,
     sortDir: query.sortDir,
   }), [query]);
@@ -305,6 +306,3 @@ function nonNegative(value?: string) {
   return value && /^\d+$/.test(value) ? value : undefined;
 }
 
-function isDateOnly(value?: string) {
-  return Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value));
-}

@@ -37,15 +37,17 @@ All user-facing **and** admin-facing UI text must read as production-ready copy 
 
 Refer to the three public pages by name in copy, not by their path:
 
-- `/p/:petSlug` → **Public Share Profile** (or "Share Profile")
-- `/q/:safetyCode` → **QR Safety Page** (or "Safety QR")
+- `/p/:petSlug` → **Public Share Profile** (or "Public Profile" / "Share Profile")
+- `/q/:safetyCode` → **Safety Profile** — the finder-facing safety page. QR codes, NFC taps, and direct links are *access methods* to this one profile, so never call it "QR Safety Page", "QR Safety Profile", or "QR Profile". Use "QR" / "NFC" wording only for the specific access technology or physical tag capability (e.g. "Download QR Code", "Tap NFC Tag", "QR + NFC Smart Tag").
 - `/t/:tagCode` → **Physical Tag Scan Page** (or "Physical Tag QR" / "Tag Scan Page")
 
 Do not lump these together as a generic "QR Profile" — they are three distinct pages.
 
+Safety Profile status labels are: **Safety Profile Active**, **Contact Update Needed**, and **Safety Profile Off** (derived in `apps/web/src/lib/safetyProfile.ts`). Never present a linked Smart Tag as part of that status — tag linkage has its own labels (e.g. "No Smart Tag Linked", "Smart Tag Linked").
+
 ## Route conventions
 
-- QR Safety Page: `/q/:safetyCode`
+- Safety Profile: `/q/:safetyCode`
 - Physical Tag Scan Link and tag activation entry point: `/t/:tagCode`
 - Public Share Profile: `/p/:petSlug` (slug ends with the pet's public code)
 - Owner Portal routes currently live in the same Next.js app (`/dashboard`, `/pets`, `/tags`, `/orders`, `/settings`, ...).

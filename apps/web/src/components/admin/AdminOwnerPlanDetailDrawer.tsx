@@ -1,7 +1,8 @@
 "use client";
 
+import { useModalDialogFocus } from "@/lib/useModalDialogFocus";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AdminDetailItem } from "@/components/admin/AdminPanels";
 import { formatAdminDate, formatAdminDateTime } from "@/components/admin/adminDisplay";
 import { Badge } from "@/components/ui/Badge";
@@ -81,6 +82,7 @@ export function AdminOwnerPlanDetailDrawer({
   summary: AdminOwnerPlan;
   onClose: () => void;
 }) {
+  const dialogRef = useRef<HTMLElement | null>(null);
   const [detail, setDetail] = useState<AdminOwnerPlanDetail | null>(null);
   const [detailError, setDetailError] = useState(false);
 
@@ -98,14 +100,7 @@ export function AdminOwnerPlanDetailDrawer({
     return () => controller.abort();
   }, [summary.ownerUserId]);
 
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
-    }
-
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
+  useModalDialogFocus({ dialogRef, onEscape: onClose });
 
   const item = detail?.item ?? summary;
   const hasOverride = item.hasOverride || item.grandfathered;
@@ -123,7 +118,7 @@ export function AdminOwnerPlanDetailDrawer({
         onClick={onClose}
         type="button"
       />
-      <aside className="relative flex h-full w-full max-w-lg flex-col overflow-y-auto bg-white shadow-2xl">
+      <aside className="relative flex h-full w-full max-w-lg flex-col overflow-y-auto bg-white shadow-2xl" ref={dialogRef}>
         <div className="flex items-start justify-between gap-3 border-b border-slate-200 p-5">
           <div>
             <p className="text-xs font-extrabold uppercase text-slate-400">Owner plan</p>

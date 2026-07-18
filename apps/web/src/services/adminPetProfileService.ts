@@ -1,3 +1,4 @@
+import { buildAdminListQuery, csvCell, triggerDownload } from "@/lib/adminListShared";
 import { canUseAdminApi } from "@/services/adminService";
 import { apiRequest, apiRequestBlob } from "@/services/apiClient";
 import { mockDelay } from "@/services/mockApi";
@@ -210,17 +211,7 @@ function mapDetail(item: BackendDetail): AdminPetProfileDetail {
 }
 
 function buildQuery(params: AdminPetProfileListParams, omitPaging = false) {
-  const query = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined && value !== "" && (!omitPaging || (key !== "page" && key !== "pageSize"))) {
-      query.set(key, String(value));
-    }
-  }
-  for (const key of ["createdTo", "updatedTo"] as const) {
-    const value = query.get(key);
-    if (value && /^\d{4}-\d{2}-\d{2}$/.test(value)) query.set(key, `${value}T23:59:59Z`);
-  }
-  return query.toString();
+  return buildAdminListQuery(params, { dateOnlyToKeys: ["createdTo", "updatedTo"], omitPaging });
 }
 
 export async function listAdminPetProfiles(params: AdminPetProfileListParams, signal?: AbortSignal) {
@@ -328,26 +319,16 @@ export async function downloadAdminPetProfilesExport(
     rows = rows.filter((row) => selected.has(row.id));
   }
   const data = [
-    ["Pet Name", "Owner Name", "Pet Type", "Breed", "Lifecycle", "Lost Mode", "Public Profile Status", "QR Safety Status", "Active Smart Tags", "Total Smart Tags", "Allergies Present", "Created", "Updated"],
+    ["Pet Name", "Owner Name", "Pet Type", "Breed", "Lifecycle", "Lost Mode", "Public Profile Status", "Safety Profile Status", "Active Smart Tags", "Total Smart Tags", "Allergies Present", "Created", "Updated"],
     ...rows.map((row) => [row.name, row.ownerName, row.customSpecies || row.species, row.breed ?? "", row.lifecycle,
       row.lostModeEnabled ? "On" : "Off", routeStatus(row.publicProfileAccessible, row.publicProfileSetupIssue),
       routeStatus(row.qrSafetyAccessible, row.qrSafetySetupIssue), String(row.activeSmartTagCount),
       String(row.totalSmartTagCount), row.hasAllergies ? "Yes" : "No", row.createdAt, row.updatedAt]),
   ];
-  const csv = data.map((row) => row.map((cell) => `"${cell.replaceAll('"', '""')}"`).join(",")).join("\n");
+  const csv = data.map((row) => row.map(csvCell).join(",")).join("\n");
   triggerDownload(new Blob([csv], { type: "text/csv;charset=utf-8" }), "mypetlink-pet-profiles.csv");
 }
 
-function triggerDownload(blob: Blob, name: string) {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = name;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}
 
 async function loadLocalRows() {
   const response = await getPets();

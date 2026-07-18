@@ -1,5 +1,6 @@
 "use client";
 
+import { dateOnlyOrUndefined } from "@/lib/adminListShared";
 import { useEffect, useMemo, useState } from "react";
 import { AdminTagInventoryDetailDrawer } from "@/components/admin/AdminTagInventoryDetailDrawer";
 import {
@@ -170,10 +171,10 @@ export function AdminTagInventoryManager() {
       variant: query.filters.variant,
       claimed: query.filters.claimed,
       reseller: query.filters.reseller,
-      generatedFrom: query.filters.generatedFrom,
-      generatedTo: query.filters.generatedTo,
-      updatedFrom: query.filters.updatedFrom,
-      updatedTo: query.filters.updatedTo,
+      generatedFrom: dateOnlyOrUndefined(query.filters.generatedFrom),
+      generatedTo: dateOnlyOrUndefined(query.filters.generatedTo),
+      updatedFrom: dateOnlyOrUndefined(query.filters.updatedFrom),
+      updatedTo: dateOnlyOrUndefined(query.filters.updatedTo),
       sortBy: query.sortBy,
       sortDir: query.sortDir,
     }),

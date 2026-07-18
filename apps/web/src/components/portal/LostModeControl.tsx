@@ -102,7 +102,7 @@ export function LostModeControl({
               {pet.name} is currently marked missing
             </p>
             <p className="mt-2 text-sm leading-6 text-pet-muted">
-              The Public Share Profile and QR Safety Page show an urgent missing
+              The Public Share Profile and Safety Profile show an urgent missing
               pet notice. Active smart tags continue to work.
             </p>
           </div>
@@ -133,7 +133,7 @@ export function LostModeControl({
       ) : (
         <p className="rounded-[1.25rem] bg-pet-cream p-4 text-sm font-semibold leading-6 text-pet-muted">
           Turn this on only when {pet.name} is missing. It adds a clear missing
-          pet notice to the Public Share Profile and makes the QR Safety Page
+          pet notice to the Public Share Profile and makes the Safety Profile
           more urgent without disabling active smart tags.
         </p>
       )}
@@ -357,7 +357,7 @@ export function LostModeControl({
 
       <ConfirmDialog
         confirmLabel="Mark as Found"
-        message={`This will turn off Lost Mode for ${pet.name}. The missing pet notices will be removed from the Public Share Profile and QR Safety Page.`}
+        message={`This will turn off Lost Mode for ${pet.name}. The missing pet notices will be removed from the Public Share Profile and Safety Profile.`}
         onCancel={() => setConfirmingFound(false)}
         onConfirm={markAsFound}
         open={confirmingFound}

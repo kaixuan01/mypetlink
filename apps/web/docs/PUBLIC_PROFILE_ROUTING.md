@@ -11,12 +11,12 @@
 
 | Route                        | Purpose                          | Lookup key            |
 | ---------------------------- | -------------------------------- | --------------------- |
-| `/q/{safetyCode}`            | Pet-level QR Safety Page for finders | `safetyCode`       |
+| `/q/{safetyCode}`            | Pet-level Safety Profile for finders | `safetyCode`       |
 | `/t/{tagCode}`               | A physical tag was scanned/tapped; also the customer activation entry point | `tagCode`             |
 | `/activate/{tagCode}`        | Compatibility redirect back to `/t/{tagCode}` | `tagCode`             |
 | `/p/{slug}-{publicCode}`     | Share a pet's public profile     | `publicCode`          |
 
-Pet-level QR Safety Page links use **`/q/{safetyCode}`**. Physical QR codes and NFC chips point at **`/t/{tagCode}`**; active tags open the same QR Safety Page, while inactive tags show an inactive tag page. Tag activation is also completed from `/t/{tagCode}` after the owner scans/taps the physical tag.
+Pet-level Safety Profile links use **`/q/{safetyCode}`**. Physical QR codes and NFC chips point at **`/t/{tagCode}`**; active tags open the same Safety Profile, while inactive tags show an inactive tag page. Tag activation is also completed from `/t/{tagCode}` after the owner scans/taps the physical tag.
 
 Build these URLs with the helpers in `src/lib/routes.ts` (`qrSafetyPath`,
 `tagPath`, `publicProfilePath`). Never hand-write them.
@@ -39,7 +39,7 @@ so runtime (`localStorage`) data wins.
 | `unassigned` | `status === "Unassigned"` **or** the tag has no `petId`    | Activation flow directly on `/t`: sign in/register, choose/create pet, activate |
 | `pending`    | Portal-purchased assigned tag is `Pending`, `Preparing`, or `Delivered` | Activation flow directly on `/t` for the matching owner; safe no-contact state otherwise |
 | `inactive`   | `status` in `Disabled / Lost / Replaced`, `isArchived`, bound pet gone, or bound pet Memorial/Archived | Safe **"This tag is no longer active"** message          |
-| `active`     | Has a `petId`, status not disabled                         | Shared **QR Safety Page** (`QrSafetyPageView`)            |
+| `active`     | Has a `petId`, status not disabled                         | Shared **Safety Profile** (`QrSafetyPageView`)            |
 
 Why "not found" is a rendered state, not `notFound()`: with static export there
 is no server at runtime. A tag that exists only in `localStorage` was never
@@ -53,7 +53,7 @@ The unassigned activation prompt uses the exact product copy:
   can be identified if they ever get lost.`
 - **Button:** `Activate Tag`
 
-A finder scanning an **active** tag must see the QR Safety Page directly.
+A finder scanning an **active** tag must see the Safety Profile directly.
 
 ---
 
@@ -104,7 +104,7 @@ finder safety page). It is **looked up by `publicCode`, never by slug**:
 > **This is the single most important rule for this page.** The share profile
 > (`/p/{slug}-{publicCode}`) is the **friendly, IG-style** page an owner shares
 > with friends, family, and pet communities. It is **NOT** the emergency finder
-> page. The finder/emergency experience lives on the QR Safety Page
+> page. The finder/emergency experience lives on the Safety Profile
 > (`/q/{safetyCode}`); active physical tag scans (`/t/{tagCode}`) render that same view. Never mix
 > them. A previous version wrongly made the share page finder-first â€” do not
 > reintroduce that.
@@ -161,7 +161,7 @@ Keep them distinct.
 > **Deprecated:** `/p/{petSlug}` alone (e.g. `/p/milo`) must never be displayed,
 > copied, or navigated to. Every public profile link is `/p/{petSlug}-{publicCode}`.
 > Build it with `publicProfilePath(slug, publicCode)` (or `pet.publicProfilePath`),
-> never by concatenating the slug by itself. The QR Safety Page is the separate
+> never by concatenating the slug by itself. The Safety Profile is the separate
 > pet-level route `/q/{safetyCode}`; physical tags use `/t/{tagCode}` as scan
 > entry points.
 

@@ -17,7 +17,7 @@ import {
 const historyLabels: Record<string, string> = {
   "pet-profiles.archive": "Pet profile archived",
   "pet-profiles.restore": "Pet profile restored",
-  "pet-profiles.disable-qr": "QR Safety disabled by support",
+  "pet-profiles.disable-qr": "Safety Profile disabled by support",
   "pet-profiles.disable-lost-mode": "Lost Mode turned off by support",
 };
 
@@ -169,8 +169,8 @@ export function AdminPetProfileDetailDrawer({
 
               <section aria-labelledby="pet-qr-heading">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="text-sm font-black text-slate-900" id="pet-qr-heading">QR Safety Page</h3>
-                  {qrPath ? <a className={actionClass} href={qrPath} rel="noopener noreferrer" target="_blank">Open QR Safety Page</a> : null}
+                  <h3 className="text-sm font-black text-slate-900" id="pet-qr-heading">Safety Profile</h3>
+                  {qrPath ? <a className={actionClass} href={qrPath} rel="noopener noreferrer" target="_blank">Open Safety Profile</a> : null}
                 </div>
                 <p className="mt-1 text-sm font-semibold text-slate-500">This pet-level safety page is independent of physical Smart Tags.</p>
                 <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -182,7 +182,7 @@ export function AdminPetProfileDetailDrawer({
                   <AdminDetailItem label="Emergency note shown" value={detail.showEmergencyNote ? "Yes" : "No"} />
                 </div>
                 {qrPath ? <p className="mt-2 break-all rounded-xl bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600">{toAbsoluteUrl(qrPath)}</p> : null}
-                {pet.qrSafetySetupIssue ? <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-sm font-bold text-amber-900">QR Safety is enabled but its lifecycle or safety code prevents access. No broken link is shown.</p> : null}
+                {pet.qrSafetySetupIssue ? <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-sm font-bold text-amber-900">The Safety Profile is enabled but its lifecycle or safety code prevents access. No broken link is shown.</p> : null}
               </section>
 
               <section aria-labelledby="pet-lost-heading">
@@ -218,7 +218,7 @@ export function AdminPetProfileDetailDrawer({
                   <h3 className="text-sm font-black text-slate-900" id="pet-tags-heading">Physical Smart Tags</h3>
                   <Link className={actionClass} href={adminRoutes.smartTagsForPet(pet.id)}>View Smart Tags</Link>
                 </div>
-                <p className="mt-1 text-sm font-semibold text-slate-500">No physical tag is a normal state; QR Safety can still be available.</p>
+                <p className="mt-1 text-sm font-semibold text-slate-500">No physical tag is a normal state; the Safety Profile can still be available.</p>
                 {detail.smartTags.length ? (
                   <ul className="mt-2 grid gap-2">
                     {detail.smartTags.map((tag) => (

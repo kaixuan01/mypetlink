@@ -378,7 +378,7 @@ public sealed class AdminSmartTagService : SkeletonService, IAdminSmartTagServic
         for (var index = 0; index < rows.Count; index++)
         {
             var values = ExportRow(rows[index]);
-            for (var column = 0; column < values.Length; column++) sheet.Cell(index + 2, column + 1).SetValue(values[column]);
+            for (var column = 0; column < values.Length; column++) sheet.Cell(index + 2, column + 1).SetValue(AdminExportSanitizer.SpreadsheetSafe(values[column]));
         }
         sheet.SheetView.FreezeRows(1);
         sheet.Columns().AdjustToContents(1, Math.Min(rows.Count + 1, 200));
@@ -396,7 +396,7 @@ public sealed class AdminSmartTagService : SkeletonService, IAdminSmartTagServic
     ];
 
     private static string ExportDate(DateTimeOffset? value) => value?.UtcDateTime.ToString("yyyy-MM-dd HH:mm") ?? "";
-    private static string Csv(string value) => $"\"{value.Replace("\"", "\"\"")}\"";
+    private static string Csv(string value) => AdminExportSanitizer.Csv(value);
 
     private async Task<AdminUser> RequireAdminAsync(Guid? userId, CancellationToken cancellationToken)
     {

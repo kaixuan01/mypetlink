@@ -166,7 +166,7 @@ export function OrdersList({
         <EmptyState
           icon="record"
           title="No tag orders yet"
-          description="Smart Tag ordering is coming soon. Your pet's free QR Safety Page and Public Share Profile are already active — no order needed."
+          description="Smart Tag ordering is coming soon. Your pet's free Safety Profile and Public Share Profile are already active — no order needed."
           actionHref={ownerRoutes.pets}
           actionLabel="Go to My Pets"
         />

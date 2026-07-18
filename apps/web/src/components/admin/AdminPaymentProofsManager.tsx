@@ -1,120 +1,250 @@
 "use client";
 
-import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  AdminActionButton,
-  AdminDetailItem,
-  AdminFilterTabs,
-  AdminNotice,
-  AdminSection,
-} from "@/components/admin/AdminPanels";
-import { OrderDocumentButtons } from "@/components/admin/OrderDocumentButtons";
-import { orderStatusTone } from "@/components/admin/adminDisplay";
+import { AdminNotice, AdminSection } from "@/components/admin/AdminPanels";
+import { AdminPaymentProofDetailDrawer } from "@/components/admin/AdminPaymentProofDetailDrawer";
+import { formatAdminDateTime } from "@/components/admin/adminDisplay";
+import { AdminBulkActionBar, type AdminBulkAction } from "@/components/admin/table/AdminBulkActionBar";
+import { AdminDataTable, type AdminColumn } from "@/components/admin/table/AdminDataTable";
+import { AdminExportMenu, type AdminExportFormat } from "@/components/admin/table/AdminExportMenu";
+import { AdminFilterBar, type AdminFilterDef } from "@/components/admin/table/AdminFilterBar";
+import { AdminSearchInput } from "@/components/admin/table/AdminSearchInput";
+import { useAdminTableQuery } from "@/components/admin/table/useAdminTableQuery";
 import { Badge } from "@/components/ui/Badge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { dateOnlyOrUndefined, isGuid } from "@/lib/adminListShared";
 import {
-  formatOrderNumber,
-  getOrderStatusDisplay,
-} from "@/lib/orders";
-import { getAdminData, type AdminData } from "@/services/adminService";
-import {
-  adminConfirmOrderPayment,
-  adminRejectOrderPayment,
-} from "@/services/tagService";
+  approveAdminPaymentProof,
+  countAdminPaymentProofs,
+  downloadAdminPaymentProofsExport,
+  getAdminPaymentProofDetail,
+  getAdminPaymentProofExportFormats,
+  listAdminPaymentProofs,
+  paymentProofStatusLabels,
+  paymentStatusLabels,
+  rejectAdminPaymentProof,
+  type AdminPaymentProof,
+  type AdminPaymentProofCounts,
+  type AdminPaymentProofListParams,
+} from "@/services/adminPaymentProofService";
+import { isAbortError } from "@/services/apiClient";
+import { getFriendlyTagErrorMessage } from "@/services/tagService";
 
-type ProofFilter = "queue" | "reviewed" | "all";
+const filterKeys = [
+  "status", "orderPaymentStatus", "hasReference", "hasMedia", "needsAttention", "overdue",
+  "paymentMethod", "owner", "ownerId", "reviewer", "amountMin", "amountMax",
+  "submittedFrom", "submittedTo", "reviewedFrom", "reviewedTo",
+] as const;
 
-export function AdminPaymentProofsManager({
-  initialData,
-}: {
-  initialData: AdminData;
-}) {
-  const searchParams = useSearchParams();
-  const selectedOwnerId = searchParams.get("ownerId") ?? "";
-  const [data, setData] = useState(initialData);
-  const [filter, setFilter] = useState<ProofFilter>("queue");
+const filters: AdminFilterDef[] = [
+  { type: "select", key: "status", label: "Review Status", options: Object.entries(paymentProofStatusLabels).map(([value, label]) => ({ value, label })) },
+  { type: "select", key: "orderPaymentStatus", label: "Order Payment", options: Object.entries(paymentStatusLabels).map(([value, label]) => ({ value, label })) },
+  { type: "select", key: "needsAttention", label: "Attention", options: [
+    { value: "true", label: "Requires manual verification" },
+    { value: "false", label: "No warnings" },
+  ] },
+  { type: "select", key: "overdue", label: "Waiting Over a Day", options: [
+    { value: "true", label: "Yes" }, { value: "false", label: "No" },
+  ] },
+  { type: "select", key: "hasReference", label: "Payment Reference", options: [
+    { value: "true", label: "Provided" }, { value: "false", label: "Missing" },
+  ], advanced: true },
+  { type: "select", key: "hasMedia", label: "Proof File", options: [
+    { value: "true", label: "Available" }, { value: "false", label: "Missing" },
+  ], advanced: true },
+  { type: "text", key: "paymentMethod", label: "Payment Method", advanced: true },
+  { type: "text", key: "owner", label: "Customer", placeholder: "Name, email, phone", advanced: true },
+  { type: "text", key: "reviewer", label: "Reviewer", advanced: true },
+  { type: "text", key: "amountMin", label: "Minimum Amount", advanced: true },
+  { type: "text", key: "amountMax", label: "Maximum Amount", advanced: true },
+  { type: "date-range", key: "submitted", label: "Submitted", advanced: true },
+  { type: "date-range", key: "reviewed", label: "Reviewed", advanced: true },
+];
+
+const shortcuts: { value: string; label: string; count: keyof AdminPaymentProofCounts }[] = [
+  { value: "PendingReview", label: "Awaiting review", count: "pendingReview" },
+  { value: "Approved", label: "Approved", count: "approved" },
+  { value: "Rejected", label: "Rejected", count: "rejected" },
+  { value: "Superseded", label: "Superseded", count: "superseded" },
+  { value: "", label: "All", count: "all" },
+];
+
+const emptyCounts: AdminPaymentProofCounts = { all: 0, pendingReview: 0, approved: 0, rejected: 0, superseded: 0, needsAttention: 0 };
+
+// Sentinel sort id: the review queue orders pending proofs first (oldest
+// submitted at the top). It is never sent to the API — omitting sortBy selects
+// the same queue order on the server and in local data.
+const QUEUE_SORT = "queue";
+
+type PendingReview = { decision: "approve" | "reject"; proof: AdminPaymentProof };
+
+export function AdminPaymentProofsManager() {
+  const { query, actions, hasActiveFilters } = useAdminTableQuery({
+    filterKeys,
+    defaultSortBy: QUEUE_SORT,
+    allowedSortIds: [QUEUE_SORT, "submittedAt", "reviewedAt", "orderNumber", "customer", "amount", "status", "reviewer", "updatedAt"],
+    allowedFilterValues: {
+      status: Object.keys(paymentProofStatusLabels),
+      orderPaymentStatus: Object.keys(paymentStatusLabels),
+      hasReference: ["true", "false"], hasMedia: ["true", "false"],
+      needsAttention: ["true", "false"], overdue: ["true", "false"],
+    },
+  });
+
+  const params = useMemo<AdminPaymentProofListParams>(() => ({
+    page: query.page,
+    pageSize: query.pageSize,
+    search: query.search || undefined,
+    status: query.filters.status,
+    orderPaymentStatus: query.filters.orderPaymentStatus,
+    hasReference: query.filters.hasReference,
+    hasMedia: query.filters.hasMedia,
+    needsAttention: query.filters.needsAttention,
+    overdue: query.filters.overdue,
+    paymentMethod: query.filters.paymentMethod,
+    owner: query.filters.owner,
+    ownerId: isGuid(query.filters.ownerId) ? query.filters.ownerId : undefined,
+    reviewer: query.filters.reviewer,
+    amountMin: nonNegativeAmount(query.filters.amountMin),
+    amountMax: nonNegativeAmount(query.filters.amountMax),
+    submittedFrom: dateOnlyOrUndefined(query.filters.submittedFrom),
+    submittedTo: dateOnlyOrUndefined(query.filters.submittedTo),
+    reviewedFrom: dateOnlyOrUndefined(query.filters.reviewedFrom),
+    reviewedTo: dateOnlyOrUndefined(query.filters.reviewedTo),
+    sortBy: query.sortBy === QUEUE_SORT ? undefined : query.sortBy,
+    sortDir: query.sortBy === QUEUE_SORT ? undefined : query.sortDir,
+  }), [query]);
+
+  const paramsKey = useMemo(() => JSON.stringify(params), [params]);
+  const [reloadKey, setReloadKey] = useState(0);
+  const fetchKey = `${paramsKey}#${reloadKey}`;
+  const [state, setState] = useState<{ key: string; items: AdminPaymentProof[]; total: number; counts: AdminPaymentProofCounts; error: string } | null>(null);
+  const [selection, setSelection] = useState<{ key: string; ids: Set<string> }>({ key: paramsKey, ids: new Set() });
+  const [detachedProof, setDetachedProof] = useState<AdminPaymentProof | null>(null);
   const [message, setMessage] = useState("");
-  const [pendingRejectId, setPendingRejectId] = useState("");
-
-  const refresh = useCallback(async () => {
-    setData(await getAdminData());
-  }, []);
+  const [pendingReview, setPendingReview] = useState<PendingReview | null>(null);
+  const [reason, setReason] = useState("");
+  const [dialogError, setDialogError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [exportBusy, setExportBusy] = useState(false);
 
   useEffect(() => {
-    let active = true;
-
-    getAdminData()
-      .then((next) => {
-        if (active) {
-          setData(next);
-        }
+    const controller = new AbortController();
+    const key = `${paramsKey}#${reloadKey}`;
+    const request = JSON.parse(paramsKey) as AdminPaymentProofListParams;
+    Promise.all([listAdminPaymentProofs(request, controller.signal), countAdminPaymentProofs(request, controller.signal)])
+      .then(([list, counts]) => {
+        if (!controller.signal.aborted) setState({ key, items: list.items, total: list.total, counts, error: "" });
       })
-      .catch(() => {
-        if (active) {
-          setMessage("We could not load payment proofs. Please refresh to try again.");
+      .catch((error) => {
+        if (!controller.signal.aborted && !isAbortError(error)) {
+          setState({ key, items: [], total: 0, counts: emptyCounts, error: "We couldn't load payment proofs. Please try again." });
         }
       });
+    return () => controller.abort();
+  }, [paramsKey, reloadKey]);
 
-    return () => {
-      active = false;
-    };
-  }, []);
+  const current = state?.key === fetchKey ? state : null;
+  const items = useMemo(() => current?.items ?? [], [current]);
+  const counts = current?.counts ?? emptyCounts;
+  const selectedIds = selection.key === paramsKey ? selection.ids : new Set<string>();
+  const setSelectedIds = (ids: Set<string>) => setSelection({ key: paramsKey, ids });
+  const refresh = useCallback(() => setReloadKey((value) => value + 1), []);
 
-  const petMap = useMemo(
-    () => new Map(data.pets.map((pet) => [pet.id, pet])),
-    [data.pets]
-  );
+  const openProofId = actions.getExtraParam("proof");
+  const openProof = items.find((proof) => proof.id === openProofId)
+    ?? (detachedProof?.id === openProofId ? detachedProof : null);
 
-  const submissions = useMemo(
-    () => data.orders.filter((order) => {
-      if (!order.paymentSubmittedDate) return false;
-      if (!selectedOwnerId) return true;
-      return petMap.get(order.petId)?.ownerUserId === selectedOwnerId;
-    }),
-    [data.orders, petMap, selectedOwnerId]
-  );
+  // Deep links (e.g. from an order) can point at a proof outside the current
+  // page; load its summary on demand.
+  useEffect(() => {
+    if (!openProofId || items.some((proof) => proof.id === openProofId)) return;
+    const controller = new AbortController();
+    getAdminPaymentProofDetail(openProofId, controller.signal)
+      .then((detail) => { if (!controller.signal.aborted) setDetachedProof(detail); })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setMessage("This payment proof could not be opened.");
+          actions.setExtraParam("proof", null);
+        }
+      });
+    return () => controller.abort();
+  }, [actions, items, openProofId]);
 
-  const queue = submissions.filter(
-    (order) => order.status === "Payment Submitted"
-  );
-  const reviewed = submissions.filter(
-    (order) => order.status !== "Payment Submitted"
-  );
-  const visible =
-    filter === "queue" ? queue : filter === "reviewed" ? reviewed : submissions;
-
-  async function approve(orderId: string) {
-    const order = data.orders.find((item) => item.id === orderId);
-    const result = await adminConfirmOrderPayment(orderId);
-    await refresh();
-    setMessage(
-      result.data && order
-        ? `Payment confirmed for ${formatOrderNumber(order)}.`
-        : "This payment proof could not be updated from its current status."
-    );
+  function beginReview(decision: "approve" | "reject", proof: AdminPaymentProof) {
+    setReason("");
+    setDialogError("");
+    setPendingReview({ decision, proof });
   }
 
-  async function confirmReject() {
-    const order = data.orders.find((item) => item.id === pendingRejectId);
-    setPendingRejectId("");
-
-    if (!order) {
+  async function confirmReview() {
+    if (!pendingReview || busy) return;
+    if (pendingReview.decision === "reject" && !reason.trim()) {
+      setDialogError("Enter a reason before rejecting this proof.");
       return;
     }
 
-    const result = await adminRejectOrderPayment(
-      order.id,
-      "We could not verify this payment proof. Please resubmit your receipt or screenshot."
-    );
-    await refresh();
-    setMessage(
-      result.data
-        ? `${formatOrderNumber(order)} returned to Pending Payment for resubmission.`
-        : "This payment proof could not be updated from its current status."
-    );
+    setBusy(true);
+    setDialogError("");
+    try {
+      if (pendingReview.decision === "approve") {
+        await approveAdminPaymentProof(pendingReview.proof);
+        setMessage(`Payment confirmed for ${pendingReview.proof.orderNumber}.`);
+      } else {
+        await rejectAdminPaymentProof(pendingReview.proof, reason);
+        setMessage(`${pendingReview.proof.orderNumber} returned to Pending Payment for resubmission.`);
+      }
+      setPendingReview(null);
+      setDetachedProof(null);
+      refresh();
+    } catch (caught) {
+      setDialogError(getFriendlyTagErrorMessage(caught));
+    } finally {
+      setBusy(false);
+    }
   }
+
+  async function exportRows(format: AdminExportFormat, scope: "filtered" | "selected") {
+    setExportBusy(true);
+    setMessage("");
+    try {
+      await downloadAdminPaymentProofsExport(params, format, scope === "selected" ? [...selectedIds] : undefined);
+      setMessage(scope === "selected" ? "Selected payment proofs exported." : "Filtered payment proofs exported.");
+    } catch {
+      setMessage("The export could not be created. Please try again.");
+    } finally {
+      setExportBusy(false);
+    }
+  }
+
+  const columns: AdminColumn<AdminPaymentProof>[] = [
+    { id: "orderNumber", header: "Order", sortId: "orderNumber", cell: (proof) => <span className="whitespace-nowrap font-bold text-slate-950">{proof.orderNumber}</span> },
+    { id: "customer", header: "Customer", sortId: "customer", cell: (proof) => <span className="block min-w-32"><span className="block font-bold text-slate-900">{proof.ownerName}</span><span className="block break-all text-xs font-semibold text-slate-500">{proof.ownerEmail}</span></span> },
+    { id: "amount", header: "Expected", sortId: "amount", align: "right", cell: (proof) => <span className="whitespace-nowrap font-bold text-slate-700">{proof.currency} {proof.expectedAmount.toFixed(2)}</span> },
+    { id: "reference", header: "Reference", cell: (proof) => <span className="block min-w-28"><span className="block font-semibold text-slate-700">{proof.paymentReference ?? "—"}</span><span className="block text-xs font-semibold text-slate-500">{proof.paymentMethod}</span></span>, hideable: true },
+    {
+      id: "status", header: "Review Status", sortId: "status",
+      cell: (proof) => (
+        <span className="block whitespace-nowrap">
+          <Badge tone={proof.status === "Approved" ? "mint" : proof.status === "Rejected" ? "danger" : proof.status === "Superseded" ? "soft" : "warm"}>
+            {paymentProofStatusLabels[proof.status]}
+          </Badge>
+          {proof.requiresAttention ? <span className="mt-1 block text-xs font-bold text-[#a63c2e]">Requires manual verification</span> : null}
+        </span>
+      ),
+    },
+    { id: "orderPayment", header: "Order Payment", cell: (proof) => <span className="whitespace-nowrap text-slate-600">{paymentStatusLabels[proof.orderPaymentStatus]}</span>, hideable: true, defaultHidden: true },
+    { id: "submittedAt", header: "Submitted", sortId: "submittedAt", cell: (proof) => <span className="whitespace-nowrap text-slate-600">{formatAdminDateTime(proof.submittedAt)}</span> },
+    { id: "reviewer", header: "Reviewer", sortId: "reviewer", cell: (proof) => <span className="whitespace-nowrap text-slate-600">{proof.reviewerName ?? "—"}</span>, hideable: true },
+    { id: "reviewedAt", header: "Reviewed", sortId: "reviewedAt", cell: (proof) => <span className="whitespace-nowrap text-slate-600">{formatAdminDateTime(proof.reviewedAt)}</span>, hideable: true, defaultHidden: true },
+  ];
+
+  const bulkActions: AdminBulkAction[] = [
+    { id: "export-selected-csv", label: "Export selected CSV", onClick: () => void exportRows("csv", "selected"), disabled: exportBusy },
+    ...(getAdminPaymentProofExportFormats().includes("xlsx")
+      ? [{ id: "export-selected-xlsx", label: "Export selected Excel", onClick: () => void exportRows("xlsx", "selected"), disabled: exportBusy } satisfies AdminBulkAction]
+      : []),
+  ];
 
   return (
     <div className="grid gap-4">
@@ -127,139 +257,90 @@ export function AdminPaymentProofsManager({
         title="Payment proof review"
         description="Uploaded receipts and transaction references awaiting manual confirmation."
       >
-        <AdminFilterTabs
-          active={filter}
-          filters={[
-            { id: "queue", label: "Awaiting review", count: queue.length },
-            { id: "reviewed", label: "Reviewed", count: reviewed.length },
-            { id: "all", label: "All", count: submissions.length },
-          ]}
-          onChange={setFilter}
+        <nav aria-label="Review status shortcuts" className="flex gap-1 overflow-x-auto border-b border-slate-200 px-4 pt-3">
+          {shortcuts.map((shortcut) => (
+            <button
+              aria-current={(query.filters.status ?? "") === shortcut.value ? "page" : undefined}
+              className={`min-h-10 shrink-0 rounded-t-xl px-3 text-xs font-extrabold ${(query.filters.status ?? "") === shortcut.value ? "bg-slate-950 text-white" : "text-slate-500 hover:bg-slate-50"}`}
+              key={shortcut.label}
+              onClick={() => actions.setFilter("status", shortcut.value || null)}
+              type="button"
+            >
+              {shortcut.label} <span className="opacity-70">{current ? counts[shortcut.count] : "…"}</span>
+            </button>
+          ))}
+        </nav>
+        <AdminFilterBar
+          endSlot={<AdminExportMenu busy={exportBusy} formats={getAdminPaymentProofExportFormats()} onExport={(format, scope) => void exportRows(format, scope)} selectedCount={selectedIds.size} />}
+          filters={filters}
+          hasActiveFilters={hasActiveFilters}
+          onClearAll={actions.clearAllFilters}
+          onFilterChange={actions.setFilter}
+          onFiltersChange={actions.setFilters}
+          searchSlot={<AdminSearchInput onChange={actions.setSearch} placeholder="Search order, customer, reference, reviewer…" value={query.search} />}
+          values={query.filters}
         />
-        {message ? (
-          <p className="px-4 pt-3 text-sm font-bold text-[#1b4f9c]">{message}</p>
+        {message ? <p className="px-4 pt-3 text-sm font-bold text-[#1b4f9c]" role="status">{message}</p> : null}
+        <AdminDataTable
+          columns={columns}
+          emptyDescription={hasActiveFilters ? "Try changing or clearing the active filters." : "Payment proofs appear when owners submit receipts for their orders."}
+          emptyTitle={hasActiveFilters ? "No payment proofs match these filters." : "No payment proofs yet."}
+          error={current?.error || undefined}
+          loading={!current}
+          onPageChange={actions.setPage}
+          onPageSizeChange={actions.setPageSize}
+          onRetry={refresh}
+          onRowOpen={(proof) => actions.setExtraParam("proof", proof.id)}
+          onSelectedIdsChange={setSelectedIds}
+          onSortChange={actions.setSort}
+          page={query.page}
+          pageSize={query.pageSize}
+          rowKey={(proof) => proof.id}
+          rowOpenLabel="Review"
+          rows={items}
+          selectable
+          selectedIds={selectedIds}
+          sortBy={query.sortBy}
+          sortDir={query.sortDir}
+          stickyFirstColumn
+          total={current?.total ?? 0}
+        />
+        <AdminBulkActionBar actions={bulkActions} busy={exportBusy} onClearSelection={() => setSelectedIds(new Set())} selectedCount={selectedIds.size} />
+        {openProof ? (
+          <AdminPaymentProofDetailDrawer
+            busy={busy}
+            key={openProof.id}
+            onClose={() => actions.setExtraParam("proof", null)}
+            onReview={(decision, proof) => beginReview(decision, proof)}
+            refreshKey={reloadKey}
+            summary={openProof}
+          />
         ) : null}
-        <div className="grid gap-3 p-4">
-          {visible.length === 0 ? (
-            <p className="rounded-xl bg-slate-50 px-4 py-6 text-center text-sm font-semibold text-slate-500">
-              {filter === "queue"
-                ? "No payment proofs waiting for review."
-                : "No payment proof submissions here yet."}
-            </p>
-          ) : (
-            visible.map((order) => {
-              const pet = petMap.get(order.petId);
-              const awaiting = order.status === "Payment Submitted";
-              const proofs = order.paymentProofs ?? [];
-              const latestProof = proofs[0];
-              const rejectedCount = proofs.filter(
-                (proof) => proof.status === "Rejected"
-              ).length;
-
-              return (
-                <article
-                  className="rounded-2xl border border-slate-200 p-4"
-                  key={order.id}
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-base font-black text-slate-950">
-                      {formatOrderNumber(order)}
-                    </h3>
-                    <Badge tone={orderStatusTone[order.status]}>
-                      {getOrderStatusDisplay(order.status)}
-                    </Badge>
-                  </div>
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                    <AdminDetailItem
-                      label="Owner"
-                      value={pet?.owner.name ?? "Owner"}
-                    />
-                    <AdminDetailItem
-                      label="Pet"
-                      value={pet?.name ?? "Pet profile"}
-                    />
-                    <AdminDetailItem label="Amount" value={order.estimatedPrice} />
-                    <AdminDetailItem
-                      label="Payment reference"
-                      value={order.paymentReference ?? "Not provided"}
-                    />
-                    <AdminDetailItem
-                      label="Uploaded proof"
-                      value={order.paymentProofName ?? "Not provided"}
-                    />
-                    <AdminDetailItem
-                      label="Submitted"
-                      value={order.paymentSubmittedDate ?? ""}
-                    />
-                    <AdminDetailItem
-                      label="Owner note"
-                      value={order.paymentNote ?? "None"}
-                    />
-                    <AdminDetailItem
-                      label="Confirmed"
-                      value={order.paymentConfirmedDate ?? "Not confirmed"}
-                    />
-                    <AdminDetailItem
-                      label="Attempts"
-                      value={
-                        proofs.length > 0
-                          ? `${proofs.length} (${rejectedCount} rejected)`
-                          : "1"
-                      }
-                    />
-                    <AdminDetailItem
-                      label="Last reviewed"
-                      value={latestProof?.reviewedLabel ?? "Not reviewed"}
-                    />
-                  </div>
-                  {rejectedCount > 0 ? (
-                    <p className="mt-2 text-xs font-bold text-slate-500">
-                      This order had {rejectedCount}{" "}
-                      {rejectedCount === 1 ? "proof" : "proofs"} sent back for
-                      resubmission. Open the order to see the full history.
-                    </p>
-                  ) : null}
-                  <div className="mt-3 flex flex-wrap gap-1.5">
-                    {awaiting ? (
-                      <>
-                        <AdminActionButton
-                          onClick={() => void approve(order.id)}
-                          tone="primary"
-                        >
-                          Approve &amp; Confirm Payment
-                        </AdminActionButton>
-                        <AdminActionButton
-                          onClick={() => setPendingRejectId(order.id)}
-                          tone="danger"
-                        >
-                          Request Resubmission
-                        </AdminActionButton>
-                      </>
-                    ) : null}
-                    <Link
-                      className="inline-flex min-h-9 items-center justify-center rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-extrabold text-slate-700 transition hover:bg-slate-50"
-                      href={`/admin/orders?order=${encodeURIComponent(formatOrderNumber(order))}`}
-                    >
-                      View Order
-                    </Link>
-                  </div>
-                  <OrderDocumentButtons heading="Order documents" order={order} />
-                </article>
-              );
-            })
-          )}
-        </div>
       </AdminSection>
 
       <ConfirmDialog
-        confirmLabel="Request Resubmission"
-        destructive
-        message="The order will return to Pending Payment with a friendly note asking the owner to resubmit their receipt. The order is not cancelled."
-        onCancel={() => setPendingRejectId("")}
-        onConfirm={() => void confirmReject()}
-        open={Boolean(pendingRejectId)}
-        title="Request payment proof resubmission?"
-      />
+        confirmLabel={busy ? "Working…" : pendingReview?.decision === "approve" ? "Approve & Confirm Payment" : "Request Resubmission"}
+        destructive={pendingReview?.decision === "reject"}
+        message={pendingReview?.decision === "approve"
+          ? "The latest submitted proof will be approved and the order payment confirmed."
+          : "The order will return to Pending Payment with a note asking the owner to resubmit their receipt. The order is not cancelled."}
+        onCancel={() => !busy && setPendingReview(null)}
+        onConfirm={() => void confirmReview()}
+        open={pendingReview !== null}
+        title={pendingReview?.decision === "approve" ? "Approve this payment?" : "Request payment proof resubmission?"}
+      >
+        {pendingReview?.decision === "reject" ? (
+          <label className="grid gap-1 text-sm font-bold text-slate-700">
+            Reason
+            <textarea className="min-h-24 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-semibold outline-none focus:border-slate-400" maxLength={600} onChange={(event) => setReason(event.target.value)} value={reason} />
+          </label>
+        ) : null}
+        {dialogError ? <p className="mt-2 text-sm font-bold text-red-700" role="alert">{dialogError}</p> : null}
+      </ConfirmDialog>
     </div>
   );
+}
+
+function nonNegativeAmount(value?: string) {
+  return value && /^\d+(\.\d{1,2})?$/.test(value) ? value : undefined;
 }

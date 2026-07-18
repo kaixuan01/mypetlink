@@ -149,7 +149,7 @@ export function PublicLayout({
           <div className="min-w-0">
             <BrandLogo className="h-16 w-auto max-w-[260px]" />
             <p className="mt-4 max-w-xl text-sm leading-6 text-pet-muted">
-              Built for Malaysian pet owners who want safer public QR profiles,
+              Built for Malaysian pet owners who want safer public pet profiles,
               beautiful shareable pet pages, pet memories, simpler care
               records, optional one-time MyPetLink QR and QR + NFC smart tag
               add-ons, and fast WhatsApp contact when a pet is found.

@@ -1,3 +1,4 @@
+import { buildAdminListQuery, csvCell, triggerDownload } from "@/lib/adminListShared";
 import { canUseAdminApi } from "@/services/adminService";
 import { apiRequest, apiRequestBlob } from "@/services/apiClient";
 import { mockDelay } from "@/services/mockApi";
@@ -194,24 +195,7 @@ function mapBackendItem(item: BackendInventoryItem): AdminInventoryTag {
 }
 
 function buildQueryString(params: AdminInventoryListParams) {
-  const searchParams = new URLSearchParams();
-
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined && value !== "") {
-      searchParams.set(key, String(value));
-    }
-  }
-
-  // Date filters arrive as yyyy-mm-dd; the "to" edge is inclusive of that day.
-  for (const key of ["generatedTo", "updatedTo"] as const) {
-    const value = searchParams.get(key);
-
-    if (value && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
-      searchParams.set(key, `${value}T23:59:59Z`);
-    }
-  }
-
-  return searchParams.toString();
+  return buildAdminListQuery(params, { dateOnlyToKeys: ["generatedTo", "updatedTo"] });
 }
 
 export async function listTagInventory(
@@ -368,7 +352,7 @@ export async function downloadTagInventoryExport(
     ]),
   ];
   const csv = lines
-    .map((row) => row.map((cell) => `"${cell.replaceAll('"', '""')}"`).join(","))
+    .map((row) => row.map(csvCell).join(","))
     .join("\n");
 
   triggerDownload(
@@ -377,17 +361,6 @@ export async function downloadTagInventoryExport(
   );
 }
 
-function triggerDownload(blob: Blob, fileName: string) {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-
-  link.href = url;
-  link.download = fileName;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}
 
 // --- Local-data implementation ----------------------------------------------
 

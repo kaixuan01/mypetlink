@@ -58,7 +58,7 @@ const tagTypes: {
   {
     type: "MyPetLink QR + NFC Smart Tag",
     title: "MyPetLink QR + NFC Smart Tag",
-    description: "Scan the QR or tap the NFC tag to open the QR Safety Page.",
+    description: "Scan the QR or tap the NFC tag to open the Safety Profile.",
   },
 ];
 
@@ -561,7 +561,7 @@ export function TagOrderFlow({
       return (
         <StepShell
           title="Choose Tag Type"
-          description="Both tag options open your pet's QR Safety Page."
+          description="Both tag options open your pet's Safety Profile."
         >
           <div className="grid gap-4 md:grid-cols-2">
             {tagTypes.map((option) => (
@@ -630,8 +630,8 @@ export function TagOrderFlow({
     if (step === 3) {
       const explanation =
         tagType === "MyPetLink QR + NFC Smart Tag"
-          ? `QR scan and NFC tap both open ${selectedPet?.name ?? "your pet"}'s QR Safety Page.`
-          : `This QR opens ${selectedPet?.name ?? "your pet"}'s QR Safety Page.`;
+          ? `QR scan and NFC tap both open ${selectedPet?.name ?? "your pet"}'s Safety Profile.`
+          : `This QR opens ${selectedPet?.name ?? "your pet"}'s Safety Profile.`;
 
       return (
         <StepShell
@@ -659,10 +659,10 @@ export function TagOrderFlow({
                   QR destination
                 </p>
                 <p className="mt-1 font-black text-pet-ink">
-                  {selectedPet?.name ?? "Your pet"}&apos;s QR Safety Page
+                  {selectedPet?.name ?? "Your pet"}&apos;s Safety Profile
                 </p>
                 <p className="mt-1 text-xs leading-5 text-pet-muted">
-                  Your pet-level QR Safety Page stays at{" "}
+                  Your pet-level Safety Profile stays at{" "}
                   <span className="font-black text-pet-teal">
                     {selectedPet?.qrSafetyPath ?? "/q/{safetyCode}"}
                   </span>
@@ -848,7 +848,7 @@ function TagMockup({
           {petName}
         </p>
         <p className="text-[0.65rem] font-semibold text-pet-muted">
-          Scan to open QR Safety Page
+          Scan to open Safety Profile
         </p>
       </div>
       {isNfc ? (

@@ -84,11 +84,11 @@ export function QrSafetyPageView({ pet }: QrSafetyPageViewProps) {
             className="mt-5 text-sm font-bold uppercase text-pet-teal"
             style={{ color: theme.colors.primary }}
           >
-            MyPetLink safety page
+            MyPetLink Safety Profile
           </p>
           <h1 className="mt-2 text-3xl font-black text-pet-ink">
             {isMemorial
-              ? `${pet.name}'s safety page is no longer active`
+              ? `${pet.name}'s Safety Profile is no longer active`
               : "This pet profile is archived"}
           </h1>
           <p className="mx-auto mt-3 max-w-sm text-sm font-semibold leading-6 text-pet-muted">
@@ -177,7 +177,7 @@ export function QrSafetyPageView({ pet }: QrSafetyPageViewProps) {
           className="mt-5 text-sm font-bold uppercase text-pet-teal"
           style={{ color: theme.colors.primary }}
         >
-          MyPetLink safety page
+          MyPetLink Safety Profile
         </p>
         <h1 className="mt-2 text-4xl font-black text-pet-ink">
           {isLostMode ? `${pet.name} is currently missing` : `Found ${pet.name}?`}

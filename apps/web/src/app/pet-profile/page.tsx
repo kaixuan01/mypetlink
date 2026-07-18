@@ -11,7 +11,7 @@ export const metadata: Metadata = createMarketingMetadata({
   path: marketingRoutes.petProfile,
   title: "Free Shareable Pet Profiles in Malaysia | MyPetLink",
   description:
-    "Create a free shareable profile for a cat, dog, or other pet, with owner-approved details, memories, care records, and a separate QR Safety Page.",
+    "Create a free shareable profile for a cat, dog, or other pet, with owner-approved details, memories, care records, and a separate Safety Profile.",
 });
 
 const benefits: { icon: IconName; title: string; description: string }[] = [
@@ -31,7 +31,7 @@ const benefits: { icon: IconName; title: string; description: string }[] = [
     icon: "shield",
     title: "Privacy choices stay with the owner",
     description:
-      "The friendly Share Profile is separate from the contact-focused QR Safety Page, with controls for what visitors can see.",
+      "The friendly Share Profile is separate from the contact-focused Safety Profile, with controls for what visitors can see.",
   },
 ];
 
@@ -72,7 +72,7 @@ export default function PetProfileGuidePage() {
             </CTAButton>
           </article>
           <article className="rounded-[1.75rem] border border-pet-border p-6">
-            <h2 className="text-xl font-black text-pet-ink">QR Safety Page</h2>
+            <h2 className="text-xl font-black text-pet-ink">Safety Profile</h2>
             <p className="mt-3 text-sm leading-6 text-pet-muted">
               A finder-first page with large contact actions, a general area, and safety notes when the owner enables them. It remains excluded from search results.
             </p>

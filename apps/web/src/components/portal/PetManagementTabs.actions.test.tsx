@@ -87,7 +87,7 @@ it("keeps one complete action set on each public profile card", async () => {
     screen.getAllByRole("link", { name: "View Public Profile" })
   ).toHaveLength(1);
   expect(
-    screen.getAllByRole("link", { name: "View QR Safety Page" })
+    screen.getAllByRole("link", { name: "View Safety Profile" })
   ).toHaveLength(1);
   expect(screen.getAllByRole("button", { name: "Copy Link" })).toHaveLength(2);
   expect(screen.getAllByRole("button", { name: "Show QR" })).toHaveLength(2);

@@ -109,47 +109,6 @@ export function AdminActionButton({
   );
 }
 
-export function AdminFilterTabs<T extends string>({
-  filters,
-  active,
-  onChange,
-}: {
-  filters: { id: T; label: string; count?: number }[];
-  active: T;
-  onChange: (id: T) => void;
-}) {
-  return (
-    <div className="flex flex-wrap gap-1.5 p-4 pb-0">
-      {filters.map((filter) => {
-        const isActive = filter.id === active;
-        return (
-          <button
-            className={`inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-extrabold transition ${
-              isActive
-                ? "border-slate-950 bg-slate-950 text-white"
-                : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
-            }`}
-            key={filter.id}
-            onClick={() => onChange(filter.id)}
-            type="button"
-          >
-            {filter.label}
-            {typeof filter.count === "number" ? (
-              <span
-                className={`rounded-full px-1.5 text-[0.65rem] ${
-                  isActive ? "bg-white/20" : "bg-slate-100"
-                }`}
-              >
-                {filter.count}
-              </span>
-            ) : null}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 export function AdminNotice({ children }: { children: ReactNode }) {
   return (
     <div className="min-w-0 rounded-xl border border-[#cfe3ff] bg-[#f0f7ff] px-4 py-3 text-sm font-semibold text-[#1b4f9c]">

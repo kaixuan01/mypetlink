@@ -125,7 +125,10 @@ public sealed record UpdatePetRequest(
     // when the list fields are provided.
     [MaxLength(80)] string? FavoriteFood = null,
     [MaxLength(80)] string? FavoriteToy = null,
-    IReadOnlyList<string>? Allergies = null);
+    IReadOnlyList<string>? Allergies = null,
+    // Null means "no change" so older clients keep current behaviour.
+    bool? QrSafetyEnabled = null,
+    bool? PublicProfileEnabled = null);
 
 public sealed record PetContactResponse(
     bool UseOwnerDefaults,
@@ -173,7 +176,10 @@ public sealed record PetListItemResponse(
     string PublicProfilePath,
     string QrSafetyPath,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    bool QrSafetyEnabled = true,
+    bool PublicProfileEnabled = true,
+    bool HasUsableSafetyContact = false);
 
 public sealed record PetDetailResponse(
     Guid Id,
@@ -222,7 +228,10 @@ public sealed record PetDetailResponse(
     string? EmergencyNote,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
-    DateTimeOffset? ArchivedAt);
+    DateTimeOffset? ArchivedAt,
+    bool QrSafetyEnabled = true,
+    bool PublicProfileEnabled = true,
+    bool HasUsableSafetyContact = false);
 
 public sealed record PetResponse(
     Guid Id,

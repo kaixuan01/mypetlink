@@ -140,10 +140,8 @@ export function PetDetailHeader({
       ) : (
         <ProfileAccessBadges
           className="mt-4"
-          finderProfileUrl={currentPet.qrSafetyPath}
           orders={petOrders}
           pet={currentPet}
-          qrStatus={currentPet.qrStatus}
           scroll
           tags={tags}
         />

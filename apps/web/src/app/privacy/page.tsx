@@ -15,7 +15,7 @@ export const metadata: Metadata = createMarketingMetadata({
   path: marketingRoutes.privacy,
   title: "Privacy Notice | MyPetLink Malaysia",
   description:
-    "Read how MyPetLink handles pet profiles, owner contact choices, QR safety information, account data, and privacy in Malaysia.",
+    "Read how MyPetLink handles pet profiles, owner contact choices, safety profile information, account data, and privacy in Malaysia.",
 });
 
 const lastUpdated = "1 July 2026";
@@ -171,7 +171,7 @@ export default function PrivacyPage() {
         links={quickLinks}
       >
         <p>
-          MyPetLink is designed so QR Safety Pages help finders contact owners
+          MyPetLink is designed so Safety Profiles help finders contact owners
           without exposing more information than necessary. This Notice explains
           what information may be collected, how it is used, and the choices pet
           owners have. It should be read together with our{" "}
@@ -246,7 +246,7 @@ export default function PrivacyPage() {
               />
               <VisibilityCard
                 icon="qr"
-                title="QR Safety Page may show"
+                title="Safety Profile may show"
                 items={qrSafetyItems}
               />
               <VisibilityCard
@@ -261,7 +261,7 @@ export default function PrivacyPage() {
             <LegalBulletList
               items={[
                 "Create and manage pet profiles.",
-                "Display Public Share Profiles and QR Safety Pages based on owner settings.",
+                "Display Public Share Profiles and Safety Profiles based on owner settings.",
                 "Enable finder contact through WhatsApp, call, or related contact options.",
                 "Manage Lost Mode, safety notes, care records, and memories.",
                 "Process smart tag orders and payment proof where applicable.",

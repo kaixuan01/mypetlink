@@ -139,9 +139,9 @@ dashboard. Its tabs are **Basic Info | Photos | Theme | Public Profile | Contact
 | ----------------- | ------------------------------------------------------------------ |
 | Basic Info        | name, species, breed, gender, color, exact birthday/estimated birth year/unknown age, description, personality, favourites |
 | Photos            | profile + cover photo, live preview                                |
-| Theme             | `profileTheme` (applies to **both** the public share profile and the QR safety page) |
+| Theme             | `profileTheme` (applies to **both** the public share profile and the Safety Profile) |
 | Public Profile    | slug, adoption day, share-page visibility flags, **Public Profile URL** (`/p/{slug}-{publicCode}`) + View Public Profile |
-| Contact & Safety  | owner display name, WhatsApp/phone, general area, safety + emergency notes, finder visibility flags, **QR Safety Page URL** (`/q/{safetyCode}`) + View QR Safety Page |
+| Contact & Safety  | owner display name, WhatsApp/phone, general area, safety + emergency notes, finder visibility flags, **Safety Profile link** (`/q/{safetyCode}`) + View Safety Profile |
 
 The edit form does **not** embed Records / Moments / Smart Tag managers â€” only
 small text links back to those hub routes. On submit, a validation error focuses
@@ -168,7 +168,7 @@ All owner pet pages key off the **`petId`** (`ownerRoutes.*` helpers):
 
 > **Legacy QR route:** `/pets/{id}/qr` is kept only as a compatibility redirect
 > to `/pets/{id}`. Do not link to it as a management page. The pet overview owns
-> the compact Public Share Profile, QR Safety Page, and Physical Smart Tag
+> the compact Public Share Profile, Safety Profile, and Physical Smart Tag
 > Copy/View/Show QR actions. Safety/contact/privacy settings live in
 > `Edit Pet -> Contact & Safety`; physical tag management lives in the hub
 > **Smart Tag** tab and `/tags`.

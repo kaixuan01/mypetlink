@@ -1,5 +1,6 @@
 "use client";
 
+import { dateOnlyOrUndefined, isGuid } from "@/lib/adminListShared";
 import { useEffect, useMemo, useState } from "react";
 import { AdminOrderDetailDrawer } from "@/components/admin/AdminOrderDetailDrawer";
 import { AdminSection } from "@/components/admin/AdminPanels";
@@ -223,18 +224,18 @@ export function AdminOrdersManager() {
     deliveryLocation: query.filters.location,
     amountMin: query.filters.amountMin,
     amountMax: query.filters.amountMax,
-    createdFrom: query.filters.createdFrom,
-    createdTo: query.filters.createdTo,
-    updatedFrom: query.filters.updatedFrom,
-    updatedTo: query.filters.updatedTo,
-    proofSubmittedFrom: query.filters.proofSubmittedFrom,
-    proofSubmittedTo: query.filters.proofSubmittedTo,
-    paymentConfirmedFrom: query.filters.paymentConfirmedFrom,
-    paymentConfirmedTo: query.filters.paymentConfirmedTo,
-    shippedFrom: query.filters.shippedFrom,
-    shippedTo: query.filters.shippedTo,
-    deliveredFrom: query.filters.deliveredFrom,
-    deliveredTo: query.filters.deliveredTo,
+    createdFrom: dateOnlyOrUndefined(query.filters.createdFrom),
+    createdTo: dateOnlyOrUndefined(query.filters.createdTo),
+    updatedFrom: dateOnlyOrUndefined(query.filters.updatedFrom),
+    updatedTo: dateOnlyOrUndefined(query.filters.updatedTo),
+    proofSubmittedFrom: dateOnlyOrUndefined(query.filters.proofSubmittedFrom),
+    proofSubmittedTo: dateOnlyOrUndefined(query.filters.proofSubmittedTo),
+    paymentConfirmedFrom: dateOnlyOrUndefined(query.filters.paymentConfirmedFrom),
+    paymentConfirmedTo: dateOnlyOrUndefined(query.filters.paymentConfirmedTo),
+    shippedFrom: dateOnlyOrUndefined(query.filters.shippedFrom),
+    shippedTo: dateOnlyOrUndefined(query.filters.shippedTo),
+    deliveredFrom: dateOnlyOrUndefined(query.filters.deliveredFrom),
+    deliveredTo: dateOnlyOrUndefined(query.filters.deliveredTo),
     sortBy: query.sortBy,
     sortDir: query.sortDir,
   }), [query]);
@@ -601,6 +602,3 @@ function actionSuccess(action: PendingAction["action"], orderNumber: string) {
   return `${result[action]} for ${orderNumber}.`;
 }
 
-function isGuid(value?: string) {
-  return Boolean(value && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value));
-}

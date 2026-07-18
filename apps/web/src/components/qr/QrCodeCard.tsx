@@ -6,7 +6,7 @@ import { downloadQrPng, QrCodeImage } from "@/components/qr/QrCode";
 import { getEnvBaseUrl, getSiteBaseUrl, toAbsoluteUrl } from "@/lib/siteUrl";
 
 type QrCodeCardProps = {
-  // Display label for the QR (e.g. "QR Safety Page").
+  // Display label for the QR (e.g. "Safety Profile").
   title: string;
   // Route path (e.g. "/q/CODE") or an absolute URL.
   targetPath: string;

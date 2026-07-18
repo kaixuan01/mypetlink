@@ -1,3 +1,4 @@
+import { buildAdminListQuery, csvCell, triggerDownload } from "@/lib/adminListShared";
 import { getAdminOrderActions, type AdminOrderAction } from "@/lib/orders";
 import { canUseAdminApi } from "@/services/adminService";
 import { apiRequest, apiRequestBlob } from "@/services/apiClient";
@@ -221,26 +222,13 @@ function mapBackendItem(item: BackendAdminOrderItem): AdminOrder {
 }
 
 function buildQuery(params: AdminOrderListParams, omitPaging = false) {
-  const query = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined && value !== "" && (!omitPaging || (key !== "page" && key !== "pageSize"))) {
-      query.set(key, String(value));
-    }
-  }
-
-  for (const key of [
-    "createdTo",
-    "updatedTo",
-    "proofSubmittedTo",
-    "paymentConfirmedTo",
-    "shippedTo",
-    "deliveredTo",
-  ] as const) {
-    const value = query.get(key);
-    if (value && /^\d{4}-\d{2}-\d{2}$/.test(value)) query.set(key, `${value}T23:59:59Z`);
-  }
-
-  return query.toString();
+  return buildAdminListQuery(params, {
+    dateOnlyToKeys: [
+      "createdTo", "updatedTo", "proofSubmittedTo",
+      "paymentConfirmedTo", "shippedTo", "deliveredTo",
+    ],
+    omitPaging,
+  });
 }
 
 export async function listAdminOrders(params: AdminOrderListParams, signal?: AbortSignal) {
@@ -395,7 +383,7 @@ export async function downloadAdminOrdersExport(
       row.createdAt,
     ]),
   ];
-  const csv = data.map((row) => row.map((cell) => `"${cell.replaceAll('"', '""')}"`).join(",")).join("\n");
+  const csv = data.map((row) => row.map(csvCell).join(",")).join("\n");
   triggerDownload(new Blob([csv], { type: "text/csv;charset=utf-8" }), "mypetlink-tag-orders.csv");
 }
 
@@ -429,16 +417,6 @@ export async function getAdminPaymentProofAccess(proofId: string) {
   return response.data;
 }
 
-function triggerDownload(blob: Blob, name: string) {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = name;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}
 
 function derivePaymentStatus(order: TagOrder): AdminOrderPaymentStatus {
   if (order.status === "Payment Submitted") return "ProofSubmitted";

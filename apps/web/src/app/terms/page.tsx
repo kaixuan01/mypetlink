@@ -10,7 +10,7 @@ export const metadata: Metadata = createMarketingMetadata({
   path: marketingRoutes.terms,
   title: "Terms of Use | MyPetLink Malaysia",
   description:
-    "Review the terms for MyPetLink pet profiles, QR Safety Pages, optional smart tags, owner content, finder contact, and service use.",
+    "Review the terms for MyPetLink pet profiles, Safety Profiles, optional smart tags, owner content, finder contact, and service use.",
 });
 
 const lastUpdated = "1 July 2026";
@@ -68,7 +68,7 @@ export default function TermsPage() {
           <LegalSection id="about" number={2} title="About MyPetLink">
             <LegalBulletList
               items={[
-                "MyPetLink helps pet owners create shareable pet profiles and QR Safety Pages.",
+                "MyPetLink helps pet owners create shareable pet profiles and Safety Profiles.",
                 "MyPetLink can support optional physical QR Pet Tags and QR + NFC Smart Tags.",
                 "The service is intended to make it easier for someone who finds a pet to contact the owner.",
                 "MyPetLink does not guarantee that a lost pet will be found, contacted about, or returned.",
@@ -87,7 +87,7 @@ export default function TermsPage() {
                 "You should only upload or publish information, photos, notes, and memories that you have the right to share.",
                 "You must keep your login details safe and tell us if you believe your account has been misused.",
                 "You should update your WhatsApp or phone details if they change, especially when finder contact is enabled.",
-                "You are responsible for managing what is public and what stays private on your pet profile and QR Safety Page.",
+                "You are responsible for managing what is public and what stays private on your pet profile and Safety Profile.",
               ]}
             />
           </LegalSection>
@@ -95,14 +95,14 @@ export default function TermsPage() {
           <LegalSection
             id="public-pages"
             number={4}
-            title="Public Pet Profiles and QR Safety Pages"
+            title="Public Pet Profiles and Safety Profiles"
           >
             <LegalBulletList
               items={[
-                "Public Share Profiles and QR Safety Pages may be visible to anyone with the link, QR code, or NFC tag.",
+                "Public Share Profiles and Safety Profiles may be visible to anyone with the link, QR code, or NFC tag.",
                 "Owners choose what details to show publicly through profile and safety settings.",
                 "Do not publish sensitive information such as a full home address, private notes, identity details, or anything you are not comfortable sharing.",
-                "QR Safety Pages are designed for finder-friendly contact, not full owner disclosure.",
+                "Safety Profiles are designed for finder-friendly contact, not full owner disclosure.",
               ]}
               icon="shield"
             />
@@ -116,7 +116,7 @@ export default function TermsPage() {
             <LegalBulletList
               items={[
                 "QR Pet Tags and QR + NFC Smart Tags are optional one-time add-ons.",
-                "Smart tags connect to the pet's QR Safety Page or activation flow.",
+                "Smart tags connect to the pet's Safety Profile or activation flow.",
                 "Tag availability, pricing, design, packaging, and delivery timelines may vary during our early launch and as we improve fulfilment.",
                 "A physical tag does not provide GPS tracking.",
                 "A QR + NFC tag does not mean real-time tracking.",

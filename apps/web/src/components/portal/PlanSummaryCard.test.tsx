@@ -49,3 +49,28 @@ it("uses dashboard-provided pets and moments without issuing duplicate requests"
   expect(mocks.getPets).not.toHaveBeenCalled();
   expect(mocks.getPetMoments).not.toHaveBeenCalled();
 });
+
+it("shows every counted pet in compact mode", () => {
+  const thirdPet = {
+    ...mockPets[0],
+    id: "pet_doudou",
+    name: "Doudou",
+    slug: "doudou",
+    publicCode: "d0u0",
+    publicProfilePath: "/p/doudou-d0u0",
+  };
+
+  render(
+    <PlanSummaryCard
+      compact
+      initialMoments={[]}
+      initialPets={[mockPets[0], mockPets[1], thirdPet]}
+      refreshOnMount={false}
+    />
+  );
+
+  expect(screen.getByText(`${mockPets[0].name} memories`)).toBeTruthy();
+  expect(screen.getByText(`${mockPets[1].name} memories`)).toBeTruthy();
+  expect(screen.getByText("Doudou memories")).toBeTruthy();
+  expect(screen.getAllByText("0 / 10")).toHaveLength(3);
+});

@@ -6,7 +6,7 @@ type PetProfileLoadingProps = {
 };
 
 // One reusable, brand-friendly loading state shared by every public pet page:
-// Public Share Profile (/p), QR Safety Page (/q), physical tag scan (/t), and
+// Public Share Profile (/p), Safety Profile (/q), physical tag scan (/t), and
 // the Lost Mode / Memorial variants that reuse those views. It stays compact and
 // centered (no oversized card), uses a subtle paw-step animation that respects
 // prefers-reduced-motion, and announces itself politely to assistive tech.

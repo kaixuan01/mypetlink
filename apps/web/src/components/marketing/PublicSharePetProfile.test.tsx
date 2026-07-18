@@ -214,7 +214,7 @@ it("adds and removes labeled finder details from the saved Lost Mode value", asy
   expect(screen.getByText("Please call me directly")).toBeTruthy();
   expect(document.body.textContent).not.toContain(rawTimestamp);
   const safetyLink = screen.getByRole("link", {
-    name: "Open QR Safety Page",
+    name: "Open Safety Profile",
   });
   expect(safetyLink.getAttribute("href")).toBe(getQrSafetyPath(lostProfile));
   expect(safetyLink.getAttribute("href")).not.toContain(lostProfile.slug);
@@ -258,7 +258,7 @@ it("does not render a broken QR action when no safety identifier is available", 
     await screen.findByText(`${profile.name} is currently missing`)
   ).toBeTruthy();
   expect(
-    screen.queryByRole("link", { name: "Open QR Safety Page" })
+    screen.queryByRole("link", { name: "Open Safety Profile" })
   ).toBeNull();
 });
 

@@ -1,16 +1,16 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
 import { MomentMediaThumbnail } from "@/components/moments/MomentMediaThumbnail";
 import {
-  getQrStatusBadge,
+  getSafetyProfileBadge,
   getSmartTagStatusBadge,
 } from "@/components/portal/ProfileAccessStatus";
 import { PetMomentsManager } from "@/components/portal/PetMomentsManager";
+import { PublicLinkActions } from "@/components/portal/PublicLinkActions";
 import { RecordsManager } from "@/components/portal/RecordsManager";
 import { TagManagementPanel } from "@/components/portal/TagManagementPanel";
 import { LostModeControl } from "@/components/portal/LostModeControl";
-import { QrCodeButton } from "@/components/qr/QrCodeButton";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon } from "@/components/ui/Icon";
@@ -31,7 +31,6 @@ import {
 } from "@/lib/publicProfileSocial";
 import { smartTagOrderingEnabled } from "@/lib/features";
 import { ownerRoutes, tagPath } from "@/lib/routes";
-import { getServerFallbackBaseUrl, toAbsoluteUrl } from "@/lib/siteUrl";
 import { getTagScanDisplay, isActivePhysicalTagForPet } from "@/lib/tagStatus";
 import { isApiConfigured } from "@/services/apiConfig";
 import { getPetMoments } from "@/services/momentService";
@@ -81,7 +80,7 @@ export function PetManagementTabs({
   );
 
   // The page is server-rendered from seed data; re-read the pet on the client so
-  // persisted edits (e.g. Lost Mode) survive a refresh and match the QR safety
+  // persisted edits (e.g. Lost Mode) survive a refresh and match the safety
   // and public profile pages, which read the same stored record.
   useEffect(() => {
     let active = true;
@@ -184,19 +183,12 @@ function OverviewTab({
   const memoryLimit = getMemoryLimitState(moments.length);
   const currentTags = tags.filter((tag) => !tag.isArchived);
   const activeTag = currentTags.find((tag) => isActivePhysicalTagForPet(tag, pet));
-  const origin = useSyncExternalStore(
-    subscribeToOrigin,
-    getBrowserOrigin,
-    getServerOrigin
-  );
   const activeTagScanDisplay = activeTag
     ? getTagScanDisplay(activeTag, undefined, pet)
     : null;
   const activeTagScanPath = activeTag ? tagPath(activeTag.tagCode) : "";
-  const activeTagScanUrl =
-    activeTag && activeTagScanPath ? toAbsoluteUrl(activeTagScanPath, origin) : "";
   const theme = getPetProfileTheme(pet.profileTheme);
-  const qrBadge = getQrStatusBadge(pet.qrStatus, pet.qrSafetyPath, pet);
+  const safetyBadge = getSafetyProfileBadge(pet);
   const smartTagBadge = getSmartTagStatusBadge(tags, orders, pet);
   const isMemorial = isMemorialPet(pet);
   const isArchived = isArchivedPet(pet);
@@ -226,46 +218,71 @@ function OverviewTab({
         badge={<Badge tone="mint">{theme.name} theme</Badge>}
         description="The friendly page you share with family, friends, and pet communities."
       >
-        <LinkActionPanel
+        <PublicLinkActions
           copyLabel="Copy Link"
           copyMessage="Public Share Profile link copied."
           fileNameBase={`${pet.slug}-share-profile-qr`}
           helperText="Share your pet's public profile with friends and family."
           path={publicProfileSharePath}
           qrTitle="Share Profile QR"
-          url={toAbsoluteUrl(publicProfileSharePath, origin)}
           viewLabel={isMemorial ? "View Memorial Profile" : "View Public Profile"}
         />
       </SectionCard>
 
-      {/* QR Safety Page */}
+      {/* Safety Profile */}
       <SectionCard
         icon="qr"
-        title="QR Safety Page"
+        title="Safety Profile"
         badge={
-          <Badge tone={qrBadge.tone}>{qrBadge.label}</Badge>
+          <Badge tone={safetyBadge.tone}>{safetyBadge.label}</Badge>
         }
         description={
           isMemorial
-            ? "Memorial profiles keep QR Safety contact actions turned off."
+            ? "Memorial profiles keep Safety Profile contact actions turned off."
             : isArchived
-              ? "Restore this profile to manage QR Safety contact settings again."
-              : "This is the page people see when they find your pet. You can share it anytime."
+              ? "Restore this profile to manage Safety Profile contact settings again."
+              : "This is the page people see when they find your pet — through a QR code, an NFC tag, or this link. You can share it anytime."
         }
       >
-        <LinkActionPanel
+        {isActiveProfile && safetyBadge.label === "Contact Update Needed" ? (
+          <section
+            aria-labelledby={`safety-contact-warning-${pet.id}`}
+            className="rounded-[1.25rem] border border-[#f0dfae] bg-[#fffbea] p-4"
+            role="status"
+          >
+            <h3
+              className="text-sm font-black text-[#6b5500]"
+              id={`safety-contact-warning-${pet.id}`}
+            >
+              Update your contact details
+            </h3>
+            <p className="mt-1 text-xs font-bold leading-5 text-[#856a00]">
+              Add a phone or WhatsApp number so finders can contact you if your
+              pet goes missing.
+            </p>
+            <div className="mt-3">
+              <CTAButton
+                href={`${ownerRoutes.petEdit(pet.id)}?tab=contact`}
+                icon="phone"
+                variant="secondary"
+              >
+                Update Contact
+              </CTAButton>
+            </div>
+          </section>
+        ) : null}
+        <PublicLinkActions
           copyLabel="Copy Link"
-          copyMessage="QR Safety Page link copied."
-          fileNameBase={`${pet.slug}-qr-safety-page`}
-          helperText="Use this safety page if someone finds your pet."
+          copyMessage="Safety Profile link copied."
+          fileNameBase={`${pet.slug}-safety-profile`}
+          helperText="Use this Safety Profile if someone finds your pet."
           path={pet.qrSafetyPath}
-          qrTitle="QR Safety Page QR"
-          url={toAbsoluteUrl(pet.qrSafetyPath, origin)}
-          viewLabel="View QR Safety Page"
+          qrTitle="Safety Profile QR"
+          viewLabel="View Safety Profile"
           warning={
             isActiveProfile
               ? undefined
-              : "This profile is inactive, so the QR Safety Page does not reveal finder contact details."
+              : "This profile is inactive, so the Safety Profile does not reveal finder contact details."
           }
         />
         <div className="rounded-[1.25rem] bg-pet-cream p-4">
@@ -433,7 +450,7 @@ function OverviewTab({
             ? "Physical tags linked to this memorial are kept as history and show an inactive scan page."
             : isArchived
               ? "Restore this profile before using physical tags again."
-              : "Physical QR or QR + NFC tags. Active tags open this pet's QR Safety Page."
+              : "Physical QR or QR + NFC tags. Linked tags open this pet's Safety Profile."
         }
       >
         {activeTag ? (
@@ -448,14 +465,13 @@ function OverviewTab({
               Physical Tag Scan Page
             </p>
             <div className="mt-2">
-              <LinkActionPanel
+              <PublicLinkActions
                 copyLabel="Copy Link"
                 copyMessage="Physical Tag Scan Page link copied."
                 fileNameBase={`${activeTag.tagCode}-physical-tag-qr`}
                 helperText="This QR belongs to the physical tag linked to this pet."
                 path={activeTagScanPath}
                 qrTitle="Physical Tag QR"
-                url={activeTagScanUrl}
                 viewLabel="View Tag Scan Page"
               />
             </div>
@@ -471,7 +487,7 @@ function OverviewTab({
               ? `Physical tags linked to ${pet.name} are historical and no longer show finder contact actions.`
               : isArchived
                 ? `Physical tags linked to ${pet.name} are inactive while this profile is archived.`
-                : `No active physical tag right now. ${pet.name}'s QR Safety Page is still ready to share, and you can order a tag when needed.`}
+                : `No active physical tag right now. ${pet.name}'s Safety Profile is still ready to share, and you can order a tag when needed.`}
           </p>
         )}
         <div className="mt-auto flex flex-col gap-3 sm:flex-row pt-1">
@@ -497,123 +513,6 @@ function OverviewTab({
       </SectionCard>
     </div>
   );
-}
-
-function subscribeToOrigin() {
-  return () => {};
-}
-
-function getBrowserOrigin() {
-  return window.location.origin;
-}
-
-function getServerOrigin() {
-  return getServerFallbackBaseUrl();
-}
-
-function LinkActionPanel({
-  copyLabel,
-  copyMessage,
-  fileNameBase,
-  helperText,
-  path,
-  qrTitle,
-  url,
-  viewLabel,
-  warning,
-}: {
-  copyLabel: string;
-  copyMessage: string;
-  fileNameBase: string;
-  helperText: string;
-  path: string;
-  qrTitle: string;
-  url: string;
-  viewLabel: string;
-  warning?: string;
-}) {
-  const [status, setStatus] = useState("");
-
-  async function handleCopy() {
-    const copied = await copyText(url);
-    setStatus(copied ? copyMessage : "Copy unavailable. Select and copy the link.");
-    window.setTimeout(() => setStatus(""), 2500);
-  }
-
-  return (
-    <div className="grid min-w-0 gap-3">
-      <p
-        aria-label={`${qrTitle} link`}
-        className="select-all break-all rounded-[1rem] border border-pet-border bg-white px-3 py-2 text-xs font-bold leading-5 text-pet-ink"
-        role="textbox"
-        tabIndex={0}
-      >
-        {url}
-      </p>
-      <div className="grid gap-2 sm:grid-cols-3">
-        <button
-          className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-pet-border bg-white px-4 py-2 text-sm font-extrabold text-pet-ink transition hover:bg-pet-cream"
-          onClick={handleCopy}
-          type="button"
-        >
-          <Icon name="copy" className="h-4 w-4" />
-          {copyLabel}
-        </button>
-        <CTAButton
-          href={path}
-          icon="qr"
-          rel="noopener noreferrer"
-          target="_blank"
-          variant="secondary"
-          fullWidth
-        >
-          {viewLabel}
-        </CTAButton>
-        <QrCodeButton
-          className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-white px-4 py-2 text-sm font-extrabold text-pet-ink transition hover:bg-pet-cream"
-          fileNameBase={fileNameBase}
-          helperText={helperText}
-          label="Show QR"
-          targetPath={path}
-          title={qrTitle}
-          viewLabel={viewLabel}
-          warning={warning}
-        />
-      </div>
-      {status ? (
-        <p className="text-xs font-bold text-pet-sage" role="status">
-          {status}
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
-async function copyText(text: string) {
-  if (navigator.clipboard?.writeText) {
-    try {
-      await navigator.clipboard.writeText(text);
-      return true;
-    } catch {
-      // Try the textarea copy path below.
-    }
-  }
-
-  const textArea = document.createElement("textarea");
-  textArea.value = text;
-  textArea.setAttribute("readonly", "true");
-  textArea.style.position = "fixed";
-  textArea.style.left = "-9999px";
-  document.body.appendChild(textArea);
-  textArea.select();
-
-  try {
-    return document.execCommand("copy");
-  } catch {
-    return false;
-  } finally {
-    document.body.removeChild(textArea);
-  }
 }
 
 function PrivacyTab({ pet }: { pet: Pet }) {
@@ -652,8 +551,8 @@ function PrivacyTab({ pet }: { pet: Pet }) {
 
       <SectionCard
         icon="qr"
-        title="QR safety page visibility"
-        description="What a finder sees after scanning the physical tag."
+        title="Safety Profile visibility"
+        description="What a finder sees after opening the Safety Profile by QR code, NFC tag, or link."
       >
         <StatusGrid items={safetyStatuses} />
         <div className="mt-auto pt-1">
@@ -663,7 +562,7 @@ function PrivacyTab({ pet }: { pet: Pet }) {
             icon="settings"
             fullWidth
           >
-            Edit QR safety settings
+            Edit Safety Profile settings
           </CTAButton>
         </div>
       </SectionCard>

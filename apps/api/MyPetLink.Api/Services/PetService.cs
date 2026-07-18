@@ -33,6 +33,10 @@ public sealed class PetService : SkeletonService, IPetService
             .AsNoTracking()
             .Include(pet => pet.PublicProfile)
             .Include(pet => pet.SafetySetting)
+            // Contact and OwnerUser feed the per-pet Safety Profile readiness
+            // flag (HasUsableSafetyContact) on list items.
+            .Include(pet => pet.Contact)
+            .Include(pet => pet.OwnerUser)
             .Include(pet => pet.ProfileMediaFile)
             .Include(pet => pet.CoverMediaFile)
             .Where(pet => pet.OwnerUserId == userId && pet.DeletedAt == null);
@@ -268,6 +272,18 @@ public sealed class PetService : SkeletonService, IPetService
         if (request.Visibility is not null)
         {
             ApplyVisibility(pet, request.Visibility);
+        }
+
+        // The two public pages stay independently switchable: turning one off
+        // never touches the other.
+        if (request.QrSafetyEnabled.HasValue && pet.SafetySetting is not null)
+        {
+            pet.SafetySetting.QrSafetyEnabled = request.QrSafetyEnabled.Value;
+        }
+
+        if (request.PublicProfileEnabled.HasValue && pet.PublicProfile is not null)
+        {
+            pet.PublicProfile.IsPublicProfileEnabled = request.PublicProfileEnabled.Value;
         }
 
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -916,7 +932,7 @@ public sealed class PetService : SkeletonService, IPetService
             }
         }
 
-        throw ServerConfig("safety_code_generation_failed", "Could not generate a unique QR Safety code.");
+        throw ServerConfig("safety_code_generation_failed", "Could not generate a unique safety code.");
     }
 
     private static Guid RequireUserId(Guid? currentUserId)

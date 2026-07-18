@@ -37,13 +37,13 @@ const steps: { icon: IconName; title: string; description: string }[] = [
     icon: "qr",
     title: "Add a tag when you want one",
     description:
-      "A QR Pet Tag works with a phone camera. The QR + NFC Smart Tag also supports a tap. Both open the same QR Safety Page.",
+      "A QR Pet Tag works with a phone camera. The QR + NFC Smart Tag also supports a tap. Both open the same Safety Profile.",
   },
   {
     icon: "phone",
     title: "A finder contacts the owner",
     description:
-      "When enabled, the QR Safety Page offers clear WhatsApp and Call Owner actions plus practical safety notes.",
+      "When enabled, the Safety Profile offers clear WhatsApp and Call Owner actions plus practical safety notes.",
   },
 ];
 
@@ -83,7 +83,7 @@ export default function HowItWorksPage() {
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
             <CreateProfileCTA>Create Free Pet Profile</CreateProfileCTA>
             <CTAButton href={publicRoutes.qrSafetyPage(samplePet)} variant="secondary">
-              View Topu&apos;s QR Safety Page
+              View Topu&apos;s Safety Profile
             </CTAButton>
             <CTAButton href={marketingRoutes.smartPetTags} variant="outline">
               Compare QR and NFC Tags

@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { OwnerContactSetupCard } from "@/components/portal/OwnerContactSetupCard";
 import { PlanSummaryCard } from "@/components/portal/PlanSummaryCard";
-import { getQrStatusBadge } from "@/components/portal/ProfileAccessStatus";
+import { PublicLinkActions } from "@/components/portal/PublicLinkActions";
+import { getSafetyProfileBadge } from "@/components/portal/ProfileAccessStatus";
+import { getSafetyProfileStatus } from "@/lib/safetyProfile";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon, type IconName } from "@/components/ui/Icon";
@@ -18,6 +20,10 @@ import {
 } from "@/lib/ownerSettings";
 import { getPetSummaryLabel } from "@/lib/petDisplay";
 import { getActivePets, getMemorialPets } from "@/lib/petLifecycle";
+import {
+  addPublicProfileShareVersion,
+  getPublicProfileShareVersion,
+} from "@/lib/publicProfileSocial";
 import { ownerRoutes } from "@/lib/routes";
 import { isActivePhysicalTagForPet } from "@/lib/tagStatus";
 import { isApiConfigured } from "@/services/apiConfig";
@@ -137,11 +143,13 @@ export function DashboardClient({
     [allPets]
   );
   const pendingOrders = orders.filter((order) => isActiveOrder(order.status));
-  const activeQrProfiles = pets.filter((pet) => pet.qrStatus === "active").length;
+  const activeSafetyProfiles = pets.filter(
+    (pet) => getSafetyProfileStatus(pet) === "active"
+  ).length;
   const activeSmartTags = tags.filter((tag) =>
     Boolean(tag.petId && isActivePhysicalTagForPet(tag, petById.get(tag.petId)))
   ).length;
-  const lostModePets = pets.filter((pet) => pet.lostModeEnabled).length;
+  const lostModePets = pets.filter((pet) => pet.lostModeEnabled);
   const upcomingRecords = useMemo(
     () =>
       allRecords
@@ -200,8 +208,21 @@ export function DashboardClient({
   const stats: DashboardStatData[] = [
     { label: pluralize(pets.length, "active pet", "active pets"), value: pets.length, href: ownerRoutes.pets },
     {
-      label: pluralize(activeQrProfiles, "QR safety page", "QR safety pages"),
-      value: activeQrProfiles,
+      label: pluralize(
+        activeSafetyProfiles,
+        "active safety profile",
+        "active safety profiles"
+      ),
+      value: activeSafetyProfiles,
+    },
+    {
+      label: pluralize(
+        activeSmartTags,
+        "active smart tag",
+        "active smart tags"
+      ),
+      value: activeSmartTags,
+      href: ownerRoutes.tags,
     },
     {
       label: pluralize(pendingOrders.length, "pending order", "pending orders"),
@@ -233,14 +254,17 @@ export function DashboardClient({
           Welcome back
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-pet-muted">
-          Manage your pets, safety pages, care records, and moments.
+          Manage your pets, safety profiles, care records, and moments.
         </p>
+        {lostModePets.length ? <LostModeAlert pets={lostModePets} /> : null}
         <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
           {stats.map((stat) => (
             <DashboardStat key={stat.label} {...stat} />
           ))}
         </div>
       </section>
+
+      {pets.length ? <ShareProfilesSection pets={pets} /> : null}
 
       <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
         <div className="grid content-start gap-6">
@@ -250,12 +274,6 @@ export function DashboardClient({
 
         <div className="grid content-start gap-6">
           <QuickActions firstPet={firstPet} />
-          <SafetyOverview
-            activeQrProfiles={activeQrProfiles}
-            activeSmartTags={activeSmartTags}
-            lostModePets={lostModePets}
-            pendingOrders={pendingOrders.length}
-          />
           <DashboardSection title="Plan usage">
             <PlanSummaryCard
               compact
@@ -304,6 +322,35 @@ function DashboardStat({ label, value, href }: DashboardStatData) {
   );
 }
 
+function LostModeAlert({ pets }: { pets: Pet[] }) {
+  const onePet = pets.length === 1 ? pets[0] : undefined;
+  const href = onePet ? ownerRoutes.petProfile(onePet.id) : ownerRoutes.pets;
+
+  return (
+    <Link
+      className="mt-4 flex min-w-0 items-center gap-3 rounded-[1.25rem] border border-[#ffc7bc] bg-[#ffe8e3] p-3.5 transition hover:border-pet-coral"
+      href={href}
+    >
+      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white text-[#a63c2e] shadow-sm">
+        <Icon name="pin" className="h-5 w-5" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-black text-[#8f3025]">
+          {pets.length} {pets.length === 1 ? "pet is" : "pets are"} in Lost Mode
+        </span>
+        <span className="mt-0.5 block text-xs font-semibold leading-5 text-[#8f3025]">
+          {pets.length === 1
+            ? "Your missing pet notice is live."
+            : "Your missing pet notices are live."}
+        </span>
+      </span>
+      <span className="shrink-0 text-xs font-black text-[#8f3025]">
+        {onePet ? "Review pet" : "Review pets"}
+      </span>
+    </Link>
+  );
+}
+
 function ZeroPetWelcome() {
   return (
     <section className="brand-paw-dots brand-soft-card rounded-[1.75rem] border-dashed p-8 text-center sm:p-10">
@@ -349,6 +396,77 @@ function DashboardSection({
   );
 }
 
+function ShareProfilesSection({ pets }: { pets: Pet[] }) {
+  return (
+    <section
+      aria-labelledby="share-pet-profiles-heading"
+      className="brand-card rounded-[1.75rem] p-5 sm:p-6"
+    >
+      <div className="flex items-start gap-3">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[#e8f3ff] text-pet-teal">
+          <Icon name="heart" className="h-5 w-5" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-xs font-extrabold uppercase text-pet-teal">
+            Public Share Profiles
+          </p>
+          <h2
+            className="mt-1 text-xl font-black leading-tight text-pet-ink sm:text-2xl"
+            id="share-pet-profiles-heading"
+          >
+            Share your pet profiles
+          </h2>
+          <p className="mt-1.5 text-sm leading-6 text-pet-muted">
+            Send a profile link or let someone scan the QR.
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+        {pets.map((pet) => (
+          <ShareProfileCard key={pet.id} pet={pet} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ShareProfileCard({ pet }: { pet: Pet }) {
+  const sharePath = addPublicProfileShareVersion(
+    pet.publicProfilePath,
+    getPublicProfileShareVersion(pet)
+  );
+
+  return (
+    <article className="min-w-0 rounded-[1.25rem] bg-pet-cream p-3.5">
+      <div className="flex min-w-0 items-center gap-3">
+        <PetAvatar pet={pet} size="sm" />
+        <div className="min-w-0">
+          <h3 className="truncate text-base font-black text-pet-ink">
+            {pet.name}
+          </h3>
+          <p className="mt-0.5 text-xs font-bold text-pet-muted">
+            Public Share Profile
+          </p>
+        </div>
+      </div>
+      <div className="mt-3">
+        <PublicLinkActions
+          compact
+          copyLabel="Copy Link"
+          copyMessage={`${pet.name}'s Public Share Profile link copied.`}
+          fileNameBase={`${pet.slug}-share-profile-qr`}
+          helperText={`Share ${pet.name}'s public profile with friends and family.`}
+          path={sharePath}
+          qrTitle={`${pet.name}'s Share Profile QR`}
+          showUrl={false}
+          viewLabel="View Profile"
+        />
+      </div>
+    </article>
+  );
+}
+
 function PetSummarySection({ pets }: { pets: Pet[] }) {
   const visiblePets = pets.slice(0, 4);
   const remaining = pets.length - visiblePets.length;
@@ -389,7 +507,7 @@ function PetSummarySection({ pets }: { pets: Pet[] }) {
 }
 
 function PetSummaryRow({ pet }: { pet: Pet }) {
-  const qrBadge = getQrStatusBadge(pet.qrStatus, pet.qrSafetyPath, pet);
+  const safetyBadge = getSafetyProfileBadge(pet);
 
   return (
     <Link
@@ -402,8 +520,8 @@ function PetSummaryRow({ pet }: { pet: Pet }) {
           <h3 className="min-w-0 truncate text-base font-black text-pet-ink">
             {pet.name}
           </h3>
-          <Badge className="shrink-0" tone={qrBadge.tone}>
-            {qrBadge.label}
+          <Badge className="shrink-0" tone={safetyBadge.tone}>
+            {safetyBadge.label}
           </Badge>
         </div>
         <p className="mt-0.5 truncate text-xs font-semibold text-pet-muted">
@@ -493,23 +611,14 @@ function ReminderItem({ record, pet }: { record: CareRecord; pet?: Pet }) {
 }
 
 function QuickActions({ firstPet }: { firstPet?: Pet }) {
-  // Both pet-scoped actions use the current pet (the owner's first active pet on
-  // this dashboard) and fall back to the Pets page when there is none, rather
-  // than hardcoding an id or failing silently.
-  const managePetHref = firstPet
-    ? ownerRoutes.petProfile(firstPet.id)
-    : ownerRoutes.pets;
-  const qrSafetyHref = firstPet ? firstPet.qrSafetyPath : ownerRoutes.pets;
+  // The Safety Profile tile uses the owner's first active pet on this
+  // dashboard and falls back to the Pets page when there is none, rather than
+  // hardcoding an id.
+  const safetyProfileHref = firstPet ? firstPet.qrSafetyPath : ownerRoutes.pets;
 
   return (
     <DashboardSection title="Quick actions">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <ActionTile
-          ariaLabel="Manage pet profile"
-          href={managePetHref}
-          icon="pets"
-          label="Manage Pet"
-        />
         <ActionTile
           ariaLabel="Manage care records"
           href={ownerRoutes.records}
@@ -523,10 +632,10 @@ function QuickActions({ firstPet }: { firstPet?: Pet }) {
           label="Moments"
         />
         <ActionTile
-          ariaLabel="Open QR Safety Page"
-          href={qrSafetyHref}
+          ariaLabel="Open Safety Profile"
+          href={safetyProfileHref}
           icon="qr"
-          label="QR Safety"
+          label="Safety Profile"
           rel={firstPet ? "noopener noreferrer" : undefined}
           target={firstPet ? "_blank" : undefined}
         />
@@ -577,84 +686,6 @@ function ActionTile({
         {label}
       </span>
     </Link>
-  );
-}
-
-function SafetyOverview({
-  activeQrProfiles,
-  activeSmartTags,
-  pendingOrders,
-  lostModePets,
-}: {
-  activeQrProfiles: number;
-  activeSmartTags: number;
-  pendingOrders: number;
-  lostModePets: number;
-}) {
-  return (
-    <DashboardSection title="Safety overview">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-        {lostModePets > 0 ? (
-          <SafetyStat
-            icon="pin"
-            label={pluralize(lostModePets, "pet in Lost Mode", "pets in Lost Mode")}
-            urgent
-            value={lostModePets}
-          />
-        ) : null}
-        <SafetyStat
-          icon="qr"
-          label="Active QR safety pages"
-          value={activeQrProfiles}
-        />
-        <SafetyStat icon="tag" label="Active smart tags" value={activeSmartTags} />
-        <SafetyStat
-          icon="record"
-          label="Pending orders"
-          value={pendingOrders}
-        />
-      </div>
-    </DashboardSection>
-  );
-}
-
-function SafetyStat({
-  icon,
-  label,
-  value,
-  urgent = false,
-}: {
-  icon: IconName;
-  label: string;
-  value: number;
-  urgent?: boolean;
-}) {
-  return (
-    <div
-      className={`flex items-center gap-3 rounded-[1.25rem] border p-3.5 ${
-        urgent
-          ? "border-[#ffd2c9] bg-[#ffe8e3]"
-          : "border-pet-border bg-white"
-      }`}
-    >
-      <span
-        className={`grid h-10 w-10 shrink-0 place-items-center rounded-2xl ${
-          urgent ? "bg-white text-[#a63c2e]" : "bg-[#e8f3ff] text-pet-teal"
-        }`}
-      >
-        <Icon name={icon} className="h-4 w-4" />
-      </span>
-      <div className="min-w-0">
-        <p className="text-lg font-black leading-none text-pet-ink">{value}</p>
-        <p
-          className={`mt-1 text-xs font-bold leading-4 ${
-            urgent ? "text-[#a63c2e]" : "text-pet-muted"
-          }`}
-        >
-          {label}
-        </p>
-      </div>
-    </div>
   );
 }
 

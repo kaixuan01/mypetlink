@@ -560,7 +560,7 @@ public sealed class OrderService : SkeletonService, IOrderService
         return new ApiException(
             StatusCodes.Status403Forbidden,
             "feature_disabled",
-            "Smart Tag ordering is not available yet. Your free QR Safety Page is still active.");
+            "Smart Tag ordering is not available yet. Your free Safety Profile is still active.");
     }
 
     private static ApiException NotFound(string message)

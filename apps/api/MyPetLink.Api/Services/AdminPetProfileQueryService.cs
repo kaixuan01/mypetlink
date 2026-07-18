@@ -22,7 +22,7 @@ public sealed class AdminPetProfileQueryService : SkeletonService, IAdminPetProf
     [
         "Pet Name", "Owner Name", "Owner Email", "Pet Type", "Breed", "Gender",
         "Lifecycle", "Lost Mode", "Public Profile Enabled", "Public Profile Status",
-        "Public Profile Slug", "QR Safety Enabled", "QR Safety Status",
+        "Public Profile Slug", "Safety Profile Enabled", "Safety Profile Status",
         "Active Smart Tag Count", "Total Smart Tag Count", "Allergies Present",
         "Created At (UTC)", "Updated At (UTC)"
     ];
@@ -315,7 +315,7 @@ public sealed class AdminPetProfileQueryService : SkeletonService, IAdminPetProf
                 "accessible" => pets.Where(IsQrSafetyAccessibleExpression()),
                 "setup-issue" => pets.Where(HasQrSafetyIssueExpression()),
                 "unavailable" => pets.Where(IsQrSafetyUnavailableExpression()),
-                _ => throw ValidationFailed("qrSafety", "QR Safety status is not supported.")
+                _ => throw ValidationFailed("qrSafety", "Safety Profile status is not supported.")
             };
         }
         if (query.HasFinderContact.HasValue)
@@ -574,7 +574,7 @@ public sealed class AdminPetProfileQueryService : SkeletonService, IAdminPetProf
         {
             var values = ExportRow(rows[index]);
             for (var column = 0; column < values.Length; column++)
-                sheet.Cell(index + 2, column + 1).SetValue(values[column]);
+                sheet.Cell(index + 2, column + 1).SetValue(AdminExportSanitizer.SpreadsheetSafe(values[column]));
         }
         sheet.SheetView.FreezeRows(1);
         sheet.Columns().AdjustToContents(1, Math.Min(rows.Count + 1, 200));
@@ -638,7 +638,7 @@ public sealed class AdminPetProfileQueryService : SkeletonService, IAdminPetProf
     private static T ParseEnum<T>(string value, string field, string message) where T : struct, Enum
         => Enum.TryParse<T>(value, true, out var parsed) ? parsed : throw ValidationFailed(field, message);
     private static string? NormalizeOptional(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-    private static string Csv(string value) => $"\"{value.Replace("\"", "\"\"")}\"";
+    private static string Csv(string value) => AdminExportSanitizer.Csv(value);
     private static string ExportDate(DateTimeOffset? value) => value?.UtcDateTime.ToString("yyyy-MM-dd HH:mm") ?? "";
     private static ApiException NotFound() => new(
         StatusCodes.Status404NotFound, "pet_not_found", "This pet profile could not be found.");

@@ -437,6 +437,23 @@ public sealed class AdminTagInventoryServiceTests
         Assert.Equal("validation_failed", error.Code);
     }
 
+    [Fact]
+    public async Task Export_ProtectsAgainstSpreadsheetFormulaInjection()
+    {
+        using var harness = await InventoryHarness.CreateAsync();
+        var pet = await harness.Db.Pets.SingleAsync(item => item.Id == PetId);
+        pet.Name = "=HYPERLINK(\"https://evil.example\")";
+        await harness.Db.SaveChangesAsync();
+
+        var export = await harness.Service.ExportAsync(
+            AdminUserId, new AdminTagInventoryQuery { Claimed = true }, "csv", null);
+        var text = System.Text.Encoding.UTF8.GetString(export.Content);
+
+        // The formula-leading cell must be neutralized with a quote prefix.
+        Assert.Contains("\"'=HYPERLINK", text);
+        Assert.DoesNotContain(",\"=HYPERLINK", text);
+    }
+
     // --- Order flow integration -------------------------------------------------------
 
     [Fact]

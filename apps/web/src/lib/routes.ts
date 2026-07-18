@@ -5,7 +5,8 @@ import type { Pet, PetTag } from "@/types";
 //
 // Route rules:
 // - Owner portal: /pets/{petId}/...        (always the petId, never the slug)
-// - QR safety:   /q/{safetyCode}           (pet-level finder safety page)
+// - Safety Profile: /q/{safetyCode}        (pet-level finder safety page,
+//   opened via QR scan, NFC tap, or direct link)
 // - Physical tag: /t/{tagCode}             (physical QR or QR + NFC scan link)
 // - Activation:   /t/{tagCode}             (scan/tap entry point for activation)
 // - Public share: /p/{petSlug}-{publicCode} (looked up by publicCode)
@@ -89,7 +90,7 @@ export function getPublicProfilePath(pet: Pick<Pet, "slug" | "publicCode">) {
   return publicProfilePath(pet.slug, pet.publicCode);
 }
 
-// Canonical helper for the pet-level QR Safety Page.
+// Canonical helper for the pet-level Safety Profile.
 // Always /q/{safetyCode}; never a physical tagCode.
 export function getQrSafetyPath(pet: Pick<Pet, "safetyCode">) {
   return qrSafetyPath(pet.safetyCode);

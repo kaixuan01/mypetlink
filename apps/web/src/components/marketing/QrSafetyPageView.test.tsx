@@ -15,7 +15,7 @@ it("applies the same saved theme to the QR safety profile", async () => {
   const pet = { ...mockPets[0], profileTheme: "peach" as const };
   const { container } = render(<QrSafetyPageView pet={pet} />);
 
-  await screen.findByText("MyPetLink safety page");
+  await screen.findByText("MyPetLink Safety Profile");
   const themedProfile = container.querySelector("[data-profile-theme]");
   expect(themedProfile?.getAttribute("data-profile-theme")).toBe("peach");
   expect(screen.getByText("Safety note").parentElement?.getAttribute("style"))
@@ -40,7 +40,7 @@ it("never shows the Not set placeholder in the finder pet summary", async () => 
   };
   render(<QrSafetyPageView pet={pet} />);
 
-  await screen.findByText("MyPetLink safety page");
+  await screen.findByText("MyPetLink Safety Profile");
   expect(document.body.textContent).not.toContain("Not set");
 });
 
@@ -52,14 +52,14 @@ it("falls back to the pet colour in the summary when the breed is unknown", asyn
   };
   render(<QrSafetyPageView pet={pet} />);
 
-  await screen.findByText("MyPetLink safety page");
+  await screen.findByText("MyPetLink Safety Profile");
   expect(document.body.textContent).toContain("Golden brown");
 });
 
 it("hides the allergy safety section when none are saved", async () => {
   render(<QrSafetyPageView pet={{ ...mockPets[0], allergies: [] }} />);
 
-  await screen.findByText("MyPetLink safety page");
+  await screen.findByText("MyPetLink Safety Profile");
   expect(screen.queryByText("Known allergies")).toBeNull();
 });
 

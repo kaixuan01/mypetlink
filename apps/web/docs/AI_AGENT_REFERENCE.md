@@ -42,7 +42,7 @@ Core promise: **A safer way home for your pet.**
 
 **Positioning:** MyPetLink is a pet **safety and care** profile — *not* a QR/NFC
 gadget. Create a **Free Profile** first; it includes the Public Share Profile,
-pet-level QR Safety Page, basic finder contact, basic care records, and up to 3
+pet-level Safety Profile, basic finder contact, basic care records, and up to 3
 pets with up to 10 memories per pet. Physical **QR** and **QR + NFC** smart tags
 are optional one-time add-ons that open the same safety content. **Premium is
 Coming Soon** and must not be presented as a live subscription or checkout flow.
@@ -97,7 +97,7 @@ strings in pages or components.** Import the helpers instead.
 | Purpose            | Pattern                       | Helper                                   |
 | ------------------ | ----------------------------- | ---------------------------------------- |
 | Owner portal pages | `/pets/{petId}/...`           | `ownerRoutes.*`                          |
-| QR Safety Page     | `/q/{safetyCode}`             | `qrSafetyPath(safetyCode)` / `getQrSafetyPath(pet)` |
+| Safety Profile     | `/q/{safetyCode}`             | `qrSafetyPath(safetyCode)` / `getQrSafetyPath(pet)` |
 | Physical tag scan  | `/t/{tagCode}`                | `tagPath(tagCode)` / `getTagScanPath(tag)` |
 | Tag activation     | `/t/{tagCode}`                | `tagPath(tagCode)`                       |
 | Public share       | `/p/{petSlug}-{publicCode}`   | `publicProfilePath(slug, publicCode)` / `getPublicProfilePath(pet)` |
@@ -169,7 +169,7 @@ How status maps to what a scan shows (`getFinderState` in `tagService.ts`):
 | `status` in `Disabled / Lost / Replaced` or archived | `inactive`    | Safe "no longer active" message  |
 | Bound pet missing                                  | `inactive`    | Safe "no longer active" message  |
 | `Pending` / `Preparing` / `Delivered` with active linked pet | `pending` | Activation flow on `/t` for matching owner only |
-| Otherwise (has `petId`, not disabled)              | `active`      | Shared QR Safety Page view       |
+| Otherwise (has `petId`, not disabled)              | `active`      | Shared Safety Profile view       |
 
 Retail stock has no `petId` (status `Unassigned`) and goes through the
 pet-selection activation flow. Portal-purchased assigned tags already have a
@@ -201,17 +201,17 @@ pet/order link and activate from `/t` without pet selection.
    *management* (`/pets` is an overview list; `/pets/{petId}` is the tabbed
    management hub; `/pets/{petId}/edit` is the tabbed edit form â€” see
    `OWNER_PORTAL_FLOW.md` Â§3). Public pages are never an owner dashboard.
-9. **The public share page and QR Safety Page are DIFFERENT; never mix them.**
+9. **The public share page and Safety Profile are DIFFERENT; never mix them.**
    - **`/p/{petSlug}-{publicCode}` = Public Share Profile.** Friendly, IG-style,
      shareable. Primary action is *Share*. Tabs: About / Moments / Timeline. No
      emergency CTAs, no "I found this pet", no "Send Found Location", no safety-
      page wording except the **Lost Mode** banner when pet-level `lostModeEnabled` is on.
-   - **`/q/{safetyCode}` = pet-level QR Safety Page.** Finder-first and
+   - **`/q/{safetyCode}` = pet-level Safety Profile.** Finder-first and
      emergency-focused. It belongs to the pet, works without an active physical
      tag, uses the pet safety/privacy/contact settings, and shows Lost Mode when
      `pet.lostModeEnabled` is on.
    - **`/t/{tagCode}` = physical tag scan entry point.** Active physical tags
-     render the same QR Safety Page component as `/q/{safetyCode}`. Lost,
+     render the same Safety Profile component as `/q/{safetyCode}`. Lost,
      disabled, replaced, or archived tags render the inactive tag page and do
      not expose owner contact details.
    - **Lost tag is not Lost Mode.** `tag.status === "Lost"` means that physical
@@ -220,14 +220,14 @@ pet/order link and activate from `/t` without pet selection.
    wrongly made the share page finder-first; do not reintroduce that.
 10. **Do not recreate a separate owner QR Safety management page.**
     `/pets/{id}/qr` is a legacy compatibility route that redirects back to the
-    pet overview. Owners manage the Public Share Profile link, QR Safety Page
+    pet overview. Owners manage the Public Share Profile link, Safety Profile
     link, and Physical Smart Tag link from `/pets/{id}` using compact
     Copy/View/Show QR actions. Safety and contact settings live in
     `Edit Pet -> Contact & Safety`; tag management lives in the hub **Smart Tag**
     tab and `/tags`.
 11. **Public previews open in a new tab.** Every owner-portal button that opens a
     public route - "View / Preview Public Profile" (`/p/{slug}-{publicCode}`),
-    "View QR Safety Page" (`/q/{safetyCode}`), "View Tag Scan Page"
+    "View Safety Profile" (`/q/{safetyCode}`), "View Tag Scan Page"
     (`/t/{tagCode}`) - must use `target="_blank"` + `rel="noopener noreferrer"`
     so the portal stays open in the original tab. `CTAButton` forwards
     `target`/`rel` to both internal `Link` and external `<a>`. When the logged-in
@@ -297,3 +297,21 @@ and stored as a single **E.164 string**, e.g. `+60123456789`.
 | Public tag finder            | `src/app/t/[tagCode]/` + `TagFinderView`      |
 | Activation flow              | `src/app/activate/[tagCode]/` + `TagActivationFlow` |
 | Public share profile         | `src/app/p/[slug]/` + `PublicSharePetProfile` |
+
+---
+
+## Terminology note: "Safety Profile" vs internal `qrSafety*` names
+
+The user-facing feature name for the `/q/{safetyCode}` page is **Safety
+Profile** (QR codes, NFC taps, and direct links are access methods, not
+separate profiles). Status labels come from `src/lib/safetyProfile.ts`:
+Safety Profile Active / Contact Update Needed / Safety Profile Off, always shown
+separately from Smart Tag linkage status.
+
+Deliberate technical debt: stable internal identifiers keep their historical
+`qrSafety` naming to avoid risky renames — the `/q` route itself, the
+`qrSafetyEnabled` / `qrSafetyPath` fields (frontend `Pet`, API DTOs, and the
+`PetSafetySettings.QrSafetyEnabled` database column), `QrSafetyService` /
+`QrSafetyController` in the API, and existing component names such as
+`QrSafetyPageView` / `QrSafetyRouteView`. New code should prefer neutral
+`SafetyProfile` naming; do not surface any `qrSafety` identifier in UI copy.

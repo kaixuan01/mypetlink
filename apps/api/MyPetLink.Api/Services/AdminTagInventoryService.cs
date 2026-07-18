@@ -392,7 +392,7 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
 
             for (var column = 0; column < values.Length; column++)
             {
-                sheet.Cell(index + 2, column + 1).SetValue(values[column]);
+                sheet.Cell(index + 2, column + 1).SetValue(AdminExportSanitizer.SpreadsheetSafe(values[column]));
             }
         }
 
@@ -773,12 +773,7 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
         throw ValidationFailed(field, message);
     }
 
-    private static string CsvField(string value)
-    {
-        return value.Contains(',') || value.Contains('"') || value.Contains('\n')
-            ? $"\"{value.Replace("\"", "\"\"")}\""
-            : value;
-    }
+    private static string CsvField(string value) => AdminExportSanitizer.Csv(value);
 
     private static string? NormalizeOptional(string? value)
     {

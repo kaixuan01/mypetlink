@@ -140,6 +140,10 @@ export type BackendPetDetail = {
   createdAt: string;
   updatedAt: string;
   archivedAt?: string | null;
+  /** Optional so older API responses without the flags keep working. */
+  qrSafetyEnabled?: boolean;
+  publicProfileEnabled?: boolean;
+  hasUsableSafetyContact?: boolean;
 };
 
 export type BackendPetListItem = Pick<
@@ -168,6 +172,9 @@ export type BackendPetListItem = Pick<
   | "personalityTags"
   | "createdAt"
   | "updatedAt"
+  | "qrSafetyEnabled"
+  | "publicProfileEnabled"
+  | "hasUsableSafetyContact"
 >;
 
 export type BackendPublicPetProfile = {

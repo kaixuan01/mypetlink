@@ -112,7 +112,7 @@ function SafetyPageUnavailableCard({ message }: { message: string }) {
         <Icon name="shield" className="h-7 w-7" />
       </span>
       <h1 className="mt-5 text-3xl font-black text-pet-ink">
-        QR Safety Page temporarily unavailable
+        Safety Profile temporarily unavailable
       </h1>
       <p className="mx-auto mt-3 max-w-sm text-sm font-semibold leading-6 text-pet-muted">
         {message}
@@ -128,10 +128,10 @@ function SafetyPageNotFoundCard({ safetyCode }: { safetyCode: string }) {
         <Icon name="shield" className="h-7 w-7" />
       </span>
       <h1 className="mt-5 text-3xl font-black text-pet-ink">
-        QR Safety Page not found
+        Safety Profile not found
       </h1>
       <p className="mx-auto mt-3 max-w-sm text-sm font-semibold leading-6 text-pet-muted">
-        We could not find an active MyPetLink QR Safety Page for this link.
+        We could not find an active MyPetLink Safety Profile for this link.
         Please check with the pet owner for the latest profile.
       </p>
       <div className="mx-auto mt-5 flex flex-col items-center rounded-[1.25rem] bg-pet-cream px-5 py-3">
@@ -151,5 +151,5 @@ function getSafetyPageErrorMessage(error: unknown) {
     return "We could not reach MyPetLink right now. Please try again.";
   }
 
-  return "We could not load this QR Safety Page right now. Please try again.";
+  return "We could not load this Safety Profile right now. Please try again.";
 }

@@ -104,7 +104,7 @@ describe("AdminPetProfileDetailDrawer", () => {
     expect(screen.getByText("Please call instead of messaging.")).toBeTruthy();
     expect(screen.queryByText("2026-07-16T07:42:00Z")).toBeNull();
     expect(screen.getByRole("link", { name: "Open Public Share Profile" }).getAttribute("href")).toBe("/p/topu-publiccode");
-    expect(screen.getByRole("link", { name: "Open QR Safety Page" }).getAttribute("href")).toBe("/q/safetycode");
+    expect(screen.getByRole("link", { name: "Open Safety Profile" }).getAttribute("href")).toBe("/q/safetycode");
     expect(screen.getByRole("link", { name: "View Smart Tags" }).getAttribute("href")).toBe("/admin/tags?pet=pet-1");
     expect(screen.getByText("Owner verified identity")).toBeTruthy();
   });
@@ -123,7 +123,7 @@ describe("AdminPetProfileDetailDrawer", () => {
 
     await screen.findByText("The profile is enabled but its lifecycle or route identity prevents access. No public action is shown.");
     expect(screen.queryByRole("link", { name: "Open Public Share Profile" })).toBeNull();
-    expect(screen.queryByRole("link", { name: "Open QR Safety Page" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Open Safety Profile" })).toBeNull();
   });
 
   it("traps focus, closes with Escape, and restores focus", async () => {

@@ -1,5 +1,6 @@
 "use client";
 
+import { dateOnlyOrUndefined, isGuid } from "@/lib/adminListShared";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminSmartTagDetailDrawer } from "@/components/admin/AdminSmartTagDetailDrawer";
 import { AdminNotice, AdminSection } from "@/components/admin/AdminPanels";
@@ -19,6 +20,7 @@ import {
   countAdminSmartTags,
   downloadAdminSmartTagsExport,
   getAdminSmartTagExportFormats,
+  getAdminSmartTag,
   listAdminSmartTags,
   runAdminSmartTagAction,
   smartTagLifecycleLabel,
@@ -86,9 +88,6 @@ const shortcuts: { value: string; label: string; count: keyof AdminSmartTagCount
 const emptyCounts: AdminSmartTagCounts = { all: 0, active: 0, awaitingActivation: 0, unclaimed: 0, lost: 0, disabled: 0, replaced: 0, archived: 0 };
 type PendingAction = { scope: "row"; tag: AdminSmartTag; action: AdminSmartTagAction } | { scope: "bulk"; action: AdminSmartTagBulkAction };
 
-function isGuid(value?: string) {
-  return Boolean(value && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value));
-}
 
 export function AdminTagsManager() {
   const { query, actions, hasActiveFilters } = useAdminTableQuery({
@@ -110,9 +109,9 @@ export function AdminTagsManager() {
     petId: query.filters.petId ?? (isGuid(query.filters.pet) ? query.filters.pet : undefined),
     ownerId: query.filters.ownerId ?? (isGuid(query.filters.owner) ? query.filters.owner : undefined),
     hasOrder: query.filters.hasOrder, hasScans: query.filters.hasScans,
-    activatedFrom: query.filters.activatedFrom, activatedTo: query.filters.activatedTo,
-    createdFrom: query.filters.createdFrom, createdTo: query.filters.createdTo,
-    lastScannedFrom: query.filters.lastScannedFrom, lastScannedTo: query.filters.lastScannedTo,
+    activatedFrom: dateOnlyOrUndefined(query.filters.activatedFrom), activatedTo: dateOnlyOrUndefined(query.filters.activatedTo),
+    createdFrom: dateOnlyOrUndefined(query.filters.createdFrom), createdTo: dateOnlyOrUndefined(query.filters.createdTo),
+    lastScannedFrom: dateOnlyOrUndefined(query.filters.lastScannedFrom), lastScannedTo: dateOnlyOrUndefined(query.filters.lastScannedTo),
     sortBy: query.sortBy, sortDir: query.sortDir,
   }), [query]);
   const paramsKey = useMemo(() => JSON.stringify(params), [params]);
@@ -120,6 +119,7 @@ export function AdminTagsManager() {
   const fetchKey = `${paramsKey}#${reloadKey}`;
   const [state, setState] = useState<{ key: string; items: AdminSmartTag[]; total: number; counts: AdminSmartTagCounts; error: string } | null>(null);
   const [selection, setSelection] = useState<{ key: string; ids: Set<string> }>({ key: paramsKey, ids: new Set() });
+  const [detachedTag, setDetachedTag] = useState<AdminSmartTag | null>(null);
   const [message, setMessage] = useState("");
   const [failureDetails, setFailureDetails] = useState<string[]>([]);
   const [pending, setPending] = useState<PendingAction | null>(null);
@@ -138,12 +138,30 @@ export function AdminTagsManager() {
   }, [paramsKey, reloadKey]);
 
   const current = state?.key === fetchKey ? state : null;
-  const items = current?.items ?? [];
+  const items = useMemo(() => current?.items ?? [], [current]);
   const selectedIds = selection.key === paramsKey ? selection.ids : new Set<string>();
   const setSelectedIds = (ids: Set<string>) => setSelection({ key: paramsKey, ids });
   const selectedRows = items.filter((tag) => selectedIds.has(tag.id));
-  const openTag = items.find((tag) => tag.id === actions.getExtraParam("tag")) ?? null;
+  const openTagId = actions.getExtraParam("tag");
+  const openTag = items.find((tag) => tag.id === openTagId)
+    ?? (detachedTag?.id === openTagId ? detachedTag : null);
   const refresh = useCallback(() => setReloadKey((value) => value + 1), []);
+
+  // Deep links (e.g. from an order's assigned tag) can point at a tag outside
+  // the current page; load its summary on demand.
+  useEffect(() => {
+    if (!openTagId || items.some((tag) => tag.id === openTagId)) return;
+    const controller = new AbortController();
+    getAdminSmartTag(openTagId, controller.signal)
+      .then((tag) => { if (!controller.signal.aborted) setDetachedTag(tag); })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setMessage("This Smart Tag could not be opened.");
+          actions.setExtraParam("tag", null);
+        }
+      });
+    return () => controller.abort();
+  }, [actions, items, openTagId]);
   const columns = useMemo<AdminColumn<AdminSmartTag>[]>(() => [
     { id: "tagCode", header: "Tag Code", sortId: "tagCode", cell: (tag) => <button aria-label={`Copy tag code ${tag.tagCode}`} className="font-mono text-xs font-black text-slate-950 underline-offset-2 hover:underline" onClick={() => void navigator.clipboard.writeText(tag.tagCode)} type="button">{tag.tagCode}</button>, className: "whitespace-nowrap" },
     { id: "type", header: "Type", cell: (tag) => getTagTypeLabel(tag.hasNfc), className: "whitespace-nowrap" },

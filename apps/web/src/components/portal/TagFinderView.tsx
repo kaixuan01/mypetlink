@@ -27,7 +27,7 @@ type TagFinderViewProps = {
 };
 
 // Renders the finder states for a scanned physical /t/{tagCode}. Active
-// tags show pet QR Safety Page content; inactive tags stay safely inactive.
+// tags show pet Safety Profile content; inactive tags stay safely inactive.
 // The page passes a build-time result; this component re-checks the live tag
 // state on mount so a tag activated, disabled, or reported lost in this browser
 // shows correctly.
@@ -190,7 +190,7 @@ export function FinderShell({ children }: { children: ReactNode }) {
         <Link href="/" className="flex items-center gap-3">
           <BrandLogo markOnly className="h-10 w-10" />
           <span className="text-sm font-black text-pet-ink">
-            MyPetLink Safety Page
+            MyPetLink Safety Profile
           </span>
         </Link>
       </header>

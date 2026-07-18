@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import {
-  getQrStatusBadge,
+  getSafetyProfileBadge,
   getSmartTagStatusBadge,
 } from "@/components/portal/ProfileAccessStatus";
 import { Badge } from "@/components/ui/Badge";
@@ -47,10 +47,11 @@ const moreLinks = (pet: Pet) => {
     links.push({ label: "Order tag", href: ownerRoutes.petTagOrder(pet.id) });
   }
 
-  links.push(
-    { label: "View public profile", href: pet.publicProfilePath, external: true },
-    { label: "View QR Safety Page", href: pet.qrSafetyPath, external: true }
-  );
+  links.push({
+    label: "View Safety Profile",
+    href: pet.qrSafetyPath,
+    external: true,
+  });
 
   return links;
 };
@@ -66,7 +67,7 @@ export function PetCard({
   const [confirmAction, setConfirmAction] = useState<
     "active" | "memorial" | "archive" | "restore" | null
   >(null);
-  const qrBadge = getQrStatusBadge(pet.qrStatus, pet.qrSafetyPath, pet);
+  const safetyBadge = getSafetyProfileBadge(pet);
   const tagBadge = getSmartTagStatusBadge(tags, orders, pet);
   const isMemorial = isMemorialPet(pet);
   const isArchived = isArchivedPet(pet);
@@ -128,7 +129,7 @@ export function PetCard({
             <h3 className="text-xl font-black text-pet-ink">{pet.name}</h3>
             {isMemorial ? <Badge tone="soft">Memorial</Badge> : null}
             {isArchived ? <Badge tone="soft">Archived</Badge> : null}
-            <Badge tone={qrBadge.tone}>{qrBadge.label}</Badge>
+            <Badge tone={safetyBadge.tone}>{safetyBadge.label}</Badge>
           </div>
           <p className="mt-1 text-sm text-pet-muted">
             {getPetSummaryLabel(pet)}
@@ -279,7 +280,7 @@ function getConfirmCopy(
   if (action === "active") {
     return {
       title: "Restore to Active?",
-      message: `This will show ${pet.name} in active pet pages again and use the pet's QR Safety settings for finder contact actions.`,
+      message: `This will show ${pet.name} in active pet pages again and use the pet's Safety Profile settings for finder contact actions.`,
       confirmLabel: "Restore to Active",
     };
   }
@@ -287,7 +288,7 @@ function getConfirmCopy(
   if (action === "memorial") {
     return {
       title: "Move to Memorial?",
-      message: `This keeps ${pet.name}'s profile, memories, and timeline, but the QR Safety Page will no longer show emergency finder contact actions.`,
+      message: `This keeps ${pet.name}'s profile, memories, and timeline, but the Safety Profile will no longer show emergency finder contact actions.`,
       confirmLabel: "Move to Memorial",
     };
   }

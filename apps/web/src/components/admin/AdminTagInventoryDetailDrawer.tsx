@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useModalDialogFocus } from "@/lib/useModalDialogFocus";
+import { useEffect, useRef, useState } from "react";
 import { AdminDetailItem } from "@/components/admin/AdminPanels";
 import { getTagTypeLabel, tagStatusTone } from "@/components/admin/adminDisplay";
 import { QrCodeButton } from "@/components/qr/QrCodeButton";
@@ -57,6 +58,7 @@ export function AdminTagInventoryDetailDrawer({
   tag: AdminInventoryTag;
   onClose: () => void;
 }) {
+  const dialogRef = useRef<HTMLElement | null>(null);
   const [historyResult, setHistoryResult] = useState<{
     tagId: string;
     entries: AdminTagHistoryEntry[] | null;
@@ -88,16 +90,7 @@ export function AdminTagInventoryDetailDrawer({
         : "ready";
   const history = historyResult?.tagId === tag.id ? historyResult.entries : null;
 
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    }
-
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
+  useModalDialogFocus({ dialogRef, onEscape: onClose });
 
   const fulfilmentTrail = [
     { label: "Generated", at: tag.generatedAt },
@@ -120,7 +113,7 @@ export function AdminTagInventoryDetailDrawer({
         onClick={onClose}
         type="button"
       />
-      <aside className="relative flex h-full w-full max-w-lg flex-col overflow-y-auto bg-white shadow-2xl">
+      <aside className="relative flex h-full w-full max-w-lg flex-col overflow-y-auto bg-white shadow-2xl" ref={dialogRef}>
         <div className="flex items-start justify-between gap-3 border-b border-slate-200 p-5">
           <div>
             <p className="text-xs font-extrabold uppercase text-slate-400">Tag code</p>

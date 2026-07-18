@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using MyPetLink.Api.DTOs;
 using MyPetLink.Api.Entities;
 using MyPetLink.Api.Storage;
+using MyPetLink.Api.Validation;
 
 namespace MyPetLink.Api.Services;
 
@@ -290,7 +291,10 @@ internal static class PetDtoMapper
             $"/p/{publicSlug}",
             $"/q/{safetyCode}",
             pet.CreatedAt,
-            pet.UpdatedAt);
+            pet.UpdatedAt,
+            pet.SafetySetting?.QrSafetyEnabled ?? true,
+            pet.PublicProfile?.IsPublicProfileEnabled ?? true,
+            HasUsableSafetyContact(pet));
     }
 
     public static PetDetailResponse ToDetail(Pet pet, string? publicBaseUrl = null)
@@ -357,7 +361,10 @@ internal static class PetDtoMapper
             pet.EmergencyNote,
             pet.CreatedAt,
             pet.UpdatedAt,
-            pet.ArchivedAt);
+            pet.ArchivedAt,
+            pet.SafetySetting?.QrSafetyEnabled ?? true,
+            pet.PublicProfile?.IsPublicProfileEnabled ?? true,
+            HasUsableSafetyContact(pet));
     }
 
     public static string ResolvePublicSlug(Pet pet)
@@ -392,6 +399,39 @@ internal static class PetDtoMapper
         return NormalizeOptional(pet.Contact?.GeneralAreaOverride)
             ?? NormalizeOptional(pet.GeneralArea)
             ?? NormalizeOptional(pet.OwnerUser.OwnerProfile?.DefaultGeneralArea);
+    }
+
+    /// <summary>
+    /// True when the Safety Profile currently offers a finder at least one
+    /// visible contact method (WhatsApp or phone call) holding a valid E.164
+    /// number — empty, placeholder, or malformed values never count. Tolerates
+    /// an unloaded OwnerUser navigation so list queries stay safe.
+    /// </summary>
+    public static bool HasUsableSafetyContact(Pet pet)
+    {
+        var setting = pet.SafetySetting;
+
+        if (setting is null)
+        {
+            return false;
+        }
+
+        var contact = pet.Contact;
+
+        string? Resolve(string? overrideValue, string? ownerValue)
+            => contact?.UseOwnerDefaults == false
+                ? NormalizeOptional(overrideValue)
+                : NormalizeOptional(overrideValue) ?? NormalizeOptional(ownerValue);
+
+        var whatsapp = setting.ShowWhatsapp
+            ? Resolve(contact?.WhatsappE164, pet.OwnerUser?.WhatsappE164)
+            : null;
+        var phone = setting.ShowPhone
+            ? Resolve(contact?.PhoneE164, pet.OwnerUser?.PhoneE164)
+            : null;
+
+        return PhoneNumberRules.IsUsableE164(whatsapp)
+            || PhoneNumberRules.IsUsableE164(phone);
     }
 
     public static string? ResolvePhone(Pet pet)

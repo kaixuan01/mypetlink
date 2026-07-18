@@ -38,7 +38,7 @@ describe("AdminSmartTagDetailDrawer", () => {
 
     expect(screen.getByRole("link", { name: "Open Tag Scan Page" }).getAttribute("href")).toBe("/t/MPL-TEST-0001");
     expect(screen.getByRole("button", { name: "Show Tag QR" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Open QR Safety Page" }).getAttribute("href")).toBe("/q/safe-topu");
+    expect(screen.getByRole("link", { name: "Open Safety Profile" }).getAttribute("href")).toBe("/q/safe-topu");
     expect(screen.queryByRole("button", { name: "QR" })).toBeNull();
     expect(screen.getByText("3")).toBeTruthy();
     expect(screen.queryByText("2026-07-10T02:00:00Z")).toBeNull();
@@ -56,6 +56,6 @@ describe("AdminSmartTagDetailDrawer", () => {
 
   it("hides a broken QR Safety action when no active safety identifier exists", () => {
     render(<AdminSmartTagDetailDrawer busy={false} onAction={vi.fn()} onClose={vi.fn()} tag={{ ...tag, safetyCode: undefined, qrSafetyEnabled: false }} />);
-    expect(screen.queryByRole("link", { name: "Open QR Safety Page" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Open Safety Profile" })).toBeNull();
   });
 });

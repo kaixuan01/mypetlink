@@ -563,13 +563,9 @@ public sealed class AdminPlanQueryService : SkeletonService, IAdminPlanQueryServ
         return stream.ToArray();
     }
 
-    private static string Csv(string value) => $"\"{SpreadsheetSafe(value).Replace("\"", "\"\"")}\"";
+    private static string Csv(string value) => AdminExportSanitizer.Csv(value);
 
-    private static string SpreadsheetSafe(string value)
-    {
-        var trimmed = value.TrimStart();
-        return trimmed.Length > 0 && "=+-@\t\r".Contains(trimmed[0]) ? $"'{value}" : value;
-    }
+    private static string SpreadsheetSafe(string value) => AdminExportSanitizer.SpreadsheetSafe(value);
 
     private static string ExportDate(DateTimeOffset value) => value.UtcDateTime.ToString("yyyy-MM-dd HH:mm");
 

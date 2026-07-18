@@ -24,7 +24,7 @@ export function PetQrRedirect({ petId }: PetQrRedirectProps) {
         Opening pet overview
       </h1>
       <p className="mt-3 max-w-2xl text-sm leading-6 text-pet-muted">
-        Public Share Profile, QR Safety Page, and Physical Smart Tags are now
+        Public Share Profile, Safety Profile, and Physical Smart Tags are now
         managed from the pet overview.
       </p>
       <div className="mt-5">

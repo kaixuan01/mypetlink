@@ -48,7 +48,7 @@ Queue of orders with submitted proof (Awaiting review / Reviewed / All). Each it
 Owner accounts with live pet/order counts, phone/WhatsApp, joined date, status, and links to pets/orders. Account suspension is not implemented (noted as a later update). Because demo pets carry only an owner display name (no owner id), pets that match no account name are attributed to the signed-in demo owner.
 
 ### `/admin/pets` — Pet profiles
-Filters: Active, Lost Mode, Memorial, Archived, All (Lost Mode is a flag on active pets, not a lifecycle status; Memorial is never treated as Active). Columns: pet, owner, type/breed, QR Safety status, smart tag status (active/pending/none via `getPetSmartTagStatus`), lifecycle badge, Lost Mode badge, created date. Actions: Public Profile and QR Safety Page (new tab), View Tags (scoped), View Owner.
+Filters: Active, Lost Mode, Memorial, Archived, All (Lost Mode is a flag on active pets, not a lifecycle status; Memorial is never treated as Active). Columns: pet, owner, type/breed, QR Safety status, smart tag status (active/pending/none via `getPetSmartTagStatus`), lifecycle badge, Lost Mode badge, created date. Actions: Public Profile and Safety Profile (new tab), View Tags (scoped), View Owner.
 
 ### `/admin/settings` — Operations settings (read-only)
 Order settings, payment proof instructions, tag pricing (RM19.90 / RM39.90 one-time), feature availability (Free available, Premium Coming Soon, GPS Coming Later), support contact, and company/legal info — all sourced from `src/config/site.ts`, `src/config/payment.ts`, and `src/lib/planLimits.ts`. Editing arrives with a later update.

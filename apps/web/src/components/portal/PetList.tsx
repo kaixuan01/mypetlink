@@ -142,7 +142,7 @@ export function PetList({
     return (
       <EmptyState
         title="No pets yet"
-        description="Create your first profile to generate a safe QR page."
+        description="Create your first profile to get a Safety Profile ready for finders."
         actionHref={ownerRoutes.petNew}
         actionLabel="Add your first pet"
       />

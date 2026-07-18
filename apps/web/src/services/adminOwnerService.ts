@@ -1,3 +1,4 @@
+import { buildAdminListQuery, csvCell, triggerDownload } from "@/lib/adminListShared";
 import { canUseAdminApi, getAdminData, getOwnerSummaries, getPetsForOwner } from "@/services/adminService";
 import { apiRequest, apiRequestBlob } from "@/services/apiClient";
 import { mockDelay } from "@/services/mockApi";
@@ -159,15 +160,7 @@ export type AdminOwnerDetail = {
 const emptyCounts: AdminOwnerCounts = { all: 0, active: 0, suspended: 0, missingContact: 0, noPets: 0 };
 
 function buildQuery(params: AdminOwnerListParams, omitPaging = false) {
-  const query = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined && value !== "" && (!omitPaging || (key !== "page" && key !== "pageSize"))) query.set(key, String(value));
-  }
-  for (const key of ["joinedTo", "updatedTo"] as const) {
-    const value = query.get(key);
-    if (value && /^\d{4}-\d{2}-\d{2}$/.test(value)) query.set(key, `${value}T23:59:59Z`);
-  }
-  return query.toString();
+  return buildAdminListQuery(params, { dateOnlyToKeys: ["joinedTo", "updatedTo"], omitPaging });
 }
 
 export async function listAdminOwners(params: AdminOwnerListParams, signal?: AbortSignal) {
@@ -361,30 +354,13 @@ function maskPhone(value: string) {
   return value.length > 7 ? `${value.slice(0, 3)} •••• ${value.slice(-4)}` : "••••";
 }
 
-function spreadsheetSafe(value: string) {
-  const trimmed = value.trimStart();
-  return trimmed && "=+-@\t\r".includes(trimmed[0]) ? `'${value}` : value;
-}
 
-function csvCell(value: string) {
-  return `"${spreadsheetSafe(value).replaceAll('"', '""')}"`;
-}
 
 function toIso(value: string) {
   const parsed = Date.parse(value);
   return Number.isNaN(parsed) ? new Date(0).toISOString() : new Date(parsed).toISOString();
 }
 
-function triggerDownload(blob: Blob, name: string) {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = name;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}
 
 function emptyPrivacy() {
   return {

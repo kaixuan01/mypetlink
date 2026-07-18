@@ -86,20 +86,21 @@ export function PlanSummaryCard({
   const planName = planSummary?.planName ?? getEffectivePlanLimits().planName;
   const maxMemoriesPerPet =
     planSummary?.maxMemoriesPerPet ?? getEffectivePlanLimits().maxMemoriesPerPet;
-  const topMemoryRows = useMemo(
+  const memoryRows = useMemo(
     () =>
       countedPets
-        .slice(0, compact ? 2 : 4)
         .map((pet) => ({
           id: pet.id,
           name: pet.name,
           count: memoryCounts[pet.id] ?? 0,
         })),
-    [compact, countedPets, memoryCounts]
+    [countedPets, memoryCounts]
   );
 
   return (
-    <section className="brand-card rounded-[1.5rem] p-5">
+    <section
+      className={`brand-card rounded-[1.5rem] ${compact ? "p-5" : "p-5 sm:p-6"}`}
+    >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-black text-pet-ink">Current plan: {planName}</p>
         <Badge tone="teal">Premium coming soon</Badge>
@@ -111,7 +112,7 @@ export function PlanSummaryCard({
           used={petLimit.count}
           max={petLimit.max}
         />
-        {topMemoryRows.map((pet) => (
+        {memoryRows.map((pet) => (
           <UsageRow
             key={pet.id}
             label={`${pet.name} memories`}

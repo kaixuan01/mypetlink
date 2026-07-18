@@ -171,7 +171,7 @@ export function TagActivationFlow({
     return (
       <ActivationShell>
         <ActivationCard
-          description={`${activatedPet.name}'s MyPetLink tag is now active. If they are ever found, the finder can open their safety page instantly.`}
+          description={`${activatedPet.name}'s MyPetLink tag is now active. If they are ever found, the finder can open their Safety Profile instantly.`}
           icon="shield"
           tagCode={tagCode}
           title="Tag activated"
@@ -207,7 +207,7 @@ export function TagActivationFlow({
     return (
       <ActivationShell>
         <ActivationCard
-          description="This tag is already linked to a pet profile. You can open its safety page anytime."
+          description="This tag is already linked to a pet profile. You can open its Safety Profile anytime."
           icon="paw"
           tagCode={result.tagCode}
           title="Tag already activated"
@@ -382,7 +382,7 @@ export function TagActivationFlow({
     return (
       <ActivationShell>
         <ActivationCard
-          description="A tag needs an active pet profile so finders can open the QR Safety Page."
+          description="A tag needs an active pet profile so finders can open the Safety Profile."
           icon="paw"
           tagCode={tagCode}
           title="No active pet profile available"

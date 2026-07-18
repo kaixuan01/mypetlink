@@ -6,47 +6,45 @@ import { formatAdminDateTime, getTagTypeLabel, tagStatusTone } from "@/component
 import { QrCodeButton } from "@/components/qr/QrCodeButton";
 import { Badge } from "@/components/ui/Badge";
 import { adminRoutes, qrSafetyPath, tagPath } from "@/lib/routes";
+import { useModalDialogFocus } from "@/lib/useModalDialogFocus";
 import { getAdminTagHistory, type AdminTagHistoryEntry } from "@/services/adminTagHistoryService";
 import { canRunSmartTagAction, smartTagLifecycleLabel, type AdminSmartTag, type AdminSmartTagAction } from "@/services/adminSmartTagService";
 
+type DrawerProps = {
+  busy: boolean;
+  onClose: () => void;
+  onAction: (action: AdminSmartTagAction) => void;
+};
+
 export function AdminSmartTagDetailDrawer({
+  tag,
+  ...props
+}: DrawerProps & { tag: AdminSmartTag | null }) {
+  // The shared dialog-focus hook must only run while the drawer is open, so
+  // the open drawer is its own component that mounts with a tag.
+  if (!tag) return null;
+  return <OpenSmartTagDrawer {...props} tag={tag} />;
+}
+
+function OpenSmartTagDrawer({
   tag,
   busy,
   onClose,
   onAction,
-}: {
-  tag: AdminSmartTag | null;
-  busy: boolean;
-  onClose: () => void;
-  onAction: (action: AdminSmartTagAction) => void;
-}) {
+}: DrawerProps & { tag: AdminSmartTag }) {
+  const dialogRef = useRef<HTMLElement | null>(null);
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const [historyResult, setHistoryResult] = useState<{ tagId: string; entries: AdminTagHistoryEntry[] | null } | null>(null);
 
   useEffect(() => {
-    if (!tag) return;
     const controller = new AbortController();
     getAdminTagHistory(tag.id, controller.signal)
       .then((entries) => { if (!controller.signal.aborted) setHistoryResult({ tagId: tag.id, entries }); })
       .catch(() => { if (!controller.signal.aborted) setHistoryResult({ tagId: tag.id, entries: null }); });
     return () => controller.abort();
-  }, [tag]);
+  }, [tag.id]);
 
-  useEffect(() => {
-    if (!tag) return;
-    const prior = document.activeElement as HTMLElement | null;
-    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
-    document.addEventListener("keydown", onKey);
-    document.body.style.overflow = "hidden";
-    closeRef.current?.focus();
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
-      prior?.focus();
-    };
-  }, [tag, onClose]);
-
-  if (!tag) return null;
+  useModalDialogFocus({ dialogRef, initialFocusRef: closeRef, onEscape: onClose });
 
   const history = historyResult?.tagId === tag.id ? historyResult.entries : undefined;
 
@@ -62,7 +60,7 @@ export function AdminSmartTagDetailDrawer({
   return (
     <div className="fixed inset-0 z-40 flex justify-end" role="presentation">
       <button aria-label="Close tag details" className="absolute inset-0 bg-slate-950/35" onClick={onClose} type="button" />
-      <aside aria-label={`Tag details for ${tag.tagCode}`} aria-modal="true" className="relative z-[1] flex h-full w-full max-w-xl flex-col overflow-y-auto bg-white shadow-2xl" role="dialog">
+      <aside aria-label={`Tag details for ${tag.tagCode}`} aria-modal="true" className="relative z-[1] flex h-full w-full max-w-xl flex-col overflow-y-auto bg-white shadow-2xl" ref={dialogRef} role="dialog">
         <header className="sticky top-0 z-[1] flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
           <div>
             <p className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Smart Tag</p>
@@ -113,7 +111,7 @@ export function AdminSmartTagDetailDrawer({
               <a className="inline-flex min-h-10 items-center rounded-full border border-slate-200 px-4 text-xs font-extrabold text-slate-700" href={tagPath(tag.tagCode)} rel="noopener noreferrer" target="_blank">Open Tag Scan Page</a>
               <QrCodeButton fileNameBase={`${tag.tagCode}-physical-tag-qr`} helperText="This is the QR printed on the physical tag." label="Show Tag QR" targetPath={tagPath(tag.tagCode)} title={`Physical Tag QR · ${tag.tagCode}`} viewLabel="Open Tag Scan Page" />
               {tag.safetyCode && tag.qrSafetyEnabled ? (
-                <a className="inline-flex min-h-10 items-center rounded-full border border-slate-200 px-4 text-xs font-extrabold text-slate-700" href={qrSafetyPath(tag.safetyCode)} rel="noopener noreferrer" target="_blank">Open QR Safety Page</a>
+                <a className="inline-flex min-h-10 items-center rounded-full border border-slate-200 px-4 text-xs font-extrabold text-slate-700" href={qrSafetyPath(tag.safetyCode)} rel="noopener noreferrer" target="_blank">Open Safety Profile</a>
               ) : null}
             </div>
           </DetailGroup>

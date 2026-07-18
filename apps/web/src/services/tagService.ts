@@ -734,7 +734,7 @@ async function updateTagArchiveState(tagId: string, isArchived: boolean) {
 }
 
 // Resolves a scanned physical tag code to a finder state. Active tags show the
-// pet-level QR Safety Page content; inactive tags never expose owner contact.
+// pet-level Safety Profile content; inactive tags never expose owner contact.
 export async function getFinderState(tagCode: string): Promise<FinderResult> {
   if (canUseApi()) {
     const response = await apiRequest<BackendTagScanPage>(

@@ -299,7 +299,7 @@ export function TagManagementPanel({
       <EmptyState
         icon="tag"
         title="No physical tags yet"
-        description="Order a MyPetLink QR Tag or MyPetLink QR + NFC Smart Tag so your pet's QR Safety Page is easy to open if they are found."
+        description="Order a MyPetLink QR Tag or MyPetLink QR + NFC Smart Tag so your pet's Safety Profile is easy to open if they are found."
         actionHref={petId ? ownerRoutes.petTagOrder(petId) : ownerRoutes.petNew}
         actionLabel="Order Physical Tag"
       />
@@ -311,7 +311,7 @@ export function TagManagementPanel({
       {!smartTagOrderingEnabled ? (
         <div className="mb-4 rounded-[1.25rem] border border-pet-border bg-pet-cream px-4 py-3 text-sm font-semibold leading-6 text-pet-muted">
           New Smart Tag ordering is coming soon. Your existing tags below still
-          work, and every pet&apos;s free QR Safety Page stays active.
+          work, and every pet&apos;s free Safety Profile stays active.
         </div>
       ) : null}
 
@@ -433,7 +433,7 @@ export function TagManagementPanel({
             (disableTagTarget.petId
               ? petMap.get(disableTagTarget.petId)?.name
               : undefined) ?? "your pet"
-          }'s QR Safety Page through this physical tag. The pet's own QR Safety Page stays active.`}
+          }'s Safety Profile through this physical tag. The pet's own Safety Profile stays active.`}
           onCancel={() => setDisableTagTarget(null)}
           onConfirm={handleDisable}
           open={Boolean(disableTagTarget)}
@@ -594,7 +594,7 @@ function TagCard({
       ) : isInactive ? (
         <p className="mt-4 rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted">
           Scanning this physical tag shows an inactive tag page and does not
-          expose owner contact details. The pet&apos;s QR Safety Page still works.
+          expose owner contact details. The pet&apos;s Safety Profile still works.
         </p>
       ) : isPending ? (
         <p className="mt-4 rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted">

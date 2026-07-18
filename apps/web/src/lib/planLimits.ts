@@ -85,7 +85,7 @@ export const smartTagAddOns = [
     billingNote: "one-time",
     type: "qr",
     description:
-      "A physical QR tag that connects to your pet's QR Safety Page.",
+      "A physical QR tag that connects to your pet's Safety Profile.",
   },
   {
     name: "MyPetLink QR + NFC Smart Tag",
@@ -94,7 +94,7 @@ export const smartTagAddOns = [
     billingNote: "one-time",
     type: "nfc",
     description:
-      "A QR + NFC smart tag where scan and tap open the same QR Safety Page.",
+      "A QR + NFC smart tag where scan and tap open the same Safety Profile.",
   },
 ] as const;
 

@@ -1,7 +1,8 @@
 "use client";
 
+import { useModalDialogFocus } from "@/lib/useModalDialogFocus";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AdminActionButton, AdminDetailItem } from "@/components/admin/AdminPanels";
 import { OrderDocumentButtons } from "@/components/admin/OrderDocumentButtons";
 import { formatAdminDateTime, getTagTypeLabel } from "@/components/admin/adminDisplay";
@@ -58,6 +59,7 @@ export function AdminOrderDetailDrawer({
   onClose: () => void;
   onAction: (action: AdminOrderAction, detail: AdminOrderDetail) => void;
 }) {
+  const dialogRef = useRef<HTMLElement | null>(null);
   const [detailState, setDetailState] = useState<{
     key: string;
     detail: AdminOrderDetail | null;
@@ -91,13 +93,7 @@ export function AdminOrderDetailDrawer({
     return () => controller.abort();
   }, [key, summary.id]);
 
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
-    }
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
+  useModalDialogFocus({ dialogRef, onEscape: onClose });
 
   const detail = detailState?.key === key ? detailState.detail : null;
   const error = detailState?.key === key ? detailState.error : "";
@@ -126,7 +122,7 @@ export function AdminOrderDetailDrawer({
       role="dialog"
     >
       <button aria-label="Close order details" className="absolute inset-0 cursor-default" onClick={onClose} type="button" />
-      <aside className="relative flex h-full w-full max-w-2xl flex-col overflow-y-auto bg-white shadow-2xl">
+      <aside className="relative flex h-full w-full max-w-2xl flex-col overflow-y-auto bg-white shadow-2xl" ref={dialogRef}>
         <header className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-slate-200 bg-white p-5">
           <div className="min-w-0">
             <p className="text-xs font-extrabold uppercase text-slate-400">Tag order</p>

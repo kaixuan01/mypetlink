@@ -92,7 +92,7 @@ const fallbackVisibility: Pet["visibility"] = {
 // The shareable public profile (/p/{slug}-{publicCode}). This is the friendly,
 // IG-style pet page owners share with friends, family, and pet communities.
 // It is deliberately separate from the finder/emergency experience. That lives
-// on the pet-level QR Safety Page (/q/{safetyCode}); physical tags use
+// on the pet-level Safety Profile (/q/{safetyCode}); physical tags use
 // /t/{tagCode} only as scan entry points while active.
 export function PublicSharePetProfile({
   initialProfile,
@@ -498,7 +498,7 @@ export function PublicSharePetProfile({
                   fullWidth
                   className="min-h-12 bg-white"
                 >
-                  Open QR Safety Page
+                  Open Safety Profile
                 </CTAButton>
               ) : null}
             </div>

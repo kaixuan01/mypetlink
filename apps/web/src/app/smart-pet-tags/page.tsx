@@ -23,7 +23,7 @@ export default function SmartPetTagsPage() {
           <PageHeader
             eyebrow="Smart pet tags"
             title="QR scanning or QR + NFC tapping—the same safer destination"
-            description="Both MyPetLink tags open your pet&apos;s QR Safety Page. They are optional one-time add-ons, not subscriptions or GPS trackers."
+            description="Both MyPetLink tags open your pet&apos;s Safety Profile. They are optional one-time add-ons, not subscriptions or GPS trackers."
           />
           <div className="grid gap-5 md:grid-cols-2">
             {smartTagAddOns.map((tag) => (
@@ -44,7 +44,7 @@ export default function SmartPetTagsPage() {
                 <p className="mt-3 text-sm leading-6 text-pet-muted">{tag.description}</p>
                 <ul className="mt-5 space-y-2 text-sm font-semibold text-pet-ink">
                   <li>• {tag.type === "nfc" ? "Scan the QR code or tap with an NFC-capable phone" : "Scan with a standard phone camera"}</li>
-                  <li>• Opens the same owner-approved QR Safety Page</li>
+                  <li>• Opens the same owner-approved Safety Profile</li>
                   <li>• Available in Lightweight and Standard tag variants</li>
                 </ul>
               </article>

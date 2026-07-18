@@ -57,6 +57,7 @@ import {
   MAX_PERSONALITY_TAGS,
 } from "@/lib/petSuggestions";
 import { getPublicProfileShareVersion } from "@/lib/publicProfileSocial";
+import { getSafetyProfileStatusView } from "@/lib/safetyProfile";
 import { smartTagOrderingEnabled } from "@/lib/features";
 import {
   getCurrentLocalDestination,
@@ -121,6 +122,8 @@ type FormState = {
   whatsapp: string;
   phone: string;
   useOwnerDefaults: boolean;
+  qrSafetyEnabled: boolean;
+  publicProfileEnabled: boolean;
   showOwnerName: boolean;
   showGeneralArea: boolean;
   showWhatsapp: boolean;
@@ -215,6 +218,8 @@ const fieldTab: Record<keyof FormState, EditTab> = {
   whatsapp: "contact",
   phone: "contact",
   useOwnerDefaults: "contact",
+  qrSafetyEnabled: "contact",
+  publicProfileEnabled: "public",
   showOwnerName: "public",
   showCareBadges: "public",
   showMoments: "public",
@@ -262,6 +267,8 @@ const emptyForm: FormState = {
   whatsapp: "",
   phone: "",
   useOwnerDefaults: true,
+  qrSafetyEnabled: true,
+  publicProfileEnabled: true,
   showOwnerName: true,
   showGeneralArea: true,
   showWhatsapp: true,
@@ -310,6 +317,34 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
   const [tab, setTab] = useState<EditTab>("basic");
   const [bioSheetOpen, setBioSheetOpen] = useState(false);
   const contactLostModeRef = useRef<HTMLDivElement | null>(null);
+  const petContactSectionRef = useRef<HTMLDivElement | null>(null);
+
+  // "Update Contact" for a pet with its own contact details: bring the
+  // Emergency Contact section into view and move focus into it so the owner
+  // lands directly on the editable fields.
+  function focusPetContactSection() {
+    const section = petContactSectionRef.current;
+
+    if (!section) {
+      return;
+    }
+
+    section.scrollIntoView({ block: "start", behavior: "smooth" });
+    section
+      .querySelector<HTMLElement>("input, button, a")
+      ?.focus({ preventScroll: true });
+  }
+
+  // Deep links (e.g. the pet hub's Update Contact action) can open a specific
+  // tab with ?tab=contact so owners never land on the wrong section. Applied
+  // after hydration so the server-rendered markup stays stable.
+  useEffect(() => {
+    const requested = new URL(window.location.href).searchParams.get("tab");
+
+    if (requested && editTabs.some((item) => item.id === requested)) {
+      queueMicrotask(() => setTab(requested as EditTab));
+    }
+  }, []);
 
   useEffect(() => {
     if (mode !== "edit" || tab !== "contact") {
@@ -699,7 +734,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
             setProfilePhotoFile(undefined);
             setCoverPhotoFile(undefined);
             setSuccess(
-              "Changes saved. Public profile and QR safety page are updated."
+              "Changes saved. Public Profile and Safety Profile are updated."
             );
           } catch (mediaError) {
             if (
@@ -846,7 +881,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
           {createdPet.name}&apos;s profile is ready.
         </h2>
         <p className="mt-3 max-w-2xl text-sm leading-6 text-pet-muted">
-          You can keep adding care records, moments, and QR safety details from
+          You can keep adding care records, moments, and safety details from
           the owner portal.
         </p>
         <ShareProfileLink
@@ -871,7 +906,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
             target="_blank"
             rel="noopener noreferrer"
           >
-            View QR Safety Page
+            View Safety Profile
           </CTAButton>
           {isActivePet(createdPet) && smartTagOrderingEnabled ? (
             <CTAButton
@@ -927,6 +962,20 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
       ? `${origin}${currentPet.qrSafetyPath}`
       : currentPet?.qrSafetyPath ?? "";
   const shareProfilePet = savedPet ?? currentPet;
+  // Live Safety Profile status preview: reflects unsaved toggles and contact
+  // edits so the owner sees the status their save would produce.
+  const safetyStatusView = getSafetyProfileStatusView({
+    lifecycleStatus: form.lifecycleStatus,
+    qrSafetyEnabled: form.qrSafetyEnabled,
+    visibility: {
+      showPhone: form.showPhone,
+      showWhatsapp: form.showWhatsapp,
+    },
+    owner: {
+      phone: form.phone,
+      whatsapp: form.whatsapp,
+    },
+  });
   const selectedTheme = getPetProfileTheme(form.profileTheme);
   // Species-aware field suggestions (personality, foods, toys, breeds).
   const suggestions = getPetSuggestions(form.species);
@@ -998,7 +1047,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
             {form.species === "Other" ? (
               <TextInput
                 error={errors.customSpecies}
-                helper="This is what people will see on profiles and QR safety pages."
+                helper="This is what people will see on the Public Profile and Safety Profile."
                 label="Enter pet type"
                 maxLength={60}
                 onChange={(value) => updateField("customSpecies", value)}
@@ -1323,7 +1372,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
           title="Profile Theme"
           description={`Applied to both ${
             form.name || "your pet"
-          }'s public share profile and QR safety page.`}
+          }'s Public Share Profile and Safety Profile.`}
         >
           <div className="grid min-w-0 gap-4">
             <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-5">
@@ -1341,7 +1390,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
             {hasUnsavedThemeChange ? (
               <p className="rounded-[1rem] bg-[#fffbea] px-4 py-3 text-xs font-bold text-[#856a00]">
                 Save changes to update {form.name || "your pet"}&apos;s public
-                profile and QR safety page.
+                profile and Safety Profile.
               </p>
             ) : null}
 
@@ -1356,7 +1405,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
       {tab === "public" ? (
         <FormSection
           title="Public Profile"
-          description="Settings for the shareable profile at /p/{slug}-{publicCode}. This is the friendly page you share with friends and family."
+          description="Share your pet's profile, photos, memories, and life timeline with friends and family."
         >
           <div className="grid min-w-0 gap-4">
             {mode === "edit" && currentPet ? (
@@ -1477,33 +1526,32 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
             </div>
             ) : null}
 
-            <div className="grid min-w-0 gap-4 lg:grid-cols-2">
-              <Field
-                error={errors.slug}
-                helper="This becomes the public page address."
-                label="Public profile slug"
-              >
-                <input
-                  className="brand-input"
-                  maxLength={70}
-                  onChange={(event) =>
-                    updateField("slug", slugifyPetSlug(event.target.value))
-                  }
-                  placeholder="milo"
-                  type="text"
-                  value={form.slug}
-                />
-              </Field>
-
-              <Field error={errors.adoptionDate} label="Adoption day">
-                <DateInput
-                  onChange={(event) =>
-                    updateField("adoptionDate", event.target.value)
-                  }
-                  value={form.adoptionDate}
-                />
-              </Field>
+            <div className="rounded-[1.5rem] border border-pet-border bg-white p-5">
+              <ToggleRow
+                checked={form.publicProfileEnabled}
+                helper="When off, the shareable page is hidden. Your Safety Profile stays available for finders."
+                label="Public Profile enabled"
+                onChange={(value) => updateField("publicProfileEnabled", value)}
+              />
+              {!form.publicProfileEnabled ? (
+                <p
+                  className="mt-3 rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted"
+                  role="status"
+                >
+                  The Public Profile page is hidden from visitors. This does not
+                  affect the Safety Profile finders see.
+                </p>
+              ) : null}
             </div>
+
+            <Field error={errors.adoptionDate} label="Adoption day">
+              <DateInput
+                onChange={(event) =>
+                  updateField("adoptionDate", event.target.value)
+                }
+                value={form.adoptionDate}
+              />
+            </Field>
 
             <PrivacyGroup title="What appears on the public profile">
               <Checkbox
@@ -1526,34 +1574,6 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
                 label="Show Life Timeline"
                 onChange={(value) => updateField("showTimeline", value)}
               />
-              <Checkbox
-                checked={form.showBirthdayOnTimeline}
-                label="Show birthday in Life Timeline"
-                onChange={(value) =>
-                  updateField("showBirthdayOnTimeline", value)
-                }
-              />
-              <Checkbox
-                checked={form.showAdoptionDayOnTimeline}
-                label="Show adoption day in Life Timeline"
-                onChange={(value) =>
-                  updateField("showAdoptionDayOnTimeline", value)
-                }
-              />
-              <div className="grid gap-1">
-                <Checkbox
-                  checked={form.showAllergiesOnPublicProfile}
-                  label="Show allergies on Public Profile"
-                  onChange={(value) =>
-                    updateField("showAllergiesOnPublicProfile", value)
-                  }
-                />
-                <p className="pl-9 text-xs font-semibold leading-5 text-pet-muted">
-                  Allergies are always shown on the QR Safety Page for pet
-                  safety. Choose whether to also show them on the regular
-                  Public Profile.
-                </p>
-              </div>
             </PrivacyGroup>
 
             <details className="rounded-[1.5rem] border border-pet-border bg-white">
@@ -1561,6 +1581,34 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
                 Advanced
               </summary>
               <div className="grid gap-3 px-5 pb-5">
+                <Checkbox
+                  checked={form.showBirthdayOnTimeline}
+                  label="Show birthday in Life Timeline"
+                  onChange={(value) =>
+                    updateField("showBirthdayOnTimeline", value)
+                  }
+                />
+                <Checkbox
+                  checked={form.showAdoptionDayOnTimeline}
+                  label="Show adoption day in Life Timeline"
+                  onChange={(value) =>
+                    updateField("showAdoptionDayOnTimeline", value)
+                  }
+                />
+                <div className="grid gap-1">
+                  <Checkbox
+                    checked={form.showAllergiesOnPublicProfile}
+                    label="Show allergies on Public Profile"
+                    onChange={(value) =>
+                      updateField("showAllergiesOnPublicProfile", value)
+                    }
+                  />
+                  <p className="pl-9 text-xs font-semibold leading-5 text-pet-muted">
+                    Allergies are always shown on the Safety Profile for pet
+                    safety. Choose whether to also show them on the regular
+                    Public Profile.
+                  </p>
+                </div>
                 <Checkbox
                   checked={form.showHealthSummary}
                   label="Allow public health and care details"
@@ -1584,6 +1632,33 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
                 </p>
               </div>
             )}
+
+            <details
+              className="rounded-[1.5rem] border border-pet-border bg-white"
+              open={Boolean(errors.slug) || undefined}
+            >
+              <summary className="cursor-pointer px-5 py-4 text-sm font-bold text-pet-muted select-none">
+                Customize link
+              </summary>
+              <div className="grid gap-3 px-5 pb-5">
+                <Field
+                  error={errors.slug}
+                  helper="This becomes the public page address."
+                  label="Custom public profile link name"
+                >
+                  <input
+                    className="brand-input"
+                    maxLength={70}
+                    onChange={(event) =>
+                      updateField("slug", slugifyPetSlug(event.target.value))
+                    }
+                    placeholder="milo"
+                    type="text"
+                    value={form.slug}
+                  />
+                </Field>
+              </div>
+            </details>
           </div>
         </FormSection>
       ) : null}
@@ -1591,7 +1666,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
       {tab === "contact" ? (
         <FormSection
           title="Contact & Safety"
-          description="Choose what finders see on your pet's QR Safety Page. Your full address is never shown."
+          description="Help finders contact you if your pet is lost. Your full address is never shown."
         >
           <div className="grid min-w-0 gap-4">
             {mode === "edit" && currentPet ? (
@@ -1605,25 +1680,93 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
             ) : null}
 
             <div className="rounded-[1.5rem] border border-pet-border bg-white p-5">
-              <TagListInput
-                error={errors.allergies}
-                helper="Add anything finders, carers, or vets should avoid."
-                label="Allergies"
-                max={MAX_ALLERGIES}
-                maxLength={MAX_ALLERGY_LENGTH}
-                onChange={(values) => updateField("allergies", values)}
-                placeholder="Add a known allergy"
-                suggestions={allergySuggestions}
-                values={form.allergies}
-              />
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-lg font-black text-pet-ink">
+                  Safety Profile
+                </h2>
+                <Badge tone={safetyStatusView.tone}>
+                  {safetyStatusView.label}
+                </Badge>
+              </div>
+              <p className="mt-2 text-sm leading-6 text-pet-muted">
+                Help finders contact you if your pet is lost. This profile can
+                be opened through a QR code, NFC tag, or direct link.
+              </p>
+              <div className="mt-4">
+                <ToggleRow
+                  checked={form.qrSafetyEnabled}
+                  helper="When off, the Safety Profile stops showing your contact details to finders."
+                  label="Safety Profile enabled"
+                  onChange={(value) => updateField("qrSafetyEnabled", value)}
+                />
+              </div>
+              {safetyStatusView.status === "contact-update-needed" ? (
+                <section
+                  aria-labelledby="safety-contact-warning-title"
+                  className="mt-3 rounded-[1.25rem] border border-[#f0dfae] bg-[#fffbea] p-4"
+                  role="status"
+                >
+                  <h3
+                    className="text-sm font-black text-[#6b5500]"
+                    id="safety-contact-warning-title"
+                  >
+                    Update your contact details
+                  </h3>
+                  <p className="mt-1 text-xs font-bold leading-5 text-[#856a00]">
+                    Add a phone or WhatsApp number so finders can contact you
+                    if your pet goes missing. Then make sure WhatsApp or phone
+                    call is turned on under &quot;What finders can see&quot;.
+                  </p>
+                  <div className="mt-3">
+                    {form.useOwnerDefaults ? (
+                      <CTAButton
+                        href={ownerRoutes.settingsOwnerContact}
+                        icon="phone"
+                        variant="secondary"
+                      >
+                        Update Contact
+                      </CTAButton>
+                    ) : (
+                      <CTAButton
+                        icon="phone"
+                        onClick={focusPetContactSection}
+                        variant="secondary"
+                      >
+                        Update Contact
+                      </CTAButton>
+                    )}
+                  </div>
+                </section>
+              ) : null}
+              {safetyStatusView.status === "off" ? (
+                <p
+                  className="mt-3 rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted"
+                  role="status"
+                >
+                  {safetyStatusView.description}
+                </p>
+              ) : null}
+              <div className="mt-4">
+                {mode === "edit" && currentPet && finderFullUrl ? (
+                  <UrlDisplay label="Safety Profile link" url={finderFullUrl} />
+                ) : mode === "create" ? (
+                  <p className="rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold text-pet-muted">
+                    The Safety Profile link will be ready after you save this
+                    pet.
+                  </p>
+                ) : null}
+              </div>
             </div>
 
-            <div className="rounded-[1.5rem] border border-pet-border bg-white p-5">
+            <div
+              className="scroll-mt-24 rounded-[1.5rem] border border-pet-border bg-white p-5"
+              ref={petContactSectionRef}
+            >
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-lg font-black text-pet-ink">
-                      Contact details for this pet
+                      Emergency Contact
                     </h2>
                     <Badge tone={form.useOwnerDefaults ? "teal" : "warm"}>
                       {form.useOwnerDefaults
@@ -1649,7 +1792,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
                     icon="phone"
                     variant="outline"
                   >
-                    Edit Owner Contact
+                    Edit contact details
                   </CTAButton>
                 ) : (
                   <CTAButton href={ownerRoutes.settings} variant="outline">
@@ -1719,7 +1862,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
                 />
                 <PhoneNumberInput
                   error={errors.phone}
-                  helper="Optional. Used for the call button on the safety page."
+                  helper="Optional. Used for the call button on the Safety Profile."
                   label="Phone number"
                   onChange={(value) => updateField("phone", value)}
                   value={form.phone}
@@ -1727,79 +1870,91 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
               </div>
             ) : null}
 
-            <div className="grid min-w-0 gap-4 lg:grid-cols-2">
-              <Field
-                error={errors.safetyNote}
-                helper="Helpful for anyone who finds your pet outside."
-                label="Safety note / handling instructions"
-              >
-                <textarea
-                  className="brand-input min-h-28"
-                  maxLength={260}
-                  onChange={(event) =>
-                    updateField("safetyNote", event.target.value)
-                  }
-                  placeholder="Friendly but nervous around traffic."
-                  value={form.safetyNote}
+            <div className="min-w-0 rounded-[1.5rem] border border-pet-border bg-white p-5">
+              <p className="text-sm font-black text-pet-ink">
+                What finders can see
+              </p>
+              <p className="mt-1 text-xs font-semibold leading-5 text-pet-muted">
+                These settings only affect {form.name || "this pet"}&apos;s
+                Safety Profile.
+              </p>
+              <div className="mt-3 grid min-w-0 gap-2">
+                <ToggleRow
+                  checked={form.showWhatsapp}
+                  label="WhatsApp"
+                  onChange={(value) => updateField("showWhatsapp", value)}
                 />
-              </Field>
-
-              <Field
-                error={errors.emergencyNote}
-                helper="Add anything urgent a finder should know before contacting you."
-                label="Emergency note"
-              >
-                <textarea
-                  className="brand-input min-h-28"
-                  maxLength={260}
-                  onChange={(event) =>
-                    updateField("emergencyNote", event.target.value)
-                  }
-                  placeholder="Keep shaded and contact owner first."
-                  value={form.emergencyNote}
+                <ToggleRow
+                  checked={form.showPhone}
+                  label="Phone call"
+                  onChange={(value) => updateField("showPhone", value)}
                 />
-              </Field>
+                <ToggleRow
+                  checked={form.showGeneralArea}
+                  label="General area"
+                  onChange={(value) => updateField("showGeneralArea", value)}
+                />
+                <ToggleRow
+                  checked={form.showEmergencyNote}
+                  label="Emergency note"
+                  onChange={(value) => updateField("showEmergencyNote", value)}
+                />
+              </div>
             </div>
 
-            <p className="rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted">
-              Privacy settings here only affect {form.name || "this pet"}&apos;s
-              public profile and QR safety page.
-            </p>
-
-            <PrivacyGroup title="What the finder safety page shows">
-              <Checkbox
-                checked={form.showWhatsapp}
-                label="Show WhatsApp contact"
-                onChange={(value) => updateField("showWhatsapp", value)}
-              />
-              <Checkbox
-                checked={form.showPhone}
-                label="Show call contact"
-                onChange={(value) => updateField("showPhone", value)}
-              />
-              <Checkbox
-                checked={form.showEmergencyNote}
-                label="Show emergency note"
-                onChange={(value) => updateField("showEmergencyNote", value)}
-              />
-              <Checkbox
-                checked={form.showGeneralArea}
-                label="Show general area"
-                onChange={(value) => updateField("showGeneralArea", value)}
-              />
-            </PrivacyGroup>
-
-            {mode === "edit" && currentPet ? (
-              <div className="brand-card min-w-0 rounded-[1.5rem] p-5">
-                {finderFullUrl ? (
-                  <UrlDisplay label="QR Safety Page URL" url={finderFullUrl} />
-                ) : null}
-              </div>
-            ) : (
-              <p className="rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold text-pet-muted">
-                The QR safety page link will be ready after you save this pet.
+            <div className="min-w-0 rounded-[1.5rem] border border-pet-border bg-white p-5">
+              <p className="text-sm font-black text-pet-ink">
+                Safety information
               </p>
-            )}
+              <div className="mt-3 grid min-w-0 gap-4">
+                <TagListInput
+                  deferSuggestions
+                  error={errors.allergies}
+                  helper="Add anything finders, carers, or vets should avoid."
+                  label="Allergies"
+                  max={MAX_ALLERGIES}
+                  maxLength={MAX_ALLERGY_LENGTH}
+                  onChange={(values) => updateField("allergies", values)}
+                  placeholder="Add a known allergy"
+                  suggestions={allergySuggestions}
+                  values={form.allergies}
+                />
+
+                <div className="grid min-w-0 gap-4 lg:grid-cols-2">
+                  <Field
+                    error={errors.safetyNote}
+                    helper="Helpful for anyone who finds your pet outside."
+                    label="Safety note / handling instructions"
+                  >
+                    <textarea
+                      className="brand-input min-h-28"
+                      maxLength={260}
+                      onChange={(event) =>
+                        updateField("safetyNote", event.target.value)
+                      }
+                      placeholder="Friendly but nervous around traffic."
+                      value={form.safetyNote}
+                    />
+                  </Field>
+
+                  <Field
+                    error={errors.emergencyNote}
+                    helper="Add anything urgent a finder should know before contacting you."
+                    label="Emergency note"
+                  >
+                    <textarea
+                      className="brand-input min-h-28"
+                      maxLength={260}
+                      onChange={(event) =>
+                        updateField("emergencyNote", event.target.value)
+                      }
+                      placeholder="Keep shaded and contact owner first."
+                      value={form.emergencyNote}
+                    />
+                  </Field>
+                </div>
+              </div>
+            </div>
           </div>
         </FormSection>
       ) : null}
@@ -1864,7 +2019,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
               target="_blank"
               rel="noopener noreferrer"
             >
-              View QR Safety Page
+              View Safety Profile
             </CTAButton>
           </>
         ) : null}
@@ -1921,7 +2076,7 @@ function getStatusActionCopy(
   if (action === "active") {
     return {
       title: "Restore to Active?",
-      message: `This will show ${name} in active pet pages again and use the pet's QR Safety settings for finder contact actions.`,
+      message: `This will show ${name} in active pet pages again and use the pet's Safety Profile settings for finder contact actions.`,
       confirmLabel: "Restore to Active",
       cancelLabel: "Keep Current Status",
     };
@@ -2225,6 +2380,8 @@ function toFormState(
     whatsapp: contact.whatsappNumber,
     phone: contact.phoneNumber,
     useOwnerDefaults: contact.useOwnerDefaults,
+    qrSafetyEnabled: pet.qrSafetyEnabled,
+    publicProfileEnabled: pet.publicProfileEnabled,
     showOwnerName: visibility.showOwnerName,
     showGeneralArea: visibility.showGeneralArea,
     showWhatsapp: visibility.showWhatsapp,
@@ -2314,6 +2471,8 @@ function buildPayload(
       emergencyContact:
         normalizeStoredPhone(form.phone) || normalizeStoredPhone(form.whatsapp),
     },
+    qrSafetyEnabled: form.qrSafetyEnabled,
+    publicProfileEnabled: form.publicProfileEnabled,
     contactOverride: form.useOwnerDefaults
       ? { useOwnerDefaults: true }
       : {
@@ -2383,6 +2542,7 @@ function TagListInput({
   error,
   helper,
   maxLength = 80,
+  deferSuggestions = false,
 }: {
   label: string;
   values: string[];
@@ -2393,9 +2553,17 @@ function TagListInput({
   error?: string;
   helper?: string;
   maxLength?: number;
+  /**
+   * When true, suggestion chips stay hidden until the owner focuses the input
+   * or asks for them, so small screens are not flooded with chips up front.
+   */
+  deferSuggestions?: boolean;
 }) {
   const [draft, setDraft] = useState("");
   const [showAllSuggestions, setShowAllSuggestions] = useState(false);
+  const [suggestionsRevealed, setSuggestionsRevealed] = useState(
+    !deferSuggestions
+  );
   const selectedKeys = new Set(values.map((value) => value.toLowerCase()));
   const canAdd = values.length < max;
   const remainingSuggestions = suggestions.filter(
@@ -2460,6 +2628,7 @@ function TagListInput({
           disabled={!canAdd}
           maxLength={maxLength}
           onChange={(event) => setDraft(event.target.value)}
+          onFocus={() => setSuggestionsRevealed(true)}
           onKeyDown={(event) => {
             if (event.key === "Enter") {
               event.preventDefault();
@@ -2480,7 +2649,18 @@ function TagListInput({
         </button>
       </div>
 
-      {visibleSuggestions.length ? (
+      {!suggestionsRevealed && remainingSuggestions.length ? (
+        <button
+          aria-expanded={false}
+          className="inline-flex min-h-9 items-center self-start rounded-full px-3 py-1.5 text-xs font-bold text-pet-teal transition hover:underline"
+          onClick={() => setSuggestionsRevealed(true)}
+          type="button"
+        >
+          Show suggestions ({remainingSuggestions.length})
+        </button>
+      ) : null}
+
+      {suggestionsRevealed && visibleSuggestions.length ? (
         <div aria-label={`Suggested ${label.toLowerCase()}`} role="group">
           <div className="flex min-w-0 flex-wrap gap-2">
             {visibleSuggestions.map((option) => (
@@ -2901,6 +3081,52 @@ function Field({
         <span className="text-xs font-bold text-[#a63c2e]">{error}</span>
       ) : null}
     </label>
+  );
+}
+
+// Accessible switch row: one full-width tappable row per setting, so the
+// mobile layout stays single-column and touch-friendly. Status is conveyed by
+// the switch state text, never by colour alone.
+function ToggleRow({
+  checked,
+  label,
+  helper,
+  onChange,
+}: {
+  checked: boolean;
+  label: string;
+  helper?: string;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <button
+      aria-checked={checked}
+      className="flex min-h-12 w-full min-w-0 items-center justify-between gap-3 rounded-2xl bg-pet-cream p-4 text-left transition hover:bg-[#f4ecdf]"
+      onClick={() => onChange(!checked)}
+      role="switch"
+      type="button"
+    >
+      <span className="min-w-0">
+        <span className="block text-sm font-bold text-pet-ink">{label}</span>
+        {helper ? (
+          <span className="mt-0.5 block text-xs font-semibold leading-5 text-pet-muted">
+            {helper}
+          </span>
+        ) : null}
+      </span>
+      <span
+        aria-hidden="true"
+        className={`relative h-6 w-11 shrink-0 rounded-full transition ${
+          checked ? "bg-pet-teal" : "bg-[#cfd6e4]"
+        }`}
+      >
+        <span
+          className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
+            checked ? "left-[1.375rem]" : "left-0.5"
+          }`}
+        />
+      </span>
+    </button>
   );
 }
 

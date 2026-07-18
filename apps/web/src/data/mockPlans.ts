@@ -13,7 +13,7 @@ export const mockPlans: Plan[] = [
     features: [
       `Up to ${freePlanLimits.maxPets} pet profiles`,
       "Public Share Profile",
-      "QR Safety Page",
+      "Safety Profile",
       "WhatsApp owner button",
       "Call owner button",
       "Basic emergency note",

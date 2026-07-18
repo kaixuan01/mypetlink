@@ -1,5 +1,6 @@
 "use client";
 
+import { dateOnlyOrUndefined } from "@/lib/adminListShared";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminOwnerPlanDetailDrawer } from "@/components/admin/AdminOwnerPlanDetailDrawer";
@@ -64,9 +65,6 @@ const usageTone: Record<AdminUsageState, "mint" | "warm" | "danger"> = {
   Over: "danger",
 };
 
-function isDateOnly(value?: string) {
-  return Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value));
-}
 
 export function AdminPlansManager() {
   const { query, actions, hasActiveFilters } = useAdminTableQuery({
@@ -385,10 +383,10 @@ function OwnerPlansSection({
       petUsage: query.filters.petUsage,
       memoryUsage: query.filters.memoryUsage,
       hasOverride: query.filters.hasOverride,
-      assignedFrom: isDateOnly(query.filters.assignedFrom) ? query.filters.assignedFrom : undefined,
-      assignedTo: isDateOnly(query.filters.assignedTo) ? query.filters.assignedTo : undefined,
-      updatedFrom: isDateOnly(query.filters.updatedFrom) ? query.filters.updatedFrom : undefined,
-      updatedTo: isDateOnly(query.filters.updatedTo) ? query.filters.updatedTo : undefined,
+      assignedFrom: dateOnlyOrUndefined(query.filters.assignedFrom),
+      assignedTo: dateOnlyOrUndefined(query.filters.assignedTo),
+      updatedFrom: dateOnlyOrUndefined(query.filters.updatedFrom),
+      updatedTo: dateOnlyOrUndefined(query.filters.updatedTo),
       sortBy: query.sortBy,
       sortDir: query.sortDir,
     }),

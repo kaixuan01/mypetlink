@@ -4,7 +4,7 @@ export const loadingTitle = "Loading";
 export const genericNotFoundTitle = "Page not found";
 export const petNotFoundTitle = "Pet not found";
 export const publicProfileNotFoundTitle = "Pet profile not found";
-export const qrSafetyNotFoundTitle = "QR Safety Page not found";
+export const qrSafetyNotFoundTitle = "Safety Profile not found";
 export const tagNotFoundTitle = "Tag not found";
 export const orderNotFoundTitle = "Order not found";
 
@@ -65,7 +65,7 @@ export function ownerPetPageTitle(
     case "timeline":
       return `${petName} Timeline`;
     case "qr":
-      return `${petName} QR Safety Page`;
+      return `${petName} Safety Profile`;
     case "tags":
       return `${petName} Smart Tags`;
     case "tag-order":
@@ -81,7 +81,7 @@ export function publicPetProfileDocumentTitle(petName: string) {
 }
 
 export function qrSafetyPageTitle(petName: string) {
-  return `${petName} QR Safety Page`;
+  return `${petName} Safety Profile`;
 }
 
 export function tagScanPageTitle(petName: string) {

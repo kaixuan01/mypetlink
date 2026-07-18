@@ -165,7 +165,7 @@ describe("AdminPetsManager", () => {
     fireEvent.click(menus[1]);
     const menu = screen.getByRole("menu");
     expect(within(menu).queryByText("Open Public Share Profile")).toBeNull();
-    expect(within(menu).queryByText("Open QR Safety Page")).toBeNull();
+    expect(within(menu).queryByText("Open Safety Profile")).toBeNull();
     expect(within(menu).getByText("View owner")).toBeTruthy();
     expect(within(menu).getByText("View Smart Tags")).toBeTruthy();
   });
@@ -175,7 +175,7 @@ describe("AdminPetsManager", () => {
     const trigger = await screen.findByRole("button", { name: "More actions for Topu, owned by Aina Owner" });
     fireEvent.click(trigger);
     expect(screen.getByRole("menuitem", { name: "Open Public Share Profile" }).getAttribute("href")).toBe("/p/topu-publiccode");
-    expect(screen.getByRole("menuitem", { name: "Open QR Safety Page" }).getAttribute("href")).toBe("/q/safetycode");
+    expect(screen.getByRole("menuitem", { name: "Open Safety Profile" }).getAttribute("href")).toBe("/q/safetycode");
     expect(screen.getByRole("menuitem", { name: "View owner" }).getAttribute("href")).toBe("/admin/users?owner=owner-1");
     expect(screen.getByRole("menuitem", { name: "View Smart Tags" }).getAttribute("href")).toBe("/admin/tags?pet=pet-1");
   });
