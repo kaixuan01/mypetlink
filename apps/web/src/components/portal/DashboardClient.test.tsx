@@ -157,16 +157,14 @@ describe("DashboardClient with pets", () => {
     renderDashboard();
 
     await screen.findByText("Quick actions");
-    const quickLabels = [
-      "Care Records",
-      "Moments",
-      "Owner Contact",
-      "Manage Pets",
-    ];
+    const quickLabels = ["Care Records", "Moments", "Owner Contact"];
     for (const label of quickLabels) {
       expect(screen.getByText(label)).toBeTruthy();
     }
-    expect(screen.queryByText("Manage Pet")).toBeNull();
+    expect(screen.queryByText("Manage Pets")).toBeNull();
+    expect(
+      screen.getByRole("link", { name: "Manage pets" }).getAttribute("href")
+    ).toBe("/pets");
   });
 
   it("points Owner Contact at the correct route", async () => {
@@ -222,28 +220,50 @@ describe("DashboardClient with pets", () => {
     expect(screen.queryByText(/pending orders/i)).toBeNull();
   });
 
-  it("puts Public Profile actions immediately below Welcome", async () => {
+  it("renders one consolidated pet section immediately below Welcome", async () => {
     renderDashboard();
 
-    await screen.findByText("Share your pets");
+    await screen.findByRole("heading", { name: "Your pets" });
     const body = document.body.textContent ?? "";
-    expect(body.indexOf("Welcome back")).toBeLessThan(
-      body.indexOf("Share your pets")
-    );
-    expect(body.indexOf("Share your pets")).toBeLessThan(
-      body.indexOf("Your pets")
-    );
+    expect(body.indexOf("Welcome back")).toBeLessThan(body.indexOf("Your pets"));
+    expect(body.indexOf("Your pets")).toBeLessThan(body.indexOf("Upcoming care"));
+    expect(screen.getByText("Manage and share your pet profiles.")).toBeTruthy();
+    expect(screen.queryByText("Share your pets")).toBeNull();
+    expect(document.querySelectorAll("[data-dashboard-pet-card]")).toHaveLength(1);
+    expect(screen.getAllByText("Milo")).toHaveLength(1);
 
     expect(
-      screen.getByRole("button", { name: "Share Milo's profile" })
+      screen.getByRole("button", { name: "Share Milo's public profile" })
     ).toBeTruthy();
-    expect(screen.getByRole("button", { name: "QR code" })).toBeTruthy();
-    const viewProfile = screen.getByRole("link", { name: "View profile" });
-    expect(viewProfile.getAttribute("href")?.startsWith(mockPets[0].publicProfilePath)).toBe(
-      true
-    );
+    expect(
+      screen.getByRole("button", {
+        name: "Show QR code for Milo's public profile",
+      })
+    ).toBeTruthy();
+    const viewProfile = screen.getByRole("link", {
+      name: "View Milo's public profile",
+    });
+    expect(viewProfile.getAttribute("href")).toBe(mockPets[0].publicProfilePath);
     expect(viewProfile.getAttribute("target")).toBe("_blank");
     expect(viewProfile.getAttribute("rel")).toBe("noopener noreferrer");
+    expect(
+      screen.getByRole("link", { name: "Manage Milo" }).getAttribute("href")
+    ).toBe(`/pets/${mockPets[0].id}`);
+  });
+
+  it("keeps the Public Profile QR available and pointed at the canonical profile", async () => {
+    renderDashboard();
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Show QR code for Milo's public profile",
+      })
+    );
+
+    const qrLink = screen.getByLabelText("Milo's profile QR link");
+    expect(qrLink.textContent).toMatch(/\/p\/[^?]+$/);
+    expect(qrLink.textContent).not.toContain("/q/");
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
   });
 
   it("does not fetch or render hidden tag and order dashboard data", async () => {
@@ -254,7 +274,7 @@ describe("DashboardClient with pets", () => {
     expect(screen.queryByText(/order/i)).toBeNull();
   });
 
-  it("uses the native share sheet with the versioned Public Profile URL", async () => {
+  it("uses the native share sheet with the canonical Public Profile URL", async () => {
     mocks.share.mockResolvedValue(undefined);
     Object.defineProperty(navigator, "share", {
       configurable: true,
@@ -263,14 +283,16 @@ describe("DashboardClient with pets", () => {
     renderDashboard();
 
     fireEvent.click(
-      await screen.findByRole("button", { name: "Share Milo's profile" })
+      await screen.findByRole("button", {
+        name: "Share Milo's public profile",
+      })
     );
 
     await waitFor(() => expect(mocks.share).toHaveBeenCalledOnce());
     expect(mocks.share).toHaveBeenCalledWith(
       expect.objectContaining({
         title: "Milo on MyPetLink",
-        url: expect.stringMatching(/\/p\/.+\?share=/),
+        url: expect.stringMatching(/\/p\/[^?]+$/),
       })
     );
     expect(mocks.writeText).not.toHaveBeenCalled();
@@ -280,11 +302,13 @@ describe("DashboardClient with pets", () => {
     renderDashboard();
 
     fireEvent.click(
-      await screen.findByRole("button", { name: "Share Milo's profile" })
+      await screen.findByRole("button", {
+        name: "Share Milo's public profile",
+      })
     );
 
     await waitFor(() => expect(mocks.writeText).toHaveBeenCalledOnce());
-    expect(mocks.writeText.mock.calls[0]?.[0]).toMatch(/\/p\/.+\?share=/);
+    expect(mocks.writeText.mock.calls[0]?.[0]).toMatch(/\/p\/[^?]+$/);
     expect((await screen.findByRole("status")).textContent).toContain(
       "Milo's profile link copied."
     );
@@ -299,7 +323,9 @@ describe("DashboardClient with pets", () => {
     renderDashboard();
 
     fireEvent.click(
-      await screen.findByRole("button", { name: "Share Milo's profile" })
+      await screen.findByRole("button", {
+        name: "Share Milo's public profile",
+      })
     );
 
     await waitFor(() => expect(mocks.share).toHaveBeenCalledOnce());
@@ -314,10 +340,44 @@ describe("DashboardClient with pets", () => {
     renderDashboard();
 
     expect((await screen.findAllByText("Private")).length).toBeGreaterThan(0);
-    expect(screen.getByRole("link", { name: "Enable profile" })).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: "Enable Milo's public profile" })
+    ).toBeTruthy();
     expect(screen.queryByRole("button", { name: /share .* profile/i })).toBeNull();
-    expect(screen.queryByRole("button", { name: "QR code" })).toBeNull();
-    expect(screen.queryByRole("link", { name: "View profile" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /show qr code/i })).toBeNull();
+    expect(screen.queryByRole("link", { name: /view .*public profile/i })).toBeNull();
+  });
+
+  it("keeps pet-header navigation separate from profile action controls", async () => {
+    renderDashboard();
+
+    await screen.findByRole("link", { name: "Manage Milo" });
+    const card = document.querySelector<HTMLElement>("[data-dashboard-pet-card]");
+
+    expect(card).toBeTruthy();
+    expect(card?.querySelector("a button")).toBeNull();
+    expect(card?.querySelector("button a")).toBeNull();
+    expect(card?.querySelector("a a")).toBeNull();
+    expect(
+      card?.querySelector("[data-dashboard-pet-actions]")?.classList.contains(
+        "min-w-0"
+      )
+    ).toBe(true);
+  });
+
+  it("keeps long pet names constrained without hiding the visibility badge", async () => {
+    const longName = "Princess Fluffington the Third of Kuala Lumpur";
+    mocks.getPets.mockResolvedValue({
+      data: [{ ...mockPets[0], name: longName }],
+    });
+    renderDashboard();
+
+    const petName = await screen.findByText(longName);
+    expect(petName.classList.contains("truncate")).toBe(true);
+    expect(screen.getByText("Public")).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: `Manage ${longName}` })
+    ).toBeTruthy();
   });
 
   it("shows a one-pet Lost Mode alert linking directly to that pet", async () => {

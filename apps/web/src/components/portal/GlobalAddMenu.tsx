@@ -257,7 +257,8 @@ export function GlobalAddMenu({
               <div className="flex items-center justify-between gap-3 px-2 py-1.5">
                 <div className="min-w-0">
                   <p
-                    className="truncate text-sm font-black text-pet-ink"
+                    className="text-sm font-black leading-5 text-pet-ink"
+                    data-owner-add-menu-title
                     id={menuTitleId}
                   >
                     {selectingPetFor

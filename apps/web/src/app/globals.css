@@ -107,7 +107,7 @@ select {
     right: var(--owner-add-anchor-right);
     bottom: auto;
     left: auto;
-    width: 18rem;
+    width: min(24rem, calc(100vw - 2rem));
     max-height: calc(100dvh - var(--owner-add-anchor-top) - 1rem);
     transform-origin: top right;
   }

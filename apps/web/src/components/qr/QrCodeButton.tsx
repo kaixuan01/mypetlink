@@ -12,7 +12,8 @@ type QrCodeButtonProps = {
   fileNameBase: string;
   warning?: string;
   // Button label; defaults to "QR".
-  label?: string;
+  label?: React.ReactNode;
+  ariaLabel?: string;
   // Visual style matching the admin action buttons.
   className?: string;
 };
@@ -31,6 +32,7 @@ export function QrCodeButton({
   fileNameBase,
   warning,
   label = "QR",
+  ariaLabel,
   className = defaultClassName,
 }: QrCodeButtonProps) {
   const [open, setOpen] = useState(false);
@@ -38,6 +40,7 @@ export function QrCodeButton({
   return (
     <>
       <button
+        aria-label={ariaLabel}
         aria-expanded={open}
         aria-haspopup="dialog"
         className={className}

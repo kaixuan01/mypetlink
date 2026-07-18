@@ -82,6 +82,9 @@ describe("GlobalAddMenu", () => {
     expect(backdrop.classList.contains("owner-action-backdrop")).toBe(true);
     expect(panel.parentElement).toBe(document.body);
     expect(backdrop.parentElement).toBe(document.body);
+    const title = screen.getByText("What would you like to add?");
+    expect(title.classList.contains("truncate")).toBe(false);
+    expect(title.getAttribute("data-owner-add-menu-title")).not.toBeNull();
   });
 
   it("offers the three approved actions and preselects the only pet", () => {

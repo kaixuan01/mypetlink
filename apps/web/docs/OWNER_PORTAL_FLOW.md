@@ -245,8 +245,13 @@ appears once the order is `Payment Confirmed`, `Preparing`, `Shipped`, or
 
 ## 6. Dashboard
 
-`/dashboard` is a server page that derives everything from `firstPet = pets[0]`
-and guards every quick-action link: when there are no pets, links fall back to
-`ownerRoutes.petNew` / `ownerRoutes.pets` instead of pointing at a missing pet.
-Reuse this guarded pattern for any new dashboard shortcut â€” do not assume a pet
-exists and never hardcode a pet id.
+`/dashboard` reuses its already-loaded pet collection for one consolidated
+**Your pets** section. Each compact card has a dedicated management link plus
+separate Public Profile Share, QR, and View actions when that profile is public;
+private profiles show an Enable profile action instead. The dashboard never
+duplicates the pet list and never silently selects the first pet.
+
+General Quick actions use pet-agnostic routes for Care Records, Moments, and
+Owner Profile & Contact. Pet management lives in the consolidated section's
+**Manage pets** link, so it is not repeated in Quick actions. When there are no
+pets, the dashboard renders one focused Add Pet empty state.
