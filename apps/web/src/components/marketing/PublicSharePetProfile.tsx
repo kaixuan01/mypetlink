@@ -11,6 +11,7 @@ import {
   PrivateMemorialOwnerAction,
   PublicProfileOwnerControls,
 } from "@/components/marketing/PublicProfileOwnerControls";
+import { LostModeContactActions } from "@/components/marketing/LostModeContactActions";
 import { LostModeFinderDetails } from "@/components/marketing/LostModeFinderDetails";
 import { SafetyAllergies } from "@/components/marketing/SafetyAllergies";
 import { MomentMediaCarousel } from "@/components/moments/MomentMediaCarousel";
@@ -53,7 +54,10 @@ import { getPublicTimeline, type PetTimelineItem } from "@/lib/petTimeline";
 import { isApiClientError } from "@/services/apiClient";
 import { isApiConfigured } from "@/services/apiConfig";
 import { getPublicPetMoments } from "@/services/momentService";
-import { getPublicPetProfileByPublicCode } from "@/services/petService";
+import {
+  getPublicPetProfileByPublicCode,
+  getPublicPetProfileBySafetyCode,
+} from "@/services/petService";
 import {
   getPetRecords,
   getPublicPetRecords,
@@ -73,6 +77,12 @@ type PublicSharePetProfileProps = {
 };
 
 type TabId = "about" | "moments" | "timeline";
+
+type LostModeContact = {
+  whatsappE164: string;
+  phoneE164: string;
+  ownerDisplayName: string;
+};
 
 const fallbackVisibility: Pet["visibility"] = {
   showOwnerName: true,
@@ -120,6 +130,12 @@ export function PublicSharePetProfile({
   const [ownerSettings, setOwnerSettings] =
     useState<OwnerSettings>(defaultOwnerSettings);
   const [activeTab, setActiveTab] = useState<TabId>("about");
+  // Owner-approved finder contact for the Lost Mode card. The public profile
+  // data never includes contact numbers, so they are loaded from the pet's
+  // Safety Profile — the single source of finder contact — when Lost Mode is
+  // active. null = not loaded (or still loading).
+  const [lostModeContact, setLostModeContact] =
+    useState<LostModeContact | null>(null);
   useEffect(() => {
     if (profile) {
       setAbsolutePageTitle(publicPetProfileDocumentTitle(profile.name));
@@ -224,6 +240,53 @@ export function PublicSharePetProfile({
       document.removeEventListener("visibilitychange", refreshVisibleProfile);
     };
   }, [apiMode, initialProfile]);
+
+  const lostModeSafetyCode =
+    apiMode && lostMode && profile?.safetyCode ? profile.safetyCode : "";
+
+  useEffect(() => {
+    if (!lostModeSafetyCode) {
+      return undefined;
+    }
+
+    let active = true;
+
+    getPublicPetProfileBySafetyCode(lostModeSafetyCode)
+      .then((response) => {
+        if (!active) {
+          return;
+        }
+
+        const safetyProfile = response.data;
+        const safetyVisibility = mergeVisibility(safetyProfile?.visibility);
+        setLostModeContact({
+          whatsappE164:
+            safetyProfile && safetyVisibility.showWhatsapp
+              ? normalizeStoredPhone(safetyProfile.owner.whatsapp)
+              : "",
+          phoneE164:
+            safetyProfile && safetyVisibility.showPhone
+              ? normalizeStoredPhone(safetyProfile.owner.phone)
+              : "",
+          ownerDisplayName: safetyProfile?.owner.name ?? "",
+        });
+      })
+      .catch(() => {
+        if (active) {
+          // Contact could not be loaded; the card still offers the Safety
+          // Page as the way to reach the owner.
+          setLostModeContact({
+            whatsappE164: "",
+            phoneE164: "",
+            ownerDisplayName: "",
+          });
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [lostModeSafetyCode]);
 
   if (!profile) {
     if (!loaded && !loadError) {
@@ -464,42 +527,34 @@ export function PublicSharePetProfile({
               className="mt-4"
               lostMode={lostModeDetails}
             />
-            <div className="mt-4 grid gap-3">
-              {canWhatsapp ? (
-                <CTAButton
-                  href={whatsappHref}
-                  icon="phone"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  variant="coral"
-                  fullWidth
-                  className="min-h-12"
-                >
-                  I found this pet - Contact Owner
-                </CTAButton>
-              ) : canCall ? (
-                <CTAButton
-                  href={phoneHref}
-                  icon="phone"
-                  variant="coral"
-                  fullWidth
-                  className="min-h-12"
-                >
-                  I found this pet - Call Owner
-                </CTAButton>
-              ) : null}
-              {safetyPagePath ? (
-                <CTAButton
-                  href={safetyPagePath}
-                  icon="qr"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  variant="outline"
-                  fullWidth
-                  className="min-h-12 bg-white"
-                >
-                  Open Safety Profile
-                </CTAButton>
+            <div className="mt-4">
+              {!apiMode || lostModeContact ? (
+                <LostModeContactActions
+                  ownerDisplayName={
+                    apiMode
+                      ? getPublicOwnerName(
+                          lostModeContact?.ownerDisplayName ?? "",
+                          profile.name
+                        )
+                      : ownerDisplayName
+                  }
+                  petName={profile.name}
+                  phoneE164={
+                    apiMode
+                      ? lostModeContact?.phoneE164 ?? ""
+                      : canCall
+                        ? phoneE164
+                        : ""
+                  }
+                  safetyPagePath={safetyPagePath}
+                  whatsappE164={
+                    apiMode
+                      ? lostModeContact?.whatsappE164 ?? ""
+                      : canWhatsapp
+                        ? whatsappE164
+                        : ""
+                  }
+                />
               ) : null}
             </div>
           </section>

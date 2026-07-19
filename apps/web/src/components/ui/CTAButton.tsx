@@ -14,6 +14,9 @@ type CTAButtonProps = {
   disabled?: boolean;
   target?: string;
   rel?: string;
+  // Complete accessible name when the visible label is abbreviated
+  // (e.g. visible "Call" announced as "Call Doudou's owner").
+  ariaLabel?: string;
 };
 
 const variants = {
@@ -40,6 +43,7 @@ export function CTAButton({
   disabled,
   target,
   rel,
+  ariaLabel,
 }: CTAButtonProps) {
   const classes = [
     "inline-flex min-h-12 items-center justify-center gap-2 rounded-full border px-5 py-3 text-sm font-extrabold transition active:translate-y-px",
@@ -61,14 +65,26 @@ export function CTAButton({
   if (href && !disabled) {
     if (href.startsWith("/")) {
       return (
-        <Link href={href} className={classes} rel={rel} target={target}>
+        <Link
+          aria-label={ariaLabel}
+          href={href}
+          className={classes}
+          rel={rel}
+          target={target}
+        >
           {content}
         </Link>
       );
     }
 
     return (
-      <a href={href} className={classes} rel={rel} target={target}>
+      <a
+        aria-label={ariaLabel}
+        href={href}
+        className={classes}
+        rel={rel}
+        target={target}
+      >
         {content}
       </a>
     );
@@ -76,6 +92,7 @@ export function CTAButton({
 
   return (
     <button
+      aria-label={ariaLabel}
       className={classes}
       disabled={disabled}
       onClick={onClick}

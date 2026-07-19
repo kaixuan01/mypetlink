@@ -20,6 +20,7 @@ import {
   getWhatsAppLink,
   normalizeStoredPhone,
 } from "@/lib/phone";
+import { sendFoundLocationViaWhatsApp } from "@/lib/foundLocation";
 import type { Pet, PublicPetProfile } from "@/types";
 
 type QrSafetyPageViewProps = {
@@ -28,6 +29,7 @@ type QrSafetyPageViewProps = {
 
 export function QrSafetyPageView({ pet }: QrSafetyPageViewProps) {
   const [locationStatus, setLocationStatus] = useState("");
+  const [sendingLocation, setSendingLocation] = useState(false);
   const [ownerSettings, setOwnerSettings] =
     useState<OwnerSettings>(defaultOwnerSettings);
   const visibility = mergeVisibility(pet.visibility);
@@ -116,46 +118,23 @@ export function QrSafetyPageView({ pet }: QrSafetyPageViewProps) {
     );
   }
 
-  function openWhatsappWithMessage(text: string) {
-    window.location.assign(getWhatsAppLink(whatsappE164, text));
-  }
-
-  function handleSendFoundLocation() {
-    if (!whatsappE164) {
+  async function handleSendFoundLocation() {
+    if (!whatsappE164 || sendingLocation) {
       return;
     }
 
-    setLocationStatus("Asking your browser for location permission...");
+    setSendingLocation(true);
 
-    if (!navigator.geolocation) {
-      setLocationStatus(
-        "Location is not available here. A WhatsApp message is ready for you to type the location."
-      );
-      openWhatsappWithMessage(
-        `Hi ${ownerDisplayName}, I found ${pet.name}. I can describe the found location here.`
-      );
-      return;
+    try {
+      await sendFoundLocationViaWhatsApp({
+        whatsappE164,
+        ownerDisplayName,
+        petName: pet.name,
+        onStatus: setLocationStatus,
+      });
+    } finally {
+      setSendingLocation(false);
     }
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        const mapsUrl = `https://www.google.com/maps?q=${latitude},${longitude}`;
-        setLocationStatus("Location ready. Opening WhatsApp...");
-        openWhatsappWithMessage(
-          `Hi ${ownerDisplayName}, I found ${pet.name}. Found location: ${mapsUrl}`
-        );
-      },
-      () => {
-        setLocationStatus(
-          "Location was not shared. A WhatsApp message is ready for you to type the location."
-        );
-        openWhatsappWithMessage(
-          `Hi ${ownerDisplayName}, I found ${pet.name}. I can describe the found location here.`
-        );
-      },
-      { enableHighAccuracy: true, maximumAge: 60000, timeout: 10000 }
-    );
   }
 
   return (
@@ -244,13 +223,14 @@ export function QrSafetyPageView({ pet }: QrSafetyPageViewProps) {
         ) : null}
         {visibility.showWhatsapp && whatsappE164 ? (
           <CTAButton
+            disabled={sendingLocation}
             icon="pin"
             onClick={handleSendFoundLocation}
             variant="outline"
             fullWidth
             className="min-h-14 bg-white text-base"
           >
-            Send Found Location
+            {sendingLocation ? "Getting Location..." : "Send Found Location"}
           </CTAButton>
         ) : null}
       </div>
@@ -311,7 +291,10 @@ export function QrSafetyPageView({ pet }: QrSafetyPageViewProps) {
       </div>
 
       {locationStatus ? (
-        <p className="mt-3 rounded-[1.25rem] bg-[#e8f3ff] p-4 text-center text-sm font-bold leading-6 text-pet-ink">
+        <p
+          className="mt-3 rounded-[1.25rem] bg-[#e8f3ff] p-4 text-center text-sm font-bold leading-6 text-pet-ink"
+          role="status"
+        >
           {locationStatus}
         </p>
       ) : null}
