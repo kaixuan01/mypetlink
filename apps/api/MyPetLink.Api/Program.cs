@@ -30,6 +30,7 @@ builder.Services.AddOptions<CloudflareR2Options>()
     .ValidateOnStart();
 builder.Services.AddSingleton<IValidateOptions<CloudflareR2Options>, CloudflareR2OptionsValidator>();
 builder.Services.Configure<FeatureOptions>(builder.Configuration.GetSection(FeatureOptions.SectionName));
+builder.Services.Configure<PublicSiteOptions>(builder.Configuration.GetSection(PublicSiteOptions.SectionName));
 builder.Services.Configure<AdminSeedOptions>(builder.Configuration.GetSection(AdminSeedOptions.SectionName));
 builder.Services.Configure<DatabaseResilienceOptions>(
     builder.Configuration.GetSection(DatabaseResilienceOptions.SectionName));

@@ -80,6 +80,24 @@ public sealed class AdminTagInventoryController : ApiControllerBase
         return File(export.Content, export.ContentType, export.FileName);
     }
 
+    // Production workbook for the physical tag manufacturer: only the data
+    // required for QR printing and NFC encoding. Owner, pet, order, and
+    // internal operational data never appear in this file.
+    [HttpGet("manufacturer-export")]
+    public async Task<IActionResult> ManufacturerExport(
+        [FromQuery] AdminTagInventoryQuery query,
+        [FromQuery] string? ids,
+        CancellationToken cancellationToken)
+    {
+        var export = await _inventoryService.ExportManufacturerAsync(
+            _currentUserService.Current.UserId,
+            query,
+            ParseSelectedIds(ids),
+            cancellationToken);
+
+        return File(export.Content, export.ContentType, export.FileName);
+    }
+
     private static IReadOnlyCollection<Guid>? ParseSelectedIds(string? ids)
     {
         if (string.IsNullOrWhiteSpace(ids))

@@ -294,6 +294,36 @@ export function getSupportedExportFormats(): ("csv" | "xlsx")[] {
   return canUseAdminApi() ? ["csv", "xlsx"] : ["csv"];
 }
 
+// The manufacturer production workbook is generated and validated on the
+// server (eligibility rules, canonical tag links), so it is only offered when
+// the MyPetLink service is connected.
+export function isManufacturerExportAvailable(): boolean {
+  return canUseAdminApi();
+}
+
+// Downloads the production workbook for the physical tag manufacturer. The
+// server validates every row (unclaimed, batch-tracked, not yet distributed)
+// and blocks the export with per-tag reasons when anything is not safe to
+// produce; nothing about the tags is changed by exporting.
+export async function downloadTagManufacturerExport(
+  params: AdminInventoryListParams,
+  selectedIds?: string[]
+): Promise<void> {
+  const query = new URLSearchParams(buildQueryString(params));
+  query.delete("page");
+  query.delete("pageSize");
+
+  if (selectedIds && selectedIds.length > 0) {
+    query.set("ids", selectedIds.join(","));
+  }
+
+  const { blob, fileName } = await apiRequestBlob(
+    `/api/v1/admin/tag-inventory/manufacturer-export?${query.toString()}`
+  );
+
+  triggerDownload(blob, fileName ?? "MyPetLink-Tag-Production.xlsx");
+}
+
 export async function downloadTagInventoryExport(
   params: AdminInventoryListParams,
   format: "csv" | "xlsx",

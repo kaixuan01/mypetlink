@@ -5,6 +5,16 @@ import { Icon } from "@/components/ui/Icon";
 
 export type AdminExportFormat = "csv" | "xlsx";
 
+export type AdminExportScope = "filtered" | "selected";
+
+// Optional extra section for listings that also offer an external
+// production-facing export (e.g. the Tag Inventory manufacturer file),
+// clearly separated from the internal CSV/Excel exports.
+export type AdminProductionExport = {
+  onExport: (scope: AdminExportScope) => void;
+  description: string;
+};
+
 // Export dropdown for admin listings. "Filtered" exports everything matching
 // the current filters (not just the visible page); "Selected" exports only the
 // checked rows.
@@ -13,11 +23,13 @@ export function AdminExportMenu({
   selectedCount,
   busy = false,
   formats = ["csv", "xlsx"],
+  production,
 }: {
-  onExport: (format: AdminExportFormat, scope: "filtered" | "selected") => void;
+  onExport: (format: AdminExportFormat, scope: AdminExportScope) => void;
   selectedCount: number;
   busy?: boolean;
   formats?: AdminExportFormat[];
+  production?: AdminProductionExport;
 }) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -42,9 +54,14 @@ export function AdminExportMenu({
     xlsx: "Excel",
   };
 
-  function runExport(format: AdminExportFormat, scope: "filtered" | "selected") {
+  function runExport(format: AdminExportFormat, scope: AdminExportScope) {
     setOpen(false);
     onExport(format, scope);
+  }
+
+  function runProductionExport(scope: AdminExportScope) {
+    setOpen(false);
+    production?.onExport(scope);
   }
 
   return (
@@ -97,6 +114,37 @@ export function AdminExportMenu({
               {formatLabels[format]}
             </button>
           ))}
+          {production ? (
+            <>
+              <p className="border-t border-slate-100 px-2 pb-1 pt-2 text-[0.65rem] font-extrabold uppercase text-slate-400">
+                Production
+              </p>
+              <button
+                className="block w-full rounded-lg px-2 py-1.5 text-left text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                onClick={() => runProductionExport("filtered")}
+                role="menuitem"
+                type="button"
+              >
+                Export filtered rows for manufacturer
+              </button>
+              <button
+                className="block w-full rounded-lg px-2 py-1.5 text-left text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300"
+                disabled={selectedCount === 0}
+                onClick={() => runProductionExport("selected")}
+                role="menuitem"
+                title={
+                  selectedCount === 0 ? "Select rows to enable this export." : undefined
+                }
+                type="button"
+              >
+                Export {selectedCount > 0 ? `${selectedCount} selected` : "selected"}{" "}
+                {selectedCount === 1 ? "row" : "rows"} for manufacturer
+              </button>
+              <p className="px-2 pb-1.5 pt-1 text-xs font-semibold leading-4 text-slate-500">
+                {production.description}
+              </p>
+            </>
+          ) : null}
         </div>
       ) : null}
     </div>

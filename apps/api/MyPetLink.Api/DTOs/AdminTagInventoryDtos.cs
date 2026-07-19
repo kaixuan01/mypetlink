@@ -86,6 +86,17 @@ public sealed record AdminTagInventoryBulkActionRequest(
     [Required, MaxLength(40)] string Action,
     [Required, MinLength(1), MaxLength(500)] Guid[] TagIds);
 
+// Projection for the manufacturer production workbook. This file is shared
+// outside the company, so the projection deliberately carries ONLY what the
+// manufacturer needs to print and encode tags — never owner, pet, order,
+// payment, audit, or database-id data. Internal eligibility fields (lifecycle,
+// fulfilment, linkage) are checked server-side before rows reach this shape.
+public sealed record AdminManufacturerTagRow(
+    string TagCode,
+    bool HasNfc,
+    string Variant,
+    string BatchNo);
+
 public sealed record AdminTagInventoryBulkFailure(
     Guid TagId,
     string TagCode,

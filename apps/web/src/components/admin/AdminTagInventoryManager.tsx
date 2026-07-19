@@ -25,6 +25,7 @@ import { AdminSearchInput } from "@/components/admin/table/AdminSearchInput";
 import {
   AdminExportMenu,
   type AdminExportFormat,
+  type AdminExportScope,
 } from "@/components/admin/table/AdminExportMenu";
 import { useAdminTableQuery } from "@/components/admin/table/useAdminTableQuery";
 import { Badge } from "@/components/ui/Badge";
@@ -34,8 +35,10 @@ import {
   bulkUpdateTagInventory,
   canApplyBulkAction,
   downloadTagInventoryExport,
+  downloadTagManufacturerExport,
   fulfilmentLabels,
   getSupportedExportFormats,
+  isManufacturerExportAvailable,
   lifecycleLabel,
   listTagInventory,
   type AdminInventoryBulkAction,
@@ -312,7 +315,7 @@ export function AdminTagInventoryManager() {
     }
   }
 
-  async function runExport(format: AdminExportFormat, scope: "filtered" | "selected") {
+  async function runExport(format: AdminExportFormat, scope: AdminExportScope) {
     setExportBusy(true);
 
     try {
@@ -325,6 +328,34 @@ export function AdminTagInventoryManager() {
         scope === "selected"
           ? `${selectedIds.size} selected tag${selectedIds.size === 1 ? "" : "s"} exported.`
           : "Filtered tag inventory exported."
+      );
+      setFailureDetails([]);
+    } catch (caught) {
+      setMessage(getFriendlyTagErrorMessage(caught));
+    } finally {
+      setExportBusy(false);
+    }
+  }
+
+  // Manufacturer production export: the file only downloads after the server
+  // has validated every row, so a blocked export shows the reasons and leaves
+  // filters and row selection untouched for fixing up and retrying.
+  async function runManufacturerExport(scope: AdminExportScope) {
+    if (exportBusy) {
+      return;
+    }
+
+    setExportBusy(true);
+
+    try {
+      await downloadTagManufacturerExport(
+        listParams,
+        scope === "selected" ? [...selectedIds] : undefined
+      );
+      setMessage(
+        scope === "selected"
+          ? `Production file for ${selectedIds.size} selected tag${selectedIds.size === 1 ? "" : "s"} exported for the manufacturer.`
+          : "Production file exported for the manufacturer."
       );
       setFailureDetails([]);
     } catch (caught) {
@@ -524,6 +555,15 @@ export function AdminTagInventoryManager() {
               busy={exportBusy}
               formats={getSupportedExportFormats()}
               onExport={(format, scope) => void runExport(format, scope)}
+              production={
+                isManufacturerExportAvailable()
+                  ? {
+                      onExport: (scope) => void runManufacturerExport(scope),
+                      description:
+                        "Production export contains only the tag data required for QR printing and NFC encoding. Owner and pet information is excluded.",
+                    }
+                  : undefined
+              }
               selectedCount={selectedIds.size}
             />
           }
@@ -543,7 +583,7 @@ export function AdminTagInventoryManager() {
         />
 
         {message ? (
-          <div className="px-4 pt-3">
+          <div className="px-4 pt-3" role="status">
             <p className="text-sm font-bold text-[#1b4f9c]">{message}</p>
             {failureDetails.length > 0 ? (
               <ul className="mt-1 grid gap-0.5 text-xs font-semibold text-[#a63c2e]">

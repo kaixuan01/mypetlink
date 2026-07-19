@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using ClosedXML.Excel;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using MyPetLink.Api.Common;
 using MyPetLink.Api.Data;
 using MyPetLink.Api.DTOs;
@@ -45,11 +46,16 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
 
     private readonly MyPetLinkDbContext _dbContext;
     private readonly IAuditLogService _auditLogService;
+    private readonly PublicSiteOptions _publicSiteOptions;
 
-    public AdminTagInventoryService(MyPetLinkDbContext dbContext, IAuditLogService auditLogService)
+    public AdminTagInventoryService(
+        MyPetLinkDbContext dbContext,
+        IAuditLogService auditLogService,
+        IOptions<PublicSiteOptions> publicSiteOptions)
     {
         _dbContext = dbContext;
         _auditLogService = auditLogService;
+        _publicSiteOptions = publicSiteOptions.Value;
     }
 
     // --- Listing -----------------------------------------------------------------
@@ -341,7 +347,7 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
         return
         [
             row.TagCode,
-            row.HasNfc ? "QR + NFC Smart Tag" : "QR Pet Tag",
+            TagTypeLabel(row.HasNfc),
             row.Variant,
             row.BatchNo ?? "",
             row.ResellerName ?? "",
@@ -431,6 +437,312 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
             query.SortBy,
             query.SortDir
         };
+    }
+
+    // --- Manufacturer production export ------------------------------------------------
+
+    // Workbook columns, in the order the manufacturer receives them.
+    private static readonly string[] ManufacturerHeaders =
+    [
+        "Sequence No.",
+        "Tag Code",
+        "Tag Type",
+        "Tag Variant",
+        "QR Content",
+        "NFC Content",
+        "Batch No.",
+        "Printed Code",
+        "Print Template / SKU",
+        "Production Notes"
+    ];
+
+    // 1-based workbook columns that must stay plain text so Excel never
+    // reformats codes, batch numbers, or URLs.
+    private static readonly int[] ManufacturerTextColumns = [2, 5, 6, 7, 8];
+
+    // Internal-only projection used to decide whether a tag may be sent for
+    // production. Linkage and lifecycle fields never reach the workbook.
+    private sealed record ManufacturerCandidate(
+        Guid Id,
+        string TagCode,
+        bool HasNfc,
+        string Variant,
+        string? BatchNo,
+        SmartTagStatus Status,
+        bool IsArchived,
+        TagFulfilmentStatus Fulfilment,
+        bool IsLinked);
+
+    // Production-focused export shared with the physical tag manufacturer. It
+    // contains only what is needed to print QR codes and encode NFC chips —
+    // never owner, pet, order, payment, or internal operational data — and it
+    // never changes any tag's lifecycle or fulfilment status. Only unclaimed,
+    // batch-tracked stock that has not left our hands (Generated or Printed)
+    // is eligible; anything else blocks the export with per-tag reasons.
+    public async Task<AdminTagInventoryExport> ExportManufacturerAsync(
+        Guid? currentUserId,
+        AdminTagInventoryQuery query,
+        IReadOnlyCollection<Guid>? tagIds,
+        CancellationToken cancellationToken = default)
+    {
+        var admin = await RequireAdminAsync(currentUserId, cancellationToken);
+
+        if (TagLinks.ScanUrl(_publicSiteOptions.BaseUrl, "MPL-TEST-TEST") is null)
+        {
+            throw new ApiException(
+                StatusCodes.Status503ServiceUnavailable,
+                "production_export_unavailable",
+                "The public website address is not configured for this environment, so tag QR links cannot be generated yet.");
+        }
+
+        var tags = BuildFilteredQuery(query);
+
+        if (tagIds is { Count: > 0 })
+        {
+            tags = tags.Where(tag => tagIds.Contains(tag.Id));
+        }
+
+        var total = await tags.CountAsync(cancellationToken);
+
+        if (total == 0)
+        {
+            throw new ApiException(
+                StatusCodes.Status400BadRequest,
+                "production_export_blocked",
+                tagIds is { Count: > 0 }
+                    ? "The selected tags could no longer be found. Please refresh the list and reselect."
+                    : "No tags match the current filters, so there is nothing to send for production.");
+        }
+
+        if (tagIds is { Count: > 0 } && total != tagIds.Distinct().Count())
+        {
+            throw new ApiException(
+                StatusCodes.Status400BadRequest,
+                "production_export_blocked",
+                "Some selected tags could no longer be found. Please refresh the list and reselect.");
+        }
+
+        if (total > MaxExportRows)
+        {
+            throw ValidationFailed(
+                "filters",
+                $"This export would contain {total} rows. Narrow the filters to {MaxExportRows} rows or fewer.");
+        }
+
+        // Deterministic production order: an explicitly chosen table sort is
+        // preserved; otherwise rows group by batch and then tag code.
+        var ordered = NormalizeOptional(query.SortBy) is not null
+            ? ApplySort(tags, query.SortBy, query.SortDir)
+            : tags
+                .OrderBy(tag => tag.Batch == null ? "" : tag.Batch.BatchNo)
+                .ThenBy(tag => tag.TagCode)
+                .ThenBy(tag => tag.Id);
+
+        var candidates = await ordered
+            .Select(tag => new ManufacturerCandidate(
+                tag.Id,
+                tag.TagCode,
+                tag.HasNfc,
+                tag.Variant,
+                tag.Batch == null ? null : tag.Batch.BatchNo,
+                tag.Status,
+                tag.ArchivedAt != null,
+                tag.FulfilmentStatus,
+                tag.PetId != null || tag.OwnerUserId != null))
+            .ToListAsync(cancellationToken);
+
+        var problems = CollectProductionProblems(candidates);
+
+        if (problems.Count > 0)
+        {
+            throw ProductionExportBlocked(problems);
+        }
+
+        var rows = candidates
+            .Select(candidate => new AdminManufacturerTagRow(
+                candidate.TagCode,
+                candidate.HasNfc,
+                TagVariants.Normalize(candidate.Variant),
+                candidate.BatchNo!))
+            .ToList();
+
+        _auditLogService.Append(
+            admin.Id, ActorType.Admin, "tag-inventory.export-manufacturer", "SmartTag", null,
+            null,
+            new
+            {
+                rowCount = rows.Count,
+                selectedRowsOnly = tagIds is { Count: > 0 },
+                filters = FilterSnapshot(query)
+            });
+
+        // Same batch bookkeeping as the internal export: remember when each
+        // batch last went out in an export. Lifecycle and fulfilment are never
+        // touched here.
+        var exportedBatchNos = rows.Select(row => row.BatchNo).Distinct().ToArray();
+        var exportedAt = DateTimeOffset.UtcNow;
+        var batches = await _dbContext.SmartTagBatches
+            .Where(batch => exportedBatchNos.Contains(batch.BatchNo))
+            .ToListAsync(cancellationToken);
+
+        foreach (var batch in batches)
+        {
+            batch.ExportedAt = exportedAt;
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        var scopeName = exportedBatchNos.Length == 1
+            ? exportedBatchNos[0]
+            : exportedAt.UtcDateTime.ToString("yyyy-MM-dd");
+
+        return new AdminTagInventoryExport(
+            $"MyPetLink-Tag-Production-{scopeName}.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            BuildManufacturerXlsx(rows));
+    }
+
+    private List<(string TagCode, string Reason)> CollectProductionProblems(
+        IReadOnlyList<ManufacturerCandidate> candidates)
+    {
+        var problems = new List<(string TagCode, string Reason)>();
+        var seenCodes = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var candidate in candidates)
+        {
+            var code = candidate.TagCode;
+
+            if (string.IsNullOrWhiteSpace(code))
+            {
+                problems.Add(("(no code)", "This tag has no tag code."));
+                continue;
+            }
+
+            if (!seenCodes.Add(code))
+            {
+                problems.Add((code, "This tag code appears more than once in the export."));
+                continue;
+            }
+
+            if (candidate.IsArchived || candidate.Status == SmartTagStatus.Archived)
+            {
+                problems.Add((code, "Archived tags cannot be sent for production."));
+                continue;
+            }
+
+            if (candidate.Status != SmartTagStatus.Unclaimed)
+            {
+                problems.Add((code,
+                    $"Only unclaimed stock can be sent for production. This tag is {LifecycleLabel(candidate.Status, archived: false)}."));
+                continue;
+            }
+
+            if (candidate.IsLinked)
+            {
+                problems.Add((code, "This tag is already linked to an owner or pet."));
+                continue;
+            }
+
+            if (candidate.Fulfilment is not (TagFulfilmentStatus.Generated or TagFulfilmentStatus.Printed))
+            {
+                problems.Add((code,
+                    $"This tag is already {FulfilmentLabel(candidate.Fulfilment)}, so producing it again is not safe."));
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(candidate.BatchNo))
+            {
+                problems.Add((code, "This tag has no production batch number."));
+                continue;
+            }
+
+            if (TagLinks.ScanUrl(_publicSiteOptions.BaseUrl, code) is null)
+            {
+                problems.Add((code, "A QR link could not be generated for this tag."));
+            }
+        }
+
+        return problems;
+    }
+
+    private static ApiException ProductionExportBlocked(
+        IReadOnlyList<(string TagCode, string Reason)> problems)
+    {
+        const int shown = 5;
+        var lines = problems
+            .Take(shown)
+            .Select(problem => $"{problem.TagCode}: {problem.Reason}");
+        var summary = string.Join(" ", lines);
+        var suffix = problems.Count > shown
+            ? $" …and {problems.Count - shown} more."
+            : "";
+
+        return new ApiException(
+            StatusCodes.Status400BadRequest,
+            "production_export_blocked",
+            $"{problems.Count} tag{(problems.Count == 1 ? " is" : "s are")} not ready for production export. {summary}{suffix}",
+            new Dictionary<string, string[]>
+            {
+                ["tags"] = problems
+                    .Select(problem => $"{problem.TagCode}: {problem.Reason}")
+                    .ToArray()
+            });
+    }
+
+    private byte[] BuildManufacturerXlsx(IReadOnlyList<AdminManufacturerTagRow> rows)
+    {
+        using var workbook = new XLWorkbook();
+        var sheet = workbook.Worksheets.Add("Tag Production");
+
+        for (var column = 0; column < ManufacturerHeaders.Length; column++)
+        {
+            var cell = sheet.Cell(1, column + 1);
+            cell.Value = ManufacturerHeaders[column];
+            cell.Style.Font.Bold = true;
+        }
+
+        foreach (var column in ManufacturerTextColumns)
+        {
+            sheet.Column(column).Style.NumberFormat.Format = "@";
+        }
+
+        for (var index = 0; index < rows.Count; index++)
+        {
+            var row = rows[index];
+            var scanUrl = TagLinks.ScanUrl(_publicSiteOptions.BaseUrl, row.TagCode)!;
+            var sheetRow = index + 2;
+
+            sheet.Cell(sheetRow, 1).SetValue(index + 1);
+            SetManufacturerText(sheet, sheetRow, 2, row.TagCode);
+            SetManufacturerText(sheet, sheetRow, 3, TagTypeLabel(row.HasNfc));
+            SetManufacturerText(sheet, sheetRow, 4, row.Variant);
+            SetManufacturerText(sheet, sheetRow, 5, scanUrl);
+            // QR and NFC are separate manufacturing operations, so they stay
+            // separate columns even while the encoded URL is identical.
+            SetManufacturerText(sheet, sheetRow, 6, row.HasNfc ? scanUrl : "");
+            SetManufacturerText(sheet, sheetRow, 7, row.BatchNo);
+            // The printed code is the human-readable text on the physical tag;
+            // today it matches the encoded tag code exactly.
+            SetManufacturerText(sheet, sheetRow, 8, row.TagCode);
+            // Print Template / SKU has no approved product mapping yet, and
+            // Production Notes has no production-safe source field; both stay
+            // blank deliberately.
+            SetManufacturerText(sheet, sheetRow, 9, "");
+            SetManufacturerText(sheet, sheetRow, 10, "");
+        }
+
+        sheet.SheetView.FreezeRows(1);
+        sheet.Range(1, 1, Math.Max(rows.Count + 1, 1), ManufacturerHeaders.Length).SetAutoFilter();
+        sheet.Columns().AdjustToContents(1, Math.Min(rows.Count + 1, 200));
+
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        return stream.ToArray();
+    }
+
+    private static void SetManufacturerText(IXLWorksheet sheet, int row, int column, string value)
+    {
+        sheet.Cell(row, column).SetValue(AdminExportSanitizer.SpreadsheetSafe(value));
     }
 
     // --- Query building ----------------------------------------------------------------
@@ -644,6 +956,12 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
     internal static string LifecycleLabel(SmartTagStatus status, bool archived)
     {
         return archived ? "Archived" : status.ToString();
+    }
+
+    // Product-facing tag type names, shared by every export.
+    internal static string TagTypeLabel(bool hasNfc)
+    {
+        return hasNfc ? "QR + NFC Smart Tag" : "QR Pet Tag";
     }
 
     internal static string FulfilmentLabel(TagFulfilmentStatus status)

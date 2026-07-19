@@ -513,6 +513,12 @@ public interface IAdminTagInventoryService : ISkeletonService
         string? format,
         IReadOnlyCollection<Guid>? tagIds,
         CancellationToken cancellationToken = default);
+
+    Task<AdminTagInventoryExport> ExportManufacturerAsync(
+        Guid? currentUserId,
+        AdminTagInventoryQuery query,
+        IReadOnlyCollection<Guid>? tagIds,
+        CancellationToken cancellationToken = default);
 }
 
 // Read-only, privacy-conscious owner support query surface.

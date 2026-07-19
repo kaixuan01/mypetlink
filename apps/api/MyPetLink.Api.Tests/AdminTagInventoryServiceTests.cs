@@ -454,6 +454,249 @@ public sealed class AdminTagInventoryServiceTests
         Assert.DoesNotContain(",\"=HYPERLINK", text);
     }
 
+    // --- Manufacturer production export -------------------------------------------------
+
+    private static ClosedXML.Excel.IXLWorksheet OpenProductionSheet(AdminTagInventoryExport export)
+    {
+        var workbook = new ClosedXML.Excel.XLWorkbook(new MemoryStream(export.Content));
+        return workbook.Worksheet("Tag Production");
+    }
+
+    [Fact]
+    public async Task ManufacturerExport_ProducesOrderedColumnsWithCanonicalUrlsAndNoPrivateData()
+    {
+        using var harness = await InventoryHarness.CreateAsync();
+
+        var export = await harness.Service.ExportManufacturerAsync(
+            AdminUserId, new AdminTagInventoryQuery { Batch = "BATCH-A" }, null);
+
+        Assert.Equal("MyPetLink-Tag-Production-BATCH-A.xlsx", export.FileName);
+        Assert.Equal(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            export.ContentType);
+
+        var sheet = OpenProductionSheet(export);
+        string[] expectedHeaders =
+        [
+            "Sequence No.", "Tag Code", "Tag Type", "Tag Variant", "QR Content",
+            "NFC Content", "Batch No.", "Printed Code", "Print Template / SKU", "Production Notes"
+        ];
+
+        for (var column = 0; column < expectedHeaders.Length; column++)
+        {
+            Assert.Equal(expectedHeaders[column], sheet.Cell(1, column + 1).GetString());
+        }
+
+        // Deterministic default order: batch, then tag code; sequence from 1.
+        string[] expectedCodes = ["MPL-AAAA-AAAA", "MPL-BBBB-BBBB", "MPL-CCCC-CCCC", "MPL-DDDD-DDDD"];
+
+        for (var index = 0; index < expectedCodes.Length; index++)
+        {
+            var row = index + 2;
+            Assert.Equal(index + 1, sheet.Cell(row, 1).GetValue<int>());
+            Assert.Equal(expectedCodes[index], sheet.Cell(row, 2).GetString());
+            Assert.Equal("QR Pet Tag", sheet.Cell(row, 3).GetString());
+            Assert.Equal("Standard", sheet.Cell(row, 4).GetString());
+            Assert.Equal(
+                $"{InventoryHarness.PublicSiteBaseUrl}/t/{expectedCodes[index]}",
+                sheet.Cell(row, 5).GetString());
+            // QR-only tags have no NFC operation, so the cell stays blank.
+            Assert.Equal("", sheet.Cell(row, 6).GetString());
+            Assert.Equal("BATCH-A", sheet.Cell(row, 7).GetString());
+            Assert.Equal(expectedCodes[index], sheet.Cell(row, 8).GetString());
+            Assert.Equal("", sheet.Cell(row, 9).GetString());
+            Assert.Equal("", sheet.Cell(row, 10).GetString());
+        }
+
+        Assert.Equal(5, sheet.LastRowUsed()!.RowNumber());
+
+        // Externally shared file: no owner, pet, email, or internal id fields.
+        var allText = string.Join(
+            "\n",
+            sheet.CellsUsed().Select(cell => cell.GetString()));
+        Assert.DoesNotContain("Milo", allText);
+        Assert.DoesNotContain("owner@example.com", allText);
+        Assert.DoesNotContain("Owner", allText);
+        Assert.DoesNotContain(OwnerUserId.ToString(), allText);
+        Assert.DoesNotContain(PetId.ToString(), allText);
+    }
+
+    [Fact]
+    public async Task ManufacturerExport_NfcTagsCarryNfcContentMatchingQrContent()
+    {
+        using var harness = await InventoryHarness.CreateAsync();
+        await harness.Service.GenerateAsync(
+            AdminUserId, new AdminGenerateTagsRequest(2, "QR_NFC", "Lightweight", "BATCH-NFC"));
+
+        var export = await harness.Service.ExportManufacturerAsync(
+            AdminUserId, new AdminTagInventoryQuery { Batch = "BATCH-NFC" }, null);
+
+        var sheet = OpenProductionSheet(export);
+
+        for (var row = 2; row <= 3; row++)
+        {
+            var tagCode = sheet.Cell(row, 2).GetString();
+            var qrContent = sheet.Cell(row, 5).GetString();
+            Assert.Equal("QR + NFC Smart Tag", sheet.Cell(row, 3).GetString());
+            Assert.Equal("Lightweight", sheet.Cell(row, 4).GetString());
+            Assert.Equal($"{InventoryHarness.PublicSiteBaseUrl}/t/{tagCode}", qrContent);
+            Assert.Equal(qrContent, sheet.Cell(row, 6).GetString());
+            Assert.StartsWith("https://", qrContent);
+        }
+    }
+
+    [Fact]
+    public async Task ManufacturerExport_BlocksIneligibleTagsWithPerTagReasonsAndChangesNothing()
+    {
+        using var harness = await InventoryHarness.CreateAsync();
+
+        // No filters: the set includes sent-to-reseller, claimed, and archived
+        // tags, so the export must be blocked with per-tag reasons.
+        var error = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Service.ExportManufacturerAsync(AdminUserId, new AdminTagInventoryQuery(), null));
+
+        Assert.Equal("production_export_blocked", error.Code);
+        Assert.Contains("MPL-EEEE-EEEE", error.Message);
+        var reasons = error.Details!["tags"];
+        Assert.Contains(reasons, reason => reason.StartsWith("MPL-EEEE-EEEE"));
+        Assert.Contains(reasons, reason => reason.StartsWith("MPL-FFFF-FFFF"));
+        Assert.Contains(reasons, reason => reason.StartsWith("MPL-GGGG-GGGG"));
+        // Clear operational reasons, no internals.
+        Assert.DoesNotContain("Exception", error.Message);
+        Assert.DoesNotContain("SmartTag", error.Message);
+
+        var active = await harness.Db.SmartTags.SingleAsync(tag => tag.TagCode == "MPL-FFFF-FFFF");
+        Assert.Equal(SmartTagStatus.Active, active.Status);
+        Assert.Equal(TagFulfilmentStatus.Received, active.FulfilmentStatus);
+    }
+
+    [Fact]
+    public async Task ManufacturerExport_DoesNotChangeLifecycleOrFulfilment()
+    {
+        using var harness = await InventoryHarness.CreateAsync();
+
+        await harness.Service.ExportManufacturerAsync(
+            AdminUserId, new AdminTagInventoryQuery { Batch = "BATCH-A" }, null);
+
+        var exported = await harness.Db.SmartTags
+            .Where(tag => tag.Batch!.BatchNo == "BATCH-A")
+            .ToListAsync();
+        Assert.All(exported, tag => Assert.Equal(SmartTagStatus.Unclaimed, tag.Status));
+        Assert.Equal(2, exported.Count(tag => tag.FulfilmentStatus == TagFulfilmentStatus.Generated));
+        Assert.Equal(2, exported.Count(tag => tag.FulfilmentStatus == TagFulfilmentStatus.Printed));
+
+        var audit = await harness.Db.AuditLogs
+            .SingleAsync(log => log.Action == "tag-inventory.export-manufacturer");
+        Assert.Contains("BATCH-A", audit.NewValue!);
+    }
+
+    [Fact]
+    public async Task ManufacturerExport_SelectedRowsExportOnlySelectionAndRejectStaleIds()
+    {
+        using var harness = await InventoryHarness.CreateAsync();
+        var selected = await harness.Db.SmartTags
+            .Where(tag => tag.TagCode == "MPL-AAAA-AAAA")
+            .Select(tag => tag.Id)
+            .ToArrayAsync();
+
+        var export = await harness.Service.ExportManufacturerAsync(
+            AdminUserId, new AdminTagInventoryQuery(), selected);
+        var sheet = OpenProductionSheet(export);
+
+        Assert.Equal(2, sheet.LastRowUsed()!.RowNumber());
+        Assert.Equal("MPL-AAAA-AAAA", sheet.Cell(2, 2).GetString());
+
+        var stale = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Service.ExportManufacturerAsync(
+                AdminUserId, new AdminTagInventoryQuery(), [selected[0], Guid.NewGuid()]));
+        Assert.Equal("production_export_blocked", stale.Code);
+        Assert.Contains("could no longer be found", stale.Message);
+    }
+
+    [Fact]
+    public async Task ManufacturerExport_UsesDateFileNameWhenBatchesAreMixed()
+    {
+        using var harness = await InventoryHarness.CreateAsync();
+        await harness.Service.GenerateAsync(
+            AdminUserId, new AdminGenerateTagsRequest(1, "QR_NFC", "Standard", "BATCH-NFC"));
+        var selected = await harness.Db.SmartTags
+            .Where(tag => tag.TagCode == "MPL-AAAA-AAAA" || tag.Batch!.BatchNo == "BATCH-NFC")
+            .Select(tag => tag.Id)
+            .ToArrayAsync();
+
+        var export = await harness.Service.ExportManufacturerAsync(
+            AdminUserId, new AdminTagInventoryQuery(), selected);
+
+        Assert.Matches(
+            @"^MyPetLink-Tag-Production-\d{4}-\d{2}-\d{2}\.xlsx$",
+            export.FileName);
+    }
+
+    [Fact]
+    public async Task ManufacturerExport_NeutralizesFormulaLikeContentWithoutBreakingUrls()
+    {
+        using var harness = await InventoryHarness.CreateAsync();
+        var batch = await harness.Db.SmartTagBatches.SingleAsync(item => item.BatchNo == "BATCH-A");
+        harness.Db.SmartTags.Add(new SmartTag
+        {
+            TagCode = "=2+5",
+            BatchId = batch.Id,
+            HasNfc = false,
+            Variant = "Standard",
+            Status = SmartTagStatus.Unclaimed,
+            FulfilmentStatus = TagFulfilmentStatus.Generated
+        });
+        await harness.Db.SaveChangesAsync();
+
+        var export = await harness.Service.ExportManufacturerAsync(
+            AdminUserId, new AdminTagInventoryQuery { Batch = "BATCH-A" }, null);
+        var sheet = OpenProductionSheet(export);
+
+        // The formula-leading code is neutralized: ClosedXML turns the
+        // sanitizer's apostrophe into Excel's quote prefix, so the cell is
+        // stored as literal text and never becomes a formula. The first data
+        // row is the "=2+5" code because it sorts before MPL codes.
+        var formulaCell = sheet.Cell(2, 2);
+        Assert.Equal("=2+5", formulaCell.GetString());
+        Assert.False(formulaCell.HasFormula);
+        Assert.True(formulaCell.Style.IncludeQuotePrefix);
+        Assert.Equal(ClosedXML.Excel.XLDataType.Text, formulaCell.DataType);
+        // URLs stay intact: https scheme is not formula-leading and must not
+        // be prefixed.
+        var urls = Enumerable.Range(2, 5).Select(row => sheet.Cell(row, 5).GetString());
+        Assert.All(urls, url => Assert.StartsWith("https://", url));
+    }
+
+    [Fact]
+    public async Task ManufacturerExport_RequiresAdminAccess()
+    {
+        using var harness = await InventoryHarness.CreateAsync();
+
+        var anonymous = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Service.ExportManufacturerAsync(null, new AdminTagInventoryQuery { Batch = "BATCH-A" }, null));
+        Assert.Equal(StatusCodes.Status401Unauthorized, anonymous.StatusCode);
+
+        var nonAdmin = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Service.ExportManufacturerAsync(OwnerUserId, new AdminTagInventoryQuery { Batch = "BATCH-A" }, null));
+        Assert.Equal(StatusCodes.Status403Forbidden, nonAdmin.StatusCode);
+    }
+
+    [Fact]
+    public async Task ManufacturerExport_UnavailableWithoutConfiguredPublicSiteUrl()
+    {
+        using var harness = await InventoryHarness.CreateAsync();
+        var unconfigured = new AdminTagInventoryService(
+            harness.Db,
+            new AuditLogService(harness.Db, new HttpContextAccessor()),
+            Microsoft.Extensions.Options.Options.Create(new PublicSiteOptions()));
+
+        var error = await Assert.ThrowsAsync<ApiException>(() =>
+            unconfigured.ExportManufacturerAsync(AdminUserId, new AdminTagInventoryQuery { Batch = "BATCH-A" }, null));
+
+        Assert.Equal("production_export_unavailable", error.Code);
+        Assert.DoesNotContain("PublicSite", error.Message);
+    }
+
     // --- Order flow integration -------------------------------------------------------
 
     [Fact]
@@ -528,12 +771,18 @@ public sealed class AdminTagInventoryServiceTests
 
     private sealed class InventoryHarness : IDisposable
     {
+        // Absolute https base configured for tests so manufacturer exports can
+        // build canonical /t/{tagCode} links.
+        public const string PublicSiteBaseUrl = "https://tags.example";
+
         private InventoryHarness(MyPetLinkDbContext db)
         {
             Db = db;
             Service = new AdminTagInventoryService(
                 db,
-                new AuditLogService(db, new HttpContextAccessor()));
+                new AuditLogService(db, new HttpContextAccessor()),
+                Microsoft.Extensions.Options.Options.Create(
+                    new PublicSiteOptions { BaseUrl = PublicSiteBaseUrl }));
         }
 
         public static readonly DateTimeOffset BaseTime = DateTimeOffset.Parse("2026-07-01T00:00:00Z");
