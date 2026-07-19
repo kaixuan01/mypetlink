@@ -214,7 +214,7 @@ it("adds and removes labeled finder details from the saved Lost Mode value", asy
   expect(screen.getByText("Please call me directly")).toBeTruthy();
   expect(document.body.textContent).not.toContain(rawTimestamp);
   const safetyLink = screen.getByRole("link", {
-    name: "View Safety Page",
+    name: "View Safety Profile",
   });
   expect(safetyLink.getAttribute("href")).toBe(getQrSafetyPath(lostProfile));
   expect(safetyLink.getAttribute("href")).not.toContain(lostProfile.slug);
@@ -235,7 +235,7 @@ it("adds and removes labeled finder details from the saved Lost Mode value", asy
     screen.queryByText(`${foundProfile.name} is currently missing`)
   ).toBeNull();
   // Lost Mode contact actions never leak into the normal profile state.
-  expect(screen.queryByRole("link", { name: "View Safety Page" })).toBeNull();
+  expect(screen.queryByRole("link", { name: "View Safety Profile" })).toBeNull();
   expect(
     screen.queryByRole("button", { name: /Send found location/ })
   ).toBeNull();
@@ -263,7 +263,7 @@ it("does not render a broken QR action when no safety identifier is available", 
     await screen.findByText(`${profile.name} is currently missing`)
   ).toBeTruthy();
   expect(
-    screen.queryByRole("link", { name: "View Safety Page" })
+    screen.queryByRole("link", { name: "View Safety Profile" })
   ).toBeNull();
 });
 
@@ -304,7 +304,7 @@ it("offers immediate Lost Mode contact actions for the explicitly viewed pet", a
       name: `Send found location to ${profile.name}'s owner`,
     })
   ).toBeTruthy();
-  expect(screen.getByRole("link", { name: "View Safety Page" })).toBeTruthy();
+  expect(screen.getByRole("link", { name: "View Safety Profile" })).toBeTruthy();
 });
 
 it("respects per-pet contact privacy settings inside the Lost Mode card", async () => {
@@ -341,7 +341,7 @@ it("respects per-pet contact privacy settings inside the Lost Mode card", async 
   ).toBeNull();
 });
 
-it("keeps the Safety Page reachable when Lost Mode has no allowed contact method", async () => {
+it("keeps the Safety Profile reachable when Lost Mode has no allowed contact method", async () => {
   const profile = {
     ...mockPets[0],
     lostModeEnabled: true,
@@ -374,7 +374,7 @@ it("keeps the Safety Page reachable when Lost Mode has no allowed contact method
   expect(
     screen.queryByRole("button", { name: /Send found location/ })
   ).toBeNull();
-  expect(screen.getByRole("link", { name: "View Safety Page" })).toBeTruthy();
+  expect(screen.getByRole("link", { name: "View Safety Profile" })).toBeTruthy();
 });
 
 it("does not render broken contact actions when optional owner numbers are empty", async () => {

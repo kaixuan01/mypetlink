@@ -12,13 +12,13 @@ type LostModeContactActionsProps = {
   whatsappE164: string;
   /** Owner-approved phone number in E.164 form, or "" when not allowed. */
   phoneE164: string;
-  /** Safety Page path, or "" when the pet has no active Safety Page. */
+  /** Safety Profile path, or "" when the pet has no active Safety Profile. */
   safetyPagePath: string;
 };
 
 // Immediate finder actions for the Lost Mode card on the Public Share
 // Profile. A finder should be able to reach the owner right here without
-// first opening another page; the Safety Page stays available as the fuller
+// first opening another page; the Safety Profile stays available as the fuller
 // secondary destination. Only owner-approved contact methods are offered —
 // callers pass "" for anything the owner has not allowed.
 export function LostModeContactActions({
@@ -95,7 +95,7 @@ export function LostModeContactActions({
         <p className="rounded-[1rem] bg-white p-4 text-sm font-semibold leading-6 text-pet-muted">
           The owner has not shared direct contact details here.
           {safetyPagePath
-            ? " Please check the Safety Page below for more ways to help."
+            ? " Please check the Safety Profile below for more ways to help."
             : ` If ${petName} is wearing a tag, please follow the instructions on it.`}
         </p>
       )}
@@ -139,7 +139,7 @@ export function LostModeContactActions({
           fullWidth
           className="min-h-12 bg-white"
         >
-          View Safety Page
+          View Safety Profile
         </CTAButton>
       ) : null}
     </div>

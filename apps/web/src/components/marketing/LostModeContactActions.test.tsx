@@ -21,7 +21,7 @@ const baseProps = {
 };
 
 describe("LostModeContactActions", () => {
-  it("shows WhatsApp, Call, Send Found Location, and View Safety Page when everything is allowed", () => {
+  it("shows WhatsApp, Call, Send Found Location, and View Safety Profile when everything is allowed", () => {
     render(<LostModeContactActions {...baseProps} />);
 
     const whatsapp = screen.getByRole("link", { name: "WhatsApp Doudou's owner" });
@@ -37,7 +37,7 @@ describe("LostModeContactActions", () => {
       screen.getByRole("button", { name: "Send found location to Doudou's owner" })
     ).toBeTruthy();
 
-    const safety = screen.getByRole("link", { name: "View Safety Page" });
+    const safety = screen.getByRole("link", { name: "View Safety Profile" });
     expect(safety.getAttribute("href")).toBe("/q/MPL-SAFE-DOUDOU");
   });
 
@@ -68,8 +68,8 @@ describe("LostModeContactActions", () => {
     expect(
       screen.getByText(/The owner has not shared direct contact details here/)
     ).toBeTruthy();
-    // The Safety Page stays reachable as the secondary destination.
-    expect(screen.getByRole("link", { name: "View Safety Page" })).toBeTruthy();
+    // The Safety Profile stays reachable as the secondary destination.
+    expect(screen.getByRole("link", { name: "View Safety Profile" })).toBeTruthy();
   });
 
   it("requests browser location only after the finder explicitly asks, once at a time", () => {
