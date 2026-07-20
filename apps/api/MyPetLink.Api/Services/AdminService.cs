@@ -247,7 +247,7 @@ public sealed class AdminService : SkeletonService, IAdminService
             admin.Id, ActorType.Admin, "tag.assign-to-order", "SmartTag", tag.Id,
             oldTagState, TagStateSnapshot(tag, "Assigned to portal order"));
 
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        await SaveInventoryAllocationAsync(cancellationToken);
         return ToAdminOrderResponse(order);
     }
 
@@ -325,7 +325,7 @@ public sealed class AdminService : SkeletonService, IAdminService
             admin.Id, ActorType.Admin, "tag.assign-to-order", "SmartTag", newTag.Id,
             newTagOldState, TagStateSnapshot(newTag, "Assigned to portal order (tag changed)"));
 
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        await SaveInventoryAllocationAsync(cancellationToken);
         return ToAdminOrderResponse(order);
     }
 
@@ -408,8 +408,23 @@ public sealed class AdminService : SkeletonService, IAdminService
             admin.Id, ActorType.Admin, "tag.assign-to-order", "SmartTag", newTag.Id,
             newTagOldState, TagStateSnapshot(newTag, "Assigned as replacement tag"));
 
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        await SaveInventoryAllocationAsync(cancellationToken);
         return ToAdminOrderResponse(order);
+    }
+
+    private async Task SaveInventoryAllocationAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new ApiException(
+                StatusCodes.Status409Conflict,
+                "inventory_allocation_conflict",
+                "This inventory tag was changed by another administrator. Refresh the order and choose an available tag.");
+        }
     }
 
     public async Task<AdminTagOrderResponse> MarkOrderPreparingAsync(
@@ -1078,7 +1093,8 @@ public sealed class AdminService : SkeletonService, IAdminService
             .Include(order => order.OwnerUser)
             .Include(order => order.Pet)
             .Include(order => order.SmartTag)
-            .Include(order => order.PaymentProofs);
+            .Include(order => order.PaymentProofs)
+            .Include(order => order.Items);
     }
 
     private static IQueryable<PaymentProof> IncludeProofGraph(IQueryable<PaymentProof> query)
@@ -1321,13 +1337,27 @@ public sealed class AdminService : SkeletonService, IAdminService
 
         if (tag.Status != SmartTagStatus.Unclaimed
             || tag.ArchivedAt.HasValue
+            || tag.FulfilmentStatus is not (TagFulfilmentStatus.Generated or TagFulfilmentStatus.Printed)
             || tag.OwnerUserId.HasValue
             || tag.PetId.HasValue
             || tag.OrderId.HasValue)
         {
-            throw InvalidState("Only unclaimed inventory tags can be assigned to an order.");
+            throw InvalidState("Only unclaimed, available production inventory can be assigned to an order.");
         }
 
+        var orderItem = order.Items.OrderBy(item => item.CreatedAt).FirstOrDefault();
+        if (orderItem?.ProductVariantId is { } productVariantId)
+        {
+            if (tag.ProductVariantId != productVariantId)
+            {
+                throw ValidationFailed(fieldName, "Choose an available inventory tag with the same SKU as the order.");
+            }
+
+            return tag;
+        }
+
+        // Legacy orders created before the product catalog retain their
+        // original type/variant matching rule. No SKU is guessed or backfilled.
         var orderHasNfc = order.TagType == TagType.QrNfcSmartTag;
         if (tag.HasNfc != orderHasNfc)
         {
@@ -1395,7 +1425,8 @@ public sealed class AdminService : SkeletonService, IAdminService
     {
         return new AdminTagOrderResponse(
             TagDtoMapper.ToOrderResponse(order),
-            ToOwnerRef(order.OwnerUser));
+            ToOwnerRef(order.OwnerUser),
+            order.Items.OrderBy(item => item.CreatedAt).Select(item => item.ProductVariantId).FirstOrDefault());
     }
 
     private static AdminPaymentProofResponse ToAdminProofResponse(PaymentProof proof)

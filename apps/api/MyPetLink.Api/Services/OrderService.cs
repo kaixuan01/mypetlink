@@ -10,17 +10,18 @@ namespace MyPetLink.Api.Services;
 
 public sealed class OrderService : SkeletonService, IOrderService
 {
-    private const decimal QrTagAmount = 19.90m;
-    private const decimal QrNfcTagAmount = 39.90m;
-    private const string Currency = "MYR";
-
     private readonly MyPetLinkDbContext _dbContext;
     private readonly FeatureOptions _features;
+    private readonly ITagPricingService _pricingService;
 
-    public OrderService(MyPetLinkDbContext dbContext, IOptions<FeatureOptions> features)
+    public OrderService(
+        MyPetLinkDbContext dbContext,
+        IOptions<FeatureOptions> features,
+        ITagPricingService pricingService)
     {
         _dbContext = dbContext;
         _features = features.Value;
+        _pricingService = pricingService;
     }
 
     public async Task<(IReadOnlyCollection<TagOrderResponse> Items, int Total)> ListAsync(
@@ -120,9 +121,35 @@ public sealed class OrderService : SkeletonService, IOrderService
             }
         }
 
-        var tagType = request.TagType!.Value;
+        var (productVariant, quote) = await _pricingService.GetPurchasableVariantAsync(
+            request.ProductVariantKey,
+            cancellationToken);
+        var stockAvailable = await _dbContext.SmartTags.AnyAsync(tag =>
+            tag.ProductVariantId == productVariant.Id
+            && tag.Status == SmartTagStatus.Unclaimed
+            && tag.ArchivedAt == null
+            && tag.DeletedAt == null
+            && (tag.FulfilmentStatus == TagFulfilmentStatus.Generated
+                || tag.FulfilmentStatus == TagFulfilmentStatus.Printed)
+            && tag.OwnerUserId == null
+            && tag.PetId == null
+            && tag.OrderId == null,
+            cancellationToken);
+
+        if (!stockAvailable)
+        {
+            throw new ApiException(
+                StatusCodes.Status409Conflict,
+                "out_of_stock",
+                "This tag option is currently out of stock.");
+        }
+
+        var tagType = productVariant.SupportsNfc ? TagType.QrNfcSmartTag : TagType.QrPetTag;
         var now = DateTimeOffset.UtcNow;
         var delivery = request.Delivery!;
+        var subtotal = quote.BasePrice * request.Quantity;
+        var discountAmount = quote.DiscountAmount * request.Quantity;
+        var finalAmount = quote.FinalPrice * request.Quantity;
         var order = new TagOrder
         {
             OrderNumber = await GenerateOrderNumberAsync(cancellationToken),
@@ -132,9 +159,9 @@ public sealed class OrderService : SkeletonService, IOrderService
             ReplacementForTagId = replacementForTag?.Id,
             ReplacementForTag = replacementForTag,
             TagType = tagType,
-            Variant = TagVariants.Normalize(request.Variant),
-            Amount = GetAmount(tagType),
-            Currency = Currency,
+            Variant = productVariant.TagVariant,
+            Amount = finalAmount,
+            Currency = quote.Currency,
             DeliveryFee = 0m,
             Status = OrderStatus.PendingPayment,
             PaymentStatus = PaymentStatus.Pending,
@@ -150,6 +177,25 @@ public sealed class OrderService : SkeletonService, IOrderService
             CreatedAt = now,
             UpdatedAt = now
         };
+
+        order.Items.Add(new TagOrderItem
+        {
+            Order = order,
+            ProductVariantId = productVariant.Id,
+            ProductVariant = productVariant,
+            SkuSnapshot = productVariant.Sku,
+            ProductNameSnapshot = productVariant.TagProduct.Name,
+            VariantNameSnapshot = productVariant.DisplayName,
+            UnitBasePrice = quote.BasePrice,
+            Quantity = request.Quantity,
+            Subtotal = subtotal,
+            PromotionId = quote.PromotionId,
+            PromotionNameSnapshot = quote.PromotionName,
+            DiscountAmount = discountAmount,
+            FinalUnitPrice = quote.FinalPrice,
+            FinalAmount = finalAmount,
+            Currency = quote.Currency
+        });
 
         _dbContext.TagOrders.Add(order);
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -265,7 +311,8 @@ public sealed class OrderService : SkeletonService, IOrderService
         return query
             .Include(order => order.Pet)
             .Include(order => order.SmartTag)
-            .Include(order => order.PaymentProofs);
+            .Include(order => order.PaymentProofs)
+            .Include(order => order.Items);
     }
 
     private async Task<TagOrder> LoadOwnedOrderAsync(
@@ -409,9 +456,14 @@ public sealed class OrderService : SkeletonService, IOrderService
             errors["petId"] = ["Choose a pet for this tag order."];
         }
 
-        if (!request.TagType.HasValue)
+        if (string.IsNullOrWhiteSpace(request.ProductVariantKey))
         {
-            errors["tagType"] = ["Choose a tag type."];
+            errors["productVariantKey"] = ["Choose a tag option."];
+        }
+
+        if (request.Quantity != 1)
+        {
+            errors["quantity"] = ["One physical tag can be ordered at a time."];
         }
 
         if (request.Delivery is null)
@@ -464,11 +516,6 @@ public sealed class OrderService : SkeletonService, IOrderService
             StatusCodes.Status500InternalServerError,
             "order_number_generation_failed",
             "Could not generate an order number. Please try again.");
-    }
-
-    private static decimal GetAmount(TagType tagType)
-    {
-        return tagType == TagType.QrNfcSmartTag ? QrNfcTagAmount : QrTagAmount;
     }
 
     private static OrderStatus ParseOrderStatus(string value)

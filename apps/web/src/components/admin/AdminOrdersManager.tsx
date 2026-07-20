@@ -337,12 +337,15 @@ export function AdminOrdersManager() {
           page: 1,
           pageSize: 100,
           status: "Unclaimed",
-          tagType: detail.order.tagType.includes("NFC") ? "QR_NFC" : "QR",
-          variant: detail.order.variant,
+          productVariantId: detail.productVariantId,
+          tagType: detail.productVariantId ? undefined : detail.order.tagType.includes("NFC") ? "QR_NFC" : "QR",
+          variant: detail.productVariantId ? undefined : detail.order.variant,
           sortBy: "tagCode",
           sortDir: "asc",
         });
-        const tags: PetTag[] = inventory.items.map((tag) => ({
+        const tags: PetTag[] = inventory.items
+          .filter((tag) => tag.fulfilment === "Generated" || tag.fulfilment === "Printed")
+          .map((tag) => ({
           id: tag.id,
           tagCode: tag.tagCode,
           hasNfc: tag.hasNfc,
@@ -350,7 +353,7 @@ export function AdminOrdersManager() {
           status: "Unassigned",
           batchNo: tag.batchNo,
           orderedDate: formatAdminDate(tag.generatedAt),
-        }));
+          }));
         setTagModal({ mode: action === "assign-tag" ? "assign" : action === "change-tag" ? "change" : "replace", detail, tags });
       } catch (caught) {
         setMessage(getFriendlyTagErrorMessage(caught));
@@ -439,7 +442,7 @@ export function AdminOrdersManager() {
       cell: (order) => <span className="block min-w-32"><span className="block font-bold text-slate-900">{order.ownerName}</span><span className="block text-xs text-slate-500">{order.ownerEmail}</span></span>,
     },
     { id: "pet", header: "Pet", cell: (order) => <span className="whitespace-nowrap text-slate-600">{order.petName}</span> },
-    { id: "item", header: "Item", cell: (order) => <span className="whitespace-nowrap text-slate-600">{getTagTypeLabel(order.hasNfc)} · {order.variant}</span> },
+    { id: "item", header: "Item", cell: (order) => <div className="min-w-40"><p className="font-semibold text-slate-700">{order.productName ?? getTagTypeLabel(order.hasNfc)}</p><p className="font-mono text-xs text-slate-500">{order.sku ?? `${order.variant} Tag`}</p></div> },
     { id: "amount", header: "Amount", sortId: "amount", cell: (order) => <span className="whitespace-nowrap font-bold text-slate-700">{order.currency} {(order.amount + order.deliveryFee).toFixed(2)}</span> },
     {
       id: "paymentStatus",
@@ -601,4 +604,3 @@ function actionSuccess(action: PendingAction["action"], orderNumber: string) {
   };
   return `${result[action]} for ${orderNumber}.`;
 }
-

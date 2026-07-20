@@ -443,6 +443,19 @@ export type BackendTagOrder = {
   status: BackendOrderStatus;
   paymentStatus: BackendPaymentStatus;
   replacementForTagId?: string | null;
+  item?: {
+    sku: string;
+    productName: string;
+    variantName: string;
+    unitBasePrice: number;
+    quantity: number;
+    subtotal: number;
+    promotionName?: string | null;
+    discountAmount: number;
+    finalUnitPrice: number;
+    finalAmount: number;
+    currency: string;
+  } | null;
   delivery: BackendDeliveryDetails;
   paymentSubmittedAt?: string | null;
   paymentConfirmedAt?: string | null;
@@ -482,7 +495,8 @@ export type BackendMediaUploadCategory =
   | "MomentVideo"
   | "VaccinationDocument"
   | "MedicalDocument"
-  | "OrderReceipt";
+  | "OrderReceipt"
+  | "TagProductImage";
 
 export type BackendMediaFileType = "Image" | "Video" | "Document";
 

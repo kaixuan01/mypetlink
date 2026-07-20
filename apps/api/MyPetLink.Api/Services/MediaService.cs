@@ -397,6 +397,16 @@ public sealed class MediaService : SkeletonService, IMediaService
                     ?? throw NotFound("Order was not found.");
                 return new UploadTarget(order.PetId, MediaOwnerType.TagOrder, order.Id);
 
+            case MediaUploadCategory.TagProductImage:
+                var isAdmin = await _dbContext.AdminUsers.AnyAsync(
+                    item => item.UserId == userId && item.IsActive && item.DisabledAt == null,
+                    cancellationToken);
+                if (!isAdmin)
+                {
+                    throw new ApiException(StatusCodes.Status403Forbidden, "forbidden", "Admin access is required.");
+                }
+                return new UploadTarget(null, null, null);
+
             default:
                 throw ValidationFailed("category", "Upload category is not supported.");
         }
@@ -637,6 +647,7 @@ public sealed class MediaService : SkeletonService, IMediaService
             MediaUploadCategory.MomentImage or MediaUploadCategory.MomentVideo => $"pets/{petId}/moments/{ownerId}/{randomName}",
             MediaUploadCategory.VaccinationDocument or MediaUploadCategory.MedicalDocument => $"pet-documents/{randomName}",
             MediaUploadCategory.OrderReceipt => $"order-receipts/{randomName}",
+            MediaUploadCategory.TagProductImage => $"tag-products/{randomName}",
             _ => throw ValidationFailed("category", "Upload category is not supported.")
         };
     }
@@ -688,7 +699,8 @@ public sealed class MediaService : SkeletonService, IMediaService
         {
             MediaUploadCategory.PetProfilePhoto
                 or MediaUploadCategory.PetCoverPhoto
-                or MediaUploadCategory.MomentImage => UploadRules.Images,
+                or MediaUploadCategory.MomentImage
+                or MediaUploadCategory.TagProductImage => UploadRules.Images,
             MediaUploadCategory.MomentVideo => UploadRules.Video,
             MediaUploadCategory.VaccinationDocument
                 or MediaUploadCategory.MedicalDocument
@@ -715,6 +727,7 @@ public sealed class MediaService : SkeletonService, IMediaService
         return category is MediaUploadCategory.PetProfilePhoto
             or MediaUploadCategory.PetCoverPhoto
             or MediaUploadCategory.MomentImage
+            or MediaUploadCategory.TagProductImage
                 ? MediaFileType.Image
                 : MediaFileType.Document;
     }
@@ -724,7 +737,8 @@ public sealed class MediaService : SkeletonService, IMediaService
         return category is MediaUploadCategory.PetProfilePhoto
             or MediaUploadCategory.PetCoverPhoto
             or MediaUploadCategory.MomentImage
-            or MediaUploadCategory.MomentVideo;
+            or MediaUploadCategory.MomentVideo
+            or MediaUploadCategory.TagProductImage;
     }
 
     private static void MarkDeleted(MediaFile media)

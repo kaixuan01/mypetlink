@@ -239,7 +239,7 @@ export function OrdersList({
                   </Badge>
                 </div>
                 <p className="mt-1 text-sm font-semibold text-pet-muted">
-                  {petName} - {order.tagType}
+                  {petName} - {order.productName ?? order.tagType}
                 </p>
               </div>
               <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[#e8f3ff] text-pet-teal">
@@ -249,7 +249,7 @@ export function OrdersList({
 
             <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
               <CompactItem label="Ordered" value={order.orderedDate} />
-              <CompactItem label="Total" value={order.estimatedPrice} />
+              <CompactItem label="Total" value={order.finalAmount != null ? `${order.currency ?? "MYR"} ${order.finalAmount.toFixed(2)}` : order.estimatedPrice} />
               <CompactItem
                 label="Payment"
                 value={getPaymentStatusLabel(order)}
@@ -356,7 +356,7 @@ function OrderInlineDetail({
   return (
     <div className="mt-4 grid gap-3 rounded-[1.25rem] border border-pet-border bg-white p-4 md:grid-cols-3">
       <CompactItem label="Pet" value={petName} />
-      <CompactItem label="Tag variant" value={`${order.variant} Tag`} />
+      <CompactItem label="Tag variant" value={order.variantName ?? `${order.variant} Tag`} />
       <CompactItem
         label="Payment method"
         value={order.paymentMethod ?? "QR Payment"}
@@ -414,4 +414,3 @@ function CompactItem({
     </div>
   );
 }
-

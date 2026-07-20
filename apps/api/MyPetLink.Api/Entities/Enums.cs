@@ -77,6 +77,12 @@ public enum TagType
     QrNfcSmartTag
 }
 
+public enum PromotionDiscountType
+{
+    FixedAmount,
+    Percentage
+}
+
 // Physical inventory/fulfilment state of a tag. This is deliberately separate
 // from SmartTagStatus: a tag can be Unclaimed (lifecycle) while already
 // SentToReseller (fulfilment), and fulfilment actions never change lifecycle.
@@ -166,7 +172,8 @@ public enum MediaUploadCategory
     MomentVideo,
     VaccinationDocument,
     MedicalDocument,
-    OrderReceipt
+    OrderReceipt,
+    TagProductImage
 }
 
 public enum MediaUploadStatus

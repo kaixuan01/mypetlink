@@ -370,9 +370,13 @@ export function OrderDetailView({
           <h2 className="text-xl font-black text-pet-ink">Order summary</h2>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <DetailItem label="Pet" value={petName} />
-            <DetailItem label="Tag type" value={order.tagType} />
-            <DetailItem label="Tag variant" value={`${order.variant} Tag`} />
-            <DetailItem label="Total amount" value={order.estimatedPrice} />
+            <DetailItem label="Product" value={order.productName ?? order.tagType} />
+            <DetailItem label="SKU" value={order.sku ?? "Earlier catalog item"} />
+            <DetailItem label="Tag variant" value={order.variantName ?? `${order.variant} Tag`} />
+            <DetailItem label="Original unit price" value={order.unitBasePrice != null ? `${order.currency ?? "MYR"} ${order.unitBasePrice.toFixed(2)}` : order.estimatedPrice} />
+            {order.discountAmount ? <DetailItem label="Discount" value={`${order.currency ?? "MYR"} ${order.discountAmount.toFixed(2)}`} /> : null}
+            {order.promotionName ? <DetailItem label="Promotion" value={order.promotionName} /> : null}
+            <DetailItem label="Total amount" value={order.finalAmount != null ? `${order.currency ?? "MYR"} ${order.finalAmount.toFixed(2)}` : order.estimatedPrice} />
             <DetailItem label="Ordered date" value={order.orderedDate} />
             <DetailItem
               label="Tag status"

@@ -8,6 +8,7 @@ public sealed class SmartTagBatch : AuditableEntity
     // Tag variant: "Lightweight" or "Standard" (formerly the physical shape).
     public string Variant { get; set; } = "Standard";
     public Guid? GeneratedByAdminUserId { get; set; }
+    public Guid? ProductVariantId { get; set; }
     public DateTimeOffset? GeneratedAt { get; set; }
     public DateTimeOffset? ExportedAt { get; set; }
     public DateTimeOffset? PrintedAt { get; set; }
@@ -17,6 +18,7 @@ public sealed class SmartTagBatch : AuditableEntity
     public DateTimeOffset? ArchivedAt { get; set; }
 
     public AdminUser? GeneratedByAdminUser { get; set; }
+    public TagProductVariant? ProductVariant { get; set; }
     public ICollection<SmartTag> SmartTags { get; set; } = new List<SmartTag>();
 }
 
@@ -27,6 +29,7 @@ public sealed class SmartTag : AuditableEntity
     public Guid? PetId { get; set; }
     public Guid? OrderId { get; set; }
     public Guid? BatchId { get; set; }
+    public Guid? ProductVariantId { get; set; }
     public bool HasNfc { get; set; }
     // Tag variant: "Lightweight" or "Standard" (formerly the physical shape).
     public string Variant { get; set; } = "Standard";
@@ -44,11 +47,13 @@ public sealed class SmartTag : AuditableEntity
     public Guid? ReplacementForTagId { get; set; }
     public DateTimeOffset? ArchivedAt { get; set; }
     public DateTimeOffset? DeletedAt { get; set; }
+    public byte[] RowVersion { get; set; } = [];
 
     public User? OwnerUser { get; set; }
     public Pet? Pet { get; set; }
     public TagOrder? Order { get; set; }
     public SmartTagBatch? Batch { get; set; }
+    public TagProductVariant? ProductVariant { get; set; }
     public SmartTag? ReplacementForTag { get; set; }
 }
 
@@ -81,12 +86,14 @@ public sealed class TagOrder : AuditableEntity
     public DateTimeOffset? ShippedAt { get; set; }
     public DateTimeOffset? DeliveredAt { get; set; }
     public DateTimeOffset? CancelledAt { get; set; }
+    public byte[] RowVersion { get; set; } = [];
 
     public User OwnerUser { get; set; } = null!;
     public Pet Pet { get; set; } = null!;
     public SmartTag? SmartTag { get; set; }
     public SmartTag? ReplacementForTag { get; set; }
     public ICollection<PaymentProof> PaymentProofs { get; set; } = new List<PaymentProof>();
+    public ICollection<TagOrderItem> Items { get; set; } = new List<TagOrderItem>();
 }
 
 public sealed class PaymentProof : AuditableEntity

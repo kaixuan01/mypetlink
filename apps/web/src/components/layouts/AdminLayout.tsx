@@ -6,6 +6,7 @@ import { AdminGuard } from "@/components/auth/AdminGuard";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { logoutAdmin } from "@/services/authService";
+import { adminRoutes } from "@/lib/routes";
 
 const adminNav: { href: string; label: string; icon: IconName }[] = [
   { href: "/admin", label: "Overview", icon: "home" },
@@ -13,6 +14,7 @@ const adminNav: { href: string; label: string; icon: IconName }[] = [
   { href: "/admin/payment-proofs", label: "Payment Proofs", icon: "shield" },
   { href: "/admin/tags", label: "Smart Tags", icon: "tag" },
   { href: "/admin/tag-inventory", label: "Tag Inventory", icon: "copy" },
+  { href: adminRoutes.productCatalog, label: "Tag Products", icon: "plans" },
   { href: "/admin/pets", label: "Pets", icon: "pets" },
   { href: "/admin/users", label: "Owners", icon: "users" },
   { href: "/admin/plans", label: "Plans", icon: "plans" },

@@ -15,10 +15,23 @@ public sealed record DeliveryDetailsRequest(
 
 public sealed record CreateTagOrderRequest(
     [Required] Guid PetId,
-    [Required] TagType? TagType,
-    [MaxLength(80)] string? Variant,
+    [Required, MaxLength(32)] string ProductVariantKey,
+    [Range(1, 1)] int Quantity,
     [Required] DeliveryDetailsRequest? Delivery,
     Guid? ReplacementForTagId);
+
+public sealed record TagOrderItemResponse(
+    string Sku,
+    string ProductName,
+    string VariantName,
+    decimal UnitBasePrice,
+    int Quantity,
+    decimal Subtotal,
+    string? PromotionName,
+    decimal DiscountAmount,
+    decimal FinalUnitPrice,
+    decimal FinalAmount,
+    string Currency);
 
 public sealed record DeliveryDetailsResponse(
     string RecipientName,
@@ -46,6 +59,7 @@ public sealed record TagOrderResponse(
     OrderStatus Status,
     PaymentStatus PaymentStatus,
     Guid? ReplacementForTagId,
+    TagOrderItemResponse? Item,
     DeliveryDetailsResponse Delivery,
     DateTimeOffset? PaymentSubmittedAt,
     DateTimeOffset? PaymentConfirmedAt,

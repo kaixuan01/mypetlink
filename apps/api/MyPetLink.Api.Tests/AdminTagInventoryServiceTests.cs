@@ -13,6 +13,11 @@ public sealed class AdminTagInventoryServiceTests
     private static readonly Guid AdminUserId = Guid.Parse("51111111-1111-1111-1111-111111111111");
     private static readonly Guid OwnerUserId = Guid.Parse("52222222-2222-2222-2222-222222222222");
     private static readonly Guid PetId = Guid.Parse("53333333-3333-3333-3333-333333333333");
+    private static readonly Guid ProductId = Guid.Parse("54444444-4444-4444-4444-444444444444");
+    private static readonly Guid QrStandardVariantId = Guid.Parse("55555555-5555-5555-5555-555555555551");
+    private static readonly Guid NfcLightweightVariantId = Guid.Parse("55555555-5555-5555-5555-555555555552");
+    private static readonly Guid NfcStandardVariantId = Guid.Parse("55555555-5555-5555-5555-555555555553");
+    private static readonly Guid QrLightweightVariantId = Guid.Parse("55555555-5555-5555-5555-555555555554");
 
     // --- Listing: filters, search, sorting, pagination ---------------------------------
 
@@ -504,8 +509,8 @@ public sealed class AdminTagInventoryServiceTests
             Assert.Equal("", sheet.Cell(row, 6).GetString());
             Assert.Equal("BATCH-A", sheet.Cell(row, 7).GetString());
             Assert.Equal(expectedCodes[index], sheet.Cell(row, 8).GetString());
-            Assert.Equal("", sheet.Cell(row, 9).GetString());
-            Assert.Equal("", sheet.Cell(row, 10).GetString());
+            Assert.Equal("TPL-QR-STANDARD", sheet.Cell(row, 9).GetString());
+            Assert.Equal("Use approved artwork.", sheet.Cell(row, 10).GetString());
         }
 
         Assert.Equal(5, sheet.LastRowUsed()!.RowNumber());
@@ -526,7 +531,7 @@ public sealed class AdminTagInventoryServiceTests
     {
         using var harness = await InventoryHarness.CreateAsync();
         await harness.Service.GenerateAsync(
-            AdminUserId, new AdminGenerateTagsRequest(2, "QR_NFC", "Lightweight", "BATCH-NFC"));
+            AdminUserId, new AdminGenerateTagsRequest(2, NfcLightweightVariantId, "BATCH-NFC"));
 
         var export = await harness.Service.ExportManufacturerAsync(
             AdminUserId, new AdminTagInventoryQuery { Batch = "BATCH-NFC" }, null);
@@ -618,7 +623,7 @@ public sealed class AdminTagInventoryServiceTests
     {
         using var harness = await InventoryHarness.CreateAsync();
         await harness.Service.GenerateAsync(
-            AdminUserId, new AdminGenerateTagsRequest(1, "QR_NFC", "Standard", "BATCH-NFC"));
+            AdminUserId, new AdminGenerateTagsRequest(1, NfcStandardVariantId, "BATCH-NFC"));
         var selected = await harness.Db.SmartTags
             .Where(tag => tag.TagCode == "MPL-AAAA-AAAA" || tag.Batch!.BatchNo == "BATCH-NFC")
             .Select(tag => tag.Id)
@@ -641,6 +646,7 @@ public sealed class AdminTagInventoryServiceTests
         {
             TagCode = "=2+5",
             BatchId = batch.Id,
+            ProductVariantId = batch.ProductVariantId,
             HasNfc = false,
             Variant = "Standard",
             Status = SmartTagStatus.Unclaimed,
@@ -679,6 +685,28 @@ public sealed class AdminTagInventoryServiceTests
         var nonAdmin = await Assert.ThrowsAsync<ApiException>(() =>
             harness.Service.ExportManufacturerAsync(OwnerUserId, new AdminTagInventoryQuery { Batch = "BATCH-A" }, null));
         Assert.Equal(StatusCodes.Status403Forbidden, nonAdmin.StatusCode);
+    }
+
+    [Fact]
+    public async Task ManufacturerExport_BlocksLegacyTagWithoutVerifiedSkuMapping()
+    {
+        using var harness = await InventoryHarness.CreateAsync();
+        var legacy = new SmartTag
+        {
+            TagCode = "MPL-LEGC-0001",
+            HasNfc = false,
+            Variant = "Standard",
+            Status = SmartTagStatus.Unclaimed,
+            FulfilmentStatus = TagFulfilmentStatus.Generated
+        };
+        harness.Db.SmartTags.Add(legacy);
+        await harness.Db.SaveChangesAsync();
+
+        var error = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Service.ExportManufacturerAsync(AdminUserId, new AdminTagInventoryQuery(), [legacy.Id]));
+
+        Assert.Equal("production_export_blocked", error.Code);
+        Assert.Contains("approved SKU mapping", error.Message);
     }
 
     [Fact]
@@ -750,7 +778,7 @@ public sealed class AdminTagInventoryServiceTests
 
         var response = await harness.Service.GenerateAsync(
             AdminUserId,
-            new AdminGenerateTagsRequest(3, "QR", "Lightweight", "BATCH-NEW"));
+            new AdminGenerateTagsRequest(3, QrLightweightVariantId, "BATCH-NEW"));
 
         Assert.Equal(3, response.Quantity);
         Assert.Equal("BATCH-NEW", response.BatchNo);
@@ -763,6 +791,9 @@ public sealed class AdminTagInventoryServiceTests
         {
             Assert.Equal(SmartTagStatus.Unclaimed, tag.Status);
             Assert.Equal(TagFulfilmentStatus.Generated, tag.FulfilmentStatus);
+            Assert.Equal(QrLightweightVariantId, tag.ProductVariantId);
+            Assert.False(tag.HasNfc);
+            Assert.Equal("Lightweight", tag.Variant);
             Assert.Matches("^MPL-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$", tag.TagCode);
         });
     }
@@ -829,12 +860,27 @@ public sealed class AdminTagInventoryServiceTests
                 Species = "Dog"
             };
 
+            var product = new TagProduct
+            {
+                Id = ProductId,
+                Name = "MyPetLink Smart Tag",
+                Slug = "mypetlink-smart-tag",
+                ShortDescription = "A safer way home.",
+                IsPublished = true
+            };
+            var qrStandard = Variant(QrStandardVariantId, product, "MPL-QR-STANDARD-V1", "Standard", false, "TPL-QR-STANDARD");
+            var nfcLightweight = Variant(NfcLightweightVariantId, product, "MPL-NFC-LIGHTWEIGHT-V1", "Lightweight", true, "TPL-NFC-LIGHTWEIGHT");
+            var nfcStandard = Variant(NfcStandardVariantId, product, "MPL-NFC-STANDARD-V1", "Standard", true, "TPL-NFC-STANDARD");
+            var qrLightweight = Variant(QrLightweightVariantId, product, "MPL-QR-LIGHTWEIGHT-V1", "Lightweight", false, "TPL-QR-LIGHTWEIGHT");
+
             var batchA = new SmartTagBatch
             {
                 BatchNo = "BATCH-A",
                 Quantity = 4,
                 HasNfc = false,
                 Variant = "Standard",
+                ProductVariantId = qrStandard.Id,
+                ProductVariant = qrStandard,
                 GeneratedAt = BaseTime
             };
             var batchB = new SmartTagBatch
@@ -843,6 +889,8 @@ public sealed class AdminTagInventoryServiceTests
                 Quantity = 3,
                 HasNfc = true,
                 Variant = "Lightweight",
+                ProductVariantId = nfcLightweight.Id,
+                ProductVariant = nfcLightweight,
                 ResellerName = "Happy Paws Pet Shop",
                 GeneratedAt = BaseTime.AddDays(1)
             };
@@ -880,6 +928,8 @@ public sealed class AdminTagInventoryServiceTests
 
             db.Users.AddRange(adminUser, owner);
             db.Pets.Add(pet);
+            db.TagProducts.Add(product);
+            db.TagProductVariants.AddRange(qrStandard, nfcLightweight, nfcStandard, qrLightweight);
             db.SmartTagBatches.AddRange(batchA, batchB);
             db.SmartTags.AddRange(tags);
 
@@ -911,6 +961,8 @@ public sealed class AdminTagInventoryServiceTests
             {
                 TagCode = tagCode,
                 Batch = batch,
+                ProductVariantId = batch.ProductVariantId,
+                ProductVariant = batch.ProductVariant,
                 HasNfc = hasNfc,
                 Variant = variant,
                 Status = status,
@@ -922,6 +974,38 @@ public sealed class AdminTagInventoryServiceTests
             configure?.Invoke(tag);
             return tag;
         }
+
+        private static TagProductVariant Variant(
+            Guid id,
+            TagProduct product,
+            string sku,
+            string tagVariant,
+            bool supportsNfc,
+            string printTemplate) => new()
+        {
+            Id = id,
+            TagProduct = product,
+            TagProductId = product.Id,
+            PublicKey = sku.Replace("MPL-", "KEY-"),
+            Sku = sku,
+            DisplayName = $"{tagVariant} tag",
+            SupportsQr = true,
+            SupportsNfc = supportsNfc,
+            TagVariant = tagVariant,
+            WidthMm = 30,
+            HeightMm = 30,
+            WeightGrams = 8,
+            Material = "Stainless steel",
+            Shape = "Round",
+            Colour = "Silver",
+            PackagingType = "Retail card",
+            BasePrice = supportsNfc ? 39.90m : 19.90m,
+            Currency = "MYR",
+            PrintTemplateCode = printTemplate,
+            ProductionNotes = "Use approved artwork.",
+            IsActive = true,
+            IsPurchasable = true
+        };
 
         public void Dispose() => Db.Dispose();
     }

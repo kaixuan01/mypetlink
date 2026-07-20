@@ -155,7 +155,8 @@ public sealed class AdminOrderQueryService : SkeletonService, IAdminOrderQuerySe
             .Include(order => order.OwnerUser)
             .Include(order => order.Pet)
             .Include(order => order.SmartTag)
-            .Include(order => order.PaymentProofs);
+            .Include(order => order.PaymentProofs)
+            .Include(order => order.Items);
         var search = NormalizeOptional(query.Search);
         if (search is not null)
         {
@@ -167,6 +168,7 @@ public sealed class AdminOrderQueryService : SkeletonService, IAdminOrderQuerySe
                 || order.Pet.Name.Contains(search)
                 || (order.SmartTag != null && order.SmartTag.TagCode.Contains(search))
                 || (order.TrackingNumber != null && order.TrackingNumber.Contains(search))
+                || order.Items.Any(item => item.SkuSnapshot.Contains(search) || item.ProductNameSnapshot.Contains(search))
                 || order.PaymentProofs.Any(proof =>
                     (proof.PaymentReference != null && proof.PaymentReference.Contains(search))
                     || proof.OriginalFileName.Contains(search)));
@@ -351,6 +353,7 @@ public sealed class AdminOrderQueryService : SkeletonService, IAdminOrderQuerySe
             .OrderByDescending(proof => proof.UploadedAt)
             .ThenByDescending(proof => proof.CreatedAt)
             .FirstOrDefault();
+        var item = order.Items.OrderBy(entry => entry.CreatedAt).FirstOrDefault();
 
         return new AdminOrderListItemResponse(
             order.Id,
@@ -363,6 +366,15 @@ public sealed class AdminOrderQueryService : SkeletonService, IAdminOrderQuerySe
             order.Pet.Name,
             order.TagType,
             order.Variant,
+            item?.ProductVariantId,
+            item?.ProductNameSnapshot,
+            item?.SkuSnapshot,
+            item?.VariantNameSnapshot,
+            item?.Quantity ?? 1,
+            item?.UnitBasePrice ?? order.Amount,
+            item?.DiscountAmount ?? 0m,
+            item?.FinalAmount ?? order.Amount,
+            item?.PromotionNameSnapshot,
             order.Amount,
             order.Currency,
             order.DeliveryFee,
@@ -426,11 +438,11 @@ public sealed class AdminOrderQueryService : SkeletonService, IAdminOrderQuerySe
         row.OwnerEmail,
         row.OwnerPhone,
         row.PetName,
+        row.ProductName ?? (row.TagType == TagType.QrNfcSmartTag ? "QR + NFC Smart Tag" : "QR Pet Tag"),
         row.TagType == TagType.QrNfcSmartTag ? "QR + NFC Smart Tag" : "QR Pet Tag",
-        row.TagType == TagType.QrNfcSmartTag ? "QR + NFC Smart Tag" : "QR Pet Tag",
-        row.Variant,
-        "1",
-        $"{row.Currency} {(row.Amount + row.DeliveryFee):0.00}",
+        row.VariantName ?? row.Variant,
+        row.Quantity.ToString(),
+        $"{row.Currency} {(row.FinalAmount + row.DeliveryFee):0.00}",
         PaymentLabel(row.PaymentStatus),
         row.LatestPaymentProofStatus?.ToString() ?? "",
         row.PaymentReference ?? "",

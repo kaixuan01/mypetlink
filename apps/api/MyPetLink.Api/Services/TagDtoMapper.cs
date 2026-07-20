@@ -37,6 +37,7 @@ internal static class TagDtoMapper
             .ToArray();
         var latestProof = proofs.FirstOrDefault();
         var timeline = BuildTimeline(order);
+        var item = order.Items.OrderBy(entry => entry.CreatedAt).FirstOrDefault();
 
         return new TagOrderResponse(
             order.Id,
@@ -54,6 +55,18 @@ internal static class TagDtoMapper
             order.Status,
             order.PaymentStatus,
             order.ReplacementForTagId,
+            item is null ? null : new TagOrderItemResponse(
+                item.SkuSnapshot,
+                item.ProductNameSnapshot,
+                item.VariantNameSnapshot,
+                item.UnitBasePrice,
+                item.Quantity,
+                item.Subtotal,
+                item.PromotionNameSnapshot,
+                item.DiscountAmount,
+                item.FinalUnitPrice,
+                item.FinalAmount,
+                item.Currency),
             new DeliveryDetailsResponse(
                 order.RecipientName,
                 order.DeliveryPhoneE164,

@@ -17,6 +17,11 @@ public sealed class AdminTagInventoryQuery : PagedQuery
     [MaxLength(80)]
     public string? Batch { get; init; }
 
+    [MaxLength(80)]
+    public string? Sku { get; init; }
+
+    public Guid? ProductVariantId { get; init; }
+
     // Lifecycle status (SmartTagStatus), or "archived" for archived tags.
     [MaxLength(32)]
     public string? Status { get; init; }
@@ -58,6 +63,9 @@ public sealed class AdminTagInventoryQuery : PagedQuery
 public sealed record AdminTagInventoryItemResponse(
     Guid Id,
     string TagCode,
+    Guid? ProductVariantId,
+    string? Sku,
+    string? ProductName,
     bool HasNfc,
     string Variant,
     string? BatchNo,
@@ -95,7 +103,9 @@ public sealed record AdminManufacturerTagRow(
     string TagCode,
     bool HasNfc,
     string Variant,
-    string BatchNo);
+    string BatchNo,
+    string PrintTemplateOrSku,
+    string ProductionNotes);
 
 public sealed record AdminTagInventoryBulkFailure(
     Guid TagId,

@@ -31,9 +31,15 @@ public sealed class MyPetLinkDbContext : DbContext
     public DbSet<MediaFileLink> MediaFileLinks => Set<MediaFileLink>();
     public DbSet<PetMemory> PetMemories => Set<PetMemory>();
     public DbSet<CareRecord> CareRecords => Set<CareRecord>();
+    public DbSet<TagProduct> TagProducts => Set<TagProduct>();
+    public DbSet<TagProductVariant> TagProductVariants => Set<TagProductVariant>();
+    public DbSet<TagProductMedia> TagProductMedia => Set<TagProductMedia>();
+    public DbSet<Promotion> Promotions => Set<Promotion>();
+    public DbSet<PromotionVariant> PromotionVariants => Set<PromotionVariant>();
     public DbSet<SmartTagBatch> SmartTagBatches => Set<SmartTagBatch>();
     public DbSet<SmartTag> SmartTags => Set<SmartTag>();
     public DbSet<TagOrder> TagOrders => Set<TagOrder>();
+    public DbSet<TagOrderItem> TagOrderItems => Set<TagOrderItem>();
     public DbSet<PaymentProof> PaymentProofs => Set<PaymentProof>();
     public DbSet<TagScan> TagScans => Set<TagScan>();
     public DbSet<FoundReport> FoundReports => Set<FoundReport>();
@@ -58,9 +64,108 @@ public sealed class MyPetLinkDbContext : DbContext
         ConfigurePlans(modelBuilder);
         ConfigurePets(modelBuilder);
         ConfigureCareMedia(modelBuilder);
+        ConfigureTagCatalog(modelBuilder);
         ConfigureTagsAndOrders(modelBuilder);
         ConfigureOperations(modelBuilder);
         SeedDefaults(modelBuilder);
+    }
+
+    private static void ConfigureTagCatalog(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<TagProduct>(entity =>
+        {
+            entity.ToTable("TagProducts");
+            entity.Property(item => item.Name).HasMaxLength(160);
+            entity.Property(item => item.Slug).HasMaxLength(120);
+            entity.Property(item => item.ShortDescription).HasMaxLength(300);
+            entity.Property(item => item.Description).HasMaxLength(4000);
+            entity.Property(item => item.RowVersion).IsRowVersion();
+            entity.HasIndex(item => item.Slug).IsUnique();
+            entity.HasIndex(item => new { item.IsPublished, item.IsArchived, item.SortOrder });
+            entity.HasIndex(item => item.UpdatedAt);
+        });
+
+        modelBuilder.Entity<TagProductVariant>(entity =>
+        {
+            entity.ToTable("TagProductVariants");
+            entity.Property(item => item.PublicKey).HasMaxLength(32);
+            entity.Property(item => item.Sku).HasMaxLength(80);
+            entity.Property(item => item.DisplayName).HasMaxLength(160);
+            entity.Property(item => item.TagVariant).HasMaxLength(80);
+            entity.Property(item => item.WidthMm).HasPrecision(10, 2);
+            entity.Property(item => item.HeightMm).HasPrecision(10, 2);
+            entity.Property(item => item.ThicknessMm).HasPrecision(10, 2);
+            entity.Property(item => item.WeightGrams).HasPrecision(10, 2);
+            entity.Property(item => item.Material).HasMaxLength(160);
+            entity.Property(item => item.Shape).HasMaxLength(120);
+            entity.Property(item => item.Colour).HasMaxLength(120);
+            entity.Property(item => item.PackagingType).HasMaxLength(200);
+            entity.Property(item => item.BasePrice).HasPrecision(18, 2);
+            entity.Property(item => item.CompareAtPrice).HasPrecision(18, 2);
+            entity.Property(item => item.Currency).HasMaxLength(3);
+            entity.Property(item => item.PrintTemplateCode).HasMaxLength(120);
+            entity.Property(item => item.ProductionNotes).HasMaxLength(1000);
+            entity.Property(item => item.RowVersion).IsRowVersion();
+            entity.HasIndex(item => item.PublicKey).IsUnique();
+            entity.HasIndex(item => item.Sku).IsUnique();
+            entity.HasIndex(item => item.TagProductId);
+            entity.HasIndex(item => new { item.IsActive, item.IsPurchasable, item.ArchivedAt });
+            entity.HasIndex(item => new { item.SupportsQr, item.SupportsNfc });
+            entity.HasOne(item => item.TagProduct)
+                .WithMany(product => product.Variants)
+                .HasForeignKey(item => item.TagProductId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<TagProductMedia>(entity =>
+        {
+            entity.ToTable("TagProductMedia");
+            entity.Property(item => item.AltText).HasMaxLength(300);
+            entity.HasIndex(item => new { item.TagProductId, item.SortOrder });
+            entity.HasIndex(item => new { item.TagProductVariantId, item.SortOrder });
+            entity.HasIndex(item => item.MediaFileId);
+            entity.HasOne(item => item.TagProduct)
+                .WithMany(product => product.Media)
+                .HasForeignKey(item => item.TagProductId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.TagProductVariant)
+                .WithMany(variant => variant.Media)
+                .HasForeignKey(item => item.TagProductVariantId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.MediaFile)
+                .WithMany()
+                .HasForeignKey(item => item.MediaFileId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Promotion>(entity =>
+        {
+            entity.ToTable("Promotions");
+            entity.Property(item => item.Name).HasMaxLength(160);
+            entity.Property(item => item.InternalDescription).HasMaxLength(1000);
+            entity.Property(item => item.DisplayLabel).HasMaxLength(160);
+            entity.Property(item => item.DiscountType).HasConversion<string>().HasMaxLength(32);
+            entity.Property(item => item.DiscountValue).HasPrecision(18, 2);
+            entity.Property(item => item.RowVersion).IsRowVersion();
+            entity.HasIndex(item => new { item.IsActive, item.IsAutomatic, item.StartsAt, item.EndsAt });
+            entity.HasIndex(item => item.Priority);
+            entity.HasIndex(item => item.UpdatedAt);
+        });
+
+        modelBuilder.Entity<PromotionVariant>(entity =>
+        {
+            entity.ToTable("PromotionVariants");
+            entity.HasKey(item => new { item.PromotionId, item.TagProductVariantId });
+            entity.HasIndex(item => item.TagProductVariantId);
+            entity.HasOne(item => item.Promotion)
+                .WithMany(promotion => promotion.PromotionVariants)
+                .HasForeignKey(item => item.PromotionId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.TagProductVariant)
+                .WithMany(variant => variant.PromotionVariants)
+                .HasForeignKey(item => item.TagProductVariantId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
     }
 
     private void StampAuditableEntities()
@@ -388,9 +493,14 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasIndex(item => item.GeneratedAt);
             entity.HasIndex(item => item.HasNfc);
             entity.HasIndex(item => item.Variant);
+            entity.HasIndex(item => item.ProductVariantId);
             entity.HasOne(item => item.GeneratedByAdminUser)
                 .WithMany()
                 .HasForeignKey(item => item.GeneratedByAdminUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.ProductVariant)
+                .WithMany(variant => variant.SmartTagBatches)
+                .HasForeignKey(item => item.ProductVariantId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -404,11 +514,13 @@ public sealed class MyPetLinkDbContext : DbContext
                 .HasConversion<string>()
                 .HasMaxLength(32)
                 .HasDefaultValue(TagFulfilmentStatus.Generated);
+            entity.Property(item => item.RowVersion).IsRowVersion();
             entity.HasIndex(item => item.TagCode).IsUnique();
             entity.HasIndex(item => item.OwnerUserId);
             entity.HasIndex(item => item.PetId);
             entity.HasIndex(item => item.OrderId);
             entity.HasIndex(item => item.BatchId);
+            entity.HasIndex(item => item.ProductVariantId);
             entity.HasIndex(item => item.Status);
             entity.HasIndex(item => new { item.Status, item.PetId });
             entity.HasIndex(item => item.LastScannedAt);
@@ -433,6 +545,10 @@ public sealed class MyPetLinkDbContext : DbContext
                 .WithMany(batch => batch.SmartTags)
                 .HasForeignKey(item => item.BatchId)
                 .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.ProductVariant)
+                .WithMany(variant => variant.SmartTags)
+                .HasForeignKey(item => item.ProductVariantId)
+                .OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(item => item.ReplacementForTag)
                 .WithMany()
                 .HasForeignKey(item => item.ReplacementForTagId)
@@ -450,6 +566,7 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.Property(item => item.DeliveryFee).HasPrecision(18, 2);
             entity.Property(item => item.Status).HasConversion<string>().HasMaxLength(32);
             entity.Property(item => item.PaymentStatus).HasConversion<string>().HasMaxLength(32);
+            entity.Property(item => item.RowVersion).IsRowVersion();
             entity.Property(item => item.RecipientName).HasMaxLength(160);
             entity.Property(item => item.DeliveryPhoneE164).HasMaxLength(32);
             entity.Property(item => item.AddressLine1).HasMaxLength(240);
@@ -486,6 +603,36 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasOne(item => item.ReplacementForTag)
                 .WithMany()
                 .HasForeignKey(item => item.ReplacementForTagId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<TagOrderItem>(entity =>
+        {
+            entity.ToTable("TagOrderItems");
+            entity.Property(item => item.SkuSnapshot).HasMaxLength(80);
+            entity.Property(item => item.ProductNameSnapshot).HasMaxLength(160);
+            entity.Property(item => item.VariantNameSnapshot).HasMaxLength(160);
+            entity.Property(item => item.UnitBasePrice).HasPrecision(18, 2);
+            entity.Property(item => item.Subtotal).HasPrecision(18, 2);
+            entity.Property(item => item.PromotionNameSnapshot).HasMaxLength(160);
+            entity.Property(item => item.DiscountAmount).HasPrecision(18, 2);
+            entity.Property(item => item.FinalUnitPrice).HasPrecision(18, 2);
+            entity.Property(item => item.FinalAmount).HasPrecision(18, 2);
+            entity.Property(item => item.Currency).HasMaxLength(3);
+            entity.HasIndex(item => item.OrderId);
+            entity.HasIndex(item => item.ProductVariantId);
+            entity.HasIndex(item => item.PromotionId);
+            entity.HasOne(item => item.Order)
+                .WithMany(order => order.Items)
+                .HasForeignKey(item => item.OrderId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.ProductVariant)
+                .WithMany(variant => variant.OrderItems)
+                .HasForeignKey(item => item.ProductVariantId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.Promotion)
+                .WithMany(promotion => promotion.OrderItems)
+                .HasForeignKey(item => item.PromotionId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

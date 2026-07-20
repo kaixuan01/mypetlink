@@ -30,7 +30,8 @@ public sealed record AdminDashboardResponse(
 
 public sealed record AdminTagOrderResponse(
     TagOrderResponse Order,
-    AdminOwnerRefResponse Owner);
+    AdminOwnerRefResponse Owner,
+    Guid? ProductVariantId);
 
 public sealed record AdminPaymentProofResponse(
     PaymentProofResponse Proof,
@@ -69,13 +70,17 @@ public sealed record AdminSmartTagResponse(
 
 public sealed record AdminGenerateTagsRequest(
     [Required, Range(1, 50)] int Quantity,
-    [Required, MaxLength(32)] string TagType,
-    [MaxLength(80)] string? Variant,
+    [Required] Guid? ProductVariantId,
     [MaxLength(80)] string? BatchNumber);
 
 public sealed record AdminGenerateTagsResponse(
     string BatchNo,
     int Quantity,
+    Guid ProductVariantId,
+    string Sku,
+    string ProductName,
+    string VariantName,
+    int CurrentInventoryCount,
     IReadOnlyCollection<SmartTagResponse> Tags);
 
 public sealed record AdminOwnerListItemResponse(

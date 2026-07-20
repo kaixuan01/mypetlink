@@ -13,7 +13,7 @@ import {
   isInactivePhysicalTag,
   isPendingPhysicalTag,
 } from "@/lib/tagStatus";
-import { generateTagCode, resolveTagCodeAlias } from "@/lib/tagCodes";
+import { resolveTagCodeAlias } from "@/lib/tagCodes";
 import {
   mockDelay,
   mockResponse,
@@ -144,6 +144,15 @@ export function mapBackendOrder(order: BackendTagOrder): TagOrder {
     orderedDate: formatDisplayDate(order.createdAt) ?? formatToday(),
     tagId: order.smartTagId ?? undefined,
     replacementForTagId: order.replacementForTagId ?? undefined,
+    sku: order.item?.sku,
+    productName: order.item?.productName,
+    variantName: order.item?.variantName,
+    quantity: order.item?.quantity,
+    unitBasePrice: order.item?.unitBasePrice,
+    discountAmount: order.item?.discountAmount,
+    finalAmount: order.item?.finalAmount,
+    promotionName: order.item?.promotionName ?? undefined,
+    currency: order.item?.currency ?? order.currency,
     paymentMethod: order.paymentMethod ?? latestProof?.paymentMethod ?? "QR Payment",
     paymentReference:
       order.paymentReference ?? latestProof?.paymentReference ?? undefined,
@@ -208,12 +217,6 @@ function fromBackendTagType(tagType: string): TagType {
   return tagType === "QrNfcSmartTag"
     ? "MyPetLink QR + NFC Smart Tag"
     : "MyPetLink QR Pet Tag";
-}
-
-function toBackendTagType(tagType: TagType) {
-  return tagType === "MyPetLink QR + NFC Smart Tag"
-    ? "QrNfcSmartTag"
-    : "QrPetTag";
 }
 
 function fromBackendOrderStatus(status: string): OrderStatus {
@@ -509,8 +512,8 @@ export async function createTagOrder(payload: TagOrderPayload) {
         method: "POST",
         body: {
           petId: payload.petId,
-          tagType: toBackendTagType(payload.tagType),
-          variant: payload.variant,
+          productVariantKey: payload.productVariantKey,
+          quantity: payload.quantity,
           delivery: {
             recipientName: payload.delivery.recipientName,
             phoneE164: payload.delivery.phone,
@@ -537,27 +540,7 @@ export async function createTagOrder(payload: TagOrderPayload) {
     return apiResponse({ data: mapped, meta: response.meta }, mapped);
   }
 
-  await mockDelay();
-  const orders = getOrderCollection();
-  const orderId = `order_${Date.now()}`;
-  const orderedDate = formatToday();
-  const order: TagOrder = {
-    id: orderId,
-    orderNumber: formatOrderNumber({ id: orderId }),
-    petId: payload.petId,
-    tagType: payload.tagType,
-    variant: payload.variant,
-    delivery: payload.delivery,
-    estimatedPrice: getEstimatedTagPrice(payload.tagType),
-    status: "Pending Payment",
-    orderedDate,
-    replacementForTagId: payload.replacementForTagId,
-    paymentMethod: "QR Payment",
-  };
-
-  writeStoredCollection(ORDER_STORAGE_KEY, [order, ...orders]);
-
-  return mockResponse({ order, tag: null });
+  throw new Error("Tag ordering is unavailable right now. Please try again shortly.");
 }
 
 type SubmitPaymentInput = {
@@ -1361,20 +1344,25 @@ export async function adminCancelOrder(orderId: string, reason: string) {
 // Customers activate them through /t/{tagCode} after scanning or tapping.
 export async function adminGenerateRetailTags(
   count: number,
-  hasNfc: boolean,
-  variant: TagVariant = "Standard"
+  productVariantId: string,
+  batchNumber?: string
 ) {
   if (canUseOwnerTagApi()) {
     const response = await apiRequest<{
       batchNo: string;
-      quantity: number;
+        quantity: number;
+      productVariantId: string;
+      sku: string;
+      productName: string;
+      variantName: string;
+      currentInventoryCount: number;
       tags: BackendSmartTag[];
     }>("/api/v1/admin/tag-inventory/generate", {
       method: "POST",
       body: {
         quantity: Math.max(1, Math.min(50, Math.floor(count))),
-        tagType: hasNfc ? "QR_NFC" : "QR",
-        variant,
+        productVariantId,
+        batchNumber: batchNumber?.trim() || null,
       },
     });
 
@@ -1387,23 +1375,5 @@ export async function adminGenerateRetailTags(
     );
   }
 
-  await mockDelay();
-  const safeCount = Math.max(1, Math.min(50, Math.floor(count)));
-  const now = new Date();
-  const batchNo = `BATCH-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const generatedDate = formatToday();
-  const tags = getTagCollection();
-  const newTags: PetTag[] = Array.from({ length: safeCount }, (_, index) => ({
-    id: `tag_${Date.now()}_${index}`,
-    tagCode: generateTagCode(),
-    hasNfc,
-    variant,
-    status: "Unassigned",
-    batchNo,
-    orderedDate: generatedDate,
-    isArchived: false,
-  }));
-
-  writeStoredCollection(TAG_STORAGE_KEY, [...newTags, ...tags]);
-  return mockResponse(newTags);
+  throw new Error("Inventory generation is unavailable right now. Please try again shortly.");
 }

@@ -25,6 +25,7 @@ import type {
 export type AdminInventoryListParams = {
   page: number;
   pageSize: number;
+  productVariantId?: string;
   search?: string;
   tagCode?: string;
   batch?: string;
@@ -45,6 +46,9 @@ export type AdminInventoryListParams = {
 export type AdminInventoryTag = {
   id: string;
   tagCode: string;
+  productVariantId?: string;
+  sku?: string;
+  productName?: string;
   hasNfc: boolean;
   variant: TagVariant;
   batchNo?: string;
@@ -138,6 +142,9 @@ export function canApplyBulkAction(
 type BackendInventoryItem = {
   id: string;
   tagCode: string;
+  productVariantId?: string | null;
+  sku?: string | null;
+  productName?: string | null;
   hasNfc: boolean;
   variant: string;
   batchNo?: string | null;
@@ -167,6 +174,9 @@ function mapBackendItem(item: BackendInventoryItem): AdminInventoryTag {
   return {
     id: item.id,
     tagCode: item.tagCode,
+    productVariantId: item.productVariantId ?? undefined,
+    sku: item.sku ?? undefined,
+    productName: item.productName ?? undefined,
     hasNfc: item.hasNfc,
     variant:
       item.variant?.trim().toLowerCase() === "lightweight"
@@ -480,6 +490,9 @@ function filterLocal(
     : null;
 
   return tags.filter((tag) => {
+    if (params.productVariantId && tag.productVariantId !== params.productVariantId) {
+      return false;
+    }
     if (search) {
       const haystack = [
         tag.tagCode,

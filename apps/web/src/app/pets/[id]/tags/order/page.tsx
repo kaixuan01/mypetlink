@@ -5,7 +5,7 @@ import { SmartTagsComingSoon } from "@/components/portal/SmartTagsComingSoon";
 import { TagOrderFlow } from "@/components/portal/TagOrderFlow";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { staticPetIdParams } from "@/data/staticRouteParams";
-import { smartTagOrderingEnabled } from "@/lib/features";
+import { smartTagOrderingEnabled, tagOrdersEnabled } from "@/lib/features";
 import { loadingTitle, ownerPetPageTitle } from "@/lib/pageTitles";
 import { getPetById, getPets } from "@/services/petService";
 
@@ -42,7 +42,7 @@ export default async function PetTagOrderPage({ params }: PetTagOrderPageProps) 
 
   const selectedPet = pet.data;
 
-  if (!smartTagOrderingEnabled) {
+  if (!smartTagOrderingEnabled || !tagOrdersEnabled) {
     return (
       <AppLayout>
         <PageHeader

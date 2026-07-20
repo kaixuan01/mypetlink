@@ -83,8 +83,19 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
         CancellationToken cancellationToken = default)
     {
         var admin = await RequireAdminAsync(currentUserId, cancellationToken);
-        var hasNfc = ParseTagType(request.TagType);
-        var variant = TagVariants.Normalize(request.Variant);
+        if (!request.ProductVariantId.HasValue)
+        {
+            throw ValidationFailed("productVariantId", "Choose a product SKU.");
+        }
+
+        var productVariant = await _dbContext.TagProductVariants
+            .Include(item => item.TagProduct)
+            .SingleOrDefaultAsync(item => item.Id == request.ProductVariantId.Value, cancellationToken)
+            ?? throw ValidationFailed("productVariantId", "The selected SKU could not be found.");
+
+        ValidateProductionVariant(productVariant);
+        var hasNfc = productVariant.SupportsNfc;
+        var variant = TagVariants.Normalize(productVariant.TagVariant);
         var now = DateTimeOffset.UtcNow;
         var batchNo = NormalizeOptional(request.BatchNumber)
             ?? await GenerateBatchNumberAsync(now, cancellationToken);
@@ -103,6 +114,7 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
             Quantity = request.Quantity,
             HasNfc = hasNfc,
             Variant = variant,
+            ProductVariantId = productVariant.Id,
             GeneratedByAdminUserId = admin.Id,
             GeneratedAt = now
         };
@@ -117,6 +129,7 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
             {
                 TagCode = await GenerateUniqueTagCodeAsync(tags, cancellationToken),
                 Batch = batch,
+                ProductVariantId = productVariant.Id,
                 HasNfc = hasNfc,
                 Variant = variant,
                 Status = SmartTagStatus.Unclaimed,
@@ -128,13 +141,22 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
 
         _auditLogService.Append(
             admin.Id, ActorType.Admin, "tag-inventory.generate", "SmartTagBatch", batch.Id,
-            null, new { batchNo, request.Quantity, tagType = hasNfc ? "QR_NFC" : "QR", variant });
+            null, new { batchNo, request.Quantity, productVariant.Id, productVariant.Sku, productVariant.TagProduct.Name });
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+
+        var currentInventoryCount = await _dbContext.SmartTags.CountAsync(
+            tag => tag.ProductVariantId == productVariant.Id && tag.DeletedAt == null,
+            cancellationToken);
 
         return new AdminGenerateTagsResponse(
             batchNo,
             tags.Count,
+            productVariant.Id,
+            productVariant.Sku,
+            productVariant.TagProduct.Name,
+            productVariant.DisplayName,
+            currentInventoryCount,
             tags.Select(TagDtoMapper.ToSmartTagResponse).ToArray());
     }
 
@@ -422,6 +444,8 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
             query.Search,
             query.TagCode,
             query.Batch,
+            query.Sku,
+            query.ProductVariantId,
             query.Status,
             query.Fulfilment,
             query.TagType,
@@ -465,8 +489,12 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
     private sealed record ManufacturerCandidate(
         Guid Id,
         string TagCode,
-        bool HasNfc,
-        string Variant,
+        Guid? ProductVariantId,
+        bool? SupportsNfc,
+        string? ProductVariant,
+        string? Sku,
+        string? PrintTemplateCode,
+        string? ProductionNotes,
         string? BatchNo,
         SmartTagStatus Status,
         bool IsArchived,
@@ -542,8 +570,12 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
             .Select(tag => new ManufacturerCandidate(
                 tag.Id,
                 tag.TagCode,
-                tag.HasNfc,
-                tag.Variant,
+                tag.ProductVariantId,
+                tag.ProductVariant == null ? null : tag.ProductVariant.SupportsNfc,
+                tag.ProductVariant == null ? null : tag.ProductVariant.TagVariant,
+                tag.ProductVariant == null ? null : tag.ProductVariant.Sku,
+                tag.ProductVariant == null ? null : tag.ProductVariant.PrintTemplateCode,
+                tag.ProductVariant == null ? null : tag.ProductVariant.ProductionNotes,
                 tag.Batch == null ? null : tag.Batch.BatchNo,
                 tag.Status,
                 tag.ArchivedAt != null,
@@ -561,9 +593,11 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
         var rows = candidates
             .Select(candidate => new AdminManufacturerTagRow(
                 candidate.TagCode,
-                candidate.HasNfc,
-                TagVariants.Normalize(candidate.Variant),
-                candidate.BatchNo!))
+                candidate.SupportsNfc!.Value,
+                TagVariants.Normalize(candidate.ProductVariant),
+                candidate.BatchNo!,
+                candidate.PrintTemplateCode ?? candidate.Sku!,
+                candidate.ProductionNotes ?? ""))
             .ToList();
 
         _auditLogService.Append(
@@ -621,6 +655,16 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
             if (!seenCodes.Add(code))
             {
                 problems.Add((code, "This tag code appears more than once in the export."));
+                continue;
+            }
+
+            if (!candidate.ProductVariantId.HasValue
+                || string.IsNullOrWhiteSpace(candidate.Sku)
+                || string.IsNullOrWhiteSpace(candidate.ProductVariant)
+                || !candidate.SupportsNfc.HasValue
+                || string.IsNullOrWhiteSpace(candidate.PrintTemplateCode))
+            {
+                problems.Add((code, "This legacy tag has no complete approved SKU mapping. Link it to a verified product variant before production export."));
                 continue;
             }
 
@@ -727,8 +771,8 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
             // Print Template / SKU has no approved product mapping yet, and
             // Production Notes has no production-safe source field; both stay
             // blank deliberately.
-            SetManufacturerText(sheet, sheetRow, 9, "");
-            SetManufacturerText(sheet, sheetRow, 10, "");
+            SetManufacturerText(sheet, sheetRow, 9, row.PrintTemplateOrSku);
+            SetManufacturerText(sheet, sheetRow, 10, row.ProductionNotes);
         }
 
         sheet.SheetView.FreezeRows(1);
@@ -766,7 +810,10 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
                 || (tag.Pet != null && tag.Pet.Name.Contains(search))
                 || (tag.OwnerUser != null && tag.OwnerUser.Email.Contains(search))
                 || (tag.OwnerUser != null && tag.OwnerUser.DisplayName.Contains(search))
-                || (tag.Order != null && tag.Order.OrderNumber.Contains(search)));
+                || (tag.Order != null && tag.Order.OrderNumber.Contains(search))
+                || (tag.ProductVariant != null && tag.ProductVariant.Sku.Contains(search))
+                || (tag.ProductVariant != null && tag.ProductVariant.TagProduct.Name.Contains(search)));
+
         }
 
         var tagCode = NormalizeOptional(query.TagCode);
@@ -779,6 +826,17 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
         if (batch is not null)
         {
             tags = tags.Where(tag => tag.Batch != null && tag.Batch.BatchNo == batch);
+        }
+
+        var sku = NormalizeOptional(query.Sku);
+        if (sku is not null)
+        {
+            tags = tags.Where(tag => tag.ProductVariant != null && tag.ProductVariant.Sku.Contains(sku));
+        }
+
+        if (query.ProductVariantId.HasValue)
+        {
+            tags = tags.Where(tag => tag.ProductVariantId == query.ProductVariantId.Value);
         }
 
         var status = NormalizeOptional(query.Status);
@@ -926,6 +984,9 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
         return tags.Select(tag => new AdminTagInventoryItemResponse(
             tag.Id,
             tag.TagCode,
+            tag.ProductVariantId,
+            tag.ProductVariant == null ? null : tag.ProductVariant.Sku,
+            tag.ProductVariant == null ? null : tag.ProductVariant.TagProduct.Name,
             tag.HasNfc,
             tag.Variant,
             tag.Batch == null ? null : tag.Batch.BatchNo,
@@ -1072,6 +1133,29 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
             "QRNFC" or "QRNFCSMARTTAG" or "NFC" or "QRNFCTAG" => true,
             _ => throw ValidationFailed("tagType", "Tag type is not supported.")
         };
+    }
+
+    private static void ValidateProductionVariant(TagProductVariant variant)
+    {
+        if (variant.ArchivedAt.HasValue || !variant.IsActive || variant.TagProduct.IsArchived)
+        {
+            throw ValidationFailed("productVariantId", "Choose an active, non-archived SKU.");
+        }
+
+        if (!variant.SupportsQr
+            || !variant.WidthMm.HasValue
+            || !variant.HeightMm.HasValue
+            || !variant.WeightGrams.HasValue
+            || string.IsNullOrWhiteSpace(variant.Material)
+            || string.IsNullOrWhiteSpace(variant.Shape)
+            || string.IsNullOrWhiteSpace(variant.Colour)
+            || string.IsNullOrWhiteSpace(variant.PackagingType)
+            || string.IsNullOrWhiteSpace(variant.PrintTemplateCode))
+        {
+            throw ValidationFailed(
+                "productVariantId",
+                "Complete the SKU's QR capability, physical specifications, packaging, and print template before generating inventory.");
+        }
     }
 
     private static TEnum ParseEnum<TEnum>(string value, string field, string message)

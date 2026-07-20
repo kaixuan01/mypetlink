@@ -124,6 +124,28 @@ public sealed class MediaServiceTests
     }
 
     [Fact]
+    public async Task TagProductImageUpload_IsPublicAdminOnlyAndUsesCatalogStoragePath()
+    {
+        using var harness = await MediaHarness.CreateAsync();
+        var request = new InitializeMediaUploadRequest(
+            null, null, null, null, MediaUploadCategory.TagProductImage,
+            "standard-tag.webp", "image/webp", 2048, 1200, 800, null);
+
+        var forbidden = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Service.InitializeUploadAsync(OtherUserId, request));
+        Assert.Equal(StatusCodes.Status403Forbidden, forbidden.StatusCode);
+
+        var response = await harness.Service.InitializeUploadAsync(UserId, request);
+        var media = await harness.Db.MediaFiles.SingleAsync(item => item.Id == response.MediaId);
+
+        Assert.True(response.IsPublic);
+        Assert.Equal(MediaFileType.Image, response.MediaType);
+        Assert.Equal("mypetlink-public-media", media.BucketName);
+        Assert.StartsWith("tag-products/", media.ObjectKey);
+        Assert.Equal(MediaUploadCategory.TagProductImage, media.Category);
+    }
+
+    [Fact]
     public async Task CompleteUploadAsync_WhenObjectMissing_ThrowsUnprocessable()
     {
         using var harness = await MediaHarness.CreateAsync();
@@ -497,7 +519,13 @@ public sealed class MediaServiceTests
                     Email = "owner@example.com",
                     NormalizedEmail = "OWNER@EXAMPLE.COM",
                     DisplayName = "Owner",
-                    Status = UserStatus.Active
+                    Status = UserStatus.Active,
+                    AdminUser = new AdminUser
+                    {
+                        UserId = UserId,
+                        Role = AdminRole.Admin,
+                        IsActive = true
+                    }
                 },
                 new User
                 {

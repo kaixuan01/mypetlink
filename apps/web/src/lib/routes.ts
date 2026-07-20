@@ -115,6 +115,7 @@ export const authRoutes = {
 } as const;
 
 export const adminRoutes = {
+  productCatalog: "/admin/tag-products",
   pets: "/admin/pets",
   pet: (petId: string) => `/admin/pets?petProfile=${encodeURIComponent(petId)}`,
   owners: "/admin/users",

@@ -77,6 +77,15 @@ export type AdminOrder = {
   petName: string;
   hasNfc: boolean;
   variant: TagVariant;
+  productVariantId?: string;
+  productName?: string;
+  sku?: string;
+  variantName?: string;
+  quantity?: number;
+  unitBasePrice?: number;
+  discountAmount?: number;
+  finalAmount?: number;
+  promotionName?: string;
   amount: number;
   currency: string;
   deliveryFee: number;
@@ -115,6 +124,7 @@ export type AdminOrderCounts = {
 export type AdminOrderDetail = {
   order: TagOrder;
   backendOrder?: BackendTagOrder;
+  productVariantId?: string;
   owner: { id?: string; name: string; email: string };
 };
 
@@ -129,6 +139,15 @@ type BackendAdminOrderItem = {
   petName: string;
   tagType: "QrPetTag" | "QrNfcSmartTag";
   variant: string;
+  productVariantId?: string | null;
+  productName?: string | null;
+  sku?: string | null;
+  variantName?: string | null;
+  quantity: number;
+  unitBasePrice: number;
+  discountAmount: number;
+  finalAmount: number;
+  promotionName?: string | null;
   amount: number;
   currency: string;
   deliveryFee: number;
@@ -156,6 +175,7 @@ type BackendAdminOrderItem = {
 type BackendAdminOrderDetail = {
   order: BackendTagOrder;
   owner: { userId: string; displayName: string; email: string };
+  productVariantId?: string | null;
 };
 
 const backendStatusToFrontend: Record<BackendTagOrder["status"], AdminOrder["orderStatus"]> = {
@@ -196,6 +216,15 @@ function mapBackendItem(item: BackendAdminOrderItem): AdminOrder {
     petName: item.petName,
     hasNfc: item.tagType === "QrNfcSmartTag",
     variant: item.variant?.toLowerCase() === "lightweight" ? "Lightweight" : "Standard",
+    productVariantId: item.productVariantId ?? undefined,
+    productName: item.productName ?? undefined,
+    sku: item.sku ?? undefined,
+    variantName: item.variantName ?? undefined,
+    quantity: item.quantity ?? 1,
+    unitBasePrice: item.unitBasePrice ?? item.amount,
+    discountAmount: item.discountAmount ?? 0,
+    finalAmount: item.finalAmount ?? item.amount,
+    promotionName: item.promotionName ?? undefined,
     amount: item.amount,
     currency: item.currency,
     deliveryFee: item.deliveryFee,
@@ -270,6 +299,7 @@ export async function getAdminOrderDetail(orderId: string, signal?: AbortSignal)
     return {
       order: mapBackendOrder(response.data.order),
       backendOrder: response.data.order,
+      productVariantId: response.data.productVariantId ?? undefined,
       owner: {
         id: response.data.owner.userId,
         name: response.data.owner.displayName || response.data.owner.email,
@@ -306,6 +336,15 @@ export async function getAdminOrderSummary(orderId: string, signal?: AbortSignal
       petName: order.petName ?? "Pet profile",
       hasNfc: order.tagType === "QrNfcSmartTag",
       variant: order.variant?.toLowerCase() === "lightweight" ? "Lightweight" : "Standard",
+      productVariantId: response.data.productVariantId ?? undefined,
+      productName: order.item?.productName,
+      sku: order.item?.sku,
+      variantName: order.item?.variantName,
+      quantity: order.item?.quantity ?? 1,
+      unitBasePrice: order.item?.unitBasePrice ?? order.amount,
+      discountAmount: order.item?.discountAmount ?? 0,
+      finalAmount: order.item?.finalAmount ?? order.amount,
+      promotionName: order.item?.promotionName ?? undefined,
       amount: order.amount,
       currency: order.currency,
       deliveryFee: order.deliveryFee,

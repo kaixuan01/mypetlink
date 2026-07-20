@@ -167,10 +167,14 @@ export function AdminOrderDetailDrawer({
                 <h3 className="text-sm font-black text-slate-900">Order summary</h3>
                 <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
                   <AdminDetailItem label="Order status" value={getOrderStatusDisplay(detail.order.status)} />
-                  <AdminDetailItem label="Item" value={getTagTypeLabel(summary.hasNfc)} />
-                  <AdminDetailItem label="Variant" value={`${summary.variant} Tag`} />
-                  <AdminDetailItem label="Quantity" value="1" />
-                  <AdminDetailItem label="Order amount" value={`${summary.currency} ${summary.amount.toFixed(2)}`} />
+                  <AdminDetailItem label="Product" value={summary.productName ?? getTagTypeLabel(summary.hasNfc)} />
+                  <AdminDetailItem label="SKU" value={summary.sku ?? "Legacy order"} />
+                  <AdminDetailItem label="Variant" value={summary.variantName ?? `${summary.variant} Tag`} />
+                  <AdminDetailItem label="Quantity" value={String(summary.quantity ?? 1)} />
+                  <AdminDetailItem label="Original unit price" value={`${summary.currency} ${(summary.unitBasePrice ?? summary.amount).toFixed(2)}`} />
+                  <AdminDetailItem label="Discount" value={`${summary.currency} ${(summary.discountAmount ?? 0).toFixed(2)}`} />
+                  <AdminDetailItem label="Final amount" value={`${summary.currency} ${(summary.finalAmount ?? summary.amount).toFixed(2)}`} />
+                  <AdminDetailItem label="Promotion" value={summary.promotionName ?? "None"} />
                   <AdminDetailItem label="Delivery fee" value={`${summary.currency} ${summary.deliveryFee.toFixed(2)}`} />
                   <AdminDetailItem label="Created" value={formatAdminDateTime(summary.createdAt)} />
                   <AdminDetailItem label="Updated" value={formatAdminDateTime(summary.updatedAt)} />

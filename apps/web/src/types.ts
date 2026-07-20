@@ -402,6 +402,16 @@ export type TagOrder = {
   orderedDate: string;
   tagId?: string;
   replacementForTagId?: string;
+  productVariantKey?: string;
+  sku?: string;
+  productName?: string;
+  variantName?: string;
+  quantity?: number;
+  unitBasePrice?: number;
+  discountAmount?: number;
+  finalAmount?: number;
+  promotionName?: string;
+  currency?: string;
   paymentMethod?: string;
   paymentReference?: string;
   paymentNote?: string;
@@ -481,8 +491,8 @@ export type PetMomentPayload = Partial<
 
 export type TagOrderPayload = {
   petId: string;
-  tagType: TagType;
-  variant: TagVariant;
+  productVariantKey: string;
+  quantity: 1;
   delivery: DeliveryDetails;
   replacementForTagId?: string;
 };

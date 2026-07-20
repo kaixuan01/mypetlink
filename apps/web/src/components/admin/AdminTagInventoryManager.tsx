@@ -50,6 +50,11 @@ import {
   adminGenerateRetailTags,
   getFriendlyTagErrorMessage,
 } from "@/services/tagService";
+import {
+  getAdminTagProduct,
+  listAdminTagProducts,
+  type AdminTagProduct,
+} from "@/services/tagCatalogService";
 import type { TagFulfilmentStatus, TagVariant } from "@/types";
 
 const variantOptions: TagVariant[] = ["Lightweight", "Standard"];
@@ -211,9 +216,28 @@ export function AdminTagInventoryManager() {
 
   // Generation form state.
   const [count, setCount] = useState(5);
-  const [tagKind, setTagKind] = useState<"qr" | "nfc">("qr");
-  const [variant, setVariant] = useState<TagVariant>("Standard");
+  const [catalogProducts, setCatalogProducts] = useState<AdminTagProduct[]>([]);
+  const [productId, setProductId] = useState("");
+  const [productVariantId, setProductVariantId] = useState("");
+  const [batchNumber, setBatchNumber] = useState("");
   const [generateMessage, setGenerateMessage] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    listAdminTagProducts()
+      .then((products) => Promise.all(products.filter((product) => !product.isArchived).map((product) => getAdminTagProduct(product.id))))
+      .then((details) => {
+        if (!active) return;
+        setCatalogProducts(details);
+        const firstProduct = details.find((product) => product.variants.some((variant) => variant.isActive && !variant.isArchived));
+        setProductId((current) => current || firstProduct?.id || "");
+        setProductVariantId((current) => current || firstProduct?.variants.find((variant) => variant.isActive && !variant.isArchived)?.id || "");
+      })
+      .catch((caught) => {
+        if (active) setGenerateMessage(getFriendlyTagErrorMessage(caught));
+      });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -265,10 +289,15 @@ export function AdminTagInventoryManager() {
     : null;
 
   async function generate() {
+    if (!productVariantId) {
+      setGenerateMessage("Choose a product SKU before generating inventory.");
+      return;
+    }
     try {
-      const result = await adminGenerateRetailTags(count, tagKind === "nfc", variant);
+      const result = await adminGenerateRetailTags(count, productVariantId, batchNumber);
+      const selected = catalogProducts.flatMap((product) => product.variants.map((variant) => ({ product, variant }))).find((item) => item.variant.id === productVariantId);
       setGenerateMessage(
-        `${result.data.length} new ${tagKind === "nfc" ? "QR + NFC" : "QR"} ${variant} tag code${
+        `${result.data.length} new ${selected?.variant.sku ?? "SKU"} tag code${
           result.data.length === 1 ? "" : "s"
         } generated as unclaimed stock.`
       );
@@ -277,6 +306,10 @@ export function AdminTagInventoryManager() {
       setGenerateMessage(getFriendlyTagErrorMessage(caught));
     }
   }
+
+  const selectedCatalogProduct = catalogProducts.find((product) => product.id === productId);
+  const eligibleCatalogVariants = selectedCatalogProduct?.variants.filter((variant) => variant.isActive && !variant.isArchived) ?? [];
+  const selectedCatalogVariant = eligibleCatalogVariants.find((variant) => variant.id === productVariantId);
 
   async function runBulkAction(action: AdminInventoryBulkAction) {
     setPendingBulkAction(null);
@@ -394,6 +427,16 @@ export function AdminTagInventoryManager() {
       ),
     },
     {
+      id: "sku",
+      header: "SKU",
+      cell: (tag) => (
+        <div className="min-w-36">
+          <p className="font-mono text-xs font-bold text-slate-800">{tag.sku ?? "Legacy inventory"}</p>
+          {tag.productName ? <p className="mt-0.5 text-xs text-slate-500">{tag.productName}</p> : null}
+        </div>
+      ),
+    },
+    {
       id: "status",
       header: "Lifecycle",
       sortId: "status",
@@ -497,9 +540,35 @@ export function AdminTagInventoryManager() {
 
       <AdminSection
         title="Generate tag codes"
-        description="Create new unclaimed retail stock. Codes use the MPL-XXXX-XXXX format and are ready for QR printing."
+        description="Create unclaimed retail stock from an approved SKU. Product capabilities and production specifications are applied automatically."
       >
         <div className="flex flex-wrap items-end gap-3 p-4">
+          <label className="grid min-w-52 gap-1 text-xs font-extrabold uppercase text-slate-500">
+            Product
+            <select
+              className="min-h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none focus:border-slate-400"
+              onChange={(event) => {
+                const nextProduct = catalogProducts.find((product) => product.id === event.target.value);
+                setProductId(event.target.value);
+                setProductVariantId(nextProduct?.variants.find((variant) => variant.isActive && !variant.isArchived)?.id ?? "");
+              }}
+              value={productId}
+            >
+              <option value="">Choose product</option>
+              {catalogProducts.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
+            </select>
+          </label>
+          <label className="grid min-w-60 gap-1 text-xs font-extrabold uppercase text-slate-500">
+            SKU / product variant
+            <select
+              className="min-h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none focus:border-slate-400"
+              onChange={(event) => setProductVariantId(event.target.value)}
+              value={productVariantId}
+            >
+              <option value="">Choose SKU</option>
+              {eligibleCatalogVariants.map((variant) => <option key={variant.id} value={variant.id}>{variant.sku} · {variant.displayName}</option>)}
+            </select>
+          </label>
           <label className="grid gap-1 text-xs font-extrabold uppercase text-slate-500">
             Quantity
             <input
@@ -511,35 +580,32 @@ export function AdminTagInventoryManager() {
               value={count}
             />
           </label>
-          <label className="grid gap-1 text-xs font-extrabold uppercase text-slate-500">
-            Tag type
-            <select
+          <label className="grid min-w-48 gap-1 text-xs font-extrabold uppercase text-slate-500">
+            Batch reference (optional)
+            <input
               className="min-h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none focus:border-slate-400"
-              onChange={(event) => setTagKind(event.target.value as "qr" | "nfc")}
-              value={tagKind}
-            >
-              <option value="qr">QR Pet Tag</option>
-              <option value="nfc">QR + NFC Smart Tag</option>
-            </select>
-          </label>
-          <label className="grid gap-1 text-xs font-extrabold uppercase text-slate-500">
-            Tag variant
-            <select
-              className="min-h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none focus:border-slate-400"
-              onChange={(event) => setVariant(event.target.value as TagVariant)}
-              value={variant}
-            >
-              {variantOptions.map((option) => (
-                <option key={option} value={option}>
-                  {option} Tag
-                </option>
-              ))}
-            </select>
+              maxLength={80}
+              onChange={(event) => setBatchNumber(event.target.value)}
+              placeholder="Generated automatically"
+              value={batchNumber}
+            />
           </label>
           <AdminActionButton onClick={() => void generate()} tone="primary">
             Generate Tag Codes
           </AdminActionButton>
         </div>
+        {selectedCatalogVariant ? (
+          <div className="mx-4 mb-4 grid gap-2 rounded-xl bg-slate-50 p-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+            <ProductionSummary label="Product" value={selectedCatalogProduct?.name ?? ""} />
+            <ProductionSummary label="SKU" value={selectedCatalogVariant.sku} />
+            <ProductionSummary label="Capabilities" value={selectedCatalogVariant.supportsNfc ? "QR + NFC" : "QR"} />
+            <ProductionSummary label="Variant" value={selectedCatalogVariant.tagVariant} />
+            <ProductionSummary label="Size" value={formatSize(selectedCatalogVariant)} />
+            <ProductionSummary label="Material" value={selectedCatalogVariant.material ?? "Not set"} />
+            <ProductionSummary label="Print template" value={selectedCatalogVariant.printTemplateCode ?? "Not set"} />
+            <ProductionSummary label="Current inventory" value={`${selectedCatalogVariant.inventoryCount} tags`} />
+          </div>
+        ) : null}
         {generateMessage ? (
           <p className="px-4 pb-4 text-sm font-bold text-[#1b4f9c]">{generateMessage}</p>
         ) : null}
@@ -661,4 +727,20 @@ export function AdminTagInventoryManager() {
       ) : null}
     </div>
   );
+}
+
+function ProductionSummary({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[0.68rem] font-extrabold uppercase text-slate-400">{label}</p>
+      <p className="mt-0.5 break-words font-bold text-slate-900">{value}</p>
+    </div>
+  );
+}
+
+function formatSize(variant: AdminTagProduct["variants"][number]) {
+  const parts = [variant.widthMm, variant.heightMm, variant.thicknessMm].filter(
+    (value): value is number => typeof value === "number"
+  );
+  return parts.length ? `${parts.join(" × ")} mm` : "Not set";
 }
