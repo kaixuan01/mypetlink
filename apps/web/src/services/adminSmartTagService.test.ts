@@ -5,6 +5,7 @@ import {
   bulkUpdateAdminSmartTags,
   canRunSmartTagAction,
   countAdminSmartTags,
+  getSmartTagAssignmentActions,
   listAdminSmartTags,
   runAdminSmartTagAction,
   smartTagLifecycleLabel,
@@ -18,10 +19,11 @@ const base = { page: 1, pageSize: 100 };
 function seed(): PetTag[] {
   const rows: PetTag[] = [
     { id: "smart_active", tagCode: "MPL-SMART-ACTIVE", hasNfc: true, variant: "Lightweight", status: "Active", petId: "pet_a", ownerUserId: "owner_a", activatedAt: "2026-07-01T00:00:00Z", lastScannedAt: "2026-07-10T00:00:00Z" },
-    { id: "smart_pending", tagCode: "MPL-SMART-PENDING", hasNfc: false, variant: "Standard", status: "Pending" },
+    { id: "smart_pending", tagCode: "MPL-SMART-PENDING", hasNfc: false, variant: undefined as unknown as "Standard", status: "Pending" },
     { id: "smart_preparing", tagCode: "MPL-SMART-PREPARING", hasNfc: false, variant: "Standard", status: "Preparing" },
     { id: "smart_disabled", tagCode: "MPL-SMART-DISABLED", hasNfc: false, variant: "Standard", status: "Disabled", petId: "pet_b", ownerUserId: "owner_b" },
     { id: "smart_archived", tagCode: "MPL-SMART-ARCHIVED", hasNfc: true, variant: "Standard", status: "Archived", isArchived: true },
+    { id: "smart_unclaimed", tagCode: "MPL-SMART-UNCLAIMED", hasNfc: false, variant: "Standard", status: "Unassigned" },
   ];
   writeAdminTagCollection(rows);
   return rows;
@@ -39,6 +41,8 @@ describe("Smart Tags local query parity", () => {
     expect((await seeded({ search: "smart-active" })).map((row) => row.id)).toEqual(["smart_active"]);
     expect((await seeded({ tagType: "QR_NFC" })).map((row) => row.id).sort()).toEqual(["smart_active", "smart_archived"]);
     expect((await seeded({ status: "awaiting-activation" })).map((row) => row.id).sort()).toEqual(["smart_pending", "smart_preparing"]);
+    expect((await seeded({ status: "Unclaimed" })).map((row) => row.id)).toEqual(["smart_unclaimed"]);
+    expect((await seeded()).find((row) => row.id === "smart_pending")?.variant).toBe("Standard");
     expect((await seeded({ claimed: "true" })).map((row) => row.id).sort()).toEqual(["smart_active", "smart_disabled"]);
     expect((await seeded({ hasScans: "true" })).map((row) => row.id)).toEqual(["smart_active"]);
     expect((await seeded({ activatedFrom: "2026-07-01", activatedTo: "2026-07-01" })).map((row) => row.id)).toEqual(["smart_active"]);
@@ -62,6 +66,15 @@ describe("Smart Tags lifecycle actions", () => {
     expect(smartTagLifecycleLabel({ ...active, status: "Preparing" })).toBe("Preparing for owner");
     expect(canRunSmartTagAction(active, "disable")).toBe(true);
     expect(canRunSmartTagAction({ ...active, status: "Replaced" }, "archive")).toBe(false);
+    expect(canRunSmartTagAction({ ...active, status: "Lost", ownerId: "owner", petId: "pet" }, "reactivate")).toBe(true);
+  });
+
+  it("offers assignment commands only for eligible lifecycle and binding states", () => {
+    expect(getSmartTagAssignmentActions({ ...active, status: "Unassigned" })).toEqual(["claim"]);
+    expect(getSmartTagAssignmentActions({ ...active, ownerId: "owner-1" })).toEqual(["assign-pet", "transfer"]);
+    expect(getSmartTagAssignmentActions({ ...active, ownerId: "owner-1", petId: "pet-1" })).toEqual(["change-pet", "unassign-pet", "transfer"]);
+    expect(getSmartTagAssignmentActions({ ...active, status: "Lost", ownerId: "owner-1", petId: "pet-1" })).toEqual([]);
+    expect(getSmartTagAssignmentActions({ ...active, status: "Replaced", ownerId: "owner-1", petId: "pet-1" })).toEqual([]);
   });
 
   it("updates a valid action and rejects a duplicate invalid transition", async () => {

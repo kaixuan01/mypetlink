@@ -66,7 +66,44 @@ public sealed record AdminSmartTagStatusCountsResponse(
     int Replaced,
     int Archived);
 
+public sealed record AdminSmartTagScanResponse(
+    Guid Id,
+    TagScanResolvedState ResolvedState,
+    DateTimeOffset ScannedAt,
+    string? City,
+    string? Country,
+    string? DeviceType);
+
 public sealed record AdminSmartTagActionRequest([MaxLength(600)] string? Reason);
+
+public sealed class AdminSmartTagClaimRequest
+{
+    [Required] public Guid OwnerUserId { get; init; }
+    [Required] public Guid PetId { get; init; }
+    [Required] public DateTimeOffset ExpectedUpdatedAt { get; init; }
+    [MaxLength(600)] public string? Reason { get; init; }
+}
+
+public sealed class AdminSmartTagAssignPetRequest
+{
+    [Required] public Guid PetId { get; init; }
+    [Required] public DateTimeOffset ExpectedUpdatedAt { get; init; }
+    [MaxLength(600)] public string? Reason { get; init; }
+}
+
+public sealed class AdminSmartTagUnassignPetRequest
+{
+    [Required] public DateTimeOffset ExpectedUpdatedAt { get; init; }
+    [MaxLength(600)] public string? Reason { get; init; }
+}
+
+public sealed class AdminSmartTagTransferRequest
+{
+    [Required] public Guid NewOwnerUserId { get; init; }
+    [Required] public Guid NewPetId { get; init; }
+    [Required] public DateTimeOffset ExpectedUpdatedAt { get; init; }
+    [Required, MaxLength(600)] public string Reason { get; init; } = "";
+}
 
 public sealed record AdminSmartTagBulkActionRequest(
     [Required, MaxLength(40)] string Action,

@@ -6,14 +6,22 @@ import { useAdminTableQuery } from "./useAdminTableQuery";
 
 // Simulated navigation: the hook treats the URL as the source of truth, so the
 // mock keeps a mutable query string that router.push updates.
-const navState = { search: "", pushes: [] as string[] };
+const navState = { pathname: "/admin/tag-inventory", search: "", pushes: [] as string[], replacements: [] as string[] };
+
+function navigate(url: string) {
+  navState.search = url.split("?")[1] ?? "";
+}
 
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/admin/tag-inventory",
+  usePathname: () => navState.pathname,
   useRouter: () => ({
     push: (url: string) => {
       navState.pushes.push(url);
-      navState.search = url.split("?")[1] ?? "";
+      navigate(url);
+    },
+    replace: (url: string) => {
+      navState.replacements.push(url);
+      navigate(url);
     },
   }),
   useSearchParams: () => new URLSearchParams(navState.search),
@@ -32,7 +40,9 @@ function renderQueryHook() {
 
 beforeEach(() => {
   navState.search = "";
+  navState.pathname = "/admin/tag-inventory";
   navState.pushes = [];
+  navState.replacements = [];
 });
 
 afterEach(() => cleanup());
@@ -176,5 +186,80 @@ describe("useAdminTableQuery", () => {
     navState.search = forwardUrl;
     rerender();
     expect(result.current.query.filters).toEqual({ fulfilment: "Printed" });
+  });
+
+  it("closes a detail with replace while preserving every list parameter", () => {
+    navState.search = "q=topu&status=Active&page=2&sort=tagCode&dir=asc&tag=abc";
+    const { result, rerender } = renderQueryHook();
+
+    act(() => result.current.actions.setExtraParam("tag", null));
+    rerender();
+
+    expect(navState.replacements).toEqual([
+      "/admin/tag-inventory?q=topu&status=Active&page=2&sort=tagCode&dir=asc",
+    ]);
+    expect(navState.pushes).toEqual([]);
+    expect(result.current.actions.getExtraParam("tag")).toBe("");
+  });
+
+  it("pushes the first detail and replaces a selected detail with another", () => {
+    navState.search = "status=Active&page=2";
+    const { result, rerender } = renderQueryHook();
+
+    act(() => result.current.actions.setExtraParam("tag", "abc"));
+    rerender();
+    act(() => result.current.actions.setExtraParam("tag", "def"));
+    rerender();
+
+    expect(navState.pushes).toEqual([
+      "/admin/tag-inventory?status=Active&page=2&tag=abc",
+    ]);
+    expect(navState.replacements).toEqual([
+      "/admin/tag-inventory?status=Active&page=2&tag=def",
+    ]);
+  });
+
+  it("composes rapid URL actions from the latest pending snapshot", () => {
+    navState.search = "status=Active&page=2&tag=abc";
+    const { result } = renderQueryHook();
+
+    // Deliberately do not rerender between actions, matching the router race
+    // that used to restore the stale detail ID in production.
+    act(() => {
+      result.current.actions.setSearch("milo");
+      result.current.actions.setExtraParam("tag", null);
+    });
+
+    expect(navState.search).toBe("status=Active&q=milo");
+    expect(navState.replacements.at(-1)).toBe(
+      "/admin/tag-inventory?status=Active&q=milo"
+    );
+  });
+
+  it("restores closed detail state through browser Back", () => {
+    navState.search = "status=Active&page=2";
+    const { result, rerender } = renderQueryHook();
+    const listState = navState.search;
+
+    act(() => result.current.actions.setExtraParam("tag", "abc"));
+    rerender();
+    expect(result.current.actions.getExtraParam("tag")).toBe("abc");
+
+    navState.search = listState;
+    rerender();
+    expect(result.current.actions.getExtraParam("tag")).toBe("");
+  });
+
+  it.each([
+    ["/admin/orders", "order"],
+    ["/admin/pets", "petProfile"],
+  ])("applies the shared close behavior in %s", (pathname, detailKey) => {
+    navState.pathname = pathname;
+    navState.search = `q=topu&page=3&${detailKey}=record-1`;
+    const { result } = renderQueryHook();
+
+    act(() => result.current.actions.setExtraParam(detailKey, null));
+
+    expect(navState.replacements.at(-1)).toBe(`${pathname}?q=topu&page=3`);
   });
 });

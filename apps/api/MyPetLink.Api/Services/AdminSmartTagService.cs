@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using System.Data;
 using System.Text;
 using ClosedXML.Excel;
 using Microsoft.EntityFrameworkCore;
@@ -80,6 +81,27 @@ public sealed class AdminSmartTagService : SkeletonService, IAdminSmartTagServic
         return response ?? throw NotFound();
     }
 
+    public async Task<IReadOnlyCollection<AdminSmartTagScanResponse>> ListScansAsync(
+        Guid? currentUserId,
+        Guid tagId,
+        CancellationToken cancellationToken = default)
+    {
+        await RequireAdminAsync(currentUserId, cancellationToken);
+        if (!await _dbContext.SmartTags.AsNoTracking().AnyAsync(
+                tag => tag.Id == tagId && tag.DeletedAt == null, cancellationToken))
+            throw NotFound();
+
+        return await _dbContext.TagScans.AsNoTracking()
+            .Where(scan => scan.SmartTagId == tagId)
+            .OrderByDescending(scan => scan.ScanTime)
+            .ThenByDescending(scan => scan.Id)
+            .Take(50)
+            .Select(scan => new AdminSmartTagScanResponse(
+                scan.Id, scan.ResolvedState, scan.ScanTime,
+                scan.City, scan.Country, scan.DeviceType))
+            .ToArrayAsync(cancellationToken);
+    }
+
     public async Task<AdminSmartTagItemResponse> UpdateStatusAsync(
         Guid? currentUserId,
         Guid tagId,
@@ -94,6 +116,172 @@ public sealed class AdminSmartTagService : SkeletonService, IAdminSmartTagServic
 
         ApplyAction(tag, action, reason, admin.Id);
         await _dbContext.SaveChangesAsync(cancellationToken);
+        return await GetAsync(tag.Id, cancellationToken);
+    }
+
+    public Task<AdminSmartTagItemResponse> ClaimAsync(
+        Guid? currentUserId,
+        Guid tagId,
+        AdminSmartTagClaimRequest request,
+        CancellationToken cancellationToken = default)
+        => UpdateAssignmentAsync(currentUserId, tagId, "claim", request.OwnerUserId, request.PetId,
+            request.ExpectedUpdatedAt, request.Reason, cancellationToken);
+
+    public Task<AdminSmartTagItemResponse> AssignPetAsync(
+        Guid? currentUserId,
+        Guid tagId,
+        AdminSmartTagAssignPetRequest request,
+        CancellationToken cancellationToken = default)
+        => UpdateAssignmentAsync(currentUserId, tagId, "assign-pet", null, request.PetId,
+            request.ExpectedUpdatedAt, request.Reason, cancellationToken);
+
+    public Task<AdminSmartTagItemResponse> UnassignPetAsync(
+        Guid? currentUserId,
+        Guid tagId,
+        AdminSmartTagUnassignPetRequest request,
+        CancellationToken cancellationToken = default)
+        => UpdateAssignmentAsync(currentUserId, tagId, "unassign-pet", null, null,
+            request.ExpectedUpdatedAt, request.Reason, cancellationToken);
+
+    public Task<AdminSmartTagItemResponse> TransferOwnershipAsync(
+        Guid? currentUserId,
+        Guid tagId,
+        AdminSmartTagTransferRequest request,
+        CancellationToken cancellationToken = default)
+        => UpdateAssignmentAsync(currentUserId, tagId, "transfer", request.NewOwnerUserId, request.NewPetId,
+            request.ExpectedUpdatedAt, request.Reason, cancellationToken);
+
+    private async Task<AdminSmartTagItemResponse> UpdateAssignmentAsync(
+        Guid? currentUserId,
+        Guid tagId,
+        string operation,
+        Guid? requestedOwnerId,
+        Guid? requestedPetId,
+        DateTimeOffset expectedUpdatedAt,
+        string? reason,
+        CancellationToken cancellationToken)
+    {
+        var admin = await RequireAdminAsync(currentUserId, cancellationToken);
+        await using var transaction = _dbContext.Database.IsRelational()
+            ? await _dbContext.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken)
+            : null;
+
+        var tagQuery = _dbContext.SmartTags.Where(item => item.Id == tagId && item.DeletedAt == null);
+        var tag = (_dbContext.Database.IsRelational()
+                ? await tagQuery.AsNoTracking().SingleOrDefaultAsync(cancellationToken)
+                : await tagQuery.SingleOrDefaultAsync(cancellationToken))
+            ?? throw NotFound();
+
+        if (tag.UpdatedAt.ToUniversalTime() != expectedUpdatedAt.ToUniversalTime())
+        {
+            throw Conflict();
+        }
+
+        EnsureAssignmentLifecycle(tag, operation);
+        var oldOwnerId = tag.OwnerUserId;
+        var oldPetId = tag.PetId;
+        var oldStatus = tag.Status;
+        var normalizedReason = NormalizeOptional(reason);
+        if (normalizedReason is { Length: > 600 })
+            throw ValidationFailed("reason", "Keep the reason to 600 characters or fewer.");
+
+        Guid newOwnerId;
+        Guid? newPetId;
+        string auditAction;
+
+        switch (operation)
+        {
+            case "claim":
+                if (!requestedOwnerId.HasValue || requestedOwnerId == Guid.Empty || !requestedPetId.HasValue || requestedPetId == Guid.Empty)
+                    throw ValidationFailed("assignment", "Choose an owner and one of that owner's pets.");
+                if (tag.OwnerUserId.HasValue || tag.PetId.HasValue || tag.Status != SmartTagStatus.Unclaimed)
+                    throw InvalidState("Only an unclaimed tag without an owner or pet can be claimed on behalf of an owner.");
+                newOwnerId = requestedOwnerId!.Value;
+                newPetId = requestedPetId!.Value;
+                auditAction = "smart-tags.owner-and-pet-assigned";
+                tag.Status = SmartTagStatus.Pending;
+                break;
+            case "assign-pet":
+                if (!requestedPetId.HasValue || requestedPetId == Guid.Empty)
+                    throw ValidationFailed("petId", "Choose a pet.");
+                if (!tag.OwnerUserId.HasValue)
+                    throw InvalidState("Assign an owner and pet before using the normal pet assignment action.");
+                newOwnerId = tag.OwnerUserId.Value;
+                newPetId = requestedPetId!.Value;
+                if (newPetId == tag.PetId)
+                    throw ValidationFailed("petId", "Choose a different pet.");
+                auditAction = tag.PetId.HasValue ? "smart-tags.pet-reassigned" : "smart-tags.pet-assigned";
+                break;
+            case "unassign-pet":
+                if (!tag.OwnerUserId.HasValue || !tag.PetId.HasValue)
+                    throw InvalidState("This tag does not currently have a pet to unassign.");
+                if (tag.Status == SmartTagStatus.Active && normalizedReason is null)
+                    throw ValidationFailed("reason", "Add a reason before unassigning an active tag.");
+                newOwnerId = tag.OwnerUserId.Value;
+                newPetId = null;
+                auditAction = "smart-tags.pet-unassigned";
+                break;
+            case "transfer":
+                if (!requestedOwnerId.HasValue || requestedOwnerId == Guid.Empty || !requestedPetId.HasValue || requestedPetId == Guid.Empty)
+                    throw ValidationFailed("assignment", "Choose a new owner and one of that owner's pets.");
+                if (!tag.OwnerUserId.HasValue)
+                    throw InvalidState("An unclaimed tag must use Assign owner and pet, not ownership transfer.");
+                if (normalizedReason is null)
+                    throw ValidationFailed("reason", "Add a reason for the ownership transfer.");
+                newOwnerId = requestedOwnerId!.Value;
+                newPetId = requestedPetId!.Value;
+                if (newOwnerId == tag.OwnerUserId)
+                    throw ValidationFailed("newOwnerUserId", "Choose a different owner. Use Change assigned pet for the current owner.");
+                auditAction = "smart-tags.ownership-transferred";
+                // A transferred tag must be activated by its new owner. An
+                // Admin transfer never silently grants an active finder page.
+                tag.Status = SmartTagStatus.Pending;
+                tag.ActivatedAt = null;
+                break;
+            default:
+                throw ValidationFailed("operation", "This assignment operation is not supported.");
+        }
+
+        var owner = await _dbContext.Users.AsNoTracking().SingleOrDefaultAsync(
+            user => user.Id == newOwnerId && user.DeletedAt == null && user.Status == UserStatus.Active,
+            cancellationToken);
+        if (owner is null)
+            throw ValidationFailed(operation == "transfer" ? "newOwnerUserId" : "ownerUserId", "Choose an active owner account.");
+
+        if (newPetId.HasValue)
+        {
+            var pet = await _dbContext.Pets.AsNoTracking().SingleOrDefaultAsync(
+                item => item.Id == newPetId && item.DeletedAt == null, cancellationToken);
+            if (pet is null || pet.LifecycleStatus == PetLifecycleStatus.Archived)
+                throw ValidationFailed("petId", "Choose an active or memorial pet profile.");
+            if (pet.OwnerUserId != newOwnerId)
+                throw ValidationFailed("petId", "The selected pet must belong to the selected owner.");
+        }
+
+        tag.OwnerUserId = newOwnerId;
+        tag.PetId = newPetId;
+        tag.UpdatedAt = DateTimeOffset.UtcNow;
+
+        if (_dbContext.Database.IsRelational())
+        {
+            // The timestamp predicate is an optimistic concurrency guard. It
+            // makes the relationship update atomic without adding a schema
+            // column or allowing a stale Admin dialog to overwrite newer work.
+            var affected = await _dbContext.SmartTags
+                .Where(item => item.Id == tag.Id && item.DeletedAt == null && item.UpdatedAt == expectedUpdatedAt)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(item => item.OwnerUserId, tag.OwnerUserId)
+                    .SetProperty(item => item.PetId, tag.PetId)
+                    .SetProperty(item => item.Status, tag.Status)
+                    .SetProperty(item => item.ActivatedAt, tag.ActivatedAt)
+                    .SetProperty(item => item.UpdatedAt, tag.UpdatedAt), cancellationToken);
+            if (affected != 1) throw Conflict();
+        }
+        _auditLogService.Append(admin.Id, ActorType.Admin, auditAction, "SmartTag", tag.Id,
+            new { ownerUserId = oldOwnerId, petId = oldPetId, status = oldStatus.ToString() },
+            new { ownerUserId = tag.OwnerUserId, petId = tag.PetId, status = tag.Status.ToString(), reason = normalizedReason });
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        if (transaction is not null) await transaction.CommitAsync(cancellationToken);
         return await GetAsync(tag.Id, cancellationToken);
     }
 
@@ -237,7 +425,7 @@ public sealed class AdminSmartTagService : SkeletonService, IAdminSmartTagServic
         }
 
         if (query.Claimed.HasValue)
-            tags = query.Claimed.Value ? tags.Where(tag => tag.PetId != null && tag.OwnerUserId != null) : tags.Where(tag => tag.PetId == null || tag.OwnerUserId == null);
+            tags = query.Claimed.Value ? tags.Where(tag => tag.OwnerUserId != null) : tags.Where(tag => tag.OwnerUserId == null);
         if (query.PetId.HasValue) tags = tags.Where(tag => tag.PetId == query.PetId.Value);
         if (query.OwnerId.HasValue) tags = tags.Where(tag => tag.OwnerUserId == query.OwnerId.Value);
         if (NormalizeOptional(query.Pet) is { } pet)
@@ -329,6 +517,11 @@ public sealed class AdminSmartTagService : SkeletonService, IAdminSmartTagServic
                 tag.Status = SmartTagStatus.Disabled;
                 tag.ArchivedAt = null;
                 break;
+            case "reactivate" when tag.ArchivedAt == null
+                && tag.Status is SmartTagStatus.Disabled or SmartTagStatus.Lost
+                && tag.OwnerUserId.HasValue && tag.PetId.HasValue:
+                tag.Status = tag.ActivatedAt.HasValue ? SmartTagStatus.Active : SmartTagStatus.Delivered;
+                break;
             default:
                 throw ValidationFailed("action", $"{ActionLabel(action)} is not available for a {LifecycleLabel(tag)} tag.");
         }
@@ -345,6 +538,7 @@ public sealed class AdminSmartTagService : SkeletonService, IAdminSmartTagServic
         "mark-lost" => "Mark lost",
         "archive" => "Archive",
         "restore" => "Restore",
+        "reactivate" => "Reactivate",
         _ => "This action"
     };
 
@@ -416,6 +610,19 @@ public sealed class AdminSmartTagService : SkeletonService, IAdminSmartTagServic
     private static string Normalize(string? value) => NormalizeOptional(value) ?? throw ValidationFailed("action", "Choose an action.");
     private static string? NormalizeOptional(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     private static ApiException NotFound() => new(StatusCodes.Status404NotFound, "tag_not_found", "This tag could not be found.");
+    private static ApiException Conflict() => new(StatusCodes.Status409Conflict, "tag_changed",
+        "This tag changed after the details were opened. Refresh it and review the latest assignment before trying again.");
+    private static ApiException InvalidState(string message) => new(
+        StatusCodes.Status422UnprocessableEntity, "invalid_tag_state", message);
+    private static void EnsureAssignmentLifecycle(SmartTag tag, string operation)
+    {
+        if (tag.ArchivedAt.HasValue || tag.Status is SmartTagStatus.Archived or SmartTagStatus.Replaced)
+            throw InvalidState("Archived and replaced tags are read-only.");
+        if (operation != "claim" && tag.Status is SmartTagStatus.Lost or SmartTagStatus.Disabled)
+            throw InvalidState("Resolve the Lost or Disabled lifecycle state before changing this tag's assignment.");
+        if (operation == "claim" && tag.Status != SmartTagStatus.Unclaimed)
+            throw InvalidState("Only an unclaimed tag can be claimed on behalf of an owner.");
+    }
     private static ApiException ValidationFailed(string field, string message) => new(
         StatusCodes.Status400BadRequest, "validation_failed", "Please check the submitted fields.",
         new Dictionary<string, string[]> { [field] = [message] });

@@ -37,6 +37,11 @@ public sealed class AdminSmartTagsController : ApiControllerBase
     public async Task<IActionResult> Get(Guid tagId, CancellationToken cancellationToken)
         => Ok(ApiEnvelope.Ok(await _smartTagService.GetAsync(tagId, cancellationToken), HttpContext));
 
+    [HttpGet("{tagId:guid}/scans")]
+    public async Task<IActionResult> Scans(Guid tagId, CancellationToken cancellationToken)
+        => Ok(ApiEnvelope.Ok(await _smartTagService.ListScansAsync(
+            _currentUserService.Current.UserId, tagId, cancellationToken), HttpContext));
+
     [HttpPost("{tagId:guid}/disable")]
     public Task<IActionResult> Disable(Guid tagId, [FromBody] AdminSmartTagActionRequest? request, CancellationToken cancellationToken)
         => RunAction(tagId, "disable", request?.Reason, cancellationToken);
@@ -52,6 +57,30 @@ public sealed class AdminSmartTagsController : ApiControllerBase
     [HttpPost("{tagId:guid}/restore")]
     public Task<IActionResult> Restore(Guid tagId, [FromBody] AdminSmartTagActionRequest? request, CancellationToken cancellationToken)
         => RunAction(tagId, "restore", request?.Reason, cancellationToken);
+
+    [HttpPost("{tagId:guid}/reactivate")]
+    public Task<IActionResult> Reactivate(Guid tagId, [FromBody] AdminSmartTagActionRequest? request, CancellationToken cancellationToken)
+        => RunAction(tagId, "reactivate", request?.Reason, cancellationToken);
+
+    [HttpPost("{tagId:guid}/assignment/claim")]
+    public async Task<IActionResult> Claim(Guid tagId, [FromBody] AdminSmartTagClaimRequest request, CancellationToken cancellationToken)
+        => Ok(ApiEnvelope.Ok(await _smartTagService.ClaimAsync(
+            _currentUserService.Current.UserId, tagId, request, cancellationToken), HttpContext));
+
+    [HttpPost("{tagId:guid}/assignment/pet")]
+    public async Task<IActionResult> AssignPet(Guid tagId, [FromBody] AdminSmartTagAssignPetRequest request, CancellationToken cancellationToken)
+        => Ok(ApiEnvelope.Ok(await _smartTagService.AssignPetAsync(
+            _currentUserService.Current.UserId, tagId, request, cancellationToken), HttpContext));
+
+    [HttpPost("{tagId:guid}/assignment/unassign-pet")]
+    public async Task<IActionResult> UnassignPet(Guid tagId, [FromBody] AdminSmartTagUnassignPetRequest request, CancellationToken cancellationToken)
+        => Ok(ApiEnvelope.Ok(await _smartTagService.UnassignPetAsync(
+            _currentUserService.Current.UserId, tagId, request, cancellationToken), HttpContext));
+
+    [HttpPost("{tagId:guid}/assignment/transfer")]
+    public async Task<IActionResult> TransferOwnership(Guid tagId, [FromBody] AdminSmartTagTransferRequest request, CancellationToken cancellationToken)
+        => Ok(ApiEnvelope.Ok(await _smartTagService.TransferOwnershipAsync(
+            _currentUserService.Current.UserId, tagId, request, cancellationToken), HttpContext));
 
     [HttpPost("bulk-status")]
     public async Task<IActionResult> BulkStatus([FromBody] AdminSmartTagBulkActionRequest request, CancellationToken cancellationToken)

@@ -68,8 +68,23 @@ export type AdminSmartTagCounts = {
   archived: number;
 };
 
-export type AdminSmartTagAction = "disable" | "mark-lost" | "archive" | "restore";
+export type AdminSmartTagScan = {
+  id: string;
+  resolvedState: string;
+  scannedAt: string;
+  city?: string;
+  country?: string;
+  deviceType?: string;
+};
+
+export type AdminSmartTagAction = "disable" | "mark-lost" | "archive" | "restore" | "reactivate";
 export type AdminSmartTagBulkAction = "disable" | "archive";
+export type AdminSmartTagAssignmentAction = "claim" | "assign-pet" | "change-pet" | "unassign-pet" | "transfer";
+export type AdminSmartTagAssignmentInput = {
+  ownerId?: string;
+  petId?: string;
+  reason?: string;
+};
 export type AdminSmartTagBulkResult = {
   action: string;
   requestedCount: number;
@@ -96,9 +111,25 @@ export function smartTagLifecycleLabel(tag: Pick<AdminSmartTag, "status" | "isAr
 export function canRunSmartTagAction(tag: AdminSmartTag, action: AdminSmartTagAction) {
   if (action === "restore") return tag.isArchived || tag.status === "Archived";
   if (tag.isArchived || tag.status === "Archived" || tag.status === "Replaced") return false;
+  if (action === "reactivate") return ["Disabled", "Lost"].includes(tag.status) && Boolean(tag.ownerId && tag.petId);
   if (action === "mark-lost") return tag.status === "Active" || tag.status === "Delivered";
   if (action === "disable") return ["Active", "Delivered", "Unassigned"].includes(tag.status);
   return action === "archive";
+}
+
+export function getSmartTagAssignmentActions(tag: AdminSmartTag): AdminSmartTagAssignmentAction[] {
+  if (tag.isArchived || ["Archived", "Replaced", "Lost", "Disabled"].includes(tag.status)) return [];
+  if (!tag.ownerId) return tag.status === "Unassigned" && !tag.petId ? ["claim"] : [];
+
+  const actions: AdminSmartTagAssignmentAction[] = tag.petId
+    ? ["change-pet", "unassign-pet", "transfer"]
+    : ["assign-pet", "transfer"];
+  return actions;
+}
+
+export function smartTagAssignmentLabel(tag: AdminSmartTag) {
+  if (!tag.ownerId) return "Unclaimed";
+  return tag.petId ? "Owner and pet assigned" : "Awaiting pet assignment";
 }
 
 type BackendItem = {
@@ -180,6 +211,21 @@ export async function getAdminSmartTag(tagId: string, signal?: AbortSignal): Pro
   return tag;
 }
 
+export async function getAdminSmartTagScans(tagId: string, signal?: AbortSignal): Promise<AdminSmartTagScan[]> {
+  if (canUseAdminApi()) {
+    const response = await apiRequest<AdminSmartTagScan[]>(`/api/v1/admin/tags/${encodeURIComponent(tagId)}/scans`, { signal });
+    return (response.data ?? []).map((scan) => ({
+      ...scan,
+      city: scan.city ?? undefined,
+      country: scan.country ?? undefined,
+      deviceType: scan.deviceType ?? undefined,
+    }));
+  }
+  await mockDelay();
+  const tag = (await loadLocalRows()).find((row) => row.id === tagId);
+  return tag?.lastScannedAt ? [{ id: `${tag.id}-latest`, resolvedState: "Active", scannedAt: tag.lastScannedAt }] : [];
+}
+
 export async function runAdminSmartTagAction(tagId: string, action: AdminSmartTagAction, reason?: string) {
   if (canUseAdminApi()) {
     const response = await apiRequest<BackendItem>(`/api/v1/admin/tags/${encodeURIComponent(tagId)}/${action}`, {
@@ -192,9 +238,65 @@ export async function runAdminSmartTagAction(tagId: string, action: AdminSmartTa
   const rows = await loadLocalRows();
   const target = rows.find((row) => row.id === tagId);
   if (!target || !canRunSmartTagAction(target, action)) throw new Error("This action is not available for the tag's current status.");
-  const nextStatus: TagStatus = action === "disable" ? "Disabled" : action === "mark-lost" ? "Lost" : action === "archive" ? "Archived" : "Disabled";
+  const nextStatus: TagStatus = action === "disable" ? "Disabled" : action === "mark-lost" ? "Lost" : action === "archive" ? "Archived" : action === "reactivate" ? (target.activatedAt ? "Active" : "Delivered") : "Disabled";
   writeAdminTagCollection(readAdminTagCollection().map((tag) => tag.id === tagId ? { ...tag, status: nextStatus, isArchived: action === "archive" ? true : action === "restore" ? false : tag.isArchived } : tag));
   return { ...target, status: nextStatus, isArchived: action === "archive" ? true : action === "restore" ? false : target.isArchived, updatedAt: new Date().toISOString() };
+}
+
+export async function updateAdminSmartTagAssignment(
+  tag: AdminSmartTag,
+  action: AdminSmartTagAssignmentAction,
+  input: AdminSmartTagAssignmentInput
+) {
+  if (canUseAdminApi()) {
+    const pathAction = action === "change-pet" || action === "assign-pet" ? "pet" : action;
+    const body = action === "claim"
+      ? { ownerUserId: input.ownerId, petId: input.petId, expectedUpdatedAt: tag.updatedAt, reason: input.reason || null }
+      : action === "transfer"
+        ? { newOwnerUserId: input.ownerId, newPetId: input.petId, expectedUpdatedAt: tag.updatedAt, reason: input.reason }
+        : action === "unassign-pet"
+          ? { expectedUpdatedAt: tag.updatedAt, reason: input.reason || null }
+          : { petId: input.petId, expectedUpdatedAt: tag.updatedAt, reason: input.reason || null };
+    const response = await apiRequest<BackendItem>(
+      `/api/v1/admin/tags/${encodeURIComponent(tag.id)}/assignment/${pathAction}`,
+      { method: "POST", body }
+    );
+    if (!response.data) throw new Error("The tag response was empty.");
+    return mapBackend(response.data);
+  }
+
+  await mockDelay();
+  if (!getSmartTagAssignmentActions(tag).includes(action)) {
+    throw new Error("This assignment action is no longer available for the tag.");
+  }
+  const petsResponse = await getPets();
+  const pet = input.petId ? (petsResponse.data ?? []).find((item) => item.id === input.petId) : undefined;
+  const ownerId = action === "claim" || action === "transfer" ? input.ownerId : tag.ownerId;
+  if (action !== "unassign-pet" && (!pet || !ownerId || pet.ownerUserId !== ownerId)) {
+    throw new Error("The selected pet must belong to the selected owner.");
+  }
+  const nextStatus: TagStatus = action === "claim" || action === "transfer" ? "Pending" : tag.status;
+  const petId = action === "unassign-pet" ? undefined : pet?.id;
+  const updatedAt = new Date().toISOString();
+  writeAdminTagCollection(readAdminTagCollection().map((row) => row.id === tag.id ? {
+    ...row,
+    ownerUserId: ownerId,
+    petId,
+    status: nextStatus,
+    activatedAt: action === "transfer" ? undefined : row.activatedAt,
+  } : row));
+  return {
+    ...tag,
+    ownerId,
+    ownerName: action === "unassign-pet" ? tag.ownerName : pet?.owner.name,
+    petId,
+    petName: pet?.name,
+    safetyCode: pet?.safetyCode,
+    qrSafetyEnabled: pet?.qrSafetyEnabled ?? false,
+    status: nextStatus,
+    activatedAt: action === "transfer" ? undefined : tag.activatedAt,
+    updatedAt,
+  };
 }
 
 export async function bulkUpdateAdminSmartTags(action: AdminSmartTagBulkAction, tagIds: string[], reason?: string): Promise<AdminSmartTagBulkResult> {
@@ -245,7 +347,7 @@ async function loadLocalRows(): Promise<AdminSmartTag[]> {
 
 function localRow(tag: PetTag, pet?: Pet, order?: TagOrder): AdminSmartTag {
   const createdAt = tag.orderedDate ?? tag.activatedAt ?? new Date(0).toISOString();
-  return { id: tag.id, tagCode: tag.tagCode, hasNfc: tag.hasNfc, variant: tag.variant, status: tag.status,
+  return { id: tag.id, tagCode: tag.tagCode, hasNfc: tag.hasNfc, variant: tag.variant === "Lightweight" ? "Lightweight" : "Standard", status: tag.status,
     isArchived: Boolean(tag.isArchived), petId: tag.petId, petName: pet?.name, safetyCode: pet?.safetyCode,
     qrSafetyEnabled: pet?.qrSafetyEnabled ?? false, ownerId: tag.ownerUserId ?? pet?.ownerUserId, ownerName: pet?.owner.name,
     orderId: order?.id, orderNumber: order?.orderNumber, batchNumber: tag.batchNo,
@@ -255,14 +357,15 @@ function localRow(tag: PetTag, pet?: Pet, order?: TagOrder): AdminSmartTag {
 
 function filterLocal(rows: AdminSmartTag[], params: AdminSmartTagListParams) {
   const search = params.search?.trim().toLowerCase();
+  const lifecycleStatus = params.status === "Unclaimed" ? "Unassigned" : params.status;
   return rows.filter((row) => {
     if (search && ![row.tagCode, row.petName, row.ownerName, row.ownerEmail, row.orderNumber, row.batchNumber].some((value) => value?.toLowerCase().includes(search))) return false;
     if (params.status === "awaiting-activation" && !["Pending", "Preparing", "Delivered"].includes(row.status)) return false;
     if (params.status === "archived" && !row.isArchived) return false;
-    if (params.status && !["awaiting-activation", "archived"].includes(params.status) && row.status.toLowerCase() !== params.status.toLowerCase()) return false;
+    if (lifecycleStatus && !["awaiting-activation", "archived"].includes(lifecycleStatus) && row.status.toLowerCase() !== lifecycleStatus.toLowerCase()) return false;
     if (params.tagType && (params.tagType === "QR_NFC") !== row.hasNfc) return false;
     if (params.variant && row.variant !== params.variant) return false;
-    if (params.claimed && (params.claimed === "true") !== Boolean(row.petId && row.ownerId)) return false;
+    if (params.claimed && (params.claimed === "true") !== Boolean(row.ownerId)) return false;
     if (params.petId && row.petId !== params.petId) return false;
     if (params.ownerId && row.ownerId !== params.ownerId) return false;
     if (params.pet && !row.petName?.toLowerCase().includes(params.pet.toLowerCase())) return false;

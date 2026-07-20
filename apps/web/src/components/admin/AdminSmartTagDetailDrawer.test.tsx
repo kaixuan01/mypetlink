@@ -17,9 +17,11 @@ const tag: AdminSmartTag = {
   status: "Active",
   isArchived: false,
   petName: "Topu",
+  petId: "pet-1",
   safetyCode: "safe-topu",
   qrSafetyEnabled: true,
   ownerName: "Aina",
+  ownerId: "owner-1",
   ownerEmail: "aina@example.com",
   orderId: "order-1",
   orderNumber: "MPL-1001",
@@ -34,7 +36,7 @@ afterEach(() => cleanup());
 
 describe("AdminSmartTagDetailDrawer", () => {
   it("uses accurate public-page labels and readable detail values", () => {
-    render(<AdminSmartTagDetailDrawer busy={false} onAction={vi.fn()} onClose={vi.fn()} tag={tag} />);
+    render(<AdminSmartTagDetailDrawer busy={false} onAction={vi.fn()} onAssignmentAction={vi.fn()} onClose={vi.fn()} tag={tag} />);
 
     expect(screen.getByRole("link", { name: "Open Tag Scan Page" }).getAttribute("href")).toBe("/t/MPL-TEST-0001");
     expect(screen.getByRole("button", { name: "Show Tag QR" })).toBeTruthy();
@@ -46,16 +48,19 @@ describe("AdminSmartTagDetailDrawer", () => {
 
   it("only exposes lifecycle actions valid for the current state", () => {
     const onAction = vi.fn();
-    const { rerender } = render(<AdminSmartTagDetailDrawer busy={false} onAction={onAction} onClose={vi.fn()} tag={tag} />);
+    const onAssignmentAction = vi.fn();
+    const { rerender } = render(<AdminSmartTagDetailDrawer busy={false} onAction={onAction} onAssignmentAction={onAssignmentAction} onClose={vi.fn()} tag={tag} />);
     fireEvent.click(screen.getByRole("button", { name: "Disable Tag" }));
     expect(onAction).toHaveBeenCalledWith("disable");
+    fireEvent.click(screen.getByRole("button", { name: "Change assigned pet" }));
+    expect(onAssignmentAction).toHaveBeenCalledWith("change-pet");
 
-    rerender(<AdminSmartTagDetailDrawer busy={false} onAction={onAction} onClose={vi.fn()} tag={{ ...tag, status: "Replaced" }} />);
+    rerender(<AdminSmartTagDetailDrawer busy={false} onAction={onAction} onAssignmentAction={vi.fn()} onClose={vi.fn()} tag={{ ...tag, status: "Replaced" }} />);
     expect(screen.queryByRole("button", { name: "Disable Tag" })).toBeNull();
   });
 
   it("hides a broken QR Safety action when no active safety identifier exists", () => {
-    render(<AdminSmartTagDetailDrawer busy={false} onAction={vi.fn()} onClose={vi.fn()} tag={{ ...tag, safetyCode: undefined, qrSafetyEnabled: false }} />);
+    render(<AdminSmartTagDetailDrawer busy={false} onAction={vi.fn()} onAssignmentAction={vi.fn()} onClose={vi.fn()} tag={{ ...tag, safetyCode: undefined, qrSafetyEnabled: false }} />);
     expect(screen.queryByRole("link", { name: "Open Safety Profile" })).toBeNull();
   });
 });

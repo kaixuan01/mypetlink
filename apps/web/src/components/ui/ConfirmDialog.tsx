@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useId, useRef, type ReactNode } from "react";
+import { useModalDialogFocus } from "@/lib/useModalDialogFocus";
 
 type ConfirmDialogProps = {
   open: boolean;
@@ -30,45 +31,12 @@ export function ConfirmDialog({
   const titleId = useId();
   const messageId = useId();
 
-  useEffect(() => {
-    if (!open) {
-      return undefined;
-    }
-
-    const previousActive = document.activeElement as HTMLElement | null;
-    confirmRef.current?.focus();
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        onCancel();
-        return;
-      }
-
-      if (event.key === "Tab") {
-        const focusable = panelRef.current?.querySelectorAll<HTMLButtonElement>(
-          "button:not([disabled])"
-        );
-        if (!focusable?.length) return;
-
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-        if (event.shiftKey && document.activeElement === first) {
-          event.preventDefault();
-          last.focus();
-        } else if (!event.shiftKey && document.activeElement === last) {
-          event.preventDefault();
-          first.focus();
-        }
-      }
-    }
-
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-      previousActive?.focus?.();
-    };
-  }, [onCancel, open]);
+  useModalDialogFocus({
+    dialogRef: panelRef,
+    enabled: open,
+    initialFocusRef: confirmRef,
+    onEscape: onCancel,
+  });
 
   if (!open) {
     return null;

@@ -8,12 +8,13 @@ import { Badge } from "@/components/ui/Badge";
 import { adminRoutes, qrSafetyPath, tagPath } from "@/lib/routes";
 import { useModalDialogFocus } from "@/lib/useModalDialogFocus";
 import { getAdminTagHistory, type AdminTagHistoryEntry } from "@/services/adminTagHistoryService";
-import { canRunSmartTagAction, smartTagLifecycleLabel, type AdminSmartTag, type AdminSmartTagAction } from "@/services/adminSmartTagService";
+import { canRunSmartTagAction, getAdminSmartTagScans, getSmartTagAssignmentActions, smartTagAssignmentLabel, smartTagLifecycleLabel, type AdminSmartTag, type AdminSmartTagAction, type AdminSmartTagAssignmentAction, type AdminSmartTagScan } from "@/services/adminSmartTagService";
 
 type DrawerProps = {
   busy: boolean;
   onClose: () => void;
   onAction: (action: AdminSmartTagAction) => void;
+  onAssignmentAction: (action: AdminSmartTagAssignmentAction) => void;
 };
 
 export function AdminSmartTagDetailDrawer({
@@ -31,10 +32,13 @@ function OpenSmartTagDrawer({
   busy,
   onClose,
   onAction,
+  onAssignmentAction,
 }: DrawerProps & { tag: AdminSmartTag }) {
   const dialogRef = useRef<HTMLElement | null>(null);
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const [historyResult, setHistoryResult] = useState<{ tagId: string; entries: AdminTagHistoryEntry[] | null } | null>(null);
+  const [scanResult, setScanResult] = useState<{ tagId: string; entries: AdminSmartTagScan[] | null } | null>(null);
+  const [showScans, setShowScans] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -44,18 +48,34 @@ function OpenSmartTagDrawer({
     return () => controller.abort();
   }, [tag.id]);
 
+  useEffect(() => {
+    if (!showScans || scanResult?.tagId === tag.id) return;
+    const controller = new AbortController();
+    getAdminSmartTagScans(tag.id, controller.signal)
+      .then((entries) => { if (!controller.signal.aborted) setScanResult({ tagId: tag.id, entries }); })
+      .catch(() => { if (!controller.signal.aborted) setScanResult({ tagId: tag.id, entries: null }); });
+    return () => controller.abort();
+  }, [scanResult?.tagId, showScans, tag.id]);
+
   useModalDialogFocus({ dialogRef, initialFocusRef: closeRef, onEscape: onClose });
 
   const history = historyResult?.tagId === tag.id ? historyResult.entries : undefined;
+  const scans = scanResult?.tagId === tag.id ? scanResult.entries : undefined;
+
+  function openScanHistory() {
+    setShowScans(true);
+  }
 
   const availableActions: { id: AdminSmartTagAction; label: string; danger?: boolean }[] = [
     { id: "mark-lost", label: "Mark Tag as Lost", danger: true },
     { id: "disable", label: "Disable Tag", danger: true },
+    { id: "reactivate", label: "Reactivate Tag" },
     { id: "archive", label: "Archive Tag" },
   ];
   const actions: { id: AdminSmartTagAction; label: string; danger?: boolean }[] = tag.isArchived
     ? [{ id: "restore", label: "Restore Tag" }]
     : availableActions.filter((action) => canRunSmartTagAction(tag, action.id));
+  const assignmentActions = getSmartTagAssignmentActions(tag);
 
   return (
     <div className="fixed inset-0 z-40 flex justify-end" role="presentation">
@@ -76,12 +96,18 @@ function OpenSmartTagDrawer({
             <Badge tone="soft">{tag.variant} Tag</Badge>
           </div>
 
-          <DetailGroup title="Binding">
+          <DetailGroup title="Assignment">
+            <Detail label="Assignment" value={smartTagAssignmentLabel(tag)} />
             <Detail label="Pet" value={tag.petName} />
             <Detail label="Owner" value={tag.ownerName} />
             <Detail label="Owner email" value={tag.ownerEmail} />
             <Detail label="Order" value={tag.orderNumber} href={tag.orderId ? adminRoutes.order(tag.orderId) : undefined} />
             <Detail label="Batch reference" value={tag.batchNumber} />
+            {assignmentActions.length ? (
+              <div className="flex flex-wrap gap-2 pt-1">
+                {assignmentActions.map((action) => <button className={`min-h-10 rounded-full border px-4 text-xs font-extrabold disabled:opacity-50 ${action === "transfer" || action === "unassign-pet" ? "border-red-200 text-red-700" : "border-slate-200 text-slate-700"}`} disabled={busy} key={action} onClick={() => onAssignmentAction(action)} type="button">{assignmentActionLabel(action)}</button>)}
+              </div>
+            ) : <p className="text-xs font-semibold text-slate-500">Assignment changes are unavailable until this tag&apos;s lifecycle state is resolved.</p>}
           </DetailGroup>
 
           <DetailGroup title="Activity">
@@ -90,6 +116,8 @@ function OpenSmartTagDrawer({
             <Detail label="Total scans" value={String(tag.scanCount)} />
             <Detail label="Created" value={formatAdminDateTime(tag.createdAt)} />
             <Detail label="Updated" value={formatAdminDateTime(tag.updatedAt)} />
+            <button className="min-h-10 justify-self-start rounded-full border border-slate-200 px-4 text-xs font-extrabold text-slate-700" onClick={openScanHistory} type="button">View scan history</button>
+            {showScans ? <div className="grid gap-2 border-t border-slate-100 pt-3">{scans === undefined ? <p className="text-sm font-semibold text-slate-500">Loading scan history…</p> : scans === null ? <p className="text-sm font-semibold text-slate-500">Scan history is not available right now.</p> : scans.length === 0 ? <p className="text-sm font-semibold text-slate-500">This tag has not been scanned yet.</p> : <ol className="grid gap-2">{scans.map((scan) => <li className="rounded-xl bg-slate-50 px-3 py-2 text-sm" key={scan.id}><div className="flex justify-between gap-3"><span className="font-bold text-slate-900">{scan.resolvedState}</span><span className="font-semibold text-slate-500">{formatAdminDateTime(scan.scannedAt)}</span></div>{scan.city || scan.country || scan.deviceType ? <p className="mt-1 text-xs font-semibold text-slate-500">{[scan.city, scan.country, scan.deviceType].filter(Boolean).join(" · ")}</p> : null}</li>)}</ol>}</div> : null}
           </DetailGroup>
 
           {(tag.replacementForTagCode || tag.replacedByTagCode) ? (
@@ -124,12 +152,21 @@ function OpenSmartTagDrawer({
                 ))}
               </div>
               <p className="text-xs font-semibold text-slate-500">Disabled, replaced, or archived tags do not expose finder contact details on the Tag Scan Page.</p>
+              {tag.orderId && ["Active", "Lost", "Disabled"].includes(tag.status) ? <Link className="text-xs font-extrabold text-[#1b4f9c] underline-offset-2 hover:underline" href={adminRoutes.order(tag.orderId)}>Open the linked order to issue a replacement tag</Link> : null}
             </DetailGroup>
           ) : null}
         </div>
       </aside>
     </div>
   );
+}
+
+function assignmentActionLabel(action: AdminSmartTagAssignmentAction) {
+  return action === "claim" ? "Assign owner and pet"
+    : action === "assign-pet" ? "Assign pet"
+      : action === "change-pet" ? "Change assigned pet"
+        : action === "unassign-pet" ? "Unassign pet"
+          : "Transfer ownership";
 }
 
 function DetailGroup({ title, children }: { title: string; children: React.ReactNode }) {
@@ -146,6 +183,12 @@ function historyLabel(action: string) {
     "smart-tags.mark-lost": "Marked lost",
     "smart-tags.archive": "Archived",
     "smart-tags.restore": "Restored",
+    "smart-tags.reactivate": "Reactivated",
+    "smart-tags.owner-and-pet-assigned": "Owner and pet assigned",
+    "smart-tags.pet-assigned": "Pet assigned",
+    "smart-tags.pet-reassigned": "Assigned pet changed",
+    "smart-tags.pet-unassigned": "Pet unassigned",
+    "smart-tags.ownership-transferred": "Ownership transferred",
     "tag.assign-to-order": "Assigned to order",
     "tag.unassign-from-order": "Returned to stock",
     "tag.replace": "Replaced",

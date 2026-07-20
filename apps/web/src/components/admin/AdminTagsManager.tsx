@@ -3,6 +3,7 @@
 import { dateOnlyOrUndefined, isGuid } from "@/lib/adminListShared";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminSmartTagDetailDrawer } from "@/components/admin/AdminSmartTagDetailDrawer";
+import { AdminSmartTagAssignmentDialog } from "@/components/admin/AdminSmartTagAssignmentDialog";
 import { AdminNotice, AdminSection } from "@/components/admin/AdminPanels";
 import { formatAdminDateTime, getTagTypeLabel, tagStatusTone } from "@/components/admin/adminDisplay";
 import { AdminBulkActionBar, type AdminBulkAction } from "@/components/admin/table/AdminBulkActionBar";
@@ -13,7 +14,7 @@ import { AdminExportMenu, type AdminExportFormat } from "@/components/admin/tabl
 import { useAdminTableQuery } from "@/components/admin/table/useAdminTableQuery";
 import { Badge } from "@/components/ui/Badge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { isAbortError } from "@/services/apiClient";
+import { isAbortError, isApiClientError } from "@/services/apiClient";
 import {
   bulkUpdateAdminSmartTags,
   canRunSmartTagAction,
@@ -24,8 +25,11 @@ import {
   listAdminSmartTags,
   runAdminSmartTagAction,
   smartTagLifecycleLabel,
+  updateAdminSmartTagAssignment,
   type AdminSmartTag,
   type AdminSmartTagAction,
+  type AdminSmartTagAssignmentAction,
+  type AdminSmartTagAssignmentInput,
   type AdminSmartTagBulkAction,
   type AdminSmartTagCounts,
   type AdminSmartTagListParams,
@@ -126,6 +130,8 @@ export function AdminTagsManager() {
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [exportBusy, setExportBusy] = useState(false);
+  const [assignment, setAssignment] = useState<{ tag: AdminSmartTag; action: AdminSmartTagAssignmentAction } | null>(null);
+  const [assignmentError, setAssignmentError] = useState("");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -143,8 +149,9 @@ export function AdminTagsManager() {
   const setSelectedIds = (ids: Set<string>) => setSelection({ key: paramsKey, ids });
   const selectedRows = items.filter((tag) => selectedIds.has(tag.id));
   const openTagId = actions.getExtraParam("tag");
-  const openTag = items.find((tag) => tag.id === openTagId)
-    ?? (detachedTag?.id === openTagId ? detachedTag : null);
+  const openTag = (detachedTag?.id === openTagId ? detachedTag : null)
+    ?? items.find((tag) => tag.id === openTagId)
+    ?? null;
   const refresh = useCallback(() => setReloadKey((value) => value + 1), []);
 
   // Deep links (e.g. from an order's assigned tag) can point at a tag outside
@@ -181,6 +188,7 @@ export function AdminTagsManager() {
     try {
       if (pending.scope === "row") {
         const updated = await runAdminSmartTagAction(pending.tag.id, pending.action, reason);
+        setDetachedTag(updated);
         setMessage(`${updated.tagCode} is now ${smartTagLifecycleLabel(updated).toLowerCase()}.`);
       } else {
         const result = await bulkUpdateAdminSmartTags(pending.action, [...selectedIds], reason);
@@ -188,9 +196,40 @@ export function AdminTagsManager() {
         setFailureDetails(result.failures.map((failure) => `${failure.tagCode || "Tag"}: ${failure.reason}`));
         setSelectedIds(new Set());
       }
-      actions.setExtraParam("tag", null); refresh();
+      refresh();
     } catch { setMessage("The tag could not be updated. Its lifecycle state has not changed."); }
     finally { setBusy(false); setPending(null); }
+  }
+
+  async function submitAssignment(input: AdminSmartTagAssignmentInput) {
+    if (!assignment || busy) return;
+    setBusy(true);
+    setAssignmentError("");
+    setMessage("");
+    try {
+      const updated = await updateAdminSmartTagAssignment(assignment.tag, assignment.action, input);
+      setDetachedTag(updated);
+      setMessage(`${updated.tagCode} assignment updated successfully.`);
+      setAssignment(null);
+      refresh();
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : "The assignment could not be updated.";
+      if (isApiClientError(caught) && caught.status === 409) {
+        try {
+          const latest = await getAdminSmartTag(assignment.tag.id);
+          setDetachedTag(latest);
+          setAssignment((current) => current ? { ...current, tag: latest } : current);
+          refresh();
+          setAssignmentError(`${message} The latest tag details are loaded; review them before trying again.`);
+        } catch {
+          setAssignmentError(message);
+        }
+      } else {
+        setAssignmentError(message);
+      }
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function exportRows(format: AdminExportFormat, scope: "filtered" | "selected") {
@@ -209,7 +248,7 @@ export function AdminTagsManager() {
     const invalid = selectedRows.some((tag) => !canRunSmartTagAction(tag, action));
     return { id: action, label: action === "disable" ? "Disable selected" : "Archive selected", tone: action === "disable" ? "danger" : "neutral", disabled: invalid || selectedRows.length !== selectedIds.size, disabledReason: invalid ? `Every selected tag must support ${action}.` : "The selection is no longer on this page.", onClick: () => beginAction({ scope: "bulk", action }) };
   });
-  const pendingLabel = pending?.action === "disable" ? "Disable" : pending?.action === "mark-lost" ? "Mark as Lost" : pending?.action === "restore" ? "Restore" : "Archive";
+  const pendingLabel = pending?.action === "disable" ? "Disable" : pending?.action === "mark-lost" ? "Mark as Lost" : pending?.action === "restore" ? "Restore" : pending?.action === "reactivate" ? "Reactivate" : "Archive";
   const pendingCount = pending?.scope === "bulk" ? selectedIds.size : 1;
 
   return (
@@ -221,10 +260,11 @@ export function AdminTagsManager() {
       {message ? <div className="px-4 pt-3"><AdminNotice>{message}</AdminNotice>{failureDetails.length ? <ul className="mt-2 grid gap-1 text-xs font-semibold text-red-700">{failureDetails.map((failure) => <li key={failure}>{failure}</li>)}</ul> : null}</div> : null}
       <AdminDataTable columns={columns} emptyDescription={hasActiveFilters ? "Try changing or clearing the active filters." : "Tags appear here after they are generated in Tag Inventory."} emptyTitle={hasActiveFilters ? "No Smart Tags match these filters." : "No Smart Tags yet."} error={current?.error || undefined} loading={!current} onPageChange={actions.setPage} onPageSizeChange={actions.setPageSize} onRetry={refresh} onRowOpen={(tag) => actions.setExtraParam("tag", tag.id)} onSelectedIdsChange={setSelectedIds} onSortChange={actions.setSort} page={query.page} pageSize={query.pageSize} rowKey={(tag) => tag.id} rowOpenLabel="View" rows={items} selectable selectedIds={selectedIds} sortBy={query.sortBy} sortDir={query.sortDir} total={current?.total ?? 0} />
       <AdminBulkActionBar actions={bulkActions} busy={busy} onClearSelection={() => setSelectedIds(new Set())} selectedCount={selectedIds.size} />
-      <ConfirmDialog confirmLabel={pendingLabel} destructive={pending?.action !== "restore"} message={`${pendingLabel} ${pendingCount} tag${pendingCount === 1 ? "" : "s"}? This changes lifecycle and finder access, but does not change fulfilment or delete history.`} onCancel={() => setPending(null)} onConfirm={() => void confirmAction()} open={pending !== null} title={`${pendingLabel} tag${pendingCount === 1 ? "" : "s"}?`}>
+      <ConfirmDialog confirmLabel={pendingLabel} destructive={!(["restore", "reactivate"] as (AdminSmartTagAction | undefined)[]).includes(pending?.action)} message={`${pendingLabel} ${pendingCount} tag${pendingCount === 1 ? "" : "s"}? This changes lifecycle and finder access, but does not change fulfilment or delete history.`} onCancel={() => setPending(null)} onConfirm={() => void confirmAction()} open={pending !== null} title={`${pendingLabel} tag${pendingCount === 1 ? "" : "s"}?`}>
         <label className="grid gap-1.5 text-sm font-bold text-pet-ink">Reason (optional)<textarea className="min-h-20 rounded-xl border border-pet-border px-3 py-2 text-sm font-medium outline-none focus:border-pet-teal" maxLength={600} onChange={(event) => setReason(event.target.value)} placeholder="Add context for the audit history" value={reason} /></label>
       </ConfirmDialog>
-      <AdminSmartTagDetailDrawer busy={busy} onAction={(action) => { if (openTag) beginAction({ scope: "row", tag: openTag, action }); }} onClose={() => actions.setExtraParam("tag", null)} tag={openTag} />
+      <AdminSmartTagDetailDrawer busy={busy} onAction={(action) => { if (openTag) beginAction({ scope: "row", tag: openTag, action }); }} onAssignmentAction={(action) => { if (openTag) { setAssignmentError(""); setAssignment({ tag: openTag, action }); } }} onClose={() => { setDetachedTag(null); actions.setExtraParam("tag", null); }} tag={openTag} />
+      {assignment ? <AdminSmartTagAssignmentDialog action={assignment.action} busy={busy} error={assignmentError} onCancel={() => { if (!busy) setAssignment(null); }} onSubmit={(input) => void submitAssignment(input)} tag={assignment.tag} /> : null}
     </AdminSection>
   );
 }

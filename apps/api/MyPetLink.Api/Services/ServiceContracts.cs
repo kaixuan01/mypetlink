@@ -585,11 +585,30 @@ public interface IAdminSmartTagService : ISkeletonService
 
     Task<AdminSmartTagItemResponse> GetAsync(Guid tagId, CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyCollection<AdminSmartTagScanResponse>> ListScansAsync(
+        Guid? currentUserId, Guid tagId, CancellationToken cancellationToken = default);
+
     Task<AdminSmartTagItemResponse> UpdateStatusAsync(
         Guid? currentUserId,
         Guid tagId,
         string action,
         string? reason,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminSmartTagItemResponse> ClaimAsync(
+        Guid? currentUserId, Guid tagId, AdminSmartTagClaimRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminSmartTagItemResponse> AssignPetAsync(
+        Guid? currentUserId, Guid tagId, AdminSmartTagAssignPetRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminSmartTagItemResponse> UnassignPetAsync(
+        Guid? currentUserId, Guid tagId, AdminSmartTagUnassignPetRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminSmartTagItemResponse> TransferOwnershipAsync(
+        Guid? currentUserId, Guid tagId, AdminSmartTagTransferRequest request,
         CancellationToken cancellationToken = default);
 
     Task<AdminSmartTagBulkActionResponse> BulkUpdateAsync(

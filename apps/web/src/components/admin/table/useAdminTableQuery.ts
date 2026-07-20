@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 // URL-backed state for admin listing pages. The query string is the single
 // source of truth: refreshing keeps the view, Back/Forward restores previous
@@ -64,6 +64,15 @@ export function useAdminTableQuery(
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const renderedQueryString = searchParams.toString();
+  const latestQueryRef = useRef(renderedQueryString);
+
+  // Next navigation is asynchronous. Keep an eagerly updated snapshot so a
+  // second action (for example closing a drawer while a filter navigation is
+  // settling) never rebuilds the URL from stale render-time search params.
+  useEffect(() => {
+    latestQueryRef.current = renderedQueryString;
+  }, [renderedQueryString]);
 
   const defaultSortDir = config.defaultSortDir ?? "desc";
   const defaultPageSize = config.defaultPageSize ?? 20;
@@ -99,8 +108,8 @@ export function useAdminTableQuery(
   }, [searchParams, config.defaultSortBy, defaultSortDir, defaultPageSize]);
 
   const navigate = useCallback(
-    (mutate: (params: URLSearchParams) => void) => {
-      const current = searchParams.toString();
+    (mutate: (params: URLSearchParams) => void, history: "push" | "replace" = "push") => {
+      const current = latestQueryRef.current;
       const params = new URLSearchParams(current);
       mutate(params);
       const queryString = params.toString();
@@ -111,11 +120,13 @@ export function useAdminTableQuery(
         return;
       }
 
-      router.push(queryString ? `${pathname}?${queryString}` : pathname, {
+      latestQueryRef.current = queryString;
+      const method = history === "replace" ? router.replace : router.push;
+      method(queryString ? `${pathname}?${queryString}` : pathname, {
         scroll: false,
       });
     },
-    [router, pathname, searchParams]
+    [router, pathname]
   );
 
   const setOrDelete = (params: URLSearchParams, key: string, value: string | null) => {
@@ -178,10 +189,16 @@ export function useAdminTableQuery(
           setOrDelete(params, "size", pageSize === defaultPageSize ? null : String(pageSize));
           params.delete("page");
         }),
-      setExtraParam: (key, value) =>
+      setExtraParam: (key, value) => {
+        const currentValue = new URLSearchParams(latestQueryRef.current).get(key);
+
+        // Opening a detail from the list creates one useful history entry so
+        // browser Back closes it. Switching records and closing replace that
+        // entry, preventing stale detail IDs and needless Back-button steps.
         navigate((params) => {
           setOrDelete(params, key, value);
-        }),
+        }, value !== null && currentValue === null ? "push" : "replace");
+      },
       getExtraParam: (key) => searchParams.get(key) ?? "",
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
