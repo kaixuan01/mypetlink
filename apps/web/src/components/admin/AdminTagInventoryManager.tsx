@@ -53,11 +53,14 @@ import {
 import {
   getAdminTagProduct,
   listAdminTagProducts,
+  listAdminTagVariantPresets,
   type AdminTagProduct,
 } from "@/services/tagCatalogService";
 import type { TagFulfilmentStatus, TagVariant } from "@/types";
 
-const variantOptions: TagVariant[] = ["Lightweight", "Standard"];
+// Fallback variant filter values used only until the configured variant
+// presets have loaded (they match the two built-in presets every install has).
+const fallbackVariantOptions: TagVariant[] = ["Lightweight", "Standard"];
 
 const filterKeys = [
   "status",
@@ -74,7 +77,7 @@ const filterKeys = [
   "updatedTo",
 ] as const;
 
-const filterDefs: AdminFilterDef[] = [
+const buildFilterDefs = (variantOptions: TagVariant[]): AdminFilterDef[] => [
   {
     type: "select",
     key: "status",
@@ -112,7 +115,7 @@ const filterDefs: AdminFilterDef[] = [
     type: "select",
     key: "variant",
     label: "Variant",
-    options: variantOptions.map((value) => ({ value, label: `${value} Tag` })),
+    options: variantOptions.map((value) => ({ value, label: value })),
   },
   { type: "text", key: "batch", label: "Batch", placeholder: "BATCH-…" },
   { type: "date-range", key: "generated", label: "Generated" },
@@ -222,6 +225,8 @@ export function AdminTagInventoryManager() {
   const [batchNumber, setBatchNumber] = useState("");
   const [generateMessage, setGenerateMessage] = useState("");
 
+  const [variantPresets, setVariantPresets] = useState<TagVariant[]>([]);
+
   useEffect(() => {
     let active = true;
     listAdminTagProducts()
@@ -236,8 +241,25 @@ export function AdminTagInventoryManager() {
       .catch((caught) => {
         if (active) setGenerateMessage(getFriendlyTagErrorMessage(caught));
       });
+    // Variant filter options come from the configured presets, not a fixed
+    // frontend list; historical labels remain filterable via free text search.
+    listAdminTagVariantPresets()
+      .then((presets) => {
+        if (active) setVariantPresets(presets.map((preset) => preset.displayName));
+      })
+      .catch(() => {
+        // The filter quietly keeps its fallback options when presets cannot load.
+      });
     return () => { active = false; };
   }, []);
+
+  const filterDefs = useMemo(
+    () =>
+      buildFilterDefs(
+        variantPresets.length > 0 ? variantPresets : fallbackVariantOptions
+      ),
+    [variantPresets]
+  );
 
   useEffect(() => {
     const controller = new AbortController();

@@ -1,9 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import Image from "next/image";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AdminActionButton, AdminNotice, AdminSection } from "@/components/admin/AdminPanels";
 import { Badge } from "@/components/ui/Badge";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { isApiClientError } from "@/services/apiClient";
 import { uploadMediaFile } from "@/services/mediaService";
 import {
@@ -13,20 +16,30 @@ import {
   getAdminTagProduct,
   listAdminPromotions,
   listAdminTagProducts,
+  listAdminTagVariantPresets,
   saveAdminPromotion,
   saveAdminTagProduct,
   saveAdminTagProductVariant,
+  saveAdminTagVariantPreset,
   type AdminProductInput,
   type AdminPromotion,
   type AdminPromotionInput,
   type AdminTagProduct,
   type AdminTagProductListItem,
   type AdminTagProductVariant,
+  type AdminTagVariantPreset,
+  type AdminTagVariantPresetInput,
   type AdminVariantInput,
 } from "@/services/tagCatalogService";
 
-type CatalogTab = "products" | "promotions";
+type CatalogTab = "products" | "promotions" | "settings";
 type FieldErrors = Record<string, string>;
+
+const catalogTabs: { id: CatalogTab; label: string }[] = [
+  { id: "products", label: "Products & SKUs" },
+  { id: "promotions", label: "Promotions" },
+  { id: "settings", label: "Catalog Settings" },
+];
 
 const fieldClass =
   "min-h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-900 outline-none focus:border-slate-400";
@@ -66,7 +79,7 @@ const blankVariant: AdminVariantInput = {
   displayName: "",
   supportsQr: true,
   supportsNfc: false,
-  tagVariant: "Standard",
+  tagVariantPresetId: null,
   widthMm: null,
   heightMm: null,
   thicknessMm: null,
@@ -100,13 +113,39 @@ const blankPromotion: AdminPromotionInput = {
   concurrencyToken: null,
 };
 
+const blankPreset: AdminTagVariantPresetInput = {
+  code: "",
+  displayName: "",
+  description: "",
+  isActive: true,
+  sortOrder: 0,
+};
+
+// Tag Products workspace. The tab, the open product, and the open SKU editor
+// all live in the URL (?tab=&product=&sku=) so the sidebar can deep-link to a
+// tab, browser Back walks the mobile master/detail flow, and refresh restores
+// the same screen. On narrow screens only one context renders at a time:
+// product list -> product detail -> SKU editor.
 export function AdminTagProductsManager() {
-  const [tab, setTab] = useState<CatalogTab>("products");
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const tabParam = searchParams.get("tab");
+  const tab: CatalogTab =
+    tabParam === "promotions" || tabParam === "settings" ? tabParam : "products";
+  const productParam = searchParams.get("product");
+  const skuParam = searchParams.get("sku");
+
   const [products, setProducts] = useState<AdminTagProductListItem[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<AdminTagProduct | null>(null);
   const [productForm, setProductForm] = useState<AdminProductInput>(blankProduct);
+  const [productBaseline, setProductBaseline] = useState(() => JSON.stringify(blankProduct));
   const [variantForm, setVariantForm] = useState<AdminVariantInput>(blankVariant);
-  const [selectedVariantId, setSelectedVariantId] = useState<string>();
+  const [variantBaseline, setVariantBaseline] = useState(() => JSON.stringify(blankVariant));
+  const [presets, setPresets] = useState<AdminTagVariantPreset[]>([]);
+  const [presetForm, setPresetForm] = useState<AdminTagVariantPresetInput>(blankPreset);
+  const [selectedPresetId, setSelectedPresetId] = useState<string>();
   const [search, setSearch] = useState("");
   const [publicationFilter, setPublicationFilter] = useState("all");
   const [archiveFilter, setArchiveFilter] = useState("active");
@@ -120,6 +159,8 @@ export function AdminTagProductsManager() {
   const [productLoadError, setProductLoadError] = useState("");
   const [promotionLoadError, setPromotionLoadError] = useState("");
   const [productFormError, setProductFormError] = useState("");
+  const [variantFormError, setVariantFormError] = useState("");
+  const [presetFormError, setPresetFormError] = useState("");
   const [promotionFormError, setPromotionFormError] = useState("");
   const [productFieldErrors, setProductFieldErrors] = useState<FieldErrors>({});
   const [promotionFieldErrors, setPromotionFieldErrors] = useState<FieldErrors>({});
@@ -127,7 +168,33 @@ export function AdminTagProductsManager() {
   const [promotionForm, setPromotionForm] = useState<AdminPromotionInput>(blankPromotion);
   const [selectedPromotionId, setSelectedPromotionId] = useState<string>();
   const [allProductDetails, setAllProductDetails] = useState<AdminTagProduct[]>([]);
+  const [pendingArchive, setPendingArchive] = useState<"product" | "sku" | null>(null);
   const submitLock = useRef(false);
+
+  const productDirty = JSON.stringify(productForm) !== productBaseline;
+  const variantDirty = JSON.stringify(variantForm) !== variantBaseline;
+
+  const navigate = useCallback(
+    (next: { tab?: CatalogTab; product?: string | null; sku?: string | null }) => {
+      const params = new URLSearchParams();
+      const nextTab = next.tab ?? tab;
+      params.set("tab", nextTab);
+      if (nextTab === "products") {
+        const product = next.product === undefined ? productParam : next.product;
+        const sku = next.sku === undefined ? skuParam : next.sku;
+        if (product) params.set("product", product);
+        if (product && sku) params.set("sku", sku);
+      }
+      router.push(`${pathname}?${params.toString()}`);
+    },
+    [pathname, productParam, router, skuParam, tab]
+  );
+
+  // Unsaved-change guard for in-app navigation between contexts.
+  const confirmDiscard = useCallback(() => {
+    if (!productDirty && !variantDirty) return true;
+    return window.confirm("Discard unsaved changes on this screen?");
+  }, [productDirty, variantDirty]);
 
   const refreshProducts = useCallback(async () => {
     setProductsLoading(true);
@@ -155,30 +222,92 @@ export function AdminTagProductsManager() {
     return () => window.clearTimeout(timer);
   }, [refreshProducts]);
 
-  async function openProduct(productId: string) {
-    setBusy(true);
-    setActionError("");
+  const refreshPresets = useCallback(async () => {
     try {
-      const detail = await getAdminTagProduct(productId);
-      setSelectedProduct(detail);
-      setProductForm(productInput(detail));
-      clearVariant();
+      setPresets(await listAdminTagVariantPresets());
     } catch (caught) {
-      setActionError(friendlyError(caught));
-    } finally {
-      setBusy(false);
+      setActionError(loadError(caught, "variant presets"));
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void refreshPresets(), 0);
+    return () => window.clearTimeout(timer);
+  }, [refreshPresets]);
+
+  // The open product follows the URL (deep link, refresh, Back button).
+  // Leaving/creating resets the form during render — the sanctioned
+  // derived-state pattern — while fetching an opened product stays async.
+  const [productScope, setProductScope] = useState(productParam ?? "");
+  if ((productParam ?? "") !== productScope) {
+    setProductScope(productParam ?? "");
+    if (!productParam || productParam === "new") {
+      setSelectedProduct(null);
+      setProductForm(blankProduct);
+      setProductBaseline(JSON.stringify(blankProduct));
     }
   }
 
-  function createProduct() {
-    setSelectedProduct(null);
-    setProductForm(blankProduct);
-    clearVariant();
-    setMessage("");
-    setActionError("");
-    setProductFormError("");
-    setProductFieldErrors({});
+  useEffect(() => {
+    if (!productParam || productParam === "new") return undefined;
+    let active = true;
+    const timer = window.setTimeout(() => {
+      setBusy(true);
+      getAdminTagProduct(productParam)
+        .then((detail) => {
+          if (!active) return;
+          setSelectedProduct(detail);
+          const input = productInput(detail);
+          setProductForm(input);
+          setProductBaseline(JSON.stringify(input));
+        })
+        .catch((caught) => active && setActionError(friendlyError(caught)))
+        .finally(() => active && setBusy(false));
+    }, 0);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [productParam]);
+
+  // The SKU editor follows the URL and the loaded product (render-phase sync).
+  const variantScopeTarget = `${skuParam ?? ""}|${selectedProduct?.id ?? ""}`;
+  const [variantScope, setVariantScope] = useState(variantScopeTarget);
+  if (variantScope !== variantScopeTarget) {
+    setVariantScope(variantScopeTarget);
+    const variant =
+      skuParam && skuParam !== "new"
+        ? selectedProduct?.variants.find((item) => item.id === skuParam)
+        : undefined;
+    const input = variant ? variantInput(variant) : blankVariant;
+    setVariantForm(input);
+    setVariantBaseline(JSON.stringify(input));
   }
+
+  const openPromotions = useCallback(async () => {
+    setPromotionsLoading(true);
+    setPromotionLoadError("");
+    try {
+      const [promotionRows, productRows] = await Promise.all([
+        listAdminPromotions(),
+        listAdminTagProducts({}),
+      ]);
+      const details = await Promise.all(productRows.map((product) => getAdminTagProduct(product.id)));
+      setPromotions(promotionRows);
+      setAllProductDetails(details);
+      setPromotionLoadError("");
+    } catch (caught) {
+      setPromotionLoadError(loadError(caught, "Promotions"));
+    } finally {
+      setPromotionsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (tab !== "promotions") return undefined;
+    const timer = window.setTimeout(() => void openPromotions(), 0);
+    return () => window.clearTimeout(timer);
+  }, [tab, openPromotions]);
 
   async function submitProduct() {
     if (busy || submitLock.current) return;
@@ -201,9 +330,12 @@ export function AdminTagProductsManager() {
         selectedProduct?.id
       );
       setSelectedProduct(saved);
-      setProductForm(productInput(saved));
+      const input = productInput(saved);
+      setProductForm(input);
+      setProductBaseline(JSON.stringify(input));
       setMessage(`${saved.name} saved.`);
       await refreshProducts();
+      if (productParam === "new") navigate({ product: saved.id });
     } catch (caught) {
       const fieldErrors = apiFieldErrors(caught, Object.keys(productFieldIds));
       if (Object.keys(fieldErrors).length > 0) {
@@ -259,7 +391,9 @@ export function AdminTagProductsManager() {
         selectedProduct.concurrencyToken
       );
       setSelectedProduct(saved);
-      setProductForm(productInput(saved));
+      const input = productInput(saved);
+      setProductForm(input);
+      setProductBaseline(JSON.stringify(input));
       setMessage(`${saved.name} archived.`);
       await refreshProducts();
     } catch (caught) {
@@ -269,68 +403,46 @@ export function AdminTagProductsManager() {
     }
   }
 
-  function editVariant(variant: AdminTagProductVariant) {
-    setSelectedVariantId(variant.id);
-    setVariantForm(variantInput(variant));
-    setMessage("");
-    setActionError("");
-  }
-
-  function clearVariant() {
-    setSelectedVariantId(undefined);
-    setVariantForm(blankVariant);
-  }
-
   async function submitVariant() {
-    if (!selectedProduct) return;
+    if (!selectedProduct || busy || submitLock.current) return;
+    submitLock.current = true;
     setBusy(true);
     setActionError("");
+    setVariantFormError("");
     try {
+      const editingId = skuParam && skuParam !== "new" ? skuParam : undefined;
       await saveAdminTagProductVariant(
         selectedProduct.id,
-        { ...variantForm, concurrencyToken: selectedVariantId ? variantForm.concurrencyToken : null },
-        selectedVariantId
+        { ...variantForm, concurrencyToken: editingId ? variantForm.concurrencyToken : null },
+        editingId
       );
-      await openProduct(selectedProduct.id);
+      const detail = await getAdminTagProduct(selectedProduct.id);
+      setSelectedProduct(detail);
       setMessage(`SKU ${variantForm.sku.toUpperCase()} saved.`);
-      clearVariant();
+      setVariantBaseline(JSON.stringify(variantForm));
+      navigate({ sku: null });
     } catch (caught) {
-      setActionError(friendlyError(caught));
+      setVariantFormError(saveError(caught, "SKU"));
+    } finally {
       setBusy(false);
+      submitLock.current = false;
     }
   }
 
   async function archiveVariant() {
-    if (!selectedProduct || !selectedVariantId || !variantForm.concurrencyToken) return;
+    if (!selectedProduct || !skuParam || skuParam === "new" || !variantForm.concurrencyToken) return;
     setBusy(true);
     try {
-      await archiveAdminTagProductVariant(selectedVariantId, variantForm.concurrencyToken);
-      await openProduct(selectedProduct.id);
-      clearVariant();
+      await archiveAdminTagProductVariant(skuParam, variantForm.concurrencyToken);
+      const detail = await getAdminTagProduct(selectedProduct.id);
+      setSelectedProduct(detail);
       setMessage("SKU archived. Existing inventory and orders remain unchanged.");
+      setVariantBaseline(JSON.stringify(variantForm));
+      navigate({ sku: null });
     } catch (caught) {
       setActionError(friendlyError(caught));
-      setBusy(false);
-    }
-  }
-
-  async function openPromotions() {
-    setTab("promotions");
-    setPromotionsLoading(true);
-    setPromotionLoadError("");
-    try {
-      const [promotionRows, productRows] = await Promise.all([
-        listAdminPromotions(),
-        listAdminTagProducts({}),
-      ]);
-      const details = await Promise.all(productRows.map((product) => getAdminTagProduct(product.id)));
-      setPromotions(promotionRows);
-      setAllProductDetails(details);
-      setPromotionLoadError("");
-    } catch (caught) {
-      setPromotionLoadError(loadError(caught, "Promotions"));
     } finally {
-      setPromotionsLoading(false);
+      setBusy(false);
     }
   }
 
@@ -391,6 +503,25 @@ export function AdminTagProductsManager() {
     }
   }
 
+  async function submitPreset() {
+    if (busy || submitLock.current) return;
+    submitLock.current = true;
+    setBusy(true);
+    setPresetFormError("");
+    try {
+      const saved = await saveAdminTagVariantPreset(presetForm, selectedPresetId);
+      await refreshPresets();
+      setSelectedPresetId(saved.id);
+      setPresetForm(presetInput(saved));
+      setMessage(`Variant preset ${saved.displayName} saved.`);
+    } catch (caught) {
+      setPresetFormError(saveError(caught, "variant preset"));
+    } finally {
+      setBusy(false);
+      submitLock.current = false;
+    }
+  }
+
   const promotionVariants = useMemo(
     () =>
       allProductDetails.flatMap((product) =>
@@ -401,12 +532,34 @@ export function AdminTagProductsManager() {
     [allProductDetails]
   );
 
+  const showingProductDetail = tab === "products" && Boolean(productParam);
+  const showingSkuEditor = showingProductDetail && Boolean(skuParam) && productParam !== "new";
+  const editingVariant =
+    skuParam && skuParam !== "new"
+      ? selectedProduct?.variants.find((item) => item.id === skuParam)
+      : undefined;
+
   return (
     <div className="grid gap-4">
-      <div className="flex flex-wrap gap-2" role="tablist" aria-label="Tag product management">
-        <TabButton active={tab === "products"} onClick={() => setTab("products")}>Products &amp; SKUs</TabButton>
-        <TabButton active={tab === "promotions"} onClick={() => void openPromotions()}>Promotions</TabButton>
-      </div>
+      <nav aria-label="Tag product sections" className="flex flex-wrap gap-2">
+        {catalogTabs.map((item) => (
+          <Link
+            aria-current={tab === item.id ? "page" : undefined}
+            className={`inline-flex min-h-10 items-center rounded-full border px-4 text-sm font-extrabold ${
+              tab === item.id
+                ? "border-slate-950 bg-slate-950 text-white"
+                : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+            }`}
+            href={`${pathname}?tab=${item.id}`}
+            key={item.id}
+            onClick={(event) => {
+              if (!confirmDiscard()) event.preventDefault();
+            }}
+          >
+            {item.label}
+          </Link>
+        ))}
+      </nav>
 
       {message ? <AdminNotice>{message}</AdminNotice> : null}
       {actionError ? (
@@ -417,86 +570,144 @@ export function AdminTagProductsManager() {
 
       {tab === "products" ? (
         <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(280px,0.75fr)_minmax(0,1.6fr)]">
-          <AdminSection
-            title="Product catalog"
-            description="Draft, publish, or archive products without changing historical orders."
-            action={<AdminActionButton onClick={createProduct} tone="primary">New Product</AdminActionButton>}
-          >
-            <div className="grid gap-3 border-b border-slate-100 p-4">
-              <label className="grid gap-1 text-xs font-extrabold uppercase text-slate-500">
-                Search product or SKU
-                <input className={fieldClass} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name or SKU" />
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                <FilterSelect label="Publication" value={publicationFilter} onChange={setPublicationFilter} options={[["all", "All"], ["published", "Published"], ["draft", "Draft"]]} />
-                <FilterSelect label="Archive" value={archiveFilter} onChange={setArchiveFilter} options={[["active", "Active"], ["archived", "Archived"], ["all", "All"]]} />
-                <FilterSelect label="Capability" value={capabilityFilter} onChange={setCapabilityFilter} options={[["all", "All"], ["qr", "QR"], ["nfc", "NFC"]]} />
-                <FilterSelect label="Purchasable" value={purchasableFilter} onChange={setPurchasableFilter} options={[["all", "All"], ["yes", "Yes"], ["no", "No"]]} />
-              </div>
-            </div>
-            <div className="max-h-[38rem] overflow-y-auto p-2">
-              {productsLoading ? <StatusLine>Loading tag products...</StatusLine> : null}
-              {!productsLoading && productLoadError ? (
-                <LoadFailure message={productLoadError} onRetry={() => void refreshProducts()} />
-              ) : null}
-              {!productsLoading && !productLoadError && products.length === 0 ? (
-                <StatusLine>No tag products found.</StatusLine>
-              ) : null}
-              {!productLoadError ? products.map((product) => (
-                <button
-                  className={`mb-2 w-full rounded-xl border p-3 text-left transition ${selectedProduct?.id === product.id ? "border-slate-900 bg-slate-50" : "border-slate-200 hover:bg-slate-50"}`}
-                  key={product.id}
-                  onClick={() => void openProduct(product.id)}
-                  type="button"
+          {/* Product list: on narrow screens it steps aside once a product or
+              SKU context is open; on xl+ it stays as the master column. */}
+          <div className={showingProductDetail ? "hidden min-w-0 xl:block" : "min-w-0"} data-testid="product-list-panel">
+            <AdminSection
+              title="Products"
+              description="A product is the customer-facing item shown in the Owner Portal. Sizes, capabilities, materials, and prices live on its SKUs."
+              action={
+                <AdminActionButton
+                  onClick={() => {
+                    if (confirmDiscard()) navigate({ product: "new", sku: null });
+                  }}
+                  tone="primary"
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <span className="font-black text-slate-950">{product.name}</span>
-                    <Badge tone={product.isArchived ? "soft" : product.isPublished ? "mint" : "warm"}>
-                      {product.isArchived ? "Archived" : product.isPublished ? "Published" : "Draft"}
-                    </Badge>
-                  </div>
-                  <p className="mt-1 text-xs font-semibold text-slate-500">
-                    {product.variantCount} SKU{product.variantCount === 1 ? "" : "s"} · {product.purchasableVariantCount} purchasable
-                  </p>
-                  <p className="mt-1 text-xs text-slate-400">Updated {formatDate(product.updatedAt)}</p>
-                </button>
-              )) : null}
-            </div>
-          </AdminSection>
+                  New Product
+                </AdminActionButton>
+              }
+            >
+              <div className="grid gap-3 border-b border-slate-100 p-4">
+                <label className="grid gap-1 text-xs font-extrabold uppercase text-slate-500">
+                  Search product or SKU
+                  <input className={fieldClass} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name or SKU" />
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <FilterSelect label="Publication" value={publicationFilter} onChange={setPublicationFilter} options={[["all", "All"], ["published", "Published"], ["draft", "Draft"]]} />
+                  <FilterSelect label="Archive" value={archiveFilter} onChange={setArchiveFilter} options={[["active", "Active"], ["archived", "Archived"], ["all", "All"]]} />
+                  <FilterSelect label="Capability" value={capabilityFilter} onChange={setCapabilityFilter} options={[["all", "All"], ["qr", "QR"], ["nfc", "NFC"]]} />
+                  <FilterSelect label="Purchasable" value={purchasableFilter} onChange={setPurchasableFilter} options={[["all", "All"], ["yes", "Yes"], ["no", "No"]]} />
+                </div>
+              </div>
+              <div className="max-h-[38rem] overflow-y-auto p-2">
+                {productsLoading ? <StatusLine>Loading tag products...</StatusLine> : null}
+                {!productsLoading && productLoadError ? (
+                  <LoadFailure message={productLoadError} onRetry={() => void refreshProducts()} />
+                ) : null}
+                {!productsLoading && !productLoadError && products.length === 0 ? (
+                  <StatusLine>No tag products found.</StatusLine>
+                ) : null}
+                {!productLoadError ? products.map((product) => (
+                  <button
+                    className={`mb-2 w-full rounded-xl border p-3 text-left transition ${productParam === product.id ? "border-slate-900 bg-slate-50" : "border-slate-200 hover:bg-slate-50"}`}
+                    key={product.id}
+                    onClick={() => {
+                      if (confirmDiscard()) navigate({ product: product.id, sku: null });
+                    }}
+                    type="button"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="font-black text-slate-950">{product.name}</span>
+                      <Badge tone={product.isArchived ? "soft" : product.isPublished ? "mint" : "warm"}>
+                        {product.isArchived ? "Archived" : product.isPublished ? "Published" : "Draft"}
+                      </Badge>
+                    </div>
+                    <p className="mt-1 text-xs font-semibold text-slate-500">
+                      {product.variantCount} SKU{product.variantCount === 1 ? "" : "s"} · {product.purchasableVariantCount} purchasable
+                    </p>
+                    <p className="mt-1 text-xs text-slate-400">Updated {formatDate(product.updatedAt)}</p>
+                  </button>
+                )) : null}
+              </div>
+            </AdminSection>
+          </div>
 
-          <div className="grid min-w-0 gap-4">
-            <ProductEditor
-              busy={busy}
-              errors={productFieldErrors}
-              form={productForm}
-              formError={productFormError}
-              isNew={!selectedProduct}
-              onArchive={() => void archiveProduct()}
-              onChange={(value) => {
-                setProductForm(value);
-                setProductFieldErrors({});
-                setProductFormError("");
-              }}
-              onImageUpload={(file) => void uploadProductImage(file)}
-              onSave={() => void submitProduct()}
-              product={selectedProduct}
-            />
-            {selectedProduct ? (
-              <VariantEditor
-                busy={busy}
-                form={variantForm}
-                onArchive={() => void archiveVariant()}
-                onChange={setVariantForm}
-                onClear={clearVariant}
-                onEdit={editVariant}
-                onSave={() => void submitVariant()}
-                product={selectedProduct}
-                selectedVariantId={selectedVariantId}
-              />
+          <div className="grid min-w-0 content-start gap-4">
+            {!showingProductDetail ? (
+              <div className="hidden rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm font-semibold text-slate-500 xl:block">
+                Select a product to edit it, or create a new product.
+              </div>
+            ) : null}
+
+            {showingProductDetail && !showingSkuEditor ? (
+              <>
+                <BackBar
+                  label="All products"
+                  onBack={() => {
+                    if (confirmDiscard()) navigate({ product: null, sku: null });
+                  }}
+                />
+                <ProductEditor
+                  busy={busy}
+                  errors={productFieldErrors}
+                  form={productForm}
+                  formError={productFormError}
+                  isNew={productParam === "new"}
+                  onArchive={() => setPendingArchive("product")}
+                  onChange={(value) => {
+                    setProductForm(value);
+                    setProductFieldErrors({});
+                    setProductFormError("");
+                  }}
+                  onImageUpload={(file) => void uploadProductImage(file)}
+                  onSave={() => void submitProduct()}
+                  product={selectedProduct}
+                />
+                {productParam !== "new" && selectedProduct ? (
+                  <SkuListSection
+                    onAddSku={() => {
+                      if (confirmDiscard()) navigate({ sku: "new" });
+                    }}
+                    onOpenSku={(variantId) => {
+                      if (confirmDiscard()) navigate({ sku: variantId });
+                    }}
+                    product={selectedProduct}
+                  />
+                ) : null}
+              </>
+            ) : null}
+
+            {showingSkuEditor && selectedProduct ? (
+              <>
+                <BackBar
+                  label={selectedProduct.name}
+                  onBack={() => {
+                    if (confirmDiscard()) navigate({ sku: null });
+                  }}
+                />
+                <VariantEditor
+                  busy={busy}
+                  editing={editingVariant}
+                  form={variantForm}
+                  formError={variantFormError}
+                  isNew={skuParam === "new"}
+                  onArchive={() => setPendingArchive("sku")}
+                  onChange={(value) => {
+                    setVariantForm(value);
+                    setVariantFormError("");
+                  }}
+                  onSave={() => void submitVariant()}
+                  presets={presets}
+                  product={selectedProduct}
+                  settingsHref={`${pathname}?tab=settings`}
+                />
+              </>
             ) : null}
           </div>
         </div>
-      ) : (
+      ) : null}
+
+      {tab === "promotions" ? (
         <PromotionsEditor
           busy={busy}
           errors={promotionFieldErrors}
@@ -522,8 +733,65 @@ export function AdminTagProductsManager() {
           selectedId={selectedPromotionId}
           variants={promotionVariants}
         />
-      )}
+      ) : null}
+
+      {tab === "settings" ? (
+        <VariantPresetsSettings
+          busy={busy}
+          form={presetForm}
+          formError={presetFormError}
+          onChange={(value) => {
+            setPresetForm(value);
+            setPresetFormError("");
+          }}
+          onEdit={(preset) => {
+            setSelectedPresetId(preset.id);
+            setPresetForm(presetInput(preset));
+            setPresetFormError("");
+            setMessage("");
+          }}
+          onNew={() => {
+            setSelectedPresetId(undefined);
+            setPresetForm(blankPreset);
+            setPresetFormError("");
+          }}
+          onSave={() => void submitPreset()}
+          presets={presets}
+          selectedId={selectedPresetId}
+        />
+      ) : null}
+
+      <ConfirmDialog
+        cancelLabel="Keep"
+        confirmLabel={pendingArchive === "product" ? "Archive Product" : "Archive SKU"}
+        message={
+          pendingArchive === "product"
+            ? `Archiving hides ${selectedProduct?.name ?? "this product"} and all of its SKUs from customers. Archiving cannot be undone from this portal; existing orders and inventory keep their history.`
+            : `Archiving stops ${variantForm.sku || "this SKU"} from being sold. Archiving cannot be undone from this portal; existing inventory and orders keep their history.`
+        }
+        onCancel={() => setPendingArchive(null)}
+        onConfirm={() => {
+          const target = pendingArchive;
+          setPendingArchive(null);
+          if (target === "product") void archiveProduct();
+          if (target === "sku") void archiveVariant();
+        }}
+        open={pendingArchive !== null}
+        title={pendingArchive === "product" ? "Archive this product?" : "Archive this SKU?"}
+      />
     </div>
+  );
+}
+
+function BackBar({ label, onBack }: { label: string; onBack: () => void }) {
+  return (
+    <button
+      className="inline-flex min-h-11 w-fit items-center gap-2 rounded-full border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-700 transition hover:bg-slate-50 xl:hidden"
+      onClick={onBack}
+      type="button"
+    >
+      <span aria-hidden="true">←</span> Back to {label}
+    </button>
   );
 }
 
@@ -540,19 +808,39 @@ function ProductEditor({ product, form, isNew, busy, errors, formError, onChange
   onArchive: () => void;
 }) {
   return (
-    <AdminSection title={isNew ? "Create product" : `Edit ${product?.name}`} description="Customer-facing product information and publication state.">
+    <AdminSection
+      title={isNew ? "Create product" : `Edit ${product?.name ?? "product"}`}
+      description="A product is the customer-facing item shown in the Owner Portal. Each of its SKUs is one exact sellable and manufacturable configuration."
+    >
       <div className="grid gap-5 p-4 sm:p-5">
         <FormGroup title="Basic information">
-          <Field error={errors.name} errorId={`${productFieldIds.name}-error`} label="Product name">
+          <Field
+            error={errors.name}
+            errorId={`${productFieldIds.name}-error`}
+            helper={'Use the main product name, such as "MyPetLink Pet Tag". Specific sizes, capabilities, and materials belong to SKUs.'}
+            label="Product name"
+          >
             <input {...invalidFieldProps(productFieldIds.name, errors.name)} className={fieldClass} id={productFieldIds.name} value={form.name} onChange={(event) => onChange({ ...form, name: event.target.value })} />
           </Field>
-          <Field error={errors.slug} errorId={`${productFieldIds.slug}-error`} label="Stable product link">
-            <input {...invalidFieldProps(productFieldIds.slug, errors.slug)} className={fieldClass} id={productFieldIds.slug} value={form.slug} onChange={(event) => onChange({ ...form, slug: event.target.value.toLowerCase().replace(/\s+/g, "-") })} placeholder="smart-pet-tag" />
+          <Field
+            error={errors.slug}
+            errorId={`${productFieldIds.slug}-error`}
+            helper="Forms the product's public link. Keep it stable once shared."
+            label="Stable product link"
+          >
+            <input {...invalidFieldProps(productFieldIds.slug, errors.slug)} className={fieldClass} id={productFieldIds.slug} value={form.slug} onChange={(event) => onChange({ ...form, slug: event.target.value.toLowerCase().replace(/\s+/g, "-") })} placeholder="mypetlink-pet-tag" />
           </Field>
-          <Field error={errors.shortDescription} errorId={`${productFieldIds.shortDescription}-error`} label="Short description">
+          <Field
+            error={errors.shortDescription}
+            errorId={`${productFieldIds.shortDescription}-error`}
+            helper="One sentence shown on product cards. Required before publishing."
+            label="Short description"
+          >
             <input {...invalidFieldProps(productFieldIds.shortDescription, errors.shortDescription)} className={fieldClass} id={productFieldIds.shortDescription} value={form.shortDescription ?? ""} onChange={(event) => onChange({ ...form, shortDescription: event.target.value })} />
           </Field>
-          <Field label="Full description" wide><textarea className={textAreaClass} value={form.description ?? ""} onChange={(event) => onChange({ ...form, description: event.target.value })} /></Field>
+          <Field helper="Full customer-facing description shown on the product page." label="Full description" wide>
+            <textarea className={textAreaClass} value={form.description ?? ""} onChange={(event) => onChange({ ...form, description: event.target.value })} />
+          </Field>
         </FormGroup>
         <FormGroup title="Images">
           {form.media.map((media, index) => (
@@ -580,7 +868,7 @@ function ProductEditor({ product, form, isNew, busy, errors, formError, onChange
           <Toggle checked={form.isPublished} error={errors.isPublished} id={productFieldIds.isPublished} label="Published for customers" onChange={(checked) => onChange({ ...form, isPublished: checked })} />
         </FormGroup>
         {formError ? <InlineFormError>{formError}</InlineFormError> : null}
-        <div className="flex flex-wrap justify-end gap-2">
+        <div className="sticky bottom-0 -mx-4 flex flex-wrap justify-end gap-2 border-t border-slate-100 bg-white/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:static sm:m-0 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
           {!isNew && !product?.isArchived ? <AdminActionButton disabled={busy} onClick={onArchive} tone="danger">Archive Product</AdminActionButton> : null}
           <AdminActionButton disabled={busy || product?.isArchived} onClick={onSave} tone="primary">{busy ? "Saving..." : "Save Product"}</AdminActionButton>
         </div>
@@ -589,48 +877,136 @@ function ProductEditor({ product, form, isNew, busy, errors, formError, onChange
   );
 }
 
-function VariantEditor({ product, form, selectedVariantId, busy, onChange, onEdit, onClear, onSave, onArchive }: {
+function SkuListSection({ product, onAddSku, onOpenSku }: {
   product: AdminTagProduct;
-  form: AdminVariantInput;
-  selectedVariantId?: string;
-  busy: boolean;
-  onChange: (value: AdminVariantInput) => void;
-  onEdit: (variant: AdminTagProductVariant) => void;
-  onClear: () => void;
-  onSave: () => void;
-  onArchive: () => void;
+  onAddSku: () => void;
+  onOpenSku: (variantId: string) => void;
 }) {
-  const selected = product.variants.find((variant) => variant.id === selectedVariantId);
   return (
-    <AdminSection title="Product variants / SKUs" description="Each SKU is one exact sellable and manufacturable configuration." action={<AdminActionButton onClick={onClear}>New SKU</AdminActionButton>}>
-      <div className="grid gap-3 border-b border-slate-100 p-4 md:grid-cols-2">
-        {product.variants.length === 0 ? <StatusLine>No SKUs added yet.</StatusLine> : null}
+    <AdminSection
+      title="SKUs"
+      description="Each SKU is one exact sellable and manufacturable configuration, including capabilities, physical specifications, price, and production settings."
+      action={<AdminActionButton onClick={onAddSku} tone="primary">New SKU</AdminActionButton>}
+    >
+      <div className="grid gap-3 p-4 md:grid-cols-2">
+        {product.variants.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-slate-300 p-5 text-sm font-semibold text-slate-600 md:col-span-2">
+            This product does not have any sellable configurations yet. Add an
+            SKU to configure its capabilities, specifications, price, and
+            production details.
+          </p>
+        ) : null}
         {product.variants.map((variant) => (
-          <button className={`rounded-xl border p-3 text-left ${selectedVariantId === variant.id ? "border-slate-900 bg-slate-50" : "border-slate-200"}`} key={variant.id} onClick={() => onEdit(variant)} type="button">
-            <div className="flex items-start justify-between gap-2"><span className="font-mono text-sm font-black text-slate-950">{variant.sku}</span><Badge tone={variant.isArchived ? "soft" : variant.isPurchasable ? "mint" : "warm"}>{variant.isArchived ? "Archived" : variant.isPurchasable ? "Purchasable" : "Unavailable"}</Badge></div>
-            <p className="mt-1 text-sm font-semibold text-slate-700">{variant.displayName}</p>
+          <button className="rounded-xl border border-slate-200 p-3 text-left transition hover:bg-slate-50" key={variant.id} onClick={() => onOpenSku(variant.id)} type="button">
+            <div className="flex items-start justify-between gap-2">
+              <span className="font-mono text-sm font-black text-slate-950">{variant.sku}</span>
+              <SkuStatusBadge variant={variant} />
+            </div>
+            <p className="mt-1 text-sm font-semibold text-slate-700">{variant.displayName} · {variant.tagVariant}</p>
             <p className="mt-1 text-xs text-slate-500">{formatCatalogPrice(variant.basePrice, variant.currency)} · {variant.inventoryCount} inventory</p>
+            {skuStatusExplanation(variant) ? (
+              <p className="mt-1 text-xs font-semibold text-amber-700">{skuStatusExplanation(variant)}</p>
+            ) : null}
           </button>
         ))}
       </div>
+    </AdminSection>
+  );
+}
+
+// SKU status must never be an unexplained combination: Archived wins, then
+// Purchasable, then Active-but-not-purchasable, then Inactive.
+function SkuStatusBadge({ variant }: { variant: AdminTagProductVariant }) {
+  if (variant.isArchived) return <Badge tone="soft">Archived</Badge>;
+  if (variant.isPurchasable) return <Badge tone="mint">Purchasable</Badge>;
+  if (variant.isActive) return <Badge tone="warm">Active · not purchasable</Badge>;
+  return <Badge tone="soft">Inactive</Badge>;
+}
+
+function skuStatusExplanation(variant: AdminTagProductVariant) {
+  if (variant.isArchived || variant.isPurchasable) return "";
+  if (variant.isActive) return "Hidden from the store until it is marked purchasable.";
+  return "Inactive SKUs cannot be purchased or used for new inventory.";
+}
+
+function VariantEditor({ product, editing, form, isNew, busy, formError, presets, settingsHref, onChange, onSave, onArchive }: {
+  product: AdminTagProduct;
+  editing?: AdminTagProductVariant;
+  form: AdminVariantInput;
+  isNew: boolean;
+  busy: boolean;
+  formError: string;
+  presets: AdminTagVariantPreset[];
+  settingsHref: string;
+  onChange: (value: AdminVariantInput) => void;
+  onSave: () => void;
+  onArchive: () => void;
+}) {
+  const locked = editing?.productionFieldsLocked ?? false;
+  // Active presets are offered for selection; an inactive preset stays listed
+  // only while this SKU already uses it.
+  const selectablePresets = presets.filter(
+    (preset) => preset.isActive || preset.id === form.tagVariantPresetId
+  );
+
+  return (
+    <AdminSection
+      title={isNew ? `New SKU for ${product.name}` : `Edit SKU ${editing?.sku ?? ""}`}
+      description="Each SKU is one exact sellable and manufacturable configuration, including capabilities, physical specifications, price, and production settings."
+    >
       <div className="grid gap-5 p-4 sm:p-5">
-        {selected?.productionFieldsLocked ? <AdminNotice>Production specifications are locked because this SKU has inventory or order history. Create a new versioned SKU to change them.</AdminNotice> : null}
+        {locked ? <AdminNotice>Production specifications are locked because this SKU has inventory or order history. Create a new versioned SKU to change them.</AdminNotice> : null}
         <FormGroup title="Basic information">
-          <Field label="SKU"><input className={fieldClass} disabled={selected?.productionFieldsLocked} value={form.sku} onChange={(event) => onChange({ ...form, sku: event.target.value.toUpperCase() })} /></Field>
-          <Field label="Variant name"><input className={fieldClass} value={form.displayName} onChange={(event) => onChange({ ...form, displayName: event.target.value })} /></Field>
-          <Field label="Tag variant"><select className={fieldClass} disabled={selected?.productionFieldsLocked} value={form.tagVariant} onChange={(event) => onChange({ ...form, tagVariant: event.target.value })}><option>Lightweight</option><option>Standard</option></select></Field>
+          <Field label="SKU"><input className={fieldClass} disabled={locked} value={form.sku} onChange={(event) => onChange({ ...form, sku: event.target.value.toUpperCase() })} /></Field>
+          <Field label="Display name"><input className={fieldClass} value={form.displayName} onChange={(event) => onChange({ ...form, displayName: event.target.value })} /></Field>
           <Field label="Display order"><input className={fieldClass} min={0} type="number" value={form.sortOrder} onChange={(event) => onChange({ ...form, sortOrder: numberValue(event.target.value) })} /></Field>
         </FormGroup>
+        <FormGroup title="Variant classification">
+          <Field
+            helper="Used to classify similar SKUs. The SKU's physical specifications and capabilities are configured separately."
+            label="Variant preset"
+          >
+            {selectablePresets.length > 0 ? (
+              <select
+                className={fieldClass}
+                disabled={locked}
+                value={form.tagVariantPresetId ?? ""}
+                onChange={(event) => onChange({ ...form, tagVariantPresetId: event.target.value || null })}
+              >
+                <option value="">Choose a variant preset…</option>
+                {selectablePresets.map((preset) => (
+                  <option key={preset.id} value={preset.id}>
+                    {preset.displayName}
+                    {preset.isActive ? "" : " (inactive)"}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span className="block rounded-xl border border-dashed border-slate-300 p-3 text-xs font-semibold normal-case text-slate-600">
+                No active variant presets exist yet.{" "}
+                <Link className="font-extrabold text-slate-900 underline" href={settingsHref}>
+                  Add one in Catalog Settings
+                </Link>{" "}
+                before creating this SKU.
+              </span>
+            )}
+          </Field>
+          {!isNew && editing && editing.tagVariant ? (
+            <Field helper="What this SKU is currently labelled as. A preset rename never changes saved SKUs automatically." label="Saved classification">
+              <input className={fieldClass} disabled value={editing.tagVariant} />
+            </Field>
+          ) : null}
+        </FormGroup>
         <FormGroup title="Capabilities">
-          <Toggle checked={form.supportsQr} disabled={selected?.productionFieldsLocked} label="QR scanning" onChange={(checked) => onChange({ ...form, supportsQr: checked })} />
-          <Toggle checked={form.supportsNfc} disabled={selected?.productionFieldsLocked} label="NFC tapping" onChange={(checked) => onChange({ ...form, supportsNfc: checked })} />
+          <Toggle checked={form.supportsQr} disabled={locked} label="QR scanning" onChange={(checked) => onChange({ ...form, supportsQr: checked })} />
+          <Toggle checked={form.supportsNfc} disabled={locked} label="NFC tapping" onChange={(checked) => onChange({ ...form, supportsNfc: checked })} />
         </FormGroup>
         <FormGroup title="Physical specifications">
-          <NumberField label="Width (mm)" value={form.widthMm} disabled={selected?.productionFieldsLocked} onChange={(value) => onChange({ ...form, widthMm: value })} />
-          <NumberField label="Height (mm)" value={form.heightMm} disabled={selected?.productionFieldsLocked} onChange={(value) => onChange({ ...form, heightMm: value })} />
-          <NumberField label="Thickness (mm)" value={form.thicknessMm} disabled={selected?.productionFieldsLocked} onChange={(value) => onChange({ ...form, thicknessMm: value })} />
-          <NumberField label="Weight (g)" value={form.weightGrams} disabled={selected?.productionFieldsLocked} onChange={(value) => onChange({ ...form, weightGrams: value })} />
-          {(["material", "shape", "colour", "packagingType"] as const).map((key) => <Field key={key} label={key === "packagingType" ? "Packaging" : titleCase(key)}><input className={fieldClass} disabled={selected?.productionFieldsLocked} value={form[key] ?? ""} onChange={(event) => onChange({ ...form, [key]: event.target.value })} /></Field>)}
+          <NumberField label="Width (mm)" value={form.widthMm} disabled={locked} onChange={(value) => onChange({ ...form, widthMm: value })} />
+          <NumberField label="Height (mm)" value={form.heightMm} disabled={locked} onChange={(value) => onChange({ ...form, heightMm: value })} />
+          <NumberField label="Thickness (mm)" value={form.thicknessMm} disabled={locked} onChange={(value) => onChange({ ...form, thicknessMm: value })} />
+          <NumberField label="Weight (g)" value={form.weightGrams} disabled={locked} onChange={(value) => onChange({ ...form, weightGrams: value })} />
+          {(["material", "shape", "colour", "packagingType"] as const).map((key) => <Field key={key} label={key === "packagingType" ? "Packaging" : titleCase(key)}><input className={fieldClass} disabled={locked} value={form[key] ?? ""} onChange={(event) => onChange({ ...form, [key]: event.target.value })} /></Field>)}
         </FormGroup>
         <FormGroup title="Pricing">
           <NumberField label="Base price" value={form.basePrice} onChange={(value) => onChange({ ...form, basePrice: value ?? 0 })} />
@@ -638,19 +1014,88 @@ function VariantEditor({ product, form, selectedVariantId, busy, onChange, onEdi
           <NumberField label="Compare-at price (optional)" value={form.compareAtPrice} onChange={(value) => onChange({ ...form, compareAtPrice: value })} />
         </FormGroup>
         <FormGroup title="Production">
-          <Field label="Print template"><input className={fieldClass} disabled={selected?.productionFieldsLocked} value={form.printTemplateCode ?? ""} onChange={(event) => onChange({ ...form, printTemplateCode: event.target.value })} /></Field>
+          <Field label="Print template"><input className={fieldClass} disabled={locked} value={form.printTemplateCode ?? ""} onChange={(event) => onChange({ ...form, printTemplateCode: event.target.value })} /></Field>
           <Field label="Production notes" wide><textarea className={textAreaClass} value={form.productionNotes ?? ""} onChange={(event) => onChange({ ...form, productionNotes: event.target.value })} /></Field>
         </FormGroup>
         <FormGroup title="Availability">
           <Toggle checked={form.isActive} label="Active SKU" onChange={(checked) => onChange({ ...form, isActive: checked })} />
           <Toggle checked={form.isPurchasable} label="Purchasable by customers" onChange={(checked) => onChange({ ...form, isPurchasable: checked })} />
         </FormGroup>
-        <div className="flex flex-wrap justify-end gap-2">
-          {selectedVariantId && !selected?.isArchived ? <AdminActionButton disabled={busy} onClick={onArchive} tone="danger">Archive SKU</AdminActionButton> : null}
-          <AdminActionButton disabled={busy || selected?.isArchived || product.isArchived} onClick={onSave} tone="primary">{busy ? "Saving..." : selectedVariantId ? "Save SKU" : "Create SKU"}</AdminActionButton>
+        {formError ? <InlineFormError>{formError}</InlineFormError> : null}
+        <div className="sticky bottom-0 -mx-4 flex flex-wrap justify-end gap-2 border-t border-slate-100 bg-white/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:static sm:m-0 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
+          {!isNew && editing && !editing.isArchived ? <AdminActionButton disabled={busy} onClick={onArchive} tone="danger">Archive SKU</AdminActionButton> : null}
+          <AdminActionButton disabled={busy || editing?.isArchived || product.isArchived} onClick={onSave} tone="primary">{busy ? "Saving..." : isNew ? "Create SKU" : "Save SKU"}</AdminActionButton>
         </div>
       </div>
     </AdminSection>
+  );
+}
+
+function VariantPresetsSettings({ presets, form, selectedId, busy, formError, onChange, onEdit, onNew, onSave }: {
+  presets: AdminTagVariantPreset[];
+  form: AdminTagVariantPresetInput;
+  selectedId?: string;
+  busy: boolean;
+  formError: string;
+  onChange: (value: AdminTagVariantPresetInput) => void;
+  onEdit: (preset: AdminTagVariantPreset) => void;
+  onNew: () => void;
+  onSave: () => void;
+}) {
+  return (
+    <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(280px,0.75fr)_minmax(0,1.6fr)]">
+      <AdminSection
+        title="Variant presets"
+        description="Controlled classifications SKUs can use, such as Lightweight or Standard. New values (for example Collar Slide or Silicone) can be added here without a release."
+        action={<AdminActionButton onClick={onNew} tone="primary">New Preset</AdminActionButton>}
+      >
+        <div className="p-2">
+          {presets.length === 0 ? <StatusLine>No variant presets yet.</StatusLine> : null}
+          {presets.map((preset) => (
+            <button
+              className={`mb-2 w-full rounded-xl border p-3 text-left transition ${selectedId === preset.id ? "border-slate-900 bg-slate-50" : "border-slate-200 hover:bg-slate-50"}`}
+              key={preset.id}
+              onClick={() => onEdit(preset)}
+              type="button"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <span className="font-black text-slate-950">{preset.displayName}</span>
+                <Badge tone={preset.isActive ? "mint" : "soft"}>{preset.isActive ? "Active" : "Inactive"}</Badge>
+              </div>
+              <p className="mt-1 text-xs font-semibold text-slate-500">
+                {preset.code} · used by {preset.skuCount} SKU{preset.skuCount === 1 ? "" : "s"}
+              </p>
+            </button>
+          ))}
+        </div>
+      </AdminSection>
+      <AdminSection
+        title={selectedId ? "Edit variant preset" : "Create variant preset"}
+        description="A preset is only a classification label. Physical specifications, capabilities, prices, and production settings stay on each SKU. Presets used by SKUs can be deactivated but not deleted, and renaming a preset never changes saved SKUs or past orders."
+      >
+        <div className="grid gap-5 p-4 sm:p-5">
+          <FormGroup title="Preset details">
+            <Field helper="Stable internal code, e.g. COLLAR-SLIDE." label="Code">
+              <input className={fieldClass} value={form.code} onChange={(event) => onChange({ ...form, code: event.target.value.toUpperCase() })} placeholder="COLLAR-SLIDE" />
+            </Field>
+            <Field helper="Shown to Admins when classifying SKUs." label="Display name">
+              <input className={fieldClass} value={form.displayName} onChange={(event) => onChange({ ...form, displayName: event.target.value })} placeholder="Collar Slide" />
+            </Field>
+            <Field label="Description" wide>
+              <textarea className={textAreaClass} value={form.description ?? ""} onChange={(event) => onChange({ ...form, description: event.target.value })} />
+            </Field>
+            <Field label="Sort order">
+              <input className={fieldClass} min={0} type="number" value={form.sortOrder} onChange={(event) => onChange({ ...form, sortOrder: numberValue(event.target.value) })} />
+            </Field>
+            <Toggle checked={form.isActive} label="Active (selectable for new SKUs)" onChange={(checked) => onChange({ ...form, isActive: checked })} />
+          </FormGroup>
+          {formError ? <InlineFormError>{formError}</InlineFormError> : null}
+          <div className="flex justify-end">
+            <AdminActionButton disabled={busy} onClick={onSave} tone="primary">{busy ? "Saving..." : selectedId ? "Save Preset" : "Create Preset"}</AdminActionButton>
+          </div>
+        </div>
+      </AdminSection>
+    </div>
   );
 }
 
@@ -733,17 +1178,14 @@ function PromotionsEditor({ promotions, variants, form, selectedId, loading, bus
 function FormGroup({ title, children }: { title: string; children: React.ReactNode }) {
   return <fieldset className="grid gap-3 rounded-xl border border-slate-200 p-4 sm:grid-cols-2"><legend className="px-2 text-sm font-black text-slate-900">{title}</legend>{children}</fieldset>;
 }
-function Field({ label, wide, error, errorId, children }: { label: string; wide?: boolean; error?: string; errorId?: string; children: React.ReactNode }) {
-  return <div className={`grid gap-1 text-xs font-extrabold uppercase text-slate-500 ${wide ? "sm:col-span-2" : ""}`}><label className="grid gap-1">{label}{children}</label>{error ? <InlineFieldError id={errorId}>{error}</InlineFieldError> : null}</div>;
+function Field({ label, wide, error, errorId, helper, children }: { label: string; wide?: boolean; error?: string; errorId?: string; helper?: string; children: React.ReactNode }) {
+  return <div className={`grid gap-1 text-xs font-extrabold uppercase text-slate-500 ${wide ? "sm:col-span-2" : ""}`}><label className="grid gap-1">{label}{children}</label>{helper ? <span className="text-xs font-medium normal-case text-slate-500">{helper}</span> : null}{error ? <InlineFieldError id={errorId}>{error}</InlineFieldError> : null}</div>;
 }
 function NumberField({ label, value, disabled, id, error, onChange }: { label: string; value?: number | null; disabled?: boolean; id?: string; error?: string; onChange: (value: number | null) => void }) {
   return <Field error={error} errorId={id ? `${id}-error` : undefined} label={label}><input {...(id ? invalidFieldProps(id, error) : {})} className={fieldClass} disabled={disabled} id={id} min={0} step="0.01" type="number" value={value ?? ""} onChange={(event) => onChange(event.target.value === "" ? null : Number(event.target.value))} /></Field>;
 }
 function Toggle({ label, checked, disabled, id, error, onChange }: { label: string; checked: boolean; disabled?: boolean; id?: string; error?: string; onChange: (checked: boolean) => void }) {
   return <div className="grid gap-1"><label className="flex min-h-11 items-center gap-3 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-800"><input {...(id ? invalidFieldProps(id, error) : {})} checked={checked} disabled={disabled} id={id} onChange={(event) => onChange(event.target.checked)} type="checkbox" />{label}</label>{error ? <InlineFieldError id={id ? `${id}-error` : undefined}>{error}</InlineFieldError> : null}</div>;
-}
-function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return <button aria-selected={active} className={`min-h-10 rounded-full border px-4 text-sm font-extrabold ${active ? "border-slate-950 bg-slate-950 text-white" : "border-slate-200 bg-white text-slate-700"}`} onClick={onClick} role="tab" type="button">{children}</button>;
 }
 function FilterSelect({ label, value, options, onChange }: { label: string; value: string; options: [string, string][]; onChange: (value: string) => void }) {
   return <label className="grid gap-1 text-xs font-extrabold uppercase text-slate-500">{label}<select className={fieldClass} value={value} onChange={(event) => onChange(event.target.value)}>{options.map(([optionValue, optionLabel]) => <option key={optionValue} value={optionValue}>{optionLabel}</option>)}</select></label>;
@@ -753,7 +1195,8 @@ function LoadFailure({ message, onRetry }: { message: string; onRetry: () => voi
 function InlineFieldError({ id, children }: { id?: string; children: React.ReactNode }) { return <span className="normal-case text-xs font-bold text-red-700" id={id}>{children}</span>; }
 function InlineFormError({ children }: { children: React.ReactNode }) { return <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-800" role="alert">{children}</div>; }
 function productInput(product: AdminTagProduct): AdminProductInput { return { name: product.name, slug: product.slug, shortDescription: product.shortDescription, description: product.description, isPublished: product.isPublished, sortOrder: product.sortOrder, media: product.media.map((item) => ({ mediaFileId: item.mediaFileId, productVariantId: item.productVariantId, sortOrder: item.sortOrder, altText: item.altText })), concurrencyToken: product.concurrencyToken }; }
-function variantInput(variant: AdminTagProductVariant): AdminVariantInput { return { sku: variant.sku, displayName: variant.displayName, supportsQr: variant.supportsQr, supportsNfc: variant.supportsNfc, tagVariant: variant.tagVariant, widthMm: variant.widthMm, heightMm: variant.heightMm, thicknessMm: variant.thicknessMm, weightGrams: variant.weightGrams, material: variant.material, shape: variant.shape, colour: variant.colour, packagingType: variant.packagingType, basePrice: variant.basePrice, currency: variant.currency, compareAtPrice: variant.compareAtPrice, printTemplateCode: variant.printTemplateCode, productionNotes: variant.productionNotes, isActive: variant.isActive, isPurchasable: variant.isPurchasable, sortOrder: variant.sortOrder, concurrencyToken: variant.concurrencyToken }; }
+function variantInput(variant: AdminTagProductVariant): AdminVariantInput { return { sku: variant.sku, displayName: variant.displayName, supportsQr: variant.supportsQr, supportsNfc: variant.supportsNfc, tagVariantPresetId: variant.tagVariantPresetId ?? null, widthMm: variant.widthMm, heightMm: variant.heightMm, thicknessMm: variant.thicknessMm, weightGrams: variant.weightGrams, material: variant.material, shape: variant.shape, colour: variant.colour, packagingType: variant.packagingType, basePrice: variant.basePrice, currency: variant.currency, compareAtPrice: variant.compareAtPrice, printTemplateCode: variant.printTemplateCode, productionNotes: variant.productionNotes, isActive: variant.isActive, isPurchasable: variant.isPurchasable, sortOrder: variant.sortOrder, concurrencyToken: variant.concurrencyToken }; }
+function presetInput(preset: AdminTagVariantPreset): AdminTagVariantPresetInput { return { code: preset.code, displayName: preset.displayName, description: preset.description ?? "", isActive: preset.isActive, sortOrder: preset.sortOrder, concurrencyToken: preset.concurrencyToken }; }
 function validateProductForm(form: AdminProductInput, product: AdminTagProduct | null): FieldErrors {
   const errors: FieldErrors = {};
   if (!form.name.trim()) errors.name = "Product name is required.";

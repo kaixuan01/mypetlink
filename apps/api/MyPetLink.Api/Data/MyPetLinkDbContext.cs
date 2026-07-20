@@ -11,6 +11,11 @@ public sealed class MyPetLinkDbContext : DbContext
     private static readonly Guid PremiumPlanLimitId = Guid.Parse("d65c4c7d-821b-496c-bb3d-ea5bf951d65d");
     private static readonly DateTimeOffset SeededAt = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
+    // Variant presets migrated from the previously fixed Lightweight/Standard
+    // values. Ids are stable so the migration backfill is deterministic.
+    public static readonly Guid StandardVariantPresetId = Guid.Parse("3f2c8f5e-08d4-4c5f-9a51-b96f8a4f7c01");
+    public static readonly Guid LightweightVariantPresetId = Guid.Parse("3f2c8f5e-08d4-4c5f-9a51-b96f8a4f7c02");
+
     public MyPetLinkDbContext(DbContextOptions<MyPetLinkDbContext> options)
         : base(options)
     {
@@ -31,6 +36,7 @@ public sealed class MyPetLinkDbContext : DbContext
     public DbSet<MediaFileLink> MediaFileLinks => Set<MediaFileLink>();
     public DbSet<PetMemory> PetMemories => Set<PetMemory>();
     public DbSet<CareRecord> CareRecords => Set<CareRecord>();
+    public DbSet<TagVariantPreset> TagVariantPresets => Set<TagVariantPreset>();
     public DbSet<TagProduct> TagProducts => Set<TagProduct>();
     public DbSet<TagProductVariant> TagProductVariants => Set<TagProductVariant>();
     public DbSet<TagProductMedia> TagProductMedia => Set<TagProductMedia>();
@@ -72,6 +78,18 @@ public sealed class MyPetLinkDbContext : DbContext
 
     private static void ConfigureTagCatalog(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<TagVariantPreset>(entity =>
+        {
+            entity.ToTable("TagVariantPresets");
+            entity.Property(item => item.Code).HasMaxLength(40);
+            entity.Property(item => item.DisplayName).HasMaxLength(80);
+            entity.Property(item => item.Description).HasMaxLength(400);
+            entity.Property(item => item.RowVersion).IsRowVersion();
+            entity.HasIndex(item => item.Code).IsUnique();
+            entity.HasIndex(item => item.DisplayName).IsUnique();
+            entity.HasIndex(item => new { item.IsActive, item.SortOrder });
+        });
+
         modelBuilder.Entity<TagProduct>(entity =>
         {
             entity.ToTable("TagProducts");
@@ -111,9 +129,14 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasIndex(item => item.TagProductId);
             entity.HasIndex(item => new { item.IsActive, item.IsPurchasable, item.ArchivedAt });
             entity.HasIndex(item => new { item.SupportsQr, item.SupportsNfc });
+            entity.HasIndex(item => item.TagVariantPresetId);
             entity.HasOne(item => item.TagProduct)
                 .WithMany(product => product.Variants)
                 .HasForeignKey(item => item.TagProductId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.TagVariantPreset)
+                .WithMany(preset => preset.ProductVariants)
+                .HasForeignKey(item => item.TagVariantPresetId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -757,6 +780,32 @@ public sealed class MyPetLinkDbContext : DbContext
 
     private static void SeedDefaults(ModelBuilder modelBuilder)
     {
+        // Lightweight and Standard are migrated from the previously fixed
+        // variant values already used by existing SKUs, inventory, and orders.
+        modelBuilder.Entity<TagVariantPreset>().HasData(
+            new TagVariantPreset
+            {
+                Id = StandardVariantPresetId,
+                Code = "STANDARD",
+                DisplayName = "Standard",
+                Description = "Standard-size tag for dogs and medium to large pets.",
+                IsActive = true,
+                SortOrder = 0,
+                CreatedAt = SeededAt,
+                UpdatedAt = SeededAt
+            },
+            new TagVariantPreset
+            {
+                Id = LightweightVariantPresetId,
+                Code = "LIGHTWEIGHT",
+                DisplayName = "Lightweight",
+                Description = "Lighter tag for cats and small pets.",
+                IsActive = true,
+                SortOrder = 1,
+                CreatedAt = SeededAt,
+                UpdatedAt = SeededAt
+            });
+
         modelBuilder.Entity<Plan>().HasData(
             new Plan
             {

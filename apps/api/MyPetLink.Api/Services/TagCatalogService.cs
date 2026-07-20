@@ -20,6 +20,8 @@ public interface ITagCatalogService
     Task<AdminTagProductVariantResponse> CreateVariantAsync(Guid? userId, Guid productId, UpsertTagProductVariantRequest request, CancellationToken cancellationToken = default);
     Task<AdminTagProductVariantResponse> UpdateVariantAsync(Guid? userId, Guid variantId, UpsertTagProductVariantRequest request, CancellationToken cancellationToken = default);
     Task<AdminTagProductVariantResponse> ArchiveVariantAsync(Guid? userId, Guid variantId, string? concurrencyToken, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<AdminTagVariantPresetResponse>> ListVariantPresetsAsync(CancellationToken cancellationToken = default);
+    Task<AdminTagVariantPresetResponse> SaveVariantPresetAsync(Guid? userId, Guid? presetId, UpsertTagVariantPresetRequest request, CancellationToken cancellationToken = default);
     Task<(IReadOnlyCollection<AdminPromotionResponse> Items, int Total)> ListPromotionsAsync(AdminPromotionQuery query, CancellationToken cancellationToken = default);
     Task<AdminPromotionResponse> CreatePromotionAsync(Guid? userId, UpsertPromotionRequest request, CancellationToken cancellationToken = default);
     Task<AdminPromotionResponse> UpdatePromotionAsync(Guid? userId, Guid promotionId, UpsertPromotionRequest request, CancellationToken cancellationToken = default);
@@ -201,7 +203,8 @@ public sealed partial class TagCatalogService : ITagCatalogService
         var product = await _dbContext.TagProducts.SingleOrDefaultAsync(item => item.Id == productId, cancellationToken)
             ?? throw NotFound("Tag product was not found.");
         if (product.IsArchived) throw InvalidState("Archived products cannot receive new variants.");
-        var values = ValidateVariant(request, product);
+        var preset = await ResolveVariantPresetAsync(request.TagVariantPresetId, existing: null, cancellationToken);
+        var values = ValidateVariant(request, product, preset.DisplayName);
         await EnsureUniqueSkuAsync(values.Sku, null, cancellationToken);
         var variant = new TagProductVariant { TagProductId = product.Id, PublicKey = await GeneratePublicKeyAsync(cancellationToken) };
         ApplyVariant(variant, request, values);
@@ -222,7 +225,12 @@ public sealed partial class TagCatalogService : ITagCatalogService
             .SingleOrDefaultAsync(item => item.Id == variantId, cancellationToken)
             ?? throw NotFound("Product variant was not found.");
         ApplyConcurrency(variant, request.ConcurrencyToken);
-        var values = ValidateVariant(request, variant.TagProduct);
+        // When the preset is unchanged, keep the SKU's saved display snapshot:
+        // a later preset rename must never silently rewrite an existing SKU
+        // (or block a locked one from saving unrelated changes).
+        var preset = await ResolveVariantPresetAsync(request.TagVariantPresetId, variant, cancellationToken);
+        var snapshotName = variant.TagVariantPresetId == preset.Id ? variant.TagVariant : preset.DisplayName;
+        var values = ValidateVariant(request, variant.TagProduct, snapshotName);
         await EnsureUniqueSkuAsync(values.Sku, variant.Id, cancellationToken);
         var locked = await ProductionFieldsLockedAsync(variant.Id, cancellationToken);
         if (locked && ProductionFieldsChanged(variant, request, values))
@@ -427,7 +435,8 @@ public sealed partial class TagCatalogService : ITagCatalogService
     }
 
     private static AdminTagProductVariantResponse ToAdminVariant(TagProductVariant item, bool locked, int inventoryCount) => new(
-        item.Id, item.TagProductId, item.PublicKey, item.Sku, item.DisplayName, item.SupportsQr, item.SupportsNfc, item.TagVariant,
+        item.Id, item.TagProductId, item.PublicKey, item.Sku, item.DisplayName, item.SupportsQr, item.SupportsNfc,
+        item.TagVariantPresetId, item.TagVariant,
         item.WidthMm, item.HeightMm, item.ThicknessMm, item.WeightGrams, item.Material, item.Shape, item.Colour, item.PackagingType,
         item.BasePrice, item.Currency, item.CompareAtPrice, item.PrintTemplateCode, item.ProductionNotes, item.IsActive, item.IsPurchasable,
         item.ArchivedAt.HasValue, locked, inventoryCount, item.SortOrder, item.UpdatedAt, EncodeToken(item.RowVersion));
@@ -464,11 +473,14 @@ public sealed partial class TagCatalogService : ITagCatalogService
         return (name, slug, shortDescription, description);
     }
 
-    private static (string Sku, string Currency, string TagVariant) ValidateVariant(UpsertTagProductVariantRequest request, TagProduct product)
+    private static (string Sku, string Currency, string TagVariant) ValidateVariant(
+        UpsertTagProductVariantRequest request,
+        TagProduct product,
+        string tagVariantSnapshot)
     {
         var sku = request.Sku?.Trim().ToUpperInvariant() ?? string.Empty;
         var currency = request.Currency?.Trim().ToUpperInvariant() ?? string.Empty;
-        var tagVariant = TagVariants.Normalize(request.TagVariant);
+        var tagVariant = TagVariants.Normalize(tagVariantSnapshot);
         if (!SkuPattern().IsMatch(sku)) throw ValidationFailed("sku", "Use 3-80 uppercase letters, numbers, dots, dashes, or underscores.");
         if (string.IsNullOrWhiteSpace(request.DisplayName)) throw ValidationFailed("displayName", "Enter a variant name.");
         if (!request.SupportsQr) throw ValidationFailed("supportsQr", "Current physical tags must support QR scanning.");
@@ -495,7 +507,8 @@ public sealed partial class TagCatalogService : ITagCatalogService
     private static void ApplyVariant(TagProductVariant variant, UpsertTagProductVariantRequest request, (string Sku, string Currency, string TagVariant) values)
     {
         variant.Sku = values.Sku; variant.DisplayName = request.DisplayName.Trim(); variant.SupportsQr = request.SupportsQr;
-        variant.SupportsNfc = request.SupportsNfc; variant.TagVariant = values.TagVariant; variant.WidthMm = request.WidthMm;
+        variant.SupportsNfc = request.SupportsNfc; variant.TagVariantPresetId = request.TagVariantPresetId;
+        variant.TagVariant = values.TagVariant; variant.WidthMm = request.WidthMm;
         variant.HeightMm = request.HeightMm; variant.ThicknessMm = request.ThicknessMm; variant.WeightGrams = request.WeightGrams;
         variant.Material = NormalizeOptional(request.Material); variant.Shape = NormalizeOptional(request.Shape); variant.Colour = NormalizeOptional(request.Colour);
         variant.PackagingType = NormalizeOptional(request.PackagingType); variant.BasePrice = decimal.Round(request.BasePrice, 2, MidpointRounding.AwayFromZero);
@@ -506,6 +519,7 @@ public sealed partial class TagCatalogService : ITagCatalogService
 
     private static bool ProductionFieldsChanged(TagProductVariant variant, UpsertTagProductVariantRequest request, (string Sku, string Currency, string TagVariant) values) =>
         variant.Sku != values.Sku || variant.SupportsQr != request.SupportsQr || variant.SupportsNfc != request.SupportsNfc
+        || variant.TagVariantPresetId != request.TagVariantPresetId
         || variant.TagVariant != values.TagVariant || variant.WidthMm != request.WidthMm || variant.HeightMm != request.HeightMm
         || variant.ThicknessMm != request.ThicknessMm || variant.WeightGrams != request.WeightGrams
         || variant.Material != NormalizeOptional(request.Material) || variant.Shape != NormalizeOptional(request.Shape)
@@ -521,6 +535,112 @@ public sealed partial class TagCatalogService : ITagCatalogService
         if (request.Priority < 0 || request.Priority > 10_000) throw ValidationFailed("priority", "Priority must be between 0 and 10,000.");
         if (request.ProductVariantIds is null || request.ProductVariantIds.Length == 0) throw ValidationFailed("productVariantIds", "Choose at least one SKU.");
     }
+
+    // --- Variant presets (Catalog Settings) -----------------------------------------
+
+    public async Task<IReadOnlyCollection<AdminTagVariantPresetResponse>> ListVariantPresetsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var presets = await _dbContext.TagVariantPresets.AsNoTracking()
+            .OrderBy(item => item.SortOrder).ThenBy(item => item.DisplayName)
+            .Select(item => new
+            {
+                Preset = item,
+                SkuCount = item.ProductVariants.Count()
+            })
+            .ToListAsync(cancellationToken);
+
+        return presets
+            .Select(item => ToPresetResponse(item.Preset, item.SkuCount))
+            .ToArray();
+    }
+
+    public async Task<AdminTagVariantPresetResponse> SaveVariantPresetAsync(
+        Guid? userId,
+        Guid? presetId,
+        UpsertTagVariantPresetRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var admin = await RequireAdminAsync(userId, cancellationToken);
+        var code = request.Code?.Trim().ToUpperInvariant() ?? string.Empty;
+        var displayName = request.DisplayName?.Trim() ?? string.Empty;
+        var description = NormalizeOptional(request.Description);
+
+        if (!VariantPresetCodePattern().IsMatch(code))
+            throw ValidationFailed("code", "Use 2-40 uppercase letters, numbers, dashes, or underscores for the preset code.");
+        if (displayName.Length == 0)
+            throw ValidationFailed("displayName", "Enter a display name for this variant preset.");
+
+        var duplicateName = displayName.ToLowerInvariant();
+        if (await _dbContext.TagVariantPresets.AnyAsync(
+                item => (item.Code == code || item.DisplayName.ToLower() == duplicateName)
+                    && (!presetId.HasValue || item.Id != presetId.Value),
+                cancellationToken))
+            throw ValidationFailed("code", "A variant preset with this code or display name already exists.");
+
+        TagVariantPreset preset;
+        object? before = null;
+
+        if (presetId.HasValue)
+        {
+            preset = await _dbContext.TagVariantPresets
+                .SingleOrDefaultAsync(item => item.Id == presetId.Value, cancellationToken)
+                ?? throw NotFound("Variant preset was not found.");
+            ApplyConcurrency(preset, request.ConcurrencyToken);
+            before = PresetSnapshot(preset);
+        }
+        else
+        {
+            preset = new TagVariantPreset();
+            _dbContext.TagVariantPresets.Add(preset);
+        }
+
+        preset.Code = code;
+        preset.DisplayName = displayName;
+        preset.Description = description;
+        preset.IsActive = request.IsActive;
+        preset.SortOrder = request.SortOrder;
+
+        // Deactivating is the only way to retire a preset; there is no delete,
+        // so SKUs that reference it always stay readable.
+        _auditLogService.Append(
+            admin.Id, ActorType.Admin,
+            presetId.HasValue ? "tag-variant-preset.update" : "tag-variant-preset.create",
+            "TagVariantPreset", preset.Id, before, PresetSnapshot(preset));
+        await SaveAsync(cancellationToken);
+
+        var skuCount = await _dbContext.TagProductVariants
+            .CountAsync(item => item.TagVariantPresetId == preset.Id, cancellationToken);
+        return ToPresetResponse(preset, skuCount);
+    }
+
+    // Resolves the preset an SKU is being saved with. Inactive presets stay
+    // valid only while the SKU already uses them, so retiring a preset never
+    // breaks existing SKUs but stops new assignments.
+    private async Task<TagVariantPreset> ResolveVariantPresetAsync(
+        Guid? presetId,
+        TagProductVariant? existing,
+        CancellationToken cancellationToken)
+    {
+        if (!presetId.HasValue || presetId.Value == Guid.Empty)
+            throw ValidationFailed("tagVariantPresetId", "Choose a variant preset.");
+
+        var preset = await _dbContext.TagVariantPresets
+            .SingleOrDefaultAsync(item => item.Id == presetId.Value, cancellationToken)
+            ?? throw ValidationFailed("tagVariantPresetId", "The selected variant preset could not be found.");
+
+        if (!preset.IsActive && existing?.TagVariantPresetId != preset.Id)
+            throw ValidationFailed("tagVariantPresetId", "This variant preset is inactive. Choose an active preset or reactivate it in Catalog Settings.");
+
+        return preset;
+    }
+
+    private static AdminTagVariantPresetResponse ToPresetResponse(TagVariantPreset preset, int skuCount) => new(
+        preset.Id, preset.Code, preset.DisplayName, preset.Description,
+        preset.IsActive, preset.SortOrder, skuCount, preset.UpdatedAt, EncodeToken(preset.RowVersion));
+
+    private static object PresetSnapshot(TagVariantPreset preset) =>
+        new { preset.Code, preset.DisplayName, preset.Description, preset.IsActive, preset.SortOrder };
 
     private async Task<bool> ProductionFieldsLockedAsync(Guid variantId, CancellationToken cancellationToken) =>
         await _dbContext.SmartTags.AnyAsync(item => item.ProductVariantId == variantId, cancellationToken)
@@ -559,6 +679,7 @@ public sealed partial class TagCatalogService : ITagCatalogService
     private void ApplyConcurrency(TagProduct entity, string? token) => _dbContext.Entry(entity).Property(item => item.RowVersion).OriginalValue = DecodeToken(token);
     private void ApplyConcurrency(TagProductVariant entity, string? token) => _dbContext.Entry(entity).Property(item => item.RowVersion).OriginalValue = DecodeToken(token);
     private void ApplyConcurrency(Promotion entity, string? token) => _dbContext.Entry(entity).Property(item => item.RowVersion).OriginalValue = DecodeToken(token);
+    private void ApplyConcurrency(TagVariantPreset entity, string? token) => _dbContext.Entry(entity).Property(item => item.RowVersion).OriginalValue = DecodeToken(token);
 
     private static byte[] DecodeToken(string? token)
     {
@@ -597,4 +718,6 @@ public sealed partial class TagCatalogService : ITagCatalogService
     private static partial Regex SlugPattern();
     [GeneratedRegex("^[A-Z0-9][A-Z0-9._-]{2,79}$")]
     private static partial Regex SkuPattern();
+    [GeneratedRegex("^[A-Z0-9][A-Z0-9_-]{1,39}$")]
+    private static partial Regex VariantPresetCodePattern();
 }

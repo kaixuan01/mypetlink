@@ -170,6 +170,20 @@ type BackendInventoryItem = {
   lastScannedAt?: string | null;
 };
 
+function normalizeVariantLabel(value?: string | null): TagVariant {
+  const normalized = value?.trim() ?? "";
+
+  if (!normalized) {
+    return "Standard";
+  }
+
+  if (normalized.toLowerCase() === "lightweight") {
+    return "Lightweight";
+  }
+
+  return normalized.toLowerCase() === "standard" ? "Standard" : normalized;
+}
+
 function mapBackendItem(item: BackendInventoryItem): AdminInventoryTag {
   return {
     id: item.id,
@@ -178,10 +192,9 @@ function mapBackendItem(item: BackendInventoryItem): AdminInventoryTag {
     sku: item.sku ?? undefined,
     productName: item.productName ?? undefined,
     hasNfc: item.hasNfc,
-    variant:
-      item.variant?.trim().toLowerCase() === "lightweight"
-        ? "Lightweight"
-        : "Standard",
+    // Variant labels are Admin-configurable presets, so unknown values are
+    // preserved rather than collapsed; only the built-in pair is canonicalized.
+    variant: normalizeVariantLabel(item.variant),
     batchNo: item.batchNo ?? undefined,
     resellerName: item.resellerName ?? undefined,
     status: item.status === "Unclaimed" ? "Unassigned" : (item.status as TagStatus),

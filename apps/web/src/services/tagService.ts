@@ -260,11 +260,21 @@ function toTagStatus(value: string): TagStatus {
     : "Disabled";
 }
 
-// Maps backend variant text to the two supported variants. Legacy shape values
-// (Round/Bone/etc.) and anything unknown fall back to Standard so old local
-// records keep rendering.
+// Canonicalizes the two built-in variant casings and keeps any configured
+// variant preset name as-is; only blank/missing values fall back to Standard
+// so old local records keep rendering.
 function toTagVariant(value: string): TagVariant {
-  return value?.trim().toLowerCase() === "lightweight" ? "Lightweight" : "Standard";
+  const normalized = value?.trim() ?? "";
+
+  if (!normalized) {
+    return "Standard";
+  }
+
+  if (normalized.toLowerCase() === "lightweight") {
+    return "Lightweight";
+  }
+
+  return normalized.toLowerCase() === "standard" ? "Standard" : normalized;
 }
 
 function formatAmount(amount: number, currency: string) {

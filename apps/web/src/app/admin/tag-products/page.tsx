@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { AdminTagProductsManager } from "@/components/admin/AdminTagProductsManager";
 import { PageHeader } from "@/components/ui/PageHeader";
 
@@ -10,9 +11,12 @@ export default function AdminTagProductsPage() {
       <PageHeader
         eyebrow="Admin"
         title="Tag products"
-        description="Manage customer-facing products, production SKUs, prices, and automatic promotions."
+        description="Manage customer-facing products, production SKUs, prices, automatic promotions, and catalog settings."
       />
-      <AdminTagProductsManager />
+      {/* The manager reads its tab and open product/SKU from the URL. */}
+      <Suspense fallback={null}>
+        <AdminTagProductsManager />
+      </Suspense>
     </>
   );
 }

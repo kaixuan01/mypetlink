@@ -20,7 +20,9 @@ export type IconName =
   | "copy"
   | "more"
   | "calendar"
-  | "chevron";
+  | "chevron"
+  | "close"
+  | "menu";
 
 type IconProps = SVGProps<SVGSVGElement> & {
   name: IconName;
@@ -174,4 +176,17 @@ const paths: Record<IconName, ReactNode> = {
     </>
   ),
   chevron: <path d="m6 9 6 6 6-6" />,
+  close: (
+    <>
+      <path d="m6 6 12 12" />
+      <path d="m18 6-12 12" />
+    </>
+  ),
+  menu: (
+    <>
+      <path d="M4 6h16" />
+      <path d="M4 12h16" />
+      <path d="M4 18h16" />
+    </>
+  ),
 };

@@ -60,4 +60,20 @@ public sealed class AdminTagProductsController : ApiControllerBase
     public async Task<IActionResult> ArchiveVariant(Guid variantId, [FromBody] ArchiveCatalogRecordRequest request, CancellationToken cancellationToken) =>
         Ok(ApiEnvelope.Ok(await _catalogService.ArchiveVariantAsync(
             _currentUserService.Current.UserId, variantId, request.ConcurrencyToken, cancellationToken), HttpContext));
+
+    // Catalog Settings: Admin-configurable variant presets. Presets referenced
+    // by SKUs are deactivated rather than deleted, so there is no delete route.
+    [HttpGet("variant-presets")]
+    public async Task<IActionResult> ListVariantPresets(CancellationToken cancellationToken) =>
+        Ok(ApiEnvelope.Ok(await _catalogService.ListVariantPresetsAsync(cancellationToken), HttpContext));
+
+    [HttpPost("variant-presets")]
+    public async Task<IActionResult> CreateVariantPreset([FromBody] UpsertTagVariantPresetRequest request, CancellationToken cancellationToken) =>
+        StatusCode(StatusCodes.Status201Created, ApiEnvelope.Ok(await _catalogService.SaveVariantPresetAsync(
+            _currentUserService.Current.UserId, null, request, cancellationToken), HttpContext));
+
+    [HttpPut("variant-presets/{presetId:guid}")]
+    public async Task<IActionResult> UpdateVariantPreset(Guid presetId, [FromBody] UpsertTagVariantPresetRequest request, CancellationToken cancellationToken) =>
+        Ok(ApiEnvelope.Ok(await _catalogService.SaveVariantPresetAsync(
+            _currentUserService.Current.UserId, presetId, request, cancellationToken), HttpContext));
 }

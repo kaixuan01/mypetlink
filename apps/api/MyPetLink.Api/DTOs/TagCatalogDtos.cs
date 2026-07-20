@@ -35,7 +35,7 @@ public sealed record UpsertTagProductVariantRequest(
     [param: Required, MaxLength(160)] string DisplayName,
     bool SupportsQr,
     bool SupportsNfc,
-    [param: Required, MaxLength(80)] string TagVariant,
+    [param: Required] Guid? TagVariantPresetId,
     decimal? WidthMm,
     decimal? HeightMm,
     decimal? ThicknessMm,
@@ -56,6 +56,27 @@ public sealed record UpsertTagProductVariantRequest(
 
 public sealed record ArchiveCatalogRecordRequest(
     [param: Required] string ConcurrencyToken);
+
+public sealed record UpsertTagVariantPresetRequest(
+    [param: Required, MaxLength(40)] string Code,
+    [param: Required, MaxLength(80)] string DisplayName,
+    [param: MaxLength(400)] string? Description,
+    bool IsActive,
+    [param: Range(0, 10_000)] int SortOrder,
+    string? ConcurrencyToken);
+
+// SkuCount tells the Admin how many SKUs reference the preset — referenced
+// presets can only be deactivated, never deleted.
+public sealed record AdminTagVariantPresetResponse(
+    Guid Id,
+    string Code,
+    string DisplayName,
+    string? Description,
+    bool IsActive,
+    int SortOrder,
+    int SkuCount,
+    DateTimeOffset UpdatedAt,
+    string ConcurrencyToken);
 
 public sealed record AdminTagProductListItemResponse(
     Guid Id,
@@ -84,6 +105,7 @@ public sealed record AdminTagProductVariantResponse(
     string DisplayName,
     bool SupportsQr,
     bool SupportsNfc,
+    Guid? TagVariantPresetId,
     string TagVariant,
     decimal? WidthMm,
     decimal? HeightMm,

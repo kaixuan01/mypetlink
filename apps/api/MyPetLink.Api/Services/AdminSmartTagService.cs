@@ -415,11 +415,8 @@ public sealed class AdminSmartTagService : SkeletonService, IAdminSmartTagServic
 
         if (NormalizeOptional(query.Variant) is { } variant)
         {
-            if (!variant.Equals(TagVariants.Lightweight, StringComparison.OrdinalIgnoreCase)
-                && !variant.Equals(TagVariants.Standard, StringComparison.OrdinalIgnoreCase))
-            {
-                throw ValidationFailed("variant", "Tag variant is not supported.");
-            }
+            // Variant labels are Admin-configurable presets, so any value is a
+            // valid filter; canonicalize only the two built-in casings.
             var normalized = TagVariants.Normalize(variant);
             tags = tags.Where(tag => tag.Variant == normalized);
         }

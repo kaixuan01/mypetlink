@@ -239,11 +239,8 @@ public sealed class AdminOrderQueryService : SkeletonService, IAdminOrderQuerySe
 
         if (NormalizeOptional(query.Variant) is { } variant)
         {
-            if (!variant.Equals(TagVariants.Lightweight, StringComparison.OrdinalIgnoreCase)
-                && !variant.Equals(TagVariants.Standard, StringComparison.OrdinalIgnoreCase))
-            {
-                throw ValidationFailed("variant", "Tag variant is not supported.");
-            }
+            // Variant labels are Admin-configurable presets, so any value is a
+            // valid filter; canonicalize only the two built-in casings.
             var normalized = TagVariants.Normalize(variant);
             orders = orders.Where(order => order.Variant == normalized);
         }

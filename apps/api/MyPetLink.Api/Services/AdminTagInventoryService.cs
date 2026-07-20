@@ -870,12 +870,8 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
         var variant = NormalizeOptional(query.Variant);
         if (variant is not null)
         {
-            if (!variant.Equals(TagVariants.Lightweight, StringComparison.OrdinalIgnoreCase)
-                && !variant.Equals(TagVariants.Standard, StringComparison.OrdinalIgnoreCase))
-            {
-                throw ValidationFailed("variant", "Tag variant is not supported.");
-            }
-
+            // Variant labels are Admin-configurable presets, so any value is a
+            // valid filter; canonicalize only the two built-in casings.
             var normalizedVariant = TagVariants.Normalize(variant);
             tags = tags.Where(tag => tag.Variant == normalizedVariant);
         }

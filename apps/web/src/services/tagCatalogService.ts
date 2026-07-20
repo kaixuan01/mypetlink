@@ -65,6 +65,7 @@ export type AdminTagProductVariant = {
   displayName: string;
   supportsQr: boolean;
   supportsNfc: boolean;
+  tagVariantPresetId?: string | null;
   tagVariant: string;
   widthMm?: number | null;
   heightMm?: number | null;
@@ -128,7 +129,7 @@ export type AdminVariantInput = {
   displayName: string;
   supportsQr: boolean;
   supportsNfc: boolean;
-  tagVariant: string;
+  tagVariantPresetId?: string | null;
   widthMm?: number | null;
   heightMm?: number | null;
   thicknessMm?: number | null;
@@ -169,6 +170,29 @@ export type AdminPromotionInput = Omit<
   AdminPromotion,
   "id" | "updatedAt" | "concurrencyToken"
 > & {
+  concurrencyToken?: string | null;
+};
+
+// Admin-configurable variant classification managed in Catalog Settings.
+// Presets referenced by SKUs are deactivated, never deleted.
+export type AdminTagVariantPreset = {
+  id: string;
+  code: string;
+  displayName: string;
+  description?: string | null;
+  isActive: boolean;
+  sortOrder: number;
+  skuCount: number;
+  updatedAt: string;
+  concurrencyToken: string;
+};
+
+export type AdminTagVariantPresetInput = {
+  code: string;
+  displayName: string;
+  description?: string | null;
+  isActive: boolean;
+  sortOrder: number;
   concurrencyToken?: string | null;
 };
 
@@ -270,6 +294,27 @@ export async function saveAdminPromotion(input: AdminPromotionInput, promotionId
     { method: promotionId ? "PUT" : "POST", body: input }
   );
   if (!response.data) throw new Error("Promotion could not be saved.");
+  return response.data;
+}
+
+export async function listAdminTagVariantPresets() {
+  const response = await apiRequest<AdminTagVariantPreset[]>(
+    "/api/v1/admin/tag-products/variant-presets"
+  );
+  return response.data ?? [];
+}
+
+export async function saveAdminTagVariantPreset(
+  input: AdminTagVariantPresetInput,
+  presetId?: string
+) {
+  const response = await apiRequest<AdminTagVariantPreset>(
+    presetId
+      ? `/api/v1/admin/tag-products/variant-presets/${encodeURIComponent(presetId)}`
+      : "/api/v1/admin/tag-products/variant-presets",
+    { method: presetId ? "PUT" : "POST", body: input }
+  );
+  if (!response.data) throw new Error("Variant preset could not be saved.");
   return response.data;
 }
 

@@ -296,7 +296,10 @@ export type TagType = "MyPetLink QR Pet Tag" | "MyPetLink QR + NFC Smart Tag";
 
 // Tag variant (formerly the physical shape option): Lightweight for cats/small
 // pets, Standard for dogs/medium-large pets. Applies to both QR and QR + NFC.
-export type TagVariant = "Lightweight" | "Standard";
+// Variant classification label. Lightweight and Standard are the built-in
+// values; Admins can configure additional presets in the Admin Portal's
+// Catalog Settings, so this is an open string rather than a fixed union.
+export type TagVariant = string;
 
 // Physical fulfilment progress of a tag, tracked separately from TagStatus:
 // a tag can be Unassigned (lifecycle) while already SentToReseller

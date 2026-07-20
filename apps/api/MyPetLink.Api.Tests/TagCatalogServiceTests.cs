@@ -54,7 +54,7 @@ public sealed class TagCatalogServiceTests
     public async Task Catalog_RequiresAdmin_NormalizesSku_AndRejectsDuplicates()
     {
         await using var harness = await Harness.CreateAsync();
-        var request = ValidVariant("mpl-qr-standard-v1");
+        var request = harness.ValidVariant("mpl-qr-standard-v1");
 
         var unauthorized = await Assert.ThrowsAsync<ApiException>(() =>
             harness.Service.CreateVariantAsync(null, harness.Product.Id, request));
@@ -64,7 +64,7 @@ public sealed class TagCatalogServiceTests
         Assert.Equal("MPL-QR-STANDARD-V1", created.Sku);
 
         var duplicate = await Assert.ThrowsAsync<ApiException>(() =>
-            harness.Service.CreateVariantAsync(AdminId, harness.Product.Id, ValidVariant("MPL-QR-STANDARD-V1")));
+            harness.Service.CreateVariantAsync(AdminId, harness.Product.Id, harness.ValidVariant("MPL-QR-STANDARD-V1")));
         Assert.Contains("already in use", duplicate.Details!["sku"].Single());
     }
 
@@ -114,7 +114,7 @@ public sealed class TagCatalogServiceTests
         harness.Db.TagProducts.Add(draft);
         await harness.Db.SaveChangesAsync();
 
-        await harness.Service.CreateVariantAsync(AdminId, draft.Id, ValidVariant("MPL-DRAFT-V1"));
+        await harness.Service.CreateVariantAsync(AdminId, draft.Id, harness.ValidVariant("MPL-DRAFT-V1"));
         var published = await harness.Service.UpdateProductAsync(
             AdminId,
             draft.Id,
@@ -164,7 +164,7 @@ public sealed class TagCatalogServiceTests
         bool supportsQr, decimal price, decimal width, decimal height, decimal weight)
     {
         await using var harness = await Harness.CreateAsync();
-        var request = ValidVariant("MPL-VALIDATION-V1") with
+        var request = harness.ValidVariant("MPL-VALIDATION-V1") with
         {
             SupportsQr = supportsQr,
             BasePrice = price,
@@ -182,7 +182,7 @@ public sealed class TagCatalogServiceTests
     public async Task Catalog_PreventsPurchasableVariantWithIncompleteProductionData()
     {
         await using var harness = await Harness.CreateAsync();
-        var request = ValidVariant("MPL-INCOMPLETE-V1") with { Material = null };
+        var request = harness.ValidVariant("MPL-INCOMPLETE-V1") with { Material = null };
 
         var error = await Assert.ThrowsAsync<ApiException>(() =>
             harness.Service.CreateVariantAsync(AdminId, harness.Product.Id, request));
@@ -194,7 +194,7 @@ public sealed class TagCatalogServiceTests
     public async Task Catalog_LocksProductionFieldsAfterInventory_ButAllowsPriceChangesAndNewSkuVersions()
     {
         await using var harness = await Harness.CreateAsync();
-        var created = await harness.Service.CreateVariantAsync(AdminId, harness.Product.Id, ValidVariant("MPL-LOCKED-V1"));
+        var created = await harness.Service.CreateVariantAsync(AdminId, harness.Product.Id, harness.ValidVariant("MPL-LOCKED-V1"));
         var storedVariant = await harness.Db.TagProductVariants.SingleAsync(item => item.Id == created.Id);
         storedVariant.RowVersion = [2];
         harness.Db.SmartTags.Add(new SmartTag
@@ -209,7 +209,7 @@ public sealed class TagCatalogServiceTests
         await harness.Db.SaveChangesAsync();
         var concurrencyToken = Convert.ToBase64String(storedVariant.RowVersion);
 
-        var changedSize = ValidVariant(created.Sku) with
+        var changedSize = harness.ValidVariant(created.Sku) with
         {
             WidthMm = 40m,
             BasePrice = created.BasePrice,
@@ -220,7 +220,7 @@ public sealed class TagCatalogServiceTests
         Assert.Equal(StatusCodes.Status409Conflict, locked.StatusCode);
         Assert.Contains("versioned SKU", locked.Message);
 
-        var priceOnly = ValidVariant(created.Sku) with
+        var priceOnly = harness.ValidVariant(created.Sku) with
         {
             BasePrice = 39.90m,
             ConcurrencyToken = concurrencyToken
@@ -228,7 +228,7 @@ public sealed class TagCatalogServiceTests
         var repriced = await harness.Service.UpdateVariantAsync(AdminId, created.Id, priceOnly);
         Assert.Equal(39.90m, repriced.BasePrice);
 
-        var versionTwo = await harness.Service.CreateVariantAsync(AdminId, harness.Product.Id, ValidVariant("MPL-LOCKED-V2") with { WidthMm = 40m });
+        var versionTwo = await harness.Service.CreateVariantAsync(AdminId, harness.Product.Id, harness.ValidVariant("MPL-LOCKED-V2") with { WidthMm = 40m });
         Assert.Equal("MPL-LOCKED-V2", versionTwo.Sku);
     }
 
@@ -236,8 +236,8 @@ public sealed class TagCatalogServiceTests
     public async Task Catalog_FiltersDraftAndArchivedProducts_AndPublicProjectionExcludesUnavailableVariants()
     {
         await using var harness = await Harness.CreateAsync();
-        await harness.Service.CreateVariantAsync(AdminId, harness.Product.Id, ValidVariant("MPL-PUBLIC-V1"));
-        await harness.Service.CreateVariantAsync(AdminId, harness.Product.Id, ValidVariant("MPL-INACTIVE-V1") with { IsActive = false, IsPurchasable = false });
+        await harness.Service.CreateVariantAsync(AdminId, harness.Product.Id, harness.ValidVariant("MPL-PUBLIC-V1"));
+        await harness.Service.CreateVariantAsync(AdminId, harness.Product.Id, harness.ValidVariant("MPL-INACTIVE-V1") with { IsActive = false, IsPurchasable = false });
         var draft = new TagProduct { Name = "Draft", Slug = "draft", ShortDescription = "Not public", IsPublished = false };
         harness.Db.TagProducts.Add(draft);
         await harness.Db.SaveChangesAsync();
@@ -256,7 +256,7 @@ public sealed class TagCatalogServiceTests
     public async Task PromotionValidation_RejectsBadDatesExcessPercentageAndDiscountBelowZero()
     {
         await using var harness = await Harness.CreateAsync();
-        var variant = await harness.Service.CreateVariantAsync(AdminId, harness.Product.Id, ValidVariant("MPL-PROMO-V1"));
+        var variant = await harness.Service.CreateVariantAsync(AdminId, harness.Product.Id, harness.ValidVariant("MPL-PROMO-V1"));
         var start = DateTimeOffset.UtcNow.AddHours(-1);
 
         foreach (var request in new[]
@@ -284,13 +284,126 @@ public sealed class TagCatalogServiceTests
         Assert.Equal(0, total);
     }
 
+    // --- Variant presets (Catalog Settings) --------------------------------------------
+
+    [Fact]
+    public async Task VariantPresets_CreateNormalizesCode_AndRejectsCaseInsensitiveDuplicates()
+    {
+        await using var harness = await Harness.CreateAsync();
+
+        var created = await harness.Service.SaveVariantPresetAsync(
+            AdminId, null, new UpsertTagVariantPresetRequest("collar-slide", "Collar Slide", "Slides onto a flat collar.", true, 5, null));
+
+        Assert.Equal("COLLAR-SLIDE", created.Code);
+        Assert.True(created.IsActive);
+        Assert.Equal(0, created.SkuCount);
+
+        var duplicateCode = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Service.SaveVariantPresetAsync(
+                AdminId, null, new UpsertTagVariantPresetRequest("COLLAR-SLIDE", "Another Name", null, true, 6, null)));
+        Assert.Contains("already exists", duplicateCode.Details!["code"].Single());
+
+        var duplicateName = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Service.SaveVariantPresetAsync(
+                AdminId, null, new UpsertTagVariantPresetRequest("OTHER-CODE", "collar slide", null, true, 7, null)));
+        Assert.Contains("already exists", duplicateName.Details!["code"].Single());
+
+        var unauthorized = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Service.SaveVariantPresetAsync(
+                null, null, new UpsertTagVariantPresetRequest("SILICONE", "Silicone", null, true, 8, null)));
+        Assert.Equal(StatusCodes.Status401Unauthorized, unauthorized.StatusCode);
+    }
+
+    [Fact]
+    public async Task VariantPresets_InactivePresetBlocksNewSkus_ButExistingSkuKeepsWorking()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var created = await harness.Service.CreateVariantAsync(AdminId, harness.Product.Id, harness.ValidVariant("MPL-PRESET-V1"));
+        Assert.Equal(harness.StandardPreset.Id, created.TagVariantPresetId);
+        Assert.Equal("Standard", created.TagVariant);
+
+        harness.StandardPreset.IsActive = false;
+        await harness.Db.SaveChangesAsync();
+
+        // A new SKU may not use the retired preset...
+        var blocked = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Service.CreateVariantAsync(AdminId, harness.Product.Id, harness.ValidVariant("MPL-PRESET-V2")));
+        Assert.Contains("inactive", blocked.Details!["tagVariantPresetId"].Single());
+
+        // ...but the existing SKU can still be edited while keeping it.
+        var variantRow = await harness.Db.TagProductVariants.SingleAsync(item => item.Id == created.Id);
+        variantRow.RowVersion = [3];
+        await harness.Db.SaveChangesAsync();
+        var updated = await harness.Service.UpdateVariantAsync(
+            AdminId, created.Id,
+            harness.ValidVariant(created.Sku) with { BasePrice = 34.90m, ConcurrencyToken = Convert.ToBase64String(variantRow.RowVersion) });
+        Assert.Equal(harness.StandardPreset.Id, updated.TagVariantPresetId);
+        Assert.Equal(34.90m, updated.BasePrice);
+    }
+
+    [Fact]
+    public async Task VariantPresets_RenamingPresetDoesNotRewriteSkuSnapshotOrHistoricalOrders()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var created = await harness.Service.CreateVariantAsync(AdminId, harness.Product.Id, harness.ValidVariant("MPL-SNAP-V1"));
+        var order = new TagOrder
+        {
+            OrderNumber = "ORD-9001",
+            OwnerUserId = AdminId,
+            PetId = Guid.NewGuid(),
+            TagType = TagType.QrPetTag,
+            Variant = created.TagVariant,
+            Amount = 29.90m,
+            Currency = "MYR",
+            RecipientName = "A",
+            DeliveryPhoneE164 = "+60123456789",
+            AddressLine1 = "1 Jalan Test",
+            Postcode = "50000",
+            City = "KL",
+            State = "WP"
+        };
+        harness.Db.TagOrders.Add(order);
+        harness.Db.TagOrderItems.Add(new TagOrderItem
+        {
+            Order = order,
+            ProductVariantId = created.Id,
+            SkuSnapshot = created.Sku,
+            ProductNameSnapshot = "MyPetLink Tag",
+            VariantNameSnapshot = created.TagVariant,
+            UnitBasePrice = 29.90m,
+            Quantity = 1,
+            Subtotal = 29.90m,
+            FinalUnitPrice = 29.90m,
+            FinalAmount = 29.90m,
+            Currency = "MYR"
+        });
+        await harness.Db.SaveChangesAsync();
+
+        harness.StandardPreset.RowVersion = [9];
+        await harness.Db.SaveChangesAsync();
+        await harness.Service.SaveVariantPresetAsync(
+            AdminId, harness.StandardPreset.Id,
+            new UpsertTagVariantPresetRequest("STANDARD", "Standard Metal", null, true, 0, Convert.ToBase64String([9])));
+
+        // SKU snapshot and order snapshot keep the original label.
+        var skuRow = await harness.Db.TagProductVariants.AsNoTracking().SingleAsync(item => item.Id == created.Id);
+        Assert.Equal("Standard", skuRow.TagVariant);
+        var orderItem = await harness.Db.TagOrderItems.AsNoTracking().SingleAsync();
+        Assert.Equal("Standard", orderItem.VariantNameSnapshot);
+
+        // Saving the SKU with the unchanged preset also keeps the snapshot: a
+        // rename never silently reclassifies an existing SKU.
+        var variantRow = await harness.Db.TagProductVariants.SingleAsync(item => item.Id == created.Id);
+        variantRow.RowVersion = [4];
+        await harness.Db.SaveChangesAsync();
+        var resaved = await harness.Service.UpdateVariantAsync(
+            AdminId, created.Id,
+            harness.ValidVariant(created.Sku) with { ConcurrencyToken = Convert.ToBase64String([4]) });
+        Assert.Equal("Standard", resaved.TagVariant);
+    }
+
     private static UpsertPromotionRequest PromotionRequest(Guid variantId, DateTimeOffset startsAt, DateTimeOffset endsAt, PromotionDiscountType type, decimal value) =>
         new("Sale", null, "Sale", true, true, type, value, startsAt, endsAt, 1, [variantId], null);
-
-    private static UpsertTagProductVariantRequest ValidVariant(string sku) => new(
-        sku, "Standard tag", true, false, "Standard", 32m, 32m, 2m, 8m,
-        "Stainless steel", "Round", "Silver", "Retail sleeve", 29.90m, "MYR", null,
-        "TPL-QR-STANDARD", "Print both sides", true, true, 0, null);
 
     private static TagProductVariant Variant(decimal price) => new()
     {
@@ -330,10 +443,11 @@ public sealed class TagCatalogServiceTests
 
     private sealed class Harness : IAsyncDisposable
     {
-        private Harness(MyPetLinkDbContext db, TagProduct product)
+        private Harness(MyPetLinkDbContext db, TagProduct product, TagVariantPreset standardPreset)
         {
             Db = db;
             Product = product;
+            StandardPreset = standardPreset;
             Service = new TagCatalogService(
                 db,
                 new AuditLogService(db, new HttpContextAccessor()),
@@ -343,7 +457,13 @@ public sealed class TagCatalogServiceTests
 
         public MyPetLinkDbContext Db { get; }
         public TagProduct Product { get; }
+        public TagVariantPreset StandardPreset { get; }
         public TagCatalogService Service { get; }
+
+        public UpsertTagProductVariantRequest ValidVariant(string sku) => new(
+            sku, "Standard tag", true, false, StandardPreset.Id, 32m, 32m, 2m, 8m,
+            "Stainless steel", "Round", "Silver", "Retail sleeve", 29.90m, "MYR", null,
+            "TPL-QR-STANDARD", "Print both sides", true, true, 0, null);
 
         public static async Task<Harness> CreateAsync()
         {
@@ -365,9 +485,16 @@ public sealed class TagCatalogServiceTests
                 IsPublished = true,
                 RowVersion = [1]
             };
-            db.AddRange(admin, product);
+            var standardPreset = new TagVariantPreset
+            {
+                Code = "STANDARD",
+                DisplayName = "Standard",
+                IsActive = true,
+                RowVersion = [1]
+            };
+            db.AddRange(admin, product, standardPreset);
             await db.SaveChangesAsync();
-            return new Harness(db, product);
+            return new Harness(db, product, standardPreset);
         }
 
         public ValueTask DisposeAsync() => Db.DisposeAsync();

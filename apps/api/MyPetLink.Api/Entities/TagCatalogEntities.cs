@@ -15,6 +15,25 @@ public sealed class TagProduct : AuditableEntity
     public ICollection<TagProductMedia> Media { get; set; } = new List<TagProductMedia>();
 }
 
+// Admin-configurable classification for SKUs (e.g. Lightweight, Standard, or
+// future values like Collar Slide) managed in Catalog Settings. A preset is a
+// controlled label only: every SKU keeps its own physical specifications, and
+// the SKU stores the preset's display name as a snapshot (TagProductVariant.
+// TagVariant) so renaming a preset never rewrites produced inventory or
+// historical order snapshots. Presets referenced by SKUs are deactivated, not
+// deleted.
+public sealed class TagVariantPreset : AuditableEntity
+{
+    public string Code { get; set; } = "";
+    public string DisplayName { get; set; } = "";
+    public string? Description { get; set; }
+    public bool IsActive { get; set; } = true;
+    public int SortOrder { get; set; }
+    public byte[] RowVersion { get; set; } = [];
+
+    public ICollection<TagProductVariant> ProductVariants { get; set; } = new List<TagProductVariant>();
+}
+
 public sealed class TagProductVariant : AuditableEntity
 {
     public Guid TagProductId { get; set; }
@@ -23,6 +42,9 @@ public sealed class TagProductVariant : AuditableEntity
     public string DisplayName { get; set; } = "";
     public bool SupportsQr { get; set; } = true;
     public bool SupportsNfc { get; set; }
+    // Display snapshot of the variant preset at assignment time. Kept even if
+    // the preset is later renamed or deactivated; null preset = legacy SKU.
+    public Guid? TagVariantPresetId { get; set; }
     public string TagVariant { get; set; } = "Standard";
     public decimal? WidthMm { get; set; }
     public decimal? HeightMm { get; set; }
@@ -44,6 +66,7 @@ public sealed class TagProductVariant : AuditableEntity
     public byte[] RowVersion { get; set; } = [];
 
     public TagProduct TagProduct { get; set; } = null!;
+    public TagVariantPreset? TagVariantPreset { get; set; }
     public ICollection<TagProductMedia> Media { get; set; } = new List<TagProductMedia>();
     public ICollection<PromotionVariant> PromotionVariants { get; set; } = new List<PromotionVariant>();
     public ICollection<SmartTagBatch> SmartTagBatches { get; set; } = new List<SmartTagBatch>();
