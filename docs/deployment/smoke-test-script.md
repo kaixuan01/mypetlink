@@ -17,7 +17,7 @@ You will need three sessions to cover auth: **anonymous** (no token), a **non-ad
 | --- | --- | --- |
 | Health | `GET {API}/api/v1/health` | `200` `{ "status": "ok", "service": "MyPetLink.Api" }` |
 | Swagger (dev only) | open `{API}/swagger` | Local Development: UI loads. Production: `404`. |
-| Dev test login guard | `POST {API}/api/v1/dev/test-login` | Local Development only: session response. Production: `404`. |
+| Development Admin login guard | `POST {API}/api/v1/dev-auth/admin-login` | Explicitly enabled loopback Development: session response. Disabled/shared/Production: `404` (Production also fails startup if DevAuth is enabled). |
 | Auth required | `GET {API}/api/v1/auth/me` (no token) | `401` |
 | Admin anonymous | `GET {API}/api/v1/admin/auth/check` (no token) | `401` |
 | Admin non-admin | `GET {API}/api/v1/admin/auth/check` (owner token) | `403` |

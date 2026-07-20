@@ -17,45 +17,45 @@ public sealed class AdminTagProductQuery : PagedQuery
 public sealed record TagProductMediaRequest(
     Guid MediaFileId,
     Guid? ProductVariantId,
-    [property: Range(0, 10_000)] int SortOrder,
-    [property: Required, MaxLength(300)] string AltText);
+    [param: Range(0, 10_000)] int SortOrder,
+    [param: Required, MaxLength(300)] string AltText);
 
 public sealed record UpsertTagProductRequest(
-    [property: Required, MaxLength(160)] string Name,
-    [property: Required, MaxLength(120)] string Slug,
-    [property: MaxLength(300)] string? ShortDescription,
-    [property: MaxLength(4000)] string? Description,
+    [param: Required, MaxLength(160)] string Name,
+    [param: Required, MaxLength(120)] string Slug,
+    [param: MaxLength(300)] string? ShortDescription,
+    [param: MaxLength(4000)] string? Description,
     bool IsPublished,
-    [property: Range(0, 10_000)] int SortOrder,
+    [param: Range(0, 10_000)] int SortOrder,
     IReadOnlyCollection<TagProductMediaRequest>? Media,
     string? ConcurrencyToken);
 
 public sealed record UpsertTagProductVariantRequest(
-    [property: Required, MaxLength(80)] string Sku,
-    [property: Required, MaxLength(160)] string DisplayName,
+    [param: Required, MaxLength(80)] string Sku,
+    [param: Required, MaxLength(160)] string DisplayName,
     bool SupportsQr,
     bool SupportsNfc,
-    [property: Required, MaxLength(80)] string TagVariant,
+    [param: Required, MaxLength(80)] string TagVariant,
     decimal? WidthMm,
     decimal? HeightMm,
     decimal? ThicknessMm,
     decimal? WeightGrams,
-    [property: MaxLength(160)] string? Material,
-    [property: MaxLength(120)] string? Shape,
-    [property: MaxLength(120)] string? Colour,
-    [property: MaxLength(200)] string? PackagingType,
+    [param: MaxLength(160)] string? Material,
+    [param: MaxLength(120)] string? Shape,
+    [param: MaxLength(120)] string? Colour,
+    [param: MaxLength(200)] string? PackagingType,
     decimal BasePrice,
-    [property: Required, MaxLength(3)] string Currency,
+    [param: Required, MaxLength(3)] string Currency,
     decimal? CompareAtPrice,
-    [property: MaxLength(120)] string? PrintTemplateCode,
-    [property: MaxLength(1000)] string? ProductionNotes,
+    [param: MaxLength(120)] string? PrintTemplateCode,
+    [param: MaxLength(1000)] string? ProductionNotes,
     bool IsActive,
     bool IsPurchasable,
-    [property: Range(0, 10_000)] int SortOrder,
+    [param: Range(0, 10_000)] int SortOrder,
     string? ConcurrencyToken);
 
 public sealed record ArchiveCatalogRecordRequest(
-    [property: Required] string ConcurrencyToken);
+    [param: Required] string ConcurrencyToken);
 
 public sealed record AdminTagProductListItemResponse(
     Guid Id,
@@ -129,17 +129,17 @@ public sealed class AdminPromotionQuery : PagedQuery
 }
 
 public sealed record UpsertPromotionRequest(
-    [property: Required, MaxLength(160)] string Name,
-    [property: MaxLength(1000)] string? InternalDescription,
-    [property: MaxLength(160)] string? DisplayLabel,
+    [param: Required, MaxLength(160)] string Name,
+    [param: MaxLength(1000)] string? InternalDescription,
+    [param: MaxLength(160)] string? DisplayLabel,
     bool IsActive,
     bool IsAutomatic,
     PromotionDiscountType DiscountType,
     decimal DiscountValue,
     DateTimeOffset StartsAt,
     DateTimeOffset EndsAt,
-    int Priority,
-    [property: Required, MinLength(1)] Guid[] ProductVariantIds,
+    [param: Range(0, 10_000)] int Priority,
+    [param: Required, MinLength(1)] Guid[] ProductVariantIds,
     string? ConcurrencyToken);
 
 public sealed record AdminPromotionResponse(

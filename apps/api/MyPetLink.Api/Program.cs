@@ -32,8 +32,14 @@ builder.Services.AddSingleton<IValidateOptions<CloudflareR2Options>, CloudflareR
 builder.Services.Configure<FeatureOptions>(builder.Configuration.GetSection(FeatureOptions.SectionName));
 builder.Services.Configure<PublicSiteOptions>(builder.Configuration.GetSection(PublicSiteOptions.SectionName));
 builder.Services.Configure<AdminSeedOptions>(builder.Configuration.GetSection(AdminSeedOptions.SectionName));
+builder.Services.Configure<DevAuthOptions>(builder.Configuration.GetSection(DevAuthOptions.SectionName));
 builder.Services.Configure<DatabaseResilienceOptions>(
     builder.Configuration.GetSection(DatabaseResilienceOptions.SectionName));
+
+var devAuth = builder.Configuration
+    .GetSection(DevAuthOptions.SectionName)
+    .Get<DevAuthOptions>() ?? new DevAuthOptions();
+DevAuthOptions.ValidateForStartup(builder.Environment, devAuth);
 
 var databaseResilience = builder.Configuration
     .GetSection(DatabaseResilienceOptions.SectionName)
@@ -207,6 +213,8 @@ builder.Services.AddAuthorization(options =>
 
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IDevelopmentAdminSeeder, DevelopmentAdminSeeder>();
+builder.Services.AddSingleton<IDevelopmentAuthRequestGuard, DevelopmentAuthRequestGuard>();
 builder.Services.AddScoped<IOwnerProfileService, OwnerProfileService>();
 builder.Services.AddScoped<IExternalAuthService, ExternalAuthService>();
 builder.Services.AddScoped<IExternalTokenValidator, GoogleTokenValidator>();
@@ -275,6 +283,47 @@ app.UseHttpsRedirection();
 app.UseCors(FrontendCorsPolicy);
 app.UseAuthentication();
 app.UseAuthorization();
+
+if (app.Environment.IsDevelopment() && devAuth.Enabled)
+{
+    // The explicit Development opt-in seeds only the configured .local user.
+    // Missing schema/default plan errors stop local startup instead of silently
+    // creating a partial identity or applying migrations automatically.
+    await using (var scope = app.Services.CreateAsyncScope())
+    {
+        await scope.ServiceProvider
+            .GetRequiredService<IDevelopmentAdminSeeder>()
+            .EnsureSeededAsync();
+    }
+
+    app.MapPost(
+            "/api/v1/dev-auth/admin-login",
+            async (
+                HttpContext context,
+                IDevelopmentAuthRequestGuard requestGuard,
+                IAuthService authService,
+                CancellationToken cancellationToken) =>
+            {
+                if (!requestGuard.IsLoopback(context))
+                {
+                    return Results.Json(
+                        ApiEnvelope.Error(context, "not_found", "Not found."),
+                        statusCode: StatusCodes.Status404NotFound);
+                }
+
+                var userAgent = context.Request.Headers.TryGetValue("User-Agent", out var values)
+                    ? values.ToString()
+                    : null;
+                var response = await authService.SignInWithDevelopmentAdminAsync(
+                    new AuthClientContext(
+                        context.Connection.RemoteIpAddress?.ToString(),
+                        userAgent),
+                    cancellationToken);
+
+                return Results.Ok(ApiEnvelope.Ok(response, context));
+            })
+        .AllowAnonymous();
+}
 
 app.MapControllers();
 app.MapGet("/health", (HttpContext context) =>

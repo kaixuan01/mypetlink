@@ -130,6 +130,8 @@ public sealed class DatabaseResilienceTests
 
         Assert.Equal(StatusCodes.Status500InternalServerError, context.Response.StatusCode);
         Assert.Contains("server_error", body);
+        Assert.Contains("resilience-test-request", body);
+        Assert.Equal("resilience-test-request", context.Response.Headers["X-Request-Id"]);
         Assert.DoesNotContain("database_waking_up", body);
         Assert.DoesNotContain(rawMessage, body);
     }

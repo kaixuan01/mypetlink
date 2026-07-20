@@ -36,6 +36,7 @@ public sealed class ErrorHandlingMiddleware
             context.Response.Clear();
             context.Response.StatusCode = exception.StatusCode;
             context.Response.ContentType = "application/json";
+            SetRequestIdHeader(context);
 
             var response = ApiEnvelope.Error(
                 context,
@@ -74,6 +75,7 @@ public sealed class ErrorHandlingMiddleware
             context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
             context.Response.ContentType = "application/json";
             context.Response.Headers.RetryAfter = retryAfterSeconds.ToString();
+            SetRequestIdHeader(context);
 
             var response = ApiEnvelope.Error(
                 context,
@@ -85,7 +87,14 @@ public sealed class ErrorHandlingMiddleware
         }
         catch (Exception exception)
         {
-            _logger.LogError(exception, "Unhandled API exception.");
+            var requestId = ApiEnvelope.GetRequestId(context);
+            _logger.LogError(
+                exception,
+                "Unhandled API exception. RequestId={RequestId} Method={Method} Path={Path} ExceptionType={ExceptionType}.",
+                requestId,
+                context.Request.Method,
+                context.Request.Path,
+                exception.GetType().FullName);
 
             if (context.Response.HasStarted)
             {
@@ -95,6 +104,7 @@ public sealed class ErrorHandlingMiddleware
             context.Response.Clear();
             context.Response.StatusCode = StatusCodes.Status500InternalServerError;
             context.Response.ContentType = "application/json";
+            SetRequestIdHeader(context);
 
             var response = ApiEnvelope.Error(
                 context,
@@ -104,4 +114,7 @@ public sealed class ErrorHandlingMiddleware
             await JsonSerializer.SerializeAsync(context.Response.Body, response, JsonOptions, context.RequestAborted);
         }
     }
+
+    private static void SetRequestIdHeader(HttpContext context) =>
+        context.Response.Headers["X-Request-Id"] = ApiEnvelope.GetRequestId(context);
 }

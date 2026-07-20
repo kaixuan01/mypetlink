@@ -6,29 +6,16 @@ Manual + API regression script for the Phase 1 backend (`apps/api`) + frontend (
 
 - **Environment**: backend on `http://localhost:5281`, frontend on `http://localhost:3000`, local `MyPetLinkDev` (LocalDB). Do not commit the local DB or `.env.local`.
 - **Roles**: `Owner` (a signed-in owner), `Owner2` (a second owner for cross-owner checks), `Admin` (an owner promoted via `sql/first-admin-template.sql`), `Public` (anonymous).
-- **Tokens**: use the **Development-only test login** (see below) to mint owner/admin sessions without the Google popup. Real Google login still works and is unchanged; the test helper is disabled (returns `404`) outside Development.
+- **Tokens**: Owner and Owner2 use the normal Google flow. The explicitly enabled **Development-only Admin login** below can create the fixed local Admin session without a Google popup; it cannot mint arbitrary users or roles.
 
-### Development-only test login
+### Development-only Admin login
 
-`POST /api/v1/dev/test-login` issues the same JWT + refresh token response as Google login. It only works when `ASPNETCORE_ENVIRONMENT=Development`.
+Follow [`development-admin-login.md`](development-admin-login.md) first. With the API in Development, `DevAuth:Enabled=true`, and a configured `.local` Admin email, this loopback-only request issues the same JWT + refresh-token response as Google login:
 
 ```bash
 API=http://localhost:5281
 
-# Owner session (default role is Owner)
-curl -s -X POST "$API/api/v1/dev/test-login" \
-  -H "Content-Type: application/json" \
-  -d '{"email":"owner.test@mypetlink.local","role":"Owner"}'
-
-# Admin session
-curl -s -X POST "$API/api/v1/dev/test-login" \
-  -H "Content-Type: application/json" \
-  -d '{"email":"admin.test@mypetlink.local","role":"Admin"}'
-
-# Second owner for cross-owner tests
-curl -s -X POST "$API/api/v1/dev/test-login" \
-  -H "Content-Type: application/json" \
-  -d '{"email":"other.owner@mypetlink.local","role":"Owner"}'
+curl -s -X POST "$API/api/v1/dev-auth/admin-login"
 ```
 
 Copy the `accessToken` from the response and send it as a bearer token:
@@ -39,18 +26,17 @@ curl -s -H "Authorization: Bearer $TOKEN" "$API/api/v1/auth/me"          # owner
 curl -s -H "Authorization: Bearer $TOKEN" "$API/api/v1/admin/auth/check"  # admin only
 ```
 
-- **Admin vs non-admin**: an `Admin` test login gets roles `["Owner","Admin"]` and `200` on `/admin/*`; an `Owner` test login gets `["Owner"]` and `403` on `/admin/*`.
-- **Cross-owner**: log in as `owner.test` and `other.owner`, then use one token against the other's order/pet/PDF ids to confirm `404`/blocked.
-- **Browser**: no `/dev-login` page is shipped. Use the Development-only API endpoint directly for local/E2E sessions, then store or inject the returned session as needed for the test run.
-- Emails are arbitrary local addresses; suggested: `owner.test@mypetlink.local`, `admin.test@mypetlink.local`, `other.owner@mypetlink.local`. Repeat logins with the same email reuse the same local user.
-- **Warning**: this endpoint/page is Development-only and must never be enabled or documented as a real login in production.
+- **Admin vs non-admin**: the configured Development Admin gets roles `["Owner","Admin"]` and `200` on `/admin/*`; a normal non-admin owner gets `["Owner"]` and `403` on `/admin/*`.
+- **Cross-owner**: use two normal Google-authenticated local owner accounts, then use one token against the other's order/pet/PDF ids to confirm `404`/blocked.
+- **Browser**: choose **Development login** on `/admin/login`; it stores the normal browser session and preserves the intended Admin redirect.
+- **Warning**: the endpoint accepts no body, email, user ID, or role. It is registered only with an explicit local Development opt-in and must never be enabled in shared or production environments.
 - Each case has: **ID · Role · Preconditions · Steps · Expected · Actual · Status · Notes**. Record `Actual`/`Status` when you run it. Status legend: `PASS` (executed, passed), `FAIL`, `BLOCKED`, `PASS(CR)` (verified by code review because a live token/browser was unavailable), `NT` (not tested).
 - The companion run results live in [`phase-1-e2e-test-report.md`](phase-1-e2e-test-report.md).
 
 ## Test data setup
 
 1. Apply migrations: `dotnet ef database update` (from `apps/api/MyPetLink.Api`).
-2. Admin account: the fastest local path is a `POST /api/v1/dev/test-login` with `"role":"Admin"` (creates/activates the `AdminUsers` row automatically in Development). For a production-like promotion instead, run `docs/deployment/sql/first-admin-template.sql` against `MyPetLinkDev` after the admin owner has logged in once. No secrets in the repo.
+2. Admin account: use the fixed Development Admin setup in [`development-admin-login.md`](development-admin-login.md). For a production-like promotion instead, run `docs/deployment/sql/first-admin-template.sql` against `MyPetLinkDev` after the admin owner has logged in once. No secrets in the repo.
 3. Seed via the UI so data uses real server-generated codes:
    - Owner: create **3 active pets** (also exercises the Free plan limit), then take one pet through **Memorial** and another through **Archived**.
    - Admin: generate **unclaimed inventory** (a few QR and a few QR + NFC tags).

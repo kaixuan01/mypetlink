@@ -40,3 +40,5 @@ Repo-wide documentation. Frontend-specific docs (agent reference, owner portal f
   - [`phase-1-admin-operations.md`](operations/phase-1-admin-operations.md) - Admin Portal MVP backend requirements
   - [`order-and-payment-proof-flow.md`](operations/order-and-payment-proof-flow.md) - manual order/payment proof flow
   - [`smart-tag-lifecycle.md`](operations/smart-tag-lifecycle.md) - smart tag lifecycle and scan behavior
+- [`testing/`](testing/) - repeatable QA and browser verification
+  - [`development-admin-login.md`](testing/development-admin-login.md) - guarded local Admin login and authenticated browser-state setup

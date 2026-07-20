@@ -45,13 +45,15 @@ export class ApiClientError extends Error {
   code: string;
   details?: Record<string, string[]> | null;
   retryAfterSeconds?: number;
+  requestId?: string;
 
   constructor(
     status: number,
     code: string,
     message: string,
     details?: Record<string, string[]> | null,
-    retryAfterSeconds?: number
+    retryAfterSeconds?: number,
+    requestId?: string
   ) {
     super(message);
     this.name = "ApiClientError";
@@ -59,6 +61,7 @@ export class ApiClientError extends Error {
     this.code = code;
     this.details = details;
     this.retryAfterSeconds = retryAfterSeconds;
+    this.requestId = requestId;
   }
 }
 
@@ -91,6 +94,7 @@ async function request<T>(
   const headers = new Headers();
   const hasBody = options.body !== undefined;
   const session = options.auth === false ? null : readStoredAuthSession();
+  const accessTokenUsed = session?.accessToken;
 
   if (hasBody) {
     headers.set("Content-Type", "application/json");
@@ -109,16 +113,30 @@ async function request<T>(
     signal: options.signal,
   });
 
-  if (
-    response.status === 401 &&
-    options.auth !== false &&
-    options.retryOnUnauthorized !== false &&
-    (await refreshAccessToken(baseUrl))
-  ) {
-    return request<T>(baseUrl, path, {
-      ...options,
-      retryOnUnauthorized: false,
-    });
+  if (response.status === 401 && options.auth !== false) {
+    if (options.retryOnUnauthorized === false) {
+      // A request already retried with the latest access token. Do not refresh
+      // recursively or leave an invalid session behind.
+      clearStoredAuthSession();
+    } else {
+      const latestAccessToken = readStoredAuthSession()?.accessToken;
+      const anotherRequestAlreadyRefreshed =
+        Boolean(accessTokenUsed) &&
+        Boolean(latestAccessToken) &&
+        latestAccessToken !== accessTokenUsed;
+
+      if (
+        anotherRequestAlreadyRefreshed ||
+        (await refreshAccessToken(baseUrl))
+      ) {
+        // Re-enter request() so Authorization is rebuilt from storage. Reusing
+        // the original Headers instance would resend the expired token.
+        return request<T>(baseUrl, path, {
+          ...options,
+          retryOnUnauthorized: false,
+        });
+      }
+    }
   }
 
   if (response.status === 204) {
@@ -136,7 +154,8 @@ async function request<T>(
         ? "MyPetLink needs a little more time. Please try again in a moment."
         : error?.message ?? "Something went wrong.",
       error?.details,
-      envelope.meta?.retryAfterSeconds ?? undefined
+      envelope.meta?.retryAfterSeconds ?? undefined,
+      envelope.meta?.requestId
     );
   }
 
@@ -180,6 +199,7 @@ async function requestBlob(
 ): Promise<BlobResponse> {
   const headers = new Headers();
   const session = options.auth === false ? null : readStoredAuthSession();
+  const accessTokenUsed = session?.accessToken;
 
   if (session?.accessToken) {
     headers.set("Authorization", `Bearer ${session.accessToken}`);
@@ -191,24 +211,43 @@ async function requestBlob(
     signal: options.signal,
   });
 
-  if (
-    response.status === 401 &&
-    options.auth !== false &&
-    options.retryOnUnauthorized !== false &&
-    (await refreshAccessToken(baseUrl))
-  ) {
-    return requestBlob(baseUrl, path, { ...options, retryOnUnauthorized: false });
+  if (response.status === 401 && options.auth !== false) {
+    if (options.retryOnUnauthorized === false) {
+      clearStoredAuthSession();
+    } else {
+      const latestAccessToken = readStoredAuthSession()?.accessToken;
+      const anotherRequestAlreadyRefreshed =
+        Boolean(accessTokenUsed) &&
+        Boolean(latestAccessToken) &&
+        latestAccessToken !== accessTokenUsed;
+
+      if (
+        anotherRequestAlreadyRefreshed ||
+        (await refreshAccessToken(baseUrl))
+      ) {
+        return requestBlob(baseUrl, path, {
+          ...options,
+          retryOnUnauthorized: false,
+        });
+      }
+    }
   }
 
   if (!response.ok) {
     let code = `http_${response.status}`;
     let message = "We could not generate this document. Please try again.";
+    let details: Record<string, string[]> | null | undefined;
+    let retryAfterSeconds: number | undefined;
+    let requestId: string | undefined;
 
     try {
       const envelope = (await response.json()) as ApiEnvelope<unknown>;
 
       if (envelope.error) {
         code = envelope.error.code ?? code;
+        details = envelope.error.details;
+        retryAfterSeconds = envelope.meta?.retryAfterSeconds ?? undefined;
+        requestId = envelope.meta?.requestId;
         message =
           envelope.error.code === "database_waking_up"
             ? "MyPetLink needs a little more time. Please try again in a moment."
@@ -218,7 +257,14 @@ async function requestBlob(
       // Non-JSON error body; keep the default message.
     }
 
-    throw new ApiClientError(response.status, code, message);
+    throw new ApiClientError(
+      response.status,
+      code,
+      message,
+      details,
+      retryAfterSeconds,
+      requestId
+    );
   }
 
   return {
@@ -309,7 +355,8 @@ async function performTokenRefresh(baseUrl: string): Promise<boolean> {
         envelope.error.code,
         "MyPetLink needs a little more time. Please try again in a moment.",
         envelope.error.details,
-        envelope.meta?.retryAfterSeconds ?? undefined
+        envelope.meta?.retryAfterSeconds ?? undefined,
+        envelope.meta?.requestId
       );
     }
 
@@ -321,7 +368,10 @@ async function performTokenRefresh(baseUrl: string): Promise<boolean> {
     throw new ApiClientError(
       response.status,
       envelope.error?.code ?? `http_${response.status}`,
-      envelope.error?.message ?? "We couldn't confirm your session. Please try again."
+      envelope.error?.message ?? "We couldn't confirm your session. Please try again.",
+      envelope.error?.details,
+      envelope.meta?.retryAfterSeconds ?? undefined,
+      envelope.meta?.requestId
     );
   }
 

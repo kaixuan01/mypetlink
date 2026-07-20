@@ -2,6 +2,8 @@
 
 Run of [`phase-1-e2e-test-script.md`](phase-1-e2e-test-script.md).
 
+> Historical note: this July 5 run used the former caller-selected `/api/v1/dev/test-login` helper. That route has since been removed. Current browser QA uses the fixed, explicitly configured, loopback-only Development Admin login documented in [`development-admin-login.md`](development-admin-login.md); owner tests use normal authentication.
+
 ## 1. Date / time
 
 - **Authenticated regression run: 2026-07-05, ~15:20 (UTC+8, MYT).**

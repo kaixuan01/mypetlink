@@ -5,6 +5,8 @@ node_modules/
 
 # testing
 coverage/
+apps/web/playwright/.auth/
+apps/web/.auth/
 
 # next.js
 .next/

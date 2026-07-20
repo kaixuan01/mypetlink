@@ -25,6 +25,8 @@ public sealed class AuthService : SkeletonService, IAuthService
     private readonly IExternalAuthService _externalAuthService;
     private readonly JwtOptions _jwtOptions;
     private readonly IHostEnvironment _environment;
+    private readonly IDevelopmentAdminSeeder _developmentAdminSeeder;
+    private readonly DevAuthOptions _devAuthOptions;
     private readonly HashSet<string> _devAdminEmails;
 
     public AuthService(
@@ -32,12 +34,16 @@ public sealed class AuthService : SkeletonService, IAuthService
         IExternalAuthService externalAuthService,
         IOptions<JwtOptions> jwtOptions,
         IOptions<AdminSeedOptions> adminSeedOptions,
+        IOptions<DevAuthOptions> devAuthOptions,
+        IDevelopmentAdminSeeder developmentAdminSeeder,
         IHostEnvironment environment)
     {
         _dbContext = dbContext;
         _externalAuthService = externalAuthService;
         _jwtOptions = jwtOptions.Value;
         _environment = environment;
+        _developmentAdminSeeder = developmentAdminSeeder;
+        _devAuthOptions = devAuthOptions.Value;
         _devAdminEmails = (adminSeedOptions.Value.Emails ?? [])
             .Where(email => !string.IsNullOrWhiteSpace(email))
             .Select(NormalizeEmail)
@@ -172,61 +178,37 @@ public sealed class AuthService : SkeletonService, IAuthService
         return new AdminAuthCheckResponse(BuildUserSummary(user), admin);
     }
 
-    // Development-only test login. Reuses the exact same external-user sign-in
-    // path (user/owner-profile creation, JWT + refresh token issuance) as real
-    // Google login, so it never weakens or bypasses production auth. It refuses
-    // to run outside Development. See DevAuthController for the HTTP guard.
-    public async Task<AuthTokenResponse> SignInWithDevTestUserAsync(
-        DevTestLoginRequest request,
+    public async Task<AuthTokenResponse> SignInWithDevelopmentAdminAsync(
         AuthClientContext clientContext,
         CancellationToken cancellationToken = default)
     {
-        if (!_environment.IsDevelopment())
+        if (!_environment.IsDevelopment() || !_devAuthOptions.Enabled)
         {
-            // Behaves as if the endpoint does not exist outside Development.
             throw new ApiException(StatusCodes.Status404NotFound, "not_found", "Not found.");
         }
 
-        var email = (request.Email ?? string.Empty).Trim();
-        if (email.Length == 0)
-        {
-            email = "owner.test@mypetlink.local";
-        }
-
-        if (!email.Contains('@', StringComparison.Ordinal))
-        {
-            throw ValidationFailed("email", "Provide a valid test email address.");
-        }
-
-        var role = (request.Role ?? "Owner").Trim();
-        var isAdmin = string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase);
-
-        if (!isAdmin && !string.Equals(role, "Owner", StringComparison.OrdinalIgnoreCase))
-        {
-            throw ValidationFailed("role", "Role must be 'Owner' or 'Admin'.");
-        }
-
-        // Deterministic subject id per email so repeat test logins reuse the
-        // same local user instead of creating duplicates.
+        DevAuthOptions.ValidateForStartup(_environment, _devAuthOptions);
+        await _developmentAdminSeeder.EnsureSeededAsync(cancellationToken);
+        var identity = _devAuthOptions.GetIdentity();
         var externalUser = new ExternalTokenUser(
             ExternalLoginProviders.DevTest,
-            $"devtest:{NormalizeEmail(email)}",
-            email,
+            identity.ProviderSubjectId,
+            identity.Email,
             EmailVerified: true,
-            DisplayName: CleanDisplayName(null, email));
+            identity.DisplayName);
 
         return await SignInWithExternalUserAsync(
             externalUser,
             clientContext,
             cancellationToken,
-            ensureActiveAdmin: isAdmin);
+            replaceExistingRefreshTokens: true);
     }
 
     private async Task<AuthTokenResponse> SignInWithExternalUserAsync(
         ExternalTokenUser externalUser,
         AuthClientContext clientContext,
         CancellationToken cancellationToken,
-        bool ensureActiveAdmin = false)
+        bool replaceExistingRefreshTokens = false)
     {
         var now = DateTimeOffset.UtcNow;
         var normalizedEmail = NormalizeEmail(externalUser.Email);
@@ -283,9 +265,9 @@ public sealed class AuthService : SkeletonService, IAuthService
         await EnsureOwnerProfileAsync(user, externalUser.DisplayName, cancellationToken);
         await EnsureDevAdminAsync(user, normalizedEmail, cancellationToken);
 
-        if (ensureActiveAdmin)
+        if (replaceExistingRefreshTokens)
         {
-            await EnsureActiveTestAdminAsync(user, cancellationToken);
+            await RemoveExistingRefreshTokensAsync(user.Id, cancellationToken);
         }
 
         var refreshToken = CreateRefreshToken(user.Id, clientContext, now);
@@ -463,40 +445,6 @@ public sealed class AuthService : SkeletonService, IAuthService
         user.AdminUser = adminUser;
     }
 
-    // Development-only: create or reactivate an AdminUsers row for a test admin
-    // login so the issued token includes the Admin role immediately. Guarded by
-    // IsDevelopment() as defense in depth (the only caller is already gated).
-    private async Task EnsureActiveTestAdminAsync(User user, CancellationToken cancellationToken)
-    {
-        if (!_environment.IsDevelopment())
-        {
-            return;
-        }
-
-        var adminUser = user.AdminUser
-            ?? await _dbContext.AdminUsers
-                .SingleOrDefaultAsync(admin => admin.UserId == user.Id, cancellationToken);
-
-        if (adminUser is null)
-        {
-            adminUser = new AdminUser
-            {
-                UserId = user.Id,
-                Role = AdminRole.Admin,
-                IsActive = true
-            };
-
-            _dbContext.AdminUsers.Add(adminUser);
-        }
-        else
-        {
-            adminUser.IsActive = true;
-            adminUser.DisabledAt = null;
-        }
-
-        user.AdminUser = adminUser;
-    }
-
     private static void EnsureUserCanAuthenticate(User user)
     {
         if (user.DeletedAt.HasValue || user.Status == UserStatus.Deleted)
@@ -591,6 +539,20 @@ public sealed class AuthService : SkeletonService, IAuthService
             token.RevokedAt = now;
             token.RevokedByIp = ipAddress;
         }
+    }
+
+    private async Task RemoveExistingRefreshTokensAsync(
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        var tokens = await _dbContext.RefreshTokens
+            .Where(token => token.UserId == userId)
+            .ToListAsync(cancellationToken);
+
+        // This cleanup is used only by the explicitly enabled local Admin
+        // helper. It bounds repeated browser-test logins to one refresh-token
+        // record without changing normal production session retention.
+        _dbContext.RefreshTokens.RemoveRange(tokens);
     }
 
     private static CurrentUserSummaryResponse BuildUserSummary(User user)

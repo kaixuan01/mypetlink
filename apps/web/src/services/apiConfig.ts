@@ -6,6 +6,17 @@ export function isApiConfigured() {
   return Boolean(getApiBaseUrl());
 }
 
+export function isDevelopmentAdminLoginEnabled(
+  environment = process.env.NODE_ENV,
+  configured = process.env.NEXT_PUBLIC_DEV_AUTH_ENABLED
+) {
+  return (
+    environment === "development" &&
+    configured === "true" &&
+    isApiConfigured()
+  );
+}
+
 export function canUseApi() {
   return typeof window !== "undefined" && isApiConfigured();
 }

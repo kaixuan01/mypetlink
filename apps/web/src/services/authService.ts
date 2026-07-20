@@ -188,6 +188,23 @@ export async function loginWithGoogleIdToken(idToken: string) {
   return getOwnerSession();
 }
 
+export async function loginAsDevelopmentAdmin() {
+  const response = await apiRequest<BackendAuthTokenResponse>(
+    "/api/v1/dev-auth/admin-login",
+    {
+      method: "POST",
+      auth: false,
+    }
+  );
+
+  if (!response.data) {
+    throw new Error("Development sign in did not return a session.");
+  }
+
+  storeBackendSession(response.data);
+  return response.data;
+}
+
 export async function getCurrentOwnerSession() {
   const response = await apiRequest<BackendCurrentUser>("/api/v1/auth/me");
 

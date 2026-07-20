@@ -154,5 +154,6 @@ Copy `.env.example` to `.env.local` for local backend integration:
 
 - `NEXT_PUBLIC_API_BASE_URL` - backend API origin, for example `http://localhost:5281`
 - `NEXT_PUBLIC_GOOGLE_CLIENT_ID` - browser Google OAuth client ID used by Google Identity Services
+- `NEXT_PUBLIC_DEV_AUTH_ENABLED` - set to `true` only for an explicitly enabled local Development Admin login; production builds never render this action
 
 Leave `NEXT_PUBLIC_API_BASE_URL` empty only when you intentionally want local preview mode.

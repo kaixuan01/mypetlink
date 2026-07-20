@@ -21,7 +21,7 @@ Use before merging the backend-connected Phase 1 branch (`feature/connect-admin-
 - [ ] CORS confirmed: production frontend can call the API; other origins blocked.
 - [ ] Google OAuth production origin added to Authorized JavaScript origins; consent screen published.
 - [ ] First admin `gbbsoftwaresolutions@gmail.com` logged in once with Google, then was manually seeded and verified (see `sql/first-admin-template.sql`; `/api/v1/admin/auth/check` returns 200 admin / 403 non-admin).
-- [ ] Production safety confirmed: `POST /api/v1/dev/test-login` returns `404`, `/swagger` returns `404`, no frontend `/dev-login` route is shipped, and no secrets are staged.
+- [ ] Production safety confirmed: `DevAuth__Enabled` and `NEXT_PUBLIC_DEV_AUTH_ENABLED` are unset, `POST /api/v1/dev-auth/admin-login` returns `404`, `/swagger` returns `404`, the Development login action is absent, and no secrets or authenticated browser state are staged.
 - [ ] Smoke test passed end to end (see `smoke-test-script.md`).
 
 ## Merge

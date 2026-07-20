@@ -68,6 +68,94 @@ public sealed class TagCatalogServiceTests
         Assert.Contains("already in use", duplicate.Details!["sku"].Single());
     }
 
+    [Fact]
+    public async Task Product_CreateAcceptsDraft_ButRejectsPublishingWithoutEligibleVariant()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var draftRequest = new UpsertTagProductRequest(
+            "Lightweight QR Tag",
+            "lightweight-qr-tag",
+            null,
+            null,
+            false,
+            0,
+            [],
+            null);
+
+        var draft = await harness.Service.CreateProductAsync(AdminId, draftRequest);
+
+        Assert.False(draft.IsPublished);
+        Assert.Empty(draft.Variants);
+
+        var publicationError = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Service.CreateProductAsync(AdminId, draftRequest with
+            {
+                Slug = "published-without-sku",
+                ShortDescription = "Ready for customers.",
+                IsPublished = true
+            }));
+
+        Assert.Equal(StatusCodes.Status400BadRequest, publicationError.StatusCode);
+        Assert.Contains("active purchasable SKU", publicationError.Details!["isPublished"].Single());
+    }
+
+    [Fact]
+    public async Task Product_DraftCanReceivePurchasableVariant_ThenBePublished()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var draft = new TagProduct
+        {
+            Name = "Draft Tag",
+            Slug = "draft-tag",
+            ShortDescription = "Ready after its SKU is configured.",
+            IsPublished = false,
+            RowVersion = [7]
+        };
+        harness.Db.TagProducts.Add(draft);
+        await harness.Db.SaveChangesAsync();
+
+        await harness.Service.CreateVariantAsync(AdminId, draft.Id, ValidVariant("MPL-DRAFT-V1"));
+        var published = await harness.Service.UpdateProductAsync(
+            AdminId,
+            draft.Id,
+            new UpsertTagProductRequest(
+                draft.Name,
+                draft.Slug,
+                draft.ShortDescription,
+                null,
+                true,
+                0,
+                [],
+                Convert.ToBase64String(draft.RowVersion)));
+
+        Assert.True(published.IsPublished);
+        Assert.Single(published.Variants);
+        Assert.True(published.Variants.Single().IsPurchasable);
+    }
+
+    [Fact]
+    public async Task Product_DuplicateSlugReturnsConflictWithFieldDetail()
+    {
+        await using var harness = await Harness.CreateAsync();
+
+        var error = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Service.CreateProductAsync(
+                AdminId,
+                new UpsertTagProductRequest(
+                    "Duplicate",
+                    harness.Product.Slug,
+                    null,
+                    null,
+                    false,
+                    0,
+                    [],
+                    null)));
+
+        Assert.Equal(StatusCodes.Status409Conflict, error.StatusCode);
+        Assert.Equal("duplicate_value", error.Code);
+        Assert.Contains("already in use", error.Details!["slug"].Single());
+    }
+
     [Theory]
     [InlineData(false, 29.90, 32, 32, 8)]
     [InlineData(true, -1, 32, 32, 8)]
@@ -181,6 +269,19 @@ public sealed class TagCatalogServiceTests
             var error = await Assert.ThrowsAsync<ApiException>(() => harness.Service.CreatePromotionAsync(AdminId, request));
             Assert.Equal("validation_failed", error.Code);
         }
+    }
+
+    [Fact]
+    public async Task PromotionListing_SucceedsWhenNoPromotionsOrEligibleProductsExist()
+    {
+        await using var harness = await Harness.CreateAsync();
+        harness.Db.TagProducts.Remove(harness.Product);
+        await harness.Db.SaveChangesAsync();
+
+        var (items, total) = await harness.Service.ListPromotionsAsync(new AdminPromotionQuery());
+
+        Assert.Empty(items);
+        Assert.Equal(0, total);
     }
 
     private static UpsertPromotionRequest PromotionRequest(Guid variantId, DateTimeOffset startsAt, DateTimeOffset endsAt, PromotionDiscountType type, decimal value) =>

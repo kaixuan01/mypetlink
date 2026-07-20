@@ -108,6 +108,12 @@ public sealed partial class TagCatalogService : ITagCatalogService
     {
         var admin = await RequireAdminAsync(userId, cancellationToken);
         var normalized = ValidateProduct(request);
+        if (request.IsPublished)
+        {
+            throw ValidationFailed(
+                "isPublished",
+                "Add at least one active purchasable SKU before publishing this product.");
+        }
         await EnsureUniqueSlugAsync(normalized.Slug, null, cancellationToken);
 
         var product = new TagProduct
@@ -139,6 +145,13 @@ public sealed partial class TagCatalogService : ITagCatalogService
             ?? throw NotFound("Tag product was not found.");
         ApplyConcurrency(product, request.ConcurrencyToken);
         var normalized = ValidateProduct(request);
+        if (request.IsPublished && !product.Variants.Any(variant =>
+            variant.ArchivedAt == null && variant.IsActive && variant.IsPurchasable))
+        {
+            throw ValidationFailed(
+                "isPublished",
+                "Add at least one active purchasable SKU before publishing this product.");
+        }
         await EnsureUniqueSlugAsync(normalized.Slug, product.Id, cancellationToken);
         var before = ProductSnapshot(product);
         var wasPublished = product.IsPublished;
@@ -441,7 +454,7 @@ public sealed partial class TagCatalogService : ITagCatalogService
 
     private static (string Name, string Slug, string? ShortDescription, string? Description) ValidateProduct(UpsertTagProductRequest request)
     {
-        var name = request.Name.Trim();
+        var name = request.Name?.Trim() ?? string.Empty;
         var slug = NormalizeSlug(request.Slug);
         var shortDescription = NormalizeOptional(request.ShortDescription);
         var description = NormalizeOptional(request.Description);
@@ -453,11 +466,11 @@ public sealed partial class TagCatalogService : ITagCatalogService
 
     private static (string Sku, string Currency, string TagVariant) ValidateVariant(UpsertTagProductVariantRequest request, TagProduct product)
     {
-        var sku = request.Sku.Trim().ToUpperInvariant();
-        var currency = request.Currency.Trim().ToUpperInvariant();
+        var sku = request.Sku?.Trim().ToUpperInvariant() ?? string.Empty;
+        var currency = request.Currency?.Trim().ToUpperInvariant() ?? string.Empty;
         var tagVariant = TagVariants.Normalize(request.TagVariant);
         if (!SkuPattern().IsMatch(sku)) throw ValidationFailed("sku", "Use 3-80 uppercase letters, numbers, dots, dashes, or underscores.");
-        if (request.DisplayName.Trim().Length == 0) throw ValidationFailed("displayName", "Enter a variant name.");
+        if (string.IsNullOrWhiteSpace(request.DisplayName)) throw ValidationFailed("displayName", "Enter a variant name.");
         if (!request.SupportsQr) throw ValidationFailed("supportsQr", "Current physical tags must support QR scanning.");
         if (request.BasePrice < 0) throw ValidationFailed("basePrice", "Base price cannot be negative.");
         if (currency != "MYR") throw ValidationFailed("currency", "MYR is the supported currency for this catalog.");
@@ -466,7 +479,7 @@ public sealed partial class TagCatalogService : ITagCatalogService
             if (value.HasValue && value.Value <= 0) throw ValidationFailed("physicalSpecifications", "Dimensions and weight must be greater than zero.");
         if (request.IsPurchasable)
         {
-            if (!product.IsPublished || product.IsArchived) throw ValidationFailed("isPurchasable", "Publish the product before making a variant purchasable.");
+            if (product.IsArchived) throw ValidationFailed("isPurchasable", "Archived products cannot have purchasable variants.");
             if (!request.IsActive) throw ValidationFailed("isActive", "A purchasable variant must be active.");
             if (!request.WidthMm.HasValue || !request.HeightMm.HasValue || !request.WeightGrams.HasValue
                 || NormalizeOptional(request.Material) is null || NormalizeOptional(request.Shape) is null
@@ -501,10 +514,11 @@ public sealed partial class TagCatalogService : ITagCatalogService
 
     private static void ValidatePromotion(UpsertPromotionRequest request)
     {
-        if (request.Name.Trim().Length == 0) throw ValidationFailed("name", "Enter a promotion name.");
+        if (string.IsNullOrWhiteSpace(request.Name)) throw ValidationFailed("name", "Enter a promotion name.");
         if (request.EndsAt <= request.StartsAt) throw ValidationFailed("endsAt", "Promotion end time must be after its start time.");
         if (request.DiscountValue <= 0) throw ValidationFailed("discountValue", "Discount value must be greater than zero.");
         if (request.DiscountType == PromotionDiscountType.Percentage && request.DiscountValue > 100) throw ValidationFailed("discountValue", "Percentage discount cannot exceed 100%.");
+        if (request.Priority < 0 || request.Priority > 10_000) throw ValidationFailed("priority", "Priority must be between 0 and 10,000.");
         if (request.ProductVariantIds is null || request.ProductVariantIds.Length == 0) throw ValidationFailed("productVariantIds", "Choose at least one SKU.");
     }
 
@@ -515,13 +529,13 @@ public sealed partial class TagCatalogService : ITagCatalogService
     private async Task EnsureUniqueSlugAsync(string slug, Guid? exceptId, CancellationToken cancellationToken)
     {
         if (await _dbContext.TagProducts.AnyAsync(item => item.Slug == slug && (!exceptId.HasValue || item.Id != exceptId.Value), cancellationToken))
-            throw ValidationFailed("slug", "This product link is already in use.");
+            throw Conflict("slug", "This product link is already in use.");
     }
 
     private async Task EnsureUniqueSkuAsync(string sku, Guid? exceptId, CancellationToken cancellationToken)
     {
         if (await _dbContext.TagProductVariants.AnyAsync(item => item.Sku == sku && (!exceptId.HasValue || item.Id != exceptId.Value), cancellationToken))
-            throw ValidationFailed("sku", "This SKU is already in use.");
+            throw Conflict("sku", "This SKU is already in use.");
     }
 
     private async Task<string> GeneratePublicKeyAsync(CancellationToken cancellationToken)
@@ -568,10 +582,15 @@ public sealed partial class TagCatalogService : ITagCatalogService
     private static object VariantSnapshot(TagProductVariant item) => new { item.Sku, item.DisplayName, item.SupportsQr, item.SupportsNfc, item.TagVariant, item.WidthMm, item.HeightMm, item.ThicknessMm, item.WeightGrams, item.Material, item.Shape, item.Colour, item.PackagingType, item.BasePrice, item.Currency, item.PrintTemplateCode, item.IsActive, item.IsPurchasable, item.ArchivedAt };
     private static object PromotionSnapshot(Promotion item) => new { item.Name, item.IsActive, item.IsAutomatic, item.DiscountType, item.DiscountValue, item.StartsAt, item.EndsAt, item.Priority, productVariantIds = item.PromotionVariants.Select(link => link.TagProductVariantId).ToArray() };
     private static string EncodeToken(byte[] value) => Convert.ToBase64String(value);
-    private static string NormalizeSlug(string value) => value.Trim().ToLowerInvariant();
+    private static string NormalizeSlug(string? value) => value?.Trim().ToLowerInvariant() ?? string.Empty;
     private static string? NormalizeOptional(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     private static ApiException NotFound(string message) => new(StatusCodes.Status404NotFound, "not_found", message);
     private static ApiException InvalidState(string message) => new(StatusCodes.Status409Conflict, "invalid_state", message);
+    private static ApiException Conflict(string field, string message) => new(
+        StatusCodes.Status409Conflict,
+        "duplicate_value",
+        message,
+        new Dictionary<string, string[]> { [field] = [message] });
     private static ApiException ValidationFailed(string field, string message) => new(StatusCodes.Status400BadRequest, "validation_failed", "Please check the submitted fields.", new Dictionary<string, string[]> { [field] = [message] });
 
     [GeneratedRegex("^[a-z0-9]+(?:-[a-z0-9]+)*$")]
