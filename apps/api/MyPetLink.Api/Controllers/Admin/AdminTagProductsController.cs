@@ -61,6 +61,12 @@ public sealed class AdminTagProductsController : ApiControllerBase
         Ok(ApiEnvelope.Ok(await _catalogService.ArchiveVariantAsync(
             _currentUserService.Current.UserId, variantId, request.ConcurrencyToken, cancellationToken), HttpContext));
 
+    // Lightweight Product/SKU options for admin selectors (Tag Inventory
+    // generation form, Promotion picker) in one request.
+    [HttpGet("options")]
+    public async Task<IActionResult> Options(CancellationToken cancellationToken) =>
+        Ok(ApiEnvelope.Ok(await _catalogService.ListAdminCatalogOptionsAsync(cancellationToken), HttpContext));
+
     // Catalog Settings: Admin-configurable variant presets. Presets referenced
     // by SKUs are deactivated rather than deleted, so there is no delete route.
     [HttpGet("variant-presets")]

@@ -20,6 +20,7 @@ public interface ITagCatalogService
     Task<AdminTagProductVariantResponse> CreateVariantAsync(Guid? userId, Guid productId, UpsertTagProductVariantRequest request, CancellationToken cancellationToken = default);
     Task<AdminTagProductVariantResponse> UpdateVariantAsync(Guid? userId, Guid variantId, UpsertTagProductVariantRequest request, CancellationToken cancellationToken = default);
     Task<AdminTagProductVariantResponse> ArchiveVariantAsync(Guid? userId, Guid variantId, string? concurrencyToken, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<AdminCatalogOptionProductResponse>> ListAdminCatalogOptionsAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<AdminTagVariantPresetResponse>> ListVariantPresetsAsync(CancellationToken cancellationToken = default);
     Task<AdminTagVariantPresetResponse> SaveVariantPresetAsync(Guid? userId, Guid? presetId, UpsertTagVariantPresetRequest request, CancellationToken cancellationToken = default);
     Task<(IReadOnlyCollection<AdminPromotionResponse> Items, int Total)> ListPromotionsAsync(AdminPromotionQuery query, CancellationToken cancellationToken = default);
@@ -70,9 +71,7 @@ public sealed partial class TagCatalogService : ITagCatalogService
         if (query.Purchasable.HasValue) products = products.Where(product => product.Variants.Any(variant => variant.ArchivedAt == null && variant.IsPurchasable == query.Purchasable.Value));
 
         var total = await products.CountAsync(cancellationToken);
-        var rows = await products
-            .OrderBy(product => product.SortOrder)
-            .ThenBy(product => product.Name)
+        var rows = await ApplyProductSort(products, query.SortBy, query.SortDir)
             .Skip((query.Page - 1) * query.PageSize)
             .Take(query.PageSize)
             .Select(product => new
@@ -92,6 +91,21 @@ public sealed partial class TagCatalogService : ITagCatalogService
         return (rows.Select(row => new AdminTagProductListItemResponse(
             row.Id, row.Name, row.Slug, row.IsPublished, row.IsArchived,
             row.VariantCount, row.PurchasableCount, row.UpdatedAt, EncodeToken(row.RowVersion))).ToArray(), total);
+    }
+
+    // Sort allow-list: only these fields reach ORDER BY, so a stale or
+    // hand-edited sort value falls back to the deterministic default order.
+    private static IOrderedQueryable<TagProduct> ApplyProductSort(IQueryable<TagProduct> products, string? sortBy, string? sortDir)
+    {
+        var descending = NormalizeOptional(sortDir)?.ToLowerInvariant() == "desc";
+        var field = NormalizeOptional(sortBy)?.ToLowerInvariant();
+
+        return field switch
+        {
+            "name" => descending ? products.OrderByDescending(p => p.Name) : products.OrderBy(p => p.Name),
+            "updated" or "updatedat" => descending ? products.OrderByDescending(p => p.UpdatedAt) : products.OrderBy(p => p.UpdatedAt),
+            _ => products.OrderBy(p => p.SortOrder).ThenBy(p => p.Name),
+        };
     }
 
     public async Task<AdminTagProductResponse> GetAdminAsync(Guid productId, CancellationToken cancellationToken = default)
@@ -517,6 +531,15 @@ public sealed partial class TagCatalogService : ITagCatalogService
         variant.SortOrder = request.SortOrder;
     }
 
+    // Fields that define the physical product and therefore lock once a SKU
+    // has inventory or order history (a change needs a new versioned SKU).
+    //
+    // ProductionNotes is DELIBERATELY excluded: it is an informational hint for
+    // the manufacturer, not part of the physical identity. Editing it after a
+    // SKU is locked is allowed, and it only affects FUTURE manufacturer-export
+    // re-generations — previously exported workbooks are static files and are
+    // never rewritten retroactively. Base price and customer-facing naming are
+    // likewise editable (orders keep their own snapshots).
     private static bool ProductionFieldsChanged(TagProductVariant variant, UpsertTagProductVariantRequest request, (string Sku, string Currency, string TagVariant) values) =>
         variant.Sku != values.Sku || variant.SupportsQr != request.SupportsQr || variant.SupportsNfc != request.SupportsNfc
         || variant.TagVariantPresetId != request.TagVariantPresetId
@@ -534,6 +557,79 @@ public sealed partial class TagCatalogService : ITagCatalogService
         if (request.DiscountType == PromotionDiscountType.Percentage && request.DiscountValue > 100) throw ValidationFailed("discountValue", "Percentage discount cannot exceed 100%.");
         if (request.Priority < 0 || request.Priority > 10_000) throw ValidationFailed("priority", "Priority must be between 0 and 10,000.");
         if (request.ProductVariantIds is null || request.ProductVariantIds.Length == 0) throw ValidationFailed("productVariantIds", "Choose at least one SKU.");
+    }
+
+    // --- Catalog options (admin Product/SKU selectors) -------------------------------
+
+    // One request that returns every selectable product and SKU for the Tag
+    // Inventory generation form and the Promotion picker. Archived products and
+    // archived variants are excluded (neither picker offers them); inventory
+    // counts come from a single grouped query rather than one per product.
+    public async Task<IReadOnlyCollection<AdminCatalogOptionProductResponse>> ListAdminCatalogOptionsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var products = await _dbContext.TagProducts.AsNoTracking()
+            .Where(product => !product.IsArchived)
+            .OrderBy(product => product.SortOrder).ThenBy(product => product.Name)
+            .Select(product => new
+            {
+                product.Id,
+                product.Name,
+                product.IsPublished,
+                Variants = product.Variants
+                    .Where(variant => variant.ArchivedAt == null)
+                    .OrderBy(variant => variant.SortOrder).ThenBy(variant => variant.DisplayName)
+                    .Select(variant => new
+                    {
+                        variant.Id,
+                        variant.Sku,
+                        variant.DisplayName,
+                        variant.SupportsQr,
+                        variant.SupportsNfc,
+                        variant.TagVariant,
+                        variant.WidthMm,
+                        variant.HeightMm,
+                        variant.ThicknessMm,
+                        variant.Material,
+                        variant.PrintTemplateCode,
+                        variant.BasePrice,
+                        variant.Currency,
+                        variant.IsActive,
+                        variant.IsPurchasable
+                    })
+                    .ToList()
+            })
+            .ToListAsync(cancellationToken);
+
+        var variantIds = products.SelectMany(product => product.Variants.Select(variant => variant.Id)).ToArray();
+        var inventory = await _dbContext.SmartTags.AsNoTracking()
+            .Where(tag => tag.ProductVariantId.HasValue && variantIds.Contains(tag.ProductVariantId.Value)
+                && tag.DeletedAt == null)
+            .GroupBy(tag => tag.ProductVariantId!.Value)
+            .Select(group => new { Id = group.Key, Count = group.Count() })
+            .ToDictionaryAsync(item => item.Id, item => item.Count, cancellationToken);
+
+        return products.Select(product => new AdminCatalogOptionProductResponse(
+            product.Id,
+            product.Name,
+            product.IsPublished,
+            product.Variants.Select(variant => new AdminCatalogOptionVariantResponse(
+                variant.Id,
+                variant.Sku,
+                variant.DisplayName,
+                variant.SupportsQr,
+                variant.SupportsNfc,
+                variant.TagVariant,
+                variant.WidthMm,
+                variant.HeightMm,
+                variant.ThicknessMm,
+                variant.Material,
+                variant.PrintTemplateCode,
+                variant.BasePrice,
+                variant.Currency,
+                variant.IsActive,
+                variant.IsPurchasable,
+                inventory.GetValueOrDefault(variant.Id))).ToArray())).ToArray();
     }
 
     // --- Variant presets (Catalog Settings) -----------------------------------------
@@ -567,16 +663,16 @@ public sealed partial class TagCatalogService : ITagCatalogService
         var description = NormalizeOptional(request.Description);
 
         if (!VariantPresetCodePattern().IsMatch(code))
-            throw ValidationFailed("code", "Use 2-40 uppercase letters, numbers, dashes, or underscores for the preset code.");
+            throw ValidationFailed("code", "Use 2-40 uppercase letters, numbers, dashes, or underscores for the Tag Type code.");
         if (displayName.Length == 0)
-            throw ValidationFailed("displayName", "Enter a display name for this variant preset.");
+            throw ValidationFailed("displayName", "Enter a display name for this Tag Type.");
 
         var duplicateName = displayName.ToLowerInvariant();
         if (await _dbContext.TagVariantPresets.AnyAsync(
                 item => (item.Code == code || item.DisplayName.ToLower() == duplicateName)
                     && (!presetId.HasValue || item.Id != presetId.Value),
                 cancellationToken))
-            throw ValidationFailed("code", "A variant preset with this code or display name already exists.");
+            throw ValidationFailed("code", "A Tag Type with this code or display name already exists.");
 
         TagVariantPreset preset;
         object? before = null;
@@ -585,7 +681,7 @@ public sealed partial class TagCatalogService : ITagCatalogService
         {
             preset = await _dbContext.TagVariantPresets
                 .SingleOrDefaultAsync(item => item.Id == presetId.Value, cancellationToken)
-                ?? throw NotFound("Variant preset was not found.");
+                ?? throw NotFound("Tag Type was not found.");
             ApplyConcurrency(preset, request.ConcurrencyToken);
             before = PresetSnapshot(preset);
         }
@@ -623,14 +719,14 @@ public sealed partial class TagCatalogService : ITagCatalogService
         CancellationToken cancellationToken)
     {
         if (!presetId.HasValue || presetId.Value == Guid.Empty)
-            throw ValidationFailed("tagVariantPresetId", "Choose a variant preset.");
+            throw ValidationFailed("tagVariantPresetId", "Choose a Tag Type.");
 
         var preset = await _dbContext.TagVariantPresets
             .SingleOrDefaultAsync(item => item.Id == presetId.Value, cancellationToken)
-            ?? throw ValidationFailed("tagVariantPresetId", "The selected variant preset could not be found.");
+            ?? throw ValidationFailed("tagVariantPresetId", "The selected Tag Type could not be found.");
 
         if (!preset.IsActive && existing?.TagVariantPresetId != preset.Id)
-            throw ValidationFailed("tagVariantPresetId", "This variant preset is inactive. Choose an active preset or reactivate it in Catalog Settings.");
+            throw ValidationFailed("tagVariantPresetId", "This Tag Type is inactive. Choose an active Tag Type or reactivate it in Catalog Settings.");
 
         return preset;
     }

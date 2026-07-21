@@ -173,8 +173,37 @@ export type AdminPromotionInput = Omit<
   concurrencyToken?: string | null;
 };
 
-// Admin-configurable variant classification managed in Catalog Settings.
-// Presets referenced by SKUs are deactivated, never deleted.
+// Lightweight Product/SKU options for admin selectors. Loaded in one request
+// (no per-product detail fetch) and shared by the Tag Inventory generation
+// form and the Promotion picker.
+export type AdminCatalogOptionVariant = {
+  id: string;
+  sku: string;
+  displayName: string;
+  supportsQr: boolean;
+  supportsNfc: boolean;
+  tagVariant: string;
+  widthMm?: number | null;
+  heightMm?: number | null;
+  thicknessMm?: number | null;
+  material?: string | null;
+  printTemplateCode?: string | null;
+  basePrice: number;
+  currency: string;
+  isActive: boolean;
+  isPurchasable: boolean;
+  inventoryCount: number;
+};
+
+export type AdminCatalogOptionProduct = {
+  id: string;
+  name: string;
+  isPublished: boolean;
+  variants: AdminCatalogOptionVariant[];
+};
+
+// Admin-configurable Tag Type (a reusable SKU classification) managed in
+// Catalog Settings. Tag Types referenced by SKUs are deactivated, never deleted.
 export type AdminTagVariantPreset = {
   id: string;
   code: string;
@@ -211,20 +240,35 @@ export type AdminTagProductFilters = {
   supportsQr?: boolean;
   supportsNfc?: boolean;
   purchasable?: boolean;
+  page?: number;
+  pageSize?: number;
+  sortBy?: string;
+  sortDir?: string;
 };
 
-export async function listAdminTagProducts(filters: AdminTagProductFilters = {}) {
-  const query = new URLSearchParams({ page: "1", pageSize: "100" });
+export type AdminListPage<T> = { items: T[]; total: number };
+
+// Server-paginated product listing. The caller passes the page/size from the
+// shared table query; there is no client-side row cap.
+export async function listAdminTagProducts(
+  filters: AdminTagProductFilters = {}
+): Promise<AdminListPage<AdminTagProductListItem>> {
+  const query = new URLSearchParams({
+    page: String(filters.page ?? 1),
+    pageSize: String(filters.pageSize ?? 20),
+  });
   if (filters.search?.trim()) query.set("search", filters.search.trim());
   if (filters.published !== undefined) query.set("published", String(filters.published));
   if (filters.archived !== undefined) query.set("archived", String(filters.archived));
   if (filters.supportsQr !== undefined) query.set("supportsQr", String(filters.supportsQr));
   if (filters.supportsNfc !== undefined) query.set("supportsNfc", String(filters.supportsNfc));
   if (filters.purchasable !== undefined) query.set("purchasable", String(filters.purchasable));
+  if (filters.sortBy) query.set("sortBy", filters.sortBy);
+  if (filters.sortDir) query.set("sortDir", filters.sortDir);
   const response = await apiRequest<AdminTagProductListItem[]>(
     `/api/v1/admin/tag-products?${query.toString()}`
   );
-  return response.data ?? [];
+  return { items: response.data ?? [], total: response.meta?.total ?? response.data?.length ?? 0 };
 }
 
 export async function getAdminTagProduct(productId: string) {
@@ -233,6 +277,16 @@ export async function getAdminTagProduct(productId: string) {
   );
   if (!response.data) throw new Error("Product details are unavailable.");
   return response.data;
+}
+
+// One request returning every selectable product/SKU for admin selectors,
+// replacing the old "list products, then fetch each product's detail" fan-out.
+export async function listAdminTagCatalogOptions(signal?: AbortSignal) {
+  const response = await apiRequest<AdminCatalogOptionProduct[]>(
+    "/api/v1/admin/tag-products/options",
+    { signal }
+  );
+  return response.data ?? [];
 }
 
 export async function saveAdminTagProduct(input: AdminProductInput, productId?: string) {
@@ -279,11 +333,26 @@ export async function archiveAdminTagProductVariant(variantId: string, concurren
   return response.data;
 }
 
-export async function listAdminPromotions() {
+export type AdminPromotionFilters = {
+  search?: string;
+  active?: boolean;
+  page?: number;
+  pageSize?: number;
+};
+
+export async function listAdminPromotions(
+  filters: AdminPromotionFilters = {}
+): Promise<AdminListPage<AdminPromotion>> {
+  const query = new URLSearchParams({
+    page: String(filters.page ?? 1),
+    pageSize: String(filters.pageSize ?? 20),
+  });
+  if (filters.search?.trim()) query.set("search", filters.search.trim());
+  if (filters.active !== undefined) query.set("active", String(filters.active));
   const response = await apiRequest<AdminPromotion[]>(
-    "/api/v1/admin/promotions?page=1&pageSize=100"
+    `/api/v1/admin/promotions?${query.toString()}`
   );
-  return response.data ?? [];
+  return { items: response.data ?? [], total: response.meta?.total ?? response.data?.length ?? 0 };
 }
 
 export async function saveAdminPromotion(input: AdminPromotionInput, promotionId?: string) {
@@ -314,7 +383,7 @@ export async function saveAdminTagVariantPreset(
       : "/api/v1/admin/tag-products/variant-presets",
     { method: presetId ? "PUT" : "POST", body: input }
   );
-  if (!response.data) throw new Error("Variant preset could not be saved.");
+  if (!response.data) throw new Error("Tag Type could not be saved.");
   return response.data;
 }
 

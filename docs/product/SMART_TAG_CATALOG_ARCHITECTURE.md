@@ -4,6 +4,7 @@
 
 - `TagProduct` is the customer-facing product family and publication record.
 - `TagProductVariant` is the exact sellable and manufacturable SKU. SKU values are trimmed and normalized to uppercase.
+- `TagVariantPreset` is a **Tag Type**: a reusable SKU classification only (e.g. Lightweight, Standard). It surfaces as "Tag Type" in the Admin Portal and never carries price, capabilities, physical specifications, or inventory — those all live on the SKU. Each SKU stores the Tag Type's display name as a snapshot (`TagProductVariant.TagVariant`), so renaming a Tag Type never rewrites produced inventory or historical order snapshots.
 - `Promotion` changes the effective price temporarily without changing the SKU base price.
 - `SmartTagBatch` and `SmartTag` are physical inventory. New records reference the exact product variant that defined their production specification.
 - `SmartTag` lifecycle remains responsible for claiming, activation, owner/pet binding, scans, replacement, and fulfilment.
@@ -41,3 +42,18 @@ Order creation does not expose or reserve a Tag Code. After payment approval, an
 - Admin product-image uploads reuse the existing media upload pipeline with the Admin-only `TagProductImage` category.
 - Owner catalog and ordering remain behind the centralized Smart Tag and ordering flags, which are off by default.
 - Existing `/t/{tagCode}`, `/q/{safetyCode}`, and `/p/{petSlug}` behavior is unchanged.
+
+## SKU production-field locking
+
+Once a SKU has inventory or order history, its physical identity is locked: SKU code, QR/NFC capability, Tag Type, dimensions, weight, material, shape, colour, packaging, and print template can no longer change — a physical change requires a new versioned SKU. Base price and customer-facing naming stay editable because orders keep their own price/label snapshots.
+
+`ProductionNotes` is intentionally **not** locked. It is an informational hint for the manufacturer, not part of the physical identity, so it can be edited on a locked SKU. Such an edit only affects future manufacturer-export re-generations; previously exported workbooks are static files and are never rewritten retroactively.
+
+## Order idempotency
+
+`POST /api/v1/orders` accepts an optional `idempotencyKey`. The client (`TagOrderFlow`) generates one stable key per submission attempt, reused across retries and regenerated only after a successful order. The backend stores it on `TagOrder` with a request fingerprint and a filtered unique index on `(OwnerUserId, IdempotencyKey)`:
+
+- same key + same payload → the original order is returned (no duplicate);
+- same key + different payload → `409 idempotency_key_conflict`;
+- concurrent duplicates → the unique index rejects the loser, which then returns the winner's order;
+- an omitted key preserves the legacy non-idempotent behaviour for older clients.

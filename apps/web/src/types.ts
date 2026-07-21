@@ -498,4 +498,7 @@ export type TagOrderPayload = {
   quantity: 1;
   delivery: DeliveryDetails;
   replacementForTagId?: string;
+  // Stable per-submission-attempt key so a double-tap or retry never creates a
+  // duplicate order.
+  idempotencyKey?: string;
 };

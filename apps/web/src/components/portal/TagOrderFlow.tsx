@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { ManualPaymentPanel } from "@/components/portal/ManualPaymentPanel";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
@@ -67,6 +67,7 @@ export function TagOrderFlow({
   const [formError, setFormError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [createdOrder, setCreatedOrder] = useState<TagOrder | null>(null);
+  const idempotencyKeyRef = useRef<string | null>(null);
 
   const orderPrefsKey = useSyncExternalStore(subscribeNoop, getBrowserOrderPrefsKey, getDefaultOrderPrefsKey);
   const orderPrefs = useMemo(() => parseOrderPrefs(orderPrefsKey), [orderPrefsKey]);
@@ -179,6 +180,12 @@ export function TagOrderFlow({
     if (!selectedChoice || !selectedPet) return;
     setIsSubmitting(true);
     setFormError("");
+    // One stable key per submission attempt: kept across retries of the same
+    // order so the backend dedupes double-taps/retries, regenerated only after
+    // a successful submission.
+    if (!idempotencyKeyRef.current) {
+      idempotencyKeyRef.current = createIdempotencyKey();
+    }
     try {
       const response = await createTagOrder({
         petId: selectedPet.id,
@@ -186,7 +193,9 @@ export function TagOrderFlow({
         quantity: 1,
         delivery: { ...delivery, phone: normalizeStoredPhone(delivery.phone) },
         replacementForTagId: replacementFor,
+        idempotencyKey: idempotencyKeyRef.current,
       });
+      idempotencyKeyRef.current = null;
       setCreatedOrder(response.data.order);
     } catch (caught) {
       setFormError(getFriendlyTagErrorMessage(caught));
@@ -253,6 +262,12 @@ function isDeliveryValid(delivery: DeliveryDetails) { return Object.keys(validat
 function dimensions(variant: TagProductVariant) { const values = [variant.widthMm, variant.heightMm, variant.thicknessMm].filter((value): value is number => typeof value === "number"); return values.length ? `${values.join(" × ")} mm` : variant.tagVariant; }
 function formatDeliverySummary(delivery: DeliveryDetails) { return [delivery.addressLine1, delivery.addressLine2, [delivery.postcode, delivery.city].filter(Boolean).join(" "), delivery.state].filter((part) => part.trim()).join(", "); }
 function inferCityState(area: string) { const parts = (area ?? "").split(",").map((part) => part.trim()).filter(Boolean); return parts.length >= 2 ? { city: parts[0], state: parts.at(-1) ?? "" } : { city: "", state: "" }; }
+function createIdempotencyKey() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
 function subscribeNoop() { return () => {}; }
 function getDefaultOrderPrefsKey() { return ""; }
 function getBrowserOrderPrefsKey() { const params = new URLSearchParams(window.location.search); return `${params.get("type") ?? ""}|${params.get("replacementFor") ?? ""}`; }

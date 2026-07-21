@@ -598,7 +598,14 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.Property(item => item.City).HasMaxLength(120);
             entity.Property(item => item.State).HasMaxLength(120);
             entity.Property(item => item.TrackingNumber).HasMaxLength(120);
+            entity.Property(item => item.IdempotencyKey).HasMaxLength(80);
+            entity.Property(item => item.RequestFingerprint).HasMaxLength(128);
             entity.HasIndex(item => item.OrderNumber).IsUnique();
+            // One order per owner per idempotency key. Filtered so legacy rows
+            // and requests that omit the key are unaffected.
+            entity.HasIndex(item => new { item.OwnerUserId, item.IdempotencyKey })
+                .IsUnique()
+                .HasFilter("[IdempotencyKey] IS NOT NULL");
             entity.HasIndex(item => item.OwnerUserId);
             entity.HasIndex(item => item.PetId);
             entity.HasIndex(item => item.SmartTagId);

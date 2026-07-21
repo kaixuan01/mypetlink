@@ -233,6 +233,39 @@ public sealed class TagCatalogServiceTests
     }
 
     [Fact]
+    public async Task Catalog_ProductionNotesRemainEditable_AfterASkuIsLocked()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var created = await harness.Service.CreateVariantAsync(
+            AdminId, harness.Product.Id, harness.ValidVariant("MPL-NOTES-V1") with { ProductionNotes = "Print both sides." });
+        var storedVariant = await harness.Db.TagProductVariants.SingleAsync(item => item.Id == created.Id);
+        storedVariant.RowVersion = [2];
+        // Lock the SKU by giving it inventory.
+        harness.Db.SmartTags.Add(new SmartTag
+        {
+            TagCode = "MPL-NOTE-0001",
+            ProductVariantId = created.Id,
+            HasNfc = false,
+            Variant = "Standard",
+            Status = SmartTagStatus.Unclaimed,
+            FulfilmentStatus = TagFulfilmentStatus.Generated,
+        });
+        await harness.Db.SaveChangesAsync();
+
+        // Production notes are informational, so editing them on a locked SKU is
+        // allowed (only future manufacturer re-exports reflect the change).
+        var updated = await harness.Service.UpdateVariantAsync(
+            AdminId, created.Id,
+            harness.ValidVariant(created.Sku) with
+            {
+                ProductionNotes = "Updated: use matte finish.",
+                ConcurrencyToken = Convert.ToBase64String(storedVariant.RowVersion),
+            });
+
+        Assert.Equal("Updated: use matte finish.", updated.ProductionNotes);
+    }
+
+    [Fact]
     public async Task Catalog_FiltersDraftAndArchivedProducts_AndPublicProjectionExcludesUnavailableVariants()
     {
         await using var harness = await Harness.CreateAsync();
@@ -250,6 +283,92 @@ public sealed class TagCatalogServiceTests
         Assert.Equal("mypetlink-tag", publicProduct.Slug);
         Assert.Single(publicProduct.Variants);
         Assert.Equal("MPL-PUBLIC-V1", publicProduct.Variants.Single().Sku);
+    }
+
+    [Fact]
+    public async Task CatalogOptions_ProjectsSelectableProductsAndSkus_ExcludingArchived_WithInventoryCounts()
+    {
+        await using var harness = await Harness.CreateAsync();
+        // Active + purchasable SKU with two inventory tags.
+        var active = await harness.Service.CreateVariantAsync(AdminId, harness.Product.Id, harness.ValidVariant("MPL-OPT-ACTIVE"));
+        harness.Db.SmartTags.AddRange(
+            new SmartTag { TagCode = "MPL-OPT-0001", ProductVariantId = active.Id, HasNfc = false, Variant = "Standard", Status = SmartTagStatus.Unclaimed, FulfilmentStatus = TagFulfilmentStatus.Generated },
+            new SmartTag { TagCode = "MPL-OPT-0002", ProductVariantId = active.Id, HasNfc = false, Variant = "Standard", Status = SmartTagStatus.Unclaimed, FulfilmentStatus = TagFulfilmentStatus.Generated });
+        // Inactive-but-not-archived SKU (still returned; picker filters by isActive itself).
+        await harness.Service.CreateVariantAsync(AdminId, harness.Product.Id, harness.ValidVariant("MPL-OPT-INACTIVE") with { IsActive = false, IsPurchasable = false });
+        // Archived SKU must be excluded.
+        var archived = await harness.Service.CreateVariantAsync(AdminId, harness.Product.Id, harness.ValidVariant("MPL-OPT-ARCHIVED"));
+        var archivedRow = await harness.Db.TagProductVariants.SingleAsync(item => item.Id == archived.Id);
+        archivedRow.RowVersion = [5];
+        await harness.Db.SaveChangesAsync();
+        await harness.Service.ArchiveVariantAsync(AdminId, archived.Id, Convert.ToBase64String([5]));
+        // Archived product must be excluded entirely.
+        var archivedProduct = new TagProduct { Name = "Archived", Slug = "archived", IsArchived = true, RowVersion = [1] };
+        harness.Db.TagProducts.Add(archivedProduct);
+        await harness.Db.SaveChangesAsync();
+
+        var options = await harness.Service.ListAdminCatalogOptionsAsync();
+
+        var product = Assert.Single(options);
+        Assert.Equal(harness.Product.Id, product.Id);
+        Assert.True(product.IsPublished);
+        var skus = product.Variants.Select(variant => variant.Sku).ToArray();
+        Assert.Contains("MPL-OPT-ACTIVE", skus);
+        Assert.Contains("MPL-OPT-INACTIVE", skus);
+        Assert.DoesNotContain("MPL-OPT-ARCHIVED", skus);
+        Assert.Equal(2, product.Variants.Single(variant => variant.Sku == "MPL-OPT-ACTIVE").InventoryCount);
+        Assert.Equal(0, product.Variants.Single(variant => variant.Sku == "MPL-OPT-INACTIVE").InventoryCount);
+        // The lightweight projection carries only fields the pickers need.
+        var activeOption = product.Variants.Single(variant => variant.Sku == "MPL-OPT-ACTIVE");
+        Assert.Equal("Standard tag", activeOption.DisplayName);
+        Assert.Equal(29.90m, activeOption.BasePrice);
+        Assert.False(activeOption.SupportsNfc);
+    }
+
+    [Fact]
+    public async Task ListAdmin_PaginatesAndSortsWithinAnAllowList()
+    {
+        await using var harness = await Harness.CreateAsync();
+        // Seed 25 products so the result spans more than one page.
+        for (var index = 0; index < 24; index++)
+        {
+            harness.Db.TagProducts.Add(new TagProduct
+            {
+                Name = $"Product {index:D2}",
+                Slug = $"product-{index:D2}",
+                RowVersion = [1],
+            });
+        }
+        await harness.Db.SaveChangesAsync();
+
+        var (page1, total) = await harness.Service.ListAdminAsync(new AdminTagProductQuery
+        {
+            Page = 1,
+            PageSize = 10,
+            SortBy = "name",
+            SortDir = "asc",
+        });
+        Assert.Equal(25, total);
+        Assert.Equal(10, page1.Count);
+
+        var (page3, _) = await harness.Service.ListAdminAsync(new AdminTagProductQuery
+        {
+            Page = 3,
+            PageSize = 10,
+            SortBy = "name",
+            SortDir = "asc",
+        });
+        // Third page reaches rows beyond the old 100-row / first-page limit model.
+        Assert.Equal(5, page3.Count);
+
+        // An invalid sort field falls back to the deterministic default order.
+        var (fallback, _) = await harness.Service.ListAdminAsync(new AdminTagProductQuery
+        {
+            Page = 1,
+            PageSize = 5,
+            SortBy = "'; DROP TABLE",
+        });
+        Assert.Equal(5, fallback.Count);
     }
 
     [Fact]

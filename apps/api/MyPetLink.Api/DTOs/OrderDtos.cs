@@ -18,7 +18,10 @@ public sealed record CreateTagOrderRequest(
     [Required, MaxLength(32)] string ProductVariantKey,
     [Range(1, 1)] int Quantity,
     [Required] DeliveryDetailsRequest? Delivery,
-    Guid? ReplacementForTagId);
+    Guid? ReplacementForTagId,
+    // Optional per-attempt idempotency key. Omitting it keeps the legacy
+    // non-idempotent behaviour for older clients.
+    [property: MaxLength(80)] string? IdempotencyKey = null);
 
 public sealed record TagOrderItemResponse(
     string Sku,

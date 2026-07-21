@@ -132,12 +132,89 @@ public sealed class TagOrderCatalogIntegrationTests
         Assert.Equal("invalid_state", duplicate.Code);
     }
 
-    private static CreateTagOrderRequest Request(Guid petId, string publicKey) => new(
+    private static CreateTagOrderRequest Request(Guid petId, string publicKey, string? idempotencyKey = null) => new(
         petId,
         publicKey,
         1,
         new DeliveryDetailsRequest("Aina", "+60123456789", "1 Jalan Pet", null, "50000", "Kuala Lumpur", "WP Kuala Lumpur", null),
-        null);
+        null,
+        idempotencyKey);
+
+    [Fact]
+    public async Task Create_WithIdempotencyKey_SamePayload_ReturnsTheSameOrderOnce()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var request = Request(harness.Pet.Id, harness.Variant.PublicKey, "attempt-1");
+
+        var first = await harness.Service.CreateAsync(OwnerId, request);
+        var replay = await harness.Service.CreateAsync(OwnerId, request);
+
+        Assert.Equal(first.Order.Id, replay.Order.Id);
+        Assert.Equal(first.Order.OrderNumber, replay.Order.OrderNumber);
+        Assert.Equal(1, await harness.Db.TagOrders.CountAsync(order => order.OwnerUserId == OwnerId));
+    }
+
+    [Fact]
+    public async Task Create_SameKeyDifferentPayload_ReturnsConflict()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await harness.Service.CreateAsync(OwnerId, Request(harness.Pet.Id, harness.Variant.PublicKey, "attempt-1"));
+
+        var different = new CreateTagOrderRequest(
+            harness.Pet.Id, harness.Variant.PublicKey, 1,
+            new DeliveryDetailsRequest("Someone Else", "+60129999999", "9 Other Road", null, "40000", "Shah Alam", "Selangor", null),
+            null, "attempt-1");
+
+        var conflict = await Assert.ThrowsAsync<ApiException>(() => harness.Service.CreateAsync(OwnerId, different));
+        Assert.Equal("idempotency_key_conflict", conflict.Code);
+        Assert.Equal(StatusCodes.Status409Conflict, conflict.StatusCode);
+        Assert.Equal(1, await harness.Db.TagOrders.CountAsync(order => order.OwnerUserId == OwnerId));
+    }
+
+    [Fact]
+    public async Task Create_DifferentKeys_CreateSeparateOrders()
+    {
+        await using var harness = await Harness.CreateAsync();
+
+        var first = await harness.Service.CreateAsync(OwnerId, Request(harness.Pet.Id, harness.Variant.PublicKey, "attempt-1"));
+        var second = await harness.Service.CreateAsync(OwnerId, Request(harness.Pet.Id, harness.Variant.PublicKey, "attempt-2"));
+
+        Assert.NotEqual(first.Order.Id, second.Order.Id);
+        Assert.Equal(2, await harness.Db.TagOrders.CountAsync(order => order.OwnerUserId == OwnerId));
+    }
+
+    [Fact]
+    public async Task Create_OmittedKey_KeepsLegacyNonIdempotentBehaviour()
+    {
+        await using var harness = await Harness.CreateAsync();
+
+        await harness.Service.CreateAsync(OwnerId, Request(harness.Pet.Id, harness.Variant.PublicKey));
+        await harness.Service.CreateAsync(OwnerId, Request(harness.Pet.Id, harness.Variant.PublicKey));
+
+        Assert.Equal(2, await harness.Db.TagOrders.CountAsync(order => order.OwnerUserId == OwnerId));
+    }
+
+    [Fact]
+    public async Task Create_FailedAttemptBeforeCommit_DoesNotPoisonTheKey()
+    {
+        await using var harness = await Harness.CreateAsync();
+        // First attempt fails validation (archived pet) before any order row is
+        // written, so the key is never persisted.
+        var pet = await harness.Db.Pets.SingleAsync(item => item.Id == harness.Pet.Id);
+        pet.LifecycleStatus = PetLifecycleStatus.Archived;
+        await harness.Db.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Service.CreateAsync(OwnerId, Request(harness.Pet.Id, harness.Variant.PublicKey, "attempt-1")));
+
+        pet.LifecycleStatus = PetLifecycleStatus.Active;
+        await harness.Db.SaveChangesAsync();
+
+        // Retrying the same key now succeeds — the earlier failure did not lock it.
+        var retry = await harness.Service.CreateAsync(OwnerId, Request(harness.Pet.Id, harness.Variant.PublicKey, "attempt-1"));
+        Assert.NotEqual(Guid.Empty, retry.Order.Id);
+        Assert.Equal(1, await harness.Db.TagOrders.CountAsync(order => order.OwnerUserId == OwnerId));
+    }
 
     private sealed class Harness : IAsyncDisposable
     {

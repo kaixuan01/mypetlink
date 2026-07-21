@@ -43,6 +43,40 @@ public sealed class DevelopmentAdminAuthTests
     }
 
     [Fact]
+    public async Task Seed_CreatesDemoCatalog_Idempotently()
+    {
+        await using var db = await CreateDatabaseAsync();
+        var seeder = CreateSeeder(db, Environments.Development, enabled: true);
+
+        Assert.True(await seeder.EnsureSeededAsync());
+        Assert.True(await seeder.EnsureSeededAsync());
+
+        var product = Assert.Single(await db.TagProducts
+            .Include(item => item.Variants)
+            .Where(item => item.Slug == "mypetlink-paw-pet-tag")
+            .ToListAsync());
+        Assert.Equal("MyPetLink Paw Pet Tag", product.Name);
+        Assert.True(product.IsPublished);
+        Assert.Equal(2, product.Variants.Count);
+
+        var lightweight = Assert.Single(product.Variants.Where(item => item.Sku == "PAW-LW-QR"));
+        Assert.Equal(MyPetLinkDbContext.LightweightVariantPresetId, lightweight.TagVariantPresetId);
+        Assert.Equal("Lightweight", lightweight.TagVariant);
+        Assert.True(lightweight.SupportsQr);
+        Assert.False(lightweight.SupportsNfc);
+        Assert.True(lightweight.IsActive);
+        Assert.True(lightweight.IsPurchasable);
+
+        var standard = Assert.Single(product.Variants.Where(item => item.Sku == "PAW-STD-NFC"));
+        Assert.Equal(MyPetLinkDbContext.StandardVariantPresetId, standard.TagVariantPresetId);
+        Assert.Equal("Standard", standard.TagVariant);
+        Assert.True(standard.SupportsQr);
+        Assert.True(standard.SupportsNfc);
+        Assert.True(standard.IsActive);
+        Assert.True(standard.IsPurchasable);
+    }
+
+    [Fact]
     public async Task Seed_DoesNotRunOutsideDevelopment()
     {
         await using var db = await CreateDatabaseAsync();

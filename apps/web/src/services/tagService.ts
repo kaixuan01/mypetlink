@@ -20,7 +20,7 @@ import {
   readStoredCollection,
   writeStoredCollection,
 } from "@/services/mockApi";
-import { apiRequest, isApiClientError } from "@/services/apiClient";
+import { ApiClientError, apiRequest, isApiClientError } from "@/services/apiClient";
 import { canUseApi } from "@/services/apiConfig";
 import { readStoredAuthSession } from "@/services/authStorage";
 import {
@@ -97,6 +97,12 @@ function apiNullResponse<T>(): ApiResponse<T | null> {
 }
 
 export function getFriendlyTagErrorMessage(error: unknown) {
+  // A missing/unconfigured backend is a configuration state, not the live
+  // service being down — say so instead of implying an outage.
+  if (isApiClientError(error) && error.code === "connection_not_configured") {
+    return "Tag ordering isn’t available in this preview. It needs a configured MyPetLink connection.";
+  }
+
   return getFriendlyApiErrorMessage(error);
 }
 
@@ -535,6 +541,7 @@ export async function createTagOrder(payload: TagOrderPayload) {
             notes: payload.delivery.notes || null,
           },
           replacementForTagId: payload.replacementForTagId,
+          idempotencyKey: payload.idempotencyKey,
         },
       }
     );
@@ -550,7 +557,13 @@ export async function createTagOrder(payload: TagOrderPayload) {
     return apiResponse({ data: mapped, meta: response.meta }, mapped);
   }
 
-  throw new Error("Tag ordering is unavailable right now. Please try again shortly.");
+  // Ordering is reached without a configured backend (e.g. a static preview).
+  // Use the config code so the UI shows a configuration message, not an outage.
+  throw new ApiClientError(
+    0,
+    "connection_not_configured",
+    "Tag ordering requires a configured MyPetLink connection."
+  );
 }
 
 type SubmitPaymentInput = {

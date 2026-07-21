@@ -5,6 +5,7 @@ vi.mock("@/services/apiClient", () => ({ apiRequest }));
 
 const {
   listAdminPromotions,
+  listAdminTagCatalogOptions,
   listAdminTagProducts,
   saveAdminPromotion,
   saveAdminTagProduct,
@@ -25,29 +26,49 @@ describe("tagCatalogService", () => {
     });
   });
 
-  it("sends every Admin catalog filter to the server", async () => {
-    apiRequest.mockResolvedValue({ data: [] });
+  it("sends every Admin catalog filter, pagination, and sort to the server and returns the total", async () => {
+    apiRequest.mockResolvedValue({ data: [{ id: "p1" }], meta: { total: 137 } });
 
-    await listAdminTagProducts({
+    const result = await listAdminTagProducts({
       search: "nfc standard",
       published: true,
       archived: false,
       supportsQr: true,
       supportsNfc: true,
       purchasable: true,
+      page: 2,
+      pageSize: 50,
+      sortBy: "name",
+      sortDir: "asc",
     });
 
     const [path] = apiRequest.mock.calls[0];
     const query = new URLSearchParams(String(path).split("?")[1]);
     expect(Object.fromEntries(query)).toMatchObject({
-      page: "1",
-      pageSize: "100",
+      page: "2",
+      pageSize: "50",
       search: "nfc standard",
       published: "true",
       archived: "false",
       supportsQr: "true",
       supportsNfc: "true",
       purchasable: "true",
+      sortBy: "name",
+      sortDir: "asc",
+    });
+    // No 100-row cap; the server total is surfaced to the caller.
+    expect(result.total).toBe(137);
+    expect(result.items).toEqual([{ id: "p1" }]);
+  });
+
+  it("loads all Product/SKU selector options in one request", async () => {
+    apiRequest.mockResolvedValue({ data: [] });
+
+    await listAdminTagCatalogOptions();
+
+    expect(apiRequest).toHaveBeenCalledTimes(1);
+    expect(apiRequest).toHaveBeenCalledWith("/api/v1/admin/tag-products/options", {
+      signal: undefined,
     });
   });
 
@@ -91,13 +112,17 @@ describe("tagCatalogService", () => {
       concurrencyToken: null,
     };
 
-    await listAdminPromotions();
+    await listAdminPromotions({ search: "launch", active: true, page: 2, pageSize: 50 });
     await saveAdminPromotion(input);
 
-    expect(apiRequest).toHaveBeenNthCalledWith(
-      1,
-      "/api/v1/admin/promotions?page=1&pageSize=100"
-    );
+    const [listPath] = apiRequest.mock.calls[0];
+    const listQuery = new URLSearchParams(String(listPath).split("?")[1]);
+    expect(Object.fromEntries(listQuery)).toMatchObject({
+      page: "2",
+      pageSize: "50",
+      search: "launch",
+      active: "true",
+    });
     expect(apiRequest).toHaveBeenNthCalledWith(2, "/api/v1/admin/promotions", {
       method: "POST",
       body: input,

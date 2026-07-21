@@ -45,6 +45,12 @@ export type AdminTableQueryActions = {
   setPageSize: (pageSize: number) => void;
   // Extra URL params outside the filter model (e.g. an open detail row).
   setExtraParam: (key: string, value: string | null) => void;
+  // Set several extra params in one navigation (e.g. opening a master/detail
+  // record and clearing a child selection together).
+  setExtraParams: (
+    values: Readonly<Record<string, string | null>>,
+    history?: "push" | "replace"
+  ) => void;
   getExtraParam: (key: string) => string;
 };
 
@@ -198,6 +204,13 @@ export function useAdminTableQuery(
         navigate((params) => {
           setOrDelete(params, key, value);
         }, value !== null && currentValue === null ? "push" : "replace");
+      },
+      setExtraParams: (values, history = "push") => {
+        navigate((params) => {
+          for (const [key, value] of Object.entries(values)) {
+            setOrDelete(params, key, value);
+          }
+        }, history);
       },
       getExtraParam: (key) => searchParams.get(key) ?? "",
     }),

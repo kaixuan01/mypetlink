@@ -370,8 +370,10 @@ export function OrderDetailView({
           <h2 className="text-xl font-black text-pet-ink">Order summary</h2>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <DetailItem label="Pet" value={petName} />
+            {/* Owners see the customer-facing product and variant, not the
+                internal SKU code. Legacy orders that predate the catalog simply
+                fall back to the tag type/variant labels. */}
             <DetailItem label="Product" value={order.productName ?? order.tagType} />
-            <DetailItem label="SKU" value={order.sku ?? "Earlier catalog item"} />
             <DetailItem label="Tag variant" value={order.variantName ?? `${order.variant} Tag`} />
             <DetailItem label="Original unit price" value={order.unitBasePrice != null ? `${order.currency ?? "MYR"} ${order.unitBasePrice.toFixed(2)}` : order.estimatedPrice} />
             {order.discountAmount ? <DetailItem label="Discount" value={`${order.currency ?? "MYR"} ${order.discountAmount.toFixed(2)}`} /> : null}

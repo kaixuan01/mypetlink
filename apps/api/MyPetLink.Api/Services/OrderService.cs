@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using MyPetLink.Api.Common;
@@ -92,6 +93,20 @@ public sealed class OrderService : SkeletonService, IOrderService
         await EnsureUserExistsAsync(userId, cancellationToken);
         ValidateCreateRequest(request);
 
+        // Idempotency: a repeat of the same submission attempt (same key +
+        // same payload) returns the original order instead of creating another.
+        var idempotencyKey = NormalizeOptional(request.IdempotencyKey);
+        var fingerprint = idempotencyKey is null ? null : ComputeRequestFingerprint(request);
+
+        if (idempotencyKey is not null)
+        {
+            var existing = await FindByIdempotencyKeyAsync(userId, idempotencyKey, cancellationToken);
+            if (existing is not null)
+            {
+                return await BuildIdempotentReplayAsync(userId, existing, fingerprint!, cancellationToken);
+            }
+        }
+
         var pet = await LoadOwnedPetAsync(userId, request.PetId, cancellationToken);
 
         if (pet.LifecycleStatus == PetLifecycleStatus.Archived || pet.ArchivedAt.HasValue)
@@ -174,6 +189,8 @@ public sealed class OrderService : SkeletonService, IOrderService
             State = delivery.State.Trim(),
             DeliveryNotes = NormalizeOptional(delivery.Notes),
             TrackingStatus = "Awaiting QR payment.",
+            IdempotencyKey = idempotencyKey,
+            RequestFingerprint = fingerprint,
             CreatedAt = now,
             UpdatedAt = now
         };
@@ -198,13 +215,82 @@ public sealed class OrderService : SkeletonService, IOrderService
         });
 
         _dbContext.TagOrders.Add(order);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException) when (idempotencyKey is not null)
+        {
+            // A concurrent request with the same key may have won the insert
+            // race (the filtered unique index rejects the duplicate). Abandon
+            // this attempt's tracked graph and, if a matching order now exists,
+            // return it; otherwise the failure was unrelated, so surface it.
+            _dbContext.ChangeTracker.Clear();
+            var winner = await FindByIdempotencyKeyAsync(userId, idempotencyKey, cancellationToken);
+            if (winner is null)
+            {
+                throw;
+            }
+            return await BuildIdempotentReplayAsync(userId, winner, fingerprint!, cancellationToken);
+        }
 
         var hydratedOrder = await LoadOwnedOrderByIdAsync(userId, order.Id, trackChanges: false, cancellationToken);
 
         return new CreateTagOrderResponse(
             TagDtoMapper.ToOrderResponse(hydratedOrder),
             null);
+    }
+
+    private async Task<TagOrder?> FindByIdempotencyKeyAsync(
+        Guid userId, string idempotencyKey, CancellationToken cancellationToken)
+    {
+        return await _dbContext.TagOrders
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                order => order.OwnerUserId == userId && order.IdempotencyKey == idempotencyKey,
+                cancellationToken);
+    }
+
+    private async Task<CreateTagOrderResponse> BuildIdempotentReplayAsync(
+        Guid userId, TagOrder existing, string fingerprint, CancellationToken cancellationToken)
+    {
+        // Same key, different payload = a client bug or collision. Never return
+        // the wrong order silently.
+        if (!string.Equals(existing.RequestFingerprint, fingerprint, StringComparison.Ordinal))
+        {
+            throw new ApiException(
+                StatusCodes.Status409Conflict,
+                "idempotency_key_conflict",
+                "This request was already used for a different order. Start a new order to change the details.");
+        }
+
+        var hydrated = await LoadOwnedOrderByIdAsync(userId, existing.Id, trackChanges: false, cancellationToken);
+        return new CreateTagOrderResponse(TagDtoMapper.ToOrderResponse(hydrated), null);
+    }
+
+    // Deterministic fingerprint over the material request fields, so a repeat
+    // with the same key but different content is detected. Price and stock come
+    // from server state and are intentionally excluded.
+    private static string ComputeRequestFingerprint(CreateTagOrderRequest request)
+    {
+        var delivery = request.Delivery!;
+        var canonical = string.Join(
+            '|',
+            request.PetId,
+            request.ProductVariantKey.Trim(),
+            request.Quantity,
+            request.ReplacementForTagId?.ToString() ?? "",
+            delivery.RecipientName.Trim(),
+            delivery.PhoneE164.Trim(),
+            delivery.AddressLine1.Trim(),
+            (delivery.AddressLine2 ?? "").Trim(),
+            delivery.Postcode.Trim(),
+            delivery.City.Trim(),
+            delivery.State.Trim(),
+            (delivery.Notes ?? "").Trim());
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(canonical));
+        return Convert.ToHexString(hash);
     }
 
     public async Task<TagOrderResponse> SubmitPaymentProofAsync(

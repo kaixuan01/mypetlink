@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { useSyncExternalStore } from "react";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClientError } from "@/services/apiClient";
 import type {
@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   savePromotion: vi.fn(),
   listPresets: vi.fn(),
   savePreset: vi.fn(),
+  listOptions: vi.fn(),
   uploadMedia: vi.fn(),
 }));
 
@@ -70,6 +71,7 @@ vi.mock("@/services/tagCatalogService", async (importOriginal) => {
     saveAdminPromotion: mocks.savePromotion,
     listAdminTagVariantPresets: mocks.listPresets,
     saveAdminTagVariantPreset: mocks.savePreset,
+    listAdminTagCatalogOptions: mocks.listOptions,
   };
 });
 
@@ -182,11 +184,35 @@ const promotion: AdminPromotion = {
   concurrencyToken: "Aw==",
 };
 
+const catalogOption = {
+  id: listProduct.id,
+  name: listProduct.name,
+  isPublished: true,
+  variants: [{
+    id: productDetail.variants[0].id,
+    sku: "MPL-QR-STANDARD-V1",
+    displayName: "Standard QR Tag",
+    supportsQr: true,
+    supportsNfc: false,
+    tagVariant: "Standard",
+    widthMm: 32,
+    heightMm: 32,
+    thicknessMm: 2,
+    material: "Steel",
+    printTemplateCode: "TPL-QR",
+    basePrice: 29.9,
+    currency: "MYR",
+    isActive: true,
+    isPurchasable: true,
+    inventoryCount: 0,
+  }],
+};
+
 beforeEach(() => {
   navState.pathname = "/admin/tag-products";
   navState.search = "";
   navState.listeners.clear();
-  mocks.listProducts.mockReset().mockResolvedValue([]);
+  mocks.listProducts.mockReset().mockResolvedValue({ items: [], total: 0 });
   mocks.getProduct.mockReset().mockResolvedValue(productDetail);
   mocks.saveProduct.mockReset().mockImplementation(async (input) => ({
     ...productDetail,
@@ -202,10 +228,11 @@ beforeEach(() => {
   mocks.archiveProduct.mockReset().mockResolvedValue({ ...productDetail, isArchived: true, isPublished: false });
   mocks.saveVariant.mockReset().mockResolvedValue(productDetail.variants[0]);
   mocks.archiveVariant.mockReset();
-  mocks.listPromotions.mockReset().mockResolvedValue([]);
+  mocks.listPromotions.mockReset().mockResolvedValue({ items: [], total: 0 });
   mocks.savePromotion.mockReset().mockResolvedValue(promotion);
   mocks.listPresets.mockReset().mockResolvedValue([standardPreset, collarSlidePreset, inactivePreset]);
   mocks.savePreset.mockReset().mockResolvedValue(collarSlidePreset);
+  mocks.listOptions.mockReset().mockResolvedValue([catalogOption]);
   mocks.uploadMedia.mockReset();
   Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
     configurable: true,
@@ -235,7 +262,7 @@ function fillDraftProduct(name = "MyPetLink Pet Tag") {
 }
 
 async function openExistingProduct() {
-  mocks.listProducts.mockResolvedValue([listProduct]);
+  mocks.listProducts.mockResolvedValue({ items: [listProduct], total: 1 });
   render(<AdminTagProductsManager />);
   const item = await screen.findByText("MyPetLink Pet Tag");
   fireEvent.click(item);
@@ -255,22 +282,32 @@ describe("AdminTagProductsManager navigation and mobile flow", () => {
     expect(settings.getAttribute("href")).toBe("/admin/tag-products?tab=settings");
     expect(products.getAttribute("aria-current")).toBe("page");
     expect(promotions.getAttribute("aria-current")).toBeNull();
+
+    // Honest, keyboard-accessible links — no incomplete ARIA tab roles.
+    for (const link of [products, promotions, settings]) {
+      expect(link.tagName).toBe("A");
+      expect(link.getAttribute("role")).toBeNull();
+      link.focus();
+      expect(document.activeElement).toBe(link);
+    }
+    expect(screen.queryByRole("tab")).toBeNull();
+    expect(screen.queryByRole("tablist")).toBeNull();
   });
 
   it("opens the Promotions tab from the URL used by the sidebar", async () => {
     navState.search = "tab=promotions";
-    mocks.listProducts.mockResolvedValue([listProduct]);
+    mocks.listProducts.mockResolvedValue({ items: [listProduct], total: 1 });
     render(<AdminTagProductsManager />);
 
     await screen.findByText("No promotions created.");
     expect(screen.getByRole("link", { name: "Promotions" }).getAttribute("aria-current")).toBe("page");
   });
 
-  it("opens Catalog Settings from the URL and lists variant presets", async () => {
+  it("opens Catalog Settings from the URL and lists Tag Types", async () => {
     navState.search = "tab=settings";
     render(<AdminTagProductsManager />);
 
-    await screen.findByText("Variant presets");
+    await screen.findByText("Tag Types");
     expect(await screen.findByText("Collar Slide")).toBeDefined();
     expect(screen.getByText("Retired Shape")).toBeDefined();
   });
@@ -291,19 +328,20 @@ describe("AdminTagProductsManager navigation and mobile flow", () => {
     await waitFor(() =>
       expect(screen.getByTestId("product-list-panel").className).not.toContain("hidden")
     );
-    expect(navState.search).toContain("tab=products");
+    // Back clears the open product (an absent tab param is the products tab).
     expect(navState.search).not.toContain("product=");
+    expect(navState.search).not.toContain("tab=promotions");
   });
 
   it("opens the SKU editor only after explicitly choosing New SKU", async () => {
     await openExistingProduct();
 
     // Product detail shows the SKU list but no editing form yet.
-    expect(screen.queryByText("Variant preset")).toBeNull();
+    expect(screen.queryByText("Tag Type")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "New SKU" }));
 
     await screen.findByText(`New SKU for ${productDetail.name}`);
-    expect(screen.getByText("Variant preset")).toBeDefined();
+    expect(screen.getByText("Tag Type")).toBeDefined();
     // On mobile the product editor has stepped aside: only the SKU context.
     expect(screen.queryByLabelText("Product name")).toBeNull();
   });
@@ -358,40 +396,89 @@ describe("AdminTagProductsManager terminology and status", () => {
     expect(screen.getByText("Hidden from the store until it is marked purchasable.")).toBeDefined();
   });
 
-  it("requires confirmation before archiving a product and explains irreversibility", async () => {
+  it("opens a confirmation dialog before archiving a product, explaining the impact", async () => {
     await openExistingProduct();
     fireEvent.click(screen.getByRole("button", { name: "Archive Product" }));
 
+    // Dialog opened, nothing archived yet.
     expect(mocks.archiveProduct).not.toHaveBeenCalled();
-    await screen.findByText(/cannot be undone from this portal/);
-    fireEvent.click(screen.getByRole("button", { name: "Keep" }));
-    expect(mocks.archiveProduct).not.toHaveBeenCalled();
+    await screen.findByRole("dialog");
+    expect(screen.getByText(/unavailable for new purchases/)).toBeDefined();
+    expect(screen.getByText(/cannot be undone from this portal/)).toBeDefined();
+  });
 
+  it("cancelling the archive dialog performs no API request", async () => {
+    await openExistingProduct();
     fireEvent.click(screen.getByRole("button", { name: "Archive Product" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Archive Product", hidden: false }));
-    const dialogConfirm = screen.getAllByRole("button", { name: "Archive Product" }).at(-1)!;
-    fireEvent.click(dialogConfirm);
-    await waitFor(() => expect(mocks.archiveProduct).toHaveBeenCalled());
+    await screen.findByRole("dialog");
+    fireEvent.click(screen.getByRole("button", { name: "Keep" }));
+
+    expect(mocks.archiveProduct).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("confirming performs exactly one product archive request", async () => {
+    await openExistingProduct();
+    fireEvent.click(screen.getByRole("button", { name: "Archive Product" }));
+    await screen.findByRole("dialog");
+    const confirm = within(screen.getByRole("dialog")).getByRole("button", { name: "Archive Product" });
+    fireEvent.click(confirm);
+
+    await waitFor(() => expect(mocks.archiveProduct).toHaveBeenCalledTimes(1));
+    expect(mocks.archiveProduct).toHaveBeenCalledWith(productDetail.id, productDetail.concurrencyToken);
+  });
+
+  it("does not submit twice when the confirm button is double-clicked", async () => {
+    let resolveArchive: ((value: AdminTagProduct) => void) | undefined;
+    mocks.archiveProduct.mockReturnValueOnce(new Promise((resolve) => { resolveArchive = resolve; }));
+    await openExistingProduct();
+    fireEvent.click(screen.getByRole("button", { name: "Archive Product" }));
+    await screen.findByRole("dialog");
+    const confirm = within(screen.getByRole("dialog")).getByRole("button", { name: "Archive Product" });
+    fireEvent.click(confirm);
+    fireEvent.click(confirm);
+
+    expect(mocks.archiveProduct).toHaveBeenCalledTimes(1);
+    resolveArchive?.({ ...productDetail, isArchived: true, isPublished: false });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("requires confirmation before archiving an SKU, then archives exactly once", async () => {
+    await openExistingProduct();
+    fireEvent.click(screen.getByText("MPL-QR-STANDARD-V1"));
+    await screen.findByText(/Edit SKU/);
+    fireEvent.click(screen.getByRole("button", { name: "Archive SKU" }));
+
+    expect(mocks.archiveVariant).not.toHaveBeenCalled();
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/unavailable for new purchases/)).toBeDefined();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Archive SKU" }));
+
+    await waitFor(() => expect(mocks.archiveVariant).toHaveBeenCalledTimes(1));
+    expect(mocks.archiveVariant).toHaveBeenCalledWith(
+      productDetail.variants[0].id,
+      productDetail.variants[0].concurrencyToken
+    );
   });
 });
 
-describe("AdminTagProductsManager variant presets", () => {
-  it("sources Variant preset options from the API, not a hardcoded list", async () => {
+describe("AdminTagProductsManager Tag Types", () => {
+  it("sources Tag Type options from the API, not a hardcoded list", async () => {
     await openExistingProduct();
     fireEvent.click(screen.getByRole("button", { name: "New SKU" }));
-    await screen.findByText("Variant preset");
+    await screen.findByText("Tag Type");
 
     const options = Array.from(
-      screen.getByRole("combobox", { name: "Variant preset" }).querySelectorAll("option")
+      screen.getByRole("combobox", { name: "Tag Type" }).querySelectorAll("option")
     ).map((option) => option.textContent);
     expect(options).toContain("Standard");
     expect(options).toContain("Collar Slide");
-    // Inactive presets are excluded for a NEW SKU.
+    // Inactive Tag Types are excluded for a NEW SKU.
     expect(options?.join("|")).not.toContain("Retired Shape");
     expect(mocks.listPresets).toHaveBeenCalled();
   });
 
-  it("keeps an inactive preset selectable on the SKU that already uses it", async () => {
+  it("keeps an inactive Tag Type selectable on the SKU that already uses it", async () => {
     mocks.getProduct.mockResolvedValue({
       ...productDetail,
       variants: [{ ...productDetail.variants[0], tagVariantPresetId: inactivePreset.id, tagVariant: "Retired Shape" }],
@@ -401,30 +488,30 @@ describe("AdminTagProductsManager variant presets", () => {
     await screen.findByText(/Edit SKU/);
 
     const options = Array.from(
-      screen.getByRole("combobox", { name: "Variant preset" }).querySelectorAll("option")
+      screen.getByRole("combobox", { name: "Tag Type" }).querySelectorAll("option")
     ).map((option) => option.textContent);
     expect(options).toContain("Retired Shape (inactive)");
   });
 
-  it("points to Catalog Settings instead of falling back to hardcoded values when no presets exist", async () => {
+  it("points to Catalog Settings instead of falling back to hardcoded values when no Tag Types exist", async () => {
     mocks.listPresets.mockResolvedValue([]);
     await openExistingProduct();
     fireEvent.click(screen.getByRole("button", { name: "New SKU" }));
 
-    await screen.findByText(/No active variant presets exist yet/);
+    await screen.findByText(/No active Tag Types exist yet/);
     const settingsLink = screen.getByRole("link", { name: "Add one in Catalog Settings" });
     expect(settingsLink.getAttribute("href")).toBe("/admin/tag-products?tab=settings");
-    expect(screen.queryByRole("combobox", { name: "Variant preset" })).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Tag Type" })).toBeNull();
   });
 
-  it("creates a preset from Catalog Settings", async () => {
+  it("creates a Tag Type from Catalog Settings", async () => {
     navState.search = "tab=settings";
     render(<AdminTagProductsManager />);
-    await screen.findByText("Variant presets");
+    await screen.findByText("Tag Types");
 
     fireEvent.change(screen.getByLabelText("Code"), { target: { value: "collar-slide" } });
     fireEvent.change(screen.getByLabelText("Display name"), { target: { value: "Collar Slide" } });
-    fireEvent.click(screen.getByRole("button", { name: "Create Preset" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create Tag Type" }));
 
     await waitFor(() => expect(mocks.savePreset).toHaveBeenCalledTimes(1));
     expect(mocks.savePreset).toHaveBeenCalledWith(
@@ -433,31 +520,31 @@ describe("AdminTagProductsManager variant presets", () => {
     );
   });
 
-  it("surfaces duplicate-preset errors from the backend", async () => {
+  it("surfaces duplicate-Tag-Type errors from the backend", async () => {
     mocks.savePreset.mockRejectedValueOnce(new ApiClientError(
       400,
       "validation_failed",
       "Please check the submitted fields.",
-      { code: ["A variant preset with this code or display name already exists."] }
+      { code: ["A Tag Type with this code or display name already exists."] }
     ));
     navState.search = "tab=settings";
     render(<AdminTagProductsManager />);
-    await screen.findByText("Variant presets");
+    await screen.findByText("Tag Types");
 
     fireEvent.change(screen.getByLabelText("Code"), { target: { value: "STANDARD" } });
     fireEvent.change(screen.getByLabelText("Display name"), { target: { value: "Standard" } });
-    fireEvent.click(screen.getByRole("button", { name: "Create Preset" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create Tag Type" }));
 
-    await screen.findByText("A variant preset with this code or display name already exists.");
+    await screen.findByText("A Tag Type with this code or display name already exists.");
   });
 
-  it("submits the selected preset id when saving an SKU", async () => {
+  it("submits the selected Tag Type id when saving an SKU", async () => {
     await openExistingProduct();
     fireEvent.click(screen.getByRole("button", { name: "New SKU" }));
-    await screen.findByText("Variant preset");
+    await screen.findByText("Tag Type");
 
-    fireEvent.change(screen.getByRole("combobox", { name: "Variant preset" }), { target: { value: collarSlidePreset.id } });
-    fireEvent.change(screen.getByLabelText("SKU"), { target: { value: "MPL-COLLAR-V1" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Tag Type" }), { target: { value: collarSlidePreset.id } });
+    fireEvent.change(screen.getByLabelText("SKU code"), { target: { value: "MPL-COLLAR-V1" } });
     fireEvent.change(screen.getByLabelText("Display name"), { target: { value: "Collar Slide Tag" } });
     fireEvent.click(screen.getByRole("button", { name: "Create SKU" }));
 
@@ -474,6 +561,57 @@ describe("AdminTagProductsManager variant presets", () => {
   });
 });
 
+describe("AdminTagProductsManager SKU availability", () => {
+  it("organises the SKU form into General and Pricing & Availability sections open by default", async () => {
+    await openExistingProduct();
+    fireEvent.click(screen.getByRole("button", { name: "New SKU" }));
+    await screen.findByText(`New SKU for ${productDetail.name}`);
+
+    // General and Pricing & Availability are the two expanded sections.
+    const general = screen.getByText("General").closest("details");
+    const pricing = screen.getByText("Pricing & Availability").closest("details");
+    const specifications = screen.getByText("Specifications").closest("details");
+    const production = screen.getByText("Production").closest("details");
+    expect(general?.open).toBe(true);
+    expect(pricing?.open).toBe(true);
+    expect(specifications?.open).toBe(false);
+    expect(production?.open).toBe(false);
+  });
+
+  it("renames the purchase toggle and explains Active versus Available for purchase", async () => {
+    await openExistingProduct();
+    fireEvent.click(screen.getByRole("button", { name: "New SKU" }));
+    await screen.findByText(`New SKU for ${productDetail.name}`);
+
+    expect(screen.getByRole("checkbox", { name: "Active" })).toBeDefined();
+    expect(screen.getByRole("checkbox", { name: "Available for purchase" })).toBeDefined();
+    // The old developer-flavoured wording is gone.
+    expect(screen.queryByRole("checkbox", { name: "Active SKU" })).toBeNull();
+    expect(screen.queryByRole("checkbox", { name: "Purchasable by customers" })).toBeNull();
+    expect(
+      screen.getByText(/lets customers select it in new orders — only possible while the SKU is active/)
+    ).toBeDefined();
+  });
+
+  it("cannot be available for purchase while inactive, and deactivating withdraws it", async () => {
+    // Open an existing purchasable, active SKU.
+    await openExistingProduct();
+    fireEvent.click(screen.getByText("MPL-QR-STANDARD-V1"));
+    await screen.findByText(/Edit SKU/);
+
+    const active = screen.getByRole("checkbox", { name: "Active" }) as HTMLInputElement;
+    const purchasable = screen.getByRole("checkbox", { name: "Available for purchase" }) as HTMLInputElement;
+    expect(active.checked).toBe(true);
+    expect(purchasable.checked).toBe(true);
+    expect(purchasable.disabled).toBe(false);
+
+    // Deactivating the SKU withdraws it from purchase and locks the toggle.
+    fireEvent.click(active);
+    expect((screen.getByRole("checkbox", { name: "Available for purchase" }) as HTMLInputElement).checked).toBe(false);
+    expect((screen.getByRole("checkbox", { name: "Available for purchase" }) as HTMLInputElement).disabled).toBe(true);
+  });
+});
+
 describe("AdminTagProductsManager products", () => {
   it("shows a true empty state only after a successful zero-result load", async () => {
     render(<AdminTagProductsManager />);
@@ -484,7 +622,7 @@ describe("AdminTagProductsManager products", () => {
   it("shows a request reference and Retry after load failure, never the empty state", async () => {
     mocks.listProducts
       .mockRejectedValueOnce(new ApiClientError(500, "server_error", "Internal", null, undefined, "req-products"))
-      .mockResolvedValueOnce([]);
+      .mockResolvedValueOnce({ items: [], total: 0 });
     render(<AdminTagProductsManager />);
 
     await screen.findByText("We couldn’t load Tag Products. Please try again. Reference: req-products");
@@ -565,8 +703,74 @@ describe("AdminTagProductsManager products", () => {
   });
 });
 
+describe("AdminTagProductsManager listing (shared table query)", () => {
+  it("restores search, filter, and page from the URL and sends them server-side", async () => {
+    navState.search = "q=milo&publication=published&page=3";
+    render(<AdminTagProductsManager />);
+
+    await waitFor(() =>
+      expect(mocks.listProducts).toHaveBeenCalledWith(
+        expect.objectContaining({ search: "milo", published: true, page: 3 })
+      )
+    );
+  });
+
+  it("paginates beyond the first 100 rows via server-side page state", async () => {
+    mocks.listProducts.mockResolvedValue({ items: [listProduct], total: 150 });
+    navState.search = "page=2";
+    render(<AdminTagProductsManager />);
+
+    await screen.findByText("MyPetLink Pet Tag");
+    expect(mocks.listProducts).toHaveBeenCalledWith(expect.objectContaining({ page: 2 }));
+    // Real total is surfaced, not capped at 100.
+    expect(screen.getByText(/of 150/)).toBeDefined();
+
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+    expect(navState.search).toContain("page=3");
+  });
+
+  it("resets the page when a filter changes", async () => {
+    mocks.listProducts.mockResolvedValue({ items: [listProduct], total: 150 });
+    navState.search = "page=4";
+    render(<AdminTagProductsManager />);
+    await screen.findByText("MyPetLink Pet Tag");
+
+    fireEvent.change(screen.getByLabelText("Publication"), { target: { value: "draft" } });
+
+    expect(navState.search).toContain("publication=draft");
+    expect(navState.search).not.toContain("page=4");
+  });
+
+  it("falls back safely for invalid URL sort, size, and filter values", async () => {
+    navState.search = "sort=hacker&size=999&publication=bogus";
+    render(<AdminTagProductsManager />);
+
+    // Invalid sort falls back to the default, invalid size to 20, and the
+    // out-of-allow-list publication value is dropped (undefined = no filter).
+    await waitFor(() => expect(mocks.listProducts).toHaveBeenCalled());
+    const params = mocks.listProducts.mock.calls[0][0];
+    expect(params.sortBy).toBe("updated");
+    expect(params.pageSize).toBe(20);
+    expect(params.published).toBeUndefined();
+  });
+
+  it("does not leak product filters into the Promotions tab link", async () => {
+    mocks.listProducts.mockResolvedValue({ items: [listProduct], total: 1 });
+    navState.search = "publication=published&page=2&q=milo";
+    render(<AdminTagProductsManager />);
+    await screen.findByText("MyPetLink Pet Tag");
+
+    // Switching tabs starts from a clean query, so promotions never inherits
+    // product-only filters.
+    expect(
+      screen.getByRole("link", { name: "Promotions" }).getAttribute("href")
+    ).toBe("/admin/tag-products?tab=promotions");
+  });
+});
+
 describe("AdminTagProductsManager promotions", () => {
   it("loads an empty tab and explains the eligible-SKU prerequisite", async () => {
+    mocks.listOptions.mockResolvedValue([]);
     navState.search = "tab=promotions";
     render(<AdminTagProductsManager />);
 
@@ -575,9 +779,18 @@ describe("AdminTagProductsManager promotions", () => {
     expect((screen.getByRole("button", { name: "New Promotion" }) as HTMLButtonElement).disabled).toBe(true);
   });
 
+  it("loads promotion SKU options through a single catalog-options request", async () => {
+    navState.search = "tab=promotions";
+    render(<AdminTagProductsManager />);
+    await screen.findByRole("checkbox", { name: /MPL-QR-STANDARD-V1/ });
+
+    // One options request; never a per-product detail fan-out.
+    expect(mocks.listOptions).toHaveBeenCalledTimes(1);
+    expect(mocks.getProduct).not.toHaveBeenCalled();
+  });
+
   it("blocks invalid promotion values and submits the accepted DTO", async () => {
     navState.search = "tab=promotions";
-    mocks.listProducts.mockResolvedValue([listProduct]);
     render(<AdminTagProductsManager />);
     await screen.findByText("No promotions created.");
     await screen.findByRole("checkbox", { name: /MPL-QR-STANDARD-V1/ });
@@ -609,7 +822,6 @@ describe("AdminTagProductsManager promotions", () => {
       { DiscountValue: ["Percentage discount cannot exceed 100%."] }
     ));
     navState.search = "tab=promotions";
-    mocks.listProducts.mockResolvedValue([listProduct]);
     render(<AdminTagProductsManager />);
     await screen.findByRole("checkbox", { name: /MPL-QR-STANDARD-V1/ });
 

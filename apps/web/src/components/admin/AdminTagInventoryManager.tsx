@@ -51,10 +51,9 @@ import {
   getFriendlyTagErrorMessage,
 } from "@/services/tagService";
 import {
-  getAdminTagProduct,
-  listAdminTagProducts,
+  listAdminTagCatalogOptions,
   listAdminTagVariantPresets,
-  type AdminTagProduct,
+  type AdminCatalogOptionProduct,
 } from "@/services/tagCatalogService";
 import type { TagFulfilmentStatus, TagVariant } from "@/types";
 
@@ -219,7 +218,7 @@ export function AdminTagInventoryManager() {
 
   // Generation form state.
   const [count, setCount] = useState(5);
-  const [catalogProducts, setCatalogProducts] = useState<AdminTagProduct[]>([]);
+  const [catalogProducts, setCatalogProducts] = useState<AdminCatalogOptionProduct[]>([]);
   const [productId, setProductId] = useState("");
   const [productVariantId, setProductVariantId] = useState("");
   const [batchNumber, setBatchNumber] = useState("");
@@ -229,14 +228,15 @@ export function AdminTagInventoryManager() {
 
   useEffect(() => {
     let active = true;
-    listAdminTagProducts()
-      .then((products) => Promise.all(products.filter((product) => !product.isArchived).map((product) => getAdminTagProduct(product.id))))
-      .then((details) => {
+    // One request for all product/SKU options (archived products/variants are
+    // already excluded server-side); no per-product detail fan-out.
+    listAdminTagCatalogOptions()
+      .then((products) => {
         if (!active) return;
-        setCatalogProducts(details);
-        const firstProduct = details.find((product) => product.variants.some((variant) => variant.isActive && !variant.isArchived));
+        setCatalogProducts(products);
+        const firstProduct = products.find((product) => product.variants.some((variant) => variant.isActive));
         setProductId((current) => current || firstProduct?.id || "");
-        setProductVariantId((current) => current || firstProduct?.variants.find((variant) => variant.isActive && !variant.isArchived)?.id || "");
+        setProductVariantId((current) => current || firstProduct?.variants.find((variant) => variant.isActive)?.id || "");
       })
       .catch((caught) => {
         if (active) setGenerateMessage(getFriendlyTagErrorMessage(caught));
@@ -330,7 +330,7 @@ export function AdminTagInventoryManager() {
   }
 
   const selectedCatalogProduct = catalogProducts.find((product) => product.id === productId);
-  const eligibleCatalogVariants = selectedCatalogProduct?.variants.filter((variant) => variant.isActive && !variant.isArchived) ?? [];
+  const eligibleCatalogVariants = selectedCatalogProduct?.variants.filter((variant) => variant.isActive) ?? [];
   const selectedCatalogVariant = eligibleCatalogVariants.find((variant) => variant.id === productVariantId);
 
   async function runBulkAction(action: AdminInventoryBulkAction) {
@@ -572,7 +572,7 @@ export function AdminTagInventoryManager() {
               onChange={(event) => {
                 const nextProduct = catalogProducts.find((product) => product.id === event.target.value);
                 setProductId(event.target.value);
-                setProductVariantId(nextProduct?.variants.find((variant) => variant.isActive && !variant.isArchived)?.id ?? "");
+                setProductVariantId(nextProduct?.variants.find((variant) => variant.isActive)?.id ?? "");
               }}
               value={productId}
             >
@@ -760,7 +760,7 @@ function ProductionSummary({ label, value }: { label: string; value: string }) {
   );
 }
 
-function formatSize(variant: AdminTagProduct["variants"][number]) {
+function formatSize(variant: AdminCatalogOptionProduct["variants"][number]) {
   const parts = [variant.widthMm, variant.heightMm, variant.thicknessMm].filter(
     (value): value is number => typeof value === "number"
   );

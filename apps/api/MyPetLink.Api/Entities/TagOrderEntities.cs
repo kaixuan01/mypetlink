@@ -86,6 +86,11 @@ public sealed class TagOrder : AuditableEntity
     public DateTimeOffset? ShippedAt { get; set; }
     public DateTimeOffset? DeliveredAt { get; set; }
     public DateTimeOffset? CancelledAt { get; set; }
+    // Client-supplied idempotency key for one order-submission attempt, unique
+    // per owner. A repeat with the same key returns the original order; the
+    // fingerprint detects the same key being reused with a different payload.
+    public string? IdempotencyKey { get; set; }
+    public string? RequestFingerprint { get; set; }
     public byte[] RowVersion { get; set; } = [];
 
     public User OwnerUser { get; set; } = null!;

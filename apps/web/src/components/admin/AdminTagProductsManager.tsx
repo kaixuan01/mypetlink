@@ -2,9 +2,12 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AdminActionButton, AdminNotice, AdminSection } from "@/components/admin/AdminPanels";
+import { AdminListPagination } from "@/components/admin/table/AdminListPagination";
+import { AdminSearchInput } from "@/components/admin/table/AdminSearchInput";
+import { useAdminTableQuery } from "@/components/admin/table/useAdminTableQuery";
 import { Badge } from "@/components/ui/Badge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { isApiClientError } from "@/services/apiClient";
@@ -15,12 +18,15 @@ import {
   formatCatalogPrice,
   getAdminTagProduct,
   listAdminPromotions,
+  listAdminTagCatalogOptions,
   listAdminTagProducts,
   listAdminTagVariantPresets,
   saveAdminPromotion,
   saveAdminTagProduct,
   saveAdminTagProductVariant,
   saveAdminTagVariantPreset,
+  type AdminCatalogOptionProduct,
+  type AdminCatalogOptionVariant,
   type AdminProductInput,
   type AdminPromotion,
   type AdminPromotionInput,
@@ -40,6 +46,26 @@ const catalogTabs: { id: CatalogTab; label: string }[] = [
   { id: "promotions", label: "Promotions" },
   { id: "settings", label: "Catalog Settings" },
 ];
+
+// URL-backed list filters shared by the Products and Promotions tabs. Absent
+// values mean "no filter" except `archive`, whose absence means active-only.
+// `promoStatus` only applies on the Promotions tab; switching tabs resets all
+// list params (the tab links navigate to a clean ?tab=…), so no state leaks.
+const CATALOG_FILTER_KEYS = [
+  "publication",
+  "archive",
+  "capability",
+  "purchasable",
+  "promoStatus",
+] as const;
+
+const CATALOG_FILTER_VALUES: Record<string, readonly string[]> = {
+  publication: ["published", "draft"],
+  archive: ["archived", "all"],
+  capability: ["qr", "nfc"],
+  purchasable: ["yes", "no"],
+  promoStatus: ["enabled", "disabled"],
+};
 
 const fieldClass =
   "min-h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-900 outline-none focus:border-slate-400";
@@ -127,7 +153,6 @@ const blankPreset: AdminTagVariantPresetInput = {
 // the same screen. On narrow screens only one context renders at a time:
 // product list -> product detail -> SKU editor.
 export function AdminTagProductsManager() {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
@@ -146,11 +171,8 @@ export function AdminTagProductsManager() {
   const [presets, setPresets] = useState<AdminTagVariantPreset[]>([]);
   const [presetForm, setPresetForm] = useState<AdminTagVariantPresetInput>(blankPreset);
   const [selectedPresetId, setSelectedPresetId] = useState<string>();
-  const [search, setSearch] = useState("");
-  const [publicationFilter, setPublicationFilter] = useState("all");
-  const [archiveFilter, setArchiveFilter] = useState("active");
-  const [capabilityFilter, setCapabilityFilter] = useState("all");
-  const [purchasableFilter, setPurchasableFilter] = useState("all");
+  const [productsTotal, setProductsTotal] = useState(0);
+  const [promotionsTotal, setPromotionsTotal] = useState(0);
   const [productsLoading, setProductsLoading] = useState(true);
   const [promotionsLoading, setPromotionsLoading] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -167,27 +189,37 @@ export function AdminTagProductsManager() {
   const [promotions, setPromotions] = useState<AdminPromotion[]>([]);
   const [promotionForm, setPromotionForm] = useState<AdminPromotionInput>(blankPromotion);
   const [selectedPromotionId, setSelectedPromotionId] = useState<string>();
-  const [allProductDetails, setAllProductDetails] = useState<AdminTagProduct[]>([]);
+  const [catalogOptions, setCatalogOptions] = useState<AdminCatalogOptionProduct[]>([]);
   const [pendingArchive, setPendingArchive] = useState<"product" | "sku" | null>(null);
   const submitLock = useRef(false);
 
   const productDirty = JSON.stringify(productForm) !== productBaseline;
   const variantDirty = JSON.stringify(variantForm) !== variantBaseline;
 
+  // Shared admin listing state (search / filters / page / sort) lives in the
+  // URL alongside the master/detail keys (tab / product / sku). The hook's
+  // navigation preserves every other param, so paginating or filtering never
+  // loses the open product, and opening a product never loses the list state.
+  const { query, actions } = useAdminTableQuery({
+    filterKeys: CATALOG_FILTER_KEYS,
+    defaultSortBy: "updated",
+    defaultSortDir: "desc",
+    allowedSortIds: ["updated", "name"],
+    allowedFilterValues: CATALOG_FILTER_VALUES,
+  });
+
+  // Master/detail navigation. setExtraParams keeps the current tab and list
+  // state; opening a record pushes one history entry, closing/switching
+  // replaces it (no stale detail IDs, minimal Back steps).
   const navigate = useCallback(
-    (next: { tab?: CatalogTab; product?: string | null; sku?: string | null }) => {
-      const params = new URLSearchParams();
-      const nextTab = next.tab ?? tab;
-      params.set("tab", nextTab);
-      if (nextTab === "products") {
-        const product = next.product === undefined ? productParam : next.product;
-        const sku = next.sku === undefined ? skuParam : next.sku;
-        if (product) params.set("product", product);
-        if (product && sku) params.set("sku", sku);
-      }
-      router.push(`${pathname}?${params.toString()}`);
+    (next: { product?: string | null; sku?: string | null }) => {
+      const updates: Record<string, string | null> = {};
+      if (next.product !== undefined) updates.product = next.product;
+      if (next.sku !== undefined) updates.sku = next.sku;
+      const opening = next.product != null && !productParam;
+      actions.setExtraParams(updates, opening ? "push" : "replace");
     },
-    [pathname, productParam, router, skuParam, tab]
+    [actions, productParam]
   );
 
   // Unsaved-change guard for in-app navigation between contexts.
@@ -196,26 +228,42 @@ export function AdminTagProductsManager() {
     return window.confirm("Discard unsaved changes on this screen?");
   }, [productDirty, variantDirty]);
 
+  // Map the URL filter values to the list request. Absent `archive` means
+  // active-only; every other absent filter means "no filter".
+  const productListParams = useMemo(() => {
+    const filters = query.filters;
+    return {
+      search: query.search || undefined,
+      published:
+        filters.publication === undefined ? undefined : filters.publication === "published",
+      archived:
+        filters.archive === "all" ? undefined : filters.archive === "archived",
+      supportsQr: filters.capability === "qr" ? true : undefined,
+      supportsNfc: filters.capability === "nfc" ? true : undefined,
+      purchasable:
+        filters.purchasable === undefined ? undefined : filters.purchasable === "yes",
+      page: query.page,
+      pageSize: query.pageSize,
+      sortBy: query.sortBy,
+      sortDir: query.sortDir,
+    };
+  }, [query]);
+  const productListKey = JSON.stringify(productListParams);
+
   const refreshProducts = useCallback(async () => {
     setProductsLoading(true);
     setProductLoadError("");
     try {
-      const rows = await listAdminTagProducts({
-        search,
-        published: publicationFilter === "all" ? undefined : publicationFilter === "published",
-        archived: archiveFilter === "all" ? undefined : archiveFilter === "archived",
-        supportsQr: capabilityFilter === "qr" ? true : undefined,
-        supportsNfc: capabilityFilter === "nfc" ? true : undefined,
-        purchasable: purchasableFilter === "all" ? undefined : purchasableFilter === "yes",
-      });
-      setProducts(rows);
+      const result = await listAdminTagProducts(JSON.parse(productListKey));
+      setProducts(result.items);
+      setProductsTotal(result.total);
       setProductLoadError("");
     } catch (caught) {
       setProductLoadError(loadError(caught, "Tag Products"));
     } finally {
       setProductsLoading(false);
     }
-  }, [archiveFilter, capabilityFilter, publicationFilter, purchasableFilter, search]);
+  }, [productListKey]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void refreshProducts(), 200);
@@ -226,7 +274,7 @@ export function AdminTagProductsManager() {
     try {
       setPresets(await listAdminTagVariantPresets());
     } catch (caught) {
-      setActionError(loadError(caught, "variant presets"));
+      setActionError(loadError(caught, "Tag Types"));
     }
   }, []);
 
@@ -284,24 +332,40 @@ export function AdminTagProductsManager() {
     setVariantBaseline(JSON.stringify(input));
   }
 
+  const promotionListParams = useMemo(
+    () => ({
+      search: query.search || undefined,
+      active:
+        query.filters.promoStatus === undefined
+          ? undefined
+          : query.filters.promoStatus === "enabled",
+      page: query.page,
+      pageSize: query.pageSize,
+    }),
+    [query]
+  );
+  const promotionListKey = JSON.stringify(promotionListParams);
+
   const openPromotions = useCallback(async () => {
     setPromotionsLoading(true);
     setPromotionLoadError("");
     try {
-      const [promotionRows, productRows] = await Promise.all([
-        listAdminPromotions(),
-        listAdminTagProducts({}),
+      // Both requests are flat: the paginated promotion list and one
+      // catalog-options call — no per-product detail fan-out.
+      const [promotionResult, options] = await Promise.all([
+        listAdminPromotions(JSON.parse(promotionListKey)),
+        listAdminTagCatalogOptions(),
       ]);
-      const details = await Promise.all(productRows.map((product) => getAdminTagProduct(product.id)));
-      setPromotions(promotionRows);
-      setAllProductDetails(details);
+      setPromotions(promotionResult.items);
+      setPromotionsTotal(promotionResult.total);
+      setCatalogOptions(options);
       setPromotionLoadError("");
     } catch (caught) {
       setPromotionLoadError(loadError(caught, "Promotions"));
     } finally {
       setPromotionsLoading(false);
     }
-  }, []);
+  }, [promotionListKey]);
 
   useEffect(() => {
     if (tab !== "promotions") return undefined;
@@ -382,7 +446,8 @@ export function AdminTagProductsManager() {
   }
 
   async function archiveProduct() {
-    if (!selectedProduct) return;
+    if (!selectedProduct || busy || submitLock.current) return;
+    submitLock.current = true;
     setBusy(true);
     setActionError("");
     try {
@@ -400,6 +465,7 @@ export function AdminTagProductsManager() {
       setActionError(friendlyError(caught));
     } finally {
       setBusy(false);
+      submitLock.current = false;
     }
   }
 
@@ -431,6 +497,8 @@ export function AdminTagProductsManager() {
 
   async function archiveVariant() {
     if (!selectedProduct || !skuParam || skuParam === "new" || !variantForm.concurrencyToken) return;
+    if (busy || submitLock.current) return;
+    submitLock.current = true;
     setBusy(true);
     try {
       await archiveAdminTagProductVariant(skuParam, variantForm.concurrencyToken);
@@ -443,6 +511,7 @@ export function AdminTagProductsManager() {
       setActionError(friendlyError(caught));
     } finally {
       setBusy(false);
+      submitLock.current = false;
     }
   }
 
@@ -457,12 +526,11 @@ export function AdminTagProductsManager() {
   async function submitPromotion() {
     if (busy || submitLock.current) return;
     const eligibleIds = new Set(
-      allProductDetails.flatMap((product) =>
+      catalogOptions.flatMap((product) =>
         product.variants
           .filter((variant) =>
+            // Catalog options already exclude archived products and variants.
             product.isPublished &&
-            !product.isArchived &&
-            !variant.isArchived &&
             variant.isActive &&
             variant.isPurchasable
           )
@@ -484,8 +552,9 @@ export function AdminTagProductsManager() {
     setPromotionFieldErrors({});
     try {
       const saved = await saveAdminPromotion(promotionForm, selectedPromotionId);
-      const rows = await listAdminPromotions();
-      setPromotions(rows);
+      const refreshed = await listAdminPromotions(JSON.parse(promotionListKey));
+      setPromotions(refreshed.items);
+      setPromotionsTotal(refreshed.total);
       setSelectedPromotionId(saved.id);
       setPromotionForm({ ...saved });
       setMessage(`${saved.name} saved. Base prices were not changed.`);
@@ -513,9 +582,9 @@ export function AdminTagProductsManager() {
       await refreshPresets();
       setSelectedPresetId(saved.id);
       setPresetForm(presetInput(saved));
-      setMessage(`Variant preset ${saved.displayName} saved.`);
+      setMessage(`Tag Type ${saved.displayName} saved.`);
     } catch (caught) {
-      setPresetFormError(saveError(caught, "variant preset"));
+      setPresetFormError(saveError(caught, "Tag Type"));
     } finally {
       setBusy(false);
       submitLock.current = false;
@@ -524,12 +593,14 @@ export function AdminTagProductsManager() {
 
   const promotionVariants = useMemo(
     () =>
-      allProductDetails.flatMap((product) =>
-        product.variants
-          .filter((variant) => !variant.isArchived)
-          .map((variant) => ({ ...variant, productName: product.name, productPublished: product.isPublished }))
+      catalogOptions.flatMap((product) =>
+        product.variants.map((variant) => ({
+          ...variant,
+          productName: product.name,
+          productPublished: product.isPublished,
+        }))
       ),
-    [allProductDetails]
+    [catalogOptions]
   );
 
   const showingProductDetail = tab === "products" && Boolean(productParam);
@@ -590,13 +661,33 @@ export function AdminTagProductsManager() {
               <div className="grid gap-3 border-b border-slate-100 p-4">
                 <label className="grid gap-1 text-xs font-extrabold uppercase text-slate-500">
                   Search product or SKU
-                  <input className={fieldClass} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name or SKU" />
+                  <AdminSearchInput onChange={actions.setSearch} placeholder="Name or SKU" value={query.search} />
                 </label>
                 <div className="grid grid-cols-2 gap-2">
-                  <FilterSelect label="Publication" value={publicationFilter} onChange={setPublicationFilter} options={[["all", "All"], ["published", "Published"], ["draft", "Draft"]]} />
-                  <FilterSelect label="Archive" value={archiveFilter} onChange={setArchiveFilter} options={[["active", "Active"], ["archived", "Archived"], ["all", "All"]]} />
-                  <FilterSelect label="Capability" value={capabilityFilter} onChange={setCapabilityFilter} options={[["all", "All"], ["qr", "QR"], ["nfc", "NFC"]]} />
-                  <FilterSelect label="Purchasable" value={purchasableFilter} onChange={setPurchasableFilter} options={[["all", "All"], ["yes", "Yes"], ["no", "No"]]} />
+                  <FilterSelect
+                    label="Publication"
+                    value={query.filters.publication ?? "all"}
+                    onChange={(value) => actions.setFilter("publication", value === "all" ? null : value)}
+                    options={[["all", "All"], ["published", "Published"], ["draft", "Draft"]]}
+                  />
+                  <FilterSelect
+                    label="Archive"
+                    value={query.filters.archive ?? "active"}
+                    onChange={(value) => actions.setFilter("archive", value === "active" ? null : value)}
+                    options={[["active", "Active"], ["archived", "Archived"], ["all", "All"]]}
+                  />
+                  <FilterSelect
+                    label="Capability"
+                    value={query.filters.capability ?? "all"}
+                    onChange={(value) => actions.setFilter("capability", value === "all" ? null : value)}
+                    options={[["all", "All"], ["qr", "QR"], ["nfc", "NFC"]]}
+                  />
+                  <FilterSelect
+                    label="Purchasable"
+                    value={query.filters.purchasable ?? "all"}
+                    onChange={(value) => actions.setFilter("purchasable", value === "all" ? null : value)}
+                    options={[["all", "All"], ["yes", "Yes"], ["no", "No"]]}
+                  />
                 </div>
               </div>
               <div className="max-h-[38rem] overflow-y-auto p-2">
@@ -629,6 +720,14 @@ export function AdminTagProductsManager() {
                   </button>
                 )) : null}
               </div>
+              <AdminListPagination
+                loading={productsLoading}
+                onPageChange={actions.setPage}
+                onPageSizeChange={actions.setPageSize}
+                page={query.page}
+                pageSize={query.pageSize}
+                total={productsTotal}
+              />
             </AdminSection>
           </div>
 
@@ -729,8 +828,17 @@ export function AdminTagProductsManager() {
           }}
           onRetry={() => void openPromotions()}
           onSave={() => void submitPromotion()}
+          onSearch={actions.setSearch}
+          onStatusFilterChange={(value) => actions.setFilter("promoStatus", value === "all" ? null : value)}
+          onPageChange={actions.setPage}
+          onPageSizeChange={actions.setPageSize}
+          page={query.page}
+          pageSize={query.pageSize}
           promotions={promotions}
+          search={query.search}
           selectedId={selectedPromotionId}
+          statusFilter={query.filters.promoStatus ?? "all"}
+          total={promotionsTotal}
           variants={promotionVariants}
         />
       ) : null}
@@ -764,10 +872,11 @@ export function AdminTagProductsManager() {
       <ConfirmDialog
         cancelLabel="Keep"
         confirmLabel={pendingArchive === "product" ? "Archive Product" : "Archive SKU"}
+        destructive
         message={
           pendingArchive === "product"
-            ? `Archiving hides ${selectedProduct?.name ?? "this product"} and all of its SKUs from customers. Archiving cannot be undone from this portal; existing orders and inventory keep their history.`
-            : `Archiving stops ${variantForm.sku || "this SKU"} from being sold. Archiving cannot be undone from this portal; existing inventory and orders keep their history.`
+            ? `Archiving the product “${selectedProduct?.name ?? "this product"}” unpublishes it and makes every SKU under it unavailable for new purchases. Archiving cannot be undone from this portal; existing orders and inventory keep their history.`
+            : `Archiving the SKU “${variantForm.sku || "this SKU"}” makes it unavailable for new purchases. Archiving cannot be undone from this portal; existing inventory and orders keep their history.`
         }
         onCancel={() => setPendingArchive(null)}
         onConfirm={() => {
@@ -954,17 +1063,15 @@ function VariantEditor({ product, editing, form, isNew, busy, formError, presets
       title={isNew ? `New SKU for ${product.name}` : `Edit SKU ${editing?.sku ?? ""}`}
       description="Each SKU is one exact sellable and manufacturable configuration, including capabilities, physical specifications, price, and production settings."
     >
-      <div className="grid gap-5 p-4 sm:p-5">
+      <div className="grid gap-4 p-4 sm:p-5">
         {locked ? <AdminNotice>Production specifications are locked because this SKU has inventory or order history. Create a new versioned SKU to change them.</AdminNotice> : null}
-        <FormGroup title="Basic information">
-          <Field label="SKU"><input className={fieldClass} disabled={locked} value={form.sku} onChange={(event) => onChange({ ...form, sku: event.target.value.toUpperCase() })} /></Field>
+
+        <CollapsibleFormGroup title="General" defaultOpen>
+          <Field label="SKU code"><input className={fieldClass} disabled={locked} value={form.sku} onChange={(event) => onChange({ ...form, sku: event.target.value.toUpperCase() })} placeholder="PAW-LW-QR" /></Field>
           <Field label="Display name"><input className={fieldClass} value={form.displayName} onChange={(event) => onChange({ ...form, displayName: event.target.value })} /></Field>
-          <Field label="Display order"><input className={fieldClass} min={0} type="number" value={form.sortOrder} onChange={(event) => onChange({ ...form, sortOrder: numberValue(event.target.value) })} /></Field>
-        </FormGroup>
-        <FormGroup title="Variant classification">
           <Field
-            helper="Used to classify similar SKUs. The SKU's physical specifications and capabilities are configured separately."
-            label="Variant preset"
+            helper="A reusable classification only (for example Lightweight, Standard, Collar Slide). It never sets this SKU's price, capabilities, specifications, or inventory."
+            label="Tag Type"
           >
             {selectablePresets.length > 0 ? (
               <select
@@ -973,7 +1080,7 @@ function VariantEditor({ product, editing, form, isNew, busy, formError, presets
                 value={form.tagVariantPresetId ?? ""}
                 onChange={(event) => onChange({ ...form, tagVariantPresetId: event.target.value || null })}
               >
-                <option value="">Choose a variant preset…</option>
+                <option value="">Choose a Tag Type…</option>
                 {selectablePresets.map((preset) => (
                   <option key={preset.id} value={preset.id}>
                     {preset.displayName}
@@ -983,7 +1090,7 @@ function VariantEditor({ product, editing, form, isNew, busy, formError, presets
               </select>
             ) : (
               <span className="block rounded-xl border border-dashed border-slate-300 p-3 text-xs font-semibold normal-case text-slate-600">
-                No active variant presets exist yet.{" "}
+                No active Tag Types exist yet.{" "}
                 <Link className="font-extrabold text-slate-900 underline" href={settingsHref}>
                   Add one in Catalog Settings
                 </Link>{" "}
@@ -991,36 +1098,56 @@ function VariantEditor({ product, editing, form, isNew, busy, formError, presets
               </span>
             )}
           </Field>
+          <Field label="Display order"><input className={fieldClass} min={0} type="number" value={form.sortOrder} onChange={(event) => onChange({ ...form, sortOrder: numberValue(event.target.value) })} /></Field>
+          <Toggle checked={form.supportsQr} disabled={locked} label="QR scanning" onChange={(checked) => onChange({ ...form, supportsQr: checked })} />
+          <Toggle checked={form.supportsNfc} disabled={locked} label="NFC tapping" onChange={(checked) => onChange({ ...form, supportsNfc: checked })} />
           {!isNew && editing && editing.tagVariant ? (
-            <Field helper="What this SKU is currently labelled as. A preset rename never changes saved SKUs automatically." label="Saved classification">
+            <Field helper="What this SKU is currently labelled as. Renaming a Tag Type never changes saved SKUs." label="Saved Tag Type" wide>
               <input className={fieldClass} disabled value={editing.tagVariant} />
             </Field>
           ) : null}
-        </FormGroup>
-        <FormGroup title="Capabilities">
-          <Toggle checked={form.supportsQr} disabled={locked} label="QR scanning" onChange={(checked) => onChange({ ...form, supportsQr: checked })} />
-          <Toggle checked={form.supportsNfc} disabled={locked} label="NFC tapping" onChange={(checked) => onChange({ ...form, supportsNfc: checked })} />
-        </FormGroup>
-        <FormGroup title="Physical specifications">
+        </CollapsibleFormGroup>
+
+        <CollapsibleFormGroup title="Specifications" subtitle="size, weight, materials">
           <NumberField label="Width (mm)" value={form.widthMm} disabled={locked} onChange={(value) => onChange({ ...form, widthMm: value })} />
           <NumberField label="Height (mm)" value={form.heightMm} disabled={locked} onChange={(value) => onChange({ ...form, heightMm: value })} />
           <NumberField label="Thickness (mm)" value={form.thicknessMm} disabled={locked} onChange={(value) => onChange({ ...form, thicknessMm: value })} />
           <NumberField label="Weight (g)" value={form.weightGrams} disabled={locked} onChange={(value) => onChange({ ...form, weightGrams: value })} />
           {(["material", "shape", "colour", "packagingType"] as const).map((key) => <Field key={key} label={key === "packagingType" ? "Packaging" : titleCase(key)}><input className={fieldClass} disabled={locked} value={form[key] ?? ""} onChange={(event) => onChange({ ...form, [key]: event.target.value })} /></Field>)}
-        </FormGroup>
-        <FormGroup title="Pricing">
+        </CollapsibleFormGroup>
+
+        <CollapsibleFormGroup title="Pricing & Availability" defaultOpen>
           <NumberField label="Base price" value={form.basePrice} onChange={(value) => onChange({ ...form, basePrice: value ?? 0 })} />
           <Field label="Currency"><input className={fieldClass} disabled value="MYR" /></Field>
           <NumberField label="Compare-at price (optional)" value={form.compareAtPrice} onChange={(value) => onChange({ ...form, compareAtPrice: value })} />
-        </FormGroup>
-        <FormGroup title="Production">
+          <Toggle
+            checked={form.isActive}
+            label="Active"
+            onChange={(checked) => onChange({
+              ...form,
+              isActive: checked,
+              // Availability requires an active SKU, so deactivating also
+              // withdraws it from purchase.
+              isPurchasable: checked ? form.isPurchasable : false,
+            })}
+          />
+          <Toggle
+            checked={form.isPurchasable}
+            disabled={!form.isActive}
+            label="Available for purchase"
+            onChange={(checked) => onChange({ ...form, isPurchasable: checked })}
+          />
+          <p className="text-xs font-medium normal-case text-slate-500 sm:col-span-2">
+            <strong className="font-black">Active</strong> keeps the SKU usable in administration and production.
+            {" "}<strong className="font-black">Available for purchase</strong> lets customers select it in new orders — only possible while the SKU is active and its product is published. Inactive or archived items keep their history but cannot be ordered.
+          </p>
+        </CollapsibleFormGroup>
+
+        <CollapsibleFormGroup title="Production" subtitle="print template, notes">
           <Field label="Print template"><input className={fieldClass} disabled={locked} value={form.printTemplateCode ?? ""} onChange={(event) => onChange({ ...form, printTemplateCode: event.target.value })} /></Field>
           <Field label="Production notes" wide><textarea className={textAreaClass} value={form.productionNotes ?? ""} onChange={(event) => onChange({ ...form, productionNotes: event.target.value })} /></Field>
-        </FormGroup>
-        <FormGroup title="Availability">
-          <Toggle checked={form.isActive} label="Active SKU" onChange={(checked) => onChange({ ...form, isActive: checked })} />
-          <Toggle checked={form.isPurchasable} label="Purchasable by customers" onChange={(checked) => onChange({ ...form, isPurchasable: checked })} />
-        </FormGroup>
+        </CollapsibleFormGroup>
+
         {formError ? <InlineFormError>{formError}</InlineFormError> : null}
         <div className="sticky bottom-0 -mx-4 flex flex-wrap justify-end gap-2 border-t border-slate-100 bg-white/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:static sm:m-0 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
           {!isNew && editing && !editing.isArchived ? <AdminActionButton disabled={busy} onClick={onArchive} tone="danger">Archive SKU</AdminActionButton> : null}
@@ -1045,12 +1172,12 @@ function VariantPresetsSettings({ presets, form, selectedId, busy, formError, on
   return (
     <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(280px,0.75fr)_minmax(0,1.6fr)]">
       <AdminSection
-        title="Variant presets"
-        description="Controlled classifications SKUs can use, such as Lightweight or Standard. New values (for example Collar Slide or Silicone) can be added here without a release."
-        action={<AdminActionButton onClick={onNew} tone="primary">New Preset</AdminActionButton>}
+        title="Tag Types"
+        description="Reusable classifications only, such as Lightweight or Standard. They organise similar SKUs but never set price, capabilities, specifications, or inventory. New values (for example Collar Slide or Silicone) can be added here without a release."
+        action={<AdminActionButton onClick={onNew} tone="primary">New Tag Type</AdminActionButton>}
       >
         <div className="p-2">
-          {presets.length === 0 ? <StatusLine>No variant presets yet.</StatusLine> : null}
+          {presets.length === 0 ? <StatusLine>No Tag Types yet.</StatusLine> : null}
           {presets.map((preset) => (
             <button
               className={`mb-2 w-full rounded-xl border p-3 text-left transition ${selectedId === preset.id ? "border-slate-900 bg-slate-50" : "border-slate-200 hover:bg-slate-50"}`}
@@ -1070,11 +1197,11 @@ function VariantPresetsSettings({ presets, form, selectedId, busy, formError, on
         </div>
       </AdminSection>
       <AdminSection
-        title={selectedId ? "Edit variant preset" : "Create variant preset"}
-        description="A preset is only a classification label. Physical specifications, capabilities, prices, and production settings stay on each SKU. Presets used by SKUs can be deactivated but not deleted, and renaming a preset never changes saved SKUs or past orders."
+        title={selectedId ? "Edit Tag Type" : "Create Tag Type"}
+        description="A Tag Type is only a classification label. Physical specifications, capabilities, prices, and production settings stay on each SKU. Tag Types used by SKUs can be deactivated but not deleted, and renaming one never changes saved SKUs or past orders."
       >
         <div className="grid gap-5 p-4 sm:p-5">
-          <FormGroup title="Preset details">
+          <FormGroup title="Tag Type details">
             <Field helper="Stable internal code, e.g. COLLAR-SLIDE." label="Code">
               <input className={fieldClass} value={form.code} onChange={(event) => onChange({ ...form, code: event.target.value.toUpperCase() })} placeholder="COLLAR-SLIDE" />
             </Field>
@@ -1091,7 +1218,7 @@ function VariantPresetsSettings({ presets, form, selectedId, busy, formError, on
           </FormGroup>
           {formError ? <InlineFormError>{formError}</InlineFormError> : null}
           <div className="flex justify-end">
-            <AdminActionButton disabled={busy} onClick={onSave} tone="primary">{busy ? "Saving..." : selectedId ? "Save Preset" : "Create Preset"}</AdminActionButton>
+            <AdminActionButton disabled={busy} onClick={onSave} tone="primary">{busy ? "Saving..." : selectedId ? "Save Tag Type" : "Create Tag Type"}</AdminActionButton>
           </div>
         </div>
       </AdminSection>
@@ -1099,9 +1226,9 @@ function VariantPresetsSettings({ presets, form, selectedId, busy, formError, on
   );
 }
 
-function PromotionsEditor({ promotions, variants, form, selectedId, loading, busy, loadError, errors, formError, onChange, onEdit, onNew, onRetry, onSave }: {
+function PromotionsEditor({ promotions, variants, form, selectedId, loading, busy, loadError, errors, formError, search, statusFilter, page, pageSize, total, onChange, onEdit, onNew, onRetry, onSave, onSearch, onStatusFilterChange, onPageChange, onPageSizeChange }: {
   promotions: AdminPromotion[];
-  variants: (AdminTagProductVariant & { productName: string; productPublished: boolean })[];
+  variants: (AdminCatalogOptionVariant & { productName: string; productPublished: boolean })[];
   form: AdminPromotionInput;
   selectedId?: string;
   loading: boolean;
@@ -1109,14 +1236,22 @@ function PromotionsEditor({ promotions, variants, form, selectedId, loading, bus
   loadError: string;
   errors: FieldErrors;
   formError: string;
+  search: string;
+  statusFilter: string;
+  page: number;
+  pageSize: number;
+  total: number;
   onChange: (value: AdminPromotionInput) => void;
   onEdit: (promotion: AdminPromotion) => void;
   onNew: () => void;
   onRetry: () => void;
   onSave: () => void;
+  onSearch: (value: string) => void;
+  onStatusFilterChange: (value: string) => void;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
 }) {
   const eligibleVariants = variants.filter((variant) =>
-    !variant.isArchived &&
     variant.isActive &&
     variant.isPurchasable &&
     variant.productPublished
@@ -1131,12 +1266,32 @@ function PromotionsEditor({ promotions, variants, form, selectedId, loading, bus
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(280px,0.75fr)_minmax(0,1.6fr)]">
       <AdminSection title="Promotions" description="One automatic promotion applies per SKU; priority wins, then the greatest discount." action={<AdminActionButton disabled={noEligibleVariants} onClick={onNew} tone="primary">New Promotion</AdminActionButton>}>
+        <div className="grid gap-3 border-b border-slate-100 p-4">
+          <label className="grid gap-1 text-xs font-extrabold uppercase text-slate-500">
+            Search promotions
+            <AdminSearchInput onChange={onSearch} placeholder="Promotion name" value={search} />
+          </label>
+          <FilterSelect
+            label="Status"
+            value={statusFilter}
+            onChange={onStatusFilterChange}
+            options={[["all", "All"], ["enabled", "Enabled"], ["disabled", "Disabled"]]}
+          />
+        </div>
         <div className="p-2">
           {loading ? <StatusLine>Loading promotions...</StatusLine> : null}
           {!loading && loadError ? <LoadFailure message={loadError} onRetry={onRetry} /> : null}
           {!loading && !loadError && promotions.length === 0 ? <StatusLine>No promotions created.</StatusLine> : null}
           {!loadError ? promotions.map((promotion) => <button className={`mb-2 w-full rounded-xl border p-3 text-left ${selectedId === promotion.id ? "border-slate-900 bg-slate-50" : "border-slate-200"}`} key={promotion.id} onClick={() => onEdit(promotion)} type="button"><div className="flex justify-between gap-2"><span className="font-black text-slate-950">{promotion.name}</span><Badge tone={promotion.isActive ? "mint" : "soft"}>{promotion.isActive ? "Enabled" : "Disabled"}</Badge></div><p className="mt-1 text-xs text-slate-500">{promotion.discountType === "Percentage" ? `${promotion.discountValue}%` : formatCatalogPrice(promotion.discountValue)} · Priority {promotion.priority}</p></button>) : null}
         </div>
+        <AdminListPagination
+          loading={loading}
+          onPageChange={onPageChange}
+          onPageSizeChange={onPageSizeChange}
+          page={page}
+          pageSize={pageSize}
+          total={total}
+        />
       </AdminSection>
       <AdminSection title={selectedId ? "Edit promotion" : "Create promotion"} description="Promotions change effective prices without overwriting the SKU base price.">
         <div className="grid gap-5 p-4 sm:p-5">
@@ -1158,7 +1313,7 @@ function PromotionsEditor({ promotions, variants, form, selectedId, loading, bus
           <FormGroup title="Applicable SKUs">
             <div {...invalidFieldProps(promotionFieldIds.productVariantIds, errors.productVariantIds)} className="grid gap-2 sm:col-span-2" id={promotionFieldIds.productVariantIds} tabIndex={-1}>
               {variants.length === 0 ? <StatusLine>No product variants are available.</StatusLine> : null}
-              {variants.map((variant) => <label className="flex min-h-11 items-center gap-3 rounded-xl border border-slate-200 px-3 text-sm font-semibold" key={variant.id}><input checked={form.productVariantIds.includes(variant.id)} disabled={variant.isArchived || !variant.isActive || !variant.isPurchasable || !variant.productPublished} onChange={(event) => onChange({ ...form, productVariantIds: event.target.checked ? [...form.productVariantIds, variant.id] : form.productVariantIds.filter((id) => id !== variant.id) })} type="checkbox" /><span><strong>{variant.sku}</strong> · {variant.productName} · {formatCatalogPrice(variant.basePrice, variant.currency)}</span></label>)}
+              {variants.map((variant) => <label className="flex min-h-11 items-center gap-3 rounded-xl border border-slate-200 px-3 text-sm font-semibold" key={variant.id}><input checked={form.productVariantIds.includes(variant.id)} disabled={!variant.isActive || !variant.isPurchasable || !variant.productPublished} onChange={(event) => onChange({ ...form, productVariantIds: event.target.checked ? [...form.productVariantIds, variant.id] : form.productVariantIds.filter((id) => id !== variant.id) })} type="checkbox" /><span><strong>{variant.sku}</strong> · {variant.productName} · {formatCatalogPrice(variant.basePrice, variant.currency)}</span></label>)}
               {errors.productVariantIds ? <InlineFieldError id={`${promotionFieldIds.productVariantIds}-error`}>{errors.productVariantIds}</InlineFieldError> : null}
             </div>
           </FormGroup>
@@ -1177,6 +1332,20 @@ function PromotionsEditor({ promotions, variants, form, selectedId, loading, bus
 
 function FormGroup({ title, children }: { title: string; children: React.ReactNode }) {
   return <fieldset className="grid gap-3 rounded-xl border border-slate-200 p-4 sm:grid-cols-2"><legend className="px-2 text-sm font-black text-slate-900">{title}</legend>{children}</fieldset>;
+}
+// Collapsible section (native <details> for keyboard accessibility) used to
+// keep the long SKU form scannable. General and Pricing & Availability stay
+// open by default; Specifications and Production collapse.
+function CollapsibleFormGroup({ title, subtitle, defaultOpen = false, children }: { title: string; subtitle?: string; defaultOpen?: boolean; children: React.ReactNode }) {
+  return (
+    <details className="group rounded-xl border border-slate-200 [&_summary::-webkit-details-marker]:hidden" open={defaultOpen}>
+      <summary className="flex min-h-11 cursor-pointer items-center justify-between gap-2 px-4 py-3 text-sm font-black text-slate-900">
+        <span>{title}{subtitle ? <span className="ml-2 text-xs font-medium text-slate-400">{subtitle}</span> : null}</span>
+        <span aria-hidden="true" className="text-slate-400 transition-transform group-open:rotate-180">▾</span>
+      </summary>
+      <div className="grid gap-3 border-t border-slate-100 p-4 sm:grid-cols-2">{children}</div>
+    </details>
+  );
 }
 function Field({ label, wide, error, errorId, helper, children }: { label: string; wide?: boolean; error?: string; errorId?: string; helper?: string; children: React.ReactNode }) {
   return <div className={`grid gap-1 text-xs font-extrabold uppercase text-slate-500 ${wide ? "sm:col-span-2" : ""}`}><label className="grid gap-1">{label}{children}</label>{helper ? <span className="text-xs font-medium normal-case text-slate-500">{helper}</span> : null}{error ? <InlineFieldError id={errorId}>{error}</InlineFieldError> : null}</div>;

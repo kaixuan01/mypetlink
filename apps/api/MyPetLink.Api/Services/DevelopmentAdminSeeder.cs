@@ -145,7 +145,70 @@ public sealed class DevelopmentAdminSeeder : IDevelopmentAdminSeeder
         }
 
         user.AdminUser = adminUser;
+
+        await SeedDemoCatalogAsync(cancellationToken);
+
         await _dbContext.SaveChangesAsync(cancellationToken);
         return true;
+    }
+
+    // Development-only demo catalog so the Product Catalog screens open with a
+    // realistic example: one customer-facing product that owns two exact SKUs.
+    // The Tag Types (Lightweight / Standard) are reused purely as
+    // classifications — every price, capability, and specification lives on the
+    // SKU, never on the Tag Type. Idempotent: keyed off the product's stable
+    // link so re-running the seeder never duplicates rows.
+    private async Task SeedDemoCatalogAsync(CancellationToken cancellationToken)
+    {
+        const string demoSlug = "mypetlink-paw-pet-tag";
+        if (await _dbContext.TagProducts.AnyAsync(item => item.Slug == demoSlug, cancellationToken))
+        {
+            return;
+        }
+
+        var product = new TagProduct
+        {
+            Name = "MyPetLink Paw Pet Tag",
+            Slug = demoSlug,
+            ShortDescription = "Durable QR pet tag that links to your pet's Safety Profile.",
+            Description = "Our everyday QR pet tag. A finder scans it to open the pet's Safety Profile and reach the owner through the contact options they have chosen to share.",
+            IsPublished = true,
+            IsArchived = false,
+            SortOrder = 0
+        };
+
+        product.Variants.Add(new TagProductVariant
+        {
+            PublicKey = "PAWLWQRDEMO00001",
+            Sku = "PAW-LW-QR",
+            DisplayName = "Paw Pet Tag — Lightweight, QR",
+            SupportsQr = true,
+            SupportsNfc = false,
+            TagVariantPresetId = MyPetLinkDbContext.LightweightVariantPresetId,
+            TagVariant = "Lightweight",
+            BasePrice = 39m,
+            Currency = "MYR",
+            IsActive = true,
+            IsPurchasable = true,
+            SortOrder = 0
+        });
+
+        product.Variants.Add(new TagProductVariant
+        {
+            PublicKey = "PAWSTDNFCDEMO001",
+            Sku = "PAW-STD-NFC",
+            DisplayName = "Paw Pet Tag — Standard, QR + NFC",
+            SupportsQr = true,
+            SupportsNfc = true,
+            TagVariantPresetId = MyPetLinkDbContext.StandardVariantPresetId,
+            TagVariant = "Standard",
+            BasePrice = 59m,
+            Currency = "MYR",
+            IsActive = true,
+            IsPurchasable = true,
+            SortOrder = 1
+        });
+
+        _dbContext.TagProducts.Add(product);
     }
 }

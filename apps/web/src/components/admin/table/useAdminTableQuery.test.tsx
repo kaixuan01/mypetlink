@@ -202,6 +202,20 @@ describe("useAdminTableQuery", () => {
     expect(result.current.actions.getExtraParam("tag")).toBe("");
   });
 
+  it("sets several extra params in one navigation, preserving list state", () => {
+    navState.search = "q=topu&status=Active&page=3";
+    const { result, rerender } = renderQueryHook();
+
+    // Open a master/detail record and clear a child selection together.
+    act(() => result.current.actions.setExtraParams({ product: "p1", sku: null }, "push"));
+    rerender();
+
+    expect(navState.pushes).toEqual([
+      "/admin/tag-inventory?q=topu&status=Active&page=3&product=p1",
+    ]);
+    expect(result.current.actions.getExtraParam("product")).toBe("p1");
+  });
+
   it("pushes the first detail and replaces a selected detail with another", () => {
     navState.search = "status=Active&page=2";
     const { result, rerender } = renderQueryHook();

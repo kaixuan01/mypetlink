@@ -12,6 +12,8 @@ public sealed class AdminTagProductQuery : PagedQuery
     public bool? SupportsQr { get; init; }
     public bool? SupportsNfc { get; init; }
     public bool? Purchasable { get; init; }
+    [MaxLength(40)] public string? SortBy { get; init; }
+    [MaxLength(8)] public string? SortDir { get; init; }
 }
 
 public sealed record TagProductMediaRequest(
@@ -96,6 +98,35 @@ public sealed record TagProductMediaResponse(
     int SortOrder,
     string AltText,
     string? Url);
+
+// Lightweight projection for admin Product/SKU selectors (Tag Inventory
+// generation form, Promotion applicable-SKU picker). Deliberately excludes
+// media, descriptions, order-item counts, audit data, and concurrency tokens.
+// Inventory counts are resolved with a single grouped query, not per variant,
+// so the whole catalog loads in one request instead of one-per-product.
+public sealed record AdminCatalogOptionVariantResponse(
+    Guid Id,
+    string Sku,
+    string DisplayName,
+    bool SupportsQr,
+    bool SupportsNfc,
+    string TagVariant,
+    decimal? WidthMm,
+    decimal? HeightMm,
+    decimal? ThicknessMm,
+    string? Material,
+    string? PrintTemplateCode,
+    decimal BasePrice,
+    string Currency,
+    bool IsActive,
+    bool IsPurchasable,
+    int InventoryCount);
+
+public sealed record AdminCatalogOptionProductResponse(
+    Guid Id,
+    string Name,
+    bool IsPublished,
+    IReadOnlyCollection<AdminCatalogOptionVariantResponse> Variants);
 
 public sealed record AdminTagProductVariantResponse(
     Guid Id,
