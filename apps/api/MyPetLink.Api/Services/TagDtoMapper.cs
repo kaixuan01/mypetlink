@@ -66,7 +66,9 @@ internal static class TagDtoMapper
                 item.DiscountAmount,
                 item.FinalUnitPrice,
                 item.FinalAmount,
-                item.Currency),
+                item.Currency,
+                item.SupportsQrSnapshot,
+                item.SupportsNfcSnapshot),
             new DeliveryDetailsResponse(
                 order.RecipientName,
                 order.DeliveryPhoneE164,

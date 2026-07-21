@@ -455,6 +455,9 @@ export type BackendTagOrder = {
     finalUnitPrice: number;
     finalAmount: number;
     currency: string;
+    // Features as sold, so order history is unaffected by later catalog edits.
+    supportsQr: boolean;
+    supportsNfc: boolean;
   } | null;
   delivery: BackendDeliveryDetails;
   paymentSubmittedAt?: string | null;

@@ -24,7 +24,6 @@ import { ApiClientError, apiRequest, isApiClientError } from "@/services/apiClie
 import { canUseApi } from "@/services/apiConfig";
 import { readStoredAuthSession } from "@/services/authStorage";
 import {
-  getFriendlyApiErrorMessage,
   getPets,
   mapBackendSafetyPage,
   toPublicProfile,
@@ -96,15 +95,10 @@ function apiNullResponse<T>(): ApiResponse<T | null> {
   };
 }
 
-export function getFriendlyTagErrorMessage(error: unknown) {
-  // A missing/unconfigured backend is a configuration state, not the live
-  // service being down — say so instead of implying an outage.
-  if (isApiClientError(error) && error.code === "connection_not_configured") {
-    return "Tag ordering isn’t available in this preview. It needs a configured MyPetLink connection.";
-  }
-
-  return getFriendlyApiErrorMessage(error);
-}
+// Owner-facing catalog/ordering wording lives in one place so the same failure
+// never gets two different explanations. Kept as a re-export because several
+// tag screens already import this name.
+export { getOwnerOrderErrorMessage as getFriendlyTagErrorMessage } from "@/services/ownerOrderErrors";
 
 export function mapBackendTag(tag: BackendSmartTag): PetTag {
   return normalizeTag({
@@ -158,6 +152,8 @@ export function mapBackendOrder(order: BackendTagOrder): TagOrder {
     discountAmount: order.item?.discountAmount,
     finalAmount: order.item?.finalAmount,
     promotionName: order.item?.promotionName ?? undefined,
+    supportsQr: order.item?.supportsQr,
+    supportsNfc: order.item?.supportsNfc,
     currency: order.item?.currency ?? order.currency,
     paymentMethod: order.paymentMethod ?? latestProof?.paymentMethod ?? "QR Payment",
     paymentReference:

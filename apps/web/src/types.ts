@@ -409,6 +409,10 @@ export type TagOrder = {
   sku?: string;
   productName?: string;
   variantName?: string;
+  // Features exactly as purchased. Absent on legacy orders placed before the
+  // catalog recorded them; never re-read from the current catalog.
+  supportsQr?: boolean;
+  supportsNfc?: boolean;
   quantity?: number;
   unitBasePrice?: number;
   discountAmount?: number;

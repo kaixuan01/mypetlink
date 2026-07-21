@@ -20,8 +20,10 @@ public sealed record CreateTagOrderRequest(
     [Required] DeliveryDetailsRequest? Delivery,
     Guid? ReplacementForTagId,
     // Optional per-attempt idempotency key. Omitting it keeps the legacy
-    // non-idempotent behaviour for older clients.
-    [property: MaxLength(80)] string? IdempotencyKey = null);
+    // non-idempotent behaviour for older clients. The attribute must target the
+    // constructor parameter, like every other member here — a [property:]
+    // target is ignored for validation and makes MVC throw on every request.
+    [MaxLength(80)] string? IdempotencyKey = null);
 
 public sealed record TagOrderItemResponse(
     string Sku,
@@ -34,7 +36,10 @@ public sealed record TagOrderItemResponse(
     decimal DiscountAmount,
     decimal FinalUnitPrice,
     decimal FinalAmount,
-    string Currency);
+    string Currency,
+    // Capabilities as sold, so order history never reflects later SKU edits.
+    bool SupportsQr,
+    bool SupportsNfc);
 
 public sealed record DeliveryDetailsResponse(
     string RecipientName,

@@ -3024,3 +3024,51 @@ GO
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260721095353_AddOrderItemCapabilitySnapshots'
+)
+BEGIN
+    ALTER TABLE [TagOrderItems] ADD [SupportsNfcSnapshot] bit NOT NULL DEFAULT CAST(0 AS bit);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260721095353_AddOrderItemCapabilitySnapshots'
+)
+BEGIN
+    ALTER TABLE [TagOrderItems] ADD [SupportsQrSnapshot] bit NOT NULL DEFAULT CAST(0 AS bit);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260721095353_AddOrderItemCapabilitySnapshots'
+)
+BEGIN
+
+                    UPDATE item
+                    SET item.SupportsQrSnapshot = 1,
+                        item.SupportsNfcSnapshot = CASE WHEN o.TagType = 'QrNfcSmartTag' THEN 1 ELSE 0 END
+                    FROM TagOrderItems AS item
+                    INNER JOIN TagOrders AS o ON o.Id = item.OrderId;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260721095353_AddOrderItemCapabilitySnapshots'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260721095353_AddOrderItemCapabilitySnapshots', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+

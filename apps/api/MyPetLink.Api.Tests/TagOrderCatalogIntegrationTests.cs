@@ -29,11 +29,16 @@ public sealed class TagOrderCatalogIntegrationTests
         Assert.Equal("Launch offer", item.PromotionName);
         Assert.Equal(39.90m, created.Order.Amount);
         Assert.Equal(TagType.QrNfcSmartTag, created.Order.TagType);
+        // Capabilities are captured from the exact SKU that was sold.
+        Assert.True(item.SupportsQr);
+        Assert.True(item.SupportsNfc);
 
         harness.Variant.BasePrice = 79.90m;
         harness.Variant.DisplayName = "Renamed current option";
         harness.Variant.ArchivedAt = DateTimeOffset.UtcNow;
         harness.Product.Name = "Renamed current product";
+        // Reconfiguring the SKU's capabilities must not rewrite order history.
+        harness.Variant.SupportsNfc = false;
         await harness.Db.SaveChangesAsync();
 
         var historical = await harness.Service.GetAsync(OwnerId, created.Order.Id.ToString());
@@ -41,6 +46,23 @@ public sealed class TagOrderCatalogIntegrationTests
         Assert.Equal("MyPetLink Smart Tag", historical.Item.ProductName);
         Assert.Equal("Standard NFC", historical.Item.VariantName);
         Assert.Equal(39.90m, historical.Item.FinalAmount);
+        Assert.True(historical.Item.SupportsQr);
+        Assert.True(historical.Item.SupportsNfc);
+    }
+
+    [Fact]
+    public async Task Create_SnapshotsQrOnlyCapabilities_WithoutInferringNfc()
+    {
+        await using var harness = await Harness.CreateAsync();
+        harness.Variant.SupportsNfc = false;
+        await harness.Db.SaveChangesAsync();
+
+        var created = await harness.Service.CreateAsync(OwnerId, Request(harness.Pet.Id, harness.Variant.PublicKey));
+        var item = Assert.IsType<TagOrderItemResponse>(created.Order.Item);
+
+        Assert.True(item.SupportsQr);
+        Assert.False(item.SupportsNfc);
+        Assert.Equal(TagType.QrPetTag, created.Order.TagType);
     }
 
     [Fact]

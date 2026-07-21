@@ -1,3 +1,4 @@
+using System.Net.Http.Json;
 using System.Net;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Hosting;
@@ -75,6 +76,61 @@ public sealed class TagCatalogRequestValidationTests
         Assert.Contains(modelState.Keys, key => key.Equals("Name", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(modelState.Keys, key => key.Equals("Priority", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(modelState.Keys, key => key.Equals("ProductVariantIds", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void CreateOrderRecord_UsesConstructorParameterValidation_WithoutMvcMetadataException()
+    {
+        // A [property:]-targeted validation attribute on a record primary
+        // constructor parameter makes MVC throw InvalidOperationException while
+        // building metadata, which turns every order submission into a 500.
+        // Service-level tests never see it because they bypass model binding.
+        using var services = MvcServices();
+        var request = new CreateTagOrderRequest(
+            Guid.Empty,
+            null!,
+            0,
+            null,
+            null,
+            new string('k', 200));
+
+        var modelState = Validate(services, request);
+
+        Assert.False(modelState.IsValid);
+        Assert.Contains(modelState.Keys, key => key.Equals("ProductVariantKey", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(modelState.Keys, key => key.Equals("Quantity", StringComparison.OrdinalIgnoreCase));
+        // The idempotency key length limit is actually enforced.
+        Assert.Contains(modelState.Keys, key => key.Equals("IdempotencyKey", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task CreateOrder_WithIdempotencyKey_DoesNotFailModelBinding()
+    {
+        await using var factory = new WebApplicationFactory<Program>()
+            .WithWebHostBuilder(builder => builder.UseEnvironment("Development"));
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/api/v1/orders", new
+        {
+            petId = Guid.NewGuid(),
+            productVariantKey = "PUBLICVARIANT001",
+            quantity = 1,
+            delivery = new
+            {
+                recipientName = "Kai Xuan",
+                phoneE164 = "+60123456789",
+                addressLine1 = "12 Jalan Mawar",
+                postcode = "47300",
+                city = "Petaling Jaya",
+                state = "Selangor",
+            },
+            idempotencyKey = Guid.NewGuid().ToString(),
+        });
+
+        // Unauthenticated, so 401 is expected — the point is that the request
+        // binds and validates instead of blowing up with a 500.
+        Assert.NotEqual(HttpStatusCode.InternalServerError, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     private static ServiceProvider MvcServices()

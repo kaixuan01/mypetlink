@@ -375,6 +375,12 @@ export function OrderDetailView({
                 fall back to the tag type/variant labels. */}
             <DetailItem label="Product" value={order.productName ?? order.tagType} />
             <DetailItem label="Tag variant" value={order.variantName ?? `${order.variant} Tag`} />
+            {/* Features come from what was purchased, so editing the catalog
+                later never rewrites an owner's order history. Older orders
+                placed before features were recorded simply omit this row. */}
+            {order.supportsQr != null || order.supportsNfc != null ? (
+              <DetailItem label="Features" value={orderFeatureSummary(order)} />
+            ) : null}
             <DetailItem label="Original unit price" value={order.unitBasePrice != null ? `${order.currency ?? "MYR"} ${order.unitBasePrice.toFixed(2)}` : order.estimatedPrice} />
             {order.discountAmount ? <DetailItem label="Discount" value={`${order.currency ?? "MYR"} ${order.discountAmount.toFixed(2)}`} /> : null}
             {order.promotionName ? <DetailItem label="Promotion" value={order.promotionName} /> : null}
@@ -543,6 +549,13 @@ export function OrderDetailView({
       </section>
     </div>
   );
+}
+
+// Reads only the order's own saved features — never the current catalog, and
+// never inferred from the product name or tag style.
+function orderFeatureSummary(order: TagOrder) {
+  const features = [order.supportsQr ? "QR code" : null, order.supportsNfc ? "NFC tap" : null].filter(Boolean);
+  return features.length ? features.join(" · ") : "No scanning features";
 }
 
 function DetailItem({ label, value }: { label: string; value: string }) {

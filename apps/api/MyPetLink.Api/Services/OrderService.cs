@@ -203,6 +203,8 @@ public sealed class OrderService : SkeletonService, IOrderService
             SkuSnapshot = productVariant.Sku,
             ProductNameSnapshot = productVariant.TagProduct.Name,
             VariantNameSnapshot = productVariant.DisplayName,
+            SupportsQrSnapshot = productVariant.SupportsQr,
+            SupportsNfcSnapshot = productVariant.SupportsNfc,
             UnitBasePrice = quote.BasePrice,
             Quantity = request.Quantity,
             Subtotal = subtotal,

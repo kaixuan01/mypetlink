@@ -82,4 +82,46 @@ describe("OrderDetailView legacy order labelling", () => {
     // The internal SKU code is not shown to owners.
     expect(screen.queryByText("MPL-NFC-STANDARD-V1")).toBeNull();
   });
+
+  it("shows the features that were purchased, not the current catalog setup", async () => {
+    const nfcOrder = baseOrder({
+      productName: "MyPetLink Smart Tag",
+      variantName: "Standard NFC",
+      supportsQr: true,
+      supportsNfc: true,
+    });
+    tagMocks.getOrder.mockResolvedValue({ data: nfcOrder });
+
+    render(<OrderDetailView initialOrder={nfcOrder} initialTags={[]} orderKey="MPL-0001" pets={[]} />);
+
+    await waitFor(() => expect(screen.getByText("Order summary")).toBeTruthy());
+    expect(screen.getByText("QR code · NFC tap")).toBeTruthy();
+  });
+
+  it("never shows NFC for an order placed against a QR-only option", async () => {
+    const qrOrder = baseOrder({
+      productName: "MyPetLink Paw Pet Tag",
+      variantName: "Lightweight QR",
+      supportsQr: true,
+      supportsNfc: false,
+    });
+    tagMocks.getOrder.mockResolvedValue({ data: qrOrder });
+
+    render(<OrderDetailView initialOrder={qrOrder} initialTags={[]} orderKey="MPL-0001" pets={[]} />);
+
+    await waitFor(() => expect(screen.getByText("Order summary")).toBeTruthy());
+    expect(screen.getByText("QR code")).toBeTruthy();
+    expect(screen.queryByText(/NFC/i)).toBeNull();
+  });
+
+  it("omits the features row entirely for older orders that never recorded them", async () => {
+    const legacy = baseOrder({ supportsQr: undefined, supportsNfc: undefined });
+    tagMocks.getOrder.mockResolvedValue({ data: legacy });
+
+    render(<OrderDetailView initialOrder={legacy} initialTags={[]} orderKey="MPL-0001" pets={[]} />);
+
+    await waitFor(() => expect(screen.getByText("Order summary")).toBeTruthy());
+    // Better to say nothing than to invent features or show a placeholder.
+    expect(screen.queryByText("Features")).toBeNull();
+  });
 });

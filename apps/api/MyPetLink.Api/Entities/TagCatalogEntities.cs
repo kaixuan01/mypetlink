@@ -128,6 +128,11 @@ public sealed class TagOrderItem : AuditableEntity
     public string SkuSnapshot { get; set; } = "";
     public string ProductNameSnapshot { get; set; } = "";
     public string VariantNameSnapshot { get; set; } = "";
+    // Capabilities exactly as sold. Kept on the item so a later SKU edit never
+    // rewrites what the customer actually bought, and so an order can describe
+    // richer combinations than the legacy two-value TagOrder.TagType enum.
+    public bool SupportsQrSnapshot { get; set; } = true;
+    public bool SupportsNfcSnapshot { get; set; }
     public decimal UnitBasePrice { get; set; }
     public int Quantity { get; set; } = 1;
     public decimal Subtotal { get; set; }
