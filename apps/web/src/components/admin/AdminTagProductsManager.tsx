@@ -609,6 +609,27 @@ export function AdminTagProductsManager() {
     skuParam && skuParam !== "new"
       ? selectedProduct?.variants.find((item) => item.id === skuParam)
       : undefined;
+  // A creatable ("new") or resolved SKU can open the editor. Anything else
+  // (an unknown, archived, or replaced id in the URL) must not.
+  const skuResolved = skuParam === "new" || Boolean(editingVariant);
+  // Only trust "not found" once the matching product has actually loaded —
+  // during the async product fetch the variant list is not available yet.
+  const productLoaded = Boolean(selectedProduct) && selectedProduct?.id === productParam;
+  const skuMissing = showingSkuEditor && productLoaded && !skuResolved;
+
+  // Fail safe: a stale/archived/invalid SKU id in the URL (deep link, bookmark,
+  // Back button, or a SKU archived or replaced in another tab) returns the
+  // admin to the product with a clear notice instead of a blank editor. The
+  // redirect is deferred (matching the other effects here) so state updates
+  // never run synchronously inside the effect body.
+  useEffect(() => {
+    if (!skuMissing) return undefined;
+    const timer = window.setTimeout(() => {
+      setActionError("That SKU is no longer available. It may have been archived or replaced. Returning you to the product.");
+      navigate({ sku: null });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [skuMissing, navigate]);
 
   return (
     <div className="grid gap-4">
@@ -776,7 +797,7 @@ export function AdminTagProductsManager() {
               </>
             ) : null}
 
-            {showingSkuEditor && selectedProduct ? (
+            {showingSkuEditor && selectedProduct && skuResolved ? (
               <>
                 <BackBar
                   label={selectedProduct.name}
@@ -801,6 +822,12 @@ export function AdminTagProductsManager() {
                   settingsHref={`${pathname}?tab=settings`}
                 />
               </>
+            ) : showingSkuEditor && !skuResolved ? (
+              // The product/SKU is still loading, or an invalid id is being
+              // redirected away — never a blank editable form.
+              <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm font-semibold text-slate-500">
+                Opening SKU...
+              </div>
             ) : null}
           </div>
         </div>
@@ -1006,7 +1033,7 @@ function SkuListSection({ product, onAddSku, onOpenSku }: {
           </p>
         ) : null}
         {product.variants.map((variant) => (
-          <button className="rounded-xl border border-slate-200 p-3 text-left transition hover:bg-slate-50" key={variant.id} onClick={() => onOpenSku(variant.id)} type="button">
+          <button aria-label={`Edit SKU ${variant.sku}`} className="cursor-pointer rounded-xl border border-slate-200 p-3 text-left transition hover:border-slate-400 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-1" key={variant.id} onClick={() => onOpenSku(variant.id)} type="button">
             <div className="flex items-start justify-between gap-2">
               <span className="font-mono text-sm font-black text-slate-950">{variant.sku}</span>
               <SkuStatusBadge variant={variant} />

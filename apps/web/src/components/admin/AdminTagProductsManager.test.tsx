@@ -612,6 +612,158 @@ describe("AdminTagProductsManager SKU availability", () => {
   });
 });
 
+describe("AdminTagProductsManager SKU editor open and edit flow", () => {
+  const PRODUCT_ID = "11111111-1111-4111-8111-111111111111";
+  const VARIANT_ID = "22222222-2222-4222-8222-222222222222";
+
+  it("exposes each SKU as an accessible, keyboard-activatable Edit control", async () => {
+    await openExistingProduct();
+
+    const card = screen.getByRole("button", { name: "Edit SKU MPL-QR-STANDARD-V1" });
+    // A real button (not a div) — the platform gives it keyboard activation.
+    expect(card.tagName).toBe("BUTTON");
+    card.focus();
+    expect(document.activeElement).toBe(card);
+  });
+
+  it("opens the create form for the selected product when New SKU is chosen", async () => {
+    await openExistingProduct();
+    fireEvent.click(screen.getByRole("button", { name: "New SKU" }));
+
+    await screen.findByText(`New SKU for ${productDetail.name}`);
+    // Blank defaults, not another product's SKU.
+    expect((screen.getByLabelText("SKU code") as HTMLInputElement).value).toBe("");
+    expect(screen.getByRole("button", { name: "Create SKU" })).toBeDefined();
+    expect(navState.search).toContain("sku=new");
+    expect(navState.search).toContain(`product=${PRODUCT_ID}`);
+  });
+
+  it("opens the editor with the correct data when an existing SKU is activated", async () => {
+    await openExistingProduct();
+    fireEvent.click(screen.getByRole("button", { name: "Edit SKU MPL-QR-STANDARD-V1" }));
+
+    await screen.findByText("Edit SKU MPL-QR-STANDARD-V1");
+    expect((screen.getByLabelText("SKU code") as HTMLInputElement).value).toBe("MPL-QR-STANDARD-V1");
+    // The product editor stepped aside — this is clearly SKU editing.
+    expect(screen.queryByLabelText("Product name")).toBeNull();
+    expect(navState.search).toContain(`sku=${VARIANT_ID}`);
+  });
+
+  it("saves a new SKU with the create API exactly once, associated with the product", async () => {
+    await openExistingProduct();
+    fireEvent.click(screen.getByRole("button", { name: "New SKU" }));
+    await screen.findByText(`New SKU for ${productDetail.name}`);
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Tag Type" }), { target: { value: standardPreset.id } });
+    fireEvent.change(screen.getByLabelText("SKU code"), { target: { value: "MPL-NEW-V1" } });
+    fireEvent.change(screen.getByLabelText("Display name"), { target: { value: "New Tag" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create SKU" }));
+
+    await waitFor(() => expect(mocks.saveVariant).toHaveBeenCalledTimes(1));
+    expect(mocks.saveVariant).toHaveBeenCalledWith(
+      PRODUCT_ID,
+      expect.objectContaining({ sku: "MPL-NEW-V1", concurrencyToken: null }),
+      undefined
+    );
+  });
+
+  it("saves an existing SKU with the update API exactly once, passing the SKU id", async () => {
+    await openExistingProduct();
+    fireEvent.click(screen.getByRole("button", { name: "Edit SKU MPL-QR-STANDARD-V1" }));
+    await screen.findByText("Edit SKU MPL-QR-STANDARD-V1");
+
+    fireEvent.change(screen.getByLabelText("Display name"), { target: { value: "Renamed Tag" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save SKU" }));
+
+    await waitFor(() => expect(mocks.saveVariant).toHaveBeenCalledTimes(1));
+    expect(mocks.saveVariant).toHaveBeenCalledWith(
+      PRODUCT_ID,
+      expect.objectContaining({ displayName: "Renamed Tag" }),
+      VARIANT_ID
+    );
+  });
+
+  it("cancels SKU creation with Back and performs no save", async () => {
+    await openExistingProduct();
+    fireEvent.click(screen.getByRole("button", { name: "New SKU" }));
+    await screen.findByText(`New SKU for ${productDetail.name}`);
+
+    fireEvent.click(screen.getByRole("button", { name: `Back to ${productDetail.name}` }));
+
+    await screen.findByText(`Edit ${productDetail.name}`);
+    expect(mocks.saveVariant).not.toHaveBeenCalled();
+    expect(navState.search).not.toContain("sku=");
+  });
+
+  it("restores the SKU editor when refreshing a URL with a product and SKU", async () => {
+    navState.search = `tab=products&product=${PRODUCT_ID}&sku=${VARIANT_ID}`;
+    mocks.listProducts.mockResolvedValue({ items: [listProduct], total: 1 });
+    render(<AdminTagProductsManager />);
+
+    await screen.findByText("Edit SKU MPL-QR-STANDARD-V1");
+    expect((screen.getByLabelText("SKU code") as HTMLInputElement).value).toBe("MPL-QR-STANDARD-V1");
+  });
+
+  it("fails safely for an invalid SKU id: notice, no blank editor, back to the product", async () => {
+    navState.search = `tab=products&product=${PRODUCT_ID}&sku=99999999-9999-4999-8999-999999999999`;
+    mocks.listProducts.mockResolvedValue({ items: [listProduct], total: 1 });
+    render(<AdminTagProductsManager />);
+
+    await screen.findByText(/That SKU is no longer available/);
+    // The URL is cleaned and the product editor is shown, never a blank SKU form.
+    expect(navState.search).not.toContain("sku=");
+    await screen.findByText(`Edit ${productDetail.name}`);
+    expect(screen.queryByRole("button", { name: "Save SKU" })).toBeNull();
+  });
+
+  it("clears an open SKU selection when a product is selected from the list", async () => {
+    await openExistingProduct();
+    fireEvent.click(screen.getByRole("button", { name: "Edit SKU MPL-QR-STANDARD-V1" }));
+    await screen.findByText("Edit SKU MPL-QR-STANDARD-V1");
+
+    // Selecting the product again (list stays mounted) closes the SKU editor.
+    fireEvent.click(screen.getByText("MyPetLink Pet Tag"));
+
+    await screen.findByText(`Edit ${productDetail.name}`);
+    expect(navState.search).not.toContain("sku=");
+  });
+
+  it("keeps the SKU form open and shows an error when saving fails", async () => {
+    mocks.saveVariant.mockRejectedValueOnce(new ApiClientError(400, "validation_failed", "Please check the submitted fields."));
+    await openExistingProduct();
+    fireEvent.click(screen.getByRole("button", { name: "New SKU" }));
+    await screen.findByText(`New SKU for ${productDetail.name}`);
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Tag Type" }), { target: { value: standardPreset.id } });
+    fireEvent.change(screen.getByLabelText("SKU code"), { target: { value: "MPL-NEW-V1" } });
+    fireEvent.change(screen.getByLabelText("Display name"), { target: { value: "New Tag" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create SKU" }));
+
+    await screen.findByText(/Please check the submitted fields|couldn.t save/i);
+    // Editor stays open with the entered values preserved.
+    expect(screen.getByText(`New SKU for ${productDetail.name}`)).toBeDefined();
+    expect((screen.getByLabelText("SKU code") as HTMLInputElement).value).toBe("MPL-NEW-V1");
+  });
+
+  it("does not submit a new SKU twice when Create is double-clicked", async () => {
+    let resolveSave: ((value: unknown) => void) | undefined;
+    mocks.saveVariant.mockReturnValueOnce(new Promise((resolve) => { resolveSave = resolve; }));
+    await openExistingProduct();
+    fireEvent.click(screen.getByRole("button", { name: "New SKU" }));
+    await screen.findByText(`New SKU for ${productDetail.name}`);
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Tag Type" }), { target: { value: standardPreset.id } });
+    fireEvent.change(screen.getByLabelText("SKU code"), { target: { value: "MPL-NEW-V1" } });
+    const create = screen.getByRole("button", { name: "Create SKU" });
+    fireEvent.click(create);
+    fireEvent.click(create);
+
+    expect(mocks.saveVariant).toHaveBeenCalledTimes(1);
+    resolveSave?.(productDetail.variants[0]);
+    await waitFor(() => expect(mocks.getProduct).toHaveBeenCalled());
+  });
+});
+
 describe("AdminTagProductsManager products", () => {
   it("shows a true empty state only after a successful zero-result load", async () => {
     render(<AdminTagProductsManager />);
