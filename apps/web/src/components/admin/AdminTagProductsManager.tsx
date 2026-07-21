@@ -10,7 +10,7 @@ import { AdminSearchInput } from "@/components/admin/table/AdminSearchInput";
 import { useAdminTableQuery } from "@/components/admin/table/useAdminTableQuery";
 import { Badge } from "@/components/ui/Badge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { isApiClientError } from "@/services/apiClient";
+import { isAbortError, isApiClientError } from "@/services/apiClient";
 import { uploadMediaFile } from "@/services/mediaService";
 import {
   archiveAdminTagProduct,
@@ -40,6 +40,24 @@ import {
 
 type CatalogTab = "products" | "promotions" | "settings";
 type FieldErrors = Record<string, string>;
+type CatalogEditorMode =
+  | { kind: "none" }
+  | { kind: "create-product" }
+  | { kind: "edit-product"; productId: string }
+  | { kind: "create-sku"; productId: string }
+  | { kind: "edit-sku"; productId: string; skuId: string };
+
+function catalogEditorMode(
+  tab: CatalogTab,
+  productId: string | null,
+  skuId: string | null
+): CatalogEditorMode {
+  if (tab !== "products" || !productId) return { kind: "none" };
+  if (productId === "new") return { kind: "create-product" };
+  if (skuId === "new") return { kind: "create-sku", productId };
+  if (skuId) return { kind: "edit-sku", productId, skuId };
+  return { kind: "edit-product", productId };
+}
 
 const catalogTabs: { id: CatalogTab; label: string }[] = [
   { id: "products", label: "Products & SKUs" },
@@ -66,6 +84,33 @@ const CATALOG_FILTER_VALUES: Record<string, readonly string[]> = {
   purchasable: ["yes", "no"],
   promoStatus: ["enabled", "disabled"],
 };
+
+function catalogTabHref(
+  pathname: string,
+  current: Pick<URLSearchParams, "toString">,
+  nextTab: CatalogTab
+) {
+  const params = new URLSearchParams(current.toString());
+  params.set("tab", nextTab);
+  params.delete("product");
+  params.delete("sku");
+  params.delete("page");
+
+  if (nextTab !== "products") {
+    for (const key of ["publication", "archive", "capability", "purchasable"]) {
+      params.delete(key);
+    }
+    params.delete("sort");
+    params.delete("dir");
+  }
+  if (nextTab !== "promotions") params.delete("promoStatus");
+  if (nextTab === "settings") {
+    params.delete("q");
+    params.delete("size");
+  }
+
+  return `${pathname}?${params.toString()}`;
+}
 
 const fieldClass =
   "min-h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-900 outline-none focus:border-slate-400";
@@ -161,6 +206,7 @@ export function AdminTagProductsManager() {
     tabParam === "promotions" || tabParam === "settings" ? tabParam : "products";
   const productParam = searchParams.get("product");
   const skuParam = searchParams.get("sku");
+  const editorMode = catalogEditorMode(tab, productParam, skuParam);
 
   const [products, setProducts] = useState<AdminTagProductListItem[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<AdminTagProduct | null>(null);
@@ -179,6 +225,8 @@ export function AdminTagProductsManager() {
   const [message, setMessage] = useState("");
   const [actionError, setActionError] = useState("");
   const [productLoadError, setProductLoadError] = useState("");
+  const [productDetailError, setProductDetailError] = useState<{ productId: string; message: string } | null>(null);
+  const [productDetailRetry, setProductDetailRetry] = useState(0);
   const [promotionLoadError, setPromotionLoadError] = useState("");
   const [productFormError, setProductFormError] = useState("");
   const [variantFormError, setVariantFormError] = useState("");
@@ -191,7 +239,10 @@ export function AdminTagProductsManager() {
   const [selectedPromotionId, setSelectedPromotionId] = useState<string>();
   const [catalogOptions, setCatalogOptions] = useState<AdminCatalogOptionProduct[]>([]);
   const [pendingArchive, setPendingArchive] = useState<"product" | "sku" | null>(null);
+  const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null);
   const submitLock = useRef(false);
+  const productListRequest = useRef(0);
+  const detailPanelRef = useRef<HTMLDivElement | null>(null);
 
   const productDirty = JSON.stringify(productForm) !== productBaseline;
   const variantDirty = JSON.stringify(variantForm) !== variantBaseline;
@@ -222,11 +273,59 @@ export function AdminTagProductsManager() {
     [actions, productParam]
   );
 
-  // Unsaved-change guard for in-app navigation between contexts.
-  const confirmDiscard = useCallback(() => {
-    if (!productDirty && !variantDirty) return true;
-    return window.confirm("Discard unsaved changes on this screen?");
+  // Internal master/detail and tab changes use one visible guard. The action is
+  // retained until the admin explicitly keeps, saves, or discards the edits;
+  // a click is never silently swallowed.
+  const requestNavigation = useCallback((action: () => void) => {
+    if (!productDirty && !variantDirty) {
+      action();
+      return;
+    }
+    setPendingNavigation(() => action);
   }, [productDirty, variantDirty]);
+
+  const focusDetailPanel = useCallback(() => {
+    const panel = detailPanelRef.current;
+    if (!panel) return;
+    panel.focus({ preventScroll: true });
+    panel.scrollIntoView({ block: "start", behavior: "auto" });
+  }, []);
+
+  useEffect(() => {
+    if (tab !== "products" || !productParam) return undefined;
+    const timer = window.setTimeout(focusDetailPanel, 0);
+    return () => window.clearTimeout(timer);
+  }, [focusDetailPanel, productParam, skuParam, tab]);
+
+  const retryProductDetail = useCallback(() => {
+    setProductDetailError(null);
+    setProductDetailRetry((value) => value + 1);
+  }, []);
+
+  function openNewProduct() {
+    if (productParam === "new" && !skuParam) {
+      focusDetailPanel();
+      return;
+    }
+    requestNavigation(() => {
+      setActionError("");
+      setMessage("");
+      navigate({ product: "new", sku: null });
+    });
+  }
+
+  function openProduct(productId: string) {
+    if (productParam === productId && !skuParam) {
+      if (productDetailError?.productId === productId) retryProductDetail();
+      focusDetailPanel();
+      return;
+    }
+    requestNavigation(() => {
+      setActionError("");
+      setMessage("");
+      navigate({ product: productId, sku: null });
+    });
+  }
 
   // Map the URL filter values to the list request. Absent `archive` means
   // active-only; every other absent filter means "no filter".
@@ -250,24 +349,33 @@ export function AdminTagProductsManager() {
   }, [query]);
   const productListKey = JSON.stringify(productListParams);
 
-  const refreshProducts = useCallback(async () => {
+  const refreshProducts = useCallback(async (signal?: AbortSignal) => {
+    const requestId = ++productListRequest.current;
     setProductsLoading(true);
     setProductLoadError("");
     try {
-      const result = await listAdminTagProducts(JSON.parse(productListKey));
+      const result = await listAdminTagProducts(JSON.parse(productListKey), signal);
+      if (signal?.aborted || requestId !== productListRequest.current) return;
       setProducts(result.items);
       setProductsTotal(result.total);
       setProductLoadError("");
     } catch (caught) {
+      if (signal?.aborted || isAbortError(caught) || requestId !== productListRequest.current) return;
       setProductLoadError(loadError(caught, "Tag Products"));
     } finally {
-      setProductsLoading(false);
+      if (!signal?.aborted && requestId === productListRequest.current) {
+        setProductsLoading(false);
+      }
     }
   }, [productListKey]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => void refreshProducts(), 200);
-    return () => window.clearTimeout(timer);
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => void refreshProducts(controller.signal), 200);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
   }, [refreshProducts]);
 
   const refreshPresets = useCallback(async () => {
@@ -289,8 +397,9 @@ export function AdminTagProductsManager() {
   const [productScope, setProductScope] = useState(productParam ?? "");
   if ((productParam ?? "") !== productScope) {
     setProductScope(productParam ?? "");
+    setSelectedProduct(null);
+    setProductDetailError(null);
     if (!productParam || productParam === "new") {
-      setSelectedProduct(null);
       setProductForm(blankProduct);
       setProductBaseline(JSON.stringify(blankProduct));
     }
@@ -298,25 +407,30 @@ export function AdminTagProductsManager() {
 
   useEffect(() => {
     if (!productParam || productParam === "new") return undefined;
-    let active = true;
+    const controller = new AbortController();
     const timer = window.setTimeout(() => {
-      setBusy(true);
-      getAdminTagProduct(productParam)
+      getAdminTagProduct(productParam, controller.signal)
         .then((detail) => {
-          if (!active) return;
+          if (controller.signal.aborted) return;
           setSelectedProduct(detail);
+          setProductDetailError(null);
           const input = productInput(detail);
           setProductForm(input);
           setProductBaseline(JSON.stringify(input));
         })
-        .catch((caught) => active && setActionError(friendlyError(caught)))
-        .finally(() => active && setBusy(false));
+        .catch((caught) => {
+          if (controller.signal.aborted || isAbortError(caught)) return;
+          setProductDetailError({
+            productId: productParam,
+            message: loadError(caught, "this product"),
+          });
+        });
     }, 0);
     return () => {
-      active = false;
       window.clearTimeout(timer);
+      controller.abort();
     };
-  }, [productParam]);
+  }, [productParam, productDetailRetry]);
 
   // The SKU editor follows the URL and the loaded product (render-phase sync).
   const variantScopeTarget = `${skuParam ?? ""}|${selectedProduct?.id ?? ""}`;
@@ -373,14 +487,14 @@ export function AdminTagProductsManager() {
     return () => window.clearTimeout(timer);
   }, [tab, openPromotions]);
 
-  async function submitProduct() {
-    if (busy || submitLock.current) return;
+  async function submitProduct({ navigateAfterSave = true } = {}) {
+    if (busy || submitLock.current) return false;
     const validationErrors = validateProductForm(productForm, selectedProduct);
     if (Object.keys(validationErrors).length > 0) {
       setProductFieldErrors(validationErrors);
       setProductFormError("");
       focusFirstInvalidField(validationErrors, productFieldIds);
-      return;
+      return false;
     }
 
     submitLock.current = true;
@@ -399,7 +513,8 @@ export function AdminTagProductsManager() {
       setProductBaseline(JSON.stringify(input));
       setMessage(`${saved.name} saved.`);
       await refreshProducts();
-      if (productParam === "new") navigate({ product: saved.id });
+      if (productParam === "new" && navigateAfterSave) navigate({ product: saved.id });
+      return true;
     } catch (caught) {
       const fieldErrors = apiFieldErrors(caught, Object.keys(productFieldIds));
       if (Object.keys(fieldErrors).length > 0) {
@@ -408,6 +523,7 @@ export function AdminTagProductsManager() {
       } else {
         setProductFormError(saveError(caught, "product"));
       }
+      return false;
     } finally {
       setBusy(false);
       submitLock.current = false;
@@ -469,8 +585,8 @@ export function AdminTagProductsManager() {
     }
   }
 
-  async function submitVariant() {
-    if (!selectedProduct || busy || submitLock.current) return;
+  async function submitVariant({ navigateAfterSave = true } = {}) {
+    if (!selectedProduct || busy || submitLock.current) return false;
     submitLock.current = true;
     setBusy(true);
     setActionError("");
@@ -486,13 +602,29 @@ export function AdminTagProductsManager() {
       setSelectedProduct(detail);
       setMessage(`SKU ${variantForm.sku.toUpperCase()} saved.`);
       setVariantBaseline(JSON.stringify(variantForm));
-      navigate({ sku: null });
+      if (navigateAfterSave) navigate({ sku: null });
+      return true;
     } catch (caught) {
       setVariantFormError(saveError(caught, "SKU"));
+      return false;
     } finally {
       setBusy(false);
       submitLock.current = false;
     }
+  }
+
+  async function saveBeforeNavigation() {
+    const action = pendingNavigation;
+    if (!action) return;
+    setPendingNavigation(null);
+
+    const saved = variantDirty
+      ? await submitVariant({ navigateAfterSave: false })
+      : productDirty
+        ? await submitProduct({ navigateAfterSave: false })
+        : true;
+
+    if (saved) action();
   }
 
   async function archiveVariant() {
@@ -603,8 +735,8 @@ export function AdminTagProductsManager() {
     [catalogOptions]
   );
 
-  const showingProductDetail = tab === "products" && Boolean(productParam);
-  const showingSkuEditor = showingProductDetail && Boolean(skuParam) && productParam !== "new";
+  const showingProductDetail = editorMode.kind !== "none";
+  const showingSkuEditor = editorMode.kind === "create-sku" || editorMode.kind === "edit-sku";
   const editingVariant =
     skuParam && skuParam !== "new"
       ? selectedProduct?.variants.find((item) => item.id === skuParam)
@@ -616,6 +748,10 @@ export function AdminTagProductsManager() {
   // during the async product fetch the variant list is not available yet.
   const productLoaded = Boolean(selectedProduct) && selectedProduct?.id === productParam;
   const skuMissing = showingSkuEditor && productLoaded && !skuResolved;
+  const currentProductDetailError =
+    productParam && productDetailError?.productId === productParam
+      ? productDetailError.message
+      : "";
 
   // Fail safe: a stale/archived/invalid SKU id in the URL (deep link, bookmark,
   // Back button, or a SKU archived or replaced in another tab) returns the
@@ -642,10 +778,18 @@ export function AdminTagProductsManager() {
                 ? "border-slate-950 bg-slate-950 text-white"
                 : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
             }`}
-            href={`${pathname}?tab=${item.id}`}
+            href={catalogTabHref(pathname, searchParams, item.id)}
             key={item.id}
             onClick={(event) => {
-              if (!confirmDiscard()) event.preventDefault();
+              if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+              event.preventDefault();
+              const href = event.currentTarget.getAttribute("href");
+              if (!href) return;
+              requestNavigation(() => {
+                if (`${window.location.pathname}${window.location.search}` !== href) {
+                  window.history.pushState(null, "", href);
+                }
+              });
             }}
           >
             {item.label}
@@ -670,9 +814,7 @@ export function AdminTagProductsManager() {
               description="A product is the customer-facing item shown in the Owner Portal. Sizes, capabilities, materials, and prices live on its SKUs."
               action={
                 <AdminActionButton
-                  onClick={() => {
-                    if (confirmDiscard()) navigate({ product: "new", sku: null });
-                  }}
+                  onClick={openNewProduct}
                   tone="primary"
                 >
                   New Product
@@ -723,9 +865,7 @@ export function AdminTagProductsManager() {
                   <button
                     className={`mb-2 w-full rounded-xl border p-3 text-left transition ${productParam === product.id ? "border-slate-900 bg-slate-50" : "border-slate-200 hover:bg-slate-50"}`}
                     key={product.id}
-                    onClick={() => {
-                      if (confirmDiscard()) navigate({ product: product.id, sku: null });
-                    }}
+                    onClick={() => openProduct(product.id)}
                     type="button"
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -752,7 +892,13 @@ export function AdminTagProductsManager() {
             </AdminSection>
           </div>
 
-          <div className="grid min-w-0 content-start gap-4">
+          <div
+            aria-label="Product editor"
+            className="grid min-w-0 scroll-mt-20 content-start gap-4 outline-none"
+            data-testid="product-detail-panel"
+            ref={detailPanelRef}
+            tabIndex={-1}
+          >
             {!showingProductDetail ? (
               <div className="hidden rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm font-semibold text-slate-500 xl:block">
                 Select a product to edit it, or create a new product.
@@ -764,36 +910,59 @@ export function AdminTagProductsManager() {
                 <BackBar
                   label="All products"
                   onBack={() => {
-                    if (confirmDiscard()) navigate({ product: null, sku: null });
+                    requestNavigation(() => navigate({ product: null, sku: null }));
                   }}
                 />
-                <ProductEditor
-                  busy={busy}
-                  errors={productFieldErrors}
-                  form={productForm}
-                  formError={productFormError}
-                  isNew={productParam === "new"}
-                  onArchive={() => setPendingArchive("product")}
-                  onChange={(value) => {
-                    setProductForm(value);
-                    setProductFieldErrors({});
-                    setProductFormError("");
-                  }}
-                  onImageUpload={(file) => void uploadProductImage(file)}
-                  onSave={() => void submitProduct()}
-                  product={selectedProduct}
-                />
-                {productParam !== "new" && selectedProduct ? (
-                  <SkuListSection
-                    onAddSku={() => {
-                      if (confirmDiscard()) navigate({ sku: "new" });
+                {productParam === "new" ? (
+                  <ProductEditor
+                    busy={busy}
+                    errors={productFieldErrors}
+                    form={productForm}
+                    formError={productFormError}
+                    isNew
+                    onArchive={() => setPendingArchive("product")}
+                    onChange={(value) => {
+                      setProductForm(value);
+                      setProductFieldErrors({});
+                      setProductFormError("");
                     }}
-                    onOpenSku={(variantId) => {
-                      if (confirmDiscard()) navigate({ sku: variantId });
-                    }}
-                    product={selectedProduct}
+                    onImageUpload={(file) => void uploadProductImage(file)}
+                    onSave={() => void submitProduct()}
+                    product={null}
                   />
-                ) : null}
+                ) : currentProductDetailError ? (
+                  <LoadFailure message={currentProductDetailError} onRetry={retryProductDetail} />
+                ) : selectedProduct ? (
+                  <>
+                    <ProductEditor
+                      busy={busy}
+                      errors={productFieldErrors}
+                      form={productForm}
+                      formError={productFormError}
+                      isNew={false}
+                      onArchive={() => setPendingArchive("product")}
+                      onChange={(value) => {
+                        setProductForm(value);
+                        setProductFieldErrors({});
+                        setProductFormError("");
+                      }}
+                      onImageUpload={(file) => void uploadProductImage(file)}
+                      onSave={() => void submitProduct()}
+                      product={selectedProduct}
+                    />
+                    <SkuListSection
+                      onAddSku={() => {
+                        requestNavigation(() => navigate({ sku: "new" }));
+                      }}
+                      onOpenSku={(variantId) => {
+                        requestNavigation(() => navigate({ sku: variantId }));
+                      }}
+                      product={selectedProduct}
+                    />
+                  </>
+                ) : (
+                  <EditorStatus>Opening product...</EditorStatus>
+                )}
               </>
             ) : null}
 
@@ -802,7 +971,7 @@ export function AdminTagProductsManager() {
                 <BackBar
                   label={selectedProduct.name}
                   onBack={() => {
-                    if (confirmDiscard()) navigate({ sku: null });
+                    requestNavigation(() => navigate({ sku: null }));
                   }}
                 />
                 <VariantEditor
@@ -819,15 +988,21 @@ export function AdminTagProductsManager() {
                   onSave={() => void submitVariant()}
                   presets={presets}
                   product={selectedProduct}
-                  settingsHref={`${pathname}?tab=settings`}
+                  settingsHref={catalogTabHref(pathname, searchParams, "settings")}
                 />
+              </>
+            ) : showingSkuEditor && currentProductDetailError ? (
+              <>
+                <BackBar
+                  label="All products"
+                  onBack={() => navigate({ product: null, sku: null })}
+                />
+                <LoadFailure message={currentProductDetailError} onRetry={retryProductDetail} />
               </>
             ) : showingSkuEditor && !skuResolved ? (
               // The product/SKU is still loading, or an invalid id is being
               // redirected away — never a blank editable form.
-              <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm font-semibold text-slate-500">
-                Opening SKU...
-              </div>
+              <EditorStatus>Opening SKU...</EditorStatus>
             ) : null}
           </div>
         </div>
@@ -895,6 +1070,29 @@ export function AdminTagProductsManager() {
           selectedId={selectedPresetId}
         />
       ) : null}
+
+      <ConfirmDialog
+        cancelLabel="Keep editing"
+        confirmLabel="Discard changes"
+        message="You have unsaved changes on this screen. Save them before continuing, discard them, or keep editing."
+        onCancel={() => setPendingNavigation(null)}
+        onConfirm={() => {
+          const action = pendingNavigation;
+          setPendingNavigation(null);
+          action?.();
+        }}
+        open={pendingNavigation !== null}
+        title="Leave this editor?"
+      >
+        <button
+          className="inline-flex min-h-11 w-full items-center justify-center rounded-full border border-slate-950 bg-slate-950 px-4 py-2 text-sm font-extrabold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={busy}
+          onClick={() => void saveBeforeNavigation()}
+          type="button"
+        >
+          {busy ? "Saving..." : "Save and continue"}
+        </button>
+      </ConfirmDialog>
 
       <ConfirmDialog
         cancelLabel="Keep"
@@ -1387,6 +1585,7 @@ function FilterSelect({ label, value, options, onChange }: { label: string; valu
   return <label className="grid gap-1 text-xs font-extrabold uppercase text-slate-500">{label}<select className={fieldClass} value={value} onChange={(event) => onChange(event.target.value)}>{options.map(([optionValue, optionLabel]) => <option key={optionValue} value={optionValue}>{optionLabel}</option>)}</select></label>;
 }
 function StatusLine({ children }: { children: React.ReactNode }) { return <p className="p-4 text-sm font-semibold text-slate-500">{children}</p>; }
+function EditorStatus({ children }: { children: React.ReactNode }) { return <div aria-live="polite" className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm font-semibold text-slate-500">{children}</div>; }
 function LoadFailure({ message, onRetry }: { message: string; onRetry: () => void }) { return <div className="grid gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800" role="alert"><p>{message}</p><div><AdminActionButton onClick={onRetry}>Retry</AdminActionButton></div></div>; }
 function InlineFieldError({ id, children }: { id?: string; children: React.ReactNode }) { return <span className="normal-case text-xs font-bold text-red-700" id={id}>{children}</span>; }
 function InlineFormError({ children }: { children: React.ReactNode }) { return <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-800" role="alert">{children}</div>; }

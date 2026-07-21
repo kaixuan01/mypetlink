@@ -251,7 +251,8 @@ export type AdminListPage<T> = { items: T[]; total: number };
 // Server-paginated product listing. The caller passes the page/size from the
 // shared table query; there is no client-side row cap.
 export async function listAdminTagProducts(
-  filters: AdminTagProductFilters = {}
+  filters: AdminTagProductFilters = {},
+  signal?: AbortSignal
 ): Promise<AdminListPage<AdminTagProductListItem>> {
   const query = new URLSearchParams({
     page: String(filters.page ?? 1),
@@ -266,14 +267,16 @@ export async function listAdminTagProducts(
   if (filters.sortBy) query.set("sortBy", filters.sortBy);
   if (filters.sortDir) query.set("sortDir", filters.sortDir);
   const response = await apiRequest<AdminTagProductListItem[]>(
-    `/api/v1/admin/tag-products?${query.toString()}`
+    `/api/v1/admin/tag-products?${query.toString()}`,
+    { signal }
   );
   return { items: response.data ?? [], total: response.meta?.total ?? response.data?.length ?? 0 };
 }
 
-export async function getAdminTagProduct(productId: string) {
+export async function getAdminTagProduct(productId: string, signal?: AbortSignal) {
   const response = await apiRequest<AdminTagProduct>(
-    `/api/v1/admin/tag-products/${encodeURIComponent(productId)}`
+    `/api/v1/admin/tag-products/${encodeURIComponent(productId)}`,
+    { signal }
   );
   if (!response.data) throw new Error("Product details are unavailable.");
   return response.data;

@@ -4,9 +4,11 @@ import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useAdminTableQuery } from "./useAdminTableQuery";
 
-// Simulated navigation: the hook treats the URL as the source of truth, so the
-// mock keeps a mutable query string that router.push updates.
+// Simulated navigation: Next patches the native History API to notify
+// useSearchParams. JSDOM does not, so these spies keep the mock URL in sync.
 const navState = { pathname: "/admin/tag-inventory", search: "", pushes: [] as string[], replacements: [] as string[] };
+const nativePushState = window.history.pushState.bind(window.history);
+const nativeReplaceState = window.history.replaceState.bind(window.history);
 
 function navigate(url: string) {
   navState.search = url.split("?")[1] ?? "";
@@ -43,9 +45,29 @@ beforeEach(() => {
   navState.pathname = "/admin/tag-inventory";
   navState.pushes = [];
   navState.replacements = [];
+  // Keep the real JSDOM path outside the mocked route until the first write;
+  // the hook then composes any immediate second write from that real URL.
+  nativeReplaceState(null, "", "/");
+  vi.spyOn(window.history, "pushState").mockImplementation((state, title, url) => {
+    if (!url) return;
+    const target = String(url);
+    nativePushState(state, title, target);
+    navState.pushes.push(target);
+    navigate(target);
+  });
+  vi.spyOn(window.history, "replaceState").mockImplementation((state, title, url) => {
+    if (!url) return;
+    const target = String(url);
+    nativeReplaceState(state, title, target);
+    navState.replacements.push(target);
+    navigate(target);
+  });
 });
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 describe("useAdminTableQuery", () => {
   it("uses defaults when the URL has no state", () => {
@@ -169,6 +191,20 @@ describe("useAdminTableQuery", () => {
     rerender();
 
     expect(navState.pushes).toHaveLength(0);
+  });
+
+  it("does not swallow a repeated selection when the previous URL write did not commit", () => {
+    const { result } = renderQueryHook();
+    const push = vi.mocked(window.history.pushState);
+    push.mockImplementation(() => {
+      // Simulate an interrupted browser/router write: neither the visible URL
+      // nor the useSearchParams snapshot changes.
+    });
+
+    act(() => result.current.actions.setExtraParams({ product: "p1", sku: null }));
+    act(() => result.current.actions.setExtraParams({ product: "p1", sku: null }));
+
+    expect(push).toHaveBeenCalledTimes(2);
   });
 
   it("browser navigation state is fully recoverable from the URL string", () => {

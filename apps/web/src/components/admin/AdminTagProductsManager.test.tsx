@@ -167,6 +167,22 @@ const productDetail: AdminTagProduct = {
   concurrencyToken: "AQ==",
 };
 
+const secondListProduct: AdminTagProductListItem = {
+  ...listProduct,
+  id: "55555555-5555-4555-8555-555555555555",
+  name: "MyPetLink Adventure Tag",
+  slug: "mypetlink-adventure-tag",
+  updatedAt: "2026-07-21T08:00:00Z",
+};
+
+const secondProductDetail: AdminTagProduct = {
+  ...productDetail,
+  id: secondListProduct.id,
+  name: secondListProduct.name,
+  slug: secondListProduct.slug,
+  variants: [],
+};
+
 const promotion: AdminPromotion = {
   id: "33333333-3333-4333-8333-333333333333",
   name: "Launch offer",
@@ -212,6 +228,12 @@ beforeEach(() => {
   navState.pathname = "/admin/tag-products";
   navState.search = "";
   navState.listeners.clear();
+  vi.spyOn(window.history, "pushState").mockImplementation((_state, _title, url) => {
+    if (url) navigate(String(url));
+  });
+  vi.spyOn(window.history, "replaceState").mockImplementation((_state, _title, url) => {
+    if (url) navigate(String(url));
+  });
   mocks.listProducts.mockReset().mockResolvedValue({ items: [], total: 0 });
   mocks.getProduct.mockReset().mockResolvedValue(productDetail);
   mocks.saveProduct.mockReset().mockImplementation(async (input) => ({
@@ -267,6 +289,13 @@ async function openExistingProduct() {
   const item = await screen.findByText("MyPetLink Pet Tag");
   fireEvent.click(item);
   await screen.findByText(`Edit ${productDetail.name}`);
+}
+
+async function findProductCard(name: string) {
+  const label = await screen.findByText(name);
+  const card = label.closest("button");
+  if (!card) throw new Error(`Product card not found for ${name}`);
+  return card;
 }
 
 describe("AdminTagProductsManager navigation and mobile flow", () => {
@@ -347,14 +376,129 @@ describe("AdminTagProductsManager navigation and mobile flow", () => {
   });
 
   it("protects unsaved product changes when navigating back", async () => {
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
     await openExistingProduct();
     fireEvent.change(screen.getByLabelText("Product name"), { target: { value: "Edited name" } });
     fireEvent.click(screen.getByRole("button", { name: /Back to All products/ }));
 
-    expect(confirmSpy).toHaveBeenCalled();
-    // Declined: the editor stays with the edited value.
+    expect(screen.getByRole("dialog", { name: "Leave this editor?" })).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: "Keep editing" }));
+    // Kept: the editor stays with the edited value and the click was not silent.
     expect((screen.getByLabelText("Product name") as HTMLInputElement).value).toBe("Edited name");
+  });
+
+  it("opens New Product immediately with a non-submitting button and clears stale selection", async () => {
+    navState.search = `tab=products&product=${listProduct.id}&sku=${productDetail.variants[0].id}`;
+    mocks.listProducts.mockResolvedValue({ items: [listProduct], total: 1 });
+    render(<AdminTagProductsManager />);
+    await screen.findByText("Edit SKU MPL-QR-STANDARD-V1");
+
+    const button = screen.getByRole("button", { name: "New Product" });
+    expect(button.getAttribute("type")).toBe("button");
+    fireEvent.click(button);
+
+    await screen.findByText("Create product");
+    expect(navState.search).toContain("product=new");
+    expect(navState.search).not.toContain("sku=");
+  });
+
+  it("uses accessible Product buttons and opens the exact selected Product", async () => {
+    mocks.listProducts.mockResolvedValue({ items: [listProduct, secondListProduct], total: 2 });
+    mocks.getProduct.mockImplementation(async (id: string) =>
+      id === secondListProduct.id ? secondProductDetail : productDetail
+    );
+    render(<AdminTagProductsManager />);
+
+    const card = await findProductCard(secondListProduct.name);
+    expect(card.tagName).toBe("BUTTON");
+    card.focus();
+    expect(document.activeElement).toBe(card);
+    fireEvent.click(card);
+
+    await screen.findByText("Edit MyPetLink Adventure Tag");
+    expect(navState.search).toContain(`product=${secondListProduct.id}`);
+    expect(navState.search).not.toContain("sku=");
+  });
+
+  it("switches Products deterministically and ignores a slower previous detail response", async () => {
+    let resolveFirst: ((value: AdminTagProduct) => void) | undefined;
+    const firstRequest = new Promise<AdminTagProduct>((resolve) => { resolveFirst = resolve; });
+    mocks.listProducts.mockResolvedValue({ items: [listProduct, secondListProduct], total: 2 });
+    mocks.getProduct.mockImplementation((id: string) =>
+      id === listProduct.id ? firstRequest : Promise.resolve(secondProductDetail)
+    );
+    render(<AdminTagProductsManager />);
+
+    fireEvent.click(await findProductCard(listProduct.name));
+    await waitFor(() => expect(mocks.getProduct).toHaveBeenCalledWith(listProduct.id, expect.any(AbortSignal)));
+    fireEvent.click(await findProductCard(secondListProduct.name));
+
+    await screen.findByText("Edit MyPetLink Adventure Tag");
+    resolveFirst?.(productDetail);
+    await waitFor(() => {
+      expect(screen.queryByText("Edit MyPetLink Pet Tag")).toBeNull();
+      expect((screen.getByLabelText("Product name") as HTMLInputElement).value).toBe(secondProductDetail.name);
+    });
+  });
+
+  it("keeps a repeated Product click functional by focusing the editor", async () => {
+    await openExistingProduct();
+    const card = await findProductCard(listProduct.name);
+    card.focus();
+    fireEvent.click(card);
+
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId("product-detail-panel")));
+    expect(mocks.getProduct).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows a local retry when Product detail fails and retries the same Product click", async () => {
+    mocks.listProducts.mockResolvedValue({ items: [listProduct], total: 1 });
+    mocks.getProduct
+      .mockRejectedValueOnce(new ApiClientError(500, "server_error", "Unexpected failure", undefined, undefined, "req-detail"))
+      .mockResolvedValueOnce(productDetail);
+    render(<AdminTagProductsManager />);
+
+    const card = await findProductCard(listProduct.name);
+    fireEvent.click(card);
+    expect(await screen.findByText(/We couldn.t load this product.*req-detail/)).toBeDefined();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeDefined();
+
+    // Selecting the same card is also an intentional retry, never a no-op.
+    fireEvent.click(card);
+    await screen.findByText("Edit MyPetLink Pet Tag");
+    expect(mocks.getProduct).toHaveBeenCalledTimes(2);
+  });
+
+  it("discards unsaved changes only after explicit confirmation and opens the requested Product", async () => {
+    mocks.listProducts.mockResolvedValue({ items: [listProduct, secondListProduct], total: 2 });
+    mocks.getProduct.mockImplementation(async (id: string) =>
+      id === secondListProduct.id ? secondProductDetail : productDetail
+    );
+    render(<AdminTagProductsManager />);
+    fireEvent.click(await findProductCard(listProduct.name));
+    await screen.findByText("Edit MyPetLink Pet Tag");
+    fireEvent.change(screen.getByLabelText("Product name"), { target: { value: "Unsaved name" } });
+    fireEvent.click(await findProductCard(secondListProduct.name));
+
+    expect(screen.getByRole("dialog", { name: "Leave this editor?" })).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+    await screen.findByText("Edit MyPetLink Adventure Tag");
+    expect(navState.search).toContain(`product=${secondListProduct.id}`);
+  });
+
+  it("saves through the existing workflow before continuing when requested", async () => {
+    mocks.listProducts.mockResolvedValue({ items: [listProduct, secondListProduct], total: 2 });
+    mocks.getProduct.mockImplementation(async (id: string) =>
+      id === secondListProduct.id ? secondProductDetail : productDetail
+    );
+    render(<AdminTagProductsManager />);
+    fireEvent.click(await findProductCard(listProduct.name));
+    await screen.findByText("Edit MyPetLink Pet Tag");
+    fireEvent.change(screen.getByLabelText("Product name"), { target: { value: "Saved name" } });
+    fireEvent.click(await findProductCard(secondListProduct.name));
+
+    fireEvent.click(screen.getByRole("button", { name: "Save and continue" }));
+    await waitFor(() => expect(mocks.saveProduct).toHaveBeenCalledTimes(1));
+    await screen.findByText("Edit MyPetLink Adventure Tag");
   });
 });
 
@@ -862,7 +1006,8 @@ describe("AdminTagProductsManager listing (shared table query)", () => {
 
     await waitFor(() =>
       expect(mocks.listProducts).toHaveBeenCalledWith(
-        expect.objectContaining({ search: "milo", published: true, page: 3 })
+        expect.objectContaining({ search: "milo", published: true, page: 3 }),
+        expect.any(AbortSignal)
       )
     );
   });
@@ -873,7 +1018,10 @@ describe("AdminTagProductsManager listing (shared table query)", () => {
     render(<AdminTagProductsManager />);
 
     await screen.findByText("MyPetLink Pet Tag");
-    expect(mocks.listProducts).toHaveBeenCalledWith(expect.objectContaining({ page: 2 }));
+    expect(mocks.listProducts).toHaveBeenCalledWith(
+      expect.objectContaining({ page: 2 }),
+      expect.any(AbortSignal)
+    );
     // Real total is surfaced, not capped at 100.
     expect(screen.getByText(/of 150/)).toBeDefined();
 
@@ -916,7 +1064,7 @@ describe("AdminTagProductsManager listing (shared table query)", () => {
     // product-only filters.
     expect(
       screen.getByRole("link", { name: "Promotions" }).getAttribute("href")
-    ).toBe("/admin/tag-products?tab=promotions");
+    ).toBe("/admin/tag-products?q=milo&tab=promotions");
   });
 });
 

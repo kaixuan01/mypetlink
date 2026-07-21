@@ -1,7 +1,7 @@
 "use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
+import { useCallback, useMemo } from "react";
 
 // URL-backed state for admin listing pages. The query string is the single
 // source of truth: refreshing keeps the view, Back/Forward restores previous
@@ -67,18 +67,9 @@ function parsePageSize(value: string | null, fallback: number) {
 export function useAdminTableQuery(
   config: AdminTableQueryConfig
 ): { query: AdminTableQuery; actions: AdminTableQueryActions; hasActiveFilters: boolean } {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const renderedQueryString = searchParams.toString();
-  const latestQueryRef = useRef(renderedQueryString);
-
-  // Next navigation is asynchronous. Keep an eagerly updated snapshot so a
-  // second action (for example closing a drawer while a filter navigation is
-  // settling) never rebuilds the URL from stale render-time search params.
-  useEffect(() => {
-    latestQueryRef.current = renderedQueryString;
-  }, [renderedQueryString]);
 
   const defaultSortDir = config.defaultSortDir ?? "desc";
   const defaultPageSize = config.defaultPageSize ?? 20;
@@ -115,7 +106,16 @@ export function useAdminTableQuery(
 
   const navigate = useCallback(
     (mutate: (params: URLSearchParams) => void, history: "push" | "replace" = "push") => {
-      const current = latestQueryRef.current;
+      // This is same-page query state, not a route transition. Next 16 patches
+      // the native History API so pushState/replaceState update useSearchParams
+      // synchronously without fetching a new RSC payload. Reading the browser
+      // URL here also prevents an interrupted transition from leaving an
+      // optimistic ref ahead of the committed URL and swallowing later clicks
+      // as false no-ops.
+      const current =
+        typeof window !== "undefined" && window.location.pathname === pathname
+          ? window.location.search.replace(/^\?/, "")
+          : renderedQueryString;
       const params = new URLSearchParams(current);
       mutate(params);
       const queryString = params.toString();
@@ -126,13 +126,14 @@ export function useAdminTableQuery(
         return;
       }
 
-      latestQueryRef.current = queryString;
-      const method = history === "replace" ? router.replace : router.push;
-      method(queryString ? `${pathname}?${queryString}` : pathname, {
-        scroll: false,
-      });
+      const url = queryString ? `${pathname}?${queryString}` : pathname;
+      if (history === "replace") {
+        window.history.replaceState(null, "", url);
+      } else {
+        window.history.pushState(null, "", url);
+      }
     },
-    [router, pathname]
+    [pathname, renderedQueryString]
   );
 
   const setOrDelete = (params: URLSearchParams, key: string, value: string | null) => {
@@ -196,7 +197,11 @@ export function useAdminTableQuery(
           params.delete("page");
         }),
       setExtraParam: (key, value) => {
-        const currentValue = new URLSearchParams(latestQueryRef.current).get(key);
+        const currentValue = new URLSearchParams(
+          typeof window !== "undefined" && window.location.pathname === pathname
+            ? window.location.search
+            : renderedQueryString
+        ).get(key);
 
         // Opening a detail from the list creates one useful history entry so
         // browser Back closes it. Switching records and closing replace that
@@ -215,7 +220,7 @@ export function useAdminTableQuery(
       getExtraParam: (key) => searchParams.get(key) ?? "",
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [navigate, defaultSortDir, defaultPageSize, searchParams]
+    [navigate, defaultSortDir, defaultPageSize, searchParams, pathname, renderedQueryString]
   );
 
   const hasActiveFilters =

@@ -67,6 +67,8 @@ describe("AdminLayout navigation", () => {
 
     const dialog = screen.getByRole("dialog", { name: "Admin navigation" });
     expect(dialog).toBeDefined();
+    expect(document.querySelectorAll("[inert]").length).toBeGreaterThan(0);
+    expect(document.body.style.overflow).toBe("hidden");
     // Initial focus lands on the close button inside the drawer.
     expect(document.activeElement?.getAttribute("aria-label")).toBe("Close admin navigation");
 
@@ -74,6 +76,8 @@ describe("AdminLayout navigation", () => {
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("dialog", { name: "Admin navigation" })).toBeNull();
     expect(document.activeElement).toBe(openButton);
+    expect(document.querySelectorAll("[inert]")).toHaveLength(0);
+    expect(document.body.style.overflow).toBe("");
   });
 
   it("shows the current page title in the compact mobile header", () => {
