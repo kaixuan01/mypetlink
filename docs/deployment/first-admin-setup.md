@@ -11,7 +11,7 @@ No admin email is hardcoded in code, and there is **no auto-running admin seed i
 The initial production admin (first `SuperAdmin`) is:
 
 ```txt
-gbbsoftwaresolutions@gmail.com
+admin@mypetlink.com.my
 ```
 
 This is an operator account identifier, not a secret. It is still **not** auto-promoted by code; it must be promoted manually after a normal Google login.
@@ -24,15 +24,15 @@ Rules for this account in production:
 
 Notes on which email to use:
 
-- **Cloudflare Email Routing addresses are not automatically Google Login accounts.** A routed address (e.g. `admin@mypetlink.com.my` forwarding to an inbox) cannot log in with Google unless it is itself a real Google account. It only forwards mail; it is not an identity provider account.
-- **If MyPetLink later adopts Google Workspace / a domain Google account** (e.g. a real `admin@mypetlink.com.my` Workspace account), promote **that** account using the same login-once-then-manual-insert flow, then revoke any old `AdminUsers` row.
+- **`admin@mypetlink.com.my` must be a real Google Workspace or domain Google account.** Cloudflare Email Routing alone only forwards mail and cannot authenticate with Google.
+- If this account replaces an earlier production administrator, complete the login-once-then-manual-insert flow below, verify the new account, and then revoke the old `AdminUsers` row.
 
 ## Steps
 
-1. **Log in once with Google** on the production frontend using `gbbsoftwaresolutions@gmail.com`. This creates the normal `Users` row (and `OwnerProfile` on the Free plan) through the standard `/api/v1/auth/google` flow. No special handling.
+1. **Log in once with Google** on the production frontend using `admin@mypetlink.com.my`. This creates the normal `Users` row (and `OwnerProfile` on the Free plan) through the standard `/api/v1/auth/google` flow. No special handling.
 2. **Find the user id** in the production database:
    ```sql
-   DECLARE @AdminEmail NVARCHAR(320) = N'gbbsoftwaresolutions@gmail.com';
+   DECLARE @AdminEmail NVARCHAR(320) = N'admin@mypetlink.com.my';
    SELECT Id, Email, DisplayName FROM Users WHERE Email = @AdminEmail;
    ```
 3. **Insert an active `AdminUsers` row** for that user (idempotent guard so re-running is safe):

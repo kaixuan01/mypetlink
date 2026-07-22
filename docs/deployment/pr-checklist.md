@@ -20,7 +20,7 @@ Use before merging the backend-connected Phase 1 branch (`feature/connect-admin-
 - [ ] Frontend env configured in Cloudflare Pages (`NEXT_PUBLIC_SITE_URL=https://mypetlink.com.my`, `NEXT_PUBLIC_API_BASE_URL=https://api.mypetlink.com.my`, `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, `NEXT_PUBLIC_SMART_TAG_ORDERING_ENABLED=false`) and the frontend **rebuilt** (values are baked at build time).
 - [ ] CORS confirmed: production frontend can call the API; other origins blocked.
 - [ ] Google OAuth production origin added to Authorized JavaScript origins; consent screen published.
-- [ ] First admin `gbbsoftwaresolutions@gmail.com` logged in once with Google, then was manually seeded and verified (see `sql/first-admin-template.sql`; `/api/v1/admin/auth/check` returns 200 admin / 403 non-admin).
+- [ ] First admin `admin@mypetlink.com.my` logged in once with Google, then was manually seeded and verified (see `sql/first-admin-template.sql`; `/api/v1/admin/auth/check` returns 200 admin / 403 non-admin).
 - [ ] Production safety confirmed: `DevAuth__Enabled` and `NEXT_PUBLIC_DEV_AUTH_ENABLED` are unset, `POST /api/v1/dev-auth/admin-login` returns `404`, `/swagger` returns `404`, the Development login action is absent, and no secrets or authenticated browser state are staged.
 - [ ] Smoke test passed end to end (see `smoke-test-script.md`).
 

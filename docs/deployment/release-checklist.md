@@ -18,7 +18,7 @@ Work top to bottom. Do not merge `feature/connect-admin-apis` into `main` until 
 - [ ] Confirm `PublicApp__BaseUrl` is not required by the current backend; public links are generated from frontend `NEXT_PUBLIC_SITE_URL=https://mypetlink.com.my`.
 - [ ] CORS confirmed: production frontend can call the API; other origins are blocked.
 - [ ] Production safety checks pass: `DevAuth__Enabled` and `NEXT_PUBLIC_DEV_AUTH_ENABLED` are unset, `POST /api/v1/dev-auth/admin-login` returns `404`, `/swagger` returns `404`, the Development login action is absent from the production frontend, and no secrets, `.env.local`, or authenticated browser state are committed.
-- [ ] First admin `gbbsoftwaresolutions@gmail.com` logged in once via Google, then was manually seeded and verified (`/api/v1/admin/auth/check` returns 200 for admin and 403 for non-admin) — see `first-admin-setup.md`.
+- [ ] First admin `admin@mypetlink.com.my` logged in once via Google, then was manually seeded and verified (`/api/v1/admin/auth/check` returns 200 for admin and 403 for non-admin) — see `first-admin-setup.md`.
 
 ## Smoke test (run against production, admin account)
 

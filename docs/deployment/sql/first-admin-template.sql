@@ -14,13 +14,11 @@
 -- The dev auto-admin never runs in production.
 --
 -- First production admin (first SuperAdmin):
---   * Current intended account: gbbsoftwaresolutions@gmail.com
+--   * Current intended account: admin@mypetlink.com.my
 --   * This account must log in ONCE with Google in production first, then be
 --     promoted with the steps below. It is NOT auto-promoted in production.
---   * Cloudflare Email Routing addresses are not Google Login accounts and
---     cannot be promoted; use a real Google account.
---   * If MyPetLink later uses a Google Workspace / domain account, promote that
---     account instead and revoke the old row.
+--   * This address must be a real Google Workspace or domain Google account.
+--     Cloudflare Email Routing alone is not a Google Login identity.
 --
 -- Order of operations:
 --   1. The intended operator logs in ONCE with Google on the target
@@ -36,7 +34,7 @@
 -- ------------------------------------------------------------
 
 -- Set the target email once. Replace only if promoting a different account.
-DECLARE @AdminEmail NVARCHAR(320) = N'gbbsoftwaresolutions@gmail.com';
+DECLARE @AdminEmail NVARCHAR(320) = N'admin@mypetlink.com.my';
 
 -- Step 1 — find the user id (after the operator has logged in once with Google)
 SELECT Id, Email, DisplayName, Status
