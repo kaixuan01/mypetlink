@@ -6,7 +6,7 @@ export const siteConfig = {
   productName: "MyPetLink",
   companyName: "GBB Software Solutions",
   country: "Malaysia",
-  supportEmail: "support@gbbsoftwaresolutions.com",
+  supportEmail: "support@mypetlink.com.my",
   businessRegistrationNo: "202603141718 (AS0515813-P)",
   url: "https://mypetlink.com.my",
 } as const;

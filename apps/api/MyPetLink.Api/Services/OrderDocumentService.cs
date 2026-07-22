@@ -44,7 +44,7 @@ public sealed class OrderDocumentService : IOrderDocumentService
     private const string BusinessName = "MyPetLink";
     private const string BusinessOwner = "by GBB Software Solutions";
     private const string BusinessRegNo = "Business Registration No.: 202603141718 (AS0515813-P)";
-    private const string SupportEmail = "support@gbbsoftwaresolutions.com";
+    private const string SupportEmail = "support@mypetlink.com.my";
 
     private readonly MyPetLinkDbContext _dbContext;
 
