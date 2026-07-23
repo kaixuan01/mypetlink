@@ -79,6 +79,8 @@ export function getOwnerOrderErrorMessage(error: unknown): string {
   switch (error.code) {
     case "unauthorized":
       return "Your session has expired. Please sign in again to continue.";
+    case "rate_limit_exceeded":
+      return "Too many requests. Please wait a moment and try again.";
     // Written for customers already, and more specific than anything generic.
     case "feature_disabled":
       return error.message;

@@ -235,4 +235,33 @@ describe("RuntimeRouteFallback shared /q resolution", () => {
     );
     expect(document.title).not.toContain("Safety Profile not found");
   });
+
+  it("shows a retryable throttling message instead of Page Not Found", async () => {
+    const petService = await import("@/services/petService");
+    const tagService = await import("@/services/tagService");
+    vi.mocked(petService.getPublicPetProfileBySafetyCode).mockResolvedValue({
+      data: null,
+    } as never);
+    vi.mocked(tagService.getFinderState).mockRejectedValue(
+      new ApiClientError(
+        429,
+        "rate_limit_exceeded",
+        "Too many requests. Please wait a moment and try again."
+      )
+    );
+
+    render(
+      <RuntimeRouteFallback>
+        <p>Page not found</p>
+      </RuntimeRouteFallback>
+    );
+
+    expect(await screen.findByText("Please wait a moment")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Too many requests. Please wait a moment and try again."
+      )
+    ).toBeTruthy();
+    expect(screen.queryByText("Page not found")).toBeNull();
+  });
 });

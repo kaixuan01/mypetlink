@@ -1,9 +1,13 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Net;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.Extensions.Options;
@@ -35,6 +39,94 @@ builder.Services.Configure<AdminSeedOptions>(builder.Configuration.GetSection(Ad
 builder.Services.Configure<DevAuthOptions>(builder.Configuration.GetSection(DevAuthOptions.SectionName));
 builder.Services.Configure<DatabaseResilienceOptions>(
     builder.Configuration.GetSection(DatabaseResilienceOptions.SectionName));
+builder.Services.Configure<SmartTagRateLimitingOptions>(
+    builder.Configuration.GetSection(SmartTagRateLimitingOptions.SectionName));
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders =
+        ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.ForwardLimit = Math.Clamp(
+        builder.Configuration.GetValue("ForwardedHeaders:ForwardLimit", 2),
+        1,
+        5);
+
+    foreach (var value in builder.Configuration
+                 .GetSection("ForwardedHeaders:KnownProxies")
+                 .Get<string[]>() ?? [])
+    {
+        if (IPAddress.TryParse(value, out var address))
+        {
+            options.KnownProxies.Add(address);
+        }
+    }
+
+    foreach (var value in builder.Configuration
+                 .GetSection("ForwardedHeaders:KnownNetworks")
+                 .Get<string[]>() ?? [])
+    {
+        var parts = value.Split('/', 2, StringSplitOptions.TrimEntries);
+        if (parts.Length == 2
+            && IPAddress.TryParse(parts[0], out var prefix)
+            && int.TryParse(parts[1], out var prefixLength))
+        {
+            options.KnownNetworks.Add(
+                new Microsoft.AspNetCore.HttpOverrides.IPNetwork(
+                    prefix,
+                    prefixLength));
+        }
+    }
+});
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy(
+        SmartTagRateLimitPolicies.PublicTagScan,
+        context => FixedWindowPartition(
+            SmartTagRateLimitPartitions.PublicScan(context),
+            context.RequestServices
+                .GetRequiredService<IOptions<SmartTagRateLimitingOptions>>()
+                .Value
+                .PublicTagScan));
+    options.AddPolicy(
+        SmartTagRateLimitPolicies.TagActivation,
+        context => FixedWindowPartition(
+            SmartTagRateLimitPartitions.Activation(context),
+            context.RequestServices
+                .GetRequiredService<IOptions<SmartTagRateLimitingOptions>>()
+                .Value
+                .TagActivation));
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        var retryAfterSeconds = context.Lease.TryGetMetadata(
+            MetadataName.RetryAfter,
+            out var retryAfter)
+            ? Math.Max(1, (int)Math.Ceiling(retryAfter.TotalSeconds))
+            : (int?)null;
+
+        context.HttpContext.Response.StatusCode =
+            StatusCodes.Status429TooManyRequests;
+        context.HttpContext.Response.ContentType = "application/json";
+        context.HttpContext.Response.Headers["X-Request-Id"] =
+            ApiEnvelope.GetRequestId(context.HttpContext);
+        if (retryAfterSeconds.HasValue)
+        {
+            context.HttpContext.Response.Headers.RetryAfter =
+                retryAfterSeconds.Value.ToString();
+        }
+
+        var response = ApiEnvelope.Error(
+            context.HttpContext,
+            "rate_limit_exceeded",
+            "Too many requests. Please wait a moment and try again.",
+            retryAfterSeconds: retryAfterSeconds);
+        await JsonSerializer.SerializeAsync(
+            context.HttpContext.Response.Body,
+            response,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web),
+            cancellationToken);
+    };
+});
 
 var devAuth = builder.Configuration
     .GetSection(DevAuthOptions.SectionName)
@@ -270,6 +362,7 @@ builder.Services.AddSwaggerGen(options =>
 
 var app = builder.Build();
 
+app.UseForwardedHeaders();
 app.UseMiddleware<RequestContextMiddleware>();
 app.UseMiddleware<ErrorHandlingMiddleware>();
 
@@ -280,8 +373,10 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseRouting();
 app.UseCors(FrontendCorsPolicy);
 app.UseAuthentication();
+app.UseRateLimiter();
 app.UseAuthorization();
 
 if (app.Environment.IsDevelopment() && devAuth.Enabled)
@@ -366,5 +461,25 @@ app.MapGet("/health/ready", ReadinessResult).AllowAnonymous();
 app.MapGet("/api/v1/health/ready", ReadinessResult).AllowAnonymous();
 
 app.Run();
+
+static RateLimitPartition<string> FixedWindowPartition(
+    string partitionKey,
+    RequestRateLimitOptions configured)
+{
+    var permitLimit = Math.Clamp(configured.PermitLimit, 1, 10_000);
+    var windowSeconds = Math.Clamp(configured.WindowSeconds, 1, 3_600);
+    var queueLimit = Math.Clamp(configured.QueueLimit, 0, 10_000);
+
+    return RateLimitPartition.GetFixedWindowLimiter(
+        partitionKey,
+        _ => new FixedWindowRateLimiterOptions
+        {
+            AutoReplenishment = true,
+            PermitLimit = permitLimit,
+            Window = TimeSpan.FromSeconds(windowSeconds),
+            QueueLimit = queueLimit,
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst
+        });
+}
 
 public partial class Program;

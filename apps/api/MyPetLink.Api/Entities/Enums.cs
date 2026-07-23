@@ -190,7 +190,8 @@ public enum TagScanResolvedState
     Unclaimed,
     Pending,
     Inactive,
-    NotFound
+    NotFound,
+    Unknown
 }
 
 public enum TagScanSource

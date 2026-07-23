@@ -719,7 +719,7 @@ Key fields:
 - `SmartTagId` nullable FK `SmartTags`
 - `PetId` nullable FK `Pets`
 - `TagCode`
-- `ResolvedState` (`Active`, `Unclaimed`, `Pending`, `Inactive`, `NotFound`)
+- `ResolvedState` (`Active`, `Unclaimed`, `Pending`, `Inactive`, `NotFound`, `Unknown`)
 - `Source` (`Qr`, `Nfc`, `Legacy`, `Unknown`), derived from the trusted API
   route rather than client input
 - `ScanTime`

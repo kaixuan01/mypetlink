@@ -625,7 +625,7 @@ function TagCard({
         <div className="mt-4 rounded-[1.25rem] border border-pet-border bg-white p-4">
           <p className="text-xs font-bold uppercase text-pet-muted">NFC link</p>
           <p className="mt-1 text-sm font-semibold text-pet-muted">
-            NFC taps use a separate trusted entry link and open the same Safety
+            NFC taps use a separate contactless link and open the same Safety
             Profile after activation.
           </p>
           <CTAButton

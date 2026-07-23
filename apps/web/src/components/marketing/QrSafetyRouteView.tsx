@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { QrSafetyPageView } from "@/components/marketing/QrSafetyPageView";
 import {
   FinderShell,
@@ -44,21 +44,14 @@ export function QrSafetyRouteView({
     !refreshOnMount || (!apiMode && Boolean(initialProfile || initialTagResult))
   );
   const [loadError, setLoadError] = useState("");
+  const resolvedPetProfile = useRef(Boolean(initialProfile));
 
   useEffect(() => {
     let active = true;
-    let loadInFlight = false;
-
     async function loadSafetyPage() {
       if (!refreshOnMount) {
         return;
       }
-
-      if (loadInFlight) {
-        return;
-      }
-
-      loadInFlight = true;
       setLoadError("");
 
       try {
@@ -69,6 +62,7 @@ export function QrSafetyRouteView({
           : await getFinderState(safetyCode, "qr");
 
         if (active) {
+          resolvedPetProfile.current = Boolean(nextProfile);
           setProfile(nextProfile);
           setTagResult(nextTagResult);
           setLoaded(true);
@@ -80,25 +74,44 @@ export function QrSafetyRouteView({
           setLoadError(getSafetyPageErrorMessage(caught));
           setLoaded(true);
         }
-      } finally {
-        loadInFlight = false;
       }
     }
 
-    const refreshVisibleSafetyPage = () => {
+    async function refreshConfirmedPetProfile() {
+      if (!resolvedPetProfile.current) {
+        return;
+      }
+
+      try {
+        const response = await getPublicPetProfileBySafetyCode(safetyCode);
+        if (active) {
+          resolvedPetProfile.current = Boolean(response.data);
+          setProfile(response.data);
+          setTagResult(null);
+          setLoadError("");
+          setLoaded(true);
+        }
+      } catch (caught) {
+        if (active) {
+          setLoadError(getSafetyPageErrorMessage(caught));
+        }
+      }
+    }
+
+    const refreshVisiblePetProfile = () => {
       if (document.visibilityState === "visible") {
-        void loadSafetyPage();
+        void refreshConfirmedPetProfile();
       }
     };
 
     void loadSafetyPage();
-    window.addEventListener("focus", refreshVisibleSafetyPage);
-    document.addEventListener("visibilitychange", refreshVisibleSafetyPage);
+    window.addEventListener("focus", refreshVisiblePetProfile);
+    document.addEventListener("visibilitychange", refreshVisiblePetProfile);
 
     return () => {
       active = false;
-      window.removeEventListener("focus", refreshVisibleSafetyPage);
-      document.removeEventListener("visibilitychange", refreshVisibleSafetyPage);
+      window.removeEventListener("focus", refreshVisiblePetProfile);
+      document.removeEventListener("visibilitychange", refreshVisiblePetProfile);
     };
   }, [refreshOnMount, safetyCode]);
 

@@ -90,9 +90,15 @@ public sealed class SmartTagService : SkeletonService, ISmartTagService
         var allScans = _dbContext.TagScans.AsNoTracking()
             .Where(scan => scan.SmartTagId == tagId);
         var sourceFilter = ParseScanSource(source);
-        var filtered = sourceFilter.HasValue
-            ? allScans.Where(scan => scan.Source == sourceFilter.Value)
-            : allScans;
+        var filtered = sourceFilter switch
+        {
+            TagScanSource.Unknown => allScans.Where(scan =>
+                scan.Source != TagScanSource.Qr
+                && scan.Source != TagScanSource.Nfc
+                && scan.Source != TagScanSource.Legacy),
+            { } value => allScans.Where(scan => scan.Source == value),
+            null => allScans
+        };
 
         var counts = await allScans
             .GroupBy(_ => 1)
@@ -102,8 +108,8 @@ public sealed class SmartTagService : SkeletonService, ISmartTagService
                 Qr = group.Count(scan => scan.Source == TagScanSource.Qr),
                 Nfc = group.Count(scan => scan.Source == TagScanSource.Nfc),
                 LegacyOrUnknown = group.Count(scan =>
-                    scan.Source == TagScanSource.Legacy
-                    || scan.Source == TagScanSource.Unknown)
+                    scan.Source != TagScanSource.Qr
+                    && scan.Source != TagScanSource.Nfc)
             })
             .SingleOrDefaultAsync(cancellationToken);
 
@@ -354,7 +360,9 @@ public sealed class SmartTagService : SkeletonService, ISmartTagService
             return null;
         }
 
-        return Enum.TryParse<TagScanSource>(value.Trim(), true, out var parsed)
+        return NamedEnumValues.TryParseDefined<TagScanSource>(
+            value,
+            out var parsed)
             ? parsed
             : throw ValidationFailed(
                 "source",

@@ -3,13 +3,9 @@ import { TagFinderView } from "@/components/portal/TagFinderView";
 import { staticTagCodeParams } from "@/data/staticRouteParams";
 import {
   loadingTitle,
-  tagNotFoundTitle,
-  tagScanPageTitle,
 } from "@/lib/pageTitles";
 import { tagPath } from "@/lib/routes";
 import { canonicalUrl, directAccessRobots } from "@/lib/seo";
-import { getFinderState } from "@/services/tagService";
-import type { FinderResult } from "@/types";
 
 type FinderPageProps = {
   params: Promise<{ tagCode: string }>;
@@ -25,10 +21,10 @@ export async function generateMetadata({
   params,
 }: FinderPageProps): Promise<Metadata> {
   const { tagCode } = await params;
-  const result = await getFinderState(tagCode, "legacy");
 
   return {
-    title: finderMetadataTitle(result),
+    // Static metadata generation must not be counted as a physical tag view.
+    title: loadingTitle,
     alternates: {
       canonical: canonicalUrl(tagPath(tagCode)),
     },
@@ -38,30 +34,12 @@ export async function generateMetadata({
 
 export default async function FinderPage({ params }: FinderPageProps) {
   const { tagCode } = await params;
-  const result = await getFinderState(tagCode, "legacy");
 
   return (
     <TagFinderView
-      initialResult={result}
+      initialResult={{ state: "not-found", tagCode }}
       source="legacy"
       tagCode={tagCode}
     />
   );
-}
-
-function finderMetadataTitle(result: FinderResult) {
-  switch (result.state) {
-    case "active":
-      return tagScanPageTitle(result.profile.name);
-    case "not-found":
-      return loadingTitle;
-    case "unassigned":
-      return "Activate MyPetLink Tag";
-    case "pending":
-      return "MyPetLink Tag Pending";
-    case "inactive":
-      return "Inactive MyPetLink Tag";
-    default:
-      return tagNotFoundTitle;
-  }
 }

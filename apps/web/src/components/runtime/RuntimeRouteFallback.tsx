@@ -67,6 +67,7 @@ import {
   getOrders,
   getPetTags,
 } from "@/services/tagService";
+import { getOwnerOrderErrorMessage } from "@/services/ownerOrderErrors";
 import type {
   CareRecord,
   FinderResult,
@@ -388,6 +389,15 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
             title: "MyPetLink temporarily unavailable",
             message:
               "We could not reach MyPetLink right now. Please try again.",
+          });
+          return;
+        }
+
+        if (status === 429) {
+          setState({
+            status: "unavailable",
+            title: "Please wait a moment",
+            message: getOwnerOrderErrorMessage(caught),
           });
           return;
         }

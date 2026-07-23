@@ -15,7 +15,6 @@ import { isOwnerAuthenticated, loginMockOwner } from "@/services/authService";
 import { getPets } from "@/services/petService";
 import {
   activateTag,
-  getFinderState,
   getFriendlyTagErrorMessage,
   getAllTags,
 } from "@/services/tagService";
@@ -40,7 +39,7 @@ export function TagActivationFlow({
   tagCode,
 }: TagActivationFlowProps) {
   const apiMode = isApiConfigured();
-  const [result, setResult] = useState(initialResult);
+  const result = initialResult;
   const [authed, setAuthed] = useState(() => isOwnerAuthenticated());
   const [pets, setPets] = useState<Pet[]>([]);
   const [ownerTags, setOwnerTags] = useState<PetTag[]>([]);
@@ -51,28 +50,6 @@ export function TagActivationFlow({
   const [submitting, setSubmitting] = useState(false);
   const [activatedPet, setActivatedPet] = useState<Pet | null>(null);
   const [error, setError] = useState("");
-
-  useEffect(() => {
-    let active = true;
-
-    getFinderState(tagCode, source)
-      .then((next) => {
-        if (active) {
-          setResult(next);
-          setSelectedPetId((current) => current || getPreferredPetId(next));
-          setError("");
-        }
-      })
-      .catch((caught) => {
-        if (active) {
-          setError(getFriendlyTagErrorMessage(caught));
-        }
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [source, tagCode]);
 
   useEffect(() => {
     if (!authed) {

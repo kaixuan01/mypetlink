@@ -1,5 +1,6 @@
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using MyPetLink.Api.Data;
 
 namespace MyPetLink.Api.Tests.Relational;
@@ -32,7 +33,8 @@ public static class RelationalDatabase
 
     // Creates a fresh, uniquely-named database and returns a factory for new
     // DbContexts plus a disposer that drops it.
-    public static async Task<RelationalScope> CreateAsync()
+    public static async Task<RelationalScope> CreateAsync(
+        IInterceptor? interceptor = null)
     {
         var databaseName = $"MyPetLinkTest_{Guid.NewGuid():N}";
         var builder = new SqlConnectionStringBuilder(BaseConnectionString) { InitialCatalog = "master" };
@@ -49,10 +51,17 @@ public static class RelationalDatabase
         builder.InitialCatalog = databaseName;
         var connectionString = builder.ConnectionString;
 
-        MyPetLinkDbContext CreateContext() => new(
-            new DbContextOptionsBuilder<MyPetLinkDbContext>()
-                .UseSqlServer(connectionString)
-                .Options);
+        MyPetLinkDbContext CreateContext()
+        {
+            var options = new DbContextOptionsBuilder<MyPetLinkDbContext>()
+                .UseSqlServer(connectionString);
+            if (interceptor is not null)
+            {
+                options.AddInterceptors(interceptor);
+            }
+
+            return new MyPetLinkDbContext(options.Options);
+        }
 
         await using (var context = CreateContext())
         {

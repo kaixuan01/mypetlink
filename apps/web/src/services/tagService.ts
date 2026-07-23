@@ -755,11 +755,39 @@ async function updateTagArchiveState(tagId: string, isArchived: boolean) {
   return mockResponse(updatedTag);
 }
 
-// Resolves a scanned physical tag code to a finder state. Active tags show the
-// pet-level Safety Profile content; inactive tags never expose owner contact.
-export async function getFinderState(
+const inFlightFinderResolutions = new Map<string, Promise<FinderResult>>();
+
+// Resolves a scanned physical tag code to a finder state. Concurrent calls for
+// the same entry during one render are single-flight so React Strict Mode
+// cannot turn one visible navigation into duplicate scan telemetry. The entry
+// is removed as soon as it settles: refreshes, new tabs, and later visits still
+// create their own scan.
+export function getFinderState(
   tagCode: string,
   source: TagEntrySource = "legacy"
+): Promise<FinderResult> {
+  if (typeof window === "undefined") {
+    return resolveFinderState(tagCode, source);
+  }
+
+  const key = `${source}:${tagCode.trim().toUpperCase()}`;
+  const existing = inFlightFinderResolutions.get(key);
+  if (existing) {
+    return existing;
+  }
+
+  const request = resolveFinderState(tagCode, source).finally(() => {
+    if (inFlightFinderResolutions.get(key) === request) {
+      inFlightFinderResolutions.delete(key);
+    }
+  });
+  inFlightFinderResolutions.set(key, request);
+  return request;
+}
+
+async function resolveFinderState(
+  tagCode: string,
+  source: TagEntrySource
 ): Promise<FinderResult> {
   if (canUseApi()) {
     const sourcePath =

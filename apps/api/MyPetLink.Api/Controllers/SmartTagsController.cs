@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using MyPetLink.Api.Common;
 using MyPetLink.Api.DTOs;
 using MyPetLink.Api.Services;
@@ -89,6 +90,7 @@ public sealed class SmartTagsController : ApiControllerBase
     }
 
     [HttpPost("tags/{tagCode}/activate")]
+    [EnableRateLimiting(SmartTagRateLimitPolicies.TagActivation)]
     public async Task<IActionResult> Activate(
         string tagCode,
         [FromBody] ActivateTagRequest request,

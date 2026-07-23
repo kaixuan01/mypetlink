@@ -50,6 +50,56 @@ Owner history returns source-attributed entries plus server-calculated total,
 QR, NFC, and legacy/unknown counts. Admin history supports the same allow-listed
 source filter and CSV/XLSX export. Network identifiers are not returned.
 
+Unknown or future strings already stored in either `Source` or
+`ResolvedState` are read as `Unknown`. Current values continue to be written
+with their canonical enum names. Numeric and unsupported source filters are
+rejected; reading a future value does not rewrite it. This allows an older
+application version to remain readable after a roll-forward introduced a newer
+value, without adding a restrictive database check constraint.
+
+## Scan counting
+
+One scan means one physical-tag resolution initiated by one user-visible page
+navigation:
+
+- an initial open records one scan;
+- a manual refresh records one additional scan;
+- a new tab records one additional scan;
+- component refetches and React Strict Mode do not record extra scans;
+- activation reuses the top-level resolution and activation response, so it
+  does not add another physical scan.
+
+Static metadata and HTML generation never call the scan-writing resolver.
+Runtime resolution happens once in the top-level route resolver and its result
+is passed to finder and activation children. Concurrent identical browser
+requests are single-flight only while the first request is in progress; there
+is no tag/IP/time-window database deduplication that could suppress genuine
+visits.
+
+Malformed, disabled, and unknown physical-tag requests continue creating
+`NotFound` or inactive telemetry according to the existing resolver behavior.
+The public scan limiter protects these requests too.
+
+## Rate limiting
+
+The API uses ASP.NET Core's built-in fixed-window limiter:
+
+| Policy | Endpoints | Default | Partition |
+| --- | --- | --- | --- |
+| `public-tag-scan` | QR, NFC, and legacy resolution | 60 requests per 60 seconds | resolved client IP |
+| `tag-activation` | Smart Tag activation | 10 requests per 60 seconds | authenticated user ID, otherwise resolved client IP |
+
+Both queues are disabled. Rejected requests return `429`, the standard API
+envelope with code `rate_limit_exceeded`, the message “Too many requests.
+Please wait a moment and try again.”, and `Retry-After` when available.
+
+Client IP attribution depends on trusted forwarded-header configuration.
+MyPetLink does not trust arbitrary `X-Forwarded-For` input. Production must
+configure the immediate Azure/Cloudflare proxy addresses or CIDR ranges through
+`ForwardedHeaders:KnownProxies` / `KnownNetworks` and retain a bounded
+`ForwardLimit`. Confirm the actual Cloudflare-to-Azure hop during deployment;
+otherwise traffic may share the last proxy address and one quota.
+
 ## Manufacturer payloads
 
 New production exports compute URLs from the configured `PublicSite:BaseUrl`:

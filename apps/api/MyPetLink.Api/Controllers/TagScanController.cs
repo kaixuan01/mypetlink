@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using MyPetLink.Api.Common;
 using MyPetLink.Api.DTOs;
 using MyPetLink.Api.Entities;
@@ -19,18 +20,21 @@ public sealed class TagScanController : ApiControllerBase
     }
 
     [HttpGet("{tagCode}")]
+    [EnableRateLimiting(SmartTagRateLimitPolicies.PublicTagScan)]
     public Task<IActionResult> ResolveLegacy(string tagCode, CancellationToken cancellationToken)
     {
         return ResolveTrusted(tagCode, TagScanSource.Legacy, cancellationToken);
     }
 
     [HttpGet("{tagCode}/qr")]
+    [EnableRateLimiting(SmartTagRateLimitPolicies.PublicTagScan)]
     public Task<IActionResult> ResolveQr(string tagCode, CancellationToken cancellationToken)
     {
         return ResolveTrusted(tagCode, TagScanSource.Qr, cancellationToken);
     }
 
     [HttpGet("{tagCode}/nfc")]
+    [EnableRateLimiting(SmartTagRateLimitPolicies.PublicTagScan)]
     public Task<IActionResult> ResolveNfc(string tagCode, CancellationToken cancellationToken)
     {
         return ResolveTrusted(tagCode, TagScanSource.Nfc, cancellationToken);

@@ -203,6 +203,11 @@ activation; QR and legacy activation still use the same authenticated ownership
 and allocation checks. Scan source is derived from the server route, never from
 client input. See
 [`../../docs/operations/smart-tag-scan-sources.md`](../../docs/operations/smart-tag-scan-sources.md).
+Public QR/NFC/legacy resolution is limited to 60 requests per client IP per
+minute. Activation is limited to 10 requests per authenticated owner (or client
+IP before authentication) per minute. Limits are configurable under
+`RateLimiting`, and rejections use the normal API envelope with
+`rate_limit_exceeded`.
 
 Implemented owner Orders endpoints:
 

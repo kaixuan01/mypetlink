@@ -59,7 +59,21 @@ Local dev equivalents live in `apps/web/.env.local` (gitignored): `NEXT_PUBLIC_A
 | `CloudflareR2__PresignedUploadExpiryMinutes` | `CloudflareR2:PresignedUploadExpiryMinutes` | No | Signed PUT URL lifetime. Default: `5`. |
 | `CloudflareR2__PresignedDownloadExpiryMinutes` | `CloudflareR2:PresignedDownloadExpiryMinutes` | No | Signed private GET URL lifetime. Default: `5`. |
 | `Features__SmartTagOrderingEnabled` | `Features:SmartTagOrderingEnabled` | No | Backend feature flag for creating new Smart Tag orders. Keep `false` for the free-profiles launch; set `true` only when physical tags are ready. |
+| `RateLimiting__PublicTagScan__PermitLimit` | `RateLimiting:PublicTagScan:PermitLimit` | No | Public QR/NFC/legacy requests allowed per resolved client IP in one window. Default `60`. |
+| `RateLimiting__PublicTagScan__WindowSeconds` | `RateLimiting:PublicTagScan:WindowSeconds` | No | Public scan window in seconds. Default `60`. |
+| `RateLimiting__TagActivation__PermitLimit` | `RateLimiting:TagActivation:PermitLimit` | No | Activation attempts allowed per authenticated user, falling back to client IP. Default `10`. |
+| `RateLimiting__TagActivation__WindowSeconds` | `RateLimiting:TagActivation:WindowSeconds` | No | Activation window in seconds. Default `60`. |
+| `ForwardedHeaders__ForwardLimit` | `ForwardedHeaders:ForwardLimit` | No | Maximum trusted proxy hops. Default `2`; keep bounded. |
+| `ForwardedHeaders__KnownProxies__0` | `ForwardedHeaders:KnownProxies[0]` | No | Immediate trusted Azure/Cloudflare proxy IP. Add indexed entries as required. |
+| `ForwardedHeaders__KnownNetworks__0` | `ForwardedHeaders:KnownNetworks[0]` | No | Trusted ingress CIDR when an individual proxy address is insufficient. |
 | `ASPNETCORE_ENVIRONMENT` | — | No | Set to `Production`. Disables Swagger and the dev-only CORS fallback (localhost origins). |
+
+Smart Tag scan limits depend on the resolved client IP. Do not clear ASP.NET
+Core's known-proxy restrictions or trust arbitrary `X-Forwarded-For` values.
+Confirm the actual Cloudflare-to-Azure proxy chain before populating
+`KnownProxies`/`KnownNetworks`; otherwise all visitors may share one proxy-IP
+quota. Both rate-limit queues default to zero, and `429` responses include the
+normal API error envelope plus `Retry-After` when available.
 
 ### Public app URL note
 

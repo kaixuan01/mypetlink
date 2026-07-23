@@ -145,9 +145,15 @@ public sealed class AdminSmartTagService : SkeletonService, IAdminSmartTagServic
         var query = _dbContext.TagScans.AsNoTracking()
             .Where(scan => scan.SmartTagId == tagId);
         var parsed = ParseScanSource(source);
-        return parsed.HasValue
-            ? query.Where(scan => scan.Source == parsed.Value)
-            : query;
+        return parsed switch
+        {
+            TagScanSource.Unknown => query.Where(scan =>
+                scan.Source != TagScanSource.Qr
+                && scan.Source != TagScanSource.Nfc
+                && scan.Source != TagScanSource.Legacy),
+            { } value => query.Where(scan => scan.Source == value),
+            null => query
+        };
     }
 
     public async Task<AdminSmartTagItemResponse> UpdateStatusAsync(
@@ -546,8 +552,8 @@ public sealed class AdminSmartTagService : SkeletonService, IAdminSmartTagServic
                 scan.SmartTagId == tag.Id && scan.Source == TagScanSource.Nfc),
             _dbContext.TagScans.Count(scan =>
                 scan.SmartTagId == tag.Id
-                && (scan.Source == TagScanSource.Legacy
-                    || scan.Source == TagScanSource.Unknown)),
+                && scan.Source != TagScanSource.Qr
+                && scan.Source != TagScanSource.Nfc),
             tag.CreatedAt, tag.UpdatedAt, tag.ReplacementForTagId,
             tag.ReplacementForTag == null ? null : tag.ReplacementForTag.TagCode,
             _dbContext.SmartTags.Where(candidate => candidate.ReplacementForTagId == tag.Id && candidate.DeletedAt == null)
@@ -730,7 +736,9 @@ public sealed class AdminSmartTagService : SkeletonService, IAdminSmartTagServic
     private static TagScanSource? ParseScanSource(string? value)
     {
         if (NormalizeOptional(value) is not { } normalized) return null;
-        return Enum.TryParse<TagScanSource>(normalized, true, out var parsed)
+        return NamedEnumValues.TryParseDefined<TagScanSource>(
+            normalized,
+            out var parsed)
             ? parsed
             : throw ValidationFailed("source", "Scan source must be Qr, Nfc, Legacy, or Unknown.");
     }

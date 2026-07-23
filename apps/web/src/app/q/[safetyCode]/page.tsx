@@ -4,12 +4,10 @@ import { staticQrSafetyParams } from "@/data/staticRouteParams";
 import {
   loadingTitle,
   qrSafetyPageTitle,
-  tagScanPageTitle,
 } from "@/lib/pageTitles";
 import { qrSafetyPath } from "@/lib/routes";
 import { canonicalUrl, directAccessRobots } from "@/lib/seo";
 import { getPublicPetProfileBySafetyCode } from "@/services/petService";
-import { getFinderState } from "@/services/tagService";
 
 type QrSafetyPageProps = {
   params: Promise<{ safetyCode: string }>;
@@ -26,18 +24,11 @@ export async function generateMetadata({
 }: QrSafetyPageProps): Promise<Metadata> {
   const { safetyCode } = await params;
   const profile = await getPublicPetProfileBySafetyCode(safetyCode);
-  const tagResult = profile.data
-    ? null
-    : await getFinderState(safetyCode, "qr");
 
   return {
-    // A /q link that resolves to a physical tag gets the tag's own title, so
-    // it matches what the QR, NFC, and legacy tag entry points already show.
-    title: profile.data
-      ? qrSafetyPageTitle(profile.data.name)
-      : tagResult?.state === "active"
-        ? tagScanPageTitle(tagResult.profile.name)
-        : loadingTitle,
+    // Physical-tag resolution is deliberately client-side: generating static
+    // metadata must never write scan telemetry.
+    title: profile.data ? qrSafetyPageTitle(profile.data.name) : loadingTitle,
     alternates: {
       canonical: canonicalUrl(qrSafetyPath(safetyCode)),
     },
@@ -48,14 +39,11 @@ export async function generateMetadata({
 export default async function QrSafetyPage({ params }: QrSafetyPageProps) {
   const { safetyCode } = await params;
   const profile = await getPublicPetProfileBySafetyCode(safetyCode);
-  const tagResult = profile.data
-    ? null
-    : await getFinderState(safetyCode, "qr");
 
   return (
     <QrSafetyRouteView
       initialProfile={profile.data}
-      initialTagResult={tagResult}
+      initialTagResult={null}
       safetyCode={safetyCode}
     />
   );
