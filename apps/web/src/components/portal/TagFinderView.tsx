@@ -19,27 +19,38 @@ import {
   getFinderState,
   getFriendlyTagErrorMessage,
 } from "@/services/tagService";
-import type { FinderResult } from "@/types";
+import type { FinderResult, TagEntrySource } from "@/types";
 
 type TagFinderViewProps = {
   initialResult: FinderResult;
+  refreshOnMount?: boolean;
+  source?: TagEntrySource;
   tagCode: string;
 };
 
-// Renders the finder states for a scanned physical /t/{tagCode}. Active
-// tags show pet Safety Profile content; inactive tags stay safely inactive.
+// Renders finder states for trusted QR, NFC, and legacy physical-tag entries.
+// Active tags show Safety Profile content; inactive tags stay safely inactive.
 // The page passes a build-time result; this component re-checks the live tag
 // state on mount so a tag activated, disabled, or reported lost in this browser
 // shows correctly.
-export function TagFinderView({ initialResult, tagCode }: TagFinderViewProps) {
+export function TagFinderView({
+  initialResult,
+  refreshOnMount = true,
+  source = "legacy",
+  tagCode,
+}: TagFinderViewProps) {
   const [result, setResult] = useState(initialResult);
   const [loaded, setLoaded] = useState(initialResult.state !== "not-found");
   const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
+    if (!refreshOnMount) {
+      return;
+    }
+
     let active = true;
 
-    getFinderState(tagCode)
+    getFinderState(tagCode, source)
       .then((next) => {
         if (active) {
           setResult(next);
@@ -57,7 +68,7 @@ export function TagFinderView({ initialResult, tagCode }: TagFinderViewProps) {
     return () => {
       active = false;
     };
-  }, [tagCode]);
+  }, [refreshOnMount, source, tagCode]);
 
   useEffect(() => {
     setPageTitle(loaded ? finderPageTitle(result) : loadingTitle);
@@ -93,12 +104,39 @@ export function TagFinderView({ initialResult, tagCode }: TagFinderViewProps) {
     );
   }
 
+  if (
+    source === "nfc" &&
+    (result.state === "unassigned" || result.state === "pending")
+  ) {
+    return (
+      <NfcActivationRequiredCard
+        tagCode={result.tagCode}
+      />
+    );
+  }
+
   if (result.state === "unassigned") {
-    return <TagActivationFlow initialResult={result} tagCode={tagCode} />;
+    return (
+      <TagActivationFlow
+        initialResult={result}
+        source={source === "qr" ? "qr" : "legacy"}
+        tagCode={tagCode}
+      />
+    );
   }
 
   if (result.state === "pending") {
-    return <TagActivationFlow initialResult={result} tagCode={tagCode} />;
+    return (
+      <TagActivationFlow
+        initialResult={result}
+        source={source === "qr" ? "qr" : "legacy"}
+        tagCode={tagCode}
+      />
+    );
+  }
+
+  if (result.state === "nfc-activation-required") {
+    return <NfcActivationRequiredCard tagCode={result.tagCode} />;
   }
 
   if (result.state === "inactive") {
@@ -145,6 +183,24 @@ export function TagFinderView({ initialResult, tagCode }: TagFinderViewProps) {
   );
 }
 
+function NfcActivationRequiredCard({ tagCode }: { tagCode: string }) {
+  return (
+    <FinderShell>
+      <FinderCard
+        description="Open the package and scan the QR code on the back of the tag to activate it first. NFC will work after activation."
+        icon="qr"
+        tagCode={tagCode}
+        title="Scan the QR code to activate"
+        tone="teal"
+      >
+        <p className="text-sm font-semibold text-pet-muted">
+          The QR code is printed on the back of your MyPetLink tag.
+        </p>
+      </FinderCard>
+    </FinderShell>
+  );
+}
+
 function getInactiveTagCopy(result: Extract<FinderResult, { state: "inactive" }>) {
   if (result.reason === "memorial" && result.profile) {
     return {
@@ -177,6 +233,8 @@ function finderPageTitle(result: FinderResult) {
       return "Activate MyPetLink Tag";
     case "pending":
       return "MyPetLink Tag Pending";
+    case "nfc-activation-required":
+      return "Scan the QR code to activate";
     case "inactive":
     default:
       return "Inactive MyPetLink Tag";

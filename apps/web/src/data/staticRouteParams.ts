@@ -29,12 +29,24 @@ export function staticTagCodeParams() {
 }
 
 export function staticQrSafetyParams() {
-  return [...mockPets, samplePet].flatMap((pet) => {
+  const safetyParams = [...mockPets, samplePet].flatMap((pet) => {
     const safetyCode = pet.safetyCode ?? deriveSafetyCode(pet.id);
     return Array.from(new Set([safetyCode, safetyCode.toLowerCase()])).map(
       (code) => ({ safetyCode: code })
     );
   });
+  const tagParams = staticTagCodeParams().map(({ tagCode }) => ({
+    safetyCode: tagCode,
+  }));
+
+  return Array.from(
+    new Map(
+      [...safetyParams, ...tagParams].map((item) => [
+        item.safetyCode,
+        item,
+      ])
+    ).values()
+  );
 }
 
 export function staticOrderParams() {

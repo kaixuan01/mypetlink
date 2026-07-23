@@ -1,6 +1,7 @@
 using MyPetLink.Api.Auth;
 using MyPetLink.Api.Common;
 using MyPetLink.Api.DTOs;
+using MyPetLink.Api.Entities;
 
 namespace MyPetLink.Api.Services;
 
@@ -233,6 +234,7 @@ public interface ITagScanService : ISkeletonService
 {
     Task<TagScanPageResponse> ResolveAsync(
         string tagCode,
+        TagScanSource source,
         TagScanContext context,
         CancellationToken cancellationToken = default);
 
@@ -265,6 +267,12 @@ public interface ISmartTagService : ISkeletonService
     Task<SmartTagResponse> GetAsync(
         Guid? currentUserId,
         Guid tagId,
+        CancellationToken cancellationToken = default);
+
+    Task<SmartTagScanHistoryResponse> ListScansAsync(
+        Guid? currentUserId,
+        Guid tagId,
+        string? source,
         CancellationToken cancellationToken = default);
 
     Task<SmartTagResponse> ActivateAsync(
@@ -583,7 +591,12 @@ public interface IAdminSmartTagService : ISkeletonService
     Task<AdminSmartTagItemResponse> GetAsync(Guid tagId, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyCollection<AdminSmartTagScanResponse>> ListScansAsync(
-        Guid? currentUserId, Guid tagId, CancellationToken cancellationToken = default);
+        Guid? currentUserId, Guid tagId, string? source,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminTagInventoryExport> ExportScansAsync(
+        Guid? currentUserId, Guid tagId, string? source, string? format,
+        CancellationToken cancellationToken = default);
 
     Task<AdminSmartTagItemResponse> UpdateStatusAsync(
         Guid? currentUserId,

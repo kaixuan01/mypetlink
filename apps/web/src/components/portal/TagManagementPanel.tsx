@@ -18,8 +18,13 @@ import {
   isArchivedPet,
   isMemorialPet,
 } from "@/lib/petLifecycle";
-import { ownerRoutes, tagPath } from "@/lib/routes";
+import { ownerRoutes, tagNfcPath, tagQrPath } from "@/lib/routes";
 import { getEnvBaseUrl, getSiteBaseUrl, toAbsoluteUrl } from "@/lib/siteUrl";
+import {
+  formatTagScanDateTime,
+  tagScanSourceLabel,
+  tagScanSourceOptions,
+} from "@/lib/tagScanSource";
 import {
   compareTagsForDisplay,
   getTagAvailableActions,
@@ -42,11 +47,19 @@ import {
   getAllTags,
   getOrders,
   getPetTags,
+  getTagScanHistory,
   reportTagLost,
   restoreTag,
 } from "@/services/tagService";
 import { isApiConfigured } from "@/services/apiConfig";
-import type { Pet, PetTag, TagOrder, TagStatus } from "@/types";
+import type {
+  Pet,
+  PetTag,
+  TagOrder,
+  TagScanHistory,
+  TagScanSource,
+  TagStatus,
+} from "@/types";
 
 type TagManagementPanelProps = {
   pets: Pet[];
@@ -475,6 +488,11 @@ function TagCard({
 }) {
   const base = useSyncExternalStore(subscribeNoop, getSiteBaseUrl, getEnvBaseUrl);
   const [copyStatus, setCopyStatus] = useState("");
+  const [showScanHistory, setShowScanHistory] = useState(false);
+  const [scanSource, setScanSource] = useState<TagScanSource | "">("");
+  const [scanHistory, setScanHistory] = useState<TagScanHistory | null>(null);
+  const [scanHistoryError, setScanHistoryError] = useState("");
+  const [scanHistoryLoading, setScanHistoryLoading] = useState(false);
   const productName = tag.hasNfc
     ? "MyPetLink QR + NFC Smart Tag"
     : "MyPetLink QR Pet Tag";
@@ -493,7 +511,8 @@ function TagCard({
         replacementFor: tag.id,
       })
     : "";
-  const scanPath = tagPath(tag.tagCode);
+  const scanPath = tagQrPath(tag.tagCode);
+  const nfcPath = tagNfcPath(tag.tagCode);
   const scanUrl = toAbsoluteUrl(scanPath, base);
   const codeLabel =
     isPending || tag.status === "Unassigned" ? "Reserved tag code" : "Tag code";
@@ -504,6 +523,30 @@ function TagCard({
     ["Delivered date", tag.deliveredDate ?? "Not delivered yet"],
     [scanDisplay.label, scanDisplay.value],
   ].filter((item): item is [string, string] => Boolean(item));
+
+  useEffect(() => {
+    if (!showScanHistory) return;
+
+    let active = true;
+
+    getTagScanHistory(tag.id, scanSource || undefined)
+      .then((history) => {
+        if (active) setScanHistory(history);
+      })
+      .catch((caught) => {
+        if (active) {
+          setScanHistoryError(getFriendlyTagErrorMessage(caught));
+          setScanHistory(null);
+        }
+      })
+      .finally(() => {
+        if (active) setScanHistoryLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [scanSource, showScanHistory, tag.id]);
 
   return (
     <article className="brand-card rounded-[1.75rem] p-5" key={tag.id}>
@@ -527,11 +570,10 @@ function TagCard({
           {isActive || isInactive ? (
             <div className="mt-4 rounded-[1.25rem] bg-pet-cream p-4">
               <p className="text-xs font-bold uppercase text-pet-muted">
-                Physical Tag Scan Page
+                Physical Tag QR
               </p>
               <p className="mt-1 text-sm font-bold text-pet-ink">
-                Use the physical tag QR when you need to view, copy, or download
-                the scan page code.
+                This is the QR link printed on the physical tag.
               </p>
               <QrCodeButton
                 className="mt-3 inline-flex min-h-10 items-center justify-center rounded-full border border-pet-border bg-white px-4 py-2 text-sm font-extrabold text-pet-ink transition hover:bg-pet-cream"
@@ -540,7 +582,7 @@ function TagCard({
                 label="Show Physical Tag QR"
                 targetPath={scanPath}
                 title="Physical Tag QR"
-                viewLabel={isActive ? "View Tag Scan Page" : "View Inactive Tag Page"}
+                viewLabel={isActive ? "Open QR Scan Page" : "Open Inactive QR Page"}
                 warning={
                   isActive
                     ? undefined
@@ -551,11 +593,11 @@ function TagCard({
           ) : isPending || tag.status === "Unassigned" ? (
             <div className="mt-4 rounded-[1.25rem] bg-pet-cream p-4">
               <p className="text-xs font-bold uppercase text-pet-muted">
-                Physical Tag Scan Page
+                Physical Tag QR
               </p>
               <p className="mt-1 text-sm font-bold text-pet-ink">
                 {tag.status === "Unassigned"
-                  ? "Scan or open the physical tag link to activate this tag for a pet."
+                  ? "Scan or open the physical QR to activate this tag for a pet."
                   : tag.petId
                     ? "Waiting for owner activation. Scan or tap the physical tag when you receive it."
                     : "Physical tag QR will appear after an inventory tag is assigned."}
@@ -578,6 +620,133 @@ function TagCard({
           </div>
         ))}
       </dl>
+
+      {tag.hasNfc ? (
+        <div className="mt-4 rounded-[1.25rem] border border-pet-border bg-white p-4">
+          <p className="text-xs font-bold uppercase text-pet-muted">NFC link</p>
+          <p className="mt-1 text-sm font-semibold text-pet-muted">
+            NFC taps use a separate trusted entry link and open the same Safety
+            Profile after activation.
+          </p>
+          <CTAButton
+            className="mt-3"
+            href={nfcPath}
+            icon="tag"
+            variant="outline"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Open NFC Tap Page
+          </CTAButton>
+        </div>
+      ) : null}
+
+      <section className="mt-4 rounded-[1.25rem] border border-pet-border bg-white p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="font-black text-pet-ink">Scan history</h3>
+            <p className="text-xs font-semibold text-pet-muted">
+              {tag.hasNfc
+                ? "See whether this tag was opened by QR, NFC, or a legacy link."
+                : "See whether this tag was opened by QR or a legacy link."}
+            </p>
+          </div>
+          <button
+            className="min-h-11 rounded-full border border-pet-border px-4 text-sm font-bold text-pet-ink"
+            onClick={() => {
+              const nextVisible = !showScanHistory;
+              if (nextVisible) {
+                setScanHistoryLoading(true);
+                setScanHistoryError("");
+              }
+              setShowScanHistory(nextVisible);
+            }}
+            type="button"
+          >
+            {showScanHistory ? "Hide history" : "View history"}
+          </button>
+        </div>
+        {showScanHistory ? (
+          <div className="mt-4 grid gap-3">
+            <label className="grid gap-1 text-xs font-bold text-pet-muted">
+              Scan source
+              <select
+                className="min-h-11 rounded-xl border border-pet-border bg-white px-3 text-sm font-semibold text-pet-ink"
+                onChange={(event) => {
+                  setScanSource(event.target.value as TagScanSource | "");
+                  setScanHistoryLoading(true);
+                  setScanHistoryError("");
+                }}
+                value={scanSource}
+              >
+                {tagScanSourceOptions
+                  .filter((option) => tag.hasNfc || option.value !== "Nfc")
+                  .map((option) => (
+                  <option key={option.value || "all"} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {scanHistory ? (
+              <div className={`grid gap-2 text-center text-xs font-bold text-pet-muted ${tag.hasNfc ? "grid-cols-3" : "grid-cols-2"}`}>
+                <span className="rounded-xl bg-pet-cream p-2">
+                  QR {scanHistory.qrScans}
+                </span>
+                {tag.hasNfc ? (
+                  <span className="rounded-xl bg-pet-cream p-2">
+                    NFC {scanHistory.nfcTaps}
+                  </span>
+                ) : null}
+                <span className="rounded-xl bg-pet-cream p-2">
+                  Legacy {scanHistory.legacyOrUnknown}
+                </span>
+              </div>
+            ) : null}
+            {scanHistoryLoading ? (
+              <p className="text-sm font-semibold text-pet-muted">
+                Loading scan history…
+              </p>
+            ) : scanHistoryError ? (
+              <p className="text-sm font-semibold text-[#a63c2e]" role="alert">
+                {scanHistoryError}
+              </p>
+            ) : !scanHistory?.items.length ? (
+              <p className="text-sm font-semibold text-pet-muted">
+                No scans match this source.
+              </p>
+            ) : (
+              <ol className="grid gap-2">
+                {scanHistory.items.map((scan) => (
+                  <li
+                    className="rounded-xl bg-pet-cream px-3 py-2 text-sm"
+                    key={scan.id}
+                  >
+                    <div className="flex flex-wrap justify-between gap-2">
+                      <span className="font-black text-pet-ink">
+                        {tagScanSourceLabel(scan.scanSource)}
+                      </span>
+                      <time
+                        className="font-semibold text-pet-muted"
+                        dateTime={scan.scannedAt}
+                      >
+                        {formatTagScanDateTime(scan.scannedAt)}
+                      </time>
+                    </div>
+                    {scan.city || scan.country || scan.deviceType ? (
+                      <p className="mt-1 text-xs font-semibold text-pet-muted">
+                        {[scan.city, scan.country, scan.deviceType]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </p>
+                    ) : null}
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
+        ) : null}
+      </section>
 
       {linkedToInactivePet && isMemorialPet(linkedPet) ? (
         <p className="mt-4 rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted">

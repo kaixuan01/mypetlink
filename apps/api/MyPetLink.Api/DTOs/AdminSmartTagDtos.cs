@@ -50,6 +50,10 @@ public sealed record AdminSmartTagItemResponse(
     DateTimeOffset? ActivatedAt,
     DateTimeOffset? LastScannedAt,
     int ScanCount,
+    TagScanSource? LatestScanSource,
+    int QrScanCount,
+    int NfcScanCount,
+    int LegacyOrUnknownScanCount,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
     Guid? ReplacementForTagId,
@@ -68,6 +72,7 @@ public sealed record AdminSmartTagStatusCountsResponse(
 
 public sealed record AdminSmartTagScanResponse(
     Guid Id,
+    TagScanSource ScanSource,
     TagScanResolvedState ResolvedState,
     DateTimeOffset ScannedAt,
     string? City,

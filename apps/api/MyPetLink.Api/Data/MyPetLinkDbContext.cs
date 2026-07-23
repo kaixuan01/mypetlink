@@ -709,6 +709,7 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.ToTable("TagScans");
             entity.Property(item => item.TagCode).HasMaxLength(32);
             entity.Property(item => item.ResolvedState).HasConversion<string>().HasMaxLength(32);
+            entity.Property(item => item.Source).HasConversion<string>().HasMaxLength(16);
             entity.Property(item => item.Latitude).HasPrecision(9, 6);
             entity.Property(item => item.Longitude).HasPrecision(9, 6);
             entity.Property(item => item.Country).HasMaxLength(120);
@@ -720,6 +721,7 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasIndex(item => item.ResolvedState);
             entity.HasIndex(item => item.ScanTime);
             entity.HasIndex(item => new { item.SmartTagId, item.ScanTime });
+            entity.HasIndex(item => new { item.SmartTagId, item.Source, item.ScanTime });
             entity.HasIndex(item => new { item.PetId, item.ScanTime });
             entity.HasIndex(item => new { item.Country, item.City });
             entity.HasOne(item => item.SmartTag)

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MyPetLink.Api.Common;
 using MyPetLink.Api.DTOs;
+using MyPetLink.Api.Entities;
 using MyPetLink.Api.Services;
 
 namespace MyPetLink.Api.Controllers;
@@ -18,13 +19,37 @@ public sealed class TagScanController : ApiControllerBase
     }
 
     [HttpGet("{tagCode}")]
-    public async Task<IActionResult> Resolve(string tagCode, CancellationToken cancellationToken)
+    public Task<IActionResult> ResolveLegacy(string tagCode, CancellationToken cancellationToken)
+    {
+        return ResolveTrusted(tagCode, TagScanSource.Legacy, cancellationToken);
+    }
+
+    [HttpGet("{tagCode}/qr")]
+    public Task<IActionResult> ResolveQr(string tagCode, CancellationToken cancellationToken)
+    {
+        return ResolveTrusted(tagCode, TagScanSource.Qr, cancellationToken);
+    }
+
+    [HttpGet("{tagCode}/nfc")]
+    public Task<IActionResult> ResolveNfc(string tagCode, CancellationToken cancellationToken)
+    {
+        return ResolveTrusted(tagCode, TagScanSource.Nfc, cancellationToken);
+    }
+
+    private async Task<IActionResult> ResolveTrusted(
+        string tagCode,
+        TagScanSource source,
+        CancellationToken cancellationToken)
     {
         var context = new TagScanContext(
             HttpContext.Connection.RemoteIpAddress?.ToString(),
             Request.Headers["User-Agent"].ToString(),
             Request.Headers["Referer"].ToString());
-        var response = await _tagScanService.ResolveAsync(tagCode, context, cancellationToken);
+        var response = await _tagScanService.ResolveAsync(
+            tagCode,
+            source,
+            context,
+            cancellationToken);
 
         return Ok(ApiEnvelope.Ok(response, HttpContext));
     }

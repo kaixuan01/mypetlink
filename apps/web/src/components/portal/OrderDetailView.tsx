@@ -21,7 +21,7 @@ import {
   orderNotFoundTitle,
   setPageTitle,
 } from "@/lib/pageTitles";
-import { ownerRoutes, tagPath } from "@/lib/routes";
+import { ownerRoutes, tagQrPath } from "@/lib/routes";
 import { getEnvBaseUrl, getSiteBaseUrl, toAbsoluteUrl } from "@/lib/siteUrl";
 import { QrCodeCard } from "@/components/qr/QrCodeCard";
 import { isApiConfigured } from "@/services/apiConfig";
@@ -197,7 +197,7 @@ export function OrderDetailView({
           replacementFor: linkedTag.id,
         })
       : "";
-  const linkedTagScanPath = linkedTag ? tagPath(linkedTag.tagCode) : "";
+  const linkedTagScanPath = linkedTag ? tagQrPath(linkedTag.tagCode) : "";
   const linkedTagScanUrl = linkedTagScanPath
     ? toAbsoluteUrl(linkedTagScanPath, base)
     : "";

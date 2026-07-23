@@ -1,10 +1,11 @@
 import { buildAdminListQuery, csvCell, triggerDownload } from "@/lib/adminListShared";
+import { normalizeTagScanSource } from "@/lib/tagScanSource";
 import { canUseAdminApi } from "@/services/adminService";
 import { apiRequest, apiRequestBlob } from "@/services/apiClient";
 import { mockDelay } from "@/services/mockApi";
 import { getPets } from "@/services/petService";
 import { getStoredOrdersForAdmin, readAdminTagCollection, writeAdminTagCollection } from "@/services/tagService";
-import type { Pet, PetTag, TagOrder, TagStatus, TagVariant } from "@/types";
+import type { Pet, PetTag, TagOrder, TagScanSource, TagStatus, TagVariant } from "@/types";
 
 export type AdminSmartTagListParams = {
   page: number;
@@ -49,7 +50,11 @@ export type AdminSmartTag = {
   batchNumber?: string;
   activatedAt?: string;
   lastScannedAt?: string;
+  latestScanSource?: TagScanSource;
   scanCount: number;
+  qrScanCount?: number;
+  nfcScanCount?: number;
+  legacyOrUnknownScanCount?: number;
   createdAt: string;
   updatedAt: string;
   replacementForTagId?: string;
@@ -70,6 +75,7 @@ export type AdminSmartTagCounts = {
 
 export type AdminSmartTagScan = {
   id: string;
+  scanSource: TagScanSource;
   resolvedState: string;
   scannedAt: string;
   city?: string;
@@ -137,7 +143,9 @@ type BackendItem = {
   petId?: string | null; petName?: string | null; safetyCode?: string | null; qrSafetyEnabled: boolean;
   ownerUserId?: string | null; ownerName?: string | null; ownerEmail?: string | null;
   orderId?: string | null; orderNumber?: string | null; batchNumber?: string | null;
-  activatedAt?: string | null; lastScannedAt?: string | null; scanCount: number;
+  activatedAt?: string | null; lastScannedAt?: string | null;
+  latestScanSource?: TagScanSource | null; scanCount: number;
+  qrScanCount: number; nfcScanCount: number; legacyOrUnknownScanCount: number;
   createdAt: string; updatedAt: string; replacementForTagId?: string | null;
   replacementForTagCode?: string | null; replacedByTagCode?: string | null;
 };
@@ -162,7 +170,11 @@ function mapBackend(item: BackendItem): AdminSmartTag {
     batchNumber: item.batchNumber ?? undefined,
     activatedAt: item.activatedAt ?? undefined,
     lastScannedAt: item.lastScannedAt ?? undefined,
+    latestScanSource: item.latestScanSource ?? undefined,
     scanCount: item.scanCount,
+    qrScanCount: item.qrScanCount,
+    nfcScanCount: item.nfcScanCount,
+    legacyOrUnknownScanCount: item.legacyOrUnknownScanCount,
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
     replacementForTagId: item.replacementForTagId ?? undefined,
@@ -211,11 +223,20 @@ export async function getAdminSmartTag(tagId: string, signal?: AbortSignal): Pro
   return tag;
 }
 
-export async function getAdminSmartTagScans(tagId: string, signal?: AbortSignal): Promise<AdminSmartTagScan[]> {
+export async function getAdminSmartTagScans(
+  tagId: string,
+  source?: TagScanSource,
+  signal?: AbortSignal
+): Promise<AdminSmartTagScan[]> {
   if (canUseAdminApi()) {
-    const response = await apiRequest<AdminSmartTagScan[]>(`/api/v1/admin/tags/${encodeURIComponent(tagId)}/scans`, { signal });
+    const query = source ? `?source=${encodeURIComponent(source)}` : "";
+    const response = await apiRequest<AdminSmartTagScan[]>(
+      `/api/v1/admin/tags/${encodeURIComponent(tagId)}/scans${query}`,
+      { signal }
+    );
     return (response.data ?? []).map((scan) => ({
       ...scan,
+      scanSource: normalizeTagScanSource(scan.scanSource),
       city: scan.city ?? undefined,
       country: scan.country ?? undefined,
       deviceType: scan.deviceType ?? undefined,
@@ -223,7 +244,24 @@ export async function getAdminSmartTagScans(tagId: string, signal?: AbortSignal)
   }
   await mockDelay();
   const tag = (await loadLocalRows()).find((row) => row.id === tagId);
-  return tag?.lastScannedAt ? [{ id: `${tag.id}-latest`, resolvedState: "Active", scannedAt: tag.lastScannedAt }] : [];
+  if (!tag?.lastScannedAt || (source && source !== "Legacy")) return [];
+  return [{ id: `${tag.id}-latest`, scanSource: "Legacy", resolvedState: "Active", scannedAt: tag.lastScannedAt }];
+}
+
+export async function downloadAdminSmartTagScansExport(
+  tagId: string,
+  format: "csv" | "xlsx",
+  source?: TagScanSource
+) {
+  if (!canUseAdminApi()) {
+    throw new Error("Scan-history export is available when connected to MyPetLink.");
+  }
+  const query = new URLSearchParams({ format });
+  if (source) query.set("source", source);
+  const { blob, fileName } = await apiRequestBlob(
+    `/api/v1/admin/tags/${encodeURIComponent(tagId)}/scans/export?${query}`
+  );
+  triggerDownload(blob, fileName ?? `mypetlink-${tagId}-scan-history.${format}`);
 }
 
 export async function runAdminSmartTagAction(tagId: string, action: AdminSmartTagAction, reason?: string) {
@@ -351,7 +389,10 @@ function localRow(tag: PetTag, pet?: Pet, order?: TagOrder): AdminSmartTag {
     isArchived: Boolean(tag.isArchived), petId: tag.petId, petName: pet?.name, safetyCode: pet?.safetyCode,
     qrSafetyEnabled: pet?.qrSafetyEnabled ?? false, ownerId: tag.ownerUserId ?? pet?.ownerUserId, ownerName: pet?.owner.name,
     orderId: order?.id, orderNumber: order?.orderNumber, batchNumber: tag.batchNo,
-    activatedAt: tag.activatedAt, lastScannedAt: tag.lastScannedAt, scanCount: tag.lastScannedAt ? 1 : 0,
+    activatedAt: tag.activatedAt, lastScannedAt: tag.lastScannedAt,
+    latestScanSource: tag.lastScannedAt ? "Legacy" : undefined,
+    scanCount: tag.lastScannedAt ? 1 : 0, qrScanCount: 0, nfcScanCount: 0,
+    legacyOrUnknownScanCount: tag.lastScannedAt ? 1 : 0,
     createdAt, updatedAt: tag.lastScannedAt ?? tag.activatedAt ?? createdAt, replacementForTagId: tag.replacementForTagId };
 }
 

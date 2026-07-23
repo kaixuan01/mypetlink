@@ -36,7 +36,7 @@ import {
   smartTagsEnabled,
   tagOrdersEnabled,
 } from "@/lib/features";
-import { ownerRoutes, tagPath } from "@/lib/routes";
+import { ownerRoutes, tagQrPath } from "@/lib/routes";
 import { getTagScanDisplay, isActivePhysicalTagForPet } from "@/lib/tagStatus";
 import { isApiConfigured } from "@/services/apiConfig";
 import { getPetMoments } from "@/services/momentService";
@@ -197,7 +197,7 @@ function OverviewTab({
   const activeTagScanDisplay = activeTag
     ? getTagScanDisplay(activeTag, undefined, pet)
     : null;
-  const activeTagScanPath = activeTag ? tagPath(activeTag.tagCode) : "";
+  const activeTagScanPath = activeTag ? tagQrPath(activeTag.tagCode) : "";
   const theme = getPetProfileTheme(pet.profileTheme);
   const safetyBadge = getSafetyProfileBadge(pet);
   const smartTagBadge = getSmartTagStatusBadge(tags, orders, pet);

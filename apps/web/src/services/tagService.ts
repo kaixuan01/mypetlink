@@ -1,6 +1,7 @@
 import { mockOrders } from "@/data/mockOrders";
 import { mockTags } from "@/data/mockTags";
 import { formatOrderNumber } from "@/lib/orders";
+import { normalizeTagScanSource } from "@/lib/tagScanSource";
 import {
   isActivePet,
   isArchivedPet,
@@ -45,15 +46,34 @@ import type {
   OrderTimelineEvent,
   OrderTimelineTone,
   PetTag,
+  TagEntrySource,
   TagOrder,
   TagOrderPayload,
   TagVariant,
   TagStatus,
+  TagScanHistory,
+  TagScanSource,
   TagType,
 } from "@/types";
 
 const TAG_STORAGE_KEY = "mypetlink_tags";
 const ORDER_STORAGE_KEY = "mypetlink_orders";
+
+type BackendTagScanHistory = {
+  items: {
+    id: string;
+    scanSource?: TagScanSource | null;
+    resolvedState: string;
+    scannedAt: string;
+    city?: string | null;
+    country?: string | null;
+    deviceType?: string | null;
+  }[];
+  total: number;
+  qrScans: number;
+  nfcTaps: number;
+  legacyOrUnknown: number;
+};
 
 type BackendListEnvelope<T> = {
   data?: T;
@@ -737,10 +757,15 @@ async function updateTagArchiveState(tagId: string, isArchived: boolean) {
 
 // Resolves a scanned physical tag code to a finder state. Active tags show the
 // pet-level Safety Profile content; inactive tags never expose owner contact.
-export async function getFinderState(tagCode: string): Promise<FinderResult> {
+export async function getFinderState(
+  tagCode: string,
+  source: TagEntrySource = "legacy"
+): Promise<FinderResult> {
   if (canUseApi()) {
+    const sourcePath =
+      source === "qr" ? "/qr" : source === "nfc" ? "/nfc" : "";
     const response = await apiRequest<BackendTagScanPage>(
-      `/api/v1/public/tags/${encodeURIComponent(tagCode)}`,
+      `/api/v1/public/tags/${encodeURIComponent(tagCode)}${sourcePath}`,
       { auth: false, cache: "no-store" }
     );
     const data = response.data;
@@ -769,6 +794,10 @@ export async function getFinderState(tagCode: string): Promise<FinderResult> {
         tagCode: data.tagCode,
         status: fromBackendTagStatus(data.status ?? "Pending"),
       };
+    }
+
+    if (state === "nfcactivationrequired") {
+      return { state: "nfc-activation-required", tagCode: data.tagCode };
     }
 
     if (state === "inactive") {
@@ -805,6 +834,9 @@ export async function getFinderState(tagCode: string): Promise<FinderResult> {
   }
 
   if (tag.status === "Unassigned" || !tag.petId) {
+    if (source === "nfc") {
+      return { state: "nfc-activation-required", tagCode: tag.tagCode };
+    }
     return { state: "unassigned", tagCode: tag.tagCode };
   }
 
@@ -837,6 +869,9 @@ export async function getFinderState(tagCode: string): Promise<FinderResult> {
   }
 
   if (isPendingPhysicalTag(tag)) {
+    if (source === "nfc") {
+      return { state: "nfc-activation-required", tagCode: tag.tagCode };
+    }
     return {
       state: "pending",
       tagCode: tag.tagCode,
@@ -859,6 +894,57 @@ export async function getFinderState(tagCode: string): Promise<FinderResult> {
     state: "active",
     tagCode: tag.tagCode,
     profile: toQrSafetyProfile(pet),
+  };
+}
+
+export async function getTagScanHistory(
+  tagId: string,
+  source?: TagScanSource
+): Promise<TagScanHistory> {
+  if (canUseOwnerTagApi()) {
+    const query = source ? `?source=${encodeURIComponent(source)}` : "";
+    const response = await apiRequest<BackendTagScanHistory>(
+      `/api/v1/tags/${encodeURIComponent(tagId)}/scans${query}`
+    );
+    const data = response.data;
+
+    return {
+      items: (data?.items ?? []).map((item) => ({
+        id: item.id,
+        scanSource: normalizeTagScanSource(item.scanSource),
+        resolvedState: item.resolvedState,
+        scannedAt: item.scannedAt,
+        city: item.city ?? undefined,
+        country: item.country ?? undefined,
+        deviceType: item.deviceType ?? undefined,
+      })),
+      total: data?.total ?? 0,
+      qrScans: data?.qrScans ?? 0,
+      nfcTaps: data?.nfcTaps ?? 0,
+      legacyOrUnknown: data?.legacyOrUnknown ?? 0,
+    };
+  }
+
+  await mockDelay();
+  const tag = getTagCollection().find((item) => item.id === tagId);
+  const items =
+    tag?.lastScannedAt && (!source || source === "Legacy")
+      ? [
+          {
+            id: `${tag.id}-latest`,
+            scanSource: "Legacy" as const,
+            resolvedState: "Active",
+            scannedAt: tag.lastScannedAt,
+          },
+        ]
+      : [];
+
+  return {
+    items,
+    total: tag?.lastScannedAt ? 1 : 0,
+    qrScans: 0,
+    nfcTaps: 0,
+    legacyOrUnknown: tag?.lastScannedAt ? 1 : 0,
   };
 }
 
@@ -1360,7 +1446,7 @@ export async function adminCancelOrder(orderId: string, reason: string) {
 }
 
 // Creates unclaimed retail stock: tags with a TagCode but no pet and no owner.
-// Customers activate them through /t/{tagCode} after scanning or tapping.
+// New tags activate through the printed /q entry; legacy /t remains compatible.
 export async function adminGenerateRetailTags(
   count: number,
   productVariantId: string,

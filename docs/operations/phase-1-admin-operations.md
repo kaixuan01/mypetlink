@@ -239,7 +239,10 @@ Rules:
 - Generated retail tags are `Unclaimed`, with no `OwnerUserId` and no `PetId`.
 - TagCode uses the single public `MPL-XXXX-XXXX` identifier.
 - TagCode must be secure random and unique.
-- CSV uses the same URL for QR and NFC: `/t/:tagCode`.
+- New manufacturer exports use `/q/:tagCode` for QR Content. QR + NFC variants
+  use the distinct `/n/:tagCode` NFC Content; QR-only variants leave NFC
+  Content empty. Existing printed `/t/:tagCode` content remains valid and is
+  not rewritten.
 
 ## Admin Owners
 

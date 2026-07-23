@@ -3,15 +3,15 @@ import { TagFinderView } from "@/components/portal/TagFinderView";
 import { staticTagCodeParams } from "@/data/staticRouteParams";
 import {
   loadingTitle,
+  qrSafetyPageTitle,
   tagNotFoundTitle,
-  tagScanPageTitle,
 } from "@/lib/pageTitles";
-import { tagPath } from "@/lib/routes";
 import { canonicalUrl, directAccessRobots } from "@/lib/seo";
+import { tagNfcPath } from "@/lib/routes";
 import { getFinderState } from "@/services/tagService";
 import type { FinderResult } from "@/types";
 
-type FinderPageProps = {
+type NfcFinderPageProps = {
   params: Promise<{ tagCode: string }>;
 };
 
@@ -23,42 +23,38 @@ export function generateStaticParams() {
 
 export async function generateMetadata({
   params,
-}: FinderPageProps): Promise<Metadata> {
+}: NfcFinderPageProps): Promise<Metadata> {
   const { tagCode } = await params;
-  const result = await getFinderState(tagCode, "legacy");
+  const result = await getFinderState(tagCode, "nfc");
 
   return {
     title: finderMetadataTitle(result),
     alternates: {
-      canonical: canonicalUrl(tagPath(tagCode)),
+      canonical: canonicalUrl(tagNfcPath(tagCode)),
     },
     robots: directAccessRobots,
   };
 }
 
-export default async function FinderPage({ params }: FinderPageProps) {
+export default async function NfcFinderPage({
+  params,
+}: NfcFinderPageProps) {
   const { tagCode } = await params;
-  const result = await getFinderState(tagCode, "legacy");
+  const result = await getFinderState(tagCode, "nfc");
 
   return (
-    <TagFinderView
-      initialResult={result}
-      source="legacy"
-      tagCode={tagCode}
-    />
+    <TagFinderView initialResult={result} source="nfc" tagCode={tagCode} />
   );
 }
 
 function finderMetadataTitle(result: FinderResult) {
   switch (result.state) {
     case "active":
-      return tagScanPageTitle(result.profile.name);
+      return qrSafetyPageTitle(result.profile.name);
+    case "nfc-activation-required":
+      return "Scan the QR code to activate";
     case "not-found":
       return loadingTitle;
-    case "unassigned":
-      return "Activate MyPetLink Tag";
-    case "pending":
-      return "MyPetLink Tag Pending";
     case "inactive":
       return "Inactive MyPetLink Tag";
     default:

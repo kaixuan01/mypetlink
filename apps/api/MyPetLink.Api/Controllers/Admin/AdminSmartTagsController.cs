@@ -38,9 +38,28 @@ public sealed class AdminSmartTagsController : ApiControllerBase
         => Ok(ApiEnvelope.Ok(await _smartTagService.GetAsync(tagId, cancellationToken), HttpContext));
 
     [HttpGet("{tagId:guid}/scans")]
-    public async Task<IActionResult> Scans(Guid tagId, CancellationToken cancellationToken)
+    public async Task<IActionResult> Scans(
+        Guid tagId,
+        [FromQuery] string? source,
+        CancellationToken cancellationToken)
         => Ok(ApiEnvelope.Ok(await _smartTagService.ListScansAsync(
-            _currentUserService.Current.UserId, tagId, cancellationToken), HttpContext));
+            _currentUserService.Current.UserId, tagId, source, cancellationToken), HttpContext));
+
+    [HttpGet("{tagId:guid}/scans/export")]
+    public async Task<IActionResult> ExportScans(
+        Guid tagId,
+        [FromQuery] string? source,
+        [FromQuery] string? format,
+        CancellationToken cancellationToken)
+    {
+        var export = await _smartTagService.ExportScansAsync(
+            _currentUserService.Current.UserId,
+            tagId,
+            source,
+            format,
+            cancellationToken);
+        return File(export.Content, export.ContentType, export.FileName);
+    }
 
     [HttpPost("{tagId:guid}/disable")]
     public Task<IActionResult> Disable(Guid tagId, [FromBody] AdminSmartTagActionRequest? request, CancellationToken cancellationToken)

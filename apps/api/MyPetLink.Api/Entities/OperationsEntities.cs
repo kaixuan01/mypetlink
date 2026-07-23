@@ -6,6 +6,7 @@ public sealed class TagScan : Entity
     public Guid? PetId { get; set; }
     public string TagCode { get; set; } = "";
     public TagScanResolvedState ResolvedState { get; set; } = TagScanResolvedState.NotFound;
+    public TagScanSource Source { get; set; } = TagScanSource.Unknown;
     public DateTimeOffset ScanTime { get; set; } = DateTimeOffset.UtcNow;
     public decimal? Latitude { get; set; }
     public decimal? Longitude { get; set; }

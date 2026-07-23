@@ -2,7 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { QrSafetyPageView } from "@/components/marketing/QrSafetyPageView";
-import { FinderShell } from "@/components/portal/TagFinderView";
+import {
+  FinderShell,
+  TagFinderView,
+} from "@/components/portal/TagFinderView";
 import { Icon } from "@/components/ui/Icon";
 import { PetProfileLoading } from "@/components/ui/PetProfileLoading";
 import {
@@ -14,22 +17,32 @@ import {
 import { isApiClientError } from "@/services/apiClient";
 import { isApiConfigured } from "@/services/apiConfig";
 import { getPublicPetProfileBySafetyCode } from "@/services/petService";
-import type { PublicPetProfile } from "@/types";
+import { getFinderState } from "@/services/tagService";
+import type { FinderResult, PublicPetProfile } from "@/types";
 
 type QrSafetyRouteViewProps = {
   initialProfile: PublicPetProfile | null;
+  initialTagResult?: FinderResult | null;
+  refreshOnMount?: boolean;
   safetyCode: string;
 };
 
 export function QrSafetyRouteView({
   initialProfile,
+  initialTagResult = null,
+  refreshOnMount = true,
   safetyCode,
 }: QrSafetyRouteViewProps) {
   const apiMode = isApiConfigured();
   const [profile, setProfile] = useState<PublicPetProfile | null>(() =>
-    apiMode ? null : initialProfile
+    refreshOnMount && apiMode ? null : initialProfile
   );
-  const [loaded, setLoaded] = useState(!apiMode && Boolean(initialProfile));
+  const [tagResult, setTagResult] = useState<FinderResult | null>(() =>
+    refreshOnMount && apiMode ? null : initialTagResult
+  );
+  const [loaded, setLoaded] = useState(
+    !refreshOnMount || (!apiMode && Boolean(initialProfile || initialTagResult))
+  );
   const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
@@ -37,6 +50,10 @@ export function QrSafetyRouteView({
     let loadInFlight = false;
 
     async function loadSafetyPage() {
+      if (!refreshOnMount) {
+        return;
+      }
+
       if (loadInFlight) {
         return;
       }
@@ -46,14 +63,20 @@ export function QrSafetyRouteView({
 
       try {
         const response = await getPublicPetProfileBySafetyCode(safetyCode);
+        const nextProfile = response.data;
+        const nextTagResult = nextProfile
+          ? null
+          : await getFinderState(safetyCode, "qr");
 
         if (active) {
-          setProfile(response.data);
+          setProfile(nextProfile);
+          setTagResult(nextTagResult);
           setLoaded(true);
         }
       } catch (caught) {
         if (active) {
           setProfile(null);
+          setTagResult(null);
           setLoadError(getSafetyPageErrorMessage(caught));
           setLoaded(true);
         }
@@ -77,7 +100,7 @@ export function QrSafetyRouteView({
       window.removeEventListener("focus", refreshVisibleSafetyPage);
       document.removeEventListener("visibilitychange", refreshVisibleSafetyPage);
     };
-  }, [safetyCode]);
+  }, [refreshOnMount, safetyCode]);
 
   useEffect(() => {
     if (!loaded) {
@@ -85,10 +108,26 @@ export function QrSafetyRouteView({
       return;
     }
 
-    setPageTitle(
-      profile ? qrSafetyPageTitle(profile.name) : qrSafetyNotFoundTitle
+    // When this /q link turned out to be a physical tag, the tag view below
+    // owns the title for every one of its states — setting one here would
+    // overwrite it with a Safety Profile message that contradicts the page.
+    if (!profile && tagResult && tagResult.state !== "not-found") {
+      return;
+    }
+
+    setPageTitle(profile ? qrSafetyPageTitle(profile.name) : qrSafetyNotFoundTitle);
+  }, [loaded, profile, tagResult]);
+
+  if (tagResult && tagResult.state !== "not-found") {
+    return (
+      <TagFinderView
+        initialResult={tagResult}
+        refreshOnMount={false}
+        source="qr"
+        tagCode={safetyCode}
+      />
     );
-  }, [loaded, profile]);
+  }
 
   return (
     <FinderShell>

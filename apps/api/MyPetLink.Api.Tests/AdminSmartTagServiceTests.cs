@@ -270,11 +270,28 @@ public sealed class AdminSmartTagServiceTests
     {
         using var harness = await Harness.CreateAsync();
         var tag = await harness.Db.SmartTags.SingleAsync(item => item.Status == SmartTagStatus.Active);
-        var scans = await harness.Service.ListScansAsync(Harness.AdminId, tag.Id);
+        var scans = await harness.Service.ListScansAsync(Harness.AdminId, tag.Id, null);
         Assert.Equal(2, scans.Count);
         Assert.True(scans.First().ScannedAt >= scans.Last().ScannedAt);
+        Assert.Contains(scans, scan => scan.ScanSource == TagScanSource.Qr);
+        Assert.Contains(scans, scan => scan.ScanSource == TagScanSource.Nfc);
 
-        var forbidden = await Assert.ThrowsAsync<ApiException>(() => harness.Service.ListScansAsync(Guid.NewGuid(), tag.Id));
+        var nfc = await harness.Service.ListScansAsync(Harness.AdminId, tag.Id, "nfc");
+        Assert.Single(nfc);
+        Assert.Equal(TagScanSource.Nfc, nfc.Single().ScanSource);
+
+        var export = await harness.Service.ExportScansAsync(
+            Harness.AdminId, tag.Id, "Qr", "csv");
+        var csv = System.Text.Encoding.UTF8.GetString(export.Content);
+        Assert.Contains("Scan Source", csv);
+        Assert.Contains("QR Scan", csv);
+        Assert.DoesNotContain("NFC Tap", csv);
+
+        var invalidSource = await Assert.ThrowsAsync<ApiException>(
+            () => harness.Service.ListScansAsync(Harness.AdminId, tag.Id, "browser-header"));
+        Assert.Equal(StatusCodes.Status400BadRequest, invalidSource.StatusCode);
+
+        var forbidden = await Assert.ThrowsAsync<ApiException>(() => harness.Service.ListScansAsync(Guid.NewGuid(), tag.Id, null));
         Assert.Equal(StatusCodes.Status403Forbidden, forbidden.StatusCode);
     }
 
@@ -323,8 +340,8 @@ public sealed class AdminSmartTagServiceTests
             await db.SaveChangesAsync();
             var active = tags[0];
             db.TagScans.AddRange(
-                new TagScan { SmartTagId = active.Id, TagCode = active.TagCode, ScanTime = Now.AddDays(-2) },
-                new TagScan { SmartTagId = active.Id, TagCode = active.TagCode, ScanTime = Now.AddDays(-1) });
+                new TagScan { SmartTagId = active.Id, TagCode = active.TagCode, Source = TagScanSource.Qr, ScanTime = Now.AddDays(-2) },
+                new TagScan { SmartTagId = active.Id, TagCode = active.TagCode, Source = TagScanSource.Nfc, ScanTime = Now.AddDays(-1) });
             await db.SaveChangesAsync();
             return new Harness(db);
         }

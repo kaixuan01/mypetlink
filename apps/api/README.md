@@ -185,15 +185,24 @@ Implemented owner Smart Tags endpoints:
 GET /api/v1/tags
 GET /api/v1/pets/{petId}/tags
 GET /api/v1/tags/{tagId}
+GET /api/v1/tags/{tagId}/scans
 POST /api/v1/tags/{tagCode}/activate
 POST /api/v1/tags/{tagId}/mark-lost
 POST /api/v1/tags/{tagId}/disable
 POST /api/v1/tags/{tagId}/archive
 POST /api/v1/tags/{tagId}/restore
 GET /api/v1/public/tags/{tagCode}
+GET /api/v1/public/tags/{tagCode}/qr
+GET /api/v1/public/tags/{tagCode}/nfc
 ```
 
-Activation requests are intended to come from the Physical Tag Scan Page flow (`/t/{tagCode}`). Owner Portal tag/order pages should show View Tag Scan Page and Copy Tag Link, but not direct Activate Tag actions.
+New printed QR content uses `/q/{tagCode}` and NFC chips use
+`/n/{tagCode}`. Existing `/t/{tagCode}` content remains a fully supported
+legacy activation/resolution route. NFC shows a QR-first setup message before
+activation; QR and legacy activation still use the same authenticated ownership
+and allocation checks. Scan source is derived from the server route, never from
+client input. See
+[`../../docs/operations/smart-tag-scan-sources.md`](../../docs/operations/smart-tag-scan-sources.md).
 
 Implemented owner Orders endpoints:
 
@@ -280,6 +289,12 @@ The `InitialCreate` migration exists in `apps/api/MyPetLink.Api/Migrations/` and
 `Pets.EstimatedBirthYear`, preserves `Birthday` and the legacy
 `EstimatedAgeLabel`, and only backfills clearly parseable numeric legacy labels.
 See [`../../docs/database/pet-age-migration.md`](../../docs/database/pet-age-migration.md).
+
+`AddTagScanSource` is an additive Smart Tag telemetry migration. It adds the
+non-null `TagScans.Source` enum column, classifies pre-existing scan rows as
+`Legacy`, and adds the owner/admin history filter index. The reviewed
+per-migration SQL is
+`Migrations/20260723064015_AddTagScanSource.sql`.
 
 Create the local database / apply migrations (run from the repository root):
 

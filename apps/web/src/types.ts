@@ -342,6 +342,27 @@ export type PetTag = {
   isArchived?: boolean;
 };
 
+export type TagScanSource = "Qr" | "Nfc" | "Legacy" | "Unknown";
+export type TagEntrySource = "qr" | "nfc" | "legacy";
+
+export type TagScanHistoryItem = {
+  id: string;
+  scanSource: TagScanSource;
+  resolvedState: string;
+  scannedAt: string;
+  city?: string;
+  country?: string;
+  deviceType?: string;
+};
+
+export type TagScanHistory = {
+  items: TagScanHistoryItem[];
+  total: number;
+  qrScans: number;
+  nfcTaps: number;
+  legacyOrUnknown: number;
+};
+
 export type DeliveryDetails = {
   recipientName: string;
   phone: string;
@@ -441,13 +462,14 @@ export type AdminDashboard = {
   newProfilesThisMonth: number;
 };
 
-// Outcome of resolving a scanned /t/{tagCode}. The state decides what the
-// finder page renders: the pet safety profile for active tags, an activation
-// prompt, a safe inactive message, or a branded "tag not found" screen.
+// Outcome of resolving a physical /q, /n, or legacy /t entry. The state
+// decides whether the finder sees the Safety Profile, activation/setup
+// guidance, a safe inactive message, or a branded not-found screen.
 export type FinderResult =
   | { state: "active"; tagCode: string; profile: PublicPetProfile }
   | { state: "unassigned"; tagCode: string }
   | { state: "pending"; tagCode: string; status: TagStatus; petId?: string }
+  | { state: "nfc-activation-required"; tagCode: string }
   | {
       state: "inactive";
       tagCode: string;

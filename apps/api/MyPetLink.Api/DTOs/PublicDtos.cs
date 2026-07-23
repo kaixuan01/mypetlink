@@ -121,6 +121,7 @@ public sealed record TagScanPageResponse(
     string State,
     string TagCode,
     string? Status,
+    TagScanSource ScanSource,
     PublicSafetyPageResponse? Profile);
 
 public sealed record SubmitScanLocationConsentRequest(

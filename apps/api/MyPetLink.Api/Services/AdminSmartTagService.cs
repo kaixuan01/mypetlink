@@ -84,6 +84,7 @@ public sealed class AdminSmartTagService : SkeletonService, IAdminSmartTagServic
     public async Task<IReadOnlyCollection<AdminSmartTagScanResponse>> ListScansAsync(
         Guid? currentUserId,
         Guid tagId,
+        string? source,
         CancellationToken cancellationToken = default)
     {
         await RequireAdminAsync(currentUserId, cancellationToken);
@@ -91,15 +92,62 @@ public sealed class AdminSmartTagService : SkeletonService, IAdminSmartTagServic
                 tag => tag.Id == tagId && tag.DeletedAt == null, cancellationToken))
             throw NotFound();
 
-        return await _dbContext.TagScans.AsNoTracking()
-            .Where(scan => scan.SmartTagId == tagId)
+        var query = FilterScans(tagId, source);
+        return await query
             .OrderByDescending(scan => scan.ScanTime)
             .ThenByDescending(scan => scan.Id)
             .Take(50)
             .Select(scan => new AdminSmartTagScanResponse(
-                scan.Id, scan.ResolvedState, scan.ScanTime,
+                scan.Id, scan.Source, scan.ResolvedState, scan.ScanTime,
                 scan.City, scan.Country, scan.DeviceType))
             .ToArrayAsync(cancellationToken);
+    }
+
+    public async Task<AdminTagInventoryExport> ExportScansAsync(
+        Guid? currentUserId,
+        Guid tagId,
+        string? source,
+        string? format,
+        CancellationToken cancellationToken = default)
+    {
+        await RequireAdminAsync(currentUserId, cancellationToken);
+        var tagCode = await _dbContext.SmartTags.AsNoTracking()
+            .Where(tag => tag.Id == tagId && tag.DeletedAt == null)
+            .Select(tag => tag.TagCode)
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? throw NotFound();
+        var normalizedFormat = NormalizeOptional(format)?.ToLowerInvariant() ?? "csv";
+        if (normalizedFormat is not ("csv" or "xlsx"))
+            throw ValidationFailed("format", "Choose CSV or Excel for the export.");
+
+        var rows = await FilterScans(tagId, source)
+            .OrderByDescending(scan => scan.ScanTime)
+            .ThenByDescending(scan => scan.Id)
+            .Take(MaxExportRows)
+            .Select(scan => new AdminSmartTagScanResponse(
+                scan.Id, scan.Source, scan.ResolvedState, scan.ScanTime,
+                scan.City, scan.Country, scan.DeviceType))
+            .ToArrayAsync(cancellationToken);
+        var stamp = DateTimeOffset.UtcNow.ToString("yyyyMMdd-HHmm");
+        return normalizedFormat == "xlsx"
+            ? new AdminTagInventoryExport(
+                $"mypetlink-{tagCode}-scan-history-{stamp}.xlsx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                BuildScanXlsx(rows))
+            : new AdminTagInventoryExport(
+                $"mypetlink-{tagCode}-scan-history-{stamp}.csv",
+                "text/csv",
+                Encoding.UTF8.GetBytes(BuildScanCsv(rows)));
+    }
+
+    private IQueryable<TagScan> FilterScans(Guid tagId, string? source)
+    {
+        var query = _dbContext.TagScans.AsNoTracking()
+            .Where(scan => scan.SmartTagId == tagId);
+        var parsed = ParseScanSource(source);
+        return parsed.HasValue
+            ? query.Where(scan => scan.Source == parsed.Value)
+            : query;
     }
 
     public async Task<AdminSmartTagItemResponse> UpdateStatusAsync(
@@ -486,6 +534,20 @@ public sealed class AdminSmartTagService : SkeletonService, IAdminSmartTagServic
             tag.Batch == null ? null : tag.Batch.BatchNo,
             tag.ActivatedAt, tag.LastScannedAt,
             _dbContext.TagScans.Count(scan => scan.SmartTagId == tag.Id),
+            _dbContext.TagScans
+                .Where(scan => scan.SmartTagId == tag.Id)
+                .OrderByDescending(scan => scan.ScanTime)
+                .ThenByDescending(scan => scan.Id)
+                .Select(scan => (TagScanSource?)scan.Source)
+                .FirstOrDefault(),
+            _dbContext.TagScans.Count(scan =>
+                scan.SmartTagId == tag.Id && scan.Source == TagScanSource.Qr),
+            _dbContext.TagScans.Count(scan =>
+                scan.SmartTagId == tag.Id && scan.Source == TagScanSource.Nfc),
+            _dbContext.TagScans.Count(scan =>
+                scan.SmartTagId == tag.Id
+                && (scan.Source == TagScanSource.Legacy
+                    || scan.Source == TagScanSource.Unknown)),
             tag.CreatedAt, tag.UpdatedAt, tag.ReplacementForTagId,
             tag.ReplacementForTag == null ? null : tag.ReplacementForTag.TagCode,
             _dbContext.SmartTags.Where(candidate => candidate.ReplacementForTagId == tag.Id && candidate.DeletedAt == null)
@@ -589,6 +651,67 @@ public sealed class AdminSmartTagService : SkeletonService, IAdminSmartTagServic
     private static string ExportDate(DateTimeOffset? value) => value?.UtcDateTime.ToString("yyyy-MM-dd HH:mm") ?? "";
     private static string Csv(string value) => AdminExportSanitizer.Csv(value);
 
+    private static string BuildScanCsv(IReadOnlyList<AdminSmartTagScanResponse> rows)
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine("Scanned At,Scan Source,Result,City,Country,Device");
+        foreach (var row in rows)
+        {
+            var values = new[]
+            {
+                ExportDate(row.ScannedAt),
+                ScanSourceLabel(row.ScanSource),
+                row.ResolvedState.ToString(),
+                row.City ?? "",
+                row.Country ?? "",
+                row.DeviceType ?? ""
+            };
+            builder.AppendLine(string.Join(',', values.Select(Csv)));
+        }
+        return builder.ToString();
+    }
+
+    private static byte[] BuildScanXlsx(IReadOnlyList<AdminSmartTagScanResponse> rows)
+    {
+        using var workbook = new XLWorkbook();
+        var sheet = workbook.Worksheets.Add("Scan History");
+        var headers = new[] { "Scanned At", "Scan Source", "Result", "City", "Country", "Device" };
+        for (var column = 0; column < headers.Length; column++)
+        {
+            sheet.Cell(1, column + 1).Value = headers[column];
+            sheet.Cell(1, column + 1).Style.Font.Bold = true;
+        }
+        for (var index = 0; index < rows.Count; index++)
+        {
+            var row = rows[index];
+            var values = new[]
+            {
+                ExportDate(row.ScannedAt),
+                ScanSourceLabel(row.ScanSource),
+                row.ResolvedState.ToString(),
+                row.City ?? "",
+                row.Country ?? "",
+                row.DeviceType ?? ""
+            };
+            for (var column = 0; column < values.Length; column++)
+                sheet.Cell(index + 2, column + 1)
+                    .SetValue(AdminExportSanitizer.SpreadsheetSafe(values[column]));
+        }
+        sheet.SheetView.FreezeRows(1);
+        sheet.Columns().AdjustToContents(1, Math.Min(rows.Count + 1, 200));
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        return stream.ToArray();
+    }
+
+    private static string ScanSourceLabel(TagScanSource source) => source switch
+    {
+        TagScanSource.Qr => "QR Scan",
+        TagScanSource.Nfc => "NFC Tap",
+        TagScanSource.Legacy => "Legacy Link",
+        _ => "Unknown"
+    };
+
     private async Task<AdminUser> RequireAdminAsync(Guid? userId, CancellationToken cancellationToken)
     {
         if (!userId.HasValue) throw new ApiException(StatusCodes.Status401Unauthorized, "unauthorized", "Authentication is required.");
@@ -604,6 +727,13 @@ public sealed class AdminSmartTagService : SkeletonService, IAdminSmartTagServic
 
     private static T ParseEnum<T>(string value, string field, string message) where T : struct, Enum
         => Enum.TryParse<T>(value, true, out var parsed) ? parsed : throw ValidationFailed(field, message);
+    private static TagScanSource? ParseScanSource(string? value)
+    {
+        if (NormalizeOptional(value) is not { } normalized) return null;
+        return Enum.TryParse<TagScanSource>(normalized, true, out var parsed)
+            ? parsed
+            : throw ValidationFailed("source", "Scan source must be Qr, Nfc, Legacy, or Unknown.");
+    }
     private static string Normalize(string? value) => NormalizeOptional(value) ?? throw ValidationFailed("action", "Choose an action.");
     private static string? NormalizeOptional(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     private static ApiException NotFound() => new(StatusCodes.Status404NotFound, "tag_not_found", "This tag could not be found.");

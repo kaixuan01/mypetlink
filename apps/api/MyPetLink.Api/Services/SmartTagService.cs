@@ -80,6 +80,55 @@ public sealed class SmartTagService : SkeletonService, ISmartTagService
         return TagDtoMapper.ToSmartTagResponse(tag);
     }
 
+    public async Task<SmartTagScanHistoryResponse> ListScansAsync(
+        Guid? currentUserId,
+        Guid tagId,
+        string? source,
+        CancellationToken cancellationToken = default)
+    {
+        await LoadOwnedTagAsync(currentUserId, tagId, trackChanges: false, cancellationToken);
+        var allScans = _dbContext.TagScans.AsNoTracking()
+            .Where(scan => scan.SmartTagId == tagId);
+        var sourceFilter = ParseScanSource(source);
+        var filtered = sourceFilter.HasValue
+            ? allScans.Where(scan => scan.Source == sourceFilter.Value)
+            : allScans;
+
+        var counts = await allScans
+            .GroupBy(_ => 1)
+            .Select(group => new
+            {
+                Total = group.Count(),
+                Qr = group.Count(scan => scan.Source == TagScanSource.Qr),
+                Nfc = group.Count(scan => scan.Source == TagScanSource.Nfc),
+                LegacyOrUnknown = group.Count(scan =>
+                    scan.Source == TagScanSource.Legacy
+                    || scan.Source == TagScanSource.Unknown)
+            })
+            .SingleOrDefaultAsync(cancellationToken);
+
+        var items = await filtered
+            .OrderByDescending(scan => scan.ScanTime)
+            .ThenByDescending(scan => scan.Id)
+            .Take(50)
+            .Select(scan => new SmartTagScanResponse(
+                scan.Id,
+                scan.Source,
+                scan.ResolvedState,
+                scan.ScanTime,
+                scan.City,
+                scan.Country,
+                scan.DeviceType))
+            .ToArrayAsync(cancellationToken);
+
+        return new SmartTagScanHistoryResponse(
+            items,
+            counts?.Total ?? 0,
+            counts?.Qr ?? 0,
+            counts?.Nfc ?? 0,
+            counts?.LegacyOrUnknown ?? 0);
+    }
+
     public async Task<SmartTagResponse> ActivateAsync(
         Guid? currentUserId,
         string tagCode,
@@ -296,6 +345,20 @@ public sealed class SmartTagService : SkeletonService, ISmartTagService
         }
 
         return query;
+    }
+
+    private static TagScanSource? ParseScanSource(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return Enum.TryParse<TagScanSource>(value.Trim(), true, out var parsed)
+            ? parsed
+            : throw ValidationFailed(
+                "source",
+                "Scan source must be Qr, Nfc, Legacy, or Unknown.");
     }
 
     private async Task<Pet> LoadOwnedPetAsync(

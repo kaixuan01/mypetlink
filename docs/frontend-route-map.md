@@ -13,8 +13,10 @@ All routes live in the Next.js app at `apps/web` (App Router, static export in p
 | `/terms` | Terms of Use |
 | `/p/{petSlug}-{publicCode}` | Public Share Profile (friendly, shareable; resolved by `publicCode`, the segment after the last `-`) |
 | `/q/{safetyCode}` | Pet-level Safety Profile (finder-first, emergency-focused; belongs to the pet, works without a physical tag) |
-| `/t/{tagCode}` | Physical tag scan link and customer activation entry point. Active tags render the same safety content as `/q/`; unassigned and assigned pending tags show the activation flow for the matching owner; lost/disabled/replaced/archived tags show a safe inactive page with no owner contact |
-| `/activate/{tagCode}` | Compatibility redirect back to `/t/{tagCode}` |
+| `/q/{tagCode}` | New physical-tag QR entry. The shared resolver preserves a matching pet Safety Profile first, then resolves a tag; eligible unactivated tags use the authenticated activation flow |
+| `/n/{tagCode}` | NFC entry. Active tags show the same Safety Profile; unactivated tags show QR-first setup instructions and never offer activation |
+| `/t/{tagCode}` | Legacy physical-tag entry retained for already printed tags; active and compatible activation behavior remains supported |
+| `/activate/{tagCode}` | Compatibility redirect to the new QR entry `/q/{tagCode}` |
 
 Key rule: the Public Share Profile (`/p/`) and the Safety Profile (`/q/`) are different surfaces and must never be mixed. See `apps/web/docs/PUBLIC_PROFILE_ROUTING.md`.
 

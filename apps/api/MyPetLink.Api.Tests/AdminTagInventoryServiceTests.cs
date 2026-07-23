@@ -503,7 +503,7 @@ public sealed class AdminTagInventoryServiceTests
             Assert.Equal("QR Pet Tag", sheet.Cell(row, 3).GetString());
             Assert.Equal("Standard", sheet.Cell(row, 4).GetString());
             Assert.Equal(
-                $"{InventoryHarness.PublicSiteBaseUrl}/t/{expectedCodes[index]}",
+                $"{InventoryHarness.PublicSiteBaseUrl}/q/{expectedCodes[index]}",
                 sheet.Cell(row, 5).GetString());
             // QR-only tags have no NFC operation, so the cell stays blank.
             Assert.Equal("", sheet.Cell(row, 6).GetString());
@@ -524,10 +524,11 @@ public sealed class AdminTagInventoryServiceTests
         Assert.DoesNotContain("Owner", allText);
         Assert.DoesNotContain(OwnerUserId.ToString(), allText);
         Assert.DoesNotContain(PetId.ToString(), allText);
+        Assert.DoesNotContain("/n/", allText);
     }
 
     [Fact]
-    public async Task ManufacturerExport_NfcTagsCarryNfcContentMatchingQrContent()
+    public async Task ManufacturerExport_NfcTagsCarryDistinctQrAndNfcContent()
     {
         using var harness = await InventoryHarness.CreateAsync();
         await harness.Service.GenerateAsync(
@@ -544,8 +545,8 @@ public sealed class AdminTagInventoryServiceTests
             var qrContent = sheet.Cell(row, 5).GetString();
             Assert.Equal("QR + NFC Smart Tag", sheet.Cell(row, 3).GetString());
             Assert.Equal("Lightweight", sheet.Cell(row, 4).GetString());
-            Assert.Equal($"{InventoryHarness.PublicSiteBaseUrl}/t/{tagCode}", qrContent);
-            Assert.Equal(qrContent, sheet.Cell(row, 6).GetString());
+            Assert.Equal($"{InventoryHarness.PublicSiteBaseUrl}/q/{tagCode}", qrContent);
+            Assert.Equal($"{InventoryHarness.PublicSiteBaseUrl}/n/{tagCode}", sheet.Cell(row, 6).GetString());
             Assert.StartsWith("https://", qrContent);
         }
     }

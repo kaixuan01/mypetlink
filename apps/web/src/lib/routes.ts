@@ -5,10 +5,10 @@ import type { Pet, PetTag } from "@/types";
 //
 // Route rules:
 // - Owner portal: /pets/{petId}/...        (always the petId, never the slug)
-// - Safety Profile: /q/{safetyCode}        (pet-level finder safety page,
-//   opened via QR scan, NFC tap, or direct link)
-// - Physical tag: /t/{tagCode}             (physical QR or QR + NFC scan link)
-// - Activation:   /t/{tagCode}             (scan/tap entry point for activation)
+// - Safety Profile: /q/{safetyCode}        (pet-level direct safety link)
+// - Physical QR:  /q/{tagCode}             (new printed QR entry)
+// - Physical NFC: /n/{tagCode}             (new NFC entry)
+// - Legacy tag:   /t/{tagCode}             (already-manufactured compatibility)
 // - Public share: /p/{petSlug}-{publicCode} (looked up by publicCode)
 
 type TagOrderOptions = {
@@ -65,11 +65,28 @@ export function tagPath(tagCode: string) {
   return `/t/${tagCode}`;
 }
 
+export function tagQrPath(tagCode: string) {
+  return `/q/${tagCode}`;
+}
+
+export function tagNfcPath(tagCode: string) {
+  return `/n/${tagCode}`;
+}
+
 export function qrSafetyPath(safetyCode: string) {
   return `/q/${safetyCode}`;
 }
 
 export function activatePath(tagCode: string) {
+  return tagQrPath(tagCode);
+}
+
+export function tagEntryPath(
+  tagCode: string,
+  source: "qr" | "nfc" | "legacy"
+) {
+  if (source === "qr") return tagQrPath(tagCode);
+  if (source === "nfc") return tagNfcPath(tagCode);
   return tagPath(tagCode);
 }
 
@@ -96,10 +113,10 @@ export function getQrSafetyPath(pet: Pick<Pet, "safetyCode">) {
   return qrSafetyPath(pet.safetyCode);
 }
 
-// Canonical helper for the physical tag scan link.
-// Always /t/{tagCode}; active tags open safety content, inactive tags do not.
+// Canonical helper for a newly produced physical tag's printed QR.
+// Existing /t/{tagCode} payloads remain supported through tagPath().
 export function getTagScanPath(tag: Pick<PetTag, "tagCode">) {
-  return tagPath(tag.tagCode);
+  return tagQrPath(tag.tagCode);
 }
 
 export const publicRoutes = {

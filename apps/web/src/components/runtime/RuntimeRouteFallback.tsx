@@ -74,6 +74,7 @@ import type {
   PetMoment,
   PetTag,
   PublicPetProfile,
+  TagEntrySource,
   TagOrder,
 } from "@/types";
 
@@ -91,7 +92,7 @@ type OwnerSection =
 type RuntimeRoute =
   | { kind: "public"; param: string }
   | { kind: "qr"; safetyCode: string }
-  | { kind: "tag"; tagCode: string }
+  | { kind: "tag"; source: TagEntrySource; tagCode: string }
   | { kind: "order"; orderKey: string }
   | { kind: "owner"; petId: string; section: OwnerSection }
   | { kind: "none" };
@@ -110,9 +111,11 @@ type RuntimeState =
       status: "qr";
       safetyCode: string;
       profile: PublicPetProfile | null;
+      result: FinderResult | null;
     }
   | {
       status: "tag";
+      source: TagEntrySource;
       tagCode: string;
       result: FinderResult;
     }
@@ -155,10 +158,15 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
     }
 
     if (state.status === "qr") {
+      // A /q link is either a pet Safety Profile or a physical tag's printed
+      // QR. When it resolved to a tag, the title must describe that tag's
+      // state, not claim the Safety Profile is missing.
       setPageTitle(
         state.profile
           ? qrSafetyPageTitle(state.profile.name)
-          : qrSafetyNotFoundTitle
+          : state.result && state.result.state !== "not-found"
+            ? tagResultTitle(state.result)
+            : qrSafetyNotFoundTitle
       );
       return;
     }
@@ -238,12 +246,16 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
         const profileResponse = await getPublicPetProfileBySafetyCode(
           route.safetyCode
         );
+        const result = profileResponse.data
+          ? null
+          : await getFinderState(route.safetyCode, "qr");
 
         if (active) {
           setState({
             status: "qr",
             safetyCode: route.safetyCode,
             profile: profileResponse.data,
+            result,
           });
         }
 
@@ -251,11 +263,12 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
       }
 
       if (route.kind === "tag") {
-        const result = await getFinderState(route.tagCode);
+        const result = await getFinderState(route.tagCode, route.source);
 
         if (active) {
           setState({
             status: "tag",
+            source: route.source,
             tagCode: route.tagCode,
             result,
           });
@@ -428,13 +441,22 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
     return (
       <QrSafetyRouteView
         initialProfile={state.profile}
+        initialTagResult={state.result}
+        refreshOnMount={false}
         safetyCode={state.safetyCode}
       />
     );
   }
 
   if (state.status === "tag") {
-    return <TagFinderView initialResult={state.result} tagCode={state.tagCode} />;
+    return (
+      <TagFinderView
+        initialResult={state.result}
+        refreshOnMount={false}
+        source={state.source}
+        tagCode={state.tagCode}
+      />
+    );
   }
 
   if (state.status === "order") {
@@ -679,7 +701,11 @@ function parseRuntimeRoute(pathname: string): RuntimeRoute {
   }
 
   if (parts[0] === "t" && parts.length === 2) {
-    return { kind: "tag", tagCode: parts[1] };
+    return { kind: "tag", source: "legacy", tagCode: parts[1] };
+  }
+
+  if (parts[0] === "n" && parts.length === 2) {
+    return { kind: "tag", source: "nfc", tagCode: parts[1] };
   }
 
   if (parts[0] === "orders" && parts.length === 2) {
@@ -742,6 +768,8 @@ function tagResultTitle(result: FinderResult) {
       return "Activate MyPetLink Tag";
     case "pending":
       return "MyPetLink Tag Pending";
+    case "nfc-activation-required":
+      return "Scan the QR code to activate";
     case "inactive":
     default:
       return "Inactive MyPetLink Tag";

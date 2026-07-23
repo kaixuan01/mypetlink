@@ -515,7 +515,8 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
     {
         var admin = await RequireAdminAsync(currentUserId, cancellationToken);
 
-        if (TagLinks.ScanUrl(_publicSiteOptions.BaseUrl, "MPL-TEST-TEST") is null)
+        if (TagLinks.QrUrl(_publicSiteOptions.BaseUrl, "MPL-TEST-TEST") is null
+            || TagLinks.NfcUrl(_publicSiteOptions.BaseUrl, "MPL-TEST-TEST") is null)
         {
             throw new ApiException(
                 StatusCodes.Status503ServiceUnavailable,
@@ -700,7 +701,9 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
                 continue;
             }
 
-            if (TagLinks.ScanUrl(_publicSiteOptions.BaseUrl, code) is null)
+            if (TagLinks.QrUrl(_publicSiteOptions.BaseUrl, code) is null
+                || (candidate.SupportsNfc == true
+                    && TagLinks.NfcUrl(_publicSiteOptions.BaseUrl, code) is null))
             {
                 problems.Add((code, "A QR link could not be generated for this tag."));
             }
@@ -753,17 +756,18 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
         for (var index = 0; index < rows.Count; index++)
         {
             var row = rows[index];
-            var scanUrl = TagLinks.ScanUrl(_publicSiteOptions.BaseUrl, row.TagCode)!;
+            var qrUrl = TagLinks.QrUrl(_publicSiteOptions.BaseUrl, row.TagCode)!;
+            var nfcUrl = row.HasNfc
+                ? TagLinks.NfcUrl(_publicSiteOptions.BaseUrl, row.TagCode)!
+                : "";
             var sheetRow = index + 2;
 
             sheet.Cell(sheetRow, 1).SetValue(index + 1);
             SetManufacturerText(sheet, sheetRow, 2, row.TagCode);
             SetManufacturerText(sheet, sheetRow, 3, TagTypeLabel(row.HasNfc));
             SetManufacturerText(sheet, sheetRow, 4, row.Variant);
-            SetManufacturerText(sheet, sheetRow, 5, scanUrl);
-            // QR and NFC are separate manufacturing operations, so they stay
-            // separate columns even while the encoded URL is identical.
-            SetManufacturerText(sheet, sheetRow, 6, row.HasNfc ? scanUrl : "");
+            SetManufacturerText(sheet, sheetRow, 5, qrUrl);
+            SetManufacturerText(sheet, sheetRow, 6, nfcUrl);
             SetManufacturerText(sheet, sheetRow, 7, row.BatchNo);
             // The printed code is the human-readable text on the physical tag;
             // today it matches the encoded tag code exactly.

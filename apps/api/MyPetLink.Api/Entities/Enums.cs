@@ -192,3 +192,11 @@ public enum TagScanResolvedState
     Inactive,
     NotFound
 }
+
+public enum TagScanSource
+{
+    Unknown,
+    Qr,
+    Nfc,
+    Legacy
+}

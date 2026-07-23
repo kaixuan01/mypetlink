@@ -483,7 +483,11 @@ Errors:
 - `404` not found
 - `403` safety page disabled
 
-### GET `/api/v1/public/tags/{tagCode}`
+### GET `/api/v1/public/tags/{tagCode}` (legacy)
+
+### GET `/api/v1/public/tags/{tagCode}/qr`
+
+### GET `/api/v1/public/tags/{tagCode}/nfc`
 
 Purpose: resolve physical tag scan page.
 
@@ -493,16 +497,23 @@ Response:
 
 - `state`: `active`, `unclaimed`, `pending`, `inactive`, `notFound`
 - `tagCode`
+- `scanSource`: `Qr`, `Nfc`, `Legacy`, or `Unknown`
 - `profile` only when the tag is active and linked to an active pet
 
 Rules:
 
 - Active tag linked to active pet opens same safety content as `/q/:safetyCode`.
-- Unclaimed retail tags show activation prompt on the Physical Tag Scan Page.
-- Pending/preparing/delivered tags return a not-active-yet/activation state without owner contact; only the matching signed-in owner can activate from the scan flow.
+- QR and legacy unclaimed tags show the compatible activation prompt.
+- NFC unclaimed/pending tags return `nfcActivationRequired`, expose no
+  allocation details, and instruct the owner to scan the printed QR.
+- Pending/preparing/delivered QR or legacy entries return a
+  not-active-yet/activation state without owner contact; only the matching
+  signed-in owner can activate from the scan flow.
 - Lost/disabled/replaced/archived tags never expose owner contact.
 - Bound tags linked to Memorial/Archived pets return inactive safe state.
 - Record a `TagScans` event for valid and invalid scans where appropriate.
+- Source comes from the matched controller route. Client query, body, and
+  header values cannot override it and it is never an authorization signal.
 
 Errors:
 

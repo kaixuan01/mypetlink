@@ -73,6 +73,21 @@ public sealed class SmartTagsController : ApiControllerBase
         return Ok(ApiEnvelope.Ok(response, HttpContext));
     }
 
+    [HttpGet("tags/{tagId:guid}/scans")]
+    public async Task<IActionResult> ListScans(
+        Guid tagId,
+        [FromQuery] string? source,
+        CancellationToken cancellationToken)
+    {
+        var response = await _smartTagService.ListScansAsync(
+            _currentUserService.Current.UserId,
+            tagId,
+            source,
+            cancellationToken);
+
+        return Ok(ApiEnvelope.Ok(response, HttpContext));
+    }
+
     [HttpPost("tags/{tagCode}/activate")]
     public async Task<IActionResult> Activate(
         string tagCode,

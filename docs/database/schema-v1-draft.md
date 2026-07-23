@@ -720,6 +720,8 @@ Key fields:
 - `PetId` nullable FK `Pets`
 - `TagCode`
 - `ResolvedState` (`Active`, `Unclaimed`, `Pending`, `Inactive`, `NotFound`)
+- `Source` (`Qr`, `Nfc`, `Legacy`, `Unknown`), derived from the trusted API
+  route rather than client input
 - `ScanTime`
 - `Latitude` nullable
 - `Longitude` nullable
@@ -742,6 +744,7 @@ Indexes:
 - `ResolvedState`
 - `ScanTime`
 - `(SmartTagId, ScanTime)`
+- `(SmartTagId, Source, ScanTime)`
 - `(PetId, ScanTime)`
 - `(Country, City)`
 

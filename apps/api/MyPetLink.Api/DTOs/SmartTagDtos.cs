@@ -23,3 +23,19 @@ public sealed record SmartTagResponse(
     DateTimeOffset? LastScannedAt,
     Guid? ReplacementForTagId,
     DateTimeOffset? ArchivedAt);
+
+public sealed record SmartTagScanResponse(
+    Guid Id,
+    TagScanSource ScanSource,
+    TagScanResolvedState ResolvedState,
+    DateTimeOffset ScannedAt,
+    string? City,
+    string? Country,
+    string? DeviceType);
+
+public sealed record SmartTagScanHistoryResponse(
+    IReadOnlyCollection<SmartTagScanResponse> Items,
+    int Total,
+    int QrScans,
+    int NfcTaps,
+    int LegacyOrUnknown);

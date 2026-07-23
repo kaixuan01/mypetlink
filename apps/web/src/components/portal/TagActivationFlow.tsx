@@ -9,7 +9,7 @@ import { Icon } from "@/components/ui/Icon";
 import { PetAvatar } from "@/components/ui/PetAvatar";
 import { getPetSummaryLabel } from "@/lib/petDisplay";
 import { getActivePets } from "@/lib/petLifecycle";
-import { ownerRoutes, tagPath } from "@/lib/routes";
+import { ownerRoutes, tagEntryPath } from "@/lib/routes";
 import { isApiConfigured } from "@/services/apiConfig";
 import { isOwnerAuthenticated, loginMockOwner } from "@/services/authService";
 import { getPets } from "@/services/petService";
@@ -19,10 +19,11 @@ import {
   getFriendlyTagErrorMessage,
   getAllTags,
 } from "@/services/tagService";
-import type { FinderResult, Pet, PetTag } from "@/types";
+import type { FinderResult, Pet, PetTag, TagEntrySource } from "@/types";
 
 type TagActivationFlowProps = {
   initialResult: FinderResult;
+  source?: Exclude<TagEntrySource, "nfc">;
   tagCode: string;
 };
 
@@ -30,12 +31,12 @@ function getPreferredPetId(result: FinderResult) {
   return result.state === "pending" ? result.petId ?? "" : "";
 }
 
-// Scan -> /t/{tagCode} (Unassigned) -> here. Sign in, pick the pet, confirm the
-// binding, see success. The tag code stays in the URL the whole time so an
-// unauthenticated owner is never sent back to re-scan or dropped on the
-// dashboard before activation completes.
+// A trusted QR or legacy scan can enter activation here. The tag code and
+// trusted route source stay in the return URL so sign-in resumes on the same
+// physical entry point.
 export function TagActivationFlow({
   initialResult,
+  source = "legacy",
   tagCode,
 }: TagActivationFlowProps) {
   const apiMode = isApiConfigured();
@@ -54,7 +55,7 @@ export function TagActivationFlow({
   useEffect(() => {
     let active = true;
 
-    getFinderState(tagCode)
+    getFinderState(tagCode, source)
       .then((next) => {
         if (active) {
           setResult(next);
@@ -71,7 +72,7 @@ export function TagActivationFlow({
     return () => {
       active = false;
     };
-  }, [tagCode]);
+  }, [source, tagCode]);
 
   useEffect(() => {
     if (!authed) {
@@ -119,7 +120,7 @@ export function TagActivationFlow({
   function handleSignIn() {
     if (apiMode) {
       window.location.href = `/login?redirect=${encodeURIComponent(
-        tagPath(tagCode)
+        tagEntryPath(tagCode, source)
       )}`;
       return;
     }
@@ -187,7 +188,7 @@ export function TagActivationFlow({
               Preview Public Profile
             </CTAButton>
             <CTAButton
-              href={tagPath(tagCode)}
+              href={tagEntryPath(tagCode, source)}
               icon="tag"
               variant="secondary"
               fullWidth
@@ -215,7 +216,7 @@ export function TagActivationFlow({
         >
           <CTAButton
             className="min-h-14 text-base"
-            href={tagPath(result.tagCode)}
+            href={tagEntryPath(result.tagCode, source)}
             icon="qr"
             fullWidth
           >

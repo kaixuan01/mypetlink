@@ -194,3 +194,45 @@ describe("RuntimeRouteFallback owner authentication", () => {
     expect(screen.queryByText("Forbidden")).toBeNull();
   });
 });
+
+describe("RuntimeRouteFallback shared /q resolution", () => {
+  beforeEach(() => {
+    window.history.replaceState({}, "", "/q/MPL-QR-TITLE");
+    mocks.authenticated = false;
+    mocks.replace.mockReset();
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it("titles a /q link that resolved to a physical tag after the tag, not a missing profile", async () => {
+    const petService = await import("@/services/petService");
+    const tagService = await import("@/services/tagService");
+    vi.mocked(petService.getPublicPetProfileBySafetyCode).mockResolvedValue({
+      data: null,
+    } as never);
+    vi.mocked(tagService.getFinderState).mockResolvedValue({
+      state: "unassigned",
+      tagCode: "MPL-QR-TITLE",
+    } as never);
+
+    render(
+      <RuntimeRouteFallback>
+        <p>Page not found</p>
+      </RuntimeRouteFallback>
+    );
+
+    await waitFor(() =>
+      expect(tagService.getFinderState).toHaveBeenCalledWith(
+        "MPL-QR-TITLE",
+        "qr"
+      )
+    );
+    await waitFor(() =>
+      expect(document.title).toContain("Activate MyPetLink Tag")
+    );
+    expect(document.title).not.toContain("Safety Profile not found");
+  });
+});

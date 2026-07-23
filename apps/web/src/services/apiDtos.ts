@@ -484,9 +484,17 @@ export type BackendCreateTagOrderResult = {
 };
 
 export type BackendTagScanPage = {
-  state: "active" | "unclaimed" | "pending" | "inactive" | "notFound" | string;
+  state:
+    | "active"
+    | "unclaimed"
+    | "pending"
+    | "nfcActivationRequired"
+    | "inactive"
+    | "notFound"
+    | string;
   tagCode: string;
   status?: BackendSmartTagStatus | string | null;
+  scanSource?: "Qr" | "Nfc" | "Legacy" | "Unknown" | string;
   profile?: BackendPublicSafetyPage | null;
 };
 

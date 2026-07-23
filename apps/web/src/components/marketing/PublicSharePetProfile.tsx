@@ -102,8 +102,8 @@ const fallbackVisibility: Pet["visibility"] = {
 // The shareable public profile (/p/{slug}-{publicCode}). This is the friendly,
 // IG-style pet page owners share with friends, family, and pet communities.
 // It is deliberately separate from the finder/emergency experience. That lives
-// on the pet-level Safety Profile (/q/{safetyCode}); physical tags use
-// /t/{tagCode} only as scan entry points while active.
+// on the pet-level Safety Profile (/q/{safetyCode}); physical tags use /q,
+// /n, or compatible legacy /t entry links and share the same active profile.
 export function PublicSharePetProfile({
   initialProfile,
   initialMoments,
@@ -1056,4 +1056,3 @@ function getPublicProfileErrorMessage(error: unknown) {
 
   return "We could not load this public profile right now. Please try again.";
 }
-

@@ -359,8 +359,8 @@ public sealed class ConcurrencyRelationalTests
         var serviceB = new TagScanService(contextB, options);
 
         var results = await Task.WhenAll(
-            Capture(() => serviceA.ResolveAsync("MPL-REL-SCAN", context)),
-            Capture(() => serviceB.ResolveAsync("MPL-REL-SCAN", context)));
+            Capture(() => serviceA.ResolveAsync("MPL-REL-SCAN", TagScanSource.Qr, context)),
+            Capture(() => serviceB.ResolveAsync("MPL-REL-SCAN", TagScanSource.Nfc, context)));
 
         // The regression: the losing scan used to surface a
         // DbUpdateConcurrencyException as a 500 on the finder-facing page.
@@ -370,6 +370,36 @@ public sealed class ConcurrencyRelationalTests
         await using var verify = scope.NewContext();
         // Both scans are audited even though only one won the stamp race.
         Assert.Equal(2, await verify.TagScans.CountAsync(item => item.TagCode == "MPL-REL-SCAN"));
+        var sources = await verify.TagScans
+            .Where(item => item.TagCode == "MPL-REL-SCAN")
+            .Select(item => item.Source)
+            .ToListAsync();
+        Assert.Contains(TagScanSource.Qr, sources);
+        Assert.Contains(TagScanSource.Nfc, sources);
+    }
+
+    [RelationalFact]
+    public async Task OverlongScanCode_StillReturnsNotFound_InsteadOfFailingThePage()
+    {
+        await using var scope = await RelationalDatabase.CreateAsync();
+        var options = Options.Create(new MyPetLink.Api.Storage.CloudflareR2Options());
+        var context = new TagScanContext("127.0.0.1", null, "relational-test");
+        // /q serves both pet Safety Profiles and printed tag QRs, so any
+        // mistyped or crawled value reaches tag resolution. The audit column
+        // only holds 32 characters; a longer value used to abort the insert
+        // and show finders an outage message instead of "not found".
+        var overlong = new string('Z', 200);
+
+        await using var scanContext = scope.NewContext();
+        var service = new TagScanService(scanContext, options);
+        var result = await service.ResolveAsync(overlong, TagScanSource.Qr, context);
+
+        Assert.Equal("notFound", result.State);
+
+        await using var verify = scope.NewContext();
+        var recorded = await verify.TagScans.SingleAsync();
+        Assert.Equal(new string('Z', 32), recorded.TagCode);
+        Assert.Equal(TagScanSource.Qr, recorded.Source);
     }
 
     private static async Task<(TResult? Value, Exception? Error)> Capture<TResult>(Func<Task<TResult>> action)

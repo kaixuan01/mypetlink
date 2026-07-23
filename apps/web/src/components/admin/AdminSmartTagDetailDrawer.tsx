@@ -5,10 +5,12 @@ import { useEffect, useRef, useState } from "react";
 import { formatAdminDateTime, getTagTypeLabel, tagStatusTone } from "@/components/admin/adminDisplay";
 import { QrCodeButton } from "@/components/qr/QrCodeButton";
 import { Badge } from "@/components/ui/Badge";
-import { adminRoutes, qrSafetyPath, tagPath } from "@/lib/routes";
+import { adminRoutes, qrSafetyPath, tagNfcPath, tagPath, tagQrPath } from "@/lib/routes";
+import { tagScanSourceLabel, tagScanSourceOptions } from "@/lib/tagScanSource";
 import { useModalDialogFocus } from "@/lib/useModalDialogFocus";
 import { getAdminTagHistory, type AdminTagHistoryEntry } from "@/services/adminTagHistoryService";
-import { canRunSmartTagAction, getAdminSmartTagScans, getSmartTagAssignmentActions, smartTagAssignmentLabel, smartTagLifecycleLabel, type AdminSmartTag, type AdminSmartTagAction, type AdminSmartTagAssignmentAction, type AdminSmartTagScan } from "@/services/adminSmartTagService";
+import { canRunSmartTagAction, downloadAdminSmartTagScansExport, getAdminSmartTagScans, getSmartTagAssignmentActions, smartTagAssignmentLabel, smartTagLifecycleLabel, type AdminSmartTag, type AdminSmartTagAction, type AdminSmartTagAssignmentAction, type AdminSmartTagScan } from "@/services/adminSmartTagService";
+import type { TagScanSource } from "@/types";
 
 type DrawerProps = {
   busy: boolean;
@@ -39,6 +41,9 @@ function OpenSmartTagDrawer({
   const [historyResult, setHistoryResult] = useState<{ tagId: string; entries: AdminTagHistoryEntry[] | null } | null>(null);
   const [scanResult, setScanResult] = useState<{ tagId: string; entries: AdminSmartTagScan[] | null } | null>(null);
   const [showScans, setShowScans] = useState(false);
+  const [scanSource, setScanSource] = useState<TagScanSource | "">("");
+  const [scanExporting, setScanExporting] = useState(false);
+  const [scanExportError, setScanExportError] = useState("");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -49,21 +54,37 @@ function OpenSmartTagDrawer({
   }, [tag.id]);
 
   useEffect(() => {
-    if (!showScans || scanResult?.tagId === tag.id) return;
+    if (!showScans || scanResult?.tagId === `${tag.id}:${scanSource}`) return;
     const controller = new AbortController();
-    getAdminSmartTagScans(tag.id, controller.signal)
-      .then((entries) => { if (!controller.signal.aborted) setScanResult({ tagId: tag.id, entries }); })
-      .catch(() => { if (!controller.signal.aborted) setScanResult({ tagId: tag.id, entries: null }); });
+    getAdminSmartTagScans(tag.id, scanSource || undefined, controller.signal)
+      .then((entries) => { if (!controller.signal.aborted) setScanResult({ tagId: `${tag.id}:${scanSource}`, entries }); })
+      .catch(() => { if (!controller.signal.aborted) setScanResult({ tagId: `${tag.id}:${scanSource}`, entries: null }); });
     return () => controller.abort();
-  }, [scanResult?.tagId, showScans, tag.id]);
+  }, [scanResult?.tagId, scanSource, showScans, tag.id]);
 
   useModalDialogFocus({ dialogRef, initialFocusRef: closeRef, onEscape: onClose });
 
   const history = historyResult?.tagId === tag.id ? historyResult.entries : undefined;
-  const scans = scanResult?.tagId === tag.id ? scanResult.entries : undefined;
+  const scans = scanResult?.tagId === `${tag.id}:${scanSource}` ? scanResult.entries : undefined;
 
   function openScanHistory() {
     setShowScans(true);
+  }
+
+  async function exportScanHistory(format: "csv" | "xlsx") {
+    setScanExporting(true);
+    setScanExportError("");
+    try {
+      await downloadAdminSmartTagScansExport(
+        tag.id,
+        format,
+        scanSource || undefined
+      );
+    } catch {
+      setScanExportError("Scan history could not be exported. Please try again.");
+    } finally {
+      setScanExporting(false);
+    }
   }
 
   const availableActions: { id: AdminSmartTagAction; label: string; danger?: boolean }[] = [
@@ -113,11 +134,56 @@ function OpenSmartTagDrawer({
           <DetailGroup title="Activity">
             <Detail label="Activated" value={formatAdminDateTime(tag.activatedAt)} />
             <Detail label="Last scanned" value={formatAdminDateTime(tag.lastScannedAt)} />
+            <Detail label="Latest source" value={tag.latestScanSource ? tagScanSourceLabel(tag.latestScanSource) : undefined} />
             <Detail label="Total scans" value={String(tag.scanCount)} />
+            <Detail label="QR scans" value={String(tag.qrScanCount ?? 0)} />
+            {tag.hasNfc ? <Detail label="NFC taps" value={String(tag.nfcScanCount ?? 0)} /> : null}
+            <Detail label="Legacy / unknown" value={String(tag.legacyOrUnknownScanCount ?? 0)} />
             <Detail label="Created" value={formatAdminDateTime(tag.createdAt)} />
             <Detail label="Updated" value={formatAdminDateTime(tag.updatedAt)} />
             <button className="min-h-10 justify-self-start rounded-full border border-slate-200 px-4 text-xs font-extrabold text-slate-700" onClick={openScanHistory} type="button">View scan history</button>
-            {showScans ? <div className="grid gap-2 border-t border-slate-100 pt-3">{scans === undefined ? <p className="text-sm font-semibold text-slate-500">Loading scan history…</p> : scans === null ? <p className="text-sm font-semibold text-slate-500">Scan history is not available right now.</p> : scans.length === 0 ? <p className="text-sm font-semibold text-slate-500">This tag has not been scanned yet.</p> : <ol className="grid gap-2">{scans.map((scan) => <li className="rounded-xl bg-slate-50 px-3 py-2 text-sm" key={scan.id}><div className="flex justify-between gap-3"><span className="font-bold text-slate-900">{scan.resolvedState}</span><span className="font-semibold text-slate-500">{formatAdminDateTime(scan.scannedAt)}</span></div>{scan.city || scan.country || scan.deviceType ? <p className="mt-1 text-xs font-semibold text-slate-500">{[scan.city, scan.country, scan.deviceType].filter(Boolean).join(" · ")}</p> : null}</li>)}</ol>}</div> : null}
+            {showScans ? (
+              <div className="grid gap-2 border-t border-slate-100 pt-3">
+                <div className="flex flex-wrap gap-2">
+                  <label className="grid gap-1 text-xs font-bold text-slate-500">
+                    Scan source
+                    <select
+                      className="min-h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800"
+                      onChange={(event) => setScanSource(event.target.value as TagScanSource | "")}
+                      value={scanSource}
+                    >
+                      {tagScanSourceOptions
+                        .filter((option) => tag.hasNfc || option.value !== "Nfc")
+                        .map((option) => (
+                        <option key={option.value || "all"} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <button className="min-h-10 self-end rounded-full border border-slate-200 px-4 text-xs font-extrabold text-slate-700 disabled:opacity-50" disabled={scanExporting} onClick={() => void exportScanHistory("csv")} type="button">Export CSV</button>
+                  <button className="min-h-10 self-end rounded-full border border-slate-200 px-4 text-xs font-extrabold text-slate-700 disabled:opacity-50" disabled={scanExporting} onClick={() => void exportScanHistory("xlsx")} type="button">Export Excel</button>
+                </div>
+                {scanExportError ? <p className="text-sm font-semibold text-red-700" role="alert">{scanExportError}</p> : null}
+                {scans === undefined ? (
+                  <p className="text-sm font-semibold text-slate-500">Loading scan history…</p>
+                ) : scans === null ? (
+                  <p className="text-sm font-semibold text-slate-500">Scan history is not available right now.</p>
+                ) : scans.length === 0 ? (
+                  <p className="text-sm font-semibold text-slate-500">This tag has not been scanned from this source yet.</p>
+                ) : (
+                  <ol className="grid gap-2">
+                    {scans.map((scan) => (
+                      <li className="rounded-xl bg-slate-50 px-3 py-2 text-sm" key={scan.id}>
+                        <div className="flex justify-between gap-3">
+                          <span className="font-bold text-slate-900">{tagScanSourceLabel(scan.scanSource)} · {scan.resolvedState}</span>
+                          <span className="font-semibold text-slate-500">{formatAdminDateTime(scan.scannedAt)}</span>
+                        </div>
+                        {scan.city || scan.country || scan.deviceType ? <p className="mt-1 text-xs font-semibold text-slate-500">{[scan.city, scan.country, scan.deviceType].filter(Boolean).join(" · ")}</p> : null}
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </div>
+            ) : null}
           </DetailGroup>
 
           {(tag.replacementForTagCode || tag.replacedByTagCode) ? (
@@ -136,8 +202,10 @@ function OpenSmartTagDrawer({
 
           <DetailGroup title="Public pages">
             <div className="flex flex-wrap gap-2">
-              <a className="inline-flex min-h-10 items-center rounded-full border border-slate-200 px-4 text-xs font-extrabold text-slate-700" href={tagPath(tag.tagCode)} rel="noopener noreferrer" target="_blank">Open Tag Scan Page</a>
-              <QrCodeButton fileNameBase={`${tag.tagCode}-physical-tag-qr`} helperText="This is the QR printed on the physical tag." label="Show Tag QR" targetPath={tagPath(tag.tagCode)} title={`Physical Tag QR · ${tag.tagCode}`} viewLabel="Open Tag Scan Page" />
+              <a className="inline-flex min-h-10 items-center rounded-full border border-slate-200 px-4 text-xs font-extrabold text-slate-700" href={tagQrPath(tag.tagCode)} rel="noopener noreferrer" target="_blank">Open QR Scan Page</a>
+              <QrCodeButton fileNameBase={`${tag.tagCode}-physical-tag-qr`} helperText="This is the QR link printed on the physical tag." label="Show Tag QR" targetPath={tagQrPath(tag.tagCode)} title={`Physical Tag QR · ${tag.tagCode}`} viewLabel="Open QR Scan Page" />
+              {tag.hasNfc ? <a className="inline-flex min-h-10 items-center rounded-full border border-slate-200 px-4 text-xs font-extrabold text-slate-700" href={tagNfcPath(tag.tagCode)} rel="noopener noreferrer" target="_blank">Open NFC Tap Page</a> : null}
+              <a className="inline-flex min-h-10 items-center rounded-full border border-slate-200 px-4 text-xs font-extrabold text-slate-700" href={tagPath(tag.tagCode)} rel="noopener noreferrer" target="_blank">Open Legacy Tag Link</a>
               {tag.safetyCode && tag.qrSafetyEnabled ? (
                 <a className="inline-flex min-h-10 items-center rounded-full border border-slate-200 px-4 text-xs font-extrabold text-slate-700" href={qrSafetyPath(tag.safetyCode)} rel="noopener noreferrer" target="_blank">Open Safety Profile</a>
               ) : null}

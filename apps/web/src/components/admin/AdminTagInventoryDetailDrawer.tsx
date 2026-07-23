@@ -6,7 +6,7 @@ import { AdminDetailItem } from "@/components/admin/AdminPanels";
 import { getTagTypeLabel, tagStatusTone } from "@/components/admin/adminDisplay";
 import { QrCodeButton } from "@/components/qr/QrCodeButton";
 import { Badge } from "@/components/ui/Badge";
-import { getTagScanPath } from "@/lib/routes";
+import { getTagScanPath, tagNfcPath, tagPath } from "@/lib/routes";
 import {
   fulfilmentLabels,
   lifecycleLabel,
@@ -184,7 +184,7 @@ export function AdminTagInventoryDetailDrawer({
               rel="noopener noreferrer"
               target="_blank"
             >
-              View Tag Scan Page
+              Open QR Scan Page
             </a>
             <QrCodeButton
               fileNameBase={`${tag.tagCode}-physical-tag-qr`}
@@ -192,8 +192,26 @@ export function AdminTagInventoryDetailDrawer({
               label="Physical Tag QR"
               targetPath={getTagScanPath({ tagCode: tag.tagCode })}
               title={`Physical Tag QR · ${tag.tagCode}`}
-              viewLabel="View Tag Scan Page"
+              viewLabel="Open QR Scan Page"
             />
+            {tag.hasNfc ? (
+              <a
+                className="inline-flex min-h-9 items-center justify-center rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-extrabold text-slate-700 transition hover:bg-slate-50"
+                href={tagNfcPath(tag.tagCode)}
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                Open NFC Tap Page
+              </a>
+            ) : null}
+            <a
+              className="inline-flex min-h-9 items-center justify-center rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-extrabold text-slate-700 transition hover:bg-slate-50"
+              href={tagPath(tag.tagCode)}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              Open Legacy Tag Link
+            </a>
           </section>
 
           <section>

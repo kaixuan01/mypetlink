@@ -1,5 +1,11 @@
 # MyPetLink Smart Tag Product Strategy & Implementation Guide
 
+> **Current route note (July 2026):** new printed QR content uses
+> `/q/{tagCode}`, NFC uses `/n/{tagCode}`, and `/t/{tagCode}` is retained for
+> legacy manufactured content. Older `/t` examples later in this strategy
+> describe the compatible legacy flow. The current source of truth is
+> [`../operations/smart-tag-scan-sources.md`](../operations/smart-tag-scan-sources.md).
+
 ## 1. Purpose
 
 MyPetLink should support a physical **Smart Pet Tag** product that can be sold through pet shops, online stores, and direct customers.

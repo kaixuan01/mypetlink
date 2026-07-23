@@ -21,6 +21,7 @@ public sealed class TagScanService : SkeletonService, ITagScanService
 
     public async Task<TagScanPageResponse> ResolveAsync(
         string tagCode,
+        TagScanSource source,
         TagScanContext context,
         CancellationToken cancellationToken = default)
     {
@@ -28,8 +29,8 @@ public sealed class TagScanService : SkeletonService, ITagScanService
 
         if (string.IsNullOrWhiteSpace(normalizedCode))
         {
-            await RecordScanAsync(null, normalizedCode, TagScanResolvedState.NotFound, context, cancellationToken);
-            return new TagScanPageResponse("notFound", tagCode, null, null);
+            await RecordScanAsync(null, normalizedCode, TagScanResolvedState.NotFound, source, context, cancellationToken);
+            return new TagScanPageResponse("notFound", tagCode, null, source, null);
         }
 
         var tag = await _dbContext.SmartTags
@@ -50,52 +51,62 @@ public sealed class TagScanService : SkeletonService, ITagScanService
 
         if (tag is null)
         {
-            await RecordScanAsync(null, normalizedCode, TagScanResolvedState.NotFound, context, cancellationToken);
-            return new TagScanPageResponse("notFound", normalizedCode, null, null);
+            await RecordScanAsync(null, normalizedCode, TagScanResolvedState.NotFound, source, context, cancellationToken);
+            return new TagScanPageResponse("notFound", normalizedCode, null, source, null);
         }
 
         if (tag.ArchivedAt.HasValue || IsInactiveTagStatus(tag.Status))
         {
-            await RecordScanAsync(tag, normalizedCode, TagScanResolvedState.Inactive, context, cancellationToken);
-            return new TagScanPageResponse("inactive", tag.TagCode, tag.Status.ToString(), null);
+            await RecordScanAsync(tag, normalizedCode, TagScanResolvedState.Inactive, source, context, cancellationToken);
+            return new TagScanPageResponse("inactive", tag.TagCode, tag.Status.ToString(), source, null);
         }
 
         if (tag.Status == SmartTagStatus.Unclaimed || !tag.PetId.HasValue)
         {
-            await RecordScanAsync(tag, normalizedCode, TagScanResolvedState.Unclaimed, context, cancellationToken);
-            return new TagScanPageResponse("unclaimed", tag.TagCode, tag.Status.ToString(), null);
+            await RecordScanAsync(tag, normalizedCode, TagScanResolvedState.Unclaimed, source, context, cancellationToken);
+            return new TagScanPageResponse(
+                source == TagScanSource.Nfc ? "nfcActivationRequired" : "unclaimed",
+                tag.TagCode,
+                tag.Status.ToString(),
+                source,
+                null);
         }
 
         if (!IsActiveSafetyPet(tag.Pet))
         {
-            await RecordScanAsync(tag, normalizedCode, TagScanResolvedState.Inactive, context, cancellationToken);
-            return new TagScanPageResponse("inactive", tag.TagCode, tag.Status.ToString(), null);
+            await RecordScanAsync(tag, normalizedCode, TagScanResolvedState.Inactive, source, context, cancellationToken);
+            return new TagScanPageResponse("inactive", tag.TagCode, tag.Status.ToString(), source, null);
         }
 
         if (tag.Status is SmartTagStatus.Pending or SmartTagStatus.Preparing or SmartTagStatus.Delivered)
         {
-            await RecordScanAsync(tag, normalizedCode, TagScanResolvedState.Pending, context, cancellationToken);
-            return new TagScanPageResponse("pending", tag.TagCode, tag.Status.ToString(), null);
+            await RecordScanAsync(tag, normalizedCode, TagScanResolvedState.Pending, source, context, cancellationToken);
+            return new TagScanPageResponse(
+                source == TagScanSource.Nfc ? "nfcActivationRequired" : "pending",
+                tag.TagCode,
+                tag.Status.ToString(),
+                source,
+                null);
         }
 
         if (tag.Status != SmartTagStatus.Active)
         {
-            await RecordScanAsync(tag, normalizedCode, TagScanResolvedState.Inactive, context, cancellationToken);
-            return new TagScanPageResponse("inactive", tag.TagCode, tag.Status.ToString(), null);
+            await RecordScanAsync(tag, normalizedCode, TagScanResolvedState.Inactive, source, context, cancellationToken);
+            return new TagScanPageResponse("inactive", tag.TagCode, tag.Status.ToString(), source, null);
         }
 
         var profile = BuildSafetyProfile(tag.Pet!, _r2Options.PublicBaseUrl);
 
         if (profile is null)
         {
-            await RecordScanAsync(tag, normalizedCode, TagScanResolvedState.Inactive, context, cancellationToken);
-            return new TagScanPageResponse("inactive", tag.TagCode, tag.Status.ToString(), null);
+            await RecordScanAsync(tag, normalizedCode, TagScanResolvedState.Inactive, source, context, cancellationToken);
+            return new TagScanPageResponse("inactive", tag.TagCode, tag.Status.ToString(), source, null);
         }
 
         tag.LastScannedAt = DateTimeOffset.UtcNow;
-        await RecordScanAsync(tag, normalizedCode, TagScanResolvedState.Active, context, cancellationToken);
+        await RecordScanAsync(tag, normalizedCode, TagScanResolvedState.Active, source, context, cancellationToken);
 
-        return new TagScanPageResponse("active", tag.TagCode, tag.Status.ToString(), profile);
+        return new TagScanPageResponse("active", tag.TagCode, tag.Status.ToString(), source, profile);
     }
 
     public async Task SubmitLocationConsentAsync(
@@ -138,6 +149,7 @@ public sealed class TagScanService : SkeletonService, ITagScanService
         SmartTag? tag,
         string tagCode,
         TagScanResolvedState state,
+        TagScanSource source,
         TagScanContext context,
         CancellationToken cancellationToken)
     {
@@ -145,8 +157,12 @@ public sealed class TagScanService : SkeletonService, ITagScanService
         {
             SmartTagId = tag?.Id,
             PetId = tag?.PetId,
-            TagCode = tag?.TagCode ?? tagCode,
+            // A finder can type or paste anything into a scan URL. The audit
+            // column holds 32 characters, so an over-long value is clipped
+            // rather than failing the scan page it was meant to record.
+            TagCode = TrimToMax(tag?.TagCode ?? tagCode, 32) ?? "",
             ResolvedState = state,
+            Source = source,
             ScanTime = DateTimeOffset.UtcNow,
             IpAddress = TrimToMax(context.IpAddress, 64),
             Referer = TrimToMax(context.Referer, 600),
