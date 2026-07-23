@@ -263,9 +263,7 @@ export async function fetchPublicSocialProfile(
 export function buildPublicProfileHead(profile: EdgePublicProfile) {
   const name = cleanMetadataText(profile.name, 80) || "Pet";
   const title = `Meet ${name} | MyPetLink`;
-  const pageDescription = `View ${name}'s owner-approved pet profile, memories and safety information on MyPetLink.`;
-  const openGraphDescription = `View ${name}'s owner-approved pet profile, memories and safety information.`;
-  const twitterDescription = `View ${name}'s owner-approved pet profile on MyPetLink.`;
+  const description = `View ${name}'s public profile, memories, and important safety information.`;
   const canonical = `${productionSiteOrigin}/p/${encodeURIComponent(profile.publicSlug)}`;
   const socialImage = `${productionSiteOrigin}/social/pets/${encodeURIComponent(profile.publicSlug)}.jpg?v=${encodeURIComponent(profile.publicProfileVersion)}`;
   const imageAlt = `${name}'s profile on MyPetLink`;
@@ -275,12 +273,12 @@ export function buildPublicProfileHead(profile: EdgePublicProfile) {
 
   return [
     `<title>${escapeHtmlText(title)}</title>`,
-    meta("name", "description", pageDescription),
+    meta("name", "description", description),
     meta("name", "robots", robots),
     meta("name", "googlebot", robots),
     `<link rel="canonical" href="${escapeHtmlAttribute(canonical)}">`,
     meta("property", "og:title", title),
-    meta("property", "og:description", openGraphDescription),
+    meta("property", "og:description", description),
     meta("property", "og:type", "website"),
     meta("property", "og:url", canonical),
     meta("property", "og:image", socialImage),
@@ -293,7 +291,7 @@ export function buildPublicProfileHead(profile: EdgePublicProfile) {
     meta("property", "og:locale", "en_MY"),
     meta("name", "twitter:card", "summary_large_image"),
     meta("name", "twitter:title", title),
-    meta("name", "twitter:description", twitterDescription),
+    meta("name", "twitter:description", description),
     meta("name", "twitter:image", socialImage),
     meta("name", "twitter:image:alt", imageAlt),
   ].join("");

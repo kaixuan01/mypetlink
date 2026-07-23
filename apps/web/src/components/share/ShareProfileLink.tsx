@@ -2,7 +2,11 @@
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { Icon } from "@/components/ui/Icon";
-import { addPublicProfileShareVersion } from "@/lib/publicProfileSocial";
+import {
+  addPublicProfileShareVersion,
+  getPublicProfileSocialDescription,
+  getPublicProfileSocialTitle,
+} from "@/lib/publicProfileSocial";
 import { getServerFallbackBaseUrl } from "@/lib/siteUrl";
 import type { PetProfileTheme } from "@/lib/petProfileThemes";
 
@@ -81,8 +85,8 @@ export function ShareProfileLink({
     if (navigator.share) {
       try {
         await navigator.share({
-          title: `${petName}'s MyPetLink Profile`,
-          text: `View ${petName}'s pet profile on MyPetLink.`,
+          title: getPublicProfileSocialTitle(petName),
+          text: getPublicProfileSocialDescription(petName),
           url: fullUrl,
         });
         setStatus({ message: "Profile shared.", url: fullUrl });

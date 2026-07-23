@@ -20,6 +20,10 @@ import {
 } from "@/lib/ownerSettings";
 import { getPetSummaryLabel } from "@/lib/petDisplay";
 import { getActivePets, getMemorialPets } from "@/lib/petLifecycle";
+import {
+  getPublicProfileSocialDescription,
+  getPublicProfileSocialTitle,
+} from "@/lib/publicProfileSocial";
 import { ownerRoutes } from "@/lib/routes";
 import { isApiConfigured } from "@/services/apiConfig";
 import { getPetMoments } from "@/services/momentService";
@@ -475,8 +479,8 @@ function ShareProfileActions({
     if (typeof navigator.share === "function") {
       try {
         await navigator.share({
-          title: `${pet.name} on MyPetLink`,
-          text: `Meet ${pet.name}! See photos and their story on MyPetLink.`,
+          title: getPublicProfileSocialTitle(pet.name),
+          text: getPublicProfileSocialDescription(pet.name),
           url,
         });
         return;

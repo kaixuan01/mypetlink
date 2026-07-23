@@ -31,8 +31,8 @@ describe("ShareProfileLink", () => {
 
     await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
     expect(share).toHaveBeenCalledWith({
-      title: "Nori's MyPetLink Profile",
-      text: "View Nori's pet profile on MyPetLink.",
+      title: "Meet Nori | MyPetLink",
+      text: "View Nori's public profile, memories, and important safety information.",
       url: "https://mypetlink.com.my/p/nori-futurepet1234?share=0123456789abcdef",
     });
     expect(JSON.stringify(share.mock.calls)).not.toContain("/social/pets/");

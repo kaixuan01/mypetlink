@@ -323,6 +323,55 @@ public sealed class ConcurrencyRelationalTests
         },
     };
 
+    [RelationalFact]
+    public async Task ConcurrentTagScans_DoNotFailTheFinderPage_AndRecordEveryScan()
+    {
+        await using var scope = await RelationalDatabase.CreateAsync();
+
+        await using (var seed = scope.NewContext())
+        {
+            SeedOwnerAndPet(seed);
+            var (product, variant) = SeedProductWithVariant(seed);
+            seed.AddRange(product, variant, new SmartTag
+            {
+                TagCode = "MPL-REL-SCAN",
+                ProductVariant = variant,
+                HasNfc = variant.SupportsNfc,
+                Variant = variant.TagVariant,
+                Status = SmartTagStatus.Active,
+                FulfilmentStatus = TagFulfilmentStatus.Generated,
+                OwnerUserId = OwnerId,
+                PetId = PetId,
+                ActivatedAt = DateTimeOffset.UtcNow,
+            });
+            await seed.SaveChangesAsync();
+        }
+
+        // Two finders scanning at the same moment both touch the tag's
+        // last-scanned stamp, which is guarded by a rowversion. The loser of
+        // that race must still get the safety profile — never a 500.
+        var options = Options.Create(new MyPetLink.Api.Storage.CloudflareR2Options());
+        var context = new TagScanContext("127.0.0.1", null, "relational-test");
+
+        await using var contextA = scope.NewContext();
+        await using var contextB = scope.NewContext();
+        var serviceA = new TagScanService(contextA, options);
+        var serviceB = new TagScanService(contextB, options);
+
+        var results = await Task.WhenAll(
+            Capture(() => serviceA.ResolveAsync("MPL-REL-SCAN", context)),
+            Capture(() => serviceB.ResolveAsync("MPL-REL-SCAN", context)));
+
+        // The regression: the losing scan used to surface a
+        // DbUpdateConcurrencyException as a 500 on the finder-facing page.
+        Assert.All(results, result => Assert.Null(result.Error));
+        Assert.All(results, result => Assert.Equal("MPL-REL-SCAN", result.Value!.TagCode));
+
+        await using var verify = scope.NewContext();
+        // Both scans are audited even though only one won the stamp race.
+        Assert.Equal(2, await verify.TagScans.CountAsync(item => item.TagCode == "MPL-REL-SCAN"));
+    }
+
     private static async Task<(TResult? Value, Exception? Error)> Capture<TResult>(Func<Task<TResult>> action)
     {
         try

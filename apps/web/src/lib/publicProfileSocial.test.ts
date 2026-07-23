@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { samplePet } from "@/data/samplePet";
 import {
   addPublicProfileShareVersion,
+  getPublicProfileSocialDescription,
+  getPublicProfileSocialTitle,
   getPublicProfileShareVersion,
   getPublicProfileSocialImagePath,
   isPublicProfileShareable,
@@ -10,6 +12,16 @@ import {
 import { toPublicProfile } from "@/services/petService";
 
 describe("public profile social sharing", () => {
+  it("builds dynamic, safely cleaned social copy", () => {
+    expect(getPublicProfileSocialTitle("Nori")).toBe("Meet Nori | MyPetLink");
+    expect(getPublicProfileSocialDescription("Nori")).toBe(
+      "View Nori's public profile, memories, and important safety information."
+    );
+    expect(getPublicProfileSocialDescription("  O'Malley\u0000  ")).toBe(
+      "View O'Malley's public profile, memories, and important safety information."
+    );
+  });
+
   it("projects only public card fields and never owner or safety details", () => {
     const profile = toPublicProfile(samplePet);
     const card = toPublicProfileSocialCardData(profile);

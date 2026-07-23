@@ -32,8 +32,13 @@ describe("Cloudflare public-profile edge metadata", () => {
 
     expect(head).toContain("<title>Meet Nori | MyPetLink</title>");
     expect(head).toContain(
-      "View Nori&#39;s owner-approved pet profile, memories and safety information on MyPetLink."
+      "View Nori&#39;s public profile, memories, and important safety information."
     );
+    expect(
+      head.match(
+        /public profile, memories, and important safety information\./g
+      )
+    ).toHaveLength(3);
     expect(head).toContain(
       'rel="canonical" href="https://mypetlink.com.my/p/nori-futurepet1234"'
     );

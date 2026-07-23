@@ -8,6 +8,16 @@ export const publicProfileSocialImageSize = {
 
 export const publicProfileSocialImageContentType = "image/jpeg";
 
+export function getPublicProfileSocialTitle(petName: string) {
+  const name = cleanSocialText(petName, 80) || "Pet";
+  return `Meet ${name} | MyPetLink`;
+}
+
+export function getPublicProfileSocialDescription(petName: string) {
+  const name = cleanSocialText(petName, 80) || "Pet";
+  return `View ${name}'s public profile, memories, and important safety information.`;
+}
+
 export type PublicProfileSocialCardData = {
   ageLabel?: string;
   coverUrl?: string;

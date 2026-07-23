@@ -153,7 +153,29 @@ public sealed class TagScanService : SkeletonService, ITagScanService
             UserAgent = TrimToMax(context.UserAgent, 600)
         });
 
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Two people scanning the same tag at once (or a duplicated request)
+            // makes the last-scanned touch lose its row-version race. That touch
+            // is only telemetry, and the concurrent scan has already set it to
+            // effectively the same moment — but the scan record itself must
+            // still be written, and a finder trying to return a lost pet must
+            // never be shown an error because of it. Drop the contested update
+            // and keep the audit row.
+            foreach (var entry in _dbContext.ChangeTracker.Entries<SmartTag>())
+            {
+                if (entry.State == EntityState.Modified)
+                {
+                    entry.State = EntityState.Unchanged;
+                }
+            }
+
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
     }
 
     private static bool IsActiveSafetyPet(Pet? pet)

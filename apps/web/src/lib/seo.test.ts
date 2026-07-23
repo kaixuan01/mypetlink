@@ -158,6 +158,7 @@ describe("public profile social metadata", () => {
     };
     const twitter = metadata.twitter as {
       card?: string;
+      description?: string;
       images?: Array<{ alt?: string; url?: string }>;
       title?: string;
     };
@@ -165,11 +166,11 @@ describe("public profile social metadata", () => {
 
     expect(metadata.title).toEqual({ absolute: "Meet Topu | MyPetLink" });
     expect(metadata.description).toBe(
-      "View Topu's owner-approved pet profile, memories and safety information on MyPetLink."
+      "View Topu's public profile, memories, and important safety information."
     );
     expect(openGraph.title).toBe("Meet Topu | MyPetLink");
     expect(openGraph.description).toBe(
-      "View Topu's owner-approved pet profile, memories and safety information."
+      "View Topu's public profile, memories, and important safety information."
     );
     expect(openGraph.url).toBe("https://mypetlink.com.my/p/topu-pnpr4ipnr6ppelnsn");
     expect(image?.url).toMatch(
@@ -182,6 +183,9 @@ describe("public profile social metadata", () => {
     expect(image?.alt).toBe("Topu's profile on MyPetLink");
     expect(twitter.card).toBe("summary_large_image");
     expect(twitter.title).toBe("Meet Topu | MyPetLink");
+    expect(twitter.description).toBe(
+      "View Topu's public profile, memories, and important safety information."
+    );
     expect(twitter.images?.[0]).toEqual({
       url: image?.url,
       alt: "Topu's profile on MyPetLink",

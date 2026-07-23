@@ -291,7 +291,8 @@ describe("DashboardClient with pets", () => {
     await waitFor(() => expect(mocks.share).toHaveBeenCalledOnce());
     expect(mocks.share).toHaveBeenCalledWith(
       expect.objectContaining({
-        title: "Milo on MyPetLink",
+        title: "Meet Milo | MyPetLink",
+        text: "View Milo's public profile, memories, and important safety information.",
         url: expect.stringMatching(/\/p\/[^?]+$/),
       })
     );

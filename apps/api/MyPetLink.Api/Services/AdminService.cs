@@ -441,7 +441,7 @@ public sealed class AdminService : SkeletonService, IAdminService
         }
 
         var oldState = OrderStateSnapshot(order);
-        var tag = RequireAssignedOrderTag(order, "start preparation");
+        var tag = RequireAssignedOrderTag(order, "start preparing");
         order.Status = OrderStatus.PreparingTag;
         order.TrackingStatus = "Tag is being prepared.";
         tag.Status = SmartTagStatus.Preparing;

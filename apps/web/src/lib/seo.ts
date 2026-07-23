@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { siteConfig } from "@/config/site";
 import {
+  getPublicProfileSocialDescription,
   getPublicProfileSocialImagePath,
+  getPublicProfileSocialTitle,
   isPublicProfileShareable,
   publicProfileSocialImageContentType,
   publicProfileSocialImageSize,
@@ -123,10 +125,8 @@ export function createPublicProfileMetadata({
     return createUnavailablePublicProfileMetadata();
   }
 
-  const title = `Meet ${profile.name} | MyPetLink`;
-  const description = `View ${profile.name}'s owner-approved pet profile, memories and safety information on MyPetLink.`;
-  const openGraphDescription = `View ${profile.name}'s owner-approved pet profile, memories and safety information.`;
-  const twitterDescription = `View ${profile.name}'s owner-approved pet profile on MyPetLink.`;
+  const title = getPublicProfileSocialTitle(profile.name);
+  const description = getPublicProfileSocialDescription(profile.name);
   const canonical = canonicalUrl(profile.publicProfilePath);
   const socialImage = canonicalUrl(getPublicProfileSocialImagePath(profile));
   const imageAlt = `${profile.name}'s profile on MyPetLink`;
@@ -138,7 +138,7 @@ export function createPublicProfileMetadata({
     robots: isSearchSample ? indexableRobots : directAccessRobots,
     openGraph: {
       title,
-      description: openGraphDescription,
+      description,
       url: canonical,
       siteName: siteConfig.productName,
       locale: "en_MY",
@@ -157,7 +157,7 @@ export function createPublicProfileMetadata({
     twitter: {
       card: "summary_large_image",
       title,
-      description: twitterDescription,
+      description,
       images: [{ url: socialImage, alt: imageAlt }],
     },
   };
