@@ -91,6 +91,7 @@ function OpenSmartTagDrawer({
     { id: "mark-lost", label: "Mark Tag as Lost", danger: true },
     { id: "disable", label: "Disable Tag", danger: true },
     { id: "reactivate", label: "Reactivate Tag" },
+    { id: "return-to-unclaimed", label: "Return to Unclaimed" },
     { id: "archive", label: "Archive Tag" },
   ];
   const actions: { id: AdminSmartTagAction; label: string; danger?: boolean }[] = tag.isArchived

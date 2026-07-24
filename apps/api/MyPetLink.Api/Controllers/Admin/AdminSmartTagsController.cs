@@ -81,6 +81,10 @@ public sealed class AdminSmartTagsController : ApiControllerBase
     public Task<IActionResult> Reactivate(Guid tagId, [FromBody] AdminSmartTagActionRequest? request, CancellationToken cancellationToken)
         => RunAction(tagId, "reactivate", request?.Reason, cancellationToken);
 
+    [HttpPost("{tagId:guid}/return-to-unclaimed")]
+    public Task<IActionResult> ReturnToUnclaimed(Guid tagId, [FromBody] AdminSmartTagActionRequest? request, CancellationToken cancellationToken)
+        => RunAction(tagId, "return-to-unclaimed", request?.Reason, cancellationToken);
+
     [HttpPost("{tagId:guid}/assignment/claim")]
     public async Task<IActionResult> Claim(Guid tagId, [FromBody] AdminSmartTagClaimRequest request, CancellationToken cancellationToken)
         => Ok(ApiEnvelope.Ok(await _smartTagService.ClaimAsync(

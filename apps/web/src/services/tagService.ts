@@ -470,6 +470,15 @@ export function writeAdminTagCollection(tags: PetTag[]) {
   writeStoredCollection(TAG_STORAGE_KEY, tags);
 }
 
+export function clearAdminOrderTagAssignment(tagId: string) {
+  writeStoredCollection(
+    ORDER_STORAGE_KEY,
+    getOrderCollection().map((order) =>
+      order.tagId === tagId ? { ...order, tagId: undefined } : order
+    )
+  );
+}
+
 export async function getOrders() {
   if (canUseOwnerTagApi()) {
     const response = await apiRequest<BackendTagOrder[]>(

@@ -107,6 +107,121 @@ public sealed class TagScanSourceTests
     }
 
     [Fact]
+    public async Task AwaitingActivationRequiresQrFlowAndNeverReturnsSafetyData()
+    {
+        await using var db = CreateDb();
+        var owner = new User
+        {
+            Email = "pending-owner@example.com",
+            NormalizedEmail = "PENDING-OWNER@EXAMPLE.COM",
+            DisplayName = "Pending Owner",
+            Status = UserStatus.Active,
+        };
+        var pet = new Pet
+        {
+            OwnerUser = owner,
+            OwnerUserId = owner.Id,
+            Name = "Pending Pet",
+            Slug = "pending-pet",
+            Species = "Cat",
+            SafetySetting = new PetSafetySetting
+            {
+                SafetyCode = "safe-pending",
+                QrSafetyEnabled = true,
+            },
+        };
+        db.AddRange(owner, pet, new SmartTag
+        {
+            TagCode = "MPL-PENDING-SOURCE",
+            Status = SmartTagStatus.Delivered,
+            HasNfc = true,
+            Variant = "Standard",
+            OwnerUser = owner,
+            OwnerUserId = owner.Id,
+            Pet = pet,
+            PetId = pet.Id,
+        });
+        await db.SaveChangesAsync();
+        var service = CreateService(db);
+
+        var qr = await service.ResolveAsync(
+            "MPL-PENDING-SOURCE", TagScanSource.Qr, ScanContext);
+        var nfc = await service.ResolveAsync(
+            "MPL-PENDING-SOURCE", TagScanSource.Nfc, ScanContext);
+        var legacy = await service.ResolveAsync(
+            "MPL-PENDING-SOURCE", TagScanSource.Legacy, ScanContext);
+
+        Assert.Equal("pending", qr.State);
+        Assert.Equal("nfcActivationRequired", nfc.State);
+        Assert.Equal("pending", legacy.State);
+        Assert.Null(qr.Profile);
+        Assert.Null(nfc.Profile);
+        Assert.Null(legacy.Profile);
+    }
+
+    [Fact]
+    public async Task ReplacedAndArchivedTagsNeverExposePreviousSafetyProfile()
+    {
+        await using var db = CreateDb();
+        var owner = new User
+        {
+            Email = "inactive-owner@example.com",
+            NormalizedEmail = "INACTIVE-OWNER@EXAMPLE.COM",
+            DisplayName = "Inactive Owner",
+            Status = UserStatus.Active,
+        };
+        var pet = new Pet
+        {
+            OwnerUser = owner,
+            OwnerUserId = owner.Id,
+            Name = "Private Pet",
+            Slug = "private-pet",
+            Species = "Dog",
+            SafetySetting = new PetSafetySetting
+            {
+                SafetyCode = "safe-private",
+                QrSafetyEnabled = true,
+                ShowPhone = true,
+            },
+            Contact = new PetContact
+            {
+                PhoneE164 = "+60123456789",
+            },
+        };
+        db.AddRange(
+            owner,
+            pet,
+            BoundTag("MPL-REPLACED-SOURCE", SmartTagStatus.Replaced, owner, pet),
+            BoundTag(
+                "MPL-ARCHIVED-SOURCE",
+                SmartTagStatus.Archived,
+                owner,
+                pet,
+                DateTimeOffset.UtcNow));
+        await db.SaveChangesAsync();
+        var service = CreateService(db);
+
+        foreach (var code in new[]
+                 {
+                     "MPL-REPLACED-SOURCE",
+                     "MPL-ARCHIVED-SOURCE"
+                 })
+        {
+            foreach (var source in new[]
+                     {
+                         TagScanSource.Qr,
+                         TagScanSource.Nfc,
+                         TagScanSource.Legacy
+                     })
+            {
+                var result = await service.ResolveAsync(code, source, ScanContext);
+                Assert.Equal("inactive", result.State);
+                Assert.Null(result.Profile);
+            }
+        }
+    }
+
+    [Fact]
     public async Task ControllerRouteSource_CannotBeOverriddenByClientInput()
     {
         var service = new CapturingTagScanService();
@@ -190,6 +305,26 @@ public sealed class TagScanSourceTests
             Source = source,
             ResolvedState = TagScanResolvedState.Active,
             ScanTime = DateTimeOffset.UtcNow,
+        };
+
+    private static SmartTag BoundTag(
+        string code,
+        SmartTagStatus status,
+        User owner,
+        Pet pet,
+        DateTimeOffset? archivedAt = null) =>
+        new()
+        {
+            TagCode = code,
+            Status = status,
+            HasNfc = true,
+            Variant = "Standard",
+            OwnerUser = owner,
+            OwnerUserId = owner.Id,
+            Pet = pet,
+            PetId = pet.Id,
+            ActivatedAt = DateTimeOffset.UtcNow.AddDays(-1),
+            ArchivedAt = archivedAt,
         };
 
     private sealed class CapturingTagScanService : SkeletonService, ITagScanService

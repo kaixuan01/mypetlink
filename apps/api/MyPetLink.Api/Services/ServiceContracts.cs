@@ -452,13 +452,6 @@ public interface IAdminService : ISkeletonService
 
     Task<AdminSmartTagResponse> GetTagAsync(Guid tagId, CancellationToken cancellationToken = default);
 
-    Task<AdminSmartTagResponse> UpdateTagStatusAsync(
-        Guid? currentUserId,
-        Guid tagId,
-        string action,
-        string? reason,
-        CancellationToken cancellationToken = default);
-
     Task<(IReadOnlyCollection<AdminOwnerListItemResponse> Items, int Total)> ListOwnersAsync(
         int page,
         int pageSize,

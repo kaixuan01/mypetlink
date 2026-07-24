@@ -168,7 +168,11 @@ public sealed class AdminSmartTagService : SkeletonService, IAdminSmartTagServic
             item => item.Id == tagId && item.DeletedAt == null, cancellationToken)
             ?? throw NotFound();
 
-        ApplyAction(tag, action, reason, admin.Id);
+        var returnedToUnclaimed = ApplyAction(tag, action, reason, admin.Id);
+        if (returnedToUnclaimed)
+        {
+            await ClearCurrentOrderAssignmentsAsync([tag.Id], cancellationToken);
+        }
         await _dbContext.SaveChangesAsync(cancellationToken);
         return await GetAsync(tag.Id, cancellationToken);
     }
@@ -346,9 +350,11 @@ public sealed class AdminSmartTagService : SkeletonService, IAdminSmartTagServic
     {
         var admin = await RequireAdminAsync(currentUserId, cancellationToken);
         var action = Normalize(request.Action).ToLowerInvariant();
-        if (action is not ("disable" or "archive"))
+        if (action is not ("disable" or "archive" or "reactivate" or "return-to-unclaimed"))
         {
-            throw ValidationFailed("action", "Choose Disable selected or Archive selected.");
+            throw ValidationFailed(
+                "action",
+                "Choose Disable selected, Reactivate selected, Return selected to Unclaimed, or Archive selected.");
         }
 
         var requestedIds = request.TagIds.Distinct().ToArray();
@@ -356,6 +362,7 @@ public sealed class AdminSmartTagService : SkeletonService, IAdminSmartTagServic
             .Where(tag => tag.DeletedAt == null && requestedIds.Contains(tag.Id))
             .ToDictionaryAsync(tag => tag.Id, cancellationToken);
         var failures = new List<AdminSmartTagBulkFailure>();
+        var returnedToUnclaimed = new List<Guid>();
         var updated = 0;
 
         foreach (var id in requestedIds)
@@ -368,7 +375,10 @@ public sealed class AdminSmartTagService : SkeletonService, IAdminSmartTagServic
 
             try
             {
-                ApplyAction(tag, action, request.Reason, admin.Id);
+                if (ApplyAction(tag, action, request.Reason, admin.Id))
+                {
+                    returnedToUnclaimed.Add(tag.Id);
+                }
                 updated++;
             }
             catch (ApiException exception)
@@ -380,6 +390,10 @@ public sealed class AdminSmartTagService : SkeletonService, IAdminSmartTagServic
 
         if (updated > 0)
         {
+            if (returnedToUnclaimed.Count > 0)
+            {
+                await ClearCurrentOrderAssignmentsAsync(returnedToUnclaimed, cancellationToken);
+            }
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
 
@@ -559,16 +573,21 @@ public sealed class AdminSmartTagService : SkeletonService, IAdminSmartTagServic
             _dbContext.SmartTags.Where(candidate => candidate.ReplacementForTagId == tag.Id && candidate.DeletedAt == null)
                 .Select(candidate => candidate.TagCode).FirstOrDefault()));
 
-    private void ApplyAction(SmartTag tag, string actionValue, string? reason, Guid actorId)
+    private bool ApplyAction(SmartTag tag, string actionValue, string? reason, Guid actorId)
     {
         var action = Normalize(actionValue).ToLowerInvariant();
         var oldStatus = tag.Status;
         var oldArchivedAt = tag.ArchivedAt;
+        var oldOwnerUserId = tag.OwnerUserId;
+        var oldPetId = tag.PetId;
+        var oldOrderId = tag.OrderId;
+        var oldActivatedAt = tag.ActivatedAt;
+        var oldReplacementForTagId = tag.ReplacementForTagId;
         var now = DateTimeOffset.UtcNow;
 
         switch (action)
         {
-            case "disable" when tag.ArchivedAt == null && tag.Status is SmartTagStatus.Active or SmartTagStatus.Delivered or SmartTagStatus.Unclaimed:
+            case "disable" when tag.ArchivedAt == null && tag.Status is SmartTagStatus.Active or SmartTagStatus.Delivered:
                 tag.Status = SmartTagStatus.Disabled;
                 break;
             case "mark-lost" when tag.ArchivedAt == null && tag.Status is SmartTagStatus.Active or SmartTagStatus.Delivered:
@@ -585,7 +604,13 @@ public sealed class AdminSmartTagService : SkeletonService, IAdminSmartTagServic
             case "reactivate" when tag.ArchivedAt == null
                 && tag.Status is SmartTagStatus.Disabled or SmartTagStatus.Lost
                 && tag.OwnerUserId.HasValue && tag.PetId.HasValue:
-                tag.Status = tag.ActivatedAt.HasValue ? SmartTagStatus.Active : SmartTagStatus.Delivered;
+                tag.Status = SmartTagStatus.Active;
+                tag.ActivatedAt ??= now;
+                break;
+            case "return-to-unclaimed" when tag.ArchivedAt == null
+                && tag.Status == SmartTagStatus.Disabled
+                && !tag.OwnerUserId.HasValue && !tag.PetId.HasValue:
+                ReturnToUnclaimed(tag);
                 break;
             default:
                 throw ValidationFailed("action", $"{ActionLabel(action)} is not available for a {LifecycleLabel(tag)} tag.");
@@ -593,8 +618,60 @@ public sealed class AdminSmartTagService : SkeletonService, IAdminSmartTagServic
 
         tag.UpdatedAt = now;
         _auditLogService.Append(actorId, ActorType.Admin, $"smart-tags.{action}", "SmartTag", tag.Id,
-            new { status = oldStatus.ToString(), archivedAt = oldArchivedAt },
-            new { status = tag.Status.ToString(), archivedAt = tag.ArchivedAt, reason = NormalizeOptional(reason) });
+            new
+            {
+                status = oldStatus.ToString(),
+                archivedAt = oldArchivedAt,
+                ownerUserId = oldOwnerUserId,
+                petId = oldPetId,
+                orderId = oldOrderId,
+                activatedAt = oldActivatedAt,
+                replacementForTagId = oldReplacementForTagId
+            },
+            new
+            {
+                status = tag.Status.ToString(),
+                archivedAt = tag.ArchivedAt,
+                ownerUserId = tag.OwnerUserId,
+                petId = tag.PetId,
+                orderId = tag.OrderId,
+                activatedAt = tag.ActivatedAt,
+                replacementForTagId = tag.ReplacementForTagId,
+                reason = NormalizeOptional(reason)
+            });
+        return action == "return-to-unclaimed";
+    }
+
+    private async Task ClearCurrentOrderAssignmentsAsync(
+        IReadOnlyCollection<Guid> tagIds,
+        CancellationToken cancellationToken)
+    {
+        var orders = await _dbContext.TagOrders
+            .Where(order => order.SmartTagId.HasValue && tagIds.Contains(order.SmartTagId.Value))
+            .ToListAsync(cancellationToken);
+        var now = DateTimeOffset.UtcNow;
+        foreach (var order in orders)
+        {
+            order.SmartTagId = null;
+            order.UpdatedAt = now;
+        }
+    }
+
+    private static void ReturnToUnclaimed(SmartTag tag)
+    {
+        // The tag becomes reusable inventory, while scan and audit history stay
+        // intact. Current assignment links must be removed so a future scan or
+        // activation cannot resolve through a previous owner or pet.
+        tag.OwnerUserId = null;
+        tag.OwnerUser = null;
+        tag.PetId = null;
+        tag.Pet = null;
+        tag.OrderId = null;
+        tag.Order = null;
+        tag.ReplacementForTagId = null;
+        tag.ReplacementForTag = null;
+        tag.ActivatedAt = null;
+        tag.Status = SmartTagStatus.Unclaimed;
     }
 
     private static string ActionLabel(string action) => action switch
@@ -604,6 +681,7 @@ public sealed class AdminSmartTagService : SkeletonService, IAdminSmartTagServic
         "archive" => "Archive",
         "restore" => "Restore",
         "reactivate" => "Reactivate",
+        "return-to-unclaimed" => "Return to Unclaimed",
         _ => "This action"
     };
 

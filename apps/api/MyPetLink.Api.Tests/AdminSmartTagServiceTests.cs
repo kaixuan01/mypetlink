@@ -1,10 +1,12 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using MyPetLink.Api.Common;
 using MyPetLink.Api.Data;
 using MyPetLink.Api.DTOs;
 using MyPetLink.Api.Entities;
 using MyPetLink.Api.Services;
+using MyPetLink.Api.Storage;
 
 namespace MyPetLink.Api.Tests;
 
@@ -77,6 +79,29 @@ public sealed class AdminSmartTagServiceTests
     }
 
     [Fact]
+    public async Task UnclaimedUnassignedTagCannotBeDisabledButCanBeArchived()
+    {
+        using var harness = await Harness.CreateAsync();
+        var tag = await harness.Db.SmartTags.SingleAsync(item => item.Status == SmartTagStatus.Unclaimed);
+
+        var invalid = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Service.UpdateStatusAsync(Harness.AdminId, tag.Id, "disable", null));
+
+        Assert.Equal(StatusCodes.Status400BadRequest, invalid.StatusCode);
+        Assert.Equal("validation_failed", invalid.Code);
+        Assert.Contains("not available", invalid.Details!["action"].Single());
+        Assert.Equal(SmartTagStatus.Unclaimed, (await harness.Db.SmartTags.FindAsync(tag.Id))!.Status);
+
+        var archived = await harness.Service.UpdateStatusAsync(
+            Harness.AdminId, tag.Id, "archive", "Defective inventory");
+        Assert.Equal(SmartTagStatus.Archived, archived.Status);
+        Assert.True(archived.IsArchived);
+        Assert.Contains(
+            await harness.Db.AuditLogs.ToListAsync(),
+            log => log.Action == "smart-tags.archive");
+    }
+
+    [Fact]
     public async Task BulkActionReturnsMixedFailuresWithoutChangingInvalidRows()
     {
         using var harness = await Harness.CreateAsync();
@@ -87,6 +112,33 @@ public sealed class AdminSmartTagServiceTests
         Assert.Equal(1, result.UpdatedCount);
         Assert.Single(result.Failures);
         Assert.Equal(SmartTagStatus.Replaced, (await harness.Db.SmartTags.FindAsync(replaced.Id))!.Status);
+    }
+
+    [Fact]
+    public async Task BulkRecoveryUpdatesEligibleRowsAndReportsMixedInvalidRows()
+    {
+        using var harness = await Harness.CreateAsync();
+        var recoverable = await harness.Db.SmartTags.SingleAsync(
+            tag => tag.TagCode == "MPL-DISABLED-FREE");
+        var assigned = await harness.Db.SmartTags.SingleAsync(
+            tag => tag.TagCode == "MPL-DISABLED-01");
+
+        var result = await harness.Service.BulkUpdateAsync(
+            Harness.AdminId,
+            new AdminSmartTagBulkActionRequest(
+                "return-to-unclaimed",
+                [recoverable.Id, assigned.Id],
+                "Recover unassigned inventory"));
+
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Single(result.Failures);
+        Assert.Equal(assigned.Id, result.Failures.Single().TagId);
+        Assert.Equal(
+            SmartTagStatus.Unclaimed,
+            (await harness.Db.SmartTags.FindAsync(recoverable.Id))!.Status);
+        Assert.Equal(
+            SmartTagStatus.Disabled,
+            (await harness.Db.SmartTags.FindAsync(assigned.Id))!.Status);
     }
 
     [Fact]
@@ -256,13 +308,194 @@ public sealed class AdminSmartTagServiceTests
     }
 
     [Fact]
-    public async Task Reactivate_RequiresBindingAndRestoresResolvedTagState()
+    public async Task Reactivate_RequiresBindingAndReturnsAssignedTagToActive()
     {
         using var harness = await Harness.CreateAsync();
         var lost = await harness.Db.SmartTags.SingleAsync(item => item.Status == SmartTagStatus.Lost);
         var updated = await harness.Service.UpdateStatusAsync(Harness.AdminId, lost.Id, "reactivate", "Tag recovered");
-        Assert.Equal(SmartTagStatus.Delivered, updated.Status);
+        Assert.Equal(SmartTagStatus.Active, updated.Status);
+        Assert.NotNull(updated.ActivatedAt);
         Assert.Contains(await harness.Db.AuditLogs.ToListAsync(), log => log.Action == "smart-tags.reactivate");
+    }
+
+    [Fact]
+    public async Task DisabledAssignedTagScansStayPrivateUntilAdminReactivatesIt()
+    {
+        using var harness = await Harness.CreateAsync();
+        var tag = await harness.Db.SmartTags.SingleAsync(
+            item => item.TagCode == "MPL-DISABLED-01");
+        var scanService = new TagScanService(
+            harness.Db,
+            Options.Create(new CloudflareR2Options()));
+
+        foreach (var source in new[]
+                 {
+                     TagScanSource.Qr,
+                     TagScanSource.Nfc,
+                     TagScanSource.Legacy
+                 })
+        {
+            var inactive = await scanService.ResolveAsync(
+                tag.TagCode,
+                source,
+                new TagScanContext("127.0.0.1", "test-agent", null));
+            Assert.Equal("inactive", inactive.State);
+            Assert.Null(inactive.Profile);
+        }
+
+        var reactivated = await harness.Service.UpdateStatusAsync(
+            Harness.AdminId,
+            tag.Id,
+            "reactivate",
+            "Verified tag recovery");
+        Assert.Equal(SmartTagStatus.Active, reactivated.Status);
+
+        foreach (var source in new[]
+                 {
+                     TagScanSource.Qr,
+                     TagScanSource.Nfc,
+                     TagScanSource.Legacy
+                 })
+        {
+            var active = await scanService.ResolveAsync(
+                tag.TagCode,
+                source,
+                new TagScanContext("127.0.0.1", "test-agent", null));
+            Assert.Equal("active", active.State);
+            Assert.Equal("Topu", active.Profile!.Name);
+        }
+    }
+
+    [Fact]
+    public async Task ReturnToUnclaimed_ClearsCurrentBindingsPreservesHistoryAndAllowsActivation()
+    {
+        using var harness = await Harness.CreateAsync();
+        var tag = await harness.Db.SmartTags.SingleAsync(
+            item => item.TagCode == "MPL-DISABLED-FREE");
+        var previousTag = await harness.Db.SmartTags.SingleAsync(
+            item => item.TagCode == "MPL-ACTIVE-01");
+        var pet = await harness.Db.Pets.SingleAsync(item => item.Name == "Topu");
+        var owner = await harness.Db.Users.SingleAsync(item => item.Id == pet.OwnerUserId);
+        var order = new TagOrder
+        {
+            OrderNumber = "MPL-RETURN-001",
+            OwnerUserId = owner.Id,
+            OwnerUser = owner,
+            PetId = pet.Id,
+            Pet = pet,
+            SmartTagId = tag.Id,
+            SmartTag = tag,
+            Status = OrderStatus.Cancelled,
+            PaymentStatus = PaymentStatus.Rejected,
+            RecipientName = "Previous recipient",
+            DeliveryPhoneE164 = "+60123456789",
+            AddressLine1 = "Previous delivery",
+            Postcode = "50000",
+            City = "Kuala Lumpur",
+            State = "Kuala Lumpur"
+        };
+        tag.OrderId = order.Id;
+        tag.Order = order;
+        tag.ReplacementForTagId = previousTag.Id;
+        tag.ReplacementForTag = previousTag;
+        tag.ActivatedAt = Harness.Now.AddDays(-30);
+        var historicalScan = new TagScan
+        {
+            SmartTagId = tag.Id,
+            SmartTag = tag,
+            PetId = pet.Id,
+            TagCode = tag.TagCode,
+            Source = TagScanSource.Qr,
+            ResolvedState = TagScanResolvedState.Inactive,
+            ScanTime = Harness.Now.AddDays(-1)
+        };
+        harness.Db.AddRange(order, historicalScan);
+        await harness.Db.SaveChangesAsync();
+
+        var updated = await harness.Service.UpdateStatusAsync(
+            Harness.AdminId,
+            tag.Id,
+            "return-to-unclaimed",
+            "Incorrectly disabled before assignment");
+
+        Assert.Equal(SmartTagStatus.Unclaimed, updated.Status);
+        Assert.Null(updated.OwnerUserId);
+        Assert.Null(updated.PetId);
+        Assert.Null(updated.OrderId);
+        Assert.Null(updated.ActivatedAt);
+        Assert.Null(updated.ReplacementForTagId);
+        Assert.Null((await harness.Db.TagOrders.AsNoTracking().SingleAsync(item => item.Id == order.Id)).SmartTagId);
+        Assert.True(await harness.Db.TagScans.AnyAsync(scan => scan.Id == historicalScan.Id && scan.PetId == pet.Id));
+        Assert.Contains(
+            await harness.Db.AuditLogs.ToListAsync(),
+            log => log.Action == "smart-tags.return-to-unclaimed");
+
+        var scanService = new TagScanService(
+            harness.Db,
+            Options.Create(new CloudflareR2Options()));
+        foreach (var source in new[]
+                 {
+                     TagScanSource.Qr,
+                     TagScanSource.Nfc,
+                     TagScanSource.Legacy
+                 })
+        {
+            var scan = await scanService.ResolveAsync(
+                tag.TagCode,
+                source,
+                new TagScanContext("127.0.0.1", "test-agent", null));
+            Assert.Null(scan.Profile);
+            Assert.Equal(
+                source == TagScanSource.Nfc ? "nfcActivationRequired" : "unclaimed",
+                scan.State);
+        }
+        Assert.All(
+            await harness.Db.TagScans
+                .Where(scan => scan.SmartTagId == tag.Id && scan.Id != historicalScan.Id)
+                .ToListAsync(),
+            scan => Assert.Null(scan.PetId));
+
+        var ownerService = new SmartTagService(
+            harness.Db,
+            new AuditLogService(harness.Db, new HttpContextAccessor()));
+        var activated = await ownerService.ActivateAsync(
+            owner.Id,
+            tag.TagCode,
+            new ActivateTagRequest(pet.Id));
+        Assert.Equal(SmartTagStatus.Active, activated.Status);
+        Assert.Equal(owner.Id, activated.OwnerUserId);
+        Assert.Equal(pet.Id, activated.PetId);
+        var activeScan = await scanService.ResolveAsync(
+            tag.TagCode,
+            TagScanSource.Qr,
+            new TagScanContext("127.0.0.1", "test-agent", null));
+        Assert.Equal("active", activeScan.State);
+        Assert.Equal("Topu", activeScan.Profile!.Name);
+    }
+
+    [Fact]
+    public async Task ReplacedAndArchivedTagsCannotBypassTheirControlledLifecycle()
+    {
+        using var harness = await Harness.CreateAsync();
+        var replaced = await harness.Db.SmartTags.SingleAsync(
+            item => item.Status == SmartTagStatus.Replaced);
+        var archived = await harness.Db.SmartTags.SingleAsync(
+            item => item.Status == SmartTagStatus.Archived);
+
+        foreach (var action in new[] { "reactivate", "return-to-unclaimed" })
+        {
+            await Assert.ThrowsAsync<ApiException>(() =>
+                harness.Service.UpdateStatusAsync(Harness.AdminId, replaced.Id, action, null));
+            await Assert.ThrowsAsync<ApiException>(() =>
+                harness.Service.UpdateStatusAsync(Harness.AdminId, archived.Id, action, null));
+        }
+
+        var restored = await harness.Service.UpdateStatusAsync(
+            Harness.AdminId, archived.Id, "restore", "Support review complete");
+        Assert.Equal(SmartTagStatus.Disabled, restored.Status);
+        Assert.False(restored.IsArchived);
+        var logs = await harness.Db.AuditLogs.ToListAsync();
+        Assert.Contains(logs, log => log.Action == "smart-tags.restore");
     }
 
     [Fact]
@@ -333,6 +566,7 @@ public sealed class AdminSmartTagServiceTests
                 Tag("MPL-REPLACED-01", SmartTagStatus.Replaced, false, pet, owner, Now.AddDays(-2)),
                 Tag("MPL-ARCHIVE-01", SmartTagStatus.Archived, false, pet, owner, Now.AddDays(-1), archived: true),
                 Tag("MPL-UNCLAIMED-01", SmartTagStatus.Unclaimed, false, null, null, Now),
+                Tag("MPL-DISABLED-FREE", SmartTagStatus.Disabled, true, null, null, Now.AddMinutes(1)),
             };
             db.Users.AddRange(admin, owner, secondOwner);
             db.Pets.AddRange(pet, secondPet, archivedPet, otherOwnerPet);

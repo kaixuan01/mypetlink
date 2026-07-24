@@ -4,7 +4,7 @@ import { canUseAdminApi } from "@/services/adminService";
 import { apiRequest, apiRequestBlob } from "@/services/apiClient";
 import { mockDelay } from "@/services/mockApi";
 import { getPets } from "@/services/petService";
-import { getStoredOrdersForAdmin, readAdminTagCollection, writeAdminTagCollection } from "@/services/tagService";
+import { clearAdminOrderTagAssignment, getStoredOrdersForAdmin, readAdminTagCollection, writeAdminTagCollection } from "@/services/tagService";
 import type { Pet, PetTag, TagOrder, TagScanSource, TagStatus, TagVariant } from "@/types";
 
 export type AdminSmartTagListParams = {
@@ -83,8 +83,18 @@ export type AdminSmartTagScan = {
   deviceType?: string;
 };
 
-export type AdminSmartTagAction = "disable" | "mark-lost" | "archive" | "restore" | "reactivate";
-export type AdminSmartTagBulkAction = "disable" | "archive";
+export type AdminSmartTagAction =
+  | "disable"
+  | "mark-lost"
+  | "archive"
+  | "restore"
+  | "reactivate"
+  | "return-to-unclaimed";
+export type AdminSmartTagBulkAction =
+  | "disable"
+  | "reactivate"
+  | "return-to-unclaimed"
+  | "archive";
 export type AdminSmartTagAssignmentAction = "claim" | "assign-pet" | "change-pet" | "unassign-pet" | "transfer";
 export type AdminSmartTagAssignmentInput = {
   ownerId?: string;
@@ -118,9 +128,26 @@ export function canRunSmartTagAction(tag: AdminSmartTag, action: AdminSmartTagAc
   if (action === "restore") return tag.isArchived || tag.status === "Archived";
   if (tag.isArchived || tag.status === "Archived" || tag.status === "Replaced") return false;
   if (action === "reactivate") return ["Disabled", "Lost"].includes(tag.status) && Boolean(tag.ownerId && tag.petId);
+  if (action === "return-to-unclaimed") {
+    return tag.status === "Disabled" && !tag.ownerId && !tag.petId;
+  }
   if (action === "mark-lost") return tag.status === "Active" || tag.status === "Delivered";
-  if (action === "disable") return ["Active", "Delivered", "Unassigned"].includes(tag.status);
+  if (action === "disable") return ["Active", "Delivered"].includes(tag.status);
   return action === "archive";
+}
+
+export function getAvailableSmartTagBulkActions(
+  tags: AdminSmartTag[]
+): AdminSmartTagBulkAction[] {
+  if (tags.length === 0) return [];
+  return ([
+    "disable",
+    "reactivate",
+    "return-to-unclaimed",
+    "archive",
+  ] as AdminSmartTagBulkAction[]).filter((action) =>
+    tags.every((tag) => canRunSmartTagAction(tag, action))
+  );
 }
 
 export function getSmartTagAssignmentActions(tag: AdminSmartTag): AdminSmartTagAssignmentAction[] {
@@ -276,9 +303,54 @@ export async function runAdminSmartTagAction(tagId: string, action: AdminSmartTa
   const rows = await loadLocalRows();
   const target = rows.find((row) => row.id === tagId);
   if (!target || !canRunSmartTagAction(target, action)) throw new Error("This action is not available for the tag's current status.");
-  const nextStatus: TagStatus = action === "disable" ? "Disabled" : action === "mark-lost" ? "Lost" : action === "archive" ? "Archived" : action === "reactivate" ? (target.activatedAt ? "Active" : "Delivered") : "Disabled";
-  writeAdminTagCollection(readAdminTagCollection().map((tag) => tag.id === tagId ? { ...tag, status: nextStatus, isArchived: action === "archive" ? true : action === "restore" ? false : tag.isArchived } : tag));
-  return { ...target, status: nextStatus, isArchived: action === "archive" ? true : action === "restore" ? false : target.isArchived, updatedAt: new Date().toISOString() };
+  const updatedAt = new Date().toISOString();
+  const nextStatus: TagStatus =
+    action === "disable" ? "Disabled"
+      : action === "mark-lost" ? "Lost"
+        : action === "archive" ? "Archived"
+          : action === "return-to-unclaimed" ? "Unassigned"
+            : action === "reactivate" ? "Active"
+              : "Disabled";
+  const returnedToUnclaimed = action === "return-to-unclaimed";
+  const isArchived = action === "archive"
+    ? true
+    : action === "restore"
+      ? false
+      : target.isArchived;
+  const activatedAt = returnedToUnclaimed
+    ? undefined
+    : action === "reactivate"
+      ? target.activatedAt ?? updatedAt
+      : target.activatedAt;
+
+  writeAdminTagCollection(readAdminTagCollection().map((tag) => tag.id === tagId ? {
+    ...tag,
+    status: nextStatus,
+    isArchived,
+    ownerUserId: returnedToUnclaimed ? undefined : tag.ownerUserId,
+    petId: returnedToUnclaimed ? undefined : tag.petId,
+    replacementForTagId: returnedToUnclaimed ? undefined : tag.replacementForTagId,
+    activatedAt,
+  } : tag));
+  if (returnedToUnclaimed) clearAdminOrderTagAssignment(tagId);
+  return {
+    ...target,
+    status: nextStatus,
+    isArchived,
+    ownerId: returnedToUnclaimed ? undefined : target.ownerId,
+    ownerName: returnedToUnclaimed ? undefined : target.ownerName,
+    ownerEmail: returnedToUnclaimed ? undefined : target.ownerEmail,
+    petId: returnedToUnclaimed ? undefined : target.petId,
+    petName: returnedToUnclaimed ? undefined : target.petName,
+    safetyCode: returnedToUnclaimed ? undefined : target.safetyCode,
+    qrSafetyEnabled: returnedToUnclaimed ? false : target.qrSafetyEnabled,
+    orderId: returnedToUnclaimed ? undefined : target.orderId,
+    orderNumber: returnedToUnclaimed ? undefined : target.orderNumber,
+    replacementForTagId: returnedToUnclaimed ? undefined : target.replacementForTagId,
+    replacementForTagCode: returnedToUnclaimed ? undefined : target.replacementForTagCode,
+    activatedAt,
+    updatedAt,
+  };
 }
 
 export async function updateAdminSmartTagAssignment(

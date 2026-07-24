@@ -17,9 +17,9 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { isAbortError, isApiClientError } from "@/services/apiClient";
 import {
   bulkUpdateAdminSmartTags,
-  canRunSmartTagAction,
   countAdminSmartTags,
   downloadAdminSmartTagsExport,
+  getAvailableSmartTagBulkActions,
   getAdminSmartTagExportFormats,
   getAdminSmartTag,
   listAdminSmartTags,
@@ -189,10 +189,11 @@ export function AdminTagsManager() {
       if (pending.scope === "row") {
         const updated = await runAdminSmartTagAction(pending.tag.id, pending.action, reason);
         setDetachedTag(updated);
-        setMessage(`${updated.tagCode} is now ${smartTagLifecycleLabel(updated).toLowerCase()}.`);
+        setMessage(actionSuccessMessage(updated, pending.action));
+        setSelectedIds(new Set());
       } else {
         const result = await bulkUpdateAdminSmartTags(pending.action, [...selectedIds], reason);
-        setMessage(`${result.updatedCount} of ${result.requestedCount} selected tags updated.`);
+        setMessage(bulkActionSuccessMessage(pending.action, result.updatedCount, result.requestedCount));
         setFailureDetails(result.failures.map((failure) => `${failure.tagCode || "Tag"}: ${failure.reason}`));
         setSelectedIds(new Set());
       }
@@ -244,11 +245,15 @@ export function AdminTagsManager() {
     setPending(action);
   }
 
-  const bulkActions: AdminBulkAction[] = (["disable", "archive"] as AdminSmartTagBulkAction[]).map((action) => {
-    const invalid = selectedRows.some((tag) => !canRunSmartTagAction(tag, action));
-    return { id: action, label: action === "disable" ? "Disable selected" : "Archive selected", tone: action === "disable" ? "danger" : "neutral", disabled: invalid || selectedRows.length !== selectedIds.size, disabledReason: invalid ? `Every selected tag must support ${action}.` : "The selection is no longer on this page.", onClick: () => beginAction({ scope: "bulk", action }) };
-  });
-  const pendingLabel = pending?.action === "disable" ? "Disable" : pending?.action === "mark-lost" ? "Mark as Lost" : pending?.action === "restore" ? "Restore" : pending?.action === "reactivate" ? "Reactivate" : "Archive";
+  const bulkActions: AdminBulkAction[] = selectedRows.length === selectedIds.size
+    ? getAvailableSmartTagBulkActions(selectedRows).map((action) => ({
+      id: action,
+      label: bulkActionLabel(action),
+      tone: action === "disable" ? "danger" : "neutral",
+      onClick: () => beginAction({ scope: "bulk", action }),
+    }))
+    : [];
+  const pendingLabel = actionLabel(pending?.action);
   const pendingCount = pending?.scope === "bulk" ? selectedIds.size : 1;
 
   return (
@@ -260,11 +265,80 @@ export function AdminTagsManager() {
       {message ? <div className="px-4 pt-3"><AdminNotice>{message}</AdminNotice>{failureDetails.length ? <ul className="mt-2 grid gap-1 text-xs font-semibold text-red-700">{failureDetails.map((failure) => <li key={failure}>{failure}</li>)}</ul> : null}</div> : null}
       <AdminDataTable columns={columns} emptyDescription={hasActiveFilters ? "Try changing or clearing the active filters." : "Tags appear here after they are generated in Tag Inventory."} emptyTitle={hasActiveFilters ? "No Smart Tags match these filters." : "No Smart Tags yet."} error={current?.error || undefined} loading={!current} onPageChange={actions.setPage} onPageSizeChange={actions.setPageSize} onRetry={refresh} onRowOpen={(tag) => actions.setExtraParam("tag", tag.id)} onSelectedIdsChange={setSelectedIds} onSortChange={actions.setSort} page={query.page} pageSize={query.pageSize} rowKey={(tag) => tag.id} rowOpenLabel="View" rows={items} selectable selectedIds={selectedIds} sortBy={query.sortBy} sortDir={query.sortDir} total={current?.total ?? 0} />
       <AdminBulkActionBar actions={bulkActions} busy={busy} onClearSelection={() => setSelectedIds(new Set())} selectedCount={selectedIds.size} />
-      <ConfirmDialog confirmLabel={pendingLabel} destructive={!(["restore", "reactivate"] as (AdminSmartTagAction | undefined)[]).includes(pending?.action)} message={`${pendingLabel} ${pendingCount} tag${pendingCount === 1 ? "" : "s"}? This changes lifecycle and finder access, but does not change fulfilment or delete history.`} onCancel={() => setPending(null)} onConfirm={() => void confirmAction()} open={pending !== null} title={`${pendingLabel} tag${pendingCount === 1 ? "" : "s"}?`}>
+      <ConfirmDialog confirmLabel={pendingLabel} destructive={!isRecoveryAction(pending?.action)} message={actionConfirmationMessage(pending?.action, pendingCount)} onCancel={() => setPending(null)} onConfirm={() => void confirmAction()} open={pending !== null} title={`${pendingLabel} tag${pendingCount === 1 ? "" : "s"}?`}>
         <label className="grid gap-1.5 text-sm font-bold text-pet-ink">Reason (optional)<textarea className="min-h-20 rounded-xl border border-pet-border px-3 py-2 text-sm font-medium outline-none focus:border-pet-teal" maxLength={600} onChange={(event) => setReason(event.target.value)} placeholder="Add context for the audit history" value={reason} /></label>
       </ConfirmDialog>
       <AdminSmartTagDetailDrawer busy={busy} onAction={(action) => { if (openTag) beginAction({ scope: "row", tag: openTag, action }); }} onAssignmentAction={(action) => { if (openTag) { setAssignmentError(""); setAssignment({ tag: openTag, action }); } }} onClose={() => { setDetachedTag(null); actions.setExtraParam("tag", null); }} tag={openTag} />
       {assignment ? <AdminSmartTagAssignmentDialog action={assignment.action} busy={busy} error={assignmentError} onCancel={() => { if (!busy) setAssignment(null); }} onSubmit={(input) => void submitAssignment(input)} tag={assignment.tag} /> : null}
     </AdminSection>
   );
+}
+
+function actionLabel(action?: AdminSmartTagAction | AdminSmartTagBulkAction) {
+  return action === "disable" ? "Disable"
+    : action === "mark-lost" ? "Mark as Lost"
+      : action === "restore" ? "Restore"
+        : action === "reactivate" ? "Reactivate"
+          : action === "return-to-unclaimed" ? "Return to Unclaimed"
+            : "Archive";
+}
+
+function bulkActionLabel(action: AdminSmartTagBulkAction) {
+  return action === "disable" ? "Disable selected"
+    : action === "reactivate" ? "Reactivate selected"
+      : action === "return-to-unclaimed" ? "Return selected to Unclaimed"
+        : "Archive selected";
+}
+
+function isRecoveryAction(action?: AdminSmartTagAction | AdminSmartTagBulkAction) {
+  return action === "restore"
+    || action === "reactivate"
+    || action === "return-to-unclaimed";
+}
+
+function actionConfirmationMessage(
+  action: AdminSmartTagAction | AdminSmartTagBulkAction | undefined,
+  count: number
+) {
+  const subject = `${count} tag${count === 1 ? "" : "s"}`;
+  if (action === "return-to-unclaimed") {
+    return `Return ${subject} to Unclaimed? Current owner, pet, order, replacement, and activation links will be cleared so the tag can be safely assigned again. Scan and audit history will remain.`;
+  }
+  if (action === "reactivate") {
+    return `Reactivate ${subject}? The assigned tag will become Active and its Physical Tag Scan Page can open the linked pet's Safety Profile again.`;
+  }
+  if (action === "disable") {
+    return `Disable ${subject}? Public scans will stop opening the linked pet's Safety Profile. Fulfilment and history will not be changed.`;
+  }
+  if (action === "restore") {
+    return `Restore ${subject}? It will return to the controlled Disabled state and remain unavailable to public scans until its lifecycle is resolved.`;
+  }
+  if (action === "mark-lost") {
+    return `Mark ${subject} as lost? Public scans will stop opening the linked pet's Safety Profile.`;
+  }
+  return `Archive ${subject}? It will remain unavailable to public scans, and its history will be preserved.`;
+}
+
+function actionSuccessMessage(tag: AdminSmartTag, action: AdminSmartTagAction) {
+  if (action === "return-to-unclaimed") {
+    return `${tag.tagCode} was returned to Unclaimed and can be assigned again.`;
+  }
+  if (action === "reactivate") {
+    return `${tag.tagCode} is now Active.`;
+  }
+  return `${tag.tagCode} is now ${smartTagLifecycleLabel(tag).toLowerCase()}.`;
+}
+
+function bulkActionSuccessMessage(
+  action: AdminSmartTagBulkAction,
+  updatedCount: number,
+  requestedCount: number
+) {
+  if (action === "return-to-unclaimed") {
+    return `${updatedCount} of ${requestedCount} selected tags returned to Unclaimed.`;
+  }
+  if (action === "reactivate") {
+    return `${updatedCount} of ${requestedCount} selected tags reactivated.`;
+  }
+  return `${updatedCount} of ${requestedCount} selected tags updated.`;
 }

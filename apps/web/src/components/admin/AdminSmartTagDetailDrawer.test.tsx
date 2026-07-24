@@ -86,6 +86,73 @@ describe("AdminSmartTagDetailDrawer", () => {
 
     rerender(<AdminSmartTagDetailDrawer busy={false} onAction={onAction} onAssignmentAction={vi.fn()} onClose={vi.fn()} tag={{ ...tag, status: "Replaced" }} />);
     expect(screen.queryByRole("button", { name: "Disable Tag" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Reactivate Tag" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Return to Unclaimed" })).toBeNull();
+  });
+
+  it("distinguishes assigned reactivation from unassigned inventory recovery", () => {
+    const onAction = vi.fn();
+    const { rerender } = render(
+      <AdminSmartTagDetailDrawer
+        busy={false}
+        onAction={onAction}
+        onAssignmentAction={vi.fn()}
+        onClose={vi.fn()}
+        tag={{ ...tag, status: "Disabled" }}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Reactivate Tag" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Return to Unclaimed" })).toBeNull();
+
+    rerender(
+      <AdminSmartTagDetailDrawer
+        busy={false}
+        onAction={onAction}
+        onAssignmentAction={vi.fn()}
+        onClose={vi.fn()}
+        tag={{
+          ...tag,
+          status: "Disabled",
+          ownerId: undefined,
+          ownerName: undefined,
+          ownerEmail: undefined,
+          petId: undefined,
+          petName: undefined,
+          safetyCode: undefined,
+          qrSafetyEnabled: false,
+        }}
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: "Reactivate Tag" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Return to Unclaimed" }));
+    expect(onAction).toHaveBeenCalledWith("return-to-unclaimed");
+  });
+
+  it("does not allow an unclaimed tag to be disabled", () => {
+    render(
+      <AdminSmartTagDetailDrawer
+        busy={false}
+        onAction={vi.fn()}
+        onAssignmentAction={vi.fn()}
+        onClose={vi.fn()}
+        tag={{
+          ...tag,
+          status: "Unassigned",
+          ownerId: undefined,
+          ownerName: undefined,
+          ownerEmail: undefined,
+          petId: undefined,
+          petName: undefined,
+          safetyCode: undefined,
+          qrSafetyEnabled: false,
+        }}
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: "Disable Tag" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Archive Tag" })).toBeTruthy();
   });
 
   it("hides a broken QR Safety action when no active safety identifier exists", () => {

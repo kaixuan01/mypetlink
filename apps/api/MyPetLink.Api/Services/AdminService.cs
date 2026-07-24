@@ -747,64 +747,6 @@ public sealed class AdminService : SkeletonService, IAdminService
         return ToAdminTagResponse(tag);
     }
 
-    public async Task<AdminSmartTagResponse> UpdateTagStatusAsync(
-        Guid? currentUserId,
-        Guid tagId,
-        string action,
-        string? reason,
-        CancellationToken cancellationToken = default)
-    {
-        var admin = await RequireAdminAsync(currentUserId, cancellationToken);
-        var tag = await LoadTagAsync(tagId, trackChanges: true, cancellationToken);
-        var oldState = TagStateSnapshot(tag);
-
-        switch (action)
-        {
-            case "disable":
-                EnsureTagStatus(tag, "disabled", SmartTagStatus.Active, SmartTagStatus.Delivered, SmartTagStatus.Unclaimed);
-                tag.Status = SmartTagStatus.Disabled;
-                break;
-            case "mark-lost":
-                EnsureTagStatus(tag, "marked lost", SmartTagStatus.Active, SmartTagStatus.Delivered);
-                tag.Status = SmartTagStatus.Lost;
-                break;
-            case "replace":
-                EnsureTagStatus(tag, "marked replaced", SmartTagStatus.Active, SmartTagStatus.Lost, SmartTagStatus.Disabled);
-                tag.Status = SmartTagStatus.Replaced;
-                break;
-            case "archive":
-                if (tag.ArchivedAt.HasValue)
-                {
-                    throw InvalidState("This tag is already archived.");
-                }
-
-                tag.ArchivedAt = DateTimeOffset.UtcNow;
-                break;
-            case "restore":
-                if (!tag.ArchivedAt.HasValue && tag.Status != SmartTagStatus.Archived)
-                {
-                    throw InvalidState("Only archived tags can be restored.");
-                }
-
-                tag.ArchivedAt = null;
-                if (tag.Status == SmartTagStatus.Archived)
-                {
-                    tag.Status = SmartTagStatus.Disabled;
-                }
-
-                break;
-            default:
-                throw ValidationFailed("action", "Tag action is not supported.");
-        }
-
-        _auditLogService.Append(
-            admin.Id, ActorType.Admin, $"tag.{action}", "SmartTag", tag.Id,
-            oldState, TagStateSnapshot(tag, NormalizeOptional(reason)));
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
-        return ToAdminTagResponse(tag);
-    }
-
     // --- Owners ----------------------------------------------------------------------
 
     public async Task<(IReadOnlyCollection<AdminOwnerListItemResponse> Items, int Total)> ListOwnersAsync(

@@ -19,6 +19,7 @@ import {
   getFinderState,
   getFriendlyTagErrorMessage,
 } from "@/services/tagService";
+import { isApiConfigured } from "@/services/apiConfig";
 import type { FinderResult, TagEntrySource } from "@/types";
 
 type TagFinderViewProps = {
@@ -39,8 +40,11 @@ export function TagFinderView({
   source = "legacy",
   tagCode,
 }: TagFinderViewProps) {
+  const apiMode = isApiConfigured();
   const [result, setResult] = useState(initialResult);
-  const [loaded, setLoaded] = useState(initialResult.state !== "not-found");
+  const [loaded, setLoaded] = useState(
+    !refreshOnMount || (!apiMode && initialResult.state !== "not-found")
+  );
   const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
