@@ -12,6 +12,11 @@ namespace MyPetLink.Api.Services;
 // and an Official Receipt after admin confirmation. Generated server-side from
 // authoritative order data so wording and totals cannot be spoofed by the
 // client. Payment proofs remain metadata only; no gateway is involved.
+//
+// Product wording, capability (QR vs QR + NFC), quantity, and prices are read
+// from immutable order snapshots (TagOrderItem when present, else the legacy
+// TagOrder fields) — never from the current, mutable product catalog — so an
+// existing receipt never changes when the catalog is edited.
 public interface IOrderDocumentService
 {
     Task<OrderDocumentResult> GetOwnerSummaryAsync(
@@ -44,6 +49,7 @@ public sealed class OrderDocumentService : IOrderDocumentService
     private const string BusinessName = "MyPetLink";
     private const string BusinessOwner = "by GBB Software Solutions";
     private const string BusinessRegNo = "Business Registration No.: 202603141718 (AS0515813-P)";
+    private const string BusinessWebsite = "mypetlink.com.my";
     private const string SupportEmail = "support@mypetlink.com.my";
 
     private readonly MyPetLinkDbContext _dbContext;
@@ -141,7 +147,8 @@ public sealed class OrderDocumentService : IOrderDocumentService
             .Include(order => order.OwnerUser)
             .Include(order => order.Pet)
             .Include(order => order.SmartTag)
-            .Include(order => order.PaymentProofs);
+            .Include(order => order.PaymentProofs)
+            .Include(order => order.Items);
     }
 
     private OrderDocumentModel MapModel(TagOrder order, bool isReceipt)
@@ -152,15 +159,18 @@ public sealed class OrderDocumentService : IOrderDocumentService
             .FirstOrDefault();
 
         var currency = string.IsNullOrWhiteSpace(order.Currency) ? "MYR" : order.Currency;
-        var unitPrice = order.Amount;
         var deliveryFee = order.DeliveryFee;
-        var total = unitPrice + deliveryFee;
+
+        var (lines, supportsNfc, subtotal, discountTotal, promotionLabel) = BuildLines(order, currency);
+        var grandTotal = subtotal - discountTotal + deliveryFee;
+        var hasDiscount = discountTotal > 0m;
 
         return new OrderDocumentModel(
             IsReceipt: isReceipt,
             BusinessName: BusinessName,
             BusinessOwner: BusinessOwner,
             BusinessRegNo: BusinessRegNo,
+            BusinessWebsite: BusinessWebsite,
             SupportEmail: SupportEmail,
             DocumentTitle: isReceipt ? "Official Receipt" : "Order Summary",
             OrderNumber: order.OrderNumber,
@@ -171,15 +181,15 @@ public sealed class OrderDocumentService : IOrderDocumentService
             CustomerName: Fallback(order.OwnerUser?.DisplayName, "MyPetLink customer"),
             CustomerEmail: Fallback(order.OwnerUser?.Email, "-"),
             PetName: Fallback(order.Pet?.Name, "-"),
-            ProductName: order.TagType == TagType.QrNfcSmartTag
-                ? "MyPetLink QR + NFC Smart Tag"
-                : "MyPetLink QR Pet Tag",
-            Variant: TagVariants.Normalize(order.Variant),
-            Quantity: 1,
-            UnitPrice: FormatMoney(unitPrice, currency),
+            Lines: lines,
+            Subtotal: FormatMoney(subtotal, currency),
+            HasDiscount: hasDiscount,
+            DiscountAmount: hasDiscount ? $"- {FormatMoney(discountTotal, currency)}" : null,
+            PromotionLabel: promotionLabel,
             DeliveryFee: deliveryFee <= 0m ? "Free" : FormatMoney(deliveryFee, currency),
-            TotalAmount: FormatMoney(total, currency),
+            TotalAmount: FormatMoney(grandTotal, currency),
             Currency: currency,
+            GpsDisclaimer: BuildGpsDisclaimer(supportsNfc),
             PaymentMethod: Fallback(latestProof?.PaymentMethod, "QR Payment"),
             PaymentReference: string.IsNullOrWhiteSpace(latestProof?.PaymentReference)
                 ? null
@@ -187,6 +197,111 @@ public sealed class OrderDocumentService : IOrderDocumentService
             PaymentStatus: DescribePaymentStatus(order.PaymentStatus),
             OrderStatus: DescribeOrderStatus(order.Status),
             IsPaid: order.PaymentConfirmedAt.HasValue);
+    }
+
+    // Builds the line items and totals from immutable order snapshots. Prefers
+    // the per-SKU TagOrderItem snapshots (which carry capability, quantity, and
+    // any promotion exactly as sold); falls back to the legacy single-unit
+    // TagOrder fields for pre-catalog orders that have no item rows.
+    private static (
+        IReadOnlyList<OrderDocumentLine> Lines,
+        bool SupportsNfc,
+        decimal Subtotal,
+        decimal DiscountTotal,
+        string? PromotionLabel) BuildLines(TagOrder order, string currency)
+    {
+        var variantLabel = TagVariants.Normalize(order.Variant);
+        var items = order.Items
+            .OrderBy(item => item.CreatedAt)
+            .ToList();
+
+        if (items.Count == 0)
+        {
+            // Legacy order: exactly one unit, no catalog discount is possible.
+            var supportsNfcLegacy = order.TagType == TagType.QrNfcSmartTag;
+            var legacyLine = new OrderDocumentLine(
+                ProductName: DefaultProductName(supportsNfcLegacy),
+                VariantLabel: variantLabel,
+                Quantity: 1,
+                UnitPrice: FormatMoney(order.Amount, currency),
+                LineTotal: FormatMoney(order.Amount, currency));
+
+            return (new[] { legacyLine }, supportsNfcLegacy, order.Amount, 0m, null);
+        }
+
+        var supportsNfc = items.Any(item => item.SupportsNfcSnapshot);
+        var subtotal = 0m;
+        var discountTotal = 0m;
+        var itemsFinal = 0m;
+        var lines = new List<OrderDocumentLine>(items.Count);
+
+        foreach (var item in items)
+        {
+            // Fail clearly rather than print an incorrect total for data the
+            // renderer cannot faithfully represent.
+            if (item.Quantity < 1)
+            {
+                throw OrderDocumentInconsistent(
+                    order.OrderNumber,
+                    "a purchased item has an invalid quantity");
+            }
+
+            subtotal += item.Subtotal;
+            discountTotal += item.DiscountAmount;
+            itemsFinal += item.FinalAmount;
+
+            lines.Add(new OrderDocumentLine(
+                ProductName: DefaultProductName(item.SupportsNfcSnapshot),
+                VariantLabel: variantLabel,
+                Quantity: item.Quantity,
+                UnitPrice: FormatMoney(item.UnitBasePrice, currency),
+                LineTotal: FormatMoney(item.FinalAmount, currency)));
+        }
+
+        // The order's stored Amount is the authoritative charged total. If the
+        // itemised snapshots do not reconcile with it, the totals are untrusted,
+        // so refuse to emit a document rather than show a wrong figure.
+        if (Math.Abs(itemsFinal - order.Amount) > 0.01m)
+        {
+            throw OrderDocumentInconsistent(
+                order.OrderNumber,
+                "line totals do not reconcile with the order amount");
+        }
+
+        var promotionNames = items
+            .Select(item => item.PromotionNameSnapshot)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Select(name => name!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var promotionLabel = promotionNames.Count > 0 ? string.Join(", ", promotionNames) : null;
+
+        return (lines, supportsNfc, subtotal, discountTotal, promotionLabel);
+    }
+
+    private static string DefaultProductName(bool supportsNfc)
+    {
+        return supportsNfc ? "MyPetLink QR + NFC Smart Tag" : "MyPetLink QR Pet Tag";
+    }
+
+    // Capability-aware, customer-friendly. Driven only by the authoritative
+    // capability snapshot, never inferred from a product/SKU/variant name.
+    private static string BuildGpsDisclaimer(bool supportsNfc)
+    {
+        return supportsNfc
+            ? "MyPetLink QR + NFC Pet Tags do not provide GPS tracking or real-time location monitoring."
+            : "MyPetLink QR Pet Tags do not provide GPS tracking or real-time location monitoring.";
+    }
+
+    private static ApiException OrderDocumentInconsistent(string orderNumber, string reason)
+    {
+        // Customer-safe message; the specific reason/order stay server-side only.
+        _ = orderNumber;
+        _ = reason;
+        return new ApiException(
+            StatusCodes.Status500InternalServerError,
+            "order_document_unavailable",
+            "This order's document could not be prepared right now. Please contact support.");
     }
 
     private static string BuildReceiptNumber(string orderNumber)
@@ -263,11 +378,19 @@ public sealed class OrderDocumentService : IOrderDocumentService
     }
 }
 
+internal sealed record OrderDocumentLine(
+    string ProductName,
+    string VariantLabel,
+    int Quantity,
+    string UnitPrice,
+    string LineTotal);
+
 internal sealed record OrderDocumentModel(
     bool IsReceipt,
     string BusinessName,
     string BusinessOwner,
     string BusinessRegNo,
+    string BusinessWebsite,
     string SupportEmail,
     string DocumentTitle,
     string OrderNumber,
@@ -278,13 +401,15 @@ internal sealed record OrderDocumentModel(
     string CustomerName,
     string CustomerEmail,
     string PetName,
-    string ProductName,
-    string Variant,
-    int Quantity,
-    string UnitPrice,
+    IReadOnlyList<OrderDocumentLine> Lines,
+    string Subtotal,
+    bool HasDiscount,
+    string? DiscountAmount,
+    string? PromotionLabel,
     string DeliveryFee,
     string TotalAmount,
     string Currency,
+    string GpsDisclaimer,
     string PaymentMethod,
     string? PaymentReference,
     string PaymentStatus,
@@ -328,6 +453,7 @@ internal static class OrderDocumentRenderer
                     brand.Item().Text(model.BusinessOwner).FontSize(9).FontColor(Muted);
                     brand.Item().Text(model.BusinessRegNo).FontSize(8).FontColor(Muted);
                     brand.Item().Text($"Support: {model.SupportEmail}").FontSize(8).FontColor(Muted);
+                    brand.Item().Text($"Website: {model.BusinessWebsite}").FontSize(8).FontColor(Muted);
                 });
 
                 row.ConstantItem(180).Column(title =>
@@ -447,26 +573,47 @@ internal static class OrderDocumentRenderer
                     header.Cell().Element(HeaderCell).AlignRight().Text("Amount");
                 });
 
-                table.Cell().Element(BodyCell).Column(cell =>
+                foreach (var line in model.Lines)
                 {
-                    cell.Item().Text(model.ProductName).FontSize(9).Bold();
-                    cell.Item().Text($"Tag variant: {model.Variant} Tag").FontSize(8).FontColor(Muted);
-                });
-                table.Cell().Element(BodyCell).AlignRight().Text(model.Quantity.ToString()).FontSize(9);
-                table.Cell().Element(BodyCell).AlignRight().Text(model.UnitPrice).FontSize(9);
-                table.Cell().Element(BodyCell).AlignRight().Text(model.UnitPrice).FontSize(9);
+                    table.Cell().Element(BodyCell).Column(cell =>
+                    {
+                        cell.Item().Text(line.ProductName).FontSize(9).Bold();
+                        cell.Item().Text($"Tag variant: {line.VariantLabel} Tag").FontSize(8).FontColor(Muted);
+                    });
+                    table.Cell().Element(BodyCell).AlignRight().Text(line.Quantity.ToString()).FontSize(9);
+                    table.Cell().Element(BodyCell).AlignRight().Text(line.UnitPrice).FontSize(9);
+                    table.Cell().Element(BodyCell).AlignRight().Text(line.LineTotal).FontSize(9);
+                }
             });
 
             column.Item().PaddingTop(8).AlignRight().Column(totals =>
             {
-                totals.Item().Row(row =>
+                if (model.HasDiscount)
                 {
-                    row.ConstantItem(120).Text("Delivery Fee").FontSize(9).FontColor(Muted);
+                    totals.Item().Row(row =>
+                    {
+                        row.ConstantItem(140).Text("Subtotal").FontSize(9).FontColor(Muted);
+                        row.ConstantItem(90).AlignRight().Text(model.Subtotal).FontSize(9);
+                    });
+                    totals.Item().PaddingTop(4).Row(row =>
+                    {
+                        var discountLabel = string.IsNullOrEmpty(model.PromotionLabel)
+                            ? "Discount"
+                            : $"Discount ({model.PromotionLabel})";
+                        row.ConstantItem(140).Text(discountLabel).FontSize(9).FontColor(PaidGreen);
+                        row.ConstantItem(90).AlignRight().Text(model.DiscountAmount ?? "").FontSize(9)
+                            .FontColor(PaidGreen);
+                    });
+                }
+
+                totals.Item().PaddingTop(4).Row(row =>
+                {
+                    row.ConstantItem(140).Text("Delivery Fee").FontSize(9).FontColor(Muted);
                     row.ConstantItem(90).AlignRight().Text(model.DeliveryFee).FontSize(9);
                 });
                 totals.Item().PaddingTop(4).Row(row =>
                 {
-                    row.ConstantItem(120).Text($"Total ({model.Currency})").FontSize(11).Bold();
+                    row.ConstantItem(140).Text($"Total ({model.Currency})").FontSize(11).Bold();
                     row.ConstantItem(90).AlignRight().Text(model.TotalAmount).FontSize(11).Bold();
                 });
             });
@@ -500,7 +647,7 @@ internal static class OrderDocumentRenderer
             column.Item().LineHorizontal(1).LineColor(Border);
             column.Item().PaddingTop(6).Text("Thank you for supporting MyPetLink.").FontSize(8).Bold();
             column.Item().Text(
-                "QR + NFC Smart Tag is not GPS tracking. This document is generated "
+                $"{model.GpsDisclaimer} This document is generated "
                 + "electronically and does not require a signature.")
                 .FontSize(7.5f).FontColor(Muted);
             column.Item().Text($"For support, contact {model.SupportEmail}.").FontSize(7.5f).FontColor(Muted);
