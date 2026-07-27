@@ -26,10 +26,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="..\..\web\public\logo-horizontal.png"
-             Link="Assets\logo-horizontal.png"
-             CopyToOutputDirectory="PreserveNewest"
-             CopyToPublishDirectory="PreserveNewest" />
+    <EmbeddedResource Include="Assets\Brand\mypetlink-logo-horizontal.png" />
   </ItemGroup>
 
 </Project>

@@ -5,6 +5,7 @@ using MyPetLink.Api.Entities;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
+using System.Reflection;
 
 namespace MyPetLink.Api.Services;
 
@@ -162,11 +163,15 @@ public sealed class OrderDocumentService : IOrderDocumentService
         var deliveryFee = order.DeliveryFee;
 
         var (lines, supportsNfc, subtotal, discountTotal, promotionLabel) = BuildLines(order, currency);
-        var grandTotal = subtotal - discountTotal + deliveryFee;
+        var calculatedTotal = subtotal - discountTotal + deliveryFee;
+        var grandTotal = order.TotalAmount ?? calculatedTotal;
+        if (Math.Abs(grandTotal - calculatedTotal) > 0.01m)
+            throw OrderDocumentInconsistent(order.OrderNumber, "the stored total does not reconcile");
         var hasDiscount = discountTotal > 0m;
 
         return new OrderDocumentModel(
             IsReceipt: isReceipt,
+            BrandLogo: LoadBrandLogo(),
             BusinessName: BusinessName,
             BusinessOwner: BusinessOwner,
             BusinessRegNo: BusinessRegNo,
@@ -187,6 +192,11 @@ public sealed class OrderDocumentService : IOrderDocumentService
             DiscountAmount: hasDiscount ? $"- {FormatMoney(discountTotal, currency)}" : null,
             PromotionLabel: promotionLabel,
             DeliveryFee: deliveryFee <= 0m ? "Free" : FormatMoney(deliveryFee, currency),
+            DeliveryMethod: Fallback(order.DeliveryMethodName, "Delivery"),
+            DeliveryState: Fallback(order.State, "-"),
+            DeliveryPostcode: Fallback(order.Postcode, "-"),
+            DeliveryZone: order.DeliveryZoneName,
+            FreeDeliveryReason: order.FreeShippingReason,
             TotalAmount: FormatMoney(grandTotal, currency),
             Currency: currency,
             GpsDisclaimer: BuildGpsDisclaimer(supportsNfc),
@@ -197,6 +207,19 @@ public sealed class OrderDocumentService : IOrderDocumentService
             PaymentStatus: DescribePaymentStatus(order.PaymentStatus),
             OrderStatus: DescribeOrderStatus(order.Status),
             IsPaid: order.PaymentConfirmedAt.HasValue);
+    }
+
+    private static byte[] LoadBrandLogo()
+    {
+        var assembly = typeof(OrderDocumentService).Assembly;
+        var resource = assembly.GetManifestResourceNames()
+            .SingleOrDefault(name => name.EndsWith("Assets.Brand.mypetlink-logo-horizontal.png", StringComparison.Ordinal));
+        if (resource is null) return [];
+        using var stream = assembly.GetManifestResourceStream(resource);
+        if (stream is null) return [];
+        using var memory = new MemoryStream();
+        stream.CopyTo(memory);
+        return memory.ToArray();
     }
 
     // Builds the line items and totals from immutable order snapshots. Prefers
@@ -387,6 +410,7 @@ internal sealed record OrderDocumentLine(
 
 internal sealed record OrderDocumentModel(
     bool IsReceipt,
+    byte[] BrandLogo,
     string BusinessName,
     string BusinessOwner,
     string BusinessRegNo,
@@ -407,6 +431,11 @@ internal sealed record OrderDocumentModel(
     string? DiscountAmount,
     string? PromotionLabel,
     string DeliveryFee,
+    string DeliveryMethod,
+    string DeliveryState,
+    string DeliveryPostcode,
+    string? DeliveryZone,
+    string? FreeDeliveryReason,
     string TotalAmount,
     string Currency,
     string GpsDisclaimer,
@@ -449,7 +478,14 @@ internal static class OrderDocumentRenderer
             {
                 row.RelativeItem().Column(brand =>
                 {
-                    brand.Item().Text(model.BusinessName).FontSize(20).Bold().FontColor(Accent);
+                    if (model.BrandLogo.Length > 0)
+                    {
+                        brand.Item().Width(180).Height(42).Image(model.BrandLogo).FitArea();
+                    }
+                    else
+                    {
+                        brand.Item().Text(model.BusinessName).FontSize(20).Bold().FontColor(Accent);
+                    }
                     brand.Item().Text(model.BusinessOwner).FontSize(9).FontColor(Muted);
                     brand.Item().Text(model.BusinessRegNo).FontSize(8).FontColor(Muted);
                     brand.Item().Text($"Support: {model.SupportEmail}").FontSize(8).FontColor(Muted);
@@ -507,13 +543,22 @@ internal static class OrderDocumentRenderer
             // Line items table.
             column.Item().Element(table => ComposeItemsTable(table, model));
 
+            column.Item().Element(cell => MetaBlock(cell, "Delivery", new[]
+            {
+                ("Method", model.DeliveryMethod),
+                ("State", model.DeliveryState),
+                ("Postcode", model.DeliveryPostcode),
+                string.IsNullOrWhiteSpace(model.DeliveryZone) ? ("", "") : ("Zone", model.DeliveryZone!),
+                string.IsNullOrWhiteSpace(model.FreeDeliveryReason) ? ("", "") : ("Delivery saving", model.FreeDeliveryReason!),
+            }));
+
             // Payment section.
             column.Item().Element(cell => MetaBlock(cell, "Payment", new[]
             {
                 ("Payment Method", model.PaymentMethod),
                 model.PaymentReference is null
                     ? ("", "")
-                    : ("Payment Reference / Transaction ID", model.PaymentReference),
+                    : ("Payment Reference", model.PaymentReference),
                 ("Payment Status", model.PaymentStatus),
                 ("Order Status", model.OrderStatus),
                 ("SST", "Not applicable"),
@@ -525,6 +570,15 @@ internal static class OrderDocumentRenderer
                     "This is an order summary, not an official receipt. An official receipt "
                     + "is issued once payment is confirmed.")
                     .FontSize(8).FontColor("#9a6b18");
+            }
+            else
+            {
+                column.Item().Background("#eef8f5").Padding(8).Column(next =>
+                {
+                    next.Item().Text("What happens next?").FontSize(9).Bold().FontColor(PaidGreen);
+                    next.Item().Text("We'll begin preparing your MyPetLink tag. You can track the latest order status in the Owner Portal.")
+                        .FontSize(8).FontColor(Muted);
+                });
             }
         });
     }

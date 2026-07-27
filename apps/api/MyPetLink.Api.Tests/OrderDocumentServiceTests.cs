@@ -158,6 +158,23 @@ public sealed class OrderDocumentServiceTests
     }
 
     [Fact]
+    public async Task Receipt_EmbedsGraphicalLogoAndDeliverySnapshot()
+    {
+        using var h = await Harness.CreateAsync();
+        var result = await h.Service.GetOwnerReceiptAsync(Harness.OwnerAId, "MPL-ORD-NFC");
+        var text = Squash(ExtractText(result.Content));
+        using var pdf = PdfDocument.Open(result.Content);
+
+        Assert.Contains("Delivery", text);
+        Assert.Contains("StandardDelivery", text);
+        Assert.Contains("KualaLumpur", text);
+        Assert.Contains("50000", text);
+        Assert.Contains("PaymentReference", text);
+        Assert.DoesNotContain("TransactionID", text);
+        Assert.True(pdf.GetPages().SelectMany(page => page.GetImages()).Any());
+    }
+
+    [Fact]
     public async Task QrOnlyDocument_UsesQrOnlyDisclaimerAndNoNfcWording()
     {
         using var h = await Harness.CreateAsync();
@@ -452,6 +469,11 @@ public sealed class OrderDocumentServiceTests
                 Postcode = "50000",
                 City = "Kuala Lumpur",
                 State = "Kuala Lumpur",
+                StateCode = "KUL",
+                Country = "Malaysia",
+                DeliveryZoneName = "Peninsular",
+                DeliveryMethodName = "Standard Delivery",
+                FreeShippingReason = "Free delivery for this zone.",
                 CreatedAt = Now,
                 UpdatedAt = Now
             };
@@ -484,6 +506,11 @@ public sealed class OrderDocumentServiceTests
                 Status = OrderStatus.PaymentConfirmed,
                 PaymentStatus = PaymentStatus.Confirmed,
                 PaymentConfirmedAt = Now.AddHours(1),
+                StateCode = "KUL",
+                Country = "Malaysia",
+                DeliveryZoneName = "Peninsular",
+                DeliveryMethodName = "Standard Delivery",
+                FreeShippingReason = "Free delivery for this zone.",
                 RecipientName = "Owner A",
                 DeliveryPhoneE164 = "+60123456789",
                 AddressLine1 = "1 Jalan Test",
