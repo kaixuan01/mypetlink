@@ -342,6 +342,8 @@ builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<IEmailOutboxService, EmailOutboxService>();
 builder.Services.AddScoped<IEmailOutboxDispatcher, EmailOutboxDispatcher>();
 builder.Services.AddScoped<IOwnerPortalEntryService, OwnerPortalEntryService>();
+builder.Services.AddScoped<IEmailPreviewService, EmailPreviewService>();
+builder.Services.AddScoped<TransactionalEmailLayout>();
 builder.Services.AddScoped<PaymentConfirmedEmailTemplateRenderer>();
 builder.Services.AddSingleton<IBusinessReferenceSuffixSource, CryptographicBusinessReferenceSuffixSource>();
 builder.Services.AddSingleton<IBusinessReferenceGenerator, BusinessReferenceGenerator>();
@@ -443,6 +445,71 @@ if (app.Environment.IsDevelopment() && devAuth.Enabled)
                     cancellationToken);
 
                 return Results.Ok(ApiEnvelope.Ok(response, context));
+            })
+        .AllowAnonymous();
+}
+
+if (app.Environment.IsDevelopment())
+{
+    app.MapGet(
+            "/api/v1/dev/email-previews/{template}/{variant}",
+            (
+                HttpContext context,
+                string template,
+                string variant,
+                string? format,
+                int? width,
+                IDevelopmentAuthRequestGuard requestGuard,
+                IEmailPreviewService previewService) =>
+            {
+                if (!requestGuard.IsLoopback(context))
+                {
+                    return Results.NotFound();
+                }
+
+                RenderedEmail preview;
+                try
+                {
+                    preview = previewService.Render(template, variant);
+                }
+                catch (EmailDeliveryException)
+                {
+                    return Results.NotFound();
+                }
+
+                context.Response.Headers.CacheControl = "no-store";
+                if (string.Equals(format, "text", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Results.Text(preview.TextBody, "text/plain; charset=utf-8");
+                }
+
+                if (width is 320 or 375)
+                {
+                    var encodedPreview = WebUtility.HtmlEncode(preview.HtmlBody);
+                    var previewFrame = $"""
+                        <!doctype html>
+                        <html lang="en">
+                        <head>
+                          <meta charset="utf-8">
+                          <meta name="viewport" content="width=device-width, initial-scale=1">
+                          <title>MyPetLink email preview · {width}px</title>
+                        </head>
+                        <body style="margin:0;padding:24px;background:#e8edf5;text-align:center;">
+                          <iframe
+                            title="MyPetLink email preview at {width} pixels"
+                            srcdoc="{encodedPreview}"
+                            width="{width}"
+                            height="1700"
+                            style="display:inline-block;border:0;background:#fff;box-shadow:0 8px 32px rgba(13,27,61,.16);"
+                          ></iframe>
+                        </body>
+                        </html>
+                        """;
+
+                    return Results.Content(previewFrame, "text/html; charset=utf-8");
+                }
+
+                return Results.Content(preview.HtmlBody, "text/html; charset=utf-8");
             })
         .AllowAnonymous();
 }

@@ -72,12 +72,22 @@ public sealed class EmailOptionsValidator : IValidateOptions<EmailOptions>
         }
 
         if (!Uri.TryCreate(options.OwnerPortalBaseUrl, UriKind.Absolute, out var portalUri)
-            || portalUri.Scheme is not ("https" or "http")
+            || (portalUri.Scheme != Uri.UriSchemeHttps
+                && !(portalUri.Scheme == Uri.UriSchemeHttp && portalUri.IsLoopback))
             || !string.IsNullOrEmpty(portalUri.UserInfo)
             || !string.IsNullOrEmpty(portalUri.Query)
             || !string.IsNullOrEmpty(portalUri.Fragment))
         {
-            failures.Add("Email:OwnerPortalBaseUrl must be an absolute HTTP or HTTPS origin without credentials, a query, or a fragment.");
+            failures.Add("Email:OwnerPortalBaseUrl must be an absolute HTTPS origin (or loopback HTTP for development) without credentials, a query, or a fragment.");
+        }
+
+        if (!Uri.TryCreate(options.BrandLogoUrl, UriKind.Absolute, out var logoUri)
+            || logoUri.Scheme != Uri.UriSchemeHttps
+            || !string.IsNullOrEmpty(logoUri.UserInfo)
+            || !string.IsNullOrEmpty(logoUri.Query)
+            || !string.IsNullOrEmpty(logoUri.Fragment))
+        {
+            failures.Add("Email:BrandLogoUrl must be an absolute HTTPS URL without credentials, a query, or a fragment.");
         }
 
         if (string.Equals(provider, EmailOptions.SmtpProvider, StringComparison.OrdinalIgnoreCase))

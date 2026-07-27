@@ -234,6 +234,12 @@ public sealed class PaymentConfirmationEmailTests
         var rendered = harness.Renderer.Render(message);
 
         Assert.Contains("viewport", rendered.HtmlBody);
+        Assert.Contains("class=\"email-card\"", rendered.HtmlBody);
+        Assert.Contains("https://mypetlink.com.my/logo-horizontal.png", rendered.HtmlBody);
+        Assert.Contains("alt=\"MyPetLink\"", rendered.HtmlBody);
+        Assert.Contains("background-color:#1570ef", rendered.HtmlBody);
+        Assert.Contains("MyPetLink &middot;", rendered.HtmlBody);
+        Assert.Contains("Paid", rendered.HtmlBody);
         Assert.Contains("&lt;script&gt;", rendered.HtmlBody);
         Assert.DoesNotContain("<script>", rendered.HtmlBody);
         Assert.Contains("MYR 47.00", rendered.HtmlBody);
@@ -245,6 +251,8 @@ public sealed class PaymentConfirmationEmailTests
         Assert.DoesNotContain(Harness.OrderId.ToString(), rendered.HtmlBody);
         Assert.DoesNotContain("payment-proof", rendered.HtmlBody);
         Assert.DoesNotContain("bearer", rendered.HtmlBody, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("#1f6b5b", rendered.HtmlBody, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("@font-face", rendered.HtmlBody, StringComparison.OrdinalIgnoreCase);
     }
 
     [Theory]
@@ -288,7 +296,9 @@ public sealed class PaymentConfirmationEmailTests
             Clock = new MutableTimeProvider(DateTimeOffset.Parse("2026-07-27T02:00:00Z"));
             Sender = new RecordingEmailSender();
             var emailOptions = Microsoft.Extensions.Options.Options.Create(Options(enabled));
-            Renderer = new PaymentConfirmedEmailTemplateRenderer(emailOptions);
+            Renderer = new PaymentConfirmedEmailTemplateRenderer(
+                emailOptions,
+                new TransactionalEmailLayout(emailOptions));
             Dispatcher = new EmailOutboxDispatcher(
                 db,
                 Renderer,

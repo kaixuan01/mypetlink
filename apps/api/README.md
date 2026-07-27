@@ -59,6 +59,12 @@ Production settings, Zoho DNS checks, retry rules, and deployment order are
 documented in
 [`../../docs/deployment/payment-confirmation-email.md`](../../docs/deployment/payment-confirmation-email.md).
 
+All customer-facing templates use the shared email-safe MyPetLink design system
+documented in
+[`../../docs/branding/email-design-system.md`](../../docs/branding/email-design-system.md).
+Development also provides loopback-only HTML and plain-text previews under
+`/api/v1/dev/email-previews/*`; these previews do not call SMTP.
+
 ## Commands
 
 Run from the repository root:

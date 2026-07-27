@@ -41,6 +41,10 @@ asset is `apps/web/public/logo-horizontal.png`, published by the production Web
 app as `/logo-horizontal.png`. The email remains understandable when remote
 images are blocked or the configured URL is unavailable.
 
+The welcome CTA uses the normal authenticated `/pets/new` Owner Portal route.
+All visual and copy rules are defined in
+[`../branding/email-design-system.md`](../branding/email-design-system.md).
+
 When either the overall email system or the welcome template is disabled,
 portal entry succeeds without creating a welcome outbox row. Enabling the
 template later makes the next eligible portal entry the first welcome event for
@@ -62,3 +66,6 @@ schedules the same row immediately, and records an audit entry.
 5. Enable the welcome template and monitor Failed outbox rows.
 
 No live SMTP test is part of automated or local integration verification.
+Use the loopback-only Development preview at
+`/api/v1/dev/email-previews/welcome/normal` (or `?format=text`) for local
+inspection without sending.

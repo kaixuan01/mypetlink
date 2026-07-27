@@ -37,7 +37,7 @@ public sealed class OwnerWelcomeEmailTests
             new JsonSerializerOptions(JsonSerializerDefaults.Web));
         Assert.NotNull(data);
         Assert.Equal("Aina", data!.OwnerName);
-        Assert.Equal("https://mypetlink.com.my/dashboard", data.OwnerPortalUrl);
+        Assert.Equal("https://mypetlink.com.my/pets/new", data.OwnerPortalUrl);
     }
 
     [Theory]
@@ -112,6 +112,27 @@ public sealed class OwnerWelcomeEmailTests
     }
 
     [Fact]
+    public async Task SuitableDisplayName_UsesOnlyTheOwnersFirstName()
+    {
+        using var harness = await Harness.CreateAsync();
+        var owner = await harness.Db.Users
+            .Include(item => item.OwnerProfile)
+            .SingleAsync(item => item.Id == Harness.OwnerId);
+        owner.DisplayName = "Nur Aina";
+        owner.OwnerProfile!.OwnerDisplayName = "Nur Aina";
+        await harness.Db.SaveChangesAsync();
+
+        await harness.Entry.EnterAsync(Harness.OwnerId);
+
+        var message = await harness.Db.EmailOutbox.SingleAsync();
+        var data = JsonSerializer.Deserialize<OwnerWelcomeEmailTemplateData>(
+            message.TemplateDataJson,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        Assert.NotNull(data);
+        Assert.Equal("Nur", data!.OwnerName);
+    }
+
+    [Fact]
     public async Task PendingWelcome_IsSentBySharedWorkerAndMarkedSent()
     {
         using var harness = await Harness.CreateAsync();
@@ -146,8 +167,11 @@ public sealed class OwnerWelcomeEmailTests
         var dispatcher = new EmailOutboxDispatcher(
             harness.Db,
             new EmailTemplateRenderer(
-                new PaymentConfirmedEmailTemplateRenderer(disabledOptions),
-                new OwnerWelcomeEmailTemplateRenderer(disabledOptions)),
+                new PaymentConfirmedEmailTemplateRenderer(
+                    disabledOptions,
+                    new TransactionalEmailLayout(disabledOptions)),
+                new OwnerWelcomeEmailTemplateRenderer(
+                    new TransactionalEmailLayout(disabledOptions))),
             harness.Sender,
             disabledOptions,
             harness.Clock,
@@ -190,12 +214,12 @@ public sealed class OwnerWelcomeEmailTests
     }
 
     [Fact]
-    public async Task Template_IsEncodedResponsiveAndContainsNoAuthenticationData()
+    public async Task Template_UsesSharedBrandLayoutAndContainsNoAuthenticationData()
     {
         using var harness = await Harness.CreateAsync();
         var message = Message(new OwnerWelcomeEmailTemplateData(
             "<script>alert('x')</script>",
-            "https://mypetlink.com.my/dashboard",
+            "https://mypetlink.com.my/pets/new",
             harness.Clock.GetUtcNow(),
             SmartTagsEnabled: false));
 
@@ -204,15 +228,39 @@ public sealed class OwnerWelcomeEmailTests
         Assert.Contains("viewport", rendered.HtmlBody);
         Assert.Contains("role=\"presentation\"", rendered.HtmlBody);
         Assert.Contains("width=\"600\"", rendered.HtmlBody);
-        Assert.Contains("width:600px;max-width:100%", rendered.HtmlBody);
+        Assert.Contains("width:100%;max-width:600px", rendered.HtmlBody);
+        Assert.Contains("class=\"email-card\"", rendered.HtmlBody);
+        Assert.Contains("background-color:#fff8f2", rendered.HtmlBody);
+        Assert.Contains("background-color:#1570ef", rendered.HtmlBody);
+        Assert.Contains("color:#0d1b3d", rendered.HtmlBody);
+        Assert.Contains("border:1px solid #f0dcd0", rendered.HtmlBody);
         Assert.Contains("&lt;script&gt;", rendered.HtmlBody);
         Assert.DoesNotContain("<script>", rendered.HtmlBody);
-        Assert.Contains("Go to Owner Portal", rendered.HtmlBody);
-        Assert.Contains("https://mypetlink.com.my/dashboard", rendered.TextBody);
-        Assert.Contains("Add your pet", rendered.HtmlBody);
-        Assert.Contains("Add your pet", rendered.TextBody);
+        Assert.Contains("Create Your Pet Profile", rendered.HtmlBody);
+        Assert.Contains("Create Your Pet Profile", rendered.TextBody);
+        Assert.Contains("https://mypetlink.com.my/pets/new", rendered.HtmlBody);
+        Assert.Contains("https://mypetlink.com.my/pets/new", rendered.TextBody);
+        Assert.Contains("Create your pet&#x2019;s profile", rendered.HtmlBody);
+        Assert.Contains("Create your pet’s profile", rendered.TextBody);
+        Assert.Contains("Update your contact details", rendered.HtmlBody);
+        Assert.Contains("Preview the public profile", rendered.HtmlBody);
         Assert.Contains("https://mypetlink.com.my/logo-horizontal.png", rendered.HtmlBody);
+        Assert.Contains("alt=\"MyPetLink\"", rendered.HtmlBody);
+        Assert.Contains("support@mypetlink.com.my", rendered.HtmlBody);
+        Assert.Contains(
+            "This transactional email was sent because your MyPetLink Owner Portal account was opened.",
+            rendered.HtmlBody);
+        Assert.Contains(
+            "This transactional email was sent because your MyPetLink Owner Portal account was opened.",
+            rendered.TextBody);
         Assert.DoesNotContain("QR or NFC", rendered.HtmlBody);
+        Assert.DoesNotContain("Smart Tag", rendered.HtmlBody);
+        Assert.DoesNotContain("Premium", rendered.HtmlBody);
+        Assert.DoesNotContain("Lost Mode", rendered.HtmlBody);
+        Assert.DoesNotContain("#1f6b5b", rendered.HtmlBody, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("#f7f3ea", rendered.HtmlBody, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("javascript:", rendered.HtmlBody, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("@font-face", rendered.HtmlBody, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(Harness.OwnerId.ToString(), rendered.HtmlBody);
         Assert.DoesNotContain("OAuth", rendered.HtmlBody, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("JWT", rendered.HtmlBody, StringComparison.OrdinalIgnoreCase);
@@ -220,22 +268,45 @@ public sealed class OwnerWelcomeEmailTests
     }
 
     [Fact]
-    public async Task Template_UsesGenericGreetingAndWorksWithoutLogo()
+    public async Task Template_UsesFallbackHeadingAndWorksWithoutLogo()
     {
         using var harness = await Harness.CreateAsync(brandLogoUrl: "http://localhost/logo.png");
         var message = Message(new OwnerWelcomeEmailTemplateData(
             "",
-            "https://mypetlink.com.my/dashboard",
+            "https://mypetlink.com.my/pets/new",
             harness.Clock.GetUtcNow(),
             SmartTagsEnabled: true));
 
         var rendered = harness.WelcomeRenderer.Render(message);
 
-        Assert.Contains("Hi there,", rendered.HtmlBody);
-        Assert.Contains("Hi there,", rendered.TextBody);
+        Assert.Contains("Welcome to MyPetLink!", rendered.HtmlBody);
+        Assert.Contains("Welcome to MyPetLink!", rendered.TextBody);
         Assert.DoesNotContain("<img", rendered.HtmlBody);
-        Assert.Contains("MyPetLink", rendered.HtmlBody);
-        Assert.Contains("QR or NFC", rendered.HtmlBody);
+        Assert.Contains(TransactionalEmailLayout.Tagline, rendered.HtmlBody);
+        Assert.Contains("Create Your Pet Profile", rendered.HtmlBody);
+        Assert.DoesNotContain("QR or NFC", rendered.HtmlBody);
+        Assert.DoesNotContain("Smart Tag", rendered.HtmlBody);
+    }
+
+    [Fact]
+    public async Task LongOwnerName_IsEncodedAndWrapSafe()
+    {
+        using var harness = await Harness.CreateAsync();
+        const string ownerName =
+            "Alexandria-Catherine-Montgomery-Wellington-Santos<&>";
+        var rendered = harness.WelcomeRenderer.Render(Message(
+            new OwnerWelcomeEmailTemplateData(
+                ownerName,
+                "https://mypetlink.com.my/pets/new",
+                harness.Clock.GetUtcNow(),
+                SmartTagsEnabled: false)));
+
+        Assert.Contains(
+            "Welcome to MyPetLink, Alexandria-Catherine-Montgomery-Wellington-Santos&lt;&amp;&gt;!",
+            rendered.HtmlBody);
+        Assert.Contains("overflow-wrap:anywhere", rendered.HtmlBody);
+        Assert.DoesNotContain(ownerName, rendered.HtmlBody);
+        Assert.Contains(ownerName, rendered.TextBody);
     }
 
     private static EmailOutbox Message(OwnerWelcomeEmailTemplateData data) =>
@@ -284,11 +355,12 @@ public sealed class OwnerWelcomeEmailTests
             var audit = new AuditLogService(db, new HttpContextAccessor());
             var outbox = new EmailOutboxService(db, audit, Clock);
             Sender = new RecordingSender();
-            WelcomeRenderer = new OwnerWelcomeEmailTemplateRenderer(optionValue);
+            var layout = new TransactionalEmailLayout(optionValue);
+            WelcomeRenderer = new OwnerWelcomeEmailTemplateRenderer(layout);
             Dispatcher = new EmailOutboxDispatcher(
                 db,
                 new EmailTemplateRenderer(
-                    new PaymentConfirmedEmailTemplateRenderer(optionValue),
+                    new PaymentConfirmedEmailTemplateRenderer(optionValue, layout),
                     WelcomeRenderer),
                 Sender,
                 optionValue,

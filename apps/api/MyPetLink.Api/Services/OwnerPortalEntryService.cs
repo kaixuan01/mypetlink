@@ -181,10 +181,14 @@ public sealed class OwnerPortalEntryService : SkeletonService, IOwnerPortalEntry
 
         var at = user.Email.IndexOf('@', StringComparison.Ordinal);
         var emailPrefix = at > 0 ? user.Email[..at] : user.Email;
-        return string.Equals(candidate, emailPrefix, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(candidate, user.Email, StringComparison.OrdinalIgnoreCase)
-                ? ""
-                : candidate;
+        if (string.Equals(candidate, emailPrefix, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(candidate, user.Email, StringComparison.OrdinalIgnoreCase))
+        {
+            return "";
+        }
+
+        var separator = candidate.IndexOfAny([' ', '\t']);
+        return separator > 0 ? candidate[..separator] : candidate;
     }
 
     private bool TryBuildOwnerPortalUrl(out string ownerPortalUrl)
@@ -206,7 +210,7 @@ public sealed class OwnerPortalEntryService : SkeletonService, IOwnerPortalEntry
             return false;
         }
 
-        ownerPortalUrl = new Uri(baseUri, "dashboard").AbsoluteUri;
+        ownerPortalUrl = new Uri(baseUri, "pets/new").AbsoluteUri;
         return true;
     }
 

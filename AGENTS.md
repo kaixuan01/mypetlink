@@ -33,6 +33,15 @@ All user-facing **and** admin-facing UI text must read as production-ready copy 
 - Development-only hints (e.g. connection debug hints) must be gated so they only render in development, never in a production build.
 - Admin Portal copy can be operational, but must still be clear and non-technical.
 
+## Transactional email design
+
+All customer-facing MyPetLink email templates must follow
+`docs/branding/email-design-system.md`.
+
+Reuse the shared transactional email layout, header, footer, CTA, typography,
+spacing, and brand tokens. Do not create standalone email visual styles or
+duplicate full email layouts inside individual templates.
+
 ### User-facing terms for our routes
 
 Refer to the three public pages by name in copy, not by their path:

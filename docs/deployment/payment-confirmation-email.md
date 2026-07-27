@@ -53,6 +53,10 @@ with a fake and must never configure Zoho credentials.
 
 The Official Receipt remains link-only. The email opens the authenticated Owner
 Portal order page; it does not attach PDF bytes or expose a bearer token.
+The template uses the shared layout in
+[`../branding/email-design-system.md`](../branding/email-design-system.md).
+Inspect it without sending at the loopback-only Development route
+`/api/v1/dev/email-previews/payment-confirmed/normal`.
 
 ## DNS and Zoho readiness
 

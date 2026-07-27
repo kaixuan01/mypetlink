@@ -41,6 +41,11 @@ public interface IEmailTemplateRenderer
     RenderedEmail Render(EmailOutbox message);
 }
 
+public interface IEmailPreviewService
+{
+    RenderedEmail Render(string template, string variant);
+}
+
 public interface IEmailOutboxService
 {
     void EnqueuePaymentConfirmed(TagOrder order, DateTimeOffset confirmedAt);
