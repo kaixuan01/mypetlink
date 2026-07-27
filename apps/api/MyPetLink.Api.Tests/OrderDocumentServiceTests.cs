@@ -136,25 +136,34 @@ public sealed class OrderDocumentServiceTests
         var owner = await h.Service.GetOwnerReceiptAsync(Harness.OwnerAId, "MPL-ORD-NFC");
         var admin = await h.Service.GetAdminReceiptAsync(orderId);
 
+        Assert.Equal(owner.Content, admin.Content);
         Assert.Equal(ExtractText(owner.Content), ExtractText(admin.Content));
     }
 
     // --- Content ----------------------------------------------------------
 
     [Fact]
-    public async Task Receipt_ShowsStableNumberOrderNumberTotalDateAndPaidStatus()
+    public async Task Receipt_ShowsStableNumberOrderNumberReceiptDateTotalAndPaidStatus()
     {
         using var h = await Harness.CreateAsync();
 
         var first = ExtractText((await h.Service.GetOwnerReceiptAsync(Harness.OwnerAId, "MPL-ORD-NFC")).Content);
         var second = ExtractText((await h.Service.GetOwnerReceiptAsync(Harness.OwnerAId, "MPL-ORD-NFC")).Content);
+        var squashed = Squash(first);
 
-        Assert.Contains("MPL-RCP-NFC", Squash(first));       // receipt number derived from order number
+        Assert.Contains("MPL-RCP-NFC", squashed);           // receipt number derived from order number
         Assert.Contains("MPL-ORD-NFC", first);               // order number present
-        Assert.Contains("RM59.00", Squash(first));           // total correct
-        Assert.Contains("2026", first);                      // confirmation date present
-        Assert.Contains("Paid", first, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal(Squash(first), Squash(second));         // number/totals stable across downloads
+        Assert.Contains("RM59.00", squashed);                // total correct
+        Assert.Contains("ReceiptDate20Jul2026,11:30AM(MYT)", squashed);
+        Assert.Contains("PaymentstatusPaid", squashed);
+        Assert.DoesNotContain("Paymentconfirmed(Paid)", squashed, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("PaymentProofSubmitted", squashed, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("PaymentConfirmed11:30", squashed, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Payment Confirmed", first, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            Squash("Your payment has been confirmed. We’ll now begin preparing your MyPetLink tag. Track your order anytime in the Owner Portal."),
+            squashed);
+        Assert.Equal(squashed, Squash(second));              // number/totals stable across downloads
     }
 
     [Fact]
@@ -169,9 +178,56 @@ public sealed class OrderDocumentServiceTests
         Assert.Contains("StandardDelivery", text);
         Assert.Contains("KualaLumpur", text);
         Assert.Contains("50000", text);
-        Assert.Contains("PaymentReference", text);
+        Assert.Contains("Paymentreference", text);
         Assert.DoesNotContain("TransactionID", text);
+        Assert.Contains("IssuedbyGBBSoftwareSolutions", text);
+        Assert.Contains("Customerdetails", text);
         Assert.True(pdf.GetPages().SelectMany(page => page.GetImages()).Any());
+    }
+
+    [Fact]
+    public async Task Receipt_HidesMutableOrderStatus_WhileSummaryKeepsTrackingStatus()
+    {
+        using var h = await Harness.CreateAsync();
+        var order = await h.Db.TagOrders.SingleAsync(item => item.OrderNumber == "MPL-ORD-NFC");
+        order.Status = OrderStatus.Shipped;
+        await h.Db.SaveChangesAsync();
+
+        var receipt = Squash(ExtractText(
+            (await h.Service.GetOwnerReceiptAsync(Harness.OwnerAId, order.OrderNumber)).Content));
+        var summary = Squash(ExtractText(
+            (await h.Service.GetOwnerSummaryAsync(Harness.OwnerAId, order.OrderNumber)).Content));
+
+        Assert.DoesNotContain("Orderstatus", receipt, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Shipped", receipt, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("OrderstatusShipped", summary);
+        Assert.Contains("PaymentProofSubmitted", summary);
+    }
+
+    [Fact]
+    public async Task Receipt_UsesCustomerFriendlyOptionWithoutInternalVariantWording()
+    {
+        using var h = await Harness.CreateAsync();
+        var text = Squash(ExtractText(
+            (await h.Service.GetOwnerReceiptAsync(Harness.OwnerAId, "MPL-ORD-NFC")).Content));
+
+        Assert.Contains("Option:Standard", text);
+        Assert.DoesNotContain("Tagvariant", text, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Option:StandardTag", text, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Receipt_CombinesDeliveryDestinationAndRemovesDuplicatedZonePrefix()
+    {
+        using var h = await Harness.CreateAsync();
+        var text = Squash(ExtractText(
+            (await h.Service.GetOwnerReceiptAsync(Harness.OwnerAId, "MPL-ORD-DELIVERY")).Content));
+
+        Assert.Contains("DeliverymethodStandardDelivery", text);
+        Assert.Contains("DestinationSabah,88000", text);
+        Assert.DoesNotContain("SabahStandardDelivery", text, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("ZoneSabah", text, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(1, CountOccurrences(text, "Sabah"));
     }
 
     [Fact]
@@ -181,7 +237,7 @@ public sealed class OrderDocumentServiceTests
         var text = ExtractText((await h.Service.GetOwnerReceiptAsync(Harness.OwnerAId, "MPL-ORD-QR")).Content);
 
         Assert.Contains(
-            Squash("MyPetLink QR Pet Tags do not provide GPS tracking or real-time location monitoring"),
+            Squash("MyPetLink QR Pet Tags are not GPS trackers and do not provide real-time location monitoring"),
             Squash(text));
         Assert.DoesNotContain("NFC", text, StringComparison.OrdinalIgnoreCase);
     }
@@ -193,8 +249,30 @@ public sealed class OrderDocumentServiceTests
         var text = ExtractText((await h.Service.GetOwnerReceiptAsync(Harness.OwnerAId, "MPL-ORD-NFC")).Content);
 
         Assert.Contains(
-            Squash("MyPetLink QR + NFC Pet Tags do not provide GPS tracking or real-time location monitoring"),
+            Squash("MyPetLink QR + NFC Pet Tags are not GPS trackers and do not provide real-time location monitoring"),
             Squash(text));
+    }
+
+    [Fact]
+    public async Task NormalCustomerDocuments_RemainSinglePageA4()
+    {
+        using var h = await Harness.CreateAsync();
+
+        foreach (var orderNumber in new[]
+                 {
+                     "MPL-ORD-QR",
+                     "MPL-ORD-NFC",
+                     "MPL-ORD-DELIVERY",
+                     "MPL-ORD-QTY"
+                 })
+        {
+            var result = await h.Service.GetOwnerReceiptAsync(Harness.OwnerAId, orderNumber);
+            using var pdf = PdfDocument.Open(result.Content);
+            var page = Assert.Single(pdf.GetPages());
+
+            Assert.InRange(page.Width, 594d, 596d);
+            Assert.InRange(page.Height, 841d, 843d);
+        }
     }
 
     [Fact]
@@ -326,6 +404,19 @@ public sealed class OrderDocumentServiceTests
         return builder.ToString();
     }
 
+    private static int CountOccurrences(string value, string search)
+    {
+        var count = 0;
+        var start = 0;
+        while ((start = value.IndexOf(search, start, StringComparison.OrdinalIgnoreCase)) >= 0)
+        {
+            count++;
+            start += search.Length;
+        }
+
+        return count;
+    }
+
     private sealed class Harness : IDisposable
     {
         public static readonly Guid OwnerAId = Guid.Parse("70d5b712-2f8d-484b-8963-738c25b6abd3");
@@ -418,6 +509,7 @@ public sealed class OrderDocumentServiceTests
 
             // Legacy QR + NFC confirmed order (no item snapshot rows).
             var nfc = ConfirmedOrder("MPL-ORD-NFC", TagType.QrNfcSmartTag, 59m);
+            nfc.Variant = "Standard Tag";
             nfc.PaymentProofs.Add(Proof());
 
             // QR-only confirmed order with a launch discount, from an item snapshot.
@@ -448,6 +540,18 @@ public sealed class OrderDocumentServiceTests
             // Multi-unit order to exercise the quantity path.
             var qty = ConfirmedOrder("MPL-ORD-QTY", TagType.QrPetTag, 40m);
             qty.Items.Add(SimpleItem(qty.Id, nfc: false, unit: 20m, qty: 2, final: 40m));
+
+            // Paid Sabah delivery with a historical method label that includes
+            // the zone prefix. Customer PDFs remove only the duplicated prefix.
+            var paidDelivery = ConfirmedOrder("MPL-ORD-DELIVERY", TagType.QrNfcSmartTag, 59m);
+            paidDelivery.DeliveryFee = 15m;
+            paidDelivery.TotalAmount = 74m;
+            paidDelivery.State = "Sabah";
+            paidDelivery.StateCode = "SBH";
+            paidDelivery.Postcode = "88000";
+            paidDelivery.City = "Kota Kinabalu";
+            paidDelivery.DeliveryZoneName = "Sabah";
+            paidDelivery.DeliveryMethodName = "Sabah Standard Delivery";
 
             // Pending order (receipt must be unavailable).
             var pending = new TagOrder
@@ -485,7 +589,7 @@ public sealed class OrderDocumentServiceTests
             var mismatch = ConfirmedOrder("MPL-ORD-MISMATCH", TagType.QrPetTag, 999m);
             mismatch.Items.Add(SimpleItem(mismatch.Id, nfc: false, unit: 20m, qty: 1, final: 20m));
 
-            db.TagOrders.AddRange(nfc, qr, nfcItem, qty, pending, badQty, mismatch);
+            db.TagOrders.AddRange(nfc, qr, nfcItem, qty, paidDelivery, pending, badQty, mismatch);
             await db.SaveChangesAsync();
             return harness;
         }

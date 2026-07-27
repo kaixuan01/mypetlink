@@ -48,7 +48,7 @@ public sealed class OrderDocumentService : IOrderDocumentService
 {
     // Business identity shown on every document.
     private const string BusinessName = "MyPetLink";
-    private const string BusinessOwner = "by GBB Software Solutions";
+    private const string BusinessOwner = "Issued by GBB Software Solutions";
     private const string BusinessRegNo = "Business Registration No.: 202603141718 (AS0515813-P)";
     private const string BusinessWebsite = "mypetlink.com.my";
     private const string SupportEmail = "support@mypetlink.com.my";
@@ -182,7 +182,7 @@ public sealed class OrderDocumentService : IOrderDocumentService
             ReceiptNumber: isReceipt ? BuildReceiptNumber(order.OrderNumber) : null,
             OrderDate: FormatDateTime(order.CreatedAt) ?? "-",
             PaymentSubmittedDate: FormatDateTime(latestProof?.UploadedAt),
-            PaymentConfirmedDate: FormatDateTime(order.PaymentConfirmedAt),
+            ReceiptDate: FormatDateTime(order.PaymentConfirmedAt),
             CustomerName: Fallback(order.OwnerUser?.DisplayName, "MyPetLink customer"),
             CustomerEmail: Fallback(order.OwnerUser?.Email, "-"),
             PetName: Fallback(order.Pet?.Name, "-"),
@@ -192,10 +192,8 @@ public sealed class OrderDocumentService : IOrderDocumentService
             DiscountAmount: hasDiscount ? $"- {FormatMoney(discountTotal, currency)}" : null,
             PromotionLabel: promotionLabel,
             DeliveryFee: deliveryFee <= 0m ? "Free" : FormatMoney(deliveryFee, currency),
-            DeliveryMethod: Fallback(order.DeliveryMethodName, "Delivery"),
-            DeliveryState: Fallback(order.State, "-"),
-            DeliveryPostcode: Fallback(order.Postcode, "-"),
-            DeliveryZone: order.DeliveryZoneName,
+            DeliveryMethod: FormatDeliveryMethod(order.DeliveryMethodName, order.DeliveryZoneName),
+            DeliveryDestination: FormatDeliveryDestination(order.State, order.Postcode),
             FreeDeliveryReason: order.FreeShippingReason,
             TotalAmount: FormatMoney(grandTotal, currency),
             Currency: currency,
@@ -204,7 +202,7 @@ public sealed class OrderDocumentService : IOrderDocumentService
             PaymentReference: string.IsNullOrWhiteSpace(latestProof?.PaymentReference)
                 ? null
                 : latestProof!.PaymentReference,
-            PaymentStatus: DescribePaymentStatus(order.PaymentStatus),
+            PaymentStatus: isReceipt ? "Paid" : DescribePaymentStatus(order.PaymentStatus),
             OrderStatus: DescribeOrderStatus(order.Status),
             IsPaid: order.PaymentConfirmedAt.HasValue);
     }
@@ -233,7 +231,7 @@ public sealed class OrderDocumentService : IOrderDocumentService
         decimal DiscountTotal,
         string? PromotionLabel) BuildLines(TagOrder order, string currency)
     {
-        var variantLabel = TagVariants.Normalize(order.Variant);
+        var variantLabel = FormatCustomerOption(order.Variant);
         var items = order.Items
             .OrderBy(item => item.CreatedAt)
             .ToList();
@@ -307,13 +305,56 @@ public sealed class OrderDocumentService : IOrderDocumentService
         return supportsNfc ? "MyPetLink QR + NFC Smart Tag" : "MyPetLink QR Pet Tag";
     }
 
+    private static string FormatCustomerOption(string? snapshot)
+    {
+        var option = TagVariants.Normalize(snapshot);
+        return option.EndsWith(" Tag", StringComparison.OrdinalIgnoreCase)
+            ? option[..^4].TrimEnd()
+            : option;
+    }
+
+    private static string FormatDeliveryMethod(string? methodSnapshot, string? zoneSnapshot)
+    {
+        var method = Fallback(methodSnapshot, "Delivery");
+        var zone = zoneSnapshot?.Trim();
+        if (string.IsNullOrEmpty(zone)
+            || !method.StartsWith(zone, StringComparison.OrdinalIgnoreCase))
+        {
+            return method;
+        }
+
+        var suffix = method[zone.Length..];
+        if (suffix.Length == 0
+            || !(char.IsWhiteSpace(suffix[0]) || suffix[0] is '-' or ':'))
+        {
+            return method;
+        }
+
+        var customerLabel = suffix.TrimStart(' ', '-', ':');
+        return customerLabel.Length == 0 ? method : customerLabel;
+    }
+
+    private static string FormatDeliveryDestination(string? stateSnapshot, string? postcodeSnapshot)
+    {
+        var state = stateSnapshot?.Trim();
+        var postcode = postcodeSnapshot?.Trim();
+
+        return (state, postcode) switch
+        {
+            ({ Length: > 0 }, { Length: > 0 }) => $"{state}, {postcode}",
+            ({ Length: > 0 }, _) => state,
+            (_, { Length: > 0 }) => postcode,
+            _ => "-"
+        };
+    }
+
     // Capability-aware, customer-friendly. Driven only by the authoritative
     // capability snapshot, never inferred from a product/SKU/variant name.
     private static string BuildGpsDisclaimer(bool supportsNfc)
     {
         return supportsNfc
-            ? "MyPetLink QR + NFC Pet Tags do not provide GPS tracking or real-time location monitoring."
-            : "MyPetLink QR Pet Tags do not provide GPS tracking or real-time location monitoring.";
+            ? "MyPetLink QR + NFC Pet Tags are not GPS trackers and do not provide real-time location monitoring."
+            : "MyPetLink QR Pet Tags are not GPS trackers and do not provide real-time location monitoring.";
     }
 
     private static ApiException OrderDocumentInconsistent(string orderNumber, string reason)
@@ -360,7 +401,7 @@ public sealed class OrderDocumentService : IOrderDocumentService
         {
             PaymentStatus.Pending => "Pending payment",
             PaymentStatus.ProofSubmitted => "Payment proof submitted - awaiting verification",
-            PaymentStatus.Confirmed => "Payment confirmed (Paid)",
+            PaymentStatus.Confirmed => "Paid",
             PaymentStatus.Rejected => "Payment proof rejected - resubmission needed",
             PaymentStatus.Refunded => "Refunded",
             _ => status.ToString()
@@ -421,7 +462,7 @@ internal sealed record OrderDocumentModel(
     string? ReceiptNumber,
     string OrderDate,
     string? PaymentSubmittedDate,
-    string? PaymentConfirmedDate,
+    string? ReceiptDate,
     string CustomerName,
     string CustomerEmail,
     string PetName,
@@ -432,9 +473,7 @@ internal sealed record OrderDocumentModel(
     string? PromotionLabel,
     string DeliveryFee,
     string DeliveryMethod,
-    string DeliveryState,
-    string DeliveryPostcode,
-    string? DeliveryZone,
+    string DeliveryDestination,
     string? FreeDeliveryReason,
     string TotalAmount,
     string Currency,
@@ -480,13 +519,13 @@ internal static class OrderDocumentRenderer
                 {
                     if (model.BrandLogo.Length > 0)
                     {
-                        brand.Item().Width(180).Height(42).Image(model.BrandLogo).FitArea();
+                        brand.Item().Width(170).Height(40).Image(model.BrandLogo).FitArea();
                     }
                     else
                     {
                         brand.Item().Text(model.BusinessName).FontSize(20).Bold().FontColor(Accent);
                     }
-                    brand.Item().Text(model.BusinessOwner).FontSize(9).FontColor(Muted);
+                    brand.Item().PaddingTop(6).Text(model.BusinessOwner).FontSize(9).FontColor(Muted);
                     brand.Item().Text(model.BusinessRegNo).FontSize(8).FontColor(Muted);
                     brand.Item().Text($"Support: {model.SupportEmail}").FontSize(8).FontColor(Muted);
                     brand.Item().Text($"Website: {model.BusinessWebsite}").FontSize(8).FontColor(Muted);
@@ -522,17 +561,19 @@ internal static class OrderDocumentRenderer
                     ("Order No.", model.OrderNumber),
                     model.ReceiptNumber is null ? ("", "") : ("Receipt No.", model.ReceiptNumber),
                     ("Order Date", model.OrderDate),
-                    model.PaymentSubmittedDate is null
+                    model.IsReceipt
+                        ? ("Receipt Date", model.ReceiptDate ?? "-")
+                        : model.PaymentSubmittedDate is null
                         ? ("", "")
                         : ("Payment Proof Submitted", model.PaymentSubmittedDate),
-                    model.PaymentConfirmedDate is null
+                    model.IsReceipt || model.ReceiptDate is null
                         ? ("", "")
-                        : ("Payment Confirmed", model.PaymentConfirmedDate),
+                        : ("Payment Confirmed", model.ReceiptDate),
                 }));
 
                 row.ConstantItem(20);
 
-                row.RelativeItem().Element(cell => MetaBlock(cell, "Customer", new[]
+                row.RelativeItem().Element(cell => MetaBlock(cell, "Customer details", new[]
                 {
                     ("Name", model.CustomerName),
                     ("Email", model.CustomerEmail),
@@ -545,22 +586,20 @@ internal static class OrderDocumentRenderer
 
             column.Item().Element(cell => MetaBlock(cell, "Delivery", new[]
             {
-                ("Method", model.DeliveryMethod),
-                ("State", model.DeliveryState),
-                ("Postcode", model.DeliveryPostcode),
-                string.IsNullOrWhiteSpace(model.DeliveryZone) ? ("", "") : ("Zone", model.DeliveryZone!),
+                ("Delivery method", model.DeliveryMethod),
+                ("Destination", model.DeliveryDestination),
                 string.IsNullOrWhiteSpace(model.FreeDeliveryReason) ? ("", "") : ("Delivery saving", model.FreeDeliveryReason!),
             }));
 
             // Payment section.
             column.Item().Element(cell => MetaBlock(cell, "Payment", new[]
             {
-                ("Payment Method", model.PaymentMethod),
+                ("Payment method", model.PaymentMethod),
                 model.PaymentReference is null
                     ? ("", "")
-                    : ("Payment Reference", model.PaymentReference),
-                ("Payment Status", model.PaymentStatus),
-                ("Order Status", model.OrderStatus),
+                    : ("Payment reference", model.PaymentReference),
+                ("Payment status", model.PaymentStatus),
+                model.IsReceipt ? ("", "") : ("Order status", model.OrderStatus),
                 ("SST", "Not applicable"),
             }));
 
@@ -576,7 +615,7 @@ internal static class OrderDocumentRenderer
                 column.Item().Background("#eef8f5").Padding(8).Column(next =>
                 {
                     next.Item().Text("What happens next?").FontSize(9).Bold().FontColor(PaidGreen);
-                    next.Item().Text("We'll begin preparing your MyPetLink tag. You can track the latest order status in the Owner Portal.")
+                    next.Item().Text("Your payment has been confirmed. We’ll now begin preparing your MyPetLink tag. Track your order anytime in the Owner Portal.")
                         .FontSize(8).FontColor(Muted);
                 });
             }
@@ -632,7 +671,7 @@ internal static class OrderDocumentRenderer
                     table.Cell().Element(BodyCell).Column(cell =>
                     {
                         cell.Item().Text(line.ProductName).FontSize(9).Bold();
-                        cell.Item().Text($"Tag variant: {line.VariantLabel} Tag").FontSize(8).FontColor(Muted);
+                        cell.Item().Text($"Option: {line.VariantLabel}").FontSize(8).FontColor(Muted);
                     });
                     table.Cell().Element(BodyCell).AlignRight().Text(line.Quantity.ToString()).FontSize(9);
                     table.Cell().Element(BodyCell).AlignRight().Text(line.UnitPrice).FontSize(9);
@@ -698,13 +737,14 @@ internal static class OrderDocumentRenderer
     {
         container.Column(column =>
         {
+            column.Spacing(2);
             column.Item().LineHorizontal(1).LineColor(Border);
-            column.Item().PaddingTop(6).Text("Thank you for supporting MyPetLink.").FontSize(8).Bold();
-            column.Item().Text(
-                $"{model.GpsDisclaimer} This document is generated "
-                + "electronically and does not require a signature.")
-                .FontSize(7.5f).FontColor(Muted);
-            column.Item().Text($"For support, contact {model.SupportEmail}.").FontSize(7.5f).FontColor(Muted);
+            column.Item().PaddingTop(6).Text("Thank you for supporting MyPetLink.").FontSize(8.5f).Bold();
+            column.Item().Text(model.GpsDisclaimer).FontSize(8).FontColor(Muted);
+            column.Item().Text("This document is generated electronically and does not require a signature.")
+                .FontSize(8).FontColor(Muted);
+            column.Item().Text($"Support: {model.SupportEmail} | {model.BusinessWebsite}")
+                .FontSize(8).FontColor(Muted);
         });
     }
 }
