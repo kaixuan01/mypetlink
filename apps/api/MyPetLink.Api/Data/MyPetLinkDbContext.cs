@@ -47,6 +47,7 @@ public sealed class MyPetLinkDbContext : DbContext
     public DbSet<TagOrder> TagOrders => Set<TagOrder>();
     public DbSet<TagOrderItem> TagOrderItems => Set<TagOrderItem>();
     public DbSet<PaymentProof> PaymentProofs => Set<PaymentProof>();
+    public DbSet<EmailOutbox> EmailOutbox => Set<EmailOutbox>();
     public DbSet<TagScan> TagScans => Set<TagScan>();
     public DbSet<FoundReport> FoundReports => Set<FoundReport>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
@@ -698,6 +699,37 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasOne(item => item.ReviewedByAdminUser)
                 .WithMany()
                 .HasForeignKey(item => item.ReviewedByAdminUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<EmailOutbox>(entity =>
+        {
+            entity.ToTable("EmailOutbox", table =>
+                table.HasCheckConstraint(
+                    "CK_EmailOutbox_RelatedEntity",
+                    "([RelatedOrderId] IS NOT NULL AND [RelatedUserId] IS NULL) OR ([RelatedOrderId] IS NULL AND [RelatedUserId] IS NOT NULL)"));
+            entity.Property(item => item.MessageType).HasConversion<string>().HasMaxLength(64);
+            entity.Property(item => item.RecipientEmail).HasMaxLength(320);
+            entity.Property(item => item.RecipientName).HasMaxLength(160);
+            entity.Property(item => item.Subject).HasMaxLength(240);
+            entity.Property(item => item.Status).HasConversion<string>().HasMaxLength(32);
+            entity.Property(item => item.LastError).HasMaxLength(600);
+            entity.Property(item => item.RowVersion).IsRowVersion();
+            entity.HasIndex(item => new { item.RelatedOrderId, item.MessageType })
+                .IsUnique()
+                .HasFilter("[RelatedOrderId] IS NOT NULL");
+            entity.HasIndex(item => new { item.RelatedUserId, item.MessageType })
+                .IsUnique()
+                .HasFilter("[RelatedUserId] IS NOT NULL");
+            entity.HasIndex(item => new { item.Status, item.NextAttemptAt });
+            entity.HasIndex(item => item.LockedUntil);
+            entity.HasOne(item => item.RelatedOrder)
+                .WithMany(order => order.EmailOutboxMessages)
+                .HasForeignKey(item => item.RelatedOrderId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.RelatedUser)
+                .WithMany(user => user.EmailOutboxMessages)
+                .HasForeignKey(item => item.RelatedUserId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
     }

@@ -91,6 +91,18 @@ public sealed class AdminOwnersController : ApiControllerBase
         return Ok(ApiEnvelope.Ok(response, HttpContext));
     }
 
+    [HttpPost("{ownerId:guid}/welcome-email/retry")]
+    public async Task<IActionResult> RetryWelcomeEmail(
+        Guid ownerId,
+        CancellationToken cancellationToken)
+    {
+        var response = await _adminService.RetryOwnerWelcomeEmailAsync(
+            _currentUserService.Current.UserId,
+            ownerId,
+            cancellationToken);
+        return Ok(ApiEnvelope.Ok(response, HttpContext));
+    }
+
     private static IReadOnlyCollection<Guid>? ParseIds(string? value)
     {
         if (string.IsNullOrWhiteSpace(value)) return null;

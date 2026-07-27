@@ -35,6 +35,10 @@ builder.Services.AddOptions<CloudflareR2Options>()
 builder.Services.AddSingleton<IValidateOptions<CloudflareR2Options>, CloudflareR2OptionsValidator>();
 builder.Services.Configure<FeatureOptions>(builder.Configuration.GetSection(FeatureOptions.SectionName));
 builder.Services.Configure<PublicSiteOptions>(builder.Configuration.GetSection(PublicSiteOptions.SectionName));
+builder.Services.AddOptions<EmailOptions>()
+    .Bind(builder.Configuration.GetSection(EmailOptions.SectionName))
+    .ValidateOnStart();
+builder.Services.AddSingleton<IValidateOptions<EmailOptions>, EmailOptionsValidator>();
 builder.Services.Configure<AdminSeedOptions>(builder.Configuration.GetSection(AdminSeedOptions.SectionName));
 builder.Services.Configure<DevAuthOptions>(builder.Configuration.GetSection(DevAuthOptions.SectionName));
 builder.Services.Configure<DatabaseResilienceOptions>(
@@ -334,6 +338,26 @@ builder.Services.AddScoped<IAdminPlanQueryService, AdminPlanQueryService>();
 builder.Services.AddScoped<IAdminTagInventoryService, AdminTagInventoryService>();
 builder.Services.AddScoped<IAdminSmartTagService, AdminSmartTagService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
+builder.Services.AddScoped<IEmailOutboxService, EmailOutboxService>();
+builder.Services.AddScoped<IEmailOutboxDispatcher, EmailOutboxDispatcher>();
+builder.Services.AddScoped<IOwnerPortalEntryService, OwnerPortalEntryService>();
+builder.Services.AddScoped<PaymentConfirmedEmailTemplateRenderer>();
+builder.Services.AddScoped<OwnerWelcomeEmailTemplateRenderer>();
+builder.Services.AddScoped<IEmailTemplateRenderer, EmailTemplateRenderer>();
+builder.Services.AddScoped<MailKitEmailSender>();
+builder.Services.AddScoped<DevelopmentEmailSender>();
+builder.Services.AddScoped<IEmailSender>(services =>
+{
+    var options = services.GetRequiredService<IOptions<EmailOptions>>().Value;
+    return string.Equals(
+        options.Provider,
+        EmailOptions.DevelopmentProvider,
+        StringComparison.OrdinalIgnoreCase)
+        ? services.GetRequiredService<DevelopmentEmailSender>()
+        : services.GetRequiredService<MailKitEmailSender>();
+});
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddHostedService<EmailDispatchWorker>();
 builder.Services.AddScoped<IFileStorageProvider, LocalFileStorageProvider>();
 builder.Services.AddSingleton<IObjectStorageService, CloudflareR2StorageService>();
 

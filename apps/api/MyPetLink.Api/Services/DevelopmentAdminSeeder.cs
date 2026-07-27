@@ -39,6 +39,7 @@ public sealed class DevelopmentAdminSeeder : IDevelopmentAdminSeeder
 
         DevAuthOptions.ValidateForStartup(_environment, _options);
         var identity = _options.GetIdentity();
+        var now = DateTimeOffset.UtcNow;
 
         var externalLogin = await _dbContext.ExternalLogins
             .Include(login => login.User)
@@ -92,10 +93,13 @@ public sealed class DevelopmentAdminSeeder : IDevelopmentAdminSeeder
                 Provider = ExternalLoginProviders.DevTest,
                 ProviderSubjectId = identity.ProviderSubjectId,
                 ProviderEmail = identity.Email,
-                ProviderDisplayName = identity.DisplayName
+                ProviderDisplayName = identity.DisplayName,
+                EmailVerifiedAt = now
             };
             _dbContext.ExternalLogins.Add(externalLogin);
         }
+
+        externalLogin.EmailVerifiedAt ??= now;
 
         if (user.Status != UserStatus.Active || user.DeletedAt.HasValue)
         {

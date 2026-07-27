@@ -129,4 +129,5 @@ public sealed record AdminOwnerDetailResponseV2(
     IReadOnlyCollection<AdminOwnerOrderSummaryResponse> RecentOrders,
     IReadOnlyCollection<AdminOwnerPaymentProofSummaryResponse> RecentPaymentProofs,
     IReadOnlyCollection<AdminOwnerSmartTagSummaryResponse> SmartTags,
+    AdminOwnerWelcomeEmailResponse? WelcomeEmail,
     IReadOnlyCollection<AdminOwnerHistoryItemResponse> History);

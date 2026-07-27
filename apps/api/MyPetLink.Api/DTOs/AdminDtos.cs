@@ -31,7 +31,8 @@ public sealed record AdminDashboardResponse(
 public sealed record AdminTagOrderResponse(
     TagOrderResponse Order,
     AdminOwnerRefResponse Owner,
-    Guid? ProductVariantId);
+    Guid? ProductVariantId,
+    AdminEmailOutboxResponse? PaymentConfirmationEmail);
 
 public sealed record AdminPaymentProofResponse(
     PaymentProofResponse Proof,

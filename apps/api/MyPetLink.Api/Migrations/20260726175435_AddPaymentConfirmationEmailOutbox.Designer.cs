@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using MyPetLink.Api.Data;
 
@@ -11,9 +12,11 @@ using MyPetLink.Api.Data;
 namespace MyPetLink.Api.Migrations
 {
     [DbContext(typeof(MyPetLinkDbContext))]
-    partial class MyPetLinkDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260726175435_AddPaymentConfirmationEmailOutbox")]
+    partial class AddPaymentConfirmationEmailOutbox
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -335,10 +338,7 @@ namespace MyPetLink.Api.Migrations
                         .HasMaxLength(160)
                         .HasColumnType("nvarchar(160)");
 
-                    b.Property<Guid?>("RelatedOrderId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid?>("RelatedUserId")
+                    b.Property<Guid>("RelatedOrderId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<byte[]>("RowVersion")
@@ -372,19 +372,11 @@ namespace MyPetLink.Api.Migrations
                     b.HasIndex("LockedUntil");
 
                     b.HasIndex("RelatedOrderId", "MessageType")
-                        .IsUnique()
-                        .HasFilter("[RelatedOrderId] IS NOT NULL");
-
-                    b.HasIndex("RelatedUserId", "MessageType")
-                        .IsUnique()
-                        .HasFilter("[RelatedUserId] IS NOT NULL");
+                        .IsUnique();
 
                     b.HasIndex("Status", "NextAttemptAt");
 
-                    b.ToTable("EmailOutbox", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_EmailOutbox_RelatedEntity", "([RelatedOrderId] IS NOT NULL AND [RelatedUserId] IS NULL) OR ([RelatedOrderId] IS NULL AND [RelatedUserId] IS NOT NULL)");
-                        });
+                    b.ToTable("EmailOutbox", (string)null);
                 });
 
             modelBuilder.Entity("MyPetLink.Api.Entities.ExternalLogin", b =>
@@ -394,9 +386,6 @@ namespace MyPetLink.Api.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<DateTimeOffset?>("EmailVerifiedAt")
                         .HasColumnType("datetimeoffset");
 
                     b.Property<string>("Provider")
@@ -2485,16 +2474,10 @@ namespace MyPetLink.Api.Migrations
                     b.HasOne("MyPetLink.Api.Entities.TagOrder", "RelatedOrder")
                         .WithMany("EmailOutboxMessages")
                         .HasForeignKey("RelatedOrderId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("MyPetLink.Api.Entities.User", "RelatedUser")
-                        .WithMany("EmailOutboxMessages")
-                        .HasForeignKey("RelatedUserId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.Navigation("RelatedOrder");
-
-                    b.Navigation("RelatedUser");
                 });
 
             modelBuilder.Entity("MyPetLink.Api.Entities.ExternalLogin", b =>
@@ -2989,8 +2972,6 @@ namespace MyPetLink.Api.Migrations
             modelBuilder.Entity("MyPetLink.Api.Entities.User", b =>
                 {
                     b.Navigation("AdminUser");
-
-                    b.Navigation("EmailOutboxMessages");
 
                     b.Navigation("ExternalLogins");
 

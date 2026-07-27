@@ -260,7 +260,7 @@ public sealed class AuthService : SkeletonService, IAuthService
         await EnsureEmailCanBeAssignedAsync(user, normalizedEmail, cancellationToken);
         EnsureUserCanAuthenticate(user);
         UpdateUserFromExternalLogin(user, externalUser, normalizedEmail, now);
-        UpdateExternalLogin(externalLogin, externalUser);
+        UpdateExternalLogin(externalLogin, externalUser, now);
 
         await EnsureOwnerProfileAsync(user, externalUser.DisplayName, cancellationToken);
         await EnsureDevAdminAsync(user, normalizedEmail, cancellationToken);
@@ -369,10 +369,17 @@ public sealed class AuthService : SkeletonService, IAuthService
         user.LastLoginAt = now;
     }
 
-    private static void UpdateExternalLogin(ExternalLogin login, ExternalTokenUser externalUser)
+    private static void UpdateExternalLogin(
+        ExternalLogin login,
+        ExternalTokenUser externalUser,
+        DateTimeOffset now)
     {
         login.ProviderEmail = externalUser.Email.Trim();
         login.ProviderDisplayName = externalUser.DisplayName;
+        if (externalUser.EmailVerified)
+        {
+            login.EmailVerifiedAt ??= now;
+        }
     }
 
     private async Task EnsureOwnerProfileAsync(

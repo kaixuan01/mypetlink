@@ -400,6 +400,7 @@ public sealed class OrderService : SkeletonService, IOrderService
             .Include(order => order.Pet)
             .Include(order => order.SmartTag)
             .Include(order => order.PaymentProofs)
+            .Include(order => order.EmailOutboxMessages)
             .Include(order => order.Items);
     }
 

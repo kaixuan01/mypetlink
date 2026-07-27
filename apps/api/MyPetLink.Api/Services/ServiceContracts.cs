@@ -364,6 +364,16 @@ public interface IAdminService : ISkeletonService
         Guid orderId,
         CancellationToken cancellationToken = default);
 
+    Task<AdminEmailOutboxResponse> RetryPaymentConfirmationEmailAsync(
+        Guid? currentUserId,
+        Guid orderId,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminOwnerWelcomeEmailResponse> RetryOwnerWelcomeEmailAsync(
+        Guid? currentUserId,
+        Guid ownerUserId,
+        CancellationToken cancellationToken = default);
+
     Task<AdminTagOrderResponse> RejectPaymentProofAsync(
         Guid? currentUserId,
         Guid orderId,

@@ -12,10 +12,14 @@ namespace MyPetLink.Api.Controllers;
 public sealed class AuthController : ApiControllerBase
 {
     private readonly IAuthService _authService;
+    private readonly IOwnerPortalEntryService _ownerPortalEntryService;
 
-    public AuthController(IAuthService authService)
+    public AuthController(
+        IAuthService authService,
+        IOwnerPortalEntryService ownerPortalEntryService)
     {
         _authService = authService;
+        _ownerPortalEntryService = ownerPortalEntryService;
     }
 
     [AllowAnonymous]
@@ -59,6 +63,16 @@ public sealed class AuthController : ApiControllerBase
             cancellationToken);
 
         return Ok(ApiEnvelope.Ok(response, HttpContext));
+    }
+
+    [Authorize]
+    [HttpPost("owner-portal-entry")]
+    public async Task<IActionResult> OwnerPortalEntry(CancellationToken cancellationToken)
+    {
+        await _ownerPortalEntryService.EnterAsync(
+            UserIdFromClaims(),
+            cancellationToken);
+        return NoContent();
     }
 
     private AuthClientContext GetAuthClientContext()

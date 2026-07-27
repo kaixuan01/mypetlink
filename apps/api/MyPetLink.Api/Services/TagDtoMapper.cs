@@ -85,6 +85,7 @@ internal static class TagDtoMapper
             latestProof?.OwnerNote,
             latestProof?.OriginalFileName,
             latestProof?.RejectionReason,
+            EmailOutboxService.ToOwnerResponse(order.EmailOutboxMessages),
             order.TrackingStatus,
             order.TrackingNumber,
             order.ShippedAt,

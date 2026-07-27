@@ -16,16 +16,31 @@ public sealed class AdminService : SkeletonService, IAdminService
 
     private readonly MyPetLinkDbContext _dbContext;
     private readonly IAuditLogService _auditLogService;
+    private readonly IEmailOutboxService _emailOutboxService;
     private readonly FeatureOptions _features;
 
     public AdminService(
         MyPetLinkDbContext dbContext,
         IAuditLogService auditLogService,
         IOptions<FeatureOptions> features)
+        : this(
+            dbContext,
+            auditLogService,
+            features,
+            new EmailOutboxService(dbContext, auditLogService, TimeProvider.System))
+    {
+    }
+
+    public AdminService(
+        MyPetLinkDbContext dbContext,
+        IAuditLogService auditLogService,
+        IOptions<FeatureOptions> features,
+        IEmailOutboxService emailOutboxService)
     {
         _dbContext = dbContext;
         _auditLogService = auditLogService;
         _features = features.Value;
+        _emailOutboxService = emailOutboxService;
     }
 
     // --- Dashboard ------------------------------------------------------------
@@ -172,6 +187,30 @@ public sealed class AdminService : SkeletonService, IAdminService
             paymentProofId: null,
             approve: true,
             reason: null,
+            cancellationToken);
+    }
+
+    public async Task<AdminEmailOutboxResponse> RetryPaymentConfirmationEmailAsync(
+        Guid? currentUserId,
+        Guid orderId,
+        CancellationToken cancellationToken = default)
+    {
+        var admin = await RequireAdminAsync(currentUserId, cancellationToken);
+        return await _emailOutboxService.RetryFailedAsync(
+            orderId,
+            admin.Id,
+            cancellationToken);
+    }
+
+    public async Task<AdminOwnerWelcomeEmailResponse> RetryOwnerWelcomeEmailAsync(
+        Guid? currentUserId,
+        Guid ownerUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var admin = await RequireAdminAsync(currentUserId, cancellationToken);
+        return await _emailOutboxService.RetryOwnerWelcomeAsync(
+            ownerUserId,
+            admin.Id,
             cancellationToken);
     }
 
@@ -1036,6 +1075,7 @@ public sealed class AdminService : SkeletonService, IAdminService
             .Include(order => order.Pet)
             .Include(order => order.SmartTag)
             .Include(order => order.PaymentProofs)
+            .Include(order => order.EmailOutboxMessages)
             .Include(order => order.Items);
     }
 
@@ -1211,6 +1251,9 @@ public sealed class AdminService : SkeletonService, IAdminService
                 order.PaymentStatus = PaymentStatus.Confirmed;
                 order.PaymentConfirmedAt ??= now;
                 order.TrackingStatus = "Payment confirmed. Tag preparation is next.";
+                _emailOutboxService.EnqueuePaymentConfirmed(
+                    order,
+                    order.PaymentConfirmedAt.Value);
             }
             else
             {
@@ -1368,7 +1411,11 @@ public sealed class AdminService : SkeletonService, IAdminService
         return new AdminTagOrderResponse(
             TagDtoMapper.ToOrderResponse(order),
             ToOwnerRef(order.OwnerUser),
-            order.Items.OrderBy(item => item.CreatedAt).Select(item => item.ProductVariantId).FirstOrDefault());
+            order.Items.OrderBy(item => item.CreatedAt).Select(item => item.ProductVariantId).FirstOrDefault(),
+            order.EmailOutboxMessages
+                .Where(item => item.MessageType == EmailMessageType.PaymentConfirmed)
+                .Select(EmailOutboxService.ToAdminResponse)
+                .SingleOrDefault());
     }
 
     private static AdminPaymentProofResponse ToAdminProofResponse(PaymentProof proof)

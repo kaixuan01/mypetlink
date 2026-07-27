@@ -99,6 +99,7 @@ public sealed class TagOrder : AuditableEntity
     public SmartTag? ReplacementForTag { get; set; }
     public ICollection<PaymentProof> PaymentProofs { get; set; } = new List<PaymentProof>();
     public ICollection<TagOrderItem> Items { get; set; } = new List<TagOrderItem>();
+    public ICollection<EmailOutbox> EmailOutboxMessages { get; set; } = new List<EmailOutbox>();
 }
 
 public sealed class PaymentProof : AuditableEntity

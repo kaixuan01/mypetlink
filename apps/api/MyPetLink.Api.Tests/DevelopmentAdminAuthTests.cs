@@ -37,9 +37,10 @@ public sealed class DevelopmentAdminAuthTests
         Assert.True(user.AdminUser!.IsActive);
         Assert.Equal(AdminRole.Admin, user.AdminUser.Role);
         Assert.Single(await db.OwnerProfiles.ToListAsync());
-        Assert.Single(await db.ExternalLogins
+        var externalLogin = Assert.Single(await db.ExternalLogins
             .Where(login => login.Provider == ExternalLoginProviders.DevTest)
             .ToListAsync());
+        Assert.NotNull(externalLogin.EmailVerifiedAt);
     }
 
     [Fact]

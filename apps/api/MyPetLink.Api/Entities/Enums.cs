@@ -58,6 +58,20 @@ public enum PaymentProofStatus
     Superseded
 }
 
+public enum EmailMessageType
+{
+    PaymentConfirmed,
+    OwnerWelcome
+}
+
+public enum EmailOutboxStatus
+{
+    Pending,
+    Sending,
+    Sent,
+    Failed
+}
+
 public enum SmartTagStatus
 {
     Unclaimed,

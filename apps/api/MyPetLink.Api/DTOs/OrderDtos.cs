@@ -76,6 +76,7 @@ public sealed record TagOrderResponse(
     string? PaymentNote,
     string? PaymentProofName,
     string? PaymentRejectionReason,
+    OwnerPaymentConfirmationEmailResponse? PaymentConfirmationEmail,
     string? TrackingStatus,
     string? TrackingNumber,
     DateTimeOffset? ShippedAt,

@@ -16,6 +16,7 @@ public sealed class User : AuditableEntity
     public ICollection<ExternalLogin> ExternalLogins { get; set; } = new List<ExternalLogin>();
     public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
     public ICollection<Pet> Pets { get; set; } = new List<Pet>();
+    public ICollection<EmailOutbox> EmailOutboxMessages { get; set; } = new List<EmailOutbox>();
 }
 
 public sealed class ExternalLogin : AuditableEntity
@@ -25,6 +26,7 @@ public sealed class ExternalLogin : AuditableEntity
     public string ProviderSubjectId { get; set; } = "";
     public string ProviderEmail { get; set; } = "";
     public string? ProviderDisplayName { get; set; }
+    public DateTimeOffset? EmailVerifiedAt { get; set; }
 
     public User User { get; set; } = null!;
 }

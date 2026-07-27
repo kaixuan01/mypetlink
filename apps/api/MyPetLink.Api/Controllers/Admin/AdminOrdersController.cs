@@ -109,6 +109,19 @@ public sealed class AdminOrdersController : ApiControllerBase
         return Ok(ApiEnvelope.Ok(response, HttpContext));
     }
 
+    [HttpPost("{orderId:guid}/payment-confirmation-email/retry")]
+    public async Task<IActionResult> RetryPaymentConfirmationEmail(
+        Guid orderId,
+        CancellationToken cancellationToken)
+    {
+        var response = await _adminService.RetryPaymentConfirmationEmailAsync(
+            _currentUserService.Current.UserId,
+            orderId,
+            cancellationToken);
+
+        return Ok(ApiEnvelope.Ok(response, HttpContext));
+    }
+
     [HttpPost("{orderId:guid}/reject-payment-proof")]
     public async Task<IActionResult> RejectPaymentProof(
         Guid orderId,

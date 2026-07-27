@@ -108,12 +108,16 @@ public sealed class AdminOwnerQueryServiceTests
         Assert.Single(detail.RecentOrders);
         Assert.Single(detail.RecentPaymentProofs);
         Assert.Single(detail.SmartTags);
+        Assert.NotNull(detail.WelcomeEmail);
+        Assert.Equal(EmailMessageType.OwnerWelcome, detail.WelcomeEmail!.MessageType);
+        Assert.Equal("aina@example.com", detail.WelcomeEmail.RecipientEmail);
         Assert.Contains("Google", detail.AuthenticationProviders);
         Assert.True(detail.MemoryUsageNearLimit);
         Assert.DoesNotContain("google-subject-secret", json);
         Assert.DoesNotContain("ProviderSubjectId", json);
         Assert.DoesNotContain("PrivacyDefaultsJson", json);
         Assert.DoesNotContain("NotificationPreferencesJson", json);
+        Assert.DoesNotContain("TemplateDataJson", json);
         Assert.Contains(await harness.Db.AuditLogs.ToListAsync(), log => log.Action == "owners.detail-view");
     }
 
@@ -297,6 +301,24 @@ public sealed class AdminOwnerQueryServiceTests
                 Status = SmartTagStatus.Active,
                 ActivatedAt = Now
             };
+            var welcomeEmail = new EmailOutbox
+            {
+                MessageType = EmailMessageType.OwnerWelcome,
+                RecipientEmail = owner.Email,
+                RecipientName = owner.DisplayName,
+                Subject = "Welcome to MyPetLink",
+                TemplateDataJson = "{\"private\":\"not-returned\"}",
+                RelatedUser = owner,
+                RelatedUserId = owner.Id,
+                Status = EmailOutboxStatus.Sent,
+                AttemptCount = 1,
+                MaxAttempts = 5,
+                NextAttemptAt = Now,
+                LastAttemptAt = Now,
+                SentAt = Now,
+                CreatedAt = Now,
+                UpdatedAt = Now
+            };
 
             db.Plans.Add(plan);
             db.Users.AddRange(admin, owner, suspended, sameName);
@@ -304,6 +326,7 @@ public sealed class AdminOwnerQueryServiceTests
             db.TagOrders.Add(order);
             db.PaymentProofs.Add(proof);
             db.SmartTags.Add(tag);
+            db.EmailOutbox.Add(welcomeEmail);
             await db.SaveChangesAsync();
             return new Harness(db);
         }

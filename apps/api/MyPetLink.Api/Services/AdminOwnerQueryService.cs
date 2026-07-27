@@ -125,6 +125,13 @@ public sealed class AdminOwnerQueryService : SkeletonService, IAdminOwnerQuerySe
             .Take(100)
             .ToListAsync(cancellationToken);
 
+        var welcomeEmail = await _dbContext.EmailOutbox
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                email => email.RelatedUserId == ownerUserId
+                         && email.MessageType == EmailMessageType.OwnerWelcome,
+                cancellationToken);
+
         var highestMemoriesOnPet = await _dbContext.PetMemories.AsNoTracking()
             .Where(memory => memory.Pet.OwnerUserId == ownerUserId
                 && memory.Pet.DeletedAt == null
@@ -179,6 +186,9 @@ public sealed class AdminOwnerQueryService : SkeletonService, IAdminOwnerQuerySe
             orders,
             proofs,
             tags,
+            welcomeEmail is null
+                ? null
+                : EmailOutboxService.ToAdminOwnerWelcomeResponse(welcomeEmail),
             history);
         _auditLogService.Append(
             admin.Id,
