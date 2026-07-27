@@ -399,6 +399,11 @@ export type BackendDeliveryDetails = {
   postcode: string;
   city: string;
   state: string;
+  stateCode?: string | null;
+  country?: string;
+  zoneName?: string | null;
+  deliveryMethod?: string | null;
+  freeDeliveryReason?: string | null;
   notes?: string | null;
 };
 
@@ -440,6 +445,7 @@ export type BackendTagOrder = {
   amount: number;
   currency: string;
   deliveryFee: number;
+  totalAmount?: number;
   status: BackendOrderStatus;
   paymentStatus: BackendPaymentStatus;
   replacementForTagId?: string | null;

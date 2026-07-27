@@ -19,7 +19,8 @@ const FIELD_KEYS: Record<string, string> = {
   "delivery.addressLine1": "addressLine1",
   "delivery.postcode": "postcode",
   "delivery.city": "city",
-  "delivery.state": "state",
+  "delivery.stateCode": "stateCode",
+  stateCode: "stateCode",
 };
 
 // Owner-facing replacements for backend validation text. The server wording is
@@ -32,7 +33,7 @@ const FIELD_MESSAGES: Record<string, string> = {
   addressLine1: "Please enter the delivery address.",
   postcode: "Please enter the postcode.",
   city: "Please enter the city.",
-  state: "Please enter the state.",
+  stateCode: "Please select a state for your delivery address.",
 };
 
 export type OwnerFieldErrors = Record<string, string>;
@@ -91,6 +92,8 @@ export function getOwnerOrderErrorMessage(error: unknown): string {
       return "This order has already been submitted. Please check your orders before trying again.";
     case "price_changed":
       return "The price of this tag option has changed. Please review the updated total before continuing.";
+    case "delivery_unavailable":
+      return error.message;
     default:
       break;
   }

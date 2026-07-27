@@ -60,6 +60,27 @@ vi.mock("@/services/tagService", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/services/tagService")>();
   return { ...original, createTagOrder: vi.fn() };
 });
+vi.mock("@/services/deliveryService", () => ({
+  listMalaysiaStates: vi.fn(async () => [
+    { code: "SGR", name: "Selangor", zoneCode: "PEN", zoneName: "Peninsular", aliases: [] },
+  ]),
+  resolveLegacyStateCode: vi.fn(() => ""),
+  getDeliveryQuote: vi.fn(async () => ({
+    stateCode: "SGR",
+    stateName: "Selangor",
+    country: "Malaysia",
+    zoneCode: "PEN",
+    zoneName: "Peninsular",
+    deliveryMethod: "Standard Delivery",
+    itemSubtotal: 49.9,
+    discountAmount: 10,
+    deliveryFee: 8,
+    isFreeDelivery: false,
+    freeDeliveryReason: null,
+    total: 47.9,
+    currency: "MYR",
+  })),
+}));
 
 const { TagOrderFlow } = await import("./TagOrderFlow");
 
@@ -147,7 +168,10 @@ describe("TagOrderFlow catalog pricing", () => {
     fireEvent.change(screen.getByLabelText("Address line 1"), { target: { value: "12 Jalan Mawar" } });
     fireEvent.change(screen.getByLabelText("Postcode"), { target: { value: "47300" } });
     fireEvent.change(screen.getByLabelText("City"), { target: { value: "Petaling Jaya" } });
-    fireEvent.change(screen.getByLabelText("State"), { target: { value: "Selangor" } });
+    fireEvent.change(screen.getByLabelText("State"), { target: { value: "SGR" } });
+    await waitFor(() =>
+      expect((screen.getByRole("button", { name: "Continue" }) as HTMLButtonElement).disabled).toBe(false)
+    );
     fireEvent.click(screen.getByRole("button", { name: /Step 4/ }));
 
     expect(await screen.findByText("Confirm order")).toBeTruthy();

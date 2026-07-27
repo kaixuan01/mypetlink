@@ -55,6 +55,7 @@ export const adminNavGroups: AdminNavGroup[] = [
     label: "Configuration",
     items: [
       { href: "/admin/plans", label: "Plans", icon: "plans" },
+      { href: adminRoutes.deliveryRates, label: "Delivery Rates", icon: "record" },
       { href: "/admin/settings", label: "Settings", icon: "settings" },
     ],
   },

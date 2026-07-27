@@ -371,6 +371,11 @@ export type DeliveryDetails = {
   postcode: string;
   city: string;
   state: string;
+  stateCode?: string;
+  country?: string;
+  zoneName?: string;
+  deliveryMethod?: string;
+  freeDeliveryReason?: string;
   notes: string;
 };
 
@@ -438,6 +443,8 @@ export type TagOrder = {
   unitBasePrice?: number;
   discountAmount?: number;
   finalAmount?: number;
+  deliveryFee?: number;
+  totalAmount?: number;
   promotionName?: string;
   currency?: string;
   paymentMethod?: string;

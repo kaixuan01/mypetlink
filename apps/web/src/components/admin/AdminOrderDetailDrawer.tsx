@@ -199,9 +199,12 @@ export function AdminOrderDetailDrawer({
                   <AdminDetailItem label="Quantity" value={String(summary.quantity ?? 1)} />
                   <AdminDetailItem label="Original unit price" value={`${summary.currency} ${(summary.unitBasePrice ?? summary.amount).toFixed(2)}`} />
                   <AdminDetailItem label="Discount" value={`${summary.currency} ${(summary.discountAmount ?? 0).toFixed(2)}`} />
-                  <AdminDetailItem label="Final amount" value={`${summary.currency} ${(summary.finalAmount ?? summary.amount).toFixed(2)}`} />
+                  <AdminDetailItem label="Item total" value={`${summary.currency} ${(summary.finalAmount ?? summary.amount).toFixed(2)}`} />
                   <AdminDetailItem label="Promotion" value={summary.promotionName ?? "None"} />
                   <AdminDetailItem label="Delivery fee" value={`${summary.currency} ${summary.deliveryFee.toFixed(2)}`} />
+                  <AdminDetailItem label="Total amount" value={`${summary.currency} ${((summary.finalAmount ?? summary.amount) + summary.deliveryFee).toFixed(2)}`} />
+                  {detail.order.delivery.deliveryMethod ? <AdminDetailItem label="Delivery method" value={detail.order.delivery.deliveryMethod} /> : null}
+                  <AdminDetailItem label="Delivery state" value={detail.order.delivery.zoneName ? `${detail.order.delivery.state} · ${detail.order.delivery.zoneName}` : detail.order.delivery.state} />
                   <AdminDetailItem label="Created" value={formatAdminDateTime(summary.createdAt)} />
                   <AdminDetailItem label="Updated" value={formatAdminDateTime(summary.updatedAt)} />
                 </div>

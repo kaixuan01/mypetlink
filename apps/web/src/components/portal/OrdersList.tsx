@@ -249,7 +249,7 @@ export function OrdersList({
 
             <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
               <CompactItem label="Ordered" value={order.orderedDate} />
-              <CompactItem label="Total" value={order.finalAmount != null ? `${order.currency ?? "MYR"} ${order.finalAmount.toFixed(2)}` : order.estimatedPrice} />
+              <CompactItem label="Total" value={order.totalAmount != null ? `${order.currency ?? "MYR"} ${order.totalAmount.toFixed(2)}` : order.estimatedPrice} />
               <CompactItem
                 label="Payment"
                 value={getPaymentStatusLabel(order)}

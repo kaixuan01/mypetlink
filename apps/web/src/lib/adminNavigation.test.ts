@@ -28,7 +28,7 @@ describe("adminNavigation", () => {
     ]);
 
     const configuration = adminNavGroups.find((group) => group.label === "Configuration")!;
-    expect(configuration.items.map((item) => item.label)).toEqual(["Plans", "Settings"]);
+    expect(configuration.items.map((item) => item.label)).toEqual(["Plans", "Delivery Rates", "Settings"]);
   });
 
   it("never renders empty groups", () => {

@@ -384,7 +384,10 @@ export function OrderDetailView({
             <DetailItem label="Original unit price" value={order.unitBasePrice != null ? `${order.currency ?? "MYR"} ${order.unitBasePrice.toFixed(2)}` : order.estimatedPrice} />
             {order.discountAmount ? <DetailItem label="Discount" value={`${order.currency ?? "MYR"} ${order.discountAmount.toFixed(2)}`} /> : null}
             {order.promotionName ? <DetailItem label="Promotion" value={order.promotionName} /> : null}
-            <DetailItem label="Total amount" value={order.finalAmount != null ? `${order.currency ?? "MYR"} ${order.finalAmount.toFixed(2)}` : order.estimatedPrice} />
+            <DetailItem label="Delivery fee" value={(order.deliveryFee ?? 0) === 0 ? "Free" : `${order.currency ?? "MYR"} ${order.deliveryFee!.toFixed(2)}`} />
+            {order.delivery.deliveryMethod ? <DetailItem label="Delivery method" value={order.delivery.deliveryMethod} /> : null}
+            <DetailItem label="Delivery state" value={order.delivery.zoneName ? `${order.delivery.state} · ${order.delivery.zoneName}` : order.delivery.state} />
+            <DetailItem label="Total amount" value={order.totalAmount != null ? `${order.currency ?? "MYR"} ${order.totalAmount.toFixed(2)}` : order.estimatedPrice} />
             <DetailItem label="Ordered date" value={order.orderedDate} />
             <DetailItem
               label="Tag status"
