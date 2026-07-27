@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using MyPetLink.Api.Entities;
 
 namespace MyPetLink.Api.Services;
@@ -10,6 +11,9 @@ namespace MyPetLink.Api.Services;
 public sealed class EmailPreviewService : IEmailPreviewService
 {
     private static readonly JsonSerializerOptions TemplateJson = new(JsonSerializerDefaults.Web);
+    private static readonly Regex ImageSource = new(
+        "(<img\\b[^>]*\\bsrc=\")[^\"]+(\")",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
     private readonly OwnerWelcomeEmailTemplateRenderer _welcome;
     private readonly PaymentConfirmedEmailTemplateRenderer _paymentConfirmed;
 
@@ -50,8 +54,8 @@ public sealed class EmailPreviewService : IEmailPreviewService
     {
         var ownerName = variant switch
         {
-            "normal" or "logo-blocked" => "Aina",
-            "long-name" => "Alexandria-Catherine-Montgomery-Wellington-Santos",
+            "normal" or "logo-blocked" or "images-blocked" => "Aina",
+            "long-name" => "Chua Kai Xuan Alexandria-Catherine-Montgomery-Wellington-Santos",
             "missing-name" => "",
             _ => throw new EmailDeliveryException("The requested email preview was not found.", false)
         };
@@ -64,29 +68,22 @@ public sealed class EmailPreviewService : IEmailPreviewService
                 DateTimeOffset.Parse("2026-07-27T06:00:00Z"),
                 SmartTagsEnabled: false)));
 
-        if (variant != "logo-blocked")
+        if (variant is not ("logo-blocked" or "images-blocked"))
         {
             return rendered;
         }
 
-        const string sourcePrefix = "<img src=\"";
-        var start = rendered.HtmlBody.IndexOf(sourcePrefix, StringComparison.Ordinal);
-        if (start < 0)
-        {
-            return rendered;
-        }
-
-        start += sourcePrefix.Length;
-        var end = rendered.HtmlBody.IndexOf('"', start);
-        if (end < 0)
-        {
-            return rendered;
-        }
-
-        var blockedHtml = string.Concat(
-            rendered.HtmlBody.AsSpan(0, start),
-            "https://email-preview.invalid/logo-blocked.png",
-            rendered.HtmlBody.AsSpan(end));
+        var index = 0;
+        var blockedHtml = ImageSource.Replace(
+            rendered.HtmlBody,
+            match =>
+            {
+                index++;
+                return string.Concat(
+                    match.Groups[1].Value,
+                    $"https://email-preview.invalid/blocked-{index}.png",
+                    match.Groups[2].Value);
+            });
         return rendered with { HtmlBody = blockedHtml };
     }
 

@@ -45,6 +45,7 @@ Email__FromAddress=support@mypetlink.com.my
 Email__FromName=MyPetLink
 Email__OwnerPortalBaseUrl=https://mypetlink.com.my
 Email__BrandLogoUrl=https://mypetlink.com.my/logo-horizontal.png
+Email__BrandAssetBaseUrl=https://mypetlink.com.my/email-assets
 Email__Templates__OwnerWelcomeEnabled=false
 Email__Smtp__Host=smtppro.zoho.com
 Email__Smtp__Port=587

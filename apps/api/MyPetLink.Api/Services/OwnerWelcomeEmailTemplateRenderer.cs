@@ -51,12 +51,18 @@ public sealed class OwnerWelcomeEmailTemplateRenderer
         TransactionalEmailStep[] steps =
         [
             new TransactionalEmailStep(
+                "welcome-profile.png",
+                "Pet profile",
                 "Create your pet’s profile",
                 "Add your pet’s name, photo, and basic information."),
             new TransactionalEmailStep(
+                "welcome-contact.png",
+                "Contact details",
                 "Update your contact details",
                 "Make sure someone can reach you if your pet is found."),
             new TransactionalEmailStep(
+                "welcome-preview.png",
+                "Preview public profile",
                 "Preview the public profile",
                 "Review what other people will see when you share the profile.")
         ];
@@ -89,6 +95,6 @@ public sealed class OwnerWelcomeEmailTemplateRenderer
             new TransactionalEmailAction(
                 "Create Your Pet Profile",
                 portalUri.AbsoluteUri),
-            "This transactional email was sent because your MyPetLink Owner Portal account was opened."));
+            "You received this email after signing in to MyPetLink for the first time."));
     }
 }

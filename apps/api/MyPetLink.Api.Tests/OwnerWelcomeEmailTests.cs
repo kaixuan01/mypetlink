@@ -111,15 +111,18 @@ public sealed class OwnerWelcomeEmailTests
         Assert.Equal("", data!.OwnerName);
     }
 
-    [Fact]
-    public async Task SuitableDisplayName_UsesOnlyTheOwnersFirstName()
+    [Theory]
+    [InlineData("a1111111-1111-1111-1111-111111111111")]
+    [InlineData("subject-Google")]
+    [InlineData("1234567890")]
+    public async Task IdentifierLikeDisplayName_IsNotUsedAsGreeting(string displayName)
     {
         using var harness = await Harness.CreateAsync();
         var owner = await harness.Db.Users
             .Include(item => item.OwnerProfile)
             .SingleAsync(item => item.Id == Harness.OwnerId);
-        owner.DisplayName = "Nur Aina";
-        owner.OwnerProfile!.OwnerDisplayName = "Nur Aina";
+        owner.DisplayName = displayName;
+        owner.OwnerProfile!.OwnerDisplayName = displayName;
         await harness.Db.SaveChangesAsync();
 
         await harness.Entry.EnterAsync(Harness.OwnerId);
@@ -129,7 +132,49 @@ public sealed class OwnerWelcomeEmailTests
             message.TemplateDataJson,
             new JsonSerializerOptions(JsonSerializerDefaults.Web));
         Assert.NotNull(data);
-        Assert.Equal("Nur", data!.OwnerName);
+        Assert.Equal("", data!.OwnerName);
+    }
+
+    [Fact]
+    public async Task SuitableDisplayName_PreservesTheValidatedFullName()
+    {
+        using var harness = await Harness.CreateAsync();
+        var owner = await harness.Db.Users
+            .Include(item => item.OwnerProfile)
+            .SingleAsync(item => item.Id == Harness.OwnerId);
+        owner.DisplayName = "Chua Kai Xuan";
+        owner.OwnerProfile!.OwnerDisplayName = "Chua Kai Xuan";
+        await harness.Db.SaveChangesAsync();
+
+        await harness.Entry.EnterAsync(Harness.OwnerId);
+
+        var message = await harness.Db.EmailOutbox.SingleAsync();
+        var data = JsonSerializer.Deserialize<OwnerWelcomeEmailTemplateData>(
+            message.TemplateDataJson,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        Assert.NotNull(data);
+        Assert.Equal("Chua Kai Xuan", data!.OwnerName);
+    }
+
+    [Fact]
+    public async Task OwnerProfileDisplayName_TakesPriorityOverAccountDisplayName()
+    {
+        using var harness = await Harness.CreateAsync();
+        var owner = await harness.Db.Users
+            .Include(item => item.OwnerProfile)
+            .SingleAsync(item => item.Id == Harness.OwnerId);
+        owner.DisplayName = "Provider Display Value";
+        owner.OwnerProfile!.OwnerDisplayName = "Kai Xuan";
+        await harness.Db.SaveChangesAsync();
+
+        await harness.Entry.EnterAsync(Harness.OwnerId);
+
+        var message = await harness.Db.EmailOutbox.SingleAsync();
+        var data = JsonSerializer.Deserialize<OwnerWelcomeEmailTemplateData>(
+            message.TemplateDataJson,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        Assert.NotNull(data);
+        Assert.Equal("Kai Xuan", data!.OwnerName);
     }
 
     [Fact]
@@ -244,14 +289,29 @@ public sealed class OwnerWelcomeEmailTests
         Assert.Contains("Create your pet’s profile", rendered.TextBody);
         Assert.Contains("Update your contact details", rendered.HtmlBody);
         Assert.Contains("Preview the public profile", rendered.HtmlBody);
+        Assert.Contains(
+            "https://mypetlink.com.my/email-assets/welcome-profile.png",
+            rendered.HtmlBody);
+        Assert.Contains(
+            "https://mypetlink.com.my/email-assets/welcome-contact.png",
+            rendered.HtmlBody);
+        Assert.Contains(
+            "https://mypetlink.com.my/email-assets/welcome-preview.png",
+            rendered.HtmlBody);
+        Assert.Contains("alt=\"Pet profile\"", rendered.HtmlBody);
+        Assert.Contains("alt=\"Contact details\"", rendered.HtmlBody);
+        Assert.Contains("alt=\"Preview public profile\"", rendered.HtmlBody);
+        Assert.Contains(">1</div>", rendered.HtmlBody);
+        Assert.Contains(">2</div>", rendered.HtmlBody);
+        Assert.Contains(">3</div>", rendered.HtmlBody);
         Assert.Contains("https://mypetlink.com.my/logo-horizontal.png", rendered.HtmlBody);
         Assert.Contains("alt=\"MyPetLink\"", rendered.HtmlBody);
         Assert.Contains("support@mypetlink.com.my", rendered.HtmlBody);
         Assert.Contains(
-            "This transactional email was sent because your MyPetLink Owner Portal account was opened.",
+            "You received this email after signing in to MyPetLink for the first time.",
             rendered.HtmlBody);
         Assert.Contains(
-            "This transactional email was sent because your MyPetLink Owner Portal account was opened.",
+            "You received this email after signing in to MyPetLink for the first time.",
             rendered.TextBody);
         Assert.DoesNotContain("QR or NFC", rendered.HtmlBody);
         Assert.DoesNotContain("Smart Tag", rendered.HtmlBody);
@@ -261,6 +321,10 @@ public sealed class OwnerWelcomeEmailTests
         Assert.DoesNotContain("#f7f3ea", rendered.HtmlBody, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("javascript:", rendered.HtmlBody, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("@font-face", rendered.HtmlBody, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("display:grid", rendered.HtmlBody, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("display:flex", rendered.HtmlBody, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(".svg", rendered.HtmlBody, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data:image", rendered.HtmlBody, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(Harness.OwnerId.ToString(), rendered.HtmlBody);
         Assert.DoesNotContain("OAuth", rendered.HtmlBody, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("JWT", rendered.HtmlBody, StringComparison.OrdinalIgnoreCase);
@@ -281,8 +345,9 @@ public sealed class OwnerWelcomeEmailTests
 
         Assert.Contains("Welcome to MyPetLink!", rendered.HtmlBody);
         Assert.Contains("Welcome to MyPetLink!", rendered.TextBody);
-        Assert.DoesNotContain("<img", rendered.HtmlBody);
+        Assert.DoesNotContain("alt=\"MyPetLink\"", rendered.HtmlBody);
         Assert.Contains(TransactionalEmailLayout.Tagline, rendered.HtmlBody);
+        Assert.Contains("alt=\"Pet profile\"", rendered.HtmlBody);
         Assert.Contains("Create Your Pet Profile", rendered.HtmlBody);
         Assert.DoesNotContain("QR or NFC", rendered.HtmlBody);
         Assert.DoesNotContain("Smart Tag", rendered.HtmlBody);

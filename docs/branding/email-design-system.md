@@ -40,6 +40,30 @@ Email-safe brand values translated from the Web tokens:
 Do not create a separate email-only palette. Changes to these values must be
 reviewed against the current Web design system first.
 
+## Email icon system
+
+Compact instructional icons follow the rounded outline language in
+`apps/web/src/components/ui/Icon.tsx`:
+
+- navy `#0d1b3d` outlines with rounded line caps and joins;
+- consistent medium stroke weight;
+- a light blue `#f1f9ff` rounded tile with a subtle `#d8eaff` border;
+- one restrained `#1570ef` accent dot;
+- 44px rendered size, supplied as optimized 88px PNGs for 2× displays.
+
+The editable source references live in
+`docs/branding/assets/email-icons/`. Delivered emails must use the optimized
+PNG copies in `apps/web/public/email-assets/` through the configured
+`Email:BrandAssetBaseUrl`; the renderer must never read Web files at runtime.
+Source SVGs are design/build references only and must not be linked from email
+HTML.
+
+Every instructional icon requires meaningful alt text, fixed width and height,
+and adjacent numbered text that communicates the complete meaning when images
+are blocked. Icons are optional visual reinforcement, never the only label for
+an action or status. Do not use emoji, Base64 images, signed URLs, expiring
+URLs, mixed illustration styles, or large packaging artwork.
+
 ## Layout rules
 
 - Use a full-width cream outer table and a centred white content table.
@@ -53,6 +77,9 @@ reviewed against the current Web design system first.
 - Keep supporting information below the primary content hierarchy.
 - Use the shared support block and cream footer on every template.
 - Footer copy must explain why the transactional message was sent.
+- The Owner Welcome footer says the recipient received the email after signing
+  in to MyPetLink for the first time. This provider-neutral wording applies to
+  Google, Apple, and Email OTP entry flows.
 - Layout must remain understandable if border radius, media queries, or the
   logo image are unsupported.
 
@@ -122,15 +149,18 @@ Development exposes a loopback-only, no-send preview:
 GET /api/v1/dev/email-previews/welcome/normal
 GET /api/v1/dev/email-previews/welcome/long-name
 GET /api/v1/dev/email-previews/welcome/missing-name
-GET /api/v1/dev/email-previews/welcome/logo-blocked
+GET /api/v1/dev/email-previews/welcome/images-blocked
 GET /api/v1/dev/email-previews/payment-confirmed/normal
 ```
 
 Append `?width=375` or `?width=320` to exercise the responsive HTML in a
 fixed-width mobile preview frame. Append `?format=text` for the plain-text
-counterpart. The endpoint is not mapped outside the Development environment,
-does not access SMTP, and uses only representative `.test` data. Store generated
-local artifacts under `artifacts/email-previews/`, which is gitignored.
+counterpart. Before the public site deploys new icon assets, append
+`?localAssets=true` to substitute a loopback-only development asset route for
+visual review. This substitution never appears in delivered email HTML. The
+endpoint is not mapped outside the Development environment, does not access
+SMTP, and uses only representative `.test` data. Store generated local artifacts
+under `artifacts/email-previews/`, which is gitignored.
 
 ## Template checklist
 

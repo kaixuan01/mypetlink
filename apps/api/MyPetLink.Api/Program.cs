@@ -459,8 +459,10 @@ if (app.Environment.IsDevelopment())
                 string variant,
                 string? format,
                 int? width,
+                bool? localAssets,
                 IDevelopmentAuthRequestGuard requestGuard,
-                IEmailPreviewService previewService) =>
+                IEmailPreviewService previewService,
+                IOptions<EmailOptions> emailOptions) =>
             {
                 if (!requestGuard.IsLoopback(context))
                 {
@@ -478,6 +480,19 @@ if (app.Environment.IsDevelopment())
                 }
 
                 context.Response.Headers.CacheControl = "no-store";
+                if (localAssets == true)
+                {
+                    var configuredAssetPrefix =
+                        emailOptions.Value.BrandAssetBaseUrl.TrimEnd('/') + "/";
+                    preview = preview with
+                    {
+                        HtmlBody = preview.HtmlBody.Replace(
+                            configuredAssetPrefix,
+                            "/api/v1/dev/email-preview-assets/",
+                            StringComparison.Ordinal)
+                    };
+                }
+
                 if (string.Equals(format, "text", StringComparison.OrdinalIgnoreCase))
                 {
                     return Results.Text(preview.TextBody, "text/plain; charset=utf-8");
@@ -510,6 +525,44 @@ if (app.Environment.IsDevelopment())
                 }
 
                 return Results.Content(preview.HtmlBody, "text/html; charset=utf-8");
+            })
+        .AllowAnonymous();
+
+    var previewAssetDirectory = Path.GetFullPath(
+        Path.Combine(
+            app.Environment.ContentRootPath,
+            "..",
+            "..",
+            "web",
+            "public",
+            "email-assets"));
+    var previewAssetNames = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "welcome-profile.png",
+        "welcome-contact.png",
+        "welcome-preview.png"
+    };
+    app.MapGet(
+            "/api/v1/dev/email-preview-assets/{fileName}",
+            (
+                HttpContext context,
+                string fileName,
+                IDevelopmentAuthRequestGuard requestGuard) =>
+            {
+                if (!requestGuard.IsLoopback(context)
+                    || !previewAssetNames.Contains(fileName))
+                {
+                    return Results.NotFound();
+                }
+
+                var assetPath = Path.Combine(previewAssetDirectory, fileName);
+                if (!File.Exists(assetPath))
+                {
+                    return Results.NotFound();
+                }
+
+                context.Response.Headers.CacheControl = "no-store";
+                return Results.File(assetPath, "image/png");
             })
         .AllowAnonymous();
 }

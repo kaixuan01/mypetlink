@@ -34,12 +34,16 @@ Email__Enabled=true
 Email__Templates__OwnerWelcomeEnabled=true
 Email__OwnerPortalBaseUrl=https://mypetlink.com.my
 Email__BrandLogoUrl=https://mypetlink.com.my/logo-horizontal.png
+Email__BrandAssetBaseUrl=https://mypetlink.com.my/email-assets
 ```
 
 `Email__BrandLogoUrl` must be a stable, public HTTPS image. The current source
 asset is `apps/web/public/logo-horizontal.png`, published by the production Web
 app as `/logo-horizontal.png`. The email remains understandable when remote
 images are blocked or the configured URL is unavailable.
+
+`Email__BrandAssetBaseUrl` must be a stable, public HTTPS directory containing
+the approved optimized email PNGs published by the Web project.
 
 The welcome CTA uses the normal authenticated `/pets/new` Owner Portal route.
 All visual and copy rules are defined in
@@ -62,7 +66,8 @@ schedules the same row immediately, and records an audit entry.
 1. Apply `AddPaymentConfirmationEmailOutbox`.
 2. Apply `AddOwnerWelcomeEmail`.
 3. Deploy with `Email__Templates__OwnerWelcomeEnabled=false`.
-4. Verify SMTP, SPF, DKIM, DMARC, sender authorization, and the public logo URL.
+4. Verify SMTP, SPF, DKIM, DMARC, sender authorization, and the public logo and
+   email-asset URLs.
 5. Enable the welcome template and monitor Failed outbox rows.
 
 No live SMTP test is part of automated or local integration verification.

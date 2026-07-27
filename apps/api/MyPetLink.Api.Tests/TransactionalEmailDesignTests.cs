@@ -10,7 +10,7 @@ public sealed class TransactionalEmailDesignTests
     [InlineData("welcome", "normal")]
     [InlineData("welcome", "long-name")]
     [InlineData("welcome", "missing-name")]
-    [InlineData("welcome", "logo-blocked")]
+    [InlineData("welcome", "images-blocked")]
     [InlineData("payment-confirmed", "normal")]
     public void DevelopmentPreviews_RenderHtmlAndPlainTextWithoutSending(
         string template,
@@ -59,13 +59,25 @@ public sealed class TransactionalEmailDesignTests
     }
 
     [Fact]
-    public void LogoBlockedPreview_KeepsReadableBrandFallback()
+    public void ImagesBlockedPreview_KeepsReadableBrandAndCompleteSteps()
     {
-        var preview = PreviewService().Render("welcome", "logo-blocked");
+        var preview = PreviewService().Render("welcome", "images-blocked");
 
-        Assert.Contains("https://email-preview.invalid/logo-blocked.png", preview.HtmlBody);
+        Assert.Contains("https://email-preview.invalid/blocked-1.png", preview.HtmlBody);
+        Assert.Contains("https://email-preview.invalid/blocked-2.png", preview.HtmlBody);
+        Assert.Contains("https://email-preview.invalid/blocked-3.png", preview.HtmlBody);
+        Assert.Contains("https://email-preview.invalid/blocked-4.png", preview.HtmlBody);
         Assert.Contains("alt=\"MyPetLink\"", preview.HtmlBody);
+        Assert.Contains("alt=\"Pet profile\"", preview.HtmlBody);
+        Assert.Contains("alt=\"Contact details\"", preview.HtmlBody);
+        Assert.Contains("alt=\"Preview public profile\"", preview.HtmlBody);
         Assert.Contains("Welcome to MyPetLink, Aina!", preview.HtmlBody);
+        Assert.Contains("Create your pet&#x2019;s profile", preview.HtmlBody);
+        Assert.Contains("Update your contact details", preview.HtmlBody);
+        Assert.Contains("Preview the public profile", preview.HtmlBody);
+        Assert.Contains(">1</div>", preview.HtmlBody);
+        Assert.Contains(">2</div>", preview.HtmlBody);
+        Assert.Contains(">3</div>", preview.HtmlBody);
         Assert.Contains(TransactionalEmailLayout.Tagline, preview.TextBody);
     }
 
@@ -99,6 +111,21 @@ public sealed class TransactionalEmailDesignTests
             failure => failure.Contains("OwnerPortalBaseUrl", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void EmailOptions_RequirePublicHttpsBrandAssetBaseWhenDeliveryIsEnabled()
+    {
+        var options = OptionsValue();
+        options.Enabled = true;
+        options.BrandAssetBaseUrl = "http://mypetlink.com.my/email-assets";
+
+        var result = new EmailOptionsValidator().Validate(null, options);
+
+        Assert.False(result.Succeeded);
+        Assert.Contains(
+            result.Failures!,
+            failure => failure.Contains("BrandAssetBaseUrl", StringComparison.Ordinal));
+    }
+
     private static EmailPreviewService PreviewService()
     {
         var options = Options.Create(OptionsValue());
@@ -113,6 +140,7 @@ public sealed class TransactionalEmailDesignTests
         Enabled = false,
         Provider = EmailOptions.DevelopmentProvider,
         OwnerPortalBaseUrl = "https://mypetlink.com.my",
-        BrandLogoUrl = "https://mypetlink.com.my/logo-horizontal.png"
+        BrandLogoUrl = "https://mypetlink.com.my/logo-horizontal.png",
+        BrandAssetBaseUrl = "https://mypetlink.com.my/email-assets"
     };
 }

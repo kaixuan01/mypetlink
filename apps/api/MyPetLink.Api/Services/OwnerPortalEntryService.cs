@@ -174,7 +174,14 @@ public sealed class OwnerPortalEntryService : SkeletonService, IOwnerPortalEntry
             .Replace("\n", " ", StringComparison.Ordinal)
             .Trim();
         if (string.IsNullOrWhiteSpace(candidate)
-            || candidate.Contains('@'))
+            || candidate.Contains('@')
+            || !candidate.Any(char.IsLetter)
+            || string.Equals(candidate, user.Id.ToString(), StringComparison.OrdinalIgnoreCase)
+            || user.ExternalLogins.Any(login =>
+                string.Equals(
+                    candidate,
+                    login.ProviderSubjectId,
+                    StringComparison.OrdinalIgnoreCase)))
         {
             return "";
         }
@@ -187,8 +194,11 @@ public sealed class OwnerPortalEntryService : SkeletonService, IOwnerPortalEntry
             return "";
         }
 
-        var separator = candidate.IndexOfAny([' ', '\t']);
-        return separator > 0 ? candidate[..separator] : candidate;
+        return string.Join(
+            " ",
+            candidate.Split(
+                [' ', '\t'],
+                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
     }
 
     private bool TryBuildOwnerPortalUrl(out string ownerPortalUrl)

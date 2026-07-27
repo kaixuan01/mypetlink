@@ -15,6 +15,7 @@ public sealed class EmailOptions
     public string FromName { get; set; } = "MyPetLink";
     public string OwnerPortalBaseUrl { get; set; } = "https://mypetlink.com.my";
     public string BrandLogoUrl { get; set; } = "https://mypetlink.com.my/logo-horizontal.png";
+    public string BrandAssetBaseUrl { get; set; } = "https://mypetlink.com.my/email-assets";
     public SmtpEmailOptions Smtp { get; set; } = new();
     public EmailDispatchOptions Dispatch { get; set; } = new();
     public EmailTemplateOptions Templates { get; set; } = new();
@@ -88,6 +89,15 @@ public sealed class EmailOptionsValidator : IValidateOptions<EmailOptions>
             || !string.IsNullOrEmpty(logoUri.Fragment))
         {
             failures.Add("Email:BrandLogoUrl must be an absolute HTTPS URL without credentials, a query, or a fragment.");
+        }
+
+        if (!Uri.TryCreate(options.BrandAssetBaseUrl, UriKind.Absolute, out var assetUri)
+            || assetUri.Scheme != Uri.UriSchemeHttps
+            || !string.IsNullOrEmpty(assetUri.UserInfo)
+            || !string.IsNullOrEmpty(assetUri.Query)
+            || !string.IsNullOrEmpty(assetUri.Fragment))
+        {
+            failures.Add("Email:BrandAssetBaseUrl must be an absolute HTTPS URL without credentials, a query, or a fragment.");
         }
 
         if (string.Equals(provider, EmailOptions.SmtpProvider, StringComparison.OrdinalIgnoreCase))

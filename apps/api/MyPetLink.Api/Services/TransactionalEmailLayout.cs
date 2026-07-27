@@ -20,6 +20,8 @@ public sealed record TransactionalEmailContent(
     string TransactionReason);
 
 public sealed record TransactionalEmailStep(
+    string IconFileName,
+    string IconAltText,
     string Title,
     string Description);
 
@@ -185,14 +187,16 @@ public sealed class TransactionalEmailLayout
         for (var index = 0; index < steps.Count; index++)
         {
             var step = steps[index];
+            var iconUrl = EmailAssetUrl(step.IconFileName);
             var bottomPadding = index == steps.Count - 1 ? "0" : "16px";
             html.Append($"""
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;border-collapse:collapse">
                   <tr>
-                    <td width="42" valign="top" style="width:42px;padding:0 10px {bottomPadding} 0">
-                      <div style="width:32px;height:32px;line-height:32px;text-align:center;border-radius:50%;background-color:{Blue};color:{White};font-size:15px;font-weight:800">{index + 1}</div>
+                    <td width="54" valign="top" align="center" style="width:54px;padding:0 10px {bottomPadding} 0">
+                      <img src="{Encoder.Encode(iconUrl)}" width="44" height="44" alt="{Encoder.Encode(step.IconAltText)}" style="display:block;width:44px;height:44px;min-width:44px;margin:0 auto;border:0;outline:none;text-decoration:none;color:{Ink};font-size:9px;line-height:1.2">
+                      <div style="width:24px;height:24px;margin:6px auto 0;line-height:24px;text-align:center;border-radius:50%;background-color:{Blue};color:{White};font-size:12px;font-weight:800">{index + 1}</div>
                     </td>
-                    <td valign="top" style="padding:2px 0 {bottomPadding};font-size:15px;line-height:1.55;color:{Ink}">
+                    <td valign="top" style="padding:3px 0 {bottomPadding};font-size:15px;line-height:1.55;color:{Ink}">
                       <div style="font-weight:800">{Encoder.Encode(step.Title)}</div>
                       <div class="email-muted" style="margin-top:3px;color:{Muted}">{Encoder.Encode(step.Description)}</div>
                     </td>
@@ -202,6 +206,26 @@ public sealed class TransactionalEmailLayout
         }
 
         return html.ToString();
+    }
+
+    private string EmailAssetUrl(string fileName)
+    {
+        var configuredBaseUrl = _options.BrandAssetBaseUrl?.Trim();
+        if (string.IsNullOrWhiteSpace(configuredBaseUrl)
+            || string.IsNullOrWhiteSpace(fileName)
+            || fileName.Contains('/')
+            || fileName.Contains('\\')
+            || fileName.Contains("..", StringComparison.Ordinal)
+            || !Uri.TryCreate(configuredBaseUrl.TrimEnd('/') + "/", UriKind.Absolute, out var baseUri)
+            || baseUri.Scheme != Uri.UriSchemeHttps
+            || !string.IsNullOrEmpty(baseUri.UserInfo)
+            || !string.IsNullOrEmpty(baseUri.Query)
+            || !string.IsNullOrEmpty(baseUri.Fragment))
+        {
+            throw new EmailDeliveryException("The email brand asset could not be prepared.", false);
+        }
+
+        return new Uri(baseUri, fileName).AbsoluteUri;
     }
 
     public string DetailRows(IReadOnlyList<TransactionalEmailDetail> details)
