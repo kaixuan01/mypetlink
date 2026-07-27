@@ -435,6 +435,7 @@ export type BackendOrderTimelineEvent = {
 export type BackendTagOrder = {
   id: string;
   orderNumber: string;
+  receiptNumber?: string | null;
   ownerUserId: string;
   petId: string;
   petName?: string | null;

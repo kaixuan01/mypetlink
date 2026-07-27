@@ -37,7 +37,10 @@ export function OrderDocumentButtons({
 
     try {
       if (kind === "receipt") {
-        await downloadAdminOrderReceiptPdf(order.id, orderNumber);
+        await downloadAdminOrderReceiptPdf(
+          order.id,
+          order.receiptNumber ?? orderNumber
+        );
         setMessage("Receipt PDF downloaded.");
       } else {
         await downloadAdminOrderSummaryPdf(order.id, orderNumber);

@@ -59,6 +59,7 @@ public sealed record DeliveryDetailsResponse(
 public sealed record TagOrderResponse(
     Guid Id,
     string OrderNumber,
+    string? ReceiptNumber,
     Guid OwnerUserId,
     Guid PetId,
     string? PetName,

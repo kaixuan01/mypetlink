@@ -1099,7 +1099,7 @@ Purpose: download the Order Summary PDF for an owner's order.
 
 Auth: owner (own order only).
 
-Response: `application/pdf`, filename `MyPetLink-Order-{OrderNumber}.pdf`. Titled "Order Summary"; never shows "Official Receipt" or "Paid". Available in any order state.
+Response: `application/pdf`, filename `MyPetLink-Order-Summary-{OrderNumber}.pdf`. Titled "Order Summary"; never shows "Official Receipt" or "Paid". Available in any order state.
 
 ### GET `/api/v1/orders/{orderNumber}/receipt.pdf`
 
@@ -1107,11 +1107,12 @@ Purpose: download the Official Receipt PDF for an owner's order.
 
 Auth: owner (own order only).
 
-Response: `application/pdf`, filename `MyPetLink-Receipt-{OrderNumber}.pdf`. Titled "Official Receipt"; shows "PAID", the payment confirmed date/time, and a Receipt No.
+Response: `application/pdf`, filename `MyPetLink-Receipt-{ReceiptNumber}.pdf`. Titled "Official Receipt"; shows "PAID", the payment confirmed date/time, and the persisted Receipt No.
 
 Rules:
 
 - Available only after payment is confirmed (`PaymentConfirmedAt` set).
+- `receiptNumber` is null before confirmation and is assigned once from `PaymentConfirmedAt` when confirmation succeeds.
 - Documents are generated server-side (QuestPDF) from authoritative order data. No files are stored. Payment proofs remain metadata only; no payment gateway. No SST is claimed.
 
 Errors:

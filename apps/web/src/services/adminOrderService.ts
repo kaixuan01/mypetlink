@@ -47,6 +47,7 @@ export type AdminOrderListParams = {
   owner?: string;
   pet?: string;
   orderNumber?: string;
+  receiptNumber?: string;
   deliveryLocation?: string;
   amountMin?: string;
   amountMax?: string;
@@ -69,6 +70,7 @@ export type AdminOrderListParams = {
 export type AdminOrder = {
   id: string;
   orderNumber: string;
+  receiptNumber?: string;
   ownerId?: string;
   ownerName: string;
   ownerEmail: string;
@@ -143,6 +145,7 @@ export type AdminPaymentConfirmationEmail = {
 type BackendAdminOrderItem = {
   id: string;
   orderNumber: string;
+  receiptNumber?: string | null;
   ownerUserId: string;
   ownerName: string;
   ownerEmail: string;
@@ -221,6 +224,7 @@ function mapBackendItem(item: BackendAdminOrderItem): AdminOrder {
   return {
     id: item.id,
     orderNumber: item.orderNumber,
+    receiptNumber: item.receiptNumber ?? undefined,
     ownerId: item.ownerUserId,
     ownerName: item.ownerName || item.ownerEmail,
     ownerEmail: item.ownerEmail,
@@ -528,6 +532,7 @@ async function loadLocalOrders(): Promise<AdminOrder[]> {
     return {
       id: order.id,
       orderNumber: order.orderNumber ?? order.id,
+      receiptNumber: order.receiptNumber,
       ownerName: pet?.owner.name ?? "Owner",
       ownerEmail: "",
       ownerPhone: order.delivery.phone,
@@ -564,6 +569,7 @@ function filterLocal(rows: AdminOrder[], params: AdminOrderListParams) {
   return rows.filter((row) => {
     if (search && ![
       row.orderNumber,
+      row.receiptNumber,
       row.ownerName,
       row.ownerEmail,
       row.ownerPhone,
@@ -586,6 +592,7 @@ function filterLocal(rows: AdminOrder[], params: AdminOrderListParams) {
     if (params.owner && ![row.ownerName, row.ownerEmail, row.ownerPhone].some((value) => value.toLowerCase().includes(params.owner!.toLowerCase()))) return false;
     if (params.pet && !row.petName.toLowerCase().includes(params.pet.toLowerCase())) return false;
     if (params.orderNumber && !row.orderNumber.toLowerCase().includes(params.orderNumber.toLowerCase())) return false;
+    if (params.receiptNumber && !(row.receiptNumber ?? "").toLowerCase().includes(params.receiptNumber.toLowerCase())) return false;
     if (params.deliveryLocation && ![row.deliveryCity, row.deliveryState].some((value) => value.toLowerCase().includes(params.deliveryLocation!.toLowerCase()))) return false;
     const total = row.amount + row.deliveryFee;
     if (params.amountMin && total < Number(params.amountMin)) return false;

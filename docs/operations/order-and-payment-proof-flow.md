@@ -90,7 +90,7 @@ Owners and admins download order documents as PDFs generated server-side (QuestP
 Two document types, gated by payment status:
 
 - **Order Summary PDF** — available in any state before payment is confirmed (Pending Payment, Payment Proof Submitted, rejected/resubmission needed). Titled "Order Summary". Never shows "Official Receipt" or "Paid".
-- **Official Receipt PDF** — available only after admin confirms payment (Payment Confirmed, Preparing Tag, Shipped, Delivered). Titled "Official Receipt", shows "PAID", the payment confirmed date/time, and a Receipt No. (`MPL-RCP-…` derived from the order number).
+- **Official Receipt PDF** — available only after admin confirms payment (Payment Confirmed, Preparing Tag, Shipped, Delivered). Titled "Official Receipt", shows "PAID", the payment confirmed date/time, and the separately persisted Receipt No. (`MPL-RCP-yyMMddHHmmss-NNNN` for new confirmations).
 
 Endpoints (return `application/pdf`):
 
@@ -101,9 +101,10 @@ Rules:
 
 - Owner endpoints require auth and only serve the owner's own order; admin endpoints require the admin policy and can serve any order.
 - The receipt endpoints return `422 receipt_not_available` ("Receipt is available after payment is confirmed.") when `PaymentConfirmedAt` is not set.
-- Filenames: `MyPetLink-Order-{OrderNumber}.pdf` and `MyPetLink-Receipt-{OrderNumber}.pdf`.
+- Filenames: `MyPetLink-Order-Summary-{OrderNumber}.pdf` and `MyPetLink-Receipt-{ReceiptNumber}.pdf`.
 - Documents are generated on demand; no PDF files are stored or committed. Payment proofs remain metadata only; there is no payment gateway.
 - No SST is claimed (shown as "SST: Not applicable"); no tax registration numbers are printed.
+- Order and receipt references are persisted and are never regenerated during document download. See [Business reference numbering](business-reference-numbering.md).
 
 ## Order Status Timeline
 

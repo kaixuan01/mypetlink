@@ -430,8 +430,13 @@ export function AdminOrdersManager() {
       header: "Order number",
       sortId: "orderNumber",
       cell: (order) => (
-        <button className="whitespace-nowrap font-bold text-[#1b4f9c] underline-offset-2 hover:underline" onClick={() => actions.setExtraParam("order", order.id)} type="button">
-          {order.orderNumber}
+        <button className="max-w-64 text-left font-bold text-[#1b4f9c] underline-offset-2 hover:underline" onClick={() => actions.setExtraParam("order", order.id)} type="button">
+          <span className="block whitespace-nowrap">{order.orderNumber}</span>
+          {order.receiptNumber ? (
+            <span className="block break-all font-mono text-[11px] text-slate-500">
+              {order.receiptNumber}
+            </span>
+          ) : null}
         </button>
       ),
     },

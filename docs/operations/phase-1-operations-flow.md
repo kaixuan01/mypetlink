@@ -16,7 +16,7 @@ How MyPetLink operations run in the early launch phase, using the Admin Portal (
 
 ## Retail tag flow (pet shops / resellers)
 
-1. Admin generates a batch at `/admin/tag-inventory` (quantity, QR or QR + NFC, shape) → **Unclaimed** stock with `BATCH-YYYY-MM`, no pet, no owner.
+1. Admin generates a batch at `/admin/tag-inventory` (quantity and approved SKU) → **Unclaimed** stock with a server-assigned `MPL-BAT-yyMMddHHmmss-NNNN` reference, no pet, and no owner.
 2. Export the CSV for printing/manufacturing. (Printed / sent-to-reseller tracking arrives with the backend.)
 3. A customer buys a tag, scans it, and lands on the activation page (`/t/{code}` → activation prompt).
 4. The customer signs in or creates an account, links the tag to a new or existing pet → tag becomes **Active**.

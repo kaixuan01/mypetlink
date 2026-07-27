@@ -60,6 +60,9 @@ public sealed class SmartTag : AuditableEntity
 public sealed class TagOrder : AuditableEntity
 {
     public string OrderNumber { get; set; } = "";
+    // Assigned once, in the same transaction that confirms payment. Historical
+    // receipts keep this value even if fulfilment state changes later.
+    public string? ReceiptNumber { get; set; }
     public Guid OwnerUserId { get; set; }
     public Guid PetId { get; set; }
     public Guid? SmartTagId { get; set; }

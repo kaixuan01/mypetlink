@@ -145,6 +145,7 @@ export function mapBackendOrder(order: BackendTagOrder): TagOrder {
   return normalizeOrder({
     id: order.id,
     orderNumber: order.orderNumber,
+    receiptNumber: order.receiptNumber ?? undefined,
     petId: order.petId,
     petName: order.petName ?? undefined,
     tagType: fromBackendTagType(order.tagType),
@@ -1499,8 +1500,7 @@ export async function adminCancelOrder(orderId: string, reason: string) {
 // New tags activate through the printed /q entry; legacy /t remains compatible.
 export async function adminGenerateRetailTags(
   count: number,
-  productVariantId: string,
-  batchNumber?: string
+  productVariantId: string
 ) {
   if (canUseOwnerTagApi()) {
     const response = await apiRequest<{
@@ -1517,7 +1517,6 @@ export async function adminGenerateRetailTags(
       body: {
         quantity: Math.max(1, Math.min(50, Math.floor(count))),
         productVariantId,
-        batchNumber: batchNumber?.trim() || null,
       },
     });
 

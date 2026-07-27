@@ -15,17 +15,38 @@ public sealed class OrderService : SkeletonService, IOrderService
     private readonly FeatureOptions _features;
     private readonly ITagPricingService _pricingService;
     private readonly IDeliveryService _deliveryService;
+    private readonly IBusinessReferenceGenerator _businessReferences;
+    private readonly TimeProvider _timeProvider;
 
     public OrderService(
         MyPetLinkDbContext dbContext,
         IOptions<FeatureOptions> features,
         ITagPricingService pricingService,
         IDeliveryService deliveryService)
+        : this(
+            dbContext,
+            features,
+            pricingService,
+            deliveryService,
+            new BusinessReferenceGenerator(new CryptographicBusinessReferenceSuffixSource()),
+            TimeProvider.System)
+    {
+    }
+
+    public OrderService(
+        MyPetLinkDbContext dbContext,
+        IOptions<FeatureOptions> features,
+        ITagPricingService pricingService,
+        IDeliveryService deliveryService,
+        IBusinessReferenceGenerator businessReferences,
+        TimeProvider timeProvider)
     {
         _dbContext = dbContext;
         _features = features.Value;
         _pricingService = pricingService;
         _deliveryService = deliveryService;
+        _businessReferences = businessReferences;
+        _timeProvider = timeProvider;
     }
 
     public async Task<(IReadOnlyCollection<TagOrderResponse> Items, int Total)> ListAsync(
@@ -163,7 +184,7 @@ public sealed class OrderService : SkeletonService, IOrderService
         }
 
         var tagType = productVariant.SupportsNfc ? TagType.QrNfcSmartTag : TagType.QrPetTag;
-        var now = DateTimeOffset.UtcNow;
+        var now = _timeProvider.GetUtcNow();
         var delivery = request.Delivery!;
         var subtotal = quote.BasePrice * request.Quantity;
         var discountAmount = quote.DiscountAmount * request.Quantity;
@@ -173,7 +194,7 @@ public sealed class OrderService : SkeletonService, IOrderService
         var deliveryQuote = deliveryResolution.Quote;
         var order = new TagOrder
         {
-            OrderNumber = await GenerateOrderNumberAsync(cancellationToken),
+            OrderNumber = await GenerateOrderNumberAsync(now, cancellationToken),
             OwnerUserId = userId,
             PetId = pet.Id,
             Pet = pet,
@@ -230,23 +251,43 @@ public sealed class OrderService : SkeletonService, IOrderService
 
         _dbContext.TagOrders.Add(order);
 
-        try
+        for (var attempt = 0; ; attempt++)
         {
-            await _dbContext.SaveChangesAsync(cancellationToken);
-        }
-        catch (DbUpdateException) when (idempotencyKey is not null)
-        {
-            // A concurrent request with the same key may have won the insert
-            // race (the filtered unique index rejects the duplicate). Abandon
-            // this attempt's tracked graph and, if a matching order now exists,
-            // return it; otherwise the failure was unrelated, so surface it.
-            _dbContext.ChangeTracker.Clear();
-            var winner = await FindByIdempotencyKeyAsync(userId, idempotencyKey, cancellationToken);
-            if (winner is null)
+            try
             {
-                throw;
+                await _dbContext.SaveChangesAsync(cancellationToken);
+                break;
             }
-            return await BuildIdempotentReplayAsync(userId, winner, fingerprint!, cancellationToken);
+            catch (DbUpdateException exception) when (
+                UniqueConstraintViolation.IsFor(exception, "IX_TagOrders_OrderNumber")
+                && attempt < 11)
+            {
+                // The unique index is the final guard for a concurrent insert
+                // that selected the same random suffix after our pre-check.
+                order.OrderNumber = await GenerateOrderNumberAsync(now, cancellationToken);
+            }
+            catch (DbUpdateException exception) when (
+                UniqueConstraintViolation.IsFor(exception, "IX_TagOrders_OrderNumber"))
+            {
+                throw new ApiException(
+                    StatusCodes.Status500InternalServerError,
+                    "order_number_generation_failed",
+                    "Could not generate an order number. Please try again.");
+            }
+            catch (DbUpdateException) when (idempotencyKey is not null)
+            {
+                // A concurrent request with the same key may have won the insert
+                // race (the filtered unique index rejects the duplicate). Abandon
+                // this attempt's tracked graph and, if a matching order now exists,
+                // return it; otherwise the failure was unrelated, so surface it.
+                _dbContext.ChangeTracker.Clear();
+                var winner = await FindByIdempotencyKeyAsync(userId, idempotencyKey, cancellationToken);
+                if (winner is null)
+                {
+                    throw;
+                }
+                return await BuildIdempotentReplayAsync(userId, winner, fingerprint!, cancellationToken);
+            }
         }
 
         var hydratedOrder = await LoadOwnedOrderByIdAsync(userId, order.Id, trackChanges: false, cancellationToken);
@@ -347,7 +388,7 @@ public sealed class OrderService : SkeletonService, IOrderService
             StorageProvider = mediaFile.StorageProvider,
             StoragePath = mediaFile.StoragePath,
             Sha256 = mediaFile.Sha256,
-            UploadedAt = DateTimeOffset.UtcNow,
+            UploadedAt = _timeProvider.GetUtcNow(),
             PaymentMethod = NormalizeOptional(request.PaymentMethod) ?? "QR Payment",
             PaymentReference = NormalizeOptional(request.PaymentReference),
             OwnerNote = NormalizeOptional(request.OwnerNote),
@@ -383,7 +424,7 @@ public sealed class OrderService : SkeletonService, IOrderService
             throw InvalidState("This order cannot be cancelled after preparation has started.");
         }
 
-        var now = DateTimeOffset.UtcNow;
+        var now = _timeProvider.GetUtcNow();
         order.Status = OrderStatus.Cancelled;
         order.CancelledAt ??= now;
         order.TrackingStatus = "Cancelled";
@@ -528,10 +569,10 @@ public sealed class OrderService : SkeletonService, IOrderService
         return linkedToOrder ? mediaFile : throw NotFound("Payment proof file was not found.");
     }
 
-    private static MediaFile CreateMetadataOnlyMediaFile(Guid userId, string? fileName)
+    private MediaFile CreateMetadataOnlyMediaFile(Guid userId, string? fileName)
     {
         var safeFileName = NormalizeOptional(fileName) ?? "payment-proof-metadata";
-        var now = DateTimeOffset.UtcNow;
+        var now = _timeProvider.GetUtcNow();
 
         return new MediaFile
         {
@@ -598,11 +639,13 @@ public sealed class OrderService : SkeletonService, IOrderService
         }
     }
 
-    private async Task<string> GenerateOrderNumberAsync(CancellationToken cancellationToken)
+    private async Task<string> GenerateOrderNumberAsync(
+        DateTimeOffset createdAtUtc,
+        CancellationToken cancellationToken)
     {
         for (var attempt = 0; attempt < 12; attempt++)
         {
-            var code = $"MPL-ORD-{DateTimeOffset.UtcNow:yyyyMMdd}-{RandomNumberGenerator.GetInt32(1000, 10000)}";
+            var code = _businessReferences.CreateOrderNumber(createdAtUtc);
             var exists = await _dbContext.TagOrders.AnyAsync(
                 order => order.OrderNumber == code,
                 cancellationToken);

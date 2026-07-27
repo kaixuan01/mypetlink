@@ -5,6 +5,7 @@ namespace MyPetLink.Api.Data;
 
 public sealed class MyPetLinkDbContext : DbContext
 {
+    private readonly TimeProvider _timeProvider;
     private static readonly Guid FreePlanId = Guid.Parse("4e5e2a13-34c0-4a36-b1b3-30830ca642e9");
     private static readonly Guid PremiumPlanId = Guid.Parse("1faefb03-9b58-4889-a03b-c9ed34c5fa0f");
     private static readonly Guid FreePlanLimitId = Guid.Parse("8d6684b1-b25f-4e1a-a353-48621f6fb2c2");
@@ -17,8 +18,16 @@ public sealed class MyPetLinkDbContext : DbContext
     public static readonly Guid LightweightVariantPresetId = Guid.Parse("3f2c8f5e-08d4-4c5f-9a51-b96f8a4f7c02");
 
     public MyPetLinkDbContext(DbContextOptions<MyPetLinkDbContext> options)
+        : this(options, TimeProvider.System)
+    {
+    }
+
+    public MyPetLinkDbContext(
+        DbContextOptions<MyPetLinkDbContext> options,
+        TimeProvider timeProvider)
         : base(options)
     {
+        _timeProvider = timeProvider;
     }
 
     public DbSet<User> Users => Set<User>();
@@ -213,7 +222,7 @@ public sealed class MyPetLinkDbContext : DbContext
 
     private void StampAuditableEntities()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = _timeProvider.GetUtcNow();
 
         foreach (var entry in ChangeTracker.Entries<AuditableEntity>())
         {
@@ -602,6 +611,7 @@ public sealed class MyPetLinkDbContext : DbContext
         {
             entity.ToTable("TagOrders");
             entity.Property(item => item.OrderNumber).HasMaxLength(80);
+            entity.Property(item => item.ReceiptNumber).HasMaxLength(80);
             entity.Property(item => item.TagType).HasConversion<string>().HasMaxLength(32);
             entity.Property(item => item.Variant).HasMaxLength(80);
             entity.Property(item => item.Amount).HasPrecision(18, 2);
@@ -627,6 +637,9 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.Property(item => item.IdempotencyKey).HasMaxLength(80);
             entity.Property(item => item.RequestFingerprint).HasMaxLength(128);
             entity.HasIndex(item => item.OrderNumber).IsUnique();
+            entity.HasIndex(item => item.ReceiptNumber)
+                .IsUnique()
+                .HasFilter("[ReceiptNumber] IS NOT NULL");
             // One order per owner per idempotency key. Filtered so legacy rows
             // and requests that omit the key are unaffected.
             entity.HasIndex(item => new { item.OwnerUserId, item.IdempotencyKey })

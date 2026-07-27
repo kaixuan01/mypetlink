@@ -59,7 +59,7 @@ public sealed class OrderDocumentServiceTests
         var result = await h.Service.GetOwnerReceiptAsync(Harness.OwnerAId, "MPL-ORD-NFC");
 
         Assert.Equal("application/pdf", result.ContentType);
-        Assert.Equal("MyPetLink-Receipt-MPL-ORD-NFC.pdf", result.FileName);
+        Assert.Equal("MyPetLink-Receipt-MPL-RCP-NFC.pdf", result.FileName);
         Assert.Contains("Official Receipt", ExtractText(result.Content));
     }
 
@@ -123,7 +123,7 @@ public sealed class OrderDocumentServiceTests
 
         var receipt = await h.Service.GetAdminReceiptAsync(orderId);
 
-        Assert.Equal("MyPetLink-Receipt-MPL-ORD-NFC.pdf", receipt.FileName);
+        Assert.Equal("MyPetLink-Receipt-MPL-RCP-NFC.pdf", receipt.FileName);
         Assert.Contains("Official Receipt", ExtractText(receipt.Content));
     }
 
@@ -151,7 +151,7 @@ public sealed class OrderDocumentServiceTests
         var second = ExtractText((await h.Service.GetOwnerReceiptAsync(Harness.OwnerAId, "MPL-ORD-NFC")).Content);
         var squashed = Squash(first);
 
-        Assert.Contains("MPL-RCP-NFC", squashed);           // receipt number derived from order number
+        Assert.Contains("MPL-RCP-NFC", squashed);           // persisted legacy receipt number
         Assert.Contains("MPL-ORD-NFC", first);               // order number present
         Assert.Contains("RM59.00", squashed);                // total correct
         Assert.Contains("ReceiptDate20Jul2026,11:30AM(MYT)", squashed);
@@ -164,6 +164,33 @@ public sealed class OrderDocumentServiceTests
             Squash("Your payment has been confirmed. We’ll now begin preparing your MyPetLink tag. Track your order anytime in the Owner Portal."),
             squashed);
         Assert.Equal(squashed, Squash(second));              // number/totals stable across downloads
+    }
+
+    [Fact]
+    public async Task NewReferenceFormatsRenderOnOnePageAndDriveSafeFilenames()
+    {
+        using var h = await Harness.CreateAsync();
+
+        var receipt = await h.Service.GetOwnerReceiptAsync(
+            Harness.OwnerAId,
+            "MPL-ORD-260727123029-9916");
+        var summary = await h.Service.GetOwnerSummaryAsync(
+            Harness.OwnerAId,
+            "MPL-ORD-260727123029-9916");
+
+        Assert.Equal(
+            "MyPetLink-Receipt-MPL-RCP-260727141423-4827.pdf",
+            receipt.FileName);
+        Assert.Equal(
+            "MyPetLink-Order-Summary-MPL-ORD-260727123029-9916.pdf",
+            summary.FileName);
+        Assert.Contains(
+            "MPL-RCP-260727141423-4827",
+            Squash(ExtractText(receipt.Content)));
+        using var receiptPdf = PdfDocument.Open(receipt.Content);
+        using var summaryPdf = PdfDocument.Open(summary.Content);
+        Assert.Single(receiptPdf.GetPages());
+        Assert.Single(summaryPdf.GetPages());
     }
 
     [Fact]
@@ -534,7 +561,11 @@ public sealed class OrderDocumentServiceTests
             });
 
             // QR + NFC confirmed order with an item snapshot (no discount).
-            var nfcItem = ConfirmedOrder("MPL-ORD-NFC-ITEM", TagType.QrNfcSmartTag, 59m);
+            var nfcItem = ConfirmedOrder(
+                "MPL-ORD-260727123029-9916",
+                TagType.QrNfcSmartTag,
+                59m);
+            nfcItem.ReceiptNumber = "MPL-RCP-260727141423-4827";
             nfcItem.Items.Add(SimpleItem(nfcItem.Id, nfc: true, unit: 59m, qty: 1, final: 59m));
 
             // Multi-unit order to exercise the quantity path.
@@ -600,6 +631,7 @@ public sealed class OrderDocumentServiceTests
             {
                 Id = Guid.NewGuid(),
                 OrderNumber = number,
+                ReceiptNumber = number.Replace("-ORD-", "-RCP-", StringComparison.OrdinalIgnoreCase),
                 OwnerUserId = OwnerAId,
                 PetId = PetId,
                 TagType = tagType,

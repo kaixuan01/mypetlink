@@ -35,10 +35,10 @@ Rules: public lookup by `PublicCode`/`SafetyCode` only; never expose `Id` public
 Retail stock: `Status = Unassigned`, no `PetId`/`OwnerUserId`, created via batches. Portal orders: tag created bound to the pet.
 
 ### TagBatches
-`Id (PK)`, `BatchNo (e.g. BATCH-2026-07)`, `Quantity`, `HasNfc`, `Shape`, `GeneratedByUserId (FK)`, `GeneratedAt`, `PrintedAt (nullable)`, `SentToResellerAt (nullable)`, `ResellerName (nullable)`.
+`Id (PK)`, `BatchNo (unique; new values use MPL-BAT-yyMMddHHmmss-NNNN)`, `Quantity`, `HasNfc`, `Variant`, `GeneratedByUserId (FK)`, `GeneratedAt`, `PrintedAt (nullable)`, `SentToResellerAt (nullable)`, `ResellerName (nullable)`.
 
 ### Orders
-`Id (PK)`, `OrderNumber (unique, MPL-ORD-YYYY-XXXX)`, `OwnerUserId (FK)`, `PetId (FK)`, `TagId (FK, nullable)`, `TagType`, `Shape`, `Price`, 
+`Id (PK)`, `OrderNumber (unique; new values use MPL-ORD-yyMMddHHmmss-NNNN)`, `ReceiptNumber (nullable, filtered unique; new confirmations use MPL-RCP-yyMMddHHmmss-NNNN)`, `OwnerUserId (FK)`, `PetId (FK)`, `TagId (FK, nullable)`, `TagType`, `Variant`, `Price`,
 `Status (Draft|PendingPayment|PaymentSubmitted|PaymentConfirmed|Preparing|Shipped|Delivered|Cancelled)`,
 `DeliveryJson (recipient, phone, address, notes)`, `TrackingStatus`, `TrackingNumber`, `ShippedAt`, `DeliveredAt`, `ReplacementForTagId`, `CreatedAt`.
 

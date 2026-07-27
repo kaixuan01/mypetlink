@@ -18,6 +18,8 @@ public sealed class AdminService : SkeletonService, IAdminService
     private readonly IAuditLogService _auditLogService;
     private readonly IEmailOutboxService _emailOutboxService;
     private readonly FeatureOptions _features;
+    private readonly IBusinessReferenceGenerator _businessReferences;
+    private readonly TimeProvider _timeProvider;
 
     public AdminService(
         MyPetLinkDbContext dbContext,
@@ -27,7 +29,9 @@ public sealed class AdminService : SkeletonService, IAdminService
             dbContext,
             auditLogService,
             features,
-            new EmailOutboxService(dbContext, auditLogService, TimeProvider.System))
+            new EmailOutboxService(dbContext, auditLogService, TimeProvider.System),
+            new BusinessReferenceGenerator(new CryptographicBusinessReferenceSuffixSource()),
+            TimeProvider.System)
     {
     }
 
@@ -36,11 +40,30 @@ public sealed class AdminService : SkeletonService, IAdminService
         IAuditLogService auditLogService,
         IOptions<FeatureOptions> features,
         IEmailOutboxService emailOutboxService)
+        : this(
+            dbContext,
+            auditLogService,
+            features,
+            emailOutboxService,
+            new BusinessReferenceGenerator(new CryptographicBusinessReferenceSuffixSource()),
+            TimeProvider.System)
+    {
+    }
+
+    public AdminService(
+        MyPetLinkDbContext dbContext,
+        IAuditLogService auditLogService,
+        IOptions<FeatureOptions> features,
+        IEmailOutboxService emailOutboxService,
+        IBusinessReferenceGenerator businessReferences,
+        TimeProvider timeProvider)
     {
         _dbContext = dbContext;
         _auditLogService = auditLogService;
         _features = features.Value;
         _emailOutboxService = emailOutboxService;
+        _businessReferences = businessReferences;
+        _timeProvider = timeProvider;
     }
 
     // --- Dashboard ------------------------------------------------------------
@@ -1192,100 +1215,153 @@ public sealed class AdminService : SkeletonService, IAdminService
             : NormalizeOptional(reason) ?? throw ValidationFailed("reason", "Enter a reason for rejecting this payment proof.");
         var strategy = _dbContext.Database.CreateExecutionStrategy();
 
-        return await strategy.ExecuteAsync(async () =>
+        var maxAttempts = approve ? 12 : 1;
+        for (var referenceAttempt = 0; referenceAttempt < maxAttempts; referenceAttempt++)
         {
-            // A serializable transaction prevents two Admin requests from
-            // reviewing the same pending proof concurrently. In-memory tests use
-            // the same state checks without a provider transaction.
-            _dbContext.ChangeTracker.Clear();
-            await using var transaction = _dbContext.Database.IsRelational()
-                ? await _dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken)
-                : null;
-
-            var admin = await RequireAdminAsync(currentUserId, cancellationToken);
-            var order = await LoadOrderAsync(orderId, trackChanges: true, cancellationToken);
-            if (order.Status != OrderStatus.PaymentProofSubmitted || order.PaymentStatus != PaymentStatus.ProofSubmitted)
+            try
             {
-                throw InvalidState(approve
-                    ? "Payment can only be confirmed while its submitted proof is waiting for review."
-                    : "Only orders with a submitted payment proof can be sent back for resubmission.");
-            }
+                return await strategy.ExecuteAsync(async () =>
+                {
+                    // A serializable transaction prevents two Admin requests from
+                    // reviewing the same pending proof concurrently. In-memory tests use
+                    // the same state checks without a provider transaction.
+                    _dbContext.ChangeTracker.Clear();
+                    await using var transaction = _dbContext.Database.IsRelational()
+                        ? await _dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken)
+                        : null;
 
-            var latestPendingProof = LatestPendingProof(order)
-                ?? throw InvalidState("There is no payment proof waiting for review on this order.");
-            var proof = paymentProofId.HasValue
-                ? order.PaymentProofs.SingleOrDefault(item => item.Id == paymentProofId.Value)
-                    ?? throw NotFound("Payment proof was not found.")
-                : latestPendingProof;
+                    var admin = await RequireAdminAsync(currentUserId, cancellationToken);
+                    var order = await LoadOrderAsync(orderId, trackChanges: true, cancellationToken);
+                    if (order.Status != OrderStatus.PaymentProofSubmitted || order.PaymentStatus != PaymentStatus.ProofSubmitted)
+                    {
+                        throw InvalidState(approve
+                            ? "Payment can only be confirmed while its submitted proof is waiting for review."
+                            : "Only orders with a submitted payment proof can be sent back for resubmission.");
+                    }
 
-            if (proof.Status != PaymentProofStatus.PendingReview)
-            {
-                throw InvalidState("This payment proof has already been reviewed and cannot be reviewed again.");
-            }
-            if (proof.Id != latestPendingProof.Id)
-            {
-                throw InvalidState("Only the latest submitted payment proof can be reviewed.");
-            }
-            if (order.PaymentProofs.Any(item => item.Id != proof.Id && item.Status == PaymentProofStatus.Approved))
-            {
-                throw InvalidState("This order already has an approved payment proof.");
-            }
+                    var latestPendingProof = LatestPendingProof(order)
+                        ?? throw InvalidState("There is no payment proof waiting for review on this order.");
+                    var proof = paymentProofId.HasValue
+                        ? order.PaymentProofs.SingleOrDefault(item => item.Id == paymentProofId.Value)
+                            ?? throw NotFound("Payment proof was not found.")
+                        : latestPendingProof;
 
-            var oldOrderState = OrderStateSnapshot(order);
-            var oldProofState = PaymentProofStateSnapshot(proof);
-            var now = DateTimeOffset.UtcNow;
-            foreach (var stalePending in order.PaymentProofs.Where(item => item.Id != proof.Id && item.Status == PaymentProofStatus.PendingReview))
-            {
-                stalePending.Status = PaymentProofStatus.Superseded;
-                stalePending.UpdatedAt = now;
-            }
-            proof.Status = approve ? PaymentProofStatus.Approved : PaymentProofStatus.Rejected;
-            proof.ReviewedByAdminUserId = admin.Id;
-            proof.ReviewedAt = now;
-            proof.RejectionReason = normalizedReason;
-            proof.UpdatedAt = now;
+                    if (proof.Status != PaymentProofStatus.PendingReview)
+                    {
+                        throw InvalidState("This payment proof has already been reviewed and cannot be reviewed again.");
+                    }
+                    if (proof.Id != latestPendingProof.Id)
+                    {
+                        throw InvalidState("Only the latest submitted payment proof can be reviewed.");
+                    }
+                    if (order.PaymentProofs.Any(item => item.Id != proof.Id && item.Status == PaymentProofStatus.Approved))
+                    {
+                        throw InvalidState("This order already has an approved payment proof.");
+                    }
 
-            if (approve)
-            {
-                order.Status = OrderStatus.PaymentConfirmed;
-                order.PaymentStatus = PaymentStatus.Confirmed;
-                order.PaymentConfirmedAt ??= now;
-                order.TrackingStatus = "Payment confirmed. Tag preparation is next.";
-                _emailOutboxService.EnqueuePaymentConfirmed(
-                    order,
-                    order.PaymentConfirmedAt.Value);
-            }
-            else
-            {
-                order.Status = OrderStatus.PendingPayment;
-                order.PaymentStatus = PaymentStatus.Rejected;
-                order.TrackingStatus = "Payment proof needs to be resubmitted.";
-            }
-            order.UpdatedAt = now;
+                    var oldOrderState = OrderStateSnapshot(order);
+                    var oldProofState = PaymentProofStateSnapshot(proof);
+                    var now = _timeProvider.GetUtcNow();
+                    foreach (var stalePending in order.PaymentProofs.Where(item => item.Id != proof.Id && item.Status == PaymentProofStatus.PendingReview))
+                    {
+                        stalePending.Status = PaymentProofStatus.Superseded;
+                        stalePending.UpdatedAt = now;
+                    }
+                    proof.Status = approve ? PaymentProofStatus.Approved : PaymentProofStatus.Rejected;
+                    proof.ReviewedByAdminUserId = admin.Id;
+                    proof.ReviewedAt = now;
+                    proof.RejectionReason = normalizedReason;
+                    proof.UpdatedAt = now;
 
-            var proofAction = approve ? "payment-proof.approve" : "payment-proof.reject";
-            var orderAction = approve ? "order.confirm-payment" : "order.reject-payment-proof";
-            _auditLogService.Append(
-                admin.Id,
-                ActorType.Admin,
-                proofAction,
-                "PaymentProof",
-                proof.Id,
-                oldProofState,
-                new { state = PaymentProofStateSnapshot(proof), reason = normalizedReason, orderId = order.Id });
-            _auditLogService.Append(
-                admin.Id,
-                ActorType.Admin,
-                orderAction,
-                "TagOrder",
-                order.Id,
-                oldOrderState,
-                new { state = OrderStateSnapshot(order), paymentProofId = proof.Id, reason = normalizedReason });
+                    if (approve)
+                    {
+                        order.Status = OrderStatus.PaymentConfirmed;
+                        order.PaymentStatus = PaymentStatus.Confirmed;
+                        order.PaymentConfirmedAt ??= now;
+                        order.ReceiptNumber ??= await GenerateReceiptNumberAsync(
+                            order.PaymentConfirmedAt.Value.ToUniversalTime(),
+                            cancellationToken);
+                        order.TrackingStatus = "Payment confirmed. Tag preparation is next.";
+                        _emailOutboxService.EnqueuePaymentConfirmed(
+                            order,
+                            order.PaymentConfirmedAt.Value);
+                    }
+                    else
+                    {
+                        order.Status = OrderStatus.PendingPayment;
+                        order.PaymentStatus = PaymentStatus.Rejected;
+                        order.TrackingStatus = "Payment proof needs to be resubmitted.";
+                    }
+                    order.UpdatedAt = now;
 
-            await _dbContext.SaveChangesAsync(cancellationToken);
-            if (transaction is not null) await transaction.CommitAsync(cancellationToken);
-            return ToAdminOrderResponse(order);
-        });
+                    var proofAction = approve ? "payment-proof.approve" : "payment-proof.reject";
+                    var orderAction = approve ? "order.confirm-payment" : "order.reject-payment-proof";
+                    _auditLogService.Append(
+                        admin.Id,
+                        ActorType.Admin,
+                        proofAction,
+                        "PaymentProof",
+                        proof.Id,
+                        oldProofState,
+                        new { state = PaymentProofStateSnapshot(proof), reason = normalizedReason, orderId = order.Id });
+                    _auditLogService.Append(
+                        admin.Id,
+                        ActorType.Admin,
+                        orderAction,
+                        "TagOrder",
+                        order.Id,
+                        oldOrderState,
+                        new { state = OrderStateSnapshot(order), paymentProofId = proof.Id, reason = normalizedReason });
+
+                    await _dbContext.SaveChangesAsync(cancellationToken);
+                    if (transaction is not null) await transaction.CommitAsync(cancellationToken);
+                    return ToAdminOrderResponse(order);
+                });
+            }
+            catch (DbUpdateException exception) when (
+                approve
+                && UniqueConstraintViolation.IsFor(exception, "IX_TagOrders_ReceiptNumber")
+                && referenceAttempt < maxAttempts - 1)
+            {
+                // A different confirmation selected the same suffix after our
+                // pre-check. The transaction has rolled back; retry with a new
+                // receipt reference and a freshly loaded order graph.
+            }
+            catch (DbUpdateException exception) when (
+                approve
+                && UniqueConstraintViolation.IsFor(exception, "IX_TagOrders_ReceiptNumber"))
+            {
+                throw new ApiException(
+                    StatusCodes.Status500InternalServerError,
+                    "receipt_number_generation_failed",
+                    "Could not generate a receipt number. Please try again.");
+            }
+        }
+
+        throw new InvalidOperationException("Payment proof review did not complete.");
+    }
+
+    private async Task<string> GenerateReceiptNumberAsync(
+        DateTimeOffset paymentConfirmedAtUtc,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 0; attempt < 12; attempt++)
+        {
+            var candidate = _businessReferences.CreateReceiptNumber(paymentConfirmedAtUtc);
+            var exists = await _dbContext.TagOrders.AnyAsync(
+                order => order.ReceiptNumber == candidate,
+                cancellationToken);
+
+            if (!exists)
+            {
+                return candidate;
+            }
+        }
+
+        throw new ApiException(
+            StatusCodes.Status500InternalServerError,
+            "receipt_number_generation_failed",
+            "Could not generate a receipt number. Please try again.");
     }
 
     private static SmartTag RequireAssignedOrderTag(TagOrder order, string actionLabel)
@@ -1462,6 +1538,7 @@ public sealed class AdminService : SkeletonService, IAdminService
         {
             status = order.Status.ToString(),
             paymentStatus = order.PaymentStatus.ToString(),
+            receiptNumber = order.ReceiptNumber,
             smartTagId = order.SmartTagId,
             trackingStatus = order.TrackingStatus,
             trackingNumber = order.TrackingNumber

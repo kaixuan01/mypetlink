@@ -42,6 +42,7 @@ internal static class TagDtoMapper
         return new TagOrderResponse(
             order.Id,
             order.OrderNumber,
+            order.ReceiptNumber,
             order.OwnerUserId,
             order.PetId,
             order.Pet?.Name,

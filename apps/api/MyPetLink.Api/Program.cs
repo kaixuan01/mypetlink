@@ -343,6 +343,8 @@ builder.Services.AddScoped<IEmailOutboxService, EmailOutboxService>();
 builder.Services.AddScoped<IEmailOutboxDispatcher, EmailOutboxDispatcher>();
 builder.Services.AddScoped<IOwnerPortalEntryService, OwnerPortalEntryService>();
 builder.Services.AddScoped<PaymentConfirmedEmailTemplateRenderer>();
+builder.Services.AddSingleton<IBusinessReferenceSuffixSource, CryptographicBusinessReferenceSuffixSource>();
+builder.Services.AddSingleton<IBusinessReferenceGenerator, BusinessReferenceGenerator>();
 builder.Services.AddScoped<OwnerWelcomeEmailTemplateRenderer>();
 builder.Services.AddScoped<IEmailTemplateRenderer, EmailTemplateRenderer>();
 builder.Services.AddScoped<MailKitEmailSender>();

@@ -16,7 +16,7 @@ public sealed class AdminOrderQueryService : SkeletonService, IAdminOrderQuerySe
     private const int MaxExportRows = 10_000;
     private static readonly string[] ExportHeaders =
     [
-        "Order Number", "Customer Name", "Customer Email", "Customer Phone",
+        "Order Number", "Receipt Number", "Customer Name", "Customer Email", "Customer Phone",
         "Pet", "Item", "Tag Type", "Tag Variant", "Quantity", "Amount",
         "Payment Status", "Payment Proof Status", "Payment Reference",
         "Fulfilment Status", "Assigned Tag Code", "Tracking Number",
@@ -162,6 +162,7 @@ public sealed class AdminOrderQueryService : SkeletonService, IAdminOrderQuerySe
         {
             orders = orders.Where(order =>
                 order.OrderNumber.Contains(search)
+                || (order.ReceiptNumber != null && order.ReceiptNumber.Contains(search))
                 || order.OwnerUser.DisplayName.Contains(search)
                 || order.OwnerUser.Email.Contains(search)
                 || order.DeliveryPhoneE164.Contains(search)
@@ -276,6 +277,11 @@ public sealed class AdminOrderQueryService : SkeletonService, IAdminOrderQuerySe
         {
             orders = orders.Where(order => order.OrderNumber.Contains(orderNumber));
         }
+        if (NormalizeOptional(query.ReceiptNumber) is { } receiptNumber)
+        {
+            orders = orders.Where(order =>
+                order.ReceiptNumber != null && order.ReceiptNumber.Contains(receiptNumber));
+        }
         if (NormalizeOptional(query.DeliveryLocation) is { } location)
         {
             orders = orders.Where(order => order.City.Contains(location) || order.State.Contains(location));
@@ -323,6 +329,7 @@ public sealed class AdminOrderQueryService : SkeletonService, IAdminOrderQuerySe
         IOrderedQueryable<TagOrder> ordered = field switch
         {
             "ordernumber" => Order(orders, order => order.OrderNumber, descending),
+            "receiptnumber" => Order(orders, order => order.ReceiptNumber, descending),
             "createdat" => Order(orders, order => order.CreatedAt, descending),
             "updatedat" => Order(orders, order => order.UpdatedAt, descending),
             "customer" => Order(orders, order => order.OwnerUser.DisplayName, descending),
@@ -355,6 +362,7 @@ public sealed class AdminOrderQueryService : SkeletonService, IAdminOrderQuerySe
         return new AdminOrderListItemResponse(
             order.Id,
             order.OrderNumber,
+            order.ReceiptNumber,
             order.OwnerUserId,
             order.OwnerUser.DisplayName,
             order.OwnerUser.Email,
@@ -431,6 +439,7 @@ public sealed class AdminOrderQueryService : SkeletonService, IAdminOrderQuerySe
     private static string[] ExportRow(AdminOrderListItemResponse row) =>
     [
         row.OrderNumber,
+        row.ReceiptNumber ?? "",
         row.OwnerName,
         row.OwnerEmail,
         row.OwnerPhone,

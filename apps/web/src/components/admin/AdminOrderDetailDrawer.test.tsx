@@ -35,6 +35,7 @@ vi.mock("@/components/admin/OrderDocumentButtons", () => ({
 const summary: AdminOrder = {
   id: "order-1",
   orderNumber: "MPL-ORD-1001",
+  receiptNumber: "MPL-RCP-260727141423-4827",
   ownerName: "Aina Owner",
   ownerEmail: "aina@example.com",
   ownerPhone: "+60123456789",
@@ -62,6 +63,7 @@ const summary: AdminOrder = {
 const order: TagOrder = {
   id: summary.id,
   orderNumber: summary.orderNumber,
+  receiptNumber: summary.receiptNumber,
   petId: summary.petId,
   petName: summary.petName,
   tagType: "MyPetLink QR Pet Tag",
@@ -182,6 +184,7 @@ describe("AdminOrderDetailDrawer", () => {
     expect(screen.getByText("Fulfilment: Not started")).toBeTruthy();
     expect(screen.queryByText("2026-07-16T07:42:00Z")).toBeNull();
     expect(screen.getAllByText("Payment confirmed").length).toBeGreaterThan(0);
+    expect(screen.getByText("MPL-RCP-260727141423-4827")).toBeTruthy();
     expect(screen.getByText("Admin")).toBeTruthy();
   });
 

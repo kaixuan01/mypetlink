@@ -47,7 +47,7 @@ Contact & privacy: embedded `owner` contact (`name`, `phone`, `whatsapp`, `emerg
 
 ## Order model (`TagOrder`)
 
-`id`, `orderNumber` (`MPL-ORD-2026-XXXX` for local preview or backend-generated `MPL-ORD-YYYYMMDD-XXXX`), `petId`, optional `petName`, `tagType` (`MyPetLink QR Pet Tag` RM19.90 | `MyPetLink QR + NFC Smart Tag` RM39.90), `shape`, `delivery` (`DeliveryDetails`), `estimatedPrice`, `status`, `orderedDate`, `tagId` (linked tag, created with the order), `replacementForTagId`, tracking fields (`trackingStatus`, `trackingNumber`, `shippedDate`, `deliveredDate`).
+`id`, `orderNumber` (legacy values remain valid; new backend values use `MPL-ORD-yyMMddHHmmss-NNNN`), optional persisted `receiptNumber` after confirmation (`MPL-RCP-yyMMddHHmmss-NNNN` for new confirmations), `petId`, optional `petName`, `tagType` (`MyPetLink QR Pet Tag` RM19.90 | `MyPetLink QR + NFC Smart Tag` RM39.90), `variant`, `delivery` (`DeliveryDetails`), `estimatedPrice`, `status`, `orderedDate`, `tagId`, `replacementForTagId`, and tracking fields (`trackingStatus`, `trackingNumber`, `shippedDate`, `deliveredDate`).
 
 ### Order status values (`OrderStatus`)
 

@@ -214,7 +214,10 @@ export function OrderDetailView({
     setDownloadError("");
 
     try {
-      await downloadOwnerOrderReceiptPdf(orderKeyForApi, orderNumber);
+      await downloadOwnerOrderReceiptPdf(
+        orderKeyForApi,
+        order.receiptNumber ?? orderNumber
+      );
       setDownloadMessage("Receipt PDF downloaded.");
       window.setTimeout(() => setDownloadMessage(""), 2500);
     } catch (caught) {
@@ -282,6 +285,11 @@ export function OrderDetailView({
             <h1 className="mt-3 text-2xl font-black text-pet-ink sm:text-3xl">
               {orderNumber}
             </h1>
+            {order.receiptNumber ? (
+              <p className="mt-1 break-all font-mono text-xs font-bold text-pet-muted">
+                Receipt {order.receiptNumber}
+              </p>
+            ) : null}
             <p className="mt-2 max-w-2xl text-sm leading-6 text-pet-muted">
               {getOrderNextStep(order)}
             </p>

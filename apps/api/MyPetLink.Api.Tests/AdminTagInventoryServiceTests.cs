@@ -531,11 +531,11 @@ public sealed class AdminTagInventoryServiceTests
     public async Task ManufacturerExport_NfcTagsCarryDistinctQrAndNfcContent()
     {
         using var harness = await InventoryHarness.CreateAsync();
-        await harness.Service.GenerateAsync(
-            AdminUserId, new AdminGenerateTagsRequest(2, NfcLightweightVariantId, "BATCH-NFC"));
+        var generated = await harness.Service.GenerateAsync(
+            AdminUserId, new AdminGenerateTagsRequest(2, NfcLightweightVariantId, null));
 
         var export = await harness.Service.ExportManufacturerAsync(
-            AdminUserId, new AdminTagInventoryQuery { Batch = "BATCH-NFC" }, null);
+            AdminUserId, new AdminTagInventoryQuery { Batch = generated.BatchNo }, null);
 
         var sheet = OpenProductionSheet(export);
 
@@ -623,10 +623,10 @@ public sealed class AdminTagInventoryServiceTests
     public async Task ManufacturerExport_UsesDateFileNameWhenBatchesAreMixed()
     {
         using var harness = await InventoryHarness.CreateAsync();
-        await harness.Service.GenerateAsync(
-            AdminUserId, new AdminGenerateTagsRequest(1, NfcStandardVariantId, "BATCH-NFC"));
+        var generated = await harness.Service.GenerateAsync(
+            AdminUserId, new AdminGenerateTagsRequest(1, NfcStandardVariantId, null));
         var selected = await harness.Db.SmartTags
-            .Where(tag => tag.TagCode == "MPL-AAAA-AAAA" || tag.Batch!.BatchNo == "BATCH-NFC")
+            .Where(tag => tag.TagCode == "MPL-AAAA-AAAA" || tag.Batch!.BatchNo == generated.BatchNo)
             .Select(tag => tag.Id)
             .ToArrayAsync();
 
@@ -779,13 +779,13 @@ public sealed class AdminTagInventoryServiceTests
 
         var response = await harness.Service.GenerateAsync(
             AdminUserId,
-            new AdminGenerateTagsRequest(3, QrLightweightVariantId, "BATCH-NEW"));
+            new AdminGenerateTagsRequest(3, QrLightweightVariantId, null));
 
         Assert.Equal(3, response.Quantity);
-        Assert.Equal("BATCH-NEW", response.BatchNo);
+        Assert.Matches("^MPL-BAT-\\d{12}-\\d{4}$", response.BatchNo);
 
         var created = await harness.Db.SmartTags
-            .Where(tag => tag.Batch!.BatchNo == "BATCH-NEW")
+            .Where(tag => tag.Batch!.BatchNo == response.BatchNo)
             .ToListAsync();
         Assert.Equal(3, created.Count);
         Assert.All(created, tag =>
@@ -799,6 +799,87 @@ public sealed class AdminTagInventoryServiceTests
         });
     }
 
+    [Fact]
+    public async Task Generate_AssignsOneMalaysiaTimestampedBatchToTheWholeOperation()
+    {
+        var now = DateTimeOffset.Parse("2026-07-27T16:05:06Z");
+        using var harness = await InventoryHarness.CreateAsync(
+            new BusinessReferenceGenerator(
+                new SequenceBusinessReferenceSuffixSource(1234)),
+            new FixedTimeProvider(now));
+
+        var response = await harness.Service.GenerateAsync(
+            AdminUserId,
+            new AdminGenerateTagsRequest(3, QrLightweightVariantId, null));
+
+        Assert.Equal("MPL-BAT-260728000506-1234", response.BatchNo);
+        var batches = await harness.Db.SmartTagBatches
+            .Where(batch => batch.BatchNo == response.BatchNo)
+            .Include(batch => batch.SmartTags)
+            .ToListAsync();
+        var batch = Assert.Single(batches);
+        Assert.Equal(now, batch.GeneratedAt);
+        Assert.Equal(3, batch.SmartTags.Count);
+        Assert.All(batch.SmartTags, tag => Assert.Equal(batch.Id, tag.BatchId));
+    }
+
+    [Fact]
+    public async Task Generate_RetriesAnExistingBatchReferenceAndRejectsManualTampering()
+    {
+        var now = DateTimeOffset.Parse("2026-07-27T07:08:09Z");
+        using var harness = await InventoryHarness.CreateAsync(
+            new BusinessReferenceGenerator(
+                new SequenceBusinessReferenceSuffixSource(1111, 2222)),
+            new FixedTimeProvider(now));
+        harness.Db.SmartTagBatches.Add(new SmartTagBatch
+        {
+            BatchNo = "MPL-BAT-260727150809-1111",
+            Quantity = 1,
+            Variant = TagVariants.Standard,
+            GeneratedAt = now
+        });
+        await harness.Db.SaveChangesAsync();
+
+        var generated = await harness.Service.GenerateAsync(
+            AdminUserId,
+            new AdminGenerateTagsRequest(1, QrLightweightVariantId, null));
+        Assert.Equal("MPL-BAT-260727150809-2222", generated.BatchNo);
+
+        var error = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Service.GenerateAsync(
+                AdminUserId,
+                new AdminGenerateTagsRequest(1, QrLightweightVariantId, "MPL-BAT-TAMPERED")));
+        Assert.Equal("validation_failed", error.Code);
+        Assert.Contains("batchNumber", error.Details!.Keys);
+    }
+
+    [Fact]
+    public async Task Generate_FailsSafelyWhenBatchReferenceRetriesAreExhausted()
+    {
+        var now = DateTimeOffset.Parse("2026-07-27T07:08:09Z");
+        using var harness = await InventoryHarness.CreateAsync(
+            new BusinessReferenceGenerator(
+                new SequenceBusinessReferenceSuffixSource(1111)),
+            new FixedTimeProvider(now));
+        harness.Db.SmartTagBatches.Add(new SmartTagBatch
+        {
+            BatchNo = "MPL-BAT-260727150809-1111",
+            Quantity = 1,
+            Variant = TagVariants.Standard,
+            GeneratedAt = now
+        });
+        await harness.Db.SaveChangesAsync();
+        var before = await harness.Db.SmartTags.CountAsync();
+
+        var error = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Service.GenerateAsync(
+                AdminUserId,
+                new AdminGenerateTagsRequest(1, QrLightweightVariantId, null)));
+
+        Assert.Equal("batch_number_generation_failed", error.Code);
+        Assert.Equal(before, await harness.Db.SmartTags.CountAsync());
+    }
+
     // --- Harness --------------------------------------------------------------------
 
     private sealed class InventoryHarness : IDisposable
@@ -807,14 +888,19 @@ public sealed class AdminTagInventoryServiceTests
         // build canonical /t/{tagCode} links.
         public const string PublicSiteBaseUrl = "https://tags.example";
 
-        private InventoryHarness(MyPetLinkDbContext db)
+        private InventoryHarness(
+            MyPetLinkDbContext db,
+            IBusinessReferenceGenerator? businessReferences,
+            TimeProvider? timeProvider)
         {
             Db = db;
             Service = new AdminTagInventoryService(
                 db,
                 new AuditLogService(db, new HttpContextAccessor()),
                 Microsoft.Extensions.Options.Options.Create(
-                    new PublicSiteOptions { BaseUrl = PublicSiteBaseUrl }));
+                    new PublicSiteOptions { BaseUrl = PublicSiteBaseUrl }),
+                businessReferences ?? new BusinessReferenceGenerator(new CryptographicBusinessReferenceSuffixSource()),
+                timeProvider ?? TimeProvider.System);
         }
 
         public static readonly DateTimeOffset BaseTime = DateTimeOffset.Parse("2026-07-01T00:00:00Z");
@@ -825,12 +911,14 @@ public sealed class AdminTagInventoryServiceTests
         // Seeded inventory-scope tags (batched or unclaimed).
         public int InventoryTagCount => 7;
 
-        public static async Task<InventoryHarness> CreateAsync()
+        public static async Task<InventoryHarness> CreateAsync(
+            IBusinessReferenceGenerator? businessReferences = null,
+            TimeProvider? timeProvider = null)
         {
             var options = new DbContextOptionsBuilder<MyPetLinkDbContext>()
                 .UseInMemoryDatabase(Guid.NewGuid().ToString("N"))
                 .Options;
-            var db = new MyPetLinkDbContext(options);
+            var db = new MyPetLinkDbContext(options, timeProvider ?? TimeProvider.System);
 
             var adminUser = new User
             {
@@ -945,7 +1033,7 @@ public sealed class AdminTagInventoryServiceTests
             }
 
             await db.SaveChangesAsync();
-            return new InventoryHarness(db);
+            return new InventoryHarness(db, businessReferences, timeProvider);
         }
 
         private static SmartTag Tag(

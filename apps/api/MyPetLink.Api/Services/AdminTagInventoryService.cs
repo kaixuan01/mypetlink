@@ -1,3 +1,4 @@
+using System.Data;
 using System.Security.Cryptography;
 using System.Text;
 using ClosedXML.Excel;
@@ -47,15 +48,34 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
     private readonly MyPetLinkDbContext _dbContext;
     private readonly IAuditLogService _auditLogService;
     private readonly PublicSiteOptions _publicSiteOptions;
+    private readonly IBusinessReferenceGenerator _businessReferences;
+    private readonly TimeProvider _timeProvider;
 
     public AdminTagInventoryService(
         MyPetLinkDbContext dbContext,
         IAuditLogService auditLogService,
         IOptions<PublicSiteOptions> publicSiteOptions)
+        : this(
+            dbContext,
+            auditLogService,
+            publicSiteOptions,
+            new BusinessReferenceGenerator(new CryptographicBusinessReferenceSuffixSource()),
+            TimeProvider.System)
+    {
+    }
+
+    public AdminTagInventoryService(
+        MyPetLinkDbContext dbContext,
+        IAuditLogService auditLogService,
+        IOptions<PublicSiteOptions> publicSiteOptions,
+        IBusinessReferenceGenerator businessReferences,
+        TimeProvider timeProvider)
     {
         _dbContext = dbContext;
         _auditLogService = auditLogService;
         _publicSiteOptions = publicSiteOptions.Value;
+        _businessReferences = businessReferences;
+        _timeProvider = timeProvider;
     }
 
     // --- Listing -----------------------------------------------------------------
@@ -82,82 +102,124 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
         AdminGenerateTagsRequest request,
         CancellationToken cancellationToken = default)
     {
-        var admin = await RequireAdminAsync(currentUserId, cancellationToken);
         if (!request.ProductVariantId.HasValue)
         {
             throw ValidationFailed("productVariantId", "Choose a product SKU.");
         }
 
-        var productVariant = await _dbContext.TagProductVariants
-            .Include(item => item.TagProduct)
-            .SingleOrDefaultAsync(item => item.Id == request.ProductVariantId.Value, cancellationToken)
-            ?? throw ValidationFailed("productVariantId", "The selected SKU could not be found.");
-
-        ValidateProductionVariant(productVariant);
-        var hasNfc = productVariant.SupportsNfc;
-        var variant = TagVariants.Normalize(productVariant.TagVariant);
-        var now = DateTimeOffset.UtcNow;
-        var batchNo = NormalizeOptional(request.BatchNumber)
-            ?? await GenerateBatchNumberAsync(now, cancellationToken);
-
-        var batchNoInUse = await _dbContext.SmartTagBatches
-            .AnyAsync(batch => batch.BatchNo == batchNo, cancellationToken);
-
-        if (batchNoInUse)
+        if (NormalizeOptional(request.BatchNumber) is not null)
         {
-            throw ValidationFailed("batchNumber", "This batch number is already in use.");
+            throw ValidationFailed(
+                "batchNumber",
+                "Batch references are generated automatically when inventory is created.");
         }
 
-        var batch = new SmartTagBatch
+        var strategy = _dbContext.Database.CreateExecutionStrategy();
+        for (var referenceAttempt = 0; referenceAttempt < 12; referenceAttempt++)
         {
-            BatchNo = batchNo,
-            Quantity = request.Quantity,
-            HasNfc = hasNfc,
-            Variant = variant,
-            ProductVariantId = productVariant.Id,
-            GeneratedByAdminUserId = admin.Id,
-            GeneratedAt = now
-        };
-
-        _dbContext.SmartTagBatches.Add(batch);
-
-        var tags = new List<SmartTag>(request.Quantity);
-
-        for (var index = 0; index < request.Quantity; index++)
-        {
-            tags.Add(new SmartTag
+            try
             {
-                TagCode = await GenerateUniqueTagCodeAsync(tags, cancellationToken),
-                Batch = batch,
-                ProductVariantId = productVariant.Id,
-                HasNfc = hasNfc,
-                Variant = variant,
-                Status = SmartTagStatus.Unclaimed,
-                FulfilmentStatus = TagFulfilmentStatus.Generated
-            });
+                return await strategy.ExecuteAsync(async () =>
+                {
+                    _dbContext.ChangeTracker.Clear();
+                    await using var transaction = _dbContext.Database.IsRelational()
+                        ? await _dbContext.Database.BeginTransactionAsync(
+                            IsolationLevel.Serializable,
+                            cancellationToken)
+                        : null;
+
+                    var admin = await RequireAdminAsync(currentUserId, cancellationToken);
+                    var productVariant = await _dbContext.TagProductVariants
+                        .Include(item => item.TagProduct)
+                        .SingleOrDefaultAsync(
+                            item => item.Id == request.ProductVariantId.Value,
+                            cancellationToken)
+                        ?? throw ValidationFailed("productVariantId", "The selected SKU could not be found.");
+
+                    ValidateProductionVariant(productVariant);
+                    var hasNfc = productVariant.SupportsNfc;
+                    var variant = TagVariants.Normalize(productVariant.TagVariant);
+                    var now = _timeProvider.GetUtcNow();
+                    var batchNo = await GenerateBatchNumberAsync(now, cancellationToken);
+                    var batch = new SmartTagBatch
+                    {
+                        BatchNo = batchNo,
+                        Quantity = request.Quantity,
+                        HasNfc = hasNfc,
+                        Variant = variant,
+                        ProductVariantId = productVariant.Id,
+                        GeneratedByAdminUserId = admin.Id,
+                        GeneratedAt = now
+                    };
+
+                    _dbContext.SmartTagBatches.Add(batch);
+                    var tags = new List<SmartTag>(request.Quantity);
+
+                    for (var index = 0; index < request.Quantity; index++)
+                    {
+                        tags.Add(new SmartTag
+                        {
+                            TagCode = await GenerateUniqueTagCodeAsync(tags, cancellationToken),
+                            Batch = batch,
+                            ProductVariantId = productVariant.Id,
+                            HasNfc = hasNfc,
+                            Variant = variant,
+                            Status = SmartTagStatus.Unclaimed,
+                            FulfilmentStatus = TagFulfilmentStatus.Generated
+                        });
+                    }
+
+                    _dbContext.SmartTags.AddRange(tags);
+                    _auditLogService.Append(
+                        admin.Id, ActorType.Admin, "tag-inventory.generate", "SmartTagBatch", batch.Id,
+                        null,
+                        new
+                        {
+                            batchNo,
+                            request.Quantity,
+                            productVariant.Id,
+                            productVariant.Sku,
+                            productVariant.TagProduct.Name
+                        });
+
+                    await _dbContext.SaveChangesAsync(cancellationToken);
+                    var currentInventoryCount = await _dbContext.SmartTags.CountAsync(
+                        tag => tag.ProductVariantId == productVariant.Id && tag.DeletedAt == null,
+                        cancellationToken);
+                    if (transaction is not null)
+                    {
+                        await transaction.CommitAsync(cancellationToken);
+                    }
+
+                    return new AdminGenerateTagsResponse(
+                        batchNo,
+                        tags.Count,
+                        productVariant.Id,
+                        productVariant.Sku,
+                        productVariant.TagProduct.Name,
+                        productVariant.DisplayName,
+                        currentInventoryCount,
+                        tags.Select(TagDtoMapper.ToSmartTagResponse).ToArray());
+                });
+            }
+            catch (DbUpdateException exception) when (
+                UniqueConstraintViolation.IsFor(exception, "IX_SmartTagBatches_BatchNo")
+                && referenceAttempt < 11)
+            {
+                // The transaction has rolled back. Reload the operation and
+                // select a new suffix without reusing any partial tag rows.
+            }
+            catch (DbUpdateException exception) when (
+                UniqueConstraintViolation.IsFor(exception, "IX_SmartTagBatches_BatchNo"))
+            {
+                throw new ApiException(
+                    StatusCodes.Status500InternalServerError,
+                    "batch_number_generation_failed",
+                    "Could not generate a batch number. Please try again.");
+            }
         }
 
-        _dbContext.SmartTags.AddRange(tags);
-
-        _auditLogService.Append(
-            admin.Id, ActorType.Admin, "tag-inventory.generate", "SmartTagBatch", batch.Id,
-            null, new { batchNo, request.Quantity, productVariant.Id, productVariant.Sku, productVariant.TagProduct.Name });
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
-        var currentInventoryCount = await _dbContext.SmartTags.CountAsync(
-            tag => tag.ProductVariantId == productVariant.Id && tag.DeletedAt == null,
-            cancellationToken);
-
-        return new AdminGenerateTagsResponse(
-            batchNo,
-            tags.Count,
-            productVariant.Id,
-            productVariant.Sku,
-            productVariant.TagProduct.Name,
-            productVariant.DisplayName,
-            currentInventoryCount,
-            tags.Select(TagDtoMapper.ToSmartTagResponse).ToArray());
+        throw new InvalidOperationException("Inventory generation did not complete.");
     }
 
     // --- Bulk fulfilment updates ------------------------------------------------------
@@ -192,7 +254,7 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
             .ToListAsync(cancellationToken);
         var tagsById = tags.ToDictionary(tag => tag.Id);
 
-        var now = DateTimeOffset.UtcNow;
+        var now = _timeProvider.GetUtcNow();
         var failures = new List<AdminTagInventoryBulkFailure>();
         var updatedIds = new List<Guid>();
 
@@ -324,7 +386,7 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
 
         if (exportedBatchNos.Length > 0)
         {
-            var exportedAt = DateTimeOffset.UtcNow;
+            var exportedAt = _timeProvider.GetUtcNow();
             var batches = await _dbContext.SmartTagBatches
                 .Where(batch => exportedBatchNos.Contains(batch.BatchNo))
                 .ToListAsync(cancellationToken);
@@ -348,7 +410,7 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        var stamp = DateTimeOffset.UtcNow.ToString("yyyyMMdd-HHmm");
+        var stamp = _timeProvider.GetUtcNow().ToString("yyyyMMdd-HHmm");
         var baseName = NormalizeOptional(query.Batch) is { } batchName
             ? $"mypetlink-tag-inventory-{batchName}-{stamp}"
             : $"mypetlink-tag-inventory-{stamp}";
@@ -615,7 +677,7 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
         // batch last went out in an export. Lifecycle and fulfilment are never
         // touched here.
         var exportedBatchNos = rows.Select(row => row.BatchNo).Distinct().ToArray();
-        var exportedAt = DateTimeOffset.UtcNow;
+        var exportedAt = _timeProvider.GetUtcNow();
         var batches = await _dbContext.SmartTagBatches
             .Where(batch => exportedBatchNos.Contains(batch.BatchNo))
             .ToListAsync(cancellationToken);
@@ -1063,7 +1125,7 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
     {
         for (var attempt = 0; attempt < 12; attempt++)
         {
-            var candidate = $"BATCH-{now:yyyyMM}-{RandomNumberGenerator.GetInt32(1000, 10000)}";
+            var candidate = _businessReferences.CreateBatchNumber(now);
             var exists = await _dbContext.SmartTagBatches
                 .AnyAsync(batch => batch.BatchNo == candidate, cancellationToken);
 

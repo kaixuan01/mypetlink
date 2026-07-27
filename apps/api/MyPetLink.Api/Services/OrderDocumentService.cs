@@ -98,7 +98,9 @@ public sealed class OrderDocumentService : IOrderDocumentService
     {
         var model = MapModel(order, isReceipt: false);
         var bytes = OrderDocumentRenderer.Render(model);
-        return new OrderDocumentResult(bytes, $"MyPetLink-Order-{order.OrderNumber}.pdf");
+        return new OrderDocumentResult(
+            bytes,
+            $"MyPetLink-Order-Summary-{SafeFileReference(order.OrderNumber)}.pdf");
     }
 
     private OrderDocumentResult BuildReceipt(TagOrder order)
@@ -111,9 +113,18 @@ public sealed class OrderDocumentService : IOrderDocumentService
                 "Receipt is available after payment is confirmed.");
         }
 
+        if (string.IsNullOrWhiteSpace(order.ReceiptNumber))
+        {
+            throw OrderDocumentInconsistent(
+                order.OrderNumber,
+                "the confirmed order has no persisted receipt number");
+        }
+
         var model = MapModel(order, isReceipt: true);
         var bytes = OrderDocumentRenderer.Render(model);
-        return new OrderDocumentResult(bytes, $"MyPetLink-Receipt-{order.OrderNumber}.pdf");
+        return new OrderDocumentResult(
+            bytes,
+            $"MyPetLink-Receipt-{SafeFileReference(order.ReceiptNumber)}.pdf");
     }
 
     private async Task<TagOrder> LoadOwnedOrderAsync(
@@ -179,7 +190,7 @@ public sealed class OrderDocumentService : IOrderDocumentService
             SupportEmail: SupportEmail,
             DocumentTitle: isReceipt ? "Official Receipt" : "Order Summary",
             OrderNumber: order.OrderNumber,
-            ReceiptNumber: isReceipt ? BuildReceiptNumber(order.OrderNumber) : null,
+            ReceiptNumber: isReceipt ? order.ReceiptNumber : null,
             OrderDate: FormatDateTime(order.CreatedAt) ?? "-",
             PaymentSubmittedDate: FormatDateTime(latestProof?.UploadedAt),
             ReceiptDate: FormatDateTime(order.PaymentConfirmedAt),
@@ -368,12 +379,17 @@ public sealed class OrderDocumentService : IOrderDocumentService
             "This order's document could not be prepared right now. Please contact support.");
     }
 
-    private static string BuildReceiptNumber(string orderNumber)
+    private static string SafeFileReference(string reference)
     {
-        // MPL-ORD-YYYYMMDD-#### -> MPL-RCP-YYYYMMDD-####
-        return orderNumber.Contains("-ORD-", StringComparison.OrdinalIgnoreCase)
-            ? orderNumber.Replace("-ORD-", "-RCP-", StringComparison.OrdinalIgnoreCase)
-            : $"MPL-RCP-{orderNumber}";
+        var safe = new string(reference
+            .Take(80)
+            .Select(character =>
+                char.IsAsciiLetterOrDigit(character) || character is '-' or '_'
+                    ? character
+                    : '-')
+            .ToArray())
+            .Trim('-');
+        return safe.Length == 0 ? "reference" : safe;
     }
 
     // Malaysia has a single fixed timezone (UTC+8, no DST), so formatting there

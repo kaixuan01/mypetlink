@@ -293,6 +293,7 @@ export function AdminOrderDetailDrawer({
                 </div>
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   <AdminDetailItem label="Payment status" value={paymentStatusLabels[summary.paymentStatus]} />
+                  <AdminDetailItem label="Receipt number" value={detail.order.receiptNumber ?? ""} />
                   <AdminDetailItem label="Method" value={summary.paymentMethod ?? ""} />
                   <AdminDetailItem label="Reference" value={summary.paymentReference ?? ""} />
                   <AdminDetailItem label="Proof submitted" value={formatAdminDateTime(summary.paymentProofSubmittedAt)} />

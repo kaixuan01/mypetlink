@@ -16,6 +16,89 @@ public sealed class TagOrderCatalogIntegrationTests
     private static readonly Guid AdminId = Guid.Parse("94444444-4444-4444-4444-444444444444");
 
     [Fact]
+    public async Task Create_AssignsMalaysiaTimestampedOrderNumberFromCreatedAt()
+    {
+        var now = DateTimeOffset.Parse("2026-07-27T16:05:06Z");
+        var references = new BusinessReferenceGenerator(
+            new SequenceBusinessReferenceSuffixSource(1234));
+        await using var harness = await Harness.CreateAsync(
+            businessReferences: references,
+            timeProvider: new FixedTimeProvider(now));
+
+        var created = await harness.Service.CreateAsync(
+            OwnerId,
+            Request(harness.Pet.Id, harness.Variant.PublicKey));
+
+        Assert.Equal("MPL-ORD-260728000506-1234", created.Order.OrderNumber);
+        Assert.Equal(now, created.Order.CreatedAt);
+        Assert.Null(created.Order.ReceiptNumber);
+    }
+
+    [Fact]
+    public async Task Create_RetriesAnExistingOrderNumberWithAnotherSuffix()
+    {
+        var now = DateTimeOffset.Parse("2026-07-27T07:08:09Z");
+        var references = new BusinessReferenceGenerator(
+            new SequenceBusinessReferenceSuffixSource(1111, 2222));
+        await using var harness = await Harness.CreateAsync(
+            businessReferences: references,
+            timeProvider: new FixedTimeProvider(now));
+        harness.Db.TagOrders.Add(new TagOrder
+        {
+            OrderNumber = "MPL-ORD-260727150809-1111",
+            OwnerUserId = OtherOwnerId,
+            PetId = harness.Pet.Id,
+            RecipientName = "Existing",
+            DeliveryPhoneE164 = "+60111111111",
+            AddressLine1 = "1 Existing",
+            Postcode = "50000",
+            City = "Kuala Lumpur",
+            State = "Kuala Lumpur"
+        });
+        await harness.Db.SaveChangesAsync();
+
+        var created = await harness.Service.CreateAsync(
+            OwnerId,
+            Request(harness.Pet.Id, harness.Variant.PublicKey));
+
+        Assert.Equal("MPL-ORD-260727150809-2222", created.Order.OrderNumber);
+    }
+
+    [Fact]
+    public async Task Create_FailsSafelyWhenOrderReferenceRetriesAreExhausted()
+    {
+        var now = DateTimeOffset.Parse("2026-07-27T07:08:09Z");
+        var references = new BusinessReferenceGenerator(
+            new SequenceBusinessReferenceSuffixSource(1111));
+        await using var harness = await Harness.CreateAsync(
+            businessReferences: references,
+            timeProvider: new FixedTimeProvider(now));
+        harness.Db.TagOrders.Add(new TagOrder
+        {
+            OrderNumber = "MPL-ORD-260727150809-1111",
+            OwnerUserId = OtherOwnerId,
+            PetId = harness.Pet.Id,
+            RecipientName = "Existing",
+            DeliveryPhoneE164 = "+60111111111",
+            AddressLine1 = "1 Existing",
+            Postcode = "50000",
+            City = "Kuala Lumpur",
+            State = "Kuala Lumpur"
+        });
+        await harness.Db.SaveChangesAsync();
+
+        var error = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Service.CreateAsync(
+                OwnerId,
+                Request(harness.Pet.Id, harness.Variant.PublicKey)));
+
+        Assert.Equal("order_number_generation_failed", error.Code);
+        Assert.Equal(
+            0,
+            await harness.Db.TagOrders.CountAsync(order => order.OwnerUserId == OwnerId));
+    }
+
+    [Fact]
     public async Task Create_UsesServerPriceAndPersistsImmutableCommercialSnapshot()
     {
         await using var harness = await Harness.CreateAsync();
@@ -240,7 +323,15 @@ public sealed class TagOrderCatalogIntegrationTests
 
     private sealed class Harness : IAsyncDisposable
     {
-        private Harness(MyPetLinkDbContext db, TagProduct product, TagProductVariant variant, Pet pet, SmartTag stock, bool orderingEnabled)
+        private Harness(
+            MyPetLinkDbContext db,
+            TagProduct product,
+            TagProductVariant variant,
+            Pet pet,
+            SmartTag stock,
+            bool orderingEnabled,
+            IBusinessReferenceGenerator? businessReferences,
+            TimeProvider? timeProvider)
         {
             Db = db;
             Product = product;
@@ -251,7 +342,9 @@ public sealed class TagOrderCatalogIntegrationTests
                 db,
                 Options.Create(new FeatureOptions { SmartTagOrderingEnabled = orderingEnabled }),
                 new TagPricingService(db),
-                new DeliveryService(db, new TagPricingService(db), new AuditLogService(db, new HttpContextAccessor())));
+                new DeliveryService(db, new TagPricingService(db), new AuditLogService(db, new HttpContextAccessor())),
+                businessReferences ?? new BusinessReferenceGenerator(new CryptographicBusinessReferenceSuffixSource()),
+                timeProvider ?? TimeProvider.System);
         }
 
         public MyPetLinkDbContext Db { get; }
@@ -261,10 +354,15 @@ public sealed class TagOrderCatalogIntegrationTests
         public SmartTag Stock { get; }
         public OrderService Service { get; }
 
-        public static async Task<Harness> CreateAsync(bool orderingEnabled = true)
+        public static async Task<Harness> CreateAsync(
+            bool orderingEnabled = true,
+            IBusinessReferenceGenerator? businessReferences = null,
+            TimeProvider? timeProvider = null)
         {
-            var db = new MyPetLinkDbContext(new DbContextOptionsBuilder<MyPetLinkDbContext>()
-                .UseInMemoryDatabase(Guid.NewGuid().ToString("N")).Options);
+            var db = new MyPetLinkDbContext(
+                new DbContextOptionsBuilder<MyPetLinkDbContext>()
+                    .UseInMemoryDatabase(Guid.NewGuid().ToString("N")).Options,
+                timeProvider ?? TimeProvider.System);
             var owner = User(OwnerId, "owner@example.com");
             var otherOwner = User(OtherOwnerId, "other@example.com");
             var admin = User(AdminId, "admin@example.com");
@@ -332,7 +430,15 @@ public sealed class TagOrderCatalogIntegrationTests
             };
             db.AddRange(owner, otherOwner, admin, pet, product, variant, promotion, stock, deliveryRate);
             await db.SaveChangesAsync();
-            return new Harness(db, product, variant, pet, stock, orderingEnabled);
+            return new Harness(
+                db,
+                product,
+                variant,
+                pet,
+                stock,
+                orderingEnabled,
+                businessReferences,
+                timeProvider);
         }
 
         private static User User(Guid id, string email) => new()

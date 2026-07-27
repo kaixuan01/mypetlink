@@ -221,7 +221,6 @@ export function AdminTagInventoryManager() {
   const [catalogProducts, setCatalogProducts] = useState<AdminCatalogOptionProduct[]>([]);
   const [productId, setProductId] = useState("");
   const [productVariantId, setProductVariantId] = useState("");
-  const [batchNumber, setBatchNumber] = useState("");
   const [generateMessage, setGenerateMessage] = useState("");
 
   const [variantPresets, setVariantPresets] = useState<TagVariant[]>([]);
@@ -316,7 +315,7 @@ export function AdminTagInventoryManager() {
       return;
     }
     try {
-      const result = await adminGenerateRetailTags(count, productVariantId, batchNumber);
+      const result = await adminGenerateRetailTags(count, productVariantId);
       const selected = catalogProducts.flatMap((product) => product.variants.map((variant) => ({ product, variant }))).find((item) => item.variant.id === productVariantId);
       setGenerateMessage(
         `${result.data.length} new ${selected?.variant.sku ?? "SKU"} tag code${
@@ -602,19 +601,12 @@ export function AdminTagInventoryManager() {
               value={count}
             />
           </label>
-          <label className="grid min-w-48 gap-1 text-xs font-extrabold uppercase text-slate-500">
-            Batch reference (optional)
-            <input
-              className="min-h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none focus:border-slate-400"
-              maxLength={80}
-              onChange={(event) => setBatchNumber(event.target.value)}
-              placeholder="Generated automatically"
-              value={batchNumber}
-            />
-          </label>
           <AdminActionButton onClick={() => void generate()} tone="primary">
             Generate Tag Codes
           </AdminActionButton>
+          <p className="max-w-56 text-xs font-semibold leading-5 text-slate-500">
+            A batch reference is assigned automatically.
+          </p>
         </div>
         {selectedCatalogVariant ? (
           <div className="mx-4 mb-4 grid gap-2 rounded-xl bg-slate-50 p-4 text-sm sm:grid-cols-2 lg:grid-cols-4">

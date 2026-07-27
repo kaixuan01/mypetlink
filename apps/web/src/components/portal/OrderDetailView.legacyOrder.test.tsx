@@ -144,4 +144,25 @@ describe("OrderDetailView legacy order labelling", () => {
     expect(screen.getByText(/a\*\*\*@example\.com/)).toBeTruthy();
     expect(screen.queryByText(/retry/i)).toBeNull();
   });
+
+  it("shows the full persisted receipt reference for a confirmed order", async () => {
+    const confirmed = baseOrder({
+      status: "Payment Confirmed",
+      receiptNumber: "MPL-RCP-260727141423-4827",
+    });
+    tagMocks.getOrder.mockResolvedValue({ data: confirmed });
+
+    render(
+      <OrderDetailView
+        initialOrder={confirmed}
+        initialTags={[]}
+        orderKey="MPL-ORD-260727123029-9916"
+        pets={[]}
+      />
+    );
+
+    expect(
+      await screen.findByText(/MPL-RCP-260727141423-4827/)
+    ).toBeTruthy();
+  });
 });

@@ -421,6 +421,7 @@ export type OrderPaymentProof = {
 export type TagOrder = {
   id: string;
   orderNumber?: string;
+  receiptNumber?: string;
   petId: string;
   petName?: string;
   tagType: TagType;

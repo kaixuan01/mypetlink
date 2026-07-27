@@ -228,8 +228,10 @@ and manager re-fetches on `petId` change.
   available. The internal `id` is never shown. Reporting a tag lost affects only
   that physical tag; it does not enable pet Lost Mode.
 - **`/orders`** lists `TagOrder` history using customer-facing order numbers
-  from `formatOrderNumber(order)` (for example `MPL-ORD-2026-0001`), never the
-  internal `id`. Orders carry `tagType` + `shape` (there is no `design` field).
+  from `formatOrderNumber(order)` (new backend orders use, for example,
+  `MPL-ORD-260727123029-9916`), never the internal `id`. Confirmed orders also
+  expose their persisted receipt reference. Orders carry `tagType` + `variant`
+  (there is no `design` field).
   `/orders/{orderNumber}` shows the static order detail page for seeded orders.
   Replacement links use `ownerRoutes.petTagOrder(petId, { type,
   replacementFor })`.

@@ -125,7 +125,10 @@ export function OrdersList({
 
     try {
       if (isReceipt) {
-        await downloadOwnerOrderReceiptPdf(orderKey, orderNumber);
+        await downloadOwnerOrderReceiptPdf(
+          orderKey,
+          order.receiptNumber ?? orderNumber
+        );
         setReceiptMessage(`Receipt PDF downloaded for ${orderNumber}.`);
       } else {
         await downloadOwnerOrderSummaryPdf(orderKey, orderNumber);

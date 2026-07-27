@@ -106,6 +106,15 @@ public sealed class AdminOrderServiceTests
         var review = await harness.Db.TagOrders.SingleAsync(order => order.Status == OrderStatus.PaymentProofSubmitted);
         var confirmed = await harness.Admin.ConfirmPaymentAsync(Harness.AdminId, review.Id);
         Assert.Equal(PaymentStatus.Confirmed, confirmed.Order.PaymentStatus);
+        Assert.Equal("MPL-RCP-260717140000-4000", confirmed.Order.ReceiptNumber);
+        Assert.Equal(
+            confirmed.Order.ReceiptNumber,
+            (await harness.Db.TagOrders.AsNoTracking().SingleAsync(order => order.Id == review.Id)).ReceiptNumber);
+        await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Admin.ConfirmPaymentAsync(Harness.AdminId, review.Id));
+        Assert.Equal(
+            "MPL-RCP-260717140000-4000",
+            (await harness.Db.TagOrders.AsNoTracking().SingleAsync(order => order.Id == review.Id)).ReceiptNumber);
 
         var second = Harness.Order("MPL-ORD-REVIEW-2", OrderStatus.PaymentProofSubmitted, PaymentStatus.ProofSubmitted, false);
         second.PaymentProofs.Add(Harness.Proof());
@@ -146,6 +155,85 @@ public sealed class AdminOrderServiceTests
         Assert.Contains("MPL-ORD-REVIEW", text);
         Assert.DoesNotContain(item.Id.ToString(), text);
         Assert.DoesNotContain("StoragePath", text);
+    }
+
+    [Fact]
+    public async Task OrderSearchAndExportUseTheStoredReceiptNumber()
+    {
+        using var harness = await Harness.CreateAsync();
+        var stored = await harness.Db.TagOrders
+            .SingleAsync(order => order.OrderNumber == "MPL-ORD-PAID");
+        stored.ReceiptNumber = "MPL-RCP-LEGACY-PAID";
+        await harness.Db.SaveChangesAsync();
+
+        var (items, total) = await harness.Query.ListAsync(new AdminOrderQuery
+        {
+            Search = "RCP-LEGACY",
+            ReceiptNumber = "LEGACY-PAID"
+        });
+        var item = Assert.Single(items);
+        Assert.Equal(1, total);
+        Assert.Equal("MPL-RCP-LEGACY-PAID", item.ReceiptNumber);
+
+        var export = await harness.Query.ExportAsync(
+            Harness.AdminId,
+            new AdminOrderQuery { ReceiptNumber = "LEGACY-PAID" },
+            "csv",
+            null);
+        Assert.Contains("MPL-RCP-LEGACY-PAID", Encoding.UTF8.GetString(export.Content));
+    }
+
+    [Fact]
+    public async Task ConfirmPayment_RetriesAnExistingReceiptReference()
+    {
+        using var harness = await Harness.CreateAsync();
+        var existing = await harness.Db.TagOrders
+            .SingleAsync(order => order.OrderNumber == "MPL-ORD-PAID");
+        existing.ReceiptNumber = "MPL-RCP-260717140000-4000";
+        await harness.Db.SaveChangesAsync();
+        var review = await harness.Db.TagOrders
+            .SingleAsync(order => order.OrderNumber == "MPL-ORD-REVIEW");
+
+        var confirmed = await harness.Admin.ConfirmPaymentAsync(Harness.AdminId, review.Id);
+
+        Assert.Equal("MPL-RCP-260717140000-4001", confirmed.Order.ReceiptNumber);
+        Assert.Equal(Harness.Now, confirmed.Order.PaymentConfirmedAt);
+    }
+
+    [Fact]
+    public async Task ConfirmPayment_FailsSafelyWhenReceiptReferenceRetriesAreExhausted()
+    {
+        using var harness = await Harness.CreateAsync();
+        var existing = await harness.Db.TagOrders
+            .SingleAsync(order => order.OrderNumber == "MPL-ORD-PAID");
+        existing.ReceiptNumber = "MPL-RCP-260717140000-4000";
+        await harness.Db.SaveChangesAsync();
+        var review = await harness.Db.TagOrders
+            .SingleAsync(order => order.OrderNumber == "MPL-ORD-REVIEW");
+
+        // The harness suffix source advances after 4000. Occupy every value it
+        // can return, including its final repeated value.
+        for (var suffix = 4001; suffix <= 4005; suffix++)
+        {
+            var collision = Harness.Order(
+                $"MPL-ORD-COLLISION-{suffix}",
+                OrderStatus.PaymentConfirmed,
+                PaymentStatus.Confirmed,
+                false);
+            collision.ReceiptNumber = $"MPL-RCP-260717140000-{suffix}";
+            harness.Db.TagOrders.Add(collision);
+        }
+        await harness.Db.SaveChangesAsync();
+
+        var error = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Admin.ConfirmPaymentAsync(Harness.AdminId, review.Id));
+
+        Assert.Equal("receipt_number_generation_failed", error.Code);
+        var unchanged = await harness.Db.TagOrders.AsNoTracking()
+            .SingleAsync(order => order.Id == review.Id);
+        Assert.Null(unchanged.ReceiptNumber);
+        Assert.Null(unchanged.PaymentConfirmedAt);
+        Assert.Equal(PaymentStatus.ProofSubmitted, unchanged.PaymentStatus);
     }
 
     [Fact]
@@ -230,15 +318,26 @@ public sealed class AdminOrderServiceTests
         {
             Db = db;
             var audit = new AuditLogService(db, new HttpContextAccessor());
+            var clock = new FixedTimeProvider(Now);
             Query = new AdminOrderQueryService(db, audit);
             PaymentProofQuery = new AdminPaymentProofQueryService(db, audit);
-            Admin = new AdminService(db, audit, Options.Create(new FeatureOptions()));
+            Admin = new AdminService(
+                db,
+                audit,
+                Options.Create(new FeatureOptions()),
+                new EmailOutboxService(db, audit, clock),
+                new BusinessReferenceGenerator(
+                    new SequenceBusinessReferenceSuffixSource(
+                        4000, 4001, 4002, 4003, 4004, 4005)),
+                clock);
         }
 
         public static async Task<Harness> CreateAsync()
         {
-            var db = new MyPetLinkDbContext(new DbContextOptionsBuilder<MyPetLinkDbContext>()
-                .UseInMemoryDatabase(Guid.NewGuid().ToString("N")).Options);
+            var db = new MyPetLinkDbContext(
+                new DbContextOptionsBuilder<MyPetLinkDbContext>()
+                    .UseInMemoryDatabase(Guid.NewGuid().ToString("N")).Options,
+                new FixedTimeProvider(Now));
             var admin = new User
             {
                 Id = AdminId,
@@ -314,6 +413,9 @@ public sealed class AdminOrderServiceTests
                 Status = status,
                 PaymentStatus = payment,
                 PaymentConfirmedAt = payment == PaymentStatus.Confirmed ? Now.AddDays(-5) : null,
+                ReceiptNumber = payment == PaymentStatus.Confirmed
+                    ? number.Replace("-ORD-", "-RCP-", StringComparison.OrdinalIgnoreCase)
+                    : null,
                 RecipientName = "Aina Owner",
                 DeliveryPhoneE164 = "+60123456789",
                 AddressLine1 = "1 Jalan Ampang",

@@ -33,6 +33,7 @@ public sealed class AdminOrderQuery : PagedQuery
     [MaxLength(200)] public string? Owner { get; init; }
     [MaxLength(160)] public string? Pet { get; init; }
     [MaxLength(120)] public string? OrderNumber { get; init; }
+    [MaxLength(120)] public string? ReceiptNumber { get; init; }
     [MaxLength(120)] public string? DeliveryLocation { get; init; }
     [Range(typeof(decimal), "0", "999999999999")] public decimal? AmountMin { get; init; }
     [Range(typeof(decimal), "0", "999999999999")] public decimal? AmountMax { get; init; }
@@ -55,6 +56,7 @@ public sealed class AdminOrderQuery : PagedQuery
 public sealed record AdminOrderListItemResponse(
     Guid Id,
     string OrderNumber,
+    string? ReceiptNumber,
     Guid OwnerUserId,
     string OwnerName,
     string OwnerEmail,
