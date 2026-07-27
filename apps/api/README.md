@@ -47,6 +47,18 @@ Runtime toggles bound from the `Features` configuration section.
 - The admin settings response (`GET /api/v1/admin/settings`) surfaces the current value as `features.smartTagOrderingEnabled`.
 - The frontend mirrors this with `NEXT_PUBLIC_SMART_TAG_ORDERING_ENABLED` (default off) to hide ordering CTAs.
 
+## Payment confirmation email
+
+Admin payment approval transactionally queues one `PaymentConfirmed` message in
+`EmailOutbox`. `EmailDispatchWorker` delivers it asynchronously with MailKit and
+authenticated STARTTLS. Email is disabled by default; messages remain Pending
+until delivery is enabled. Local development can use the non-network
+`Development` provider, and automated tests use a fake sender.
+
+Production settings, Zoho DNS checks, retry rules, and deployment order are
+documented in
+[`../../docs/deployment/payment-confirmation-email.md`](../../docs/deployment/payment-confirmation-email.md).
+
 ## Commands
 
 Run from the repository root:
@@ -101,6 +113,7 @@ POST /api/v1/auth/google
 POST /api/v1/auth/refresh
 POST /api/v1/auth/logout
 GET  /api/v1/auth/me
+POST /api/v1/auth/owner-portal-entry
 GET  /api/v1/admin/auth/check
 ```
 
@@ -258,6 +271,8 @@ POST /api/v1/admin/tag-inventory/generate
 GET  /api/v1/admin/tag-inventory/export           (CSV: safe fields only)
 GET  /api/v1/admin/owners
 GET  /api/v1/admin/owners/{ownerId}
+GET  /api/v1/admin/owners/{ownerId}/detail
+POST /api/v1/admin/owners/{ownerId}/welcome-email/retry
 GET  /api/v1/admin/pets
 GET  /api/v1/admin/pets/{petId}
 GET  /api/v1/admin/settings                       (read-only in Phase 1)

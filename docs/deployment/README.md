@@ -1,5 +1,9 @@
 # Deployment Docs
 
+- [`owner-welcome-email.md`](owner-welcome-email.md) — exact-once Owner Portal welcome trigger, eligibility, branding, and rollout
+
+- [`payment-confirmation-email.md`](payment-confirmation-email.md) — Zoho SMTP rollout, retry operations, DNS checks, and migration order
+
 Phase 1 production deployment planning for the backend-connected MyPetLink stack (branch `feature/connect-admin-apis`). Planning only — nothing here deploys automatically.
 
 - [`production-deployment-plan.md`](production-deployment-plan.md) — hosting options, recommended architecture, database deployment, merge strategy, launch limitations

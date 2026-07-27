@@ -205,12 +205,19 @@ Result:
 - proof `Approved`
 - `PaymentConfirmedAt` recorded
 - audit log written
+- one `PaymentConfirmed` email queued in the same database transaction
 
 Owner portal shows:
 
 - payment confirmed
 - receipt available
 - physical tag assignment is next
+- the receipt remains available even if email delivery is delayed or fails
+
+Email delivery is asynchronous. SMTP is never called by the payment-confirmation
+request. The Admin order drawer shows Pending, Sending, Sent, or Failed and can
+retry the existing failed outbox row without creating another message. See
+[`../deployment/payment-confirmation-email.md`](../deployment/payment-confirmation-email.md).
 
 ### Admin assigns inventory tag
 

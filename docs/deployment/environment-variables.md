@@ -36,6 +36,33 @@ Local dev equivalents live in `apps/web/.env.local` (gitignored): `NEXT_PUBLIC_A
 
 ## Backend (.NET 8 API — `apps/api/MyPetLink.Api`)
 
+Payment confirmation email is disabled by default. When rolling it out, set:
+
+```text
+Email__Enabled=true
+Email__Provider=Smtp
+Email__FromAddress=support@mypetlink.com.my
+Email__FromName=MyPetLink
+Email__OwnerPortalBaseUrl=https://mypetlink.com.my
+Email__BrandLogoUrl=https://mypetlink.com.my/logo-horizontal.png
+Email__Templates__OwnerWelcomeEnabled=false
+Email__Smtp__Host=smtppro.zoho.com
+Email__Smtp__Port=587
+Email__Smtp__UseStartTls=true
+Email__Smtp__Username=support@mypetlink.com.my
+Email__Smtp__Password=<secret>
+Email__Smtp__ConnectionTimeoutSeconds=30
+```
+
+Store `Email__Smtp__Password` in Azure App Service configuration or another
+approved secret store. See
+[`payment-confirmation-email.md`](./payment-confirmation-email.md) before
+enabling delivery.
+
+Set `Email__Templates__OwnerWelcomeEnabled=true` only after the
+`AddOwnerWelcomeEmail` migration and shared SMTP configuration are verified.
+See [`owner-welcome-email.md`](./owner-welcome-email.md).
+
 | Variable (env form) | Config key | Secret? | Purpose |
 | --- | --- | --- | --- |
 | `ConnectionStrings__MyPetLinkDb` | `ConnectionStrings:MyPetLinkDb` | **Yes** | Production SQL Server connection string. App falls back to LocalDB only if unset — must be set in prod. |

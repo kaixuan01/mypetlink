@@ -175,6 +175,25 @@ Errors:
 
 - `401` unauthenticated
 
+### POST `/api/v1/auth/owner-portal-entry`
+
+Purpose: record a successful authenticated Owner Portal initialization and,
+when eligible, enqueue the user's exact-once transactional welcome email.
+
+Auth: required.
+
+Behavior:
+
+- requires an active local user and an existing Owner Profile
+- uses only the persisted verified email from a linked external identity
+- creates at most one `OwnerWelcome` outbox row per user
+- does not contact SMTP or wait for delivery
+- missing or ineligible email does not block portal entry
+
+Response:
+
+- `204 No Content`
+
 ### Future auth endpoints - planned only
 
 These routes are planning notes and must not be exposed as working behavior until implemented:
@@ -1147,6 +1166,38 @@ Query:
 
 - `page`, `pageSize`, `search`, `status`
 
+### GET `/api/v1/admin/owners/{ownerId}/detail`
+
+Purpose: read the support detail for one owner, including minimal
+`OwnerWelcome` delivery status when a welcome message exists.
+
+Auth: active Admin.
+
+The response includes recipient, message type, status, timestamps, attempt
+count, and a sanitized failure reason. Template data and message bodies are not
+returned.
+
+### POST `/api/v1/admin/owners/{ownerId}/welcome-email/retry`
+
+Purpose: retry the existing failed Owner welcome email.
+
+Validation:
+
+- active Admin authorization is required
+- the owner must already have an `OwnerWelcome` row
+- the row must currently be `Failed`
+
+Transition:
+
+- email `Failed` -> `Pending`
+- attempt count resets to zero
+- no second outbox row is created
+
+Errors:
+
+- `404` owner welcome email status not found
+- `409` email is not failed
+
 ### GET `/api/v1/admin/pets`
 
 Purpose: list pets across owners.
@@ -1185,10 +1236,32 @@ Transition:
 - order `PaymentProofSubmitted` -> `PaymentConfirmed`
 - payment `ProofSubmitted` -> `Confirmed`
 - proof `PendingReview` -> `Approved`
+- one `PaymentConfirmed` email outbox row is queued transactionally
 
 Errors:
 
 - `400` invalid transition
+
+### POST `/api/v1/admin/orders/{orderId}/payment-confirmation-email/retry`
+
+Purpose: retry the existing failed payment-confirmation email.
+
+Validation:
+
+- active Admin authorization is required.
+- the order must have one `PaymentConfirmed` outbox row.
+- the row must currently be `Failed`.
+
+Transition:
+
+- email `Failed` -> `Pending`
+- attempt count resets to zero and `nextAttemptAt` becomes the current UTC time.
+- no second outbox row is created.
+
+Errors:
+
+- `404` email status not found
+- `409` email is not failed
 
 ### POST `/api/v1/admin/orders/{orderId}/assign-tag`
 
