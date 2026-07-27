@@ -325,6 +325,7 @@ builder.Services.AddScoped<IQrSafetyService, QrSafetyService>();
 builder.Services.AddScoped<ITagScanService, TagScanService>();
 builder.Services.AddScoped<ISmartTagService, SmartTagService>();
 builder.Services.AddScoped<IOrderService, OrderService>();
+builder.Services.AddScoped<IDeliveryService, DeliveryService>();
 builder.Services.AddScoped<ITagPricingService, TagPricingService>();
 builder.Services.AddScoped<ITagCatalogService, TagCatalogService>();
 builder.Services.AddScoped<IOrderDocumentService, OrderDocumentService>();

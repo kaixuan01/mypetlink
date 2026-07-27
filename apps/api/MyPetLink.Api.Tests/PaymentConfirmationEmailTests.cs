@@ -309,7 +309,8 @@ public sealed class PaymentConfirmationEmailTests
                 {
                     SmartTagOrderingEnabled = true
                 }),
-                new TagPricingService(db));
+                new TagPricingService(db),
+                new DeliveryService(db, new TagPricingService(db), audit));
         }
 
         public static async Task<Harness> CreateAsync(bool enabled = true)

@@ -335,6 +335,21 @@ public interface IOrderService : ISkeletonService
         CancellationToken cancellationToken = default);
 }
 
+public interface IDeliveryService : ISkeletonService
+{
+    IReadOnlyCollection<MalaysiaStateResponse> ListStates();
+    Task<DeliveryQuoteResponse> QuoteAsync(DeliveryQuoteRequest request, CancellationToken cancellationToken = default);
+    Task<DeliveryResolution> ResolveAsync(string? stateCode, TagPricingQuote productQuote, int quantity, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<AdminDeliveryRateResponse>> ListRatesAsync(CancellationToken cancellationToken = default);
+    Task<AdminDeliveryRateResponse> CreateRateAsync(Guid? actorId, UpsertDeliveryRateRequest request, CancellationToken cancellationToken = default);
+    Task<AdminDeliveryRateResponse> UpdateRateAsync(Guid? actorId, Guid id, UpsertDeliveryRateRequest request, CancellationToken cancellationToken = default);
+}
+
+public sealed record DeliveryResolution(
+    MalaysiaStateDefinition State,
+    DeliveryRate Rate,
+    DeliveryQuoteResponse Quote);
+
 public interface IPaymentProofService : ISkeletonService
 {
     Task<PaymentProofResponse> GetAsync(

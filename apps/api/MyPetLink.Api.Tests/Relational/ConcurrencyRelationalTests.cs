@@ -140,6 +140,15 @@ public sealed class ConcurrencyRelationalTests
                 FulfilmentStatus = TagFulfilmentStatus.Generated,
             };
             seed.AddRange(product, variant, tag);
+            seed.DeliveryRates.Add(new DeliveryRate
+            {
+                Name = "Peninsular Standard Delivery",
+                ZoneCode = "PEN",
+                ApplicableStateCodesJson = "[\"KUL\"]",
+                Fee = 0m,
+                Currency = "MYR",
+                IsActive = true
+            });
             await seed.SaveChangesAsync();
             tagId = tag.Id;
             staleTimestamp = tag.UpdatedAt;
@@ -189,13 +198,22 @@ public sealed class ConcurrencyRelationalTests
                 FulfilmentStatus = TagFulfilmentStatus.Generated,
             };
             seed.AddRange(product, variant, tag);
+            seed.DeliveryRates.Add(new DeliveryRate
+            {
+                Name = "Peninsular Standard Delivery",
+                ZoneCode = "PEN",
+                ApplicableStateCodesJson = "[\"KUL\"]",
+                Fee = 0m,
+                Currency = "MYR",
+                IsActive = true
+            });
             await seed.SaveChangesAsync();
             variantKey = variant.PublicKey;
         }
 
         CreateTagOrderRequest Request() => new(
             PetId, variantKey, 1,
-            new DeliveryDetailsRequest("Aina", "+60123456789", "1 Jalan Pet", null, "50000", "Kuala Lumpur", "WP", null),
+            new DeliveryDetailsRequest("Aina", "+60123456789", "1 Jalan Pet", null, "50000", "Kuala Lumpur", "KUL", null),
             null, "concurrent-attempt");
 
         await using var contextA = scope.NewContext();
@@ -225,7 +243,8 @@ public sealed class ConcurrencyRelationalTests
         db, new AuditLogService(db, new HttpContextAccessor()));
 
     private static OrderService OrderService(MyPetLinkDbContext db) => new(
-        db, Options.Create(new FeatureOptions { SmartTagOrderingEnabled = true }), new TagPricingService(db));
+        db, Options.Create(new FeatureOptions { SmartTagOrderingEnabled = true }), new TagPricingService(db),
+        new DeliveryService(db, new TagPricingService(db), new AuditLogService(db, new HttpContextAccessor())));
 
     private static void SeedAdmin(MyPetLinkDbContext db)
     {

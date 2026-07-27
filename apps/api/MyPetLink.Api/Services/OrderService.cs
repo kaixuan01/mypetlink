@@ -14,15 +14,18 @@ public sealed class OrderService : SkeletonService, IOrderService
     private readonly MyPetLinkDbContext _dbContext;
     private readonly FeatureOptions _features;
     private readonly ITagPricingService _pricingService;
+    private readonly IDeliveryService _deliveryService;
 
     public OrderService(
         MyPetLinkDbContext dbContext,
         IOptions<FeatureOptions> features,
-        ITagPricingService pricingService)
+        ITagPricingService pricingService,
+        IDeliveryService deliveryService)
     {
         _dbContext = dbContext;
         _features = features.Value;
         _pricingService = pricingService;
+        _deliveryService = deliveryService;
     }
 
     public async Task<(IReadOnlyCollection<TagOrderResponse> Items, int Total)> ListAsync(
@@ -165,6 +168,9 @@ public sealed class OrderService : SkeletonService, IOrderService
         var subtotal = quote.BasePrice * request.Quantity;
         var discountAmount = quote.DiscountAmount * request.Quantity;
         var finalAmount = quote.FinalPrice * request.Quantity;
+        var deliveryResolution = await _deliveryService.ResolveAsync(
+            delivery.StateCode, quote, request.Quantity, cancellationToken);
+        var deliveryQuote = deliveryResolution.Quote;
         var order = new TagOrder
         {
             OrderNumber = await GenerateOrderNumberAsync(cancellationToken),
@@ -177,7 +183,8 @@ public sealed class OrderService : SkeletonService, IOrderService
             Variant = productVariant.TagVariant,
             Amount = finalAmount,
             Currency = quote.Currency,
-            DeliveryFee = 0m,
+            DeliveryFee = deliveryQuote.DeliveryFee,
+            TotalAmount = deliveryQuote.Total,
             Status = OrderStatus.PendingPayment,
             PaymentStatus = PaymentStatus.Pending,
             RecipientName = delivery.RecipientName.Trim(),
@@ -186,7 +193,12 @@ public sealed class OrderService : SkeletonService, IOrderService
             AddressLine2 = NormalizeOptional(delivery.AddressLine2),
             Postcode = delivery.Postcode.Trim(),
             City = delivery.City.Trim(),
-            State = delivery.State.Trim(),
+            State = deliveryResolution.State.Name,
+            StateCode = deliveryResolution.State.Code,
+            Country = MalaysiaDelivery.CountryName,
+            DeliveryZoneName = deliveryResolution.State.ZoneName,
+            DeliveryMethodName = deliveryQuote.DeliveryMethod,
+            FreeShippingReason = deliveryQuote.FreeDeliveryReason,
             DeliveryNotes = NormalizeOptional(delivery.Notes),
             TrackingStatus = "Awaiting QR payment.",
             IdempotencyKey = idempotencyKey,
@@ -289,7 +301,7 @@ public sealed class OrderService : SkeletonService, IOrderService
             (delivery.AddressLine2 ?? "").Trim(),
             delivery.Postcode.Trim(),
             delivery.City.Trim(),
-            delivery.State.Trim(),
+            delivery.StateCode!.Trim(),
             (delivery.Notes ?? "").Trim());
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(canonical));
         return Convert.ToHexString(hash);
@@ -566,7 +578,7 @@ public sealed class OrderService : SkeletonService, IOrderService
             ValidateRequired(request.Delivery.AddressLine1, "delivery.addressLine1", "Address line 1 is required.", errors);
             ValidateRequired(request.Delivery.Postcode, "delivery.postcode", "Postcode is required.", errors);
             ValidateRequired(request.Delivery.City, "delivery.city", "City is required.", errors);
-            ValidateRequired(request.Delivery.State, "delivery.state", "State is required.", errors);
+            ValidateRequired(request.Delivery.StateCode, "delivery.stateCode", "Please select a state for your delivery address.", errors);
         }
 
         if (errors.Count > 0)

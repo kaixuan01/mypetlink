@@ -158,7 +158,7 @@ public sealed class TagOrderCatalogIntegrationTests
         petId,
         publicKey,
         1,
-        new DeliveryDetailsRequest("Aina", "+60123456789", "1 Jalan Pet", null, "50000", "Kuala Lumpur", "WP Kuala Lumpur", null),
+        new DeliveryDetailsRequest("Aina", "+60123456789", "1 Jalan Pet", null, "50000", "Kuala Lumpur", "KUL", null),
         null,
         idempotencyKey);
 
@@ -250,7 +250,8 @@ public sealed class TagOrderCatalogIntegrationTests
             Service = new OrderService(
                 db,
                 Options.Create(new FeatureOptions { SmartTagOrderingEnabled = orderingEnabled }),
-                new TagPricingService(db));
+                new TagPricingService(db),
+                new DeliveryService(db, new TagPricingService(db), new AuditLogService(db, new HttpContextAccessor())));
         }
 
         public MyPetLinkDbContext Db { get; }
@@ -320,7 +321,16 @@ public sealed class TagOrderCatalogIntegrationTests
                 Status = SmartTagStatus.Unclaimed,
                 FulfilmentStatus = TagFulfilmentStatus.Generated
             };
-            db.AddRange(owner, otherOwner, admin, pet, product, variant, promotion, stock);
+            var deliveryRate = new DeliveryRate
+            {
+                Name = "Peninsular Standard Delivery",
+                ZoneCode = "PEN",
+                ApplicableStateCodesJson = "[\"KUL\"]",
+                Fee = 0m,
+                Currency = "MYR",
+                IsActive = true
+            };
+            db.AddRange(owner, otherOwner, admin, pet, product, variant, promotion, stock, deliveryRate);
             await db.SaveChangesAsync();
             return new Harness(db, product, variant, pet, stock, orderingEnabled);
         }

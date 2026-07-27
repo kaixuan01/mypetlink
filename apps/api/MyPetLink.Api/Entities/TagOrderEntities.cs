@@ -80,6 +80,12 @@ public sealed class TagOrder : AuditableEntity
     public string Postcode { get; set; } = "";
     public string City { get; set; } = "";
     public string State { get; set; } = "";
+    public string? StateCode { get; set; }
+    public string? Country { get; set; }
+    public string? DeliveryZoneName { get; set; }
+    public string? DeliveryMethodName { get; set; }
+    public string? FreeShippingReason { get; set; }
+    public decimal? TotalAmount { get; set; }
     public string? DeliveryNotes { get; set; }
     public string? TrackingStatus { get; set; }
     public string? TrackingNumber { get; set; }

@@ -46,6 +46,7 @@ public sealed class MyPetLinkDbContext : DbContext
     public DbSet<SmartTag> SmartTags => Set<SmartTag>();
     public DbSet<TagOrder> TagOrders => Set<TagOrder>();
     public DbSet<TagOrderItem> TagOrderItems => Set<TagOrderItem>();
+    public DbSet<DeliveryRate> DeliveryRates => Set<DeliveryRate>();
     public DbSet<PaymentProof> PaymentProofs => Set<PaymentProof>();
     public DbSet<EmailOutbox> EmailOutbox => Set<EmailOutbox>();
     public DbSet<TagScan> TagScans => Set<TagScan>();
@@ -72,9 +73,27 @@ public sealed class MyPetLinkDbContext : DbContext
         ConfigurePets(modelBuilder);
         ConfigureCareMedia(modelBuilder);
         ConfigureTagCatalog(modelBuilder);
+        ConfigureDelivery(modelBuilder);
         ConfigureTagsAndOrders(modelBuilder);
         ConfigureOperations(modelBuilder);
         SeedDefaults(modelBuilder);
+    }
+
+    private static void ConfigureDelivery(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<DeliveryRate>(entity =>
+        {
+            entity.ToTable("DeliveryRates");
+            entity.Property(item => item.Name).HasMaxLength(120);
+            entity.Property(item => item.ZoneCode).HasMaxLength(16);
+            entity.Property(item => item.ApplicableStateCodesJson).HasMaxLength(500);
+            entity.Property(item => item.Fee).HasPrecision(18, 2);
+            entity.Property(item => item.Currency).HasMaxLength(3);
+            entity.Property(item => item.FreeShippingThreshold).HasPrecision(18, 2);
+            entity.Property(item => item.RowVersion).IsRowVersion();
+            entity.HasIndex(item => item.ZoneCode).IsUnique();
+            entity.HasIndex(item => new { item.IsActive, item.DisplayOrder });
+        });
     }
 
     private static void ConfigureTagCatalog(ModelBuilder modelBuilder)
@@ -598,6 +617,12 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.Property(item => item.Postcode).HasMaxLength(20);
             entity.Property(item => item.City).HasMaxLength(120);
             entity.Property(item => item.State).HasMaxLength(120);
+            entity.Property(item => item.StateCode).HasMaxLength(8);
+            entity.Property(item => item.Country).HasMaxLength(80);
+            entity.Property(item => item.DeliveryZoneName).HasMaxLength(80);
+            entity.Property(item => item.DeliveryMethodName).HasMaxLength(120);
+            entity.Property(item => item.FreeShippingReason).HasMaxLength(240);
+            entity.Property(item => item.TotalAmount).HasPrecision(18, 2);
             entity.Property(item => item.TrackingNumber).HasMaxLength(120);
             entity.Property(item => item.IdempotencyKey).HasMaxLength(80);
             entity.Property(item => item.RequestFingerprint).HasMaxLength(128);

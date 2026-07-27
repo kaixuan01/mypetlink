@@ -10,7 +10,7 @@ public sealed record DeliveryDetailsRequest(
     [MaxLength(240)] string? AddressLine2,
     [Required, MaxLength(20)] string Postcode,
     [Required, MaxLength(120)] string City,
-    [Required, MaxLength(120)] string State,
+    [MaxLength(8)] string? StateCode,
     [MaxLength(600)] string? Notes);
 
 public sealed record CreateTagOrderRequest(
@@ -49,6 +49,11 @@ public sealed record DeliveryDetailsResponse(
     string Postcode,
     string City,
     string State,
+    string? StateCode,
+    string Country,
+    string? ZoneName,
+    string? DeliveryMethod,
+    string? FreeDeliveryReason,
     string? Notes);
 
 public sealed record TagOrderResponse(
@@ -64,6 +69,7 @@ public sealed record TagOrderResponse(
     decimal Amount,
     string Currency,
     decimal DeliveryFee,
+    decimal TotalAmount,
     OrderStatus Status,
     PaymentStatus PaymentStatus,
     Guid? ReplacementForTagId,
