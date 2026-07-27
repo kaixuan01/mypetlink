@@ -187,6 +187,12 @@ export function mapBackendOrder(order: BackendTagOrder): TagOrder {
     paymentConfirmedDate: formatDisplayDate(order.paymentConfirmedAt),
     paymentRejectionReason:
       order.paymentRejectionReason ?? latestProof?.rejectionReason ?? undefined,
+    paymentConfirmationEmail: order.paymentConfirmationEmail
+      ? {
+          sentAt: order.paymentConfirmationEmail.sentAt,
+          maskedRecipient: order.paymentConfirmationEmail.maskedRecipient,
+        }
+      : undefined,
     trackingStatus: order.trackingStatus ?? undefined,
     trackingNumber: order.trackingNumber ?? undefined,
     shippedDate: formatDisplayDate(order.shippedAt),

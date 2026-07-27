@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => {
     router: { replace, push },
     isOwnerAuthenticated: vi.fn(),
     getCurrentOwnerSession: vi.fn(),
+    enterOwnerPortal: vi.fn(),
     getOwnerProfileSettings: vi.fn(),
     logoutOwner: vi.fn(),
     canUseApi: vi.fn(),
@@ -35,6 +36,8 @@ vi.mock("@/services/authService", () => ({
     mocks.isOwnerAuthenticated(...args),
   getCurrentOwnerSession: (...args: unknown[]) =>
     mocks.getCurrentOwnerSession(...args),
+  enterOwnerPortal: (...args: unknown[]) =>
+    mocks.enterOwnerPortal(...args),
   logoutOwner: (...args: unknown[]) => mocks.logoutOwner(...args),
 }));
 vi.mock("@/services/ownerProfileService", () => ({
@@ -111,6 +114,8 @@ beforeEach(() => {
   mocks.isOwnerAuthenticated.mockReturnValue(true);
   mocks.canUseApi.mockReturnValue(true);
   mocks.getCurrentOwnerSession.mockReset();
+  mocks.enterOwnerPortal.mockReset();
+  mocks.enterOwnerPortal.mockResolvedValue(undefined);
   mocks.getOwnerProfileSettings.mockReset();
   mocks.getOwnerProfileSettings.mockResolvedValue({ data: {} });
 });
@@ -135,6 +140,7 @@ describe("AuthGuard staged loading", () => {
 
     expect(screen.getByText("Protected content")).toBeTruthy();
     expect(screen.queryByText(/getting your account ready/i)).toBeNull();
+    expect(mocks.enterOwnerPortal).toHaveBeenCalledOnce();
   });
 
   it("shows the branded loader only after the short delay", async () => {
@@ -273,6 +279,7 @@ describe("AuthGuard failure handling", () => {
       expect.stringContaining("/login?redirect=")
     );
     expect(mocks.getCurrentOwnerSession).not.toHaveBeenCalled();
+    expect(mocks.enterOwnerPortal).not.toHaveBeenCalled();
   });
 });
 

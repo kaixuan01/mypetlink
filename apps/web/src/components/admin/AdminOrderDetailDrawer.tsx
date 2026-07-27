@@ -16,6 +16,7 @@ import {
   latestProof,
   openAdminPaymentProof,
   paymentStatusLabels,
+  retryPaymentConfirmationEmail,
   type AdminOrder,
   type AdminOrderDetail,
 } from "@/services/adminOrderService";
@@ -44,6 +45,7 @@ const historyLabels: Record<string, string> = {
   "order.mark-shipped": "Marked shipped",
   "order.mark-delivered": "Marked delivered",
   "order.cancel": "Order cancelled",
+  "email.payment-confirmation.retry": "Payment confirmation email retried",
 };
 
 export function AdminOrderDetailDrawer({
@@ -70,6 +72,8 @@ export function AdminOrderDetailDrawer({
     entries: AdminOrderHistoryEntry[] | null;
   } | null>(null);
   const [proofMessage, setProofMessage] = useState("");
+  const [emailMessage, setEmailMessage] = useState("");
+  const [emailRetryBusy, setEmailRetryBusy] = useState(false);
   const key = `${summary.id}:${refreshKey}`;
 
   useEffect(() => {
@@ -111,6 +115,28 @@ export function AdminOrderDetailDrawer({
       await openAdminPaymentProof(proof.id);
     } catch (caught) {
       setProofMessage(getFriendlyTagErrorMessage(caught));
+    }
+  }
+
+  async function retryEmail() {
+    if (!detail) return;
+    setEmailMessage("");
+    setEmailRetryBusy(true);
+    try {
+      const paymentConfirmationEmail = await retryPaymentConfirmationEmail(summary.id);
+      setDetailState((current) =>
+        current?.key === key && current.detail
+          ? {
+              ...current,
+              detail: { ...current.detail, paymentConfirmationEmail },
+            }
+          : current
+      );
+      setEmailMessage("Email queued for another delivery attempt.");
+    } catch (caught) {
+      setEmailMessage(getFriendlyTagErrorMessage(caught));
+    } finally {
+      setEmailRetryBusy(false);
     }
   }
 
@@ -180,6 +206,56 @@ export function AdminOrderDetailDrawer({
                   <AdminDetailItem label="Updated" value={formatAdminDateTime(summary.updatedAt)} />
                 </div>
               </section>
+
+              {detail.paymentConfirmationEmail ? (
+                <section>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="text-sm font-black text-slate-900">Payment confirmation email</h3>
+                    <Badge
+                      tone={
+                        detail.paymentConfirmationEmail.status === "Sent"
+                          ? "mint"
+                          : detail.paymentConfirmationEmail.status === "Failed"
+                            ? "danger"
+                            : "warm"
+                      }
+                    >
+                      Email {detail.paymentConfirmationEmail.status}
+                    </Badge>
+                  </div>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <AdminDetailItem
+                      label="Attempts"
+                      value={`${detail.paymentConfirmationEmail.attemptCount} of ${detail.paymentConfirmationEmail.maxAttempts}`}
+                    />
+                    <AdminDetailItem
+                      label="Sent"
+                      value={formatAdminDateTime(detail.paymentConfirmationEmail.sentAt)}
+                    />
+                    <AdminDetailItem
+                      label="Last attempt"
+                      value={formatAdminDateTime(detail.paymentConfirmationEmail.lastAttemptAt)}
+                    />
+                    <AdminDetailItem
+                      label="Delivery note"
+                      value={detail.paymentConfirmationEmail.lastError ?? ""}
+                    />
+                  </div>
+                  {detail.paymentConfirmationEmail.canRetry ? (
+                    <AdminActionButton
+                      disabled={emailRetryBusy}
+                      onClick={() => void retryEmail()}
+                    >
+                      {emailRetryBusy ? "Queuing..." : "Retry email"}
+                    </AdminActionButton>
+                  ) : null}
+                  {emailMessage ? (
+                    <p className="mt-2 text-sm font-bold text-slate-700" role="status">
+                      {emailMessage}
+                    </p>
+                  ) : null}
+                </section>
+              ) : null}
 
               <section>
                 <h3 className="text-sm font-black text-slate-900">Customer and pet</h3>

@@ -126,6 +126,18 @@ export type AdminOrderDetail = {
   backendOrder?: BackendTagOrder;
   productVariantId?: string;
   owner: { id?: string; name: string; email: string };
+  paymentConfirmationEmail?: AdminPaymentConfirmationEmail;
+};
+
+export type AdminPaymentConfirmationEmail = {
+  status: "Pending" | "Sending" | "Sent" | "Failed";
+  attemptCount: number;
+  maxAttempts: number;
+  nextAttemptAt: string;
+  lastAttemptAt?: string | null;
+  sentAt?: string | null;
+  lastError?: string | null;
+  canRetry: boolean;
 };
 
 type BackendAdminOrderItem = {
@@ -176,6 +188,7 @@ type BackendAdminOrderDetail = {
   order: BackendTagOrder;
   owner: { userId: string; displayName: string; email: string };
   productVariantId?: string | null;
+  paymentConfirmationEmail?: AdminPaymentConfirmationEmail | null;
 };
 
 const backendStatusToFrontend: Record<BackendTagOrder["status"], AdminOrder["orderStatus"]> = {
@@ -300,6 +313,7 @@ export async function getAdminOrderDetail(orderId: string, signal?: AbortSignal)
       order: mapBackendOrder(response.data.order),
       backendOrder: response.data.order,
       productVariantId: response.data.productVariantId ?? undefined,
+      paymentConfirmationEmail: response.data.paymentConfirmationEmail ?? undefined,
       owner: {
         id: response.data.owner.userId,
         name: response.data.owner.displayName || response.data.owner.email,
@@ -314,6 +328,23 @@ export async function getAdminOrderDetail(orderId: string, signal?: AbortSignal)
   if (!order) throw new Error("This order could not be found.");
   const pet = pets.data.find((item) => item.id === order.petId);
   return { order, owner: { name: pet?.owner.name ?? "Owner", email: "" } };
+}
+
+export async function retryPaymentConfirmationEmail(
+  orderId: string
+): Promise<AdminPaymentConfirmationEmail> {
+  if (!canUseAdminApi()) {
+    throw new Error("Email retry is available when signed in to Admin Portal.");
+  }
+
+  const response = await apiRequest<AdminPaymentConfirmationEmail>(
+    `/api/v1/admin/orders/${encodeURIComponent(orderId)}/payment-confirmation-email/retry`,
+    { method: "POST" }
+  );
+  if (!response.data) {
+    throw new Error("We couldn't retry this email. Please try again.");
+  }
+  return response.data;
 }
 
 export async function getAdminOrderSummary(orderId: string, signal?: AbortSignal): Promise<AdminOrder> {

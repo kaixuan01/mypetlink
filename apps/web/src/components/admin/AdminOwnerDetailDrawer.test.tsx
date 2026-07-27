@@ -1,15 +1,22 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AdminOwner, AdminOwnerDetail } from "@/services/adminOwnerService";
 import { AdminOwnerDetailDrawer } from "./AdminOwnerDetailDrawer";
 
-const mocks = vi.hoisted(() => ({ getDetail: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  getDetail: vi.fn(),
+  retryWelcome: vi.fn(),
+}));
 
 vi.mock("@/services/adminOwnerService", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/services/adminOwnerService")>();
-  return { ...actual, getAdminOwnerDetail: mocks.getDetail };
+  return {
+    ...actual,
+    getAdminOwnerDetail: mocks.getDetail,
+    retryAdminOwnerWelcomeEmail: mocks.retryWelcome,
+  };
 });
 
 const owner: AdminOwner = {
@@ -71,6 +78,18 @@ const detail: AdminOwnerDetail = {
   recentOrders: [{ orderId: "order-1", orderNumber: "MPL-ORDER-1", status: "PendingPayment", paymentStatus: "Pending", amount: 39, currency: "MYR", createdAt: "2026-07-15T00:00:00Z", updatedAt: "2026-07-16T00:00:00Z" }],
   recentPaymentProofs: [{ paymentProofId: "proof-1", orderId: "order-1", orderNumber: "MPL-ORDER-1", status: "PendingReview", submittedAt: "2026-07-16T00:00:00Z" }],
   smartTags: [{ tagId: "tag-1", tagCode: "MPL-AINA-TAG", status: "Active", isArchived: false, createdAt: "2026-07-15T00:00:00Z", updatedAt: "2026-07-16T00:00:00Z" }],
+  welcomeEmail: {
+    messageType: "OwnerWelcome",
+    recipientEmail: "aina@example.com",
+    status: "Sent",
+    attemptCount: 1,
+    maxAttempts: 5,
+    nextAttemptAt: "2026-07-16T00:00:00Z",
+    lastAttemptAt: "2026-07-16T00:01:00Z",
+    sentAt: "2026-07-16T00:01:00Z",
+    createdAt: "2026-07-16T00:00:00Z",
+    canRetry: false,
+  },
   history: [{ label: "owner profile updated", actor: "Owner", createdAt: "2026-07-16T00:00:00Z" }],
 };
 
@@ -91,9 +110,47 @@ describe("AdminOwnerDetailDrawer", () => {
     expect(screen.getByText("WhatsApp shown by default").parentElement?.textContent).toContain("No");
     expect(screen.getByText("Memory usage is near the current plan limit.")).toBeTruthy();
     expect(screen.getByText("Pending Review")).toBeTruthy();
+    expect(screen.getByText("Email Sent")).toBeTruthy();
+    expect(screen.getByText("Message type: Welcome")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Retry email" })).toBeNull();
     expect(screen.getByRole("link", { name: "View all pets" }).getAttribute("href")).toBe("/admin/pets?ownerId=92222222-2222-4222-8222-222222222222");
     expect(screen.getByRole("link", { name: "View payment proofs" }).getAttribute("href")).toBe("/admin/payment-proofs?ownerId=92222222-2222-4222-8222-222222222222");
     expect(screen.queryByText("92222222-2222-4222-8222-222222222222")).toBeNull();
+  });
+
+  it("retries a failed welcome email without creating another owner message", async () => {
+    const failed = {
+      ...detail,
+      welcomeEmail: {
+        ...detail.welcomeEmail!,
+        status: "Failed" as const,
+        attemptCount: 5,
+        sentAt: undefined,
+        lastError: "The mail server could not be reached.",
+        canRetry: true,
+      },
+    };
+    mocks.retryWelcome.mockResolvedValue({
+      ...failed.welcomeEmail,
+      status: "Pending",
+      attemptCount: 0,
+      lastAttemptAt: undefined,
+      lastError: undefined,
+      canRetry: false,
+    });
+    render(
+      <AdminOwnerDetailDrawer
+        initialDetail={failed}
+        onClose={vi.fn()}
+        summary={owner}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry email" }));
+
+    await waitFor(() => expect(mocks.retryWelcome).toHaveBeenCalledWith(owner.ownerUserId));
+    expect(await screen.findByText("Email Pending")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Retry email" })).toBeNull();
   });
 
   it("traps focus, closes with Escape, and restores focus", async () => {

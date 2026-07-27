@@ -7,7 +7,12 @@ import { formatAdminDateTime, lifecycleTone, tagStatusTone } from "@/components/
 import { Badge } from "@/components/ui/Badge";
 import { adminRoutes } from "@/lib/routes";
 import { useModalDialogFocus } from "@/lib/useModalDialogFocus";
-import { getAdminOwnerDetail, type AdminOwner, type AdminOwnerDetail } from "@/services/adminOwnerService";
+import {
+  getAdminOwnerDetail,
+  retryAdminOwnerWelcomeEmail,
+  type AdminOwner,
+  type AdminOwnerDetail,
+} from "@/services/adminOwnerService";
 
 export function AdminOwnerDetailDrawer({
   summary,
@@ -25,6 +30,7 @@ export function AdminOwnerDetailDrawer({
       ? { key: summary.ownerUserId, detail: initialDetail, error: "" }
       : null);
   const [copied, setCopied] = useState("");
+  const [emailAction, setEmailAction] = useState({ retrying: false, error: "" });
 
   useModalDialogFocus({ dialogRef, initialFocusRef: closeRef, onEscape: onClose });
 
@@ -50,6 +56,28 @@ export function AdminOwnerDetailDrawer({
   async function copy(value: string, label: string) {
     await navigator.clipboard.writeText(value);
     setCopied(`${label} copied.`);
+  }
+
+  async function retryWelcomeEmail() {
+    if (emailAction.retrying) return;
+    setEmailAction({ retrying: true, error: "" });
+    try {
+      const welcomeEmail = await retryAdminOwnerWelcomeEmail(owner.ownerUserId);
+      setState((current) =>
+        current?.detail
+          ? {
+              ...current,
+              detail: { ...current.detail, welcomeEmail },
+            }
+          : current
+      );
+      setEmailAction({ retrying: false, error: "" });
+    } catch {
+      setEmailAction({
+        retrying: false,
+        error: "We couldn't retry this welcome email. Please try again.",
+      });
+    }
   }
 
   return (
@@ -114,6 +142,58 @@ export function AdminOwnerDetailDrawer({
                   {detail.phoneE164 ? <CopyButton label="Copy phone" onClick={() => void copy(detail.phoneE164!, "Phone")} /> : null}
                   {detail.whatsappE164 ? <CopyButton label="Copy WhatsApp" onClick={() => void copy(detail.whatsappE164!, "WhatsApp")} /> : null}
                 </div>
+              </section>
+
+              <section aria-labelledby="owner-welcome-email-heading">
+                <h3 className="text-sm font-black text-slate-900" id="owner-welcome-email-heading">
+                  Welcome email
+                </h3>
+                {detail.welcomeEmail ? (
+                  <>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <Badge
+                        tone={
+                          detail.welcomeEmail.status === "Sent"
+                            ? "mint"
+                            : detail.welcomeEmail.status === "Failed"
+                              ? "danger"
+                              : "warm"
+                        }
+                      >
+                        Email {detail.welcomeEmail.status}
+                      </Badge>
+                      <span className="text-xs font-bold text-slate-500">Message type: Welcome</span>
+                    </div>
+                    <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                      <AdminDetailItem label="Recipient" value={detail.welcomeEmail.recipientEmail} />
+                      <AdminDetailItem label="Created" value={formatAdminDateTime(detail.welcomeEmail.createdAt)} />
+                      <AdminDetailItem label="Sent" value={formatAdminDateTime(detail.welcomeEmail.sentAt)} />
+                      <AdminDetailItem label="Last attempt" value={formatAdminDateTime(detail.welcomeEmail.lastAttemptAt)} />
+                      <AdminDetailItem
+                        label="Attempts"
+                        value={`${detail.welcomeEmail.attemptCount} of ${detail.welcomeEmail.maxAttempts}`}
+                      />
+                      <AdminDetailItem label="Delivery note" value={detail.welcomeEmail.lastError || "Not set"} />
+                    </div>
+                    {detail.welcomeEmail.canRetry ? (
+                      <button
+                        className={actionClass}
+                        disabled={emailAction.retrying}
+                        onClick={() => void retryWelcomeEmail()}
+                        type="button"
+                      >
+                        {emailAction.retrying ? "Retrying…" : "Retry email"}
+                      </button>
+                    ) : null}
+                    {emailAction.error ? (
+                      <p className="mt-2 text-sm font-bold text-red-700" role="alert">
+                        {emailAction.error}
+                      </p>
+                    ) : null}
+                  </>
+                ) : (
+                  <EmptyLine>No welcome email has been queued for this owner.</EmptyLine>
+                )}
               </section>
 
               <section aria-labelledby="owner-usage-heading">

@@ -447,6 +447,10 @@ export type TagOrder = {
   paymentSubmittedDate?: string;
   paymentConfirmedDate?: string;
   paymentRejectionReason?: string;
+  paymentConfirmationEmail?: {
+    sentAt: string;
+    maskedRecipient: string;
+  };
   trackingStatus?: string;
   trackingNumber?: string;
   shippedDate?: string;

@@ -7,6 +7,7 @@ import {
   type SessionCheckState,
 } from "@/components/auth/SessionCheckingScreen";
 import {
+  enterOwnerPortal,
   getCurrentOwnerSession,
   isOwnerAuthenticated,
   logoutOwner,
@@ -134,6 +135,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     const check = Promise.all([
       getCurrentOwnerSession(),
       getOwnerProfileSettings(),
+      enterOwnerPortal(),
     ]);
 
     if (ownerSessionVerifiedThisLoad) {

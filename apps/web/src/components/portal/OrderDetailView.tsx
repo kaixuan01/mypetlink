@@ -491,6 +491,12 @@ export function OrderDetailView({
                 ? "We are reviewing your payment proof. Your order will be prepared after payment is confirmed."
                 : "Receipt is available after payment is confirmed."}
           </p>
+          {receiptReady && order.paymentConfirmationEmail ? (
+            <p className="mt-3 text-sm font-bold leading-6 text-pet-sage">
+              A payment confirmation email has been sent to{" "}
+              {order.paymentConfirmationEmail.maskedRecipient}.
+            </p>
+          ) : null}
         </section>
       </div>
 

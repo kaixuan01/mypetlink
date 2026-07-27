@@ -223,6 +223,12 @@ export async function getCurrentOwnerSession() {
   return response.data;
 }
 
+export async function enterOwnerPortal() {
+  await apiRequest<void>("/api/v1/auth/owner-portal-entry", {
+    method: "POST",
+  });
+}
+
 function storeBackendSession(response: BackendAuthTokenResponse) {
   const session: StoredAuthSession = {
     accessToken: response.accessToken,

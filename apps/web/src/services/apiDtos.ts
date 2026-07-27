@@ -467,6 +467,10 @@ export type BackendTagOrder = {
   paymentNote?: string | null;
   paymentProofName?: string | null;
   paymentRejectionReason?: string | null;
+  paymentConfirmationEmail?: {
+    sentAt: string;
+    maskedRecipient: string;
+  } | null;
   trackingStatus?: string | null;
   trackingNumber?: string | null;
   shippedAt?: string | null;

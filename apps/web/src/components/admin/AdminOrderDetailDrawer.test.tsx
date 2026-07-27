@@ -11,6 +11,7 @@ const serviceMocks = vi.hoisted(() => ({
   getDetail: vi.fn(),
   getHistory: vi.fn(),
   openProof: vi.fn(),
+  retryEmail: vi.fn(),
 }));
 
 vi.mock("@/services/adminOrderService", async (importOriginal) => {
@@ -19,6 +20,7 @@ vi.mock("@/services/adminOrderService", async (importOriginal) => {
     ...actual,
     getAdminOrderDetail: serviceMocks.getDetail,
     openAdminPaymentProof: serviceMocks.openProof,
+    retryPaymentConfirmationEmail: serviceMocks.retryEmail,
   };
 });
 
@@ -157,6 +159,13 @@ beforeEach(() => {
     { id: "audit-1", action: "order.confirm-payment", actorType: "Admin", entityId: summary.id, createdAt: "2026-07-16T07:42:00Z" },
   ]);
   serviceMocks.openProof.mockResolvedValue(undefined);
+  serviceMocks.retryEmail.mockResolvedValue({
+    status: "Pending",
+    attemptCount: 0,
+    maxAttempts: 5,
+    nextAttemptAt: "2026-07-27T02:00:00Z",
+    canRetry: false,
+  });
 });
 
 afterEach(() => {
@@ -199,5 +208,48 @@ describe("AdminOrderDetailDrawer", () => {
 
     fireEvent.keyDown(document, { key: "Escape" });
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["Pending", "Sent", "Failed"] as const)(
+    "shows the %s payment email status",
+    async (status) => {
+      serviceMocks.getDetail.mockResolvedValue({
+        ...detail,
+        paymentConfirmationEmail: {
+          status,
+          attemptCount: status === "Pending" ? 0 : 1,
+          maxAttempts: 5,
+          nextAttemptAt: "2026-07-27T02:00:00Z",
+          sentAt: status === "Sent" ? "2026-07-27T02:01:00Z" : null,
+          lastError: status === "Failed" ? "The mail server rejected the message." : null,
+          canRetry: status === "Failed",
+        },
+      });
+
+      render(<AdminOrderDetailDrawer busy={false} onAction={vi.fn()} onClose={vi.fn()} refreshKey={0} summary={summary} />);
+
+      expect(await screen.findByText(`Email ${status}`)).toBeTruthy();
+    }
+  );
+
+  it("retries a failed email without creating another order message", async () => {
+    serviceMocks.getDetail.mockResolvedValue({
+      ...detail,
+      paymentConfirmationEmail: {
+        status: "Failed",
+        attemptCount: 5,
+        maxAttempts: 5,
+        nextAttemptAt: "2026-07-27T02:00:00Z",
+        lastError: "The mail server rejected the message.",
+        canRetry: true,
+      },
+    });
+    render(<AdminOrderDetailDrawer busy={false} onAction={vi.fn()} onClose={vi.fn()} refreshKey={0} summary={summary} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Retry email" }));
+
+    await waitFor(() => expect(serviceMocks.retryEmail).toHaveBeenCalledWith(summary.id));
+    expect(await screen.findByText("Email Pending")).toBeTruthy();
+    expect(screen.getByText("Email queued for another delivery attempt.")).toBeTruthy();
   });
 });

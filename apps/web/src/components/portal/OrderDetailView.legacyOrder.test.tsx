@@ -124,4 +124,24 @@ describe("OrderDetailView legacy order labelling", () => {
     // Better to say nothing than to invent features or show a placeholder.
     expect(screen.queryByText("Features")).toBeNull();
   });
+
+  it("shows only the masked sent confirmation to the owner", async () => {
+    const confirmed = baseOrder({
+      status: "Payment Confirmed",
+      paymentConfirmedDate: "27 Jul 2026",
+      paymentConfirmationEmail: {
+        sentAt: "2026-07-27T02:01:00Z",
+        maskedRecipient: "a***@example.com",
+      },
+    });
+    tagMocks.getOrder.mockResolvedValue({ data: confirmed });
+
+    render(<OrderDetailView initialOrder={confirmed} initialTags={[]} orderKey="MPL-0001" pets={[]} />);
+
+    expect(
+      await screen.findByText(/A payment confirmation email has been sent to/)
+    ).toBeTruthy();
+    expect(screen.getByText(/a\*\*\*@example\.com/)).toBeTruthy();
+    expect(screen.queryByText(/retry/i)).toBeNull();
+  });
 });

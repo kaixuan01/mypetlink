@@ -128,6 +128,20 @@ export type AdminOwnerHistoryItem = {
   createdAt: string;
 };
 
+export type AdminOwnerWelcomeEmail = {
+  messageType: "OwnerWelcome";
+  recipientEmail: string;
+  status: "Pending" | "Sending" | "Sent" | "Failed";
+  attemptCount: number;
+  maxAttempts: number;
+  nextAttemptAt: string;
+  lastAttemptAt?: string;
+  sentAt?: string;
+  lastError?: string;
+  createdAt: string;
+  canRetry: boolean;
+};
+
 export type AdminOwnerDetail = {
   owner: AdminOwner;
   phoneE164?: string;
@@ -154,6 +168,7 @@ export type AdminOwnerDetail = {
   recentOrders: AdminOwnerOrderSummary[];
   recentPaymentProofs: AdminOwnerPaymentProofSummary[];
   smartTags: AdminOwnerSmartTagSummary[];
+  welcomeEmail?: AdminOwnerWelcomeEmail;
   history: AdminOwnerHistoryItem[];
 };
 
@@ -214,6 +229,17 @@ export async function getAdminOwnerDetail(ownerId: string, signal?: AbortSignal)
   } satisfies AdminOwnerDetail;
 }
 
+export async function retryAdminOwnerWelcomeEmail(ownerId: string) {
+  const response = await apiRequest<AdminOwnerWelcomeEmail>(
+    `/api/v1/admin/owners/${encodeURIComponent(ownerId)}/welcome-email/retry`,
+    { method: "POST" }
+  );
+  if (!response.data) {
+    throw new Error("The welcome email response was empty.");
+  }
+  return response.data;
+}
+
 export function getAdminOwnerExportFormats(): ("csv" | "xlsx")[] {
   return canUseAdminApi() ? ["csv", "xlsx"] : ["csv"];
 }
@@ -255,6 +281,14 @@ function normalizeDetail(detail: AdminOwnerDetail): AdminOwnerDetail {
       ...tag,
       status: String(tag.status) === "Unclaimed" ? "Unassigned" : tag.status,
     })),
+    welcomeEmail: detail.welcomeEmail
+      ? {
+          ...detail.welcomeEmail,
+          lastAttemptAt: detail.welcomeEmail.lastAttemptAt ?? undefined,
+          sentAt: detail.welcomeEmail.sentAt ?? undefined,
+          lastError: detail.welcomeEmail.lastError ?? undefined,
+        }
+      : undefined,
     history: detail.history ?? [],
   };
 }
