@@ -9,6 +9,7 @@
     "dev": "next dev",
     "build": "next build",
     "build:functions": "wrangler pages functions build functions --outdir .wrangler/functions-build --project-directory . --build-output-directory out --compatibility-date 2026-07-13",
+    "verify:seo": "node scripts/verify-seo-output.mjs",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",

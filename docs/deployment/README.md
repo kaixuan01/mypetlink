@@ -1,5 +1,7 @@
 # Deployment Docs
 
+- [`search-indexing.md`](search-indexing.md) — production SEO audit, Cloudflare canonical-host redirect, sitemap maintenance, and Search Console follow-up
+
 - [`owner-welcome-email.md`](owner-welcome-email.md) — exact-once Owner Portal welcome trigger, eligibility, branding, and rollout
 
 - [`payment-confirmation-email.md`](payment-confirmation-email.md) — Zoho SMTP rollout, retry operations, DNS checks, and migration order

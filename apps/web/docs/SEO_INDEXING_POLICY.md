@@ -37,6 +37,16 @@ Cloudflare should permanently redirect, preserving path and query string:
 HTTP already redirects to HTTPS. Confirm the Pages project's custom-domain
 redirect before adding another rule, and avoid redirect loops.
 
+The exact production rule and verification commands are maintained in
+[`docs/deployment/search-indexing.md`](../../../docs/deployment/search-indexing.md).
+
+## Sitemap modification dates
+
+`src/lib/seo.ts` owns stable modification dates for every sitemap entry.
+Update a date only when the corresponding page content or authoritative sample
+data changes. Never use build time, deployment time, or request time as
+`lastmod`.
+
 ## Release checks
 
 After every production deployment, inspect the rendered HTML for public and

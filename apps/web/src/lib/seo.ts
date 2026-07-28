@@ -205,17 +205,23 @@ export function isSearchIndexableSample(publicCode: string) {
   return publicCode.toLowerCase() === samplePet.publicCode.toLowerCase();
 }
 
-export const indexableSitemapPaths = [
-  marketingRoutes.home,
-  marketingRoutes.pricing,
-  marketingRoutes.howItWorks,
-  marketingRoutes.smartPetTags,
-  marketingRoutes.petProfile,
-  marketingRoutes.sample,
-  marketingRoutes.privacy,
-  marketingRoutes.terms,
-  samplePet.publicProfilePath,
+// Stable dates from the latest real content changes. Do not replace these with
+// build time: an unchanged deployment must not make every URL look updated.
+export const indexableSitemapEntries = [
+  { path: marketingRoutes.home, lastModified: "2026-07-18" },
+  { path: marketingRoutes.pricing, lastModified: "2026-07-18" },
+  { path: marketingRoutes.howItWorks, lastModified: "2026-07-18" },
+  { path: marketingRoutes.smartPetTags, lastModified: "2026-07-18" },
+  { path: marketingRoutes.petProfile, lastModified: "2026-07-18" },
+  { path: marketingRoutes.sample, lastModified: "2026-07-23" },
+  { path: marketingRoutes.privacy, lastModified: "2026-07-18" },
+  { path: marketingRoutes.terms, lastModified: "2026-07-18" },
+  { path: samplePet.publicProfilePath, lastModified: "2026-07-23" },
 ] as const;
+
+export const indexableSitemapPaths = indexableSitemapEntries.map(
+  ({ path }) => path
+);
 
 export const homepageStructuredData = {
   "@context": "https://schema.org",

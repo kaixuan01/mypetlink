@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { metadata as homeMetadata } from "@/app/page";
+import { metadata as howItWorksMetadata } from "@/app/how-it-works/page";
+import { metadata as petProfileMetadata } from "@/app/pet-profile/page";
 import { metadata as pricingMetadata } from "@/app/pricing/page";
+import { metadata as privacyMetadata } from "@/app/privacy/page";
+import { metadata as sampleMetadata } from "@/app/sample/page";
 import { metadata as smartTagsMetadata } from "@/app/smart-pet-tags/page";
+import { metadata as termsMetadata } from "@/app/terms/page";
 import { metadata as loginMetadata } from "@/app/login/page";
 import { metadata as dashboardMetadata } from "@/app/dashboard/layout";
 import { metadata as petsMetadata } from "@/app/pets/layout";
@@ -17,6 +22,7 @@ import {
   createPublicProfileMetadata,
   createUnavailablePublicProfileMetadata,
   homepageStructuredData,
+  indexableSitemapEntries,
   indexableSitemapPaths,
 } from "@/lib/seo";
 import { toPublicProfile } from "@/services/petService";
@@ -32,11 +38,23 @@ function canonical(metadata: { alternates?: unknown }) {
   return (metadata.alternates as { canonical?: string } | undefined)?.canonical;
 }
 
+const marketingPageCases = [
+  [marketingRoutes.home, homeMetadata],
+  [marketingRoutes.howItWorks, howItWorksMetadata],
+  [marketingRoutes.petProfile, petProfileMetadata],
+  [marketingRoutes.pricing, pricingMetadata],
+  [marketingRoutes.privacy, privacyMetadata],
+  [marketingRoutes.sample, sampleMetadata],
+  [marketingRoutes.smartPetTags, smartTagsMetadata],
+  [marketingRoutes.terms, termsMetadata],
+] as const;
+
 describe("SEO route policy", () => {
-  it("keeps the homepage, pricing, and smart-tag guide indexable", () => {
-    for (const metadata of [homeMetadata, pricingMetadata, smartTagsMetadata]) {
+  it("keeps every public marketing page indexable", () => {
+    for (const [, metadata] of marketingPageCases) {
       expect(robotsPolicy(metadata).index).toBe(true);
       expect(robotsPolicy(metadata).follow).toBe(true);
+      expect(JSON.stringify(metadata).toLowerCase()).not.toContain("noindex");
     }
   });
 
@@ -195,29 +213,27 @@ describe("public profile social metadata", () => {
 });
 
 describe("canonical metadata", () => {
-  it("uses the preferred HTTPS host for public canonical URLs", () => {
-    expect(canonical(homeMetadata)).toBe("https://mypetlink.com.my/");
-    expect(canonical(pricingMetadata)).toBe("https://mypetlink.com.my/pricing");
-    expect(canonical(smartTagsMetadata)).toBe(
-      "https://mypetlink.com.my/smart-pet-tags"
-    );
-    expect(canonicalUrl("/pet-profile")).toBe(
-      "https://mypetlink.com.my/pet-profile"
-    );
+  it("uses a self-referencing preferred-host canonical on every marketing page", () => {
+    for (const [path, metadata] of marketingPageCases) {
+      expect(canonical(metadata)).toBe(canonicalUrl(path));
+    }
   });
 
   it("never emits a pages.dev canonical", () => {
-    const canonicals = [homeMetadata, pricingMetadata, smartTagsMetadata].map(canonical);
+    const canonicals = marketingPageCases.map(([, metadata]) =>
+      canonical(metadata)
+    );
     expect(canonicals.every((value) => value?.startsWith("https://mypetlink.com.my"))).toBe(true);
     expect(canonicals.some((value) => value?.includes("pages.dev"))).toBe(false);
   });
 
-  it("gives major marketing pages unique titles and descriptions", () => {
-    const pages = [homeMetadata, pricingMetadata, smartTagsMetadata];
+  it("gives every marketing page a unique title and description", () => {
+    const pages = marketingPageCases.map(([, metadata]) => metadata);
     const titles = pages.map((page) => JSON.stringify(page.title));
     const descriptions = pages.map((page) => page.description);
     expect(new Set(titles).size).toBe(pages.length);
     expect(new Set(descriptions).size).toBe(pages.length);
+    expect(descriptions.every((description) => Boolean(description))).toBe(true);
   });
 });
 
@@ -241,7 +257,8 @@ describe("robots and sitemap", () => {
   });
 
   it("contains only approved canonical public URLs", () => {
-    const urls = sitemap().map((entry) => entry.url);
+    const entries = sitemap();
+    const urls = entries.map((entry) => entry.url);
     const expected = indexableSitemapPaths.map((path) => canonicalUrl(path));
 
     expect(urls).toEqual(expected);
@@ -249,5 +266,24 @@ describe("robots and sitemap", () => {
     expect(urls).toContain(canonicalUrl(samplePet.publicProfilePath));
     expect(urls.some((url) => /\/(admin|dashboard|pets|q|orders|settings)(\/|$)/.test(url))).toBe(false);
     expect(urls.some((url) => url.includes("pages.dev"))).toBe(false);
+    expect(urls.some((url) => url.startsWith("http://"))).toBe(false);
+    expect(urls.some((url) => url.includes("://www."))).toBe(false);
+    expect(urls.some((url) => /:\/\/(api|media)\./.test(url))).toBe(false);
+  });
+
+  it("uses stable last-modified dates from real content changes", () => {
+    const entries = sitemap();
+
+    expect(entries).toHaveLength(indexableSitemapEntries.length);
+    expect(entries.map((entry) => entry.lastModified)).toEqual(
+      indexableSitemapEntries.map((entry) => entry.lastModified)
+    );
+    expect(
+      entries.every(
+        (entry) =>
+          typeof entry.lastModified === "string" &&
+          /^\d{4}-\d{2}-\d{2}$/.test(entry.lastModified)
+      )
+    ).toBe(true);
   });
 });
