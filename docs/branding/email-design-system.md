@@ -49,7 +49,8 @@ Compact instructional icons follow the rounded outline language in
 - consistent medium stroke weight;
 - a light blue `#f1f9ff` rounded tile with a subtle `#d8eaff` border;
 - one restrained `#1570ef` accent dot;
-- 44px rendered size, supplied as optimized 88px PNGs for 2× displays.
+- 56px rendered size on desktop and 48px on narrow mobile, supplied as
+  optimized 88px PNGs.
 
 The editable source references live in
 `docs/branding/assets/email-icons/`. Delivered emails must use the optimized
@@ -70,7 +71,7 @@ rx=22` tile filling the 88px canvas, an inner `rx=9` rounded frame on the same
 and the `#1570ef` accent dot at `(68,20) r=7`. An illustration that merely
 depicts the right subject is not a match. Author the icon as an SVG in
 `docs/branding/assets/email-icons/`, export the 88px PNG from it, then compare
-against the shipped set at both 88px and the rendered 44px size; reject it if
+against the shipped set at 88px and the rendered 56px/48px sizes; reject it if
 the tile, stroke weight, or content scale differs. The current set is
 `welcome-profile`, `welcome-contact`, `welcome-preview`, and `welcome-ready`.
 
@@ -102,7 +103,7 @@ Approved production mascot assets live alongside the icons in
 
 | Asset | File | Rendered | Supplied |
 | --- | --- | --- | --- |
-| Welcome hero | `linko-hero.png` | 234×234 | 440×440 |
+| Welcome hero | `linko-hero.png` | 258×258 desktop; 210px wide mobile | 440×440 |
 | Support illustration | `linko-support-sit.png` | 72×72 desktop; hidden at 620px and below | 240×240 |
 | Completion illustration | `linko-celebrate.png` | 120×120 | 240×240 |
 
@@ -110,6 +111,31 @@ The support illustration is hidden below 620px through the shared
 `email-support-mascot` class, because a mascot column and an unbroken
 `support@mypetlink.com.my` cannot both fit at 320px. When the `<style>` block is
 stripped the block degrades to the readable two-column layout.
+
+## Welcome decorative assets
+
+The illustrated Welcome hero may use these small, optional decorations:
+
+| Asset | Production PNG | Editable master | Typical rendered size |
+| --- | --- | --- | --- |
+| Pale paw | `welcome-paw-decoration.png` | `welcome-paw-decoration.svg` | 38px hero / 20px CTA |
+| Sparkles | `welcome-sparkles.png` | `welcome-sparkles.svg` | 42px |
+| Yellow accent marks | `welcome-wave-accent.png` | `welcome-wave-accent.svg` | 34px |
+
+Production PNGs live in `apps/web/public/email-assets/`. Editable SVG masters
+live in `docs/branding/assets/email-decorations/` and are never referenced by
+delivered email HTML. Decorations use the existing navy, blue, pale-blue, and
+yellow brand accents with simple rounded shapes. They must have `alt=""`,
+`role="presentation"`, explicit dimensions, and no semantic role. Hide them on
+narrow mobile where they compete with text.
+
+Decorations are optional when images are blocked and must never reserve space
+that interrupts reading order. Serve them from the configured public HTTPS
+asset base; do not use Base64 data, signed/expiring URLs, CSS backgrounds, or
+local filesystem paths. Before enabling a new production asset, verify a `200`
+response from its final public URL. Keep individual decorative PNGs below 5KB
+where practical and review the unique remote-image payload for the complete
+template.
 
 ## Layout rules
 
@@ -121,9 +147,18 @@ stripped the block degrades to the readable two-column layout.
   “A safe and shareable profile for your pet.” Its alt text is `MyPetLink`.
 - Keep one prominent brand-blue primary CTA.
 - Use blue information cards with the shared border and an 18px corner radius.
-- In numbered onboarding rows, keep the number badge, 44px icon, title, and
-  description aligned horizontally. Separate rows with a subtle border; never
-  stack the number underneath the icon.
+- In numbered onboarding rows, keep the number badge, 56px desktop/48px mobile
+  icon, title, and description aligned horizontally. Separate rows with a
+  subtle border; never stack the number underneath the icon.
+- Welcome emails may use the approved two-column Linko hero: personalized
+  heading, introduction, and real speech copy on the left with the mascot on
+  the right at desktop widths. Stack into one readable column on mobile. Keep
+  the hero on the light-blue brand surface and do not make decorative symbols
+  carry meaning.
+- Place welcome onboarding rows on a white inner card within the light-blue
+  section so the steps remain easy to scan without introducing a new palette.
+- The Welcome CTA may use the wide button treatment on desktop and must expand
+  to the available content width on narrow mobile.
 - Keep supporting information below the primary content hierarchy.
 - Use the shared support block and cream footer on every template.
 - Footer copy must explain why the transactional message was sent.
@@ -177,7 +212,7 @@ stripped the block degrades to the readable two-column layout.
 - header and official logo;
 - title and optional eyebrow;
 - paragraphs and information cards;
-- the onboarding mascot hero and the optional support mascot;
+- the cohesive illustrated Welcome hero and optional support mascot;
 - numbered steps;
 - detail rows and status badges;
 - primary CTA;

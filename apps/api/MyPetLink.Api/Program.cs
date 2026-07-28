@@ -542,6 +542,9 @@ if (app.Environment.IsDevelopment())
         "welcome-contact.png",
         "welcome-preview.png",
         "welcome-ready.png",
+        "welcome-paw-decoration.png",
+        "welcome-sparkles.png",
+        "welcome-wave-accent.png",
         "linko-hero.png",
         "linko-support-sit.png"
     };

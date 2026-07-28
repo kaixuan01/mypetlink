@@ -44,13 +44,16 @@ public sealed class TransactionalEmailDesignTests
         var welcome = previews.Render("welcome", "normal");
         var payment = previews.Render("payment-confirmed", "normal");
 
+        Assert.Contains("width=\"88%\"", welcome.HtmlBody);
+        Assert.DoesNotContain("width=\"88%\"", payment.HtmlBody);
+
         foreach (var rendered in new[] { welcome, payment })
         {
             Assert.Contains("https://mypetlink.com.my/logo-horizontal.png", rendered.HtmlBody);
             Assert.Contains("alt=\"MyPetLink\"", rendered.HtmlBody);
             Assert.Contains("background-color:#1570ef", rendered.HtmlBody);
             Assert.Contains(
-                "Need a hand?",
+                "Need help?",
                 rendered.HtmlBody);
             Assert.Contains("We’re here to help at", rendered.HtmlBody);
             Assert.Contains(
@@ -72,12 +75,16 @@ public sealed class TransactionalEmailDesignTests
         Assert.Contains("alt=\"Pet profile\"", preview.HtmlBody);
         Assert.Contains("alt=\"Contact details\"", preview.HtmlBody);
         Assert.Contains("alt=\"Preview public profile\"", preview.HtmlBody);
-        Assert.Contains("Welcome to MyPetLink!", preview.HtmlBody);
-        Assert.Contains("Hi Aina,", preview.HtmlBody);
+        Assert.Contains("Welcome to MyPetLink, Aina!", preview.HtmlBody);
         Assert.Contains("Create your pet&#x2019;s profile", preview.HtmlBody);
         Assert.Contains("Add your contact details", preview.HtmlBody);
         Assert.Contains("Preview your public profile", preview.HtmlBody);
-        Assert.Contains("Complete and share your profile", preview.HtmlBody);
+        Assert.Contains("You&#x2019;re almost there!", preview.HtmlBody);
+        Assert.Contains(
+            "Complete your profile and you&#x2019;re ready to share it.",
+            preview.HtmlBody);
+        Assert.Contains("Just a few simple steps", preview.HtmlBody);
+        Assert.Contains("Just a few simple steps", preview.TextBody);
         Assert.Contains("alt=\"Ready to share\"", preview.HtmlBody);
         Assert.Contains(">1</div>", preview.HtmlBody);
         Assert.Contains(">2</div>", preview.HtmlBody);
@@ -91,7 +98,7 @@ public sealed class TransactionalEmailDesignTests
             "Let&#x2019;s set up your pet&#x2019;s profile in a few simple steps.",
             preview.HtmlBody);
         Assert.Contains("Create My Pet Profile", preview.HtmlBody);
-        Assert.Contains("Need a hand?", preview.HtmlBody);
+        Assert.Contains("Need help?", preview.HtmlBody);
     }
 
     [Fact]
@@ -103,6 +110,43 @@ public sealed class TransactionalEmailDesignTests
 
         Assert.Contains("linko-hero.png", welcome.HtmlBody);
         Assert.DoesNotContain("linko", payment.HtmlBody, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void WelcomeRemoteAssets_AreOptimizedPngsWithinThePayloadBudget()
+    {
+        var webPublic = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..",
+            "web", "public"));
+        string[] relativeFiles =
+        [
+            "logo-horizontal.png",
+            "email-assets/linko-hero.png",
+            "email-assets/linko-support-sit.png",
+            "email-assets/welcome-profile.png",
+            "email-assets/welcome-contact.png",
+            "email-assets/welcome-preview.png",
+            "email-assets/welcome-ready.png",
+            "email-assets/welcome-paw-decoration.png",
+            "email-assets/welcome-sparkles.png",
+            "email-assets/welcome-wave-accent.png"
+        ];
+
+        long payloadBytes = 0;
+        foreach (var relativeFile in relativeFiles)
+        {
+            var path = Path.Combine(webPublic, relativeFile);
+            Assert.True(File.Exists(path), $"Missing email asset: {relativeFile}");
+            var signature = File.ReadAllBytes(path).Take(8).ToArray();
+            Assert.Equal(
+                new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 },
+                signature);
+            payloadBytes += new FileInfo(path).Length;
+        }
+
+        Assert.Equal(115_542, payloadBytes);
+        Assert.True(payloadBytes < 120_000);
     }
 
     [Fact]

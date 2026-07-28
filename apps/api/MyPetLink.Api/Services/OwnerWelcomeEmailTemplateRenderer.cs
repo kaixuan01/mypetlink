@@ -43,10 +43,9 @@ public sealed class OwnerWelcomeEmailTemplateRenderer
         }
 
         var ownerDisplayName = data.OwnerName.Trim();
-        var greeting = string.IsNullOrWhiteSpace(ownerDisplayName)
-            ? "Hi there,"
-            : $"Hi {ownerDisplayName},";
-        const string title = "Welcome to MyPetLink!";
+        var title = string.IsNullOrWhiteSpace(ownerDisplayName)
+            ? "Welcome to MyPetLink!"
+            : $"Welcome to MyPetLink, {ownerDisplayName}!";
         const string introduction =
             "We’re happy to have you here. Create a shareable profile for your pet, keep important details together, and help people contact you if your pet is found.";
         const string heroHeading = "Hi, I’m Linko!";
@@ -72,28 +71,31 @@ public sealed class OwnerWelcomeEmailTemplateRenderer
             new TransactionalEmailStep(
                 "welcome-ready.png",
                 "Ready to share",
-                "Complete and share your profile",
-                "Finish your setup and share it when you’re ready.")
+                "You’re almost there!",
+                "Complete your profile and you’re ready to share it.")
         ];
 
         var bodyHtml = new StringBuilder()
-            .Append(_layout.Paragraph(greeting))
-            .Append(_layout.Paragraph(introduction))
-            .Append(_layout.MascotHero(
-                new TransactionalEmailMascot("linko-hero.png", "Linko waving hello", 234),
+            .Append(_layout.WelcomeHero(
+                title,
+                introduction,
+                new TransactionalEmailMascot("linko-hero.png", "Linko waving hello", 258),
                 heroHeading,
                 heroMessage))
-            .Append(_layout.InformationCard("Getting started", _layout.NumberedSteps(steps)))
+            .Append(_layout.OnboardingCard(
+                "Just a few simple steps",
+                "Set up the essentials now, then update your pet’s profile anytime.",
+                _layout.NumberedSteps(steps)))
             .ToString();
         var textBody = new StringBuilder()
-            .AppendLine(greeting)
-            .AppendLine()
             .AppendLine(introduction)
             .AppendLine()
             .AppendLine(heroHeading)
             .AppendLine(heroMessage)
             .AppendLine()
-            .AppendLine("Getting started")
+            .AppendLine("Just a few simple steps")
+            .AppendLine("Set up the essentials now, then update your pet’s profile anytime.")
+            .AppendLine()
             .AppendLine("1. Create your pet’s profile")
             .AppendLine("Add your pet’s name, photo, and basic information.")
             .AppendLine()
@@ -103,21 +105,25 @@ public sealed class OwnerWelcomeEmailTemplateRenderer
             .AppendLine("3. Preview your public profile")
             .AppendLine("See how your pet’s profile will appear to others.")
             .AppendLine()
-            .AppendLine("4. Complete and share your profile")
-            .Append("Finish your setup and share it when you’re ready.")
+            .AppendLine("4. You’re almost there!")
+            .Append("Complete your profile and you’re ready to share it.")
             .ToString();
 
         return _layout.Render(new TransactionalEmailContent(
             message.Subject,
             "Welcome to MyPetLink. Create your pet’s profile and keep important information together.",
-            Eyebrow: "Owner Portal",
+            Eyebrow: null,
             title,
             bodyHtml,
             textBody,
             new TransactionalEmailAction(
                 "Create My Pet Profile",
-                portalUri.AbsoluteUri),
+                portalUri.AbsoluteUri,
+                Wide: true,
+                IconFileName: "welcome-paw-decoration.png",
+                SupportingText: "Let’s get started!"),
             "You received this email after signing in to MyPetLink for the first time.",
-            new TransactionalEmailMascot("linko-support-sit.png", "Linko ready to help", 72)));
+            new TransactionalEmailMascot("linko-support-sit.png", "Linko ready to help", 72),
+            BodyOwnsTitle: true));
     }
 }

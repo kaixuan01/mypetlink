@@ -7,7 +7,10 @@ namespace MyPetLink.Api.Services;
 
 public sealed record TransactionalEmailAction(
     string Label,
-    string Url);
+    string Url,
+    bool Wide = false,
+    string? IconFileName = null,
+    string? SupportingText = null);
 
 public sealed record TransactionalEmailContent(
     string Subject,
@@ -18,7 +21,8 @@ public sealed record TransactionalEmailContent(
     string TextBody,
     TransactionalEmailAction? PrimaryAction,
     string TransactionReason,
-    TransactionalEmailMascot? SupportMascot = null);
+    TransactionalEmailMascot? SupportMascot = null,
+    bool BodyOwnsTitle = false);
 
 /// <summary>
 /// Approved Linko illustration. Mascots are supporting visuals only: the
@@ -78,6 +82,12 @@ public sealed class TransactionalEmailLayout
                  {Encoder.Encode(content.Eyebrow)}
                </div>
                """;
+        var heading = content.BodyOwnsTitle
+            ? ""
+            : $"""
+               {eyebrow}
+               <h1 class="email-title" style="margin:0 0 18px;font-size:29px;line-height:1.25;font-weight:800;letter-spacing:-.01em;color:{Ink};overflow-wrap:anywhere;word-break:break-word">{Encoder.Encode(content.Title)}</h1>
+               """;
         var actionHtml = action is null ? "" : PrimaryAction(action);
 
         var html = $$"""
@@ -100,8 +110,18 @@ public sealed class TransactionalEmailLayout
                     .email-action { width: 100% !important; }
                     .email-action td { width: 100% !important; }
                     .email-action a { display: block !important; padding: 15px 18px !important; }
+                    .email-hero-copy, .email-hero-mascot { display: block !important; width: 100% !important; box-sizing: border-box !important; text-align: center !important; }
+                    .email-hero-copy { padding: 18px 16px 6px !important; }
+                    .email-hero-mascot { padding: 0 16px 10px !important; }
+                    .email-hero-mascot-image { width: 210px !important; }
+                    .email-hero-decoration { display: none !important; }
                     .email-info-heading { padding-left: 16px !important; padding-right: 16px !important; }
-                    .email-info-body { padding-left: 16px !important; padding-right: 16px !important; }
+                    .email-info-body { padding-left: 10px !important; padding-right: 10px !important; }
+                    .email-step-card-body { padding-left: 8px !important; padding-right: 8px !important; }
+                    .email-step-icon { width: 48px !important; height: 48px !important; min-width: 48px !important; }
+                    .email-step-icon-cell { width: 54px !important; }
+                    .email-onboarding-copy { padding-left: 16px !important; padding-right: 16px !important; }
+                    .email-support-copy { padding: 16px !important; }
                     .email-detail-value { text-align: left !important; padding-top: 2px !important; }
                     .email-support-mascot { display: none !important; }
                   }
@@ -129,8 +149,7 @@ public sealed class TransactionalEmailLayout
                         </tr>
                         <tr>
                           <td class="email-content email-text" style="padding:34px 36px;background-color:{{White}};color:{{Ink}}">
-                            {{eyebrow}}
-                            <h1 class="email-title" style="margin:0 0 18px;font-size:29px;line-height:1.25;font-weight:800;letter-spacing:-.01em;color:{{Ink}};overflow-wrap:anywhere;word-break:break-word">{{Encoder.Encode(content.Title)}}</h1>
+                            {{heading}}
                             {{content.BodyHtml}}
                             {{actionHtml}}
                             {{Divider()}}
@@ -165,10 +184,14 @@ public sealed class TransactionalEmailLayout
             text.AppendLine()
                 .AppendLine($"{action.Label}:")
                 .AppendLine(action.Url);
+            if (!string.IsNullOrWhiteSpace(action.SupportingText))
+            {
+                text.AppendLine(action.SupportingText);
+            }
         }
 
         text.AppendLine()
-            .AppendLine("Need a hand?")
+            .AppendLine("Need help?")
             .AppendLine($"We’re here to help at {SupportEmail}.")
             .AppendLine()
             .AppendLine("MyPetLink · mypetlink.com.my")
@@ -186,30 +209,51 @@ public sealed class TransactionalEmailLayout
     }
 
     /// <summary>
-    /// Welcome and onboarding hero: one approved Linko illustration above a
-    /// spoken message. The message is real text, so the hero still reads
-    /// correctly when the illustration is blocked.
+    /// Welcome hero: heading, introduction, speech message, and the approved
+    /// Linko illustration share one table-based composition. Decorative images
+    /// are optional; all meaning remains available as real text.
     /// </summary>
-    public string MascotHero(
+    public string WelcomeHero(
+        string title,
+        string introduction,
         TransactionalEmailMascot mascot,
         string heading,
         string message)
     {
         var size = mascot.DisplaySize;
         return $"""
-            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;margin:8px 0 4px;border-collapse:collapse">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="{BlueSurface}" class="email-welcome-hero" style="width:100%;margin:0 0 4px;background-color:{BlueSurface};border:1px solid #d8eaff;border-radius:22px;border-collapse:separate;overflow:hidden">
               <tr>
-                <td align="center" style="padding:0 0 6px">
-                  <img src="{Encoder.Encode(EmailAssetUrl(mascot.ImageFileName))}" width="{size}" height="{size}" alt="{Encoder.Encode(mascot.ImageAltText)}" style="display:block;width:{size}px;max-width:100%;height:auto;margin:0 auto;border:0;outline:none;text-decoration:none;color:{Ink};font-size:13px;line-height:1.4">
-                </td>
-              </tr>
-              <tr>
-                <td align="center" style="padding:0">
-                  <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="border-collapse:separate">
+                <td width="55%" valign="middle" class="email-hero-copy" style="width:55%;padding:26px 6px 24px 24px;text-align:left">
+                  <h1 class="email-title" style="margin:0 0 12px;font-size:29px;line-height:1.22;font-weight:800;letter-spacing:-.01em;color:{Ink};overflow-wrap:anywhere;word-break:break-word">{Encoder.Encode(title)}</h1>
+                  <p class="email-text" style="margin:0 0 18px;font-size:15px;line-height:1.6;color:{Ink};overflow-wrap:anywhere;word-break:break-word">{Encoder.Encode(introduction)}</p>
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="{White}" style="width:100%;background-color:{White};border:1px solid #d8eaff;border-radius:18px;border-collapse:separate">
                     <tr>
-                      <td class="email-text" style="padding:14px 20px;background-color:{BlueSurface};border:1px solid #d8eaff;border-radius:18px;font-size:16px;line-height:1.55;color:{Ink};text-align:center">
-                        <div style="font-weight:800">{Encoder.Encode(heading)}</div>
-                        <div style="margin-top:2px">{Encoder.Encode(message)}</div>
+                      <td class="email-text" style="padding:17px 18px;font-size:16px;line-height:1.55;color:{Ink};text-align:left">
+                        <div style="font-size:18px;font-weight:800">{Encoder.Encode(heading)} <span style="color:{Coral}">&hearts;</span></div>
+                        <div style="margin-top:5px">{Encoder.Encode(message)}</div>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+                <td width="45%" valign="bottom" align="center" class="email-hero-mascot" style="width:45%;padding:8px 12px 0 2px">
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;border-collapse:collapse">
+                    <tr>
+                      <td align="left" valign="top" style="padding:0 0 0 4px">
+                        <img class="email-hero-decoration" src="{Encoder.Encode(EmailAssetUrl("welcome-sparkles.png"))}" width="42" height="42" alt="" role="presentation" style="display:block;width:42px;height:42px;border:0;outline:none;text-decoration:none">
+                      </td>
+                      <td align="right" valign="top" style="padding:4px 4px 0 0">
+                        <img class="email-hero-decoration" src="{Encoder.Encode(EmailAssetUrl("welcome-wave-accent.png"))}" width="34" height="34" alt="" role="presentation" style="display:block;width:34px;height:34px;border:0;outline:none;text-decoration:none">
+                      </td>
+                    </tr>
+                    <tr>
+                      <td colspan="2" align="center" valign="bottom" style="padding:0">
+                        <img class="email-hero-mascot-image" src="{Encoder.Encode(EmailAssetUrl(mascot.ImageFileName))}" width="{size}" height="{size}" alt="{Encoder.Encode(mascot.ImageAltText)}" style="display:block;width:{size}px;max-width:100%;height:auto;margin:0 auto;border:0;outline:none;text-decoration:none;color:{Ink};font-size:13px;line-height:1.4">
+                      </td>
+                    </tr>
+                    <tr>
+                      <td colspan="2" align="right" style="padding:0 10px 8px 0">
+                        <img class="email-hero-decoration" src="{Encoder.Encode(EmailAssetUrl("welcome-paw-decoration.png"))}" width="38" height="38" alt="" role="presentation" style="display:block;width:38px;height:38px;margin-left:auto;border:0;outline:none;text-decoration:none">
                       </td>
                     </tr>
                   </table>
@@ -218,6 +262,30 @@ public sealed class TransactionalEmailLayout
             </table>
             """;
     }
+
+    public string OnboardingCard(
+        string heading,
+        string supportingText,
+        string contentHtml) =>
+        $"""
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="{BlueSurface}" style="width:100%;margin:24px 0;background-color:{BlueSurface};border:1px solid #d8eaff;border-radius:22px;border-collapse:separate">
+          <tr>
+            <td align="center" class="email-onboarding-copy" style="padding:22px 20px 6px">
+              <div style="font-size:19px;line-height:1.4;font-weight:800;color:{Ink}"><span style="color:{Coral}">&bull;</span>&nbsp; {Encoder.Encode(heading)} &nbsp;<span style="color:{Coral}">&bull;</span></div>
+              <div class="email-muted" style="margin-top:5px;font-size:14px;line-height:1.55;color:{Muted}">{Encoder.Encode(supportingText)}</div>
+            </td>
+          </tr>
+          <tr>
+            <td class="email-info-body" style="padding:12px 18px 18px">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="{White}" style="width:100%;background-color:{White};border:1px solid #d8eaff;border-radius:16px;border-collapse:separate">
+                <tr>
+                  <td class="email-step-card-body" style="padding:4px 16px">{contentHtml}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+        """;
 
     public string InformationCard(string heading, string contentHtml) =>
         $"""
@@ -243,11 +311,11 @@ public sealed class TransactionalEmailLayout
                 : "border-bottom:1px solid #d8eaff;";
             rows.Append($"""
                 <tr>
-                  <td width="32" valign="middle" align="left" style="width:32px;padding:12px 8px 12px 0;{separator}">
+                  <td width="28" valign="middle" align="left" style="width:28px;padding:12px 4px 12px 0;{separator}">
                     <div style="width:24px;height:24px;line-height:24px;text-align:center;border-radius:50%;background-color:{Blue};color:{White};font-size:12px;font-weight:800">{index + 1}</div>
                   </td>
-                  <td width="54" valign="middle" align="left" style="width:54px;padding:10px 10px 10px 0;{separator}">
-                    <img src="{Encoder.Encode(iconUrl)}" width="44" height="44" alt="{Encoder.Encode(step.IconAltText)}" style="display:block;width:44px;height:44px;min-width:44px;border:0;outline:none;text-decoration:none;color:{Ink};font-size:9px;line-height:1.2">
+                  <td width="62" valign="middle" align="left" class="email-step-icon-cell" style="width:62px;padding:10px 6px 10px 0;{separator}">
+                    <img class="email-step-icon" src="{Encoder.Encode(iconUrl)}" width="56" height="56" alt="{Encoder.Encode(step.IconAltText)}" style="display:block;width:56px;height:56px;min-width:56px;border:0;outline:none;text-decoration:none;color:{Ink};font-size:9px;line-height:1.2">
                   </td>
                   <td valign="middle" style="padding:12px 0;{separator}font-size:15px;line-height:1.55;color:{Ink};overflow-wrap:anywhere;word-break:break-word">
                     <div style="font-weight:800">{Encoder.Encode(step.Title)}</div>
@@ -333,21 +401,34 @@ public sealed class TransactionalEmailLayout
             """;
     }
 
-    private static string PrimaryAction(TransactionalEmailAction action) =>
-        $"""
-        <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" class="email-action" style="margin:28px auto 4px;border-collapse:separate">
+    private string PrimaryAction(TransactionalEmailAction action)
+    {
+        var widthAttribute = action.Wide ? """ width="88%" """ : "";
+        var widthStyle = action.Wide ? "width:88%;" : "";
+        var iconHtml = string.IsNullOrWhiteSpace(action.IconFileName)
+            ? ""
+            : $"""<img src="{Encoder.Encode(EmailAssetUrl(action.IconFileName))}" width="20" height="20" alt="" role="presentation" style="display:inline-block;width:20px;height:20px;margin:0 8px -4px 0;border:0;outline:none;text-decoration:none">""";
+        var supportingText = string.IsNullOrWhiteSpace(action.SupportingText)
+            ? ""
+            : $"""
+               <div class="email-muted" style="margin:9px 0 0;text-align:center;font-size:14px;line-height:1.5;font-style:italic;color:{Muted}">{Encoder.Encode(action.SupportingText)}</div>
+               """;
+        return $"""
+        <table role="presentation"{widthAttribute} cellspacing="0" cellpadding="0" border="0" align="center" class="email-action" style="{widthStyle}margin:28px auto 4px;border-collapse:separate">
           <tr>
             <td align="center" bgcolor="{Blue}" style="background-color:{Blue};border:1px solid {Blue};border-radius:999px">
-              <a href="{Encoder.Encode(action.Url)}" style="display:inline-block;padding:15px 28px;font-size:16px;line-height:1.2;font-weight:800;color:{White};text-decoration:none;border-radius:999px">{Encoder.Encode(action.Label)}</a>
+              <a href="{Encoder.Encode(action.Url)}" style="display:inline-block;padding:15px 28px;font-size:16px;line-height:1.2;font-weight:800;color:{White};text-decoration:none;border-radius:999px">{iconHtml}{Encoder.Encode(action.Label)}</a>
             </td>
           </tr>
         </table>
+        {supportingText}
         """;
+    }
 
     private string SupportBlock(TransactionalEmailMascot? mascot)
     {
         const string text = $"""
-            <div class="email-text" style="margin:0;font-size:16px;line-height:1.5;font-weight:800;color:{Ink}">Need a hand?</div>
+            <div class="email-text" style="margin:0;font-size:16px;line-height:1.5;font-weight:800;color:{Ink}">Need help? <span style="color:{Coral}">&hearts;</span></div>
             <div class="email-muted" style="margin-top:3px;font-size:15px;line-height:1.65;color:{Muted};overflow-wrap:anywhere">
               We’re here to help at <a href="mailto:{SupportEmail}" style="font-weight:700;color:{Blue};text-decoration:underline">{SupportEmail}</a>.
             </div>
@@ -360,12 +441,12 @@ public sealed class TransactionalEmailLayout
 
         var size = mascot.DisplaySize;
         return $"""
-            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;border-collapse:collapse">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="{Cream}" style="width:100%;background-color:{Cream};border:1px solid {Border};border-radius:18px;border-collapse:separate">
               <tr>
-                <td width="{size + 14}" valign="middle" class="email-support-mascot" style="width:{size + 14}px;padding:0 14px 0 0">
+                <td width="{size + 30}" valign="bottom" align="center" class="email-support-mascot" style="width:{size + 30}px;padding:10px 8px 0 14px">
                   <img src="{Encoder.Encode(EmailAssetUrl(mascot.ImageFileName))}" width="{size}" height="{size}" alt="{Encoder.Encode(mascot.ImageAltText)}" style="display:block;width:{size}px;max-width:100%;height:auto;border:0;outline:none;text-decoration:none;color:{Ink};font-size:12px;line-height:1.4">
                 </td>
-                <td valign="middle">{text}</td>
+                <td valign="middle" class="email-support-copy" style="padding:15px 16px 15px 4px">{text}</td>
               </tr>
             </table>
             """;
