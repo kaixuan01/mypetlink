@@ -6,6 +6,18 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev:web"],
       "port": 3000
+    },
+    {
+      "name": "mypetlink-api-dev",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": [
+        "run",
+        "--project",
+        "apps/api/MyPetLink.Api/MyPetLink.Api.csproj",
+        "--launch-profile",
+        "http"
+      ],
+      "port": 5281
     }
   ]
 }

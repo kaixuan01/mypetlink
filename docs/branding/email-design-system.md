@@ -64,6 +64,53 @@ are blocked. Icons are optional visual reinforcement, never the only label for
 an action or status. Do not use emoji, Base64 images, signed URLs, expiring
 URLs, mixed illustration styles, or large packaging artwork.
 
+New step icons must match the shipped set before they ship: the `x=5 y=5 78×78
+rx=22` tile filling the 88px canvas, an inner `rx=9` rounded frame on the same
+`y=20 height=48` baseline, `#0d1b3d` strokes at 3.5 with round caps and joins,
+and the `#1570ef` accent dot at `(68,20) r=7`. An illustration that merely
+depicts the right subject is not a match. Author the icon as an SVG in
+`docs/branding/assets/email-icons/`, export the 88px PNG from it, then compare
+against the shipped set at both 88px and the rendered 44px size; reject it if
+the tile, stroke weight, or content scale differs. The current set is
+`welcome-profile`, `welcome-contact`, `welcome-preview`, and `welcome-ready`.
+
+## Approved mascot exception
+
+Linko may appear in Welcome and onboarding emails only:
+
+- **one** mascot hero illustration in the hero area, placed after the heading
+  and introductory copy and before the onboarding steps;
+- optionally **one** small Linko support or completion illustration, only where
+  the layout stays clean at 320px;
+- numbered onboarding steps keep the flat outline/tile icon language above —
+  never a mascot, and never a second illustration style in the same template.
+
+Mascots are supporting visuals and must never be required for understanding.
+The adjacent real text carries the full message, so an image-blocked or
+plain-text reader loses nothing. Hero illustrations keep both `width` and
+`height` attributes so Outlook cannot render them at their natural size; the
+reserved space when images are blocked is an accepted trade-off.
+
+Every other transactional template — payment, receipt, OTP, authentication, and
+security — continues to use the restrained shared layout with no mascot
+artwork. Full reference screenshots must never be used as email content, and
+screenshot crops must never be used as production assets.
+
+Approved production mascot assets live alongside the icons in
+`apps/web/public/email-assets/`; editable masters live in
+`docs/branding/assets/mascots/`.
+
+| Asset | File | Rendered | Supplied |
+| --- | --- | --- | --- |
+| Welcome hero | `linko-hero.png` | 180×180 | 440×440 |
+| Support illustration | `linko-support-sit.png` | 64×64 | 240×240 |
+| Completion illustration | `linko-celebrate.png` | 120×120 | 240×240 |
+
+The support illustration is hidden below 620px through the shared
+`email-support-mascot` class, because a mascot column and an unbroken
+`support@mypetlink.com.my` cannot both fit at 320px. When the `<style>` block is
+stripped the block degrades to the readable two-column layout.
+
 ## Layout rules
 
 - Use a full-width cream outer table and a centred white content table.
@@ -127,6 +174,7 @@ URLs, mixed illustration styles, or large packaging artwork.
 - header and official logo;
 - title and optional eyebrow;
 - paragraphs and information cards;
+- the onboarding mascot hero and the optional support mascot;
 - numbered steps;
 - detail rows and status badges;
 - primary CTA;
@@ -177,5 +225,6 @@ Every new or changed email must verify:
 - no private/internal data, secret, tracking pixel, or external font is present;
 - disabled or unreleased features are not promoted;
 - structural/content tests and local previews cover representative variants;
+- any mascot follows the approved exception above and is not load-bearing;
 - Gmail, Outlook, and Apple Mail receive real-client checks before claiming
   complete client compatibility.

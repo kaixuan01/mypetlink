@@ -48,6 +48,8 @@ public sealed class OwnerWelcomeEmailTemplateRenderer
             : $"Welcome to MyPetLink, {ownerFirstName}!";
         const string introduction =
             "We’re happy to have you here. Create your pet’s public profile, keep important information together, and make it easier for someone to contact you if your pet is ever found.";
+        const string heroMessage =
+            "Hi! I’m Linko. Let’s get your pet profile set up in just a few simple steps.";
         TransactionalEmailStep[] steps =
         [
             new TransactionalEmailStep(
@@ -58,31 +60,44 @@ public sealed class OwnerWelcomeEmailTemplateRenderer
             new TransactionalEmailStep(
                 "welcome-contact.png",
                 "Contact details",
-                "Update your contact details",
+                "Add your contact details",
                 "Make sure someone can reach you if your pet is found."),
             new TransactionalEmailStep(
                 "welcome-preview.png",
                 "Preview public profile",
-                "Preview the public profile",
-                "Review what other people will see when you share the profile.")
+                "Preview your public profile",
+                "See how your pet’s profile will appear to others."),
+            new TransactionalEmailStep(
+                "welcome-ready.png",
+                "Ready to share",
+                "You’re almost there!",
+                "Complete your profile and you’re ready to share it.")
         ];
 
         var bodyHtml = new StringBuilder()
             .Append(_layout.Paragraph(introduction))
+            .Append(_layout.MascotHero(
+                new TransactionalEmailMascot("linko-hero.png", "Linko", 180),
+                heroMessage))
             .Append(_layout.InformationCard("Getting started", _layout.NumberedSteps(steps)))
             .ToString();
         var textBody = new StringBuilder()
             .AppendLine(introduction)
             .AppendLine()
+            .AppendLine(heroMessage)
+            .AppendLine()
             .AppendLine("Getting started")
             .AppendLine("1. Create your pet’s profile")
             .AppendLine("Add your pet’s name, photo, and basic information.")
             .AppendLine()
-            .AppendLine("2. Update your contact details")
+            .AppendLine("2. Add your contact details")
             .AppendLine("Make sure someone can reach you if your pet is found.")
             .AppendLine()
-            .AppendLine("3. Preview the public profile")
-            .Append("Review what other people will see when you share the profile.")
+            .AppendLine("3. Preview your public profile")
+            .AppendLine("See how your pet’s profile will appear to others.")
+            .AppendLine()
+            .AppendLine("4. You’re almost there!")
+            .Append("Complete your profile and you’re ready to share it.")
             .ToString();
 
         return _layout.Render(new TransactionalEmailContent(
@@ -93,8 +108,9 @@ public sealed class OwnerWelcomeEmailTemplateRenderer
             bodyHtml,
             textBody,
             new TransactionalEmailAction(
-                "Create Your Pet Profile",
+                "Create My Pet Profile",
                 portalUri.AbsoluteUri),
-            "You received this email after signing in to MyPetLink for the first time."));
+            "You received this email after signing in to MyPetLink for the first time.",
+            new TransactionalEmailMascot("linko-support-sit.png", "Linko", 64)));
     }
 }

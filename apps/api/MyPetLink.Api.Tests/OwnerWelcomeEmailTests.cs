@@ -281,14 +281,14 @@ public sealed class OwnerWelcomeEmailTests
         Assert.Contains("border:1px solid #f0dcd0", rendered.HtmlBody);
         Assert.Contains("&lt;script&gt;", rendered.HtmlBody);
         Assert.DoesNotContain("<script>", rendered.HtmlBody);
-        Assert.Contains("Create Your Pet Profile", rendered.HtmlBody);
-        Assert.Contains("Create Your Pet Profile", rendered.TextBody);
+        Assert.Contains("Create My Pet Profile", rendered.HtmlBody);
+        Assert.Contains("Create My Pet Profile", rendered.TextBody);
         Assert.Contains("https://mypetlink.com.my/pets/new", rendered.HtmlBody);
         Assert.Contains("https://mypetlink.com.my/pets/new", rendered.TextBody);
         Assert.Contains("Create your pet&#x2019;s profile", rendered.HtmlBody);
         Assert.Contains("Create your pet’s profile", rendered.TextBody);
-        Assert.Contains("Update your contact details", rendered.HtmlBody);
-        Assert.Contains("Preview the public profile", rendered.HtmlBody);
+        Assert.Contains("Add your contact details", rendered.HtmlBody);
+        Assert.Contains("Preview your public profile", rendered.HtmlBody);
         Assert.Contains(
             "https://mypetlink.com.my/email-assets/welcome-profile.png",
             rendered.HtmlBody);
@@ -348,9 +348,85 @@ public sealed class OwnerWelcomeEmailTests
         Assert.DoesNotContain("alt=\"MyPetLink\"", rendered.HtmlBody);
         Assert.Contains(TransactionalEmailLayout.Tagline, rendered.HtmlBody);
         Assert.Contains("alt=\"Pet profile\"", rendered.HtmlBody);
-        Assert.Contains("Create Your Pet Profile", rendered.HtmlBody);
+        Assert.Contains("Create My Pet Profile", rendered.HtmlBody);
         Assert.DoesNotContain("QR or NFC", rendered.HtmlBody);
         Assert.DoesNotContain("Smart Tag", rendered.HtmlBody);
+    }
+
+    [Fact]
+    public async Task Template_UsesLinkoHeroAndKeepsMeaningInRealText()
+    {
+        using var harness = await Harness.CreateAsync();
+        var rendered = harness.WelcomeRenderer.Render(Message(
+            new OwnerWelcomeEmailTemplateData(
+                "Aina",
+                "https://mypetlink.com.my/pets/new",
+                harness.Clock.GetUtcNow(),
+                SmartTagsEnabled: false)));
+
+        Assert.Contains(
+            "https://mypetlink.com.my/email-assets/linko-hero.png",
+            rendered.HtmlBody);
+        Assert.Contains(
+            "https://mypetlink.com.my/email-assets/linko-support-sit.png",
+            rendered.HtmlBody);
+        Assert.Contains("alt=\"Linko\"", rendered.HtmlBody);
+        Assert.Contains("width=\"180\" height=\"180\"", rendered.HtmlBody);
+        Assert.Contains(
+            "Hi! I&#x2019;m Linko. Let&#x2019;s get your pet profile set up in just a few simple steps.",
+            rendered.HtmlBody);
+        Assert.Contains(
+            "Hi! I’m Linko. Let’s get your pet profile set up in just a few simple steps.",
+            rendered.TextBody);
+        Assert.Contains("See how your pet’s profile will appear to others.", rendered.TextBody);
+        Assert.Contains("Create My Pet Profile", rendered.TextBody);
+    }
+
+    [Fact]
+    public async Task Template_IncludesTheFourthStepWithAMatchingFlatIcon()
+    {
+        using var harness = await Harness.CreateAsync();
+        var rendered = harness.WelcomeRenderer.Render(Message(
+            new OwnerWelcomeEmailTemplateData(
+                "Aina",
+                "https://mypetlink.com.my/pets/new",
+                harness.Clock.GetUtcNow(),
+                SmartTagsEnabled: false)));
+
+        Assert.Contains(
+            "https://mypetlink.com.my/email-assets/welcome-ready.png",
+            rendered.HtmlBody);
+        Assert.Contains("alt=\"Ready to share\"", rendered.HtmlBody);
+        Assert.Contains("You&#x2019;re almost there!", rendered.HtmlBody);
+        Assert.Contains(
+            "Complete your profile and you&#x2019;re ready to share it.",
+            rendered.HtmlBody);
+        Assert.Contains(">4</div>", rendered.HtmlBody);
+        Assert.Contains("4. You’re almost there!", rendered.TextBody);
+        Assert.Contains(
+            "Complete your profile and you’re ready to share it.",
+            rendered.TextBody);
+    }
+
+    [Fact]
+    public async Task Template_KeepsStepIconsFlatAndAvoidsOverpromisingCopy()
+    {
+        using var harness = await Harness.CreateAsync();
+        var rendered = harness.WelcomeRenderer.Render(Message(
+            new OwnerWelcomeEmailTemplateData(
+                "Aina",
+                "https://mypetlink.com.my/pets/new",
+                harness.Clock.GetUtcNow(),
+                SmartTagsEnabled: false)));
+
+        foreach (var body in new[] { rendered.HtmlBody, rendered.TextBody })
+        {
+            // The completion mascot must not sit inside the flat step list.
+            Assert.DoesNotContain("linko-celebrate.png", body);
+            Assert.DoesNotContain("under 2 minutes", body, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("ready to be reunited", body, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("now protected", body, StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     [Fact]
