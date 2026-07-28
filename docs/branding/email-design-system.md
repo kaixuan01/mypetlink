@@ -102,8 +102,8 @@ Approved production mascot assets live alongside the icons in
 
 | Asset | File | Rendered | Supplied |
 | --- | --- | --- | --- |
-| Welcome hero | `linko-hero.png` | 180×180 | 440×440 |
-| Support illustration | `linko-support-sit.png` | 64×64 | 240×240 |
+| Welcome hero | `linko-hero.png` | 234×234 | 440×440 |
+| Support illustration | `linko-support-sit.png` | 72×72 desktop; hidden at 620px and below | 240×240 |
 | Completion illustration | `linko-celebrate.png` | 120×120 | 240×240 |
 
 The support illustration is hidden below 620px through the shared
@@ -121,6 +121,9 @@ stripped the block degrades to the readable two-column layout.
   “A safe and shareable profile for your pet.” Its alt text is `MyPetLink`.
 - Keep one prominent brand-blue primary CTA.
 - Use blue information cards with the shared border and an 18px corner radius.
+- In numbered onboarding rows, keep the number badge, 44px icon, title, and
+  description aligned horizontally. Separate rows with a subtle border; never
+  stack the number underneath the icon.
 - Keep supporting information below the primary content hierarchy.
 - Use the shared support block and cream footer on every template.
 - Footer copy must explain why the transactional message was sent.
