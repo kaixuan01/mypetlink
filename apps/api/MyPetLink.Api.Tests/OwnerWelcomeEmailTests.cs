@@ -279,15 +279,25 @@ public sealed class OwnerWelcomeEmailTests
         Assert.Contains("background-color:#1570ef", rendered.HtmlBody);
         Assert.Contains("color:#0d1b3d", rendered.HtmlBody);
         Assert.Contains("border:1px solid #f0dcd0", rendered.HtmlBody);
+        Assert.Contains("Welcome to MyPetLink!", rendered.HtmlBody);
+        Assert.Contains("Hi &lt;script&gt;alert(&#x27;x&#x27;)&lt;/script&gt;,", rendered.HtmlBody);
         Assert.Contains("&lt;script&gt;", rendered.HtmlBody);
         Assert.DoesNotContain("<script>", rendered.HtmlBody);
         Assert.Contains("Create My Pet Profile", rendered.HtmlBody);
         Assert.Contains("Create My Pet Profile", rendered.TextBody);
+        Assert.Contains(".email-action { width: 100% !important; }", rendered.HtmlBody);
+        Assert.Contains("padding:15px 28px", rendered.HtmlBody);
         Assert.Contains("https://mypetlink.com.my/pets/new", rendered.HtmlBody);
         Assert.Contains("https://mypetlink.com.my/pets/new", rendered.TextBody);
+        Assert.Contains(
+            "We&#x2019;re happy to have you here. Create a shareable profile for your pet, keep important details together, and help people contact you if your pet is found.",
+            rendered.HtmlBody);
         Assert.Contains("Create your pet&#x2019;s profile", rendered.HtmlBody);
         Assert.Contains("Create your pet’s profile", rendered.TextBody);
         Assert.Contains("Add your contact details", rendered.HtmlBody);
+        Assert.Contains(
+            "Add the contact details you&#x2019;d like finders to use.",
+            rendered.HtmlBody);
         Assert.Contains("Preview your public profile", rendered.HtmlBody);
         Assert.Contains(
             "https://mypetlink.com.my/email-assets/welcome-profile.png",
@@ -304,9 +314,16 @@ public sealed class OwnerWelcomeEmailTests
         Assert.Contains(">1</div>", rendered.HtmlBody);
         Assert.Contains(">2</div>", rendered.HtmlBody);
         Assert.Contains(">3</div>", rendered.HtmlBody);
+        Assert.Contains("width=\"44\" height=\"44\"", rendered.HtmlBody);
+        Assert.Contains("border-bottom:1px solid #d8eaff", rendered.HtmlBody);
+        Assert.DoesNotContain("margin:6px auto 0", rendered.HtmlBody);
         Assert.Contains("https://mypetlink.com.my/logo-horizontal.png", rendered.HtmlBody);
         Assert.Contains("alt=\"MyPetLink\"", rendered.HtmlBody);
         Assert.Contains("support@mypetlink.com.my", rendered.HtmlBody);
+        Assert.Contains("Need a hand?", rendered.HtmlBody);
+        Assert.Contains(
+            "We’re here to help at",
+            rendered.HtmlBody);
         Assert.Contains(
             "You received this email after signing in to MyPetLink for the first time.",
             rendered.HtmlBody);
@@ -345,6 +362,8 @@ public sealed class OwnerWelcomeEmailTests
 
         Assert.Contains("Welcome to MyPetLink!", rendered.HtmlBody);
         Assert.Contains("Welcome to MyPetLink!", rendered.TextBody);
+        Assert.Contains("Hi there,", rendered.HtmlBody);
+        Assert.Contains("Hi there,", rendered.TextBody);
         Assert.DoesNotContain("alt=\"MyPetLink\"", rendered.HtmlBody);
         Assert.Contains(TransactionalEmailLayout.Tagline, rendered.HtmlBody);
         Assert.Contains("alt=\"Pet profile\"", rendered.HtmlBody);
@@ -370,13 +389,20 @@ public sealed class OwnerWelcomeEmailTests
         Assert.Contains(
             "https://mypetlink.com.my/email-assets/linko-support-sit.png",
             rendered.HtmlBody);
-        Assert.Contains("alt=\"Linko\"", rendered.HtmlBody);
-        Assert.Contains("width=\"180\" height=\"180\"", rendered.HtmlBody);
+        Assert.Contains("alt=\"Linko waving hello\"", rendered.HtmlBody);
+        Assert.Contains("alt=\"Linko ready to help\"", rendered.HtmlBody);
+        Assert.Contains("width=\"234\" height=\"234\"", rendered.HtmlBody);
         Assert.Contains(
-            "Hi! I&#x2019;m Linko. Let&#x2019;s get your pet profile set up in just a few simple steps.",
+            "Hi, I&#x2019;m Linko!",
             rendered.HtmlBody);
         Assert.Contains(
-            "Hi! I’m Linko. Let’s get your pet profile set up in just a few simple steps.",
+            "Let&#x2019;s set up your pet&#x2019;s profile in a few simple steps.",
+            rendered.HtmlBody);
+        Assert.Contains(
+            "Hi, I’m Linko!",
+            rendered.TextBody);
+        Assert.Contains(
+            "Let’s set up your pet’s profile in a few simple steps.",
             rendered.TextBody);
         Assert.Contains("See how your pet’s profile will appear to others.", rendered.TextBody);
         Assert.Contains("Create My Pet Profile", rendered.TextBody);
@@ -397,14 +423,14 @@ public sealed class OwnerWelcomeEmailTests
             "https://mypetlink.com.my/email-assets/welcome-ready.png",
             rendered.HtmlBody);
         Assert.Contains("alt=\"Ready to share\"", rendered.HtmlBody);
-        Assert.Contains("You&#x2019;re almost there!", rendered.HtmlBody);
+        Assert.Contains("Complete and share your profile", rendered.HtmlBody);
         Assert.Contains(
-            "Complete your profile and you&#x2019;re ready to share it.",
+            "Finish your setup and share it when you&#x2019;re ready.",
             rendered.HtmlBody);
         Assert.Contains(">4</div>", rendered.HtmlBody);
-        Assert.Contains("4. You’re almost there!", rendered.TextBody);
+        Assert.Contains("4. Complete and share your profile", rendered.TextBody);
         Assert.Contains(
-            "Complete your profile and you’re ready to share it.",
+            "Finish your setup and share it when you’re ready.",
             rendered.TextBody);
     }
 
@@ -442,8 +468,9 @@ public sealed class OwnerWelcomeEmailTests
                 harness.Clock.GetUtcNow(),
                 SmartTagsEnabled: false)));
 
+        Assert.Contains("Welcome to MyPetLink!", rendered.HtmlBody);
         Assert.Contains(
-            "Welcome to MyPetLink, Alexandria-Catherine-Montgomery-Wellington-Santos&lt;&amp;&gt;!",
+            "Hi Alexandria-Catherine-Montgomery-Wellington-Santos&lt;&amp;&gt;,",
             rendered.HtmlBody);
         Assert.Contains("overflow-wrap:anywhere", rendered.HtmlBody);
         Assert.DoesNotContain(ownerName, rendered.HtmlBody);

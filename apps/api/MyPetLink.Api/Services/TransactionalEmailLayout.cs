@@ -97,7 +97,11 @@ public sealed class TransactionalEmailLayout
                     .email-content { padding: 28px 22px !important; }
                     .email-footer { padding: 20px 22px !important; }
                     .email-title { font-size: 26px !important; }
+                    .email-action { width: 100% !important; }
+                    .email-action td { width: 100% !important; }
                     .email-action a { display: block !important; padding: 15px 18px !important; }
+                    .email-info-heading { padding-left: 16px !important; padding-right: 16px !important; }
+                    .email-info-body { padding-left: 16px !important; padding-right: 16px !important; }
                     .email-detail-value { text-align: left !important; padding-top: 2px !important; }
                     .email-support-mascot { display: none !important; }
                   }
@@ -164,7 +168,8 @@ public sealed class TransactionalEmailLayout
         }
 
         text.AppendLine()
-            .AppendLine($"Need help? Contact us at {SupportEmail}.")
+            .AppendLine("Need a hand?")
+            .AppendLine($"We’re here to help at {SupportEmail}.")
             .AppendLine()
             .AppendLine("MyPetLink · mypetlink.com.my")
             .AppendLine(content.TransactionReason);
@@ -176,7 +181,7 @@ public sealed class TransactionalEmailLayout
     {
         var color = subdued ? Muted : Ink;
         return $"""
-            <p class="{(subdued ? "email-muted" : "email-text")}" style="margin:0 0 18px;font-size:16px;line-height:1.65;color:{color}">{Encoder.Encode(text)}</p>
+            <p class="{(subdued ? "email-muted" : "email-text")}" style="margin:0 0 18px;font-size:16px;line-height:1.65;color:{color};overflow-wrap:anywhere;word-break:break-word">{Encoder.Encode(text)}</p>
             """;
     }
 
@@ -185,13 +190,16 @@ public sealed class TransactionalEmailLayout
     /// spoken message. The message is real text, so the hero still reads
     /// correctly when the illustration is blocked.
     /// </summary>
-    public string MascotHero(TransactionalEmailMascot mascot, string message)
+    public string MascotHero(
+        TransactionalEmailMascot mascot,
+        string heading,
+        string message)
     {
         var size = mascot.DisplaySize;
         return $"""
-            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;margin:22px 0 4px;border-collapse:collapse">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;margin:8px 0 4px;border-collapse:collapse">
               <tr>
-                <td align="center" style="padding:0 0 14px">
+                <td align="center" style="padding:0 0 6px">
                   <img src="{Encoder.Encode(EmailAssetUrl(mascot.ImageFileName))}" width="{size}" height="{size}" alt="{Encoder.Encode(mascot.ImageAltText)}" style="display:block;width:{size}px;max-width:100%;height:auto;margin:0 auto;border:0;outline:none;text-decoration:none;color:{Ink};font-size:13px;line-height:1.4">
                 </td>
               </tr>
@@ -199,7 +207,10 @@ public sealed class TransactionalEmailLayout
                 <td align="center" style="padding:0">
                   <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="border-collapse:separate">
                     <tr>
-                      <td class="email-text" style="padding:14px 20px;background-color:{BlueSurface};border:1px solid #d8eaff;border-radius:18px;font-size:16px;line-height:1.6;color:{Ink};text-align:center">{Encoder.Encode(message)}</td>
+                      <td class="email-text" style="padding:14px 20px;background-color:{BlueSurface};border:1px solid #d8eaff;border-radius:18px;font-size:16px;line-height:1.55;color:{Ink};text-align:center">
+                        <div style="font-weight:800">{Encoder.Encode(heading)}</div>
+                        <div style="margin-top:2px">{Encoder.Encode(message)}</div>
+                      </td>
                     </tr>
                   </table>
                 </td>
@@ -212,39 +223,45 @@ public sealed class TransactionalEmailLayout
         $"""
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;margin:24px 0;background-color:{BlueSurface};border:1px solid #d8eaff;border-radius:18px;border-collapse:separate">
           <tr>
-            <td style="padding:20px 20px 8px;font-size:18px;line-height:1.4;font-weight:800;color:{Ink}">{Encoder.Encode(heading)}</td>
+            <td class="email-info-heading" style="padding:20px 20px 8px;font-size:18px;line-height:1.4;font-weight:800;color:{Ink}">{Encoder.Encode(heading)}</td>
           </tr>
           <tr>
-            <td style="padding:8px 20px 20px">{contentHtml}</td>
+            <td class="email-info-body" style="padding:8px 20px 20px">{contentHtml}</td>
           </tr>
         </table>
         """;
 
     public string NumberedSteps(IReadOnlyList<TransactionalEmailStep> steps)
     {
-        var html = new StringBuilder();
+        var rows = new StringBuilder();
         for (var index = 0; index < steps.Count; index++)
         {
             var step = steps[index];
             var iconUrl = EmailAssetUrl(step.IconFileName);
-            var bottomPadding = index == steps.Count - 1 ? "0" : "16px";
-            html.Append($"""
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;border-collapse:collapse">
-                  <tr>
-                    <td width="54" valign="top" align="center" style="width:54px;padding:0 10px {bottomPadding} 0">
-                      <img src="{Encoder.Encode(iconUrl)}" width="44" height="44" alt="{Encoder.Encode(step.IconAltText)}" style="display:block;width:44px;height:44px;min-width:44px;margin:0 auto;border:0;outline:none;text-decoration:none;color:{Ink};font-size:9px;line-height:1.2">
-                      <div style="width:24px;height:24px;margin:6px auto 0;line-height:24px;text-align:center;border-radius:50%;background-color:{Blue};color:{White};font-size:12px;font-weight:800">{index + 1}</div>
-                    </td>
-                    <td valign="top" style="padding:3px 0 {bottomPadding};font-size:15px;line-height:1.55;color:{Ink}">
-                      <div style="font-weight:800">{Encoder.Encode(step.Title)}</div>
-                      <div class="email-muted" style="margin-top:3px;color:{Muted}">{Encoder.Encode(step.Description)}</div>
-                    </td>
-                  </tr>
-                </table>
+            var separator = index == steps.Count - 1
+                ? ""
+                : "border-bottom:1px solid #d8eaff;";
+            rows.Append($"""
+                <tr>
+                  <td width="32" valign="middle" align="left" style="width:32px;padding:12px 8px 12px 0;{separator}">
+                    <div style="width:24px;height:24px;line-height:24px;text-align:center;border-radius:50%;background-color:{Blue};color:{White};font-size:12px;font-weight:800">{index + 1}</div>
+                  </td>
+                  <td width="54" valign="middle" align="left" style="width:54px;padding:10px 10px 10px 0;{separator}">
+                    <img src="{Encoder.Encode(iconUrl)}" width="44" height="44" alt="{Encoder.Encode(step.IconAltText)}" style="display:block;width:44px;height:44px;min-width:44px;border:0;outline:none;text-decoration:none;color:{Ink};font-size:9px;line-height:1.2">
+                  </td>
+                  <td valign="middle" style="padding:12px 0;{separator}font-size:15px;line-height:1.55;color:{Ink};overflow-wrap:anywhere;word-break:break-word">
+                    <div style="font-weight:800">{Encoder.Encode(step.Title)}</div>
+                    <div class="email-muted" style="margin-top:3px;color:{Muted}">{Encoder.Encode(step.Description)}</div>
+                  </td>
+                </tr>
                 """);
         }
 
-        return html.ToString();
+        return $"""
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;border-collapse:collapse">
+              {rows}
+            </table>
+            """;
     }
 
     private string EmailAssetUrl(string fileName)
@@ -330,9 +347,10 @@ public sealed class TransactionalEmailLayout
     private string SupportBlock(TransactionalEmailMascot? mascot)
     {
         const string text = $"""
-            <p class="email-muted" style="margin:0;font-size:15px;line-height:1.65;color:{Muted};overflow-wrap:anywhere">
-              Need help? Contact us at <a href="mailto:{SupportEmail}" style="font-weight:700;color:{Blue};text-decoration:underline">{SupportEmail}</a>.
-            </p>
+            <div class="email-text" style="margin:0;font-size:16px;line-height:1.5;font-weight:800;color:{Ink}">Need a hand?</div>
+            <div class="email-muted" style="margin-top:3px;font-size:15px;line-height:1.65;color:{Muted};overflow-wrap:anywhere">
+              We’re here to help at <a href="mailto:{SupportEmail}" style="font-weight:700;color:{Blue};text-decoration:underline">{SupportEmail}</a>.
+            </div>
             """;
 
         if (mascot is null)
