@@ -73,12 +73,31 @@ public sealed class TransactionalEmailDesignTests
         Assert.Contains("alt=\"Preview public profile\"", preview.HtmlBody);
         Assert.Contains("Welcome to MyPetLink, Aina!", preview.HtmlBody);
         Assert.Contains("Create your pet&#x2019;s profile", preview.HtmlBody);
-        Assert.Contains("Update your contact details", preview.HtmlBody);
-        Assert.Contains("Preview the public profile", preview.HtmlBody);
+        Assert.Contains("Add your contact details", preview.HtmlBody);
+        Assert.Contains("Preview your public profile", preview.HtmlBody);
+        Assert.Contains("You&#x2019;re almost there!", preview.HtmlBody);
+        Assert.Contains("alt=\"Ready to share\"", preview.HtmlBody);
         Assert.Contains(">1</div>", preview.HtmlBody);
         Assert.Contains(">2</div>", preview.HtmlBody);
         Assert.Contains(">3</div>", preview.HtmlBody);
+        Assert.Contains(">4</div>", preview.HtmlBody);
         Assert.Contains(TransactionalEmailLayout.Tagline, preview.TextBody);
+        Assert.Contains(
+            "Hi! I&#x2019;m Linko. Let&#x2019;s get your pet profile set up in just a few simple steps.",
+            preview.HtmlBody);
+        Assert.Contains("Create My Pet Profile", preview.HtmlBody);
+        Assert.Contains("Need help? Contact us at", preview.HtmlBody);
+    }
+
+    [Fact]
+    public void MascotIsWelcomeOnly_AndTransactionalTemplatesStayRestrained()
+    {
+        var previews = PreviewService();
+        var welcome = previews.Render("welcome", "normal");
+        var payment = previews.Render("payment-confirmed", "normal");
+
+        Assert.Contains("linko-hero.png", welcome.HtmlBody);
+        Assert.DoesNotContain("linko", payment.HtmlBody, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

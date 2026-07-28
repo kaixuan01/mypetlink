@@ -17,7 +17,17 @@ public sealed record TransactionalEmailContent(
     string BodyHtml,
     string TextBody,
     TransactionalEmailAction? PrimaryAction,
-    string TransactionReason);
+    string TransactionReason,
+    TransactionalEmailMascot? SupportMascot = null);
+
+/// <summary>
+/// Approved Linko illustration. Mascots are supporting visuals only: the
+/// adjacent real text must carry the full meaning when images are blocked.
+/// </summary>
+public sealed record TransactionalEmailMascot(
+    string ImageFileName,
+    string ImageAltText,
+    int DisplaySize);
 
 public sealed record TransactionalEmailStep(
     string IconFileName,
@@ -89,6 +99,7 @@ public sealed class TransactionalEmailLayout
                     .email-title { font-size: 26px !important; }
                     .email-action a { display: block !important; padding: 15px 18px !important; }
                     .email-detail-value { text-align: left !important; padding-top: 2px !important; }
+                    .email-support-mascot { display: none !important; }
                   }
                   @media (prefers-color-scheme: dark) {
                     .email-bg { background-color: #111a2e !important; }
@@ -119,7 +130,7 @@ public sealed class TransactionalEmailLayout
                             {{content.BodyHtml}}
                             {{actionHtml}}
                             {{Divider()}}
-                            {{SupportBlock()}}
+                            {{SupportBlock(content.SupportMascot)}}
                           </td>
                         </tr>
                         <tr>
@@ -166,6 +177,34 @@ public sealed class TransactionalEmailLayout
         var color = subdued ? Muted : Ink;
         return $"""
             <p class="{(subdued ? "email-muted" : "email-text")}" style="margin:0 0 18px;font-size:16px;line-height:1.65;color:{color}">{Encoder.Encode(text)}</p>
+            """;
+    }
+
+    /// <summary>
+    /// Welcome and onboarding hero: one approved Linko illustration above a
+    /// spoken message. The message is real text, so the hero still reads
+    /// correctly when the illustration is blocked.
+    /// </summary>
+    public string MascotHero(TransactionalEmailMascot mascot, string message)
+    {
+        var size = mascot.DisplaySize;
+        return $"""
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;margin:22px 0 4px;border-collapse:collapse">
+              <tr>
+                <td align="center" style="padding:0 0 14px">
+                  <img src="{Encoder.Encode(EmailAssetUrl(mascot.ImageFileName))}" width="{size}" height="{size}" alt="{Encoder.Encode(mascot.ImageAltText)}" style="display:block;width:{size}px;max-width:100%;height:auto;margin:0 auto;border:0;outline:none;text-decoration:none;color:{Ink};font-size:13px;line-height:1.4">
+                </td>
+              </tr>
+              <tr>
+                <td align="center" style="padding:0">
+                  <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="border-collapse:separate">
+                    <tr>
+                      <td class="email-text" style="padding:14px 20px;background-color:{BlueSurface};border:1px solid #d8eaff;border-radius:18px;font-size:16px;line-height:1.6;color:{Ink};text-align:center">{Encoder.Encode(message)}</td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
             """;
     }
 
@@ -288,12 +327,31 @@ public sealed class TransactionalEmailLayout
         </table>
         """;
 
-    private static string SupportBlock() =>
-        $"""
-        <p class="email-muted" style="margin:0;font-size:15px;line-height:1.65;color:{Muted}">
-          Need help? Contact us at <a href="mailto:{SupportEmail}" style="font-weight:700;color:{Blue};text-decoration:underline">{SupportEmail}</a>.
-        </p>
-        """;
+    private string SupportBlock(TransactionalEmailMascot? mascot)
+    {
+        const string text = $"""
+            <p class="email-muted" style="margin:0;font-size:15px;line-height:1.65;color:{Muted};overflow-wrap:anywhere">
+              Need help? Contact us at <a href="mailto:{SupportEmail}" style="font-weight:700;color:{Blue};text-decoration:underline">{SupportEmail}</a>.
+            </p>
+            """;
+
+        if (mascot is null)
+        {
+            return text;
+        }
+
+        var size = mascot.DisplaySize;
+        return $"""
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;border-collapse:collapse">
+              <tr>
+                <td width="{size + 14}" valign="middle" class="email-support-mascot" style="width:{size + 14}px;padding:0 14px 0 0">
+                  <img src="{Encoder.Encode(EmailAssetUrl(mascot.ImageFileName))}" width="{size}" height="{size}" alt="{Encoder.Encode(mascot.ImageAltText)}" style="display:block;width:{size}px;max-width:100%;height:auto;border:0;outline:none;text-decoration:none;color:{Ink};font-size:12px;line-height:1.4">
+                </td>
+                <td valign="middle">{text}</td>
+              </tr>
+            </table>
+            """;
+    }
 
     private static TransactionalEmailAction? ValidateAction(TransactionalEmailAction? action)
     {

@@ -540,7 +540,10 @@ if (app.Environment.IsDevelopment())
     {
         "welcome-profile.png",
         "welcome-contact.png",
-        "welcome-preview.png"
+        "welcome-preview.png",
+        "welcome-ready.png",
+        "linko-hero.png",
+        "linko-support-sit.png"
     };
     app.MapGet(
             "/api/v1/dev/email-preview-assets/{fileName}",
