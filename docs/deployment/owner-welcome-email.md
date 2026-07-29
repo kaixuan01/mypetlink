@@ -64,10 +64,13 @@ schedules the same row immediately, and records an audit entry.
 
 1. Apply `AddPaymentConfirmationEmailOutbox`.
 2. Apply `AddOwnerWelcomeEmail`.
-3. Deploy with the Welcome template switched off in Admin Portal.
-4. Verify SMTP, SPF, DKIM, DMARC, sender authorization, and the public logo and
+3. Apply `20260729094414_AddEmailTemplateSettings`.
+4. Deploy with the Welcome template switched off in Admin Portal.
+5. Verify Operational Status reports Email template configuration as
+   **Available**.
+6. Verify SMTP, SPF, DKIM, DMARC, sender authorization, and the public logo and
    email-asset URLs.
-5. Enable the welcome template and monitor Failed outbox rows.
+7. Enable the welcome template and monitor Failed outbox rows.
 
 No live SMTP test is part of automated or local integration verification.
 Use the loopback-only Development preview at

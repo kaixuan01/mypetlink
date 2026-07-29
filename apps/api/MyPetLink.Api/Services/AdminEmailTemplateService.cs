@@ -33,22 +33,39 @@ public sealed class AdminEmailTemplateService : IAdminEmailTemplateService
     private readonly MyPetLinkDbContext _dbContext;
     private readonly IAuditLogService _auditLogService;
     private readonly EmailOptions _options;
+    private readonly ILogger<AdminEmailTemplateService> _logger;
     private readonly TimeProvider _timeProvider;
 
     public AdminEmailTemplateService(
         MyPetLinkDbContext dbContext,
         IAuditLogService auditLogService,
         IOptions<EmailOptions> options,
+        ILogger<AdminEmailTemplateService> logger,
         TimeProvider timeProvider)
     {
         _dbContext = dbContext;
         _auditLogService = auditLogService;
         _options = options.Value;
+        _logger = logger;
         _timeProvider = timeProvider;
     }
 
     public async Task<AdminEmailTemplateListResponse> ListAsync(
         CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await ListCoreAsync(cancellationToken);
+        }
+        catch (Exception exception) when (EmailTemplateSchemaUnavailable.IsMatch(exception))
+        {
+            LogSchemaUnavailable(exception);
+            throw EmailTemplateSchemaUnavailable.ApiError();
+        }
+    }
+
+    private async Task<AdminEmailTemplateListResponse> ListCoreAsync(
+        CancellationToken cancellationToken)
     {
         var settings = await _dbContext.EmailTemplateSettings
             .AsNoTracking()
@@ -136,7 +153,7 @@ public sealed class AdminEmailTemplateService : IAdminEmailTemplateService
     public async Task<AdminEmailTemplateResponse> SetEnabledAsync(
         string messageType,
         UpdateEmailTemplateRequest request,
-        Guid adminUserId,
+        Guid actorUserId,
         CancellationToken cancellationToken = default)
     {
         if (!Enum.TryParse<EmailMessageType>(messageType, ignoreCase: true, out var parsed)
@@ -148,8 +165,22 @@ public sealed class AdminEmailTemplateService : IAdminEmailTemplateService
                 "That email template was not found.");
         }
 
-        var setting = await _dbContext.EmailTemplateSettings
-            .SingleOrDefaultAsync(item => item.MessageType == parsed, cancellationToken);
+        EmailTemplateSetting? setting;
+        Guid updatedByAdminUserId;
+        try
+        {
+            setting = await _dbContext.EmailTemplateSettings
+                .SingleOrDefaultAsync(item => item.MessageType == parsed, cancellationToken);
+            updatedByAdminUserId = await ResolveAdminUserIdAsync(
+                actorUserId,
+                cancellationToken);
+        }
+        catch (Exception exception) when (EmailTemplateSchemaUnavailable.IsMatch(exception))
+        {
+            LogSchemaUnavailable(exception);
+            throw EmailTemplateSchemaUnavailable.ApiError();
+        }
+
         var now = _timeProvider.GetUtcNow();
         var isNew = setting is null;
 
@@ -165,8 +196,13 @@ public sealed class AdminEmailTemplateService : IAdminEmailTemplateService
             };
             _dbContext.EmailTemplateSettings.Add(setting);
         }
-        else if (!string.IsNullOrEmpty(request.RowVersion))
+        else
         {
+            if (string.IsNullOrWhiteSpace(request.RowVersion))
+            {
+                throw IncompleteRequest();
+            }
+
             byte[] supplied;
             try
             {
@@ -181,6 +217,16 @@ public sealed class AdminEmailTemplateService : IAdminEmailTemplateService
             {
                 throw Conflict();
             }
+
+            if (setting.IsEnabled == request.IsEnabled)
+            {
+                var current = await ListAsync(cancellationToken);
+                return current.Templates.Single(item =>
+                    string.Equals(
+                        item.MessageType,
+                        parsed.ToString(),
+                        StringComparison.Ordinal));
+            }
         }
 
         var before = Snapshot(setting);
@@ -188,11 +234,11 @@ public sealed class AdminEmailTemplateService : IAdminEmailTemplateService
         // EnabledFromUtc is refreshed on every enable, which is what keeps a
         // previously suppressed or pending backlog permanently out of scope.
         setting.EnabledFromUtc = request.IsEnabled ? now : null;
-        setting.UpdatedByAdminUserId = adminUserId;
+        setting.UpdatedByAdminUserId = updatedByAdminUserId;
         setting.UpdatedAt = now;
 
         _auditLogService.Append(
-            adminUserId,
+            actorUserId,
             ActorType.Admin,
             request.IsEnabled ? "email.template.enable" : "email.template.disable",
             "EmailTemplateSetting",
@@ -216,6 +262,12 @@ public sealed class AdminEmailTemplateService : IAdminEmailTemplateService
             // Two administrators enabled the same template for the first time
             // at once. The unique index is the authority; the loser retries.
             throw Conflict();
+        }
+        catch (DbUpdateException exception)
+            when (EmailTemplateSchemaUnavailable.IsMatch(exception))
+        {
+            LogSchemaUnavailable(exception);
+            throw EmailTemplateSchemaUnavailable.ApiError();
         }
 
         var refreshed = await ListAsync(cancellationToken);
@@ -243,6 +295,42 @@ public sealed class AdminEmailTemplateService : IAdminEmailTemplateService
             StatusCodes.Status409Conflict,
             "concurrency_conflict",
             "This email template was changed by another administrator. Refresh the page and try again.");
+
+    private static ApiException IncompleteRequest() =>
+        new(
+            StatusCodes.Status400BadRequest,
+            "validation_failed",
+            "The request is incomplete. Refresh the page and try again.",
+            new Dictionary<string, string[]>
+            {
+                ["rowVersion"] =
+                [
+                    "Refresh the page before changing this email template."
+                ]
+            });
+
+    private async Task<Guid> ResolveAdminUserIdAsync(
+        Guid actorUserId,
+        CancellationToken cancellationToken)
+    {
+        var adminUserId = await _dbContext.AdminUsers
+            .AsNoTracking()
+            .Where(admin => admin.UserId == actorUserId && admin.IsActive)
+            .Select(admin => (Guid?)admin.Id)
+            .SingleOrDefaultAsync(cancellationToken);
+
+        return adminUserId
+               ?? throw new ApiException(
+                   StatusCodes.Status403Forbidden,
+                   "forbidden",
+                   "Active administrator access is required.");
+    }
+
+    private void LogSchemaUnavailable(Exception exception) =>
+        _logger.LogError(
+            exception,
+            "Email template configuration is unavailable because migration {RequiredMigration} has not been applied.",
+            EmailTemplateSchemaUnavailable.RequiredMigration);
 
     private static object Snapshot(EmailTemplateSetting setting) => new
     {

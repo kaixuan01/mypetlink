@@ -4,6 +4,7 @@ export type AdminOperationalStatus = {
   email: {
     globalDeliveryEnabled: boolean;
     smtpConfigured: boolean;
+    templateConfigurationAvailable: boolean;
     enabledTemplateCount: number;
     outboxPendingCount: number;
     outboxPausedByGlobalSwitchCount: number;

@@ -126,7 +126,7 @@ separately because they are not interchangeable.
 | --- | --- | --- |
 | Email | Global delivery enabled/disabled | `Email:Enabled` |
 | Email | Mail service configured/incomplete | `EmailOptions.Smtp` presence (never the values) |
-| Email | Templates switched on | `EmailTemplateSettings` |
+| Email | Template configuration available and templates switched on | `EmailTemplateSettings`; unavailable when `AddEmailTemplateSettings` has not been applied |
 | Email | Waiting / held back / not delivered | `EmailOutbox` counts |
 | Email | Last successful delivery | most recent `EmailOutbox.SentAt` |
 | Storage | Location and configuration completeness | `StorageOptions`, `CloudflareR2Options` presence |

@@ -70,6 +70,10 @@ export function AdminOperationalStatusView() {
           label="Mail service configuration"
           value={data.email.smtpConfigured ? "Configured" : "Incomplete"}
         />
+        <Row
+          label="Email template configuration"
+          value={data.email.templateConfigurationAvailable ? "Available" : "Unavailable"}
+        />
         <Row label="Emails switched on" value={`${data.email.enabledTemplateCount}`} />
         <Row label="Waiting to send" value={`${data.email.outboxPendingCount}`} />
         <Row

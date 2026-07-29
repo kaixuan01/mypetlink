@@ -138,6 +138,7 @@ public sealed record AdminAuditLogResponse(
 public sealed record AdminEmailStatusResponse(
     bool GlobalDeliveryEnabled,
     bool SmtpConfigured,
+    bool TemplateConfigurationAvailable,
     int EnabledTemplateCount,
     int OutboxPendingCount,
     // Pending and template-eligible, held only because global delivery is off.

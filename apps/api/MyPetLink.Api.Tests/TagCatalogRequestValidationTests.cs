@@ -31,6 +31,22 @@ public sealed class TagCatalogRequestValidationTests
     }
 
     [Fact]
+    public async Task AdminEmailTemplateRoutes_RequireAuthentication()
+    {
+        await using var factory = new WebApplicationFactory<Program>()
+            .WithWebHostBuilder(builder => builder.UseEnvironment("Development"));
+        using var client = factory.CreateClient();
+
+        var list = await client.GetAsync("/api/v1/admin/email-templates");
+        var update = await client.PutAsJsonAsync(
+            "/api/v1/admin/email-templates/OwnerWelcome",
+            new { isEnabled = true, rowVersion = (string?)null });
+
+        Assert.Equal(HttpStatusCode.Unauthorized, list.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, update.StatusCode);
+    }
+
+    [Fact]
     public void ProductRecord_UsesConstructorParameterValidation_WithoutMvcMetadataException()
     {
         using var services = MvcServices();

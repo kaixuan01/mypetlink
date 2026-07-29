@@ -57,11 +57,30 @@ public sealed class AdminOperationalStatusService : IAdminOperationalStatusServi
             .CountAsync(item => item.Status == EmailOutboxStatus.Pending, cancellationToken);
         // Pending rows that a template would accept but the global switch is
         // holding. Surfaced so a global pause never hides a growing backlog.
-        var enabled = await _dbContext.EmailTemplateSettings
-            .AsNoTracking()
-            .Where(setting => setting.IsEnabled && setting.EnabledFromUtc != null)
-            .Select(setting => new { setting.MessageType, setting.EnabledFromUtc })
-            .ToListAsync(cancellationToken);
+        var templateConfigurationAvailable = true;
+        var enabledTemplates = 0;
+        var enabled = Array.Empty<EnabledEmailTemplate>();
+        try
+        {
+            enabled = await _dbContext.EmailTemplateSettings
+                .AsNoTracking()
+                .Where(setting => setting.IsEnabled && setting.EnabledFromUtc != null)
+                .Select(setting => new EnabledEmailTemplate(
+                    setting.MessageType,
+                    setting.EnabledFromUtc!.Value))
+                .ToArrayAsync(cancellationToken);
+            enabledTemplates = await _dbContext.EmailTemplateSettings
+                .CountAsync(setting => setting.IsEnabled, cancellationToken);
+        }
+        catch (Exception exception) when (EmailTemplateSchemaUnavailable.IsMatch(exception))
+        {
+            // During a schema-first deployment this indicates that
+            // AddEmailTemplateSettings has not been applied yet. Other
+            // operational sections remain useful, but the email-template
+            // module must be reported unavailable rather than configured.
+            templateConfigurationAvailable = false;
+        }
+
         var outboxHeld = 0;
         foreach (var template in enabled)
         {
@@ -77,8 +96,6 @@ public sealed class AdminOperationalStatusService : IAdminOperationalStatusServi
             .CountAsync(item => item.Status == EmailOutboxStatus.Suppressed, cancellationToken);
         var outboxFailed = await _dbContext.EmailOutbox
             .CountAsync(item => item.Status == EmailOutboxStatus.Failed, cancellationToken);
-        var enabledTemplates = await _dbContext.EmailTemplateSettings
-            .CountAsync(setting => setting.IsEnabled, cancellationToken);
         var activeDeliveryZones = await _dbContext.DeliveryRates
             .CountAsync(rate => rate.IsActive, cancellationToken);
 
@@ -113,6 +130,7 @@ public sealed class AdminOperationalStatusService : IAdminOperationalStatusServi
             new AdminEmailStatusResponse(
                 _email.Enabled,
                 SmtpConfigured(),
+                templateConfigurationAvailable,
                 enabledTemplates,
                 outboxPending,
                 _email.Enabled ? 0 : outboxHeld,
@@ -148,4 +166,8 @@ public sealed class AdminOperationalStatusService : IAdminOperationalStatusServi
                && !string.IsNullOrWhiteSpace(_email.Smtp.Username)
                && !string.IsNullOrWhiteSpace(_email.Smtp.Password);
     }
+
+    private sealed record EnabledEmailTemplate(
+        EmailMessageType MessageType,
+        DateTimeOffset EnabledFromUtc);
 }

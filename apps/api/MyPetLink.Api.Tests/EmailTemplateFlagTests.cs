@@ -228,9 +228,51 @@ public sealed class EmailTemplateFlagTests
         Assert.True(response.IsEnabled);
         Assert.Equal(Now, response.EnabledFromUtc);
         Assert.NotNull(response.UpdatedAt);
+        Assert.Equal(Harness.AdminRecordId, await harness.Db.EmailTemplateSettings
+            .Select(setting => setting.UpdatedByAdminUserId)
+            .SingleAsync());
         var log = Assert.Single(await harness.Db.AuditLogs.ToListAsync());
         Assert.Equal("email.template.enable", log.Action);
         Assert.Equal("EmailTemplateSetting", log.Entity);
+        Assert.Equal(Harness.AdminId, log.ActorId);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public async Task AdminFirstEnable_DoesNotRequireRowVersion(string? rowVersion)
+    {
+        using var harness = Harness.Create(globalEnabled: true);
+        await harness.SeedAdminAsync();
+
+        var response = await harness.AdminTemplates.SetEnabledAsync(
+            "OwnerWelcome",
+            new UpdateEmailTemplateRequest(true, rowVersion),
+            Harness.AdminId);
+
+        Assert.True(response.IsEnabled);
+        Assert.Equal(Now, response.EnabledFromUtc);
+        Assert.Single(await harness.Db.EmailTemplateSettings.ToListAsync());
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public async Task AdminExistingUpdate_RequiresRowVersion(string? rowVersion)
+    {
+        using var harness = Harness.Create(globalEnabled: true);
+        await harness.SeedAdminAsync();
+        await harness.SetTemplateAsync(EmailMessageType.OwnerWelcome, false);
+
+        var error = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.AdminTemplates.SetEnabledAsync(
+                "OwnerWelcome",
+                new UpdateEmailTemplateRequest(true, rowVersion),
+                Harness.AdminId));
+
+        Assert.Equal(StatusCodes.Status400BadRequest, error.StatusCode);
+        Assert.Equal("validation_failed", error.Code);
+        Assert.Contains("incomplete", error.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -242,10 +284,12 @@ public sealed class EmailTemplateFlagTests
             "OwnerWelcome",
             new UpdateEmailTemplateRequest(true, null),
             Harness.AdminId);
+        var rowVersion = await harness.EnsureRowVersionAsync(
+            EmailMessageType.OwnerWelcome);
 
         var response = await harness.AdminTemplates.SetEnabledAsync(
             "OwnerWelcome",
-            new UpdateEmailTemplateRequest(false, null),
+            new UpdateEmailTemplateRequest(false, rowVersion),
             Harness.AdminId);
 
         Assert.False(response.IsEnabled);
@@ -253,6 +297,28 @@ public sealed class EmailTemplateFlagTests
         Assert.Contains(
             await harness.Db.AuditLogs.ToListAsync(),
             log => log.Action == "email.template.disable");
+    }
+
+    [Fact]
+    public async Task RepeatedEnable_IsIdempotentAndDoesNotRestampOrAudit()
+    {
+        using var harness = Harness.Create(globalEnabled: true);
+        await harness.SeedAdminAsync();
+        await harness.SetTemplateAsync(
+            EmailMessageType.OwnerWelcome,
+            true,
+            enabledFrom: Now.AddDays(-1));
+        var rowVersion = await harness.EnsureRowVersionAsync(
+            EmailMessageType.OwnerWelcome);
+
+        var response = await harness.AdminTemplates.SetEnabledAsync(
+            "OwnerWelcome",
+            new UpdateEmailTemplateRequest(true, rowVersion),
+            Harness.AdminId);
+
+        Assert.True(response.IsEnabled);
+        Assert.Equal(Now.AddDays(-1), response.EnabledFromUtc);
+        Assert.Empty(await harness.Db.AuditLogs.ToListAsync());
     }
 
     [Fact]
@@ -387,15 +453,17 @@ public sealed class EmailTemplateFlagTests
             new UpdateEmailTemplateRequest(true, null),
             Harness.AdminId);
         await harness.SeedPendingAtAsync(EmailMessageType.PaymentConfirmed, Now.AddMinutes(5));
+        var rowVersion = await harness.EnsureRowVersionAsync(
+            EmailMessageType.PaymentConfirmed);
 
         await harness.AdminTemplates.SetEnabledAsync(
             "PaymentConfirmed",
-            new UpdateEmailTemplateRequest(false, null),
+            new UpdateEmailTemplateRequest(false, rowVersion),
             Harness.AdminId);
         harness.Advance(TimeSpan.FromHours(1));
         await harness.AdminTemplates.SetEnabledAsync(
             "PaymentConfirmed",
-            new UpdateEmailTemplateRequest(true, null),
+            new UpdateEmailTemplateRequest(true, rowVersion),
             Harness.AdminId);
 
         await harness.DispatchAllAsync();
@@ -486,6 +554,7 @@ public sealed class EmailTemplateFlagTests
     private sealed class Harness : IDisposable
     {
         public static readonly Guid AdminId = Guid.Parse("d1111111-1111-1111-1111-111111111111");
+        public static readonly Guid AdminRecordId = Guid.Parse("d1111111-1111-1111-1111-111111111112");
         public static readonly Guid OwnerId = Guid.Parse("d2222222-2222-2222-2222-222222222222");
         public static readonly Guid OrderId = Guid.Parse("d3333333-3333-3333-3333-333333333333");
 
@@ -532,7 +601,12 @@ public sealed class EmailTemplateFlagTests
                 clock,
                 NullLogger<EmailOutboxDispatcher>.Instance);
             Outbox = new EmailOutboxService(Db, audit, clock, gate);
-            AdminTemplates = new AdminEmailTemplateService(Db, audit, optionValue, clock);
+            AdminTemplates = new AdminEmailTemplateService(
+                Db,
+                audit,
+                optionValue,
+                NullLogger<AdminEmailTemplateService>.Instance,
+                clock);
         }
 
         public static Harness Create(bool globalEnabled, string smtpPassword = "") =>
@@ -591,9 +665,33 @@ public sealed class EmailTemplateFlagTests
                 Email = "admin@example.com",
                 NormalizedEmail = "ADMIN@EXAMPLE.COM",
                 DisplayName = "Admin",
-                Status = UserStatus.Active
+                Status = UserStatus.Active,
+                AdminUser = new AdminUser
+                {
+                    Id = AdminRecordId,
+                    UserId = AdminId,
+                    Role = AdminRole.Admin,
+                    IsActive = true
+                }
             });
             await Db.SaveChangesAsync();
+        }
+
+        public async Task<string> EnsureRowVersionAsync(EmailMessageType messageType)
+        {
+            var setting = await Db.EmailTemplateSettings
+                .SingleAsync(item => item.MessageType == messageType);
+            if (setting.RowVersion.Length == 0)
+            {
+                // EF's InMemory provider does not generate SQL Server
+                // rowversion values. Give this existing row a representative
+                // token so service-level concurrency tests exercise the real
+                // request contract.
+                setting.RowVersion = [1, 2, 3, 4];
+                await Db.SaveChangesAsync();
+            }
+
+            return Convert.ToBase64String(setting.RowVersion);
         }
 
         public async Task<User> SeedOwnerAsync()

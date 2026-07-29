@@ -1,8 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AdminNotice, AdminSection } from "@/components/admin/AdminPanels";
+import { isApiClientError } from "@/services/apiClient";
 import {
+  getEmailTemplateErrorMessage,
   listEmailTemplates,
   setEmailTemplateEnabled,
   type AdminEmailTemplate,
@@ -26,7 +28,9 @@ export function AdminEmailTemplatesManager() {
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [pending, setPending] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<AdminEmailTemplate | null>(null);
+  const pendingRef = useRef<string | null>(null);
 
   // The promise callback keeps state updates out of the synchronous effect
   // body, which is what the React lint rule requires.
@@ -35,9 +39,13 @@ export function AdminEmailTemplatesManager() {
       listEmailTemplates()
         .then((response) => {
           setData(response.data ?? null);
+          setLoadError(null);
           setStatus("ready");
         })
-        .catch(() => setStatus("error")),
+        .catch((error) => {
+          setLoadError(getEmailTemplateErrorMessage(error));
+          setStatus("error");
+        }),
     []
   );
 
@@ -46,10 +54,34 @@ export function AdminEmailTemplatesManager() {
   }, [load]);
 
   async function apply(template: AdminEmailTemplate, isEnabled: boolean) {
+    if (pendingRef.current) {
+      return;
+    }
+
+    pendingRef.current = template.messageType;
     setPending(template.messageType);
     setMessage(null);
     try {
-      await setEmailTemplateEnabled(template.messageType, isEnabled, template.rowVersion);
+      const response = await setEmailTemplateEnabled(
+        template.messageType,
+        isEnabled,
+        template.rowVersion
+      );
+      const updatedTemplate = response.data;
+      if (updatedTemplate) {
+        setData((current) =>
+          current
+            ? {
+                ...current,
+                templates: current.templates.map((item) =>
+                  item.messageType === updatedTemplate.messageType
+                    ? updatedTemplate
+                    : item
+                ),
+              }
+            : current
+        );
+      }
       setMessage(
         isEnabled
           ? `${template.displayName} is now on. ${ENABLE_CONFIRMATION}`
@@ -57,12 +89,15 @@ export function AdminEmailTemplatesManager() {
       );
       await load();
     } catch (error) {
-      setMessage(
-        error instanceof Error && error.message
-          ? error.message
-          : "We could not update this email. Please try again."
-      );
+      setMessage(getEmailTemplateErrorMessage(error));
+      if (
+        isApiClientError(error) &&
+        (error.code === "concurrency_conflict" || error.status === 409)
+      ) {
+        await load();
+      }
     } finally {
+      pendingRef.current = null;
       setPending(null);
       setConfirming(null);
     }
@@ -79,7 +114,7 @@ export function AdminEmailTemplatesManager() {
   if (status === "error" || !data) {
     return (
       <p className="rounded-2xl border border-red-200 bg-white p-6 text-sm font-bold text-[#a63c2e]">
-        We could not load email settings. Please try again. Nothing has been changed.
+        {loadError ?? "We could not load email settings. Please try again. Nothing has been changed."}
       </p>
     );
   }
@@ -169,13 +204,19 @@ export function AdminEmailTemplatesManager() {
                   <td className="py-3">
                     <button
                       type="button"
-                      disabled={pending === template.messageType}
+                      disabled={pending !== null}
                       onClick={() =>
                         template.isEnabled ? apply(template, false) : setConfirming(template)
                       }
                       className="rounded-full border border-slate-300 px-3 py-1 text-xs font-bold text-slate-700 disabled:opacity-50"
                     >
-                      {template.isEnabled ? "Turn off" : "Turn on"}
+                      {pending === template.messageType
+                        ? template.isEnabled
+                          ? "Turning off..."
+                          : "Turning on..."
+                        : template.isEnabled
+                          ? "Turn off"
+                          : "Turn on"}
                     </button>
                   </td>
                 </tr>
@@ -195,14 +236,15 @@ export function AdminEmailTemplatesManager() {
             <button
               type="button"
               onClick={() => apply(confirming, true)}
-              disabled={pending === confirming.messageType}
+              disabled={pending !== null}
               className="rounded-full bg-[#1570ef] px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
             >
-              Turn on
+              {pending === confirming.messageType ? "Turning on..." : "Turn on"}
             </button>
             <button
               type="button"
               onClick={() => setConfirming(null)}
+              disabled={pending !== null}
               className="rounded-full border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700"
             >
               Cancel

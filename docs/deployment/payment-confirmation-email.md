@@ -93,14 +93,18 @@ Do not change DNS automatically from the application deployment.
 ## Deployment order
 
 1. Deploy the additive `AddPaymentConfirmationEmailOutbox` migration.
-2. Deploy the API with `Email__Enabled=false`.
-3. Verify the Admin Portal can see queued delivery status and the worker is
+2. Deploy `AddOwnerWelcomeEmail`, then
+   `20260729094414_AddEmailTemplateSettings`.
+3. Deploy the API with `Email__Enabled=false`.
+4. Verify the Admin Portal can see queued delivery status and the worker is
    healthy.
-4. Verify SPF, DKIM, DMARC, the authorized From address, and Azure secrets.
-5. Enable `Email__Enabled=true`. No template sends yet.
-6. Review held-back records in Admin Portal → Configuration → Email Templates.
-7. Turn on the Payment confirmation template there and confirm the prompt.
-8. Monitor the outbox failure count, application logs, and Zoho sending limits.
+5. Verify Operational Status reports Email template configuration as
+   **Available**.
+6. Verify SPF, DKIM, DMARC, the authorized From address, and Azure secrets.
+7. Enable `Email__Enabled=true`. No template sends yet.
+8. Review held-back records in Admin Portal → Configuration → Email Templates.
+9. Turn on the Payment confirmation template there and confirm the prompt.
+10. Monitor the outbox failure count, application logs, and Zoho sending limits.
 
 An optional live SMTP check requires explicit authorization and must target only
 an internal MyPetLink-owned mailbox. Remove or disable temporary settings after
