@@ -1,7 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AdminNotice, AdminSection } from "@/components/admin/AdminPanels";
+import {
+  AdminEmptyPanel,
+  AdminStat,
+  AdminStatStrip,
+  AdminStatusBadge,
+  AdminStatusCard,
+} from "@/components/admin/AdminStatus";
+import { formatAdminDateTime } from "@/components/admin/adminDisplay";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { isApiClientError } from "@/services/apiClient";
 import {
   getEmailTemplateErrorMessage,
@@ -13,15 +22,6 @@ import {
 
 const ENABLE_CONFIRMATION =
   "Only new eligible events will be sent automatically. Historical emails will remain blocked until reviewed.";
-
-function formatDate(value: string | null) {
-  if (!value) {
-    return "—";
-  }
-
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? "—" : parsed.toLocaleString();
-}
 
 export function AdminEmailTemplatesManager() {
   const [data, setData] = useState<AdminEmailTemplateList | null>(null);
@@ -52,6 +52,18 @@ export function AdminEmailTemplatesManager() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const totals = useMemo(() => {
+    const templates = data?.templates ?? [];
+    return {
+      on: templates.filter((template) => template.isEnabled).length,
+      eligible: sum(templates, (item) => item.eligibleCount),
+      paused: sum(templates, (item) => item.pausedCount),
+      withheld: sum(templates, (item) => item.blockedCount + item.suppressedCount),
+      failed: sum(templates, (item) => item.failedCount),
+      sent: sum(templates, (item) => item.sentCount),
+    };
+  }, [data]);
 
   async function apply(template: AdminEmailTemplate, isEnabled: boolean) {
     if (pendingRef.current) {
@@ -105,110 +117,176 @@ export function AdminEmailTemplatesManager() {
 
   if (status === "loading") {
     return (
-      <p className="rounded-2xl border border-slate-200 bg-white p-6 text-sm font-semibold text-slate-500">
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm font-semibold text-slate-500 shadow-sm">
         Loading email settings...
-      </p>
+      </div>
     );
   }
 
   if (status === "error" || !data) {
     return (
-      <p className="rounded-2xl border border-red-200 bg-white p-6 text-sm font-bold text-[#a63c2e]">
-        {loadError ?? "We could not load email settings. Please try again. Nothing has been changed."}
-      </p>
+      <div className="rounded-2xl border border-[#ffd2c9] bg-[#fff2ef] p-6 shadow-sm" role="alert">
+        <p className="text-sm font-black text-[#a63c2e]">
+          We could not load email settings.
+        </p>
+        <p className="mt-1 text-sm leading-6 text-[#a63c2e]">
+          {loadError ?? "Please try again in a moment. Nothing has been changed."}
+        </p>
+      </div>
     );
   }
 
-  const globalOff = !data.global.globalDeliveryEnabled;
+  const globalOn = data.global.globalDeliveryEnabled;
+  const smtpReady = data.global.smtpConfigured;
 
   return (
-    <div className="space-y-6">
-      <AdminSection
-        title="Email delivery"
-        description="Set by the application environment. These cannot be changed here."
-      >
-        <dl className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-xl border border-slate-200 p-3">
-            <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">
-              Global email delivery
-            </dt>
-            <dd className="mt-1 text-sm font-bold text-slate-800">
-              {data.global.globalDeliveryEnabled ? "Enabled" : "Disabled"}
-            </dd>
-          </div>
-          <div className="rounded-xl border border-slate-200 p-3">
-            <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">
-              Mail service configuration
-            </dt>
-            <dd className="mt-1 text-sm font-bold text-slate-800">
-              {data.global.smtpConfigured ? "Configured" : "Incomplete"}
-            </dd>
-          </div>
-        </dl>
-      </AdminSection>
+    <div className="space-y-5 sm:space-y-6">
+      <div className="grid gap-3 sm:gap-4 lg:grid-cols-2">
+        <AdminStatusCard
+          detail={
+            globalOn
+              ? "MyPetLink can send customer emails. Each email below still follows its own setting."
+              : "All customer email is paused. Messages keep queueing and send once delivery is switched back on."
+          }
+          footnote={
+            <AdminStatusBadge tone="neutral">
+              Set by the application environment
+            </AdminStatusBadge>
+          }
+          icon="shield"
+          label="Global email delivery"
+          status={globalOn ? "Enabled" : "Paused"}
+          tone={globalOn ? "positive" : "warning"}
+        />
+        <AdminStatusCard
+          detail={
+            smtpReady
+              ? "The mail service details needed to send email are in place."
+              : "Sending details are missing, so no email can leave MyPetLink until they are added."
+          }
+          footnote={<AdminStatusBadge tone="neutral">Read-only</AdminStatusBadge>}
+          icon="settings"
+          label="Mail service configuration"
+          status={smtpReady ? "Configured" : "Incomplete"}
+          tone={smtpReady ? "positive" : "critical"}
+        />
+      </div>
+
+      <AdminStatStrip>
+        <AdminStat label="Emails switched on" tone="positive" value={totals.on} />
+        <AdminStat
+          hint="Next run"
+          label="Ready to send"
+          tone="positive"
+          value={totals.eligible}
+        />
+        <AdminStat
+          hint="Waiting on delivery"
+          label="Paused"
+          tone="warning"
+          value={totals.paused}
+        />
+        <AdminStat hint="Never sends" label="Held back" value={totals.withheld} />
+        <AdminStat label="Not delivered" tone="critical" value={totals.failed} />
+        <AdminStat label="Sent" value={totals.sent} />
+      </AdminStatStrip>
 
       {message ? <AdminNotice>{message}</AdminNotice> : null}
 
       <AdminSection
+        description="Switching an email on only affects events from that moment onward."
         title="Customer emails"
-        description="Turn each email on or off. Turning one on never sends past events."
       >
-        <p className="mb-3 text-xs text-slate-500">
-          <strong>Ready to send</strong> will go out on the next run.{" "}
-          <strong>Paused</strong> is waiting only because global delivery is off.{" "}
-          <strong>Blocked</strong> and <strong>held back</strong> will never be sent
-          automatically.
-        </p>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[56rem] border-collapse text-left text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 text-xs font-bold uppercase tracking-wide text-slate-500">
-                <th className="py-2 pr-3">Email</th>
-                <th className="py-2 pr-3">Status</th>
-                <th className="py-2 pr-3">On since</th>
-                <th className="py-2 pr-3">Last updated</th>
-                <th className="py-2 pr-3">Ready to send</th>
-                <th className="py-2 pr-3">Paused</th>
-                <th className="py-2 pr-3">Blocked</th>
-                <th className="py-2 pr-3">Held back</th>
-                <th className="py-2 pr-3">Not delivered</th>
-                <th className="py-2 pr-3">Sent</th>
-                <th className="py-2">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.templates.map((template) => (
-                <tr key={template.messageType} className="border-b border-slate-100 align-top">
-                  <td className="py-3 pr-3">
-                    <div className="font-bold text-slate-800">{template.displayName}</div>
-                    <div className="text-xs text-slate-500">{template.description}</div>
-                    {template.isEnabled && globalOff ? (
-                      <div className="mt-1 text-xs font-semibold text-[#a63c2e]">
-                        This template is enabled, but global email delivery is disabled by the
-                        application environment.
-                      </div>
+        {data.templates.length === 0 ? (
+          <AdminEmptyPanel
+            description="Email types appear here as they are added to MyPetLink."
+            title="No customer emails yet"
+          />
+        ) : (
+          <ul className="divide-y divide-slate-100">
+            {data.templates.map((template) => (
+              <li
+                className="p-4 transition hover:bg-slate-50/60 sm:p-5"
+                key={template.messageType}
+              >
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0 lg:max-w-md">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-base font-black text-slate-950">
+                        {template.displayName}
+                      </h3>
+                      <AdminStatusBadge
+                        dot
+                        tone={template.isEnabled ? "positive" : "neutral"}
+                      >
+                        {template.isEnabled ? "On" : "Off"}
+                      </AdminStatusBadge>
+                    </div>
+                    <p className="mt-1 text-sm leading-6 text-slate-500">
+                      {template.description}
+                    </p>
+                    {template.isEnabled && !globalOn ? (
+                      <p className="mt-2 rounded-lg bg-[#fdf6e7] px-3 py-2 text-xs font-bold leading-5 text-[#8a5a10]">
+                        This email is on, but global email delivery is paused by the
+                        application environment, so nothing is sending yet.
+                      </p>
                     ) : null}
-                  </td>
-                  <td className="py-3 pr-3 font-bold">{template.isEnabled ? "On" : "Off"}</td>
-                  <td className="py-3 pr-3">{formatDate(template.enabledFromUtc)}</td>
-                  <td className="py-3 pr-3">
-                    <div>{formatDate(template.updatedAt)}</div>
-                    <div className="text-xs text-slate-500">{template.updatedBy ?? "—"}</div>
-                  </td>
-                  <td className="py-3 pr-3">{template.eligibleCount}</td>
-                  <td className="py-3 pr-3">{template.pausedCount}</td>
-                  <td className="py-3 pr-3">{template.blockedCount}</td>
-                  <td className="py-3 pr-3">{template.suppressedCount}</td>
-                  <td className="py-3 pr-3">{template.failedCount}</td>
-                  <td className="py-3 pr-3">{template.sentCount}</td>
-                  <td className="py-3">
+                    <dl className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-500">
+                      <div>
+                        <dt className="inline font-bold text-slate-400">On since </dt>
+                        <dd className="inline">
+                          {template.enabledFromUtc
+                            ? formatAdminDateTime(template.enabledFromUtc)
+                            : "—"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="inline font-bold text-slate-400">Updated </dt>
+                        <dd className="inline">
+                          {template.updatedAt
+                            ? formatAdminDateTime(template.updatedAt)
+                            : "—"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="inline font-bold text-slate-400">By </dt>
+                        <dd className="inline">{template.updatedBy ?? "—"}</dd>
+                      </div>
+                    </dl>
+                  </div>
+
+                  <div className="flex min-w-0 flex-col gap-3 lg:items-end">
+                    <div className="flex flex-wrap gap-1.5 lg:justify-end">
+                      <CountChip
+                        label="Ready"
+                        tone="positive"
+                        value={template.eligibleCount}
+                      />
+                      <CountChip
+                        label="Paused"
+                        tone="warning"
+                        value={template.pausedCount}
+                      />
+                      <CountChip label="Blocked" value={template.blockedCount} />
+                      <CountChip label="Held back" value={template.suppressedCount} />
+                      <CountChip
+                        label="Not delivered"
+                        tone="critical"
+                        value={template.failedCount}
+                      />
+                      <CountChip label="Sent" value={template.sentCount} />
+                    </div>
                     <button
-                      type="button"
+                      className={`inline-flex min-h-10 w-full items-center justify-center rounded-full px-5 text-sm font-extrabold transition disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto ${
+                        template.isEnabled
+                          ? "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                          : "bg-pet-teal text-white hover:bg-[#1160d4]"
+                      }`}
                       disabled={pending !== null}
                       onClick={() =>
                         template.isEnabled ? apply(template, false) : setConfirming(template)
                       }
-                      className="rounded-full border border-slate-300 px-3 py-1 text-xs font-bold text-slate-700 disabled:opacity-50"
+                      type="button"
                     >
                       {pending === template.messageType
                         ? template.isEnabled
@@ -218,40 +296,74 @@ export function AdminEmailTemplatesManager() {
                           ? "Turn off"
                           : "Turn on"}
                     </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="border-t border-slate-100 px-4 py-3 text-xs leading-5 text-slate-500 sm:px-5">
+          <span className="font-bold text-slate-600">Ready</span> goes out on the next
+          run. <span className="font-bold text-slate-600">Paused</span> is waiting only
+          because global delivery is off.{" "}
+          <span className="font-bold text-slate-600">Blocked</span> and{" "}
+          <span className="font-bold text-slate-600">held back</span> are never sent
+          automatically.
+        </p>
       </AdminSection>
 
-      {confirming ? (
-        <div className="rounded-2xl border border-slate-300 bg-white p-5">
-          <h3 className="text-base font-extrabold text-slate-900">
-            Turn on {confirming.displayName}?
-          </h3>
-          <p className="mt-2 text-sm text-slate-600">{ENABLE_CONFIRMATION}</p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => apply(confirming, true)}
-              disabled={pending !== null}
-              className="rounded-full bg-[#1570ef] px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
-            >
-              {pending === confirming.messageType ? "Turning on..." : "Turn on"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setConfirming(null)}
-              disabled={pending !== null}
-              className="rounded-full border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      ) : null}
+      <ConfirmDialog
+        confirmDisabled={pending !== null}
+        confirmLabel={
+          confirming && pending === confirming.messageType ? "Turning on..." : "Turn on"
+        }
+        message={ENABLE_CONFIRMATION}
+        onCancel={() => setConfirming(null)}
+        onConfirm={() => {
+          if (confirming) {
+            void apply(confirming, true);
+          }
+        }}
+        open={confirming !== null}
+        title={confirming ? `Turn on ${confirming.displayName}?` : ""}
+      />
     </div>
   );
+}
+
+function CountChip({
+  label,
+  value,
+  tone = "neutral",
+}: {
+  label: string;
+  value: number;
+  tone?: "positive" | "warning" | "critical" | "neutral";
+}) {
+  // A zero count stays quiet so only real numbers draw the eye.
+  const accents =
+    value === 0
+      ? "border-slate-200 bg-white text-slate-400"
+      : {
+          positive: "border-[#bfe7d4] bg-[#eefaf4] text-[#166b48]",
+          warning: "border-[#f6dfae] bg-[#fdf6e7] text-[#8a5a10]",
+          critical: "border-[#ffd2c9] bg-[#fff2ef] text-[#a63c2e]",
+          neutral: "border-slate-200 bg-slate-50 text-slate-700",
+        }[tone];
+
+  return (
+    <span
+      className={`inline-flex items-baseline gap-1 rounded-lg border px-2 py-1 text-xs ${accents}`}
+    >
+      <span className="font-black tabular-nums">{value}</span>
+      <span className="font-semibold">{label}</span>
+    </span>
+  );
+}
+
+function sum(
+  items: AdminEmailTemplate[],
+  pick: (item: AdminEmailTemplate) => number
+) {
+  return items.reduce((total, item) => total + pick(item), 0);
 }

@@ -70,9 +70,9 @@ function response(data: AdminEmailTemplateList) {
 }
 
 async function openWelcomeConfirmation() {
-  const row = (await screen.findByText("Welcome email")).closest("tr");
+  const row = (await screen.findByText("Welcome email")).closest("li");
   if (!row) {
-    throw new Error("Welcome email row was not rendered.");
+    throw new Error("Welcome email card was not rendered.");
   }
 
   fireEvent.click(within(row).getByRole("button", { name: "Turn on" }));
@@ -126,7 +126,7 @@ describe("AdminEmailTemplatesManager", () => {
     fireEvent.click(await openWelcomeConfirmation());
 
     await screen.findByText(/Welcome email is now on/);
-    const enabledRow = screen.getByText("Welcome email").closest("tr")!;
+    const enabledRow = screen.getByText("Welcome email").closest("li")!;
     expect(within(enabledRow).getByText("On")).toBeDefined();
     expect(within(enabledRow).getByText("Email Admin")).toBeDefined();
 
@@ -145,7 +145,7 @@ describe("AdminEmailTemplatesManager", () => {
       false,
       "AQIDBA=="
     );
-    expect(within(screen.getByText("Welcome email").closest("tr")!).getByText("Off"))
+    expect(within(screen.getByText("Welcome email").closest("li")!).getByText("Off"))
       .toBeDefined();
   });
 

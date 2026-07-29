@@ -9,6 +9,8 @@ type ConfirmDialogProps = {
   message: string;
   cancelLabel?: string;
   confirmLabel: string;
+  /** Blocks a second submit while the confirmed action is still running. */
+  confirmDisabled?: boolean;
   destructive?: boolean;
   onCancel: () => void;
   onConfirm: () => void;
@@ -21,6 +23,7 @@ export function ConfirmDialog({
   message,
   cancelLabel = "Cancel",
   confirmLabel,
+  confirmDisabled = false,
   destructive = false,
   onCancel,
   onConfirm,
@@ -76,7 +79,8 @@ export function ConfirmDialog({
             {cancelLabel}
           </button>
           <button
-            className={`inline-flex min-h-12 items-center justify-center rounded-full border px-5 py-3 text-sm font-bold transition ${confirmClass}`}
+            className={`inline-flex min-h-12 items-center justify-center rounded-full border px-5 py-3 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-60 ${confirmClass}`}
+            disabled={confirmDisabled}
             onClick={onConfirm}
             ref={confirmRef}
             type="button"
