@@ -16,6 +16,7 @@ describe("adminNavigation", () => {
       "Tag Operations",
       "Customers",
       "Configuration",
+      "System",
     ]);
   });
 
@@ -28,7 +29,15 @@ describe("adminNavigation", () => {
     ]);
 
     const configuration = adminNavGroups.find((group) => group.label === "Configuration")!;
-    expect(configuration.items.map((item) => item.label)).toEqual(["Plans", "Delivery Rates", "Settings"]);
+    expect(configuration.items.map((item) => item.label)).toEqual([
+      "Plans",
+      "Delivery Rates",
+      "Email Templates",
+    ]);
+
+    // Operational status is read-only, so it sits outside Configuration.
+    const system = adminNavGroups.find((group) => group.label === "System")!;
+    expect(system.items.map((item) => item.label)).toEqual(["Operational Status"]);
   });
 
   it("never renders empty groups", () => {

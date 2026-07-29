@@ -48,11 +48,15 @@ public interface IEmailPreviewService
 
 public interface IEmailOutboxService
 {
-    void EnqueuePaymentConfirmed(TagOrder order, DateTimeOffset confirmedAt);
+    Task EnqueuePaymentConfirmedAsync(
+        TagOrder order,
+        DateTimeOffset confirmedAt,
+        CancellationToken cancellationToken = default);
 
-    EmailOutbox? EnqueueOwnerWelcome(
+    Task<EmailOutbox?> EnqueueOwnerWelcomeAsync(
         User user,
-        OwnerWelcomeEmailTemplateData template);
+        OwnerWelcomeEmailTemplateData template,
+        CancellationToken cancellationToken = default);
 
     Task<AdminEmailOutboxResponse> RetryFailedAsync(
         Guid orderId,

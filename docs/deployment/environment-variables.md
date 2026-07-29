@@ -46,7 +46,6 @@ Email__FromName=MyPetLink
 Email__OwnerPortalBaseUrl=https://mypetlink.com.my
 Email__BrandLogoUrl=https://mypetlink.com.my/logo-horizontal.png
 Email__BrandAssetBaseUrl=https://mypetlink.com.my/email-assets
-Email__Templates__OwnerWelcomeEnabled=false
 Email__Smtp__Host=smtppro.zoho.com
 Email__Smtp__Port=587
 Email__Smtp__UseStartTls=true
@@ -60,9 +59,45 @@ approved secret store. See
 [`payment-confirmation-email.md`](./payment-confirmation-email.md) before
 enabling delivery.
 
-Set `Email__Templates__OwnerWelcomeEnabled=true` only after the
-`AddOwnerWelcomeEmail` migration and shared SMTP configuration are verified.
-See [`owner-welcome-email.md`](./owner-welcome-email.md).
+`Email__Enabled` is the global emergency switch and the only email switch in
+App Settings. It **pauses** delivery: queued messages stay waiting and resume
+when it is turned back on. It is not a suppression mechanism. When it is false no email can be delivered, whatever the database
+says, and it keeps working even if the database or Admin Portal is unavailable.
+
+Per-template enablement is **not** an App Setting. Each customer email is
+switched on or off in Admin Portal under Configuration → Email Templates, which
+writes an audited row in `EmailTemplateSettings`. Delivery requires both.
+
+Turning a template on records the moment it was enabled and only sends events
+recorded from that point onward. Events that happened while it was off are
+stored as held-back records and are never released retrospectively. Turning a
+template off and on again re-stamps that moment, so anything queued in between
+becomes permanently blocked and is reported separately from ready-to-send work.
+
+## Legacy AppSettings table
+
+The generic `AppSettings` table has no runtime consumer as of this release, but
+is **physically retained** so the previously deployed API can still read it if
+the application is rolled back. It is not exposed in Admin Portal.
+
+A future `RemoveLegacyAppSettings` migration may drop it only once **all** of
+the following are true:
+
+1. the new API has been deployed and stable in production,
+2. the rollback window has passed,
+3. no supported deployed version reads the table,
+4. a production backup has been taken and its restore verified.
+
+## Applying migration.sql
+
+Apply with `sqlcmd -I`. Filtered indexes require `QUOTED_IDENTIFIER ON`, which
+sqlcmd does not enable by default; without `-I` index creation fails.
+
+
+
+While a template is switched off, its messages are recorded as held back:
+never attempted, never counted as an attempt, and never marked as failed. Admin
+Retry is refused for a template that cannot currently send.
 
 | Variable (env form) | Config key | Secret? | Purpose |
 | --- | --- | --- | --- |

@@ -498,8 +498,6 @@ public interface IAdminService : ISkeletonService
 
     Task<AdminPetDetailResponse> GetPetAsync(Guid petId, CancellationToken cancellationToken = default);
 
-    Task<AdminSettingsResponse> GetSettingsAsync(CancellationToken cancellationToken = default);
-
     Task<(IReadOnlyCollection<AdminAuditLogResponse> Items, int Total)> ListAuditLogsAsync(
         int page,
         int pageSize,

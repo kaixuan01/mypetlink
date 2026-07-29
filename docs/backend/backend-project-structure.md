@@ -52,7 +52,8 @@ apps/api/
         AdminPaymentProofsController.cs
         AdminTagsController.cs
         AdminAuditLogsController.cs
-        AdminSettingsController.cs
+        AdminEmailTemplatesController.cs
+        AdminOperationalStatusController.cs
     Data/
       MyPetLinkDbContext.cs
       EntityConfigurations/

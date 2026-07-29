@@ -40,21 +40,42 @@ public sealed class OwnerWelcomeEmailTests
         Assert.Equal("https://mypetlink.com.my/pets/new", data.OwnerPortalUrl);
     }
 
-    [Theory]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    public async Task DisabledDeliveryOrTemplate_DoesNotQueueOrSend(
-        bool emailEnabled,
-        bool templateEnabled)
+    [Fact]
+    public async Task TemplateDisabled_RecordsSuppressedAndNeverSends()
     {
+        // A switched-off template is a business decision: the event is recorded
+        // but is permanently non-dispatchable.
         using var harness = await Harness.CreateAsync(
-            emailEnabled: emailEnabled,
-            templateEnabled: templateEnabled);
+            emailEnabled: true,
+            templateEnabled: false);
 
         await harness.Entry.EnterAsync(Harness.OwnerId);
         var claims = await harness.Dispatcher.ClaimBatchAsync(10, TimeSpan.FromMinutes(2));
 
-        Assert.Empty(await harness.Db.EmailOutbox.ToListAsync());
+        var message = Assert.Single(await harness.Db.EmailOutbox.ToListAsync());
+        Assert.Equal(EmailOutboxStatus.Suppressed, message.Status);
+        Assert.Equal(EmailSuppressionReasons.TemplateDisabled, message.SuppressionReason);
+        Assert.Equal(0, message.AttemptCount);
+        Assert.Empty(claims);
+        Assert.Equal(0, harness.Sender.CallCount);
+    }
+
+    [Fact]
+    public async Task GlobalDeliveryDisabled_KeepsMessagePendingAndPaused()
+    {
+        // A global pause is infrastructure, not a business decision, so the
+        // message stays Pending and resumes when delivery is switched back on.
+        using var harness = await Harness.CreateAsync(
+            emailEnabled: false,
+            templateEnabled: true);
+
+        await harness.Entry.EnterAsync(Harness.OwnerId);
+        var claims = await harness.Dispatcher.ClaimBatchAsync(10, TimeSpan.FromMinutes(2));
+
+        var message = Assert.Single(await harness.Db.EmailOutbox.ToListAsync());
+        Assert.Equal(EmailOutboxStatus.Pending, message.Status);
+        Assert.Null(message.SuppressionReason);
+        Assert.Equal(0, message.AttemptCount);
         Assert.Empty(claims);
         Assert.Equal(0, harness.Sender.CallCount);
     }
@@ -199,15 +220,20 @@ public sealed class OwnerWelcomeEmailTests
     {
         using var harness = await Harness.CreateAsync();
         await harness.Entry.EnterAsync(Harness.OwnerId);
+        // Per-template enablement is a database decision now, so switch the
+        // row off rather than a configuration flag.
+        foreach (var setting in await harness.Db.EmailTemplateSettings.ToListAsync())
+        {
+            setting.IsEnabled = false;
+            setting.EnabledFromUtc = null;
+        }
+
+        await harness.Db.SaveChangesAsync();
         var disabledOptions = Options.Create(new EmailOptions
         {
             Enabled = true,
             Provider = EmailOptions.DevelopmentProvider,
-            OwnerPortalBaseUrl = "https://mypetlink.com.my",
-            Templates = new EmailTemplateOptions
-            {
-                OwnerWelcomeEnabled = false
-            }
+            OwnerPortalBaseUrl = "https://mypetlink.com.my"
         });
         var dispatcher = new EmailOutboxDispatcher(
             harness.Db,
@@ -218,7 +244,7 @@ public sealed class OwnerWelcomeEmailTests
                 new OwnerWelcomeEmailTemplateRenderer(
                     new TransactionalEmailLayout(disabledOptions))),
             harness.Sender,
-            disabledOptions,
+            new EmailTemplateGate(harness.Db, disabledOptions),
             harness.Clock,
             NullLogger<EmailOutboxDispatcher>.Instance);
 
@@ -562,7 +588,11 @@ public sealed class OwnerWelcomeEmailTests
                 DateTimeOffset.Parse("2026-07-27T03:00:00Z"));
             var optionValue = Options.Create(options);
             var audit = new AuditLogService(db, new HttpContextAccessor());
-            var outbox = new EmailOutboxService(db, audit, Clock);
+            var outbox = new EmailOutboxService(
+                db,
+                audit,
+                Clock,
+                new EmailTemplateGate(db, optionValue));
             Sender = new RecordingSender();
             var layout = new TransactionalEmailLayout(optionValue);
             WelcomeRenderer = new OwnerWelcomeEmailTemplateRenderer(layout);
@@ -572,7 +602,7 @@ public sealed class OwnerWelcomeEmailTests
                     new PaymentConfirmedEmailTemplateRenderer(optionValue, layout),
                     WelcomeRenderer),
                 Sender,
-                optionValue,
+                new EmailTemplateGate(db, optionValue),
                 Clock,
                 NullLogger<EmailOutboxDispatcher>.Instance);
             Entry = new OwnerPortalEntryService(
@@ -664,6 +694,20 @@ public sealed class OwnerWelcomeEmailTests
             };
             db.Plans.Add(plan);
             db.Users.AddRange(owner, otherOwner, admin);
+            if (templateEnabled)
+            {
+                // Per-template enablement now lives in the database.
+                db.EmailTemplateSettings.Add(new EmailTemplateSetting
+                {
+                    Id = Guid.NewGuid(),
+                    MessageType = EmailMessageType.OwnerWelcome,
+                    IsEnabled = true,
+                    EnabledFromUtc = DateTimeOffset.Parse("2026-07-27T00:00:00Z"),
+                    CreatedAt = DateTimeOffset.Parse("2026-07-27T00:00:00Z"),
+                    UpdatedAt = DateTimeOffset.Parse("2026-07-27T00:00:00Z")
+                });
+            }
+
             await db.SaveChangesAsync();
 
             var options = new EmailOptions
@@ -671,11 +715,7 @@ public sealed class OwnerWelcomeEmailTests
                 Enabled = emailEnabled,
                 Provider = EmailOptions.DevelopmentProvider,
                 OwnerPortalBaseUrl = "https://mypetlink.com.my",
-                BrandLogoUrl = brandLogoUrl,
-                Templates = new EmailTemplateOptions
-                {
-                    OwnerWelcomeEnabled = templateEnabled
-                }
+                BrandLogoUrl = brandLogoUrl
             };
             return new Harness(
                 db,

@@ -56,7 +56,7 @@ public sealed class PaymentConfirmationEmailTests
     }
 
     [Fact]
-    public async Task DisabledEmail_LeavesPendingMessageAndDoesNotClaimOrSend()
+    public async Task DisabledEmail_RecordsSuppressedMessageAndDoesNotClaimOrSend()
     {
         using var harness = await Harness.CreateAsync(enabled: false);
         await harness.Admin.ConfirmPaymentAsync(Harness.AdminUserId, Harness.OrderId);
@@ -65,9 +65,14 @@ public sealed class PaymentConfirmationEmailTests
 
         Assert.Empty(claims);
         Assert.Equal(0, harness.Sender.CallCount);
+        // Payment confirmation itself must still succeed; only the email is
+        // held back, and as a non-dispatchable Suppressed record.
+        var message = await harness.Db.EmailOutbox.SingleAsync();
+        Assert.Equal(EmailOutboxStatus.Suppressed, message.Status);
+        Assert.Equal(0, message.AttemptCount);
         Assert.Equal(
-            EmailOutboxStatus.Pending,
-            (await harness.Db.EmailOutbox.SingleAsync()).Status);
+            PaymentStatus.Confirmed,
+            (await harness.Db.TagOrders.SingleAsync()).PaymentStatus);
     }
 
     [Fact]
@@ -299,15 +304,16 @@ public sealed class PaymentConfirmationEmailTests
             Renderer = new PaymentConfirmedEmailTemplateRenderer(
                 emailOptions,
                 new TransactionalEmailLayout(emailOptions));
+            var audit = new AuditLogService(db, new HttpContextAccessor());
             Dispatcher = new EmailOutboxDispatcher(
                 db,
                 Renderer,
                 Sender,
-                emailOptions,
+                new EmailTemplateGate(db, emailOptions),
                 Clock,
                 NullLogger<EmailOutboxDispatcher>.Instance);
-            var audit = new AuditLogService(db, new HttpContextAccessor());
-            var outbox = new EmailOutboxService(db, audit, Clock);
+            var gate = new EmailTemplateGate(db, emailOptions);
+            var outbox = new EmailOutboxService(db, audit, Clock, gate);
             Admin = new AdminService(
                 db,
                 audit,
@@ -377,6 +383,20 @@ public sealed class PaymentConfirmationEmailTests
             db.Users.AddRange(admin, owner, otherOwner);
             db.Pets.Add(pet);
             db.TagOrders.Add(order);
+            if (enabled)
+            {
+                // Per-template enablement now lives in the database.
+                db.EmailTemplateSettings.Add(new EmailTemplateSetting
+                {
+                    Id = Guid.NewGuid(),
+                    MessageType = EmailMessageType.PaymentConfirmed,
+                    IsEnabled = true,
+                    EnabledFromUtc = DateTimeOffset.Parse("2026-07-27T00:00:00Z"),
+                    CreatedAt = DateTimeOffset.Parse("2026-07-27T00:00:00Z"),
+                    UpdatedAt = DateTimeOffset.Parse("2026-07-27T00:00:00Z")
+                });
+            }
+
             await db.SaveChangesAsync();
             return new Harness(db, enabled);
         }

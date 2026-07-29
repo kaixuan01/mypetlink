@@ -69,7 +69,10 @@ public enum EmailOutboxStatus
     Pending,
     Sending,
     Sent,
-    Failed
+    Failed,
+    // Recorded for audit but never dispatchable. Used when the business event
+    // happened while its email template was switched off.
+    Suppressed
 }
 
 public enum SmartTagStatus

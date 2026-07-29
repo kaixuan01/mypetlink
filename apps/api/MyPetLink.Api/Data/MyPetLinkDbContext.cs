@@ -58,10 +58,13 @@ public sealed class MyPetLinkDbContext : DbContext
     public DbSet<DeliveryRate> DeliveryRates => Set<DeliveryRate>();
     public DbSet<PaymentProof> PaymentProofs => Set<PaymentProof>();
     public DbSet<EmailOutbox> EmailOutbox => Set<EmailOutbox>();
+    public DbSet<EmailTemplateSetting> EmailTemplateSettings => Set<EmailTemplateSetting>();
+    // Legacy, no runtime consumer. Mapped only so the table and its rows
+    // survive a rollback to the previously deployed API.
+    public DbSet<AppSetting> AppSettings => Set<AppSetting>();
     public DbSet<TagScan> TagScans => Set<TagScan>();
     public DbSet<FoundReport> FoundReports => Set<FoundReport>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
-    public DbSet<AppSetting> AppSettings => Set<AppSetting>();
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
@@ -752,7 +755,9 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.Property(item => item.Subject).HasMaxLength(240);
             entity.Property(item => item.Status).HasConversion<string>().HasMaxLength(32);
             entity.Property(item => item.LastError).HasMaxLength(600);
+            entity.Property(item => item.SuppressionReason).HasMaxLength(200);
             entity.Property(item => item.RowVersion).IsRowVersion();
+            entity.HasIndex(item => new { item.MessageType, item.Status, item.CreatedAt });
             entity.HasIndex(item => new { item.RelatedOrderId, item.MessageType })
                 .IsUnique()
                 .HasFilter("[RelatedOrderId] IS NOT NULL");
@@ -768,6 +773,34 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasOne(item => item.RelatedUser)
                 .WithMany(user => user.EmailOutboxMessages)
                 .HasForeignKey(item => item.RelatedUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<EmailTemplateSetting>(entity =>
+        {
+            entity.ToTable("EmailTemplateSettings");
+            entity.Property(item => item.MessageType)
+                .HasConversion<string>()
+                .HasMaxLength(64);
+            entity.Property(item => item.RowVersion).IsRowVersion();
+            entity.HasIndex(item => item.MessageType).IsUnique();
+            entity.HasOne(item => item.UpdatedByAdminUser)
+                .WithMany()
+                .HasForeignKey(item => item.UpdatedByAdminUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<AppSetting>(entity =>
+        {
+            entity.ToTable("AppSettings");
+            entity.Property(item => item.Key).HasMaxLength(160);
+            entity.Property(item => item.Category).HasMaxLength(80);
+            entity.HasIndex(item => item.Key).IsUnique();
+            entity.HasIndex(item => item.Category);
+            entity.HasIndex(item => item.IsPublic);
+            entity.HasOne(item => item.UpdatedByAdminUser)
+                .WithMany()
+                .HasForeignKey(item => item.UpdatedByAdminUserId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
     }
@@ -848,23 +881,12 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasIndex(item => item.CreatedAt);
         });
 
-        modelBuilder.Entity<AppSetting>(entity =>
-        {
-            entity.ToTable("AppSettings");
-            entity.Property(item => item.Key).HasMaxLength(160);
-            entity.Property(item => item.Category).HasMaxLength(80);
-            entity.HasIndex(item => item.Key).IsUnique();
-            entity.HasIndex(item => item.Category);
-            entity.HasIndex(item => item.IsPublic);
-            entity.HasOne(item => item.UpdatedByAdminUser)
-                .WithMany()
-                .HasForeignKey(item => item.UpdatedByAdminUserId)
-                .OnDelete(DeleteBehavior.Restrict);
-        });
     }
 
     private static void SeedDefaults(ModelBuilder modelBuilder)
     {
+        SeedLegacyAppSettings(modelBuilder);
+
         // Lightweight and Standard are migrated from the previously fixed
         // variant values already used by existing SKUs, inventory, and orders.
         modelBuilder.Entity<TagVariantPreset>().HasData(
@@ -951,6 +973,11 @@ public sealed class MyPetLinkDbContext : DbContext
                 UpdatedAt = SeededAt
             });
 
+    }
+
+        // Legacy seed retained so the model matches the existing table.
+    private static void SeedLegacyAppSettings(ModelBuilder modelBuilder)
+    {
         modelBuilder.Entity<AppSetting>().HasData(
             Setting("b60a097e-9407-4307-b224-e91f79838098", "tag.qr.price", "\"RM19.90\"", "Products", "QR Pet Tag one-time price.", true),
             Setting("6193a01f-686c-4b11-9a05-8a6e68ae8449", "tag.qr_nfc.price", "\"RM39.90\"", "Products", "QR + NFC Smart Tag one-time price.", true),

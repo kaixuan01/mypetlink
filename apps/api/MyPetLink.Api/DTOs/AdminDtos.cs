@@ -117,23 +117,8 @@ public sealed record AdminPetDetailResponse(
     AdminOwnerRefResponse Owner,
     IReadOnlyCollection<SmartTagResponse> Tags);
 
-public sealed record AdminSettingItemResponse(
-    string Key,
-    string ValueJson,
-    string Category,
-    string? Description,
-    bool IsPublic);
 
-public sealed record AdminFeatureFlagsResponse(
-    string PremiumStatus,
-    string GpsStatus,
-    bool PaymentGatewayEnabled,
-    bool FileStorageEnabled,
-    bool SmartTagOrderingEnabled);
 
-public sealed record AdminSettingsResponse(
-    IReadOnlyCollection<AdminSettingItemResponse> Settings,
-    AdminFeatureFlagsResponse Features);
 
 public sealed record AdminAuditLogResponse(
     Guid Id,
@@ -145,3 +130,38 @@ public sealed record AdminAuditLogResponse(
     string? OldValue,
     string? NewValue,
     DateTimeOffset CreatedAt);
+
+// --- Operational status (read-only) ---------------------------------------
+// Derived from configuration and database state that is actually in effect.
+// Carries no secret, host, credential, endpoint, or provider error detail.
+
+public sealed record AdminEmailStatusResponse(
+    bool GlobalDeliveryEnabled,
+    bool SmtpConfigured,
+    int EnabledTemplateCount,
+    int OutboxPendingCount,
+    // Pending and template-eligible, held only because global delivery is off.
+    int OutboxPausedByGlobalSwitchCount,
+    int OutboxSuppressedCount,
+    int OutboxFailedCount,
+    DateTimeOffset? LastSuccessfulDeliveryAt);
+
+public sealed record AdminStorageStatusResponse(
+    string Provider,
+    bool ConfigurationComplete,
+    bool UsesManagedStorage);
+
+public sealed record AdminPublicRoutingStatusResponse(
+    bool PublicSiteBaseUrlConfigured,
+    bool SmartTagLinkGenerationAvailable);
+
+public sealed record AdminOrderingStatusResponse(
+    bool OrderingEnabled,
+    int ActiveDeliveryZoneCount,
+    bool CheckoutAvailable);
+
+public sealed record AdminOperationalStatusResponse(
+    AdminEmailStatusResponse Email,
+    AdminStorageStatusResponse Storage,
+    AdminPublicRoutingStatusResponse PublicRouting,
+    AdminOrderingStatusResponse Ordering);

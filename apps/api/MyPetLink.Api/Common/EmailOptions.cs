@@ -18,7 +18,6 @@ public sealed class EmailOptions
     public string BrandAssetBaseUrl { get; set; } = "https://mypetlink.com.my/email-assets";
     public SmtpEmailOptions Smtp { get; set; } = new();
     public EmailDispatchOptions Dispatch { get; set; } = new();
-    public EmailTemplateOptions Templates { get; set; } = new();
 }
 
 public sealed class SmtpEmailOptions
@@ -39,21 +38,20 @@ public sealed class EmailDispatchOptions
     public int VisibilityTimeoutSeconds { get; set; } = 120;
 }
 
-public sealed class EmailTemplateOptions
-{
-    public bool OwnerWelcomeEnabled { get; set; }
-}
-
 public sealed class EmailOptionsValidator : IValidateOptions<EmailOptions>
 {
     public ValidateOptionsResult Validate(string? name, EmailOptions options)
     {
+        // Per-template enablement lives in the EmailTemplateSettings table, so
+        // the only switch here is the global emergency stop.
         if (!options.Enabled)
         {
             return ValidateOptionsResult.Success;
         }
 
         var failures = new List<string>();
+        ValidateLinks(options, failures);
+
         var provider = options.Provider?.Trim();
         if (!string.Equals(provider, EmailOptions.SmtpProvider, StringComparison.OrdinalIgnoreCase)
             && !string.Equals(provider, EmailOptions.DevelopmentProvider, StringComparison.OrdinalIgnoreCase))
@@ -70,34 +68,6 @@ public sealed class EmailOptionsValidator : IValidateOptions<EmailOptions>
             || ContainsHeaderBreak(options.FromName))
         {
             failures.Add("Email:FromName must be set and cannot contain line breaks.");
-        }
-
-        if (!Uri.TryCreate(options.OwnerPortalBaseUrl, UriKind.Absolute, out var portalUri)
-            || (portalUri.Scheme != Uri.UriSchemeHttps
-                && !(portalUri.Scheme == Uri.UriSchemeHttp && portalUri.IsLoopback))
-            || !string.IsNullOrEmpty(portalUri.UserInfo)
-            || !string.IsNullOrEmpty(portalUri.Query)
-            || !string.IsNullOrEmpty(portalUri.Fragment))
-        {
-            failures.Add("Email:OwnerPortalBaseUrl must be an absolute HTTPS origin (or loopback HTTP for development) without credentials, a query, or a fragment.");
-        }
-
-        if (!Uri.TryCreate(options.BrandLogoUrl, UriKind.Absolute, out var logoUri)
-            || logoUri.Scheme != Uri.UriSchemeHttps
-            || !string.IsNullOrEmpty(logoUri.UserInfo)
-            || !string.IsNullOrEmpty(logoUri.Query)
-            || !string.IsNullOrEmpty(logoUri.Fragment))
-        {
-            failures.Add("Email:BrandLogoUrl must be an absolute HTTPS URL without credentials, a query, or a fragment.");
-        }
-
-        if (!Uri.TryCreate(options.BrandAssetBaseUrl, UriKind.Absolute, out var assetUri)
-            || assetUri.Scheme != Uri.UriSchemeHttps
-            || !string.IsNullOrEmpty(assetUri.UserInfo)
-            || !string.IsNullOrEmpty(assetUri.Query)
-            || !string.IsNullOrEmpty(assetUri.Fragment))
-        {
-            failures.Add("Email:BrandAssetBaseUrl must be an absolute HTTPS URL without credentials, a query, or a fragment.");
         }
 
         if (string.Equals(provider, EmailOptions.SmtpProvider, StringComparison.OrdinalIgnoreCase))
@@ -145,6 +115,37 @@ public sealed class EmailOptionsValidator : IValidateOptions<EmailOptions>
         return failures.Count == 0
             ? ValidateOptionsResult.Success
             : ValidateOptionsResult.Fail(failures);
+    }
+
+    private static void ValidateLinks(EmailOptions options, List<string> failures)
+    {
+        if (!Uri.TryCreate(options.OwnerPortalBaseUrl, UriKind.Absolute, out var portalUri)
+            || (portalUri.Scheme != Uri.UriSchemeHttps
+                && !(portalUri.Scheme == Uri.UriSchemeHttp && portalUri.IsLoopback))
+            || !string.IsNullOrEmpty(portalUri.UserInfo)
+            || !string.IsNullOrEmpty(portalUri.Query)
+            || !string.IsNullOrEmpty(portalUri.Fragment))
+        {
+            failures.Add("Email:OwnerPortalBaseUrl must be an absolute HTTPS origin (or loopback HTTP for development) without credentials, a query, or a fragment.");
+        }
+
+        if (!Uri.TryCreate(options.BrandLogoUrl, UriKind.Absolute, out var logoUri)
+            || logoUri.Scheme != Uri.UriSchemeHttps
+            || !string.IsNullOrEmpty(logoUri.UserInfo)
+            || !string.IsNullOrEmpty(logoUri.Query)
+            || !string.IsNullOrEmpty(logoUri.Fragment))
+        {
+            failures.Add("Email:BrandLogoUrl must be an absolute HTTPS URL without credentials, a query, or a fragment.");
+        }
+
+        if (!Uri.TryCreate(options.BrandAssetBaseUrl, UriKind.Absolute, out var assetUri)
+            || assetUri.Scheme != Uri.UriSchemeHttps
+            || !string.IsNullOrEmpty(assetUri.UserInfo)
+            || !string.IsNullOrEmpty(assetUri.Query)
+            || !string.IsNullOrEmpty(assetUri.Fragment))
+        {
+            failures.Add("Email:BrandAssetBaseUrl must be an absolute HTTPS URL without credentials, a query, or a fragment.");
+        }
     }
 
     private static bool ContainsHeaderBreak(string value) =>

@@ -31,7 +31,6 @@ from payment-confirmation messages:
 
 ```text
 Email__Enabled=true
-Email__Templates__OwnerWelcomeEnabled=true
 Email__OwnerPortalBaseUrl=https://mypetlink.com.my
 Email__BrandLogoUrl=https://mypetlink.com.my/logo-horizontal.png
 Email__BrandAssetBaseUrl=https://mypetlink.com.my/email-assets
@@ -65,7 +64,7 @@ schedules the same row immediately, and records an audit entry.
 
 1. Apply `AddPaymentConfirmationEmailOutbox`.
 2. Apply `AddOwnerWelcomeEmail`.
-3. Deploy with `Email__Templates__OwnerWelcomeEnabled=false`.
+3. Deploy with the Welcome template switched off in Admin Portal.
 4. Verify SMTP, SPF, DKIM, DMARC, sender authorization, and the public logo and
    email-asset URLs.
 5. Enable the welcome template and monitor Failed outbox rows.

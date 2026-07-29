@@ -60,6 +60,20 @@ public sealed class AuditLog : Entity
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
+/// <summary>
+/// LEGACY generic key/value settings table. Retained physically for one
+/// rollback window only: the previously deployed API still reads it, so
+/// dropping it now would make an application rollback fail.
+///
+/// Nothing in the current codebase reads or writes this entity. Its values are
+/// stale and must never be presented as operational truth — product prices come
+/// from TagProductVariants and operational state from the Operational Status
+/// page. It is mapped only so the table and its data survive, and so a future
+/// migration cannot drop it by accident.
+///
+/// Removal is planned as a separate "RemoveLegacyAppSettings" migration once
+/// the conditions in docs/deployment/environment-variables.md are met.
+/// </summary>
 public sealed class AppSetting : AuditableEntity
 {
     public string Key { get; set; } = "";

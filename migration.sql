@@ -3457,3 +3457,75 @@ GO
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260729094414_AddEmailTemplateSettings'
+)
+BEGIN
+    ALTER TABLE [EmailOutbox] ADD [SuppressionReason] nvarchar(200) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260729094414_AddEmailTemplateSettings'
+)
+BEGIN
+    CREATE TABLE [EmailTemplateSettings] (
+        [Id] uniqueidentifier NOT NULL,
+        [MessageType] nvarchar(64) NOT NULL,
+        [IsEnabled] bit NOT NULL,
+        [EnabledFromUtc] datetimeoffset NULL,
+        [UpdatedByAdminUserId] uniqueidentifier NULL,
+        [RowVersion] rowversion NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_EmailTemplateSettings] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_EmailTemplateSettings_AdminUsers_UpdatedByAdminUserId] FOREIGN KEY ([UpdatedByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260729094414_AddEmailTemplateSettings'
+)
+BEGIN
+    CREATE INDEX [IX_EmailOutbox_MessageType_Status_CreatedAt] ON [EmailOutbox] ([MessageType], [Status], [CreatedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260729094414_AddEmailTemplateSettings'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_EmailTemplateSettings_MessageType] ON [EmailTemplateSettings] ([MessageType]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260729094414_AddEmailTemplateSettings'
+)
+BEGIN
+    CREATE INDEX [IX_EmailTemplateSettings_UpdatedByAdminUserId] ON [EmailTemplateSettings] ([UpdatedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260729094414_AddEmailTemplateSettings'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260729094414_AddEmailTemplateSettings', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+

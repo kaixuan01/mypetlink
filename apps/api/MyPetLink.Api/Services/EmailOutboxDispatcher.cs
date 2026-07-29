@@ -1,6 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
-using MyPetLink.Api.Common;
 using MyPetLink.Api.Data;
 using MyPetLink.Api.Entities;
 
@@ -19,7 +17,7 @@ public sealed class EmailOutboxDispatcher : IEmailOutboxDispatcher
     private readonly MyPetLinkDbContext _dbContext;
     private readonly IEmailTemplateRenderer _renderer;
     private readonly IEmailSender _sender;
-    private readonly EmailOptions _options;
+    private readonly IEmailTemplateGate _gate;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<EmailOutboxDispatcher> _logger;
 
@@ -27,14 +25,14 @@ public sealed class EmailOutboxDispatcher : IEmailOutboxDispatcher
         MyPetLinkDbContext dbContext,
         IEmailTemplateRenderer renderer,
         IEmailSender sender,
-        IOptions<EmailOptions> options,
+        IEmailTemplateGate gate,
         TimeProvider timeProvider,
         ILogger<EmailOutboxDispatcher> logger)
     {
         _dbContext = dbContext;
         _renderer = renderer;
         _sender = sender;
-        _options = options.Value;
+        _gate = gate;
         _timeProvider = timeProvider;
         _logger = logger;
     }
@@ -44,26 +42,48 @@ public sealed class EmailOutboxDispatcher : IEmailOutboxDispatcher
         TimeSpan visibilityTimeout,
         CancellationToken cancellationToken = default)
     {
-        if (!_options.Enabled)
+        // Only templates that are switched on are queried at all, so a
+        // disabled template's rows are never claimed, never attempted, and
+        // never touched. When nothing may send we skip the query completely
+        // rather than rescanning rows we must ignore.
+        var eligible = await _gate.GetEligibleAsync(cancellationToken);
+        if (eligible.Count == 0)
         {
             return [];
         }
 
         var now = _timeProvider.GetUtcNow();
         var boundedBatchSize = Math.Clamp(batchSize, 1, 100);
-        var candidateIds = await _dbContext.EmailOutbox
-            .AsNoTracking()
-            .Where(item =>
-                (item.MessageType != EmailMessageType.OwnerWelcome
-                    || _options.Templates.OwnerWelcomeEnabled)
-                && ((item.Status == EmailOutboxStatus.Pending && item.NextAttemptAt <= now)
-                    || (item.Status == EmailOutboxStatus.Sending
-                        && (!item.LockedUntil.HasValue || item.LockedUntil <= now))))
-            .OrderBy(item => item.NextAttemptAt)
-            .ThenBy(item => item.CreatedAt)
-            .Select(item => item.Id)
+
+        // Each template is queried against its own EnabledFromUtc, so messages
+        // recorded before the template was switched on stay blocked forever.
+        // Enabling a template releases new events only, never a backlog.
+        var candidates = new List<(Guid Id, DateTimeOffset NextAttemptAt, DateTimeOffset CreatedAt)>();
+        foreach (var template in eligible)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var rows = await _dbContext.EmailOutbox
+                .AsNoTracking()
+                .Where(item =>
+                    item.MessageType == template.MessageType
+                    && item.CreatedAt >= template.EnabledFromUtc
+                    && ((item.Status == EmailOutboxStatus.Pending && item.NextAttemptAt <= now)
+                        || (item.Status == EmailOutboxStatus.Sending
+                            && (!item.LockedUntil.HasValue || item.LockedUntil <= now))))
+                .OrderBy(item => item.NextAttemptAt)
+                .ThenBy(item => item.CreatedAt)
+                .Select(item => new { item.Id, item.NextAttemptAt, item.CreatedAt })
+                .Take(boundedBatchSize * 2)
+                .ToListAsync(cancellationToken);
+            candidates.AddRange(rows.Select(row => (row.Id, row.NextAttemptAt, row.CreatedAt)));
+        }
+
+        var candidateIds = candidates
+            .OrderBy(row => row.NextAttemptAt)
+            .ThenBy(row => row.CreatedAt)
+            .Select(row => row.Id)
             .Take(boundedBatchSize * 2)
-            .ToListAsync(cancellationToken);
+            .ToList();
 
         var claims = new List<ClaimedEmail>(boundedBatchSize);
         foreach (var id in candidateIds)

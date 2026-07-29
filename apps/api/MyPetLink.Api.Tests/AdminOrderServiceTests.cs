@@ -325,7 +325,11 @@ public sealed class AdminOrderServiceTests
                 db,
                 audit,
                 Options.Create(new FeatureOptions()),
-                new EmailOutboxService(db, audit, clock),
+                new EmailOutboxService(
+                    db,
+                    audit,
+                    clock,
+                    new EmailTemplateGate(db, Options.Create(new EmailOptions()))),
                 new BusinessReferenceGenerator(
                     new SequenceBusinessReferenceSuffixSource(
                         4000, 4001, 4002, 4003, 4004, 4005)),

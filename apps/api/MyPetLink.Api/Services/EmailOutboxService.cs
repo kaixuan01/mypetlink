@@ -13,18 +13,24 @@ public sealed class EmailOutboxService : IEmailOutboxService
     private readonly MyPetLinkDbContext _dbContext;
     private readonly IAuditLogService _auditLogService;
     private readonly TimeProvider _timeProvider;
+    private readonly IEmailTemplateGate _gate;
 
     public EmailOutboxService(
         MyPetLinkDbContext dbContext,
         IAuditLogService auditLogService,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        IEmailTemplateGate gate)
     {
         _dbContext = dbContext;
         _auditLogService = auditLogService;
         _timeProvider = timeProvider;
+        _gate = gate;
     }
 
-    public void EnqueuePaymentConfirmed(TagOrder order, DateTimeOffset confirmedAt)
+    public async Task EnqueuePaymentConfirmedAsync(
+        TagOrder order,
+        DateTimeOffset confirmedAt,
+        CancellationToken cancellationToken = default)
     {
         if (order.EmailOutboxMessages.Any(item =>
                 item.MessageType == EmailMessageType.PaymentConfirmed))
@@ -54,6 +60,9 @@ public sealed class EmailOutboxService : IEmailOutboxService
             PetName: string.IsNullOrWhiteSpace(order.Pet.Name) ? "your pet" : order.Pet.Name.Trim());
 
         var now = _timeProvider.GetUtcNow();
+        var suppression = await SuppressionReasonAsync(
+            EmailMessageType.PaymentConfirmed,
+            cancellationToken);
         var message = new EmailOutbox
         {
             Id = Guid.NewGuid(),
@@ -64,7 +73,10 @@ public sealed class EmailOutboxService : IEmailOutboxService
             TemplateDataJson = JsonSerializer.Serialize(template, TemplateJson),
             RelatedOrderId = order.Id,
             RelatedOrder = order,
-            Status = EmailOutboxStatus.Pending,
+            Status = suppression is null
+                ? EmailOutboxStatus.Pending
+                : EmailOutboxStatus.Suppressed,
+            SuppressionReason = suppression,
             AttemptCount = 0,
             MaxAttempts = 5,
             NextAttemptAt = now,
@@ -76,9 +88,10 @@ public sealed class EmailOutboxService : IEmailOutboxService
         _dbContext.EmailOutbox.Add(message);
     }
 
-    public EmailOutbox? EnqueueOwnerWelcome(
+    public async Task<EmailOutbox?> EnqueueOwnerWelcomeAsync(
         User user,
-        OwnerWelcomeEmailTemplateData template)
+        OwnerWelcomeEmailTemplateData template,
+        CancellationToken cancellationToken = default)
     {
         if (user.EmailOutboxMessages.Any(item =>
                 item.MessageType == EmailMessageType.OwnerWelcome))
@@ -88,6 +101,9 @@ public sealed class EmailOutboxService : IEmailOutboxService
 
         var now = _timeProvider.GetUtcNow();
         var recipientName = CleanHeaderValue(template.OwnerName, "MyPetLink owner");
+        var suppression = await SuppressionReasonAsync(
+            EmailMessageType.OwnerWelcome,
+            cancellationToken);
         var message = new EmailOutbox
         {
             Id = Guid.NewGuid(),
@@ -98,7 +114,10 @@ public sealed class EmailOutboxService : IEmailOutboxService
             TemplateDataJson = JsonSerializer.Serialize(template, TemplateJson),
             RelatedUserId = user.Id,
             RelatedUser = user,
-            Status = EmailOutboxStatus.Pending,
+            Status = suppression is null
+                ? EmailOutboxStatus.Pending
+                : EmailOutboxStatus.Suppressed,
+            SuppressionReason = suppression,
             AttemptCount = 0,
             MaxAttempts = 5,
             NextAttemptAt = now,
@@ -135,6 +154,11 @@ public sealed class EmailOutboxService : IEmailOutboxService
                 "invalid_state",
                 "Only a failed payment confirmation email can be retried.");
         }
+
+        await EnsureDeliveryEnabledAsync(
+            EmailMessageType.PaymentConfirmed,
+            "Payment confirmation emails are currently turned off. Turn them on before retrying this email.",
+            cancellationToken);
 
         var oldState = Snapshot(message);
         ResetForRetry(message);
@@ -175,6 +199,11 @@ public sealed class EmailOutboxService : IEmailOutboxService
                 "invalid_state",
                 "Only a failed welcome email can be retried.");
         }
+
+        await EnsureDeliveryEnabledAsync(
+            EmailMessageType.OwnerWelcome,
+            "Welcome emails are currently turned off. Turn them on before retrying this email.",
+            cancellationToken);
 
         var oldState = Snapshot(message);
         ResetForRetry(message);
@@ -240,6 +269,42 @@ public sealed class EmailOutboxService : IEmailOutboxService
         message.SentAt,
         message.LastError
     };
+
+    /// <summary>
+    /// Retry resets a failed message back to Pending, so it must honour the
+    /// same switches as the dispatcher. Without this an administrator could
+    /// clear a failure and be told the email was queued while it can never
+    /// actually send.
+    /// </summary>
+    private async Task EnsureDeliveryEnabledAsync(
+        EmailMessageType messageType,
+        string message,
+        CancellationToken cancellationToken)
+    {
+        if (!await _gate.IsDeliveryEnabledAsync(messageType, cancellationToken))
+        {
+            throw new ApiException(
+                StatusCodes.Status409Conflict,
+                "invalid_state",
+                message);
+        }
+    }
+
+    /// <summary>
+    /// Returns null when the business event may be queued, or a typed reason
+    /// when it must be recorded as Suppressed instead.
+    ///
+    /// Only the per-template business decision suppresses. A global delivery
+    /// pause deliberately does NOT: those messages stay Pending so they resume
+    /// when the emergency switch is turned back on, and remain visible as held
+    /// work in the meantime.
+    /// </summary>
+    private async Task<string?> SuppressionReasonAsync(
+        EmailMessageType messageType,
+        CancellationToken cancellationToken) =>
+        await _gate.IsTemplateEnabledAsync(messageType, cancellationToken)
+            ? null
+            : EmailSuppressionReasons.TemplateDisabled;
 
     private void ResetForRetry(EmailOutbox message)
     {

@@ -18,7 +18,6 @@ Email__FromName=MyPetLink
 Email__OwnerPortalBaseUrl=https://mypetlink.com.my
 Email__BrandLogoUrl=https://mypetlink.com.my/logo-horizontal.png
 Email__BrandAssetBaseUrl=https://mypetlink.com.my/email-assets
-Email__Templates__OwnerWelcomeEnabled=false
 Email__Smtp__Host=smtppro.zoho.com
 Email__Smtp__Port=587
 Email__Smtp__UseStartTls=true
@@ -36,6 +35,22 @@ delivery without losing confirmations. Development uses the non-network
 `Development` provider when explicitly enabled. CI replaces `IEmailSender`
 with a fake and must never configure Zoho credentials.
 
+Delivery requires **both** `Email__Enabled=true` and the Payment confirmation
+template switched on in Admin Portal (Configuration → Email Templates). Turning
+on the global switch alone never sends payment confirmations, and enabling the
+Welcome email cannot release queued confirmations as a side effect.
+
+While the template is disabled, its messages are excluded from the dispatcher
+query entirely: they are never claimed, `AttemptCount` stays at zero, and they
+are never marked `Failed`. They remain `Pending` indefinitely and are delivered
+once — each exactly once — when the template is enabled.
+
+Confirmations recorded while the template was off are stored as held-back
+records. Enabling the template stamps the moment of the decision and only
+releases events recorded from then on, so a historical backlog can never be
+flushed to customers by flipping a switch. Held-back records stay visible in
+Admin Portal for review.
+
 ## Delivery and retry policy
 
 - Attempt 1: immediately.
@@ -47,7 +62,9 @@ with a fake and must never configure Zoho credentials.
   `Failed`.
 - Admin Retry changes the existing row from `Failed` to `Pending`, resets the
   attempt count to zero, clears the current display error, schedules it
-  immediately, and records the previous failure in the audit log.
+  immediately, and records the previous failure in the audit log. Retry is
+  refused with a conflict while the master switch or this template's switch is
+  off, so an operator is never told a message was requeued when it cannot send.
 - `Sending` rows have a visibility lease and are reclaimed after the lease
   expires. The unique `(RelatedOrderId, MessageType)` index prevents a second
   queued payment-confirmation message for the same order.
@@ -80,8 +97,10 @@ Do not change DNS automatically from the application deployment.
 3. Verify the Admin Portal can see queued delivery status and the worker is
    healthy.
 4. Verify SPF, DKIM, DMARC, the authorized From address, and Azure secrets.
-5. Enable `Email__Enabled=true`.
-6. Monitor the outbox failure count, application logs, and Zoho sending limits.
+5. Enable `Email__Enabled=true`. No template sends yet.
+6. Review held-back records in Admin Portal → Configuration → Email Templates.
+7. Turn on the Payment confirmation template there and confirm the prompt.
+8. Monitor the outbox failure count, application logs, and Zoho sending limits.
 
 An optional live SMTP check requires explicit authorization and must target only
 an internal MyPetLink-owned mailbox. Remove or disable temporary settings after

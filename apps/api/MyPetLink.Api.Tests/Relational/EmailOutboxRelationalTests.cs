@@ -76,6 +76,7 @@ public sealed class EmailOutboxRelationalTests
         {
             var order = SeedOrderGraph(seed, withProof: false);
             seed.EmailOutbox.Add(Message(order));
+            seed.EmailTemplateSettings.Add(EnabledTemplate(EmailMessageType.PaymentConfirmed));
             await seed.SaveChangesAsync();
         }
 
@@ -144,6 +145,17 @@ public sealed class EmailOutboxRelationalTests
         Assert.Equal(ownerId, message.RelatedUserId);
     }
 
+    private static EmailTemplateSetting EnabledTemplate(EmailMessageType messageType) =>
+        new()
+        {
+            Id = Guid.NewGuid(),
+            MessageType = messageType,
+            IsEnabled = true,
+            EnabledFromUtc = Now.AddMinutes(-5),
+            CreatedAt = Now.AddMinutes(-5),
+            UpdatedAt = Now.AddMinutes(-5)
+        };
+
     private static EmailOutboxDispatcher Dispatcher(MyPetLinkDbContext db)
     {
         var options = Options.Create(new EmailOptions
@@ -156,7 +168,7 @@ public sealed class EmailOutboxRelationalTests
             db,
             new StubRenderer(),
             new StubSender(),
-            options,
+            new EmailTemplateGate(db, options),
             new FixedTimeProvider(),
             NullLogger<EmailOutboxDispatcher>.Instance);
     }
@@ -168,15 +180,15 @@ public sealed class EmailOutboxRelationalTests
         {
             Enabled = true,
             Provider = EmailOptions.DevelopmentProvider,
-            OwnerPortalBaseUrl = "http://localhost:3000",
-            Templates = new EmailTemplateOptions
-            {
-                OwnerWelcomeEnabled = true
-            }
+            OwnerPortalBaseUrl = "http://localhost:3000"
         });
         return new OwnerPortalEntryService(
             db,
-            new EmailOutboxService(db, audit, new FixedTimeProvider()),
+            new EmailOutboxService(
+                db,
+                audit,
+                new FixedTimeProvider(),
+                new EmailTemplateGate(db, emailOptions)),
             emailOptions,
             Options.Create(new FeatureOptions()),
             new FixedTimeProvider(),
@@ -296,14 +308,19 @@ public sealed class EmailOutboxRelationalTests
 
     private sealed class DuplicateEnqueueService(MyPetLinkDbContext db) : IEmailOutboxService
     {
-        public void EnqueuePaymentConfirmed(TagOrder order, DateTimeOffset confirmedAt)
+        public Task EnqueuePaymentConfirmedAsync(
+            TagOrder order,
+            DateTimeOffset confirmedAt,
+            CancellationToken cancellationToken = default)
         {
             db.EmailOutbox.Add(Message(order));
+            return Task.CompletedTask;
         }
 
-        public EmailOutbox? EnqueueOwnerWelcome(
+        public Task<EmailOutbox?> EnqueueOwnerWelcomeAsync(
             User user,
-            OwnerWelcomeEmailTemplateData template) =>
+            OwnerWelcomeEmailTemplateData template,
+            CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         public Task<AdminEmailOutboxResponse> RetryFailedAsync(

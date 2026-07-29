@@ -71,10 +71,10 @@ public sealed class OwnerPortalEntryService : SkeletonService, IOwnerPortalEntry
             return;
         }
 
-        if (!_emailOptions.Enabled || !_emailOptions.Templates.OwnerWelcomeEnabled)
-        {
-            return;
-        }
+        // Delivery switches are no longer checked here. The outbox service
+        // records the message as Suppressed when the template is switched off,
+        // so the business event stays visible to administrators and can never
+        // be released retrospectively by enabling the template later.
 
         if (!HasEligibleVerifiedEmail(user, out var reasonCode))
         {
@@ -99,7 +99,10 @@ public sealed class OwnerPortalEntryService : SkeletonService, IOwnerPortalEntry
             ownerPortalUrl,
             now,
             _featureOptions.SmartTagOrderingEnabled);
-        var message = _emailOutboxService.EnqueueOwnerWelcome(user, template);
+        var message = await _emailOutboxService.EnqueueOwnerWelcomeAsync(
+            user,
+            template,
+            cancellationToken);
         if (message is null)
         {
             return;

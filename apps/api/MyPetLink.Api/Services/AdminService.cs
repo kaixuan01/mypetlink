@@ -29,7 +29,13 @@ public sealed class AdminService : SkeletonService, IAdminService
             dbContext,
             auditLogService,
             features,
-            new EmailOutboxService(dbContext, auditLogService, TimeProvider.System),
+            // No email configuration is supplied here, so the global switch
+            // stays off and every template resolves to disabled.
+            new EmailOutboxService(
+                dbContext,
+                auditLogService,
+                TimeProvider.System,
+                new EmailTemplateGate(dbContext, Options.Create(new EmailOptions()))),
             new BusinessReferenceGenerator(new CryptographicBusinessReferenceSuffixSource()),
             TimeProvider.System)
     {
@@ -1000,29 +1006,6 @@ public sealed class AdminService : SkeletonService, IAdminService
 
     // --- Settings and audit logs -----------------------------------------------------
 
-    public async Task<AdminSettingsResponse> GetSettingsAsync(CancellationToken cancellationToken = default)
-    {
-        var settings = await _dbContext.AppSettings
-            .AsNoTracking()
-            .OrderBy(setting => setting.Category)
-            .ThenBy(setting => setting.Key)
-            .Select(setting => new AdminSettingItemResponse(
-                setting.Key,
-                setting.ValueJson,
-                setting.Category,
-                setting.Description,
-                setting.IsPublic))
-            .ToListAsync(cancellationToken);
-
-        return new AdminSettingsResponse(
-            settings,
-            new AdminFeatureFlagsResponse(
-                PremiumStatus: "Coming Soon",
-                GpsStatus: "Coming Later",
-                PaymentGatewayEnabled: false,
-                FileStorageEnabled: false,
-                SmartTagOrderingEnabled: _features.SmartTagOrderingEnabled));
-    }
 
     public async Task<(IReadOnlyCollection<AdminAuditLogResponse> Items, int Total)> ListAuditLogsAsync(
         int page,
@@ -1282,9 +1265,10 @@ public sealed class AdminService : SkeletonService, IAdminService
                             order.PaymentConfirmedAt.Value.ToUniversalTime(),
                             cancellationToken);
                         order.TrackingStatus = "Payment confirmed. Tag preparation is next.";
-                        _emailOutboxService.EnqueuePaymentConfirmed(
+                        await _emailOutboxService.EnqueuePaymentConfirmedAsync(
                             order,
-                            order.PaymentConfirmedAt.Value);
+                            order.PaymentConfirmedAt.Value,
+                            cancellationToken);
                     }
                     else
                     {
