@@ -19,6 +19,37 @@ This is the **MyPetLink monorepo**. Read this file before making changes anywher
 6. **Smart Tags are optional one-time add-ons** (QR Pet Tag and QR + NFC Smart Tag), not subscriptions. Each tag has a **tag variant** — **Lightweight** (cats/small pets) or **Standard** (dogs/medium-large pets) — separate from the tag type. There is no shape/design option (deprecated).
 7. **Assigned inventory tags are not final.** Before an order ships, an admin can change the assigned tag (the old tag returns to unclaimed stock). After shipping/delivery/activation, use Replace Tag (the old tag becomes `Replaced` and its `/t` scan page stops showing owner contact). Both are admin-only, validate tag type/variant, and are audited. Inventory stock is consumed at assignment, not at order creation.
 
+## Configuration ownership
+
+Every configurable value has exactly one authoritative owner. Before adding or
+relocating one, classify it using
+[`docs/architecture/configuration-governance.md`](docs/architecture/configuration-governance.md);
+the current inventory is
+[`docs/operations/configuration-inventory.md`](docs/operations/configuration-inventory.md).
+
+1. Classify the value with the decision tree in the governance document.
+2. Do not add a new App Setting for a runtime business value without
+   documenting why deployment ownership is required.
+3. Never put secrets, credentials, signing keys, or connection strings in
+   application database tables or the Admin Portal.
+4. Do not create duplicate App Settings, database values, frontend constants,
+   or hardcoded fallbacks for the same business fact.
+5. Admin-editable settings need typed validation, authorization, audit logging,
+   UTC timestamps, and `RowVersion` concurrency.
+6. Infrastructure settings may appear in Admin only as safe read-only status,
+   derived from the value actually in effect — never a hardcoded status string.
+7. Admin Portal must never expose raw secrets or complete configuration dumps.
+8. Missing financial, security, tag-routing, and external-service configuration
+   must fail closed.
+9. A feature-level database switch must never override a global infrastructure
+   kill switch. Two-level controls are `AND` — see `EmailTemplateGate`.
+10. Configuration migrations must preserve historical snapshots, seed new
+    switches as disabled, and define rollout and rollback steps.
+11. Update the configuration inventory and deployment documentation whenever
+    configuration ownership changes.
+12. Do not build generic key/value setting editors. Every setting needs typed
+    validation and a purpose-built UI.
+
 ## Production UI copy rules
 
 All user-facing **and** admin-facing UI text must read as production-ready copy for non-developers.
