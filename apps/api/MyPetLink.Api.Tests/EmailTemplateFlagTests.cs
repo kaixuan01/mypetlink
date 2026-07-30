@@ -595,7 +595,8 @@ public sealed class EmailTemplateFlagTests
                 Db,
                 new EmailTemplateRenderer(
                     new PaymentConfirmedEmailTemplateRenderer(optionValue, layout),
-                    new OwnerWelcomeEmailTemplateRenderer(layout)),
+                    new OwnerWelcomeEmailTemplateRenderer(layout),
+                    new OrderShippedEmailTemplateRenderer(optionValue, layout)),
                 Sender,
                 gate,
                 clock,

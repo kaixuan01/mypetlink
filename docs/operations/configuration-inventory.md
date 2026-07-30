@@ -77,6 +77,7 @@ Typed domain tables with audit and `RowVersion`. This is the correct pattern.
 | Domain | Table | Admin screen | Notes |
 | --- | --- | --- | --- |
 | Delivery | `DeliveryRates` | `/admin/delivery-rates` | Fee, zone, free-shipping threshold, active flag. `RowVersion` + audit. **All four seeded zones ship inactive**, so checkout fail-closes until activated. |
+| Shipping and fulfilment | `ShippingFulfilmentSettings`, `ShippingCourierProviders` | `/admin/shipping-fulfilment` | Operational sender/return address, parcel defaults, active/default courier choices and optional HTTPS tracking templates. Separate from customer delivery pricing. Customer tracking links seed disabled. |
 | Product catalog | `TagProducts`, `TagProductVariants` | `/admin/tag-products` | `BasePrice`, `CompareAtPrice`, availability. Server-authoritative pricing. |
 | Variant presets | `TagVariantPresets` | `/admin/tag-products` | Lightweight / Standard |
 | Promotions | `Promotions`, `PromotionVariants` | `/admin/tag-products` | Discounts |

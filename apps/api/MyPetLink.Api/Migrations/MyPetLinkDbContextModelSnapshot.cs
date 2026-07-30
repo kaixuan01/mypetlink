@@ -351,6 +351,60 @@ namespace MyPetLink.Api.Migrations
                     b.ToTable("DeliveryRates", (string)null);
                 });
 
+            modelBuilder.Entity("MyPetLink.Api.Entities.DeliveryStateRateOverride", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
+                    b.Property<decimal>("Fee")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("FreeShippingThreshold")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("StateCode")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("UpdatedByAdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsEnabled");
+
+                    b.HasIndex("StateCode")
+                        .IsUnique();
+
+                    b.HasIndex("UpdatedByAdminUserId");
+
+                    b.ToTable("DeliveryStateRateOverrides", (string)null);
+                });
+
             modelBuilder.Entity("MyPetLink.Api.Entities.EmailOutbox", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1636,6 +1690,235 @@ namespace MyPetLink.Api.Migrations
                     b.ToTable("RefreshTokens", (string)null);
                 });
 
+            modelBuilder.Entity("MyPetLink.Api.Entities.ShippingCourierProvider", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("InternalNotes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("bit");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("TrackingUrlTemplate")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("UpdatedByAdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.HasIndex("IsDefault")
+                        .IsUnique()
+                        .HasFilter("[IsDefault] = 1");
+
+                    b.HasIndex("UpdatedByAdminUserId");
+
+                    b.HasIndex("IsActive", "DisplayOrder", "DisplayName");
+
+                    b.ToTable("ShippingCourierProviders", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("dcd3c11a-ddb7-4c50-bf21-0f4d0e3297d1"),
+                            Code = "JNT",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            DisplayName = "J&T Express",
+                            DisplayOrder = 10,
+                            IsActive = true,
+                            IsDefault = true,
+                            RowVersion = new byte[0],
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        },
+                        new
+                        {
+                            Id = new Guid("0ac926be-7d6d-403f-9716-e4498354347a"),
+                            Code = "POSLAJU",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            DisplayName = "Pos Laju",
+                            DisplayOrder = 20,
+                            IsActive = true,
+                            IsDefault = false,
+                            RowVersion = new byte[0],
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        },
+                        new
+                        {
+                            Id = new Guid("03a56970-0592-4c83-b0bd-6453c6833703"),
+                            Code = "DHL_ECOMMERCE",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            DisplayName = "DHL eCommerce",
+                            DisplayOrder = 30,
+                            IsActive = true,
+                            IsDefault = false,
+                            RowVersion = new byte[0],
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        },
+                        new
+                        {
+                            Id = new Guid("28d1e1a3-0ca5-48d0-b624-757961e936d1"),
+                            Code = "NINJA_VAN",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            DisplayName = "Ninja Van",
+                            DisplayOrder = 40,
+                            IsActive = true,
+                            IsDefault = false,
+                            RowVersion = new byte[0],
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        });
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ShippingFulfilmentSetting", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AddressLine1")
+                        .IsRequired()
+                        .HasMaxLength(240)
+                        .HasColumnType("nvarchar(240)");
+
+                    b.Property<string>("AddressLine2")
+                        .HasMaxLength(240)
+                        .HasColumnType("nvarchar(240)");
+
+                    b.Property<string>("City")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("CompanyName")
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<string>("Country")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<bool>("CustomerTrackingLinksEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("DefaultParcelHeightCm")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("decimal(8,2)");
+
+                    b.Property<decimal>("DefaultParcelLengthCm")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("decimal(8,2)");
+
+                    b.Property<decimal>("DefaultParcelWeightKg")
+                        .HasPrecision(8, 3)
+                        .HasColumnType("decimal(8,3)");
+
+                    b.Property<decimal>("DefaultParcelWidthCm")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("decimal(8,2)");
+
+                    b.Property<string>("Postcode")
+                        .IsRequired()
+                        .HasMaxLength(5)
+                        .HasColumnType("nvarchar(5)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("SenderEmail")
+                        .HasMaxLength(254)
+                        .HasColumnType("nvarchar(254)");
+
+                    b.Property<string>("SenderName")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<string>("SenderPhone")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("StateCode")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("UpdatedByAdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UpdatedByAdminUserId");
+
+                    b.ToTable("ShippingFulfilmentSettings", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("8b2a37be-928c-4f10-96a0-3c169ef00379"),
+                            AddressLine1 = "",
+                            City = "",
+                            Country = "Malaysia",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CustomerTrackingLinksEnabled = false,
+                            DefaultParcelHeightCm = 3m,
+                            DefaultParcelLengthCm = 18m,
+                            DefaultParcelWeightKg = 0.5m,
+                            DefaultParcelWidthCm = 12m,
+                            Postcode = "",
+                            RowVersion = new byte[0],
+                            SenderName = "",
+                            SenderPhone = "",
+                            StateCode = "",
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        });
+                });
+
             modelBuilder.Entity("MyPetLink.Api.Entities.SmartTag", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1840,6 +2123,10 @@ namespace MyPetLink.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<decimal?>("ActualCourierCost")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<string>("AddressLine1")
                         .IsRequired()
                         .HasMaxLength(240)
@@ -1865,6 +2152,18 @@ namespace MyPetLink.Api.Migrations
                         .HasMaxLength(80)
                         .HasColumnType("nvarchar(80)");
 
+                    b.Property<string>("CourierProvider")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("CourierProviderCode")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("CourierService")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
 
@@ -1889,6 +2188,10 @@ namespace MyPetLink.Api.Migrations
 
                     b.Property<string>("DeliveryPhoneE164")
                         .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("DeliveryRateSource")
                         .HasMaxLength(32)
                         .HasColumnType("nvarchar(32)");
 
@@ -1928,6 +2231,9 @@ namespace MyPetLink.Api.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
+                    b.Property<DateTimeOffset?>("ReadyToShipAt")
+                        .HasColumnType("datetimeoffset");
+
                     b.Property<string>("ReceiptNumber")
                         .HasMaxLength(80)
                         .HasColumnType("nvarchar(80)");
@@ -1952,6 +2258,10 @@ namespace MyPetLink.Api.Migrations
 
                     b.Property<DateTimeOffset?>("ShippedAt")
                         .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("ShippingNotes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
 
                     b.Property<Guid?>("SmartTagId")
                         .HasColumnType("uniqueidentifier");
@@ -2010,6 +2320,8 @@ namespace MyPetLink.Api.Migrations
                     b.HasIndex("PaymentStatus");
 
                     b.HasIndex("PetId");
+
+                    b.HasIndex("ReadyToShipAt");
 
                     b.HasIndex("ReceiptNumber")
                         .IsUnique()
@@ -2622,6 +2934,16 @@ namespace MyPetLink.Api.Migrations
                     b.Navigation("Pet");
                 });
 
+            modelBuilder.Entity("MyPetLink.Api.Entities.DeliveryStateRateOverride", b =>
+                {
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", "UpdatedByAdminUser")
+                        .WithMany()
+                        .HasForeignKey("UpdatedByAdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("UpdatedByAdminUser");
+                });
+
             modelBuilder.Entity("MyPetLink.Api.Entities.EmailOutbox", b =>
                 {
                     b.HasOne("MyPetLink.Api.Entities.TagOrder", "RelatedOrder")
@@ -2880,6 +3202,26 @@ namespace MyPetLink.Api.Migrations
                     b.Navigation("ReplacedByToken");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ShippingCourierProvider", b =>
+                {
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", "UpdatedByAdminUser")
+                        .WithMany()
+                        .HasForeignKey("UpdatedByAdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("UpdatedByAdminUser");
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.ShippingFulfilmentSetting", b =>
+                {
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", "UpdatedByAdminUser")
+                        .WithMany()
+                        .HasForeignKey("UpdatedByAdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("UpdatedByAdminUser");
                 });
 
             modelBuilder.Entity("MyPetLink.Api.Entities.SmartTag", b =>

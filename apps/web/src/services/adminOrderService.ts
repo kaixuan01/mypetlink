@@ -17,6 +17,7 @@ export type AdminOrderPaymentStatus =
 export type AdminOrderFulfilmentStatus =
   | "NotStarted"
   | "Preparing"
+  | "ReadyToShip"
   | "Shipped"
   | "Delivered"
   | "Cancelled";
@@ -25,6 +26,7 @@ export type AdminOrderStage =
   | "payment-review"
   | "ready-to-prepare"
   | "preparing"
+  | "ready-to-ship"
   | "shipped"
   | "delivered"
   | "cancelled";
@@ -103,7 +105,9 @@ export type AdminOrder = {
   assignedTagCode?: string;
   deliveryCity: string;
   deliveryState: string;
+  courierProvider?: string;
   trackingNumber?: string;
+  readyToShipAt?: string;
   paymentConfirmedAt?: string;
   shippedAt?: string;
   deliveredAt?: string;
@@ -118,6 +122,7 @@ export type AdminOrderCounts = {
   paymentReview: number;
   readyToPrepare: number;
   preparing: number;
+  readyToShip: number;
   shipped: number;
   delivered: number;
   cancelled: number;
@@ -128,7 +133,21 @@ export type AdminOrderDetail = {
   backendOrder?: BackendTagOrder;
   productVariantId?: string;
   owner: { id?: string; name: string; email: string };
+  shipment: AdminShipmentDetails;
   paymentConfirmationEmail?: AdminPaymentConfirmationEmail;
+};
+
+export type AdminShipmentDetails = {
+  courierProviderCode?: string;
+  courierProvider?: string;
+  courierService?: string;
+  trackingNumber?: string;
+  actualCourierCost?: number;
+  shippingNotes?: string;
+  readyToShipAt?: string;
+  shippedAt?: string;
+  deliveredAt?: string;
+  rowVersion: string;
 };
 
 export type AdminPaymentConfirmationEmail = {
@@ -178,7 +197,9 @@ type BackendAdminOrderItem = {
   assignedTagCode?: string | null;
   deliveryCity: string;
   deliveryState: string;
+  courierProvider?: string | null;
   trackingNumber?: string | null;
+  readyToShipAt?: string | null;
   paymentConfirmedAt?: string | null;
   shippedAt?: string | null;
   deliveredAt?: string | null;
@@ -191,6 +212,18 @@ type BackendAdminOrderDetail = {
   order: BackendTagOrder;
   owner: { userId: string; displayName: string; email: string };
   productVariantId?: string | null;
+  shipment: {
+    courierProviderCode?: string | null;
+    courierProvider?: string | null;
+    courierService?: string | null;
+    trackingNumber?: string | null;
+    actualCourierCost?: number | null;
+    shippingNotes?: string | null;
+    readyToShipAt?: string | null;
+    shippedAt?: string | null;
+    deliveredAt?: string | null;
+    rowVersion: string;
+  };
   paymentConfirmationEmail?: AdminPaymentConfirmationEmail | null;
 };
 
@@ -199,6 +232,7 @@ const backendStatusToFrontend: Record<BackendTagOrder["status"], AdminOrder["ord
   PaymentProofSubmitted: "Payment Submitted",
   PaymentConfirmed: "Payment Confirmed",
   PreparingTag: "Preparing",
+  ReadyToShip: "Ready to Ship",
   Shipped: "Shipped",
   Delivered: "Delivered",
   Cancelled: "Cancelled",
@@ -215,6 +249,7 @@ export const paymentStatusLabels: Record<AdminOrderPaymentStatus, string> = {
 export const fulfilmentStatusLabels: Record<AdminOrderFulfilmentStatus, string> = {
   NotStarted: "Not started",
   Preparing: "Preparing",
+  ReadyToShip: "Ready to ship",
   Shipped: "Shipped",
   Delivered: "Delivered",
   Cancelled: "Cancelled",
@@ -257,7 +292,9 @@ function mapBackendItem(item: BackendAdminOrderItem): AdminOrder {
     assignedTagCode: item.assignedTagCode ?? undefined,
     deliveryCity: item.deliveryCity,
     deliveryState: item.deliveryState,
+    courierProvider: item.courierProvider ?? undefined,
     trackingNumber: item.trackingNumber ?? undefined,
+    readyToShipAt: item.readyToShipAt ?? undefined,
     paymentConfirmedAt: item.paymentConfirmedAt ?? undefined,
     shippedAt: item.shippedAt ?? undefined,
     deliveredAt: item.deliveredAt ?? undefined,
@@ -317,6 +354,18 @@ export async function getAdminOrderDetail(orderId: string, signal?: AbortSignal)
       order: mapBackendOrder(response.data.order),
       backendOrder: response.data.order,
       productVariantId: response.data.productVariantId ?? undefined,
+      shipment: {
+        courierProviderCode: response.data.shipment.courierProviderCode ?? undefined,
+        courierProvider: response.data.shipment.courierProvider ?? undefined,
+        courierService: response.data.shipment.courierService ?? undefined,
+        trackingNumber: response.data.shipment.trackingNumber ?? undefined,
+        actualCourierCost: response.data.shipment.actualCourierCost ?? undefined,
+        shippingNotes: response.data.shipment.shippingNotes ?? undefined,
+        readyToShipAt: response.data.shipment.readyToShipAt ?? undefined,
+        shippedAt: response.data.shipment.shippedAt ?? undefined,
+        deliveredAt: response.data.shipment.deliveredAt ?? undefined,
+        rowVersion: response.data.shipment.rowVersion,
+      },
       paymentConfirmationEmail: response.data.paymentConfirmationEmail ?? undefined,
       owner: {
         id: response.data.owner.userId,
@@ -331,7 +380,7 @@ export async function getAdminOrderDetail(orderId: string, signal?: AbortSignal)
   const order = orders.data.find((item) => item.id === orderId);
   if (!order) throw new Error("This order could not be found.");
   const pet = pets.data.find((item) => item.id === order.petId);
-  return { order, owner: { name: pet?.owner.name ?? "Owner", email: "" } };
+  return { order, owner: { name: pet?.owner.name ?? "Owner", email: "" }, shipment: { rowVersion: "" } };
 }
 
 export async function retryPaymentConfirmationEmail(
@@ -395,7 +444,9 @@ export async function getAdminOrderSummary(orderId: string, signal?: AbortSignal
       assignedTagCode: order.smartTagCode ?? undefined,
       deliveryCity: order.delivery.city,
       deliveryState: order.delivery.state,
+      courierProvider: order.courierProvider ?? undefined,
       trackingNumber: order.trackingNumber ?? undefined,
+      readyToShipAt: order.readyToShipAt ?? undefined,
       paymentConfirmedAt: order.paymentConfirmedAt ?? undefined,
       shippedAt: order.shippedAt ?? undefined,
       deliveredAt: order.deliveredAt ?? undefined,
@@ -494,7 +545,7 @@ export async function getAdminPaymentProofAccess(proofId: string) {
 
 function derivePaymentStatus(order: TagOrder): AdminOrderPaymentStatus {
   if (order.status === "Payment Submitted") return "ProofSubmitted";
-  if (["Payment Confirmed", "Preparing", "Shipped", "Delivered"].includes(order.status)) return "Confirmed";
+  if (["Payment Confirmed", "Preparing", "Ready to Ship", "Shipped", "Delivered"].includes(order.status)) return "Confirmed";
   if (order.paymentRejectionReason) return "Rejected";
   if (order.status === "Cancelled" && order.paymentConfirmedDate) return "Confirmed";
   return "Pending";
@@ -502,6 +553,7 @@ function derivePaymentStatus(order: TagOrder): AdminOrderPaymentStatus {
 
 function deriveFulfilmentStatus(status: OrderStatus): AdminOrderFulfilmentStatus {
   if (status === "Preparing") return "Preparing";
+  if (status === "Ready to Ship") return "ReadyToShip";
   if (status === "Shipped") return "Shipped";
   if (status === "Delivered") return "Delivered";
   if (status === "Cancelled") return "Cancelled";
@@ -510,6 +562,7 @@ function deriveFulfilmentStatus(status: OrderStatus): AdminOrderFulfilmentStatus
 
 function deriveBackendFulfilment(status: BackendTagOrder["status"]): AdminOrderFulfilmentStatus {
   if (status === "PreparingTag") return "Preparing";
+  if (status === "ReadyToShip") return "ReadyToShip";
   if (status === "Shipped") return "Shipped";
   if (status === "Delivered") return "Delivered";
   if (status === "Cancelled") return "Cancelled";
@@ -520,6 +573,7 @@ function stageFor(status: AdminOrder["orderStatus"]): AdminOrderStage {
   if (status === "Pending Payment") return "awaiting-payment";
   if (status === "Payment Submitted") return "payment-review";
   if (status === "Payment Confirmed") return "ready-to-prepare";
+  if (status === "Ready to Ship") return "ready-to-ship";
   return status.toLowerCase() as AdminOrderStage;
 }
 
@@ -554,7 +608,9 @@ async function loadLocalOrders(): Promise<AdminOrder[]> {
       assignedTagId: order.tagId,
       deliveryCity: order.delivery.city,
       deliveryState: order.delivery.state,
+      courierProvider: order.courierProvider,
       trackingNumber: order.trackingNumber,
+      readyToShipAt: order.readyToShipDate,
       paymentConfirmedAt: order.paymentConfirmedDate,
       shippedAt: order.shippedDate,
       deliveredAt: order.deliveredDate,
@@ -641,6 +697,7 @@ function countsFor(rows: AdminOrder[]): AdminOrderCounts {
     paymentReview: rows.filter((row) => stageFor(row.orderStatus) === "payment-review").length,
     readyToPrepare: rows.filter((row) => stageFor(row.orderStatus) === "ready-to-prepare").length,
     preparing: rows.filter((row) => stageFor(row.orderStatus) === "preparing").length,
+    readyToShip: rows.filter((row) => stageFor(row.orderStatus) === "ready-to-ship").length,
     shipped: rows.filter((row) => stageFor(row.orderStatus) === "shipped").length,
     delivered: rows.filter((row) => stageFor(row.orderStatus) === "delivered").length,
     cancelled: rows.filter((row) => stageFor(row.orderStatus) === "cancelled").length,
@@ -648,7 +705,7 @@ function countsFor(rows: AdminOrder[]): AdminOrderCounts {
 }
 
 function emptyCounts(): AdminOrderCounts {
-  return { all: 0, awaitingPayment: 0, paymentReview: 0, readyToPrepare: 0, preparing: 0, shipped: 0, delivered: 0, cancelled: 0 };
+  return { all: 0, awaitingPayment: 0, paymentReview: 0, readyToPrepare: 0, preparing: 0, readyToShip: 0, shipped: 0, delivered: 0, cancelled: 0 };
 }
 
 export function latestProof(order: AdminOrderDetail): BackendPaymentProof | undefined {

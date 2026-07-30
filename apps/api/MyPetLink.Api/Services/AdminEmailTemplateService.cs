@@ -344,6 +344,7 @@ public sealed class AdminEmailTemplateService : IAdminEmailTemplateService
     {
         EmailMessageType.OwnerWelcome => "Welcome email",
         EmailMessageType.PaymentConfirmed => "Payment confirmation",
+        EmailMessageType.OrderShipped => "Order shipped",
         _ => messageType.ToString()
     };
 
@@ -353,6 +354,8 @@ public sealed class AdminEmailTemplateService : IAdminEmailTemplateService
             "Sent once after a pet owner signs in to MyPetLink for the first time.",
         EmailMessageType.PaymentConfirmed =>
             "Sent when an order payment is confirmed, with a link to the Official Receipt.",
+        EmailMessageType.OrderShipped =>
+            "Sent once when an order is marked shipped, with courier and tracking details.",
         _ => "Customer email."
     };
 }

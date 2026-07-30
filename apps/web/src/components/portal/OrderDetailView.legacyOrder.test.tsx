@@ -165,4 +165,96 @@ describe("OrderDetailView legacy order labelling", () => {
       await screen.findByText(/MPL-RCP-260727141423-4827/)
     ).toBeTruthy();
   });
+
+  it("shows customer-safe shipment details without internal courier cost or notes", async () => {
+    const shipped = baseOrder({
+      status: "Shipped",
+      courierProvider: "J&T Express",
+      courierService: "Standard Delivery",
+      trackingNumber: "MY123456789",
+      readyToShipDate: "29 Jul 2026",
+      shippedDate: "30 Jul 2026",
+      trackingStatus: "Shipped with J&T Express.",
+    });
+    tagMocks.getOrder.mockResolvedValue({ data: shipped });
+
+    render(<OrderDetailView initialOrder={shipped} initialTags={[]} orderKey="MPL-0001" pets={[]} />);
+
+    expect(await screen.findByText("J&T Express")).toBeTruthy();
+    expect(screen.getByText("Standard Delivery")).toBeTruthy();
+    expect(screen.getByText("MY123456789")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Copy tracking number" })).toBeTruthy();
+    expect(screen.queryByText(/actual courier cost/i)).toBeNull();
+    expect(screen.queryByText(/shipping notes/i)).toBeNull();
+  });
+
+  it("shows Track Parcel only when the shipped order contains a safe generated URL", async () => {
+    const shipped = baseOrder({
+      status: "Shipped",
+      courierProvider: "J&T Express",
+      trackingNumber: "MY 123/45",
+      trackingUrl: "https://example.test/track?number=MY%20123%2F45",
+      shippedDate: "30 Jul 2026",
+    });
+    tagMocks.getOrder.mockResolvedValue({ data: shipped });
+
+    const { unmount } = render(
+      <OrderDetailView initialOrder={shipped} initialTags={[]} orderKey="MPL-0001" pets={[]} />
+    );
+    const link = await screen.findByRole("link", { name: "Track Parcel" });
+    expect(link.getAttribute("href")).toBe(
+      "https://example.test/track?number=MY%20123%2F45"
+    );
+    expect(screen.getByText("MY 123/45")).toBeTruthy();
+
+    const withoutUrl = { ...shipped, trackingUrl: undefined };
+    unmount();
+    render(
+      <OrderDetailView initialOrder={withoutUrl} initialTags={[]} orderKey="MPL-0001" pets={[]} />
+    );
+    expect(screen.queryByRole("link", { name: "Track Parcel" })).toBeNull();
+    expect(screen.getByText("MY 123/45")).toBeTruthy();
+  });
+
+  it("hides courier and tracking details until the parcel has actually shipped", async () => {
+    // Admins enter courier details while the tag is still being packed. Showing
+    // them now would have the customer chasing a number the courier has not
+    // accepted yet.
+    const readyToShip = baseOrder({
+      status: "Ready to Ship",
+      courierProvider: "Pos Laju",
+      courierService: "Overnight",
+      trackingNumber: "PL-QA-9999",
+      readyToShipDate: "30 Jul 2026",
+      trackingStatus: "Your tag is ready to ship.",
+    });
+    tagMocks.getOrder.mockResolvedValue({ data: readyToShip });
+
+    render(<OrderDetailView initialOrder={readyToShip} initialTags={[]} orderKey="MPL-0001" pets={[]} />);
+
+    expect(await screen.findByText("Your tag is ready to ship.")).toBeTruthy();
+    expect(screen.queryByText("Pos Laju")).toBeNull();
+    expect(screen.queryByText("Overnight")).toBeNull();
+    expect(screen.queryByText("PL-QA-9999")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Copy tracking number" })).toBeNull();
+    expect(screen.getAllByText("Not available yet").length).toBeGreaterThan(0);
+  });
+
+  it("does not tell the customer a timeline step has no recorded time", async () => {
+    const preparing = baseOrder({
+      status: "Preparing",
+      timeline: [
+        { type: "OrderCreated", title: "Order created", timestampLabel: "30 Jul 2026, 7:36 PM", tone: "completed" },
+        // The API sends no timestamp for tag preparation, which the service
+        // layer maps to undefined.
+        { type: "PreparingTag", title: "Tag preparing", description: "Your tag is being prepared.", timestampLabel: undefined, tone: "current" },
+      ],
+    });
+    tagMocks.getOrder.mockResolvedValue({ data: preparing });
+
+    render(<OrderDetailView initialOrder={preparing} initialTags={[]} orderKey="MPL-0001" pets={[]} />);
+
+    expect(await screen.findByText("Tag preparing")).toBeTruthy();
+    expect(screen.queryByText(/time not available/i)).toBeNull();
+  });
 });

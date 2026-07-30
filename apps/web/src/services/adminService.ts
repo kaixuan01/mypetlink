@@ -354,7 +354,7 @@ export function buildDashboardSummary(data: AdminData): AdminDashboardSummary {
       (order) => order.status === "Payment Submitted"
     ).length,
     ordersPreparing: data.orders.filter(
-      (order) => order.status === "Preparing" || order.status === "Payment Confirmed"
+      (order) => order.status === "Preparing" || order.status === "Ready to Ship" || order.status === "Payment Confirmed"
     ).length,
     activeTags: data.tags.filter((tag) =>
       isActivePhysicalTagForPet(tag, linkedPet(tag))

@@ -259,6 +259,7 @@ public sealed class AdminPaymentProofQueryService : SkeletonService, IAdminPayme
             proof.Order.Status,
             proof.Order.PaymentStatus,
             proof.Order.Status == OrderStatus.PreparingTag ? AdminOrderFulfilmentStatus.Preparing
+                : proof.Order.Status == OrderStatus.ReadyToShip ? AdminOrderFulfilmentStatus.ReadyToShip
                 : proof.Order.Status == OrderStatus.Shipped ? AdminOrderFulfilmentStatus.Shipped
                 : proof.Order.Status == OrderStatus.Delivered ? AdminOrderFulfilmentStatus.Delivered
                 : proof.Order.Status == OrderStatus.Cancelled ? AdminOrderFulfilmentStatus.Cancelled

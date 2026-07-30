@@ -85,14 +85,18 @@ public sealed record TagOrderResponse(
     string? PaymentRejectionReason,
     OwnerPaymentConfirmationEmailResponse? PaymentConfirmationEmail,
     string? TrackingStatus,
+    string? CourierProvider,
+    string? CourierService,
     string? TrackingNumber,
+    DateTimeOffset? ReadyToShipAt,
     DateTimeOffset? ShippedAt,
     DateTimeOffset? DeliveredAt,
     DateTimeOffset? CancelledAt,
     IReadOnlyCollection<PaymentProofResponse> PaymentProofs,
     IReadOnlyCollection<OrderTimelineEventResponse> Timeline,
     DateTimeOffset UpdatedAt,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    string? TrackingUrl = null);
 
 // A single chronological event in the order's status history. `OccurredAt`
 // is a DateTimeOffset that the frontend formats in the viewer's local

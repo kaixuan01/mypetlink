@@ -19,6 +19,15 @@ public sealed record OwnerWelcomeEmailTemplateData(
     DateTimeOffset WelcomeEventAt,
     bool SmartTagsEnabled);
 
+public sealed record OrderShippedEmailTemplateData(
+    string OwnerName,
+    string OrderNumber,
+    string CourierProvider,
+    string? CourierService,
+    string TrackingNumber,
+    DateTimeOffset ShippedAt,
+    string? TrackingUrl = null);
+
 public sealed record RenderedEmail(
     string HtmlBody,
     string TextBody);
@@ -51,6 +60,11 @@ public interface IEmailOutboxService
     Task EnqueuePaymentConfirmedAsync(
         TagOrder order,
         DateTimeOffset confirmedAt,
+        CancellationToken cancellationToken = default);
+
+    Task EnqueueOrderShippedAsync(
+        TagOrder order,
+        DateTimeOffset shippedAt,
         CancellationToken cancellationToken = default);
 
     Task<EmailOutbox?> EnqueueOwnerWelcomeAsync(

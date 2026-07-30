@@ -202,7 +202,11 @@ export function mapBackendOrder(order: BackendTagOrder): TagOrder {
         }
       : undefined,
     trackingStatus: order.trackingStatus ?? undefined,
+    courierProvider: order.courierProvider ?? undefined,
+    courierService: order.courierService ?? undefined,
     trackingNumber: order.trackingNumber ?? undefined,
+    trackingUrl: order.trackingUrl ?? undefined,
+    readyToShipDate: formatDisplayDate(order.readyToShipAt),
     shippedDate: formatDisplayDate(order.shippedAt),
     deliveredDate: formatDisplayDate(order.deliveredAt),
     timeline: (order.timeline ?? []).map(mapBackendTimelineEvent),
@@ -265,6 +269,8 @@ function fromBackendOrderStatus(status: string): OrderStatus {
       return "Payment Confirmed";
     case "PreparingTag":
       return "Preparing";
+    case "ReadyToShip":
+      return "Ready to Ship";
     case "Shipped":
     case "Delivered":
     case "Cancelled":
@@ -1126,9 +1132,9 @@ type BackendAdminTagOrder = {
   owner: { userId: string; email: string; displayName: string };
 };
 
-async function runAdminOrderAction(path: string, body?: unknown) {
+async function runAdminOrderAction(path: string, body?: unknown, method: "POST" | "PUT" = "POST") {
   const response = await apiRequest<BackendAdminTagOrder>(path, {
-    method: "POST",
+    method,
     body: body ?? {},
   });
 
@@ -1269,7 +1275,7 @@ export async function adminChangeAssignedTag(
     !order ||
     !oldTag ||
     !newTag ||
-    (order.status !== "Payment Confirmed" && order.status !== "Preparing") ||
+    (order.status !== "Payment Confirmed" && order.status !== "Preparing" && order.status !== "Ready to Ship") ||
     newTag.id === oldTag.id ||
     newTag.status !== "Unassigned" ||
     newTag.petId ||
@@ -1374,10 +1380,21 @@ export async function adminReplaceTag(
   return mockResponse(updatedOrder);
 }
 
-export async function adminMarkOrderPreparing(orderId: string) {
+export type AdminShipmentInput = {
+  courierProviderCode?: string;
+  courierProvider: string;
+  courierService?: string;
+  trackingNumber: string;
+  actualCourierCost?: number;
+  shippingNotes?: string;
+  rowVersion: string;
+};
+
+export async function adminMarkOrderPreparing(orderId: string, rowVersion: string) {
   if (canUseOwnerTagApi()) {
     return runAdminOrderAction(
-      `/api/v1/admin/orders/${encodeURIComponent(orderId)}/mark-preparing`
+      `/api/v1/admin/orders/${encodeURIComponent(orderId)}/mark-preparing`,
+      { rowVersion }
     );
   }
 
@@ -1400,11 +1417,61 @@ export async function adminMarkOrderPreparing(orderId: string) {
   return mockResponse(updatedOrder);
 }
 
-export async function adminMarkOrderShipped(orderId: string, trackingNumber?: string) {
+export async function adminMarkOrderReadyToShip(orderId: string, rowVersion: string) {
+  if (canUseOwnerTagApi()) {
+    return runAdminOrderAction(
+      `/api/v1/admin/orders/${encodeURIComponent(orderId)}/mark-ready-to-ship`,
+      { rowVersion }
+    );
+  }
+
+  await mockDelay();
+  const orders = getOrderCollection();
+  const order = orders.find((item) => item.id === orderId);
+  if (!order || order.status !== "Preparing" || !order.tagId) {
+    return mockResponse<TagOrder | null>(null);
+  }
+
+  const updatedOrder: TagOrder = {
+    ...order,
+    status: "Ready to Ship",
+    readyToShipDate: formatToday(),
+    trackingStatus: "Your tag is ready to ship.",
+  };
+  writeOrder(orders, updatedOrder);
+  return mockResponse(updatedOrder);
+}
+
+export async function adminUpdateShipment(orderId: string, input: AdminShipmentInput) {
+  if (canUseOwnerTagApi()) {
+    return runAdminOrderAction(
+      `/api/v1/admin/orders/${encodeURIComponent(orderId)}/shipment`,
+      input,
+      "PUT"
+    );
+  }
+
+  await mockDelay();
+  const orders = getOrderCollection();
+  const order = orders.find((item) => item.id === orderId);
+  if (!order || !["Preparing", "Ready to Ship", "Shipped"].includes(order.status)) {
+    return mockResponse<TagOrder | null>(null);
+  }
+  const updatedOrder: TagOrder = {
+    ...order,
+    courierProvider: input.courierProvider.trim(),
+    courierService: input.courierService?.trim() || undefined,
+    trackingNumber: input.trackingNumber.trim(),
+  };
+  writeOrder(orders, updatedOrder);
+  return mockResponse(updatedOrder);
+}
+
+export async function adminMarkOrderShipped(orderId: string, input: AdminShipmentInput) {
   if (canUseOwnerTagApi()) {
     return runAdminOrderAction(
       `/api/v1/admin/orders/${encodeURIComponent(orderId)}/mark-shipped`,
-      { trackingNumber: trackingNumber?.trim() || null }
+      input
     );
   }
 
@@ -1412,7 +1479,7 @@ export async function adminMarkOrderShipped(orderId: string, trackingNumber?: st
   const orders = getOrderCollection();
   const order = orders.find((item) => item.id === orderId);
 
-  if (!order || order.status !== "Preparing" || !order.tagId) {
+  if (!order || order.status !== "Ready to Ship" || !order.tagId) {
     return mockResponse<TagOrder | null>(null);
   }
 
@@ -1420,18 +1487,21 @@ export async function adminMarkOrderShipped(orderId: string, trackingNumber?: st
     ...order,
     status: "Shipped",
     shippedDate: formatToday(),
-    trackingNumber: trackingNumber?.trim() || order.trackingNumber,
-    trackingStatus: `On the way to ${order.delivery.city || "you"}`,
+    courierProvider: input.courierProvider.trim(),
+    courierService: input.courierService?.trim() || undefined,
+    trackingNumber: input.trackingNumber.trim(),
+    trackingStatus: `Shipped with ${input.courierProvider.trim()}`,
   };
 
   writeOrder(orders, updatedOrder);
   return mockResponse(updatedOrder);
 }
 
-export async function adminMarkOrderDelivered(orderId: string) {
+export async function adminMarkOrderDelivered(orderId: string, rowVersion: string) {
   if (canUseOwnerTagApi()) {
     return runAdminOrderAction(
-      `/api/v1/admin/orders/${encodeURIComponent(orderId)}/mark-delivered`
+      `/api/v1/admin/orders/${encodeURIComponent(orderId)}/mark-delivered`,
+      { rowVersion }
     );
   }
 
@@ -1479,6 +1549,7 @@ export async function adminCancelOrder(orderId: string, reason: string) {
     "Payment Submitted",
     "Payment Confirmed",
     "Preparing",
+    "Ready to Ship",
   ];
 
   if (!order || !reason.trim() || !cancellable.includes(order.status)) {

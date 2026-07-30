@@ -385,6 +385,7 @@ export type OrderStatus =
   | "Payment Submitted"
   | "Payment Confirmed"
   | "Preparing"
+  | "Ready to Ship"
   | "Shipped"
   | "Delivered"
   | "Cancelled";
@@ -460,7 +461,11 @@ export type TagOrder = {
     maskedRecipient: string;
   };
   trackingStatus?: string;
+  courierProvider?: string;
+  courierService?: string;
   trackingNumber?: string;
+  trackingUrl?: string;
+  readyToShipDate?: string;
   shippedDate?: string;
   deliveredDate?: string;
   timeline?: OrderTimelineEvent[];

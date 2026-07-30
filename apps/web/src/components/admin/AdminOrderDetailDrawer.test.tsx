@@ -153,6 +153,7 @@ const detail: AdminOrderDetail = {
   order,
   backendOrder,
   owner: { id: "owner-1", name: "Aina Owner", email: "aina@example.com" },
+  shipment: { rowVersion: "AQIDBA==" },
 };
 
 beforeEach(() => {
@@ -199,6 +200,42 @@ describe("AdminOrderDetailDrawer", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Assign inventory tag" }));
     expect(onAction).toHaveBeenCalledWith("assign-tag", detail);
+  });
+
+  it("shows the manual shipment controls and admin-only fields when ready to ship", async () => {
+    const readySummary: AdminOrder = {
+      ...summary,
+      orderStatus: "Ready to Ship",
+      fulfilmentStatus: "ReadyToShip",
+      assignedTagId: "tag-1",
+      assignedTagCode: "MPL-TAG-1",
+    };
+    const readyDetail: AdminOrderDetail = {
+      ...detail,
+      order: {
+        ...order,
+        status: "Ready to Ship",
+        tagId: "tag-1",
+        courierProvider: "J&T Express",
+        trackingNumber: "MY123456789",
+      },
+      shipment: {
+        courierProvider: "J&T Express",
+        trackingNumber: "MY123456789",
+        actualCourierCost: 7.5,
+        shippingNotes: "Operations counter",
+        readyToShipAt: "2026-07-30T06:00:00Z",
+        rowVersion: "AQIDBA==",
+      },
+    };
+    serviceMocks.getDetail.mockResolvedValue(readyDetail);
+
+    render(<AdminOrderDetailDrawer busy={false} onAction={vi.fn()} onClose={vi.fn()} refreshKey={0} summary={readySummary} />);
+
+    expect(await screen.findByRole("button", { name: "Add or edit shipment" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Mark shipped" })).toBeTruthy();
+    expect(screen.getByText("MYR 7.50")).toBeTruthy();
+    expect(screen.getByText("Operations counter")).toBeTruthy();
   });
 
   it("opens the protected payment proof and closes with Escape", async () => {

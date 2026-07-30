@@ -80,7 +80,7 @@ export type AdminPaymentProofCounts = {
 
 type BackendPaymentProofItem = Omit<AdminPaymentProof, "ownerId" | "orderStatus"> & {
   ownerUserId: string;
-  orderStatus: "PendingPayment" | "PaymentProofSubmitted" | "PaymentConfirmed" | "PreparingTag" | "Shipped" | "Delivered" | "Cancelled";
+  orderStatus: "PendingPayment" | "PaymentProofSubmitted" | "PaymentConfirmed" | "PreparingTag" | "ReadyToShip" | "Shipped" | "Delivered" | "Cancelled";
 };
 
 const backendOrderStatus: Record<BackendPaymentProofItem["orderStatus"], AdminPaymentProof["orderStatus"]> = {
@@ -88,6 +88,7 @@ const backendOrderStatus: Record<BackendPaymentProofItem["orderStatus"], AdminPa
   PaymentProofSubmitted: "Payment Submitted",
   PaymentConfirmed: "Payment Confirmed",
   PreparingTag: "Preparing",
+  ReadyToShip: "Ready to Ship",
   Shipped: "Shipped",
   Delivered: "Delivered",
   Cancelled: "Cancelled",
@@ -304,13 +305,14 @@ function emptyCounts(): AdminPaymentProofCounts {
 
 function localPaymentStatus(order: TagOrder): AdminOrderPaymentStatus {
   if (order.status === "Payment Submitted") return "ProofSubmitted";
-  if (["Payment Confirmed", "Preparing", "Shipped", "Delivered"].includes(order.status)) return "Confirmed";
+  if (["Payment Confirmed", "Preparing", "Ready to Ship", "Shipped", "Delivered"].includes(order.status)) return "Confirmed";
   if (order.paymentRejectionReason) return "Rejected";
   return "Pending";
 }
 
 function localFulfilment(status: OrderStatus): AdminOrderFulfilmentStatus {
   if (status === "Preparing") return "Preparing";
+  if (status === "Ready to Ship") return "ReadyToShip";
   if (status === "Shipped") return "Shipped";
   if (status === "Delivered") return "Delivered";
   if (status === "Cancelled") return "Cancelled";

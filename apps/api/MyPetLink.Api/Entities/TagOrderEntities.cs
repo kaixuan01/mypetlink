@@ -95,7 +95,15 @@ public sealed class TagOrder : AuditableEntity
     public decimal? TotalAmount { get; set; }
     public string? DeliveryNotes { get; set; }
     public string? TrackingStatus { get; set; }
+    // Stable configured courier key. CourierProvider remains the immutable
+    // customer-facing display snapshot; null means a custom/legacy courier.
+    public string? CourierProviderCode { get; set; }
+    public string? CourierProvider { get; set; }
+    public string? CourierService { get; set; }
     public string? TrackingNumber { get; set; }
+    public decimal? ActualCourierCost { get; set; }
+    public string? ShippingNotes { get; set; }
+    public DateTimeOffset? ReadyToShipAt { get; set; }
     public DateTimeOffset? ShippedAt { get; set; }
     public DateTimeOffset? DeliveredAt { get; set; }
     public DateTimeOffset? CancelledAt { get; set; }

@@ -57,6 +57,7 @@ const orderTone: Record<OrderStatus, "warm" | "teal" | "mint" | "soft" | "danger
   "Payment Submitted": "teal",
   "Payment Confirmed": "mint",
   Preparing: "teal",
+  "Ready to Ship": "teal",
   Shipped: "teal",
   Delivered: "mint",
   Cancelled: "danger",
@@ -102,6 +103,7 @@ export function OrderDetailView({
   const [downloadError, setDownloadError] = useState("");
   const [downloadBusy, setDownloadBusy] = useState(false);
   const [copyTagStatus, setCopyTagStatus] = useState("");
+  const [copyTrackingStatus, setCopyTrackingStatus] = useState("");
   const [paymentMessage, setPaymentMessage] = useState("");
   const [loadError, setLoadError] = useState("");
   const base = useSyncExternalStore(subscribeNoop, getSiteBaseUrl, getEnvBaseUrl);
@@ -186,6 +188,19 @@ export function OrderDetailView({
   const petName = pet?.name ?? order.petName ?? "Pet profile";
   const receiptReady = canDownloadPaymentReceipt(order);
   const replacementReady = canRequestReplacement(order, linkedTag);
+  // Courier and tracking details are entered while the parcel is still being
+  // packed, so they are only shown once it is actually on its way. Otherwise a
+  // customer would try to track a number the courier has not accepted yet.
+  const shipmentHandedToCourier =
+    Boolean(order.shippedDate) ||
+    order.status === "Shipped" ||
+    order.status === "Delivered";
+  const courierProviderLabel = shipmentHandedToCourier
+    ? order.courierProvider
+    : undefined;
+  const trackingNumberLabel = shipmentHandedToCourier
+    ? order.trackingNumber
+    : undefined;
   const timelineEvents =
     order.timeline && order.timeline.length > 0
       ? order.timeline
@@ -356,9 +371,14 @@ export function OrderDetailView({
                 </div>
                 <div className="min-w-0 pb-3">
                   <p className="font-black text-pet-ink">{event.title}</p>
-                  <p className="mt-1 text-sm font-semibold text-pet-muted">
-                    {event.timestampLabel ?? "Time not available"}
-                  </p>
+                  {/* Some steps (e.g. tag preparation) have no recorded time.
+                      Leave the line out rather than telling the customer a time
+                      is missing. */}
+                  {event.timestampLabel ? (
+                    <p className="mt-1 text-sm font-semibold text-pet-muted">
+                      {event.timestampLabel}
+                    </p>
+                  ) : null}
                   {event.description ? (
                     <p
                       className={`mt-1 text-sm font-semibold ${toneStyles.description}`}
@@ -532,10 +552,61 @@ export function OrderDetailView({
             value={order.trackingStatus ?? "Not shipped yet"}
           />
           <DetailItem
-            label="Tracking number"
-            value={order.trackingNumber ?? "Not available yet"}
+            label="Courier provider"
+            value={courierProviderLabel ?? "Not available yet"}
           />
+          {shipmentHandedToCourier && order.courierService ? (
+            <DetailItem label="Courier service" value={order.courierService} />
+          ) : null}
+          <DetailItem
+            label="Tracking number"
+            value={trackingNumberLabel ?? "Not available yet"}
+          />
+          {order.readyToShipDate ? (
+            <DetailItem label="Ready to ship" value={order.readyToShipDate} />
+          ) : null}
+          {order.shippedDate ? (
+            <DetailItem label="Shipped" value={order.shippedDate} />
+          ) : null}
+          {order.deliveredDate ? (
+            <DetailItem label="Delivered" value={order.deliveredDate} />
+          ) : null}
         </div>
+        {trackingNumberLabel ? (
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            <button
+              className="inline-flex min-h-11 items-center justify-center rounded-full border border-pet-border bg-white px-4 py-2 text-sm font-extrabold text-pet-ink transition hover:bg-pet-cream"
+              onClick={() => {
+                void copyText(trackingNumberLabel).then((copied) => {
+                  setCopyTrackingStatus(
+                    copied
+                      ? "Tracking number copied."
+                      : "Copy unavailable. Select and copy the tracking number."
+                  );
+                  window.setTimeout(() => setCopyTrackingStatus(""), 2500);
+                });
+              }}
+              type="button"
+            >
+              Copy tracking number
+            </button>
+            {shipmentHandedToCourier && order.trackingUrl ? (
+              <a
+                className="inline-flex min-h-11 items-center justify-center rounded-full bg-pet-teal px-4 py-2 text-sm font-extrabold text-white transition hover:bg-[#0f5fd0]"
+                href={order.trackingUrl}
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                Track Parcel
+              </a>
+            ) : null}
+            {copyTrackingStatus ? (
+              <p className="basis-full text-xs font-bold text-pet-sage" role="status">
+                {copyTrackingStatus}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
       </section>
 
       <section className="brand-card rounded-[1.75rem] p-5 sm:p-6">
@@ -664,6 +735,16 @@ function buildFallbackTimeline(order: TagOrder): OrderTimelineEvent[] {
       type: "PreparingTag",
       title: "Tag preparing",
       tone: tone("Preparing"),
+    });
+  }
+
+  if (reached("Ready to Ship")) {
+    events.push({
+      type: "ReadyToShip",
+      title: "Ready to ship",
+      description: "Your tag is packed and ready for the courier.",
+      timestampLabel: order.readyToShipDate,
+      tone: tone("Ready to Ship"),
     });
   }
 

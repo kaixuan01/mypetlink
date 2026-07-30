@@ -6,13 +6,16 @@ public sealed class EmailTemplateRenderer : IEmailTemplateRenderer
 {
     private readonly PaymentConfirmedEmailTemplateRenderer _paymentConfirmed;
     private readonly OwnerWelcomeEmailTemplateRenderer _ownerWelcome;
+    private readonly OrderShippedEmailTemplateRenderer _orderShipped;
 
     public EmailTemplateRenderer(
         PaymentConfirmedEmailTemplateRenderer paymentConfirmed,
-        OwnerWelcomeEmailTemplateRenderer ownerWelcome)
+        OwnerWelcomeEmailTemplateRenderer ownerWelcome,
+        OrderShippedEmailTemplateRenderer orderShipped)
     {
         _paymentConfirmed = paymentConfirmed;
         _ownerWelcome = ownerWelcome;
+        _orderShipped = orderShipped;
     }
 
     public RenderedEmail Render(EmailOutbox message) =>
@@ -20,6 +23,7 @@ public sealed class EmailTemplateRenderer : IEmailTemplateRenderer
         {
             EmailMessageType.PaymentConfirmed => _paymentConfirmed.Render(message),
             EmailMessageType.OwnerWelcome => _ownerWelcome.Render(message),
+            EmailMessageType.OrderShipped => _orderShipped.Render(message),
             _ => throw new EmailDeliveryException("The email template is not supported.", false)
         };
 }

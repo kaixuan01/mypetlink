@@ -353,6 +353,7 @@ export type BackendOrderStatus =
   | "PaymentProofSubmitted"
   | "PaymentConfirmed"
   | "PreparingTag"
+  | "ReadyToShip"
   | "Shipped"
   | "Delivered"
   | "Cancelled";
@@ -479,7 +480,11 @@ export type BackendTagOrder = {
     maskedRecipient: string;
   } | null;
   trackingStatus?: string | null;
+  courierProvider?: string | null;
+  courierService?: string | null;
   trackingNumber?: string | null;
+  trackingUrl?: string | null;
+  readyToShipAt?: string | null;
   shippedAt?: string | null;
   deliveredAt?: string | null;
   cancelledAt?: string | null;

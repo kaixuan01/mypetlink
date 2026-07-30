@@ -200,7 +200,8 @@ public sealed class TransactionalEmailDesignTests
         var layout = new TransactionalEmailLayout(options);
         return new EmailPreviewService(
             new OwnerWelcomeEmailTemplateRenderer(layout),
-            new PaymentConfirmedEmailTemplateRenderer(options, layout));
+            new PaymentConfirmedEmailTemplateRenderer(options, layout),
+            new OrderShippedEmailTemplateRenderer(options, layout));
     }
 
     private static EmailOptions OptionsValue() => new()

@@ -118,7 +118,8 @@ describe("Admin Orders operational actions", () => {
 
   it("shows only valid state-aware actions", () => {
     expect(getAdminOrderAvailableActions(summary)).toEqual(["assign-tag", "cancel-order"]);
-    expect(getAdminOrderAvailableActions({ ...summary, orderStatus: "Preparing", assignedTagId: "tag-1", fulfilmentStatus: "Preparing" })).toEqual(["change-tag", "mark-shipped", "cancel-order"]);
+    expect(getAdminOrderAvailableActions({ ...summary, orderStatus: "Preparing", assignedTagId: "tag-1", fulfilmentStatus: "Preparing" })).toEqual(["change-tag", "mark-ready-to-ship", "edit-shipment", "cancel-order"]);
+    expect(getAdminOrderAvailableActions({ ...summary, orderStatus: "Ready to Ship", assignedTagId: "tag-1", fulfilmentStatus: "ReadyToShip" })).toEqual(["change-tag", "edit-shipment", "mark-shipped", "cancel-order"]);
     expect(getAdminOrderAvailableActions({ ...summary, orderStatus: "Delivered", assignedTagId: "tag-1", fulfilmentStatus: "Delivered" })).toEqual(["replace-tag"]);
   });
 

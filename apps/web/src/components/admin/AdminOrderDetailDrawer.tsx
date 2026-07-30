@@ -30,6 +30,8 @@ const actionLabels: Record<AdminOrderAction, string> = {
   "change-tag": "Change assigned tag",
   "replace-tag": "Replace tag",
   "mark-preparing": "Start preparing",
+  "mark-ready-to-ship": "Mark ready to ship",
+  "edit-shipment": "Add or edit shipment",
   "mark-shipped": "Mark shipped",
   "mark-delivered": "Mark delivered",
   "cancel-order": "Cancel order",
@@ -42,6 +44,8 @@ const historyLabels: Record<string, string> = {
   "order.change-assigned-tag": "Assigned tag changed",
   "order.replace-tag": "Replacement tag issued",
   "order.mark-preparing": "Preparation started",
+  "order.mark-ready-to-ship": "Marked ready to ship",
+  "order.update-shipment": "Shipment details updated",
   "order.mark-shipped": "Marked shipped",
   "order.mark-delivered": "Marked delivered",
   "order.cancel": "Order cancelled",
@@ -276,7 +280,12 @@ export function AdminOrderDetailDrawer({
                   <AdminDetailItem label="Recipient" value={detail.order.delivery.recipientName} />
                   <AdminDetailItem label="Address" value={formatFullDeliveryAddress(detail.order)} />
                   <AdminDetailItem label="Delivery notes" value={detail.order.delivery.notes} />
+                  <AdminDetailItem label="Courier provider" value={detail.shipment.courierProvider ?? ""} />
+                  <AdminDetailItem label="Courier service" value={detail.shipment.courierService ?? ""} />
                   <AdminDetailItem label="Tracking number" value={detail.order.trackingNumber ?? ""} />
+                  <AdminDetailItem label="Actual courier cost (internal)" value={detail.shipment.actualCourierCost == null ? "" : `${summary.currency} ${detail.shipment.actualCourierCost.toFixed(2)}`} />
+                  <AdminDetailItem label="Shipping notes (internal)" value={detail.shipment.shippingNotes ?? ""} />
+                  <AdminDetailItem label="Ready to ship" value={formatAdminDateTime(detail.shipment.readyToShipAt)} />
                   <AdminDetailItem label="Shipped" value={formatAdminDateTime(summary.shippedAt)} />
                   <AdminDetailItem label="Delivered" value={formatAdminDateTime(summary.deliveredAt)} />
                 </div>

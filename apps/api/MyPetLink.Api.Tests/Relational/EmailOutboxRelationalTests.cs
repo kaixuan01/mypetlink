@@ -317,6 +317,12 @@ public sealed class EmailOutboxRelationalTests
             return Task.CompletedTask;
         }
 
+        public Task EnqueueOrderShippedAsync(
+            TagOrder order,
+            DateTimeOffset shippedAt,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         public Task<EmailOutbox?> EnqueueOwnerWelcomeAsync(
             User user,
             OwnerWelcomeEmailTemplateData template,

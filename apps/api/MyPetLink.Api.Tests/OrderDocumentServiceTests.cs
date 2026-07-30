@@ -136,7 +136,11 @@ public sealed class OrderDocumentServiceTests
         var owner = await h.Service.GetOwnerReceiptAsync(Harness.OwnerAId, "MPL-ORD-NFC");
         var admin = await h.Service.GetAdminReceiptAsync(orderId);
 
-        Assert.Equal(owner.Content, admin.Content);
+        // QuestPDF writes generation metadata into each PDF, so two equivalent
+        // documents rendered across a clock tick are not guaranteed to be
+        // byte-for-byte identical. The canonical customer-visible content and
+        // download identity are the contract shared by both endpoints.
+        Assert.Equal(owner.FileName, admin.FileName);
         Assert.Equal(ExtractText(owner.Content), ExtractText(admin.Content));
     }
 

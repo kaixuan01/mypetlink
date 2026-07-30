@@ -42,6 +42,7 @@ const orderTone: Record<OrderStatus, "warm" | "teal" | "mint" | "soft" | "danger
   "Payment Submitted": "teal",
   "Payment Confirmed": "mint",
   Preparing: "teal",
+  "Ready to Ship": "teal",
   Shipped: "teal",
   Delivered: "mint",
   Cancelled: "danger",

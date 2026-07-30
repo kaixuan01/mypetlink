@@ -242,6 +242,9 @@ public sealed class OwnerWelcomeEmailTests
                     disabledOptions,
                     new TransactionalEmailLayout(disabledOptions)),
                 new OwnerWelcomeEmailTemplateRenderer(
+                    new TransactionalEmailLayout(disabledOptions)),
+                new OrderShippedEmailTemplateRenderer(
+                    disabledOptions,
                     new TransactionalEmailLayout(disabledOptions))),
             harness.Sender,
             new EmailTemplateGate(harness.Db, disabledOptions),
@@ -600,7 +603,8 @@ public sealed class OwnerWelcomeEmailTests
                 db,
                 new EmailTemplateRenderer(
                     new PaymentConfirmedEmailTemplateRenderer(optionValue, layout),
-                    WelcomeRenderer),
+                    WelcomeRenderer,
+                    new OrderShippedEmailTemplateRenderer(optionValue, layout)),
                 Sender,
                 new EmailTemplateGate(db, optionValue),
                 Clock,

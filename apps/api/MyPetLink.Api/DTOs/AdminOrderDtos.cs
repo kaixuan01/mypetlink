@@ -11,6 +11,7 @@ public enum AdminOrderFulfilmentStatus
 {
     NotStarted,
     Preparing,
+    ReadyToShip,
     Shipped,
     Delivered,
     Cancelled
@@ -89,7 +90,9 @@ public sealed record AdminOrderListItemResponse(
     string? AssignedTagCode,
     string DeliveryCity,
     string DeliveryState,
+    string? CourierProvider,
     string? TrackingNumber,
+    DateTimeOffset? ReadyToShipAt,
     DateTimeOffset? PaymentConfirmedAt,
     DateTimeOffset? ShippedAt,
     DateTimeOffset? DeliveredAt,
@@ -103,6 +106,7 @@ public sealed record AdminOrderStatusCountsResponse(
     int PaymentReview,
     int ReadyToPrepare,
     int Preparing,
+    int ReadyToShip,
     int Shipped,
     int Delivered,
     int Cancelled);

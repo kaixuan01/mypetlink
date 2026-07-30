@@ -16,13 +16,16 @@ public sealed class EmailPreviewService : IEmailPreviewService
         RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
     private readonly OwnerWelcomeEmailTemplateRenderer _welcome;
     private readonly PaymentConfirmedEmailTemplateRenderer _paymentConfirmed;
+    private readonly OrderShippedEmailTemplateRenderer _orderShipped;
 
     public EmailPreviewService(
         OwnerWelcomeEmailTemplateRenderer welcome,
-        PaymentConfirmedEmailTemplateRenderer paymentConfirmed)
+        PaymentConfirmedEmailTemplateRenderer paymentConfirmed,
+        OrderShippedEmailTemplateRenderer orderShipped)
     {
         _welcome = welcome;
         _paymentConfirmed = paymentConfirmed;
+        _orderShipped = orderShipped;
     }
 
     public RenderedEmail Render(string template, string variant)
@@ -46,6 +49,17 @@ public sealed class EmailPreviewService : IEmailPreviewService
                         "MyPetLink QR + NFC Pet Tag",
                         "Standard",
                         "Topu"))),
+            "order-shipped" when normalizedVariant == "normal" =>
+                _orderShipped.Render(Message(
+                    EmailMessageType.OrderShipped,
+                    "Your MyPetLink order MPL-ORD-260727123029-9916 has shipped",
+                    new OrderShippedEmailTemplateData(
+                        "Aina",
+                        "MPL-ORD-260727123029-9916",
+                        "J&T Express",
+                        "Standard Delivery",
+                        "MY123456789",
+                        DateTimeOffset.Parse("2026-07-30T06:00:00Z")))),
             _ => throw new EmailDeliveryException("The requested email preview was not found.", false)
         };
     }
@@ -104,7 +118,7 @@ public sealed class EmailPreviewService : IEmailPreviewService
             RelatedUserId = messageType == EmailMessageType.OwnerWelcome
                 ? Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
                 : null,
-            RelatedOrderId = messageType == EmailMessageType.PaymentConfirmed
+            RelatedOrderId = messageType is EmailMessageType.PaymentConfirmed or EmailMessageType.OrderShipped
                 ? Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
                 : null,
             Status = EmailOutboxStatus.Pending,

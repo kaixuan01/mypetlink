@@ -62,19 +62,21 @@ public sealed class AdminOrderQueryService : SkeletonService, IAdminOrderQuerySe
             PaymentReview = group.Count(order => order.Status == OrderStatus.PaymentProofSubmitted),
             ReadyToPrepare = group.Count(order => order.Status == OrderStatus.PaymentConfirmed),
             Preparing = group.Count(order => order.Status == OrderStatus.PreparingTag),
+            ReadyToShip = group.Count(order => order.Status == OrderStatus.ReadyToShip),
             Shipped = group.Count(order => order.Status == OrderStatus.Shipped),
             Delivered = group.Count(order => order.Status == OrderStatus.Delivered),
             Cancelled = group.Count(order => order.Status == OrderStatus.Cancelled)
         }).SingleOrDefaultAsync(cancellationToken);
 
         return counts is null
-            ? new AdminOrderStatusCountsResponse(0, 0, 0, 0, 0, 0, 0, 0)
+            ? new AdminOrderStatusCountsResponse(0, 0, 0, 0, 0, 0, 0, 0, 0)
             : new AdminOrderStatusCountsResponse(
                 counts.All,
                 counts.AwaitingPayment,
                 counts.PaymentReview,
                 counts.ReadyToPrepare,
                 counts.Preparing,
+                counts.ReadyToShip,
                 counts.Shipped,
                 counts.Delivered,
                 counts.Cancelled);
@@ -142,6 +144,7 @@ public sealed class AdminOrderQueryService : SkeletonService, IAdminOrderQuerySe
     public static AdminOrderFulfilmentStatus ResolveFulfilmentStatus(OrderStatus status) => status switch
     {
         OrderStatus.PreparingTag => AdminOrderFulfilmentStatus.Preparing,
+        OrderStatus.ReadyToShip => AdminOrderFulfilmentStatus.ReadyToShip,
         OrderStatus.Shipped => AdminOrderFulfilmentStatus.Shipped,
         OrderStatus.Delivered => AdminOrderFulfilmentStatus.Delivered,
         OrderStatus.Cancelled => AdminOrderFulfilmentStatus.Cancelled,
@@ -183,6 +186,7 @@ public sealed class AdminOrderQueryService : SkeletonService, IAdminOrderQuerySe
                 "payment-review" => OrderStatus.PaymentProofSubmitted,
                 "ready-to-prepare" => OrderStatus.PaymentConfirmed,
                 "preparing" => OrderStatus.PreparingTag,
+                "ready-to-ship" => OrderStatus.ReadyToShip,
                 "shipped" => OrderStatus.Shipped,
                 "delivered" => OrderStatus.Delivered,
                 "cancelled" => OrderStatus.Cancelled,
@@ -213,6 +217,7 @@ public sealed class AdminOrderQueryService : SkeletonService, IAdminOrderQuerySe
                     || order.Status == OrderStatus.PaymentProofSubmitted
                     || order.Status == OrderStatus.PaymentConfirmed),
                 AdminOrderFulfilmentStatus.Preparing => orders.Where(order => order.Status == OrderStatus.PreparingTag),
+                AdminOrderFulfilmentStatus.ReadyToShip => orders.Where(order => order.Status == OrderStatus.ReadyToShip),
                 AdminOrderFulfilmentStatus.Shipped => orders.Where(order => order.Status == OrderStatus.Shipped),
                 AdminOrderFulfilmentStatus.Delivered => orders.Where(order => order.Status == OrderStatus.Delivered),
                 AdminOrderFulfilmentStatus.Cancelled => orders.Where(order => order.Status == OrderStatus.Cancelled),
@@ -395,7 +400,9 @@ public sealed class AdminOrderQueryService : SkeletonService, IAdminOrderQuerySe
             order.SmartTag?.TagCode,
             order.City,
             order.State,
+            order.CourierProvider,
             order.TrackingNumber,
+            order.ReadyToShipAt,
             order.PaymentConfirmedAt,
             order.ShippedAt,
             order.DeliveredAt,
@@ -473,6 +480,7 @@ public sealed class AdminOrderQueryService : SkeletonService, IAdminOrderQuerySe
     private static string FulfilmentLabel(AdminOrderFulfilmentStatus status) => status switch
     {
         AdminOrderFulfilmentStatus.NotStarted => "Not Started",
+        AdminOrderFulfilmentStatus.ReadyToShip => "Ready to Ship",
         _ => status.ToString()
     };
 

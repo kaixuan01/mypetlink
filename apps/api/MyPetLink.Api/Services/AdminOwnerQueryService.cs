@@ -315,7 +315,7 @@ public sealed class AdminOwnerQueryService : SkeletonService, IAdminOwnerQuerySe
         if (query.HasPendingProof.HasValue)
             owners = FilterAny(owners, query.HasPendingProof.Value, profile => _dbContext.PaymentProofs.Any(proof => proof.Order.OwnerUserId == profile.UserId && proof.Status == PaymentProofStatus.PendingReview));
         if (query.HasActiveFulfilment.HasValue)
-            owners = FilterAny(owners, query.HasActiveFulfilment.Value, profile => orders.Any(order => order.OwnerUserId == profile.UserId && (order.Status == OrderStatus.PaymentConfirmed || order.Status == OrderStatus.PreparingTag || order.Status == OrderStatus.Shipped)));
+            owners = FilterAny(owners, query.HasActiveFulfilment.Value, profile => orders.Any(order => order.OwnerUserId == profile.UserId && (order.Status == OrderStatus.PaymentConfirmed || order.Status == OrderStatus.PreparingTag || order.Status == OrderStatus.ReadyToShip || order.Status == OrderStatus.Shipped)));
         if (query.HasDeliveredOrder.HasValue)
             owners = FilterAny(owners, query.HasDeliveredOrder.Value, profile => orders.Any(order => order.OwnerUserId == profile.UserId && order.Status == OrderStatus.Delivered));
 
@@ -421,7 +421,7 @@ public sealed class AdminOwnerQueryService : SkeletonService, IAdminOwnerQuerySe
             OrderCount = _dbContext.TagOrders.Count(order => order.OwnerUserId == profile.UserId),
             PendingPaymentOrderCount = _dbContext.TagOrders.Count(order => order.OwnerUserId == profile.UserId && order.PaymentStatus == PaymentStatus.Pending),
             PendingProofCount = _dbContext.PaymentProofs.Count(proof => proof.Order.OwnerUserId == profile.UserId && proof.Status == PaymentProofStatus.PendingReview),
-            ActiveFulfilmentOrderCount = _dbContext.TagOrders.Count(order => order.OwnerUserId == profile.UserId && (order.Status == OrderStatus.PaymentConfirmed || order.Status == OrderStatus.PreparingTag || order.Status == OrderStatus.Shipped)),
+            ActiveFulfilmentOrderCount = _dbContext.TagOrders.Count(order => order.OwnerUserId == profile.UserId && (order.Status == OrderStatus.PaymentConfirmed || order.Status == OrderStatus.PreparingTag || order.Status == OrderStatus.ReadyToShip || order.Status == OrderStatus.Shipped)),
             DeliveredOrderCount = _dbContext.TagOrders.Count(order => order.OwnerUserId == profile.UserId && order.Status == OrderStatus.Delivered),
             ActiveSmartTagCount = _dbContext.SmartTags.Count(tag => tag.OwnerUserId == profile.UserId && tag.DeletedAt == null && tag.ArchivedAt == null && tag.Status == SmartTagStatus.Active),
             TotalSmartTagCount = _dbContext.SmartTags.Count(tag => tag.OwnerUserId == profile.UserId && tag.DeletedAt == null),

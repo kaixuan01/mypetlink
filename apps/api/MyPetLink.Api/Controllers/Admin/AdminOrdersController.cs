@@ -188,11 +188,45 @@ public sealed class AdminOrdersController : ApiControllerBase
     }
 
     [HttpPost("{orderId:guid}/mark-preparing")]
-    public async Task<IActionResult> MarkPreparing(Guid orderId, CancellationToken cancellationToken)
+    public async Task<IActionResult> MarkPreparing(
+        Guid orderId,
+        [FromBody] OrderTransitionRequest request,
+        CancellationToken cancellationToken)
     {
         var response = await _adminService.MarkOrderPreparingAsync(
             _currentUserService.Current.UserId,
             orderId,
+            request.RowVersion,
+            cancellationToken);
+
+        return Ok(ApiEnvelope.Ok(response, HttpContext));
+    }
+
+    [HttpPost("{orderId:guid}/mark-ready-to-ship")]
+    public async Task<IActionResult> MarkReadyToShip(
+        Guid orderId,
+        [FromBody] OrderTransitionRequest request,
+        CancellationToken cancellationToken)
+    {
+        var response = await _adminService.MarkOrderReadyToShipAsync(
+            _currentUserService.Current.UserId,
+            orderId,
+            request.RowVersion,
+            cancellationToken);
+
+        return Ok(ApiEnvelope.Ok(response, HttpContext));
+    }
+
+    [HttpPut("{orderId:guid}/shipment")]
+    public async Task<IActionResult> UpdateShipment(
+        Guid orderId,
+        [FromBody] UpdateShipmentDetailsRequest request,
+        CancellationToken cancellationToken)
+    {
+        var response = await _adminService.UpdateShipmentDetailsAsync(
+            _currentUserService.Current.UserId,
+            orderId,
+            request,
             cancellationToken);
 
         return Ok(ApiEnvelope.Ok(response, HttpContext));
@@ -201,24 +235,28 @@ public sealed class AdminOrdersController : ApiControllerBase
     [HttpPost("{orderId:guid}/mark-shipped")]
     public async Task<IActionResult> MarkShipped(
         Guid orderId,
-        [FromBody] MarkOrderShippedRequest? request,
+        [FromBody] MarkOrderShippedRequest request,
         CancellationToken cancellationToken)
     {
         var response = await _adminService.MarkOrderShippedAsync(
             _currentUserService.Current.UserId,
             orderId,
-            request?.TrackingNumber,
+            request,
             cancellationToken);
 
         return Ok(ApiEnvelope.Ok(response, HttpContext));
     }
 
     [HttpPost("{orderId:guid}/mark-delivered")]
-    public async Task<IActionResult> MarkDelivered(Guid orderId, CancellationToken cancellationToken)
+    public async Task<IActionResult> MarkDelivered(
+        Guid orderId,
+        [FromBody] OrderTransitionRequest request,
+        CancellationToken cancellationToken)
     {
         var response = await _adminService.MarkOrderDeliveredAsync(
             _currentUserService.Current.UserId,
             orderId,
+            request.RowVersion,
             cancellationToken);
 
         return Ok(ApiEnvelope.Ok(response, HttpContext));
@@ -235,16 +273,28 @@ public sealed class AdminOrdersController : ApiControllerBase
         var userId = _currentUserService.Current.UserId;
         var response = request.Status switch
         {
-            OrderStatus.PreparingTag => await _adminService.MarkOrderPreparingAsync(userId, orderId, cancellationToken),
-            OrderStatus.Shipped => await _adminService.MarkOrderShippedAsync(userId, orderId, request.TrackingNumber, cancellationToken),
-            OrderStatus.Delivered => await _adminService.MarkOrderDeliveredAsync(userId, orderId, cancellationToken),
+            OrderStatus.PreparingTag => await _adminService.MarkOrderPreparingAsync(userId, orderId, request.RowVersion, cancellationToken),
+            OrderStatus.ReadyToShip => await _adminService.MarkOrderReadyToShipAsync(userId, orderId, request.RowVersion, cancellationToken),
+            OrderStatus.Shipped => await _adminService.MarkOrderShippedAsync(
+                userId,
+                orderId,
+                new MarkOrderShippedRequest(
+                    request.CourierProvider,
+                    request.CourierService,
+                    request.TrackingNumber,
+                    request.ActualCourierCost,
+                    request.ShippingNotes,
+                    request.RowVersion,
+                    request.CourierProviderCode),
+                cancellationToken),
+            OrderStatus.Delivered => await _adminService.MarkOrderDeliveredAsync(userId, orderId, request.RowVersion, cancellationToken),
             _ => throw new ApiException(
                 StatusCodes.Status400BadRequest,
                 "validation_failed",
                 "Please check the submitted fields.",
                 new Dictionary<string, string[]>
                 {
-                    ["status"] = ["Only PreparingTag, Shipped, or Delivered are supported here."]
+                    ["status"] = ["Only PreparingTag, ReadyToShip, Shipped, or Delivered are supported here."]
                 })
         };
 

@@ -28,7 +28,7 @@ internal static class TagDtoMapper
             tag.ArchivedAt);
     }
 
-    public static TagOrderResponse ToOrderResponse(TagOrder order)
+    public static TagOrderResponse ToOrderResponse(TagOrder order, string? trackingUrl = null)
     {
         var proofs = order.PaymentProofs
             .OrderByDescending(proof => proof.UploadedAt)
@@ -94,14 +94,18 @@ internal static class TagDtoMapper
             latestProof?.RejectionReason,
             EmailOutboxService.ToOwnerResponse(order.EmailOutboxMessages),
             order.TrackingStatus,
+            order.CourierProvider,
+            order.CourierService,
             order.TrackingNumber,
+            order.ReadyToShipAt,
             order.ShippedAt,
             order.DeliveredAt,
             order.CancelledAt,
             proofs,
             timeline,
             order.UpdatedAt,
-            order.CreatedAt);
+            order.CreatedAt,
+            trackingUrl);
     }
 
     // Builds the chronological status history shown on the owner order detail
@@ -171,7 +175,7 @@ internal static class TagDtoMapper
 
         // Tag preparation has no dedicated timestamp column; surface the step
         // (with a null timestamp) once the order has moved past confirmation.
-        if (order.Status is OrderStatus.PreparingTag or OrderStatus.Shipped or OrderStatus.Delivered)
+        if (order.Status is OrderStatus.PreparingTag or OrderStatus.ReadyToShip or OrderStatus.Shipped or OrderStatus.Delivered)
         {
             events.Add(new OrderTimelineEventResponse(
                 "PreparingTag",
@@ -181,11 +185,21 @@ internal static class TagDtoMapper
                 "completed"));
         }
 
+        if (order.ReadyToShipAt.HasValue)
+        {
+            events.Add(new OrderTimelineEventResponse(
+                "ReadyToShip",
+                "Ready to ship",
+                "Your tag is packed and ready for the courier.",
+                order.ReadyToShipAt,
+                "completed"));
+        }
+
         if (order.ShippedAt.HasValue)
         {
-            var description = string.IsNullOrWhiteSpace(order.TrackingNumber)
-                ? "Your tag is on the way."
-                : $"On the way. Tracking number {order.TrackingNumber}.";
+            var description = string.IsNullOrWhiteSpace(order.CourierProvider)
+                ? $"On the way. Tracking number {order.TrackingNumber}."
+                : $"Shipped with {order.CourierProvider}. Tracking number {order.TrackingNumber}.";
 
             events.Add(new OrderTimelineEventResponse(
                 "Shipped",

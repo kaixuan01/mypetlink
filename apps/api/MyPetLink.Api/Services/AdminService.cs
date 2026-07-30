@@ -17,6 +17,7 @@ public sealed class AdminService : SkeletonService, IAdminService
     private readonly MyPetLinkDbContext _dbContext;
     private readonly IAuditLogService _auditLogService;
     private readonly IEmailOutboxService _emailOutboxService;
+    private readonly IShippingFulfilmentService _shippingFulfilmentService;
     private readonly FeatureOptions _features;
     private readonly IBusinessReferenceGenerator _businessReferences;
     private readonly TimeProvider _timeProvider;
@@ -62,7 +63,8 @@ public sealed class AdminService : SkeletonService, IAdminService
         IOptions<FeatureOptions> features,
         IEmailOutboxService emailOutboxService,
         IBusinessReferenceGenerator businessReferences,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        IShippingFulfilmentService? shippingFulfilmentService = null)
     {
         _dbContext = dbContext;
         _auditLogService = auditLogService;
@@ -70,6 +72,8 @@ public sealed class AdminService : SkeletonService, IAdminService
         _emailOutboxService = emailOutboxService;
         _businessReferences = businessReferences;
         _timeProvider = timeProvider;
+        _shippingFulfilmentService = shippingFulfilmentService
+            ?? new ShippingFulfilmentService(dbContext, auditLogService, timeProvider);
     }
 
     // --- Dashboard ------------------------------------------------------------
@@ -93,7 +97,8 @@ public sealed class AdminService : SkeletonService, IAdminService
             OrdersPreparing: await _dbContext.TagOrders
                 .CountAsync(order =>
                     order.Status == OrderStatus.PaymentConfirmed
-                    || order.Status == OrderStatus.PreparingTag, cancellationToken),
+                    || order.Status == OrderStatus.PreparingTag
+                    || order.Status == OrderStatus.ReadyToShip, cancellationToken),
             OrdersShipped: await _dbContext.TagOrders
                 .CountAsync(order => order.Status == OrderStatus.Shipped, cancellationToken),
             ActiveTags: await VisibleTagsBase()
@@ -291,7 +296,7 @@ public sealed class AdminService : SkeletonService, IAdminService
 
         var oldOrderState = OrderStateSnapshot(order);
         var oldTagState = TagStateSnapshot(tag);
-        var now = DateTimeOffset.UtcNow;
+        var now = _timeProvider.GetUtcNow();
 
         tag.OwnerUserId = order.OwnerUserId;
         tag.OwnerUser = order.OwnerUser;
@@ -332,7 +337,7 @@ public sealed class AdminService : SkeletonService, IAdminService
         var admin = await RequireAdminAsync(currentUserId, cancellationToken);
         var order = await LoadOrderAsync(orderId, trackChanges: true, cancellationToken);
 
-        if (order.Status is not (OrderStatus.PaymentConfirmed or OrderStatus.PreparingTag))
+        if (order.Status is not (OrderStatus.PaymentConfirmed or OrderStatus.PreparingTag or OrderStatus.ReadyToShip))
         {
             throw InvalidState(
                 "The assigned tag can only be changed before the order ships. Use Replace Tag once it has shipped.");
@@ -364,7 +369,7 @@ public sealed class AdminService : SkeletonService, IAdminService
         var oldOrderState = OrderStateSnapshot(order);
         var oldTagState = TagStateSnapshot(oldTag);
         var newTagOldState = TagStateSnapshot(newTag);
-        var now = DateTimeOffset.UtcNow;
+        var now = _timeProvider.GetUtcNow();
         var normalizedReason = NormalizeOptional(reason);
 
         // Return the old tag to unclaimed inventory.
@@ -373,7 +378,16 @@ public sealed class AdminService : SkeletonService, IAdminService
         // Link the new tag in its place.
         LinkTagToOrder(newTag, order, now);
         newTag.ReplacementForTagId = order.ReplacementForTagId;
+        if (order.Status == OrderStatus.ReadyToShip)
+        {
+            // The newly assigned physical tag has not passed preparation yet.
+            // This controlled reset is part of the tag-swap operation, not an
+            // arbitrary fulfilment-status rollback.
+            order.Status = OrderStatus.PreparingTag;
+            order.ReadyToShipAt = null;
+        }
         order.TrackingStatus = "Assigned tag updated. Tag preparation is next.";
+        order.UpdatedAt = now;
 
         _auditLogService.Append(
             admin.Id, ActorType.Admin, "order.change-assigned-tag", "TagOrder", order.Id,
@@ -498,52 +512,173 @@ public sealed class AdminService : SkeletonService, IAdminService
     public async Task<AdminTagOrderResponse> MarkOrderPreparingAsync(
         Guid? currentUserId,
         Guid orderId,
+        string? rowVersion,
         CancellationToken cancellationToken = default)
     {
         var admin = await RequireAdminAsync(currentUserId, cancellationToken);
         var order = await LoadOrderAsync(orderId, trackChanges: true, cancellationToken);
 
+        if (order.Status == OrderStatus.PreparingTag)
+        {
+            return ToAdminOrderResponse(order);
+        }
         if (order.Status != OrderStatus.PaymentConfirmed)
         {
             throw InvalidState("Orders can only start preparation after payment is confirmed.");
         }
+        if (order.PaymentStatus != PaymentStatus.Confirmed)
+        {
+            throw InvalidState("Refunded or unconfirmed orders cannot enter preparation.");
+        }
 
+        ApplyOrderConcurrency(order, rowVersion);
         var oldState = OrderStateSnapshot(order);
         var tag = RequireAssignedOrderTag(order, "start preparing");
+        var now = _timeProvider.GetUtcNow();
         order.Status = OrderStatus.PreparingTag;
         order.TrackingStatus = "Tag is being prepared.";
+        order.UpdatedAt = now;
         tag.Status = SmartTagStatus.Preparing;
+        tag.UpdatedAt = now;
 
         _auditLogService.Append(
             admin.Id, ActorType.Admin, "order.mark-preparing", "TagOrder", order.Id,
             oldState, OrderStateSnapshot(order));
 
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        await SaveOrderMutationAsync(cancellationToken);
+        return ToAdminOrderResponse(order);
+    }
+
+    public async Task<AdminTagOrderResponse> MarkOrderReadyToShipAsync(
+        Guid? currentUserId,
+        Guid orderId,
+        string? rowVersion,
+        CancellationToken cancellationToken = default)
+    {
+        var admin = await RequireAdminAsync(currentUserId, cancellationToken);
+        var order = await LoadOrderAsync(orderId, trackChanges: true, cancellationToken);
+
+        if (order.Status == OrderStatus.ReadyToShip)
+        {
+            return ToAdminOrderResponse(order);
+        }
+        if (order.Status != OrderStatus.PreparingTag)
+        {
+            throw InvalidState("Orders can only be marked ready to ship after preparation has started.");
+        }
+        if (order.PaymentStatus != PaymentStatus.Confirmed)
+        {
+            throw InvalidState("Payment must remain confirmed before an order can be marked ready to ship.");
+        }
+
+        ApplyOrderConcurrency(order, rowVersion);
+        var oldState = OrderStateSnapshot(order);
+        var now = _timeProvider.GetUtcNow();
+        RequireAssignedOrderTag(order, "mark ready to ship");
+        order.Status = OrderStatus.ReadyToShip;
+        order.ReadyToShipAt ??= now;
+        order.TrackingStatus = "Your tag is ready to ship.";
+        order.UpdatedAt = now;
+
+        _auditLogService.Append(
+            admin.Id, ActorType.Admin, "order.mark-ready-to-ship", "TagOrder", order.Id,
+            oldState, OrderStateSnapshot(order));
+
+        await SaveOrderMutationAsync(cancellationToken);
+        return ToAdminOrderResponse(order);
+    }
+
+    public async Task<AdminTagOrderResponse> UpdateShipmentDetailsAsync(
+        Guid? currentUserId,
+        Guid orderId,
+        UpdateShipmentDetailsRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var admin = await RequireAdminAsync(currentUserId, cancellationToken);
+        var order = await LoadOrderAsync(orderId, trackChanges: true, cancellationToken);
+
+        if (order.Status is not (OrderStatus.PreparingTag or OrderStatus.ReadyToShip or OrderStatus.Shipped))
+        {
+            throw InvalidState("Shipment details can only be edited while an order is being prepared, ready to ship, or shipped.");
+        }
+
+        ApplyOrderConcurrency(order, request.RowVersion);
+        var courier = await _shippingFulfilmentService.ResolveCourierForShipmentAsync(
+            order,
+            request.CourierProviderCode,
+            request.CourierProvider,
+            cancellationToken);
+        var shipment = ValidateShipment(
+            courier.Code,
+            courier.DisplayName,
+            request.CourierService,
+            request.TrackingNumber,
+            request.ActualCourierCost,
+            request.ShippingNotes);
+        if (ShipmentMatches(order, shipment))
+        {
+            return ToAdminOrderResponse(order);
+        }
+        var oldState = OrderStateSnapshot(order);
+        ApplyShipmentDetails(order, shipment);
+        order.UpdatedAt = _timeProvider.GetUtcNow();
+
+        _auditLogService.Append(
+            admin.Id, ActorType.Admin, "order.update-shipment", "TagOrder", order.Id,
+            oldState, OrderStateSnapshot(order));
+
+        await SaveOrderMutationAsync(cancellationToken);
         return ToAdminOrderResponse(order);
     }
 
     public async Task<AdminTagOrderResponse> MarkOrderShippedAsync(
         Guid? currentUserId,
         Guid orderId,
-        string? trackingNumber,
+        MarkOrderShippedRequest request,
         CancellationToken cancellationToken = default)
     {
         var admin = await RequireAdminAsync(currentUserId, cancellationToken);
         var order = await LoadOrderAsync(orderId, trackChanges: true, cancellationToken);
 
-        if (order.Status != OrderStatus.PreparingTag)
+        var courier = await _shippingFulfilmentService.ResolveCourierForShipmentAsync(
+            order,
+            request.CourierProviderCode,
+            request.CourierProvider,
+            cancellationToken);
+        var shipment = ValidateShipment(
+            courier.Code,
+            courier.DisplayName,
+            request.CourierService,
+            request.TrackingNumber,
+            request.ActualCourierCost,
+            request.ShippingNotes);
+
+        // A repeated identical request is harmless. This protects operators
+        // from a retry after the original response was interrupted, while the
+        // unique outbox key still guarantees one shipment notification.
+        if ((order.Status is OrderStatus.Shipped or OrderStatus.Delivered)
+            && ShipmentMatches(order, shipment))
         {
-            throw InvalidState("Orders can only be shipped after tag preparation has started.");
+            return ToAdminOrderResponse(order);
         }
 
+        if (order.Status != OrderStatus.ReadyToShip)
+        {
+            throw InvalidState("Orders can only be shipped after they are marked ready to ship.");
+        }
+        if (order.PaymentStatus != PaymentStatus.Confirmed)
+        {
+            throw InvalidState("Payment must remain confirmed before an order can be shipped.");
+        }
+
+        ApplyOrderConcurrency(order, request.RowVersion);
         var oldState = OrderStateSnapshot(order);
-        var now = DateTimeOffset.UtcNow;
+        var now = _timeProvider.GetUtcNow();
+        ApplyShipmentDetails(order, shipment);
         order.Status = OrderStatus.Shipped;
         order.ShippedAt ??= now;
-        order.TrackingNumber = NormalizeOptional(trackingNumber) ?? order.TrackingNumber;
-        order.TrackingStatus = string.IsNullOrWhiteSpace(order.City)
-            ? "Tag is on the way."
-            : $"On the way to {order.City}.";
+        order.TrackingStatus = $"Shipped with {order.CourierProvider}.";
+        order.UpdatedAt = now;
         var shippedTag = RequireAssignedOrderTag(order, "ship");
         // The physical tag has left our hands for the owner; keep the
         // fulfilment trail in sync with the order without touching lifecycle.
@@ -553,30 +688,38 @@ public sealed class AdminService : SkeletonService, IAdminService
             admin.Id, ActorType.Admin, "order.mark-shipped", "TagOrder", order.Id,
             oldState, OrderStateSnapshot(order));
 
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        await _emailOutboxService.EnqueueOrderShippedAsync(order, now, cancellationToken);
+        await SaveOrderMutationAsync(cancellationToken);
         return ToAdminOrderResponse(order);
     }
 
     public async Task<AdminTagOrderResponse> MarkOrderDeliveredAsync(
         Guid? currentUserId,
         Guid orderId,
+        string? rowVersion,
         CancellationToken cancellationToken = default)
     {
         var admin = await RequireAdminAsync(currentUserId, cancellationToken);
         var order = await LoadOrderAsync(orderId, trackChanges: true, cancellationToken);
 
+        if (order.Status == OrderStatus.Delivered)
+        {
+            return ToAdminOrderResponse(order);
+        }
         if (order.Status != OrderStatus.Shipped)
         {
             throw InvalidState("Orders can only be marked delivered after they are shipped.");
         }
 
+        ApplyOrderConcurrency(order, rowVersion);
         var oldState = OrderStateSnapshot(order);
-        var now = DateTimeOffset.UtcNow;
+        var now = _timeProvider.GetUtcNow();
         order.Status = OrderStatus.Delivered;
         order.DeliveredAt ??= now;
         order.TrackingStatus = string.IsNullOrWhiteSpace(order.City)
             ? "Delivered."
             : $"Delivered to {order.City}.";
+        order.UpdatedAt = now;
 
         var tag = RequireAssignedOrderTag(order, "mark delivered");
         tag.Status = SmartTagStatus.Delivered;
@@ -587,7 +730,7 @@ public sealed class AdminService : SkeletonService, IAdminService
             admin.Id, ActorType.Admin, "order.mark-delivered", "TagOrder", order.Id,
             oldState, OrderStateSnapshot(order));
 
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        await SaveOrderMutationAsync(cancellationToken);
         return ToAdminOrderResponse(order);
     }
 
@@ -908,7 +1051,7 @@ public sealed class AdminService : SkeletonService, IAdminService
         return new AdminOwnerDetailResponse(
             owner,
             pets.Select(pet => PetDtoMapper.ToListItem(pet)).ToArray(),
-            orders.Select(TagDtoMapper.ToOrderResponse).ToArray(),
+            orders.Select(order => TagDtoMapper.ToOrderResponse(order)).ToArray(),
             tags.Select(TagDtoMapper.ToSmartTagResponse).ToArray());
     }
 
@@ -1472,6 +1615,17 @@ public sealed class AdminService : SkeletonService, IAdminService
             TagDtoMapper.ToOrderResponse(order),
             ToOwnerRef(order.OwnerUser),
             order.Items.OrderBy(item => item.CreatedAt).Select(item => item.ProductVariantId).FirstOrDefault(),
+            new AdminShipmentDetailsResponse(
+                order.CourierProviderCode,
+                order.CourierProvider,
+                order.CourierService,
+                order.TrackingNumber,
+                order.ActualCourierCost,
+                order.ShippingNotes,
+                order.ReadyToShipAt,
+                order.ShippedAt,
+                order.DeliveredAt,
+                Convert.ToBase64String(order.RowVersion)),
             order.EmailOutboxMessages
                 .Where(item => item.MessageType == EmailMessageType.PaymentConfirmed)
                 .Select(EmailOutboxService.ToAdminResponse)
@@ -1525,9 +1679,119 @@ public sealed class AdminService : SkeletonService, IAdminService
             receiptNumber = order.ReceiptNumber,
             smartTagId = order.SmartTagId,
             trackingStatus = order.TrackingStatus,
-            trackingNumber = order.TrackingNumber
+            courierProviderCode = order.CourierProviderCode,
+            courierProvider = order.CourierProvider,
+            courierService = order.CourierService,
+            trackingNumber = order.TrackingNumber,
+            actualCourierCost = order.ActualCourierCost,
+            shippingNotes = order.ShippingNotes,
+            readyToShipAt = order.ReadyToShipAt,
+            shippedAt = order.ShippedAt,
+            deliveredAt = order.DeliveredAt
         };
     }
+
+    private sealed record ValidatedShipment(
+        string? CourierProviderCode,
+        string CourierProvider,
+        string? CourierService,
+        string TrackingNumber,
+        decimal? ActualCourierCost,
+        string? ShippingNotes);
+
+    private static ValidatedShipment ValidateShipment(
+        string? courierProviderCode,
+        string? courierProvider,
+        string? courierService,
+        string? trackingNumber,
+        decimal? actualCourierCost,
+        string? shippingNotes)
+    {
+        var provider = NormalizeOptional(courierProvider)
+            ?? throw ValidationFailed("courierProvider", "Select or enter a courier provider.");
+        var tracking = NormalizeOptional(trackingNumber)
+            ?? throw ValidationFailed("trackingNumber", "Enter the courier tracking number.");
+        if (actualCourierCost < 0)
+        {
+            throw ValidationFailed("actualCourierCost", "Courier cost cannot be negative.");
+        }
+
+        return new ValidatedShipment(
+            courierProviderCode,
+            provider,
+            NormalizeOptional(courierService),
+            tracking,
+            actualCourierCost,
+            NormalizeOptional(shippingNotes));
+    }
+
+    private static void ApplyShipmentDetails(TagOrder order, ValidatedShipment shipment)
+    {
+        order.CourierProviderCode = shipment.CourierProviderCode;
+        order.CourierProvider = shipment.CourierProvider;
+        order.CourierService = shipment.CourierService;
+        order.TrackingNumber = shipment.TrackingNumber;
+        order.ActualCourierCost = shipment.ActualCourierCost;
+        order.ShippingNotes = shipment.ShippingNotes;
+    }
+
+    private static bool ShipmentMatches(TagOrder order, ValidatedShipment shipment) =>
+        string.Equals(order.CourierProviderCode ?? "", shipment.CourierProviderCode ?? "", StringComparison.OrdinalIgnoreCase)
+        && string.Equals(order.CourierProvider, shipment.CourierProvider, StringComparison.OrdinalIgnoreCase)
+        && string.Equals(order.CourierService ?? "", shipment.CourierService ?? "", StringComparison.OrdinalIgnoreCase)
+        && string.Equals(order.TrackingNumber, shipment.TrackingNumber, StringComparison.OrdinalIgnoreCase)
+        && order.ActualCourierCost == shipment.ActualCourierCost
+        && string.Equals(order.ShippingNotes ?? "", shipment.ShippingNotes ?? "", StringComparison.Ordinal);
+
+    private void ApplyOrderConcurrency(TagOrder order, string? rowVersion)
+    {
+        if (string.IsNullOrWhiteSpace(rowVersion))
+        {
+            throw ValidationFailed("rowVersion", "Refresh the order before changing its shipping status.");
+        }
+
+        byte[] supplied;
+        try
+        {
+            supplied = Convert.FromBase64String(rowVersion);
+        }
+        catch (FormatException)
+        {
+            throw OrderConcurrencyConflict();
+        }
+
+        if (!supplied.SequenceEqual(order.RowVersion))
+        {
+            throw OrderConcurrencyConflict();
+        }
+
+        _dbContext.Entry(order).Property(item => item.RowVersion).OriginalValue = supplied;
+    }
+
+    private async Task SaveOrderMutationAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw OrderConcurrencyConflict();
+        }
+        catch (DbUpdateException exception)
+            when (UniqueConstraintViolation.IsFor(
+                exception,
+                "IX_EmailOutbox_RelatedOrderId_MessageType"))
+        {
+            throw OrderConcurrencyConflict();
+        }
+    }
+
+    private static ApiException OrderConcurrencyConflict() =>
+        new(
+            StatusCodes.Status409Conflict,
+            "concurrency_conflict",
+            "This order was changed by another administrator. The latest details must be loaded before trying again.");
 
     private static object PaymentProofStateSnapshot(PaymentProof proof)
     {

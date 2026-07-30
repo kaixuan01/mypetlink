@@ -36,6 +36,7 @@ public enum OrderStatus
     PaymentProofSubmitted,
     PaymentConfirmed,
     PreparingTag,
+    ReadyToShip,
     Shipped,
     Delivered,
     Cancelled
@@ -61,7 +62,8 @@ public enum PaymentProofStatus
 public enum EmailMessageType
 {
     PaymentConfirmed,
-    OwnerWelcome
+    OwnerWelcome,
+    OrderShipped
 }
 
 public enum EmailOutboxStatus

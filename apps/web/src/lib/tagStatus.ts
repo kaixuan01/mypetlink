@@ -218,7 +218,7 @@ export function getTagAvailableActions(
     return ["view-payment-status", "view-order"];
   }
 
-  if (order?.status === "Payment Confirmed" || order?.status === "Preparing") {
+  if (order?.status === "Payment Confirmed" || order?.status === "Preparing" || order?.status === "Ready to Ship") {
     return ["view-order", "view-preparation-status"];
   }
 

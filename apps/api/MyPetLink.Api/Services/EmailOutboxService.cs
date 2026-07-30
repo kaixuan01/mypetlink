@@ -14,17 +14,21 @@ public sealed class EmailOutboxService : IEmailOutboxService
     private readonly IAuditLogService _auditLogService;
     private readonly TimeProvider _timeProvider;
     private readonly IEmailTemplateGate _gate;
+    private readonly IShippingFulfilmentService _shippingFulfilmentService;
 
     public EmailOutboxService(
         MyPetLinkDbContext dbContext,
         IAuditLogService auditLogService,
         TimeProvider timeProvider,
-        IEmailTemplateGate gate)
+        IEmailTemplateGate gate,
+        IShippingFulfilmentService? shippingFulfilmentService = null)
     {
         _dbContext = dbContext;
         _auditLogService = auditLogService;
         _timeProvider = timeProvider;
         _gate = gate;
+        _shippingFulfilmentService = shippingFulfilmentService
+            ?? new ShippingFulfilmentService(dbContext, auditLogService, timeProvider);
     }
 
     public async Task EnqueuePaymentConfirmedAsync(
@@ -128,6 +132,61 @@ public sealed class EmailOutboxService : IEmailOutboxService
         user.EmailOutboxMessages.Add(message);
         _dbContext.EmailOutbox.Add(message);
         return message;
+    }
+
+    public async Task EnqueueOrderShippedAsync(
+        TagOrder order,
+        DateTimeOffset shippedAt,
+        CancellationToken cancellationToken = default)
+    {
+        if (order.EmailOutboxMessages.Any(item =>
+                item.MessageType == EmailMessageType.OrderShipped))
+        {
+            return;
+        }
+
+        var ownerName = CleanHeaderValue(order.OwnerUser.DisplayName, "MyPetLink customer");
+        var orderNumber = CleanHeaderValue(order.OrderNumber, "your order");
+        var provider = CleanHeaderValue(order.CourierProvider, "the courier");
+        var trackingNumber = CleanHeaderValue(order.TrackingNumber, "Not available");
+        var trackingUrl = await _shippingFulfilmentService.GetCustomerTrackingUrlAsync(
+            order,
+            cancellationToken);
+        var template = new OrderShippedEmailTemplateData(
+            ownerName,
+            orderNumber,
+            provider,
+            NormalizeOptional(order.CourierService),
+            trackingNumber,
+            shippedAt,
+            trackingUrl);
+        var now = _timeProvider.GetUtcNow();
+        var suppression = await SuppressionReasonAsync(
+            EmailMessageType.OrderShipped,
+            cancellationToken);
+        var message = new EmailOutbox
+        {
+            Id = Guid.NewGuid(),
+            MessageType = EmailMessageType.OrderShipped,
+            RecipientEmail = order.OwnerUser.Email.Trim(),
+            RecipientName = ownerName,
+            Subject = $"Your MyPetLink order {orderNumber} has shipped",
+            TemplateDataJson = JsonSerializer.Serialize(template, TemplateJson),
+            RelatedOrderId = order.Id,
+            RelatedOrder = order,
+            Status = suppression is null
+                ? EmailOutboxStatus.Pending
+                : EmailOutboxStatus.Suppressed,
+            SuppressionReason = suppression,
+            AttemptCount = 0,
+            MaxAttempts = 5,
+            NextAttemptAt = now,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+
+        order.EmailOutboxMessages.Add(message);
+        _dbContext.EmailOutbox.Add(message);
     }
 
     public async Task<AdminEmailOutboxResponse> RetryFailedAsync(
@@ -330,6 +389,9 @@ public sealed class EmailOutboxService : IEmailOutboxService
             .Replace("\n", " ", StringComparison.Ordinal)
             .Trim();
     }
+
+    private static string? NormalizeOptional(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static string MaskEmail(string email)
     {

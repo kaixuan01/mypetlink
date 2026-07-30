@@ -3529,3 +3529,304 @@ GO
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730074753_AddDeliveryStateRateOverrides'
+)
+BEGIN
+    ALTER TABLE [TagOrders] ADD [DeliveryRateSource] nvarchar(32) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730074753_AddDeliveryStateRateOverrides'
+)
+BEGIN
+    CREATE TABLE [DeliveryStateRateOverrides] (
+        [Id] uniqueidentifier NOT NULL,
+        [StateCode] nvarchar(8) NOT NULL,
+        [Fee] decimal(18,2) NOT NULL,
+        [Currency] nvarchar(3) NOT NULL,
+        [FreeShippingThreshold] decimal(18,2) NULL,
+        [IsEnabled] bit NOT NULL,
+        [UpdatedByAdminUserId] uniqueidentifier NULL,
+        [RowVersion] rowversion NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_DeliveryStateRateOverrides] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_DeliveryStateRateOverrides_AdminUsers_UpdatedByAdminUserId] FOREIGN KEY ([UpdatedByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730074753_AddDeliveryStateRateOverrides'
+)
+BEGIN
+    CREATE INDEX [IX_DeliveryStateRateOverrides_IsEnabled] ON [DeliveryStateRateOverrides] ([IsEnabled]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730074753_AddDeliveryStateRateOverrides'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_DeliveryStateRateOverrides_StateCode] ON [DeliveryStateRateOverrides] ([StateCode]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730074753_AddDeliveryStateRateOverrides'
+)
+BEGIN
+    CREATE INDEX [IX_DeliveryStateRateOverrides_UpdatedByAdminUserId] ON [DeliveryStateRateOverrides] ([UpdatedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730074753_AddDeliveryStateRateOverrides'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260730074753_AddDeliveryStateRateOverrides', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730081647_AddManualShippingWorkflow'
+)
+BEGIN
+    ALTER TABLE [TagOrders] ADD [ActualCourierCost] decimal(18,2) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730081647_AddManualShippingWorkflow'
+)
+BEGIN
+    ALTER TABLE [TagOrders] ADD [CourierProvider] nvarchar(120) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730081647_AddManualShippingWorkflow'
+)
+BEGIN
+    ALTER TABLE [TagOrders] ADD [CourierService] nvarchar(120) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730081647_AddManualShippingWorkflow'
+)
+BEGIN
+    ALTER TABLE [TagOrders] ADD [ReadyToShipAt] datetimeoffset NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730081647_AddManualShippingWorkflow'
+)
+BEGIN
+    ALTER TABLE [TagOrders] ADD [ShippingNotes] nvarchar(1000) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730081647_AddManualShippingWorkflow'
+)
+BEGIN
+    CREATE INDEX [IX_TagOrders_ReadyToShipAt] ON [TagOrders] ([ReadyToShipAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730081647_AddManualShippingWorkflow'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260730081647_AddManualShippingWorkflow', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730131244_AddShippingFulfilmentSettings'
+)
+BEGIN
+    ALTER TABLE [TagOrders] ADD [CourierProviderCode] nvarchar(32) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730131244_AddShippingFulfilmentSettings'
+)
+BEGIN
+    CREATE TABLE [ShippingCourierProviders] (
+        [Id] uniqueidentifier NOT NULL,
+        [Code] nvarchar(32) NOT NULL,
+        [DisplayName] nvarchar(120) NOT NULL,
+        [IsActive] bit NOT NULL,
+        [IsDefault] bit NOT NULL,
+        [TrackingUrlTemplate] nvarchar(500) NULL,
+        [DisplayOrder] int NOT NULL,
+        [InternalNotes] nvarchar(1000) NULL,
+        [UpdatedByAdminUserId] uniqueidentifier NULL,
+        [RowVersion] rowversion NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_ShippingCourierProviders] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_ShippingCourierProviders_AdminUsers_UpdatedByAdminUserId] FOREIGN KEY ([UpdatedByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730131244_AddShippingFulfilmentSettings'
+)
+BEGIN
+    CREATE TABLE [ShippingFulfilmentSettings] (
+        [Id] uniqueidentifier NOT NULL,
+        [SenderName] nvarchar(160) NOT NULL,
+        [CompanyName] nvarchar(160) NULL,
+        [SenderPhone] nvarchar(32) NOT NULL,
+        [SenderEmail] nvarchar(254) NULL,
+        [AddressLine1] nvarchar(240) NOT NULL,
+        [AddressLine2] nvarchar(240) NULL,
+        [City] nvarchar(120) NOT NULL,
+        [Postcode] nvarchar(5) NOT NULL,
+        [StateCode] nvarchar(8) NOT NULL,
+        [Country] nvarchar(80) NOT NULL,
+        [DefaultParcelWeightKg] decimal(8,3) NOT NULL,
+        [DefaultParcelLengthCm] decimal(8,2) NOT NULL,
+        [DefaultParcelWidthCm] decimal(8,2) NOT NULL,
+        [DefaultParcelHeightCm] decimal(8,2) NOT NULL,
+        [CustomerTrackingLinksEnabled] bit NOT NULL,
+        [UpdatedByAdminUserId] uniqueidentifier NULL,
+        [RowVersion] rowversion NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_ShippingFulfilmentSettings] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_ShippingFulfilmentSettings_AdminUsers_UpdatedByAdminUserId] FOREIGN KEY ([UpdatedByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730131244_AddShippingFulfilmentSettings'
+)
+BEGIN
+    IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Id', N'Code', N'CreatedAt', N'DisplayName', N'DisplayOrder', N'InternalNotes', N'IsActive', N'IsDefault', N'TrackingUrlTemplate', N'UpdatedAt', N'UpdatedByAdminUserId') AND [object_id] = OBJECT_ID(N'[ShippingCourierProviders]'))
+        SET IDENTITY_INSERT [ShippingCourierProviders] ON;
+    EXEC(N'INSERT INTO [ShippingCourierProviders] ([Id], [Code], [CreatedAt], [DisplayName], [DisplayOrder], [InternalNotes], [IsActive], [IsDefault], [TrackingUrlTemplate], [UpdatedAt], [UpdatedByAdminUserId])
+    VALUES (''03a56970-0592-4c83-b0bd-6453c6833703'', N''DHL_ECOMMERCE'', ''2026-01-01T00:00:00.0000000+00:00'', N''DHL eCommerce'', 30, NULL, CAST(1 AS bit), CAST(0 AS bit), NULL, ''2026-01-01T00:00:00.0000000+00:00'', NULL),
+    (''0ac926be-7d6d-403f-9716-e4498354347a'', N''POSLAJU'', ''2026-01-01T00:00:00.0000000+00:00'', N''Pos Laju'', 20, NULL, CAST(1 AS bit), CAST(0 AS bit), NULL, ''2026-01-01T00:00:00.0000000+00:00'', NULL),
+    (''28d1e1a3-0ca5-48d0-b624-757961e936d1'', N''NINJA_VAN'', ''2026-01-01T00:00:00.0000000+00:00'', N''Ninja Van'', 40, NULL, CAST(1 AS bit), CAST(0 AS bit), NULL, ''2026-01-01T00:00:00.0000000+00:00'', NULL),
+    (''dcd3c11a-ddb7-4c50-bf21-0f4d0e3297d1'', N''JNT'', ''2026-01-01T00:00:00.0000000+00:00'', N''J&T Express'', 10, NULL, CAST(1 AS bit), CAST(1 AS bit), NULL, ''2026-01-01T00:00:00.0000000+00:00'', NULL)');
+    IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Id', N'Code', N'CreatedAt', N'DisplayName', N'DisplayOrder', N'InternalNotes', N'IsActive', N'IsDefault', N'TrackingUrlTemplate', N'UpdatedAt', N'UpdatedByAdminUserId') AND [object_id] = OBJECT_ID(N'[ShippingCourierProviders]'))
+        SET IDENTITY_INSERT [ShippingCourierProviders] OFF;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730131244_AddShippingFulfilmentSettings'
+)
+BEGIN
+    IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Id', N'AddressLine1', N'AddressLine2', N'City', N'CompanyName', N'Country', N'CreatedAt', N'CustomerTrackingLinksEnabled', N'DefaultParcelHeightCm', N'DefaultParcelLengthCm', N'DefaultParcelWeightKg', N'DefaultParcelWidthCm', N'Postcode', N'SenderEmail', N'SenderName', N'SenderPhone', N'StateCode', N'UpdatedAt', N'UpdatedByAdminUserId') AND [object_id] = OBJECT_ID(N'[ShippingFulfilmentSettings]'))
+        SET IDENTITY_INSERT [ShippingFulfilmentSettings] ON;
+    EXEC(N'INSERT INTO [ShippingFulfilmentSettings] ([Id], [AddressLine1], [AddressLine2], [City], [CompanyName], [Country], [CreatedAt], [CustomerTrackingLinksEnabled], [DefaultParcelHeightCm], [DefaultParcelLengthCm], [DefaultParcelWeightKg], [DefaultParcelWidthCm], [Postcode], [SenderEmail], [SenderName], [SenderPhone], [StateCode], [UpdatedAt], [UpdatedByAdminUserId])
+    VALUES (''8b2a37be-928c-4f10-96a0-3c169ef00379'', N'''', NULL, N'''', NULL, N''Malaysia'', ''2026-01-01T00:00:00.0000000+00:00'', CAST(0 AS bit), 3.0, 18.0, 0.5, 12.0, N'''', NULL, N'''', N'''', N'''', ''2026-01-01T00:00:00.0000000+00:00'', NULL)');
+    IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Id', N'AddressLine1', N'AddressLine2', N'City', N'CompanyName', N'Country', N'CreatedAt', N'CustomerTrackingLinksEnabled', N'DefaultParcelHeightCm', N'DefaultParcelLengthCm', N'DefaultParcelWeightKg', N'DefaultParcelWidthCm', N'Postcode', N'SenderEmail', N'SenderName', N'SenderPhone', N'StateCode', N'UpdatedAt', N'UpdatedByAdminUserId') AND [object_id] = OBJECT_ID(N'[ShippingFulfilmentSettings]'))
+        SET IDENTITY_INSERT [ShippingFulfilmentSettings] OFF;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730131244_AddShippingFulfilmentSettings'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_ShippingCourierProviders_Code] ON [ShippingCourierProviders] ([Code]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730131244_AddShippingFulfilmentSettings'
+)
+BEGIN
+    CREATE INDEX [IX_ShippingCourierProviders_IsActive_DisplayOrder_DisplayName] ON [ShippingCourierProviders] ([IsActive], [DisplayOrder], [DisplayName]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730131244_AddShippingFulfilmentSettings'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [IX_ShippingCourierProviders_IsDefault] ON [ShippingCourierProviders] ([IsDefault]) WHERE [IsDefault] = 1');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730131244_AddShippingFulfilmentSettings'
+)
+BEGIN
+    CREATE INDEX [IX_ShippingCourierProviders_UpdatedByAdminUserId] ON [ShippingCourierProviders] ([UpdatedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730131244_AddShippingFulfilmentSettings'
+)
+BEGIN
+    CREATE INDEX [IX_ShippingFulfilmentSettings_UpdatedByAdminUserId] ON [ShippingFulfilmentSettings] ([UpdatedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730131244_AddShippingFulfilmentSettings'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260730131244_AddShippingFulfilmentSettings', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+

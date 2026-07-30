@@ -17,6 +17,7 @@ public sealed class OrderService : SkeletonService, IOrderService
     private readonly IDeliveryService _deliveryService;
     private readonly IBusinessReferenceGenerator _businessReferences;
     private readonly TimeProvider _timeProvider;
+    private readonly IShippingFulfilmentService _shippingFulfilmentService;
 
     public OrderService(
         MyPetLinkDbContext dbContext,
@@ -39,7 +40,8 @@ public sealed class OrderService : SkeletonService, IOrderService
         ITagPricingService pricingService,
         IDeliveryService deliveryService,
         IBusinessReferenceGenerator businessReferences,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        IShippingFulfilmentService? shippingFulfilmentService = null)
     {
         _dbContext = dbContext;
         _features = features.Value;
@@ -47,6 +49,11 @@ public sealed class OrderService : SkeletonService, IOrderService
         _deliveryService = deliveryService;
         _businessReferences = businessReferences;
         _timeProvider = timeProvider;
+        _shippingFulfilmentService = shippingFulfilmentService
+            ?? new ShippingFulfilmentService(
+                dbContext,
+                new AuditLogService(dbContext, new HttpContextAccessor()),
+                timeProvider);
     }
 
     public async Task<(IReadOnlyCollection<TagOrderResponse> Items, int Total)> ListAsync(
@@ -91,7 +98,14 @@ public sealed class OrderService : SkeletonService, IOrderService
             .Take(pageSize)
             .ToListAsync(cancellationToken);
 
-        return (orders.Select(TagDtoMapper.ToOrderResponse).ToArray(), total);
+        var trackingUrls = await _shippingFulfilmentService.GetCustomerTrackingUrlsAsync(
+            orders,
+            cancellationToken);
+        return (
+            orders.Select(order => TagDtoMapper.ToOrderResponse(
+                order,
+                trackingUrls.GetValueOrDefault(order.Id))).ToArray(),
+            total);
     }
 
     public async Task<TagOrderResponse> GetAsync(
@@ -100,7 +114,10 @@ public sealed class OrderService : SkeletonService, IOrderService
         CancellationToken cancellationToken = default)
     {
         var order = await LoadOwnedOrderAsync(currentUserId, orderKey, trackChanges: false, cancellationToken);
-        return TagDtoMapper.ToOrderResponse(order);
+        var trackingUrl = await _shippingFulfilmentService.GetCustomerTrackingUrlAsync(
+            order,
+            cancellationToken);
+        return TagDtoMapper.ToOrderResponse(order, trackingUrl);
     }
 
     public async Task<CreateTagOrderResponse> CreateAsync(

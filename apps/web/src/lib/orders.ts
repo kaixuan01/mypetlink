@@ -6,6 +6,7 @@ export const ORDER_STATUS_SEQUENCE: OrderStatus[] = [
   "Payment Submitted",
   "Payment Confirmed",
   "Preparing",
+  "Ready to Ship",
   "Shipped",
   "Delivered",
   "Cancelled",
@@ -16,12 +17,14 @@ const activeOrderStatuses: OrderStatus[] = [
   "Payment Submitted",
   "Payment Confirmed",
   "Preparing",
+  "Ready to Ship",
   "Shipped",
 ];
 
 const receiptStatuses: OrderStatus[] = [
   "Payment Confirmed",
   "Preparing",
+  "Ready to Ship",
   "Shipped",
   "Delivered",
 ];
@@ -73,6 +76,7 @@ const orderStatusDisplay: Record<OrderStatus, string> = {
   "Payment Submitted": "Payment Proof Submitted",
   "Payment Confirmed": "Payment Confirmed",
   Preparing: "Preparing Tag",
+  "Ready to Ship": "Ready to Ship",
   Shipped: "Shipped",
   Delivered: "Delivered",
   Cancelled: "Cancelled",
@@ -119,6 +123,10 @@ export function getOrderNextStep(order: TagOrder) {
     return "Your tag is being prepared.";
   }
 
+  if (order.status === "Ready to Ship") {
+    return "Your tag is packed and ready for the courier.";
+  }
+
   if (order.status === "Shipped") {
     return "Your tag is on the way.";
   }
@@ -144,6 +152,8 @@ export type AdminOrderAction =
   | "change-tag"
   | "replace-tag"
   | "mark-preparing"
+  | "mark-ready-to-ship"
+  | "edit-shipment"
   | "mark-shipped"
   | "mark-delivered"
   | "cancel-order";
@@ -154,6 +164,7 @@ const cancellableOrderStatuses: OrderStatus[] = [
   "Payment Submitted",
   "Payment Confirmed",
   "Preparing",
+  "Ready to Ship",
 ];
 
 export function getAdminOrderActions(
@@ -175,7 +186,7 @@ export function getAdminOrderActions(
 
   // Before shipping, an assigned tag can be swapped for a different one.
   if (
-    (order.status === "Payment Confirmed" || order.status === "Preparing") &&
+    (order.status === "Payment Confirmed" || order.status === "Preparing" || order.status === "Ready to Ship") &&
     order.tagId
   ) {
     actions.push("change-tag");
@@ -190,11 +201,17 @@ export function getAdminOrderActions(
   }
 
   if (order.status === "Preparing") {
-    actions.push("mark-shipped");
+    actions.push("mark-ready-to-ship", "edit-shipment");
+  }
+
+  if (order.status === "Ready to Ship") {
+    actions.push("edit-shipment", "mark-shipped");
   }
 
   if (order.status === "Shipped") {
-    actions.push("mark-delivered");
+    // Courier details stay editable after handover so a mistyped tracking
+    // number can be corrected while the parcel is still in transit.
+    actions.push("edit-shipment", "mark-delivered");
   }
 
   if (cancellableOrderStatuses.includes(order.status)) {

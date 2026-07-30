@@ -8,6 +8,7 @@ export const orderStatusTone: Record<OrderStatus, BadgeTone> = {
   "Payment Submitted": "teal",
   "Payment Confirmed": "mint",
   Preparing: "teal",
+  "Ready to Ship": "teal",
   Shipped: "teal",
   Delivered: "mint",
   Cancelled: "danger",

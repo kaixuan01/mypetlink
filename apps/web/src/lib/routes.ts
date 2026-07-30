@@ -149,6 +149,7 @@ export const adminRoutes = {
   order: (orderId: string) => `/admin/orders?order=${encodeURIComponent(orderId)}`,
   plans: "/admin/plans",
   deliveryRates: "/admin/delivery-rates",
+  shippingFulfilment: "/admin/shipping-fulfilment",
   emailTemplates: "/admin/email-templates",
   operationalStatus: "/admin/operational-status",
   ownerPlans: "/admin/plans?view=owners",

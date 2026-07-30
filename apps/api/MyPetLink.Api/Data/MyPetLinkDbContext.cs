@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using MyPetLink.Api.Common;
 using MyPetLink.Api.Entities;
+using MyPetLink.Api.Services;
 
 namespace MyPetLink.Api.Data;
 
@@ -58,6 +60,10 @@ public sealed class MyPetLinkDbContext : DbContext
     public DbSet<DeliveryRate> DeliveryRates => Set<DeliveryRate>();
     public DbSet<DeliveryStateRateOverride> DeliveryStateRateOverrides =>
         Set<DeliveryStateRateOverride>();
+    public DbSet<ShippingFulfilmentSetting> ShippingFulfilmentSettings =>
+        Set<ShippingFulfilmentSetting>();
+    public DbSet<ShippingCourierProvider> ShippingCourierProviders =>
+        Set<ShippingCourierProvider>();
     public DbSet<PaymentProof> PaymentProofs => Set<PaymentProof>();
     public DbSet<EmailOutbox> EmailOutbox => Set<EmailOutbox>();
     public DbSet<EmailTemplateSetting> EmailTemplateSettings => Set<EmailTemplateSetting>();
@@ -88,6 +94,7 @@ public sealed class MyPetLinkDbContext : DbContext
         ConfigureCareMedia(modelBuilder);
         ConfigureTagCatalog(modelBuilder);
         ConfigureDelivery(modelBuilder);
+        ConfigureShipping(modelBuilder);
         ConfigureTagsAndOrders(modelBuilder);
         ConfigureOperations(modelBuilder);
         SeedDefaults(modelBuilder);
@@ -120,6 +127,52 @@ public sealed class MyPetLinkDbContext : DbContext
             // One override per canonical state.
             entity.HasIndex(item => item.StateCode).IsUnique();
             entity.HasIndex(item => item.IsEnabled);
+            entity.HasOne(item => item.UpdatedByAdminUser)
+                .WithMany()
+                .HasForeignKey(item => item.UpdatedByAdminUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+    }
+
+    private static void ConfigureShipping(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<ShippingFulfilmentSetting>(entity =>
+        {
+            entity.ToTable("ShippingFulfilmentSettings");
+            entity.Property(item => item.SenderName).HasMaxLength(160);
+            entity.Property(item => item.CompanyName).HasMaxLength(160);
+            entity.Property(item => item.SenderPhone).HasMaxLength(32);
+            entity.Property(item => item.SenderEmail).HasMaxLength(254);
+            entity.Property(item => item.AddressLine1).HasMaxLength(240);
+            entity.Property(item => item.AddressLine2).HasMaxLength(240);
+            entity.Property(item => item.City).HasMaxLength(120);
+            entity.Property(item => item.Postcode).HasMaxLength(5);
+            entity.Property(item => item.StateCode).HasMaxLength(8);
+            entity.Property(item => item.Country).HasMaxLength(80);
+            entity.Property(item => item.DefaultParcelWeightKg).HasPrecision(8, 3);
+            entity.Property(item => item.DefaultParcelLengthCm).HasPrecision(8, 2);
+            entity.Property(item => item.DefaultParcelWidthCm).HasPrecision(8, 2);
+            entity.Property(item => item.DefaultParcelHeightCm).HasPrecision(8, 2);
+            entity.Property(item => item.RowVersion).IsRowVersion();
+            entity.HasOne(item => item.UpdatedByAdminUser)
+                .WithMany()
+                .HasForeignKey(item => item.UpdatedByAdminUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ShippingCourierProvider>(entity =>
+        {
+            entity.ToTable("ShippingCourierProviders");
+            entity.Property(item => item.Code).HasMaxLength(32);
+            entity.Property(item => item.DisplayName).HasMaxLength(120);
+            entity.Property(item => item.TrackingUrlTemplate).HasMaxLength(500);
+            entity.Property(item => item.InternalNotes).HasMaxLength(1000);
+            entity.Property(item => item.RowVersion).IsRowVersion();
+            entity.HasIndex(item => item.Code).IsUnique();
+            entity.HasIndex(item => item.IsDefault)
+                .IsUnique()
+                .HasFilter("[IsDefault] = 1");
+            entity.HasIndex(item => new { item.IsActive, item.DisplayOrder, item.DisplayName });
             entity.HasOne(item => item.UpdatedByAdminUser)
                 .WithMany()
                 .HasForeignKey(item => item.UpdatedByAdminUserId)
@@ -656,7 +709,12 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.Property(item => item.FreeShippingReason).HasMaxLength(240);
             entity.Property(item => item.DeliveryRateSource).HasMaxLength(32);
             entity.Property(item => item.TotalAmount).HasPrecision(18, 2);
+            entity.Property(item => item.CourierProviderCode).HasMaxLength(32);
+            entity.Property(item => item.CourierProvider).HasMaxLength(120);
+            entity.Property(item => item.CourierService).HasMaxLength(120);
             entity.Property(item => item.TrackingNumber).HasMaxLength(120);
+            entity.Property(item => item.ActualCourierCost).HasPrecision(18, 2);
+            entity.Property(item => item.ShippingNotes).HasMaxLength(1000);
             entity.Property(item => item.IdempotencyKey).HasMaxLength(80);
             entity.Property(item => item.RequestFingerprint).HasMaxLength(128);
             entity.HasIndex(item => item.OrderNumber).IsUnique();
@@ -676,6 +734,7 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasIndex(item => item.CreatedAt);
             entity.HasIndex(item => item.UpdatedAt);
             entity.HasIndex(item => item.PaymentConfirmedAt);
+            entity.HasIndex(item => item.ReadyToShipAt);
             entity.HasIndex(item => item.ShippedAt);
             entity.HasIndex(item => item.DeliveredAt);
             entity.HasIndex(item => new { item.Status, item.CreatedAt });
@@ -907,6 +966,35 @@ public sealed class MyPetLinkDbContext : DbContext
     {
         SeedLegacyAppSettings(modelBuilder);
 
+        modelBuilder.Entity<ShippingFulfilmentSetting>().HasData(
+            new ShippingFulfilmentSetting
+            {
+                Id = ShippingFulfilmentService.SettingsId,
+                SenderName = "",
+                SenderPhone = "",
+                AddressLine1 = "",
+                City = "",
+                Postcode = "",
+                StateCode = "",
+                Country = MalaysiaDelivery.CountryName,
+                DefaultParcelWeightKg = 0.5m,
+                DefaultParcelLengthCm = 18m,
+                DefaultParcelWidthCm = 12m,
+                DefaultParcelHeightCm = 3m,
+                CustomerTrackingLinksEnabled = false,
+                CreatedAt = SeededAt,
+                UpdatedAt = SeededAt
+            });
+
+        // These mirror the previously hardcoded manual-shipment choices.
+        // Tracking remains disabled until an administrator explicitly enables
+        // customer links and configures a verified HTTPS template.
+        modelBuilder.Entity<ShippingCourierProvider>().HasData(
+            SeedCourier(ShippingFulfilmentService.JntCourierId, "JNT", "J&T Express", 10, true),
+            SeedCourier(ShippingFulfilmentService.PosLajuCourierId, "POSLAJU", "Pos Laju", 20),
+            SeedCourier(ShippingFulfilmentService.DhlCourierId, "DHL_ECOMMERCE", "DHL eCommerce", 30),
+            SeedCourier(ShippingFulfilmentService.NinjaVanCourierId, "NINJA_VAN", "Ninja Van", 40));
+
         // Lightweight and Standard are migrated from the previously fixed
         // variant values already used by existing SKUs, inventory, and orders.
         modelBuilder.Entity<TagVariantPreset>().HasData(
@@ -994,6 +1082,24 @@ public sealed class MyPetLinkDbContext : DbContext
             });
 
     }
+
+    private static ShippingCourierProvider SeedCourier(
+        Guid id,
+        string code,
+        string displayName,
+        int displayOrder,
+        bool isDefault = false) =>
+        new()
+        {
+            Id = id,
+            Code = code,
+            DisplayName = displayName,
+            IsActive = true,
+            IsDefault = isDefault,
+            DisplayOrder = displayOrder,
+            CreatedAt = SeededAt,
+            UpdatedAt = SeededAt
+        };
 
         // Legacy seed retained so the model matches the existing table.
     private static void SeedLegacyAppSettings(ModelBuilder modelBuilder)

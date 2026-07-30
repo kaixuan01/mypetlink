@@ -222,7 +222,8 @@ template.
 Existing customer templates are:
 
 - `OwnerWelcomeEmailTemplateRenderer`;
-- `PaymentConfirmedEmailTemplateRenderer`.
+- `PaymentConfirmedEmailTemplateRenderer`;
+- `OrderShippedEmailTemplateRenderer`.
 
 New renderers must be added to `EmailTemplateRenderer` and compose the shared
 layout rather than copying an existing renderer's HTML.
@@ -237,6 +238,7 @@ GET /api/v1/dev/email-previews/welcome/long-name
 GET /api/v1/dev/email-previews/welcome/missing-name
 GET /api/v1/dev/email-previews/welcome/images-blocked
 GET /api/v1/dev/email-previews/payment-confirmed/normal
+GET /api/v1/dev/email-previews/order-shipped/normal
 ```
 
 Append `?width=375` or `?width=320` to exercise the responsive HTML in a

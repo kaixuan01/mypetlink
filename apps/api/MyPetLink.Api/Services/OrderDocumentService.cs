@@ -432,6 +432,7 @@ public sealed class OrderDocumentService : IOrderDocumentService
             OrderStatus.PaymentProofSubmitted => "Payment Proof Submitted",
             OrderStatus.PaymentConfirmed => "Payment Confirmed",
             OrderStatus.PreparingTag => "Preparing Tag",
+            OrderStatus.ReadyToShip => "Ready to Ship",
             OrderStatus.Shipped => "Shipped",
             OrderStatus.Delivered => "Delivered",
             OrderStatus.Cancelled => "Cancelled",

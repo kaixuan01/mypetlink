@@ -282,6 +282,12 @@ POST /api/v1/admin/owners/{ownerId}/welcome-email/retry
 GET  /api/v1/admin/pets
 GET  /api/v1/admin/pets/{petId}
 GET  /api/v1/admin/settings                       (read-only in Phase 1)
+GET  /api/v1/admin/shipping-fulfilment
+PUT  /api/v1/admin/shipping-fulfilment/settings
+GET  /api/v1/admin/shipping-fulfilment/courier-options
+POST /api/v1/admin/shipping-fulfilment/couriers
+PUT  /api/v1/admin/shipping-fulfilment/couriers/{courierId}
+POST /api/v1/admin/shipping-fulfilment/couriers/{courierId}/active|default
 GET  /api/v1/admin/audit-logs
 ```
 

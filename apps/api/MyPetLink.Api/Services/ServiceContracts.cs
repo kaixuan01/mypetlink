@@ -425,17 +425,31 @@ public interface IAdminService : ISkeletonService
     Task<AdminTagOrderResponse> MarkOrderPreparingAsync(
         Guid? currentUserId,
         Guid orderId,
+        string? rowVersion,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminTagOrderResponse> MarkOrderReadyToShipAsync(
+        Guid? currentUserId,
+        Guid orderId,
+        string? rowVersion,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminTagOrderResponse> UpdateShipmentDetailsAsync(
+        Guid? currentUserId,
+        Guid orderId,
+        UpdateShipmentDetailsRequest request,
         CancellationToken cancellationToken = default);
 
     Task<AdminTagOrderResponse> MarkOrderShippedAsync(
         Guid? currentUserId,
         Guid orderId,
-        string? trackingNumber,
+        MarkOrderShippedRequest request,
         CancellationToken cancellationToken = default);
 
     Task<AdminTagOrderResponse> MarkOrderDeliveredAsync(
         Guid? currentUserId,
         Guid orderId,
+        string? rowVersion,
         CancellationToken cancellationToken = default);
 
     Task<AdminTagOrderResponse> CancelOrderAsync(

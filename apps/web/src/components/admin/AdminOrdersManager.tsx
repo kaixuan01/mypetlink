@@ -29,6 +29,10 @@ import {
   type AdminOrderListParams,
 } from "@/services/adminOrderService";
 import { listTagInventory } from "@/services/adminTagInventoryService";
+import {
+  listShippingCourierOptions,
+  type ShippingCourierOption,
+} from "@/services/adminShippingFulfilmentService";
 import { isAbortError } from "@/services/apiClient";
 import {
   adminAssignInventoryTag,
@@ -37,7 +41,9 @@ import {
   adminConfirmOrderPayment,
   adminMarkOrderDelivered,
   adminMarkOrderPreparing,
+  adminMarkOrderReadyToShip,
   adminMarkOrderShipped,
+  adminUpdateShipment,
   adminRejectOrderPayment,
   adminReplaceTag,
   getFriendlyTagErrorMessage,
@@ -157,6 +163,7 @@ const emptyCounts: AdminOrderCounts = {
   paymentReview: 0,
   readyToPrepare: 0,
   preparing: 0,
+  readyToShip: 0,
   shipped: 0,
   delivered: 0,
   cancelled: 0,
@@ -168,6 +175,7 @@ const shortcuts: { value: string; label: string; count: keyof AdminOrderCounts }
   { value: "payment-review", label: "Payment Review", count: "paymentReview" },
   { value: "ready-to-prepare", label: "Ready to Prepare", count: "readyToPrepare" },
   { value: "preparing", label: "Preparing", count: "preparing" },
+  { value: "ready-to-ship", label: "Ready to Ship", count: "readyToShip" },
   { value: "shipped", label: "Shipped", count: "shipped" },
   { value: "delivered", label: "Delivered", count: "delivered" },
   { value: "cancelled", label: "Cancelled", count: "cancelled" },
@@ -262,6 +270,13 @@ export function AdminOrdersManager() {
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [reason, setReason] = useState("");
   const [trackingNumber, setTrackingNumber] = useState("");
+  const [courierOptions, setCourierOptions] = useState<ShippingCourierOption[]>([]);
+  const [courierOption, setCourierOption] = useState("OTHER");
+  const [historicalCourier, setHistoricalCourier] = useState<ShippingCourierOption | null>(null);
+  const [customCourier, setCustomCourier] = useState("");
+  const [courierService, setCourierService] = useState("");
+  const [actualCourierCost, setActualCourierCost] = useState("");
+  const [shippingNotes, setShippingNotes] = useState("");
   const [dialogError, setDialogError] = useState("");
   const [tagModal, setTagModal] = useState<{ mode: TagAssignmentMode; detail: AdminOrderDetail; tags: PetTag[] } | null>(null);
   const [detachedOrder, setDetachedOrder] = useState<AdminOrder | null>(null);
@@ -283,6 +298,20 @@ export function AdminOrdersManager() {
       });
     return () => controller.abort();
   }, [fetchKey, paramsKey]);
+
+  useEffect(() => {
+    let active = true;
+    void listShippingCourierOptions()
+      .then((options) => {
+        if (active) setCourierOptions(options);
+      })
+      .catch(() => {
+        if (active) setCourierOptions([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const loading = state?.key !== fetchKey;
   const items = useMemo(
@@ -365,6 +394,37 @@ export function AdminOrdersManager() {
 
     setReason("");
     setTrackingNumber(detail.order.trackingNumber ?? "");
+    const provider = detail.shipment.courierProvider ?? "";
+    const providerCode = detail.shipment.courierProviderCode ?? "";
+    const activeConfigured = courierOptions.find((item) => item.code === providerCode)
+      ?? courierOptions.find((item) => item.displayName === provider);
+    if (activeConfigured) {
+      setHistoricalCourier(null);
+      setCourierOption(activeConfigured.code);
+      setCustomCourier("");
+    } else if (providerCode && provider) {
+      const historical = {
+        code: providerCode,
+        displayName: provider,
+        isDefault: false,
+        displayOrder: -1,
+      };
+      setHistoricalCourier(historical);
+      setCourierOption(providerCode);
+      setCustomCourier("");
+    } else if (provider) {
+      setHistoricalCourier(null);
+      setCourierOption("OTHER");
+      setCustomCourier(provider);
+    } else {
+      setHistoricalCourier(null);
+      const preferred = courierOptions.find((item) => item.isDefault) ?? courierOptions[0];
+      setCourierOption(preferred?.code ?? "OTHER");
+      setCustomCourier("");
+    }
+    setCourierService(detail.shipment.courierService ?? "");
+    setActualCourierCost(detail.shipment.actualCourierCost?.toString() ?? "");
+    setShippingNotes(detail.shipment.shippingNotes ?? "");
     setDialogError("");
     setPendingAction({ action, detail });
   }
@@ -373,6 +433,24 @@ export function AdminOrdersManager() {
     if (!pendingAction || busy) return;
     if ((pendingAction.action === "reject-payment" || pendingAction.action === "cancel-order") && !reason.trim()) {
       setDialogError("Enter a reason before continuing.");
+      return;
+    }
+    const usesShipment =
+      pendingAction.action === "edit-shipment" || pendingAction.action === "mark-shipped";
+    const configuredCourier =
+      courierOptions.find((item) => item.code === courierOption)
+      ?? (historicalCourier?.code === courierOption ? historicalCourier : undefined);
+    const courierProvider =
+      courierOption === "OTHER" ? customCourier.trim() : configuredCourier?.displayName ?? "";
+    const courierProviderCode =
+      courierOption === "OTHER" ? undefined : configuredCourier?.code;
+    if (usesShipment && (!courierProvider || !trackingNumber.trim())) {
+      setDialogError("Enter a courier provider and tracking number before continuing.");
+      return;
+    }
+    const parsedCost = actualCourierCost.trim() === "" ? undefined : Number(actualCourierCost);
+    if (usesShipment && (parsedCost != null && (!Number.isFinite(parsedCost) || parsedCost < 0))) {
+      setDialogError("Actual courier cost must be zero or more.");
       return;
     }
 
@@ -385,11 +463,31 @@ export function AdminOrdersManager() {
         : pendingAction.action === "reject-payment"
           ? await adminRejectOrderPayment(id, reason)
           : pendingAction.action === "mark-preparing"
-            ? await adminMarkOrderPreparing(id)
-            : pendingAction.action === "mark-shipped"
-              ? await adminMarkOrderShipped(id, trackingNumber)
-              : pendingAction.action === "mark-delivered"
-                ? await adminMarkOrderDelivered(id)
+            ? await adminMarkOrderPreparing(id, pendingAction.detail.shipment.rowVersion)
+            : pendingAction.action === "mark-ready-to-ship"
+              ? await adminMarkOrderReadyToShip(id, pendingAction.detail.shipment.rowVersion)
+              : pendingAction.action === "edit-shipment"
+                ? await adminUpdateShipment(id, {
+                    courierProviderCode,
+                    courierProvider,
+                    courierService: courierService.trim() || undefined,
+                    trackingNumber: trackingNumber.trim(),
+                    actualCourierCost: parsedCost,
+                    shippingNotes: shippingNotes.trim() || undefined,
+                    rowVersion: pendingAction.detail.shipment.rowVersion,
+                  })
+                : pendingAction.action === "mark-shipped"
+                  ? await adminMarkOrderShipped(id, {
+                      courierProviderCode,
+                      courierProvider,
+                      courierService: courierService.trim() || undefined,
+                      trackingNumber: trackingNumber.trim(),
+                      actualCourierCost: parsedCost,
+                      shippingNotes: shippingNotes.trim() || undefined,
+                      rowVersion: pendingAction.detail.shipment.rowVersion,
+                    })
+                  : pendingAction.action === "mark-delivered"
+                    ? await adminMarkOrderDelivered(id, pendingAction.detail.shipment.rowVersion)
                 : await adminCancelOrder(id, reason);
       if (!result.data) throw new Error("This action is no longer available for the order's current status.");
       setMessage(actionSuccess(pendingAction.action, pendingAction.detail.order.orderNumber ?? id));
@@ -562,11 +660,45 @@ export function AdminOrdersManager() {
             Reason
             <textarea className="min-h-24 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-semibold outline-none focus:border-slate-400" maxLength={600} onChange={(event) => setReason(event.target.value)} value={reason} />
           </label>
-        ) : pendingAction?.action === "mark-shipped" ? (
-          <label className="grid gap-1 text-sm font-bold text-slate-700">
-            Tracking number (optional)
-            <input className="min-h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 font-semibold outline-none focus:border-slate-400" maxLength={120} onChange={(event) => setTrackingNumber(event.target.value)} value={trackingNumber} />
-          </label>
+        ) : pendingAction?.action === "mark-shipped" || pendingAction?.action === "edit-shipment" ? (
+          <div className="grid gap-3 text-sm font-bold text-slate-700">
+            <label className="grid gap-1">
+              Courier provider
+              <select className="min-h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 font-semibold outline-none focus:border-slate-400" onChange={(event) => setCourierOption(event.target.value)} value={courierOption}>
+                {historicalCourier && !courierOptions.some((item) => item.code === historicalCourier.code) ? (
+                  <option value={historicalCourier.code}>{historicalCourier.displayName} (inactive or historical)</option>
+                ) : null}
+                {courierOptions.map((courier) => (
+                  <option key={courier.code} value={courier.code}>
+                    {courier.displayName}{courier.isDefault ? " (default)" : ""}
+                  </option>
+                ))}
+                <option value="OTHER">Other</option>
+              </select>
+            </label>
+            {courierOption === "OTHER" ? (
+              <label className="grid gap-1">
+                Courier name
+                <input className="min-h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 font-semibold outline-none focus:border-slate-400" maxLength={120} onChange={(event) => setCustomCourier(event.target.value)} value={customCourier} />
+              </label>
+            ) : null}
+            <label className="grid gap-1">
+              Courier service (optional)
+              <input className="min-h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 font-semibold outline-none focus:border-slate-400" maxLength={120} onChange={(event) => setCourierService(event.target.value)} value={courierService} />
+            </label>
+            <label className="grid gap-1">
+              Tracking number
+              <input className="min-h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 font-semibold outline-none focus:border-slate-400" maxLength={120} onChange={(event) => setTrackingNumber(event.target.value)} value={trackingNumber} />
+            </label>
+            <label className="grid gap-1">
+              Actual courier cost (internal)
+              <input className="min-h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 font-semibold outline-none focus:border-slate-400" min="0" onChange={(event) => setActualCourierCost(event.target.value)} step="0.01" type="number" value={actualCourierCost} />
+            </label>
+            <label className="grid gap-1">
+              Shipping notes (internal)
+              <textarea className="min-h-20 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-semibold outline-none focus:border-slate-400" maxLength={1000} onChange={(event) => setShippingNotes(event.target.value)} value={shippingNotes} />
+            </label>
+          </div>
         ) : null}
         {dialogError ? <p className="mt-2 text-sm font-bold text-red-700" role="alert">{dialogError}</p> : null}
       </ConfirmDialog>
@@ -592,7 +724,9 @@ function dialogCopy(action?: PendingAction["action"]) {
   if (action === "confirm-payment") return { title: "Confirm this payment?", message: "The latest submitted proof will be approved and fulfilment can begin.", confirmLabel: "Confirm payment" };
   if (action === "reject-payment") return { title: "Reject this payment proof?", message: "The owner will be asked to submit a new proof. The reason is required.", confirmLabel: "Reject proof" };
   if (action === "mark-preparing") return { title: "Start preparing this tag?", message: "The assigned inventory tag will move into preparation.", confirmLabel: "Start preparing" };
-  if (action === "mark-shipped") return { title: "Mark this order shipped?", message: "The order and assigned tag will be recorded as sent to the owner.", confirmLabel: "Mark shipped" };
+  if (action === "mark-ready-to-ship") return { title: "Mark this order ready to ship?", message: "Confirm that the tag is prepared, packed, and ready for courier handover.", confirmLabel: "Mark ready to ship" };
+  if (action === "edit-shipment") return { title: "Save shipment details?", message: "Courier cost and shipping notes stay visible to administrators only.", confirmLabel: "Save shipment" };
+  if (action === "mark-shipped") return { title: "Mark this order shipped?", message: "Confirm the courier and tracking details. The order will be recorded as handed to the courier.", confirmLabel: "Mark shipped" };
   if (action === "mark-delivered") return { title: "Mark this order delivered?", message: "The delivery timestamp and tag status will be updated.", confirmLabel: "Mark delivered" };
   if (action === "cancel-order") return { title: "Cancel this order?", message: "Unshipped assigned stock will return to available inventory. The reason is required and recorded in the audit history.", confirmLabel: "Cancel order" };
   return { title: "Confirm action", message: "Review this order before continuing.", confirmLabel: "Confirm" };
@@ -603,6 +737,8 @@ function actionSuccess(action: PendingAction["action"], orderNumber: string) {
     "confirm-payment": "Payment confirmed",
     "reject-payment": "Payment proof rejected",
     "mark-preparing": "Preparation started",
+    "mark-ready-to-ship": "Order marked ready to ship",
+    "edit-shipment": "Shipment details saved",
     "mark-shipped": "Order marked shipped",
     "mark-delivered": "Order marked delivered",
     "cancel-order": "Order cancelled",

@@ -89,8 +89,9 @@ const counts: AdminOrderCounts = {
   awaitingPayment: 1,
   paymentReview: 2,
   readyToPrepare: 1,
-  preparing: 1,
-  shipped: 1,
+      preparing: 1,
+      readyToShip: 0,
+      shipped: 1,
   delivered: 1,
   cancelled: 0,
 };

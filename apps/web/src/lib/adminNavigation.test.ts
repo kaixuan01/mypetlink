@@ -32,6 +32,7 @@ describe("adminNavigation", () => {
     expect(configuration.items.map((item) => item.label)).toEqual([
       "Plans",
       "Delivery Rates",
+      "Shipping & Fulfilment",
       "Email Templates",
     ]);
 

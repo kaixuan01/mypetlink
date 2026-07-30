@@ -130,7 +130,10 @@ describe("AdminEmailTemplatesManager", () => {
     expect(within(enabledRow).getByText("On")).toBeDefined();
     expect(within(enabledRow).getByText("Email Admin")).toBeDefined();
 
-    fireEvent.click(within(enabledRow).getByRole("button", { name: "Turn off" }));
+    const refreshedEnabledRow = screen.getByText("Welcome email").closest("li")!;
+    fireEvent.click(
+      within(refreshedEnabledRow).getByRole("button", { name: "Turn off" })
+    );
     await screen.findByText(/Welcome email is now off/);
 
     expect(mocks.setEnabled).toHaveBeenNthCalledWith(

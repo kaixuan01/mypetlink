@@ -76,7 +76,7 @@ public sealed class AdminOrderServiceTests
         await Assert.ThrowsAsync<ApiException>(() => harness.Query.ListAsync(
             new AdminOrderQuery { SortBy = "CreatedAt; DROP TABLE" }));
         await Assert.ThrowsAsync<ApiException>(() => harness.Query.ListAsync(
-            new AdminOrderQuery { FulfilmentStatus = "ReadyToShip" }));
+            new AdminOrderQuery { FulfilmentStatus = "Packed" }));
         await Assert.ThrowsAsync<ApiException>(() => harness.Query.ListAsync(
             new AdminOrderQuery { CreatedFrom = Harness.Now, CreatedTo = Harness.Now.AddDays(-1) }));
     }
@@ -274,10 +274,110 @@ public sealed class AdminOrderServiceTests
     {
         using var harness = await Harness.CreateAsync();
         var pending = await harness.Db.TagOrders.SingleAsync(order => order.Status == OrderStatus.PendingPayment);
-        await Assert.ThrowsAsync<ApiException>(() => harness.Admin.MarkOrderPreparingAsync(Harness.AdminId, pending.Id));
+        await Assert.ThrowsAsync<ApiException>(() => harness.Admin.MarkOrderPreparingAsync(Harness.AdminId, pending.Id, "AA=="));
 
         var paid = await harness.Db.TagOrders.SingleAsync(order => order.OrderNumber == "MPL-ORD-PAID");
-        await Assert.ThrowsAsync<ApiException>(() => harness.Admin.MarkOrderPreparingAsync(Harness.AdminId, paid.Id));
+        await Assert.ThrowsAsync<ApiException>(() => harness.Admin.MarkOrderPreparingAsync(Harness.AdminId, paid.Id, "AA=="));
+    }
+
+    [Fact]
+    public async Task ManualShipping_UsesValidatedForwardTransitionsServerTimeAndOneNotification()
+    {
+        using var harness = await Harness.CreateAsync();
+        var preparing = await harness.Db.TagOrders
+            .Include(order => order.SmartTag)
+            .SingleAsync(order => order.Status == OrderStatus.PreparingTag);
+        preparing.RowVersion = [1];
+        await harness.Db.SaveChangesAsync();
+
+        var ready = await harness.Admin.MarkOrderReadyToShipAsync(
+            Harness.AdminId,
+            preparing.Id,
+            "AQ==");
+        Assert.Equal(OrderStatus.ReadyToShip, ready.Order.Status);
+        Assert.Equal(Harness.Now, ready.Order.ReadyToShipAt);
+
+        var invalid = new MarkOrderShippedRequest("", null, "", null, null, "AQ==");
+        var validation = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Admin.MarkOrderShippedAsync(Harness.AdminId, preparing.Id, invalid));
+        Assert.Equal("validation_failed", validation.Code);
+
+        var request = new MarkOrderShippedRequest(
+            "J&T Express",
+            "Standard Delivery",
+            "MY123456789",
+            7.50m,
+            "Leave at operations counter",
+            "AQ==");
+        var shipped = await harness.Admin.MarkOrderShippedAsync(
+            Harness.AdminId,
+            preparing.Id,
+            request);
+
+        Assert.Equal(OrderStatus.Shipped, shipped.Order.Status);
+        Assert.Equal(Harness.Now, shipped.Order.ShippedAt);
+        Assert.Equal("J&T Express", shipped.Order.CourierProvider);
+        Assert.Equal("Standard Delivery", shipped.Order.CourierService);
+        Assert.Equal("MY123456789", shipped.Order.TrackingNumber);
+        Assert.Equal(7.50m, shipped.Shipment.ActualCourierCost);
+        Assert.Equal("Leave at operations counter", shipped.Shipment.ShippingNotes);
+        Assert.DoesNotContain(
+            "ActualCourierCost",
+            System.Text.Json.JsonSerializer.Serialize(shipped.Order),
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "ShippingNotes",
+            System.Text.Json.JsonSerializer.Serialize(shipped.Order),
+            StringComparison.Ordinal);
+
+        var repeated = await harness.Admin.MarkOrderShippedAsync(
+            Harness.AdminId,
+            preparing.Id,
+            request);
+        Assert.Equal(shipped.Order.ShippedAt, repeated.Order.ShippedAt);
+        var email = Assert.Single(await harness.Db.EmailOutbox
+            .Where(item => item.RelatedOrderId == preparing.Id
+                           && item.MessageType == EmailMessageType.OrderShipped)
+            .ToListAsync());
+        Assert.Equal(EmailOutboxStatus.Suppressed, email.Status);
+
+        var delivered = await harness.Admin.MarkOrderDeliveredAsync(
+            Harness.AdminId,
+            preparing.Id,
+            "AQ==");
+        Assert.Equal(OrderStatus.Delivered, delivered.Order.Status);
+        Assert.Equal(Harness.Now, delivered.Order.DeliveredAt);
+        Assert.Contains(
+            await harness.Db.AuditLogs.ToListAsync(),
+            log => log.Action == "order.mark-ready-to-ship");
+        Assert.Contains(
+            await harness.Db.AuditLogs.ToListAsync(),
+            log => log.Action == "order.update-shipment" || log.Action == "order.mark-shipped");
+    }
+
+    [Fact]
+    public async Task ManualShipping_RejectsStaleRowVersionAndNegativeCourierCost()
+    {
+        using var harness = await Harness.CreateAsync();
+        var preparing = await harness.Db.TagOrders
+            .SingleAsync(order => order.Status == OrderStatus.PreparingTag);
+        preparing.RowVersion = [5];
+        await harness.Db.SaveChangesAsync();
+
+        var conflict = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Admin.MarkOrderReadyToShipAsync(Harness.AdminId, preparing.Id, "AQ=="));
+        Assert.Equal("concurrency_conflict", conflict.Code);
+
+        var invalid = new UpdateShipmentDetailsRequest(
+            "Pos Laju",
+            null,
+            "PL123",
+            -0.01m,
+            null,
+            "BQ==");
+        var validation = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Admin.UpdateShipmentDetailsAsync(Harness.AdminId, preparing.Id, invalid));
+        Assert.Equal("validation_failed", validation.Code);
     }
 
     [Fact]

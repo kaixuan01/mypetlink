@@ -32,7 +32,20 @@ public sealed record AdminTagOrderResponse(
     TagOrderResponse Order,
     AdminOwnerRefResponse Owner,
     Guid? ProductVariantId,
+    AdminShipmentDetailsResponse Shipment,
     AdminEmailOutboxResponse? PaymentConfirmationEmail);
+
+public sealed record AdminShipmentDetailsResponse(
+    string? CourierProviderCode,
+    string? CourierProvider,
+    string? CourierService,
+    string? TrackingNumber,
+    decimal? ActualCourierCost,
+    string? ShippingNotes,
+    DateTimeOffset? ReadyToShipAt,
+    DateTimeOffset? ShippedAt,
+    DateTimeOffset? DeliveredAt,
+    string RowVersion);
 
 public sealed record AdminPaymentProofResponse(
     PaymentProofResponse Proof,
@@ -47,10 +60,34 @@ public sealed record RejectPaymentProofRequest(
 
 public sealed record UpdateOrderStatusRequest(
     [Required] OrderStatus? Status,
-    [MaxLength(120)] string? TrackingNumber);
+    [MaxLength(120)] string? TrackingNumber,
+    [MaxLength(120)] string? CourierProvider,
+    [MaxLength(120)] string? CourierService,
+    [Range(typeof(decimal), "0", "999999999999")] decimal? ActualCourierCost,
+    [MaxLength(1000)] string? ShippingNotes,
+    [Required] string? RowVersion,
+    [MaxLength(32)] string? CourierProviderCode = null);
 
 public sealed record MarkOrderShippedRequest(
-    [MaxLength(120)] string? TrackingNumber);
+    [Required, MaxLength(120)] string? CourierProvider,
+    [MaxLength(120)] string? CourierService,
+    [Required, MaxLength(120)] string? TrackingNumber,
+    [Range(typeof(decimal), "0", "999999999999")] decimal? ActualCourierCost,
+    [MaxLength(1000)] string? ShippingNotes,
+    [Required] string? RowVersion,
+    [MaxLength(32)] string? CourierProviderCode = null);
+
+public sealed record OrderTransitionRequest(
+    [Required] string? RowVersion);
+
+public sealed record UpdateShipmentDetailsRequest(
+    [Required, MaxLength(120)] string? CourierProvider,
+    [MaxLength(120)] string? CourierService,
+    [Required, MaxLength(120)] string? TrackingNumber,
+    [Range(typeof(decimal), "0", "999999999999")] decimal? ActualCourierCost,
+    [MaxLength(1000)] string? ShippingNotes,
+    [Required] string? RowVersion,
+    [MaxLength(32)] string? CourierProviderCode = null);
 
 public sealed record AssignInventoryTagRequest(
     [Required] Guid? TagId);

@@ -739,8 +739,11 @@ public sealed class AdminTagInventoryServiceTests
             OwnerUserId = OwnerUserId,
             PetId = PetId,
             SmartTagId = tag.Id,
-            Status = OrderStatus.PreparingTag,
+            Status = OrderStatus.ReadyToShip,
             PaymentStatus = PaymentStatus.Confirmed,
+            CourierProvider = "J&T Express",
+            TrackingNumber = "TRK-1",
+            RowVersion = [1],
             RecipientName = "Owner",
             DeliveryPhoneE164 = "+60123456789",
             AddressLine1 = "1 Jalan Test",
@@ -762,7 +765,10 @@ public sealed class AdminTagInventoryServiceTests
             new AuditLogService(harness.Db, new HttpContextAccessor()),
             Microsoft.Extensions.Options.Options.Create(new FeatureOptions()));
 
-        await adminService.MarkOrderShippedAsync(AdminUserId, order.Id, "TRK-1");
+        await adminService.MarkOrderShippedAsync(
+            AdminUserId,
+            order.Id,
+            new MarkOrderShippedRequest("J&T Express", null, "TRK-1", 8m, null, "AQ=="));
 
         var shipped = await harness.Db.SmartTags.SingleAsync(item => item.Id == tag.Id);
         Assert.Equal(TagFulfilmentStatus.SentToOwner, shipped.FulfilmentStatus);
