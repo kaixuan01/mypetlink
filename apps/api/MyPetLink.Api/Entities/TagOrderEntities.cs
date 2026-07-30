@@ -88,6 +88,10 @@ public sealed class TagOrder : AuditableEntity
     public string? DeliveryZoneName { get; set; }
     public string? DeliveryMethodName { get; set; }
     public string? FreeShippingReason { get; set; }
+    // Immutable snapshot of where the charged delivery fee came from
+    // ("ZoneDefault" or "StateOverride"). Explains a historical fee after an
+    // administrator later changes or removes an override.
+    public string? DeliveryRateSource { get; set; }
     public decimal? TotalAmount { get; set; }
     public string? DeliveryNotes { get; set; }
     public string? TrackingStatus { get; set; }

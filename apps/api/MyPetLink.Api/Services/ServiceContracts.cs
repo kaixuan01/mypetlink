@@ -343,12 +343,18 @@ public interface IDeliveryService : ISkeletonService
     Task<IReadOnlyCollection<AdminDeliveryRateResponse>> ListRatesAsync(CancellationToken cancellationToken = default);
     Task<AdminDeliveryRateResponse> CreateRateAsync(Guid? actorId, UpsertDeliveryRateRequest request, CancellationToken cancellationToken = default);
     Task<AdminDeliveryRateResponse> UpdateRateAsync(Guid? actorId, Guid id, UpsertDeliveryRateRequest request, CancellationToken cancellationToken = default);
+    Task<AdminDeliveryZoneStateRatesResponse> ListStateRatesAsync(string zoneCode, CancellationToken cancellationToken = default);
+    Task<AdminDeliveryZoneStateRatesResponse> SaveStateOverrideAsync(Guid? actorId, string zoneCode, UpsertDeliveryStateOverrideRequest request, CancellationToken cancellationToken = default);
+    Task<AdminDeliveryZoneStateRatesResponse> RemoveStateOverrideAsync(Guid? actorId, string zoneCode, string stateCode, CancellationToken cancellationToken = default);
 }
 
 public sealed record DeliveryResolution(
     MalaysiaStateDefinition State,
     DeliveryRate Rate,
-    DeliveryQuoteResponse Quote);
+    DeliveryQuoteResponse Quote,
+    // "ZoneDefault" or "StateOverride" — snapshotted onto the order so a
+    // historical fee stays explainable after configuration changes.
+    string RateSource);
 
 public interface IPaymentProofService : ISkeletonService
 {

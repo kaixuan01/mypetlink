@@ -56,6 +56,8 @@ public sealed class MyPetLinkDbContext : DbContext
     public DbSet<TagOrder> TagOrders => Set<TagOrder>();
     public DbSet<TagOrderItem> TagOrderItems => Set<TagOrderItem>();
     public DbSet<DeliveryRate> DeliveryRates => Set<DeliveryRate>();
+    public DbSet<DeliveryStateRateOverride> DeliveryStateRateOverrides =>
+        Set<DeliveryStateRateOverride>();
     public DbSet<PaymentProof> PaymentProofs => Set<PaymentProof>();
     public DbSet<EmailOutbox> EmailOutbox => Set<EmailOutbox>();
     public DbSet<EmailTemplateSetting> EmailTemplateSettings => Set<EmailTemplateSetting>();
@@ -105,6 +107,23 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.Property(item => item.RowVersion).IsRowVersion();
             entity.HasIndex(item => item.ZoneCode).IsUnique();
             entity.HasIndex(item => new { item.IsActive, item.DisplayOrder });
+        });
+
+        modelBuilder.Entity<DeliveryStateRateOverride>(entity =>
+        {
+            entity.ToTable("DeliveryStateRateOverrides");
+            entity.Property(item => item.StateCode).HasMaxLength(8);
+            entity.Property(item => item.Fee).HasPrecision(18, 2);
+            entity.Property(item => item.Currency).HasMaxLength(3);
+            entity.Property(item => item.FreeShippingThreshold).HasPrecision(18, 2);
+            entity.Property(item => item.RowVersion).IsRowVersion();
+            // One override per canonical state.
+            entity.HasIndex(item => item.StateCode).IsUnique();
+            entity.HasIndex(item => item.IsEnabled);
+            entity.HasOne(item => item.UpdatedByAdminUser)
+                .WithMany()
+                .HasForeignKey(item => item.UpdatedByAdminUserId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 
@@ -635,6 +654,7 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.Property(item => item.DeliveryZoneName).HasMaxLength(80);
             entity.Property(item => item.DeliveryMethodName).HasMaxLength(120);
             entity.Property(item => item.FreeShippingReason).HasMaxLength(240);
+            entity.Property(item => item.DeliveryRateSource).HasMaxLength(32);
             entity.Property(item => item.TotalAmount).HasPrecision(18, 2);
             entity.Property(item => item.TrackingNumber).HasMaxLength(120);
             entity.Property(item => item.IdempotencyKey).HasMaxLength(80);

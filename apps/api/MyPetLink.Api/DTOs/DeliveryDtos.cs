@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using MyPetLink.Api.Common;
 
 namespace MyPetLink.Api.DTOs;
 
@@ -22,7 +23,13 @@ public sealed record DeliveryQuoteResponse(
     bool IsFreeDelivery,
     string? FreeDeliveryReason,
     decimal Total,
-    string Currency);
+    string Currency,
+    // Effective threshold actually used for this quote, after any state
+    // override. Null means the fee always applies.
+    decimal? FreeDeliveryThreshold = null,
+    bool StateOverrideApplied = false,
+    // Safe display label: "Zone default" or "State override".
+    string RateSource = DeliveryRateSources.ZoneDefaultLabel);
 
 public sealed record UpsertDeliveryRateRequest(
     [Required, MaxLength(120)] string Name,
@@ -48,4 +55,44 @@ public sealed record AdminDeliveryRateResponse(
     int DisplayOrder,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
-    string ConcurrencyToken);
+    string ConcurrencyToken,
+    // Enabled state-level exceptions to this zone default.
+    int EnabledStateOverrideCount = 0);
+
+// --- State overrides ------------------------------------------------------
+
+public sealed record AdminDeliveryStateRateResponse(
+    string StateCode,
+    string StateName,
+    string ZoneCode,
+    string ZoneName,
+    decimal EffectiveFee,
+    decimal? EffectiveFreeShippingThreshold,
+    decimal ZoneDefaultFee,
+    decimal? ZoneDefaultFreeShippingThreshold,
+    // "Zone default" or "State override".
+    string Source,
+    bool HasOverride,
+    bool OverrideEnabled,
+    decimal? OverrideFee,
+    decimal? OverrideFreeShippingThreshold,
+    DateTimeOffset? OverrideUpdatedAt,
+    string? OverrideUpdatedBy,
+    string? ConcurrencyToken);
+
+public sealed record AdminDeliveryZoneStateRatesResponse(
+    string ZoneCode,
+    string ZoneName,
+    bool ZoneActive,
+    decimal ZoneDefaultFee,
+    decimal? ZoneDefaultFreeShippingThreshold,
+    int EnabledOverrideCount,
+    int StoredOverrideCount,
+    IReadOnlyCollection<AdminDeliveryStateRateResponse> States);
+
+public sealed record UpsertDeliveryStateOverrideRequest(
+    [Required, MaxLength(8)] string StateCode,
+    [Range(typeof(decimal), "0", "999999.99")] decimal Fee,
+    [Range(typeof(decimal), "0", "999999.99")] decimal? FreeShippingThreshold,
+    bool IsEnabled,
+    string? ConcurrencyToken);

@@ -30,4 +30,30 @@ public sealed class AdminDeliveryRatesController : ApiControllerBase
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpsertDeliveryRateRequest request, CancellationToken cancellationToken) =>
         Ok(ApiEnvelope.Ok(await _service.UpdateRateAsync(_currentUser.Current.UserId, id, request, cancellationToken), HttpContext));
+
+    // --- State overrides ---------------------------------------------------
+    // Every response returns the whole zone view, so the Admin Portal always
+    // shows effective rates that match what checkout would charge.
+
+    [HttpGet("{zoneCode}/state-overrides")]
+    public async Task<IActionResult> ListStateOverrides(string zoneCode, CancellationToken cancellationToken) =>
+        Ok(ApiEnvelope.Ok(await _service.ListStateRatesAsync(zoneCode, cancellationToken), HttpContext));
+
+    [HttpPut("{zoneCode}/state-overrides")]
+    public async Task<IActionResult> SaveStateOverride(
+        string zoneCode,
+        [FromBody] UpsertDeliveryStateOverrideRequest request,
+        CancellationToken cancellationToken) =>
+        Ok(ApiEnvelope.Ok(
+            await _service.SaveStateOverrideAsync(_currentUser.Current.UserId, zoneCode, request, cancellationToken),
+            HttpContext));
+
+    [HttpDelete("{zoneCode}/state-overrides/{stateCode}")]
+    public async Task<IActionResult> RemoveStateOverride(
+        string zoneCode,
+        string stateCode,
+        CancellationToken cancellationToken) =>
+        Ok(ApiEnvelope.Ok(
+            await _service.RemoveStateOverrideAsync(_currentUser.Current.UserId, zoneCode, stateCode, cancellationToken),
+            HttpContext));
 }

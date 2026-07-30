@@ -321,6 +321,144 @@ public sealed class TagOrderCatalogIntegrationTests
         Assert.Equal(1, await harness.Db.TagOrders.CountAsync(order => order.OwnerUserId == OwnerId));
     }
 
+
+    // --- Order snapshots ----------------------------------------------------
+
+    [Fact]
+    public async Task Order_SnapshotsTheEffectiveOverrideFeeAndSource()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await SeedZoneAsync(harness.Db, "PEN", 8m);
+        await SeedOverrideAsync(harness.Db, "KUL", 10m);
+
+        var created = await harness.Service.CreateAsync(
+            OwnerId,
+            Request(harness.Pet.Id, harness.Variant.PublicKey));
+
+        var order = await harness.Db.TagOrders.SingleAsync(item => item.Id == created.Order.Id);
+        Assert.Equal(10m, order.DeliveryFee);
+        Assert.Equal("StateOverride", order.DeliveryRateSource);
+        Assert.Equal("KUL", order.StateCode);
+        Assert.Equal("Peninsular", order.DeliveryZoneName);
+    }
+
+    [Fact]
+    public async Task Order_SnapshotsTheZoneDefaultWhenNoOverrideApplies()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await SeedZoneAsync(harness.Db, "PEN", 8m);
+
+        var created = await harness.Service.CreateAsync(
+            OwnerId,
+            Request(harness.Pet.Id, harness.Variant.PublicKey));
+
+        var order = await harness.Db.TagOrders.SingleAsync(item => item.Id == created.Order.Id);
+        Assert.Equal(8m, order.DeliveryFee);
+        Assert.Equal("ZoneDefault", order.DeliveryRateSource);
+    }
+
+    [Fact]
+    public async Task HistoricalOrder_DoesNotRecalculateWhenAnOverrideChangesLater()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await SeedZoneAsync(harness.Db, "PEN", 8m);
+        await SeedOverrideAsync(harness.Db, "KUL", 10m);
+
+        var created = await harness.Service.CreateAsync(
+            OwnerId,
+            Request(harness.Pet.Id, harness.Variant.PublicKey));
+        var chargedFee = created.Order.DeliveryFee;
+        var chargedTotal = created.Order.TotalAmount;
+
+        // An administrator later raises the override, then removes it entirely.
+        var stored = await harness.Db.DeliveryStateRateOverrides.SingleAsync();
+        stored.Fee = 25m;
+        await harness.Db.SaveChangesAsync();
+        harness.Db.DeliveryStateRateOverrides.Remove(stored);
+        await harness.Db.SaveChangesAsync();
+
+        var order = await harness.Db.TagOrders.SingleAsync(item => item.Id == created.Order.Id);
+        Assert.Equal(10m, chargedFee);
+        Assert.Equal(chargedFee, order.DeliveryFee);
+        Assert.Equal(chargedTotal, order.TotalAmount);
+        Assert.Equal("StateOverride", order.DeliveryRateSource);
+    }
+
+    [Fact]
+    public async Task Create_IgnoresAnyClientSuppliedDeliveryPricing()
+    {
+        // The request contract carries only the address; there is no field a
+        // caller could use to influence the fee. This pins that contract.
+        await using var harness = await Harness.CreateAsync();
+        await SeedZoneAsync(harness.Db, "PEN", 8m);
+        await SeedOverrideAsync(harness.Db, "KUL", 10m);
+
+        var created = await harness.Service.CreateAsync(
+            OwnerId,
+            Request(harness.Pet.Id, harness.Variant.PublicKey));
+
+        var deliveryProperties = typeof(DeliveryDetailsRequest)
+            .GetProperties()
+            .Select(property => property.Name)
+            .ToArray();
+        Assert.DoesNotContain("Fee", deliveryProperties);
+        Assert.DoesNotContain("DeliveryFee", deliveryProperties);
+        Assert.DoesNotContain("Total", deliveryProperties);
+        Assert.DoesNotContain("FreeShippingThreshold", deliveryProperties);
+        Assert.DoesNotContain("OverrideId", deliveryProperties);
+        Assert.Equal(10m, created.Order.DeliveryFee);
+    }
+
+    private static async Task SeedZoneAsync(
+        MyPetLinkDbContext db,
+        string zone,
+        decimal fee,
+        decimal? threshold = null,
+        bool active = true)
+    {
+        var existing = await db.DeliveryRates
+            .SingleOrDefaultAsync(rate => rate.ZoneCode == zone);
+        if (existing is null)
+        {
+            db.DeliveryRates.Add(new DeliveryRate
+            {
+                Name = $"{MalaysiaDelivery.Zones[zone]} Standard Delivery",
+                ZoneCode = zone,
+                ApplicableStateCodesJson = "[]",
+                Fee = fee,
+                Currency = "MYR",
+                FreeShippingThreshold = threshold,
+                IsActive = active
+            });
+        }
+        else
+        {
+            existing.Fee = fee;
+            existing.FreeShippingThreshold = threshold;
+            existing.IsActive = active;
+        }
+
+        await db.SaveChangesAsync();
+    }
+
+    private static async Task SeedOverrideAsync(
+        MyPetLinkDbContext db,
+        string stateCode,
+        decimal fee,
+        decimal? threshold = null,
+        bool enabled = true)
+    {
+        db.DeliveryStateRateOverrides.Add(new DeliveryStateRateOverride
+        {
+            StateCode = stateCode,
+            Fee = fee,
+            Currency = "MYR",
+            FreeShippingThreshold = threshold,
+            IsEnabled = enabled
+        });
+        await db.SaveChangesAsync();
+    }
+
     private sealed class Harness : IAsyncDisposable
     {
         private Harness(

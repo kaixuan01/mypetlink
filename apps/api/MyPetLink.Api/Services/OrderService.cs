@@ -220,6 +220,7 @@ public sealed class OrderService : SkeletonService, IOrderService
             DeliveryZoneName = deliveryResolution.State.ZoneName,
             DeliveryMethodName = deliveryQuote.DeliveryMethod,
             FreeShippingReason = deliveryQuote.FreeDeliveryReason,
+            DeliveryRateSource = deliveryResolution.RateSource,
             DeliveryNotes = NormalizeOptional(delivery.Notes),
             TrackingStatus = "Awaiting QR payment.",
             IdempotencyKey = idempotencyKey,

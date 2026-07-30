@@ -8,6 +8,7 @@ import {
   AdminStatStrip,
   AdminStatusBadge,
 } from "@/components/admin/AdminStatus";
+import { AdminDeliveryStateOverrides } from "@/components/admin/AdminDeliveryStateOverrides";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { isApiClientError } from "@/services/apiClient";
 import {
@@ -201,6 +202,13 @@ export function AdminDeliveryRatesManager() {
                         {rate.isActive && rate.fee === 0 ? (
                           <AdminStatusBadge tone="info">Free delivery</AdminStatusBadge>
                         ) : null}
+                        {rate.enabledStateOverrideCount > 0 ? (
+                          <AdminStatusBadge tone="info">
+                            {rate.enabledStateOverrideCount === 1
+                              ? "1 state override"
+                              : `${rate.enabledStateOverrideCount} state overrides`}
+                          </AdminStatusBadge>
+                        ) : null}
                       </div>
 
                       <p className="text-sm font-semibold text-slate-500">{rate.name}</p>
@@ -246,10 +254,10 @@ export function AdminDeliveryRatesManager() {
             }
             description={
               editingId
-                ? "Changes apply to new orders only. Existing orders keep the fee they were charged."
-                : "Create a rate for one of the four Malaysia delivery zones."
+                ? "Default rate for all states in this zone. Changes apply to new orders only; existing orders keep the fee they were charged."
+                : "Create a default rate for one of the four Malaysia delivery zones."
             }
-            title={editingId ? "Edit delivery zone" : "Add delivery zone"}
+            title={editingId ? "Zone default rate" : "Add delivery zone"}
           >
             <div className="space-y-5 p-4 sm:p-5">
               <Field
@@ -264,22 +272,35 @@ export function AdminDeliveryRatesManager() {
                 />
               </Field>
 
-              <Field
-                help={`Covers every state in ${selectedZoneName}. Each zone can have one active rate.`}
-                label="Delivery zone"
-              >
-                <select
-                  className="brand-input"
-                  onChange={(event) => setForm({ ...form, zoneCode: event.target.value })}
-                  value={form.zoneCode}
+              {editingId ? (
+                // Zones are fixed, so an existing rate can never be moved to a
+                // different zone by accident.
+                <Field
+                  help={`Covers every state in ${selectedZoneName}. A zone cannot be changed after the rate is created.`}
+                  label="Delivery zone"
                 >
-                  {zones.map(([code, name]) => (
-                    <option key={code} value={code}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
+                  <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black text-slate-900">
+                    {selectedZoneName}
+                  </p>
+                </Field>
+              ) : (
+                <Field
+                  help={`Covers every state in ${selectedZoneName}. Each zone can have one active rate.`}
+                  label="Delivery zone"
+                >
+                  <select
+                    className="brand-input"
+                    onChange={(event) => setForm({ ...form, zoneCode: event.target.value })}
+                    value={form.zoneCode}
+                  >
+                    {zones.map(([code, name]) => (
+                      <option key={code} value={code}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              )}
 
               <div className="grid gap-5 sm:grid-cols-2">
                 <Field help="Enter 0 for free delivery." label="Delivery fee (RM)">
@@ -395,6 +416,14 @@ export function AdminDeliveryRatesManager() {
           </AdminSection>
         </form>
       </div>
+
+      {editingRate ? (
+        <AdminDeliveryStateOverrides
+          key={editingRate.zoneCode}
+          onChanged={() => void refresh()}
+          zoneCode={editingRate.zoneCode}
+        />
+      ) : null}
 
       <ConfirmDialog
         confirmDisabled={saving}
