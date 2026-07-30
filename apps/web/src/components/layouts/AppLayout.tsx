@@ -140,9 +140,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             }`}
           >
             {collapsed ? (
-              <SidebarTooltipWrap label="Logout">
+              <SidebarTooltipWrap label="Log out">
                 <button
-                  aria-label="Logout"
+                  aria-label="Log out"
                   className="grid h-11 w-11 place-items-center rounded-full border border-pet-border bg-white text-pet-muted transition hover:text-pet-ink"
                   onClick={handleLogout}
                   type="button"
@@ -157,7 +157,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 type="button"
               >
                 <Icon name="logout" className="h-4 w-4" />
-                Logout
+                Log out
               </button>
             )}
           </div>
