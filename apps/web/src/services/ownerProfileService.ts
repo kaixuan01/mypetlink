@@ -60,7 +60,7 @@ export async function updateOwnerProfileSettings(
       whatsappE164: expectedWhatsappNumber || null,
       defaultGeneralArea: settings.defaultGeneralArea.trim(),
       privacyDefaults: settings.privacyDefaults,
-      notificationPreferences: settings.notificationPreferences,
+      marketingEmailOptIn: settings.marketingEmailOptIn,
     },
   });
   adoptServerPlanLimits(response.data?.plan);
@@ -72,8 +72,9 @@ export async function updateOwnerProfileSettings(
   if (
     updatedSettings.phoneNumber !== expectedPhoneNumber ||
     updatedSettings.whatsappNumber !== expectedWhatsappNumber
+    || updatedSettings.marketingEmailOptIn !== settings.marketingEmailOptIn
   ) {
-    throw new Error("The saved contact details did not match the requested values.");
+    throw new Error("The saved settings did not match the requested values.");
   }
 
   writeOwnerSettings(updatedSettings);
@@ -147,5 +148,6 @@ export function mapOwnerProfileToSettings(
       ...defaultOwnerSettings.notificationPreferences,
       ...profile.notificationPreferences,
     },
+    marketingEmailOptIn: profile.marketingEmailOptIn === true,
   });
 }

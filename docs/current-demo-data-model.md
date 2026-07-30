@@ -28,7 +28,7 @@ Contact & privacy: embedded `owner` contact (`name`, `phone`, `whatsapp`, `emerg
 ## Owner / settings model
 
 - `MockUser` (`src/data/mockUsers.ts`): `id`, `name`, `email`, `role` (`owner | admin`), `joinedAt`, `petCount`, `status` (`active | invited | paused`). Note: pets are not linked to users by id in the demo — the owner portal is single-owner and `pet.owner.name` carries the display owner.
-- `OwnerSettings` (`src/lib/ownerSettings.ts`): `ownerDisplayName`, `email`, `whatsappNumber`, `phoneNumber`, `defaultGeneralArea`, `privacyDefaults` (default visibility for new pets), `notificationPreferences`.
+- `OwnerSettings` (`src/lib/ownerSettings.ts`): `ownerDisplayName`, `email`, `whatsappNumber`, `phoneNumber`, `defaultGeneralArea`, `privacyDefaults` (default visibility for new pets), persisted future-Premium `notificationPreferences`, and the independent `marketingEmailOptIn` consent (default `false`).
 
 ## Smart Tag model (`PetTag`)
 

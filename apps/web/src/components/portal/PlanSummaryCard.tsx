@@ -102,22 +102,30 @@ export function PlanSummaryCard({
       className={`brand-card rounded-[1.5rem] ${compact ? "p-5" : "p-5 sm:p-6"}`}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm font-black text-pet-ink">Current plan: {planName}</p>
+        <h2 className="text-lg font-black text-pet-ink">Plan &amp; usage</h2>
         <Badge tone="teal">Premium coming soon</Badge>
       </div>
 
       <div className="mt-4 grid gap-3">
+        <div className="flex items-center justify-between gap-3 rounded-2xl bg-pet-cream px-4 py-3">
+          <span className="text-sm font-bold text-pet-muted">Current plan</span>
+          <span className="text-sm font-black text-pet-ink">
+            {formatPlanName(planName)}
+          </span>
+        </div>
         <UsageRow
-          label="Pet profiles"
+          label="Pet-profile usage"
           used={petLimit.count}
           max={petLimit.max}
+          unit="pet profiles"
         />
         {memoryRows.map((pet) => (
           <UsageRow
             key={pet.id}
-            label={`${pet.name} memories`}
+            label={`${pet.name} moment usage`}
             used={pet.count}
             max={maxMemoriesPerPet}
+            unit="moments"
           />
         ))}
       </div>
@@ -135,10 +143,12 @@ function UsageRow({
   label,
   used,
   max,
+  unit,
 }: {
   label: string;
   used: number;
   max: number;
+  unit: string;
 }) {
   const percent = max > 0 ? Math.min(100, Math.round((used / max) * 100)) : 0;
   const atLimit = used >= max;
@@ -154,7 +164,7 @@ function UsageRow({
             atLimit ? "text-pet-coral" : "text-pet-muted"
           }`}
         >
-          {used} / {max}
+          {used} of {max} {unit}
         </span>
       </div>
       <div
@@ -170,6 +180,10 @@ function UsageRow({
       </div>
     </div>
   );
+}
+
+function formatPlanName(planName: string) {
+  return /\bplan$/i.test(planName.trim()) ? planName.trim() : `${planName.trim()} plan`;
 }
 
 function buildMemoryCounts(moments: PetMoment[]) {

@@ -41,8 +41,10 @@ it("uses dashboard-provided pets and moments without issuing duplicate requests"
     />
   );
 
-  expect(screen.getByText(`${pet.name} memories`)).toBeTruthy();
-  expect(screen.getByText("1 / 10")).toBeTruthy();
+  expect(screen.getByText("Plan & usage")).toBeTruthy();
+  expect(screen.getByText("Free plan")).toBeTruthy();
+  expect(screen.getByText(`${pet.name} moment usage`)).toBeTruthy();
+  expect(screen.getByText("1 of 10 moments")).toBeTruthy();
   // The compact plan card no longer includes its own Add Pet button.
   expect(screen.queryByRole("link", { name: /add pet/i })).toBeNull();
   expect(screen.queryByRole("button", { name: /add pet/i })).toBeNull();
@@ -69,8 +71,8 @@ it("shows every counted pet in compact mode", () => {
     />
   );
 
-  expect(screen.getByText(`${mockPets[0].name} memories`)).toBeTruthy();
-  expect(screen.getByText(`${mockPets[1].name} memories`)).toBeTruthy();
-  expect(screen.getByText("Doudou memories")).toBeTruthy();
-  expect(screen.getAllByText("0 / 10")).toHaveLength(3);
+  expect(screen.getByText(`${mockPets[0].name} moment usage`)).toBeTruthy();
+  expect(screen.getByText(`${mockPets[1].name} moment usage`)).toBeTruthy();
+  expect(screen.getByText("Doudou moment usage")).toBeTruthy();
+  expect(screen.getAllByText("0 of 10 moments")).toHaveLength(3);
 });

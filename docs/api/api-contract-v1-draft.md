@@ -222,6 +222,7 @@ Response:
 - `defaultContact`
 - `defaultPrivacy`
 - `notificationPreferences`
+- `marketingEmailOptIn`
 - `planCode`
 - `createdAt`, `updatedAt`
 
@@ -242,7 +243,9 @@ Request:
 - `whatsappE164`
 - `defaultGeneralArea`
 - `privacyDefaults` / `defaultPrivacy`
-- `notificationPreferences`
+- `notificationPreferences` (legacy/future Premium placeholder; omitted by the
+  current Owner Settings UI)
+- `marketingEmailOptIn` (optional for backward compatibility)
 
 Response:
 
@@ -254,6 +257,8 @@ Validation:
 - Email is not changed here.
 - Privacy defaults must match known keys.
 - Plan code cannot be changed from this endpoint.
+- The server controls the marketing-preference timestamp.
+- Omitting `marketingEmailOptIn` preserves the existing value.
 
 Errors:
 

@@ -17,11 +17,18 @@ Full per-field detail is in `field-mapping-matrix.md`; this report is organised 
 ---
 
 ## Module: Settings / Owner profile — `/settings` (`SettingsPanel`) → `PUT /api/v1/owner/profile`
-- **Editable fields:** owner display name, phone, WhatsApp (both via `PhoneNumberInput` incl. country code), default general area, 11 privacy defaults, notification/reminder preferences.
+- **Editable fields:** owner display name, phone, WhatsApp (both via `PhoneNumberInput` incl. country code), default general area, privacy defaults, and the dedicated `MarketingEmailOptIn` preference.
+- **Future Premium placeholders:** `whatsappReminders`, `emailReminders`, and
+  `careDigest` remain persisted in `NotificationPreferencesJson` but render
+  disabled and unchecked and are omitted from current saves.
 - **Read-only:** Email (`disabled={apiMode}`; not in `UpdateOwnerProfileRequest`) — sourced from auth.
 - **Not implemented (but sometimes expected):** owner profile **image** (avatar is a generated initial only), postal **address** (by design only "general area"), owner-level **emergency contact** (exists per-pet only).
 - **Persistence path:** `UpdateOwnerProfileRequest` → owner profile service → `OwnerProfiles`/`Users` columns → `OwnerProfileResponse`.
-- **Evidence:** `CODE-TRACED`. **Automated tests:** none specific. **Live:** `NOT-TESTED`.
+- **Communication boundary:** essential transactional email is independent of
+  marketing consent; reminder placeholders never authorize marketing.
+- **Evidence:** `CODE-TRACED`, `AUTOMATED-TEST`, and `LOCAL-LIVE`. **Live:**
+  responsive Owner Portal and database round-trip verified against a disposable
+  local database.
 - **Gaps:** save → reload → logout/login round-trip; email truly immutable server-side; notification JSON schema. **Issue refs:** none open; S9 (add E2E test).
 
 ## Module: Pet basic info — `/pets/new`, `/pets/:id/edit` (`PetProfileForm`) → `POST/PUT /api/v1/pets`

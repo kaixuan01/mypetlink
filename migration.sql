@@ -3830,3 +3830,37 @@ GO
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730164730_AddOwnerMarketingEmailPreference'
+)
+BEGIN
+    ALTER TABLE [OwnerProfiles] ADD [MarketingEmailOptIn] bit NOT NULL DEFAULT CAST(0 AS bit);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730164730_AddOwnerMarketingEmailPreference'
+)
+BEGIN
+    ALTER TABLE [OwnerProfiles] ADD [MarketingEmailPreferenceUpdatedAt] datetimeoffset NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730164730_AddOwnerMarketingEmailPreference'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260730164730_AddOwnerMarketingEmailPreference', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+

@@ -50,8 +50,8 @@ const allOwnerNavItems: OwnerNavItem[] = [
   {
     id: "records",
     href: ownerRoutes.records,
-    label: "Records",
-    mobileLabel: "Records",
+    label: "Care Records",
+    mobileLabel: "Care Records",
     icon: "record",
     mobilePriority: "medium",
   },
@@ -84,9 +84,9 @@ const allOwnerNavItems: OwnerNavItem[] = [
   {
     id: "settings",
     href: ownerRoutes.settings,
-    label: "Owner Profile & Contact",
-    mobileLabel: "Profile",
-    icon: "phone",
+    label: "Owner Settings",
+    mobileLabel: "Settings",
+    icon: "settings",
     mobilePriority: "low",
   },
 ];

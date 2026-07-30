@@ -34,6 +34,7 @@ export type OwnerSettings = {
   defaultGeneralArea: string;
   privacyDefaults: OwnerPrivacyDefaults;
   notificationPreferences: OwnerNotificationPreferences;
+  marketingEmailOptIn: boolean;
 };
 
 type LegacySettings = Partial<{
@@ -76,10 +77,11 @@ export const defaultOwnerSettings: OwnerSettings = {
     showAllergiesOnPublicProfile: false,
   },
   notificationPreferences: {
-    whatsappReminders: true,
-    emailReminders: true,
-    careDigest: true,
+    whatsappReminders: false,
+    emailReminders: false,
+    careDigest: false,
   },
+  marketingEmailOptIn: false,
 };
 
 // Demo owner used ONLY by the explicit local-preview mock mode (no API
@@ -217,6 +219,7 @@ export function normalizeOwnerSettings(value: unknown): OwnerSettings {
       ...current.notificationPreferences,
       ...current.notifications,
     },
+    marketingEmailOptIn: current.marketingEmailOptIn === true,
   };
 }
 

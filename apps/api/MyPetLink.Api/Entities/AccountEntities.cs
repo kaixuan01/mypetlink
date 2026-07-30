@@ -55,6 +55,8 @@ public sealed class OwnerProfile : AuditableEntity
     public string? DefaultGeneralArea { get; set; }
     public string PrivacyDefaultsJson { get; set; } = "{}";
     public string NotificationPreferencesJson { get; set; } = "{}";
+    public bool MarketingEmailOptIn { get; set; }
+    public DateTimeOffset? MarketingEmailPreferenceUpdatedAt { get; set; }
     public DateTimeOffset? GrandfatheredAt { get; set; }
     public string? PlanOverrideJson { get; set; }
     public DateTimeOffset? ArchivedAt { get; set; }

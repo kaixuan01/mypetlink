@@ -157,7 +157,7 @@ describe("DashboardClient with pets", () => {
     renderDashboard();
 
     await screen.findByText("Quick actions");
-    const quickLabels = ["Care Records", "Moments", "Owner Contact"];
+    const quickLabels = ["Care Records", "Moments", "Owner Settings"];
     for (const label of quickLabels) {
       expect(screen.getByText(label)).toBeTruthy();
     }
@@ -167,7 +167,7 @@ describe("DashboardClient with pets", () => {
     ).toBe("/pets");
   });
 
-  it("points Owner Contact at the correct route", async () => {
+  it("points Owner Settings at the correct route", async () => {
     renderDashboard();
 
     await screen.findByText("Quick actions");

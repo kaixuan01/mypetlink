@@ -59,6 +59,7 @@ export type BackendOwnerProfile = {
   };
   defaultPrivacy: BackendPetVisibility;
   notificationPreferences: Record<string, unknown>;
+  marketingEmailOptIn: boolean;
   planCode: string;
   // Current plan with the limits the service actually enforces.
   plan?: {

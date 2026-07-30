@@ -370,6 +370,7 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.ToTable("OwnerProfiles");
             entity.Property(item => item.OwnerDisplayName).HasMaxLength(200);
             entity.Property(item => item.DefaultGeneralArea).HasMaxLength(200);
+            entity.Property(item => item.MarketingEmailOptIn).HasDefaultValue(false);
             entity.HasIndex(item => item.UserId).IsUnique();
             entity.HasIndex(item => item.PlanId);
             entity.HasOne(item => item.User)

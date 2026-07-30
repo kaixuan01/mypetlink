@@ -1,5 +1,8 @@
+using System.Reflection;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using MyPetLink.Api.Controllers;
 using MyPetLink.Api.Data;
 using MyPetLink.Api.DTOs;
 using MyPetLink.Api.Entities;
@@ -11,7 +14,17 @@ namespace MyPetLink.Api.Tests;
 public sealed class OwnerProfileContactPersistenceTests
 {
     private static readonly Guid OwnerId = Guid.Parse("a1111111-1111-1111-1111-111111111111");
+    private static readonly Guid OtherOwnerId = Guid.Parse("a1111111-1111-1111-1111-222222222222");
     private static readonly Guid PetId = Guid.Parse("a2222222-2222-2222-2222-222222222222");
+
+    [Fact]
+    public void OwnerProfileController_RequiresAuthentication()
+    {
+        var authorize = typeof(OwnerProfileController)
+            .GetCustomAttribute<AuthorizeAttribute>();
+
+        Assert.NotNull(authorize);
+    }
 
     [Fact]
     public async Task UpdateAsync_ClearsWhatsappAndKeepsPhone()
@@ -138,27 +151,145 @@ public sealed class OwnerProfileContactPersistenceTests
         Assert.Equal("+60128889999", created.Contact.WhatsappE164);
     }
 
-    private static UpdateOwnerProfileRequest Request(string? phone, string? whatsapp)
+    [Fact]
+    public async Task MarketingEmailPreference_DefaultsToOptedOut()
+    {
+        using var harness = await Harness.CreateAsync();
+
+        var response = await harness.OwnerProfiles.GetAsync(OwnerId);
+        var saved = await harness.Db.OwnerProfiles.AsNoTracking().SingleAsync();
+
+        Assert.False(response.MarketingEmailOptIn);
+        Assert.False(saved.MarketingEmailOptIn);
+        Assert.Null(saved.MarketingEmailPreferenceUpdatedAt);
+        Assert.False(CommunicationPreferenceRules.CanReceiveMarketingEmail(saved));
+    }
+
+    [Fact]
+    public async Task MarketingEmailPreference_OptInAndOptOutUseServerTime()
+    {
+        using var harness = await Harness.CreateAsync();
+        var optInAt = harness.Clock.GetUtcNow();
+
+        var optedIn = await harness.OwnerProfiles.UpdateAsync(
+            OwnerId,
+            Request("+60123334444", "+60128889999", marketingEmailOptIn: true));
+
+        Assert.True(optedIn.MarketingEmailOptIn);
+        var savedOptIn = await harness.Db.OwnerProfiles.AsNoTracking().SingleAsync();
+        Assert.Equal(optInAt, savedOptIn.MarketingEmailPreferenceUpdatedAt);
+        Assert.True(CommunicationPreferenceRules.CanReceiveMarketingEmail(savedOptIn));
+        Assert.Empty(await harness.Db.EmailOutbox.AsNoTracking().ToListAsync());
+
+        harness.Clock.UtcNow = optInAt.AddHours(1);
+        var optedOut = await harness.OwnerProfiles.UpdateAsync(
+            OwnerId,
+            Request("+60123334444", "+60128889999", marketingEmailOptIn: false));
+
+        Assert.False(optedOut.MarketingEmailOptIn);
+        var savedOptOut = await harness.Db.OwnerProfiles.AsNoTracking().SingleAsync();
+        Assert.Equal(harness.Clock.GetUtcNow(), savedOptOut.MarketingEmailPreferenceUpdatedAt);
+        Assert.False(CommunicationPreferenceRules.CanReceiveMarketingEmail(savedOptOut));
+        Assert.Empty(await harness.Db.EmailOutbox.AsNoTracking().ToListAsync());
+    }
+
+    [Fact]
+    public async Task MarketingEmailPreference_OmittedOrUnchangedDoesNotResetValueOrTimestamp()
+    {
+        using var harness = await Harness.CreateAsync();
+
+        await harness.OwnerProfiles.UpdateAsync(
+            OwnerId,
+            Request("+60123334444", "+60128889999", marketingEmailOptIn: true));
+        var originalTimestamp = (await harness.Db.OwnerProfiles.AsNoTracking().SingleAsync())
+            .MarketingEmailPreferenceUpdatedAt;
+
+        harness.Clock.UtcNow = harness.Clock.GetUtcNow().AddDays(1);
+        await harness.OwnerProfiles.UpdateAsync(
+            OwnerId,
+            Request("+60129990000", "+60128889999"));
+        await harness.OwnerProfiles.UpdateAsync(
+            OwnerId,
+            Request("+60129990000", "+60128889999", marketingEmailOptIn: true));
+
+        var saved = await harness.Db.OwnerProfiles.AsNoTracking().SingleAsync();
+        Assert.True(saved.MarketingEmailOptIn);
+        Assert.Equal(originalTimestamp, saved.MarketingEmailPreferenceUpdatedAt);
+    }
+
+    [Fact]
+    public async Task MarketingEmailPreference_IsScopedToAuthenticatedOwner()
+    {
+        using var harness = await Harness.CreateAsync();
+        var plan = await harness.Db.Plans.SingleAsync();
+        harness.Db.Users.Add(new User
+        {
+            Id = OtherOwnerId,
+            Email = "other-owner@example.com",
+            NormalizedEmail = "OTHER-OWNER@EXAMPLE.COM",
+            DisplayName = "Other Owner",
+            Status = UserStatus.Active,
+            OwnerProfile = new OwnerProfile
+            {
+                UserId = OtherOwnerId,
+                OwnerDisplayName = "Other Owner",
+                PrivacyDefaultsJson = "{}",
+                NotificationPreferencesJson = "{}",
+                Plan = plan
+            }
+        });
+        await harness.Db.SaveChangesAsync();
+
+        await harness.OwnerProfiles.UpdateAsync(
+            OtherOwnerId,
+            Request(null, null, marketingEmailOptIn: true));
+
+        var profiles = await harness.Db.OwnerProfiles
+            .AsNoTracking()
+            .ToDictionaryAsync(profile => profile.UserId);
+        Assert.False(profiles[OwnerId].MarketingEmailOptIn);
+        Assert.True(profiles[OtherOwnerId].MarketingEmailOptIn);
+    }
+
+    [Fact]
+    public async Task ReminderPlaceholdersNeverAuthorizeMarketingEmail()
+    {
+        using var harness = await Harness.CreateAsync();
+        var owner = await harness.Db.OwnerProfiles.SingleAsync();
+        owner.NotificationPreferencesJson =
+            """{"whatsappReminders":true,"emailReminders":true,"careDigest":true}""";
+        await harness.Db.SaveChangesAsync();
+
+        Assert.False(CommunicationPreferenceRules.CanReceiveMarketingEmail(owner));
+    }
+
+    private static UpdateOwnerProfileRequest Request(
+        string? phone,
+        string? whatsapp,
+        bool? marketingEmailOptIn = null)
         => new(
             DisplayName: "Owner",
             PhoneE164: phone,
             WhatsappE164: whatsapp,
             DefaultGeneralArea: "Petaling Jaya",
             PrivacyDefaults: null,
-            NotificationPreferences: null);
+            NotificationPreferences: null,
+            MarketingEmailOptIn: marketingEmailOptIn);
 
     private sealed class Harness : IDisposable
     {
-        private Harness(MyPetLinkDbContext db)
+        private Harness(MyPetLinkDbContext db, MutableTimeProvider clock)
         {
             Db = db;
+            Clock = clock;
             var r2 = Options.Create(new CloudflareR2Options());
-            OwnerProfiles = new OwnerProfileService(db);
+            OwnerProfiles = new OwnerProfileService(db, clock);
             Pets = new PetService(db, r2);
             SafetyProfiles = new QrSafetyService(db, r2);
         }
 
         public MyPetLinkDbContext Db { get; }
+        public MutableTimeProvider Clock { get; }
         public OwnerProfileService OwnerProfiles { get; }
         public PetService Pets { get; }
         public QrSafetyService SafetyProfiles { get; }
@@ -168,7 +299,9 @@ public sealed class OwnerProfileContactPersistenceTests
             var options = new DbContextOptionsBuilder<MyPetLinkDbContext>()
                 .UseInMemoryDatabase(Guid.NewGuid().ToString("N"))
                 .Options;
-            var db = new MyPetLinkDbContext(options);
+            var clock = new MutableTimeProvider(
+                DateTimeOffset.Parse("2026-07-31T01:02:03Z"));
+            var db = new MyPetLinkDbContext(options, clock);
             var plan = new Plan
             {
                 Code = "Free",
@@ -240,9 +373,16 @@ public sealed class OwnerProfileContactPersistenceTests
             }
 
             await db.SaveChangesAsync();
-            return new Harness(db);
+            return new Harness(db, clock);
         }
 
         public void Dispose() => Db.Dispose();
+    }
+
+    private sealed class MutableTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        public DateTimeOffset UtcNow { get; set; } = utcNow;
+
+        public override DateTimeOffset GetUtcNow() => UtcNow;
     }
 }

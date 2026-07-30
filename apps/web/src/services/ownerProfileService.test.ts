@@ -72,6 +72,7 @@ function profile(
     notificationPreferences: structuredClone(
       defaultOwnerSettings.notificationPreferences
     ),
+    marketingEmailOptIn: false,
     planCode: "Free",
     plan: null,
     createdAt: "2026-07-18T00:00:00Z",
@@ -175,5 +176,46 @@ describe("owner contact persistence", () => {
     ).rejects.toThrow(/did not match/i);
 
     expect(readOwnerSettings().whatsappNumber).toBe("+60128889999");
+  });
+
+  it("submits the dedicated marketing preference without reminder placeholders", async () => {
+    const responseProfile = profile("+60123334444", "+60128889999");
+    responseProfile.marketingEmailOptIn = true;
+    mocks.apiRequest.mockResolvedValue({
+      data: responseProfile,
+      meta: { requestId: "request-marketing" },
+    });
+
+    const response = await updateOwnerProfileSettings(
+      settings({
+        phoneNumber: "+60123334444",
+        whatsappNumber: "+60128889999",
+        marketingEmailOptIn: true,
+        notificationPreferences: {
+          whatsappReminders: true,
+          emailReminders: true,
+          careDigest: true,
+        },
+      })
+    );
+
+    const request = mocks.apiRequest.mock.calls[0][1];
+    expect(request.body.marketingEmailOptIn).toBe(true);
+    expect(request.body).not.toHaveProperty("notificationPreferences");
+    expect(response.data.marketingEmailOptIn).toBe(true);
+  });
+
+  it("does not cache success when marketing consent is not confirmed", async () => {
+    writeOwnerSettings(settings({ marketingEmailOptIn: false }));
+    mocks.apiRequest.mockResolvedValue({
+      data: profile(null, null),
+      meta: { requestId: "request-stale-marketing" },
+    });
+
+    await expect(
+      updateOwnerProfileSettings(settings({ marketingEmailOptIn: true }))
+    ).rejects.toThrow(/saved settings did not match/i);
+
+    expect(readOwnerSettings().marketingEmailOptIn).toBe(false);
   });
 });

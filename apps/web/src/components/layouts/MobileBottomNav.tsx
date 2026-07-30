@@ -149,7 +149,7 @@ export function MobileBottomNav() {
               <div>
                 <h2 className="text-lg font-black text-pet-ink">More</h2>
                 <p className="mt-1 text-xs font-semibold text-pet-muted">
-                  Contact details, owner tools, and account preferences.
+                  Manage care records, contact details, privacy, and account settings.
                 </p>
               </div>
               <button
@@ -177,7 +177,7 @@ export function MobileBottomNav() {
                 type="button"
               >
                 <Icon name="logout" className="h-5 w-5 shrink-0" />
-                Logout
+                Log out
               </button>
             </div>
           </section>

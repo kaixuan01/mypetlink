@@ -1825,7 +1825,7 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
                   </div>
                   <p className="mt-2 text-sm leading-6 text-pet-muted">
                     {form.useOwnerDefaults
-                      ? "Using your owner contact details from Owner Profile & Contact."
+                      ? "Using your contact details from Owner Settings."
                       : `Using different contact details for ${
                           form.name || "this pet"
                         }.`}

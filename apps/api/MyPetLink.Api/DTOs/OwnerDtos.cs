@@ -32,6 +32,7 @@ public sealed record OwnerProfileResponse(
     OwnerContactSettingsResponse DefaultContact,
     PetVisibilityResponse DefaultPrivacy,
     JsonElement NotificationPreferences,
+    bool MarketingEmailOptIn,
     string PlanCode,
     OwnerPlanSummaryResponse Plan,
     DateTimeOffset CreatedAt,
@@ -43,4 +44,5 @@ public sealed record UpdateOwnerProfileRequest(
     [MaxLength(32)] string? WhatsappE164,
     [MaxLength(200)] string? DefaultGeneralArea,
     PetVisibilityRequest? PrivacyDefaults,
-    JsonElement? NotificationPreferences);
+    JsonElement? NotificationPreferences,
+    bool? MarketingEmailOptIn);

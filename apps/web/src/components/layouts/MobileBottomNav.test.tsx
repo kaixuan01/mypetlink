@@ -41,10 +41,16 @@ it("keeps only available secondary destinations in More", () => {
   fireEvent.click(screen.getByRole("button", { name: "More" }));
 
   expect(screen.getByRole("dialog")).toBeTruthy();
-  expect(screen.getByRole("link", { name: "Records" })).toBeTruthy();
+  expect(screen.getByRole("link", { name: "Care Records" })).toBeTruthy();
+  expect(screen.getByRole("link", { name: "Owner Settings" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Log out" })).toBeTruthy();
   expect(
-    screen.getByRole("link", { name: "Owner Profile & Contact" })
+    screen.getByText(
+      "Manage care records, contact details, privacy, and account settings."
+    )
   ).toBeTruthy();
+  expect(screen.queryByText("Owner Profile & Contact")).toBeNull();
+  expect(screen.queryByText("Records", { exact: true })).toBeNull();
   expect(screen.queryByRole("link", { name: "Smart Tags" })).toBeNull();
   expect(screen.queryByRole("link", { name: "Orders" })).toBeNull();
 });

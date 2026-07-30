@@ -656,7 +656,7 @@ function QuickActions() {
           ariaLabel="Update owner contact details"
           href={ownerRoutes.settingsOwnerContact}
           icon="phone"
-          label="Owner Contact"
+          label="Owner Settings"
         />
       </div>
     </DashboardSection>

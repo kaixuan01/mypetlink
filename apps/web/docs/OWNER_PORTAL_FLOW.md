@@ -75,7 +75,7 @@ section - e.g. `/pets/{id}/records` highlights **Records**,
 `/pets/{id}/moments` and `/pets/{id}/moments/new` highlight **Moments**.
 
 On mobile, the current release renders **Home / Pets / Moments / More**.
-Records and Owner Profile & Contact remain in the **More** bottom sheet. Smart
+Care Records and Owner Settings remain in the **More** bottom sheet. Smart
 Tags and tag Orders return to this same shared navigation when their build-time
 availability flags are enabled; their direct routes remain compatible while
 the entry points are hidden. If the active route belongs to a More item, the
@@ -254,6 +254,6 @@ private profiles show an Enable profile action instead. The dashboard never
 duplicates the pet list and never silently selects the first pet.
 
 General Quick actions use pet-agnostic routes for Care Records, Moments, and
-Owner Profile & Contact. Pet management lives in the consolidated section's
+Owner Settings. Pet management lives in the consolidated section's
 **Manage pets** link, so it is not repeated in Quick actions. When there are no
 pets, the dashboard renders one focused Add Pet empty state.

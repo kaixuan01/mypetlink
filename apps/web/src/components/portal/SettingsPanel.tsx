@@ -9,7 +9,6 @@ import { FormSection } from "@/components/ui/FormSection";
 import { PhoneNumberInput } from "@/components/ui/PhoneNumberInput";
 import {
   defaultOwnerSettings,
-  type OwnerNotificationPreferences,
   type OwnerPrivacyDefaults,
   type OwnerSettings,
 } from "@/lib/ownerSettings";
@@ -22,7 +21,6 @@ import {
 } from "@/services/ownerProfileService";
 
 type PrivacyKey = keyof OwnerPrivacyDefaults;
-type NotificationKey = keyof OwnerNotificationPreferences;
 
 const privacyDefaults: { key: PrivacyKey; label: string }[] = [
   {
@@ -75,10 +73,21 @@ const privacyDefaults: { key: PrivacyKey; label: string }[] = [
   },
 ];
 
-const notificationOptions: { key: NotificationKey; label: string }[] = [
-  { key: "whatsappReminders", label: "WhatsApp reminders" },
-  { key: "emailReminders", label: "Email reminders" },
-  { key: "careDigest", label: "Monthly care digest" },
+const premiumReminderOptions = [
+  {
+    label: "WhatsApp care reminders",
+    description:
+      "Receive vaccine, grooming, deworming, medication, and appointment reminders through WhatsApp.",
+  },
+  {
+    label: "Email care reminders",
+    description: "Receive upcoming care reminders by email.",
+  },
+  {
+    label: "Monthly care digest",
+    description:
+      "Receive a monthly summary of upcoming and recently completed care activities.",
+  },
 ];
 
 export function SettingsPanel() {
@@ -154,15 +163,12 @@ export function SettingsPanel() {
     setSaved(false);
   }
 
-  function updateNotification(key: NotificationKey, value: boolean) {
+  function updateMarketingEmailOptIn(value: boolean) {
     setSettings((current) =>
       current
         ? {
             ...current,
-            notificationPreferences: {
-              ...current.notificationPreferences,
-              [key]: value,
-            },
+            marketingEmailOptIn: value,
           }
         : current
     );
@@ -247,15 +253,17 @@ export function SettingsPanel() {
         </div>
       ) : null}
 
-      <div className="sticky top-4 z-10 hidden justify-end lg:flex">
-        <CTAButton disabled={!dirty || saving} type="submit" variant="coral">
-          {saving ? "Saving..." : "Save Settings"}
-        </CTAButton>
-      </div>
+      {dirty ? (
+        <div className="sticky top-4 z-10 hidden justify-end lg:flex">
+          <CTAButton disabled={saving} type="submit" variant="coral">
+            {saving ? "Saving..." : "Save settings"}
+          </CTAButton>
+        </div>
+      ) : null}
 
       <FormSection
         id="owner-contact"
-        title="Owner Contact Details"
+        title="Contact details"
         description="These details help finders contact you quickly if your pet is ever lost. They are also used as the defaults for new pet profiles."
       >
         <div className="grid gap-4 md:grid-cols-2">
@@ -302,7 +310,7 @@ export function SettingsPanel() {
       </div>
 
       <FormSection
-        title="Privacy defaults"
+        title="Privacy settings"
         description="Choose what new pet profiles should show by default. Existing pets keep their own settings unless you update them."
       >
         <p className="mb-4 rounded-[1.25rem] bg-pet-cream p-4 text-sm leading-6 text-pet-muted">
@@ -321,18 +329,78 @@ export function SettingsPanel() {
       </FormSection>
 
       <FormSection
-        title="Notification preferences"
-        description="Choose how you receive vaccine, grooming, deworming, and care reminders."
+        title="Communication preferences"
+        description="Review essential messages, future care reminders, and optional MyPetLink updates separately."
       >
-        <div className="grid gap-3">
-          {notificationOptions.map((option) => (
-            <Checkbox
-              checked={settings.notificationPreferences[option.key]}
-              key={option.key}
-              label={option.label}
-              onChange={(value) => updateNotification(option.key, value)}
-            />
-          ))}
+        <div className="grid gap-5">
+          <section
+            aria-labelledby="essential-email-heading"
+            className="rounded-[1.25rem] border border-pet-border bg-white p-4"
+          >
+            <h3
+              className="text-sm font-black text-pet-ink"
+              id="essential-email-heading"
+            >
+              Essential account and order emails
+            </h3>
+            <p className="mt-2 text-sm leading-6 text-pet-muted">
+              Important account and order emails are sent when required.
+            </p>
+          </section>
+
+          <section
+            aria-labelledby="care-reminders-heading"
+            className="rounded-[1.25rem] border border-pet-border bg-pet-cream p-4"
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <h3
+                className="text-sm font-black text-pet-ink"
+                id="care-reminders-heading"
+              >
+                Premium care reminders
+              </h3>
+              <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-pet-teal">
+                Coming soon
+              </span>
+            </div>
+            <p className="mt-2 text-sm leading-6 text-pet-muted">
+              Care reminders will be available with MyPetLink Premium.
+            </p>
+            <div className="mt-4 grid gap-3">
+              {premiumReminderOptions.map((option) => (
+                <PreferenceCheckbox
+                  checked={false}
+                  description={option.description}
+                  disabled
+                  key={option.label}
+                  label={option.label}
+                />
+              ))}
+            </div>
+          </section>
+
+          <section
+            aria-labelledby="marketing-email-heading"
+            className="rounded-[1.25rem] border border-[#b9d8ff] bg-[#f4f9ff] p-4"
+          >
+            <h3
+              className="text-sm font-black text-pet-ink"
+              id="marketing-email-heading"
+            >
+              Optional updates
+            </h3>
+            <div className="mt-3">
+              <PreferenceCheckbox
+                checked={settings.marketingEmailOptIn}
+                description="Receive occasional product updates, promotions, new features, and special offers."
+                label="MyPetLink news and offers"
+                onChange={updateMarketingEmailOptIn}
+              />
+            </div>
+            <p className="mt-3 text-xs font-semibold leading-5 text-pet-muted">
+              You can change this preference at any time.
+            </p>
+          </section>
         </div>
       </FormSection>
 
@@ -356,18 +424,31 @@ export function SettingsPanel() {
         </div>
       </div>
 
-      <MobileFormActionBar
-        disabled={!dirty}
-        formId="owner-settings-form"
-        pending={saving}
-        primaryLabel="Save Settings"
-      />
+      {dirty ? (
+        <MobileFormActionBar
+          formId="owner-settings-form"
+          pending={saving}
+          primaryLabel="Save settings"
+        />
+      ) : null}
     </form>
   );
 }
 
 function isSettingsDirty(current: OwnerSettings, saved: OwnerSettings) {
-  return JSON.stringify(current) !== JSON.stringify(saved);
+  return JSON.stringify(toEditableSettings(current)) !== JSON.stringify(toEditableSettings(saved));
+}
+
+function toEditableSettings(settings: OwnerSettings) {
+  return {
+    ownerDisplayName: settings.ownerDisplayName,
+    email: settings.email,
+    whatsappNumber: settings.whatsappNumber,
+    phoneNumber: settings.phoneNumber,
+    defaultGeneralArea: settings.defaultGeneralArea,
+    privacyDefaults: settings.privacyDefaults,
+    marketingEmailOptIn: settings.marketingEmailOptIn,
+  };
 }
 
 function TextField({
@@ -460,6 +541,44 @@ function Checkbox({
         checked={checked}
         className="h-4 w-4 shrink-0 accent-pet-teal"
         onChange={(event) => onChange(event.target.checked)}
+        type="checkbox"
+      />
+    </label>
+  );
+}
+
+function PreferenceCheckbox({
+  checked,
+  description,
+  disabled = false,
+  label,
+  onChange,
+}: {
+  checked: boolean;
+  description: string;
+  disabled?: boolean;
+  label: string;
+  onChange?: (value: boolean) => void;
+}) {
+  return (
+    <label
+      className={`flex min-h-14 items-start justify-between gap-4 rounded-2xl border p-4 ${
+        disabled
+          ? "cursor-not-allowed border-pet-border bg-white/70 text-pet-muted"
+          : "cursor-pointer border-[#cfe3ff] bg-white text-pet-ink"
+      }`}
+    >
+      <span className="min-w-0">
+        <span className="block text-sm font-bold">{label}</span>
+        <span className="mt-1 block text-xs font-semibold leading-5 text-pet-muted">
+          {description}
+        </span>
+      </span>
+      <input
+        checked={checked}
+        className="mt-1 h-5 w-5 shrink-0 accent-pet-teal"
+        disabled={disabled}
+        onChange={(event) => onChange?.(event.target.checked)}
         type="checkbox"
       />
     </label>

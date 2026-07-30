@@ -45,4 +45,21 @@ describe("owner navigation availability", () => {
     expect(getActiveOwnerNavItemId("/pets/pet-1/tags/order")).toBe("tags");
     expect(getActiveOwnerNavItemId("/orders/MPL-ORDER-1")).toBe("orders");
   });
+
+  it("uses the customer-facing Care Records and Owner Settings labels", () => {
+    const items = getOwnerNavItems(currentRelease);
+
+    expect(items.find((item) => item.id === "records")).toMatchObject({
+      label: "Care Records",
+      mobileLabel: "Care Records",
+    });
+    expect(items.find((item) => item.id === "settings")).toMatchObject({
+      label: "Owner Settings",
+      icon: "settings",
+    });
+    expect(items.map((item) => item.label)).not.toContain("Records");
+    expect(items.map((item) => item.label)).not.toContain(
+      "Owner Profile & Contact"
+    );
+  });
 });

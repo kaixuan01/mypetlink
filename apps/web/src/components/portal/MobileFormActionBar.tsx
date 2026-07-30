@@ -24,7 +24,11 @@ export function MobileFormActionBar({
 }: MobileFormActionBarProps) {
   return (
     <>
-      <div aria-hidden="true" className="h-40 lg:hidden" />
+      <div
+        aria-hidden="true"
+        className="h-[calc(var(--owner-mobile-form-action-height)+0.75rem)] lg:hidden"
+        data-testid="mobile-form-actions-clearance"
+      />
       <div
         aria-label="Form actions"
         className="fixed inset-x-3 bottom-[calc(var(--owner-bottom-nav-height)+env(safe-area-inset-bottom)+0.5rem)] z-20 max-w-[calc(100vw-1.5rem)] lg:hidden"

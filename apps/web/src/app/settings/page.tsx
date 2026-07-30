@@ -4,7 +4,7 @@ import { SettingsPanel } from "@/components/portal/SettingsPanel";
 import { PageHeader } from "@/components/ui/PageHeader";
 
 export const metadata: Metadata = {
-  title: "Owner Profile & Contact",
+  title: "Owner settings",
 };
 
 export default function SettingsPage() {
@@ -12,8 +12,8 @@ export default function SettingsPage() {
     <AppLayout>
       <PageHeader
         eyebrow="Owner account"
-        title="Owner Profile & Contact"
-        description="Keep your phone and WhatsApp details up to date so finders can reach you quickly if your pet is ever lost."
+        title="Owner settings"
+        description="Manage your contact details, privacy, communication preferences, and account settings."
       />
       <SettingsPanel />
     </AppLayout>

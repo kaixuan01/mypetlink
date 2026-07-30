@@ -13,10 +13,14 @@ public sealed class OwnerProfileService : SkeletonService, IOwnerProfileService
     private const string FreePlanCode = "Free";
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly MyPetLinkDbContext _dbContext;
+    private readonly TimeProvider _timeProvider;
 
-    public OwnerProfileService(MyPetLinkDbContext dbContext)
+    public OwnerProfileService(
+        MyPetLinkDbContext dbContext,
+        TimeProvider? timeProvider = null)
     {
         _dbContext = dbContext;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public async Task<OwnerProfileResponse> GetAsync(
@@ -88,6 +92,13 @@ public sealed class OwnerProfileService : SkeletonService, IOwnerProfileService
             && notificationPreferences.ValueKind != JsonValueKind.Undefined)
         {
             ownerProfile.NotificationPreferencesJson = notificationPreferences.GetRawText();
+        }
+
+        if (request.MarketingEmailOptIn.HasValue
+            && request.MarketingEmailOptIn.Value != ownerProfile.MarketingEmailOptIn)
+        {
+            ownerProfile.MarketingEmailOptIn = request.MarketingEmailOptIn.Value;
+            ownerProfile.MarketingEmailPreferenceUpdatedAt = _timeProvider.GetUtcNow();
         }
 
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -181,6 +192,7 @@ public sealed class OwnerProfileService : SkeletonService, IOwnerProfileService
                 ownerProfile.DefaultGeneralArea),
             privacyDefaults,
             notificationPreferences,
+            ownerProfile.MarketingEmailOptIn,
             ownerProfile.Plan.Code,
             new OwnerPlanSummaryResponse(
                 ownerProfile.Plan.Code,

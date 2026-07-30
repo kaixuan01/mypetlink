@@ -180,6 +180,8 @@ Key fields:
 - `DefaultGeneralArea`
 - `PrivacyDefaultsJson`
 - `NotificationPreferencesJson`
+- `MarketingEmailOptIn` required, default `false`
+- `MarketingEmailPreferenceUpdatedAt` nullable
 - `GrandfatheredAt` nullable
 - `PlanOverrideJson` nullable
 - `CreatedAt`, `UpdatedAt`, `ArchivedAt`
@@ -193,6 +195,9 @@ Rules:
 
 - Existing over-limit data should be grandfathered by preserving existing records and using `GrandfatheredAt` or owner-level overrides.
 - Owner profile settings should become defaults for new pets but should not silently overwrite pet-level contact overrides.
+- Marketing consent is independent of reminder placeholders and essential
+  transactional communications. Existing and new owners are opted out unless
+  they explicitly enable it.
 
 ### AdminUsers
 

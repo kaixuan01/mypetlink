@@ -21,6 +21,12 @@ describe("owner settings fallbacks", () => {
     expect(defaultOwnerSettings.phoneNumber).toBe("");
     expect(defaultOwnerSettings.whatsappNumber).toBe("");
     expect(defaultOwnerSettings.defaultGeneralArea).toBe("");
+    expect(defaultOwnerSettings.marketingEmailOptIn).toBe(false);
+    expect(defaultOwnerSettings.notificationPreferences).toEqual({
+      whatsappReminders: false,
+      emailReminders: false,
+      careDigest: false,
+    });
   });
 
   it("returns empty defaults when the API is configured and nothing is stored", () => {
@@ -61,5 +67,22 @@ describe("owner settings fallbacks", () => {
   it("treats empty defaults as missing contact for the Home reminder", () => {
     expect(hasUsableOwnerContact(defaultOwnerSettings)).toBe(false);
     expect(hasUsableOwnerContact(sampleOwnerSettings)).toBe(true);
+  });
+
+  it("keeps missing and legacy marketing consent opted out", () => {
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "https://api.mypetlink.test");
+    window.localStorage.setItem(
+      OWNER_SETTINGS_STORAGE_KEY,
+      JSON.stringify({
+        ownerDisplayName: "Legacy Owner",
+        notifications: {
+          whatsappReminders: true,
+          emailReminders: true,
+          careDigest: true,
+        },
+      })
+    );
+
+    expect(readOwnerSettings().marketingEmailOptIn).toBe(false);
   });
 });
