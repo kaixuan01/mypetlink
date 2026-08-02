@@ -232,6 +232,7 @@ function mapBackendPaymentProof(proof: BackendPaymentProof): OrderPaymentProof {
     status: proof.status,
     originalFileName: proof.originalFileName,
     paymentMethod: proof.paymentMethod,
+    submittedAmount: proof.submittedAmount ?? undefined,
     paymentReference: proof.paymentReference ?? undefined,
     ownerNote: proof.ownerNote ?? undefined,
     rejectionReason: proof.rejectionReason ?? undefined,
@@ -615,6 +616,7 @@ type SubmitPaymentInput = {
   paymentReference?: string;
   paymentNote?: string;
   paymentProofName?: string;
+  submittedAmount: number;
   mediaFileId?: string;
 };
 
@@ -637,6 +639,7 @@ export async function submitOrderPayment(
           paymentMethod: "QR Payment",
           paymentReference: proof.paymentReference,
           ownerNote: proof.paymentNote,
+          submittedAmount: proof.submittedAmount,
         },
       }
     );
@@ -655,6 +658,7 @@ export async function submitOrderPayment(
         paymentReference: proof.paymentReference?.trim() || undefined,
         paymentNote: proof.paymentNote?.trim() || undefined,
         paymentProofName: proof.paymentProofName?.trim() || undefined,
+        submittedPaymentAmount: proof.submittedAmount,
         paymentSubmittedDate: formatToday(),
       }
     : null;

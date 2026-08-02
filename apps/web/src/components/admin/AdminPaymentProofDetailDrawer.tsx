@@ -195,9 +195,11 @@ export function AdminPaymentProofDetailDrawer({
                 <h3 className="text-sm font-black text-slate-900">Verification comparison</h3>
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   <AdminDetailItem label="Expected order total" value={`${detail.currency} ${detail.expectedAmount.toFixed(2)}`} />
-                  <AdminDetailItem label="Submitted amount" value="Not captured separately" />
+                  <AdminDetailItem label="Submitted amount" value={detail.submittedAmount == null ? "Not captured" : `${detail.currency} ${detail.submittedAmount.toFixed(2)}`} />
+                  <AdminDetailItem label="Difference" value={detail.submittedAmount == null ? "" : `${detail.currency} ${(detail.submittedAmount - detail.expectedAmount).toFixed(2)}`} />
                 </div>
                 <ul className="mt-3 grid gap-2 text-sm font-semibold">
+                  {detail.submittedAmount != null && Math.abs(detail.submittedAmount - detail.expectedAmount) >= 0.01 ? <li className="rounded-xl bg-amber-50 px-3 py-2 text-amber-900">Submitted amount differs from the expected order total. Verify the receipt before approving.</li> : null}
                   {detail.referenceUsedByOtherOrder ? <li className="rounded-xl bg-amber-50 px-3 py-2 text-amber-900">Reference already used by another order. Requires manual verification.</li> : null}
                   {detail.proofFileUsedByOtherOrder ? <li className="rounded-xl bg-amber-50 px-3 py-2 text-amber-900">The same proof file appears on another order. Requires manual verification.</li> : null}
                   {detail.pendingProofCount > 1 ? <li className="rounded-xl bg-amber-50 px-3 py-2 text-amber-900">Multiple proofs are marked pending for this order. Only the latest can be reviewed.</li> : null}

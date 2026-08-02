@@ -38,7 +38,20 @@ public sealed record EmailMessage(
     string RecipientName,
     string Subject,
     string HtmlBody,
-    string TextBody);
+    string TextBody,
+    IReadOnlyCollection<EmailAttachment> Attachments);
+
+public sealed record EmailAttachment(
+    string FileName,
+    string ContentType,
+    byte[] Content);
+
+public interface IEmailAttachmentResolver
+{
+    Task<IReadOnlyCollection<EmailAttachment>> ResolveAsync(
+        EmailOutbox message,
+        CancellationToken cancellationToken = default);
+}
 
 public interface IEmailSender
 {
@@ -65,6 +78,10 @@ public interface IEmailOutboxService
     Task EnqueueOrderShippedAsync(
         TagOrder order,
         DateTimeOffset shippedAt,
+        CancellationToken cancellationToken = default);
+
+    Task SynchronizeUnsentOrderShippedAsync(
+        TagOrder order,
         CancellationToken cancellationToken = default);
 
     Task<EmailOutbox?> EnqueueOwnerWelcomeAsync(

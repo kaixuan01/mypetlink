@@ -107,13 +107,6 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
             throw ValidationFailed("productVariantId", "Choose a product SKU.");
         }
 
-        if (NormalizeOptional(request.BatchNumber) is not null)
-        {
-            throw ValidationFailed(
-                "batchNumber",
-                "Batch references are generated automatically when inventory is created.");
-        }
-
         var strategy = _dbContext.Database.CreateExecutionStrategy();
         for (var referenceAttempt = 0; referenceAttempt < 12; referenceAttempt++)
         {
@@ -1204,20 +1197,28 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
             throw ValidationFailed("productVariantId", "Choose an active, non-archived SKU.");
         }
 
-        if (!variant.SupportsQr
-            || !variant.WidthMm.HasValue
-            || !variant.HeightMm.HasValue
-            || !variant.WeightGrams.HasValue
-            || string.IsNullOrWhiteSpace(variant.Material)
-            || string.IsNullOrWhiteSpace(variant.Shape)
-            || string.IsNullOrWhiteSpace(variant.Colour)
-            || string.IsNullOrWhiteSpace(variant.PackagingType)
-            || string.IsNullOrWhiteSpace(variant.PrintTemplateCode))
+        var missing = MissingProductionFields(variant);
+        if (missing.Count > 0)
         {
             throw ValidationFailed(
                 "productVariantId",
-                "Complete the SKU's QR capability, physical specifications, packaging, and print template before generating inventory.");
+                $"Complete these SKU requirements before generating inventory: {string.Join(", ", missing)}.");
         }
+    }
+
+    private static IReadOnlyCollection<string> MissingProductionFields(TagProductVariant variant)
+    {
+        var missing = new List<string>();
+        if (!variant.SupportsQr) missing.Add("QR capability");
+        if (!variant.WidthMm.HasValue) missing.Add("width");
+        if (!variant.HeightMm.HasValue) missing.Add("height");
+        if (!variant.WeightGrams.HasValue) missing.Add("weight");
+        if (string.IsNullOrWhiteSpace(variant.Material)) missing.Add("material");
+        if (string.IsNullOrWhiteSpace(variant.Shape)) missing.Add("shape");
+        if (string.IsNullOrWhiteSpace(variant.Colour)) missing.Add("colour");
+        if (string.IsNullOrWhiteSpace(variant.PackagingType)) missing.Add("packaging type");
+        if (string.IsNullOrWhiteSpace(variant.PrintTemplateCode)) missing.Add("print template");
+        return missing;
     }
 
     private static TEnum ParseEnum<TEnum>(string value, string field, string message)

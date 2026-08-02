@@ -63,7 +63,7 @@ describe("OrderDetailView legacy order labelling", () => {
     expect(screen.queryByText("SKU")).toBeNull();
     // Falls back to the customer-facing tag type and variant labels.
     expect(screen.getAllByText("MyPetLink QR Pet Tag").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Standard Tag").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Standard").length).toBeGreaterThan(0);
   });
 
   it("shows the catalog product and variant names without exposing the SKU", async () => {
@@ -78,7 +78,7 @@ describe("OrderDetailView legacy order labelling", () => {
 
     await waitFor(() => expect(screen.getByText("Order summary")).toBeTruthy());
     expect(screen.getByText("MyPetLink Smart Tag")).toBeTruthy();
-    expect(screen.getByText("Standard NFC")).toBeTruthy();
+    expect(screen.getAllByText("Standard NFC").length).toBeGreaterThan(0);
     // The internal SKU code is not shown to owners.
     expect(screen.queryByText("MPL-NFC-STANDARD-V1")).toBeNull();
   });

@@ -17,7 +17,7 @@ public sealed class AdminPaymentProofQueryService : SkeletonService, IAdminPayme
     private static readonly TimeSpan OverdueAfter = TimeSpan.FromHours(24);
     private static readonly string[] ExportHeaders =
     [
-        "Order Number", "Customer Name", "Customer Email", "Expected Amount",
+        "Order Number", "Customer Name", "Customer Email", "Expected Amount", "Submitted Amount", "Difference",
         "Payment Reference", "Payment Method", "Review Status", "Submitted At (UTC)",
         "Reviewer", "Reviewer Email", "Reviewed At (UTC)", "Rejection Reason",
         "Order Payment Status", "Order Status", "Requires Attention", "Updated At (UTC)"
@@ -75,6 +75,7 @@ public sealed class AdminPaymentProofQueryService : SkeletonService, IAdminPayme
                     || proof.MediaFile.UploadStatus != MediaUploadStatus.Ready
                     || proof.MediaFile.DeletedAt != null
                     || proof.MediaFile.ObjectKey == ""
+                    || (proof.SubmittedAmount.HasValue && proof.SubmittedAmount != proof.Order.Amount + proof.Order.DeliveryFee)
                     || proof.Order.PaymentProofs.Count(item => item.Status == PaymentProofStatus.PendingReview) > 1
                     || (proof.PaymentReference != null && _dbContext.PaymentProofs.Any(other =>
                         other.Id != proof.Id
@@ -203,6 +204,7 @@ public sealed class AdminPaymentProofQueryService : SkeletonService, IAdminPayme
                     || proof.MediaFile.UploadStatus != MediaUploadStatus.Ready
                     || proof.MediaFile.DeletedAt != null
                     || proof.MediaFile.ObjectKey == ""
+                    || (proof.SubmittedAmount.HasValue && proof.SubmittedAmount != proof.Order.Amount + proof.Order.DeliveryFee)
                     || proof.Order.PaymentProofs.Count(item => item.Status == PaymentProofStatus.PendingReview) > 1
                     || (proof.PaymentReference != null && _dbContext.PaymentProofs.Any(other => other.Id != proof.Id && other.OrderId != proof.OrderId && other.PaymentReference == proof.PaymentReference))
                     || (proof.Sha256 != "" && _dbContext.PaymentProofs.Any(other => other.Id != proof.Id && other.OrderId != proof.OrderId && other.Sha256 == proof.Sha256)))) == query.NeedsAttention.Value);
@@ -254,6 +256,7 @@ public sealed class AdminPaymentProofQueryService : SkeletonService, IAdminPayme
             proof.Order.Pet.Name,
             proof.Order.SmartTag == null ? null : proof.Order.SmartTag.TagCode,
             proof.Order.Amount + proof.Order.DeliveryFee,
+            proof.SubmittedAmount,
             proof.Order.Currency,
             proof.Status,
             proof.Order.Status,
@@ -292,6 +295,7 @@ public sealed class AdminPaymentProofQueryService : SkeletonService, IAdminPayme
                     || proof.MediaFile.UploadStatus != MediaUploadStatus.Ready
                     || proof.MediaFile.DeletedAt != null
                     || proof.MediaFile.ObjectKey == ""
+                    || (proof.SubmittedAmount.HasValue && proof.SubmittedAmount != proof.Order.Amount + proof.Order.DeliveryFee)
                     || proof.Order.PaymentProofs.Count(item => item.Status == PaymentProofStatus.PendingReview) > 1
                     || (proof.PaymentReference != null && _dbContext.PaymentProofs.Any(other => other.Id != proof.Id && other.OrderId != proof.OrderId && other.PaymentReference == proof.PaymentReference))
                     || (proof.Sha256 != "" && _dbContext.PaymentProofs.Any(other => other.Id != proof.Id && other.OrderId != proof.OrderId && other.Sha256 == proof.Sha256)))));
@@ -331,6 +335,8 @@ public sealed class AdminPaymentProofQueryService : SkeletonService, IAdminPayme
         row.OwnerName,
         row.OwnerEmail,
         $"{row.Currency} {row.ExpectedAmount:0.00}",
+        row.SubmittedAmount.HasValue ? $"{row.Currency} {row.SubmittedAmount:0.00}" : "Not captured",
+        row.SubmittedAmount.HasValue ? $"{row.Currency} {row.SubmittedAmount.Value - row.ExpectedAmount:+0.00;-0.00;0.00}" : "",
         row.PaymentReference ?? "",
         row.PaymentMethod,
         ProofStatusLabel(row.Status),

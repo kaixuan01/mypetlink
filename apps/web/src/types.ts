@@ -412,6 +412,7 @@ export type OrderPaymentProof = {
   status: "PendingReview" | "Approved" | "Rejected" | "Superseded";
   originalFileName: string;
   paymentMethod: string;
+  submittedAmount?: number;
   paymentReference?: string;
   ownerNote?: string;
   rejectionReason?: string;
@@ -453,6 +454,7 @@ export type TagOrder = {
   paymentReference?: string;
   paymentNote?: string;
   paymentProofName?: string;
+  submittedPaymentAmount?: number;
   paymentSubmittedDate?: string;
   paymentConfirmedDate?: string;
   paymentRejectionReason?: string;

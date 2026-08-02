@@ -14,7 +14,9 @@ type OrderViewClientProps = {
 // never pre-rendered. The order itself is resolved on the client by
 // OrderDetailView via getOrder().
 export function OrderViewClient({ pets, initialTags }: OrderViewClientProps) {
-  const orderKey = useSearchParams().get("order") ?? "";
+  const searchParams = useSearchParams();
+  const orderKey = searchParams.get("order") ?? "";
+  const autoDownloadReceipt = searchParams.get("document") === "receipt";
 
   return (
     <OrderDetailView
@@ -22,6 +24,7 @@ export function OrderViewClient({ pets, initialTags }: OrderViewClientProps) {
       initialTags={initialTags}
       orderKey={orderKey}
       pets={pets}
+      autoDownloadReceipt={autoDownloadReceipt}
     />
   );
 }

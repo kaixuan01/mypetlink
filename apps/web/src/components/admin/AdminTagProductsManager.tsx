@@ -1147,6 +1147,13 @@ function ProductEditor({ product, form, isNew, busy, errors, formError, onChange
       description="A product is the customer-facing item shown in the Owner Portal. Each of its SKUs is one exact sellable and manufacturable configuration."
     >
       <div className="grid gap-5 p-4 sm:p-5">
+        {form.isPublished && form.media.length === 0 ? (
+          <AdminNotice>
+            This published product has no customer image. Checkout will use the
+            intentional image-unavailable treatment until an approved product
+            image is uploaded.
+          </AdminNotice>
+        ) : null}
         <FormGroup title="Basic information">
           <Field
             error={errors.name}
@@ -1241,6 +1248,7 @@ function SkuListSection({ product, onAddSku, onOpenSku }: {
             {skuStatusExplanation(variant) ? (
               <p className="mt-1 text-xs font-semibold text-amber-700">{skuStatusExplanation(variant)}</p>
             ) : null}
+            <p className="mt-2 text-xs font-black text-slate-700">Edit SKU configuration</p>
           </button>
         ))}
       </div>
@@ -1251,16 +1259,34 @@ function SkuListSection({ product, onAddSku, onOpenSku }: {
 // SKU status must never be an unexplained combination: Archived wins, then
 // Purchasable, then Active-but-not-purchasable, then Inactive.
 function SkuStatusBadge({ variant }: { variant: AdminTagProductVariant }) {
-  if (variant.isArchived) return <Badge tone="soft">Archived</Badge>;
-  if (variant.isPurchasable) return <Badge tone="mint">Purchasable</Badge>;
-  if (variant.isActive) return <Badge tone="warm">Active · not purchasable</Badge>;
+  if (variant.isArchived || !variant.isActive) return <Badge tone="soft">Inactive</Badge>;
+  if (missingSkuFields(variant).length > 0) return <Badge tone="warm">Incomplete</Badge>;
+  if (variant.isPurchasable) return <Badge tone="mint">Ready for Sale</Badge>;
+  if (variant.isActive) return <Badge tone="soft">Draft</Badge>;
   return <Badge tone="soft">Inactive</Badge>;
 }
 
 function skuStatusExplanation(variant: AdminTagProductVariant) {
-  if (variant.isArchived || variant.isPurchasable) return "";
-  if (variant.isActive) return "Hidden from the store until it is marked purchasable.";
+  if (variant.isArchived || !variant.isActive) return "Inactive SKUs cannot be purchased or used for new inventory.";
+  const missing = missingSkuFields(variant);
+  if (missing.length > 0) return `Missing: ${missing.join(", ")}. Inventory cannot be generated yet.`;
+  if (!variant.isPurchasable) return "Configuration is complete but remains hidden until it is marked purchasable.";
+  if (variant.isPurchasable) return "Ready for customer orders and inventory generation.";
   return "Inactive SKUs cannot be purchased or used for new inventory.";
+}
+
+function missingSkuFields(variant: Pick<AdminTagProductVariant, "supportsQr" | "widthMm" | "heightMm" | "weightGrams" | "material" | "shape" | "colour" | "packagingType" | "printTemplateCode">) {
+  return [
+    !variant.supportsQr ? "QR capability" : null,
+    variant.widthMm == null ? "width" : null,
+    variant.heightMm == null ? "height" : null,
+    variant.weightGrams == null ? "weight" : null,
+    !variant.material?.trim() ? "material" : null,
+    !variant.shape?.trim() ? "shape" : null,
+    !variant.colour?.trim() ? "colour" : null,
+    !variant.packagingType?.trim() ? "packaging type" : null,
+    !variant.printTemplateCode?.trim() ? "print template" : null,
+  ].filter((value): value is string => value !== null);
 }
 
 function VariantEditor({ product, editing, form, isNew, busy, formError, presets, settingsHref, onChange, onSave, onArchive }: {

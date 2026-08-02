@@ -8,6 +8,7 @@ import { OrderDocumentButtons } from "@/components/admin/OrderDocumentButtons";
 import { formatAdminDateTime, getTagTypeLabel } from "@/components/admin/adminDisplay";
 import { Badge } from "@/components/ui/Badge";
 import { formatFullDeliveryAddress, getOrderStatusDisplay, type AdminOrderAction } from "@/lib/orders";
+import { formatOrderProduct, formatStateAndZone } from "@/lib/orderDisplay";
 import { adminRoutes } from "@/lib/routes";
 import {
   fulfilmentStatusLabels,
@@ -197,9 +198,8 @@ export function AdminOrderDetailDrawer({
                 <h3 className="text-sm font-black text-slate-900">Order summary</h3>
                 <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
                   <AdminDetailItem label="Order status" value={getOrderStatusDisplay(detail.order.status)} />
-                  <AdminDetailItem label="Product" value={summary.productName ?? getTagTypeLabel(summary.hasNfc)} />
+                  <AdminDetailItem label="Product" value={formatOrderProduct(summary.productName, summary.variantName, getTagTypeLabel(summary.hasNfc))} />
                   <AdminDetailItem label="SKU" value={summary.sku ?? "Legacy order"} />
-                  <AdminDetailItem label="Variant" value={summary.variantName ?? `${summary.variant} Tag`} />
                   <AdminDetailItem label="Quantity" value={String(summary.quantity ?? 1)} />
                   <AdminDetailItem label="Original unit price" value={`${summary.currency} ${(summary.unitBasePrice ?? summary.amount).toFixed(2)}`} />
                   <AdminDetailItem label="Discount" value={`${summary.currency} ${(summary.discountAmount ?? 0).toFixed(2)}`} />
@@ -208,7 +208,7 @@ export function AdminOrderDetailDrawer({
                   <AdminDetailItem label="Delivery fee" value={`${summary.currency} ${summary.deliveryFee.toFixed(2)}`} />
                   <AdminDetailItem label="Total amount" value={`${summary.currency} ${((summary.finalAmount ?? summary.amount) + summary.deliveryFee).toFixed(2)}`} />
                   {detail.order.delivery.deliveryMethod ? <AdminDetailItem label="Delivery method" value={detail.order.delivery.deliveryMethod} /> : null}
-                  <AdminDetailItem label="Delivery state" value={detail.order.delivery.zoneName ? `${detail.order.delivery.state} · ${detail.order.delivery.zoneName}` : detail.order.delivery.state} />
+                  <AdminDetailItem label="Delivery state" value={formatStateAndZone(detail.order.delivery.state, detail.order.delivery.zoneName)} />
                   <AdminDetailItem label="Created" value={formatAdminDateTime(summary.createdAt)} />
                   <AdminDetailItem label="Updated" value={formatAdminDateTime(summary.updatedAt)} />
                 </div>

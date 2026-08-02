@@ -798,6 +798,7 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.Property(item => item.StoragePath).HasMaxLength(600);
             entity.Property(item => item.Sha256).HasMaxLength(128);
             entity.Property(item => item.PaymentMethod).HasMaxLength(80);
+            entity.Property(item => item.SubmittedAmount).HasPrecision(18, 2);
             entity.Property(item => item.PaymentReference).HasMaxLength(160);
             entity.Property(item => item.Status).HasConversion<string>().HasMaxLength(32);
             entity.HasIndex(item => item.OrderId);

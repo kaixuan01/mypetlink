@@ -16,6 +16,7 @@ public sealed class EmailOutboxDispatcher : IEmailOutboxDispatcher
 
     private readonly MyPetLinkDbContext _dbContext;
     private readonly IEmailTemplateRenderer _renderer;
+    private readonly IEmailAttachmentResolver _attachments;
     private readonly IEmailSender _sender;
     private readonly IEmailTemplateGate _gate;
     private readonly TimeProvider _timeProvider;
@@ -27,10 +28,12 @@ public sealed class EmailOutboxDispatcher : IEmailOutboxDispatcher
         IEmailSender sender,
         IEmailTemplateGate gate,
         TimeProvider timeProvider,
-        ILogger<EmailOutboxDispatcher> logger)
+        ILogger<EmailOutboxDispatcher> logger,
+        IEmailAttachmentResolver? attachments = null)
     {
         _dbContext = dbContext;
         _renderer = renderer;
+        _attachments = attachments ?? NoEmailAttachments.Instance;
         _sender = sender;
         _gate = gate;
         _timeProvider = timeProvider;
@@ -125,6 +128,7 @@ public sealed class EmailOutboxDispatcher : IEmailOutboxDispatcher
         try
         {
             var content = _renderer.Render(message);
+            var attachments = await _attachments.ResolveAsync(message, cancellationToken);
             await _sender.SendAsync(
                 new EmailMessage(
                     message.Id,
@@ -132,7 +136,8 @@ public sealed class EmailOutboxDispatcher : IEmailOutboxDispatcher
                     message.RecipientName,
                     message.Subject,
                     content.HtmlBody,
-                    content.TextBody),
+                    content.TextBody,
+                    attachments),
                 cancellationToken);
 
             var now = _timeProvider.GetUtcNow();
@@ -258,5 +263,15 @@ public sealed class EmailOutboxDispatcher : IEmailOutboxDispatcher
             .Replace("\n", " ", StringComparison.Ordinal)
             .Trim();
         return normalized.Length <= 600 ? normalized : normalized[..600];
+    }
+
+    private sealed class NoEmailAttachments : IEmailAttachmentResolver
+    {
+        public static readonly NoEmailAttachments Instance = new();
+
+        public Task<IReadOnlyCollection<EmailAttachment>> ResolveAsync(
+            EmailOutbox message,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyCollection<EmailAttachment>>([]);
     }
 }

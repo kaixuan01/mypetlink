@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ManualPaymentPanel } from "@/components/portal/ManualPaymentPanel";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
@@ -16,6 +16,7 @@ import {
   getOrderStatusRank,
   getPaymentStatusLabel,
 } from "@/lib/orders";
+import { formatOrderOption, formatStateAndZone } from "@/lib/orderDisplay";
 import {
   loadingTitle,
   orderNotFoundTitle,
@@ -49,6 +50,7 @@ type OrderDetailViewProps = {
   orderKey: string;
   pets: Pet[];
   initialTags: PetTag[];
+  autoDownloadReceipt?: boolean;
 };
 
 const orderTone: Record<OrderStatus, "warm" | "teal" | "mint" | "soft" | "danger"> = {
@@ -93,6 +95,7 @@ export function OrderDetailView({
   orderKey,
   pets,
   initialTags,
+  autoDownloadReceipt = false,
 }: OrderDetailViewProps) {
   const apiMode = isApiConfigured();
   const [order, setOrder] = useState(initialOrder);
@@ -106,6 +109,7 @@ export function OrderDetailView({
   const [copyTrackingStatus, setCopyTrackingStatus] = useState("");
   const [paymentMessage, setPaymentMessage] = useState("");
   const [loadError, setLoadError] = useState("");
+  const autoDownloadStarted = useRef(false);
   const base = useSyncExternalStore(subscribeNoop, getSiteBaseUrl, getEnvBaseUrl);
   const petMap = useMemo(
     () => new Map(portalPets.map((pet) => [pet.id, pet])),
@@ -158,6 +162,35 @@ export function OrderDetailView({
 
     setPageTitle(order ? formatOrderNumber(order) : orderNotFoundTitle);
   }, [loaded, order]);
+
+  useEffect(() => {
+    if (!autoDownloadReceipt || !order || autoDownloadStarted.current) return;
+    if (!canDownloadPaymentReceipt(order)) {
+      return;
+    }
+
+    autoDownloadStarted.current = true;
+    let active = true;
+    void Promise.resolve().then(async () => {
+      if (!active) return;
+      setDownloadBusy(true);
+      setDownloadError("");
+      try {
+        await downloadOwnerOrderReceiptPdf(
+          order.orderNumber || order.id,
+          order.receiptNumber ?? formatOrderNumber(order)
+        );
+        if (active) setDownloadMessage("Receipt PDF downloaded.");
+      } catch (caught) {
+        if (active) setDownloadError(getFriendlyTagErrorMessage(caught));
+      } finally {
+        if (active) setDownloadBusy(false);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [autoDownloadReceipt, order]);
 
   if (!order) {
     if (!loaded) {
@@ -402,7 +435,7 @@ export function OrderDetailView({
                 internal SKU code. Legacy orders that predate the catalog simply
                 fall back to the tag type/variant labels. */}
             <DetailItem label="Product" value={order.productName ?? order.tagType} />
-            <DetailItem label="Tag variant" value={order.variantName ?? `${order.variant} Tag`} />
+            <DetailItem label="Option" value={formatOrderOption(order)} />
             {/* Features come from what was purchased, so editing the catalog
                 later never rewrites an owner's order history. Older orders
                 placed before features were recorded simply omit this row. */}
@@ -414,7 +447,7 @@ export function OrderDetailView({
             {order.promotionName ? <DetailItem label="Promotion" value={order.promotionName} /> : null}
             <DetailItem label="Delivery fee" value={(order.deliveryFee ?? 0) === 0 ? "Free" : `${order.currency ?? "MYR"} ${order.deliveryFee!.toFixed(2)}`} />
             {order.delivery.deliveryMethod ? <DetailItem label="Delivery method" value={order.delivery.deliveryMethod} /> : null}
-            <DetailItem label="Delivery state" value={order.delivery.zoneName ? `${order.delivery.state} · ${order.delivery.zoneName}` : order.delivery.state} />
+            <DetailItem label="Delivery state" value={formatStateAndZone(order.delivery.state, order.delivery.zoneName)} />
             <DetailItem label="Total amount" value={order.totalAmount != null ? `${order.currency ?? "MYR"} ${order.totalAmount.toFixed(2)}` : order.estimatedPrice} />
             <DetailItem label="Ordered date" value={order.orderedDate} />
             <DetailItem
@@ -483,8 +516,7 @@ export function OrderDetailView({
           ) : (
             <div className="mt-4 rounded-[1.25rem] bg-pet-cream p-4">
               <p className="text-sm font-bold leading-6 text-pet-ink">
-                Your physical tag will be assigned after your payment is
-                confirmed.
+                {unassignedTagMessage(order.status)}
               </p>
               <p className="mt-1 text-xs font-bold leading-5 text-pet-muted">
                 No tag code is shown until our team assigns inventory to this
@@ -775,5 +807,22 @@ function buildFallbackTimeline(order: TagOrder): OrderTimelineEvent[] {
   }
 
   return events;
+}
+
+function unassignedTagMessage(status: OrderStatus) {
+  switch (status) {
+    case "Payment Confirmed":
+      return "Your tag preparation will begin shortly.";
+    case "Preparing":
+      return "Your physical tag is being prepared.";
+    case "Ready to Ship":
+      return "Your parcel is ready for courier handoff.";
+    case "Shipped":
+      return "Your parcel is on the way.";
+    case "Delivered":
+      return "Your parcel has been delivered.";
+    default:
+      return "Payment must be confirmed before your physical tag is prepared.";
+  }
 }
 

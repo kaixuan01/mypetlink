@@ -534,10 +534,10 @@ describe("AdminTagProductsManager terminology and status", () => {
     });
     await openExistingProduct();
 
-    expect(screen.getAllByText("Purchasable").length).toBeGreaterThan(0);
-    expect(screen.getByText("Active · not purchasable")).toBeDefined();
+    expect(screen.getAllByText("Ready for Sale").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Draft").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Inactive").length).toBeGreaterThan(0);
-    expect(screen.getByText("Hidden from the store until it is marked purchasable.")).toBeDefined();
+    expect(screen.getByText("Configuration is complete but remains hidden until it is marked purchasable.")).toBeDefined();
   });
 
   it("opens a confirmation dialog before archiving a product, explaining the impact", async () => {

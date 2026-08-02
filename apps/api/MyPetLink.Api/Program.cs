@@ -344,6 +344,7 @@ builder.Services.AddScoped<IEmailTemplateGate, EmailTemplateGate>();
 builder.Services.AddScoped<IAdminEmailTemplateService, AdminEmailTemplateService>();
 builder.Services.AddScoped<IAdminOperationalStatusService, AdminOperationalStatusService>();
 builder.Services.AddScoped<IEmailOutboxService, EmailOutboxService>();
+builder.Services.AddScoped<IEmailAttachmentResolver, EmailAttachmentResolver>();
 builder.Services.AddScoped<IEmailOutboxDispatcher, EmailOutboxDispatcher>();
 builder.Services.AddScoped<IOwnerPortalEntryService, OwnerPortalEntryService>();
 builder.Services.AddScoped<IEmailPreviewService, EmailPreviewService>();

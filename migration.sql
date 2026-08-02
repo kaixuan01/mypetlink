@@ -3864,3 +3864,28 @@ GO
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260731173221_AddPaymentProofSubmittedAmount'
+)
+BEGIN
+    ALTER TABLE [PaymentProofs] ADD [SubmittedAmount] decimal(18,2) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260731173221_AddPaymentProofSubmittedAmount'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260731173221_AddPaymentProofSubmittedAmount', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+

@@ -120,7 +120,8 @@ public sealed record UploadPaymentProofRequest(
     [MaxLength(260)] string? FileName,
     [MaxLength(80)] string? PaymentMethod,
     [MaxLength(160)] string? PaymentReference,
-    [MaxLength(600)] string? OwnerNote);
+    [MaxLength(600)] string? OwnerNote,
+    [Required, Range(typeof(decimal), "0.01", "999999999999")] decimal? SubmittedAmount = null);
 
 public sealed record PaymentProofResponse(
     Guid Id,
@@ -131,6 +132,7 @@ public sealed record PaymentProofResponse(
     long FileSize,
     string StorageProvider,
     string PaymentMethod,
+    decimal? SubmittedAmount,
     PaymentProofStatus Status,
     string? PaymentReference,
     string? OwnerNote,

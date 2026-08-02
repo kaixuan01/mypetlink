@@ -186,7 +186,11 @@ export type AdminCatalogOptionVariant = {
   widthMm?: number | null;
   heightMm?: number | null;
   thicknessMm?: number | null;
+  weightGrams?: number | null;
   material?: string | null;
+  shape?: string | null;
+  colour?: string | null;
+  packagingType?: string | null;
   printTemplateCode?: string | null;
   basePrice: number;
   currency: string;

@@ -418,6 +418,7 @@ export type BackendPaymentProof = {
   fileSize: number;
   storageProvider: string;
   paymentMethod: string;
+  submittedAmount?: number | null;
   status: BackendPaymentProofStatus;
   paymentReference?: string | null;
   ownerNote?: string | null;

@@ -54,6 +54,7 @@ import {
   listAdminTagCatalogOptions,
   listAdminTagVariantPresets,
   type AdminCatalogOptionProduct,
+  type AdminCatalogOptionVariant,
 } from "@/services/tagCatalogService";
 import type { TagFulfilmentStatus, TagVariant } from "@/types";
 
@@ -314,6 +315,12 @@ export function AdminTagInventoryManager() {
       setGenerateMessage("Choose a product SKU before generating inventory.");
       return;
     }
+    const selected = catalogProducts.flatMap((product) => product.variants).find((variant) => variant.id === productVariantId);
+    const missing = selected ? missingProductionFields(selected) : [];
+    if (missing.length > 0) {
+      setGenerateMessage(`Complete these SKU requirements before generating inventory: ${missing.join(", ")}.`);
+      return;
+    }
     try {
       const result = await adminGenerateRetailTags(count, productVariantId);
       const selected = catalogProducts.flatMap((product) => product.variants.map((variant) => ({ product, variant }))).find((item) => item.variant.id === productVariantId);
@@ -571,7 +578,7 @@ export function AdminTagInventoryManager() {
               onChange={(event) => {
                 const nextProduct = catalogProducts.find((product) => product.id === event.target.value);
                 setProductId(event.target.value);
-                setProductVariantId(nextProduct?.variants.find((variant) => variant.isActive)?.id ?? "");
+                setProductVariantId(nextProduct?.variants.find((variant) => variant.isActive && missingProductionFields(variant).length === 0)?.id ?? "");
               }}
               value={productId}
             >
@@ -587,7 +594,10 @@ export function AdminTagInventoryManager() {
               value={productVariantId}
             >
               <option value="">Choose SKU</option>
-              {eligibleCatalogVariants.map((variant) => <option key={variant.id} value={variant.id}>{variant.sku} · {variant.displayName}</option>)}
+              {eligibleCatalogVariants.map((variant) => {
+                const missing = missingProductionFields(variant);
+                return <option disabled={missing.length > 0} key={variant.id} value={variant.id}>{variant.sku} · {variant.displayName}{missing.length > 0 ? " · Incomplete" : ""}</option>;
+              })}
             </select>
           </label>
           <label className="grid gap-1 text-xs font-extrabold uppercase text-slate-500">
@@ -601,7 +611,7 @@ export function AdminTagInventoryManager() {
               value={count}
             />
           </label>
-          <AdminActionButton onClick={() => void generate()} tone="primary">
+          <AdminActionButton disabled={!selectedCatalogVariant || missingProductionFields(selectedCatalogVariant).length > 0} onClick={() => void generate()} tone="primary">
             Generate Tag Codes
           </AdminActionButton>
           <p className="max-w-56 text-xs font-semibold leading-5 text-slate-500">
@@ -619,6 +629,11 @@ export function AdminTagInventoryManager() {
             <ProductionSummary label="Print template" value={selectedCatalogVariant.printTemplateCode ?? "Not set"} />
             <ProductionSummary label="Current inventory" value={`${selectedCatalogVariant.inventoryCount} tags`} />
           </div>
+        ) : null}
+        {selectedCatalogVariant && missingProductionFields(selectedCatalogVariant).length > 0 ? (
+          <AdminNotice>
+            Inventory cannot be generated. Missing: {missingProductionFields(selectedCatalogVariant).join(", ")}.
+          </AdminNotice>
         ) : null}
         {generateMessage ? (
           <p className="px-4 pb-4 text-sm font-bold text-[#1b4f9c]">{generateMessage}</p>
@@ -757,4 +772,18 @@ function formatSize(variant: AdminCatalogOptionProduct["variants"][number]) {
     (value): value is number => typeof value === "number"
   );
   return parts.length ? `${parts.join(" × ")} mm` : "Not set";
+}
+
+function missingProductionFields(variant: AdminCatalogOptionVariant) {
+  return [
+    !variant.supportsQr ? "QR capability" : null,
+    variant.widthMm == null ? "width" : null,
+    variant.heightMm == null ? "height" : null,
+    variant.weightGrams == null ? "weight" : null,
+    !variant.material?.trim() ? "material" : null,
+    !variant.shape?.trim() ? "shape" : null,
+    !variant.colour?.trim() ? "colour" : null,
+    !variant.packagingType?.trim() ? "packaging type" : null,
+    !variant.printTemplateCode?.trim() ? "print template" : null,
+  ].filter((value): value is string => value !== null);
 }

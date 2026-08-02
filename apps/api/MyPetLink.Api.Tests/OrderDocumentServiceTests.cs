@@ -248,17 +248,16 @@ public sealed class OrderDocumentServiceTests
     }
 
     [Fact]
-    public async Task Receipt_CombinesDeliveryDestinationAndRemovesDuplicatedZonePrefix()
+    public async Task Receipt_UsesImmutableDeliveryMethodAndCompactDestination()
     {
         using var h = await Harness.CreateAsync();
         var text = Squash(ExtractText(
             (await h.Service.GetOwnerReceiptAsync(Harness.OwnerAId, "MPL-ORD-DELIVERY")).Content));
 
-        Assert.Contains("DeliverymethodStandardDelivery", text);
+        Assert.Contains("DeliverymethodSabahStandardDelivery", text);
         Assert.Contains("DestinationSabah,88000", text);
-        Assert.DoesNotContain("SabahStandardDelivery", text, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("ZoneSabah", text, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal(1, CountOccurrences(text, "Sabah"));
+        Assert.Equal(2, CountOccurrences(text, "Sabah"));
     }
 
     [Fact]
@@ -577,7 +576,8 @@ public sealed class OrderDocumentServiceTests
             qty.Items.Add(SimpleItem(qty.Id, nfc: false, unit: 20m, qty: 2, final: 40m));
 
             // Paid Sabah delivery with a historical method label that includes
-            // the zone prefix. Customer PDFs remove only the duplicated prefix.
+            // the zone prefix. The full configured method remains an immutable
+            // receipt snapshot.
             var paidDelivery = ConfirmedOrder("MPL-ORD-DELIVERY", TagType.QrNfcSmartTag, 59m);
             paidDelivery.DeliveryFee = 15m;
             paidDelivery.TotalAmount = 74m;

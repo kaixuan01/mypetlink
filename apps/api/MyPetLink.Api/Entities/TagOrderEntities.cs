@@ -136,6 +136,10 @@ public sealed class PaymentProof : AuditableEntity
     public string Sha256 { get; set; } = "";
     public DateTimeOffset UploadedAt { get; set; } = DateTimeOffset.UtcNow;
     public string PaymentMethod { get; set; } = "QR Payment";
+    // Customer-declared amount captured with this proof. It is evidence for
+    // Admin comparison only and never changes the authoritative order total.
+    // Null is retained for legacy proofs created before this field existed.
+    public decimal? SubmittedAmount { get; set; }
     public string? PaymentReference { get; set; }
     public string? OwnerNote { get; set; }
     public PaymentProofStatus Status { get; set; } = PaymentProofStatus.PendingReview;

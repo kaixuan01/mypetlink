@@ -532,7 +532,7 @@ public sealed class AdminTagInventoryServiceTests
     {
         using var harness = await InventoryHarness.CreateAsync();
         var generated = await harness.Service.GenerateAsync(
-            AdminUserId, new AdminGenerateTagsRequest(2, NfcLightweightVariantId, null));
+            AdminUserId, new AdminGenerateTagsRequest(2, NfcLightweightVariantId));
 
         var export = await harness.Service.ExportManufacturerAsync(
             AdminUserId, new AdminTagInventoryQuery { Batch = generated.BatchNo }, null);
@@ -624,7 +624,7 @@ public sealed class AdminTagInventoryServiceTests
     {
         using var harness = await InventoryHarness.CreateAsync();
         var generated = await harness.Service.GenerateAsync(
-            AdminUserId, new AdminGenerateTagsRequest(1, NfcStandardVariantId, null));
+            AdminUserId, new AdminGenerateTagsRequest(1, NfcStandardVariantId));
         var selected = await harness.Db.SmartTags
             .Where(tag => tag.TagCode == "MPL-AAAA-AAAA" || tag.Batch!.BatchNo == generated.BatchNo)
             .Select(tag => tag.Id)
@@ -785,7 +785,7 @@ public sealed class AdminTagInventoryServiceTests
 
         var response = await harness.Service.GenerateAsync(
             AdminUserId,
-            new AdminGenerateTagsRequest(3, QrLightweightVariantId, null));
+            new AdminGenerateTagsRequest(3, QrLightweightVariantId));
 
         Assert.Equal(3, response.Quantity);
         Assert.Matches("^MPL-BAT-\\d{12}-\\d{4}$", response.BatchNo);
@@ -816,7 +816,7 @@ public sealed class AdminTagInventoryServiceTests
 
         var response = await harness.Service.GenerateAsync(
             AdminUserId,
-            new AdminGenerateTagsRequest(3, QrLightweightVariantId, null));
+            new AdminGenerateTagsRequest(3, QrLightweightVariantId));
 
         Assert.Equal("MPL-BAT-260728000506-1234", response.BatchNo);
         var batches = await harness.Db.SmartTagBatches
@@ -830,7 +830,7 @@ public sealed class AdminTagInventoryServiceTests
     }
 
     [Fact]
-    public async Task Generate_RetriesAnExistingBatchReferenceAndRejectsManualTampering()
+    public async Task Generate_RetriesAnExistingBatchReference()
     {
         var now = DateTimeOffset.Parse("2026-07-27T07:08:09Z");
         using var harness = await InventoryHarness.CreateAsync(
@@ -848,15 +848,9 @@ public sealed class AdminTagInventoryServiceTests
 
         var generated = await harness.Service.GenerateAsync(
             AdminUserId,
-            new AdminGenerateTagsRequest(1, QrLightweightVariantId, null));
+            new AdminGenerateTagsRequest(1, QrLightweightVariantId));
         Assert.Equal("MPL-BAT-260727150809-2222", generated.BatchNo);
 
-        var error = await Assert.ThrowsAsync<ApiException>(() =>
-            harness.Service.GenerateAsync(
-                AdminUserId,
-                new AdminGenerateTagsRequest(1, QrLightweightVariantId, "MPL-BAT-TAMPERED")));
-        Assert.Equal("validation_failed", error.Code);
-        Assert.Contains("batchNumber", error.Details!.Keys);
     }
 
     [Fact]
@@ -880,7 +874,7 @@ public sealed class AdminTagInventoryServiceTests
         var error = await Assert.ThrowsAsync<ApiException>(() =>
             harness.Service.GenerateAsync(
                 AdminUserId,
-                new AdminGenerateTagsRequest(1, QrLightweightVariantId, null)));
+                new AdminGenerateTagsRequest(1, QrLightweightVariantId)));
 
         Assert.Equal("batch_number_generation_failed", error.Code);
         Assert.Equal(before, await harness.Db.SmartTags.CountAsync());

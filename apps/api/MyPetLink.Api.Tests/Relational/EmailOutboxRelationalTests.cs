@@ -323,6 +323,11 @@ public sealed class EmailOutboxRelationalTests
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
+        public Task SynchronizeUnsentOrderShippedAsync(
+            TagOrder order,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         public Task<EmailOutbox?> EnqueueOwnerWelcomeAsync(
             User user,
             OwnerWelcomeEmailTemplateData template,

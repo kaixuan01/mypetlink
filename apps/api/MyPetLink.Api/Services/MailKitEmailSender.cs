@@ -32,11 +32,19 @@ public sealed class MailKitEmailSender : IEmailSender
             string.IsNullOrWhiteSpace(message.RecipientName) ? recipient.Name : message.RecipientName,
             recipient.Address));
         mimeMessage.Subject = message.Subject;
-        mimeMessage.Body = new BodyBuilder
+        var body = new BodyBuilder
         {
             HtmlBody = message.HtmlBody,
             TextBody = message.TextBody
-        }.ToMessageBody();
+        };
+        foreach (var attachment in message.Attachments)
+        {
+            body.Attachments.Add(
+                attachment.FileName,
+                attachment.Content,
+                ContentType.Parse(attachment.ContentType));
+        }
+        mimeMessage.Body = body.ToMessageBody();
 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(_options.Smtp.ConnectionTimeoutSeconds));

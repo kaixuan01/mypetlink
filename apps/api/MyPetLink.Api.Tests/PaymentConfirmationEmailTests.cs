@@ -89,6 +89,10 @@ public sealed class PaymentConfirmationEmailTests
         Assert.NotNull(stored.SentAt);
         Assert.Equal(1, stored.AttemptCount);
         Assert.Equal(1, harness.Sender.CallCount);
+        var attachment = Assert.Single(harness.Sender.LastMessage!.Attachments);
+        Assert.Equal("application/pdf", attachment.ContentType);
+        Assert.EndsWith(".pdf", attachment.FileName, StringComparison.OrdinalIgnoreCase);
+        Assert.True(attachment.Content.AsSpan(0, 5).SequenceEqual("%PDF-"u8));
         Assert.NotNull(EmailOutboxService.ToOwnerResponse([stored]));
         Assert.Equal("o***@example.com", EmailOutboxService.ToOwnerResponse([stored])!.MaskedRecipient);
     }
@@ -311,7 +315,8 @@ public sealed class PaymentConfirmationEmailTests
                 Sender,
                 new EmailTemplateGate(db, emailOptions),
                 Clock,
-                NullLogger<EmailOutboxDispatcher>.Instance);
+                NullLogger<EmailOutboxDispatcher>.Instance,
+                new EmailAttachmentResolver(new OrderDocumentService(db)));
             var gate = new EmailTemplateGate(db, emailOptions);
             var outbox = new EmailOutboxService(db, audit, Clock, gate);
             Admin = new AdminService(
@@ -478,6 +483,7 @@ public sealed class PaymentConfirmationEmailTests
         public int CallCount { get; private set; }
         public Exception? Exception { get; set; }
         public bool Cancel { get; set; }
+        public EmailMessage? LastMessage { get; private set; }
 
         public Task SendAsync(EmailMessage message, CancellationToken cancellationToken = default)
         {
@@ -488,6 +494,7 @@ public sealed class PaymentConfirmationEmailTests
             }
 
             CallCount += 1;
+            LastMessage = message;
             return Exception is null ? Task.CompletedTask : Task.FromException(Exception);
         }
     }

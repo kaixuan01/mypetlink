@@ -41,7 +41,8 @@ public sealed class MediaService : SkeletonService, IMediaService
         await EnsureUserExistsAsync(userId, cancellationToken);
 
         var category = request.Category ?? throw ValidationFailed("category", "Upload category is required.");
-        var fileName = SanitizeOriginalFileName(request.OriginalFileName);
+        var fileName = MediaFileMetadata.SanitizeOriginalFileName(request.OriginalFileName)
+            ?? throw ValidationFailed("originalFileName", "File name is required.");
         var extension = ValidateFileShape(category, fileName, request.ContentType, request.FileSizeBytes);
 
         var target = await ResolveTargetAsync(userId, category, request, cancellationToken);
@@ -756,18 +757,6 @@ public sealed class MediaService : SkeletonService, IMediaService
         }
 
         return value.Value;
-    }
-
-    private static string SanitizeOriginalFileName(string originalFileName)
-    {
-        var fileName = Path.GetFileName(originalFileName.Replace('\\', '/')).Trim();
-
-        if (string.IsNullOrWhiteSpace(fileName))
-        {
-            throw ValidationFailed("originalFileName", "File name is required.");
-        }
-
-        return fileName.Length <= 260 ? fileName : fileName[^260..];
     }
 
     private static Guid RequireUserId(Guid? currentUserId)

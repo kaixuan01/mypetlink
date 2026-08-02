@@ -38,6 +38,7 @@ public sealed record AdminPaymentProofListItemResponse(
     string? PetName,
     string? TagCode,
     decimal ExpectedAmount,
+    decimal? SubmittedAmount,
     string Currency,
     PaymentProofStatus Status,
     OrderStatus OrderStatus,

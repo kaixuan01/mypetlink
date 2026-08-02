@@ -623,6 +623,11 @@ public sealed class AdminService : SkeletonService, IAdminService
         ApplyShipmentDetails(order, shipment);
         order.UpdatedAt = _timeProvider.GetUtcNow();
 
+        if (order.Status == OrderStatus.Shipped)
+        {
+            await _emailOutboxService.SynchronizeUnsentOrderShippedAsync(order, cancellationToken);
+        }
+
         _auditLogService.Append(
             admin.Id, ActorType.Admin, "order.update-shipment", "TagOrder", order.Id,
             oldState, OrderStateSnapshot(order));
@@ -1612,7 +1617,7 @@ public sealed class AdminService : SkeletonService, IAdminService
     private static AdminTagOrderResponse ToAdminOrderResponse(TagOrder order)
     {
         return new AdminTagOrderResponse(
-            TagDtoMapper.ToOrderResponse(order),
+            TagDtoMapper.ToOrderResponse(order, includePreShipmentOperations: true),
             ToOwnerRef(order.OwnerUser),
             order.Items.OrderBy(item => item.CreatedAt).Select(item => item.ProductVariantId).FirstOrDefault(),
             new AdminShipmentDetailsResponse(

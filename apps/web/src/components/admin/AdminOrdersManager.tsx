@@ -648,6 +648,7 @@ export function AdminOrdersManager() {
 
       <ConfirmDialog
         confirmLabel={busy ? "Working…" : dialog.confirmLabel}
+        confirmDisabled={busy}
         destructive={pendingAction?.action === "reject-payment" || pendingAction?.action === "cancel-order"}
         message={dialog.message}
         onCancel={() => !busy && setPendingAction(null)}

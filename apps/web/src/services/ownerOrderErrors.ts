@@ -117,3 +117,26 @@ export function getOwnerOrderErrorMessage(error: unknown): string {
   // failed — the client cannot know either of those from a server error.
   return "We could not complete your order right now. Please try again.";
 }
+
+/** Safe, action-oriented wording for the delivery quote boundary. */
+export function getDeliveryQuoteErrorMessage(error: unknown): string {
+  if (!isApiClientError(error)) {
+    return "We couldn’t calculate delivery right now. Please try again.";
+  }
+
+  if (error.status === 0) {
+    return "We couldn’t connect to calculate delivery. Check your internet connection and try again.";
+  }
+
+  if (error.code === "delivery_unavailable") {
+    // The backend message is intentionally customer-safe and identifies the
+    // unsupported area without exposing delivery-rate configuration.
+    return error.message;
+  }
+
+  if (error.code === "validation_failed") {
+    return "Please check the delivery state and address before continuing.";
+  }
+
+  return "We couldn’t calculate delivery right now. Please try again.";
+}

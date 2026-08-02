@@ -390,8 +390,7 @@ public sealed class OrderService : SkeletonService, IOrderService
         var mediaFile = request.MediaFileId.HasValue
             ? await LoadOwnedMediaFileAsync(userId, order.Id, request.MediaFileId.Value, cancellationToken)
             : CreateMetadataOnlyMediaFile(userId, request.FileName);
-        var fileName = NormalizeOptional(request.FileName)
-            ?? NormalizeOptional(mediaFile.OriginalFileName)
+        var fileName = MediaFileMetadata.SanitizeOriginalFileName(mediaFile.OriginalFileName)
             ?? "payment-proof-metadata";
         var proofEntity = new PaymentProof
         {
@@ -408,6 +407,7 @@ public sealed class OrderService : SkeletonService, IOrderService
             Sha256 = mediaFile.Sha256,
             UploadedAt = _timeProvider.GetUtcNow(),
             PaymentMethod = NormalizeOptional(request.PaymentMethod) ?? "QR Payment",
+            SubmittedAmount = request.SubmittedAmount,
             PaymentReference = NormalizeOptional(request.PaymentReference),
             OwnerNote = NormalizeOptional(request.OwnerNote),
             Status = PaymentProofStatus.PendingReview
@@ -589,7 +589,8 @@ public sealed class OrderService : SkeletonService, IOrderService
 
     private MediaFile CreateMetadataOnlyMediaFile(Guid userId, string? fileName)
     {
-        var safeFileName = NormalizeOptional(fileName) ?? "payment-proof-metadata";
+        var safeFileName = MediaFileMetadata.SanitizeOriginalFileName(fileName)
+            ?? "payment-proof-metadata";
         var now = _timeProvider.GetUtcNow();
 
         return new MediaFile
@@ -597,7 +598,7 @@ public sealed class OrderService : SkeletonService, IOrderService
             OwnerUserId = userId,
             OriginalFileName = safeFileName,
             StorageFileName = $"metadata-only-{Guid.NewGuid():N}",
-            ContentType = InferContentType(safeFileName),
+            ContentType = MediaFileMetadata.InferContentType(safeFileName),
             FileSize = 0,
             StorageProvider = "MetadataOnly",
             StoragePath = "",
@@ -648,12 +649,24 @@ public sealed class OrderService : SkeletonService, IOrderService
 
     private static void ValidatePaymentProofRequest(UploadPaymentProofRequest request)
     {
+        var errors = new Dictionary<string, string[]>();
         if (!request.MediaFileId.HasValue && string.IsNullOrWhiteSpace(request.FileName))
         {
-            throw ValidationFailed(new Dictionary<string, string[]>
-            {
-                ["fileName"] = ["Upload a receipt or screenshot filename for this payment proof."]
-            });
+            errors["fileName"] = ["Upload a receipt or screenshot filename for this payment proof."];
+        }
+
+        if (!request.SubmittedAmount.HasValue || request.SubmittedAmount <= 0)
+        {
+            errors["submittedAmount"] = ["Enter the amount paid."];
+        }
+        else if (decimal.Round(request.SubmittedAmount.Value, 2) != request.SubmittedAmount.Value)
+        {
+            errors["submittedAmount"] = ["Use no more than two decimal places for the amount paid."];
+        }
+
+        if (errors.Count > 0)
+        {
+            throw ValidationFailed(errors);
         }
     }
 
@@ -716,13 +729,6 @@ public sealed class OrderService : SkeletonService, IOrderService
     private static string? NormalizeOptional(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-    }
-
-    private static string InferContentType(string fileName)
-    {
-        return fileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)
-            ? "application/pdf"
-            : "application/octet-stream";
     }
 
     private static void ValidateRequired(

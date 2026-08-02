@@ -28,7 +28,10 @@ internal static class TagDtoMapper
             tag.ArchivedAt);
     }
 
-    public static TagOrderResponse ToOrderResponse(TagOrder order, string? trackingUrl = null)
+    public static TagOrderResponse ToOrderResponse(
+        TagOrder order,
+        string? trackingUrl = null,
+        bool includePreShipmentOperations = false)
     {
         var proofs = order.PaymentProofs
             .OrderByDescending(proof => proof.UploadedAt)
@@ -38,6 +41,8 @@ internal static class TagDtoMapper
         var latestProof = proofs.FirstOrDefault();
         var timeline = BuildTimeline(order);
         var item = order.Items.OrderBy(entry => entry.CreatedAt).FirstOrDefault();
+        var shipmentVisible = includePreShipmentOperations
+            || order.Status is OrderStatus.Shipped or OrderStatus.Delivered;
 
         return new TagOrderResponse(
             order.Id,
@@ -94,18 +99,18 @@ internal static class TagDtoMapper
             latestProof?.RejectionReason,
             EmailOutboxService.ToOwnerResponse(order.EmailOutboxMessages),
             order.TrackingStatus,
-            order.CourierProvider,
-            order.CourierService,
-            order.TrackingNumber,
+            shipmentVisible ? order.CourierProvider : null,
+            shipmentVisible ? order.CourierService : null,
+            shipmentVisible ? order.TrackingNumber : null,
             order.ReadyToShipAt,
-            order.ShippedAt,
+            shipmentVisible ? order.ShippedAt : null,
             order.DeliveredAt,
             order.CancelledAt,
             proofs,
             timeline,
             order.UpdatedAt,
             order.CreatedAt,
-            trackingUrl);
+            shipmentVisible ? trackingUrl : null);
     }
 
     // Builds the chronological status history shown on the owner order detail
@@ -252,6 +257,7 @@ internal static class TagDtoMapper
             proof.FileSize,
             proof.StorageProvider,
             proof.PaymentMethod,
+            proof.SubmittedAmount,
             proof.Status,
             proof.PaymentReference,
             proof.OwnerNote,

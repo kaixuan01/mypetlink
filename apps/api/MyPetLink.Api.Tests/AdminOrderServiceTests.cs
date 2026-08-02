@@ -145,6 +145,8 @@ public sealed class AdminOrderServiceTests
         Assert.Equal("MPL-ORD-REVIEW", item.OrderNumber);
         Assert.Equal(PaymentStatus.ProofSubmitted, item.OrderPaymentStatus);
         Assert.True(item.HasMedia);
+        Assert.Equal(46m, item.SubmittedAmount);
+        Assert.True(item.RequiresAttention);
 
         var counts = await harness.PaymentProofQuery.CountByStatusAsync(new AdminPaymentProofQuery { Status = "Approved" });
         Assert.Equal(1, counts.All);
@@ -153,6 +155,8 @@ public sealed class AdminOrderServiceTests
         var export = await harness.PaymentProofQuery.ExportAsync(Harness.AdminId, new AdminPaymentProofQuery(), "csv", [item.Id]);
         var text = Encoding.UTF8.GetString(export.Content);
         Assert.Contains("MPL-ORD-REVIEW", text);
+        Assert.Contains("Submitted Amount", text);
+        Assert.Contains("Difference", text);
         Assert.DoesNotContain(item.Id.ToString(), text);
         Assert.DoesNotContain("StoragePath", text);
     }
@@ -309,6 +313,20 @@ public sealed class AdminOrderServiceTests
             7.50m,
             "Leave at operations counter",
             "AQ==");
+        var preShipment = await harness.Admin.UpdateShipmentDetailsAsync(
+            Harness.AdminId,
+            preparing.Id,
+            new UpdateShipmentDetailsRequest(
+                request.CourierProvider,
+                request.CourierService,
+                request.TrackingNumber,
+                request.ActualCourierCost,
+                request.ShippingNotes,
+                request.RowVersion));
+        Assert.Equal(OrderStatus.ReadyToShip, preShipment.Order.Status);
+        Assert.Equal("J&T Express", preShipment.Order.CourierProvider);
+        Assert.Equal("MY123456789", preShipment.Order.TrackingNumber);
+
         var shipped = await harness.Admin.MarkOrderShippedAsync(
             Harness.AdminId,
             preparing.Id,
@@ -340,6 +358,65 @@ public sealed class AdminOrderServiceTests
                            && item.MessageType == EmailMessageType.OrderShipped)
             .ToListAsync());
         Assert.Equal(EmailOutboxStatus.Suppressed, email.Status);
+
+        var corrected = await harness.Admin.UpdateShipmentDetailsAsync(
+            Harness.AdminId,
+            preparing.Id,
+            new UpdateShipmentDetailsRequest(
+                "J&T Express",
+                "Standard Delivery",
+                "MY-CORRECTED-1",
+                7.50m,
+                "Leave at operations counter",
+                "AQ=="));
+        Assert.Equal("MY-CORRECTED-1", corrected.Order.TrackingNumber);
+        Assert.Contains("MY-CORRECTED-1", email.TemplateDataJson, StringComparison.Ordinal);
+        Assert.Equal(EmailOutboxStatus.Suppressed, email.Status);
+        Assert.Single(await harness.Db.EmailOutbox
+            .Where(item => item.RelatedOrderId == preparing.Id
+                           && item.MessageType == EmailMessageType.OrderShipped)
+            .ToListAsync());
+
+        email.Status = EmailOutboxStatus.Pending;
+        email.AttemptCount = 2;
+        await harness.Db.SaveChangesAsync();
+        await harness.Admin.UpdateShipmentDetailsAsync(
+            Harness.AdminId,
+            preparing.Id,
+            new UpdateShipmentDetailsRequest(
+                "J&T Express",
+                "Standard Delivery",
+                "MY-CORRECTED-2",
+                7.50m,
+                "Leave at operations counter",
+                "AQ=="));
+        Assert.Contains("MY-CORRECTED-2", email.TemplateDataJson, StringComparison.Ordinal);
+        Assert.Equal(EmailOutboxStatus.Pending, email.Status);
+        Assert.Equal(2, email.AttemptCount);
+
+        email.Status = EmailOutboxStatus.Sending;
+        await harness.Db.SaveChangesAsync();
+        var claimedSnapshot = email.TemplateDataJson;
+        await harness.Admin.UpdateShipmentDetailsAsync(
+            Harness.AdminId,
+            preparing.Id,
+            new UpdateShipmentDetailsRequest(
+                "J&T Express", "Standard Delivery", "MY-CORRECTED-3", 7.50m,
+                "Leave at operations counter", "AQ=="));
+        Assert.Equal(claimedSnapshot, email.TemplateDataJson);
+        Assert.Equal(EmailOutboxStatus.Sending, email.Status);
+
+        email.Status = EmailOutboxStatus.Sent;
+        await harness.Db.SaveChangesAsync();
+        var sentSnapshot = email.TemplateDataJson;
+        await harness.Admin.UpdateShipmentDetailsAsync(
+            Harness.AdminId,
+            preparing.Id,
+            new UpdateShipmentDetailsRequest(
+                "J&T Express", "Standard Delivery", "MY-CORRECTED-4", 7.50m,
+                "Leave at operations counter", "AQ=="));
+        Assert.Equal(sentSnapshot, email.TemplateDataJson);
+        Assert.Equal(EmailOutboxStatus.Sent, email.Status);
 
         var delivered = await harness.Admin.MarkOrderDeliveredAsync(
             Harness.AdminId,
@@ -573,6 +650,7 @@ public sealed class AdminOrderServiceTests
             Sha256 = "abc",
             UploadedAt = Now.AddDays(-4),
             PaymentMethod = "QR Payment",
+            SubmittedAmount = 46m,
             PaymentReference = "REF-ORDER-123",
             Status = PaymentProofStatus.PendingReview
             };

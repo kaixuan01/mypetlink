@@ -44,6 +44,7 @@ export type AdminPaymentProof = {
   petName?: string;
   tagCode?: string;
   expectedAmount: number;
+  submittedAmount?: number;
   currency: string;
   status: AdminPaymentProofStatus;
   orderStatus: Exclude<OrderStatus, "Draft">;
@@ -114,6 +115,7 @@ function mapBackend(item: BackendPaymentProofItem): AdminPaymentProof {
     reviewerEmail: item.reviewerEmail ?? undefined,
     tagCode: item.tagCode ?? undefined,
     petName: item.petName ?? undefined,
+    submittedAmount: item.submittedAmount ?? undefined,
   };
 }
 
@@ -201,8 +203,8 @@ export async function downloadAdminPaymentProofsExport(params: AdminPaymentProof
     rows = rows.filter((row) => selected.has(row.id));
   }
   const data = [
-    ["Order Number", "Customer Name", "Customer Email", "Expected Amount", "Payment Reference", "Payment Method", "Review Status", "Submitted At", "Reviewer", "Reviewed At", "Rejection Reason", "Order Payment Status"],
-    ...rows.map((row) => [row.orderNumber, row.ownerName, row.ownerEmail, `${row.currency} ${row.expectedAmount.toFixed(2)}`, row.paymentReference ?? "", row.paymentMethod, paymentProofStatusLabels[row.status], row.submittedAt, row.reviewerName ?? "", row.reviewedAt ?? "", row.rejectionReason ?? "", paymentStatusLabels[row.orderPaymentStatus]]),
+    ["Order Number", "Customer Name", "Customer Email", "Expected Amount", "Submitted Amount", "Difference", "Payment Reference", "Payment Method", "Review Status", "Submitted At", "Reviewer", "Reviewed At", "Rejection Reason", "Order Payment Status"],
+    ...rows.map((row) => [row.orderNumber, row.ownerName, row.ownerEmail, `${row.currency} ${row.expectedAmount.toFixed(2)}`, row.submittedAmount == null ? "Not captured" : `${row.currency} ${row.submittedAmount.toFixed(2)}`, row.submittedAmount == null ? "" : `${row.currency} ${(row.submittedAmount - row.expectedAmount).toFixed(2)}`, row.paymentReference ?? "", row.paymentMethod, paymentProofStatusLabels[row.status], row.submittedAt, row.reviewerName ?? "", row.reviewedAt ?? "", row.rejectionReason ?? "", paymentStatusLabels[row.orderPaymentStatus]]),
   ];
   const csv = data.map((row) => row.map(csvCell).join(",")).join("\n");
   triggerDownload(new Blob([csv], { type: "text/csv;charset=utf-8" }), "mypetlink-payment-proofs.csv");
@@ -223,6 +225,7 @@ async function loadLocalProofs(): Promise<AdminPaymentProof[]> {
       petName: pet?.name ?? order.petName,
       tagCode: undefined,
       expectedAmount: parseAmount(order.estimatedPrice),
+      submittedAmount: proof.submittedAmount ?? order.submittedPaymentAmount,
       currency: "MYR",
       status: proof.status,
       orderStatus: order.status === "Draft" ? "Pending Payment" : order.status,

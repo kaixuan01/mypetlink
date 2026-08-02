@@ -147,19 +147,7 @@ public sealed class EmailOutboxService : IEmailOutboxService
 
         var ownerName = CleanHeaderValue(order.OwnerUser.DisplayName, "MyPetLink customer");
         var orderNumber = CleanHeaderValue(order.OrderNumber, "your order");
-        var provider = CleanHeaderValue(order.CourierProvider, "the courier");
-        var trackingNumber = CleanHeaderValue(order.TrackingNumber, "Not available");
-        var trackingUrl = await _shippingFulfilmentService.GetCustomerTrackingUrlAsync(
-            order,
-            cancellationToken);
-        var template = new OrderShippedEmailTemplateData(
-            ownerName,
-            orderNumber,
-            provider,
-            NormalizeOptional(order.CourierService),
-            trackingNumber,
-            shippedAt,
-            trackingUrl);
+        var template = await BuildOrderShippedTemplateAsync(order, shippedAt, cancellationToken);
         var now = _timeProvider.GetUtcNow();
         var suppression = await SuppressionReasonAsync(
             EmailMessageType.OrderShipped,
@@ -187,6 +175,32 @@ public sealed class EmailOutboxService : IEmailOutboxService
 
         order.EmailOutboxMessages.Add(message);
         _dbContext.EmailOutbox.Add(message);
+    }
+
+    public async Task SynchronizeUnsentOrderShippedAsync(
+        TagOrder order,
+        CancellationToken cancellationToken = default)
+    {
+        var message = order.EmailOutboxMessages.SingleOrDefault(item =>
+            item.MessageType == EmailMessageType.OrderShipped);
+        if (message is null
+            || !order.ShippedAt.HasValue
+            || message.Status is EmailOutboxStatus.Sent or EmailOutboxStatus.Sending)
+        {
+            // A claimed Sending row is the explicit race boundary: once the
+            // dispatcher owns it, changing its payload could produce a message
+            // assembled from two snapshots. Sent rows are immutable.
+            return;
+        }
+
+        var template = await BuildOrderShippedTemplateAsync(
+            order,
+            order.ShippedAt.Value,
+            cancellationToken);
+        message.TemplateDataJson = JsonSerializer.Serialize(template, TemplateJson);
+        message.UpdatedAt = _timeProvider.GetUtcNow();
+        // Status, attempts, suppression, retry schedule, and lease values stay
+        // untouched. Correcting tracking must never release or duplicate mail.
     }
 
     public async Task<AdminEmailOutboxResponse> RetryFailedAsync(
@@ -388,6 +402,24 @@ public sealed class EmailOutboxService : IEmailOutboxService
         return value.Replace("\r", " ", StringComparison.Ordinal)
             .Replace("\n", " ", StringComparison.Ordinal)
             .Trim();
+    }
+
+    private async Task<OrderShippedEmailTemplateData> BuildOrderShippedTemplateAsync(
+        TagOrder order,
+        DateTimeOffset shippedAt,
+        CancellationToken cancellationToken)
+    {
+        var trackingUrl = await _shippingFulfilmentService.GetCustomerTrackingUrlAsync(
+            order,
+            cancellationToken);
+        return new OrderShippedEmailTemplateData(
+            CleanHeaderValue(order.OwnerUser.DisplayName, "MyPetLink customer"),
+            CleanHeaderValue(order.OrderNumber, "your order"),
+            CleanHeaderValue(order.CourierProvider, "the courier"),
+            NormalizeOptional(order.CourierService),
+            CleanHeaderValue(order.TrackingNumber, "Not available"),
+            shippedAt,
+            trackingUrl);
     }
 
     private static string? NormalizeOptional(string? value) =>

@@ -51,6 +51,7 @@ vi.mock("@/services/petService", () => ({
 // Swapped per test so capability rendering can be checked against different
 // option configurations without re-mocking the module.
 let catalogData: typeof catalog = catalog;
+let deliveryQuoteFailure: Error | null = null;
 
 vi.mock("@/services/tagCatalogService", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/services/tagCatalogService")>();
@@ -65,7 +66,9 @@ vi.mock("@/services/deliveryService", () => ({
     { code: "SGR", name: "Selangor", zoneCode: "PEN", zoneName: "Peninsular", aliases: [] },
   ]),
   resolveLegacyStateCode: vi.fn(() => ""),
-  getDeliveryQuote: vi.fn(async () => ({
+  getDeliveryQuote: vi.fn(async () => {
+    if (deliveryQuoteFailure) throw deliveryQuoteFailure;
+    return ({
     stateCode: "SGR",
     stateName: "Selangor",
     country: "Malaysia",
@@ -79,7 +82,8 @@ vi.mock("@/services/deliveryService", () => ({
     freeDeliveryReason: null,
     total: 47.9,
     currency: "MYR",
-  })),
+    });
+  }),
 }));
 
 const { TagOrderFlow } = await import("./TagOrderFlow");
@@ -99,6 +103,7 @@ describe("TagOrderFlow catalog pricing", () => {
   beforeEach(() => {
     window.localStorage.clear();
     catalogData = catalog;
+    deliveryQuoteFailure = null;
   });
   afterEach(cleanup);
 
@@ -106,7 +111,7 @@ describe("TagOrderFlow catalog pricing", () => {
     render(<TagOrderFlow pets={[mockPets[0]]} preselectedPetId={mockPets[0].id} />);
 
     expect((await screen.findAllByText("MyPetLink Smart Tag")).length).toBeGreaterThan(0);
-    expect(screen.getByText("Standard NFC · Standard")).toBeTruthy();
+    expect(screen.getByText("Standard NFC")).toBeTruthy();
     expect(screen.getByText("NFC tap")).toBeTruthy();
     expect(screen.getByText("QR code")).toBeTruthy();
     expect(screen.getByText("Stainless steel")).toBeTruthy();
@@ -125,12 +130,40 @@ describe("TagOrderFlow catalog pricing", () => {
     expect(screen.queryByText(/NFC/i)).toBeNull();
   });
 
+  it("shows a product-level unavailable state when every option is unavailable", async () => {
+    catalogData = [{ ...catalog[0], variants: [{ ...catalog[0].variants[0], inStock: false }] }];
+    render(<TagOrderFlow pets={[mockPets[0]]} preselectedPetId={mockPets[0].id} />);
+
+    expect(await screen.findByText("This product is temporarily unavailable. Please check again later.")).toBeTruthy();
+    expect(screen.queryByText(/choose another option/i)).toBeNull();
+    expect((screen.getByRole("button", { name: "Continue" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("surfaces a quote failure and clears it after the address is corrected", async () => {
+    deliveryQuoteFailure = new Error("network unavailable");
+    render(<TagOrderFlow pets={[mockPets[0]]} preselectedPetId={mockPets[0].id} />);
+    await screen.findByText("Standard NFC");
+    fireEvent.click(screen.getByRole("button", { name: /Step 3/ }));
+    fireEvent.change(screen.getByLabelText(/Recipient name/), { target: { value: "Kai Xuan" } });
+    fireEvent.change(screen.getByLabelText(/Phone number/), { target: { value: "123456789" } });
+    fireEvent.change(screen.getByLabelText(/Address line 1/), { target: { value: "12 Jalan Mawar" } });
+    fireEvent.change(screen.getByLabelText(/Postcode/), { target: { value: "47300" } });
+    fireEvent.change(screen.getByLabelText(/City/), { target: { value: "Petaling Jaya" } });
+    fireEvent.change(screen.getByLabelText(/State/), { target: { value: "SGR" } });
+
+    expect((await screen.findAllByText(/couldn’t calculate delivery right now/i)).length).toBeGreaterThan(0);
+    deliveryQuoteFailure = null;
+    fireEvent.change(screen.getByLabelText(/Postcode/), { target: { value: "47301" } });
+    expect(await screen.findByText(/Delivery is available/i)).toBeTruthy();
+    expect(screen.queryAllByText(/couldn’t calculate delivery right now/i)).toHaveLength(0);
+  });
+
   it("shows each option separately and never leads with the internal code", async () => {
     catalogData = [{ ...catalog[0], variants: [qrOnlyVariant, catalog[0].variants[0]] }];
     render(<TagOrderFlow pets={[mockPets[0]]} preselectedPetId={mockPets[0].id} />);
 
-    expect(await screen.findByText("Lightweight QR · Lightweight")).toBeTruthy();
-    expect(screen.getByText("Standard NFC · Standard")).toBeTruthy();
+    expect(await screen.findByText("Lightweight QR")).toBeTruthy();
+    expect(screen.getByText("Standard NFC")).toBeTruthy();
     // The customer chooses by name and price, not by decoding "PAW-LW-QR".
     expect(screen.queryByText("PAW-LW-QR")).toBeNull();
     expect(screen.getByText(/19\.90/)).toBeTruthy();
@@ -143,7 +176,7 @@ describe("TagOrderFlow catalog pricing", () => {
     // The QR + NFC option is preselected, so both features are listed.
     expect(await screen.findByText("NFC tap")).toBeTruthy();
 
-    fireEvent.click(screen.getByText("Lightweight QR · Lightweight"));
+    fireEvent.click(screen.getByText("Lightweight QR"));
 
     // Selecting the QR-only option must drop the NFC feature.
     await waitFor(() => expect(screen.getAllByText("QR code").length).toBeGreaterThan(0));
@@ -151,7 +184,7 @@ describe("TagOrderFlow catalog pricing", () => {
 
   it("does not let the customer reach review before delivery details are complete", async () => {
     render(<TagOrderFlow pets={[mockPets[0]]} preselectedPetId={mockPets[0].id} />);
-    await screen.findByText("Standard NFC · Standard");
+    await screen.findByText("Standard NFC");
 
     fireEvent.click(screen.getByRole("button", { name: /Step 4/ }));
 
@@ -160,15 +193,15 @@ describe("TagOrderFlow catalog pricing", () => {
 
   it("uses owner-facing wording on the review step, never SKU or Variant", async () => {
     render(<TagOrderFlow pets={[mockPets[0]]} preselectedPetId={mockPets[0].id} />);
-    await screen.findByText("Standard NFC · Standard");
+    await screen.findByText("Standard NFC");
 
     fireEvent.click(screen.getByRole("button", { name: /Step 3/ }));
-    fireEvent.change(screen.getByLabelText("Recipient name"), { target: { value: "Kai Xuan" } });
+    fireEvent.change(screen.getByLabelText(/Recipient name/), { target: { value: "Kai Xuan" } });
     fireEvent.change(screen.getByLabelText(/Phone number/), { target: { value: "123456789" } });
-    fireEvent.change(screen.getByLabelText("Address line 1"), { target: { value: "12 Jalan Mawar" } });
-    fireEvent.change(screen.getByLabelText("Postcode"), { target: { value: "47300" } });
-    fireEvent.change(screen.getByLabelText("City"), { target: { value: "Petaling Jaya" } });
-    fireEvent.change(screen.getByLabelText("State"), { target: { value: "SGR" } });
+    fireEvent.change(screen.getByLabelText(/Address line 1/), { target: { value: "12 Jalan Mawar" } });
+    fireEvent.change(screen.getByLabelText(/Postcode/), { target: { value: "47300" } });
+    fireEvent.change(screen.getByLabelText(/City/), { target: { value: "Petaling Jaya" } });
+    fireEvent.change(screen.getByLabelText(/State/), { target: { value: "SGR" } });
     await waitFor(() =>
       expect((screen.getByRole("button", { name: "Continue" }) as HTMLButtonElement).disabled).toBe(false)
     );

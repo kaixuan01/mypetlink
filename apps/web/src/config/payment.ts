@@ -5,12 +5,11 @@
 
 export const paymentConfig = {
   phase: "manual" as const,
-  merchantQrLabel: "DuitNow QR / TNG Merchant QR",
-  // When a real merchant QR image is available, set its path here (e.g.
-  // "/merchant-qr.png"). While empty, a polished placeholder card is shown.
-  merchantQrImage: "",
-  deliveryFee: "Free",
+  merchantQrLabel: "Merchant DuitNow QR",
+  // Public URL only. The approved image lives under public/payment-qr and is
+  // never read from a local filesystem path in browser code.
+  merchantQrImage: "/payment-qr/merchant_duitnow_qr.jpg",
   supportText: "Contact MyPetLink support if you need help with payment proof.",
   instructions:
-    "Scan the merchant QR code and pay the exact amount. After payment, upload your receipt or screenshot. You may also add the bank/eWallet transaction ID if available.",
+    "Scan the DuitNow QR and pay the exact amount shown. After payment, upload your payment receipt for verification.",
 } as const;

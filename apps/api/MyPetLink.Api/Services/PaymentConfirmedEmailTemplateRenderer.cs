@@ -46,12 +46,13 @@ public sealed class PaymentConfirmedEmailTemplateRenderer : IEmailTemplateRender
             .ToOffset(MalaysiaOffset)
             .ToString("dd MMM yyyy, h:mm tt 'MYT'");
         var amount = $"{data.Currency} {data.AmountPaid:0.00}";
+        var product = CustomerOrderDisplay.Product(data.ProductName, data.VariantName);
         TransactionalEmailDetail[] details =
         [
             new TransactionalEmailDetail("Order number", data.OrderNumber),
             new TransactionalEmailDetail("Amount paid", amount),
             new TransactionalEmailDetail("Confirmed", date),
-            new TransactionalEmailDetail("Tag", $"{data.ProductName} · {data.VariantName}"),
+            new TransactionalEmailDetail("Tag", product),
             new TransactionalEmailDetail("For", data.PetName)
         ];
 
@@ -74,7 +75,7 @@ public sealed class PaymentConfirmedEmailTemplateRenderer : IEmailTemplateRender
             .AppendLine($"Order number: {data.OrderNumber}")
             .AppendLine($"Amount paid: {amount}")
             .AppendLine($"Confirmed: {date}")
-            .AppendLine($"Tag: {data.ProductName} · {data.VariantName}")
+            .AppendLine($"Tag: {product}")
             .AppendLine($"For: {data.PetName}")
             .AppendLine()
             .Append("Our team will prepare the next fulfilment step. You can continue to follow your order and download the Official Receipt from the Owner Portal.")
@@ -94,6 +95,6 @@ public sealed class PaymentConfirmedEmailTemplateRenderer : IEmailTemplateRender
     private string BuildReceiptUrl(string orderNumber)
     {
         var baseUri = new Uri(_options.OwnerPortalBaseUrl.TrimEnd('/') + "/", UriKind.Absolute);
-        return new Uri(baseUri, $"orders/view?order={Uri.EscapeDataString(orderNumber)}").AbsoluteUri;
+        return new Uri(baseUri, $"orders/view?order={Uri.EscapeDataString(orderNumber)}&document=receipt").AbsoluteUri;
     }
 }

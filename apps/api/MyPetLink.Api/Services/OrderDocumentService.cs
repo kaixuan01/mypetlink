@@ -37,6 +37,12 @@ public interface IOrderDocumentService
     Task<OrderDocumentResult> GetAdminReceiptAsync(
         Guid orderId,
         CancellationToken cancellationToken = default);
+
+    // Internal transactional-email boundary. The order id comes only from the
+    // server-owned outbox relation; callers cannot supply a path or filename.
+    Task<OrderDocumentResult> GetTransactionalReceiptAsync(
+        Guid orderId,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed record OrderDocumentResult(byte[] Content, string FileName)
@@ -87,6 +93,14 @@ public sealed class OrderDocumentService : IOrderDocumentService
     }
 
     public async Task<OrderDocumentResult> GetAdminReceiptAsync(
+        Guid orderId,
+        CancellationToken cancellationToken = default)
+    {
+        var order = await LoadOrderByIdAsync(orderId, cancellationToken);
+        return BuildReceipt(order);
+    }
+
+    public async Task<OrderDocumentResult> GetTransactionalReceiptAsync(
         Guid orderId,
         CancellationToken cancellationToken = default)
     {
@@ -326,23 +340,10 @@ public sealed class OrderDocumentService : IOrderDocumentService
 
     private static string FormatDeliveryMethod(string? methodSnapshot, string? zoneSnapshot)
     {
-        var method = Fallback(methodSnapshot, "Delivery");
-        var zone = zoneSnapshot?.Trim();
-        if (string.IsNullOrEmpty(zone)
-            || !method.StartsWith(zone, StringComparison.OrdinalIgnoreCase))
-        {
-            return method;
-        }
-
-        var suffix = method[zone.Length..];
-        if (suffix.Length == 0
-            || !(char.IsWhiteSpace(suffix[0]) || suffix[0] is '-' or ':'))
-        {
-            return method;
-        }
-
-        var customerLabel = suffix.TrimStart(' ', '-', ':');
-        return customerLabel.Length == 0 ? method : customerLabel;
+        // The configured method is an immutable order snapshot. Historical
+        // documents must not replace it with today's configuration or a
+        // generic label.
+        return Fallback(methodSnapshot, "Delivery");
     }
 
     private static string FormatDeliveryDestination(string? stateSnapshot, string? postcodeSnapshot)

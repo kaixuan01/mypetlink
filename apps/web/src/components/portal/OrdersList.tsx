@@ -15,6 +15,7 @@ import {
   getOrderStatusDisplay,
   getPaymentStatusLabel,
 } from "@/lib/orders";
+import { formatOrderOption } from "@/lib/orderDisplay";
 import { smartTagOrderingEnabled } from "@/lib/features";
 import { ownerRoutes } from "@/lib/routes";
 import { isApiConfigured } from "@/services/apiConfig";
@@ -360,7 +361,7 @@ function OrderInlineDetail({
   return (
     <div className="mt-4 grid gap-3 rounded-[1.25rem] border border-pet-border bg-white p-4 md:grid-cols-3">
       <CompactItem label="Pet" value={petName} />
-      <CompactItem label="Tag variant" value={order.variantName ?? `${order.variant} Tag`} />
+      <CompactItem label="Option" value={formatOrderOption(order)} />
       <CompactItem
         label="Payment method"
         value={order.paymentMethod ?? "QR Payment"}

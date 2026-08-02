@@ -182,6 +182,114 @@ public sealed class TagOrderCatalogIntegrationTests
     }
 
     [Fact]
+    public async Task SubmitPaymentProof_RequiresAndSnapshotsCustomerSubmittedAmount()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var created = await harness.Service.CreateAsync(
+            OwnerId,
+            Request(harness.Pet.Id, harness.Variant.PublicKey));
+
+        var missing = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Service.SubmitPaymentProofAsync(
+                OwnerId,
+                created.Order.Id.ToString(),
+                new UploadPaymentProofRequest(null, "receipt.jpg", "QR Payment", null, null)));
+        Assert.Contains("submittedAmount", missing.Details!.Keys);
+
+        var overPrecision = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Service.SubmitPaymentProofAsync(
+                OwnerId,
+                created.Order.Id.ToString(),
+                new UploadPaymentProofRequest(null, "receipt.jpg", "QR Payment", null, null, 39.901m)));
+        Assert.Contains("submittedAmount", overPrecision.Details!.Keys);
+
+        var submitted = await harness.Service.SubmitPaymentProofAsync(
+            OwnerId,
+            created.Order.Id.ToString(),
+            new UploadPaymentProofRequest(null, "receipt.jpg", "QR Payment", "BANK-123", null, 39.90m));
+
+        var proof = Assert.Single(submitted.PaymentProofs);
+        Assert.Equal(39.90m, proof.SubmittedAmount);
+        Assert.Equal(39.90m, (await harness.Db.PaymentProofs.AsNoTracking().SingleAsync()).SubmittedAmount);
+        Assert.Equal(39.90m, submitted.Amount);
+    }
+
+    [Fact]
+    public async Task SubmitPaymentProof_LegacyMetadataSanitizesDisplayNameAndInfersContentType()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var created = await harness.Service.CreateAsync(
+            OwnerId,
+            Request(harness.Pet.Id, harness.Variant.PublicKey));
+
+        var submitted = await harness.Service.SubmitPaymentProofAsync(
+            OwnerId,
+            created.Order.Id.ToString(),
+            new UploadPaymentProofRequest(
+                null,
+                "../../../etc/passwd.PNG",
+                "QR Payment",
+                null,
+                null,
+                39.90m));
+
+        var proof = Assert.Single(submitted.PaymentProofs);
+        Assert.Equal("passwd.PNG", proof.OriginalFileName);
+        Assert.Equal("image/png", proof.ContentType);
+
+        var stored = await harness.Db.PaymentProofs
+            .Include(item => item.MediaFile)
+            .AsNoTracking()
+            .SingleAsync();
+        Assert.Equal("passwd.PNG", stored.OriginalFileName);
+        Assert.Equal("passwd.PNG", stored.MediaFile.OriginalFileName);
+        Assert.StartsWith("metadata-only-", stored.StorageFileName, StringComparison.Ordinal);
+        Assert.Empty(stored.StoragePath);
+    }
+
+    [Fact]
+    public async Task OwnerShipmentDetails_AreHiddenUntilShippedAndRemainVisibleWhenDelivered()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var created = await harness.Service.CreateAsync(
+            OwnerId,
+            Request(harness.Pet.Id, harness.Variant.PublicKey));
+        var order = await harness.Db.TagOrders.SingleAsync(item => item.Id == created.Order.Id);
+        order.CourierProvider = "Pos Laju";
+        order.CourierService = "Express";
+        order.TrackingNumber = "TRACK-123";
+        order.ShippedAt = DateTimeOffset.Parse("2026-07-31T02:00:00Z");
+
+        order.Status = OrderStatus.ReadyToShip;
+        await harness.Db.SaveChangesAsync();
+        var ready = await harness.Service.GetAsync(OwnerId, order.Id.ToString());
+        Assert.Null(ready.CourierProvider);
+        Assert.Null(ready.CourierService);
+        Assert.Null(ready.TrackingNumber);
+        Assert.Null(ready.ShippedAt);
+        Assert.Null(ready.TrackingUrl);
+
+        order.Status = OrderStatus.Shipped;
+        await harness.Db.SaveChangesAsync();
+        var shipped = await harness.Service.GetAsync(OwnerId, order.Id.ToString());
+        Assert.Equal("Pos Laju", shipped.CourierProvider);
+        Assert.Equal("Express", shipped.CourierService);
+        Assert.Equal("TRACK-123", shipped.TrackingNumber);
+        Assert.Equal(order.ShippedAt, shipped.ShippedAt);
+
+        order.Status = OrderStatus.Delivered;
+        await harness.Db.SaveChangesAsync();
+        var delivered = await harness.Service.GetAsync(OwnerId, order.Id.ToString());
+        Assert.Equal("TRACK-123", delivered.TrackingNumber);
+        Assert.Equal(order.ShippedAt, delivered.ShippedAt);
+
+        await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Service.GetAsync(OtherOwnerId, order.Id.ToString()));
+        await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Service.GetAsync(null, order.Id.ToString()));
+    }
+
+    [Fact]
     public async Task AdminAllocation_RequiresExactSkuEligibleStock_AndCannotAllocateOneTagTwice()
     {
         await using var harness = await Harness.CreateAsync();

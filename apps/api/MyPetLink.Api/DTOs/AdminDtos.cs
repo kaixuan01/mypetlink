@@ -108,8 +108,7 @@ public sealed record AdminSmartTagResponse(
 
 public sealed record AdminGenerateTagsRequest(
     [Required, Range(1, 50)] int Quantity,
-    [Required] Guid? ProductVariantId,
-    [MaxLength(80)] string? BatchNumber);
+    [Required] Guid? ProductVariantId);
 
 public sealed record AdminGenerateTagsResponse(
     string BatchNo,
