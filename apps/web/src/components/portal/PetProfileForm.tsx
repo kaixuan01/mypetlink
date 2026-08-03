@@ -93,6 +93,7 @@ import type {
 type PetProfileFormProps = {
   mode: "create" | "edit";
   initialPet?: Pet;
+  returnToSmartTagOrder?: boolean;
 };
 
 type FormState = {
@@ -294,7 +295,11 @@ const emptyForm: FormState = {
   showAllergiesOnPublicProfile: false,
 };
 
-export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
+export function PetProfileForm({
+  mode,
+  initialPet,
+  returnToSmartTagOrder = false,
+}: PetProfileFormProps) {
   const router = useRouter();
   const initialPetId = initialPet?.id;
   const [ownerSettings, setOwnerSettings] =
@@ -710,9 +715,15 @@ export function PetProfileForm({ mode, initialPet }: PetProfileFormProps) {
           setFormError(getMediaUploadErrorMessage(mediaError));
         }
 
-        setCreatedPet(savedPet);
         setCurrentPet(savedPet);
         setForm(toFormState(savedPet, ownerSettings));
+
+        if (returnToSmartTagOrder) {
+          router.replace(ownerRoutes.tagOrder({ petId: savedPet.id }));
+          return;
+        }
+
+        setCreatedPet(savedPet);
       } else if (currentPet) {
         const previousPet = currentPet;
         // Lifecycle changes use the dedicated, owner-authorized endpoints. Keep

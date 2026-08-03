@@ -16,6 +16,10 @@ type TagOrderOptions = {
   replacementFor?: string;
 };
 
+type TagOrderEntryOptions = {
+  petId?: string;
+};
+
 type PetRecordsOptions = {
   create?: boolean;
 };
@@ -27,6 +31,18 @@ export const ownerRoutes = {
   moments: "/moments",
   records: "/records",
   tags: "/tags",
+  tagOrder: (options: TagOrderEntryOptions = {}) => {
+    const params = new URLSearchParams();
+
+    if (options.petId) {
+      params.set("pet", options.petId);
+    }
+
+    const query = params.toString();
+    return `/tags/order${query ? `?${query}` : ""}`;
+  },
+  petNewForTagOrder: () =>
+    `/pets/new?returnTo=${encodeURIComponent("/tags/order")}`,
   orders: "/orders",
   // Static-export safe: a single /orders/view page reads the order number from
   // the query string, so it works for any order (including runtime-created

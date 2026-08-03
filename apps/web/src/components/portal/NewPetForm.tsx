@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { PetProfileForm } from "@/components/portal/PetProfileForm";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { getPetLimitStateFromPets } from "@/lib/planLimits";
 import { ownerRoutes } from "@/lib/routes";
+import { resolveSmartTagOrderContinuation } from "@/lib/smartTagOrder";
 import {
   getFriendlyApiErrorMessage,
   getPets,
@@ -14,6 +15,11 @@ import type { Pet } from "@/types";
 export function NewPetForm() {
   const [pets, setPets] = useState<Pet[] | null>(null);
   const [error, setError] = useState("");
+  const returnToSmartTagOrder = useSyncExternalStore(
+    subscribeNoop,
+    getBrowserSmartTagOrderContinuation,
+    getServerSmartTagOrderContinuation
+  );
 
   useEffect(() => {
     let active = true;
@@ -92,5 +98,34 @@ export function NewPetForm() {
     );
   }
 
-  return <PetProfileForm mode="create" />;
+  return (
+    <div className="grid gap-4">
+      {returnToSmartTagOrder ? (
+        <div className="rounded-[1.25rem] border border-pet-mint bg-[#e8f8f0] px-4 py-3 text-sm font-semibold leading-6 text-pet-ink">
+          Create an active pet profile first. After it is saved, we&apos;ll bring
+          you back to choose a physical Smart Tag for this pet.
+        </div>
+      ) : null}
+      <PetProfileForm
+        mode="create"
+        returnToSmartTagOrder={returnToSmartTagOrder}
+      />
+    </div>
+  );
+}
+
+function subscribeNoop() {
+  return () => {};
+}
+
+function getBrowserSmartTagOrderContinuation() {
+  return Boolean(
+    resolveSmartTagOrderContinuation(
+      new URL(window.location.href).searchParams.get("returnTo")
+    )
+  );
+}
+
+function getServerSmartTagOrderContinuation() {
+  return false;
 }

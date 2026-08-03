@@ -77,6 +77,7 @@ export function TagOrderFlow({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [formError, setFormError] = useState("");
   // Non-failure information the customer must act on, e.g. a price that moved
   // between opening the review and placing the order.
@@ -140,7 +141,7 @@ export function TagOrderFlow({
     }
     void load();
     return () => { active = false; };
-  }, [pets, preselectedPetId, preferredNfc]);
+  }, [loadAttempt, pets, preselectedPetId, preferredNfc]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -193,8 +194,8 @@ export function TagOrderFlow({
     return <EmptyState title="Physical tags are for active profiles" description={`${preselectedPet.name} is not an active pet profile. Existing tag history remains available, but new physical tags can only be ordered for active pets.`} actionHref={ownerRoutes.petTags(preselectedPet.id)} actionLabel="View Smart Tags" />;
   }
   if (loading) return <div className="brand-card rounded-[1.75rem] p-6 text-sm font-semibold text-pet-muted">Loading available tags...</div>;
-  if (loadError) return <EmptyState title="Tag products could not load" description={loadError} actionHref={ownerRoutes.dashboard} actionLabel="Back to Dashboard" />;
-  if (!orderablePets.length) return <EmptyState title="No active profiles available" description="A physical tag needs an active pet profile so finders can contact you quickly." actionHref={ownerRoutes.petNew} actionLabel="Add Pet" />;
+  if (loadError) return <EmptyState title="Order details could not load" description={`${loadError} Your Smart Tag order has not started yet.`} actionOnClick={() => setLoadAttempt((current) => current + 1)} actionLabel="Try Again" />;
+  if (!orderablePets.length) return <EmptyState title="No active profiles available" description="A physical tag needs an active pet profile so finders can contact you quickly." actionHref={ownerRoutes.petNewForTagOrder()} actionLabel="Add Pet" />;
   if (!choices.length) return <EmptyState title="No tag products are available" description="Physical tags are not available to order right now. Please check again soon." actionHref={ownerRoutes.tags} actionLabel="Back to Smart Tags" />;
 
   if (createdOrder && selectedPet && createdOrder.status !== "Pending Payment") {

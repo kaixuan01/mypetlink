@@ -157,10 +157,14 @@ export function TagManagementPanel({
   const orderPetId =
     selectedPet && isActivePet(selectedPet)
       ? selectedPet.id
-      : !selectedPet
+      : !selectedPet && isScoped
         ? orderablePets[0]?.id ?? ""
         : "";
-  const orderHref = orderPetId ? ownerRoutes.petTagOrder(orderPetId) : "";
+  const orderHref = orderPetId
+    ? ownerRoutes.petTagOrder(orderPetId)
+    : !isScoped
+      ? ownerRoutes.tagOrder()
+      : "";
   // Ordering CTAs are hidden while Smart Tag ordering is disabled for launch.
   const showOrderButton = Boolean(orderHref) && smartTagOrderingEnabled;
 
@@ -297,8 +301,8 @@ export function TagManagementPanel({
         icon="tag"
         title="Smart Tags could not load"
         description={loadError}
-        actionHref={ownerRoutes.dashboard}
-        actionLabel="Back to Dashboard"
+        actionLabel="Try Again"
+        actionOnClick={() => window.location.reload()}
       />
     );
   }
@@ -313,7 +317,7 @@ export function TagManagementPanel({
         icon="tag"
         title="No physical tags yet"
         description="Order a MyPetLink QR Tag or MyPetLink QR + NFC Smart Tag so your pet's Safety Profile is easy to open if they are found."
-        actionHref={petId ? ownerRoutes.petTagOrder(petId) : ownerRoutes.petNew}
+        actionHref={petId ? ownerRoutes.petTagOrder(petId) : ownerRoutes.tagOrder()}
         actionLabel="Order Physical Tag"
       />
     );

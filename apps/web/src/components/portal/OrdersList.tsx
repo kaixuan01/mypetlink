@@ -178,16 +178,12 @@ export function OrdersList({
       );
     }
 
-    const orderHref = portalPets[0]
-      ? ownerRoutes.petTagOrder(portalPets[0].id)
-      : ownerRoutes.petNew;
-
     return (
       <EmptyState
         icon="record"
         title="No tag orders yet"
         description="Orders for MyPetLink QR Tags and QR + NFC Smart Tags will appear here with payment status, delivery updates, and receipt actions."
-        actionHref={orderHref}
+        actionHref={ownerRoutes.tagOrder()}
         actionLabel="Order Physical Tag"
       />
     );
