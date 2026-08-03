@@ -16,7 +16,7 @@ type TagOrderOptions = {
   replacementFor?: string;
 };
 
-type TagOrderEntryOptions = {
+type TagOrderEntryOptions = TagOrderOptions & {
   petId?: string;
 };
 
@@ -35,7 +35,15 @@ export const ownerRoutes = {
     const params = new URLSearchParams();
 
     if (options.petId) {
-      params.set("pet", options.petId);
+      params.set("petId", options.petId);
+    }
+
+    if (options.type) {
+      params.set("type", options.type);
+    }
+
+    if (options.replacementFor) {
+      params.set("replacementFor", options.replacementFor);
     }
 
     const query = params.toString();
@@ -61,20 +69,8 @@ export const ownerRoutes = {
   petMomentNew: (petId: string) => `/pets/${petId}/moments/new`,
   petTimeline: (petId: string) => `/pets/${petId}/timeline`,
   petTags: (petId: string) => `/pets/${petId}/tags`,
-  petTagOrder: (petId: string, options: TagOrderOptions = {}) => {
-    const params = new URLSearchParams();
-
-    if (options.type) {
-      params.set("type", options.type);
-    }
-
-    if (options.replacementFor) {
-      params.set("replacementFor", options.replacementFor);
-    }
-
-    const query = params.toString();
-    return `/pets/${petId}/tags/order${query ? `?${query}` : ""}`;
-  },
+  petTagOrder: (petId: string, options: TagOrderOptions = {}) =>
+    ownerRoutes.tagOrder({ petId, ...options }),
 };
 
 export function tagPath(tagCode: string) {

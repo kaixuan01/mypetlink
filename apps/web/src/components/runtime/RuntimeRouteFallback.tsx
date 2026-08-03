@@ -634,6 +634,7 @@ function OwnerRuntimeView({
           initialTags={tags}
           petId={pet.id}
           pets={pets}
+          showOrderAction={false}
         />
       </AppLayout>
     );

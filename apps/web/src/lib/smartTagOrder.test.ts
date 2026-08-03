@@ -36,12 +36,12 @@ describe("Smart Tag order routing", () => {
     ).toBeNull();
     expect(resolveSmartTagOrderContinuation("//evil.example/tags/order")).toBeNull();
     expect(resolveSmartTagOrderContinuation("javascript:alert(1)")).toBeNull();
-    expect(resolveSmartTagOrderContinuation("/tags/order?pet=other")).toBeNull();
+    expect(resolveSmartTagOrderContinuation("/tags/order?petId=other")).toBeNull();
   });
 
   it("reads a preferred pet only from the local order-entry query", () => {
     expect(
-      getPreferredSmartTagOrderPetId("/tags/order?pet=pet_milo")
+      getPreferredSmartTagOrderPetId("/tags/order?petId=pet_milo")
     ).toBe("pet_milo");
     expect(getPreferredSmartTagOrderPetId("not a valid url")).toBe("");
   });
@@ -49,7 +49,10 @@ describe("Smart Tag order routing", () => {
   it("centralizes generic order and Add Pet continuation paths", () => {
     expect(ownerRoutes.tagOrder()).toBe("/tags/order");
     expect(ownerRoutes.tagOrder({ petId: "pet newly created" })).toBe(
-      "/tags/order?pet=pet+newly+created"
+      "/tags/order?petId=pet+newly+created"
+    );
+    expect(ownerRoutes.petTagOrder("pet_milo", { type: "nfc" })).toBe(
+      "/tags/order?petId=pet_milo&type=nfc"
     );
     expect(ownerRoutes.petNewForTagOrder()).toBe(
       "/pets/new?returnTo=%2Ftags%2Forder"

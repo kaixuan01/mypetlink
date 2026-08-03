@@ -30,7 +30,7 @@ import {
   type TagProduct,
   type TagProductVariant,
 } from "@/services/tagCatalogService";
-import { getDeliveryQuoteErrorMessage, getOwnerOrderFieldErrors } from "@/services/ownerOrderErrors";
+import { getDeliveryQuoteErrorMessage, getOwnerOrderFieldErrors, isDeliveryUnavailableError } from "@/services/ownerOrderErrors";
 import { createTagOrder, getFriendlyTagErrorMessage } from "@/services/tagService";
 import type { DeliveryDetails, Pet, TagOrder, TagType } from "@/types";
 
@@ -43,6 +43,11 @@ type TagOrderFlowProps = {
 
 type CatalogChoice = { product: TagProduct; variant: TagProductVariant };
 type DeliveryField = keyof DeliveryDetails;
+type DeliveryQuoteState =
+  | { status: "idle" | "incomplete" }
+  | { status: "loading"; fingerprint: string }
+  | { status: "available"; fingerprint: string; quote: DeliveryQuote }
+  | { status: "unavailable" | "failed"; fingerprint: string; message: string };
 
 const steps = ["Choose Tag", "Select Pet", "Delivery Details", "Confirm Order"];
 const emptyDelivery: DeliveryDetails = {
@@ -56,6 +61,14 @@ const emptyDelivery: DeliveryDetails = {
   stateCode: "",
   notes: "",
 };
+const requiredDeliveryFields: DeliveryField[] = [
+  "recipientName",
+  "phone",
+  "addressLine1",
+  "postcode",
+  "city",
+  "stateCode",
+];
 
 export function TagOrderFlow({
   pets,
@@ -67,9 +80,7 @@ export function TagOrderFlow({
   const [availablePets, setAvailablePets] = useState<Pet[]>(apiMode ? [] : pets);
   const [products, setProducts] = useState<TagProduct[]>([]);
   const [states, setStates] = useState<MalaysiaState[]>([]);
-  const [quote, setQuote] = useState<DeliveryQuote | null>(null);
-  const [quoteLoading, setQuoteLoading] = useState(false);
-  const [quoteError, setQuoteError] = useState("");
+  const [quoteState, setQuoteState] = useState<DeliveryQuoteState>({ status: "idle" });
   const [selectedVariantKey, setSelectedVariantKey] = useState("");
   const [petId, setPetId] = useState(preselectedPetId ?? "");
   const [delivery, setDelivery] = useState<DeliveryDetails>(emptyDelivery);
@@ -86,6 +97,7 @@ export function TagOrderFlow({
   const [createdOrder, setCreatedOrder] = useState<TagOrder | null>(null);
   const idempotencyKeyRef = useRef<string | null>(null);
   const quoteRequestRef = useRef(0);
+  const quoteControllerRef = useRef<AbortController | null>(null);
   const [quoteRetry, setQuoteRetry] = useState(0);
 
   const orderPrefsKey = useSyncExternalStore(subscribeNoop, getBrowserOrderPrefsKey, getDefaultOrderPrefsKey);
@@ -103,6 +115,12 @@ export function TagOrderFlow({
   const preselectedPet = preselectedPetId
     ? availablePets.find((pet) => pet.id === preselectedPetId)
     : undefined;
+  const deliveryValid = isDeliveryValid(delivery);
+  const quoteFingerprint = createDeliveryQuoteFingerprint(delivery, selectedVariantKey);
+  const quote =
+    quoteState.status === "available" && quoteState.fingerprint === quoteFingerprint
+      ? quoteState.quote
+      : null;
 
   useEffect(() => {
     let active = true;
@@ -114,10 +132,7 @@ export function TagOrderFlow({
           getPets(), listTagProducts(), listMalaysiaStates(),
         ]);
         if (!active) return;
-        const nextPets =
-          preselectedPetId && !petResponse.data.some((pet) => pet.id === preselectedPetId)
-            ? [pets.find((pet) => pet.id === preselectedPetId), ...petResponse.data].filter((pet): pet is Pet => Boolean(pet))
-            : petResponse.data;
+        const nextPets = petResponse.data;
         const nextOrderable = getActivePets(nextPets);
         const nextChoices = catalog.flatMap((product) => product.variants.map((variant) => ({ product, variant })));
         const preferred = nextChoices.find((choice) => choice.variant.inStock && choice.variant.supportsNfc === preferredNfc)
@@ -131,7 +146,9 @@ export function TagOrderFlow({
             ? current
             : preselectedPetId && nextOrderable.some((pet) => pet.id === preselectedPetId)
               ? preselectedPetId
-              : nextOrderable[0]?.id ?? ""
+              : nextOrderable.length === 1
+                ? nextOrderable[0].id
+                : ""
         );
       } catch (caught) {
         if (active) setLoadError(getFriendlyTagErrorMessage(caught));
@@ -160,35 +177,47 @@ export function TagOrderFlow({
   }, [states]);
 
   useEffect(() => {
-    if (!selectedVariantKey || !delivery.stateCode) {
+    const requestNumber = ++quoteRequestRef.current;
+    quoteControllerRef.current?.abort();
+
+    if (!selectedVariantKey || !deliveryValid) {
       return;
     }
+
     const controller = new AbortController();
-    const requestNumber = ++quoteRequestRef.current;
+    quoteControllerRef.current = controller;
     const timer = window.setTimeout(() => {
-      setQuote(null);
-      setQuoteLoading(true);
-      setQuoteError("");
+      if (requestNumber === quoteRequestRef.current) {
+        setQuoteState({ status: "loading", fingerprint: quoteFingerprint });
+      }
       getDeliveryQuote(delivery.stateCode!, selectedVariantKey, controller.signal)
         .then((nextQuote) => {
-          if (requestNumber === quoteRequestRef.current) setQuote(nextQuote);
+          if (requestNumber === quoteRequestRef.current) {
+            setQuoteState({
+              status: "available",
+              fingerprint: quoteFingerprint,
+              quote: nextQuote,
+            });
+          }
         })
         .catch((caught) => {
           if (!controller.signal.aborted && requestNumber === quoteRequestRef.current) {
-            setQuoteError(getDeliveryQuoteErrorMessage(caught));
-          }
-        })
-        .finally(() => {
-          if (!controller.signal.aborted && requestNumber === quoteRequestRef.current) {
-            setQuoteLoading(false);
+            setQuoteState({
+              status: isDeliveryUnavailableError(caught) ? "unavailable" : "failed",
+              fingerprint: quoteFingerprint,
+              message: getDeliveryQuoteErrorMessage(caught),
+            });
           }
         });
     }, 250);
     return () => {
       window.clearTimeout(timer);
       controller.abort();
+      if (quoteControllerRef.current === controller) {
+        quoteControllerRef.current = null;
+      }
     };
-  }, [delivery.addressLine1, delivery.city, delivery.postcode, delivery.stateCode, quoteRetry, selectedVariantKey]);
+  }, [delivery.stateCode, deliveryValid, quoteFingerprint, quoteRetry, selectedVariantKey]);
 
   if (preselectedPet && !isActivePet(preselectedPet)) {
     return <EmptyState title="Physical tags are for active profiles" description={`${preselectedPet.name} is not an active pet profile. Existing tag history remains available, but new physical tags can only be ordered for active pets.`} actionHref={ownerRoutes.petTags(preselectedPet.id)} actionLabel="View Smart Tags" />;
@@ -222,7 +251,6 @@ export function TagOrderFlow({
     return <ManualPaymentPanel order={createdOrder} petName={selectedPet.name} onSubmitted={setCreatedOrder} />;
   }
 
-  const deliveryValid = isDeliveryValid(delivery);
   const reachable = [true, Boolean(selectedChoice), Boolean(selectedChoice && selectedPet), Boolean(selectedChoice && selectedPet && deliveryValid && quote)];
 
   async function placeOrder() {
@@ -233,7 +261,7 @@ export function TagOrderFlow({
       window.setTimeout(() => focusFirstInvalidField(nextErrors), 0);
       return;
     }
-    if (!selectedChoice || !selectedPet || !quote || quoteLoading || quoteError) return;
+    if (!selectedChoice || !selectedPet || !quote || quoteState.status !== "available") return;
     setIsSubmitting(true);
     setFormError("");
     setNotice("");
@@ -291,6 +319,60 @@ export function TagOrderFlow({
     }
   }
 
+  function invalidateCurrentQuote(nextState: DeliveryQuoteState) {
+    quoteRequestRef.current += 1;
+    quoteControllerRef.current?.abort();
+    quoteControllerRef.current = null;
+    setQuoteState(nextState);
+  }
+
+  function handleProductSelect(key: string) {
+    if (key !== selectedVariantKey) {
+      const fingerprint = createDeliveryQuoteFingerprint(delivery, key);
+      invalidateCurrentQuote(
+        isDeliveryValid(delivery)
+          ? { status: "loading", fingerprint }
+          : { status: "incomplete" }
+      );
+    }
+    setSelectedVariantKey(key);
+    setErrors((current) => ({ ...current, product: "" }));
+  }
+
+  function handleDeliveryChange(field: DeliveryField, value: string) {
+    const nextDelivery = {
+      ...delivery,
+      [field]: value,
+      ...(field === "stateCode"
+        ? { state: states.find((item) => item.code === value)?.name ?? "" }
+        : {}),
+    };
+    const nextDeliveryValid = isDeliveryValid(nextDelivery);
+    const nextFingerprint = createDeliveryQuoteFingerprint(
+      nextDelivery,
+      selectedVariantKey
+    );
+    const requiredFieldChanged = requiredDeliveryFields.includes(field);
+
+    if (requiredFieldChanged && !nextDeliveryValid) {
+      invalidateCurrentQuote({ status: "incomplete" });
+    } else if (
+      nextDeliveryValid &&
+      (!deliveryValid || nextFingerprint !== quoteFingerprint)
+    ) {
+      invalidateCurrentQuote({ status: "loading", fingerprint: nextFingerprint });
+    }
+
+    setDelivery(nextDelivery);
+    setErrors((current) => ({ ...current, [field]: "" }));
+  }
+
+  function retryDeliveryQuote() {
+    if (quoteState.status !== "failed") return;
+    invalidateCurrentQuote({ status: "loading", fingerprint: quoteFingerprint });
+    setQuoteRetry((value) => value + 1);
+  }
+
   return (
     <section className="brand-card min-w-0 rounded-[1.75rem] p-4 sm:p-6">
       <ol className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -304,20 +386,19 @@ export function TagOrderFlow({
       </ol>
 
       <div className="mt-6">
-        {step === 0 ? <ProductStep choices={choices} selectedKey={selectedVariantKey} onSelect={(key) => { setSelectedVariantKey(key); setQuote(null); setQuoteError(""); setErrors((current) => ({ ...current, product: "" })); }} error={errors.product} /> : null}
+        {step === 0 ? <ProductStep choices={choices} selectedKey={selectedVariantKey} onSelect={handleProductSelect} error={errors.product} /> : null}
         {step === 1 ? <PetStep pets={orderablePets} selectedPetId={petId} onSelect={(id) => { setPetId(id); setErrors((current) => ({ ...current, pet: "" })); }} error={errors.pet} /> : null}
-        {step === 2 ? <DeliveryStep delivery={delivery} states={states} errors={errors} quoteError={quoteError} quoteLoading={quoteLoading} onRetry={() => setQuoteRetry((value) => value + 1)} onChange={(field, value) => { if (["addressLine1", "postcode", "city", "stateCode"].includes(field)) { setQuote(null); setQuoteError(""); } setDelivery((current) => ({ ...current, [field]: value, ...(field === "stateCode" ? { state: states.find((item) => item.code === value)?.name ?? "" } : {}) })); setErrors((current) => ({ ...current, [field]: "" })); }} /> : null}
-        {step === 3 && selectedChoice && selectedPet ? <ConfirmationStep choice={selectedChoice} delivery={delivery} pet={selectedPet} quote={quote} quoteLoading={quoteLoading} quoteError={quoteError} /> : null}
+        {step === 2 ? <DeliveryStep delivery={delivery} states={states} errors={errors} quoteState={quoteState} onRetry={retryDeliveryQuote} onChange={handleDeliveryChange} /> : null}
+        {step === 3 && selectedChoice && selectedPet ? <ConfirmationStep choice={selectedChoice} delivery={delivery} pet={selectedPet} quote={quote} quoteState={quoteState} /> : null}
       </div>
 
       <div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Link className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-bold text-pet-ink" href={selectedPet ? ownerRoutes.petTags(selectedPet.id) : ownerRoutes.tags}>Cancel</Link>
         <div className="flex flex-col gap-3 sm:flex-row">
           {step > 0 ? <button className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-bold text-pet-ink" onClick={() => setStep((current) => current - 1)} type="button">Back</button> : null}
-          {step < 3 ? <button className="inline-flex min-h-12 items-center justify-center rounded-full bg-pet-teal px-5 py-3 text-sm font-bold text-white disabled:opacity-50" disabled={!reachable[step + 1] || (step === 0 && !hasAvailableChoice)} onClick={() => setStep((current) => current + 1)} type="button">Continue</button> : <button className="inline-flex min-h-12 items-center justify-center rounded-full bg-pet-teal px-5 py-3 text-sm font-bold text-white disabled:opacity-50" disabled={!deliveryValid || !quote || quoteLoading || Boolean(quoteError) || isSubmitting} onClick={() => void placeOrder()} type="button">{isSubmitting ? "Placing order..." : quoteLoading ? "Updating delivery..." : "Place Order"}</button>}
+          {step < 3 ? <button className="inline-flex min-h-12 items-center justify-center rounded-full bg-pet-teal px-5 py-3 text-sm font-bold text-white disabled:opacity-50" disabled={!reachable[step + 1] || (step === 0 && !hasAvailableChoice)} onClick={() => setStep((current) => current + 1)} type="button">Continue</button> : <button className="inline-flex min-h-12 items-center justify-center rounded-full bg-pet-teal px-5 py-3 text-sm font-bold text-white disabled:opacity-50" disabled={!deliveryValid || !quote || quoteState.status !== "available" || isSubmitting} onClick={() => void placeOrder()} type="button">{isSubmitting ? "Placing order..." : quoteState.status === "loading" ? "Updating delivery..." : "Place Order"}</button>}
         </div>
       </div>
-      {step === 2 && quoteError ? <p className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-800" role="alert">{quoteError}</p> : null}
       {notice ? <p className="mt-4 rounded-xl border border-pet-teal/30 bg-[#e8f3ff] p-3 text-sm font-bold text-pet-ink" role="status">{notice}</p> : null}
       {formError ? <p className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-800" role="alert">{formError}</p> : null}
     </section>
@@ -333,14 +414,14 @@ function PetStep({ pets, selectedPetId, onSelect, error }: { pets: Pet[]; select
   return <StepShell title="Select pet" description="Choose which pet will use this physical tag."><div className="grid gap-3 md:grid-cols-2">{pets.map((pet) => <button aria-pressed={selectedPetId === pet.id} className={`rounded-2xl border p-4 text-left ${selectedPetId === pet.id ? "border-pet-teal bg-[#e8f3ff]" : "border-pet-border bg-pet-cream"}`} key={pet.id} onClick={() => onSelect(pet.id)} type="button"><p className="text-lg font-black text-pet-ink">{pet.name}</p><p className="mt-1 text-sm text-pet-muted">{getPetSummaryLabel(pet)}</p></button>)}</div><ErrorText message={error} /></StepShell>;
 }
 
-function DeliveryStep({ delivery, states, errors, quoteError, quoteLoading, onRetry, onChange }: { delivery: DeliveryDetails; states: MalaysiaState[]; errors: Record<string, string>; quoteError: string; quoteLoading: boolean; onRetry: () => void; onChange: (field: DeliveryField, value: string) => void }) {
-  return <StepShell title="Delivery details" description="Malaysia delivery only. Select the state where your physical tag should be sent."><div className="grid gap-4 md:grid-cols-2"><Field id="delivery-recipientName" label="Recipient name" error={errors.recipientName} required><input className="brand-input" value={delivery.recipientName} onChange={(event) => onChange("recipientName", event.target.value)} /></Field><PhoneNumberInput error={errors.phone} label="Phone number" onChange={(value) => onChange("phone", value)} required value={delivery.phone} />{([ ["addressLine1", "Address line 1", "Street, building, unit", true], ["addressLine2", "Address line 2", "Area or landmark", false], ["postcode", "Postcode", "47300", true], ["city", "City", "Petaling Jaya", true], ["notes", "Notes for delivery", "Call before delivery", false] ] as const).map(([key, label, placeholder, required]) => <Field error={errors[key]} id={`delivery-${key}`} key={key} label={label} required={required}><input className="brand-input" placeholder={placeholder} value={delivery[key]} onChange={(event) => onChange(key, event.target.value)} /></Field>)}<Field id="delivery-stateCode" label="State" error={errors.stateCode} required><select className="brand-input" value={delivery.stateCode ?? ""} onChange={(event) => onChange("stateCode", event.target.value)}><option value="">Select a state</option>{states.map((state) => <option key={state.code} value={state.code}>{state.name}</option>)}</select></Field><Field id="delivery-country" label="Country"><input className="brand-input bg-pet-cream" readOnly value="Malaysia" /></Field></div><div aria-live="polite" className="mt-4">{quoteLoading ? <p className="rounded-xl bg-pet-cream p-3 text-sm font-bold text-pet-muted">Calculating delivery...</p> : quoteError ? <div className="rounded-xl border border-red-200 bg-red-50 p-3"><p className="text-sm font-bold text-red-800" role="alert">{quoteError}</p><button className="mt-2 text-sm font-black text-pet-teal underline" onClick={onRetry} type="button">Try delivery quote again</button></div> : delivery.stateCode ? <p className="rounded-xl bg-[#e8f8f0] p-3 text-sm font-bold text-pet-sage">Delivery is available for the selected address.</p> : null}</div></StepShell>;
+function DeliveryStep({ delivery, states, errors, quoteState, onRetry, onChange }: { delivery: DeliveryDetails; states: MalaysiaState[]; errors: Record<string, string>; quoteState: DeliveryQuoteState; onRetry: () => void; onChange: (field: DeliveryField, value: string) => void }) {
+  return <StepShell title="Delivery details" description="Malaysia delivery only. Select the state where your physical tag should be sent."><div className="grid gap-4 md:grid-cols-2"><Field id="delivery-recipientName" label="Recipient name" error={errors.recipientName} required><input className="brand-input" value={delivery.recipientName} onChange={(event) => onChange("recipientName", event.target.value)} /></Field><PhoneNumberInput error={errors.phone} label="Phone number" onChange={(value) => onChange("phone", value)} required value={delivery.phone} />{([ ["addressLine1", "Address line 1", "Street, building, unit", true], ["addressLine2", "Address line 2", "Area or landmark", false], ["postcode", "Postcode", "47300", true], ["city", "City", "Petaling Jaya", true], ["notes", "Notes for delivery", "Call before delivery", false] ] as const).map(([key, label, placeholder, required]) => <Field error={errors[key]} id={`delivery-${key}`} key={key} label={label} required={required}><input className="brand-input" placeholder={placeholder} value={delivery[key]} onChange={(event) => onChange(key, event.target.value)} /></Field>)}<Field id="delivery-stateCode" label="State" error={errors.stateCode} required><select className="brand-input" value={delivery.stateCode ?? ""} onChange={(event) => onChange("stateCode", event.target.value)}><option value="">Select a state</option>{states.map((state) => <option key={state.code} value={state.code}>{state.name}</option>)}</select></Field><Field id="delivery-country" label="Country"><input className="brand-input bg-pet-cream" readOnly value="Malaysia" /></Field></div><div aria-atomic="true" aria-live="polite" className="mt-4" data-testid="delivery-quote-status">{quoteState.status === "loading" ? <p className="rounded-xl bg-pet-cream p-3 text-sm font-bold text-pet-muted">Calculating delivery...</p> : quoteState.status === "available" ? <p className="rounded-xl bg-[#e8f8f0] p-3 text-sm font-bold text-pet-sage">Delivery is available for the selected address. Delivery fee: {formatCatalogPrice(quoteState.quote.deliveryFee, quoteState.quote.currency)}.</p> : quoteState.status === "unavailable" || quoteState.status === "failed" ? <div className="rounded-xl border border-red-200 bg-red-50 p-3"><p className="text-sm font-bold text-red-800">{quoteState.message}</p>{quoteState.status === "failed" ? <button className="mt-2 text-sm font-black text-pet-teal underline" onClick={onRetry} type="button">Try delivery quote again</button> : null}</div> : null}</div></StepShell>;
 }
 
-function ConfirmationStep({ choice, pet, delivery, quote, quoteLoading, quoteError }: { choice: CatalogChoice; pet: Pet; delivery: DeliveryDetails; quote: DeliveryQuote | null; quoteLoading: boolean; quoteError: string }) {
+function ConfirmationStep({ choice, pet, delivery, quote, quoteState }: { choice: CatalogChoice; pet: Pet; delivery: DeliveryDetails; quote: DeliveryQuote | null; quoteState: DeliveryQuoteState }) {
   const { product, variant } = choice;
-  if (quoteLoading) return <StepShell title="Confirm order" description="Updating the delivery amount for your selected state."><p className="rounded-xl bg-pet-cream p-4 text-sm font-bold text-pet-muted">Calculating delivery...</p></StepShell>;
-  if (quoteError || !quote) return <StepShell title="Confirm order" description="We need a current delivery amount before this order can be placed."><p className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-800" role="alert">{quoteError || "Select a supported state to calculate delivery."}</p></StepShell>;
+  if (quoteState.status === "loading") return <StepShell title="Confirm order" description="Updating the delivery amount for your selected state."><p className="rounded-xl bg-pet-cream p-4 text-sm font-bold text-pet-muted">Calculating delivery...</p></StepShell>;
+  if (!quote) return <StepShell title="Confirm order" description="We need a current delivery amount before this order can be placed."><p className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-800">{quoteState.status === "unavailable" || quoteState.status === "failed" ? quoteState.message : "Complete the delivery details to calculate delivery."}</p></StepShell>;
   return <StepShell title="Confirm order" description="Review your tag, delivery details, and price before payment."><div className="grid gap-3 sm:grid-cols-2"><SummaryItem label="Pet tag" value={product.name} /><SummaryItem label="Option" value={formatProductOption(variant)} /><SummaryItem label="Features" value={featureSummary(variant)} /><SummaryItem label="For this pet" value={pet.name} /><SummaryItem label="Item subtotal" value={formatCatalogPrice(quote.itemSubtotal, quote.currency)} />{quote.discountAmount > 0 ? <SummaryItem label="Discount" value={`− ${formatCatalogPrice(quote.discountAmount, quote.currency)}`} /> : null}<SummaryItem label={quote.deliveryMethod} value={quote.deliveryFee === 0 ? "Free" : formatCatalogPrice(quote.deliveryFee, quote.currency)} /><SummaryItem label="Total" value={formatCatalogPrice(quote.total, quote.currency)} /><SummaryItem label="Delivery area" value={formatStateAndZone(quote.stateName, quote.zoneName)} /><SummaryItem label="Delivery address" value={formatDeliverySummary(delivery)} /></div>{quote.freeDeliveryReason ? <p className="mt-4 rounded-xl bg-[#e8f8f0] p-4 text-sm font-bold text-pet-sage">{quote.freeDeliveryReason}</p> : null}<p className="mt-4 rounded-xl bg-pet-cream p-4 text-sm leading-6 text-pet-muted">This total includes delivery to {quote.stateName}. After placing the order, pay with the merchant QR code and upload your payment proof. Your tag is linked to {pet.name} once it arrives and you activate it.</p></StepShell>;
 }
 
@@ -370,6 +451,17 @@ function dimensions(variant: TagProductVariant) { const values = [variant.widthM
 function formatProductOption(variant: Pick<TagProductVariant, "name" | "tagVariant">) { return formatOrderProduct(variant.name, variant.tagVariant); }
 function focusFirstInvalidField(errors: Record<string, string>) { const ids: Record<string, string> = { recipientName: "delivery-recipientName", addressLine1: "delivery-addressLine1", postcode: "delivery-postcode", city: "delivery-city", stateCode: "delivery-stateCode" }; const key = Object.keys(errors).find((item) => ids[item]); if (key) document.getElementById(ids[key])?.focus(); }
 function formatDeliverySummary(delivery: DeliveryDetails) { return [delivery.addressLine1, delivery.addressLine2, [delivery.postcode, delivery.city].filter(Boolean).join(" "), delivery.state].filter((part) => part.trim()).join(", "); }
+function createDeliveryQuoteFingerprint(delivery: DeliveryDetails, productVariantKey: string) {
+  return JSON.stringify({
+    addressLine1: delivery.addressLine1.trim().toLocaleLowerCase(),
+    postcode: delivery.postcode.trim().toLocaleUpperCase(),
+    city: delivery.city.trim().toLocaleLowerCase(),
+    stateCode: delivery.stateCode?.trim().toLocaleUpperCase() ?? "",
+    country: "MY",
+    productVariantKey,
+    quantity: 1,
+  });
+}
 function inferCityState(area: string, states: MalaysiaState[]) { const parts = (area ?? "").split(",").map((part) => part.trim()).filter(Boolean); const stateValue = parts.length >= 2 ? parts.at(-1) ?? "" : area; const stateCode = resolveLegacyStateCode(stateValue, states); const state = states.find((item) => item.code === stateCode)?.name ?? ""; return { city: parts.length >= 2 ? parts[0] : "", state, stateCode }; }
 function createIdempotencyKey() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {

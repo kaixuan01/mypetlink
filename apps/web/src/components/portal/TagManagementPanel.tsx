@@ -66,6 +66,7 @@ type TagManagementPanelProps = {
   initialTags: PetTag[];
   initialOrders?: TagOrder[];
   petId?: string;
+  showOrderAction?: boolean;
 };
 
 const statusTone: Record<TagStatus, "warm" | "mint" | "teal" | "soft" | "danger"> = {
@@ -93,6 +94,7 @@ export function TagManagementPanel({
   initialTags,
   initialOrders = [],
   petId,
+  showOrderAction = true,
 }: TagManagementPanelProps) {
   const router = useRouter();
   const apiMode = isApiConfigured();
@@ -166,7 +168,8 @@ export function TagManagementPanel({
       ? ownerRoutes.tagOrder()
       : "";
   // Ordering CTAs are hidden while Smart Tag ordering is disabled for launch.
-  const showOrderButton = Boolean(orderHref) && smartTagOrderingEnabled;
+  const showOrderButton =
+    showOrderAction && Boolean(orderHref) && smartTagOrderingEnabled;
 
   useEffect(() => {
     let active = true;
@@ -317,8 +320,8 @@ export function TagManagementPanel({
         icon="tag"
         title="No physical tags yet"
         description="Order a MyPetLink QR Tag or MyPetLink QR + NFC Smart Tag so your pet's Safety Profile is easy to open if they are found."
-        actionHref={petId ? ownerRoutes.petTagOrder(petId) : ownerRoutes.tagOrder()}
-        actionLabel="Order Physical Tag"
+        actionHref={showOrderButton ? orderHref : undefined}
+        actionLabel={showOrderButton ? "Order Physical Tag" : undefined}
       />
     );
   }

@@ -3,6 +3,10 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { mockPets } from "@/data/mockPets";
+import { mockTags } from "@/data/mockTags";
+import { ownerRoutes } from "@/lib/routes";
+import { CTAButton } from "@/components/ui/CTAButton";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 const mocks = vi.hoisted(() => ({
   getAllTags: vi.fn(),
@@ -68,19 +72,59 @@ it("routes the exact /tags empty-state CTA through shared pet selection", async 
   ).toBe("/tags/order");
 });
 
-it("keeps a pet-scoped Smart Tag CTA on that known active pet", async () => {
+it("keeps exactly one page-header CTA on a pet-scoped empty state", async () => {
   render(
-    <TagManagementPanel
-      initialOrders={[]}
-      initialTags={[]}
-      petId={mockPets[0].id}
-      pets={mockPets}
-    />
+    <>
+      <PageHeader
+        title={`${mockPets[0].name}'s MyPetLink Smart Tags`}
+        action={
+          <CTAButton href={ownerRoutes.tagOrder({ petId: mockPets[0].id })}>
+            Order Physical Tag
+          </CTAButton>
+        }
+      />
+      <TagManagementPanel
+        initialOrders={[]}
+        initialTags={[]}
+        petId={mockPets[0].id}
+        pets={mockPets}
+        showOrderAction={false}
+      />
+    </>
   );
 
-  expect(
-    (await screen.findByRole("link", { name: "Order Physical Tag" })).getAttribute(
-      "href"
-    )
-  ).toBe(`/pets/${mockPets[0].id}/tags/order`);
+  const links = await screen.findAllByRole("link", { name: "Order Physical Tag" });
+  expect(links).toHaveLength(1);
+  expect(links[0].getAttribute("href")).toBe(
+    `/tags/order?petId=${mockPets[0].id}`
+  );
+  expect(screen.getByText("No physical tags yet")).toBeTruthy();
+});
+
+it("does not add another CTA for inactive or archived tag history", async () => {
+  const archivedTag = mockTags.find((tag) => tag.status === "Replaced")!;
+  mocks.getPetTags.mockResolvedValue({ data: [archivedTag] });
+
+  render(
+    <>
+      <PageHeader
+        title={`${mockPets[0].name}'s MyPetLink Smart Tags`}
+        action={
+          <CTAButton href={ownerRoutes.tagOrder({ petId: mockPets[0].id })}>
+            Order Physical Tag
+          </CTAButton>
+        }
+      />
+      <TagManagementPanel
+        initialOrders={[]}
+        initialTags={[archivedTag]}
+        petId={mockPets[0].id}
+        pets={mockPets}
+        showOrderAction={false}
+      />
+    </>
+  );
+
+  expect(await screen.findAllByRole("link", { name: "Order Physical Tag" })).toHaveLength(1);
+  expect(screen.getByText(`${mockPets[0].name} has no active physical tag yet.`)).toBeTruthy();
 });

@@ -12,7 +12,8 @@ export function resolveSmartTagOrderContinuation(value?: string | null) {
 
 export function getPreferredSmartTagOrderPetId(url: string) {
   try {
-    return new URL(url, "https://mypetlink.local").searchParams.get("pet") ?? "";
+    const params = new URL(url, "https://mypetlink.local").searchParams;
+    return params.get("petId") ?? params.get("pet") ?? "";
   } catch {
     return "";
   }

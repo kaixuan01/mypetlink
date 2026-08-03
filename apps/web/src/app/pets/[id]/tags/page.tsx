@@ -2,9 +2,12 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AppLayout } from "@/components/layouts/AppLayout";
 import { TagManagementPanel } from "@/components/portal/TagManagementPanel";
+import { CTAButton } from "@/components/ui/CTAButton";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { staticPetIdParams } from "@/data/staticRouteParams";
 import { loadingTitle, ownerPetPageTitle } from "@/lib/pageTitles";
+import { smartTagOrderingEnabled } from "@/lib/features";
+import { ownerRoutes } from "@/lib/routes";
 import { getPetById, getPets } from "@/services/petService";
 import { getOrders, getPetTags } from "@/services/tagService";
 
@@ -50,6 +53,13 @@ export default async function PetTagsPage({ params }: PetTagsPageProps) {
         eyebrow="Smart tags"
         title={`${currentPet.name}'s MyPetLink Smart Tags`}
         description="Review active tags for active pets, plus inactive tag history for memorial or archived profiles."
+        action={
+          smartTagOrderingEnabled ? (
+            <CTAButton href={ownerRoutes.tagOrder({ petId: currentPet.id })} icon="tag">
+              Order Physical Tag
+            </CTAButton>
+          ) : undefined
+        }
       />
 
       <TagManagementPanel
@@ -57,6 +67,7 @@ export default async function PetTagsPage({ params }: PetTagsPageProps) {
         initialTags={tags.data}
         petId={currentPet.id}
         pets={pets.data}
+        showOrderAction={false}
       />
     </AppLayout>
   );

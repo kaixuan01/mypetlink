@@ -1,5 +1,8 @@
 import { isApiClientError } from "@/services/apiClient";
 
+const DELIVERY_UNAVAILABLE_MESSAGE =
+  "Delivery is not currently available for this address. Please choose another state or contact MyPetLink support.";
+
 // Single source of owner-facing wording for the tag catalog and ordering flow.
 // Everything a customer reads about a failure comes from here so the same
 // condition never gets two slightly different explanations, and so raw backend
@@ -118,6 +121,10 @@ export function getOwnerOrderErrorMessage(error: unknown): string {
   return "We could not complete your order right now. Please try again.";
 }
 
+export function isDeliveryUnavailableError(error: unknown) {
+  return isApiClientError(error) && error.code === "delivery_unavailable";
+}
+
 /** Safe, action-oriented wording for the delivery quote boundary. */
 export function getDeliveryQuoteErrorMessage(error: unknown): string {
   if (!isApiClientError(error)) {
@@ -129,9 +136,7 @@ export function getDeliveryQuoteErrorMessage(error: unknown): string {
   }
 
   if (error.code === "delivery_unavailable") {
-    // The backend message is intentionally customer-safe and identifies the
-    // unsupported area without exposing delivery-rate configuration.
-    return error.message;
+    return DELIVERY_UNAVAILABLE_MESSAGE;
   }
 
   if (error.code === "validation_failed") {
