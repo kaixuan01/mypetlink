@@ -435,6 +435,36 @@ export type BackendOrderTimelineEvent = {
   statusTone: string;
 };
 
+export type BackendAssignedOrderTag = {
+  id: string;
+  tagCode: string;
+  orderItemId?: string | null;
+  petId: string;
+  petName: string;
+  status: BackendSmartTagStatus;
+};
+
+export type BackendTagOrderItem = {
+  id?: string | null;
+  petId: string;
+  petName: string;
+  sku: string;
+  productName: string;
+  variantName: string;
+  unitBasePrice: number;
+  quantity: number;
+  subtotal: number;
+  promotionName?: string | null;
+  discountAmount: number;
+  finalUnitPrice: number;
+  finalAmount: number;
+  unitWeightGrams?: number | null;
+  currency: string;
+  supportsQr: boolean;
+  supportsNfc: boolean;
+  assignedTags: BackendAssignedOrderTag[];
+};
+
 export type BackendTagOrder = {
   id: string;
   orderNumber: string;
@@ -453,22 +483,11 @@ export type BackendTagOrder = {
   status: BackendOrderStatus;
   paymentStatus: BackendPaymentStatus;
   replacementForTagId?: string | null;
-  item?: {
-    sku: string;
-    productName: string;
-    variantName: string;
-    unitBasePrice: number;
-    quantity: number;
-    subtotal: number;
-    promotionName?: string | null;
-    discountAmount: number;
-    finalUnitPrice: number;
-    finalAmount: number;
-    currency: string;
-    // Features as sold, so order history is unaffected by later catalog edits.
-    supportsQr: boolean;
-    supportsNfc: boolean;
-  } | null;
+  item?: BackendTagOrderItem | null;
+  items?: BackendTagOrderItem[];
+  merchandiseSubtotal?: number;
+  discountTotal?: number;
+  estimatedShipmentWeightGrams?: number | null;
   delivery: BackendDeliveryDetails;
   paymentSubmittedAt?: string | null;
   paymentConfirmedAt?: string | null;

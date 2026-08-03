@@ -40,9 +40,19 @@ internal static class TagDtoMapper
             .ToArray();
         var latestProof = proofs.FirstOrDefault();
         var timeline = BuildTimeline(order);
-        var item = order.Items.OrderBy(entry => entry.CreatedAt).FirstOrDefault();
         var shipmentVisible = includePreShipmentOperations
             || order.Status is OrderStatus.Shipped or OrderStatus.Delivered;
+        var items = BuildItemResponses(order, shipmentVisible);
+        var item = items.FirstOrDefault();
+        var merchandiseSubtotal = order.Items.Count > 0
+            ? order.Items.Sum(entry => entry.Subtotal)
+            : order.Amount;
+        var discountTotal = order.Items.Sum(entry => entry.DiscountAmount);
+        decimal? estimatedWeight = order.Items.Count > 0
+            && order.Items.All(entry => entry.UnitWeightGramsSnapshot.HasValue)
+                ? order.Items.Sum(entry => entry.UnitWeightGramsSnapshot!.Value * entry.Quantity)
+                : null;
+        var primaryVisibleTag = shipmentVisible ? order.SmartTag : null;
 
         return new TagOrderResponse(
             order.Id,
@@ -51,8 +61,8 @@ internal static class TagDtoMapper
             order.OwnerUserId,
             order.PetId,
             order.Pet?.Name,
-            order.SmartTagId,
-            order.SmartTag?.TagCode,
+            primaryVisibleTag?.Id,
+            primaryVisibleTag?.TagCode,
             order.TagType,
             order.Variant,
             order.Amount,
@@ -62,20 +72,11 @@ internal static class TagDtoMapper
             order.Status,
             order.PaymentStatus,
             order.ReplacementForTagId,
-            item is null ? null : new TagOrderItemResponse(
-                item.SkuSnapshot,
-                item.ProductNameSnapshot,
-                item.VariantNameSnapshot,
-                item.UnitBasePrice,
-                item.Quantity,
-                item.Subtotal,
-                item.PromotionNameSnapshot,
-                item.DiscountAmount,
-                item.FinalUnitPrice,
-                item.FinalAmount,
-                item.Currency,
-                item.SupportsQrSnapshot,
-                item.SupportsNfcSnapshot),
+            item,
+            items,
+            merchandiseSubtotal,
+            discountTotal,
+            estimatedWeight,
             new DeliveryDetailsResponse(
                 order.RecipientName,
                 order.DeliveryPhoneE164,
@@ -112,6 +113,88 @@ internal static class TagDtoMapper
             order.CreatedAt,
             shipmentVisible ? trackingUrl : null);
     }
+
+    private static IReadOnlyCollection<TagOrderItemResponse> BuildItemResponses(
+        TagOrder order,
+        bool includeAssignedTags)
+    {
+        var items = order.Items.OrderBy(entry => entry.CreatedAt).ToArray();
+        if (items.Length == 0)
+        {
+            var legacyTag = includeAssignedTags && order.SmartTag is not null
+                ? new[] { ToAssignedTag(order.SmartTag, null, order.PetId, order.Pet?.Name ?? "Pet") }
+                : Array.Empty<AssignedOrderTagResponse>();
+            return
+            [
+                new TagOrderItemResponse(
+                    null,
+                    order.PetId,
+                    order.Pet?.Name ?? "Pet",
+                    "",
+                    order.TagType == TagType.QrNfcSmartTag
+                        ? "MyPetLink QR + NFC Smart Tag"
+                        : "MyPetLink QR Pet Tag",
+                    order.Variant,
+                    order.Amount,
+                    1,
+                    order.Amount,
+                    null,
+                    0m,
+                    order.Amount,
+                    order.Amount,
+                    null,
+                    order.Currency,
+                    true,
+                    order.TagType == TagType.QrNfcSmartTag,
+                    legacyTag)
+            ];
+        }
+
+        return items.Select(item => new TagOrderItemResponse(
+            item.Id,
+            item.PetId ?? order.PetId,
+            item.PetNameSnapshot ?? item.Pet?.Name ?? order.Pet?.Name ?? "Pet",
+            item.SkuSnapshot,
+            item.ProductNameSnapshot,
+            item.VariantNameSnapshot,
+            item.UnitBasePrice,
+            item.Quantity,
+            item.Subtotal,
+            item.PromotionNameSnapshot,
+            item.DiscountAmount,
+            item.FinalUnitPrice,
+            item.FinalAmount,
+            item.UnitWeightGramsSnapshot,
+            item.Currency,
+            item.SupportsQrSnapshot,
+            item.SupportsNfcSnapshot,
+            includeAssignedTags
+                ? item.AssignedTags
+                    .Where(IsCurrentAssignedTag)
+                    .OrderBy(tag => tag.CreatedAt)
+                    .Select(tag => ToAssignedTag(
+                        tag,
+                        item.Id,
+                        item.PetId ?? order.PetId,
+                        item.PetNameSnapshot ?? item.Pet?.Name ?? order.Pet?.Name ?? "Pet"))
+                    .ToArray()
+                : Array.Empty<AssignedOrderTagResponse>())).ToArray();
+    }
+
+    private static bool IsCurrentAssignedTag(SmartTag tag) =>
+        tag.ArchivedAt is null
+        && tag.DeletedAt is null
+        && tag.Status is SmartTagStatus.Pending
+            or SmartTagStatus.Preparing
+            or SmartTagStatus.Delivered
+            or SmartTagStatus.Active;
+
+    private static AssignedOrderTagResponse ToAssignedTag(
+        SmartTag tag,
+        Guid? orderItemId,
+        Guid petId,
+        string petName) =>
+        new(tag.Id, tag.TagCode, orderItemId, petId, petName, tag.Status);
 
     // Builds the chronological status history shown on the owner order detail
     // page. Every payment proof attempt is preserved (submitted / resubmitted /

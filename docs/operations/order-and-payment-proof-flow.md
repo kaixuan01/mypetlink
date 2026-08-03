@@ -475,6 +475,14 @@ Admin order/payment proof pages should show:
 - linked tag
 - available actions based on current state
 
+For multi-tag orders, the detail and payment-proof review also show every order line, assigned pet, option, quantity, unit price, line amount, order-level discount, one delivery fee, grand total, and per-line inventory assignment progress.
+
+## Multi-tag order boundary
+
+One `TagOrder` owns one or more immutable `TagOrderItem` rows. Each row snapshots its pet, product, SKU/option, capabilities, unit price, promotion result, quantity, amounts, and unit weight. One order always has one payment, one delivery address, one delivery fee, one shipment, and one tracking timeline; partial payment, partial cancellation, and partial shipment are not introduced.
+
+Each physical quantity requires its own `SmartTag`, linked to the corresponding order item and pet. Tag Codes remain hidden from the owner until the order has shipped. Preparing and Ready to Ship transitions require the full ordered unit count to be assigned.
+
 ## Audit Logging
 
 Write audit logs for:

@@ -267,6 +267,7 @@ public sealed class AdminService : SkeletonService, IAdminService
         Guid? currentUserId,
         Guid orderId,
         Guid tagId,
+        Guid? orderItemId = null,
         CancellationToken cancellationToken = default)
     {
         if (tagId == Guid.Empty)
@@ -282,35 +283,27 @@ public sealed class AdminService : SkeletonService, IAdminService
             throw InvalidState("Inventory tags can only be assigned after payment is confirmed.");
         }
 
-        if (order.SmartTagId.HasValue || order.SmartTag is not null)
-        {
-            throw InvalidState("This order already has an assigned inventory tag.");
-        }
-
-        if (order.Pet.LifecycleStatus is not PetLifecycleStatus.Active || order.Pet.ArchivedAt.HasValue)
+        var orderItem = ResolveOrderItemForAssignment(order, orderItemId);
+        var itemPet = orderItem?.Pet ?? order.Pet;
+        var itemPetId = orderItem?.PetId ?? order.PetId;
+        if (itemPet.LifecycleStatus is not PetLifecycleStatus.Active || itemPet.ArchivedAt.HasValue)
         {
             throw InvalidState("Inventory tags can only be assigned to active pet profiles.");
         }
 
-        var tag = await LoadAvailableInventoryTagAsync(order, tagId, "tagId", cancellationToken);
+        var tag = await LoadAvailableInventoryTagAsync(order, orderItem, tagId, "tagId", cancellationToken);
 
         var oldOrderState = OrderStateSnapshot(order);
         var oldTagState = TagStateSnapshot(tag);
         var now = _timeProvider.GetUtcNow();
 
-        tag.OwnerUserId = order.OwnerUserId;
-        tag.OwnerUser = order.OwnerUser;
-        tag.PetId = order.PetId;
-        tag.Pet = order.Pet;
-        tag.OrderId = order.Id;
-        tag.Order = order;
+        LinkTagToOrder(tag, order, orderItem, itemPetId, itemPet, now);
         tag.ReplacementForTagId = order.ReplacementForTagId;
-        tag.Status = SmartTagStatus.Preparing;
-        tag.UpdatedAt = now;
-
-        order.SmartTagId = tag.Id;
-        order.SmartTag = tag;
-        order.TrackingStatus = "Inventory tag assigned. Tag preparation is next.";
+        var assigned = CurrentAssignedTags(order).Count;
+        var required = RequiredInventoryUnits(order);
+        order.TrackingStatus = assigned >= required
+            ? "All inventory tags are assigned. Tag preparation is next."
+            : $"{assigned} of {required} inventory tags assigned.";
         order.UpdatedAt = now;
 
         _auditLogService.Append(
@@ -332,6 +325,7 @@ public sealed class AdminService : SkeletonService, IAdminService
         Guid orderId,
         Guid newTagId,
         string? reason,
+        Guid? currentTagId = null,
         CancellationToken cancellationToken = default)
     {
         var admin = await RequireAdminAsync(currentUserId, cancellationToken);
@@ -343,8 +337,8 @@ public sealed class AdminService : SkeletonService, IAdminService
                 "The assigned tag can only be changed before the order ships. Use Replace Tag once it has shipped.");
         }
 
-        var oldTag = order.SmartTag;
-        if (oldTag is null || !order.SmartTagId.HasValue)
+        var oldTag = ResolveCurrentOrderTag(order, currentTagId);
+        if (oldTag is null)
         {
             throw InvalidState("This order has no assigned tag yet. Assign an inventory tag first.");
         }
@@ -355,7 +349,10 @@ public sealed class AdminService : SkeletonService, IAdminService
                 "The current tag has already progressed past preparation. Use Replace Tag instead.");
         }
 
-        if (order.Pet.LifecycleStatus is not PetLifecycleStatus.Active || order.Pet.ArchivedAt.HasValue)
+        var orderItem = oldTag.OrderItem;
+        var itemPet = orderItem?.Pet ?? oldTag.Pet ?? order.Pet;
+        var itemPetId = orderItem?.PetId ?? oldTag.PetId ?? order.PetId;
+        if (itemPet.LifecycleStatus is not PetLifecycleStatus.Active || itemPet.ArchivedAt.HasValue)
         {
             throw InvalidState("Inventory tags can only be assigned to active pet profiles.");
         }
@@ -365,7 +362,7 @@ public sealed class AdminService : SkeletonService, IAdminService
             throw ValidationFailed("newTagId", "Choose a different inventory tag.");
         }
 
-        var newTag = await LoadAvailableInventoryTagAsync(order, newTagId, "newTagId", cancellationToken);
+        var newTag = await LoadAvailableInventoryTagAsync(order, orderItem, newTagId, "newTagId", cancellationToken);
         var oldOrderState = OrderStateSnapshot(order);
         var oldTagState = TagStateSnapshot(oldTag);
         var newTagOldState = TagStateSnapshot(newTag);
@@ -373,10 +370,15 @@ public sealed class AdminService : SkeletonService, IAdminService
         var normalizedReason = NormalizeOptional(reason);
 
         // Return the old tag to unclaimed inventory.
+        if (order.SmartTagId == oldTag.Id)
+        {
+            order.SmartTagId = null;
+            order.SmartTag = null;
+        }
         ReturnTagToInventory(oldTag, now);
 
         // Link the new tag in its place.
-        LinkTagToOrder(newTag, order, now);
+        LinkTagToOrder(newTag, order, orderItem, itemPetId, itemPet, now);
         newTag.ReplacementForTagId = order.ReplacementForTagId;
         if (order.Status == OrderStatus.ReadyToShip)
         {
@@ -420,13 +422,14 @@ public sealed class AdminService : SkeletonService, IAdminService
         Guid newTagId,
         string? reason,
         string? note,
+        Guid? currentTagId = null,
         CancellationToken cancellationToken = default)
     {
         var admin = await RequireAdminAsync(currentUserId, cancellationToken);
         var order = await LoadOrderAsync(orderId, trackChanges: true, cancellationToken);
 
-        var oldTag = order.SmartTag;
-        if (oldTag is null || !order.SmartTagId.HasValue)
+        var oldTag = ResolveCurrentOrderTag(order, currentTagId);
+        if (oldTag is null)
         {
             throw InvalidState("This order has no assigned tag to replace.");
         }
@@ -442,7 +445,10 @@ public sealed class AdminService : SkeletonService, IAdminService
         var normalizedReason = NormalizeOptional(reason)
             ?? throw ValidationFailed("reason", "Choose a reason for the replacement.");
 
-        if (order.Pet.LifecycleStatus is not PetLifecycleStatus.Active || order.Pet.ArchivedAt.HasValue)
+        var orderItem = oldTag.OrderItem;
+        var itemPet = orderItem?.Pet ?? oldTag.Pet ?? order.Pet;
+        var itemPetId = orderItem?.PetId ?? oldTag.PetId ?? order.PetId;
+        if (itemPet.LifecycleStatus is not PetLifecycleStatus.Active || itemPet.ArchivedAt.HasValue)
         {
             throw InvalidState("A replacement tag can only be issued for an active pet profile.");
         }
@@ -452,7 +458,7 @@ public sealed class AdminService : SkeletonService, IAdminService
             throw ValidationFailed("newTagId", "Choose a different inventory tag.");
         }
 
-        var newTag = await LoadAvailableInventoryTagAsync(order, newTagId, "newTagId", cancellationToken);
+        var newTag = await LoadAvailableInventoryTagAsync(order, orderItem, newTagId, "newTagId", cancellationToken);
         var oldOrderState = OrderStateSnapshot(order);
         var oldTagState = TagStateSnapshot(oldTag);
         var newTagOldState = TagStateSnapshot(newTag);
@@ -464,8 +470,13 @@ public sealed class AdminService : SkeletonService, IAdminService
         oldTag.UpdatedAt = now;
 
         // Bring in the replacement and send the order back through preparation.
-        LinkTagToOrder(newTag, order, now);
+        LinkTagToOrder(newTag, order, orderItem, itemPetId, itemPet, now);
         newTag.ReplacementForTagId = oldTag.Id;
+        if (order.SmartTagId == oldTag.Id)
+        {
+            order.SmartTagId = newTag.Id;
+            order.SmartTag = newTag;
+        }
         order.Status = OrderStatus.PreparingTag;
         order.ShippedAt = null;
         order.DeliveredAt = null;
@@ -533,13 +544,16 @@ public sealed class AdminService : SkeletonService, IAdminService
 
         ApplyOrderConcurrency(order, rowVersion);
         var oldState = OrderStateSnapshot(order);
-        var tag = RequireAssignedOrderTag(order, "start preparing");
+        var tags = RequireAllAssignedOrderTags(order, "start preparing");
         var now = _timeProvider.GetUtcNow();
         order.Status = OrderStatus.PreparingTag;
         order.TrackingStatus = "Tag is being prepared.";
         order.UpdatedAt = now;
-        tag.Status = SmartTagStatus.Preparing;
-        tag.UpdatedAt = now;
+        foreach (var tag in tags)
+        {
+            tag.Status = SmartTagStatus.Preparing;
+            tag.UpdatedAt = now;
+        }
 
         _auditLogService.Append(
             admin.Id, ActorType.Admin, "order.mark-preparing", "TagOrder", order.Id,
@@ -574,7 +588,7 @@ public sealed class AdminService : SkeletonService, IAdminService
         ApplyOrderConcurrency(order, rowVersion);
         var oldState = OrderStateSnapshot(order);
         var now = _timeProvider.GetUtcNow();
-        RequireAssignedOrderTag(order, "mark ready to ship");
+        RequireAllAssignedOrderTags(order, "mark ready to ship");
         order.Status = OrderStatus.ReadyToShip;
         order.ReadyToShipAt ??= now;
         order.TrackingStatus = "Your tag is ready to ship.";
@@ -684,10 +698,13 @@ public sealed class AdminService : SkeletonService, IAdminService
         order.ShippedAt ??= now;
         order.TrackingStatus = $"Shipped with {order.CourierProvider}.";
         order.UpdatedAt = now;
-        var shippedTag = RequireAssignedOrderTag(order, "ship");
+        var shippedTags = RequireAllAssignedOrderTags(order, "ship");
         // The physical tag has left our hands for the owner; keep the
         // fulfilment trail in sync with the order without touching lifecycle.
-        AdminTagInventoryService.MarkSentToOwner(shippedTag, now);
+        foreach (var shippedTag in shippedTags)
+        {
+            AdminTagInventoryService.MarkSentToOwner(shippedTag, now);
+        }
 
         _auditLogService.Append(
             admin.Id, ActorType.Admin, "order.mark-shipped", "TagOrder", order.Id,
@@ -726,10 +743,13 @@ public sealed class AdminService : SkeletonService, IAdminService
             : $"Delivered to {order.City}.";
         order.UpdatedAt = now;
 
-        var tag = RequireAssignedOrderTag(order, "mark delivered");
-        tag.Status = SmartTagStatus.Delivered;
-        tag.DeliveredAt ??= now;
-        tag.UpdatedAt = now;
+        var tags = RequireAllAssignedOrderTags(order, "mark delivered");
+        foreach (var tag in tags)
+        {
+            tag.Status = SmartTagStatus.Delivered;
+            tag.DeliveredAt ??= now;
+            tag.UpdatedAt = now;
+        }
 
         _auditLogService.Append(
             admin.Id, ActorType.Admin, "order.mark-delivered", "TagOrder", order.Id,
@@ -757,20 +777,18 @@ public sealed class AdminService : SkeletonService, IAdminService
             ?? throw ValidationFailed("reason", "Enter a reason for cancelling this order.");
         var oldState = OrderStateSnapshot(order);
         var now = DateTimeOffset.UtcNow;
-        var assignedTag = order.SmartTag;
-        var oldTagState = assignedTag is null ? null : TagStateSnapshot(assignedTag);
+        var assignedTags = CurrentAssignedTags(order).ToArray();
         order.Status = OrderStatus.Cancelled;
         order.CancelledAt ??= now;
         order.TrackingStatus = "Cancelled";
 
         // An assigned tag that has not shipped or activated returns to unclaimed
         // stock. This keeps inventory reusable without changing shipped history.
-        if (assignedTag is not null
-            && assignedTag.Status is SmartTagStatus.Pending or SmartTagStatus.Preparing)
+        foreach (var assignedTag in assignedTags.Where(tag =>
+                     tag.Status is SmartTagStatus.Pending or SmartTagStatus.Preparing))
         {
+            var oldTagState = TagStateSnapshot(assignedTag);
             ReturnTagToInventory(assignedTag, now);
-            order.SmartTagId = null;
-            order.SmartTag = null;
 
             _auditLogService.Append(
                 admin.Id,
@@ -781,6 +799,8 @@ public sealed class AdminService : SkeletonService, IAdminService
                 oldTagState,
                 TagStateSnapshot(assignedTag, $"Order cancelled: {normalizedReason}"));
         }
+        order.SmartTagId = null;
+        order.SmartTag = null;
 
         _auditLogService.Append(
             admin.Id, ActorType.Admin, "order.cancel", "TagOrder", order.Id,
@@ -1228,9 +1248,16 @@ public sealed class AdminService : SkeletonService, IAdminService
             .Include(order => order.OwnerUser)
             .Include(order => order.Pet)
             .Include(order => order.SmartTag)
+            .Include(order => order.AssignedTags)
+                .ThenInclude(tag => tag.Pet)
+            .Include(order => order.AssignedTags)
+                .ThenInclude(tag => tag.OrderItem)
             .Include(order => order.PaymentProofs)
             .Include(order => order.EmailOutboxMessages)
-            .Include(order => order.Items);
+            .Include(order => order.Items)
+                .ThenInclude(item => item.Pet)
+            .Include(order => order.Items)
+                .ThenInclude(item => item.AssignedTags);
     }
 
     private static IQueryable<PaymentProof> IncludeProofGraph(IQueryable<PaymentProof> query)
@@ -1496,27 +1523,100 @@ public sealed class AdminService : SkeletonService, IAdminService
             "Could not generate a receipt number. Please try again.");
     }
 
-    private static SmartTag RequireAssignedOrderTag(TagOrder order, string actionLabel)
+    private static IReadOnlyList<SmartTag> RequireAllAssignedOrderTags(
+        TagOrder order,
+        string actionLabel)
     {
-        var tag = order.SmartTag;
-
-        if (tag is null
-            || tag.ArchivedAt.HasValue
-            || tag.OwnerUserId != order.OwnerUserId
-            || tag.PetId != order.PetId
-            || tag.OrderId != order.Id
-            || tag.Status is not (SmartTagStatus.Preparing or SmartTagStatus.Delivered or SmartTagStatus.Active))
+        var tags = CurrentAssignedTags(order);
+        if (tags.Count != RequiredInventoryUnits(order)
+            || tags.Any(tag =>
+                tag.OwnerUserId != order.OwnerUserId
+                || tag.OrderId != order.Id))
         {
-            throw InvalidState($"Assign an inventory tag before you {actionLabel} this order.");
+            throw InvalidState($"Assign every required inventory tag before you {actionLabel} this order.");
         }
 
-        return tag;
+        return tags;
+    }
+
+    private static List<SmartTag> CurrentAssignedTags(TagOrder order) =>
+        order.AssignedTags
+            .Where(tag =>
+                tag.ArchivedAt is null
+                && tag.DeletedAt is null
+                && tag.Status is SmartTagStatus.Pending
+                    or SmartTagStatus.Preparing
+                    or SmartTagStatus.Delivered
+                    or SmartTagStatus.Active)
+            .ToList();
+
+    private static int RequiredInventoryUnits(TagOrder order) =>
+        order.Items.Count > 0 ? order.Items.Sum(item => item.Quantity) : 1;
+
+    private static TagOrderItem? ResolveOrderItemForAssignment(
+        TagOrder order,
+        Guid? orderItemId)
+    {
+        if (order.Items.Count == 0)
+        {
+            if (orderItemId.HasValue)
+                throw ValidationFailed("orderItemId", "This legacy order does not have item-level fulfilment.");
+            if (CurrentAssignedTags(order).Count >= 1)
+                throw InvalidState("This order already has its required inventory tag.");
+            return null;
+        }
+
+        TagOrderItem? item;
+        if (orderItemId.HasValue)
+        {
+            item = order.Items.SingleOrDefault(entry => entry.Id == orderItemId.Value)
+                ?? throw ValidationFailed("orderItemId", "Choose an item from this order.");
+        }
+        else
+        {
+            var outstanding = order.Items
+                .Where(entry => CurrentAssignmentCount(entry) < entry.Quantity)
+                .ToArray();
+            item = outstanding.Length == 1
+                ? outstanding[0]
+                : throw ValidationFailed("orderItemId", "Choose which order item this inventory tag will fulfil.");
+        }
+
+        if (CurrentAssignmentCount(item) >= item.Quantity)
+            throw InvalidState("Every physical unit for this order item already has an assigned inventory tag.");
+        return item;
+    }
+
+    private static int CurrentAssignmentCount(TagOrderItem item) =>
+        item.AssignedTags.Count(tag =>
+            tag.ArchivedAt is null
+            && tag.DeletedAt is null
+            && tag.Status is SmartTagStatus.Pending
+                or SmartTagStatus.Preparing
+                or SmartTagStatus.Delivered
+                or SmartTagStatus.Active);
+
+    private static SmartTag? ResolveCurrentOrderTag(TagOrder order, Guid? currentTagId)
+    {
+        if (currentTagId.HasValue)
+        {
+            return order.AssignedTags.SingleOrDefault(tag => tag.Id == currentTagId.Value)
+                ?? throw ValidationFailed("currentTagId", "Choose an assigned tag from this order.");
+        }
+
+        var current = CurrentAssignedTags(order);
+        return current.Count == 1
+            ? current[0]
+            : order.SmartTagId.HasValue && order.SmartTag is not null
+                ? order.SmartTag
+                : throw ValidationFailed("currentTagId", "Choose which assigned tag to change.");
     }
 
     // Loads an inventory tag that is safe to assign to this order: it must be
     // unclaimed, unlinked, not archived, and match the order's tag type + variant.
     private async Task<SmartTag> LoadAvailableInventoryTagAsync(
         TagOrder order,
+        TagOrderItem? orderItem,
         Guid tagId,
         string fieldName,
         CancellationToken cancellationToken)
@@ -1538,7 +1638,6 @@ public sealed class AdminService : SkeletonService, IAdminService
             throw InvalidState("Only unclaimed, available production inventory can be assigned to an order.");
         }
 
-        var orderItem = order.Items.OrderBy(item => item.CreatedAt).FirstOrDefault();
         if (orderItem?.ProductVariantId is { } productVariantId)
         {
             if (tag.ProductVariantId != productVariantId)
@@ -1567,19 +1666,32 @@ public sealed class AdminService : SkeletonService, IAdminService
 
     // Links an available inventory tag to the order/owner/pet and points the
     // order at it. Preparation is the next fulfillment step.
-    private static void LinkTagToOrder(SmartTag tag, TagOrder order, DateTimeOffset now)
+    private static void LinkTagToOrder(
+        SmartTag tag,
+        TagOrder order,
+        TagOrderItem? orderItem,
+        Guid petId,
+        Pet pet,
+        DateTimeOffset now)
     {
         tag.OwnerUserId = order.OwnerUserId;
         tag.OwnerUser = order.OwnerUser;
-        tag.PetId = order.PetId;
-        tag.Pet = order.Pet;
+        tag.PetId = petId;
+        tag.Pet = pet;
         tag.OrderId = order.Id;
         tag.Order = order;
+        tag.OrderItemId = orderItem?.Id;
+        tag.OrderItem = orderItem;
         tag.Status = SmartTagStatus.Preparing;
         tag.UpdatedAt = now;
 
-        order.SmartTagId = tag.Id;
-        order.SmartTag = tag;
+        if (!order.AssignedTags.Contains(tag)) order.AssignedTags.Add(tag);
+        if (orderItem is not null && !orderItem.AssignedTags.Contains(tag)) orderItem.AssignedTags.Add(tag);
+        if (!order.SmartTagId.HasValue)
+        {
+            order.SmartTagId = tag.Id;
+            order.SmartTag = tag;
+        }
         order.UpdatedAt = now;
     }
 
@@ -1593,6 +1705,8 @@ public sealed class AdminService : SkeletonService, IAdminService
         tag.Pet = null;
         tag.OrderId = null;
         tag.Order = null;
+        tag.OrderItemId = null;
+        tag.OrderItem = null;
         tag.ReplacementForTagId = null;
         tag.Status = SmartTagStatus.Unclaimed;
         tag.UpdatedAt = now;
@@ -1620,6 +1734,23 @@ public sealed class AdminService : SkeletonService, IAdminService
             TagDtoMapper.ToOrderResponse(order, includePreShipmentOperations: true),
             ToOwnerRef(order.OwnerUser),
             order.Items.OrderBy(item => item.CreatedAt).Select(item => item.ProductVariantId).FirstOrDefault(),
+            order.Items
+                .OrderBy(item => item.CreatedAt)
+                .Select(item => new AdminOrderItemFulfilmentResponse(
+                    item.Id,
+                    item.ProductVariantId,
+                    item.SkuSnapshot,
+                    item.ProductNameSnapshot,
+                    item.VariantNameSnapshot,
+                    item.PetId ?? order.PetId,
+                    item.PetNameSnapshot ?? item.Pet?.Name ?? order.Pet.Name,
+                    item.Quantity,
+                    item.AssignedTags
+                        .Where(tag => tag.OrderId == order.Id && !tag.ArchivedAt.HasValue && tag.Status != SmartTagStatus.Replaced)
+                        .OrderBy(tag => tag.CreatedAt)
+                        .Select(tag => new AdminAssignedTagRefResponse(tag.Id, tag.TagCode, tag.Status))
+                        .ToArray()))
+                .ToArray(),
             new AdminShipmentDetailsResponse(
                 order.CourierProviderCode,
                 order.CourierProvider,

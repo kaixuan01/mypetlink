@@ -174,7 +174,8 @@ public sealed class OrderDocumentService : IOrderDocumentService
             .Include(order => order.Pet)
             .Include(order => order.SmartTag)
             .Include(order => order.PaymentProofs)
-            .Include(order => order.Items);
+            .Include(order => order.Items)
+                .ThenInclude(item => item.Pet);
     }
 
     private OrderDocumentModel MapModel(TagOrder order, bool isReceipt)
@@ -268,6 +269,7 @@ public sealed class OrderDocumentService : IOrderDocumentService
             var legacyLine = new OrderDocumentLine(
                 ProductName: DefaultProductName(supportsNfcLegacy),
                 VariantLabel: variantLabel,
+                PetName: Fallback(order.Pet?.Name, "-"),
                 Quantity: 1,
                 UnitPrice: FormatMoney(order.Amount, currency),
                 LineTotal: FormatMoney(order.Amount, currency));
@@ -297,8 +299,9 @@ public sealed class OrderDocumentService : IOrderDocumentService
             itemsFinal += item.FinalAmount;
 
             lines.Add(new OrderDocumentLine(
-                ProductName: DefaultProductName(item.SupportsNfcSnapshot),
-                VariantLabel: variantLabel,
+                ProductName: Fallback(item.ProductNameSnapshot, DefaultProductName(item.SupportsNfcSnapshot)),
+                VariantLabel: Fallback(item.VariantNameSnapshot, variantLabel),
+                PetName: Fallback(item.PetNameSnapshot, Fallback(item.Pet?.Name, "-")),
                 Quantity: item.Quantity,
                 UnitPrice: FormatMoney(item.UnitBasePrice, currency),
                 LineTotal: FormatMoney(item.FinalAmount, currency)));
@@ -463,6 +466,7 @@ public sealed class OrderDocumentService : IOrderDocumentService
 internal sealed record OrderDocumentLine(
     string ProductName,
     string VariantLabel,
+    string PetName,
     int Quantity,
     string UnitPrice,
     string LineTotal);
@@ -690,6 +694,7 @@ internal static class OrderDocumentRenderer
                     {
                         cell.Item().Text(line.ProductName).FontSize(9).Bold();
                         cell.Item().Text($"Option: {line.VariantLabel}").FontSize(8).FontColor(Muted);
+                        cell.Item().Text($"For: {line.PetName}").FontSize(8).FontColor(Muted);
                     });
                     table.Cell().Element(BodyCell).AlignRight().Text(line.Quantity.ToString()).FontSize(9);
                     table.Cell().Element(BodyCell).AlignRight().Text(line.UnitPrice).FontSize(9);

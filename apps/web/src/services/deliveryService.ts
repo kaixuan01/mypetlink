@@ -31,12 +31,12 @@ export async function listMalaysiaStates() {
 
 export async function getDeliveryQuote(
   stateCode: string,
-  productVariantKey: string,
+  items: Array<{ productVariantKey: string; quantity: number }>,
   signal?: AbortSignal
 ) {
   const response = await apiRequest<DeliveryQuote>("/api/v1/delivery/quote", {
     method: "POST",
-    body: { stateCode, productVariantKey, quantity: 1 },
+    body: { stateCode, items },
     signal,
   });
   if (!response.data) throw new Error("Delivery quote was not returned.");

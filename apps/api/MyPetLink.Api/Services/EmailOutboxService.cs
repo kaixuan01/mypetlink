@@ -53,15 +53,32 @@ public sealed class EmailOutboxService : IEmailOutboxService
             ?? $"{TagVariants.Normalize(order.Variant)} Tag";
         var ownerName = CleanHeaderValue(order.OwnerUser.DisplayName, "MyPetLink customer");
         var orderNumber = CleanHeaderValue(order.OrderNumber, "your order");
+        var currency = string.IsNullOrWhiteSpace(order.Currency) ? "MYR" : order.Currency.Trim().ToUpperInvariant();
+        var items = order.Items
+            .OrderBy(value => value.CreatedAt)
+            .Select(value => new PaymentConfirmedEmailItemData(
+                value.ProductNameSnapshot,
+                value.VariantNameSnapshot,
+                string.IsNullOrWhiteSpace(value.PetNameSnapshot)
+                    ? value.Pet?.Name ?? order.Pet.Name
+                    : value.PetNameSnapshot,
+                value.Quantity,
+                value.FinalUnitPrice,
+                value.FinalAmount))
+            .ToArray();
         var template = new PaymentConfirmedEmailTemplateData(
             OwnerName: ownerName,
             OrderNumber: orderNumber,
-            AmountPaid: order.Amount + order.DeliveryFee,
-            Currency: string.IsNullOrWhiteSpace(order.Currency) ? "MYR" : order.Currency.Trim().ToUpperInvariant(),
+            AmountPaid: order.TotalAmount ?? order.Amount + order.DeliveryFee,
+            Currency: currency,
             PaymentConfirmedAt: confirmedAt,
             ProductName: productName,
             VariantName: variantName,
-            PetName: string.IsNullOrWhiteSpace(order.Pet.Name) ? "your pet" : order.Pet.Name.Trim());
+            PetName: string.IsNullOrWhiteSpace(order.Pet.Name) ? "your pet" : order.Pet.Name.Trim(),
+            MerchandiseSubtotal: order.Items.Count > 0 ? order.Items.Sum(value => value.Subtotal) : order.Amount,
+            DiscountTotal: order.Items.Sum(value => value.DiscountAmount),
+            DeliveryFee: order.DeliveryFee,
+            Items: items.Length > 0 ? items : null);
 
         var now = _timeProvider.GetUtcNow();
         var suppression = await SuppressionReasonAsync(

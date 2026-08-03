@@ -76,6 +76,41 @@ public sealed class DeliveryServiceTests
     }
 
     [Fact]
+    public async Task Quote_MultipleLines_AggregatesQuantityDiscountAndOneDeliveryFee()
+    {
+        await using var harness = Harness.Create();
+        await harness.SeedRateAsync("PEN", 8m);
+        var product = await harness.Db.TagProducts.SingleAsync();
+        var second = new TagProductVariant
+        {
+            TagProduct = product,
+            PublicKey = "DELIVERYQUOTE002",
+            Sku = "DELIVERY-2",
+            DisplayName = "Lightweight",
+            SupportsQr = true,
+            TagVariant = "Lightweight",
+            BasePrice = 20m,
+            Currency = "MYR",
+            IsActive = true,
+            IsPurchasable = true
+        };
+        harness.Db.Add(second);
+        await harness.Db.SaveChangesAsync();
+
+        var quote = await harness.Service.QuoteAsync(new DeliveryQuoteRequest(
+            "KUL",
+            [
+                new DeliveryQuoteItemRequest(harness.VariantKey, 2),
+                new DeliveryQuoteItemRequest(second.PublicKey, 2)
+            ]));
+
+        Assert.Equal(139.80m, quote.ItemSubtotal);
+        Assert.Equal(20m, quote.DiscountAmount);
+        Assert.Equal(8m, quote.DeliveryFee);
+        Assert.Equal(127.80m, quote.Total);
+    }
+
+    [Fact]
     public async Task Quote_ZeroFeeIsFreeOnlyWhenRateIsExplicitlyActive()
     {
         await using var harness = Harness.Create();

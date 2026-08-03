@@ -108,8 +108,12 @@ public sealed class ConcurrencyRelationalTests
 
         var successes = results.Count(result => result.Error is null);
         var conflicts = results.Count(result => result.Error is ApiException api && api.StatusCode == StatusCodes.Status409Conflict);
-        Assert.Equal(1, successes);
-        Assert.Equal(1, conflicts);
+        var diagnostics = string.Join(" | ", results.Select(result =>
+            result.Error is null
+                ? "success"
+                : $"{result.Error.GetType().Name}: {result.Error.Message}"));
+        Assert.True(successes == 1, $"Expected one successful assignment. {diagnostics}");
+        Assert.True(conflicts == 1, $"Expected one allocation conflict. {diagnostics}");
 
         await using var verify = scope.NewContext();
         var allocatedTag = await verify.SmartTags.SingleAsync(item => item.Id == tagId);

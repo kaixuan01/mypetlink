@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { cloneElement, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactElement, type ReactNode } from "react";
+import { OrderPriceBreakdown, type OrderPriceLine } from "@/components/orders/OrderPriceBreakdown";
 import { ManualPaymentPanel } from "@/components/portal/ManualPaymentPanel";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
@@ -11,26 +12,14 @@ import { PhoneNumberInput } from "@/components/ui/PhoneNumberInput";
 import { formatOrderNumber } from "@/lib/orders";
 import { formatOrderProduct, formatStateAndZone } from "@/lib/orderDisplay";
 import { readOwnerSettings } from "@/lib/ownerSettings";
-import { getPetSummaryLabel } from "@/lib/petDisplay";
-import { getActivePets, isActivePet } from "@/lib/petLifecycle";
+import { isActivePet, getActivePets } from "@/lib/petLifecycle";
 import { isValidE164, normalizeStoredPhone } from "@/lib/phone";
 import { ownerRoutes } from "@/lib/routes";
 import { isApiConfigured } from "@/services/apiConfig";
-import { getPets } from "@/services/petService";
-import {
-  getDeliveryQuote,
-  listMalaysiaStates,
-  resolveLegacyStateCode,
-  type DeliveryQuote,
-  type MalaysiaState,
-} from "@/services/deliveryService";
-import {
-  formatCatalogPrice,
-  listTagProducts,
-  type TagProduct,
-  type TagProductVariant,
-} from "@/services/tagCatalogService";
+import { getDeliveryQuote, listMalaysiaStates, resolveLegacyStateCode, type DeliveryQuote, type MalaysiaState } from "@/services/deliveryService";
 import { getDeliveryQuoteErrorMessage, getOwnerOrderFieldErrors, isDeliveryUnavailableError } from "@/services/ownerOrderErrors";
+import { getPets } from "@/services/petService";
+import { formatCatalogPrice, listTagProducts, type TagProduct, type TagProductVariant } from "@/services/tagCatalogService";
 import { createTagOrder, getFriendlyTagErrorMessage } from "@/services/tagService";
 import type { DeliveryDetails, Pet, TagOrder, TagType } from "@/types";
 
@@ -42,6 +31,7 @@ type TagOrderFlowProps = {
 };
 
 type CatalogChoice = { product: TagProduct; variant: TagProductVariant };
+type CartLine = { id: string; petId: string; productVariantKey: string; quantity: number };
 type DeliveryField = keyof DeliveryDetails;
 type DeliveryQuoteState =
   | { status: "idle" | "incomplete" }
@@ -49,49 +39,26 @@ type DeliveryQuoteState =
   | { status: "available"; fingerprint: string; quote: DeliveryQuote }
   | { status: "unavailable" | "failed"; fingerprint: string; message: string };
 
-const steps = ["Choose Tag", "Select Pet", "Delivery Details", "Confirm Order"];
-const emptyDelivery: DeliveryDetails = {
-  recipientName: "",
-  phone: "",
-  addressLine1: "",
-  addressLine2: "",
-  postcode: "",
-  city: "",
-  state: "",
-  stateCode: "",
-  notes: "",
-};
-const requiredDeliveryFields: DeliveryField[] = [
-  "recipientName",
-  "phone",
-  "addressLine1",
-  "postcode",
-  "city",
-  "stateCode",
-];
+const steps = ["Choose Tags", "Review Tags", "Delivery Details", "Confirm Order"];
+const MAX_LINES = 20;
+const MAX_UNITS = 20;
+const emptyDelivery: DeliveryDetails = { recipientName: "", phone: "", addressLine1: "", addressLine2: "", postcode: "", city: "", state: "", stateCode: "", notes: "" };
+const requiredDeliveryFields: DeliveryField[] = ["recipientName", "phone", "addressLine1", "postcode", "city", "stateCode"];
 
-export function TagOrderFlow({
-  pets,
-  preselectedPetId,
-  initialTagType = "MyPetLink QR Pet Tag",
-  replacementForTagId,
-}: TagOrderFlowProps) {
+export function TagOrderFlow({ pets, preselectedPetId, initialTagType = "MyPetLink QR Pet Tag", replacementForTagId }: TagOrderFlowProps) {
   const apiMode = isApiConfigured();
   const [availablePets, setAvailablePets] = useState<Pet[]>(apiMode ? [] : pets);
   const [products, setProducts] = useState<TagProduct[]>([]);
   const [states, setStates] = useState<MalaysiaState[]>([]);
-  const [quoteState, setQuoteState] = useState<DeliveryQuoteState>({ status: "idle" });
-  const [selectedVariantKey, setSelectedVariantKey] = useState("");
-  const [petId, setPetId] = useState(preselectedPetId ?? "");
+  const [cart, setCart] = useState<CartLine[]>([]);
   const [delivery, setDelivery] = useState<DeliveryDetails>(emptyDelivery);
+  const [quoteState, setQuoteState] = useState<DeliveryQuoteState>({ status: "idle" });
   const [step, setStep] = useState(0);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [formError, setFormError] = useState("");
-  // Non-failure information the customer must act on, e.g. a price that moved
-  // between opening the review and placing the order.
   const [notice, setNotice] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [createdOrder, setCreatedOrder] = useState<TagOrder | null>(null);
@@ -105,22 +72,16 @@ export function TagOrderFlow({
   const replacementFor = orderPrefs.replacementForTagId ?? replacementForTagId;
   const preferredNfc = (orderPrefs.tagType ?? initialTagType).includes("NFC");
   const orderablePets = useMemo(() => getActivePets(availablePets), [availablePets]);
-  const choices = useMemo(
-    () => products.flatMap((product) => product.variants.map((variant) => ({ product, variant }))),
-    [products]
-  );
-  const selectedChoice = choices.find((choice) => choice.variant.key === selectedVariantKey);
-  const hasAvailableChoice = choices.some((choice) => choice.variant.inStock);
-  const selectedPet = orderablePets.find((pet) => pet.id === petId);
-  const preselectedPet = preselectedPetId
-    ? availablePets.find((pet) => pet.id === preselectedPetId)
-    : undefined;
+  const choices = useMemo(() => products.flatMap((product) => product.variants.map((variant) => ({ product, variant }))), [products]);
+  const sellableChoices = choices.filter((choice) => choice.variant.inStock);
+  const cartUnits = cart.reduce((total, line) => total + line.quantity, 0);
+  const cartValid = cart.length > 0 && cart.every((line) => line.petId && sellableChoices.some((choice) => choice.variant.key === line.productVariantKey) && line.quantity >= 1 && line.quantity <= 10) && cartUnits <= MAX_UNITS;
+  const cartQuoteItems = useMemo(() => cart.map((line) => ({ productVariantKey: line.productVariantKey, quantity: line.quantity })), [cart]);
   const deliveryValid = isDeliveryValid(delivery);
-  const quoteFingerprint = createDeliveryQuoteFingerprint(delivery, selectedVariantKey);
-  const quote =
-    quoteState.status === "available" && quoteState.fingerprint === quoteFingerprint
-      ? quoteState.quote
-      : null;
+  const quoteFingerprint = createDeliveryQuoteFingerprint(delivery, cartQuoteItems);
+  const quote = quoteState.status === "available" && quoteState.fingerprint === quoteFingerprint ? quoteState.quote : null;
+  const priceLines = buildPriceLines(cart, choices, orderablePets);
+  const preselectedPet = preselectedPetId ? availablePets.find((pet) => pet.id === preselectedPetId) : undefined;
 
   useEffect(() => {
     let active = true;
@@ -128,28 +89,19 @@ export function TagOrderFlow({
       setLoading(true);
       setLoadError("");
       try {
-        const [petResponse, catalog, malaysiaStates] = await Promise.all([
-          getPets(), listTagProducts(), listMalaysiaStates(),
-        ]);
+        const [petResponse, catalog, malaysiaStates] = await Promise.all([getPets(), listTagProducts(), listMalaysiaStates()]);
         if (!active) return;
         const nextPets = petResponse.data;
         const nextOrderable = getActivePets(nextPets);
         const nextChoices = catalog.flatMap((product) => product.variants.map((variant) => ({ product, variant })));
-        const preferred = nextChoices.find((choice) => choice.variant.inStock && choice.variant.supportsNfc === preferredNfc)
-          ?? nextChoices.find((choice) => choice.variant.inStock);
+        const preferred = nextChoices.find((choice) => choice.variant.inStock && choice.variant.supportsNfc === preferredNfc) ?? nextChoices.find((choice) => choice.variant.inStock);
+        const initialPetId = preselectedPetId && nextOrderable.some((pet) => pet.id === preselectedPetId)
+          ? preselectedPetId
+          : nextOrderable.length === 1 ? nextOrderable[0].id : "";
         setAvailablePets(nextPets);
         setProducts(catalog);
         setStates(malaysiaStates);
-        setSelectedVariantKey((current) => current || preferred?.variant.key || "");
-        setPetId((current) =>
-          current && nextOrderable.some((pet) => pet.id === current)
-            ? current
-            : preselectedPetId && nextOrderable.some((pet) => pet.id === preselectedPetId)
-              ? preselectedPetId
-              : nextOrderable.length === 1
-                ? nextOrderable[0].id
-                : ""
-        );
+        setCart((current) => current.length ? current : preferred ? [{ id: createLineId(), petId: initialPetId, productVariantKey: preferred.variant.key, quantity: 1 }] : []);
       } catch (caught) {
         if (active) setLoadError(getFriendlyTagErrorMessage(caught));
       } finally {
@@ -164,14 +116,7 @@ export function TagOrderFlow({
     const timer = window.setTimeout(() => {
       const settings = readOwnerSettings();
       const inferred = inferCityState(settings.defaultGeneralArea, states);
-      setDelivery((current) => ({
-        ...current,
-        recipientName: current.recipientName || settings.ownerDisplayName,
-        phone: current.phone || settings.phoneNumber || settings.whatsappNumber,
-        city: current.city || inferred.city,
-        state: current.state || inferred.state,
-        stateCode: current.stateCode || inferred.stateCode,
-      }));
+      setDelivery((current) => ({ ...current, recipientName: current.recipientName || settings.ownerDisplayName, phone: current.phone || settings.phoneNumber || settings.whatsappNumber, city: current.city || inferred.city, state: current.state || inferred.state, stateCode: current.stateCode || inferred.stateCode }));
     }, 0);
     return () => window.clearTimeout(timer);
   }, [states]);
@@ -179,145 +124,32 @@ export function TagOrderFlow({
   useEffect(() => {
     const requestNumber = ++quoteRequestRef.current;
     quoteControllerRef.current?.abort();
-
-    if (!selectedVariantKey || !deliveryValid) {
-      return;
-    }
-
+    if (!cartValid || !deliveryValid) return;
     const controller = new AbortController();
     quoteControllerRef.current = controller;
     const timer = window.setTimeout(() => {
-      if (requestNumber === quoteRequestRef.current) {
-        setQuoteState({ status: "loading", fingerprint: quoteFingerprint });
-      }
-      getDeliveryQuote(delivery.stateCode!, selectedVariantKey, controller.signal)
-        .then((nextQuote) => {
-          if (requestNumber === quoteRequestRef.current) {
-            setQuoteState({
-              status: "available",
-              fingerprint: quoteFingerprint,
-              quote: nextQuote,
-            });
-          }
-        })
+      if (requestNumber === quoteRequestRef.current) setQuoteState({ status: "loading", fingerprint: quoteFingerprint });
+      getDeliveryQuote(delivery.stateCode!, cartQuoteItems, controller.signal)
+        .then((nextQuote) => requestNumber === quoteRequestRef.current && setQuoteState({ status: "available", fingerprint: quoteFingerprint, quote: nextQuote }))
         .catch((caught) => {
-          if (!controller.signal.aborted && requestNumber === quoteRequestRef.current) {
-            setQuoteState({
-              status: isDeliveryUnavailableError(caught) ? "unavailable" : "failed",
-              fingerprint: quoteFingerprint,
-              message: getDeliveryQuoteErrorMessage(caught),
-            });
-          }
+          if (!controller.signal.aborted && requestNumber === quoteRequestRef.current) setQuoteState({ status: isDeliveryUnavailableError(caught) ? "unavailable" : "failed", fingerprint: quoteFingerprint, message: getDeliveryQuoteErrorMessage(caught) });
         });
     }, 250);
-    return () => {
-      window.clearTimeout(timer);
-      controller.abort();
-      if (quoteControllerRef.current === controller) {
-        quoteControllerRef.current = null;
-      }
-    };
-  }, [delivery.stateCode, deliveryValid, quoteFingerprint, quoteRetry, selectedVariantKey]);
+    return () => { window.clearTimeout(timer); controller.abort(); if (quoteControllerRef.current === controller) quoteControllerRef.current = null; };
+  }, [cartQuoteItems, cartValid, delivery.stateCode, deliveryValid, quoteFingerprint, quoteRetry]);
 
-  if (preselectedPet && !isActivePet(preselectedPet)) {
-    return <EmptyState title="Physical tags are for active profiles" description={`${preselectedPet.name} is not an active pet profile. Existing tag history remains available, but new physical tags can only be ordered for active pets.`} actionHref={ownerRoutes.petTags(preselectedPet.id)} actionLabel="View Smart Tags" />;
-  }
+  if (preselectedPet && !isActivePet(preselectedPet)) return <EmptyState title="Physical tags are for active profiles" description={`${preselectedPet.name} is not an active pet profile. Existing tag history remains available, but new physical tags can only be ordered for active pets.`} actionHref={ownerRoutes.petTags(preselectedPet.id)} actionLabel="View Smart Tags" />;
   if (loading) return <div className="brand-card rounded-[1.75rem] p-6 text-sm font-semibold text-pet-muted">Loading available tags...</div>;
   if (loadError) return <EmptyState title="Order details could not load" description={`${loadError} Your Smart Tag order has not started yet.`} actionOnClick={() => setLoadAttempt((current) => current + 1)} actionLabel="Try Again" />;
   if (!orderablePets.length) return <EmptyState title="No active profiles available" description="A physical tag needs an active pet profile so finders can contact you quickly." actionHref={ownerRoutes.petNewForTagOrder()} actionLabel="Add Pet" />;
   if (!choices.length) return <EmptyState title="No tag products are available" description="Physical tags are not available to order right now. Please check again soon." actionHref={ownerRoutes.tags} actionLabel="Back to Smart Tags" />;
 
-  if (createdOrder && selectedPet && createdOrder.status !== "Pending Payment") {
-    return (
-      <section className="rounded-[1.75rem] border border-pet-mint bg-[#e8f8f0] p-6 shadow-sm">
-        <Badge tone="mint">Payment submitted</Badge>
-        <h2 className="mt-4 text-2xl font-black text-pet-ink sm:text-3xl">Payment proof submitted.</h2>
-        <p className="mt-3 max-w-2xl text-sm leading-6 text-pet-muted">We will verify your payment and prepare the tag. You can track the status anytime in your orders.</p>
-        <div className="mt-6 grid gap-3 sm:grid-cols-3">
-          <SummaryItem label="Order number" value={formatOrderNumber(createdOrder)} />
-          <SummaryItem label="Pet tag" value={createdOrder.productName ?? createdOrder.tagType} />
-          <SummaryItem label="Order status" value={createdOrder.status} />
-        </div>
-        <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-          <CTAButton href={ownerRoutes.orders} icon="record">View Orders</CTAButton>
-          <CTAButton href={ownerRoutes.petTags(selectedPet.id)} icon="tag" variant="secondary">View Smart Tags</CTAButton>
-          <CTAButton href={ownerRoutes.dashboard} variant="outline">Go to Dashboard</CTAButton>
-        </div>
-      </section>
-    );
+  if (createdOrder && createdOrder.status !== "Pending Payment") {
+    return <section className="rounded-[1.75rem] border border-pet-mint bg-[#e8f8f0] p-6 shadow-sm"><Badge tone="mint">Payment submitted</Badge><h2 className="mt-4 text-2xl font-black text-pet-ink sm:text-3xl">Payment proof submitted.</h2><p className="mt-3 max-w-2xl text-sm leading-6 text-pet-muted">We will verify your payment and prepare every tag in this order. You can track the status anytime in your orders.</p><div className="mt-6 grid gap-3 sm:grid-cols-2"><SummaryItem label="Order number" value={formatOrderNumber(createdOrder)} /><SummaryItem label="Physical tags" value={`${createdOrder.items?.reduce((sum, item) => sum + item.quantity, 0) ?? 1}`} /></div><div className="mt-6 flex flex-col gap-3 sm:flex-row"><CTAButton href={ownerRoutes.orders} icon="record">View Orders</CTAButton><CTAButton href={ownerRoutes.tags} icon="tag" variant="secondary">View Smart Tags</CTAButton><CTAButton href={ownerRoutes.dashboard} variant="outline">Go to Dashboard</CTAButton></div></section>;
   }
+  if (createdOrder) return <ManualPaymentPanel order={createdOrder} petName={createdOrder.petName ?? "your pet"} onSubmitted={setCreatedOrder} />;
 
-  if (createdOrder && selectedPet) {
-    return <ManualPaymentPanel order={createdOrder} petName={selectedPet.name} onSubmitted={setCreatedOrder} />;
-  }
-
-  const reachable = [true, Boolean(selectedChoice), Boolean(selectedChoice && selectedPet), Boolean(selectedChoice && selectedPet && deliveryValid && quote)];
-
-  async function placeOrder() {
-    const nextErrors = validateAll(selectedChoice, selectedPet, delivery);
-    setErrors(nextErrors);
-    if (Object.keys(nextErrors).length) {
-      setStep(nextErrors.product ? 0 : nextErrors.pet ? 1 : 2);
-      window.setTimeout(() => focusFirstInvalidField(nextErrors), 0);
-      return;
-    }
-    if (!selectedChoice || !selectedPet || !quote || quoteState.status !== "available") return;
-    setIsSubmitting(true);
-    setFormError("");
-    setNotice("");
-    // One stable key per submission attempt: kept across retries of the same
-    // order so the backend dedupes double-taps/retries, regenerated only after
-    // a successful submission.
-    if (!idempotencyKeyRef.current) {
-      idempotencyKeyRef.current = createIdempotencyKey();
-    }
-    try {
-      // Confirm the option and its price are still what the customer is
-      // looking at. Placing an order at a stale price, or for an option that
-      // has just sold out, would be a surprise on the payment screen — so
-      // refresh first and hand the decision back instead of submitting.
-      const latest = await listTagProducts();
-      const latestChoice = latest
-        .flatMap((product) => product.variants.map((variant) => ({ product, variant })))
-        .find((choice) => choice.variant.key === selectedChoice.variant.key);
-
-      if (!latestChoice || !latestChoice.variant.inStock) {
-        setProducts(latest);
-        setStep(0);
-        setErrors((current) => ({ ...current, product: "This tag option is no longer available. Please choose another option." }));
-        return;
-      }
-
-      if (latestChoice.variant.price.finalPrice !== selectedChoice.variant.price.finalPrice) {
-        setProducts(latest);
-        setStep(3);
-        setNotice("The price of this tag option has changed. Please review the updated total, then place your order again.");
-        return;
-      }
-
-      const response = await createTagOrder({
-        petId: selectedPet.id,
-        productVariantKey: selectedChoice.variant.key,
-        quantity: 1,
-        delivery: { ...delivery, phone: normalizeStoredPhone(delivery.phone) },
-        replacementForTagId: replacementFor,
-        idempotencyKey: idempotencyKeyRef.current,
-      });
-      idempotencyKeyRef.current = null;
-      setCreatedOrder(response.data.order);
-    } catch (caught) {
-      // Field-level problems belong beside the control that needs fixing;
-      // entered details are always kept.
-      const fieldErrors = getOwnerOrderFieldErrors(caught);
-      if (Object.keys(fieldErrors).length) {
-        setErrors((current) => ({ ...current, ...fieldErrors }));
-        setStep(fieldErrors.product ? 0 : fieldErrors.pet ? 1 : 2);
-      }
-      setFormError(getFriendlyTagErrorMessage(caught));
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
+  const reachable = [true, cartValid, cartValid, cartValid && deliveryValid && Boolean(quote)];
 
   function invalidateCurrentQuote(nextState: DeliveryQuoteState) {
     quoteRequestRef.current += 1;
@@ -326,149 +158,112 @@ export function TagOrderFlow({
     setQuoteState(nextState);
   }
 
-  function handleProductSelect(key: string) {
-    if (key !== selectedVariantKey) {
-      const fingerprint = createDeliveryQuoteFingerprint(delivery, key);
-      invalidateCurrentQuote(
-        isDeliveryValid(delivery)
-          ? { status: "loading", fingerprint }
-          : { status: "incomplete" }
-      );
-    }
-    setSelectedVariantKey(key);
-    setErrors((current) => ({ ...current, product: "" }));
+  function updateCartLine(lineId: string, patch: Partial<CartLine>) {
+    const next = cart.map((line) => line.id === lineId ? { ...line, ...patch } : line);
+    setCart(next);
+    setErrors((current) => ({ ...current, cart: "" }));
+    invalidateCurrentQuote(deliveryValid ? { status: "loading", fingerprint: createDeliveryQuoteFingerprint(delivery, next.map((line) => ({ productVariantKey: line.productVariantKey, quantity: line.quantity }))) } : { status: "incomplete" });
+  }
+
+  function addLine() {
+    if (replacementFor || cart.length >= MAX_LINES || cartUnits >= MAX_UNITS || !sellableChoices.length) return;
+    const first = sellableChoices[0];
+    setCart((current) => [...current, { id: createLineId(), petId: orderablePets.length === 1 ? orderablePets[0].id : "", productVariantKey: first.variant.key, quantity: 1 }]);
+    invalidateCurrentQuote({ status: "incomplete" });
+  }
+
+  function removeLine(lineId: string) {
+    if (cart.length === 1) return;
+    setCart((current) => current.filter((line) => line.id !== lineId));
+    invalidateCurrentQuote({ status: "incomplete" });
   }
 
   function handleDeliveryChange(field: DeliveryField, value: string) {
-    const nextDelivery = {
-      ...delivery,
-      [field]: value,
-      ...(field === "stateCode"
-        ? { state: states.find((item) => item.code === value)?.name ?? "" }
-        : {}),
-    };
-    const nextDeliveryValid = isDeliveryValid(nextDelivery);
-    const nextFingerprint = createDeliveryQuoteFingerprint(
-      nextDelivery,
-      selectedVariantKey
-    );
-    const requiredFieldChanged = requiredDeliveryFields.includes(field);
-
-    if (requiredFieldChanged && !nextDeliveryValid) {
-      invalidateCurrentQuote({ status: "incomplete" });
-    } else if (
-      nextDeliveryValid &&
-      (!deliveryValid || nextFingerprint !== quoteFingerprint)
-    ) {
-      invalidateCurrentQuote({ status: "loading", fingerprint: nextFingerprint });
-    }
-
+    const nextDelivery = { ...delivery, [field]: value, ...(field === "stateCode" ? { state: states.find((item) => item.code === value)?.name ?? "" } : {}) };
+    const nextValid = isDeliveryValid(nextDelivery);
+    const nextFingerprint = createDeliveryQuoteFingerprint(nextDelivery, cartQuoteItems);
+    if (requiredDeliveryFields.includes(field) && !nextValid) invalidateCurrentQuote({ status: "incomplete" });
+    else if (nextValid && (!deliveryValid || nextFingerprint !== quoteFingerprint)) invalidateCurrentQuote({ status: "loading", fingerprint: nextFingerprint });
     setDelivery(nextDelivery);
     setErrors((current) => ({ ...current, [field]: "" }));
   }
 
-  function retryDeliveryQuote() {
-    if (quoteState.status !== "failed") return;
-    invalidateCurrentQuote({ status: "loading", fingerprint: quoteFingerprint });
-    setQuoteRetry((value) => value + 1);
+  async function placeOrder() {
+    const nextErrors = validateAll(cartValid, delivery);
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length) { setStep(nextErrors.cart ? 0 : 2); window.setTimeout(() => focusFirstInvalidField(nextErrors), 0); return; }
+    if (!quote || quoteState.status !== "available") return;
+    setIsSubmitting(true); setFormError(""); setNotice("");
+    idempotencyKeyRef.current ??= createIdempotencyKey();
+    try {
+      const latest = await listTagProducts();
+      const latestChoices = latest.flatMap((product) => product.variants.map((variant) => ({ product, variant })));
+      const changed = cart.some((line) => {
+        const previous = choices.find((choice) => choice.variant.key === line.productVariantKey);
+        const current = latestChoices.find((choice) => choice.variant.key === line.productVariantKey);
+        return !current?.variant.inStock || current.variant.price.finalPrice !== previous?.variant.price.finalPrice;
+      });
+      if (changed) { setProducts(latest); setStep(1); setNotice("Availability or pricing changed for one or more tags. Please review the updated order before continuing."); return; }
+      const response = await createTagOrder({ items: cart.map(({ petId, productVariantKey, quantity }) => ({ petId, productVariantKey, quantity })), delivery: { ...delivery, phone: normalizeStoredPhone(delivery.phone) }, replacementForTagId: replacementFor, idempotencyKey: idempotencyKeyRef.current });
+      idempotencyKeyRef.current = null;
+      setCreatedOrder(response.data.order);
+    } catch (caught) {
+      const fieldErrors = getOwnerOrderFieldErrors(caught);
+      if (Object.keys(fieldErrors).length) { setErrors((current) => ({ ...current, ...fieldErrors })); setStep(fieldErrors.product || fieldErrors.pet || fieldErrors.items ? 0 : 2); }
+      setFormError(getFriendlyTagErrorMessage(caught));
+    } finally { setIsSubmitting(false); }
   }
 
   return (
     <section className="brand-card min-w-0 rounded-[1.75rem] p-4 sm:p-6">
-      <ol className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {steps.map((label, index) => (
-          <li key={label}>
-            <button aria-current={step === index ? "step" : undefined} aria-disabled={!reachable[index]} className={`flex min-h-14 w-full flex-col justify-center rounded-2xl px-3 py-2 text-left text-xs font-bold ${step === index ? "bg-pet-teal text-white" : reachable[index] ? "bg-pet-cream text-pet-muted" : "cursor-not-allowed bg-pet-cream/60 text-pet-muted/50"}`} onClick={() => reachable[index] && setStep(index)} type="button">
-              <span className="text-[10px] uppercase tracking-wide">Step {index + 1}</span>{label}
-            </button>
-          </li>
-        ))}
-      </ol>
-
+      <ol className="grid grid-cols-2 gap-2 sm:grid-cols-4">{steps.map((label, index) => <li key={label}><button aria-current={step === index ? "step" : undefined} aria-disabled={!reachable[index]} className={`flex min-h-14 w-full flex-col justify-center rounded-2xl px-3 py-2 text-left text-xs font-bold ${step === index ? "bg-pet-teal text-white" : reachable[index] ? "bg-pet-cream text-pet-muted" : "cursor-not-allowed bg-pet-cream/60 text-pet-muted/50"}`} onClick={() => reachable[index] && setStep(index)} type="button"><span className="text-[10px] uppercase tracking-wide">Step {index + 1}</span>{label}</button></li>)}</ol>
       <div className="mt-6">
-        {step === 0 ? <ProductStep choices={choices} selectedKey={selectedVariantKey} onSelect={handleProductSelect} error={errors.product} /> : null}
-        {step === 1 ? <PetStep pets={orderablePets} selectedPetId={petId} onSelect={(id) => { setPetId(id); setErrors((current) => ({ ...current, pet: "" })); }} error={errors.pet} /> : null}
-        {step === 2 ? <DeliveryStep delivery={delivery} states={states} errors={errors} quoteState={quoteState} onRetry={retryDeliveryQuote} onChange={handleDeliveryChange} /> : null}
-        {step === 3 && selectedChoice && selectedPet ? <ConfirmationStep choice={selectedChoice} delivery={delivery} pet={selectedPet} quote={quote} quoteState={quoteState} /> : null}
+        {step === 0 ? <ChooseTagsStep cart={cart} choices={choices} pets={orderablePets} maxed={Boolean(replacementFor) || cart.length >= MAX_LINES || cartUnits >= MAX_UNITS} error={errors.cart || errors.product || errors.pet || errors.items} onAdd={addLine} onRemove={removeLine} onUpdate={updateCartLine} /> : null}
+        {step === 1 ? <StepShell title="Review tags" description="Check each physical tag, pet, quantity, and price. One delivery fee will be calculated for the whole order."><OrderPriceBreakdown lines={priceLines} currency={priceLines[0]?.id ? selectedCurrency(cart, choices) : "MYR"} deliveryPendingLabel="Calculated after delivery details" /></StepShell> : null}
+        {step === 2 ? <DeliveryStep delivery={delivery} states={states} errors={errors} quoteState={quoteState} onRetry={() => { if (quoteState.status === "failed") { invalidateCurrentQuote({ status: "loading", fingerprint: quoteFingerprint }); setQuoteRetry((value) => value + 1); } }} onChange={handleDeliveryChange} /> : null}
+        {step === 3 ? <ConfirmationStep delivery={delivery} lines={priceLines} quote={quote} quoteState={quoteState} /> : null}
       </div>
-
-      <div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <Link className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-bold text-pet-ink" href={selectedPet ? ownerRoutes.petTags(selectedPet.id) : ownerRoutes.tags}>Cancel</Link>
-        <div className="flex flex-col gap-3 sm:flex-row">
-          {step > 0 ? <button className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-bold text-pet-ink" onClick={() => setStep((current) => current - 1)} type="button">Back</button> : null}
-          {step < 3 ? <button className="inline-flex min-h-12 items-center justify-center rounded-full bg-pet-teal px-5 py-3 text-sm font-bold text-white disabled:opacity-50" disabled={!reachable[step + 1] || (step === 0 && !hasAvailableChoice)} onClick={() => setStep((current) => current + 1)} type="button">Continue</button> : <button className="inline-flex min-h-12 items-center justify-center rounded-full bg-pet-teal px-5 py-3 text-sm font-bold text-white disabled:opacity-50" disabled={!deliveryValid || !quote || quoteState.status !== "available" || isSubmitting} onClick={() => void placeOrder()} type="button">{isSubmitting ? "Placing order..." : quoteState.status === "loading" ? "Updating delivery..." : "Place Order"}</button>}
-        </div>
-      </div>
+      <div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between"><Link className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-bold text-pet-ink" href={ownerRoutes.tags}>Cancel</Link><div className="flex flex-col gap-3 sm:flex-row">{step > 0 ? <button className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-bold text-pet-ink" onClick={() => setStep((current) => current - 1)} type="button">Back</button> : null}{step < 3 ? <button className="inline-flex min-h-12 items-center justify-center rounded-full bg-pet-teal px-5 py-3 text-sm font-bold text-white disabled:opacity-50" disabled={!reachable[step + 1] || (step === 2 && !quote)} onClick={() => setStep((current) => current + 1)} type="button">Continue</button> : <button className="inline-flex min-h-12 items-center justify-center rounded-full bg-pet-teal px-5 py-3 text-sm font-bold text-white disabled:opacity-50" disabled={!deliveryValid || !quote || quoteState.status !== "available" || isSubmitting} onClick={() => void placeOrder()} type="button">{isSubmitting ? "Placing order..." : quoteState.status === "loading" ? "Updating delivery..." : "Place Order"}</button>}</div></div>
       {notice ? <p className="mt-4 rounded-xl border border-pet-teal/30 bg-[#e8f3ff] p-3 text-sm font-bold text-pet-ink" role="status">{notice}</p> : null}
       {formError ? <p className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-800" role="alert">{formError}</p> : null}
     </section>
   );
 }
 
-function ProductStep({ choices, selectedKey, onSelect, error }: { choices: CatalogChoice[]; selectedKey: string; onSelect: (key: string) => void; error?: string }) {
-  const hasAvailableChoice = choices.some(({ variant }) => variant.inStock);
-  return <StepShell title="Choose your physical tag" description="Select the exact product and size that suits your pet.">{!hasAvailableChoice ? <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-900" role="status">This product is temporarily unavailable. Please check again later.</p> : null}<div className="grid min-w-0 gap-4 lg:grid-cols-2">{choices.map(({ product, variant }) => { const image = variant.media[0] ?? product.media[0]; const discounted = variant.price.discountAmount > 0 && variant.price.finalPrice < variant.price.basePrice; return <button aria-pressed={selectedKey === variant.key} className={`min-w-0 overflow-hidden rounded-2xl border text-left transition ${selectedKey === variant.key ? "border-pet-teal bg-[#e8f3ff] ring-2 ring-pet-teal/20" : "border-pet-border bg-white"}`} disabled={!variant.inStock} key={variant.key} onClick={() => onSelect(variant.key)} type="button">{image ? <div className="relative aspect-[16/8] w-full bg-pet-cream"><Image alt={image.altText} className="object-cover" fill sizes="(max-width: 1024px) 100vw, 50vw" src={image.url} unoptimized /></div> : <div className="grid aspect-[16/6] place-items-center bg-gradient-to-br from-[#eef6ff] to-pet-cream text-sm font-black text-pet-teal"><span className="rounded-full border border-pet-border bg-white px-4 py-2">Product image coming soon</span></div>}<div className="p-4"><div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0"><h3 className="break-words text-lg font-black text-pet-ink">{product.name}</h3><p className="mt-0.5 text-sm font-semibold text-pet-muted">{formatProductOption(variant)}</p></div><Price price={variant.price} /></div><p className="mt-3 text-sm leading-6 text-pet-muted">{product.shortDescription}</p><div className="mt-3 flex flex-wrap gap-2"><FeatureBadges variant={variant} /><Badge tone="soft">{dimensions(variant)}</Badge>{variant.material ? <Badge tone="soft">{variant.material}</Badge> : null}</div>{discounted && variant.price.promotionLabel ? <p className="mt-3 text-xs font-bold text-pet-coral">{variant.price.promotionLabel}</p> : null}<p className={`mt-3 text-xs font-bold ${variant.inStock ? "text-pet-sage" : "text-pet-coral"}`}>{variant.inStock ? "Available" : hasAvailableChoice ? "Temporarily unavailable — please choose another option" : "Temporarily unavailable"}</p></div></button>; })}</div><ErrorText message={error} /></StepShell>;
-}
-
-function PetStep({ pets, selectedPetId, onSelect, error }: { pets: Pet[]; selectedPetId: string; onSelect: (id: string) => void; error?: string }) {
-  return <StepShell title="Select pet" description="Choose which pet will use this physical tag."><div className="grid gap-3 md:grid-cols-2">{pets.map((pet) => <button aria-pressed={selectedPetId === pet.id} className={`rounded-2xl border p-4 text-left ${selectedPetId === pet.id ? "border-pet-teal bg-[#e8f3ff]" : "border-pet-border bg-pet-cream"}`} key={pet.id} onClick={() => onSelect(pet.id)} type="button"><p className="text-lg font-black text-pet-ink">{pet.name}</p><p className="mt-1 text-sm text-pet-muted">{getPetSummaryLabel(pet)}</p></button>)}</div><ErrorText message={error} /></StepShell>;
+function ChooseTagsStep({ cart, choices, pets, maxed, error, onAdd, onRemove, onUpdate }: { cart: CartLine[]; choices: CatalogChoice[]; pets: Pet[]; maxed: boolean; error?: string; onAdd: () => void; onRemove: (id: string) => void; onUpdate: (id: string, patch: Partial<CartLine>) => void }) {
+  const hasAvailable = choices.some((choice) => choice.variant.inStock);
+  return <StepShell title="Choose your physical tags" description="Choose the pet, tag option, and quantity for each line. You can include tags for different pets in one order.">{!hasAvailable ? <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-900">This product is temporarily unavailable. Please check again later.</p> : null}<div className="space-y-4">{cart.map((line, index) => { const selected = choices.find((choice) => choice.variant.key === line.productVariantKey); const image = selected?.variant.media[0] ?? selected?.product.media[0]; return <div className="min-w-0 rounded-2xl border border-pet-border bg-white p-4" key={line.id}><div className="flex items-center justify-between gap-3"><h3 className="font-black text-pet-ink">Tag {index + 1}</h3>{cart.length > 1 ? <button className="text-sm font-black text-red-700 underline" onClick={() => onRemove(line.id)} type="button">Remove</button> : null}</div><div className="mt-4 grid gap-4 md:grid-cols-3"><Field id={`cart-${line.id}-pet`} label="Pet" required><select className="brand-input" value={line.petId} onChange={(event) => onUpdate(line.id, { petId: event.target.value })}><option value="">Select a pet</option>{pets.map((pet) => <option key={pet.id} value={pet.id}>{pet.name}</option>)}</select></Field><Field id={`cart-${line.id}-tag`} label="Physical tag" required><select className="brand-input" value={line.productVariantKey} onChange={(event) => onUpdate(line.id, { productVariantKey: event.target.value })}><option value="">Select a tag</option>{choices.map(({ product, variant }) => <option disabled={!variant.inStock} key={variant.key} value={variant.key}>{product.name} — {formatProductOption(variant)} — {formatCatalogPrice(variant.price.finalPrice, variant.price.currency)}{variant.inStock ? "" : " — unavailable"}</option>)}</select></Field><Field id={`cart-${line.id}-quantity`} label="Quantity" required><select className="brand-input" value={line.quantity} onChange={(event) => onUpdate(line.id, { quantity: Number(event.target.value) })}>{Array.from({ length: Math.min(10, Math.max(1, MAX_UNITS - cart.reduce((sum, item) => item.id === line.id ? sum : sum + item.quantity, 0))) }, (_, value) => value + 1).map((quantity) => <option key={quantity} value={quantity}>{quantity}</option>)}</select></Field></div>{selected ? <div className="mt-4 grid min-w-0 gap-4 rounded-xl bg-pet-cream p-4 sm:grid-cols-[96px_minmax(0,1fr)_auto]">{image ? <div className="relative h-24 w-24 overflow-hidden rounded-xl bg-white"><Image alt={image.altText} className="object-cover" fill sizes="96px" src={image.url} unoptimized /></div> : <div className="grid h-24 w-24 place-items-center rounded-xl bg-white text-center text-xs font-bold text-pet-muted">Image coming soon</div>}<div className="min-w-0"><p className="break-words font-black text-pet-ink">{selected.product.name}</p><p className="text-sm font-semibold text-pet-muted">{formatProductOption(selected.variant)}</p><div className="mt-2 flex flex-wrap gap-2"><FeatureBadges variant={selected.variant} />{selected.variant.material ? <Badge tone="soft">{selected.variant.material}</Badge> : null}</div>{selected.variant.price.promotionLabel ? <p className="mt-2 text-xs font-bold text-pet-coral">{selected.variant.price.promotionLabel}</p> : null}</div><Price price={selected.variant.price} /></div> : null}</div>; })}</div><button className="mt-4 inline-flex min-h-11 items-center rounded-full border border-pet-teal px-4 py-2 text-sm font-black text-pet-teal disabled:opacity-50" disabled={maxed || !hasAvailable} onClick={onAdd} type="button">Add another tag</button>{cart.reduce((sum, line) => sum + line.quantity, 0) >= MAX_UNITS ? <p className="mt-2 text-xs font-bold text-pet-muted">Maximum {MAX_UNITS} tags per order.</p> : null}<ErrorText message={error} /></StepShell>;
 }
 
 function DeliveryStep({ delivery, states, errors, quoteState, onRetry, onChange }: { delivery: DeliveryDetails; states: MalaysiaState[]; errors: Record<string, string>; quoteState: DeliveryQuoteState; onRetry: () => void; onChange: (field: DeliveryField, value: string) => void }) {
-  return <StepShell title="Delivery details" description="Malaysia delivery only. Select the state where your physical tag should be sent."><div className="grid gap-4 md:grid-cols-2"><Field id="delivery-recipientName" label="Recipient name" error={errors.recipientName} required><input className="brand-input" value={delivery.recipientName} onChange={(event) => onChange("recipientName", event.target.value)} /></Field><PhoneNumberInput error={errors.phone} label="Phone number" onChange={(value) => onChange("phone", value)} required value={delivery.phone} />{([ ["addressLine1", "Address line 1", "Street, building, unit", true], ["addressLine2", "Address line 2", "Area or landmark", false], ["postcode", "Postcode", "47300", true], ["city", "City", "Petaling Jaya", true], ["notes", "Notes for delivery", "Call before delivery", false] ] as const).map(([key, label, placeholder, required]) => <Field error={errors[key]} id={`delivery-${key}`} key={key} label={label} required={required}><input className="brand-input" placeholder={placeholder} value={delivery[key]} onChange={(event) => onChange(key, event.target.value)} /></Field>)}<Field id="delivery-stateCode" label="State" error={errors.stateCode} required><select className="brand-input" value={delivery.stateCode ?? ""} onChange={(event) => onChange("stateCode", event.target.value)}><option value="">Select a state</option>{states.map((state) => <option key={state.code} value={state.code}>{state.name}</option>)}</select></Field><Field id="delivery-country" label="Country"><input className="brand-input bg-pet-cream" readOnly value="Malaysia" /></Field></div><div aria-atomic="true" aria-live="polite" className="mt-4" data-testid="delivery-quote-status">{quoteState.status === "loading" ? <p className="rounded-xl bg-pet-cream p-3 text-sm font-bold text-pet-muted">Calculating delivery...</p> : quoteState.status === "available" ? <p className="rounded-xl bg-[#e8f8f0] p-3 text-sm font-bold text-pet-sage">Delivery is available for the selected address. Delivery fee: {formatCatalogPrice(quoteState.quote.deliveryFee, quoteState.quote.currency)}.</p> : quoteState.status === "unavailable" || quoteState.status === "failed" ? <div className="rounded-xl border border-red-200 bg-red-50 p-3"><p className="text-sm font-bold text-red-800">{quoteState.message}</p>{quoteState.status === "failed" ? <button className="mt-2 text-sm font-black text-pet-teal underline" onClick={onRetry} type="button">Try delivery quote again</button> : null}</div> : null}</div></StepShell>;
+  return <StepShell title="Delivery details" description="Malaysia delivery only. One address and one shipment apply to every tag in this order."><div className="grid gap-4 md:grid-cols-2"><Field id="delivery-recipientName" label="Recipient name" error={errors.recipientName} required><input className="brand-input" value={delivery.recipientName} onChange={(event) => onChange("recipientName", event.target.value)} /></Field><PhoneNumberInput error={errors.phone} label="Phone number" onChange={(value) => onChange("phone", value)} required value={delivery.phone} />{([ ["addressLine1", "Address line 1", "Street, building, unit", true], ["addressLine2", "Address line 2", "Area or landmark", false], ["postcode", "Postcode", "47300", true], ["city", "City", "Petaling Jaya", true], ["notes", "Notes for delivery", "Call before delivery", false] ] as const).map(([key, label, placeholder, required]) => <Field error={errors[key]} id={`delivery-${key}`} key={key} label={label} required={required}><input className="brand-input" placeholder={placeholder} value={delivery[key]} onChange={(event) => onChange(key, event.target.value)} /></Field>)}<Field id="delivery-stateCode" label="State" error={errors.stateCode} required><select className="brand-input" value={delivery.stateCode ?? ""} onChange={(event) => onChange("stateCode", event.target.value)}><option value="">Select a state</option>{states.map((state) => <option key={state.code} value={state.code}>{state.name}</option>)}</select></Field><Field id="delivery-country" label="Country"><input className="brand-input bg-pet-cream" readOnly value="Malaysia" /></Field></div><div aria-atomic="true" aria-live="polite" className="mt-4" data-testid="delivery-quote-status">{quoteState.status === "loading" ? <p className="rounded-xl bg-pet-cream p-3 text-sm font-bold text-pet-muted">Calculating delivery...</p> : quoteState.status === "available" ? <p className="rounded-xl bg-[#e8f8f0] p-3 text-sm font-bold text-pet-sage">Delivery is available for the selected address. Delivery fee: {formatCatalogPrice(quoteState.quote.deliveryFee, quoteState.quote.currency)}.</p> : quoteState.status === "unavailable" || quoteState.status === "failed" ? <div className="rounded-xl border border-red-200 bg-red-50 p-3" role="alert"><p className="text-sm font-bold text-red-800">{quoteState.message}</p>{quoteState.status === "failed" ? <button className="mt-2 text-sm font-black text-pet-teal underline" onClick={onRetry} type="button">Try delivery quote again</button> : null}</div> : null}</div></StepShell>;
 }
 
-function ConfirmationStep({ choice, pet, delivery, quote, quoteState }: { choice: CatalogChoice; pet: Pet; delivery: DeliveryDetails; quote: DeliveryQuote | null; quoteState: DeliveryQuoteState }) {
-  const { product, variant } = choice;
-  if (quoteState.status === "loading") return <StepShell title="Confirm order" description="Updating the delivery amount for your selected state."><p className="rounded-xl bg-pet-cream p-4 text-sm font-bold text-pet-muted">Calculating delivery...</p></StepShell>;
+function ConfirmationStep({ delivery, lines, quote, quoteState }: { delivery: DeliveryDetails; lines: OrderPriceLine[]; quote: DeliveryQuote | null; quoteState: DeliveryQuoteState }) {
+  if (quoteState.status === "loading") return <StepShell title="Confirm order" description="Updating the delivery amount for your selected address."><p className="rounded-xl bg-pet-cream p-4 text-sm font-bold text-pet-muted">Calculating delivery...</p></StepShell>;
   if (!quote) return <StepShell title="Confirm order" description="We need a current delivery amount before this order can be placed."><p className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-800">{quoteState.status === "unavailable" || quoteState.status === "failed" ? quoteState.message : "Complete the delivery details to calculate delivery."}</p></StepShell>;
-  return <StepShell title="Confirm order" description="Review your tag, delivery details, and price before payment."><div className="grid gap-3 sm:grid-cols-2"><SummaryItem label="Pet tag" value={product.name} /><SummaryItem label="Option" value={formatProductOption(variant)} /><SummaryItem label="Features" value={featureSummary(variant)} /><SummaryItem label="For this pet" value={pet.name} /><SummaryItem label="Item subtotal" value={formatCatalogPrice(quote.itemSubtotal, quote.currency)} />{quote.discountAmount > 0 ? <SummaryItem label="Discount" value={`− ${formatCatalogPrice(quote.discountAmount, quote.currency)}`} /> : null}<SummaryItem label={quote.deliveryMethod} value={quote.deliveryFee === 0 ? "Free" : formatCatalogPrice(quote.deliveryFee, quote.currency)} /><SummaryItem label="Total" value={formatCatalogPrice(quote.total, quote.currency)} /><SummaryItem label="Delivery area" value={formatStateAndZone(quote.stateName, quote.zoneName)} /><SummaryItem label="Delivery address" value={formatDeliverySummary(delivery)} /></div>{quote.freeDeliveryReason ? <p className="mt-4 rounded-xl bg-[#e8f8f0] p-4 text-sm font-bold text-pet-sage">{quote.freeDeliveryReason}</p> : null}<p className="mt-4 rounded-xl bg-pet-cream p-4 text-sm leading-6 text-pet-muted">This total includes delivery to {quote.stateName}. After placing the order, pay with the merchant QR code and upload your payment proof. Your tag is linked to {pet.name} once it arrives and you activate it.</p></StepShell>;
+  return <StepShell title="Confirm order" description="Review every tag, the shared delivery address, and the authoritative total before payment."><OrderPriceBreakdown lines={lines} currency={quote.currency} merchandiseSubtotal={quote.itemSubtotal} discountTotal={quote.discountAmount} deliveryFee={quote.deliveryFee} deliveryMethod={quote.deliveryMethod} freeDeliveryReason={quote.freeDeliveryReason ?? undefined} total={quote.total} /><div className="mt-4 grid gap-3 sm:grid-cols-2"><SummaryItem label="Delivery area" value={formatStateAndZone(quote.stateName, quote.zoneName)} /><SummaryItem label="Delivery address" value={formatDeliverySummary(delivery)} /></div><p className="mt-4 rounded-xl bg-pet-cream p-4 text-sm leading-6 text-pet-muted">This is one order, one payment, and one shipment for {lines.reduce((sum, line) => sum + line.quantity, 0)} physical {lines.reduce((sum, line) => sum + line.quantity, 0) === 1 ? "tag" : "tags"}. After placing it, pay with the merchant QR code and upload one payment proof.</p></StepShell>;
 }
 
-// Features come only from the exact option the customer picked. Nothing here
-// is inferred from the product name, the style, or the price — a tag that
-// cannot be tapped must never advertise NFC.
-function FeatureBadges({ variant }: { variant: Pick<TagProductVariant, "supportsQr" | "supportsNfc"> }) {
-  return (
-    <>
-      {variant.supportsQr ? <Badge tone="mint">QR code</Badge> : null}
-      {variant.supportsNfc ? <Badge tone="mint">NFC tap</Badge> : null}
-    </>
-  );
+function buildPriceLines(cart: CartLine[], choices: CatalogChoice[], pets: Pet[]): OrderPriceLine[] {
+  return cart.flatMap((line) => { const choice = choices.find((item) => item.variant.key === line.productVariantKey); const pet = pets.find((item) => item.id === line.petId); if (!choice) return []; const unit = choice.variant.price.finalPrice; return [{ id: line.id, productName: choice.product.name, optionName: formatProductOption(choice.variant), features: [choice.variant.supportsQr ? "QR code" : null, choice.variant.supportsNfc ? "NFC tap" : null].filter(Boolean).join(" · "), petName: pet?.name ?? "Select a pet", quantity: line.quantity, unitPrice: choice.variant.price.basePrice, subtotal: choice.variant.price.basePrice * line.quantity, discountAmount: choice.variant.price.discountAmount * line.quantity, finalAmount: unit * line.quantity, promotionName: choice.variant.price.promotionLabel ?? undefined }]; });
 }
-function featureSummary(variant: Pick<TagProductVariant, "supportsQr" | "supportsNfc">) {
-  const features = [variant.supportsQr ? "QR code" : null, variant.supportsNfc ? "NFC tap" : null].filter(Boolean);
-  return features.length ? features.join(" · ") : "No scanning features";
-}
-function Price({ price }: { price: TagProductVariant["price"] }) { const discounted = price.discountAmount > 0 && price.finalPrice < price.basePrice; return <div className="text-right"><p className="text-lg font-black text-pet-teal">{formatCatalogPrice(price.finalPrice, price.currency)}</p>{discounted ? <p className="text-xs font-bold text-pet-muted line-through">{formatCatalogPrice(price.basePrice, price.currency)}</p> : null}</div>; }
+function selectedCurrency(cart: CartLine[], choices: CatalogChoice[]) { return choices.find((choice) => choice.variant.key === cart[0]?.productVariantKey)?.variant.price.currency ?? "MYR"; }
+function FeatureBadges({ variant }: { variant: Pick<TagProductVariant, "supportsQr" | "supportsNfc"> }) { return <>{variant.supportsQr ? <Badge tone="mint">QR code</Badge> : null}{variant.supportsNfc ? <Badge tone="mint">NFC tap</Badge> : null}</>; }
+function Price({ price }: { price: TagProductVariant["price"] }) { const discounted = price.discountAmount > 0 && price.finalPrice < price.basePrice; return <div className="text-left sm:text-right"><p className="text-lg font-black text-pet-teal">{formatCatalogPrice(price.finalPrice, price.currency)}</p>{discounted ? <p className="text-xs font-bold text-pet-muted line-through">{formatCatalogPrice(price.basePrice, price.currency)}</p> : null}</div>; }
 function StepShell({ title, description, children }: { title: string; description: string; children: ReactNode }) { return <div><h2 className="text-2xl font-black text-pet-ink">{title}</h2><p className="mt-2 text-sm leading-6 text-pet-muted">{description}</p><div className="mt-5">{children}</div></div>; }
 function Field({ id, label, error, required = false, children }: { id: string; label: string; error?: string; required?: boolean; children: ReactNode }) { const child = children as ReactElement<Record<string, unknown>>; const errorId = `${id}-error`; return <div className="grid gap-2"><label className="text-sm font-bold text-pet-ink" htmlFor={id}>{label}{required ? <span aria-hidden="true"> *</span> : null}</label>{cloneElement(child, { id, required: required || undefined, "aria-required": required || undefined, "aria-invalid": Boolean(error) || undefined, "aria-describedby": error ? errorId : undefined })}{error ? <span className="text-xs font-bold text-red-700" id={errorId}>{error}</span> : null}</div>; }
 function ErrorText({ message }: { message?: string }) { return message ? <span className="mt-2 block text-xs font-bold text-red-700">{message}</span> : null; }
 function SummaryItem({ label, value }: { label: string; value: string }) { return <div className="min-w-0 rounded-xl bg-pet-cream p-4"><p className="text-xs font-bold uppercase text-pet-muted">{label}</p><p className="mt-1 break-words font-black text-pet-ink">{value || "Not set"}</p></div>; }
-function validateAll(choice: CatalogChoice | undefined, pet: Pet | undefined, delivery: DeliveryDetails) { const errors: Record<string, string> = {}; if (!choice) errors.product = "Choose an available physical tag."; if (!pet) errors.pet = "Choose a pet for this tag."; if (!delivery.recipientName.trim()) errors.recipientName = "Add the recipient name."; if (!delivery.phone.trim() || !isValidE164(delivery.phone)) errors.phone = "Please enter a valid phone number."; if (!delivery.addressLine1.trim()) errors.addressLine1 = "Add the delivery address."; if (!delivery.postcode.trim()) errors.postcode = "Add the postcode."; if (!delivery.city.trim()) errors.city = "Add the city."; if (!delivery.stateCode?.trim()) errors.stateCode = "Please select a state for your delivery address."; return errors; }
-function isDeliveryValid(delivery: DeliveryDetails) { return Object.keys(validateAll({} as CatalogChoice, {} as Pet, delivery)).length === 0; }
-function dimensions(variant: TagProductVariant) { const values = [variant.widthMm, variant.heightMm, variant.thicknessMm].filter((value): value is number => typeof value === "number"); return values.length ? `${values.join(" × ")} mm` : variant.tagVariant; }
+function validateAll(cartValid: boolean, delivery: DeliveryDetails) { const errors: Record<string, string> = {}; if (!cartValid) errors.cart = "Complete every tag line and keep the order within 20 tags."; if (!delivery.recipientName.trim()) errors.recipientName = "Add the recipient name."; if (!delivery.phone.trim() || !isValidE164(delivery.phone)) errors.phone = "Please enter a valid phone number."; if (!delivery.addressLine1.trim()) errors.addressLine1 = "Add the delivery address."; if (!delivery.postcode.trim()) errors.postcode = "Add the postcode."; if (!delivery.city.trim()) errors.city = "Add the city."; if (!delivery.stateCode?.trim()) errors.stateCode = "Please select a state for your delivery address."; return errors; }
+function isDeliveryValid(delivery: DeliveryDetails) { return Object.keys(validateAll(true, delivery)).length === 0; }
 function formatProductOption(variant: Pick<TagProductVariant, "name" | "tagVariant">) { return formatOrderProduct(variant.name, variant.tagVariant); }
-function focusFirstInvalidField(errors: Record<string, string>) { const ids: Record<string, string> = { recipientName: "delivery-recipientName", addressLine1: "delivery-addressLine1", postcode: "delivery-postcode", city: "delivery-city", stateCode: "delivery-stateCode" }; const key = Object.keys(errors).find((item) => ids[item]); if (key) document.getElementById(ids[key])?.focus(); }
+function focusFirstInvalidField(errors: Record<string, string>) { const ids: Record<string, string> = { recipientName: "delivery-recipientName", phone: "delivery-phone", addressLine1: "delivery-addressLine1", postcode: "delivery-postcode", city: "delivery-city", stateCode: "delivery-stateCode" }; const key = Object.keys(errors).find((item) => ids[item]); if (key) document.getElementById(ids[key])?.focus(); }
 function formatDeliverySummary(delivery: DeliveryDetails) { return [delivery.addressLine1, delivery.addressLine2, [delivery.postcode, delivery.city].filter(Boolean).join(" "), delivery.state].filter((part) => part.trim()).join(", "); }
-function createDeliveryQuoteFingerprint(delivery: DeliveryDetails, productVariantKey: string) {
-  return JSON.stringify({
-    addressLine1: delivery.addressLine1.trim().toLocaleLowerCase(),
-    postcode: delivery.postcode.trim().toLocaleUpperCase(),
-    city: delivery.city.trim().toLocaleLowerCase(),
-    stateCode: delivery.stateCode?.trim().toLocaleUpperCase() ?? "",
-    country: "MY",
-    productVariantKey,
-    quantity: 1,
-  });
-}
+function createDeliveryQuoteFingerprint(delivery: DeliveryDetails, items: Array<{ productVariantKey: string; quantity: number }>) { return JSON.stringify({ addressLine1: delivery.addressLine1.trim().toLocaleLowerCase(), postcode: delivery.postcode.trim().toLocaleUpperCase(), city: delivery.city.trim().toLocaleLowerCase(), stateCode: delivery.stateCode?.trim().toLocaleUpperCase() ?? "", country: "MY", items: items.map((item) => ({ productVariantKey: item.productVariantKey, quantity: item.quantity })).sort((a, b) => a.productVariantKey.localeCompare(b.productVariantKey)) }); }
 function inferCityState(area: string, states: MalaysiaState[]) { const parts = (area ?? "").split(",").map((part) => part.trim()).filter(Boolean); const stateValue = parts.length >= 2 ? parts.at(-1) ?? "" : area; const stateCode = resolveLegacyStateCode(stateValue, states); const state = states.find((item) => item.code === stateCode)?.name ?? ""; return { city: parts.length >= 2 ? parts[0] : "", state, stateCode }; }
-function createIdempotencyKey() {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
-  }
-  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
+function createLineId() { return createIdempotencyKey(); }
+function createIdempotencyKey() { if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID(); return `${Date.now()}-${Math.random().toString(36).slice(2)}`; }
 function subscribeNoop() { return () => {}; }
 function getDefaultOrderPrefsKey() { return ""; }
 function getBrowserOrderPrefsKey() { const params = new URLSearchParams(window.location.search); return `${params.get("type") ?? ""}|${params.get("replacementFor") ?? ""}`; }

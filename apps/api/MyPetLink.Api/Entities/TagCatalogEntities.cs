@@ -124,6 +124,11 @@ public sealed class PromotionVariant
 public sealed class TagOrderItem : AuditableEntity
 {
     public Guid OrderId { get; set; }
+    // The selected pet is part of the immutable sale/fulfilment snapshot. The
+    // nullable FK keeps pre-migration single-item orders readable through the
+    // legacy TagOrder.PetId relationship.
+    public Guid? PetId { get; set; }
+    public string? PetNameSnapshot { get; set; }
     public Guid? ProductVariantId { get; set; }
     public string SkuSnapshot { get; set; } = "";
     public string ProductNameSnapshot { get; set; } = "";
@@ -141,9 +146,12 @@ public sealed class TagOrderItem : AuditableEntity
     public decimal DiscountAmount { get; set; }
     public decimal FinalUnitPrice { get; set; }
     public decimal FinalAmount { get; set; }
+    public decimal? UnitWeightGramsSnapshot { get; set; }
     public string Currency { get; set; } = "MYR";
 
     public TagOrder Order { get; set; } = null!;
+    public Pet? Pet { get; set; }
     public TagProductVariant? ProductVariant { get; set; }
     public Promotion? Promotion { get; set; }
+    public ICollection<SmartTag> AssignedTags { get; set; } = new List<SmartTag>();
 }

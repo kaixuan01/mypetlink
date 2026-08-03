@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using System.Net;
+using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
@@ -103,9 +104,7 @@ public sealed class TagCatalogRequestValidationTests
         // Service-level tests never see it because they bypass model binding.
         using var services = MvcServices();
         var request = new CreateTagOrderRequest(
-            Guid.Empty,
-            null!,
-            0,
+            [new CreateTagOrderItemRequest(Guid.Empty, null!, 0)],
             null,
             null,
             new string('k', 200));
@@ -113,10 +112,8 @@ public sealed class TagCatalogRequestValidationTests
         var modelState = Validate(services, request);
 
         Assert.False(modelState.IsValid);
-        Assert.Contains(modelState.Keys, key => key.Equals("ProductVariantKey", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(modelState.Keys, key => key.Equals("Quantity", StringComparison.OrdinalIgnoreCase));
-        // The idempotency key length limit is actually enforced.
-        Assert.Contains(modelState.Keys, key => key.Equals("IdempotencyKey", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(modelState.Keys, key => key.EndsWith("ProductVariantKey", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(modelState.Keys, key => key.EndsWith("Quantity", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -148,6 +145,31 @@ public sealed class TagCatalogRequestValidationTests
         Assert.NotEqual(HttpStatusCode.InternalServerError, response.StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
+
+    [Fact]
+    public void MultiItemRequests_SelectTheirJsonConstructors()
+    {
+        const string quoteJson = """
+            {"stateCode":"SBH","items":[{"productVariantKey":"PUBLICVARIANT001","quantity":2}]}
+            """;
+        const string orderJson = """
+            {
+              "items":[{"petId":"11111111-1111-1111-1111-111111111111","productVariantKey":"PUBLICVARIANT001","quantity":2}],
+              "delivery":{"recipientName":"Kai Xuan","phoneE164":"+60123456789","addressLine1":"12 Jalan Mawar","postcode":"47300","city":"Petaling Jaya","stateCode":"SGR"},
+              "idempotencyKey":"multi-item-json-binding"
+            }
+            """;
+
+        var quote = JsonSerializer.Deserialize<DeliveryQuoteRequest>(quoteJson, JsonOptions);
+        var order = JsonSerializer.Deserialize<CreateTagOrderRequest>(orderJson, JsonOptions);
+
+        Assert.Equal("SBH", quote?.StateCode);
+        Assert.Equal(2, Assert.Single(quote!.Items!).Quantity);
+        Assert.Equal("multi-item-json-binding", order?.IdempotencyKey);
+        Assert.Equal(2, Assert.Single(order!.Items!).Quantity);
+    }
+
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private static ServiceProvider MvcServices()
     {

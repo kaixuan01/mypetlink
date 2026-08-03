@@ -164,7 +164,7 @@ export function AdminDeliveryRatesManager() {
 
       <div className="grid gap-4 xl:grid-cols-[1.5fr_1fr] xl:items-start">
         <AdminSection
-          description="One active rate covers every state in its zone. Self-pickup is not offered, so a delivery address always needs a matching active zone."
+          description="One delivery fee is charged per order. States without an enabled override use the active zone default. Self-pickup is not offered, so a delivery address always needs a matching active zone."
           title="Malaysia delivery zones"
         >
           {rates.length === 0 ? (

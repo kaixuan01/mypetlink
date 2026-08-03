@@ -11,7 +11,19 @@ public sealed record PaymentConfirmedEmailTemplateData(
     DateTimeOffset PaymentConfirmedAt,
     string ProductName,
     string VariantName,
-    string PetName);
+    string PetName,
+    decimal? MerchandiseSubtotal = null,
+    decimal? DiscountTotal = null,
+    decimal? DeliveryFee = null,
+    IReadOnlyCollection<PaymentConfirmedEmailItemData>? Items = null);
+
+public sealed record PaymentConfirmedEmailItemData(
+    string ProductName,
+    string VariantName,
+    string PetName,
+    int Quantity,
+    decimal UnitPrice,
+    decimal LineTotal);
 
 public sealed record OwnerWelcomeEmailTemplateData(
     string OwnerName,

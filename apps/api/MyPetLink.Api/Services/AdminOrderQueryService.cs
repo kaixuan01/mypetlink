@@ -363,6 +363,11 @@ public sealed class AdminOrderQueryService : SkeletonService, IAdminOrderQuerySe
             .ThenByDescending(proof => proof.CreatedAt)
             .FirstOrDefault();
         var item = order.Items.OrderBy(entry => entry.CreatedAt).FirstOrDefault();
+        var itemCount = order.Items.Count;
+        var unitCount = itemCount > 0 ? order.Items.Sum(entry => entry.Quantity) : 1;
+        var petCount = itemCount > 0
+            ? order.Items.Select(entry => entry.PetId ?? order.PetId).Distinct().Count()
+            : 1;
 
         return new AdminOrderListItemResponse(
             order.Id,
@@ -373,14 +378,14 @@ public sealed class AdminOrderQueryService : SkeletonService, IAdminOrderQuerySe
             order.OwnerUser.Email,
             order.DeliveryPhoneE164,
             order.PetId,
-            order.Pet.Name,
+            petCount > 1 ? $"{petCount} pets" : item?.PetNameSnapshot ?? order.Pet.Name,
             order.TagType,
             order.Variant,
             item?.ProductVariantId,
-            item?.ProductNameSnapshot,
-            item?.SkuSnapshot,
-            item?.VariantNameSnapshot,
-            item?.Quantity ?? 1,
+            itemCount > 1 ? $"{unitCount} physical tags" : item?.ProductNameSnapshot,
+            itemCount > 1 ? null : item?.SkuSnapshot,
+            itemCount > 1 ? null : item?.VariantNameSnapshot,
+            unitCount,
             item?.UnitBasePrice ?? order.Amount,
             item?.DiscountAmount ?? 0m,
             item?.FinalAmount ?? order.Amount,

@@ -141,6 +141,38 @@ export function mapBackendTag(tag: BackendSmartTag): PetTag {
 
 export function mapBackendOrder(order: BackendTagOrder): TagOrder {
   const latestProof = order.paymentProofs?.[0];
+  const backendItems = order.items?.length
+    ? order.items
+    : order.item
+      ? [order.item]
+      : [];
+  const items = backendItems.map((item) => ({
+    id: item.id ?? undefined,
+    petId: item.petId ?? order.petId,
+    petName: item.petName ?? order.petName ?? "Pet",
+    sku: item.sku,
+    productName: item.productName,
+    variantName: item.variantName,
+    quantity: item.quantity,
+    unitBasePrice: item.unitBasePrice,
+    subtotal: item.subtotal,
+    promotionName: item.promotionName ?? undefined,
+    discountAmount: item.discountAmount,
+    finalUnitPrice: item.finalUnitPrice,
+    finalAmount: item.finalAmount,
+    unitWeightGrams: item.unitWeightGrams ?? undefined,
+    currency: item.currency,
+    supportsQr: item.supportsQr,
+    supportsNfc: item.supportsNfc,
+    assignedTags: (item.assignedTags ?? []).map((tag) => ({
+      id: tag.id,
+      tagCode: tag.tagCode,
+      orderItemId: tag.orderItemId ?? undefined,
+      petId: tag.petId,
+      petName: tag.petName,
+      status: tag.status,
+    })),
+  }));
 
   return normalizeOrder({
     id: order.id,
@@ -170,6 +202,7 @@ export function mapBackendOrder(order: BackendTagOrder): TagOrder {
     orderedDate: formatDisplayDate(order.createdAt) ?? formatToday(),
     tagId: order.smartTagId ?? undefined,
     replacementForTagId: order.replacementForTagId ?? undefined,
+    items,
     sku: order.item?.sku,
     productName: order.item?.productName,
     variantName: order.item?.variantName,
@@ -179,6 +212,9 @@ export function mapBackendOrder(order: BackendTagOrder): TagOrder {
     finalAmount: order.item?.finalAmount,
     deliveryFee: order.deliveryFee,
     totalAmount: order.totalAmount ?? order.amount + order.deliveryFee,
+    merchandiseSubtotal: order.merchandiseSubtotal ?? order.item?.subtotal ?? order.amount,
+    discountTotal: order.discountTotal ?? order.item?.discountAmount ?? 0,
+    estimatedShipmentWeightGrams: order.estimatedShipmentWeightGrams ?? undefined,
     promotionName: order.item?.promotionName ?? undefined,
     supportsQr: order.item?.supportsQr,
     supportsNfc: order.item?.supportsNfc,
@@ -573,9 +609,7 @@ export async function createTagOrder(payload: TagOrderPayload) {
       {
         method: "POST",
         body: {
-          petId: payload.petId,
-          productVariantKey: payload.productVariantKey,
-          quantity: payload.quantity,
+          items: payload.items,
           delivery: {
             recipientName: payload.delivery.recipientName,
             phoneE164: payload.delivery.phone,
@@ -1209,11 +1243,11 @@ export async function adminRejectOrderPayment(orderId: string, reason: string) {
   return mockResponse(updatedOrder);
 }
 
-export async function adminAssignInventoryTag(orderId: string, tagId: string) {
+export async function adminAssignInventoryTag(orderId: string, tagId: string, orderItemId?: string) {
   if (canUseOwnerTagApi()) {
     return runAdminOrderAction(
       `/api/v1/admin/orders/${encodeURIComponent(orderId)}/assign-tag`,
-      { tagId }
+      { tagId, orderItemId }
     );
   }
 
@@ -1259,12 +1293,13 @@ export async function adminAssignInventoryTag(orderId: string, tagId: string) {
 export async function adminChangeAssignedTag(
   orderId: string,
   newTagId: string,
-  reason?: string
+  reason?: string,
+  currentTagId?: string
 ) {
   if (canUseOwnerTagApi()) {
     return runAdminOrderAction(
       `/api/v1/admin/orders/${encodeURIComponent(orderId)}/change-assigned-tag`,
-      { newTagId, reason }
+      { newTagId, reason, currentTagId }
     );
   }
 
@@ -1316,12 +1351,13 @@ export async function adminReplaceTag(
   orderId: string,
   newTagId: string,
   reason: string,
-  note?: string
+  note?: string,
+  currentTagId?: string
 ) {
   if (canUseOwnerTagApi()) {
     return runAdminOrderAction(
       `/api/v1/admin/orders/${encodeURIComponent(orderId)}/replace-tag`,
-      { newTagId, reason, note }
+      { newTagId, reason, note, currentTagId }
     );
   }
 

@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { AdminActionButton } from "@/components/admin/AdminPanels";
 import { Badge } from "@/components/ui/Badge";
 import { getTagTypeLabel } from "@/components/admin/adminDisplay";
 import { formatOrderNumber, getOrderStatusDisplay } from "@/lib/orders";
+import type { AdminOrderFulfilmentItem } from "@/services/adminOrderService";
 import type { PetTag, TagOrder } from "@/types";
 
 export type TagAssignmentMode = "assign" | "change" | "replace";
@@ -48,6 +49,7 @@ export function TagAssignmentModal({
   ownerName,
   petName,
   currentTag,
+  fulfilmentItems = [],
   availableTags,
   busy,
   onCancel,
@@ -58,42 +60,43 @@ export function TagAssignmentModal({
   ownerName: string;
   petName: string;
   currentTag?: PetTag;
-  availableTags: PetTag[];
+  fulfilmentItems?: AdminOrderFulfilmentItem[];
+  availableTags: Array<PetTag & { productVariantId?: string }>;
   busy: boolean;
   onCancel: () => void;
-  onSubmit: (input: { tagId: string; reason: string; note: string }) => void;
+  onSubmit: (input: { tagId: string; reason: string; note: string; orderItemId?: string; currentTagId?: string }) => void;
 }) {
+  const eligibleItems = fulfilmentItems.filter((item) =>
+    mode === "assign" ? item.assignedTags.length < item.quantity : item.assignedTags.length > 0
+  );
+  const [orderItemId, setOrderItemId] = useState(eligibleItems[0]?.orderItemId ?? "");
   const [selectedTagId, setSelectedTagId] = useState("");
   const [search, setSearch] = useState("");
   const [reason, setReason] = useState("");
   const [note, setNote] = useState("");
   const text = copy[mode];
-  const productLabel = getTagTypeLabel(order.tagType.includes("NFC"));
+  const selectedItem = eligibleItems.find((item) => item.orderItemId === orderItemId) ?? eligibleItems[0];
+  const [currentTagId, setCurrentTagId] = useState(selectedItem?.assignedTags[0]?.id ?? currentTag?.id ?? "");
+  const productLabel = selectedItem?.productName ?? getTagTypeLabel(order.tagType.includes("NFC"));
 
-  const filteredTags = useMemo(() => {
-    const term = search.trim().toLowerCase();
-
-    if (!term) {
-      return availableTags;
-    }
-
-    return availableTags.filter(
-      (tag) =>
-        tag.tagCode.toLowerCase().includes(term) ||
-        (tag.batchNo ?? "").toLowerCase().includes(term)
-    );
-  }, [availableTags, search]);
+  const term = search.trim().toLowerCase();
+  const selectedProductVariantId = selectedItem?.productVariantId;
+  const filteredTags = availableTags.filter((tag) => {
+    const matchesVariant = !selectedProductVariantId || tag.productVariantId === selectedProductVariantId;
+    const matchesSearch = !term || tag.tagCode.toLowerCase().includes(term) || (tag.batchNo ?? "").toLowerCase().includes(term);
+    return matchesVariant && matchesSearch;
+  });
 
   const reasonRequired = mode === "replace";
   const canSubmit =
-    Boolean(selectedTagId) && (!reasonRequired || Boolean(reason)) && !busy;
+    Boolean(selectedTagId) && Boolean(orderItemId || fulfilmentItems.length === 0) && (mode === "assign" || Boolean(currentTagId)) && (!reasonRequired || Boolean(reason)) && !busy;
 
   function handleSubmit() {
     if (!canSubmit) {
       return;
     }
 
-    onSubmit({ tagId: selectedTagId, reason, note });
+    onSubmit({ tagId: selectedTagId, reason, note, orderItemId: orderItemId || undefined, currentTagId: currentTagId || undefined });
   }
 
   return (
@@ -117,13 +120,27 @@ export function TagAssignmentModal({
           <SummaryItem label="Order" value={formatOrderNumber(order)} />
           <SummaryItem label="Status" value={getOrderStatusDisplay(order.status)} />
           <SummaryItem label="Owner" value={ownerName} />
-          <SummaryItem label="Pet" value={petName} />
+          <SummaryItem label="Pet" value={selectedItem?.petName ?? petName} />
           <SummaryItem label="Product" value={productLabel} />
-          <SummaryItem label="Variant" value={`${order.variant} Tag`} />
+          <SummaryItem label="Option" value={selectedItem?.variantName ?? `${order.variant} Tag`} />
         </div>
 
+        {eligibleItems.length > 1 ? (
+          <label className="mt-4 block">
+            <span className="text-xs font-black uppercase tracking-wide text-slate-500">Order line</span>
+            <select className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-900" onChange={(event) => { const next = eligibleItems.find((item) => item.orderItemId === event.target.value); setOrderItemId(event.target.value); setCurrentTagId(next?.assignedTags[0]?.id ?? ""); setSelectedTagId(""); }} value={selectedItem?.orderItemId ?? ""}>
+              {eligibleItems.map((item) => <option key={item.orderItemId} value={item.orderItemId}>{item.petName} — {item.productName} — {item.variantName} ({item.assignedTags.length}/{item.quantity} assigned)</option>)}
+            </select>
+          </label>
+        ) : null}
+
         {/* Current assigned tag */}
-        {currentTag ? (
+        {mode !== "assign" && selectedItem?.assignedTags.length ? (
+          <label className="mt-3 block rounded-xl border border-slate-200 p-4">
+            <span className="text-xs font-black uppercase tracking-wide text-slate-500">Current tag</span>
+            <select className="mt-2 min-h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 font-mono text-sm font-bold" onChange={(event) => setCurrentTagId(event.target.value)} value={currentTagId}>{selectedItem.assignedTags.map((tag) => <option key={tag.id} value={tag.id}>{tag.tagCode} — {tag.status}</option>)}</select>
+          </label>
+        ) : currentTag ? (
           <div className="mt-3 rounded-xl border border-slate-200 p-4">
             <p className="text-xs font-black uppercase tracking-wide text-slate-500">
               Current tag

@@ -649,6 +649,7 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasIndex(item => item.OrderId);
             entity.HasIndex(item => item.BatchId);
             entity.HasIndex(item => item.ProductVariantId);
+            entity.HasIndex(item => item.OrderItemId);
             entity.HasIndex(item => item.Status);
             entity.HasIndex(item => new { item.Status, item.PetId });
             entity.HasIndex(item => item.LastScannedAt);
@@ -666,8 +667,12 @@ public sealed class MyPetLinkDbContext : DbContext
                 .HasForeignKey(item => item.PetId)
                 .OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(item => item.Order)
-                .WithMany()
+                .WithMany(order => order.AssignedTags)
                 .HasForeignKey(item => item.OrderId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.OrderItem)
+                .WithMany(orderItem => orderItem.AssignedTags)
+                .HasForeignKey(item => item.OrderItemId)
                 .OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(item => item.Batch)
                 .WithMany(batch => batch.SmartTags)
@@ -764,19 +769,26 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.Property(item => item.SkuSnapshot).HasMaxLength(80);
             entity.Property(item => item.ProductNameSnapshot).HasMaxLength(160);
             entity.Property(item => item.VariantNameSnapshot).HasMaxLength(160);
+            entity.Property(item => item.PetNameSnapshot).HasMaxLength(160);
             entity.Property(item => item.UnitBasePrice).HasPrecision(18, 2);
             entity.Property(item => item.Subtotal).HasPrecision(18, 2);
             entity.Property(item => item.PromotionNameSnapshot).HasMaxLength(160);
             entity.Property(item => item.DiscountAmount).HasPrecision(18, 2);
             entity.Property(item => item.FinalUnitPrice).HasPrecision(18, 2);
             entity.Property(item => item.FinalAmount).HasPrecision(18, 2);
+            entity.Property(item => item.UnitWeightGramsSnapshot).HasPrecision(10, 2);
             entity.Property(item => item.Currency).HasMaxLength(3);
             entity.HasIndex(item => item.OrderId);
             entity.HasIndex(item => item.ProductVariantId);
+            entity.HasIndex(item => item.PetId);
             entity.HasIndex(item => item.PromotionId);
             entity.HasOne(item => item.Order)
                 .WithMany(order => order.Items)
                 .HasForeignKey(item => item.OrderId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.Pet)
+                .WithMany()
+                .HasForeignKey(item => item.PetId)
                 .OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(item => item.ProductVariant)
                 .WithMany(variant => variant.OrderItems)

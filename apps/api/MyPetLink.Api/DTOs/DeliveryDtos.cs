@@ -1,14 +1,25 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 using MyPetLink.Api.Common;
 
 namespace MyPetLink.Api.DTOs;
 
 public sealed record MalaysiaStateResponse(string Code, string Name, string ZoneCode, string ZoneName, IReadOnlyCollection<string> Aliases);
 
+public sealed record DeliveryQuoteItemRequest(
+    [Required, MaxLength(32)] string ProductVariantKey,
+    [Range(1, TagOrderLimits.MaxQuantityPerLine)] int Quantity);
+
+[method: JsonConstructor]
 public sealed record DeliveryQuoteRequest(
     [MaxLength(8)] string? StateCode,
-    [Required, MaxLength(32)] string ProductVariantKey,
-    [Range(1, 1)] int Quantity);
+    IReadOnlyCollection<DeliveryQuoteItemRequest>? Items)
+{
+    public DeliveryQuoteRequest(string? stateCode, string productVariantKey, int quantity)
+        : this(stateCode, [new DeliveryQuoteItemRequest(productVariantKey, quantity)])
+    {
+    }
+}
 
 public sealed record DeliveryQuoteResponse(
     string StateCode,

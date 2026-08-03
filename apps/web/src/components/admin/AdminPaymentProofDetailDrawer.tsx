@@ -4,10 +4,11 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { AdminActionButton, AdminDetailItem } from "@/components/admin/AdminPanels";
 import { formatAdminDateTime } from "@/components/admin/adminDisplay";
+import { OrderPriceBreakdown, priceLinesFromOrder } from "@/components/orders/OrderPriceBreakdown";
 import { Badge } from "@/components/ui/Badge";
 import { adminRoutes } from "@/lib/routes";
 import { useModalDialogFocus } from "@/lib/useModalDialogFocus";
-import { getAdminPaymentProofAccess, openAdminPaymentProof } from "@/services/adminOrderService";
+import { getAdminOrderDetail, getAdminPaymentProofAccess, openAdminPaymentProof, type AdminOrderDetail } from "@/services/adminOrderService";
 import { getAdminPaymentProofHistory, type AdminPaymentProofHistoryEntry } from "@/services/adminPaymentProofHistoryService";
 import {
   fulfilmentStatusLabels,
@@ -44,6 +45,7 @@ export function AdminPaymentProofDetailDrawer({
   const key = `${summary.id}:${refreshKey}`;
   const [detailState, setDetailState] = useState<{ key: string; detail: AdminPaymentProof | null; error: string } | null>(null);
   const [historyState, setHistoryState] = useState<{ key: string; entries: AdminPaymentProofHistoryEntry[] | null } | null>(null);
+  const [orderState, setOrderState] = useState<{ key: string; detail: AdminOrderDetail | null } | null>(null);
   const [mediaState, setMediaState] = useState<{ key: string; access: BackendMediaDownloadUrlResponse | null; error: string } | null>(null);
   const [proofMessage, setProofMessage] = useState("");
 
@@ -54,11 +56,13 @@ export function AdminPaymentProofDetailDrawer({
     Promise.all([
       getAdminPaymentProofDetail(summary.id, controller.signal),
       getAdminPaymentProofHistory(summary.id, summary.orderId, controller.signal),
+      getAdminOrderDetail(summary.orderId, controller.signal),
     ])
-      .then(([detail, history]) => {
+      .then(([detail, history, order]) => {
         if (!controller.signal.aborted) {
           setDetailState({ key, detail, error: "" });
           setHistoryState({ key, entries: history });
+          setOrderState({ key, detail: order });
         }
       })
       .catch(() => {
@@ -89,6 +93,7 @@ export function AdminPaymentProofDetailDrawer({
   const error = detailState?.key === key ? detailState.error : "";
   const history = historyState?.key === key ? historyState.entries : undefined;
   const media = mediaState?.key === key ? mediaState : null;
+  const orderDetail = orderState?.key === key ? orderState.detail : null;
   const reviewable = detail?.status === "PendingReview" && !detail.orderStateConflict;
 
   async function openProof() {
@@ -189,6 +194,20 @@ export function AdminPaymentProofDetailDrawer({
                   <AdminDetailItem label="Order payment" value={paymentStatusLabels[detail.orderPaymentStatus]} />
                   <AdminDetailItem label="Fulfilment" value={fulfilmentStatusLabels[detail.fulfilmentStatus]} />
                 </div>
+                {orderDetail ? (
+                  <div className="mt-3">
+                    <OrderPriceBreakdown
+                      currency={orderDetail.order.currency}
+                      deliveryFee={orderDetail.order.deliveryFee ?? 0}
+                      deliveryMethod={orderDetail.order.delivery.deliveryMethod}
+                      discountTotal={orderDetail.order.discountTotal}
+                      freeDeliveryReason={orderDetail.order.delivery.freeDeliveryReason}
+                      lines={priceLinesFromOrder(orderDetail.order)}
+                      merchandiseSubtotal={orderDetail.order.merchandiseSubtotal}
+                      total={orderDetail.order.totalAmount}
+                    />
+                  </div>
+                ) : null}
               </section>
 
               <section>

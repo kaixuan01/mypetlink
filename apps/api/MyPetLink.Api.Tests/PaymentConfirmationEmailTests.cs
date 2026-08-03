@@ -264,6 +264,40 @@ public sealed class PaymentConfirmationEmailTests
         Assert.DoesNotContain("@font-face", rendered.HtmlBody, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task Template_RendersMultiplePetLinesAndCompletePriceBreakdown()
+    {
+        using var harness = await Harness.CreateAsync();
+        await harness.Admin.ConfirmPaymentAsync(Harness.AdminUserId, Harness.OrderId);
+        var message = await harness.Db.EmailOutbox.SingleAsync();
+        var data = JsonSerializer.Deserialize<PaymentConfirmedEmailTemplateData>(
+            message.TemplateDataJson,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+        message.TemplateDataJson = JsonSerializer.Serialize(data with
+        {
+            AmountPaid = 85m,
+            MerchandiseSubtotal = 90m,
+            DiscountTotal = 13m,
+            DeliveryFee = 8m,
+            Items =
+            [
+                new PaymentConfirmedEmailItemData("Standard Smart Tag", "Standard NFC", "Topu", 1, 39m, 39m),
+                new PaymentConfirmedEmailItemData("Lightweight QR Tag", "Lightweight", "Luna", 2, 19m, 38m)
+            ]
+        }, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+
+        var rendered = harness.Renderer.Render(message);
+
+        Assert.Contains("Standard Smart Tag", rendered.TextBody);
+        Assert.Contains("Topu", rendered.TextBody);
+        Assert.Contains("Lightweight QR Tag", rendered.TextBody);
+        Assert.Contains("Luna", rendered.TextBody);
+        Assert.Contains("Merchandise subtotal: MYR 90.00", rendered.TextBody);
+        Assert.Contains("Discount: − MYR 13.00", rendered.TextBody);
+        Assert.Contains("Delivery: MYR 8.00", rendered.TextBody);
+        Assert.Contains("Amount paid: MYR 85.00", rendered.TextBody);
+    }
+
     [Theory]
     [InlineData(false, "Smtp", true)]
     [InlineData(true, "Smtp", false)]

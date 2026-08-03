@@ -132,9 +132,22 @@ export type AdminOrderDetail = {
   order: TagOrder;
   backendOrder?: BackendTagOrder;
   productVariantId?: string;
+  fulfilmentItems?: AdminOrderFulfilmentItem[];
   owner: { id?: string; name: string; email: string };
   shipment: AdminShipmentDetails;
   paymentConfirmationEmail?: AdminPaymentConfirmationEmail;
+};
+
+export type AdminOrderFulfilmentItem = {
+  orderItemId: string;
+  productVariantId?: string;
+  sku: string;
+  productName: string;
+  variantName: string;
+  petId: string;
+  petName: string;
+  quantity: number;
+  assignedTags: Array<{ id: string; tagCode: string; status: string }>;
 };
 
 export type AdminShipmentDetails = {
@@ -212,6 +225,17 @@ type BackendAdminOrderDetail = {
   order: BackendTagOrder;
   owner: { userId: string; displayName: string; email: string };
   productVariantId?: string | null;
+  items?: Array<{
+    orderItemId: string;
+    productVariantId?: string | null;
+    sku: string;
+    productName: string;
+    variantName: string;
+    petId: string;
+    petName: string;
+    quantity: number;
+    assignedTags: Array<{ id: string; tagCode: string; status: string }>;
+  }>;
   shipment: {
     courierProviderCode?: string | null;
     courierProvider?: string | null;
@@ -354,6 +378,10 @@ export async function getAdminOrderDetail(orderId: string, signal?: AbortSignal)
       order: mapBackendOrder(response.data.order),
       backendOrder: response.data.order,
       productVariantId: response.data.productVariantId ?? undefined,
+      fulfilmentItems: (response.data.items ?? []).map((item) => ({
+        ...item,
+        productVariantId: item.productVariantId ?? undefined,
+      })),
       shipment: {
         courierProviderCode: response.data.shipment.courierProviderCode ?? undefined,
         courierProvider: response.data.shipment.courierProvider ?? undefined,
@@ -380,7 +408,7 @@ export async function getAdminOrderDetail(orderId: string, signal?: AbortSignal)
   const order = orders.data.find((item) => item.id === orderId);
   if (!order) throw new Error("This order could not be found.");
   const pet = pets.data.find((item) => item.id === order.petId);
-  return { order, owner: { name: pet?.owner.name ?? "Owner", email: "" }, shipment: { rowVersion: "" } };
+  return { order, fulfilmentItems: [], owner: { name: pet?.owner.name ?? "Owner", email: "" }, shipment: { rowVersion: "" } };
 }
 
 export async function retryPaymentConfirmationEmail(

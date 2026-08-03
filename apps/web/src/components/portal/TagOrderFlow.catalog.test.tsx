@@ -45,8 +45,9 @@ const catalog: TagProduct[] = [
 ];
 
 vi.mock("@/services/apiConfig", () => ({ isApiConfigured: () => true }));
+let petData = [mockPets[0]];
 vi.mock("@/services/petService", () => ({
-  getPets: vi.fn(async () => ({ data: [mockPets[0]], error: null })),
+  getPets: vi.fn(async () => ({ data: petData, error: null })),
 }));
 // Swapped per test so capability rendering can be checked against different
 // option configurations without re-mocking the module.
@@ -103,12 +104,13 @@ describe("TagOrderFlow catalog pricing", () => {
   beforeEach(() => {
     window.localStorage.clear();
     catalogData = catalog;
+    petData = [mockPets[0]];
     deliveryQuoteFailure = null;
   });
   afterEach(cleanup);
 
   it("renders backend-calculated product, capabilities, promotion and effective price", async () => {
-    render(<TagOrderFlow pets={[mockPets[0]]} preselectedPetId={mockPets[0].id} />);
+    render(<TagOrderFlow initialTagType="MyPetLink QR + NFC Smart Tag" pets={[mockPets[0]]} preselectedPetId={mockPets[0].id} />);
 
     expect((await screen.findAllByText("MyPetLink Smart Tag")).length).toBeGreaterThan(0);
     expect(screen.getByText("Standard NFC")).toBeTruthy();
@@ -116,8 +118,8 @@ describe("TagOrderFlow catalog pricing", () => {
     expect(screen.getByText("QR code")).toBeTruthy();
     expect(screen.getByText("Stainless steel")).toBeTruthy();
     expect(screen.getByText("Save RM10")).toBeTruthy();
-    expect(screen.getByText(/39\.90/)).toBeTruthy();
-    expect(screen.getByText(/49\.90/)).toBeTruthy();
+    expect(screen.getAllByText(/39\.90/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/49\.90/).length).toBeGreaterThan(0);
     expect(screen.queryByText(/MPL-[A-Z0-9]{4}-[A-Z0-9]{4}/)).toBeNull();
   });
 
@@ -162,21 +164,21 @@ describe("TagOrderFlow catalog pricing", () => {
     catalogData = [{ ...catalog[0], variants: [qrOnlyVariant, catalog[0].variants[0]] }];
     render(<TagOrderFlow pets={[mockPets[0]]} preselectedPetId={mockPets[0].id} />);
 
-    expect(await screen.findByText("Lightweight QR")).toBeTruthy();
-    expect(screen.getByText("Standard NFC")).toBeTruthy();
+    expect(await screen.findByRole("option", { name: /Lightweight QR/ })).toBeTruthy();
+    expect(screen.getByRole("option", { name: /Standard NFC/ })).toBeTruthy();
     // The customer chooses by name and price, not by decoding "PAW-LW-QR".
     expect(screen.queryByText("PAW-LW-QR")).toBeNull();
-    expect(screen.getByText(/19\.90/)).toBeTruthy();
+    expect(screen.getAllByText(/19\.90/).length).toBeGreaterThan(0);
   });
 
   it("updates the features shown when the customer picks a different option", async () => {
     catalogData = [{ ...catalog[0], variants: [qrOnlyVariant, catalog[0].variants[0]] }];
-    render(<TagOrderFlow pets={[mockPets[0]]} preselectedPetId={mockPets[0].id} />);
+    render(<TagOrderFlow initialTagType="MyPetLink QR + NFC Smart Tag" pets={[mockPets[0]]} preselectedPetId={mockPets[0].id} />);
 
     // The QR + NFC option is preselected, so both features are listed.
     expect(await screen.findByText("NFC tap")).toBeTruthy();
 
-    fireEvent.click(screen.getByText("Lightweight QR"));
+    fireEvent.change(screen.getByLabelText(/Physical tag/), { target: { value: "PUBLICVARIANT002" } });
 
     // Selecting the QR-only option must drop the NFC feature.
     await waitFor(() => expect(screen.getAllByText("QR code").length).toBeGreaterThan(0));
@@ -208,12 +210,30 @@ describe("TagOrderFlow catalog pricing", () => {
     fireEvent.click(screen.getByRole("button", { name: /Step 4/ }));
 
     expect(await screen.findByText("Confirm order")).toBeTruthy();
-    expect(screen.getByText("Pet tag")).toBeTruthy();
-    expect(screen.getByText("Features")).toBeTruthy();
-    expect(screen.getByText("QR code · NFC tap")).toBeTruthy();
+    expect(screen.getByText("Merchandise subtotal")).toBeTruthy();
+    expect(screen.getAllByText(/MyPetLink Smart Tag/).length).toBeGreaterThan(0);
     // Operations vocabulary must never appear on a customer screen.
     expect(screen.queryByText("SKU")).toBeNull();
     expect(screen.queryByText("Variant")).toBeNull();
     expect(screen.queryByText("MPL-NFC-STANDARD-V1")).toBeNull();
+  });
+
+  it("builds one review for multiple pets, line quantities, discounts, and one pending delivery fee", async () => {
+    petData = mockPets.slice(0, 2);
+    render(<TagOrderFlow pets={petData} preselectedPetId={petData[0].id} />);
+    await screen.findByText("Choose your physical tags");
+
+    fireEvent.change(screen.getByLabelText(/^Quantity/), { target: { value: "2" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add another tag" }));
+    const petSelectors = screen.getAllByLabelText(/^Pet/);
+    fireEvent.change(petSelectors[1], { target: { value: petData[1].id } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(await screen.findByText("Review tags")).toBeTruthy();
+    expect(screen.getAllByText(new RegExp(petData[0].name)).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(new RegExp(petData[1].name)).length).toBeGreaterThan(0);
+    expect(screen.getByText("Merchandise subtotal")).toBeTruthy();
+    expect(screen.getByText("Discount")).toBeTruthy();
+    expect(screen.getByText("Calculated after delivery details")).toBeTruthy();
   });
 });

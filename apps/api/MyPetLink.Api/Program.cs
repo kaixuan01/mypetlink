@@ -328,6 +328,7 @@ builder.Services.AddScoped<IOrderService, OrderService>();
 builder.Services.AddScoped<IDeliveryService, DeliveryService>();
 builder.Services.AddScoped<IShippingFulfilmentService, ShippingFulfilmentService>();
 builder.Services.AddScoped<ITagPricingService, TagPricingService>();
+builder.Services.AddScoped<ITagOrderInventoryAvailabilityService, TagOrderInventoryAvailabilityService>();
 builder.Services.AddScoped<ITagCatalogService, TagCatalogService>();
 builder.Services.AddScoped<IOrderDocumentService, OrderDocumentService>();
 builder.Services.AddScoped<IPaymentProofService, PaymentProofService>();

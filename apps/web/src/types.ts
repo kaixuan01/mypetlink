@@ -435,6 +435,7 @@ export type TagOrder = {
   tagId?: string;
   replacementForTagId?: string;
   productVariantKey?: string;
+  items?: TagOrderItem[];
   sku?: string;
   productName?: string;
   variantName?: string;
@@ -448,6 +449,9 @@ export type TagOrder = {
   finalAmount?: number;
   deliveryFee?: number;
   totalAmount?: number;
+  merchandiseSubtotal?: number;
+  discountTotal?: number;
+  estimatedShipmentWeightGrams?: number;
   promotionName?: string;
   currency?: string;
   paymentMethod?: string;
@@ -472,6 +476,36 @@ export type TagOrder = {
   deliveredDate?: string;
   timeline?: OrderTimelineEvent[];
   paymentProofs?: OrderPaymentProof[];
+};
+
+export type AssignedOrderTag = {
+  id: string;
+  tagCode: string;
+  orderItemId?: string;
+  petId: string;
+  petName: string;
+  status: string;
+};
+
+export type TagOrderItem = {
+  id?: string;
+  petId: string;
+  petName: string;
+  sku: string;
+  productName: string;
+  variantName: string;
+  quantity: number;
+  unitBasePrice: number;
+  subtotal: number;
+  promotionName?: string;
+  discountAmount: number;
+  finalUnitPrice: number;
+  finalAmount: number;
+  unitWeightGrams?: number;
+  currency: string;
+  supportsQr: boolean;
+  supportsNfc: boolean;
+  assignedTags: AssignedOrderTag[];
 };
 
 export type AdminDashboard = {
@@ -538,9 +572,11 @@ export type PetMomentPayload = Partial<
 >;
 
 export type TagOrderPayload = {
-  petId: string;
-  productVariantKey: string;
-  quantity: 1;
+  items: Array<{
+    petId: string;
+    productVariantKey: string;
+    quantity: number;
+  }>;
   delivery: DeliveryDetails;
   replacementForTagId?: string;
   // Stable per-submission-attempt key so a double-tap or retry never creates a

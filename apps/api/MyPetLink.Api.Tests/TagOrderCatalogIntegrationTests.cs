@@ -345,6 +345,118 @@ public sealed class TagOrderCatalogIntegrationTests
         Assert.Equal("invalid_state", duplicate.Code);
     }
 
+    [Fact]
+    public async Task Create_MultiplePetsAndSkus_CreatesOneOrderWithAuthoritativeTotals()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var secondPet = new Pet
+        {
+            OwnerUserId = OwnerId,
+            Slug = "luna-p124",
+            Name = "Luna",
+            Species = "Cat",
+            LifecycleStatus = PetLifecycleStatus.Active
+        };
+        var qrVariant = new TagProductVariant
+        {
+            TagProduct = harness.Product,
+            PublicKey = "QRLIGHTWEIGHT002",
+            Sku = "MPL-QR-LIGHTWEIGHT-V2",
+            DisplayName = "Lightweight QR",
+            SupportsQr = true,
+            SupportsNfc = false,
+            TagVariant = "Lightweight",
+            BasePrice = 29.90m,
+            Currency = "MYR",
+            IsActive = true,
+            IsPurchasable = true,
+            WeightGrams = 5m
+        };
+        var qrStock = new SmartTag
+        {
+            TagCode = "MPL-STCK-0002",
+            ProductVariant = qrVariant,
+            HasNfc = false,
+            Variant = "Lightweight",
+            Status = SmartTagStatus.Unclaimed,
+            FulfilmentStatus = TagFulfilmentStatus.Generated
+        };
+        harness.Db.AddRange(secondPet, qrVariant, qrStock);
+        await harness.Db.SaveChangesAsync();
+
+        var request = new CreateTagOrderRequest(
+            [
+                new CreateTagOrderItemRequest(harness.Pet.Id, harness.Variant.PublicKey, 1),
+                new CreateTagOrderItemRequest(secondPet.Id, qrVariant.PublicKey, 1)
+            ],
+            new DeliveryDetailsRequest("Aina", "+60123456789", "1 Jalan Pet", null, "50000", "Kuala Lumpur", "KUL", null),
+            null,
+            "multi-attempt-1");
+
+        var created = await harness.Service.CreateAsync(OwnerId, request);
+
+        Assert.Equal(2, created.Order.Items.Count);
+        Assert.Equal(79.80m, created.Order.MerchandiseSubtotal);
+        Assert.Equal(10m, created.Order.DiscountTotal);
+        Assert.Equal(69.80m, created.Order.Amount);
+        Assert.Equal(69.80m, created.Order.TotalAmount);
+        Assert.Equal(2, await harness.Db.TagOrderItems.CountAsync(item => item.OrderId == created.Order.Id));
+        Assert.All(created.Order.Items, item => Assert.Empty(item.AssignedTags));
+        Assert.Contains(created.Order.Items, item => item.PetId == secondPet.Id && item.PetName == "Luna" && item.Sku == qrVariant.Sku);
+    }
+
+    [Fact]
+    public async Task Create_MultiItemWithAnotherOwnersPet_RejectsAtomically()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var otherPet = new Pet
+        {
+            OwnerUserId = OtherOwnerId,
+            Slug = "private-pet-p999",
+            Name = "Private",
+            Species = "Dog",
+            LifecycleStatus = PetLifecycleStatus.Active
+        };
+        harness.Db.Add(otherPet);
+        await harness.Db.SaveChangesAsync();
+
+        var request = new CreateTagOrderRequest(
+            [
+                new CreateTagOrderItemRequest(harness.Pet.Id, harness.Variant.PublicKey, 1),
+                new CreateTagOrderItemRequest(otherPet.Id, harness.Variant.PublicKey, 1)
+            ],
+            new DeliveryDetailsRequest("Aina", "+60123456789", "1 Jalan Pet", null, "50000", "Kuala Lumpur", "KUL", null),
+            null,
+            "multi-private");
+
+        var error = await Assert.ThrowsAsync<ApiException>(() => harness.Service.CreateAsync(OwnerId, request));
+        Assert.Equal(StatusCodes.Status404NotFound, error.StatusCode);
+        Assert.Empty(harness.Db.TagOrders);
+    }
+
+    [Fact]
+    public async Task Create_ReservesOutstandingSkuUnits_AndPreventsOverselling()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var availability = new TagOrderInventoryAvailabilityService(harness.Db);
+        var pricing = new TagPricingService(harness.Db);
+        var service = new OrderService(
+            harness.Db,
+            Options.Create(new FeatureOptions { SmartTagOrderingEnabled = true }),
+            pricing,
+            new DeliveryService(harness.Db, pricing, new AuditLogService(harness.Db, new HttpContextAccessor())),
+            new BusinessReferenceGenerator(new CryptographicBusinessReferenceSuffixSource()),
+            TimeProvider.System,
+            inventoryAvailability: availability);
+
+        await service.CreateAsync(OwnerId, Request(harness.Pet.Id, harness.Variant.PublicKey, "reserved-first"));
+        var error = await Assert.ThrowsAsync<ApiException>(() =>
+            service.CreateAsync(OwnerId, Request(harness.Pet.Id, harness.Variant.PublicKey, "reserved-second")));
+
+        Assert.Equal("out_of_stock", error.Code);
+        Assert.Single(harness.Db.TagOrders);
+    }
+
     private static CreateTagOrderRequest Request(Guid petId, string publicKey, string? idempotencyKey = null) => new(
         petId,
         publicKey,

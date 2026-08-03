@@ -31,9 +31,11 @@ The backend returns the base price, discount, final price, display label, and en
 
 ## Purchase and allocation
 
-An owner submits the stable public variant key, quantity `1`, the selected pet, and delivery details. The backend verifies ownership, product publication, SKU availability, current stock, and current pricing before creating an order and its snapshot.
+An owner submits one or more lines containing only the stable public variant key, quantity, and selected pet, plus one delivery address for the order. Identical pet + SKU selections are merged into one quantity line. The backend verifies pet ownership and eligibility, product publication, SKU readiness, available stock, and current pricing before creating one order with immutable item snapshots.
 
-Order creation does not expose or reserve a Tag Code. After payment approval, an Admin assigns an eligible unclaimed tag with the exact `ProductVariantId`. Assign, change, and replacement operations use row-version concurrency so the same inventory row cannot be silently allocated by competing Admin actions.
+Orders support up to 20 lines and 20 physical units, with at most 10 units on one merged line. The browser never supplies trusted prices, totals, discounts, delivery fees, or inventory IDs. Outstanding non-cancelled order-item quantities reserve SKU-level availability without selecting or exposing Tag Codes; cancellation releases the outstanding reservation.
+
+After payment approval, an Admin assigns one exact-SKU inventory tag to each physical unit and pet. Every unit must be assigned before preparation can advance to Ready to Ship. Assign, change, and replacement operations select the target order item (and current tag where applicable), retain the established audit rules, and protect each inventory row from duplicate allocation.
 
 ## Availability and routes
 

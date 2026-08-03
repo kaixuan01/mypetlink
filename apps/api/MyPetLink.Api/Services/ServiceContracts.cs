@@ -339,7 +339,7 @@ public interface IDeliveryService : ISkeletonService
 {
     IReadOnlyCollection<MalaysiaStateResponse> ListStates();
     Task<DeliveryQuoteResponse> QuoteAsync(DeliveryQuoteRequest request, CancellationToken cancellationToken = default);
-    Task<DeliveryResolution> ResolveAsync(string? stateCode, TagPricingQuote productQuote, int quantity, CancellationToken cancellationToken = default);
+    Task<DeliveryResolution> ResolveAsync(string? stateCode, DeliveryPricingSummary pricing, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<AdminDeliveryRateResponse>> ListRatesAsync(CancellationToken cancellationToken = default);
     Task<AdminDeliveryRateResponse> CreateRateAsync(Guid? actorId, UpsertDeliveryRateRequest request, CancellationToken cancellationToken = default);
     Task<AdminDeliveryRateResponse> UpdateRateAsync(Guid? actorId, Guid id, UpsertDeliveryRateRequest request, CancellationToken cancellationToken = default);
@@ -355,6 +355,14 @@ public sealed record DeliveryResolution(
     // "ZoneDefault" or "StateOverride" — snapshotted onto the order so a
     // historical fee stays explainable after configuration changes.
     string RateSource);
+
+public sealed record DeliveryPricingSummary(
+    decimal MerchandiseSubtotal,
+    decimal DiscountTotal,
+    string Currency)
+{
+    public decimal DiscountedMerchandiseTotal => MerchandiseSubtotal - DiscountTotal;
+}
 
 public interface IPaymentProofService : ISkeletonService
 {
@@ -405,6 +413,7 @@ public interface IAdminService : ISkeletonService
         Guid? currentUserId,
         Guid orderId,
         Guid tagId,
+        Guid? orderItemId = null,
         CancellationToken cancellationToken = default);
 
     Task<AdminTagOrderResponse> ChangeAssignedTagAsync(
@@ -412,6 +421,7 @@ public interface IAdminService : ISkeletonService
         Guid orderId,
         Guid newTagId,
         string? reason,
+        Guid? currentTagId = null,
         CancellationToken cancellationToken = default);
 
     Task<AdminTagOrderResponse> ReplaceTagAsync(
@@ -420,6 +430,7 @@ public interface IAdminService : ISkeletonService
         Guid newTagId,
         string? reason,
         string? note,
+        Guid? currentTagId = null,
         CancellationToken cancellationToken = default);
 
     Task<AdminTagOrderResponse> MarkOrderPreparingAsync(

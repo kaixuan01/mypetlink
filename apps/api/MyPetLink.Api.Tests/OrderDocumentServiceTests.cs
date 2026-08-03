@@ -343,6 +343,50 @@ public sealed class OrderDocumentServiceTests
         Assert.Contains("2", text);               // quantity column
     }
 
+    [Fact]
+    public async Task MultiPetReceipt_RendersEveryImmutableLineAndReconciledTotals()
+    {
+        using var h = await Harness.CreateAsync();
+        var secondPet = new Pet
+        {
+            OwnerUserId = Harness.OwnerAId,
+            Slug = "luna-receipt-p124",
+            Name = "Luna",
+            Species = "Cat",
+            LifecycleStatus = PetLifecycleStatus.Active
+        };
+        var order = Harness.ConfirmedOrder("MPL-ORD-MULTI", TagType.QrPetTag, 55m);
+        var buddyLine = Harness.SimpleItem(order.Id, nfc: false, unit: 20m, qty: 2, final: 40m);
+        buddyLine.PetId = Harness.PetId;
+        buddyLine.PetNameSnapshot = "Buddy";
+        order.Items.Add(buddyLine);
+        order.Items.Add(new TagOrderItem
+        {
+            Pet = secondPet,
+            PetNameSnapshot = "Luna",
+            SkuSnapshot = "INTERNAL-SKU-NOT-FOR-RECEIPT",
+            ProductNameSnapshot = "Lightweight QR Pet Tag",
+            VariantNameSnapshot = "Lightweight",
+            SupportsQrSnapshot = true,
+            UnitBasePrice = 15m,
+            FinalUnitPrice = 15m,
+            Quantity = 1,
+            Subtotal = 15m,
+            FinalAmount = 15m,
+            Currency = "MYR"
+        });
+        h.Db.TagOrders.Add(order);
+        await h.Db.SaveChangesAsync();
+
+        var text = Squash(ExtractText((await h.Service.GetOwnerReceiptAsync(Harness.OwnerAId, order.OrderNumber)).Content));
+
+        Assert.Contains("LightweightQRPetTag", text);
+        Assert.Contains("Option:Lightweight", text);
+        Assert.Contains("For:Luna", text);
+        Assert.Contains("RM55.00", text);
+        Assert.DoesNotContain("INTERNAL-SKU", text, StringComparison.OrdinalIgnoreCase);
+    }
+
     // --- Historical snapshot behaviour ------------------------------------
 
     [Fact]
@@ -453,7 +497,7 @@ public sealed class OrderDocumentServiceTests
         public static readonly Guid OwnerBId = Guid.Parse("b2937cd3-2b93-412c-9d81-a5630f01fb61");
         public static readonly Guid ReviewerAdminId = Guid.Parse("b1ead540-f6cc-4083-bc8e-63b26b022342");
         private static readonly DateTimeOffset Now = DateTimeOffset.Parse("2026-07-20T02:30:00Z");
-        private static readonly Guid PetId = Guid.Parse("83333333-3333-3333-3333-333333333333");
+        public static readonly Guid PetId = Guid.Parse("83333333-3333-3333-3333-333333333333");
 
         // One shared root keeps EF's internal service provider stable across all
         // harness instances (a fresh root per harness would build a new provider
@@ -629,7 +673,7 @@ public sealed class OrderDocumentServiceTests
             return harness;
         }
 
-        private static TagOrder ConfirmedOrder(string number, TagType tagType, decimal amount)
+        public static TagOrder ConfirmedOrder(string number, TagType tagType, decimal amount)
         {
             return new TagOrder
             {
@@ -662,7 +706,7 @@ public sealed class OrderDocumentServiceTests
             };
         }
 
-        private static TagOrderItem SimpleItem(Guid orderId, bool nfc, decimal unit, int qty, decimal final)
+        public static TagOrderItem SimpleItem(Guid orderId, bool nfc, decimal unit, int qty, decimal final)
         {
             return new TagOrderItem
             {

@@ -278,7 +278,7 @@ export function AdminOrdersManager() {
   const [actualCourierCost, setActualCourierCost] = useState("");
   const [shippingNotes, setShippingNotes] = useState("");
   const [dialogError, setDialogError] = useState("");
-  const [tagModal, setTagModal] = useState<{ mode: TagAssignmentMode; detail: AdminOrderDetail; tags: PetTag[] } | null>(null);
+  const [tagModal, setTagModal] = useState<{ mode: TagAssignmentMode; detail: AdminOrderDetail; tags: Array<PetTag & { productVariantId?: string }> } | null>(null);
   const [detachedOrder, setDetachedOrder] = useState<AdminOrder | null>(null);
 
   useEffect(() => {
@@ -362,21 +362,25 @@ export function AdminOrdersManager() {
     if (action === "assign-tag" || action === "change-tag" || action === "replace-tag") {
       setBusy(true);
       try {
-        const inventory = await listTagInventory({
-          page: 1,
-          pageSize: 100,
-          status: "Unclaimed",
-          productVariantId: detail.productVariantId,
-          tagType: detail.productVariantId ? undefined : detail.order.tagType.includes("NFC") ? "QR_NFC" : "QR",
-          variant: detail.productVariantId ? undefined : detail.order.variant,
-          sortBy: "tagCode",
-          sortDir: "asc",
-        });
-        const tags: PetTag[] = inventory.items
+        const productVariantIds = [...new Set((detail.fulfilmentItems ?? []).map((item) => item.productVariantId).filter((id): id is string => Boolean(id)))];
+        const inventories = productVariantIds.length
+          ? await Promise.all(productVariantIds.map((productVariantId) => listTagInventory({ page: 1, pageSize: 100, status: "Unclaimed", productVariantId, sortBy: "tagCode", sortDir: "asc" })))
+          : [await listTagInventory({
+              page: 1,
+              pageSize: 100,
+              status: "Unclaimed",
+              productVariantId: detail.productVariantId,
+              tagType: detail.productVariantId ? undefined : detail.order.tagType.includes("NFC") ? "QR_NFC" : "QR",
+              variant: detail.productVariantId ? undefined : detail.order.variant,
+              sortBy: "tagCode",
+              sortDir: "asc",
+            })];
+        const tags: Array<PetTag & { productVariantId?: string }> = inventories.flatMap((inventory) => inventory.items)
           .filter((tag) => tag.fulfilment === "Generated" || tag.fulfilment === "Printed")
           .map((tag) => ({
           id: tag.id,
           tagCode: tag.tagCode,
+          productVariantId: tag.productVariantId,
           hasNfc: tag.hasNfc,
           variant: tag.variant,
           status: "Unassigned",
@@ -501,16 +505,16 @@ export function AdminOrdersManager() {
     }
   }
 
-  async function submitTag(input: { tagId: string; reason: string; note: string }) {
+  async function submitTag(input: { tagId: string; reason: string; note: string; orderItemId?: string; currentTagId?: string }) {
     if (!tagModal || busy) return;
     setBusy(true);
     try {
       const id = tagModal.detail.order.id;
       const result = tagModal.mode === "assign"
-        ? await adminAssignInventoryTag(id, input.tagId)
+        ? await adminAssignInventoryTag(id, input.tagId, input.orderItemId)
         : tagModal.mode === "change"
-          ? await adminChangeAssignedTag(id, input.tagId, input.reason)
-          : await adminReplaceTag(id, input.tagId, input.reason, input.note);
+          ? await adminChangeAssignedTag(id, input.tagId, input.reason, input.currentTagId)
+          : await adminReplaceTag(id, input.tagId, input.reason, input.note, input.currentTagId);
       if (!result.data) throw new Error("This tag action is no longer available for the order's current status.");
       setMessage(tagModal.mode === "assign" ? "Inventory tag assigned." : tagModal.mode === "change" ? "Assigned tag changed." : "Replacement tag issued.");
       setTagModal(null);
@@ -709,6 +713,7 @@ export function AdminOrdersManager() {
           availableTags={tagModal.tags}
           busy={busy}
           currentTag={tagModal.detail.order.tagId ? { id: tagModal.detail.order.tagId, tagCode: tagModal.detail.backendOrder?.smartTagCode ?? "Assigned tag", hasNfc: tagModal.detail.order.tagType.includes("NFC"), variant: tagModal.detail.order.variant, status: tagModal.detail.order.status === "Delivered" ? "Delivered" : "Preparing" } : undefined}
+          fulfilmentItems={tagModal.detail.fulfilmentItems}
           mode={tagModal.mode}
           onCancel={() => !busy && setTagModal(null)}
           onSubmit={(input) => void submitTag(input)}

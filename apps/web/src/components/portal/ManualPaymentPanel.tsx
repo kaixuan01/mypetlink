@@ -1,10 +1,10 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { OrderPriceBreakdown, priceLinesFromOrder } from "@/components/orders/OrderPriceBreakdown";
 import { Badge } from "@/components/ui/Badge";
 import { Icon } from "@/components/ui/Icon";
 import { paymentConfig } from "@/config/payment";
-import { formatOrderOption } from "@/lib/orderDisplay";
 import { formatDeliverySummary, formatOrderNumber } from "@/lib/orders";
 import { canUseApi } from "@/services/apiConfig";
 import { uploadMediaFile } from "@/services/mediaService";
@@ -230,13 +230,20 @@ export function ManualPaymentPanel({
 
         {/* Order summary + proof submission */}
         <div className="grid min-w-0 gap-4">
-          <div className="grid gap-2 rounded-[1.5rem] bg-pet-cream p-4">
-            <SummaryRow label="Tag type" value={order.tagType} />
-            <SummaryRow label="Option" value={formatOrderOption(order)} />
+          <div className="grid gap-3 rounded-[1.5rem] bg-pet-cream p-4">
             <SummaryRow label="Recipient" value={order.delivery.recipientName} />
             <SummaryRow label="Delivery" value={deliverySummary} />
-            <SummaryRow label="Total amount" value={amountPayable} />
           </div>
+          <OrderPriceBreakdown
+            currency={order.currency}
+            deliveryFee={order.deliveryFee ?? 0}
+            deliveryMethod={order.delivery.deliveryMethod}
+            discountTotal={order.discountTotal}
+            freeDeliveryReason={order.delivery.freeDeliveryReason}
+            lines={priceLinesFromOrder(order)}
+            merchandiseSubtotal={order.merchandiseSubtotal}
+            total={order.totalAmount ?? expectedPaymentAmount(order)}
+          />
 
           <label className="grid gap-2" htmlFor={`payment-amount-${order.id}`}>
             <span className="text-sm font-bold text-pet-ink">Payment amount</span>

@@ -15,11 +15,13 @@ The Owner Portal loads the canonical state options from `GET /api/v1/delivery/st
 
 Each zone can have one delivery rate. A rate must be active before checkout is available for its zone. An active RM 0 rate is an explicit free-delivery configuration; an inactive or missing rate blocks checkout.
 
-The API calculates:
+The API calculates one delivery fee for the complete order:
 
-`item subtotal - product discount + delivery fee = order total`
+`merchandise subtotal - discount total + one delivery fee = order total`
 
-If a delivery rate has a free-delivery threshold, the threshold is evaluated against the item total after product discounts. Delivery quotes never expose the internal delivery-rate identifier.
+The merchandise subtotal is the sum of every snapshotted unit price multiplied by its quantity. If a delivery rate has a free-delivery threshold, the threshold is evaluated against merchandise after product discounts; the delivery fee itself is excluded. Quantity never multiplies the delivery fee. Delivery quotes never expose the internal delivery-rate identifier.
+
+Resolution precedence remains: enabled state override, then active zone default, otherwise delivery unavailable. A state override cannot make checkout available while its parent zone is inactive. Product weight is snapshotted and exposed as an internal estimated shipment weight, but it does not alter customer delivery pricing.
 
 ## Historical orders
 

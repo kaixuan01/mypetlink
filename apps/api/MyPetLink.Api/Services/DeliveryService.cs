@@ -12,15 +12,18 @@ public sealed class DeliveryService : SkeletonService, IDeliveryService
     private readonly MyPetLinkDbContext _dbContext;
     private readonly ITagPricingService _pricingService;
     private readonly IAuditLogService _auditLogService;
+    private readonly ITagOrderInventoryAvailabilityService? _inventoryAvailability;
 
     public DeliveryService(
         MyPetLinkDbContext dbContext,
         ITagPricingService pricingService,
-        IAuditLogService auditLogService)
+        IAuditLogService auditLogService,
+        ITagOrderInventoryAvailabilityService? inventoryAvailability = null)
     {
         _dbContext = dbContext;
         _pricingService = pricingService;
         _auditLogService = auditLogService;
+        _inventoryAvailability = inventoryAvailability;
     }
 
     public IReadOnlyCollection<MalaysiaStateResponse> ListStates() =>
@@ -32,20 +35,35 @@ public sealed class DeliveryService : SkeletonService, IDeliveryService
         CancellationToken cancellationToken = default)
     {
         var state = ResolveRequiredState(request.StateCode);
-        if (request.Quantity != 1)
+        var items = NormalizeQuoteItems(request.Items);
+        var merchandiseSubtotal = 0m;
+        var discountTotal = 0m;
+        var requestedInventory = new Dictionary<Guid, int>();
+
+        foreach (var item in items)
         {
-            throw Validation("quantity", "One physical tag can be ordered at a time.");
+            var (variant, quote) = await _pricingService.GetPurchasableVariantAsync(
+                item.ProductVariantKey, cancellationToken);
+            if (!string.Equals(quote.Currency, MalaysiaDelivery.Currency, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ApiException(409, "unsupported_currency", "Delivery is not currently available for this order. Please contact MyPetLink support.");
+            }
+
+            merchandiseSubtotal += decimal.Round(quote.BasePrice * item.Quantity, 2, MidpointRounding.AwayFromZero);
+            discountTotal += decimal.Round(quote.DiscountAmount * item.Quantity, 2, MidpointRounding.AwayFromZero);
+            requestedInventory[variant.Id] = requestedInventory.GetValueOrDefault(variant.Id) + item.Quantity;
         }
 
-        var (_, productQuote) = await _pricingService.GetPurchasableVariantAsync(
-            request.ProductVariantKey, cancellationToken);
-        if (!string.Equals(productQuote.Currency, MalaysiaDelivery.Currency, StringComparison.OrdinalIgnoreCase))
+        if (_inventoryAvailability is not null)
         {
-            throw new ApiException(409, "unsupported_currency", "Delivery is not currently available for this order. Please contact MyPetLink support.");
+            await _inventoryAvailability.EnsureAvailableAsync(requestedInventory, cancellationToken);
         }
 
         var effective = await ResolveEffectiveRateAsync(state, cancellationToken);
-        return BuildQuote(state, effective, productQuote, request.Quantity);
+        return BuildQuote(
+            state,
+            effective,
+            new DeliveryPricingSummary(merchandiseSubtotal, discountTotal, MalaysiaDelivery.Currency));
     }
 
     public async Task<IReadOnlyCollection<AdminDeliveryRateResponse>> ListRatesAsync(
@@ -88,8 +106,7 @@ public sealed class DeliveryService : SkeletonService, IDeliveryService
 
     public async Task<DeliveryResolution> ResolveAsync(
         string? stateCode,
-        TagPricingQuote productQuote,
-        int quantity,
+        DeliveryPricingSummary pricing,
         CancellationToken cancellationToken)
     {
         var state = ResolveRequiredState(stateCode);
@@ -97,7 +114,7 @@ public sealed class DeliveryService : SkeletonService, IDeliveryService
         return new DeliveryResolution(
             state,
             effective.ZoneRate,
-            BuildQuote(state, effective, productQuote, quantity),
+            BuildQuote(state, effective, pricing),
             effective.Source);
     }
 
@@ -439,11 +456,10 @@ public sealed class DeliveryService : SkeletonService, IDeliveryService
     private static DeliveryQuoteResponse BuildQuote(
         MalaysiaStateDefinition state,
         EffectiveDeliveryRate effective,
-        TagPricingQuote productQuote,
-        int quantity)
+        DeliveryPricingSummary pricing)
     {
-        var subtotal = decimal.Round(productQuote.BasePrice * quantity, 2);
-        var discount = decimal.Round(productQuote.DiscountAmount * quantity, 2);
+        var subtotal = decimal.Round(pricing.MerchandiseSubtotal, 2, MidpointRounding.AwayFromZero);
+        var discount = decimal.Round(pricing.DiscountTotal, 2, MidpointRounding.AwayFromZero);
         var discountedItems = subtotal - discount;
         var threshold = effective.FreeShippingThreshold;
         var qualifies = threshold.HasValue && discountedItems >= threshold.Value;
@@ -464,6 +480,34 @@ public sealed class DeliveryService : SkeletonService, IDeliveryService
             effective.ZoneRate.Name, subtotal, discount, fee, fee == 0, reason,
             decimal.Round(discountedItems + fee, 2), MalaysiaDelivery.Currency,
             threshold, isOverride, DeliveryRateSources.LabelFor(effective.Source));
+    }
+
+    private static IReadOnlyCollection<DeliveryQuoteItemRequest> NormalizeQuoteItems(
+        IReadOnlyCollection<DeliveryQuoteItemRequest>? requested)
+    {
+        if (requested is null || requested.Count == 0)
+            throw Validation("items", "Add at least one physical tag to calculate delivery.");
+        if (requested.Count > TagOrderLimits.MaxLinesPerOrder)
+            throw Validation("items", $"An order can contain up to {TagOrderLimits.MaxLinesPerOrder} tag lines.");
+
+        var errors = new Dictionary<string, string[]>();
+        var normalized = requested
+            .Select((item, index) =>
+            {
+                if (string.IsNullOrWhiteSpace(item.ProductVariantKey))
+                    errors[$"items[{index}].productVariantKey"] = ["Choose a tag option."];
+                if (item.Quantity < 1 || item.Quantity > TagOrderLimits.MaxQuantityPerLine)
+                    errors[$"items[{index}].quantity"] = [$"Quantity must be between 1 and {TagOrderLimits.MaxQuantityPerLine}."];
+                return new DeliveryQuoteItemRequest(item.ProductVariantKey?.Trim() ?? "", item.Quantity);
+            })
+            .ToArray();
+
+        if (normalized.Sum(item => item.Quantity) > TagOrderLimits.MaxUnitsPerOrder)
+            errors["items"] = [$"An order can contain up to {TagOrderLimits.MaxUnitsPerOrder} physical tags."];
+        if (errors.Count > 0)
+            throw new ApiException(400, "validation_failed", "Please check the submitted fields.", errors);
+
+        return normalized;
     }
 
     private static MalaysiaStateDefinition ResolveRequiredState(string? value)

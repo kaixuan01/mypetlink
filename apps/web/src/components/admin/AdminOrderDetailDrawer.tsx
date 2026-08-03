@@ -5,10 +5,11 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AdminActionButton, AdminDetailItem } from "@/components/admin/AdminPanels";
 import { OrderDocumentButtons } from "@/components/admin/OrderDocumentButtons";
-import { formatAdminDateTime, getTagTypeLabel } from "@/components/admin/adminDisplay";
+import { formatAdminDateTime } from "@/components/admin/adminDisplay";
+import { OrderPriceBreakdown, type OrderPriceLine } from "@/components/orders/OrderPriceBreakdown";
 import { Badge } from "@/components/ui/Badge";
 import { formatFullDeliveryAddress, getOrderStatusDisplay, type AdminOrderAction } from "@/lib/orders";
-import { formatOrderProduct, formatStateAndZone } from "@/lib/orderDisplay";
+import { formatStateAndZone } from "@/lib/orderDisplay";
 import { adminRoutes } from "@/lib/routes";
 import {
   fulfilmentStatusLabels,
@@ -108,7 +109,7 @@ export function AdminOrderDetailDrawer({
   const error = detailState?.key === key ? detailState.error : "";
   const history = historyState?.key === key ? historyState.entries : undefined;
   const actions = useMemo(
-    () => (detail ? getAdminOrderAvailableActions(summary) : []),
+    () => (detail ? getDetailActions(summary, detail) : []),
     [detail, summary]
   );
   const proof = detail ? latestProof(detail) : undefined;
@@ -196,23 +197,46 @@ export function AdminOrderDetailDrawer({
 
               <section>
                 <h3 className="text-sm font-black text-slate-900">Order summary</h3>
-                <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                <div className="mt-2">
+                  <OrderPriceBreakdown
+                    currency={summary.currency}
+                    deliveryFee={detail.order.deliveryFee}
+                    deliveryMethod={detail.order.delivery.deliveryMethod ?? undefined}
+                    discountTotal={detail.order.discountTotal}
+                    freeDeliveryReason={detail.order.delivery.freeDeliveryReason ?? undefined}
+                    lines={adminPriceLines(detail.order, summary)}
+                    merchandiseSubtotal={detail.order.merchandiseSubtotal}
+                    total={detail.order.totalAmount}
+                  />
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
                   <AdminDetailItem label="Order status" value={getOrderStatusDisplay(detail.order.status)} />
-                  <AdminDetailItem label="Product" value={formatOrderProduct(summary.productName, summary.variantName, getTagTypeLabel(summary.hasNfc))} />
-                  <AdminDetailItem label="SKU" value={summary.sku ?? "Legacy order"} />
-                  <AdminDetailItem label="Quantity" value={String(summary.quantity ?? 1)} />
-                  <AdminDetailItem label="Original unit price" value={`${summary.currency} ${(summary.unitBasePrice ?? summary.amount).toFixed(2)}`} />
-                  <AdminDetailItem label="Discount" value={`${summary.currency} ${(summary.discountAmount ?? 0).toFixed(2)}`} />
-                  <AdminDetailItem label="Item total" value={`${summary.currency} ${(summary.finalAmount ?? summary.amount).toFixed(2)}`} />
-                  <AdminDetailItem label="Promotion" value={summary.promotionName ?? "None"} />
-                  <AdminDetailItem label="Delivery fee" value={`${summary.currency} ${summary.deliveryFee.toFixed(2)}`} />
-                  <AdminDetailItem label="Total amount" value={`${summary.currency} ${((summary.finalAmount ?? summary.amount) + summary.deliveryFee).toFixed(2)}`} />
                   {detail.order.delivery.deliveryMethod ? <AdminDetailItem label="Delivery method" value={detail.order.delivery.deliveryMethod} /> : null}
                   <AdminDetailItem label="Delivery state" value={formatStateAndZone(detail.order.delivery.state, detail.order.delivery.zoneName)} />
                   <AdminDetailItem label="Created" value={formatAdminDateTime(summary.createdAt)} />
                   <AdminDetailItem label="Updated" value={formatAdminDateTime(summary.updatedAt)} />
                 </div>
               </section>
+
+              {detail.fulfilmentItems?.length ? (
+                <section>
+                  <h3 className="text-sm font-black text-slate-900">Tag assignment progress</h3>
+                  <div className="mt-2 grid gap-2">
+                    {detail.fulfilmentItems.map((item) => (
+                      <div className="rounded-xl border border-slate-200 p-3" key={item.orderItemId}>
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div>
+                            <p className="font-bold text-slate-900">{item.petName} · {item.productName}</p>
+                            <p className="text-xs font-semibold text-slate-500">{item.variantName} · {item.sku}</p>
+                          </div>
+                          <Badge tone={item.assignedTags.length === item.quantity ? "mint" : "warm"}>{item.assignedTags.length}/{item.quantity} assigned</Badge>
+                        </div>
+                        {item.assignedTags.length ? <p className="mt-2 break-words font-mono text-xs font-bold text-slate-700">{item.assignedTags.map((tag) => tag.tagCode).join(", ")}</p> : <p className="mt-2 text-xs font-semibold text-slate-500">No inventory tag assigned yet.</p>}
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
 
               {detail.paymentConfirmationEmail ? (
                 <section>
@@ -366,4 +390,47 @@ export function AdminOrderDetailDrawer({
       </aside>
     </div>
   );
+}
+
+function adminPriceLines(order: AdminOrderDetail["order"], summary: AdminOrder): OrderPriceLine[] {
+  if (order.items?.length) {
+    return order.items.map((item, index) => ({
+      id: item.id ?? `${order.id}-${index}`,
+      productName: item.productName,
+      optionName: item.variantName,
+      petName: item.petName,
+      quantity: item.quantity,
+      unitPrice: item.unitBasePrice,
+      subtotal: item.subtotal,
+      discountAmount: item.discountAmount,
+      finalAmount: item.finalAmount,
+      promotionName: item.promotionName ?? undefined,
+    }));
+  }
+  return [{
+    id: order.id,
+    productName: summary.productName ?? "Legacy physical tag",
+    optionName: summary.variantName ?? "Legacy option",
+    petName: order.petName ?? "Pet",
+    quantity: summary.quantity ?? 1,
+    unitPrice: summary.unitBasePrice ?? summary.amount,
+    subtotal: (summary.unitBasePrice ?? summary.amount) * (summary.quantity ?? 1),
+    discountAmount: summary.discountAmount ?? 0,
+    finalAmount: summary.finalAmount ?? summary.amount,
+    promotionName: summary.promotionName,
+  }];
+}
+
+function getDetailActions(summary: AdminOrder, detail: AdminOrderDetail): AdminOrderAction[] {
+  const actions = getAdminOrderAvailableActions(summary);
+  const items = detail.fulfilmentItems ?? [];
+  if (!items.length) return actions;
+
+  const assigned = items.reduce((count, item) => count + item.assignedTags.length, 0);
+  const required = items.reduce((count, item) => count + item.quantity, 0);
+  const next: AdminOrderAction[] = actions.filter((action) => action !== "assign-tag" && action !== "change-tag" && action !== "replace-tag");
+  if (detail.order.status === "Payment Confirmed" && assigned < required) next.unshift("assign-tag");
+  if (["Payment Confirmed", "Preparing", "Ready to Ship"].includes(detail.order.status) && assigned > 0) next.push("change-tag");
+  if (["Shipped", "Delivered"].includes(detail.order.status) && assigned > 0) next.push("replace-tag");
+  return next.filter((action) => action !== "mark-preparing" || assigned === required);
 }

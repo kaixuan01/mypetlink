@@ -28,6 +28,7 @@ public sealed class SmartTag : AuditableEntity
     public Guid? OwnerUserId { get; set; }
     public Guid? PetId { get; set; }
     public Guid? OrderId { get; set; }
+    public Guid? OrderItemId { get; set; }
     public Guid? BatchId { get; set; }
     public Guid? ProductVariantId { get; set; }
     public bool HasNfc { get; set; }
@@ -52,6 +53,7 @@ public sealed class SmartTag : AuditableEntity
     public User? OwnerUser { get; set; }
     public Pet? Pet { get; set; }
     public TagOrder? Order { get; set; }
+    public TagOrderItem? OrderItem { get; set; }
     public SmartTagBatch? Batch { get; set; }
     public TagProductVariant? ProductVariant { get; set; }
     public SmartTag? ReplacementForTag { get; set; }
@@ -120,6 +122,7 @@ public sealed class TagOrder : AuditableEntity
     public SmartTag? ReplacementForTag { get; set; }
     public ICollection<PaymentProof> PaymentProofs { get; set; } = new List<PaymentProof>();
     public ICollection<TagOrderItem> Items { get; set; } = new List<TagOrderItem>();
+    public ICollection<SmartTag> AssignedTags { get; set; } = new List<SmartTag>();
     public ICollection<EmailOutbox> EmailOutboxMessages { get; set; } = new List<EmailOutbox>();
 }
 

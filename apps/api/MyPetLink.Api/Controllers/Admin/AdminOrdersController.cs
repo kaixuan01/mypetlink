@@ -147,6 +147,7 @@ public sealed class AdminOrdersController : ApiControllerBase
             _currentUserService.Current.UserId,
             orderId,
             request.TagId ?? Guid.Empty,
+            request.OrderItemId,
             cancellationToken);
 
         return Ok(ApiEnvelope.Ok(response, HttpContext));
@@ -164,6 +165,7 @@ public sealed class AdminOrdersController : ApiControllerBase
             orderId,
             request.NewTagId ?? Guid.Empty,
             request.Reason,
+            request.CurrentTagId,
             cancellationToken);
 
         return Ok(ApiEnvelope.Ok(response, HttpContext));
@@ -182,6 +184,7 @@ public sealed class AdminOrdersController : ApiControllerBase
             request.NewTagId ?? Guid.Empty,
             request.Reason,
             request.Note,
+            request.CurrentTagId,
             cancellationToken);
 
         return Ok(ApiEnvelope.Ok(response, HttpContext));

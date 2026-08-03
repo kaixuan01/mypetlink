@@ -93,9 +93,9 @@ describe("Smart Tag wizard pet selection", () => {
     mocks.getPets.mockResolvedValue({ data: mockPets, error: null });
     render(<TagOrderFlow pets={[]} preselectedPetId={mockPets[1].id} />);
 
-    await openPetStep();
+    await openChooseTagsStep();
 
-    expect(screen.getByRole("button", { name: new RegExp(mockPets[1].name) }).getAttribute("aria-pressed")).toBe("true");
+    expect((screen.getByLabelText(/^Pet/) as HTMLSelectElement).value).toBe(mockPets[1].id);
     expect((screen.getByRole("button", { name: "Continue" }) as HTMLButtonElement).disabled).toBe(false);
     expect(screen.queryByText("Who is this physical tag for?")).toBeNull();
   });
@@ -104,23 +104,23 @@ describe("Smart Tag wizard pet selection", () => {
     mocks.getPets.mockResolvedValue({ data: mockPets, error: null });
     render(<TagOrderFlow pets={[]} />);
 
-    await openPetStep();
+    await openChooseTagsStep();
 
     const continueButton = screen.getByRole("button", { name: "Continue" }) as HTMLButtonElement;
     expect(continueButton.disabled).toBe(true);
-    fireEvent.click(screen.getByRole("button", { name: new RegExp(mockPets[0].name) }));
+    fireEvent.change(screen.getByLabelText(/^Pet/), { target: { value: mockPets[0].id } });
     expect(continueButton.disabled).toBe(false);
     fireEvent.click(continueButton);
-    expect(await screen.findByText("Delivery details")).toBeTruthy();
+    expect(await screen.findByText("Review tags")).toBeTruthy();
   });
 
   it("does not trust a cross-owner preferred pet id", async () => {
     mocks.getPets.mockResolvedValue({ data: mockPets, error: null });
     render(<TagOrderFlow pets={[]} preselectedPetId="pet_from_another_owner" />);
 
-    await openPetStep();
+    await openChooseTagsStep();
 
-    expect(screen.queryAllByRole("button", { pressed: true })).toHaveLength(0);
+    expect((screen.getByLabelText(/^Pet/) as HTMLSelectElement).value).toBe("");
     expect((screen.getByRole("button", { name: "Continue" }) as HTMLButtonElement).disabled).toBe(true);
   });
 
@@ -141,7 +141,7 @@ describe("Smart Tag wizard pet selection", () => {
     expect(await screen.findByText("Order details could not load")).toBeTruthy();
     expect(screen.queryByRole("link", { name: "Add Pet" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Try Again" }));
-    expect(await screen.findByText("Choose your physical tag")).toBeTruthy();
+    expect(await screen.findByText("Choose your physical tags")).toBeTruthy();
   });
 });
 
@@ -246,14 +246,16 @@ describe("delivery quote state", () => {
   });
 });
 
-async function openPetStep() {
-  await screen.findByText("Choose your physical tag");
-  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-  expect(await screen.findByText("Select pet")).toBeTruthy();
+async function openChooseTagsStep() {
+  await screen.findByText("Choose your physical tags");
 }
 
 async function openDeliveryStep() {
-  await openPetStep();
+  await openChooseTagsStep();
+  const pet = screen.getByLabelText(/^Pet/) as HTMLSelectElement;
+  if (!pet.value) fireEvent.change(pet, { target: { value: mockPets[0].id } });
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  expect(await screen.findByText("Review tags")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Continue" }));
   expect(await screen.findByText("Delivery details")).toBeTruthy();
 }

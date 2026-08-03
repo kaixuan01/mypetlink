@@ -32,8 +32,22 @@ public sealed record AdminTagOrderResponse(
     TagOrderResponse Order,
     AdminOwnerRefResponse Owner,
     Guid? ProductVariantId,
+    IReadOnlyCollection<AdminOrderItemFulfilmentResponse> Items,
     AdminShipmentDetailsResponse Shipment,
     AdminEmailOutboxResponse? PaymentConfirmationEmail);
+
+public sealed record AdminOrderItemFulfilmentResponse(
+    Guid OrderItemId,
+    Guid? ProductVariantId,
+    string Sku,
+    string ProductName,
+    string VariantName,
+    Guid PetId,
+    string PetName,
+    int Quantity,
+    IReadOnlyCollection<AdminAssignedTagRefResponse> AssignedTags);
+
+public sealed record AdminAssignedTagRefResponse(Guid Id, string TagCode, SmartTagStatus Status);
 
 public sealed record AdminShipmentDetailsResponse(
     string? CourierProviderCode,
@@ -90,16 +104,19 @@ public sealed record UpdateShipmentDetailsRequest(
     [MaxLength(32)] string? CourierProviderCode = null);
 
 public sealed record AssignInventoryTagRequest(
-    [Required] Guid? TagId);
+    [Required] Guid? TagId,
+    Guid? OrderItemId = null);
 
 public sealed record ChangeAssignedTagRequest(
     [Required] Guid? NewTagId,
-    [MaxLength(600)] string? Reason);
+    [MaxLength(600)] string? Reason,
+    Guid? CurrentTagId = null);
 
 public sealed record ReplaceTagRequest(
     [Required] Guid? NewTagId,
     [Required, MaxLength(60)] string? Reason,
-    [MaxLength(600)] string? Note);
+    [MaxLength(600)] string? Note,
+    Guid? CurrentTagId = null);
 
 public sealed record AdminSmartTagResponse(
     SmartTagResponse Tag,

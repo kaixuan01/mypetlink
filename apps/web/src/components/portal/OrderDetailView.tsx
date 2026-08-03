@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { OrderPriceBreakdown, priceLinesFromOrder } from "@/components/orders/OrderPriceBreakdown";
 import { ManualPaymentPanel } from "@/components/portal/ManualPaymentPanel";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
@@ -16,7 +17,7 @@ import {
   getOrderStatusRank,
   getPaymentStatusLabel,
 } from "@/lib/orders";
-import { formatOrderOption, formatStateAndZone } from "@/lib/orderDisplay";
+import { formatStateAndZone } from "@/lib/orderDisplay";
 import {
   loadingTitle,
   orderNotFoundTitle,
@@ -429,33 +430,39 @@ export function OrderDetailView({
       <div className="grid gap-5 xl:grid-cols-[1fr_0.9fr]">
         <section className="brand-card rounded-[1.75rem] p-5 sm:p-6">
           <h2 className="text-xl font-black text-pet-ink">Order summary</h2>
+          <div className="mt-4">
+            <OrderPriceBreakdown
+              currency={order.currency}
+              deliveryFee={order.deliveryFee ?? 0}
+              deliveryMethod={order.delivery.deliveryMethod}
+              discountTotal={order.discountTotal}
+              freeDeliveryReason={order.delivery.freeDeliveryReason}
+              lines={priceLinesFromOrder(order)}
+              merchandiseSubtotal={order.merchandiseSubtotal}
+              total={order.totalAmount}
+            />
+          </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <DetailItem label="Pet" value={petName} />
-            {/* Owners see the customer-facing product and variant, not the
-                internal SKU code. Legacy orders that predate the catalog simply
-                fall back to the tag type/variant labels. */}
-            <DetailItem label="Product" value={order.productName ?? order.tagType} />
-            <DetailItem label="Option" value={formatOrderOption(order)} />
-            {/* Features come from what was purchased, so editing the catalog
-                later never rewrites an owner's order history. Older orders
-                placed before features were recorded simply omit this row. */}
-            {order.supportsQr != null || order.supportsNfc != null ? (
-              <DetailItem label="Features" value={orderFeatureSummary(order)} />
-            ) : null}
-            <DetailItem label="Original unit price" value={order.unitBasePrice != null ? `${order.currency ?? "MYR"} ${order.unitBasePrice.toFixed(2)}` : order.estimatedPrice} />
-            {order.discountAmount ? <DetailItem label="Discount" value={`${order.currency ?? "MYR"} ${order.discountAmount.toFixed(2)}`} /> : null}
-            {order.promotionName ? <DetailItem label="Promotion" value={order.promotionName} /> : null}
-            <DetailItem label="Delivery fee" value={(order.deliveryFee ?? 0) === 0 ? "Free" : `${order.currency ?? "MYR"} ${order.deliveryFee!.toFixed(2)}`} />
             {order.delivery.deliveryMethod ? <DetailItem label="Delivery method" value={order.delivery.deliveryMethod} /> : null}
             <DetailItem label="Delivery state" value={formatStateAndZone(order.delivery.state, order.delivery.zoneName)} />
-            <DetailItem label="Total amount" value={order.totalAmount != null ? `${order.currency ?? "MYR"} ${order.totalAmount.toFixed(2)}` : order.estimatedPrice} />
             <DetailItem label="Ordered date" value={order.orderedDate} />
             <DetailItem
               label="Tag status"
               value={linkedTag?.status ?? "Pending tag preparation"}
             />
           </div>
-          {linkedTag?.tagCode ? (
+          {order.items?.some((item) => item.assignedTags.length > 0) ? (
+            <div className="mt-4 grid gap-2">
+              <h3 className="text-sm font-black text-pet-ink">Physical tags in this shipment</h3>
+              {order.items.flatMap((item) => item.assignedTags.map((tag) => (
+                <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-xl bg-pet-cream p-3" key={tag.id}>
+                  <span className="min-w-0"><span className="block font-black text-pet-ink">{item.petName} · {item.productName}</span><span className="block break-all font-mono text-xs font-bold text-pet-muted">{tag.tagCode}</span></span>
+                  <CTAButton href={tagQrPath(tag.tagCode)} variant="outline">View Tag Scan Page</CTAButton>
+                </div>
+              )))}
+            </div>
+          ) : null}
+          {linkedTag?.tagCode && !order.items?.some((item) => item.assignedTags.length > 0) ? (
             linkedTag.status === "Active" ? (
               <QrCodeCard
                 className="mt-4"
@@ -669,13 +676,6 @@ export function OrderDetailView({
       </section>
     </div>
   );
-}
-
-// Reads only the order's own saved features — never the current catalog, and
-// never inferred from the product name or tag style.
-function orderFeatureSummary(order: TagOrder) {
-  const features = [order.supportsQr ? "QR code" : null, order.supportsNfc ? "NFC tap" : null].filter(Boolean);
-  return features.length ? features.join(" · ") : "No scanning features";
 }
 
 function DetailItem({ label, value }: { label: string; value: string }) {

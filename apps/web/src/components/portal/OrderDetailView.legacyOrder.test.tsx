@@ -77,7 +77,7 @@ describe("OrderDetailView legacy order labelling", () => {
     render(<OrderDetailView initialOrder={catalogOrder} initialTags={[]} orderKey="MPL-0001" pets={[]} />);
 
     await waitFor(() => expect(screen.getByText("Order summary")).toBeTruthy());
-    expect(screen.getByText("MyPetLink Smart Tag")).toBeTruthy();
+    expect(screen.getAllByText("MyPetLink Smart Tag").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Standard NFC").length).toBeGreaterThan(0);
     // The internal SKU code is not shown to owners.
     expect(screen.queryByText("MPL-NFC-STANDARD-V1")).toBeNull();
@@ -95,7 +95,7 @@ describe("OrderDetailView legacy order labelling", () => {
     render(<OrderDetailView initialOrder={nfcOrder} initialTags={[]} orderKey="MPL-0001" pets={[]} />);
 
     await waitFor(() => expect(screen.getByText("Order summary")).toBeTruthy());
-    expect(screen.getByText("QR code · NFC tap")).toBeTruthy();
+    expect(screen.getAllByText("QR code · NFC tap")).toHaveLength(2);
   });
 
   it("never shows NFC for an order placed against a QR-only option", async () => {
@@ -110,7 +110,7 @@ describe("OrderDetailView legacy order labelling", () => {
     render(<OrderDetailView initialOrder={qrOrder} initialTags={[]} orderKey="MPL-0001" pets={[]} />);
 
     await waitFor(() => expect(screen.getByText("Order summary")).toBeTruthy());
-    expect(screen.getByText("QR code")).toBeTruthy();
+    expect(screen.getAllByText("QR code")).toHaveLength(2);
     expect(screen.queryByText(/NFC/i)).toBeNull();
   });
 

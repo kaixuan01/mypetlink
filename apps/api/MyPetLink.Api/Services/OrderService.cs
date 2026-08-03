@@ -1,5 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Data;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using MyPetLink.Api.Common;
@@ -18,6 +20,7 @@ public sealed class OrderService : SkeletonService, IOrderService
     private readonly IBusinessReferenceGenerator _businessReferences;
     private readonly TimeProvider _timeProvider;
     private readonly IShippingFulfilmentService _shippingFulfilmentService;
+    private readonly ITagOrderInventoryAvailabilityService? _inventoryAvailability;
 
     public OrderService(
         MyPetLinkDbContext dbContext,
@@ -30,7 +33,8 @@ public sealed class OrderService : SkeletonService, IOrderService
             pricingService,
             deliveryService,
             new BusinessReferenceGenerator(new CryptographicBusinessReferenceSuffixSource()),
-            TimeProvider.System)
+            TimeProvider.System,
+            inventoryAvailability: null)
     {
     }
 
@@ -41,7 +45,8 @@ public sealed class OrderService : SkeletonService, IOrderService
         IDeliveryService deliveryService,
         IBusinessReferenceGenerator businessReferences,
         TimeProvider timeProvider,
-        IShippingFulfilmentService? shippingFulfilmentService = null)
+        IShippingFulfilmentService? shippingFulfilmentService = null,
+        ITagOrderInventoryAvailabilityService? inventoryAvailability = null)
     {
         _dbContext = dbContext;
         _features = features.Value;
@@ -54,6 +59,7 @@ public sealed class OrderService : SkeletonService, IOrderService
                 dbContext,
                 new AuditLogService(dbContext, new HttpContextAccessor()),
                 timeProvider);
+        _inventoryAvailability = inventoryAvailability;
     }
 
     public async Task<(IReadOnlyCollection<TagOrderResponse> Items, int Total)> ListAsync(
@@ -76,7 +82,9 @@ public sealed class OrderService : SkeletonService, IOrderService
 
         if (petId.HasValue)
         {
-            query = query.Where(order => order.PetId == petId.Value);
+            query = query.Where(order =>
+                order.PetId == petId.Value
+                || order.Items.Any(item => item.PetId == petId.Value));
         }
 
         if (!string.IsNullOrWhiteSpace(status))
@@ -148,22 +156,36 @@ public sealed class OrderService : SkeletonService, IOrderService
             }
         }
 
-        var pet = await LoadOwnedPetAsync(userId, request.PetId, cancellationToken);
-
-        if (pet.LifecycleStatus == PetLifecycleStatus.Archived || pet.ArchivedAt.HasValue)
+        var requestedItems = NormalizeCreateItems(request.Items);
+        var requestedPetIds = requestedItems.Select(item => item.PetId).Distinct().ToArray();
+        var pets = await _dbContext.Pets
+            .Where(item =>
+                requestedPetIds.Contains(item.Id)
+                && item.OwnerUserId == userId
+                && item.DeletedAt == null)
+            .ToDictionaryAsync(item => item.Id, cancellationToken);
+        if (pets.Count != requestedPetIds.Length)
         {
-            throw InvalidState("Archived pets cannot receive new tag orders.");
+            // Privacy-preserving: an absent and a cross-owner pet are identical.
+            throw NotFound("One or more pets were not found.");
+        }
+        if (pets.Values.Any(pet => pet.LifecycleStatus != PetLifecycleStatus.Active || pet.ArchivedAt.HasValue))
+        {
+            throw InvalidState("Physical tags can only be ordered for active pet profiles.");
         }
 
-        if (pet.LifecycleStatus == PetLifecycleStatus.Memorial)
-        {
-            throw InvalidState("Memorial profiles cannot receive new tag orders.");
-        }
+        var primaryPet = pets[requestedItems[0].PetId];
 
         SmartTag? replacementForTag = null;
 
         if (request.ReplacementForTagId.HasValue)
         {
+            if (requestedItems.Count != 1 || requestedItems[0].Quantity != 1)
+            {
+                throw ValidationFailed(
+                    "replacementForTagId",
+                    "A replacement must be ordered as one tag in its own order.");
+            }
             replacementForTag = await _dbContext.SmartTags.SingleOrDefaultAsync(
                 tag =>
                     tag.Id == request.ReplacementForTagId.Value
@@ -175,52 +197,102 @@ public sealed class OrderService : SkeletonService, IOrderService
             {
                 throw NotFound("Replacement tag was not found.");
             }
+            if (replacementForTag.PetId != primaryPet.Id)
+            {
+                throw ValidationFailed("items[0].petId", "The replacement tag must stay with its linked pet.");
+            }
         }
 
-        var (productVariant, quote) = await _pricingService.GetPurchasableVariantAsync(
-            request.ProductVariantKey,
-            cancellationToken);
-        var stockAvailable = await _dbContext.SmartTags.AnyAsync(tag =>
-            tag.ProductVariantId == productVariant.Id
-            && tag.Status == SmartTagStatus.Unclaimed
-            && tag.ArchivedAt == null
-            && tag.DeletedAt == null
-            && (tag.FulfilmentStatus == TagFulfilmentStatus.Generated
-                || tag.FulfilmentStatus == TagFulfilmentStatus.Printed)
-            && tag.OwnerUserId == null
-            && tag.PetId == null
-            && tag.OrderId == null,
-            cancellationToken);
-
-        if (!stockAvailable)
+        var pricedItems = new List<(CreateTagOrderItemRequest Request, TagProductVariant Variant, TagPricingQuote Quote)>();
+        var requestedInventory = new Dictionary<Guid, int>();
+        foreach (var item in requestedItems)
         {
-            throw new ApiException(
-                StatusCodes.Status409Conflict,
-                "out_of_stock",
-                "This tag option is currently out of stock.");
+            var (variant, quote) = await _pricingService.GetPurchasableVariantAsync(
+                item.ProductVariantKey,
+                cancellationToken);
+            if (!string.Equals(quote.Currency, MalaysiaDelivery.Currency, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ApiException(409, "unsupported_currency", "This order cannot be priced in the selected currency.");
+            }
+            pricedItems.Add((item, variant, quote));
+            requestedInventory[variant.Id] = requestedInventory.GetValueOrDefault(variant.Id) + item.Quantity;
         }
 
-        var tagType = productVariant.SupportsNfc ? TagType.QrNfcSmartTag : TagType.QrPetTag;
+        // Every execution path, including service-level callers, must reject a
+        // line that exceeds the physical unclaimed stock currently present.
+        // The injected availability service adds outstanding-order reservations
+        // to this check in the production request path.
+        foreach (var (productVariantId, requested) in requestedInventory)
+        {
+            var physicalStock = await _dbContext.SmartTags.CountAsync(tag =>
+                tag.ProductVariantId == productVariantId
+                && tag.Status == SmartTagStatus.Unclaimed
+                && tag.ArchivedAt == null
+                && tag.DeletedAt == null
+                && (tag.FulfilmentStatus == TagFulfilmentStatus.Generated
+                    || tag.FulfilmentStatus == TagFulfilmentStatus.Printed)
+                && tag.OwnerUserId == null
+                && tag.PetId == null
+                && tag.OrderId == null
+                && tag.OrderItemId == null,
+                cancellationToken);
+            if (physicalStock < requested)
+            {
+                throw new ApiException(
+                    StatusCodes.Status409Conflict,
+                    "out_of_stock",
+                    "There is not enough available inventory for one or more tag options in this order.");
+            }
+        }
+
+        // SQL Server application locks make the stock-minus-reservations check
+        // and atomic order insert one SKU-scoped concurrency boundary without
+        // conflicting with the configured retrying execution strategy. Locks
+        // are acquired in stable order so carts containing the same SKUs cannot
+        // deadlock each other. No public Tag Code is allocated at checkout.
+        await using var inventoryLock = _inventoryAvailability is not null
+            && _dbContext.Database.IsSqlServer()
+            ? await SqlServerInventoryReservationLock.AcquireAsync(
+                _dbContext,
+                requestedInventory.Keys,
+                cancellationToken)
+            : null;
+        await using var transaction = _inventoryAvailability is not null
+            && _dbContext.Database.IsRelational()
+            && !_dbContext.Database.IsSqlServer()
+            ? await _dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken)
+            : null;
+        if (_inventoryAvailability is not null)
+        {
+            await _inventoryAvailability.EnsureAvailableAsync(requestedInventory, cancellationToken);
+        }
+
+        var firstVariant = pricedItems[0].Variant;
+        var tagType = firstVariant.SupportsNfc ? TagType.QrNfcSmartTag : TagType.QrPetTag;
         var now = _timeProvider.GetUtcNow();
         var delivery = request.Delivery!;
-        var subtotal = quote.BasePrice * request.Quantity;
-        var discountAmount = quote.DiscountAmount * request.Quantity;
-        var finalAmount = quote.FinalPrice * request.Quantity;
+        var merchandiseSubtotal = pricedItems.Sum(item =>
+            decimal.Round(item.Quote.BasePrice * item.Request.Quantity, 2, MidpointRounding.AwayFromZero));
+        var discountAmount = pricedItems.Sum(item =>
+            decimal.Round(item.Quote.DiscountAmount * item.Request.Quantity, 2, MidpointRounding.AwayFromZero));
+        var finalAmount = merchandiseSubtotal - discountAmount;
         var deliveryResolution = await _deliveryService.ResolveAsync(
-            delivery.StateCode, quote, request.Quantity, cancellationToken);
+            delivery.StateCode,
+            new DeliveryPricingSummary(merchandiseSubtotal, discountAmount, MalaysiaDelivery.Currency),
+            cancellationToken);
         var deliveryQuote = deliveryResolution.Quote;
         var order = new TagOrder
         {
             OrderNumber = await GenerateOrderNumberAsync(now, cancellationToken),
             OwnerUserId = userId,
-            PetId = pet.Id,
-            Pet = pet,
+            PetId = primaryPet.Id,
+            Pet = primaryPet,
             ReplacementForTagId = replacementForTag?.Id,
             ReplacementForTag = replacementForTag,
             TagType = tagType,
-            Variant = productVariant.TagVariant,
+            Variant = firstVariant.TagVariant,
             Amount = finalAmount,
-            Currency = quote.Currency,
+            Currency = MalaysiaDelivery.Currency,
             DeliveryFee = deliveryQuote.DeliveryFee,
             TotalAmount = deliveryQuote.Total,
             Status = OrderStatus.PendingPayment,
@@ -246,26 +318,42 @@ public sealed class OrderService : SkeletonService, IOrderService
             UpdatedAt = now
         };
 
-        order.Items.Add(new TagOrderItem
+        foreach (var priced in pricedItems)
         {
-            Order = order,
-            ProductVariantId = productVariant.Id,
-            ProductVariant = productVariant,
-            SkuSnapshot = productVariant.Sku,
-            ProductNameSnapshot = productVariant.TagProduct.Name,
-            VariantNameSnapshot = productVariant.DisplayName,
-            SupportsQrSnapshot = productVariant.SupportsQr,
-            SupportsNfcSnapshot = productVariant.SupportsNfc,
-            UnitBasePrice = quote.BasePrice,
-            Quantity = request.Quantity,
-            Subtotal = subtotal,
-            PromotionId = quote.PromotionId,
-            PromotionNameSnapshot = quote.PromotionName,
-            DiscountAmount = discountAmount,
-            FinalUnitPrice = quote.FinalPrice,
-            FinalAmount = finalAmount,
-            Currency = quote.Currency
-        });
+            var itemPet = pets[priced.Request.PetId];
+            var lineSubtotal = decimal.Round(
+                priced.Quote.BasePrice * priced.Request.Quantity,
+                2,
+                MidpointRounding.AwayFromZero);
+            var lineDiscount = decimal.Round(
+                priced.Quote.DiscountAmount * priced.Request.Quantity,
+                2,
+                MidpointRounding.AwayFromZero);
+            order.Items.Add(new TagOrderItem
+            {
+                Order = order,
+                PetId = itemPet.Id,
+                Pet = itemPet,
+                PetNameSnapshot = itemPet.Name,
+                ProductVariantId = priced.Variant.Id,
+                ProductVariant = priced.Variant,
+                SkuSnapshot = priced.Variant.Sku,
+                ProductNameSnapshot = priced.Variant.TagProduct.Name,
+                VariantNameSnapshot = priced.Variant.DisplayName,
+                SupportsQrSnapshot = priced.Variant.SupportsQr,
+                SupportsNfcSnapshot = priced.Variant.SupportsNfc,
+                UnitBasePrice = priced.Quote.BasePrice,
+                Quantity = priced.Request.Quantity,
+                Subtotal = lineSubtotal,
+                PromotionId = priced.Quote.PromotionId,
+                PromotionNameSnapshot = priced.Quote.PromotionName,
+                DiscountAmount = lineDiscount,
+                FinalUnitPrice = priced.Quote.FinalPrice,
+                FinalAmount = lineSubtotal - lineDiscount,
+                UnitWeightGramsSnapshot = priced.Variant.WeightGrams,
+                Currency = priced.Quote.Currency
+            });
+        }
 
         _dbContext.TagOrders.Add(order);
 
@@ -298,6 +386,10 @@ public sealed class OrderService : SkeletonService, IOrderService
                 // race (the filtered unique index rejects the duplicate). Abandon
                 // this attempt's tracked graph and, if a matching order now exists,
                 // return it; otherwise the failure was unrelated, so surface it.
+                if (transaction is not null)
+                {
+                    await transaction.RollbackAsync(cancellationToken);
+                }
                 _dbContext.ChangeTracker.Clear();
                 var winner = await FindByIdempotencyKeyAsync(userId, idempotencyKey, cancellationToken);
                 if (winner is null)
@@ -306,6 +398,11 @@ public sealed class OrderService : SkeletonService, IOrderService
                 }
                 return await BuildIdempotentReplayAsync(userId, winner, fingerprint!, cancellationToken);
             }
+        }
+
+        if (transaction is not null)
+        {
+            await transaction.CommitAsync(cancellationToken);
         }
 
         var hydratedOrder = await LoadOwnedOrderByIdAsync(userId, order.Id, trackChanges: false, cancellationToken);
@@ -348,11 +445,13 @@ public sealed class OrderService : SkeletonService, IOrderService
     private static string ComputeRequestFingerprint(CreateTagOrderRequest request)
     {
         var delivery = request.Delivery!;
+        var items = NormalizeCreateItems(request.Items);
         var canonical = string.Join(
             '|',
-            request.PetId,
-            request.ProductVariantKey.Trim(),
-            request.Quantity,
+            string.Join(';', items
+                .OrderBy(item => item.PetId)
+                .ThenBy(item => item.ProductVariantKey, StringComparer.Ordinal)
+                .Select(item => $"{item.PetId:N}:{item.ProductVariantKey}:{item.Quantity}")),
             request.ReplacementForTagId?.ToString() ?? "",
             delivery.RecipientName.Trim(),
             delivery.PhoneE164.Trim(),
@@ -470,9 +569,14 @@ public sealed class OrderService : SkeletonService, IOrderService
         return query
             .Include(order => order.Pet)
             .Include(order => order.SmartTag)
+            .Include(order => order.AssignedTags)
+                .ThenInclude(tag => tag.Pet)
             .Include(order => order.PaymentProofs)
             .Include(order => order.EmailOutboxMessages)
-            .Include(order => order.Items);
+            .Include(order => order.Items)
+                .ThenInclude(item => item.Pet)
+            .Include(order => order.Items)
+                .ThenInclude(item => item.AssignedTags);
     }
 
     private async Task<TagOrder> LoadOwnedOrderAsync(
@@ -612,20 +716,7 @@ public sealed class OrderService : SkeletonService, IOrderService
     {
         var errors = new Dictionary<string, string[]>();
 
-        if (request.PetId == Guid.Empty)
-        {
-            errors["petId"] = ["Choose a pet for this tag order."];
-        }
-
-        if (string.IsNullOrWhiteSpace(request.ProductVariantKey))
-        {
-            errors["productVariantKey"] = ["Choose a tag option."];
-        }
-
-        if (request.Quantity != 1)
-        {
-            errors["quantity"] = ["One physical tag can be ordered at a time."];
-        }
+        ValidateCreateItems(request.Items, errors);
 
         if (request.Delivery is null)
         {
@@ -668,6 +759,164 @@ public sealed class OrderService : SkeletonService, IOrderService
         {
             throw ValidationFailed(errors);
         }
+    }
+
+    private sealed class SqlServerInventoryReservationLock : IAsyncDisposable
+    {
+        private const int LockTimeoutMilliseconds = 15_000;
+        private readonly MyPetLinkDbContext _dbContext;
+        private readonly IReadOnlyList<string> _resources;
+        private readonly bool _closeConnection;
+
+        private SqlServerInventoryReservationLock(
+            MyPetLinkDbContext dbContext,
+            IReadOnlyList<string> resources,
+            bool closeConnection)
+        {
+            _dbContext = dbContext;
+            _resources = resources;
+            _closeConnection = closeConnection;
+        }
+
+        public static async Task<SqlServerInventoryReservationLock> AcquireAsync(
+            MyPetLinkDbContext dbContext,
+            IEnumerable<Guid> productVariantIds,
+            CancellationToken cancellationToken)
+        {
+            var resources = productVariantIds
+                .Distinct()
+                .OrderBy(id => id)
+                .Select(id => $"MyPetLink:TagOrderInventory:{id:N}")
+                .ToArray();
+            var closeConnection = dbContext.Database.GetDbConnection().State != ConnectionState.Open;
+            if (closeConnection)
+            {
+                await dbContext.Database.OpenConnectionAsync(cancellationToken);
+            }
+
+            var acquired = new List<string>(resources.Length);
+            try
+            {
+                foreach (var resource in resources)
+                {
+                    var result = new SqlParameter("@result", SqlDbType.Int)
+                    {
+                        Direction = ParameterDirection.Output
+                    };
+                    var resourceParameter = new SqlParameter("@resource", resource);
+                    var timeoutParameter = new SqlParameter("@timeout", LockTimeoutMilliseconds);
+                    await dbContext.Database.ExecuteSqlRawAsync(
+                        "EXEC @result = sys.sp_getapplock @Resource = @resource, @LockMode = 'Exclusive', @LockOwner = 'Session', @LockTimeout = @timeout;",
+                        [result, resourceParameter, timeoutParameter],
+                        cancellationToken);
+
+                    if (result.Value is not int code || code < 0)
+                    {
+                        throw new ApiException(
+                            StatusCodes.Status409Conflict,
+                            "inventory_busy",
+                            "Inventory availability changed while this order was being placed. Please review your tags and try again.");
+                    }
+                    acquired.Add(resource);
+                }
+
+                return new SqlServerInventoryReservationLock(dbContext, acquired, closeConnection);
+            }
+            catch
+            {
+                await ReleaseAsync(dbContext, acquired);
+                if (closeConnection)
+                {
+                    await dbContext.Database.CloseConnectionAsync();
+                }
+                throw;
+            }
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            await ReleaseAsync(_dbContext, _resources);
+            if (_closeConnection)
+            {
+                await _dbContext.Database.CloseConnectionAsync();
+            }
+        }
+
+        private static async Task ReleaseAsync(
+            MyPetLinkDbContext dbContext,
+            IEnumerable<string> resources)
+        {
+            foreach (var resource in resources.Reverse())
+            {
+                var resourceParameter = new SqlParameter("@resource", resource);
+                await dbContext.Database.ExecuteSqlRawAsync(
+                    "EXEC sys.sp_releaseapplock @Resource = @resource, @LockOwner = 'Session';",
+                    [resourceParameter]);
+            }
+        }
+    }
+
+    private static void ValidateCreateItems(
+        IReadOnlyCollection<CreateTagOrderItemRequest>? items,
+        IDictionary<string, string[]> errors)
+    {
+        if (items is null || items.Count == 0)
+        {
+            errors["items"] = ["Add at least one physical tag to this order."];
+            return;
+        }
+        if (items.Count > TagOrderLimits.MaxLinesPerOrder)
+        {
+            errors["items"] = [$"An order can contain up to {TagOrderLimits.MaxLinesPerOrder} tag lines."];
+        }
+
+        var totalUnits = 0;
+        var index = 0;
+        foreach (var item in items)
+        {
+            if (item.PetId == Guid.Empty)
+                errors[$"items[{index}].petId"] = ["Choose a pet for this tag."];
+            if (string.IsNullOrWhiteSpace(item.ProductVariantKey))
+                errors[$"items[{index}].productVariantKey"] = ["Choose a tag option."];
+            if (item.Quantity < 1 || item.Quantity > TagOrderLimits.MaxQuantityPerLine)
+                errors[$"items[{index}].quantity"] = [$"Quantity must be between 1 and {TagOrderLimits.MaxQuantityPerLine}."];
+            totalUnits += Math.Max(0, item.Quantity);
+            index++;
+        }
+        if (totalUnits > TagOrderLimits.MaxUnitsPerOrder)
+            errors["items"] = [$"An order can contain up to {TagOrderLimits.MaxUnitsPerOrder} physical tags."];
+    }
+
+    // Identical pet + SKU selections are one fulfilment line with a higher
+    // quantity. Different pets always remain separate immutable item rows.
+    private static IReadOnlyList<CreateTagOrderItemRequest> NormalizeCreateItems(
+        IReadOnlyCollection<CreateTagOrderItemRequest>? items)
+    {
+        var errors = new Dictionary<string, string[]>();
+        ValidateCreateItems(items, errors);
+        if (errors.Count > 0)
+            throw ValidationFailed(errors);
+
+        var merged = items!
+            .Select(item => new CreateTagOrderItemRequest(
+                item.PetId,
+                item.ProductVariantKey.Trim(),
+                item.Quantity))
+            .GroupBy(item => new { item.PetId, item.ProductVariantKey })
+            .Select(group => new CreateTagOrderItemRequest(
+                group.Key.PetId,
+                group.Key.ProductVariantKey,
+                group.Sum(item => item.Quantity)))
+            .ToArray();
+
+        if (merged.Any(item => item.Quantity > TagOrderLimits.MaxQuantityPerLine))
+        {
+            throw ValidationFailed(
+                "items",
+                $"The same pet and tag option can have up to {TagOrderLimits.MaxQuantityPerLine} units per order.");
+        }
+
+        return merged;
     }
 
     private async Task<string> GenerateOrderNumberAsync(

@@ -23,10 +23,19 @@ describe("deliveryService", () => {
 
   it("requests a server-owned quote without a client fee, zone, or total", async () => {
     apiRequest.mockResolvedValue({ data: { stateCode: "KUL", deliveryFee: 8, total: 47 } });
-    await getDeliveryQuote("KUL", "PUBLIC-KEY");
+    await getDeliveryQuote("KUL", [
+      { productVariantKey: "PUBLIC-KEY", quantity: 2 },
+      { productVariantKey: "OTHER-KEY", quantity: 1 },
+    ]);
     expect(apiRequest).toHaveBeenCalledWith("/api/v1/delivery/quote", expect.objectContaining({
       method: "POST",
-      body: { stateCode: "KUL", productVariantKey: "PUBLIC-KEY", quantity: 1 },
+      body: {
+        stateCode: "KUL",
+        items: [
+          { productVariantKey: "PUBLIC-KEY", quantity: 2 },
+          { productVariantKey: "OTHER-KEY", quantity: 1 },
+        ],
+      },
     }));
     expect(apiRequest.mock.calls[0][1].body).not.toHaveProperty("deliveryFee");
     expect(apiRequest.mock.calls[0][1].body).not.toHaveProperty("zoneCode");

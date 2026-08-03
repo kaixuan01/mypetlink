@@ -1,0 +1,4008 @@
+IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
+BEGIN
+    CREATE TABLE [__EFMigrationsHistory] (
+        [MigrationId] nvarchar(150) NOT NULL,
+        [ProductVersion] nvarchar(32) NOT NULL,
+        CONSTRAINT [PK___EFMigrationsHistory] PRIMARY KEY ([MigrationId])
+    );
+END;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE TABLE [AuditLogs] (
+        [Id] uniqueidentifier NOT NULL,
+        [ActorId] uniqueidentifier NULL,
+        [ActorType] nvarchar(32) NOT NULL,
+        [Action] nvarchar(120) NOT NULL,
+        [Entity] nvarchar(120) NOT NULL,
+        [EntityId] uniqueidentifier NULL,
+        [OldValue] nvarchar(max) NULL,
+        [NewValue] nvarchar(max) NULL,
+        [IpAddress] nvarchar(64) NULL,
+        [UserAgent] nvarchar(max) NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_AuditLogs] PRIMARY KEY ([Id])
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE TABLE [Plans] (
+        [Id] uniqueidentifier NOT NULL,
+        [Code] nvarchar(64) NOT NULL,
+        [Name] nvarchar(120) NOT NULL,
+        [Status] nvarchar(32) NOT NULL,
+        [PriceLabel] nvarchar(64) NOT NULL,
+        [BillingNote] nvarchar(240) NULL,
+        [Description] nvarchar(max) NULL,
+        [ArchivedAt] datetimeoffset NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_Plans] PRIMARY KEY ([Id])
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE TABLE [Users] (
+        [Id] uniqueidentifier NOT NULL,
+        [Email] nvarchar(320) NOT NULL,
+        [NormalizedEmail] nvarchar(320) NOT NULL,
+        [DisplayName] nvarchar(200) NOT NULL,
+        [PhoneE164] nvarchar(32) NULL,
+        [WhatsappE164] nvarchar(32) NULL,
+        [Status] nvarchar(32) NOT NULL,
+        [LastLoginAt] datetimeoffset NULL,
+        [DeletedAt] datetimeoffset NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_Users] PRIMARY KEY ([Id])
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE TABLE [PlanLimits] (
+        [Id] uniqueidentifier NOT NULL,
+        [PlanId] uniqueidentifier NOT NULL,
+        [MaxPets] int NOT NULL,
+        [MaxMemoriesPerPet] int NOT NULL,
+        [MaxMediaPerMemory] int NOT NULL,
+        [MaxFamilyMembers] int NOT NULL,
+        [MaxCareRecords] int NOT NULL,
+        [ScanHistoryDays] int NOT NULL,
+        [AllowsSmartTagAddOns] bit NOT NULL,
+        [AllowsFoundReports] bit NOT NULL,
+        [AllowsAdvancedThemes] bit NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_PlanLimits] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_PlanLimits_Plans_PlanId] FOREIGN KEY ([PlanId]) REFERENCES [Plans] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE TABLE [AdminUsers] (
+        [Id] uniqueidentifier NOT NULL,
+        [UserId] uniqueidentifier NOT NULL,
+        [Role] nvarchar(32) NOT NULL,
+        [IsActive] bit NOT NULL,
+        [CreatedByAdminUserId] uniqueidentifier NULL,
+        [DisabledAt] datetimeoffset NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_AdminUsers] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_AdminUsers_AdminUsers_CreatedByAdminUserId] FOREIGN KEY ([CreatedByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_AdminUsers_Users_UserId] FOREIGN KEY ([UserId]) REFERENCES [Users] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE TABLE [ExternalLogins] (
+        [Id] uniqueidentifier NOT NULL,
+        [UserId] uniqueidentifier NOT NULL,
+        [Provider] nvarchar(64) NOT NULL,
+        [ProviderSubjectId] nvarchar(200) NOT NULL,
+        [ProviderEmail] nvarchar(320) NOT NULL,
+        [ProviderDisplayName] nvarchar(200) NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_ExternalLogins] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_ExternalLogins_Users_UserId] FOREIGN KEY ([UserId]) REFERENCES [Users] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE TABLE [MediaFiles] (
+        [Id] uniqueidentifier NOT NULL,
+        [OwnerUserId] uniqueidentifier NULL,
+        [OriginalFileName] nvarchar(260) NOT NULL,
+        [StorageFileName] nvarchar(260) NOT NULL,
+        [ContentType] nvarchar(120) NOT NULL,
+        [FileSize] bigint NOT NULL,
+        [StorageProvider] nvarchar(64) NOT NULL,
+        [StoragePath] nvarchar(600) NOT NULL,
+        [Sha256] nvarchar(128) NOT NULL,
+        [Width] int NULL,
+        [Height] int NULL,
+        [DurationSeconds] int NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UploadedAt] datetimeoffset NOT NULL,
+        [DeletedAt] datetimeoffset NULL,
+        CONSTRAINT [PK_MediaFiles] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_MediaFiles_Users_OwnerUserId] FOREIGN KEY ([OwnerUserId]) REFERENCES [Users] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE TABLE [OwnerProfiles] (
+        [Id] uniqueidentifier NOT NULL,
+        [UserId] uniqueidentifier NOT NULL,
+        [PlanId] uniqueidentifier NOT NULL,
+        [OwnerDisplayName] nvarchar(200) NOT NULL,
+        [DefaultGeneralArea] nvarchar(200) NULL,
+        [PrivacyDefaultsJson] nvarchar(max) NOT NULL,
+        [NotificationPreferencesJson] nvarchar(max) NOT NULL,
+        [GrandfatheredAt] datetimeoffset NULL,
+        [PlanOverrideJson] nvarchar(max) NULL,
+        [ArchivedAt] datetimeoffset NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_OwnerProfiles] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_OwnerProfiles_Plans_PlanId] FOREIGN KEY ([PlanId]) REFERENCES [Plans] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_OwnerProfiles_Users_UserId] FOREIGN KEY ([UserId]) REFERENCES [Users] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE TABLE [Pets] (
+        [Id] uniqueidentifier NOT NULL,
+        [OwnerUserId] uniqueidentifier NOT NULL,
+        [Slug] nvarchar(160) NOT NULL,
+        [Name] nvarchar(120) NOT NULL,
+        [Species] nvarchar(80) NOT NULL,
+        [CustomSpecies] nvarchar(120) NULL,
+        [Breed] nvarchar(max) NULL,
+        [Gender] nvarchar(max) NULL,
+        [Color] nvarchar(max) NULL,
+        [Birthday] date NULL,
+        [AdoptionDay] date NULL,
+        [EstimatedAgeLabel] nvarchar(max) NULL,
+        [GeneralArea] nvarchar(200) NULL,
+        [ProfileTheme] nvarchar(64) NOT NULL,
+        [LifecycleStatus] nvarchar(32) NOT NULL,
+        [PreviousLifecycleStatus] nvarchar(32) NULL,
+        [MemorialPassedAwayDate] date NULL,
+        [MemorialMessage] nvarchar(max) NULL,
+        [ShowMemorialOnPublicProfile] bit NOT NULL,
+        [LostModeEnabled] bit NOT NULL,
+        [LostLastSeenArea] nvarchar(max) NULL,
+        [LostLastSeenDateTime] datetimeoffset NULL,
+        [LostMessage] nvarchar(max) NULL,
+        [LostRewardNote] nvarchar(max) NULL,
+        [LostExtraContactInstruction] nvarchar(max) NULL,
+        [Bio] nvarchar(max) NULL,
+        [PersonalityTagsJson] nvarchar(max) NOT NULL,
+        [FavoriteFood] nvarchar(max) NULL,
+        [FavoriteToy] nvarchar(max) NULL,
+        [SafetyNote] nvarchar(max) NULL,
+        [EmergencyNote] nvarchar(max) NULL,
+        [ArchivedAt] datetimeoffset NULL,
+        [DeletedAt] datetimeoffset NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_Pets] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_Pets_Users_OwnerUserId] FOREIGN KEY ([OwnerUserId]) REFERENCES [Users] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE TABLE [RefreshTokens] (
+        [Id] uniqueidentifier NOT NULL,
+        [UserId] uniqueidentifier NOT NULL,
+        [TokenHash] nvarchar(128) NOT NULL,
+        [ExpiresAt] datetimeoffset NOT NULL,
+        [RevokedAt] datetimeoffset NULL,
+        [ReplacedByTokenId] uniqueidentifier NULL,
+        [CreatedByIp] nvarchar(64) NULL,
+        [RevokedByIp] nvarchar(64) NULL,
+        [UserAgent] nvarchar(max) NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_RefreshTokens] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_RefreshTokens_RefreshTokens_ReplacedByTokenId] FOREIGN KEY ([ReplacedByTokenId]) REFERENCES [RefreshTokens] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_RefreshTokens_Users_UserId] FOREIGN KEY ([UserId]) REFERENCES [Users] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE TABLE [AppSettings] (
+        [Id] uniqueidentifier NOT NULL,
+        [Key] nvarchar(160) NOT NULL,
+        [ValueJson] nvarchar(max) NOT NULL,
+        [Category] nvarchar(80) NOT NULL,
+        [Description] nvarchar(max) NULL,
+        [IsPublic] bit NOT NULL,
+        [UpdatedByAdminUserId] uniqueidentifier NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_AppSettings] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_AppSettings_AdminUsers_UpdatedByAdminUserId] FOREIGN KEY ([UpdatedByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE TABLE [SmartTagBatches] (
+        [Id] uniqueidentifier NOT NULL,
+        [BatchNo] nvarchar(80) NOT NULL,
+        [Quantity] int NOT NULL,
+        [HasNfc] bit NOT NULL,
+        [Shape] nvarchar(80) NOT NULL,
+        [GeneratedByAdminUserId] uniqueidentifier NULL,
+        [GeneratedAt] datetimeoffset NULL,
+        [ExportedAt] datetimeoffset NULL,
+        [PrintedAt] datetimeoffset NULL,
+        [SentToResellerAt] datetimeoffset NULL,
+        [ResellerName] nvarchar(200) NULL,
+        [Remarks] nvarchar(max) NULL,
+        [ArchivedAt] datetimeoffset NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_SmartTagBatches] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_SmartTagBatches_AdminUsers_GeneratedByAdminUserId] FOREIGN KEY ([GeneratedByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE TABLE [MediaFileLinks] (
+        [Id] uniqueidentifier NOT NULL,
+        [MediaFileId] uniqueidentifier NOT NULL,
+        [OwnerType] nvarchar(64) NOT NULL,
+        [OwnerId] uniqueidentifier NOT NULL,
+        [SortOrder] int NOT NULL,
+        [Caption] nvarchar(240) NULL,
+        [AltText] nvarchar(240) NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [ArchivedAt] datetimeoffset NULL,
+        CONSTRAINT [PK_MediaFileLinks] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_MediaFileLinks_MediaFiles_MediaFileId] FOREIGN KEY ([MediaFileId]) REFERENCES [MediaFiles] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE TABLE [CareRecords] (
+        [Id] uniqueidentifier NOT NULL,
+        [PetId] uniqueidentifier NOT NULL,
+        [Type] nvarchar(32) NOT NULL,
+        [Title] nvarchar(160) NOT NULL,
+        [RecordDate] date NULL,
+        [DueDate] date NULL,
+        [Provider] nvarchar(160) NULL,
+        [Notes] nvarchar(max) NULL,
+        [PublicVisibility] nvarchar(32) NOT NULL,
+        [ArchivedAt] datetimeoffset NULL,
+        [DeletedAt] datetimeoffset NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_CareRecords] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_CareRecords_Pets_PetId] FOREIGN KEY ([PetId]) REFERENCES [Pets] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE TABLE [PetContacts] (
+        [Id] uniqueidentifier NOT NULL,
+        [PetId] uniqueidentifier NOT NULL,
+        [UseOwnerDefaults] bit NOT NULL,
+        [OwnerDisplayName] nvarchar(200) NULL,
+        [PhoneE164] nvarchar(32) NULL,
+        [WhatsappE164] nvarchar(32) NULL,
+        [EmergencyContactE164] nvarchar(32) NULL,
+        [GeneralAreaOverride] nvarchar(200) NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_PetContacts] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_PetContacts_Pets_PetId] FOREIGN KEY ([PetId]) REFERENCES [Pets] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE TABLE [PetMemories] (
+        [Id] uniqueidentifier NOT NULL,
+        [PetId] uniqueidentifier NOT NULL,
+        [Title] nvarchar(160) NOT NULL,
+        [MomentDate] date NULL,
+        [Type] nvarchar(80) NULL,
+        [Caption] nvarchar(max) NULL,
+        [Visibility] nvarchar(32) NOT NULL,
+        [ShowOnPublicProfile] bit NOT NULL,
+        [ShowInLifeTimeline] bit NOT NULL,
+        [TimelineNote] nvarchar(max) NULL,
+        [CoverMediaFileId] uniqueidentifier NULL,
+        [ArchivedAt] datetimeoffset NULL,
+        [DeletedAt] datetimeoffset NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_PetMemories] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_PetMemories_MediaFiles_CoverMediaFileId] FOREIGN KEY ([CoverMediaFileId]) REFERENCES [MediaFiles] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_PetMemories_Pets_PetId] FOREIGN KEY ([PetId]) REFERENCES [Pets] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE TABLE [PetPublicProfiles] (
+        [Id] uniqueidentifier NOT NULL,
+        [PetId] uniqueidentifier NOT NULL,
+        [PublicCode] nvarchar(80) NOT NULL,
+        [SlugSnapshot] nvarchar(160) NOT NULL,
+        [ShowOwnerName] bit NOT NULL,
+        [ShowGeneralArea] bit NOT NULL,
+        [ShowCareBadges] bit NOT NULL,
+        [ShowMoments] bit NOT NULL,
+        [ShowTimeline] bit NOT NULL,
+        [ShowBirthdayOnTimeline] bit NOT NULL,
+        [ShowAdoptionDayOnTimeline] bit NOT NULL,
+        [ShowHealthSummary] bit NOT NULL,
+        [IsPublicProfileEnabled] bit NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_PetPublicProfiles] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_PetPublicProfiles_Pets_PetId] FOREIGN KEY ([PetId]) REFERENCES [Pets] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE TABLE [PetSafetySettings] (
+        [Id] uniqueidentifier NOT NULL,
+        [PetId] uniqueidentifier NOT NULL,
+        [SafetyCode] nvarchar(80) NOT NULL,
+        [QrSafetyEnabled] bit NOT NULL,
+        [ShowPhone] bit NOT NULL,
+        [ShowWhatsapp] bit NOT NULL,
+        [ShowEmergencyNote] bit NOT NULL,
+        [ShowFoundLocationAction] bit NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_PetSafetySettings] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_PetSafetySettings_Pets_PetId] FOREIGN KEY ([PetId]) REFERENCES [Pets] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE TABLE [FoundReports] (
+        [Id] uniqueidentifier NOT NULL,
+        [PetId] uniqueidentifier NOT NULL,
+        [SmartTagId] uniqueidentifier NULL,
+        [TagScanId] uniqueidentifier NULL,
+        [FinderMessage] nvarchar(max) NULL,
+        [FinderContact] nvarchar(max) NULL,
+        [Latitude] decimal(9,6) NULL,
+        [Longitude] decimal(9,6) NULL,
+        [Country] nvarchar(120) NULL,
+        [City] nvarchar(120) NULL,
+        [PreciseLocationConsent] bit NOT NULL,
+        [SubmittedAt] datetimeoffset NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [ArchivedAt] datetimeoffset NULL,
+        CONSTRAINT [PK_FoundReports] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_FoundReports_Pets_PetId] FOREIGN KEY ([PetId]) REFERENCES [Pets] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE TABLE [PaymentProofs] (
+        [Id] uniqueidentifier NOT NULL,
+        [OrderId] uniqueidentifier NOT NULL,
+        [MediaFileId] uniqueidentifier NOT NULL,
+        [OriginalFileName] nvarchar(260) NOT NULL,
+        [StorageFileName] nvarchar(260) NOT NULL,
+        [ContentType] nvarchar(120) NOT NULL,
+        [FileSize] bigint NOT NULL,
+        [StorageProvider] nvarchar(64) NOT NULL,
+        [StoragePath] nvarchar(600) NOT NULL,
+        [Sha256] nvarchar(128) NOT NULL,
+        [UploadedAt] datetimeoffset NOT NULL,
+        [PaymentMethod] nvarchar(80) NOT NULL,
+        [PaymentReference] nvarchar(160) NULL,
+        [OwnerNote] nvarchar(max) NULL,
+        [Status] nvarchar(32) NOT NULL,
+        [ReviewedByAdminUserId] uniqueidentifier NULL,
+        [ReviewedAt] datetimeoffset NULL,
+        [RejectionReason] nvarchar(max) NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_PaymentProofs] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_PaymentProofs_AdminUsers_ReviewedByAdminUserId] FOREIGN KEY ([ReviewedByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_PaymentProofs_MediaFiles_MediaFileId] FOREIGN KEY ([MediaFileId]) REFERENCES [MediaFiles] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE TABLE [SmartTags] (
+        [Id] uniqueidentifier NOT NULL,
+        [TagCode] nvarchar(32) NOT NULL,
+        [OwnerUserId] uniqueidentifier NULL,
+        [PetId] uniqueidentifier NULL,
+        [OrderId] uniqueidentifier NULL,
+        [BatchId] uniqueidentifier NULL,
+        [HasNfc] bit NOT NULL,
+        [Shape] nvarchar(80) NOT NULL,
+        [Status] nvarchar(32) NOT NULL,
+        [ActivatedAt] datetimeoffset NULL,
+        [DeliveredAt] datetimeoffset NULL,
+        [LastScannedAt] datetimeoffset NULL,
+        [ReplacementForTagId] uniqueidentifier NULL,
+        [ArchivedAt] datetimeoffset NULL,
+        [DeletedAt] datetimeoffset NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_SmartTags] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_SmartTags_Pets_PetId] FOREIGN KEY ([PetId]) REFERENCES [Pets] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_SmartTags_SmartTagBatches_BatchId] FOREIGN KEY ([BatchId]) REFERENCES [SmartTagBatches] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_SmartTags_SmartTags_ReplacementForTagId] FOREIGN KEY ([ReplacementForTagId]) REFERENCES [SmartTags] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_SmartTags_Users_OwnerUserId] FOREIGN KEY ([OwnerUserId]) REFERENCES [Users] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE TABLE [TagOrders] (
+        [Id] uniqueidentifier NOT NULL,
+        [OrderNumber] nvarchar(80) NOT NULL,
+        [OwnerUserId] uniqueidentifier NOT NULL,
+        [PetId] uniqueidentifier NOT NULL,
+        [SmartTagId] uniqueidentifier NULL,
+        [ReplacementForTagId] uniqueidentifier NULL,
+        [TagType] nvarchar(32) NOT NULL,
+        [Shape] nvarchar(80) NOT NULL,
+        [Amount] decimal(18,2) NOT NULL,
+        [Currency] nvarchar(3) NOT NULL,
+        [DeliveryFee] decimal(18,2) NOT NULL,
+        [Status] nvarchar(32) NOT NULL,
+        [PaymentStatus] nvarchar(32) NOT NULL,
+        [PaymentConfirmedAt] datetimeoffset NULL,
+        [RecipientName] nvarchar(160) NOT NULL,
+        [DeliveryPhoneE164] nvarchar(32) NOT NULL,
+        [AddressLine1] nvarchar(240) NOT NULL,
+        [AddressLine2] nvarchar(240) NULL,
+        [Postcode] nvarchar(20) NOT NULL,
+        [City] nvarchar(120) NOT NULL,
+        [State] nvarchar(120) NOT NULL,
+        [DeliveryNotes] nvarchar(max) NULL,
+        [TrackingStatus] nvarchar(max) NULL,
+        [TrackingNumber] nvarchar(120) NULL,
+        [ShippedAt] datetimeoffset NULL,
+        [DeliveredAt] datetimeoffset NULL,
+        [CancelledAt] datetimeoffset NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_TagOrders] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_TagOrders_Pets_PetId] FOREIGN KEY ([PetId]) REFERENCES [Pets] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_TagOrders_SmartTags_ReplacementForTagId] FOREIGN KEY ([ReplacementForTagId]) REFERENCES [SmartTags] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_TagOrders_SmartTags_SmartTagId] FOREIGN KEY ([SmartTagId]) REFERENCES [SmartTags] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_TagOrders_Users_OwnerUserId] FOREIGN KEY ([OwnerUserId]) REFERENCES [Users] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE TABLE [TagScans] (
+        [Id] uniqueidentifier NOT NULL,
+        [SmartTagId] uniqueidentifier NULL,
+        [PetId] uniqueidentifier NULL,
+        [TagCode] nvarchar(32) NOT NULL,
+        [ResolvedState] nvarchar(32) NOT NULL,
+        [ScanTime] datetimeoffset NOT NULL,
+        [Latitude] decimal(9,6) NULL,
+        [Longitude] decimal(9,6) NULL,
+        [Country] nvarchar(120) NULL,
+        [City] nvarchar(120) NULL,
+        [IpAddress] nvarchar(64) NULL,
+        [Browser] nvarchar(max) NULL,
+        [OperatingSystem] nvarchar(max) NULL,
+        [DeviceType] nvarchar(max) NULL,
+        [Referer] nvarchar(max) NULL,
+        [UserAgent] nvarchar(max) NULL,
+        [FinderConsentPreciseLocation] bit NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_TagScans] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_TagScans_Pets_PetId] FOREIGN KEY ([PetId]) REFERENCES [Pets] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_TagScans_SmartTags_SmartTagId] FOREIGN KEY ([SmartTagId]) REFERENCES [SmartTags] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Id', N'Category', N'CreatedAt', N'Description', N'IsPublic', N'Key', N'UpdatedAt', N'UpdatedByAdminUserId', N'ValueJson') AND [object_id] = OBJECT_ID(N'[AppSettings]'))
+        SET IDENTITY_INSERT [AppSettings] ON;
+    EXEC(N'INSERT INTO [AppSettings] ([Id], [Category], [CreatedAt], [Description], [IsPublic], [Key], [UpdatedAt], [UpdatedByAdminUserId], [ValueJson])
+    VALUES (''6193a01f-686c-4b11-9a05-8a6e68ae8449'', N''Products'', ''2026-01-01T00:00:00.0000000+00:00'', N''QR + NFC Smart Tag one-time price.'', CAST(1 AS bit), N''tag.qr_nfc.price'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''"RM39.90"''),
+    (''661dfec1-4635-44d6-818a-22b6b46ceeb8'', N''Payments'', ''2026-01-01T00:00:00.0000000+00:00'', N''Manual payment proof review mode for Phase 1.'', CAST(0 AS bit), N''payment.mode'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''"Manual QR Payment"''),
+    (''aa394a86-9c14-4f89-b3ad-1f013097d7e6'', N''Features'', ''2026-01-01T00:00:00.0000000+00:00'', N''GPS availability label.'', CAST(1 AS bit), N''gps.status'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''"Coming Later"''),
+    (''b60a097e-9407-4307-b224-e91f79838098'', N''Products'', ''2026-01-01T00:00:00.0000000+00:00'', N''QR Pet Tag one-time price.'', CAST(1 AS bit), N''tag.qr.price'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''"RM19.90"''),
+    (''eac37b9d-aa41-4067-8f67-e481aa3d4fec'', N''Features'', ''2026-01-01T00:00:00.0000000+00:00'', N''Premium availability label.'', CAST(1 AS bit), N''premium.status'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''"Coming Soon"'')');
+    IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Id', N'Category', N'CreatedAt', N'Description', N'IsPublic', N'Key', N'UpdatedAt', N'UpdatedByAdminUserId', N'ValueJson') AND [object_id] = OBJECT_ID(N'[AppSettings]'))
+        SET IDENTITY_INSERT [AppSettings] OFF;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Id', N'ArchivedAt', N'BillingNote', N'Code', N'CreatedAt', N'Description', N'Name', N'PriceLabel', N'Status', N'UpdatedAt') AND [object_id] = OBJECT_ID(N'[Plans]'))
+        SET IDENTITY_INSERT [Plans] ON;
+    EXEC(N'INSERT INTO [Plans] ([Id], [ArchivedAt], [BillingNote], [Code], [CreatedAt], [Description], [Name], [PriceLabel], [Status], [UpdatedAt])
+    VALUES (''1faefb03-9b58-4889-a03b-c9ed34c5fa0f'', NULL, N''Not available in Phase 1'', N''Premium'', ''2026-01-01T00:00:00.0000000+00:00'', N''Premium features are planned for a future phase.'', N''Premium'', N''Coming Soon'', N''ComingSoon'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''4e5e2a13-34c0-4a36-b1b3-30830ca642e9'', NULL, N''Available now'', N''Free'', ''2026-01-01T00:00:00.0000000+00:00'', N''Free MyPetLink pet profiles for Phase 1.'', N''Free'', N''RM0'', N''Available'', ''2026-01-01T00:00:00.0000000+00:00'')');
+    IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Id', N'ArchivedAt', N'BillingNote', N'Code', N'CreatedAt', N'Description', N'Name', N'PriceLabel', N'Status', N'UpdatedAt') AND [object_id] = OBJECT_ID(N'[Plans]'))
+        SET IDENTITY_INSERT [Plans] OFF;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Id', N'AllowsAdvancedThemes', N'AllowsFoundReports', N'AllowsSmartTagAddOns', N'CreatedAt', N'MaxCareRecords', N'MaxFamilyMembers', N'MaxMediaPerMemory', N'MaxMemoriesPerPet', N'MaxPets', N'PlanId', N'ScanHistoryDays', N'UpdatedAt') AND [object_id] = OBJECT_ID(N'[PlanLimits]'))
+        SET IDENTITY_INSERT [PlanLimits] ON;
+    EXEC(N'INSERT INTO [PlanLimits] ([Id], [AllowsAdvancedThemes], [AllowsFoundReports], [AllowsSmartTagAddOns], [CreatedAt], [MaxCareRecords], [MaxFamilyMembers], [MaxMediaPerMemory], [MaxMemoriesPerPet], [MaxPets], [PlanId], [ScanHistoryDays], [UpdatedAt])
+    VALUES (''8d6684b1-b25f-4e1a-a353-48621f6fb2c2'', CAST(0 AS bit), CAST(1 AS bit), CAST(1 AS bit), ''2026-01-01T00:00:00.0000000+00:00'', 100, 0, 5, 10, 3, ''4e5e2a13-34c0-4a36-b1b3-30830ca642e9'', 0, ''2026-01-01T00:00:00.0000000+00:00''),
+    (''d65c4c7d-821b-496c-bb3d-ea5bf951d65d'', CAST(1 AS bit), CAST(1 AS bit), CAST(1 AS bit), ''2026-01-01T00:00:00.0000000+00:00'', 500, 5, 20, 100, 10, ''1faefb03-9b58-4889-a03b-c9ed34c5fa0f'', 365, ''2026-01-01T00:00:00.0000000+00:00'')');
+    IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Id', N'AllowsAdvancedThemes', N'AllowsFoundReports', N'AllowsSmartTagAddOns', N'CreatedAt', N'MaxCareRecords', N'MaxFamilyMembers', N'MaxMediaPerMemory', N'MaxMemoriesPerPet', N'MaxPets', N'PlanId', N'ScanHistoryDays', N'UpdatedAt') AND [object_id] = OBJECT_ID(N'[PlanLimits]'))
+        SET IDENTITY_INSERT [PlanLimits] OFF;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_AdminUsers_CreatedByAdminUserId] ON [AdminUsers] ([CreatedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_AdminUsers_IsActive] ON [AdminUsers] ([IsActive]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_AdminUsers_Role] ON [AdminUsers] ([Role]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_AdminUsers_UserId] ON [AdminUsers] ([UserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_AppSettings_Category] ON [AppSettings] ([Category]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_AppSettings_IsPublic] ON [AppSettings] ([IsPublic]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_AppSettings_Key] ON [AppSettings] ([Key]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_AppSettings_UpdatedByAdminUserId] ON [AppSettings] ([UpdatedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_AuditLogs_Action] ON [AuditLogs] ([Action]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_AuditLogs_ActorType_ActorId] ON [AuditLogs] ([ActorType], [ActorId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_AuditLogs_CreatedAt] ON [AuditLogs] ([CreatedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_AuditLogs_Entity_EntityId] ON [AuditLogs] ([Entity], [EntityId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_CareRecords_PetId_DueDate] ON [CareRecords] ([PetId], [DueDate]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_CareRecords_PetId_PublicVisibility] ON [CareRecords] ([PetId], [PublicVisibility]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_CareRecords_PetId_RecordDate] ON [CareRecords] ([PetId], [RecordDate]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_CareRecords_PetId_Type] ON [CareRecords] ([PetId], [Type]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_ExternalLogins_Provider_ProviderSubjectId] ON [ExternalLogins] ([Provider], [ProviderSubjectId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_ExternalLogins_UserId] ON [ExternalLogins] ([UserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_FoundReports_PetId] ON [FoundReports] ([PetId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_FoundReports_SmartTagId] ON [FoundReports] ([SmartTagId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_FoundReports_SubmittedAt] ON [FoundReports] ([SubmittedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_FoundReports_TagScanId] ON [FoundReports] ([TagScanId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_MediaFileLinks_MediaFileId] ON [MediaFileLinks] ([MediaFileId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_MediaFileLinks_OwnerType_OwnerId_SortOrder] ON [MediaFileLinks] ([OwnerType], [OwnerId], [SortOrder]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_MediaFiles_DeletedAt] ON [MediaFiles] ([DeletedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_MediaFiles_OwnerUserId] ON [MediaFiles] ([OwnerUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_MediaFiles_Sha256] ON [MediaFiles] ([Sha256]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_MediaFiles_StorageProvider] ON [MediaFiles] ([StorageProvider]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_MediaFiles_UploadedAt] ON [MediaFiles] ([UploadedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_OwnerProfiles_PlanId] ON [OwnerProfiles] ([PlanId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_OwnerProfiles_UserId] ON [OwnerProfiles] ([UserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_PaymentProofs_MediaFileId] ON [PaymentProofs] ([MediaFileId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_PaymentProofs_OrderId] ON [PaymentProofs] ([OrderId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_PaymentProofs_ReviewedByAdminUserId] ON [PaymentProofs] ([ReviewedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_PaymentProofs_Status] ON [PaymentProofs] ([Status]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_PaymentProofs_UploadedAt] ON [PaymentProofs] ([UploadedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_PetContacts_PetId] ON [PetContacts] ([PetId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_PetMemories_CoverMediaFileId] ON [PetMemories] ([CoverMediaFileId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_PetMemories_PetId_CreatedAt] ON [PetMemories] ([PetId], [CreatedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_PetMemories_PetId_ShowInLifeTimeline] ON [PetMemories] ([PetId], [ShowInLifeTimeline]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_PetMemories_PetId_ShowOnPublicProfile] ON [PetMemories] ([PetId], [ShowOnPublicProfile]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_PetMemories_PetId_Visibility] ON [PetMemories] ([PetId], [Visibility]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_PetPublicProfiles_IsPublicProfileEnabled_UpdatedAt] ON [PetPublicProfiles] ([IsPublicProfileEnabled], [UpdatedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_PetPublicProfiles_PetId] ON [PetPublicProfiles] ([PetId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_PetPublicProfiles_PublicCode] ON [PetPublicProfiles] ([PublicCode]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_Pets_CreatedAt] ON [Pets] ([CreatedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_Pets_LifecycleStatus] ON [Pets] ([LifecycleStatus]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_Pets_LostModeEnabled] ON [Pets] ([LostModeEnabled]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_Pets_OwnerUserId] ON [Pets] ([OwnerUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_Pets_OwnerUserId_LifecycleStatus] ON [Pets] ([OwnerUserId], [LifecycleStatus]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_PetSafetySettings_PetId] ON [PetSafetySettings] ([PetId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_PetSafetySettings_QrSafetyEnabled_UpdatedAt] ON [PetSafetySettings] ([QrSafetyEnabled], [UpdatedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_PetSafetySettings_SafetyCode] ON [PetSafetySettings] ([SafetyCode]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_PlanLimits_PlanId] ON [PlanLimits] ([PlanId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_Plans_Code] ON [Plans] ([Code]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_Plans_Status] ON [Plans] ([Status]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_RefreshTokens_ExpiresAt] ON [RefreshTokens] ([ExpiresAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_RefreshTokens_ReplacedByTokenId] ON [RefreshTokens] ([ReplacedByTokenId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_RefreshTokens_TokenHash] ON [RefreshTokens] ([TokenHash]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_RefreshTokens_UserId] ON [RefreshTokens] ([UserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_SmartTagBatches_BatchNo] ON [SmartTagBatches] ([BatchNo]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_SmartTagBatches_GeneratedAt] ON [SmartTagBatches] ([GeneratedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_SmartTagBatches_GeneratedByAdminUserId] ON [SmartTagBatches] ([GeneratedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_SmartTagBatches_HasNfc] ON [SmartTagBatches] ([HasNfc]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_SmartTagBatches_Shape] ON [SmartTagBatches] ([Shape]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_SmartTags_BatchId] ON [SmartTags] ([BatchId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_SmartTags_LastScannedAt] ON [SmartTags] ([LastScannedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_SmartTags_OrderId] ON [SmartTags] ([OrderId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_SmartTags_OwnerUserId] ON [SmartTags] ([OwnerUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_SmartTags_PetId] ON [SmartTags] ([PetId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_SmartTags_ReplacementForTagId] ON [SmartTags] ([ReplacementForTagId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_SmartTags_Status] ON [SmartTags] ([Status]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_SmartTags_Status_PetId] ON [SmartTags] ([Status], [PetId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_SmartTags_TagCode] ON [SmartTags] ([TagCode]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_TagOrders_CreatedAt] ON [TagOrders] ([CreatedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_TagOrders_OrderNumber] ON [TagOrders] ([OrderNumber]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_TagOrders_OwnerUserId] ON [TagOrders] ([OwnerUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_TagOrders_PaymentStatus] ON [TagOrders] ([PaymentStatus]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_TagOrders_PaymentStatus_CreatedAt] ON [TagOrders] ([PaymentStatus], [CreatedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_TagOrders_PetId] ON [TagOrders] ([PetId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_TagOrders_ReplacementForTagId] ON [TagOrders] ([ReplacementForTagId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_TagOrders_SmartTagId] ON [TagOrders] ([SmartTagId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_TagOrders_Status] ON [TagOrders] ([Status]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_TagOrders_Status_CreatedAt] ON [TagOrders] ([Status], [CreatedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_TagScans_Country_City] ON [TagScans] ([Country], [City]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_TagScans_PetId] ON [TagScans] ([PetId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_TagScans_PetId_ScanTime] ON [TagScans] ([PetId], [ScanTime]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_TagScans_ResolvedState] ON [TagScans] ([ResolvedState]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_TagScans_ScanTime] ON [TagScans] ([ScanTime]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_TagScans_SmartTagId] ON [TagScans] ([SmartTagId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_TagScans_SmartTagId_ScanTime] ON [TagScans] ([SmartTagId], [ScanTime]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_TagScans_TagCode] ON [TagScans] ([TagCode]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_Users_CreatedAt] ON [Users] ([CreatedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_Users_NormalizedEmail] ON [Users] ([NormalizedEmail]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    CREATE INDEX [IX_Users_Status] ON [Users] ([Status]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    ALTER TABLE [FoundReports] ADD CONSTRAINT [FK_FoundReports_SmartTags_SmartTagId] FOREIGN KEY ([SmartTagId]) REFERENCES [SmartTags] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    ALTER TABLE [FoundReports] ADD CONSTRAINT [FK_FoundReports_TagScans_TagScanId] FOREIGN KEY ([TagScanId]) REFERENCES [TagScans] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    ALTER TABLE [PaymentProofs] ADD CONSTRAINT [FK_PaymentProofs_TagOrders_OrderId] FOREIGN KEY ([OrderId]) REFERENCES [TagOrders] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    ALTER TABLE [SmartTags] ADD CONSTRAINT [FK_SmartTags_TagOrders_OrderId] FOREIGN KEY ([OrderId]) REFERENCES [TagOrders] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260703020004_InitialCreate'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260703020004_InitialCreate', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260705013926_RenameTagShapeToVariant'
+)
+BEGIN
+    EXEC sp_rename N'[TagOrders].[Shape]', N'Variant', N'COLUMN';
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260705013926_RenameTagShapeToVariant'
+)
+BEGIN
+    EXEC sp_rename N'[SmartTags].[Shape]', N'Variant', N'COLUMN';
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260705013926_RenameTagShapeToVariant'
+)
+BEGIN
+    EXEC sp_rename N'[SmartTagBatches].[Shape]', N'Variant', N'COLUMN';
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260705013926_RenameTagShapeToVariant'
+)
+BEGIN
+    EXEC sp_rename N'[SmartTagBatches].[IX_SmartTagBatches_Shape]', N'IX_SmartTagBatches_Variant', N'INDEX';
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260705013926_RenameTagShapeToVariant'
+)
+BEGIN
+    UPDATE [TagOrders] SET [Variant] = 'Standard' WHERE [Variant] IS NULL OR [Variant] NOT IN ('Lightweight', 'Standard');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260705013926_RenameTagShapeToVariant'
+)
+BEGIN
+    UPDATE [SmartTags] SET [Variant] = 'Standard' WHERE [Variant] IS NULL OR [Variant] NOT IN ('Lightweight', 'Standard');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260705013926_RenameTagShapeToVariant'
+)
+BEGIN
+    UPDATE [SmartTagBatches] SET [Variant] = 'Standard' WHERE [Variant] IS NULL OR [Variant] NOT IN ('Lightweight', 'Standard');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260705013926_RenameTagShapeToVariant'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260705013926_RenameTagShapeToVariant', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260710061633_AddCloudflareR2MediaUploads'
+)
+BEGIN
+    ALTER TABLE [Pets] ADD [CoverMediaFileId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260710061633_AddCloudflareR2MediaUploads'
+)
+BEGIN
+    ALTER TABLE [Pets] ADD [ProfileMediaFileId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260710061633_AddCloudflareR2MediaUploads'
+)
+BEGIN
+    ALTER TABLE [MediaFiles] ADD [BucketName] nvarchar(160) NOT NULL DEFAULT N'';
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260710061633_AddCloudflareR2MediaUploads'
+)
+BEGIN
+    ALTER TABLE [MediaFiles] ADD [Category] nvarchar(64) NOT NULL DEFAULT N'Other';
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260710061633_AddCloudflareR2MediaUploads'
+)
+BEGIN
+    ALTER TABLE [MediaFiles] ADD [CompletedAt] datetimeoffset NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260710061633_AddCloudflareR2MediaUploads'
+)
+BEGIN
+    ALTER TABLE [MediaFiles] ADD [IsPublic] bit NOT NULL DEFAULT CAST(0 AS bit);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260710061633_AddCloudflareR2MediaUploads'
+)
+BEGIN
+    ALTER TABLE [MediaFiles] ADD [MediaType] nvarchar(32) NOT NULL DEFAULT N'Document';
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260710061633_AddCloudflareR2MediaUploads'
+)
+BEGIN
+    ALTER TABLE [MediaFiles] ADD [ObjectKey] nvarchar(600) NOT NULL DEFAULT N'';
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260710061633_AddCloudflareR2MediaUploads'
+)
+BEGIN
+    ALTER TABLE [MediaFiles] ADD [PetId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260710061633_AddCloudflareR2MediaUploads'
+)
+BEGIN
+    ALTER TABLE [MediaFiles] ADD [ThumbnailObjectKey] nvarchar(600) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260710061633_AddCloudflareR2MediaUploads'
+)
+BEGIN
+    ALTER TABLE [MediaFiles] ADD [UploadStatus] nvarchar(32) NOT NULL DEFAULT N'Ready';
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260710061633_AddCloudflareR2MediaUploads'
+)
+BEGIN
+    CREATE INDEX [IX_Pets_CoverMediaFileId] ON [Pets] ([CoverMediaFileId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260710061633_AddCloudflareR2MediaUploads'
+)
+BEGIN
+    CREATE INDEX [IX_Pets_ProfileMediaFileId] ON [Pets] ([ProfileMediaFileId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260710061633_AddCloudflareR2MediaUploads'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [IX_MediaFiles_BucketName_ObjectKey] ON [MediaFiles] ([BucketName], [ObjectKey]) WHERE [ObjectKey] <> ''''');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260710061633_AddCloudflareR2MediaUploads'
+)
+BEGIN
+    CREATE INDEX [IX_MediaFiles_Category] ON [MediaFiles] ([Category]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260710061633_AddCloudflareR2MediaUploads'
+)
+BEGIN
+    CREATE INDEX [IX_MediaFiles_CompletedAt] ON [MediaFiles] ([CompletedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260710061633_AddCloudflareR2MediaUploads'
+)
+BEGIN
+    CREATE INDEX [IX_MediaFiles_IsPublic] ON [MediaFiles] ([IsPublic]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260710061633_AddCloudflareR2MediaUploads'
+)
+BEGIN
+    CREATE INDEX [IX_MediaFiles_MediaType] ON [MediaFiles] ([MediaType]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260710061633_AddCloudflareR2MediaUploads'
+)
+BEGIN
+    CREATE INDEX [IX_MediaFiles_PetId] ON [MediaFiles] ([PetId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260710061633_AddCloudflareR2MediaUploads'
+)
+BEGIN
+    CREATE INDEX [IX_MediaFiles_UploadStatus] ON [MediaFiles] ([UploadStatus]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260710061633_AddCloudflareR2MediaUploads'
+)
+BEGIN
+    ALTER TABLE [MediaFiles] ADD CONSTRAINT [FK_MediaFiles_Pets_PetId] FOREIGN KEY ([PetId]) REFERENCES [Pets] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260710061633_AddCloudflareR2MediaUploads'
+)
+BEGIN
+    ALTER TABLE [Pets] ADD CONSTRAINT [FK_Pets_MediaFiles_CoverMediaFileId] FOREIGN KEY ([CoverMediaFileId]) REFERENCES [MediaFiles] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260710061633_AddCloudflareR2MediaUploads'
+)
+BEGIN
+    ALTER TABLE [Pets] ADD CONSTRAINT [FK_Pets_MediaFiles_ProfileMediaFileId] FOREIGN KEY ([ProfileMediaFileId]) REFERENCES [MediaFiles] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260710061633_AddCloudflareR2MediaUploads'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260710061633_AddCloudflareR2MediaUploads', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260711040325_AddEstimatedBirthYear'
+)
+BEGIN
+    ALTER TABLE [Pets] ADD [EstimatedBirthYear] smallint NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260711040325_AddEstimatedBirthYear'
+)
+BEGIN
+    ;WITH LegacyAge AS
+    (
+        SELECT
+            [Id],
+            LOWER(LTRIM(RTRIM([EstimatedAgeLabel]))) AS [NormalizedLabel],
+            CASE
+                WHEN YEAR([CreatedAt]) BETWEEN 1900 AND YEAR(SYSUTCDATETIME())
+                    THEN YEAR([CreatedAt])
+                ELSE YEAR(SYSUTCDATETIME())
+            END AS [ReferenceYear]
+        FROM [Pets]
+        WHERE [Birthday] IS NULL
+          AND [EstimatedBirthYear] IS NULL
+          AND [EstimatedAgeLabel] IS NOT NULL
+    ),
+    ParsedAge AS
+    (
+        SELECT
+            [Id],
+            [ReferenceYear],
+            CASE
+                WHEN [NormalizedLabel] IN ('estimated under 1 year', 'under 1 year') THEN 0
+                WHEN [NormalizedLabel] LIKE 'estimated % year'
+                  OR [NormalizedLabel] LIKE 'estimated % years'
+                  OR [NormalizedLabel] LIKE '% year'
+                  OR [NormalizedLabel] LIKE '% years'
+                    THEN TRY_CONVERT(
+                        int,
+                        REPLACE(
+                            REPLACE(
+                                REPLACE([NormalizedLabel], 'estimated ', ''),
+                                ' years', ''),
+                            ' year', ''))
+                ELSE NULL
+            END AS [EstimatedYears]
+        FROM LegacyAge
+    )
+    UPDATE pet
+    SET [EstimatedBirthYear] = CONVERT(smallint, parsed.[ReferenceYear] - parsed.[EstimatedYears])
+    FROM [Pets] AS pet
+    INNER JOIN ParsedAge AS parsed ON parsed.[Id] = pet.[Id]
+    WHERE parsed.[EstimatedYears] BETWEEN 0 AND parsed.[ReferenceYear] - 1900;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260711040325_AddEstimatedBirthYear'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260711040325_AddEstimatedBirthYear', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260712094248_AddPetCoverFocalPosition'
+)
+BEGIN
+    ALTER TABLE [Pets] ADD [CoverPositionX] tinyint NOT NULL DEFAULT CAST(50 AS tinyint);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260712094248_AddPetCoverFocalPosition'
+)
+BEGIN
+    ALTER TABLE [Pets] ADD [CoverPositionY] tinyint NOT NULL DEFAULT CAST(50 AS tinyint);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260712094248_AddPetCoverFocalPosition'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260712094248_AddPetCoverFocalPosition', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260714045218_FavoriteFoodsAndToysAsLists'
+)
+BEGIN
+    ALTER TABLE [Pets] ADD [FavoriteFoodsJson] nvarchar(max) NOT NULL DEFAULT N'[]';
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260714045218_FavoriteFoodsAndToysAsLists'
+)
+BEGIN
+    ALTER TABLE [Pets] ADD [FavoriteToysJson] nvarchar(max) NOT NULL DEFAULT N'[]';
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260714045218_FavoriteFoodsAndToysAsLists'
+)
+BEGIN
+    UPDATE Pets
+    SET FavoriteFoodsJson = N'["' + STRING_ESCAPE(LTRIM(RTRIM(FavoriteFood)), 'json') + N'"]'
+    WHERE FavoriteFood IS NOT NULL AND LTRIM(RTRIM(FavoriteFood)) <> N'';
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260714045218_FavoriteFoodsAndToysAsLists'
+)
+BEGIN
+    UPDATE Pets
+    SET FavoriteToysJson = N'["' + STRING_ESCAPE(LTRIM(RTRIM(FavoriteToy)), 'json') + N'"]'
+    WHERE FavoriteToy IS NOT NULL AND LTRIM(RTRIM(FavoriteToy)) <> N'';
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260714045218_FavoriteFoodsAndToysAsLists'
+)
+BEGIN
+    DECLARE @var0 sysname;
+    SELECT @var0 = [d].[name]
+    FROM [sys].[default_constraints] [d]
+    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[Pets]') AND [c].[name] = N'FavoriteFood');
+    IF @var0 IS NOT NULL EXEC(N'ALTER TABLE [Pets] DROP CONSTRAINT [' + @var0 + '];');
+    ALTER TABLE [Pets] DROP COLUMN [FavoriteFood];
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260714045218_FavoriteFoodsAndToysAsLists'
+)
+BEGIN
+    DECLARE @var1 sysname;
+    SELECT @var1 = [d].[name]
+    FROM [sys].[default_constraints] [d]
+    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[Pets]') AND [c].[name] = N'FavoriteToy');
+    IF @var1 IS NOT NULL EXEC(N'ALTER TABLE [Pets] DROP CONSTRAINT [' + @var1 + '];');
+    ALTER TABLE [Pets] DROP COLUMN [FavoriteToy];
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260714045218_FavoriteFoodsAndToysAsLists'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260714045218_FavoriteFoodsAndToysAsLists', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260715175811_AddPetAllergies'
+)
+BEGIN
+    ALTER TABLE [Pets] ADD [AllergiesJson] nvarchar(max) NOT NULL DEFAULT N'[]';
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260715175811_AddPetAllergies'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260715175811_AddPetAllergies', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260716075929_AddPublicAllergyVisibility'
+)
+BEGIN
+    ALTER TABLE [PetPublicProfiles] ADD [ShowAllergiesOnPublicProfile] bit NOT NULL DEFAULT CAST(0 AS bit);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260716075929_AddPublicAllergyVisibility'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260716075929_AddPublicAllergyVisibility', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260716181516_AddTagFulfilmentStatus'
+)
+BEGIN
+    ALTER TABLE [SmartTags] ADD [FulfilmentStatus] nvarchar(32) NOT NULL DEFAULT N'Generated';
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260716181516_AddTagFulfilmentStatus'
+)
+BEGIN
+    ALTER TABLE [SmartTags] ADD [PrintedAt] datetimeoffset NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260716181516_AddTagFulfilmentStatus'
+)
+BEGIN
+    ALTER TABLE [SmartTags] ADD [ReceivedAt] datetimeoffset NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260716181516_AddTagFulfilmentStatus'
+)
+BEGIN
+    ALTER TABLE [SmartTags] ADD [SentToOwnerAt] datetimeoffset NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260716181516_AddTagFulfilmentStatus'
+)
+BEGIN
+    ALTER TABLE [SmartTags] ADD [SentToResellerAt] datetimeoffset NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260716181516_AddTagFulfilmentStatus'
+)
+BEGIN
+    UPDATE t
+    SET t.FulfilmentStatus = N'SentToOwner',
+        t.SentToOwnerAt = COALESCE(o.ShippedAt, t.DeliveredAt, t.ActivatedAt)
+    FROM [SmartTags] t
+    INNER JOIN [TagOrders] o ON o.Id = t.OrderId
+    WHERE o.ShippedAt IS NOT NULL
+       OR o.DeliveredAt IS NOT NULL
+       OR t.DeliveredAt IS NOT NULL
+       OR t.ActivatedAt IS NOT NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260716181516_AddTagFulfilmentStatus'
+)
+BEGIN
+    UPDATE [SmartTags]
+    SET FulfilmentStatus = N'Received',
+        ReceivedAt = ActivatedAt
+    WHERE OrderId IS NULL
+      AND ActivatedAt IS NOT NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260716181516_AddTagFulfilmentStatus'
+)
+BEGIN
+    UPDATE t
+    SET t.FulfilmentStatus = N'SentToReseller',
+        t.SentToResellerAt = b.SentToResellerAt,
+        t.PrintedAt = b.PrintedAt
+    FROM [SmartTags] t
+    INNER JOIN [SmartTagBatches] b ON b.Id = t.BatchId
+    WHERE t.FulfilmentStatus = N'Generated'
+      AND b.SentToResellerAt IS NOT NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260716181516_AddTagFulfilmentStatus'
+)
+BEGIN
+    UPDATE t
+    SET t.FulfilmentStatus = N'Printed',
+        t.PrintedAt = b.PrintedAt
+    FROM [SmartTags] t
+    INNER JOIN [SmartTagBatches] b ON b.Id = t.BatchId
+    WHERE t.FulfilmentStatus = N'Generated'
+      AND b.PrintedAt IS NOT NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260716181516_AddTagFulfilmentStatus'
+)
+BEGIN
+    CREATE INDEX [IX_SmartTags_CreatedAt] ON [SmartTags] ([CreatedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260716181516_AddTagFulfilmentStatus'
+)
+BEGIN
+    CREATE INDEX [IX_SmartTags_FulfilmentStatus] ON [SmartTags] ([FulfilmentStatus]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260716181516_AddTagFulfilmentStatus'
+)
+BEGIN
+    CREATE INDEX [IX_SmartTags_FulfilmentStatus_CreatedAt] ON [SmartTags] ([FulfilmentStatus], [CreatedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260716181516_AddTagFulfilmentStatus'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260716181516_AddTagFulfilmentStatus', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260717000154_AddSmartTagQueryIndexes'
+)
+BEGIN
+    CREATE INDEX [IX_SmartTags_ActivatedAt] ON [SmartTags] ([ActivatedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260717000154_AddSmartTagQueryIndexes'
+)
+BEGIN
+    CREATE INDEX [IX_SmartTags_UpdatedAt] ON [SmartTags] ([UpdatedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260717000154_AddSmartTagQueryIndexes'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260717000154_AddSmartTagQueryIndexes', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260717002730_AddAdminOrderQueryIndexes'
+)
+BEGIN
+    CREATE INDEX [IX_TagOrders_DeliveredAt] ON [TagOrders] ([DeliveredAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260717002730_AddAdminOrderQueryIndexes'
+)
+BEGIN
+    CREATE INDEX [IX_TagOrders_PaymentConfirmedAt] ON [TagOrders] ([PaymentConfirmedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260717002730_AddAdminOrderQueryIndexes'
+)
+BEGIN
+    CREATE INDEX [IX_TagOrders_ShippedAt] ON [TagOrders] ([ShippedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260717002730_AddAdminOrderQueryIndexes'
+)
+BEGIN
+    CREATE INDEX [IX_TagOrders_UpdatedAt] ON [TagOrders] ([UpdatedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260717002730_AddAdminOrderQueryIndexes'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260717002730_AddAdminOrderQueryIndexes', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260717020159_AddAdminPaymentAndPetProfileQueryIndexes'
+)
+BEGIN
+    CREATE INDEX [IX_Pets_Species] ON [Pets] ([Species]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260717020159_AddAdminPaymentAndPetProfileQueryIndexes'
+)
+BEGIN
+    CREATE INDEX [IX_Pets_UpdatedAt] ON [Pets] ([UpdatedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260717020159_AddAdminPaymentAndPetProfileQueryIndexes'
+)
+BEGIN
+    CREATE INDEX [IX_PaymentProofs_PaymentReference] ON [PaymentProofs] ([PaymentReference]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260717020159_AddAdminPaymentAndPetProfileQueryIndexes'
+)
+BEGIN
+    CREATE INDEX [IX_PaymentProofs_ReviewedAt] ON [PaymentProofs] ([ReviewedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260717020159_AddAdminPaymentAndPetProfileQueryIndexes'
+)
+BEGIN
+    CREATE INDEX [IX_PaymentProofs_Status_UploadedAt] ON [PaymentProofs] ([Status], [UploadedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260717020159_AddAdminPaymentAndPetProfileQueryIndexes'
+)
+BEGIN
+    CREATE INDEX [IX_PaymentProofs_UpdatedAt] ON [PaymentProofs] ([UpdatedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260717020159_AddAdminPaymentAndPetProfileQueryIndexes'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260717020159_AddAdminPaymentAndPetProfileQueryIndexes', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260717025444_AddAdminOwnerQueryIndex'
+)
+BEGIN
+    CREATE INDEX [IX_Users_UpdatedAt] ON [Users] ([UpdatedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260717025444_AddAdminOwnerQueryIndex'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260717025444_AddAdminOwnerQueryIndex', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720075849_AddTagProductCatalogPricingAndOrderSnapshots'
+)
+BEGIN
+    ALTER TABLE [TagOrders] ADD [RowVersion] rowversion NOT NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720075849_AddTagProductCatalogPricingAndOrderSnapshots'
+)
+BEGIN
+    ALTER TABLE [SmartTags] ADD [ProductVariantId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720075849_AddTagProductCatalogPricingAndOrderSnapshots'
+)
+BEGIN
+    ALTER TABLE [SmartTags] ADD [RowVersion] rowversion NOT NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720075849_AddTagProductCatalogPricingAndOrderSnapshots'
+)
+BEGIN
+    ALTER TABLE [SmartTagBatches] ADD [ProductVariantId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720075849_AddTagProductCatalogPricingAndOrderSnapshots'
+)
+BEGIN
+    CREATE TABLE [Promotions] (
+        [Id] uniqueidentifier NOT NULL,
+        [Name] nvarchar(160) NOT NULL,
+        [InternalDescription] nvarchar(1000) NULL,
+        [DisplayLabel] nvarchar(160) NULL,
+        [IsActive] bit NOT NULL,
+        [IsAutomatic] bit NOT NULL,
+        [DiscountType] nvarchar(32) NOT NULL,
+        [DiscountValue] decimal(18,2) NOT NULL,
+        [StartsAt] datetimeoffset NOT NULL,
+        [EndsAt] datetimeoffset NOT NULL,
+        [Priority] int NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_Promotions] PRIMARY KEY ([Id])
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720075849_AddTagProductCatalogPricingAndOrderSnapshots'
+)
+BEGIN
+    CREATE TABLE [TagProducts] (
+        [Id] uniqueidentifier NOT NULL,
+        [Name] nvarchar(160) NOT NULL,
+        [Slug] nvarchar(120) NOT NULL,
+        [ShortDescription] nvarchar(300) NULL,
+        [Description] nvarchar(4000) NULL,
+        [IsPublished] bit NOT NULL,
+        [IsArchived] bit NOT NULL,
+        [SortOrder] int NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_TagProducts] PRIMARY KEY ([Id])
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720075849_AddTagProductCatalogPricingAndOrderSnapshots'
+)
+BEGIN
+    CREATE TABLE [TagProductVariants] (
+        [Id] uniqueidentifier NOT NULL,
+        [TagProductId] uniqueidentifier NOT NULL,
+        [PublicKey] nvarchar(32) NOT NULL,
+        [Sku] nvarchar(80) NOT NULL,
+        [DisplayName] nvarchar(160) NOT NULL,
+        [SupportsQr] bit NOT NULL,
+        [SupportsNfc] bit NOT NULL,
+        [TagVariant] nvarchar(80) NOT NULL,
+        [WidthMm] decimal(10,2) NULL,
+        [HeightMm] decimal(10,2) NULL,
+        [ThicknessMm] decimal(10,2) NULL,
+        [WeightGrams] decimal(10,2) NULL,
+        [Material] nvarchar(160) NULL,
+        [Shape] nvarchar(120) NULL,
+        [Colour] nvarchar(120) NULL,
+        [PackagingType] nvarchar(200) NULL,
+        [BasePrice] decimal(18,2) NOT NULL,
+        [Currency] nvarchar(3) NOT NULL,
+        [CompareAtPrice] decimal(18,2) NULL,
+        [PrintTemplateCode] nvarchar(120) NULL,
+        [ProductionNotes] nvarchar(1000) NULL,
+        [IsActive] bit NOT NULL,
+        [IsPurchasable] bit NOT NULL,
+        [SortOrder] int NOT NULL,
+        [ArchivedAt] datetimeoffset NULL,
+        [RowVersion] rowversion NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_TagProductVariants] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_TagProductVariants_TagProducts_TagProductId] FOREIGN KEY ([TagProductId]) REFERENCES [TagProducts] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720075849_AddTagProductCatalogPricingAndOrderSnapshots'
+)
+BEGIN
+    CREATE TABLE [PromotionVariants] (
+        [PromotionId] uniqueidentifier NOT NULL,
+        [TagProductVariantId] uniqueidentifier NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_PromotionVariants] PRIMARY KEY ([PromotionId], [TagProductVariantId]),
+        CONSTRAINT [FK_PromotionVariants_Promotions_PromotionId] FOREIGN KEY ([PromotionId]) REFERENCES [Promotions] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_PromotionVariants_TagProductVariants_TagProductVariantId] FOREIGN KEY ([TagProductVariantId]) REFERENCES [TagProductVariants] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720075849_AddTagProductCatalogPricingAndOrderSnapshots'
+)
+BEGIN
+    CREATE TABLE [TagOrderItems] (
+        [Id] uniqueidentifier NOT NULL,
+        [OrderId] uniqueidentifier NOT NULL,
+        [ProductVariantId] uniqueidentifier NULL,
+        [SkuSnapshot] nvarchar(80) NOT NULL,
+        [ProductNameSnapshot] nvarchar(160) NOT NULL,
+        [VariantNameSnapshot] nvarchar(160) NOT NULL,
+        [UnitBasePrice] decimal(18,2) NOT NULL,
+        [Quantity] int NOT NULL,
+        [Subtotal] decimal(18,2) NOT NULL,
+        [PromotionId] uniqueidentifier NULL,
+        [PromotionNameSnapshot] nvarchar(160) NULL,
+        [DiscountAmount] decimal(18,2) NOT NULL,
+        [FinalUnitPrice] decimal(18,2) NOT NULL,
+        [FinalAmount] decimal(18,2) NOT NULL,
+        [Currency] nvarchar(3) NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_TagOrderItems] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_TagOrderItems_Promotions_PromotionId] FOREIGN KEY ([PromotionId]) REFERENCES [Promotions] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_TagOrderItems_TagOrders_OrderId] FOREIGN KEY ([OrderId]) REFERENCES [TagOrders] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_TagOrderItems_TagProductVariants_ProductVariantId] FOREIGN KEY ([ProductVariantId]) REFERENCES [TagProductVariants] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720075849_AddTagProductCatalogPricingAndOrderSnapshots'
+)
+BEGIN
+    CREATE TABLE [TagProductMedia] (
+        [Id] uniqueidentifier NOT NULL,
+        [TagProductId] uniqueidentifier NOT NULL,
+        [TagProductVariantId] uniqueidentifier NULL,
+        [MediaFileId] uniqueidentifier NOT NULL,
+        [SortOrder] int NOT NULL,
+        [AltText] nvarchar(300) NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [ArchivedAt] datetimeoffset NULL,
+        CONSTRAINT [PK_TagProductMedia] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_TagProductMedia_MediaFiles_MediaFileId] FOREIGN KEY ([MediaFileId]) REFERENCES [MediaFiles] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_TagProductMedia_TagProductVariants_TagProductVariantId] FOREIGN KEY ([TagProductVariantId]) REFERENCES [TagProductVariants] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_TagProductMedia_TagProducts_TagProductId] FOREIGN KEY ([TagProductId]) REFERENCES [TagProducts] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720075849_AddTagProductCatalogPricingAndOrderSnapshots'
+)
+BEGIN
+    CREATE INDEX [IX_SmartTags_ProductVariantId] ON [SmartTags] ([ProductVariantId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720075849_AddTagProductCatalogPricingAndOrderSnapshots'
+)
+BEGIN
+    CREATE INDEX [IX_SmartTagBatches_ProductVariantId] ON [SmartTagBatches] ([ProductVariantId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720075849_AddTagProductCatalogPricingAndOrderSnapshots'
+)
+BEGIN
+    CREATE INDEX [IX_Promotions_IsActive_IsAutomatic_StartsAt_EndsAt] ON [Promotions] ([IsActive], [IsAutomatic], [StartsAt], [EndsAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720075849_AddTagProductCatalogPricingAndOrderSnapshots'
+)
+BEGIN
+    CREATE INDEX [IX_Promotions_Priority] ON [Promotions] ([Priority]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720075849_AddTagProductCatalogPricingAndOrderSnapshots'
+)
+BEGIN
+    CREATE INDEX [IX_Promotions_UpdatedAt] ON [Promotions] ([UpdatedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720075849_AddTagProductCatalogPricingAndOrderSnapshots'
+)
+BEGIN
+    CREATE INDEX [IX_PromotionVariants_TagProductVariantId] ON [PromotionVariants] ([TagProductVariantId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720075849_AddTagProductCatalogPricingAndOrderSnapshots'
+)
+BEGIN
+    CREATE INDEX [IX_TagOrderItems_OrderId] ON [TagOrderItems] ([OrderId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720075849_AddTagProductCatalogPricingAndOrderSnapshots'
+)
+BEGIN
+    CREATE INDEX [IX_TagOrderItems_ProductVariantId] ON [TagOrderItems] ([ProductVariantId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720075849_AddTagProductCatalogPricingAndOrderSnapshots'
+)
+BEGIN
+    CREATE INDEX [IX_TagOrderItems_PromotionId] ON [TagOrderItems] ([PromotionId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720075849_AddTagProductCatalogPricingAndOrderSnapshots'
+)
+BEGIN
+    CREATE INDEX [IX_TagProductMedia_MediaFileId] ON [TagProductMedia] ([MediaFileId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720075849_AddTagProductCatalogPricingAndOrderSnapshots'
+)
+BEGIN
+    CREATE INDEX [IX_TagProductMedia_TagProductId_SortOrder] ON [TagProductMedia] ([TagProductId], [SortOrder]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720075849_AddTagProductCatalogPricingAndOrderSnapshots'
+)
+BEGIN
+    CREATE INDEX [IX_TagProductMedia_TagProductVariantId_SortOrder] ON [TagProductMedia] ([TagProductVariantId], [SortOrder]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720075849_AddTagProductCatalogPricingAndOrderSnapshots'
+)
+BEGIN
+    CREATE INDEX [IX_TagProducts_IsPublished_IsArchived_SortOrder] ON [TagProducts] ([IsPublished], [IsArchived], [SortOrder]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720075849_AddTagProductCatalogPricingAndOrderSnapshots'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_TagProducts_Slug] ON [TagProducts] ([Slug]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720075849_AddTagProductCatalogPricingAndOrderSnapshots'
+)
+BEGIN
+    CREATE INDEX [IX_TagProducts_UpdatedAt] ON [TagProducts] ([UpdatedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720075849_AddTagProductCatalogPricingAndOrderSnapshots'
+)
+BEGIN
+    CREATE INDEX [IX_TagProductVariants_IsActive_IsPurchasable_ArchivedAt] ON [TagProductVariants] ([IsActive], [IsPurchasable], [ArchivedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720075849_AddTagProductCatalogPricingAndOrderSnapshots'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_TagProductVariants_PublicKey] ON [TagProductVariants] ([PublicKey]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720075849_AddTagProductCatalogPricingAndOrderSnapshots'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_TagProductVariants_Sku] ON [TagProductVariants] ([Sku]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720075849_AddTagProductCatalogPricingAndOrderSnapshots'
+)
+BEGIN
+    CREATE INDEX [IX_TagProductVariants_SupportsQr_SupportsNfc] ON [TagProductVariants] ([SupportsQr], [SupportsNfc]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720075849_AddTagProductCatalogPricingAndOrderSnapshots'
+)
+BEGIN
+    CREATE INDEX [IX_TagProductVariants_TagProductId] ON [TagProductVariants] ([TagProductId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720075849_AddTagProductCatalogPricingAndOrderSnapshots'
+)
+BEGIN
+    ALTER TABLE [SmartTagBatches] ADD CONSTRAINT [FK_SmartTagBatches_TagProductVariants_ProductVariantId] FOREIGN KEY ([ProductVariantId]) REFERENCES [TagProductVariants] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720075849_AddTagProductCatalogPricingAndOrderSnapshots'
+)
+BEGIN
+    ALTER TABLE [SmartTags] ADD CONSTRAINT [FK_SmartTags_TagProductVariants_ProductVariantId] FOREIGN KEY ([ProductVariantId]) REFERENCES [TagProductVariants] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720075849_AddTagProductCatalogPricingAndOrderSnapshots'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260720075849_AddTagProductCatalogPricingAndOrderSnapshots', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720115204_AddTagVariantPresets'
+)
+BEGIN
+    ALTER TABLE [TagProductVariants] ADD [TagVariantPresetId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720115204_AddTagVariantPresets'
+)
+BEGIN
+    CREATE TABLE [TagVariantPresets] (
+        [Id] uniqueidentifier NOT NULL,
+        [Code] nvarchar(40) NOT NULL,
+        [DisplayName] nvarchar(80) NOT NULL,
+        [Description] nvarchar(400) NULL,
+        [IsActive] bit NOT NULL,
+        [SortOrder] int NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_TagVariantPresets] PRIMARY KEY ([Id])
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720115204_AddTagVariantPresets'
+)
+BEGIN
+    IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Id', N'Code', N'CreatedAt', N'Description', N'DisplayName', N'IsActive', N'SortOrder', N'UpdatedAt') AND [object_id] = OBJECT_ID(N'[TagVariantPresets]'))
+        SET IDENTITY_INSERT [TagVariantPresets] ON;
+    EXEC(N'INSERT INTO [TagVariantPresets] ([Id], [Code], [CreatedAt], [Description], [DisplayName], [IsActive], [SortOrder], [UpdatedAt])
+    VALUES (''3f2c8f5e-08d4-4c5f-9a51-b96f8a4f7c01'', N''STANDARD'', ''2026-01-01T00:00:00.0000000+00:00'', N''Standard-size tag for dogs and medium to large pets.'', N''Standard'', CAST(1 AS bit), 0, ''2026-01-01T00:00:00.0000000+00:00''),
+    (''3f2c8f5e-08d4-4c5f-9a51-b96f8a4f7c02'', N''LIGHTWEIGHT'', ''2026-01-01T00:00:00.0000000+00:00'', N''Lighter tag for cats and small pets.'', N''Lightweight'', CAST(1 AS bit), 1, ''2026-01-01T00:00:00.0000000+00:00'')');
+    IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Id', N'Code', N'CreatedAt', N'Description', N'DisplayName', N'IsActive', N'SortOrder', N'UpdatedAt') AND [object_id] = OBJECT_ID(N'[TagVariantPresets]'))
+        SET IDENTITY_INSERT [TagVariantPresets] OFF;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720115204_AddTagVariantPresets'
+)
+BEGIN
+    CREATE INDEX [IX_TagProductVariants_TagVariantPresetId] ON [TagProductVariants] ([TagVariantPresetId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720115204_AddTagVariantPresets'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_TagVariantPresets_Code] ON [TagVariantPresets] ([Code]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720115204_AddTagVariantPresets'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_TagVariantPresets_DisplayName] ON [TagVariantPresets] ([DisplayName]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720115204_AddTagVariantPresets'
+)
+BEGIN
+    CREATE INDEX [IX_TagVariantPresets_IsActive_SortOrder] ON [TagVariantPresets] ([IsActive], [SortOrder]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720115204_AddTagVariantPresets'
+)
+BEGIN
+    ALTER TABLE [TagProductVariants] ADD CONSTRAINT [FK_TagProductVariants_TagVariantPresets_TagVariantPresetId] FOREIGN KEY ([TagVariantPresetId]) REFERENCES [TagVariantPresets] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720115204_AddTagVariantPresets'
+)
+BEGIN
+    UPDATE [TagProductVariants] SET [TagVariantPresetId] = '3f2c8f5e-08d4-4c5f-9a51-b96f8a4f7c01' WHERE [TagVariantPresetId] IS NULL AND UPPER(LTRIM(RTRIM([TagVariant]))) = 'STANDARD';
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720115204_AddTagVariantPresets'
+)
+BEGIN
+    UPDATE [TagProductVariants] SET [TagVariantPresetId] = '3f2c8f5e-08d4-4c5f-9a51-b96f8a4f7c02' WHERE [TagVariantPresetId] IS NULL AND UPPER(LTRIM(RTRIM([TagVariant]))) = 'LIGHTWEIGHT';
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260720115204_AddTagVariantPresets'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260720115204_AddTagVariantPresets', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260721001123_AddTagOrderIdempotencyKey'
+)
+BEGIN
+    ALTER TABLE [TagOrders] ADD [IdempotencyKey] nvarchar(80) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260721001123_AddTagOrderIdempotencyKey'
+)
+BEGIN
+    ALTER TABLE [TagOrders] ADD [RequestFingerprint] nvarchar(128) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260721001123_AddTagOrderIdempotencyKey'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [IX_TagOrders_OwnerUserId_IdempotencyKey] ON [TagOrders] ([OwnerUserId], [IdempotencyKey]) WHERE [IdempotencyKey] IS NOT NULL');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260721001123_AddTagOrderIdempotencyKey'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260721001123_AddTagOrderIdempotencyKey', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260721095353_AddOrderItemCapabilitySnapshots'
+)
+BEGIN
+    ALTER TABLE [TagOrderItems] ADD [SupportsNfcSnapshot] bit NOT NULL DEFAULT CAST(0 AS bit);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260721095353_AddOrderItemCapabilitySnapshots'
+)
+BEGIN
+    ALTER TABLE [TagOrderItems] ADD [SupportsQrSnapshot] bit NOT NULL DEFAULT CAST(0 AS bit);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260721095353_AddOrderItemCapabilitySnapshots'
+)
+BEGIN
+
+                    UPDATE item
+                    SET item.SupportsQrSnapshot = 1,
+                        item.SupportsNfcSnapshot = CASE WHEN o.TagType = 'QrNfcSmartTag' THEN 1 ELSE 0 END
+                    FROM TagOrderItems AS item
+                    INNER JOIN TagOrders AS o ON o.Id = item.OrderId;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260721095353_AddOrderItemCapabilitySnapshots'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260721095353_AddOrderItemCapabilitySnapshots', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260723064015_AddTagScanSource'
+)
+BEGIN
+    ALTER TABLE [TagScans] ADD [Source] nvarchar(16) NOT NULL DEFAULT N'Legacy';
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260723064015_AddTagScanSource'
+)
+BEGIN
+    CREATE INDEX [IX_TagScans_SmartTagId_Source_ScanTime] ON [TagScans] ([SmartTagId], [Source], [ScanTime]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260723064015_AddTagScanSource'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260723064015_AddTagScanSource', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260726175435_AddPaymentConfirmationEmailOutbox'
+)
+BEGIN
+    CREATE TABLE [EmailOutbox] (
+        [Id] uniqueidentifier NOT NULL,
+        [MessageType] nvarchar(64) NOT NULL,
+        [RecipientEmail] nvarchar(320) NOT NULL,
+        [RecipientName] nvarchar(160) NOT NULL,
+        [Subject] nvarchar(240) NOT NULL,
+        [TemplateDataJson] nvarchar(max) NOT NULL,
+        [RelatedOrderId] uniqueidentifier NOT NULL,
+        [Status] nvarchar(32) NOT NULL,
+        [AttemptCount] int NOT NULL,
+        [MaxAttempts] int NOT NULL,
+        [NextAttemptAt] datetimeoffset NOT NULL,
+        [LastAttemptAt] datetimeoffset NULL,
+        [SentAt] datetimeoffset NULL,
+        [LastError] nvarchar(600) NULL,
+        [LockToken] uniqueidentifier NULL,
+        [LockedUntil] datetimeoffset NULL,
+        [RowVersion] rowversion NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_EmailOutbox] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_EmailOutbox_TagOrders_RelatedOrderId] FOREIGN KEY ([RelatedOrderId]) REFERENCES [TagOrders] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260726175435_AddPaymentConfirmationEmailOutbox'
+)
+BEGIN
+    CREATE INDEX [IX_EmailOutbox_LockedUntil] ON [EmailOutbox] ([LockedUntil]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260726175435_AddPaymentConfirmationEmailOutbox'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_EmailOutbox_RelatedOrderId_MessageType] ON [EmailOutbox] ([RelatedOrderId], [MessageType]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260726175435_AddPaymentConfirmationEmailOutbox'
+)
+BEGIN
+    CREATE INDEX [IX_EmailOutbox_Status_NextAttemptAt] ON [EmailOutbox] ([Status], [NextAttemptAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260726175435_AddPaymentConfirmationEmailOutbox'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260726175435_AddPaymentConfirmationEmailOutbox', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260726183156_AddOwnerWelcomeEmail'
+)
+BEGIN
+    DROP INDEX [IX_EmailOutbox_RelatedOrderId_MessageType] ON [EmailOutbox];
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260726183156_AddOwnerWelcomeEmail'
+)
+BEGIN
+    ALTER TABLE [ExternalLogins] ADD [EmailVerifiedAt] datetimeoffset NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260726183156_AddOwnerWelcomeEmail'
+)
+BEGIN
+    DECLARE @var2 sysname;
+    SELECT @var2 = [d].[name]
+    FROM [sys].[default_constraints] [d]
+    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[EmailOutbox]') AND [c].[name] = N'RelatedOrderId');
+    IF @var2 IS NOT NULL EXEC(N'ALTER TABLE [EmailOutbox] DROP CONSTRAINT [' + @var2 + '];');
+    ALTER TABLE [EmailOutbox] ALTER COLUMN [RelatedOrderId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260726183156_AddOwnerWelcomeEmail'
+)
+BEGIN
+    ALTER TABLE [EmailOutbox] ADD [RelatedUserId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260726183156_AddOwnerWelcomeEmail'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [IX_EmailOutbox_RelatedOrderId_MessageType] ON [EmailOutbox] ([RelatedOrderId], [MessageType]) WHERE [RelatedOrderId] IS NOT NULL');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260726183156_AddOwnerWelcomeEmail'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [IX_EmailOutbox_RelatedUserId_MessageType] ON [EmailOutbox] ([RelatedUserId], [MessageType]) WHERE [RelatedUserId] IS NOT NULL');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260726183156_AddOwnerWelcomeEmail'
+)
+BEGIN
+    EXEC(N'ALTER TABLE [EmailOutbox] ADD CONSTRAINT [CK_EmailOutbox_RelatedEntity] CHECK (([RelatedOrderId] IS NOT NULL AND [RelatedUserId] IS NULL) OR ([RelatedOrderId] IS NULL AND [RelatedUserId] IS NOT NULL))');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260726183156_AddOwnerWelcomeEmail'
+)
+BEGIN
+    ALTER TABLE [EmailOutbox] ADD CONSTRAINT [FK_EmailOutbox_Users_RelatedUserId] FOREIGN KEY ([RelatedUserId]) REFERENCES [Users] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260726183156_AddOwnerWelcomeEmail'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260726183156_AddOwnerWelcomeEmail', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260727011256_AddMalaysiaDeliveryRates'
+)
+BEGIN
+    ALTER TABLE [TagOrders] ADD [Country] nvarchar(80) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260727011256_AddMalaysiaDeliveryRates'
+)
+BEGIN
+    ALTER TABLE [TagOrders] ADD [DeliveryMethodName] nvarchar(120) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260727011256_AddMalaysiaDeliveryRates'
+)
+BEGIN
+    ALTER TABLE [TagOrders] ADD [DeliveryZoneName] nvarchar(80) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260727011256_AddMalaysiaDeliveryRates'
+)
+BEGIN
+    ALTER TABLE [TagOrders] ADD [FreeShippingReason] nvarchar(240) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260727011256_AddMalaysiaDeliveryRates'
+)
+BEGIN
+    ALTER TABLE [TagOrders] ADD [StateCode] nvarchar(8) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260727011256_AddMalaysiaDeliveryRates'
+)
+BEGIN
+    ALTER TABLE [TagOrders] ADD [TotalAmount] decimal(18,2) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260727011256_AddMalaysiaDeliveryRates'
+)
+BEGIN
+    CREATE TABLE [DeliveryRates] (
+        [Id] uniqueidentifier NOT NULL,
+        [Name] nvarchar(120) NOT NULL,
+        [ZoneCode] nvarchar(16) NOT NULL,
+        [ApplicableStateCodesJson] nvarchar(500) NOT NULL,
+        [Fee] decimal(18,2) NOT NULL,
+        [Currency] nvarchar(3) NOT NULL,
+        [FreeShippingThreshold] decimal(18,2) NULL,
+        [IsActive] bit NOT NULL,
+        [DisplayOrder] int NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_DeliveryRates] PRIMARY KEY ([Id])
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260727011256_AddMalaysiaDeliveryRates'
+)
+BEGIN
+    IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Id', N'Name', N'ZoneCode', N'ApplicableStateCodesJson', N'Fee', N'Currency', N'FreeShippingThreshold', N'IsActive', N'DisplayOrder', N'CreatedAt', N'UpdatedAt') AND [object_id] = OBJECT_ID(N'[DeliveryRates]'))
+        SET IDENTITY_INSERT [DeliveryRates] ON;
+    EXEC(N'INSERT INTO [DeliveryRates] ([Id], [Name], [ZoneCode], [ApplicableStateCodesJson], [Fee], [Currency], [FreeShippingThreshold], [IsActive], [DisplayOrder], [CreatedAt], [UpdatedAt])
+    VALUES (''6c50d914-8550-41e8-a923-010cc3b8a101'', N''Peninsular Standard Delivery'', N''PEN'', N''["JHR","KDH","KTN","MLK","NSN","PHG","PRK","PLS","PNG","SGR","TRG","KUL","PJY"]'', 0.0, N''MYR'', NULL, CAST(0 AS bit), 10, ''2026-07-27T00:00:00.0000000+00:00'', ''2026-07-27T00:00:00.0000000+00:00''),
+    (''6c50d914-8550-41e8-a923-010cc3b8a102'', N''Sabah Standard Delivery'', N''SBH'', N''["SBH"]'', 0.0, N''MYR'', NULL, CAST(0 AS bit), 20, ''2026-07-27T00:00:00.0000000+00:00'', ''2026-07-27T00:00:00.0000000+00:00''),
+    (''6c50d914-8550-41e8-a923-010cc3b8a103'', N''Sarawak Standard Delivery'', N''SWK'', N''["SWK"]'', 0.0, N''MYR'', NULL, CAST(0 AS bit), 30, ''2026-07-27T00:00:00.0000000+00:00'', ''2026-07-27T00:00:00.0000000+00:00''),
+    (''6c50d914-8550-41e8-a923-010cc3b8a104'', N''Labuan Standard Delivery'', N''LBN'', N''["LBN"]'', 0.0, N''MYR'', NULL, CAST(0 AS bit), 40, ''2026-07-27T00:00:00.0000000+00:00'', ''2026-07-27T00:00:00.0000000+00:00'')');
+    IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Id', N'Name', N'ZoneCode', N'ApplicableStateCodesJson', N'Fee', N'Currency', N'FreeShippingThreshold', N'IsActive', N'DisplayOrder', N'CreatedAt', N'UpdatedAt') AND [object_id] = OBJECT_ID(N'[DeliveryRates]'))
+        SET IDENTITY_INSERT [DeliveryRates] OFF;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260727011256_AddMalaysiaDeliveryRates'
+)
+BEGIN
+    CREATE INDEX [IX_DeliveryRates_IsActive_DisplayOrder] ON [DeliveryRates] ([IsActive], [DisplayOrder]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260727011256_AddMalaysiaDeliveryRates'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_DeliveryRates_ZoneCode] ON [DeliveryRates] ([ZoneCode]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260727011256_AddMalaysiaDeliveryRates'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260727011256_AddMalaysiaDeliveryRates', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260727075018_AddBusinessReferenceNumbers'
+)
+BEGIN
+    ALTER TABLE [TagOrders] ADD [ReceiptNumber] nvarchar(80) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260727075018_AddBusinessReferenceNumbers'
+)
+BEGIN
+    UPDATE [TagOrders]
+    SET [ReceiptNumber] =
+        CASE
+            WHEN CHARINDEX(N'-ORD-', UPPER([OrderNumber])) > 0
+                THEN STUFF(
+                    [OrderNumber],
+                    CHARINDEX(N'-ORD-', UPPER([OrderNumber])),
+                    5,
+                    N'-RCP-')
+            ELSE N'MPL-RCP-' + [OrderNumber]
+        END
+    WHERE [PaymentConfirmedAt] IS NOT NULL
+      AND [ReceiptNumber] IS NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260727075018_AddBusinessReferenceNumbers'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [IX_TagOrders_ReceiptNumber] ON [TagOrders] ([ReceiptNumber]) WHERE [ReceiptNumber] IS NOT NULL');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260727075018_AddBusinessReferenceNumbers'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260727075018_AddBusinessReferenceNumbers', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260729094414_AddEmailTemplateSettings'
+)
+BEGIN
+    ALTER TABLE [EmailOutbox] ADD [SuppressionReason] nvarchar(200) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260729094414_AddEmailTemplateSettings'
+)
+BEGIN
+    CREATE TABLE [EmailTemplateSettings] (
+        [Id] uniqueidentifier NOT NULL,
+        [MessageType] nvarchar(64) NOT NULL,
+        [IsEnabled] bit NOT NULL,
+        [EnabledFromUtc] datetimeoffset NULL,
+        [UpdatedByAdminUserId] uniqueidentifier NULL,
+        [RowVersion] rowversion NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_EmailTemplateSettings] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_EmailTemplateSettings_AdminUsers_UpdatedByAdminUserId] FOREIGN KEY ([UpdatedByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260729094414_AddEmailTemplateSettings'
+)
+BEGIN
+    CREATE INDEX [IX_EmailOutbox_MessageType_Status_CreatedAt] ON [EmailOutbox] ([MessageType], [Status], [CreatedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260729094414_AddEmailTemplateSettings'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_EmailTemplateSettings_MessageType] ON [EmailTemplateSettings] ([MessageType]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260729094414_AddEmailTemplateSettings'
+)
+BEGIN
+    CREATE INDEX [IX_EmailTemplateSettings_UpdatedByAdminUserId] ON [EmailTemplateSettings] ([UpdatedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260729094414_AddEmailTemplateSettings'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260729094414_AddEmailTemplateSettings', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730074753_AddDeliveryStateRateOverrides'
+)
+BEGIN
+    ALTER TABLE [TagOrders] ADD [DeliveryRateSource] nvarchar(32) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730074753_AddDeliveryStateRateOverrides'
+)
+BEGIN
+    CREATE TABLE [DeliveryStateRateOverrides] (
+        [Id] uniqueidentifier NOT NULL,
+        [StateCode] nvarchar(8) NOT NULL,
+        [Fee] decimal(18,2) NOT NULL,
+        [Currency] nvarchar(3) NOT NULL,
+        [FreeShippingThreshold] decimal(18,2) NULL,
+        [IsEnabled] bit NOT NULL,
+        [UpdatedByAdminUserId] uniqueidentifier NULL,
+        [RowVersion] rowversion NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_DeliveryStateRateOverrides] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_DeliveryStateRateOverrides_AdminUsers_UpdatedByAdminUserId] FOREIGN KEY ([UpdatedByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730074753_AddDeliveryStateRateOverrides'
+)
+BEGIN
+    CREATE INDEX [IX_DeliveryStateRateOverrides_IsEnabled] ON [DeliveryStateRateOverrides] ([IsEnabled]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730074753_AddDeliveryStateRateOverrides'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_DeliveryStateRateOverrides_StateCode] ON [DeliveryStateRateOverrides] ([StateCode]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730074753_AddDeliveryStateRateOverrides'
+)
+BEGIN
+    CREATE INDEX [IX_DeliveryStateRateOverrides_UpdatedByAdminUserId] ON [DeliveryStateRateOverrides] ([UpdatedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730074753_AddDeliveryStateRateOverrides'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260730074753_AddDeliveryStateRateOverrides', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730081647_AddManualShippingWorkflow'
+)
+BEGIN
+    ALTER TABLE [TagOrders] ADD [ActualCourierCost] decimal(18,2) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730081647_AddManualShippingWorkflow'
+)
+BEGIN
+    ALTER TABLE [TagOrders] ADD [CourierProvider] nvarchar(120) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730081647_AddManualShippingWorkflow'
+)
+BEGIN
+    ALTER TABLE [TagOrders] ADD [CourierService] nvarchar(120) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730081647_AddManualShippingWorkflow'
+)
+BEGIN
+    ALTER TABLE [TagOrders] ADD [ReadyToShipAt] datetimeoffset NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730081647_AddManualShippingWorkflow'
+)
+BEGIN
+    ALTER TABLE [TagOrders] ADD [ShippingNotes] nvarchar(1000) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730081647_AddManualShippingWorkflow'
+)
+BEGIN
+    CREATE INDEX [IX_TagOrders_ReadyToShipAt] ON [TagOrders] ([ReadyToShipAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730081647_AddManualShippingWorkflow'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260730081647_AddManualShippingWorkflow', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730131244_AddShippingFulfilmentSettings'
+)
+BEGIN
+    ALTER TABLE [TagOrders] ADD [CourierProviderCode] nvarchar(32) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730131244_AddShippingFulfilmentSettings'
+)
+BEGIN
+    CREATE TABLE [ShippingCourierProviders] (
+        [Id] uniqueidentifier NOT NULL,
+        [Code] nvarchar(32) NOT NULL,
+        [DisplayName] nvarchar(120) NOT NULL,
+        [IsActive] bit NOT NULL,
+        [IsDefault] bit NOT NULL,
+        [TrackingUrlTemplate] nvarchar(500) NULL,
+        [DisplayOrder] int NOT NULL,
+        [InternalNotes] nvarchar(1000) NULL,
+        [UpdatedByAdminUserId] uniqueidentifier NULL,
+        [RowVersion] rowversion NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_ShippingCourierProviders] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_ShippingCourierProviders_AdminUsers_UpdatedByAdminUserId] FOREIGN KEY ([UpdatedByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730131244_AddShippingFulfilmentSettings'
+)
+BEGIN
+    CREATE TABLE [ShippingFulfilmentSettings] (
+        [Id] uniqueidentifier NOT NULL,
+        [SenderName] nvarchar(160) NOT NULL,
+        [CompanyName] nvarchar(160) NULL,
+        [SenderPhone] nvarchar(32) NOT NULL,
+        [SenderEmail] nvarchar(254) NULL,
+        [AddressLine1] nvarchar(240) NOT NULL,
+        [AddressLine2] nvarchar(240) NULL,
+        [City] nvarchar(120) NOT NULL,
+        [Postcode] nvarchar(5) NOT NULL,
+        [StateCode] nvarchar(8) NOT NULL,
+        [Country] nvarchar(80) NOT NULL,
+        [DefaultParcelWeightKg] decimal(8,3) NOT NULL,
+        [DefaultParcelLengthCm] decimal(8,2) NOT NULL,
+        [DefaultParcelWidthCm] decimal(8,2) NOT NULL,
+        [DefaultParcelHeightCm] decimal(8,2) NOT NULL,
+        [CustomerTrackingLinksEnabled] bit NOT NULL,
+        [UpdatedByAdminUserId] uniqueidentifier NULL,
+        [RowVersion] rowversion NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_ShippingFulfilmentSettings] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_ShippingFulfilmentSettings_AdminUsers_UpdatedByAdminUserId] FOREIGN KEY ([UpdatedByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730131244_AddShippingFulfilmentSettings'
+)
+BEGIN
+    IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Id', N'Code', N'CreatedAt', N'DisplayName', N'DisplayOrder', N'InternalNotes', N'IsActive', N'IsDefault', N'TrackingUrlTemplate', N'UpdatedAt', N'UpdatedByAdminUserId') AND [object_id] = OBJECT_ID(N'[ShippingCourierProviders]'))
+        SET IDENTITY_INSERT [ShippingCourierProviders] ON;
+    EXEC(N'INSERT INTO [ShippingCourierProviders] ([Id], [Code], [CreatedAt], [DisplayName], [DisplayOrder], [InternalNotes], [IsActive], [IsDefault], [TrackingUrlTemplate], [UpdatedAt], [UpdatedByAdminUserId])
+    VALUES (''03a56970-0592-4c83-b0bd-6453c6833703'', N''DHL_ECOMMERCE'', ''2026-01-01T00:00:00.0000000+00:00'', N''DHL eCommerce'', 30, NULL, CAST(1 AS bit), CAST(0 AS bit), NULL, ''2026-01-01T00:00:00.0000000+00:00'', NULL),
+    (''0ac926be-7d6d-403f-9716-e4498354347a'', N''POSLAJU'', ''2026-01-01T00:00:00.0000000+00:00'', N''Pos Laju'', 20, NULL, CAST(1 AS bit), CAST(0 AS bit), NULL, ''2026-01-01T00:00:00.0000000+00:00'', NULL),
+    (''28d1e1a3-0ca5-48d0-b624-757961e936d1'', N''NINJA_VAN'', ''2026-01-01T00:00:00.0000000+00:00'', N''Ninja Van'', 40, NULL, CAST(1 AS bit), CAST(0 AS bit), NULL, ''2026-01-01T00:00:00.0000000+00:00'', NULL),
+    (''dcd3c11a-ddb7-4c50-bf21-0f4d0e3297d1'', N''JNT'', ''2026-01-01T00:00:00.0000000+00:00'', N''J&T Express'', 10, NULL, CAST(1 AS bit), CAST(1 AS bit), NULL, ''2026-01-01T00:00:00.0000000+00:00'', NULL)');
+    IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Id', N'Code', N'CreatedAt', N'DisplayName', N'DisplayOrder', N'InternalNotes', N'IsActive', N'IsDefault', N'TrackingUrlTemplate', N'UpdatedAt', N'UpdatedByAdminUserId') AND [object_id] = OBJECT_ID(N'[ShippingCourierProviders]'))
+        SET IDENTITY_INSERT [ShippingCourierProviders] OFF;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730131244_AddShippingFulfilmentSettings'
+)
+BEGIN
+    IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Id', N'AddressLine1', N'AddressLine2', N'City', N'CompanyName', N'Country', N'CreatedAt', N'CustomerTrackingLinksEnabled', N'DefaultParcelHeightCm', N'DefaultParcelLengthCm', N'DefaultParcelWeightKg', N'DefaultParcelWidthCm', N'Postcode', N'SenderEmail', N'SenderName', N'SenderPhone', N'StateCode', N'UpdatedAt', N'UpdatedByAdminUserId') AND [object_id] = OBJECT_ID(N'[ShippingFulfilmentSettings]'))
+        SET IDENTITY_INSERT [ShippingFulfilmentSettings] ON;
+    EXEC(N'INSERT INTO [ShippingFulfilmentSettings] ([Id], [AddressLine1], [AddressLine2], [City], [CompanyName], [Country], [CreatedAt], [CustomerTrackingLinksEnabled], [DefaultParcelHeightCm], [DefaultParcelLengthCm], [DefaultParcelWeightKg], [DefaultParcelWidthCm], [Postcode], [SenderEmail], [SenderName], [SenderPhone], [StateCode], [UpdatedAt], [UpdatedByAdminUserId])
+    VALUES (''8b2a37be-928c-4f10-96a0-3c169ef00379'', N'''', NULL, N'''', NULL, N''Malaysia'', ''2026-01-01T00:00:00.0000000+00:00'', CAST(0 AS bit), 3.0, 18.0, 0.5, 12.0, N'''', NULL, N'''', N'''', N'''', ''2026-01-01T00:00:00.0000000+00:00'', NULL)');
+    IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Id', N'AddressLine1', N'AddressLine2', N'City', N'CompanyName', N'Country', N'CreatedAt', N'CustomerTrackingLinksEnabled', N'DefaultParcelHeightCm', N'DefaultParcelLengthCm', N'DefaultParcelWeightKg', N'DefaultParcelWidthCm', N'Postcode', N'SenderEmail', N'SenderName', N'SenderPhone', N'StateCode', N'UpdatedAt', N'UpdatedByAdminUserId') AND [object_id] = OBJECT_ID(N'[ShippingFulfilmentSettings]'))
+        SET IDENTITY_INSERT [ShippingFulfilmentSettings] OFF;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730131244_AddShippingFulfilmentSettings'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_ShippingCourierProviders_Code] ON [ShippingCourierProviders] ([Code]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730131244_AddShippingFulfilmentSettings'
+)
+BEGIN
+    CREATE INDEX [IX_ShippingCourierProviders_IsActive_DisplayOrder_DisplayName] ON [ShippingCourierProviders] ([IsActive], [DisplayOrder], [DisplayName]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730131244_AddShippingFulfilmentSettings'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [IX_ShippingCourierProviders_IsDefault] ON [ShippingCourierProviders] ([IsDefault]) WHERE [IsDefault] = 1');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730131244_AddShippingFulfilmentSettings'
+)
+BEGIN
+    CREATE INDEX [IX_ShippingCourierProviders_UpdatedByAdminUserId] ON [ShippingCourierProviders] ([UpdatedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730131244_AddShippingFulfilmentSettings'
+)
+BEGIN
+    CREATE INDEX [IX_ShippingFulfilmentSettings_UpdatedByAdminUserId] ON [ShippingFulfilmentSettings] ([UpdatedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730131244_AddShippingFulfilmentSettings'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260730131244_AddShippingFulfilmentSettings', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730164730_AddOwnerMarketingEmailPreference'
+)
+BEGIN
+    ALTER TABLE [OwnerProfiles] ADD [MarketingEmailOptIn] bit NOT NULL DEFAULT CAST(0 AS bit);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730164730_AddOwnerMarketingEmailPreference'
+)
+BEGIN
+    ALTER TABLE [OwnerProfiles] ADD [MarketingEmailPreferenceUpdatedAt] datetimeoffset NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260730164730_AddOwnerMarketingEmailPreference'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260730164730_AddOwnerMarketingEmailPreference', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260731173221_AddPaymentProofSubmittedAmount'
+)
+BEGIN
+    ALTER TABLE [PaymentProofs] ADD [SubmittedAmount] decimal(18,2) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260731173221_AddPaymentProofSubmittedAmount'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260731173221_AddPaymentProofSubmittedAmount', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260803035111_AddMultiItemTagOrders'
+)
+BEGIN
+    ALTER TABLE [TagOrderItems] ADD [PetId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260803035111_AddMultiItemTagOrders'
+)
+BEGIN
+    ALTER TABLE [TagOrderItems] ADD [PetNameSnapshot] nvarchar(160) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260803035111_AddMultiItemTagOrders'
+)
+BEGIN
+    ALTER TABLE [TagOrderItems] ADD [UnitWeightGramsSnapshot] decimal(10,2) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260803035111_AddMultiItemTagOrders'
+)
+BEGIN
+    ALTER TABLE [SmartTags] ADD [OrderItemId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260803035111_AddMultiItemTagOrders'
+)
+BEGIN
+    UPDATE item
+    SET item.PetId = orders.PetId,
+        item.PetNameSnapshot = pets.Name,
+        item.UnitWeightGramsSnapshot = variants.WeightGrams
+    FROM TagOrderItems AS item
+    INNER JOIN TagOrders AS orders ON orders.Id = item.OrderId
+    INNER JOIN Pets AS pets ON pets.Id = orders.PetId
+    LEFT JOIN TagProductVariants AS variants ON variants.Id = item.ProductVariantId
+    WHERE item.PetId IS NULL;
+
+    UPDATE tags
+    SET tags.OrderItemId = matched.Id
+    FROM SmartTags AS tags
+    CROSS APPLY
+    (
+        SELECT TOP (1) item.Id
+        FROM TagOrderItems AS item
+        WHERE item.OrderId = tags.OrderId
+        ORDER BY item.CreatedAt, item.Id
+    ) AS matched
+    WHERE tags.OrderId IS NOT NULL
+      AND tags.OrderItemId IS NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260803035111_AddMultiItemTagOrders'
+)
+BEGIN
+    CREATE INDEX [IX_TagOrderItems_PetId] ON [TagOrderItems] ([PetId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260803035111_AddMultiItemTagOrders'
+)
+BEGIN
+    CREATE INDEX [IX_SmartTags_OrderItemId] ON [SmartTags] ([OrderItemId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260803035111_AddMultiItemTagOrders'
+)
+BEGIN
+    ALTER TABLE [SmartTags] ADD CONSTRAINT [FK_SmartTags_TagOrderItems_OrderItemId] FOREIGN KEY ([OrderItemId]) REFERENCES [TagOrderItems] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260803035111_AddMultiItemTagOrders'
+)
+BEGIN
+    ALTER TABLE [TagOrderItems] ADD CONSTRAINT [FK_TagOrderItems_Pets_PetId] FOREIGN KEY ([PetId]) REFERENCES [Pets] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260803035111_AddMultiItemTagOrders'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260803035111_AddMultiItemTagOrders', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
