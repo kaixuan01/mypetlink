@@ -3889,3 +3889,121 @@ GO
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260803035111_AddMultiItemTagOrders'
+)
+BEGIN
+    ALTER TABLE [TagOrderItems] ADD [PetId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260803035111_AddMultiItemTagOrders'
+)
+BEGIN
+    ALTER TABLE [TagOrderItems] ADD [PetNameSnapshot] nvarchar(160) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260803035111_AddMultiItemTagOrders'
+)
+BEGIN
+    ALTER TABLE [TagOrderItems] ADD [UnitWeightGramsSnapshot] decimal(10,2) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260803035111_AddMultiItemTagOrders'
+)
+BEGIN
+    ALTER TABLE [SmartTags] ADD [OrderItemId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260803035111_AddMultiItemTagOrders'
+)
+BEGIN
+    UPDATE item
+    SET item.PetId = orders.PetId,
+        item.PetNameSnapshot = pets.Name,
+        item.UnitWeightGramsSnapshot = variants.WeightGrams
+    FROM TagOrderItems AS item
+    INNER JOIN TagOrders AS orders ON orders.Id = item.OrderId
+    INNER JOIN Pets AS pets ON pets.Id = orders.PetId
+    LEFT JOIN TagProductVariants AS variants ON variants.Id = item.ProductVariantId
+    WHERE item.PetId IS NULL;
+
+    UPDATE tags
+    SET tags.OrderItemId = matched.Id
+    FROM SmartTags AS tags
+    CROSS APPLY
+    (
+        SELECT TOP (1) item.Id
+        FROM TagOrderItems AS item
+        WHERE item.OrderId = tags.OrderId
+        ORDER BY item.CreatedAt, item.Id
+    ) AS matched
+    WHERE tags.OrderId IS NOT NULL
+      AND tags.OrderItemId IS NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260803035111_AddMultiItemTagOrders'
+)
+BEGIN
+    CREATE INDEX [IX_TagOrderItems_PetId] ON [TagOrderItems] ([PetId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260803035111_AddMultiItemTagOrders'
+)
+BEGIN
+    CREATE INDEX [IX_SmartTags_OrderItemId] ON [SmartTags] ([OrderItemId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260803035111_AddMultiItemTagOrders'
+)
+BEGIN
+    ALTER TABLE [SmartTags] ADD CONSTRAINT [FK_SmartTags_TagOrderItems_OrderItemId] FOREIGN KEY ([OrderItemId]) REFERENCES [TagOrderItems] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260803035111_AddMultiItemTagOrders'
+)
+BEGIN
+    ALTER TABLE [TagOrderItems] ADD CONSTRAINT [FK_TagOrderItems_Pets_PetId] FOREIGN KEY ([PetId]) REFERENCES [Pets] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260803035111_AddMultiItemTagOrders'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260803035111_AddMultiItemTagOrders', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
