@@ -60,6 +60,8 @@ public sealed class MyPetLinkDbContext : DbContext
     public DbSet<DeliveryRate> DeliveryRates => Set<DeliveryRate>();
     public DbSet<DeliveryStateRateOverride> DeliveryStateRateOverrides =>
         Set<DeliveryStateRateOverride>();
+    public DbSet<OrderCheckoutSetting> OrderCheckoutSettings => Set<OrderCheckoutSetting>();
+
     public DbSet<ShippingFulfilmentSetting> ShippingFulfilmentSettings =>
         Set<ShippingFulfilmentSetting>();
     public DbSet<ShippingCourierProvider> ShippingCourierProviders =>
@@ -136,6 +138,16 @@ public sealed class MyPetLinkDbContext : DbContext
 
     private static void ConfigureShipping(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<OrderCheckoutSetting>(entity =>
+        {
+            entity.ToTable("OrderCheckoutSettings");
+            entity.Property(item => item.RowVersion).IsRowVersion();
+            entity.HasOne(item => item.UpdatedByAdminUser)
+                .WithMany()
+                .HasForeignKey(item => item.UpdatedByAdminUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
         modelBuilder.Entity<ShippingFulfilmentSetting>(entity =>
         {
             entity.ToTable("ShippingFulfilmentSettings");
@@ -745,6 +757,8 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasIndex(item => item.DeliveredAt);
             entity.HasIndex(item => new { item.Status, item.CreatedAt });
             entity.HasIndex(item => new { item.PaymentStatus, item.CreatedAt });
+            entity.HasIndex(item => new { item.Status, item.PaymentReservationExpiresAt })
+                .HasFilter("[PaymentReservationExpiresAt] IS NOT NULL");
             entity.HasOne(item => item.OwnerUser)
                 .WithMany()
                 .HasForeignKey(item => item.OwnerUserId)
@@ -979,6 +993,18 @@ public sealed class MyPetLinkDbContext : DbContext
     private static void SeedDefaults(ModelBuilder modelBuilder)
     {
         SeedLegacyAppSettings(modelBuilder);
+
+        // Checkout payment-window policy. Seeded at the approved two-hour
+        // default so a fresh deployment never leaves reservations unbounded.
+        modelBuilder.Entity<OrderCheckoutSetting>().HasData(
+            new OrderCheckoutSetting
+            {
+                Id = OrderCheckoutSettingsService.SettingsId,
+                PaymentReservationMinutes =
+                    OrderCheckoutSetting.DefaultPaymentReservationMinutes,
+                CreatedAt = SeededAt,
+                UpdatedAt = SeededAt
+            });
 
         modelBuilder.Entity<ShippingFulfilmentSetting>().HasData(
             new ShippingFulfilmentSetting

@@ -509,6 +509,9 @@ export type BackendTagOrder = {
   shippedAt?: string | null;
   deliveredAt?: string | null;
   cancelledAt?: string | null;
+  paymentReservationExpiresAt?: string | null;
+  paymentReservationExpiredAt?: string | null;
+  canCancel?: boolean;
   paymentProofs: BackendPaymentProof[];
   timeline: BackendOrderTimelineEvent[];
   updatedAt: string;

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { formatOrderProduct, formatStateAndZone } from "./orderDisplay";
+import {
+  formatOrderPets,
+  formatOrderProduct,
+  formatStateAndZone,
+  petSummaryLabel,
+} from "./orderDisplay";
 
 describe("customer order display", () => {
   it("does not repeat an option already present in the product label", () => {
@@ -17,5 +22,22 @@ describe("customer order display", () => {
   it("does not repeat identical state and zone labels", () => {
     expect(formatStateAndZone("Sabah", "sabah")).toBe("Sabah");
     expect(formatStateAndZone("Selangor", "Peninsular")).toBe("Selangor · Peninsular");
+  });
+
+  it("summarizes unique pets for a multi-item Admin order", () => {
+    const items = [
+      { petName: "Topu" },
+      { petName: "Topu" },
+      { petName: "Milo" },
+    ];
+    expect(petSummaryLabel(items)).toBe("Pets");
+    expect(formatOrderPets(items)).toBe("Topu, Milo");
+  });
+
+  it("collapses a large pet list while preserving one-pet wording", () => {
+    expect(petSummaryLabel([{ petName: "Topu" }])).toBe("Pet");
+    expect(formatOrderPets([
+      { petName: "A" }, { petName: "B" }, { petName: "C" }, { petName: "D" },
+    ])).toBe("4 pets");
   });
 });

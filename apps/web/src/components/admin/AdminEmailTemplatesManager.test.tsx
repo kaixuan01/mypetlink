@@ -130,11 +130,16 @@ describe("AdminEmailTemplatesManager", () => {
     expect(within(enabledRow).getByText("On")).toBeDefined();
     expect(within(enabledRow).getByText("Email Admin")).toBeDefined();
 
+    // The manager applies the PUT response immediately, then replaces the list
+    // with the authoritative GET response. Wait for that refresh before
+    // retaining a row node; otherwise the query can race a detached <li>.
+    await waitFor(() => expect(mocks.list).toHaveBeenCalledTimes(2));
     const refreshedEnabledRow = screen.getByText("Welcome email").closest("li")!;
     fireEvent.click(
       within(refreshedEnabledRow).getByRole("button", { name: "Turn off" })
     );
     await screen.findByText(/Welcome email is now off/);
+    await waitFor(() => expect(mocks.list).toHaveBeenCalledTimes(3));
 
     expect(mocks.setEnabled).toHaveBeenNthCalledWith(
       1,

@@ -471,6 +471,11 @@ export type TagOrder = {
   courierService?: string;
   trackingNumber?: string;
   trackingUrl?: string;
+  /** Absolute server deadline for an unpaid reservation (ISO). */
+  paymentReservationExpiresAt?: string;
+  /** Set when the automatic expiry released this order. */
+  paymentReservationExpiredAt?: string;
+  canCancel?: boolean;
   readyToShipDate?: string;
   shippedDate?: string;
   deliveredDate?: string;

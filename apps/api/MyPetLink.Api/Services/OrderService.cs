@@ -21,6 +21,8 @@ public sealed class OrderService : SkeletonService, IOrderService
     private readonly TimeProvider _timeProvider;
     private readonly IShippingFulfilmentService _shippingFulfilmentService;
     private readonly ITagOrderInventoryAvailabilityService? _inventoryAvailability;
+    private readonly IOrderCheckoutSettingsService? _checkoutSettings;
+    private readonly IAuditLogService _auditLogService;
 
     public OrderService(
         MyPetLinkDbContext dbContext,
@@ -46,7 +48,9 @@ public sealed class OrderService : SkeletonService, IOrderService
         IBusinessReferenceGenerator businessReferences,
         TimeProvider timeProvider,
         IShippingFulfilmentService? shippingFulfilmentService = null,
-        ITagOrderInventoryAvailabilityService? inventoryAvailability = null)
+        ITagOrderInventoryAvailabilityService? inventoryAvailability = null,
+        IOrderCheckoutSettingsService? checkoutSettings = null,
+        IAuditLogService? auditLogService = null)
     {
         _dbContext = dbContext;
         _features = features.Value;
@@ -60,6 +64,9 @@ public sealed class OrderService : SkeletonService, IOrderService
                 new AuditLogService(dbContext, new HttpContextAccessor()),
                 timeProvider);
         _inventoryAvailability = inventoryAvailability;
+        _checkoutSettings = checkoutSettings;
+        _auditLogService = auditLogService
+            ?? new AuditLogService(dbContext, new HttpContextAccessor());
     }
 
     public async Task<(IReadOnlyCollection<TagOrderResponse> Items, int Total)> ListAsync(
@@ -281,6 +288,9 @@ public sealed class OrderService : SkeletonService, IOrderService
             new DeliveryPricingSummary(merchandiseSubtotal, discountAmount, MalaysiaDelivery.Currency),
             cancellationToken);
         var deliveryQuote = deliveryResolution.Quote;
+        var reservationMinutes = _checkoutSettings is null
+            ? OrderCheckoutSetting.DefaultPaymentReservationMinutes
+            : await _checkoutSettings.GetPaymentReservationMinutesAsync(cancellationToken);
         var order = new TagOrder
         {
             OrderNumber = await GenerateOrderNumberAsync(now, cancellationToken),
@@ -312,6 +322,9 @@ public sealed class OrderService : SkeletonService, IOrderService
             DeliveryRateSource = deliveryResolution.RateSource,
             DeliveryNotes = NormalizeOptional(delivery.Notes),
             TrackingStatus = "Awaiting QR payment.",
+            // Immutable snapshot: later policy changes must not move an
+            // existing customer's payment deadline in either direction.
+            PaymentReservationExpiresAt = now.AddMinutes(reservationMinutes),
             IdempotencyKey = idempotencyKey,
             RequestFingerprint = fingerprint,
             CreatedAt = now,
@@ -465,6 +478,18 @@ public sealed class OrderService : SkeletonService, IOrderService
         return Convert.ToHexString(hash);
     }
 
+    /// <summary>
+    /// An owner may only release an order that is still unpaid and has no proof
+    /// waiting for or holding an admin decision.
+    /// </summary>
+    internal static bool CanOwnerCancel(TagOrder order) =>
+        order.Status == OrderStatus.PendingPayment
+        && order.PaymentStatus != PaymentStatus.Confirmed
+        && order.PaymentConfirmedAt == null
+        && order.ShippedAt == null
+        && !order.PaymentProofs.Any(proof =>
+            proof.Status is PaymentProofStatus.PendingReview or PaymentProofStatus.Approved);
+
     public async Task<TagOrderResponse> SubmitPaymentProofAsync(
         Guid? currentUserId,
         string orderKey,
@@ -472,14 +497,41 @@ public sealed class OrderService : SkeletonService, IOrderService
         CancellationToken cancellationToken = default)
     {
         var userId = RequireUserId(currentUserId);
-        var order = await LoadOwnedOrderAsync(currentUserId, orderKey, trackChanges: true, cancellationToken);
+        ValidatePaymentProofRequest(request);
+
+        // Resolve ownership first, then serialize every decision about this
+        // reservation with checkout, expiry, cancellation and Admin review.
+        // The tracked graph is reloaded only after the lock is held so no
+        // stale pre-lock state can be written back over the winning action.
+        var resolvedOrder = await LoadOwnedOrderAsync(
+            currentUserId, orderKey, trackChanges: false, cancellationToken);
+        await using var inventoryLock = _dbContext.Database.IsSqlServer()
+            ? await SqlServerInventoryReservationLock.AcquireForOrderAsync(
+                _dbContext, resolvedOrder.Id, cancellationToken)
+            : null;
+        _dbContext.ChangeTracker.Clear();
+        var order = await LoadOwnedOrderByIdAsync(
+            userId, resolvedOrder.Id, trackChanges: true, cancellationToken);
+
+        if (order.PaymentReservationExpiredAt.HasValue)
+        {
+            throw PaymentWindowExpired();
+        }
 
         if (order.Status is not (OrderStatus.PendingPayment or OrderStatus.PaymentProofSubmitted))
         {
             throw InvalidState("Payment proof can only be submitted before payment is confirmed.");
         }
 
-        ValidatePaymentProofRequest(request);
+        // The server, not the browser countdown, decides whether the window is
+        // still open. A submission that arrives after the deadline is refused
+        // even if the worker has not swept the order yet.
+        if (order.Status == OrderStatus.PendingPayment
+            && order.PaymentReservationExpiresAt is { } deadline
+            && _timeProvider.GetUtcNow() >= deadline)
+        {
+            throw PaymentWindowExpired();
+        }
 
         foreach (var proof in order.PaymentProofs.Where(item => item.Status == PaymentProofStatus.PendingReview))
         {
@@ -528,36 +580,86 @@ public sealed class OrderService : SkeletonService, IOrderService
         return TagDtoMapper.ToOrderResponse(hydratedOrder);
     }
 
+    /// <summary>
+    /// Lets the owner release their own unpaid order. Idempotent, releases the
+    /// reserved inventory back to unclaimed stock, and is refused once a proof
+    /// is awaiting or holds an admin decision.
+    /// </summary>
     public async Task<TagOrderResponse> CancelAsync(
         Guid? currentUserId,
         string orderKey,
         CancellationToken cancellationToken = default)
     {
         var userId = RequireUserId(currentUserId);
-        var order = await LoadOwnedOrderAsync(currentUserId, orderKey, trackChanges: true, cancellationToken);
+        var resolvedOrder = await LoadOwnedOrderAsync(
+            currentUserId, orderKey, trackChanges: false, cancellationToken);
 
-        if (order.Status is not (OrderStatus.PendingPayment or OrderStatus.PaymentProofSubmitted))
+        // The same SKU-scoped lock checkout and expiry use, so releasing stock
+        // cannot race a concurrent order for the same variant.
+        await using var inventoryLock = _dbContext.Database.IsSqlServer()
+            ? await SqlServerInventoryReservationLock.AcquireForOrderAsync(
+                _dbContext, resolvedOrder.Id, cancellationToken)
+            : null;
+        _dbContext.ChangeTracker.Clear();
+        var order = await LoadOwnedOrderByIdAsync(
+            userId, resolvedOrder.Id, trackChanges: true, cancellationToken);
+
+        // Repeat cancellation is a no-op rather than an error, so a double
+        // click or a retried request cannot release inventory twice.
+        if (order.Status == OrderStatus.Cancelled)
         {
-            throw InvalidState("This order cannot be cancelled after preparation has started.");
+            return TagDtoMapper.ToOrderResponse(order);
+        }
+
+        if (!CanOwnerCancel(order))
+        {
+            throw InvalidState(
+                "This order can no longer be cancelled here. If you have already submitted payment proof, "
+                + "our team will review it. Contact MyPetLink support if you need help.");
         }
 
         var now = _timeProvider.GetUtcNow();
         order.Status = OrderStatus.Cancelled;
         order.CancelledAt ??= now;
-        order.TrackingStatus = "Cancelled";
+        order.TrackingStatus = "Order cancelled at your request.";
+        order.UpdatedAt = now;
 
-        if (order.SmartTag is not null
-            && order.SmartTag.Status is SmartTagStatus.Pending or SmartTagStatus.Preparing or SmartTagStatus.Delivered)
+        // An unshipped tag returns to unclaimed stock. Archiving it here would
+        // permanently remove a physical tag from sellable inventory.
+        foreach (var tag in order.AssignedTags.Where(tag =>
+                     tag.Status is SmartTagStatus.Pending or SmartTagStatus.Preparing))
         {
-            order.SmartTag.Status = SmartTagStatus.Archived;
-            order.SmartTag.ArchivedAt ??= now;
+            tag.OwnerUserId = null;
+            tag.PetId = null;
+            tag.OrderId = null;
+            tag.OrderItemId = null;
+            tag.Status = SmartTagStatus.Unclaimed;
+            tag.UpdatedAt = now;
         }
+
+        order.SmartTagId = null;
+        order.SmartTag = null;
+
+        _auditLogService.Append(
+            userId,
+            ActorType.Owner,
+            "order.cancel-by-owner",
+            "TagOrder",
+            order.Id,
+            new { status = OrderStatus.PendingPayment.ToString() },
+            new { status = order.Status.ToString(), cancelledAt = now });
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         var hydratedOrder = await LoadOwnedOrderByIdAsync(userId, order.Id, trackChanges: false, cancellationToken);
         return TagDtoMapper.ToOrderResponse(hydratedOrder);
     }
+
+    private static ApiException PaymentWindowExpired() => new(
+        StatusCodes.Status409Conflict,
+        "payment_window_expired",
+        "This order expired because payment was not completed in time. "
+        + "Please place a new order.");
 
     private IQueryable<TagOrder> OwnedOrdersQuery(Guid userId)
     {
@@ -758,101 +860,6 @@ public sealed class OrderService : SkeletonService, IOrderService
         if (errors.Count > 0)
         {
             throw ValidationFailed(errors);
-        }
-    }
-
-    private sealed class SqlServerInventoryReservationLock : IAsyncDisposable
-    {
-        private const int LockTimeoutMilliseconds = 15_000;
-        private readonly MyPetLinkDbContext _dbContext;
-        private readonly IReadOnlyList<string> _resources;
-        private readonly bool _closeConnection;
-
-        private SqlServerInventoryReservationLock(
-            MyPetLinkDbContext dbContext,
-            IReadOnlyList<string> resources,
-            bool closeConnection)
-        {
-            _dbContext = dbContext;
-            _resources = resources;
-            _closeConnection = closeConnection;
-        }
-
-        public static async Task<SqlServerInventoryReservationLock> AcquireAsync(
-            MyPetLinkDbContext dbContext,
-            IEnumerable<Guid> productVariantIds,
-            CancellationToken cancellationToken)
-        {
-            var resources = productVariantIds
-                .Distinct()
-                .OrderBy(id => id)
-                .Select(id => $"MyPetLink:TagOrderInventory:{id:N}")
-                .ToArray();
-            var closeConnection = dbContext.Database.GetDbConnection().State != ConnectionState.Open;
-            if (closeConnection)
-            {
-                await dbContext.Database.OpenConnectionAsync(cancellationToken);
-            }
-
-            var acquired = new List<string>(resources.Length);
-            try
-            {
-                foreach (var resource in resources)
-                {
-                    var result = new SqlParameter("@result", SqlDbType.Int)
-                    {
-                        Direction = ParameterDirection.Output
-                    };
-                    var resourceParameter = new SqlParameter("@resource", resource);
-                    var timeoutParameter = new SqlParameter("@timeout", LockTimeoutMilliseconds);
-                    await dbContext.Database.ExecuteSqlRawAsync(
-                        "EXEC @result = sys.sp_getapplock @Resource = @resource, @LockMode = 'Exclusive', @LockOwner = 'Session', @LockTimeout = @timeout;",
-                        [result, resourceParameter, timeoutParameter],
-                        cancellationToken);
-
-                    if (result.Value is not int code || code < 0)
-                    {
-                        throw new ApiException(
-                            StatusCodes.Status409Conflict,
-                            "inventory_busy",
-                            "Inventory availability changed while this order was being placed. Please review your tags and try again.");
-                    }
-                    acquired.Add(resource);
-                }
-
-                return new SqlServerInventoryReservationLock(dbContext, acquired, closeConnection);
-            }
-            catch
-            {
-                await ReleaseAsync(dbContext, acquired);
-                if (closeConnection)
-                {
-                    await dbContext.Database.CloseConnectionAsync();
-                }
-                throw;
-            }
-        }
-
-        public async ValueTask DisposeAsync()
-        {
-            await ReleaseAsync(_dbContext, _resources);
-            if (_closeConnection)
-            {
-                await _dbContext.Database.CloseConnectionAsync();
-            }
-        }
-
-        private static async Task ReleaseAsync(
-            MyPetLinkDbContext dbContext,
-            IEnumerable<string> resources)
-        {
-            foreach (var resource in resources.Reverse())
-            {
-                var resourceParameter = new SqlParameter("@resource", resource);
-                await dbContext.Database.ExecuteSqlRawAsync(
-                    "EXEC sys.sp_releaseapplock @Resource = @resource, @LockOwner = 'Session';",
-                    [resourceParameter]);
-            }
         }
     }
 

@@ -3,6 +3,12 @@ import { isApiClientError } from "@/services/apiClient";
 const DELIVERY_UNAVAILABLE_MESSAGE =
   "Delivery is not currently available for this address. Please choose another state or contact MyPetLink support.";
 
+// An inventory conflict is not a delivery problem. Offering a delivery retry
+// here would loop the customer through an action that can never succeed, so
+// stock conflicts are classified separately and send them back to their tags.
+export const OUT_OF_STOCK_MESSAGE =
+  "One or more selected tags are no longer available. Review your tag selections and try again.";
+
 // Single source of owner-facing wording for the tag catalog and ordering flow.
 // Everything a customer reads about a failure comes from here so the same
 // condition never gets two slightly different explanations, and so raw backend
@@ -89,7 +95,10 @@ export function getOwnerOrderErrorMessage(error: unknown): string {
     case "feature_disabled":
       return error.message;
     case "out_of_stock":
-      return "This tag option is out of stock right now. Please choose another option.";
+    case "inventory_busy":
+      return OUT_OF_STOCK_MESSAGE;
+    case "payment_window_expired":
+      return "This order expired because payment was not completed in time. Please start a new order.";
     // The order already exists, so claiming a failure would be wrong.
     case "idempotency_key_conflict":
       return "This order has already been submitted. Please check your orders before trying again.";
@@ -125,6 +134,29 @@ export function isDeliveryUnavailableError(error: unknown) {
   return isApiClientError(error) && error.code === "delivery_unavailable";
 }
 
+/**
+ * True when the failure is an inventory conflict rather than anything to do
+ * with delivery. `inventory_busy` is the lock-contention form of the same
+ * problem and reads identically to a customer.
+ */
+export function isOutOfStockError(error: unknown) {
+  return (
+    isApiClientError(error) &&
+    (error.code === "out_of_stock" || error.code === "inventory_busy")
+  );
+}
+
+/**
+ * How the ordering UI should react to a failed delivery quote: a stock problem
+ * must return the customer to their tag selections, everything else may offer a
+ * delivery retry.
+ */
+export type QuoteFailureKind = "out-of-stock" | "delivery";
+
+export function getQuoteFailureKind(error: unknown): QuoteFailureKind {
+  return isOutOfStockError(error) ? "out-of-stock" : "delivery";
+}
+
 /** Safe, action-oriented wording for the delivery quote boundary. */
 export function getDeliveryQuoteErrorMessage(error: unknown): string {
   if (!isApiClientError(error)) {
@@ -133,6 +165,13 @@ export function getDeliveryQuoteErrorMessage(error: unknown): string {
 
   if (error.status === 0) {
     return "We couldn’t connect to calculate delivery. Check your internet connection and try again.";
+  }
+
+  // Checked before the delivery branches: the quote endpoint also revalidates
+  // inventory, and a stock conflict must never be described as a delivery
+  // failure.
+  if (isOutOfStockError(error)) {
+    return OUT_OF_STOCK_MESSAGE;
   }
 
   if (error.code === "delivery_unavailable") {

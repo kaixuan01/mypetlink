@@ -111,7 +111,14 @@ internal static class TagDtoMapper
             timeline,
             order.UpdatedAt,
             order.CreatedAt,
-            shipmentVisible ? trackingUrl : null);
+            shipmentVisible ? trackingUrl : null,
+            // Only meaningful while the order is still awaiting payment; a paid
+            // or cancelled order must not show a countdown.
+            order.Status == OrderStatus.PendingPayment
+                ? order.PaymentReservationExpiresAt
+                : null,
+            order.PaymentReservationExpiredAt,
+            OrderService.CanOwnerCancel(order));
     }
 
     private static IReadOnlyCollection<TagOrderItemResponse> BuildItemResponses(
@@ -307,7 +314,19 @@ internal static class TagDtoMapper
                 "completed"));
         }
 
-        if (order.CancelledAt.HasValue)
+        if (order.PaymentReservationExpiredAt.HasValue)
+        {
+            // An automatic expiry reads very differently from someone choosing
+            // to cancel, so it gets its own customer-facing event.
+            events.Add(new OrderTimelineEventResponse(
+                "PaymentReservationExpired",
+                "Order expired",
+                "Order expired because payment was not completed in time. "
+                + "The reserved tags were released.",
+                order.PaymentReservationExpiredAt,
+                "cancelled"));
+        }
+        else if (order.CancelledAt.HasValue)
         {
             events.Add(new OrderTimelineEventResponse(
                 "Cancelled",

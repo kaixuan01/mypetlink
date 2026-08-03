@@ -123,8 +123,14 @@ public sealed class AdminOrderServiceTests
         var rejected = await harness.Admin.RejectPaymentProofAsync(Harness.AdminId, second.Id, "Reference does not match");
         Assert.Equal(PaymentStatus.Rejected, rejected.Order.PaymentStatus);
         Assert.Equal(OrderStatus.PendingPayment, rejected.Order.Status);
+        Assert.Equal(Harness.Now.AddMinutes(120), rejected.Order.PaymentReservationExpiresAt);
+        Assert.Null(rejected.Order.PaymentReservationExpiredAt);
         Assert.Equal("Reference does not match", rejected.Order.PaymentProofs.Single().RejectionReason);
         await Assert.ThrowsAsync<ApiException>(() => harness.Admin.RejectPaymentProofAsync(Harness.AdminId, second.Id, "Again"));
+        Assert.Equal(
+            Harness.Now.AddMinutes(120),
+            (await harness.Db.TagOrders.AsNoTracking().SingleAsync(order => order.Id == second.Id))
+                .PaymentReservationExpiresAt);
     }
 
     [Fact]

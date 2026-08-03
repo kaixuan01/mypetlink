@@ -6,6 +6,10 @@ import { Badge } from "@/components/ui/Badge";
 import { Icon } from "@/components/ui/Icon";
 import { paymentConfig } from "@/config/payment";
 import { formatDeliverySummary, formatOrderNumber } from "@/lib/orders";
+import {
+  ReservationNotice,
+  useReservationCountdown,
+} from "@/components/portal/ReservationCountdown";
 import { canUseApi } from "@/services/apiConfig";
 import { uploadMediaFile } from "@/services/mediaService";
 import {
@@ -19,6 +23,8 @@ type MerchantQrStatus = "loading" | "available" | "unavailable";
 type ManualPaymentPanelProps = {
   order: TagOrder;
   petName: string;
+  /** Re-read the order from the server, e.g. once the deadline passes. */
+  onRefresh?: () => void;
   /** Called with the updated order after the proof is submitted. */
   onSubmitted: (order: TagOrder) => void;
 };
@@ -30,8 +36,13 @@ type ManualPaymentPanelProps = {
 export function ManualPaymentPanel({
   order,
   petName,
+  onRefresh,
   onSubmitted,
 }: ManualPaymentPanelProps) {
+  const reservation = useReservationCountdown(
+    order.paymentReservationExpiresAt,
+    onRefresh
+  );
   const [transactionReference, setTransactionReference] = useState("");
   const [paymentNote, setPaymentNote] = useState("");
   const [proofName, setProofName] = useState("");
@@ -121,6 +132,16 @@ export function ManualPaymentPanel({
       <p className="mt-2 max-w-2xl text-sm leading-6 text-pet-muted">
         {paymentConfig.instructions}
       </p>
+
+      {reservation.hasDeadline ? (
+        <div className="mt-4">
+          <ReservationNotice
+            deadlineReached={reservation.deadlineReached}
+            nearExpiry={reservation.nearExpiry}
+            remainingLabel={reservation.label}
+          />
+        </div>
+      ) : null}
 
       {order.paymentRejectionReason ? (
         <div className="mt-4 rounded-[1.25rem] border border-[#f4cf8a] bg-[#fdf3df] px-4 py-3 text-sm font-semibold leading-6 text-[#9a6b18]">
@@ -332,11 +353,15 @@ export function ManualPaymentPanel({
 
           <button
             className="inline-flex min-h-12 w-full items-center justify-center rounded-full border border-pet-teal bg-pet-teal px-5 py-3 text-sm font-bold text-white shadow-lg shadow-[#1570ef]/20 transition hover:bg-[#0f5fd0] disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
-            disabled={isSubmitting || !qrAvailable}
+            disabled={isSubmitting || !qrAvailable || reservation.deadlineReached}
             onClick={handleSubmit}
             type="button"
           >
-            {isSubmitting ? "Submitting..." : "Submit Payment Proof"}
+            {isSubmitting
+              ? "Submitting..."
+              : reservation.deadlineReached
+                ? "Checking reservation..."
+                : "Submit Payment Proof"}
           </button>
           <p className="text-xs leading-5 text-pet-muted">
             We will review your payment proof after you submit.{" "}

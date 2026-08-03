@@ -135,7 +135,13 @@ public sealed record TagOrderResponse(
     IReadOnlyCollection<OrderTimelineEventResponse> Timeline,
     DateTimeOffset UpdatedAt,
     DateTimeOffset CreatedAt,
-    string? TrackingUrl = null);
+    string? TrackingUrl = null,
+    // Absolute server deadline for an unpaid reservation. The browser renders a
+    // countdown from this value for presentation only; the server stays
+    // authoritative and re-checks on every submission.
+    DateTimeOffset? PaymentReservationExpiresAt = null,
+    DateTimeOffset? PaymentReservationExpiredAt = null,
+    bool CanCancel = false);
 
 // A single chronological event in the order's status history. `OccurredAt`
 // is a DateTimeOffset that the frontend formats in the viewer's local

@@ -47,6 +47,7 @@ Owner: Operations. Changing requires redeploy or restart.
 | `Email:Provider`, `FromAddress`, `FromName`, `OwnerPortalBaseUrl`, `BrandLogoUrl`, `BrandAssetBaseUrl` | `EmailOptions` | Brand asset URLs validated HTTPS-only |
 | `Email:Smtp:Host`, `Port`, `UseStartTls`, `ConnectionTimeoutSeconds` | `SmtpEmailOptions` | `UseStartTls` must be true |
 | `Email:Dispatch:PollIntervalSeconds`, `BatchSize`, `MaxConcurrency`, `VisibilityTimeoutSeconds` | `EmailDispatchOptions` | Worker tuning — must not be exposed to business Admin |
+| `OrderReservation:ExpiryEnabled`, `PollIntervalSeconds`, `BatchSize` | `OrderReservationOptions` | Unpaid-order expiry worker tuning. Admin sees safe read-only status; the payment window itself is database-owned. |
 | `DatabaseResilience:*` | `DatabaseResilienceOptions` | Retry tuning |
 | `RateLimiting:PublicTagScan`, `RateLimiting:TagActivation` | `SmartTagRateLimitingOptions` | Abuse protection — security-adjacent, keep in App Settings |
 | `Logging:LogLevel:*`, `AllowedHosts` | ASP.NET built-ins | Standard |
@@ -84,6 +85,7 @@ Typed domain tables with audit and `RowVersion`. This is the correct pattern.
 | Plans | `Plans`, `PlanLimits` | `/admin/plans` (read-only today) | `MaxPets`, `MaxMemoriesPerPet`, `MaxCareRecords`, `ScanHistoryDays`, entitlement booleans. **Editing requires product approval — see pending decisions.** |
 | Inventory | `SmartTagBatches`, `SmartTags` | `/admin/tag-inventory` | Batch generation, stock lifecycle |
 | Email templates | `EmailTemplateSettings` | `/admin/email-templates` | One row per message type. `IsEnabled` + `EnabledFromUtc`, audited, `RowVersion`. Missing row = disabled. |
+| Order checkout | `OrderCheckoutSettings` | `/admin/order-checkout` | Unpaid payment-reservation duration (30 minutes to 72 hours), snapshotted onto each order. Audited with `RowVersion`. |
 
 ### Email outbox counts
 

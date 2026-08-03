@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { OrderPriceBreakdown, priceLinesFromOrder } from "@/components/orders/OrderPriceBreakdown";
 import { ManualPaymentPanel } from "@/components/portal/ManualPaymentPanel";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import {
   canDownloadPaymentReceipt,
   canRequestReplacement,
@@ -34,6 +35,7 @@ import {
 import { getPets } from "@/services/petService";
 import {
   getAllTags,
+  cancelOwnerOrder,
   getFriendlyTagErrorMessage,
   getOrder,
 } from "@/services/tagService";
@@ -110,7 +112,12 @@ export function OrderDetailView({
   const [copyTrackingStatus, setCopyTrackingStatus] = useState("");
   const [paymentMessage, setPaymentMessage] = useState("");
   const [loadError, setLoadError] = useState("");
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [cancelBusy, setCancelBusy] = useState(false);
+  const [cancelError, setCancelError] = useState("");
   const autoDownloadStarted = useRef(false);
+  const reservationRefreshBusy = useRef(false);
+  const cancelBusyRef = useRef(false);
   const base = useSyncExternalStore(subscribeNoop, getSiteBaseUrl, getEnvBaseUrl);
   const petMap = useMemo(
     () => new Map(portalPets.map((pet) => [pet.id, pet])),
@@ -153,6 +160,20 @@ export function OrderDetailView({
     return () => {
       active = false;
     };
+  }, [orderKey]);
+
+  const refreshReservationState = useCallback(async () => {
+    if (reservationRefreshBusy.current) return;
+    reservationRefreshBusy.current = true;
+    try {
+      const response = await getOrder(orderKey);
+      setOrder(response.data);
+      setLoadError("");
+    } catch (caught) {
+      setLoadError(getFriendlyTagErrorMessage(caught));
+    } finally {
+      reservationRefreshBusy.current = false;
+    }
   }, [orderKey]);
 
   useEffect(() => {
@@ -252,6 +273,33 @@ export function OrderDetailView({
     : "";
 
   const orderKeyForApi = order.orderNumber || order.id;
+  const reservationExpired = Boolean(order.paymentReservationExpiredAt);
+  const ownerCancelled =
+    order.status === "Cancelled" &&
+    !reservationExpired &&
+    order.trackingStatus === "Order cancelled at your request.";
+
+  async function handleCancelOrder() {
+    if (cancelBusyRef.current || !order?.canCancel) return;
+    cancelBusyRef.current = true;
+    setCancelBusy(true);
+    setCancelError("");
+    try {
+      const response = await cancelOwnerOrder(orderKeyForApi);
+      if (!response.data.order) {
+        throw new Error("The order could not be cancelled.");
+      }
+      setOrder(response.data.order);
+      setCancelDialogOpen(false);
+      const tagResponse = await getAllTags();
+      setTags(tagResponse.data);
+    } catch (caught) {
+      setCancelError(getFriendlyTagErrorMessage(caught));
+    } finally {
+      cancelBusyRef.current = false;
+      setCancelBusy(false);
+    }
+  }
 
   async function handleDownloadReceipt() {
     if (!order || downloadBusy) {
@@ -368,14 +416,49 @@ export function OrderDetailView({
                 {downloadBusy ? "Preparing..." : "Download Order Summary PDF"}
               </button>
             )}
+            {order.canCancel ? (
+              <button
+                className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#ffd2c9] bg-[#fff4f1] px-5 py-3 text-sm font-extrabold text-[#a63c2e] transition hover:bg-[#ffe8e3] disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={cancelBusy}
+                onClick={() => setCancelDialogOpen(true)}
+                type="button"
+              >
+                Cancel order
+              </button>
+            ) : null}
           </div>
         </div>
       </section>
+
+      {cancelError ? (
+        <div className="rounded-[1.25rem] border border-[#ffd2c9] bg-[#fff4f1] px-4 py-3 text-sm font-bold text-[#a63c2e]" role="alert">
+          {cancelError}
+        </div>
+      ) : null}
+
+      {reservationExpired ? (
+        <section className="brand-card rounded-[1.75rem] border border-[#ffd2c9] p-5 sm:p-6">
+          <Badge tone="danger">Order expired</Badge>
+          <p className="mt-4 max-w-2xl text-sm font-semibold leading-6 text-pet-ink">
+            This order expired because payment was not completed in time. The reserved tags have been released.
+          </p>
+          <div className="mt-5"><CTAButton href={ownerRoutes.tagOrder()} icon="tag">Start a new order</CTAButton></div>
+        </section>
+      ) : ownerCancelled ? (
+        <section className="brand-card rounded-[1.75rem] border border-[#ffd2c9] p-5 sm:p-6">
+          <Badge tone="danger">Order cancelled</Badge>
+          <p className="mt-4 max-w-2xl text-sm font-semibold leading-6 text-pet-ink">
+            This unpaid order was cancelled. Reserved inventory has been released.
+          </p>
+          <div className="mt-5"><CTAButton href={ownerRoutes.tagOrder()} icon="tag">Start a new order</CTAButton></div>
+        </section>
+      ) : null}
 
       {order.status === "Pending Payment" ? (
         <ManualPaymentPanel
           order={order}
           petName={petName}
+          onRefresh={() => void refreshReservationState()}
           onSubmitted={(updated) => {
             setOrder(updated);
             setPaymentMessage(
@@ -674,6 +757,18 @@ export function OrderDetailView({
           ) : null}
         </div>
       </section>
+      <ConfirmDialog
+        confirmDisabled={cancelBusy}
+        confirmLabel={cancelBusy ? "Working…" : "Cancel order"}
+        destructive
+        message="Cancel this unpaid order? The reserved tags will be released and this order cannot be resumed."
+        onCancel={() => {
+          if (!cancelBusy) setCancelDialogOpen(false);
+        }}
+        onConfirm={() => void handleCancelOrder()}
+        open={cancelDialogOpen}
+        title="Cancel order"
+      />
     </div>
   );
 }

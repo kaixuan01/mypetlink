@@ -242,6 +242,9 @@ export function mapBackendOrder(order: BackendTagOrder): TagOrder {
     courierService: order.courierService ?? undefined,
     trackingNumber: order.trackingNumber ?? undefined,
     trackingUrl: order.trackingUrl ?? undefined,
+    paymentReservationExpiresAt: order.paymentReservationExpiresAt ?? undefined,
+    paymentReservationExpiredAt: order.paymentReservationExpiredAt ?? undefined,
+    canCancel: order.canCancel ?? false,
     readyToShipDate: formatDisplayDate(order.readyToShipAt),
     shippedDate: formatDisplayDate(order.shippedAt),
     deliveredDate: formatDisplayDate(order.deliveredAt),
@@ -705,6 +708,40 @@ export async function submitOrderPayment(
   }
 
   return mockResponse({ order: updatedOrder });
+}
+
+export async function cancelOwnerOrder(orderKey: string) {
+  if (canUseOwnerTagApi()) {
+    const response = await apiRequest<BackendTagOrder>(
+      `/api/v1/orders/${encodeURIComponent(orderKey)}/cancel`,
+      { method: "POST" }
+    );
+    const order = response.data ? mapBackendOrder(response.data) : null;
+    return apiResponse({ data: { order }, meta: response.meta }, { order });
+  }
+
+  await mockDelay();
+  const orders = getOrderCollection();
+  const existing = orders.find(
+    (order) => order.id === orderKey || order.orderNumber === orderKey
+  );
+  const updated = existing?.status === "Cancelled"
+    ? existing
+    : existing?.status === "Pending Payment" && existing.canCancel
+      ? {
+          ...existing,
+          status: "Cancelled" as const,
+          canCancel: false,
+          trackingStatus: "Order cancelled at your request.",
+        }
+      : null;
+  if (updated && updated !== existing) {
+    writeStoredCollection(
+      ORDER_STORAGE_KEY,
+      orders.map((order) => (order.id === updated.id ? updated : order))
+    );
+  }
+  return mockResponse({ order: updated });
 }
 
 export async function disableTag(tagId: string) {

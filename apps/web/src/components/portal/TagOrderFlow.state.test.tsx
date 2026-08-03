@@ -8,9 +8,13 @@ import type { DeliveryQuote } from "@/services/deliveryService";
 import type { TagProduct } from "@/services/tagCatalogService";
 
 const mocks = vi.hoisted(() => ({
+  createTagOrder: vi.fn(),
   getDeliveryQuote: vi.fn(),
   getPets: vi.fn(),
+  push: vi.fn(),
 }));
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: mocks.push }) }));
 
 const catalog: TagProduct[] = [
   {
@@ -64,7 +68,7 @@ vi.mock("@/services/tagCatalogService", async (importOriginal) => {
 });
 vi.mock("@/services/tagService", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/services/tagService")>();
-  return { ...original, createTagOrder: vi.fn() };
+  return { ...original, createTagOrder: (...args: unknown[]) => mocks.createTagOrder(...args) };
 });
 vi.mock("@/services/deliveryService", () => ({
   listMalaysiaStates: vi.fn(async () => [
@@ -81,6 +85,10 @@ beforeEach(() => {
   window.localStorage.clear();
   mocks.getPets.mockResolvedValue({ data: [mockPets[0]], error: null });
   mocks.getDeliveryQuote.mockResolvedValue(selangorQuote);
+  mocks.createTagOrder.mockResolvedValue({
+    data: { order: { orderNumber: "MPL-ORD-REDIRECT-001" }, tag: null },
+    error: null,
+  });
 });
 
 afterEach(() => {
@@ -189,6 +197,21 @@ describe("delivery quote state", () => {
     expect((screen.getByRole("button", { name: "Continue" }) as HTMLButtonElement).disabled).toBe(true);
   });
 
+  it("classifies a reserved SKU as stock-specific and returns to tag selection", async () => {
+    mocks.getDeliveryQuote.mockRejectedValue(
+      new ApiClientError(409, "out_of_stock", "Stock changed")
+    );
+    render(<TagOrderFlow pets={[]} />);
+    await openDeliveryStep();
+    fillRequiredDelivery("SGR");
+
+    expect(await screen.findByText(/selected tags are no longer available/i)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Try delivery quote again" })).toBeNull();
+    expect(screen.queryByText(/Delivery is not currently available/i)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Review tag selections" }));
+    expect(await screen.findByText("Choose your physical tags")).toBeTruthy();
+  });
+
   it("clears stale success immediately when State changes", async () => {
     const sabahUnavailable = new ApiClientError(409, "delivery_unavailable", "No rate configured");
     mocks.getDeliveryQuote.mockImplementation((stateCode: string) =>
@@ -243,6 +266,23 @@ describe("delivery quote state", () => {
     expect(await screen.findByText(/Delivery is available/i)).toBeTruthy();
     expect(screen.queryByText(/couldn.t calculate delivery right now/i)).toBeNull();
     expect(mocks.getDeliveryQuote).toHaveBeenCalledTimes(2);
+  });
+
+  it("opens the canonical order detail after a successful checkout", async () => {
+    render(<TagOrderFlow pets={[]} />);
+    await openDeliveryStep();
+    fillRequiredDelivery("SGR");
+    expect(await screen.findByText(/Delivery is available/i)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(await screen.findByText("Confirm order")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Place Order" }));
+
+    await waitFor(() =>
+      expect(mocks.push).toHaveBeenCalledWith(
+        "/orders/view?order=MPL-ORD-REDIRECT-001"
+      )
+    );
   });
 });
 

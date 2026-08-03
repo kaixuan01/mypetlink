@@ -9,7 +9,7 @@ import { formatAdminDateTime } from "@/components/admin/adminDisplay";
 import { OrderPriceBreakdown, type OrderPriceLine } from "@/components/orders/OrderPriceBreakdown";
 import { Badge } from "@/components/ui/Badge";
 import { formatFullDeliveryAddress, getOrderStatusDisplay, type AdminOrderAction } from "@/lib/orders";
-import { formatStateAndZone } from "@/lib/orderDisplay";
+import { formatOrderPets, formatStateAndZone, petSummaryLabel } from "@/lib/orderDisplay";
 import { adminRoutes } from "@/lib/routes";
 import {
   fulfilmentStatusLabels,
@@ -294,7 +294,7 @@ export function AdminOrderDetailDrawer({
                   <AdminDetailItem label="Customer" value={detail.owner.name} />
                   <AdminDetailItem label="Email" value={detail.owner.email} />
                   <AdminDetailItem label="Phone / WhatsApp" value={detail.order.delivery.phone} />
-                  <AdminDetailItem label="Pet" value={detail.order.petName ?? summary.petName} />
+                  <AdminDetailItem label={petSummaryLabel(detail.order.items)} value={formatOrderPets(detail.order.items, detail.order.petName ?? summary.petName)} />
                 </div>
               </section>
 

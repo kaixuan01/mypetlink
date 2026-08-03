@@ -33,6 +33,7 @@ describe("adminNavigation", () => {
       "Plans",
       "Delivery Rates",
       "Shipping & Fulfilment",
+      "Order Checkout",
       "Email Templates",
     ]);
 
@@ -76,6 +77,7 @@ describe("adminNavigation", () => {
   it("labels the mobile header from the active route", () => {
     expect(activeAdminNavLabel("/admin/tag-products", "?tab=promotions")).toBe("Promotions");
     expect(activeAdminNavLabel("/admin/tag-inventory", "")).toBe("Tag Inventory");
+    expect(activeAdminNavLabel("/admin/order-checkout", "")).toBe("Order Checkout");
     expect(activeAdminNavLabel("/somewhere-else", "")).toBe("Admin");
   });
 });

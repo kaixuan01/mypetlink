@@ -18,6 +18,7 @@ public sealed class AdminService : SkeletonService, IAdminService
     private readonly IAuditLogService _auditLogService;
     private readonly IEmailOutboxService _emailOutboxService;
     private readonly IShippingFulfilmentService _shippingFulfilmentService;
+    private readonly IOrderCheckoutSettingsService _checkoutSettings;
     private readonly FeatureOptions _features;
     private readonly IBusinessReferenceGenerator _businessReferences;
     private readonly TimeProvider _timeProvider;
@@ -64,7 +65,8 @@ public sealed class AdminService : SkeletonService, IAdminService
         IEmailOutboxService emailOutboxService,
         IBusinessReferenceGenerator businessReferences,
         TimeProvider timeProvider,
-        IShippingFulfilmentService? shippingFulfilmentService = null)
+        IShippingFulfilmentService? shippingFulfilmentService = null,
+        IOrderCheckoutSettingsService? checkoutSettings = null)
     {
         _dbContext = dbContext;
         _auditLogService = auditLogService;
@@ -74,6 +76,8 @@ public sealed class AdminService : SkeletonService, IAdminService
         _timeProvider = timeProvider;
         _shippingFulfilmentService = shippingFulfilmentService
             ?? new ShippingFulfilmentService(dbContext, auditLogService, timeProvider);
+        _checkoutSettings = checkoutSettings
+            ?? new OrderCheckoutSettingsService(dbContext, auditLogService, timeProvider);
     }
 
     // --- Dashboard ------------------------------------------------------------
@@ -1450,6 +1454,15 @@ public sealed class AdminService : SkeletonService, IAdminService
                         order.Status = OrderStatus.PendingPayment;
                         order.PaymentStatus = PaymentStatus.Rejected;
                         order.TrackingStatus = "Payment proof needs to be resubmitted.";
+                        // A rejected customer gets a fresh full payment window
+                        // measured from the rejection, so a proof that was
+                        // reviewed late never leaves them with no time to pay.
+                        // The reservation itself is not recreated, so no
+                        // duplicate reservation can appear.
+                        order.PaymentReservationExpiresAt = now.AddMinutes(
+                            await _checkoutSettings.GetPaymentReservationMinutesAsync(
+                                cancellationToken));
+                        order.PaymentReservationExpiredAt = null;
                     }
                     order.UpdatedAt = now;
 

@@ -36,17 +36,21 @@ public sealed partial class TagCatalogService : ITagCatalogService
     private readonly IAuditLogService _auditLogService;
     private readonly ITagPricingService _pricingService;
     private readonly CloudflareR2Options _r2Options;
+    private readonly ITagOrderInventoryAvailabilityService _inventoryAvailability;
 
     public TagCatalogService(
         MyPetLinkDbContext dbContext,
         IAuditLogService auditLogService,
         ITagPricingService pricingService,
-        IOptions<CloudflareR2Options> r2Options)
+        IOptions<CloudflareR2Options> r2Options,
+        ITagOrderInventoryAvailabilityService? inventoryAvailability = null)
     {
         _dbContext = dbContext;
         _auditLogService = auditLogService;
         _pricingService = pricingService;
         _r2Options = r2Options.Value;
+        _inventoryAvailability = inventoryAvailability
+            ?? new TagOrderInventoryAvailabilityService(dbContext);
     }
 
     public async Task<(IReadOnlyCollection<AdminTagProductListItemResponse> Items, int Total)> ListAdminAsync(
@@ -374,13 +378,16 @@ public sealed partial class TagCatalogService : ITagCatalogService
     {
         var variantIds = products.SelectMany(item => item.Variants)
             .Where(item => item.ArchivedAt == null && item.IsActive && item.IsPurchasable).Select(item => item.Id).ToArray();
-        var inStock = await _dbContext.SmartTags.AsNoTracking()
-            .Where(tag => tag.ProductVariantId.HasValue && variantIds.Contains(tag.ProductVariantId.Value)
-                && tag.Status == SmartTagStatus.Unclaimed && tag.ArchivedAt == null && tag.DeletedAt == null
-                && (tag.FulfilmentStatus == TagFulfilmentStatus.Generated || tag.FulfilmentStatus == TagFulfilmentStatus.Printed)
-                && tag.OwnerUserId == null && tag.PetId == null && tag.OrderId == null)
-            .Select(tag => tag.ProductVariantId!.Value).Distinct().ToListAsync(cancellationToken);
-        var stockSet = inStock.ToHashSet();
+        // One shared reservation-aware calculation: physical unclaimed stock
+        // minus outstanding order reservations. A fully reserved SKU must not
+        // advertise itself as available and then fail at checkout.
+        var availableUnits = await _inventoryAvailability.GetAvailableUnitsAsync(
+            variantIds,
+            cancellationToken);
+        var stockSet = availableUnits
+            .Where(entry => entry.Value > 0)
+            .Select(entry => entry.Key)
+            .ToHashSet();
         var now = DateTimeOffset.UtcNow;
 
         return products.Select(product =>

@@ -219,3 +219,24 @@ public sealed record AdminOperationalStatusResponse(
     AdminStorageStatusResponse Storage,
     AdminPublicRoutingStatusResponse PublicRouting,
     AdminOrderingStatusResponse Ordering);
+
+public sealed record AdminOrderCheckoutSettingsResponse(
+    int PaymentReservationMinutes,
+    int MinPaymentReservationMinutes,
+    int MaxPaymentReservationMinutes,
+    DateTimeOffset UpdatedAt,
+    string? UpdatedBy,
+    string RowVersion,
+    AdminPaymentReservationWorkerStatusResponse ExpiryWorker);
+
+public sealed record AdminPaymentReservationWorkerStatusResponse(
+    bool Enabled,
+    int PollIntervalSeconds,
+    int BatchSize);
+
+public sealed record UpdateOrderCheckoutSettingsRequest(
+    [Range(
+        OrderCheckoutSetting.MinPaymentReservationMinutes,
+        OrderCheckoutSetting.MaxPaymentReservationMinutes)]
+    int PaymentReservationMinutes,
+    [Required] string? RowVersion);

@@ -286,6 +286,68 @@ public sealed class TagCatalogServiceTests
     }
 
     [Fact]
+    public async Task Catalog_MarksFullyReservedSkuOutOfStockUntilReservationIsReleased()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var created = await harness.Service.CreateVariantAsync(
+            AdminId, harness.Product.Id, harness.ValidVariant("MPL-RESERVED-V1"));
+        var stock = new SmartTag
+        {
+            TagCode = "MPL-RSV-0001",
+            ProductVariantId = created.Id,
+            HasNfc = false,
+            Variant = "Standard",
+            Status = SmartTagStatus.Unclaimed,
+            FulfilmentStatus = TagFulfilmentStatus.Generated,
+        };
+        var order = new TagOrder
+        {
+            OrderNumber = "MPL-ORD-RESERVED",
+            OwnerUserId = AdminId,
+            PetId = Guid.NewGuid(),
+            Status = OrderStatus.PendingPayment,
+            PaymentStatus = PaymentStatus.Pending,
+            PaymentReservationExpiresAt = DateTimeOffset.UtcNow.AddHours(2),
+            RecipientName = "Reservation Owner",
+            DeliveryPhoneE164 = "+60123456789",
+            AddressLine1 = "1 Jalan Test",
+            Postcode = "50000",
+            City = "Kuala Lumpur",
+            State = "Kuala Lumpur",
+            Items =
+            {
+                new TagOrderItem
+                {
+                    ProductVariantId = created.Id,
+                    PetId = Guid.NewGuid(),
+                    PetNameSnapshot = "Milo",
+                    SkuSnapshot = created.Sku,
+                    ProductNameSnapshot = harness.Product.Name,
+                    VariantNameSnapshot = created.DisplayName,
+                    UnitBasePrice = created.BasePrice,
+                    Quantity = 1,
+                    Subtotal = created.BasePrice,
+                    FinalUnitPrice = created.BasePrice,
+                    FinalAmount = created.BasePrice,
+                    Currency = "MYR",
+                },
+            },
+        };
+        harness.Db.AddRange(stock, order);
+        await harness.Db.SaveChangesAsync();
+
+        var reservedCatalog = await harness.Service.ListPublicAsync();
+        Assert.False(Assert.Single(Assert.Single(reservedCatalog).Variants).InStock);
+
+        order.Status = OrderStatus.Cancelled;
+        order.CancelledAt = DateTimeOffset.UtcNow;
+        await harness.Db.SaveChangesAsync();
+
+        var releasedCatalog = await harness.Service.ListPublicAsync();
+        Assert.True(Assert.Single(Assert.Single(releasedCatalog).Variants).InStock);
+    }
+
+    [Fact]
     public async Task CatalogOptions_ProjectsSelectableProductsAndSkus_ExcludingArchived_WithInventoryCounts()
     {
         await using var harness = await Harness.CreateAsync();

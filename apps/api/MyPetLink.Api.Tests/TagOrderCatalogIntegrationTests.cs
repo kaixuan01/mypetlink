@@ -182,6 +182,159 @@ public sealed class TagOrderCatalogIntegrationTests
     }
 
     [Fact]
+    public async Task Create_SnapshotsExactlyTheConfiguredReservationDuration()
+    {
+        var now = DateTimeOffset.Parse("2026-08-03T12:00:00Z");
+        await using var harness = await Harness.CreateAsync(
+            timeProvider: new FixedTimeProvider(now),
+            reservationMinutes: 185);
+
+        var created = await harness.Service.CreateAsync(
+            OwnerId,
+            Request(harness.Pet.Id, harness.Variant.PublicKey));
+
+        Assert.Equal(now.AddMinutes(185), created.Order.PaymentReservationExpiresAt);
+    }
+
+    [Fact]
+    public async Task ExistingOrderDeadline_DoesNotChangeWhenSettingChanges()
+    {
+        var now = DateTimeOffset.Parse("2026-08-03T12:00:00Z");
+        await using var harness = await Harness.CreateAsync(
+            timeProvider: new FixedTimeProvider(now),
+            reservationMinutes: 120);
+        var created = await harness.Service.CreateAsync(
+            OwnerId,
+            Request(harness.Pet.Id, harness.Variant.PublicKey));
+        var original = created.Order.PaymentReservationExpiresAt;
+
+        (await harness.Db.OrderCheckoutSettings.SingleAsync()).PaymentReservationMinutes = 30;
+        await harness.Db.SaveChangesAsync();
+
+        Assert.Equal(original, (await harness.Service.GetAsync(
+            OwnerId, created.Order.OrderNumber)).PaymentReservationExpiresAt);
+    }
+
+    [Fact]
+    public async Task PaymentProof_OneSecondBeforeExpirySucceeds_AndOneSecondAfterReturnsTypedError()
+    {
+        var now = DateTimeOffset.Parse("2026-08-03T12:00:00Z");
+        await using var before = await Harness.CreateAsync(timeProvider: new FixedTimeProvider(now));
+        var beforeOrder = await before.Service.CreateAsync(
+            OwnerId, Request(before.Pet.Id, before.Variant.PublicKey));
+        (await before.Db.TagOrders.SingleAsync()).PaymentReservationExpiresAt = now.AddSeconds(1);
+        await before.Db.SaveChangesAsync();
+        var submitted = await before.Service.SubmitPaymentProofAsync(
+            OwnerId,
+            beforeOrder.Order.OrderNumber,
+            new UploadPaymentProofRequest(null, "receipt.png", "QR Payment", null, null, 39.90m));
+        Assert.Equal(OrderStatus.PaymentProofSubmitted, submitted.Status);
+
+        await using var after = await Harness.CreateAsync(timeProvider: new FixedTimeProvider(now));
+        var afterOrder = await after.Service.CreateAsync(
+            OwnerId, Request(after.Pet.Id, after.Variant.PublicKey));
+        (await after.Db.TagOrders.SingleAsync()).PaymentReservationExpiresAt = now.AddSeconds(-1);
+        await after.Db.SaveChangesAsync();
+        var error = await Assert.ThrowsAsync<ApiException>(() => after.Service.SubmitPaymentProofAsync(
+            OwnerId,
+            afterOrder.Order.OrderNumber,
+            new UploadPaymentProofRequest(null, "receipt.png", "QR Payment", null, null, 39.90m)));
+        Assert.Equal("payment_window_expired", error.Code);
+        Assert.Empty(await after.Db.PaymentProofs.ToListAsync());
+    }
+
+    [Fact]
+    public async Task OwnerCancellation_IsAuthorizedIdempotentAndReturnsAssignedTagToUnclaimed()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var created = await harness.Service.CreateAsync(
+            OwnerId, Request(harness.Pet.Id, harness.Variant.PublicKey));
+        var order = await harness.Db.TagOrders.Include(item => item.Items).SingleAsync();
+        var item = Assert.Single(order.Items);
+        harness.Stock.Status = SmartTagStatus.Preparing;
+        harness.Stock.OwnerUserId = OwnerId;
+        harness.Stock.PetId = harness.Pet.Id;
+        harness.Stock.OrderId = order.Id;
+        harness.Stock.OrderItemId = item.Id;
+        await harness.Db.SaveChangesAsync();
+
+        var cancelled = await harness.Service.CancelAsync(OwnerId, created.Order.OrderNumber);
+        var repeated = await harness.Service.CancelAsync(OwnerId, created.Order.OrderNumber);
+
+        Assert.Equal(OrderStatus.Cancelled, cancelled.Status);
+        Assert.Equal(OrderStatus.Cancelled, repeated.Status);
+        Assert.False(cancelled.CanCancel);
+        var released = await harness.Db.SmartTags.AsNoTracking()
+            .SingleAsync(tag => tag.Id == harness.Stock.Id);
+        Assert.Equal(SmartTagStatus.Unclaimed, released.Status);
+        Assert.Null(released.OrderId);
+        Assert.Null(released.OrderItemId);
+        Assert.Null(released.ArchivedAt);
+        Assert.Single(await harness.Db.AuditLogs
+            .Where(item => item.Action == "order.cancel-by-owner")
+            .ToListAsync());
+    }
+
+    [Fact]
+    public async Task OwnerCancellation_ReleasesReservedCatalogAvailability()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var created = await harness.Service.CreateAsync(
+            OwnerId, Request(harness.Pet.Id, harness.Variant.PublicKey));
+        var availability = new TagOrderInventoryAvailabilityService(harness.Db);
+        Assert.Equal(0, await availability.GetAvailableUnitsAsync(harness.Variant.Id));
+
+        await harness.Service.CancelAsync(OwnerId, created.Order.OrderNumber);
+
+        Assert.Equal(1, await availability.GetAvailableUnitsAsync(harness.Variant.Id));
+    }
+
+    [Fact]
+    public async Task OwnerCancellation_CrossOwnerReturns404_AndProofUnderReviewIsRejected()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var created = await harness.Service.CreateAsync(
+            OwnerId, Request(harness.Pet.Id, harness.Variant.PublicKey));
+
+        var notFound = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Service.CancelAsync(OtherOwnerId, created.Order.OrderNumber));
+        Assert.Equal(StatusCodes.Status404NotFound, notFound.StatusCode);
+
+        await harness.Service.SubmitPaymentProofAsync(
+            OwnerId,
+            created.Order.OrderNumber,
+            new UploadPaymentProofRequest(null, "receipt.png", "QR Payment", null, null, 39.90m));
+        var invalid = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Service.CancelAsync(OwnerId, created.Order.OrderNumber));
+        Assert.Equal("invalid_order_state", invalid.Code);
+    }
+
+    [Theory]
+    [InlineData(OrderStatus.PaymentConfirmed, PaymentStatus.Confirmed)]
+    [InlineData(OrderStatus.Shipped, PaymentStatus.Confirmed)]
+    [InlineData(OrderStatus.Delivered, PaymentStatus.Confirmed)]
+    public async Task OwnerCancellation_IsHiddenAndRejectedAfterPaymentOrFulfilment(
+        OrderStatus status,
+        PaymentStatus paymentStatus)
+    {
+        await using var harness = await Harness.CreateAsync();
+        var created = await harness.Service.CreateAsync(
+            OwnerId, Request(harness.Pet.Id, harness.Variant.PublicKey));
+        var order = await harness.Db.TagOrders.SingleAsync();
+        order.Status = status;
+        order.PaymentStatus = paymentStatus;
+        order.PaymentConfirmedAt = DateTimeOffset.UtcNow;
+        if (status is OrderStatus.Shipped or OrderStatus.Delivered) order.ShippedAt = DateTimeOffset.UtcNow;
+        await harness.Db.SaveChangesAsync();
+
+        var response = await harness.Service.GetAsync(OwnerId, created.Order.OrderNumber);
+        Assert.False(response.CanCancel);
+        var invalid = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Service.CancelAsync(OwnerId, created.Order.OrderNumber));
+        Assert.Equal("invalid_order_state", invalid.Code);
+    }
+
+    [Fact]
     public async Task SubmitPaymentProof_RequiresAndSnapshotsCustomerSubmittedAmount()
     {
         await using var harness = await Harness.CreateAsync();
@@ -294,6 +447,7 @@ public sealed class TagOrderCatalogIntegrationTests
     {
         await using var harness = await Harness.CreateAsync();
         var first = await harness.Service.CreateAsync(OwnerId, Request(harness.Pet.Id, harness.Variant.PublicKey));
+        await AddStockAsync(harness.Db, harness.Variant, "MPL-STCK-0002");
         var second = await harness.Service.CreateAsync(OwnerId, Request(harness.Pet.Id, harness.Variant.PublicKey));
         var orders = await harness.Db.TagOrders.Where(item => item.Id == first.Order.Id || item.Id == second.Order.Id).ToListAsync();
         foreach (var order in orders)
@@ -502,6 +656,7 @@ public sealed class TagOrderCatalogIntegrationTests
         await using var harness = await Harness.CreateAsync();
 
         var first = await harness.Service.CreateAsync(OwnerId, Request(harness.Pet.Id, harness.Variant.PublicKey, "attempt-1"));
+        await AddStockAsync(harness.Db, harness.Variant, "MPL-STCK-0002");
         var second = await harness.Service.CreateAsync(OwnerId, Request(harness.Pet.Id, harness.Variant.PublicKey, "attempt-2"));
 
         Assert.NotEqual(first.Order.Id, second.Order.Id);
@@ -514,6 +669,7 @@ public sealed class TagOrderCatalogIntegrationTests
         await using var harness = await Harness.CreateAsync();
 
         await harness.Service.CreateAsync(OwnerId, Request(harness.Pet.Id, harness.Variant.PublicKey));
+        await AddStockAsync(harness.Db, harness.Variant, "MPL-STCK-0002");
         await harness.Service.CreateAsync(OwnerId, Request(harness.Pet.Id, harness.Variant.PublicKey));
 
         Assert.Equal(2, await harness.Db.TagOrders.CountAsync(order => order.OwnerUserId == OwnerId));
@@ -661,6 +817,23 @@ public sealed class TagOrderCatalogIntegrationTests
         await db.SaveChangesAsync();
     }
 
+    private static async Task AddStockAsync(
+        MyPetLinkDbContext db,
+        TagProductVariant variant,
+        string tagCode)
+    {
+        db.SmartTags.Add(new SmartTag
+        {
+            TagCode = tagCode,
+            ProductVariant = variant,
+            HasNfc = variant.SupportsNfc,
+            Variant = variant.TagVariant,
+            Status = SmartTagStatus.Unclaimed,
+            FulfilmentStatus = TagFulfilmentStatus.Generated,
+        });
+        await db.SaveChangesAsync();
+    }
+
     private static async Task SeedOverrideAsync(
         MyPetLinkDbContext db,
         string stateCode,
@@ -696,13 +869,18 @@ public sealed class TagOrderCatalogIntegrationTests
             Variant = variant;
             Pet = pet;
             Stock = stock;
+            var audit = new AuditLogService(db, new HttpContextAccessor());
+            var clock = timeProvider ?? TimeProvider.System;
             Service = new OrderService(
                 db,
                 Options.Create(new FeatureOptions { SmartTagOrderingEnabled = orderingEnabled }),
                 new TagPricingService(db),
-                new DeliveryService(db, new TagPricingService(db), new AuditLogService(db, new HttpContextAccessor())),
+                new DeliveryService(db, new TagPricingService(db), audit),
                 businessReferences ?? new BusinessReferenceGenerator(new CryptographicBusinessReferenceSuffixSource()),
-                timeProvider ?? TimeProvider.System);
+                clock,
+                inventoryAvailability: new TagOrderInventoryAvailabilityService(db),
+                checkoutSettings: new OrderCheckoutSettingsService(db, audit, clock),
+                auditLogService: audit);
         }
 
         public MyPetLinkDbContext Db { get; }
@@ -715,7 +893,8 @@ public sealed class TagOrderCatalogIntegrationTests
         public static async Task<Harness> CreateAsync(
             bool orderingEnabled = true,
             IBusinessReferenceGenerator? businessReferences = null,
-            TimeProvider? timeProvider = null)
+            TimeProvider? timeProvider = null,
+            int reservationMinutes = OrderCheckoutSetting.DefaultPaymentReservationMinutes)
         {
             var db = new MyPetLinkDbContext(
                 new DbContextOptionsBuilder<MyPetLinkDbContext>()
@@ -786,7 +965,13 @@ public sealed class TagOrderCatalogIntegrationTests
                 Currency = "MYR",
                 IsActive = true
             };
-            db.AddRange(owner, otherOwner, admin, pet, product, variant, promotion, stock, deliveryRate);
+            db.AddRange(owner, otherOwner, admin, pet, product, variant, promotion, stock, deliveryRate,
+                new OrderCheckoutSetting
+                {
+                    Id = OrderCheckoutSettingsService.SettingsId,
+                    PaymentReservationMinutes = reservationMinutes,
+                    RowVersion = [1],
+                });
             await db.SaveChangesAsync();
             return new Harness(
                 db,

@@ -40,6 +40,11 @@ builder.Services.AddOptions<EmailOptions>()
     .ValidateOnStart();
 builder.Services.AddSingleton<IValidateOptions<EmailOptions>, EmailOptionsValidator>();
 builder.Services.Configure<AdminSeedOptions>(builder.Configuration.GetSection(AdminSeedOptions.SectionName));
+builder.Services.AddOptions<OrderReservationOptions>()
+    .Bind(builder.Configuration.GetSection(OrderReservationOptions.SectionName))
+    .ValidateOnStart();
+builder.Services.AddSingleton<IValidateOptions<OrderReservationOptions>,
+    OrderReservationOptionsValidator>();
 builder.Services.Configure<DevAuthOptions>(builder.Configuration.GetSection(DevAuthOptions.SectionName));
 builder.Services.Configure<DatabaseResilienceOptions>(
     builder.Configuration.GetSection(DatabaseResilienceOptions.SectionName));
@@ -346,6 +351,8 @@ builder.Services.AddScoped<IAdminEmailTemplateService, AdminEmailTemplateService
 builder.Services.AddScoped<IAdminOperationalStatusService, AdminOperationalStatusService>();
 builder.Services.AddScoped<IEmailOutboxService, EmailOutboxService>();
 builder.Services.AddScoped<IEmailAttachmentResolver, EmailAttachmentResolver>();
+builder.Services.AddScoped<IOrderCheckoutSettingsService, OrderCheckoutSettingsService>();
+builder.Services.AddScoped<IPaymentReservationExpiryService, PaymentReservationExpiryService>();
 builder.Services.AddScoped<IEmailOutboxDispatcher, EmailOutboxDispatcher>();
 builder.Services.AddScoped<IOwnerPortalEntryService, OwnerPortalEntryService>();
 builder.Services.AddScoped<IEmailPreviewService, EmailPreviewService>();
@@ -370,6 +377,7 @@ builder.Services.AddScoped<IEmailSender>(services =>
 });
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddHostedService<EmailDispatchWorker>();
+builder.Services.AddHostedService<PaymentReservationExpiryWorker>();
 builder.Services.AddScoped<IFileStorageProvider, LocalFileStorageProvider>();
 builder.Services.AddSingleton<IObjectStorageService, CloudflareR2StorageService>();
 

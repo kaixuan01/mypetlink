@@ -163,6 +163,7 @@ export const adminRoutes = {
   deliveryRates: "/admin/delivery-rates",
   shippingFulfilment: "/admin/shipping-fulfilment",
   emailTemplates: "/admin/email-templates",
+  orderCheckout: "/admin/order-checkout",
   operationalStatus: "/admin/operational-status",
   ownerPlans: "/admin/plans?view=owners",
   ownerPlansForPlan: (planCode: string) =>

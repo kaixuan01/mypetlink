@@ -109,6 +109,14 @@ public sealed class TagOrder : AuditableEntity
     public DateTimeOffset? ShippedAt { get; set; }
     public DateTimeOffset? DeliveredAt { get; set; }
     public DateTimeOffset? CancelledAt { get; set; }
+    // Immutable per-order snapshot of the unpaid-reservation deadline, stamped
+    // by the server at creation and restarted when a proof is rejected.
+    // Snapshotting rather than deriving from the current setting means changing
+    // the policy later can never shorten or extend an existing reservation.
+    public DateTimeOffset? PaymentReservationExpiresAt { get; set; }
+    // Set only when the automatic expiry cancelled this order, so the customer
+    // timeline can distinguish it from an admin or owner cancellation.
+    public DateTimeOffset? PaymentReservationExpiredAt { get; set; }
     // Client-supplied idempotency key for one order-submission attempt, unique
     // per owner. A repeat with the same key returns the original order; the
     // fingerprint detects the same key being reused with a different payload.
@@ -153,4 +161,28 @@ public sealed class PaymentProof : AuditableEntity
     public TagOrder Order { get; set; } = null!;
     public MediaFile MediaFile { get; set; } = null!;
     public AdminUser? ReviewedByAdminUser { get; set; }
+}
+
+/// <summary>
+/// Single-row checkout policy owned by business Admin (governance category D:
+/// a runtime business value expected to change without a deployment). It is
+/// deliberately separate from Shipping/Fulfilment Settings, which own parcel
+/// and courier operations rather than payment-window policy.
+/// </summary>
+public sealed class OrderCheckoutSetting : AuditableEntity
+{
+    public const int MinPaymentReservationMinutes = 30;
+    public const int MaxPaymentReservationMinutes = 72 * 60;
+    public const int DefaultPaymentReservationMinutes = 120;
+
+    /// <summary>
+    /// How long an unpaid order may hold its inventory reservation before the
+    /// automatic expiry releases it.
+    /// </summary>
+    public int PaymentReservationMinutes { get; set; } = DefaultPaymentReservationMinutes;
+
+    public Guid? UpdatedByAdminUserId { get; set; }
+    public byte[] RowVersion { get; set; } = [];
+
+    public AdminUser? UpdatedByAdminUser { get; set; }
 }
