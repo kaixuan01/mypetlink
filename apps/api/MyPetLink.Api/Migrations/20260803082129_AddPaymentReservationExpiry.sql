@@ -60,14 +60,15 @@ BEGIN
 END;
 GO
 
+SET QUOTED_IDENTIFIER ON;
+GO
+
 IF NOT EXISTS (
     SELECT * FROM [__EFMigrationsHistory]
     WHERE [MigrationId] = N'20260803082129_AddPaymentReservationExpiry'
 )
 BEGIN
-    CREATE INDEX [IX_TagOrders_Status_PaymentReservationExpiresAt]
-        ON [TagOrders] ([Status], [PaymentReservationExpiresAt])
-        WHERE [PaymentReservationExpiresAt] IS NOT NULL;
+    EXEC(N'CREATE INDEX [IX_TagOrders_Status_PaymentReservationExpiresAt] ON [TagOrders] ([Status], [PaymentReservationExpiresAt]) WHERE [PaymentReservationExpiresAt] IS NOT NULL');
 END;
 GO
 
