@@ -1,5 +1,3 @@
-import type { TagOrder } from "@/types";
-
 function normalized(value: string | null | undefined) {
   return value?.trim().replace(/\s+/g, " ") ?? "";
 }
@@ -15,11 +13,6 @@ export function formatOrderProduct(
     return product;
   }
   return `${product} · ${option}`;
-}
-
-export function formatOrderOption(order: Pick<TagOrder, "variantName" | "variant">) {
-  const option = normalized(order.variantName) || normalized(order.variant);
-  return option.replace(/\s+Tag$/i, "") || "Standard";
 }
 
 export function formatStateAndZone(

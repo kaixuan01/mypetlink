@@ -231,6 +231,69 @@ export function getSharedTagActivationState(
   return activations.every((entry) => entry.state === first) ? first : undefined;
 }
 
+/**
+ * Activation wording for the physical units on one order line.
+ *
+ * A line can cover several tags, so one line reads as a count rather than a
+ * list of identical answers, and a line whose tags disagree reads as a short
+ * breakdown instead of a single state that would be wrong for some of them.
+ * Tag codes are deliberately not included: this is the priced item summary,
+ * and the code is only disclosed where existing owner policy already allows.
+ */
+export function summariseTagActivation(
+  states: TagActivationState[]
+): string[] {
+  if (states.length === 0) {
+    return [];
+  }
+
+  if (states.length === 1) {
+    return [states[0]];
+  }
+
+  const counts = new Map<TagActivationState, number>();
+  for (const state of states) {
+    counts.set(state, (counts.get(state) ?? 0) + 1);
+  }
+
+  if (counts.size === 1) {
+    const [state] = counts.keys();
+    return [`${states.length} tags ${state.charAt(0).toLowerCase()}${state.slice(1)}`];
+  }
+
+  return [...counts.entries()].map(([state, count]) => `${count} ${state}`);
+}
+
+/**
+ * Activation wording for one order line, so a tag's state stays attached to the
+ * item it belongs to rather than being averaged across the whole order.
+ *
+ * An order withholds its assigned tags until it ships. Before then a
+ * single-line order can still report the tag reserved for it, which the owner
+ * already sees on the Smart Tags page; a multi-line order cannot attribute a
+ * reserved tag to a particular line, so it says so plainly.
+ */
+export function getOrderItemActivationLines(
+  order: Pick<TagOrder, "items">,
+  itemIndex: number,
+  linkedTag?: PetTag
+): string[] {
+  const items = order.items ?? [];
+  const assigned = items[itemIndex]?.assignedTags ?? [];
+
+  if (assigned.length > 0) {
+    return summariseTagActivation(
+      assigned.map((tag) => getTagActivationState({ status: tag.status }))
+    );
+  }
+
+  if (items.length <= 1 && linkedTag) {
+    return [getTagActivationState(linkedTag)];
+  }
+
+  return ["Not assigned yet"];
+}
+
 export function getTagDisplayStatus(
   tag: PetTag,
   order?: TagOrder,

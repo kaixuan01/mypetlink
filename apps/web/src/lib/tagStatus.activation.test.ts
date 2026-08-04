@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   findOrderLinkedTag,
+  getOrderItemActivationLines,
   getOrderTagActivations,
   getSharedTagActivationState,
   getTagActivationState,
   getTagDisplayStatus,
+  summariseTagActivation,
 } from "./tagStatus";
 import type { OrderStatus, PetTag, TagOrder, TagStatus } from "@/types";
 
@@ -279,5 +281,93 @@ describe("finding the tag reserved for an order", () => {
   it("does not borrow another order's tag", () => {
     const other = tag({ id: "tag-9", orderId: "order-2" });
     expect(findOrderLinkedTag({ id: "order-1", tagId: undefined }, [other])).toBeUndefined();
+  });
+});
+
+describe("activation wording for one order line", () => {
+  it("states a single tag plainly", () => {
+    expect(summariseTagActivation(["Awaiting activation"])).toEqual([
+      "Awaiting activation",
+    ]);
+    expect(summariseTagActivation(["Active"])).toEqual(["Active"]);
+  });
+
+  it("counts several tags that agree instead of repeating the same answer", () => {
+    expect(
+      summariseTagActivation(["Awaiting activation", "Awaiting activation"])
+    ).toEqual(["2 tags awaiting activation"]);
+    expect(summariseTagActivation(["Active", "Active", "Active"])).toEqual([
+      "3 tags active",
+    ]);
+  });
+
+  it("breaks the line down when the tags disagree", () => {
+    expect(
+      summariseTagActivation(["Active", "Awaiting activation"])
+    ).toEqual(["1 Active", "1 Awaiting activation"]);
+    expect(
+      summariseTagActivation(["Awaiting activation", "Active", "Awaiting activation"])
+    ).toEqual(["2 Awaiting activation", "1 Active"]);
+  });
+
+  it("says nothing when a line has no tags to describe", () => {
+    expect(summariseTagActivation([])).toEqual([]);
+  });
+});
+
+describe("activation attached to the right order line", () => {
+  function multi(items: string[][]) {
+    return {
+      items: items.map((statuses, index) => ({
+        id: `item-${index}`,
+        petId: "pet-1",
+        petName: "Mochi",
+        sku: "SKU",
+        productName: "MyPetLink QR Pet Tag",
+        variantName: "Standard",
+        quantity: statuses.length,
+        unitBasePrice: 19.9,
+        subtotal: 19.9,
+        discountAmount: 0,
+        finalUnitPrice: 19.9,
+        finalAmount: 19.9,
+        currency: "MYR",
+        supportsQr: true,
+        supportsNfc: false,
+        assignedTags: statuses.map((status, tagIndex) => ({
+          id: `t${index}${tagIndex}`,
+          tagCode: `MPL-${index}${tagIndex}`,
+          petId: "pet-1",
+          petName: "Mochi",
+          status,
+        })),
+      })),
+    } as unknown as TagOrder;
+  }
+
+  it("reads each line's own tags, never the whole order's", () => {
+    const order = multi([["Active"], ["Delivered", "Delivered"]]);
+
+    expect(getOrderItemActivationLines(order, 0)).toEqual(["Active"]);
+    expect(getOrderItemActivationLines(order, 1)).toEqual([
+      "2 tags awaiting activation",
+    ]);
+  });
+
+  it("falls back to the reserved tag only for a single-line order", () => {
+    const single = { items: [] } as unknown as TagOrder;
+    const reserved = tag({ status: "Preparing" });
+
+    expect(getOrderItemActivationLines(single, 0, reserved)).toEqual([
+      "Awaiting activation",
+    ]);
+  });
+
+  it("does not attribute a reserved tag to one line of a multi-line order", () => {
+    const order = multi([[], []]);
+
+    expect(getOrderItemActivationLines(order, 0, tag({ status: "Preparing" }))).toEqual([
+      "Not assigned yet",
+    ]);
   });
 });

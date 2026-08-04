@@ -74,6 +74,48 @@ function sectionFor(title: string) {
     .closest("section") as HTMLElement;
 }
 
+/** Activation wording, per order line, in line order. */
+function activationBlocks() {
+  return screen.queryAllByTestId("line-tag-activation").map((node) =>
+    Array.from(node.querySelectorAll("p"))
+      .slice(1)
+      .map((entry) => entry.textContent ?? "")
+  );
+}
+
+function multiItemOrder(
+  items: { petName: string; product: string; qty: number; tags: string[] }[]
+) {
+  return order({
+    status: "Shipped",
+    tagId: undefined,
+    items: items.map((item, index) => ({
+      id: `item-${index}`,
+      petId: `pet-${index}`,
+      petName: item.petName,
+      sku: `MPL-SKU-${index}`,
+      productName: item.product,
+      variantName: "Standard",
+      quantity: item.qty,
+      unitBasePrice: 19.9,
+      subtotal: 19.9 * item.qty,
+      discountAmount: 0,
+      finalUnitPrice: 19.9,
+      finalAmount: 19.9 * item.qty,
+      currency: "MYR",
+      supportsQr: true,
+      supportsNfc: false,
+      assignedTags: item.tags.map((status, tagIndex) => ({
+        id: `t-${index}-${tagIndex}`,
+        tagCode: `MPL-TAG-${index}${tagIndex}`,
+        petId: `pet-${index}`,
+        petName: item.petName,
+        status,
+      })),
+    })),
+  });
+}
+
 beforeEach(() => {
   tagMocks.getOrders.mockReset();
   tagMocks.getAllTags.mockReset().mockResolvedValue({ data: [] });
@@ -81,23 +123,53 @@ beforeEach(() => {
 
 afterEach(cleanup);
 
-describe("order fulfilment and tag activation are separate", () => {
+describe("expanded details keep one section per customer question", () => {
+  it("has only order items, payment, and delivery & shipment", async () => {
+    await openDetails(order({ status: "Shipped" }), [tag({ status: "Preparing" })]);
+
+    const headings = screen
+      .getAllByRole("heading", { level: 3 })
+      .map((node) => node.textContent);
+    expect(headings).toEqual(["Order items", "Payment", "Delivery & shipment"]);
+  });
+
+  it("no longer renders the standalone Order section or its repeated fields", async () => {
+    await openDetails(order({ status: "Shipped" }), [tag({ status: "Preparing" })]);
+
+    expect(screen.queryByText("Order", { selector: "h3" })).toBeNull();
+    expect(screen.queryByText("Pet")).toBeNull();
+    expect(screen.queryByText("Option")).toBeNull();
+    // Fulfilment status lives on the badge and Next update, not in here.
+    expect(screen.queryByText("Fulfilment status")).toBeNull();
+  });
+
+  it("no longer renders a standalone Tag section", async () => {
+    await openDetails(order({ status: "Shipped" }), [tag({ status: "Preparing" })]);
+
+    expect(screen.queryByText("Tag", { selector: "h3" })).toBeNull();
+    expect(screen.queryByText("Shipment", { selector: "h3" })).toBeNull();
+    expect(screen.queryByText("Delivery", { selector: "h3" })).toBeNull();
+  });
+
+  it("names the pet and option once, inside the order line", async () => {
+    await openDetails(order({ status: "Shipped" }), [tag({ status: "Preparing" })]);
+
+    expect(screen.getAllByText("For Mochi")).toHaveLength(1);
+    expect(screen.getAllByText("Standard")).toHaveLength(1);
+  });
+});
+
+describe("tag activation belongs to its order line", () => {
   it("shows a shipped order's unactivated tag as awaiting activation", async () => {
     await openDetails(order({ status: "Shipped" }), [tag({ status: "Preparing" })]);
 
-    expect(within(sectionFor("Tag")).getByText("Awaiting activation")).toBeTruthy();
-    expect(within(sectionFor("Order")).getByText("Shipped")).toBeTruthy();
-    // The reported defect must not come back in any form.
-    expect(screen.queryByText("Tag status")).toBeNull();
-    expect(screen.queryByText("Tag Status")).toBeNull();
-    expect(within(sectionFor("Tag")).queryByText("Preparing")).toBeNull();
+    expect(activationBlocks()).toEqual([["Awaiting activation"]]);
   });
 
   it("shows a delivered order's unactivated tag as awaiting activation", async () => {
     await openDetails(order({ status: "Delivered" }), [tag({ status: "Delivered" })]);
 
-    expect(within(sectionFor("Tag")).getByText("Awaiting activation")).toBeTruthy();
-    expect(within(sectionFor("Order")).getByText("Delivered")).toBeTruthy();
+    expect(activationBlocks()).toEqual([["Awaiting activation"]]);
   });
 
   it("shows an activated tag as active", async () => {
@@ -105,38 +177,21 @@ describe("order fulfilment and tag activation are separate", () => {
       tag({ status: "Active", activatedAt: "2026-07-26" }),
     ]);
 
-    expect(within(sectionFor("Tag")).getByText("Active")).toBeTruthy();
+    expect(activationBlocks()).toEqual([["Active"]]);
   });
 
-  it("does not turn a preparing fulfilment step into the tag activation label", async () => {
-    await openDetails(order({ status: "Preparing" }), [tag({ status: "Preparing" })]);
-
-    const tagSection = sectionFor("Tag");
-    expect(within(tagSection).getByText("Awaiting activation")).toBeTruthy();
-    expect(within(tagSection).queryByText("Preparing")).toBeNull();
-    expect(within(tagSection).queryByText("Preparing Tag")).toBeNull();
-    expect(within(sectionFor("Order")).getByText("Preparing Tag")).toBeTruthy();
-  });
-
-  it("does not turn a ready-to-ship fulfilment step into the tag activation label", async () => {
-    await openDetails(order({ status: "Ready to Ship" }), [tag({ status: "Preparing" })]);
-
-    const tagSection = sectionFor("Tag");
-    expect(within(tagSection).getByText("Awaiting activation")).toBeTruthy();
-    expect(within(tagSection).queryByText("Ready to ship")).toBeNull();
+  it("does not turn a fulfilment step into the activation wording", async () => {
+    for (const status of ["Preparing", "Ready to Ship"] as TagOrder["status"][]) {
+      await openDetails(order({ status }), [tag({ status: "Preparing" })]);
+      expect(activationBlocks()).toEqual([["Awaiting activation"]]);
+      cleanup();
+    }
   });
 
   it("keeps lost, disabled, replaced and archived tags on their own state", async () => {
-    const cases: [PetTag["status"], string][] = [
-      ["Lost", "Lost"],
-      ["Disabled", "Disabled"],
-      ["Replaced", "Replaced"],
-      ["Archived", "Archived"],
-    ];
-
-    for (const [status, expected] of cases) {
+    for (const status of ["Lost", "Disabled", "Replaced", "Archived"] as PetTag["status"][]) {
       await openDetails(order({ status: "Delivered" }), [tag({ status })]);
-      expect(within(sectionFor("Tag")).getByText(expected)).toBeTruthy();
+      expect(activationBlocks()).toEqual([[status]]);
       cleanup();
     }
   });
@@ -144,48 +199,60 @@ describe("order fulfilment and tag activation are separate", () => {
   it("reports no assigned tag rather than borrowing the order's progress", async () => {
     await openDetails(order({ status: "Payment Confirmed", tagId: undefined }), []);
 
-    expect(within(sectionFor("Tag")).getByText("Not assigned yet")).toBeTruthy();
-    expect(within(sectionFor("Order")).getByText("Payment Confirmed")).toBeTruthy();
+    expect(activationBlocks()).toEqual([["Not assigned yet"]]);
   });
 
-  it("lists each tag separately when a multi-item order's tags differ", async () => {
-    const multi = order({
-      status: "Shipped",
-      tagId: undefined,
-      items: [
-        {
-          id: "item-1",
-          petId: "pet-1",
-          petName: "Mochi",
-          sku: "MPL-QR-STD",
-          productName: "MyPetLink QR Pet Tag",
-          variantName: "Standard",
-          quantity: 2,
-          unitBasePrice: 19.9,
-          subtotal: 39.8,
-          discountAmount: 0,
-          finalUnitPrice: 19.9,
-          finalAmount: 39.8,
-          currency: "MYR",
-          supportsQr: true,
-          supportsNfc: false,
-          assignedTags: [
-            { id: "t1", tagCode: "MPL-AAAA-1111", petId: "pet-1", petName: "Mochi", status: "Active" },
-            { id: "t2", tagCode: "MPL-BBBB-2222", petId: "pet-2", petName: "Bibi", status: "Delivered" },
-          ],
-        },
-      ],
-    });
+  it("counts the tags on a line when they all agree", async () => {
+    await openDetails(
+      multiItemOrder([
+        { petName: "Mochi", product: "MyPetLink QR Pet Tag", qty: 2, tags: ["Delivered", "Preparing"] },
+      ]),
+      []
+    );
 
-    await openDetails(multi, []);
+    expect(activationBlocks()).toEqual([["2 tags awaiting activation"]]);
+  });
 
-    const tagSection = sectionFor("Tag");
-    expect(within(tagSection).getByText(/MPL-AAAA-1111/)).toBeTruthy();
-    expect(within(tagSection).getByText(/MPL-BBBB-2222/)).toBeTruthy();
-    expect(within(tagSection).getByText(/^Active \(Mochi\)$/)).toBeTruthy();
-    expect(
-      within(tagSection).getByText(/^Awaiting activation \(Bibi\)$/)
-    ).toBeTruthy();
+  it("breaks a line down when its tags disagree", async () => {
+    await openDetails(
+      multiItemOrder([
+        { petName: "Mochi", product: "MyPetLink QR Pet Tag", qty: 2, tags: ["Active", "Delivered"] },
+      ]),
+      []
+    );
+
+    expect(activationBlocks()).toEqual([["1 Active", "1 Awaiting activation"]]);
+  });
+
+  it("keeps each item's activation with that item on a multi-item order", async () => {
+    await openDetails(
+      multiItemOrder([
+        { petName: "Mochi", product: "MyPetLink QR Pet Tag", qty: 1, tags: ["Active"] },
+        { petName: "Bibi", product: "MyPetLink QR + NFC Smart Tag", qty: 2, tags: ["Delivered", "Delivered"] },
+      ]),
+      []
+    );
+
+    // One block per line, in line order, never one answer for the whole order.
+    expect(activationBlocks()).toEqual([
+      ["Active"],
+      ["2 tags awaiting activation"],
+    ]);
+    expect(screen.getByText("For Mochi")).toBeTruthy();
+    expect(screen.getByText("For Bibi")).toBeTruthy();
+  });
+
+  it("never prints a tag code beside the priced item", async () => {
+    await openDetails(
+      multiItemOrder([
+        { petName: "Mochi", product: "MyPetLink QR Pet Tag", qty: 1, tags: ["Active"] },
+      ]),
+      []
+    );
+
+    for (const block of screen.getAllByTestId("line-tag-activation")) {
+      expect(block.textContent).not.toContain("MPL-TAG-");
+    }
   });
 });
 
@@ -258,5 +325,112 @@ describe("optional transaction ID wording", () => {
     expect(within(payment).getByText("Not provided")).toBeTruthy();
     // The proof itself is genuinely still owed, so it keeps its own wording.
     expect(within(payment).getByText("Not submitted yet")).toBeTruthy();
+  });
+});
+
+describe("expanded details stay readable and safe", () => {
+  const longName = "MyPetLink Extra Reflective Waterproof Engraved Smart Pet Tag Deluxe";
+  const longPet = "Sir Reginald Fluffington The Third Of Ampang Jaya";
+  const longFile = "duitnow-transfer-receipt-2026-07-24-1042-final-copy-for-mypetlink.png";
+  const longReference = "DUITNOW-8827461003-MY-2026-07-24-000915-REF-0099887766554433";
+  const longAddress =
+    "6934, Taman Gemencheh Baru, Jalan Seri Gemencheh Utama 12A, Blok C-12-08, Residensi Pangsapuri Damai Impian";
+
+  async function openLongOrder() {
+    const value = order({
+      status: "Delivered",
+      paymentReference: longReference,
+      paymentProofName: longFile,
+      courierProvider: "J&T Express",
+      trackingNumber: "JT8827461003MY",
+      items: [
+        {
+          id: "item-1",
+          petId: "pet-1",
+          petName: longPet,
+          sku: "MPL-QR-LW",
+          productName: longName,
+          variantName: "Lightweight",
+          quantity: 1,
+          unitBasePrice: 19.9,
+          subtotal: 19.9,
+          discountAmount: 0,
+          finalUnitPrice: 19.9,
+          finalAmount: 19.9,
+          currency: "MYR",
+          supportsQr: true,
+          supportsNfc: false,
+          assignedTags: [
+            { id: "t1", tagCode: "MPL-AAAA-1111", petId: "pet-1", petName: longPet, status: "Delivered" },
+          ],
+        },
+      ],
+    });
+    value.delivery.addressLine1 = longAddress;
+    await openDetails(value, []);
+    return value;
+  }
+
+  it("wraps long filenames, references, names and addresses instead of clipping", async () => {
+    await openLongOrder();
+
+    const wrapped = [
+      screen.getByText(longName),
+      screen.getByText(`For ${longPet}`),
+      screen.getByText(longReference),
+      screen.getByText(longFile),
+      Array.from(document.querySelectorAll("dd")).find((node) =>
+        (node.textContent ?? "").includes(longAddress)
+      ) as HTMLElement,
+    ];
+
+    expect(wrapped.every(Boolean)).toBe(true);
+
+    for (const node of wrapped) {
+      expect(node.className).not.toContain("truncate");
+      expect(node.className).toMatch(/break-words|overflow-wrap/);
+    }
+  });
+
+  it("shows the delivery address exactly once", async () => {
+    await openLongOrder();
+
+    const matches = Array.from(document.querySelectorAll("dd, p")).filter((node) =>
+      (node.textContent ?? "").includes(longAddress)
+    );
+    expect(matches).toHaveLength(1);
+  });
+
+  it("keeps every expanded value inside the viewport at 320px", async () => {
+    await openLongOrder();
+
+    // jsdom has no layout, so the guarantee is structural: nothing in the panel
+    // opts out of wrapping or forces a minimum width.
+    const panel = screen
+      .getByText("Order items", { selector: "h3" })
+      .closest("div") as HTMLElement;
+    for (const node of Array.from(panel.querySelectorAll("*"))) {
+      expect(node.className).not.toMatch(/\bw-\[\d{3,}px\]|\bmin-w-\[\d{3,}px\]|whitespace-nowrap/);
+    }
+  });
+
+  it("exposes no owner-inappropriate internal fields", async () => {
+    await openLongOrder();
+
+    const body = document.body.textContent ?? "";
+    for (const internal of [
+      "RowVersion",
+      "OrderItemId",
+      "ProductVariantId",
+      "Snapshot",
+      "Courier cost",
+      "ActualCourierCost",
+      "Shipping notes",
+      "storageKey",
+      "blob",
+      "Unclaimed",
+    ]) {
+      expect(body).not.toContain(internal);
+    }
   });
 });

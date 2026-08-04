@@ -151,10 +151,10 @@ describe("Orders list expanded details", () => {
     screen.getByRole("button", { name: "View Order" }).click();
 
     await waitFor(() =>
-      expect(screen.getByText("Delivery", { selector: "h3" })).toBeTruthy()
+      expect(screen.getByText("Delivery & shipment", { selector: "h3" })).toBeTruthy()
     );
 
-    const matches = Array.from(container.querySelectorAll("p")).filter((node) =>
+    const matches = Array.from(container.querySelectorAll("dd, p")).filter((node) =>
       (node.textContent ?? "").includes(streetLine)
     );
     expect(matches).toHaveLength(1);
@@ -242,17 +242,25 @@ describe("Orders list expanded details", () => {
     screen.getByRole("button", { name: "View Order" }).click();
 
     await waitFor(() =>
-      expect(screen.getByText("Delivery", { selector: "h3" })).toBeTruthy()
+      expect(screen.getByText("Delivery & shipment", { selector: "h3" })).toBeTruthy()
     );
-    for (const section of ["Order", "Payment", "Delivery", "Shipment"]) {
+    for (const section of ["Order items", "Payment", "Delivery & shipment"]) {
       expect(screen.getByText(section, { selector: "h3" })).toBeTruthy();
     }
 
-    const shipmentHeading = screen.getByText("Shipment", { selector: "h3" });
-    const shipmentSection = shipmentHeading.closest("section");
-    expect(shipmentSection).not.toBeNull();
-    expect(within(shipmentSection as HTMLElement).getByText("J&T Express")).toBeTruthy();
-    expect(within(shipmentSection as HTMLElement).getByText("2026-07-24")).toBeTruthy();
+    // Delivery and shipment are one journey, so they share one section.
+    const journey = screen
+      .getByText("Delivery & shipment", { selector: "h3" })
+      .closest("section") as HTMLElement;
+    expect(within(journey).getByText("Aina")).toBeTruthy();
+    expect(within(journey).getByText(new RegExp(streetLine))).toBeTruthy();
+    expect(within(journey).getByText("J&T Express")).toBeTruthy();
+    expect(within(journey).getByText("2026-07-24")).toBeTruthy();
+    expect(within(journey).getByText("JT123456789MY")).toBeTruthy();
+    // Copying already lives on the tracking card above the details.
+    expect(
+      within(journey).queryByRole("button", { name: /copy tracking number/i })
+    ).toBeNull();
   });
 
   it("omits the shipment section for an order that has not shipped", async () => {
@@ -262,9 +270,13 @@ describe("Orders list expanded details", () => {
     screen.getByRole("button", { name: "View Order" }).click();
 
     await waitFor(() =>
-      expect(screen.getByText("Delivery", { selector: "h3" })).toBeTruthy()
+      expect(screen.getByText("Delivery & shipment", { selector: "h3" })).toBeTruthy()
     );
-    expect(screen.queryByText("Shipment", { selector: "h3" })).toBeNull();
+    const journey = screen
+      .getByText("Delivery & shipment", { selector: "h3" })
+      .closest("section") as HTMLElement;
+    expect(within(journey).queryByText("Shipment")).toBeNull();
+    expect(within(journey).queryByText("Courier")).toBeNull();
   });
 
   it("uses the existing View Order control as the only more-details affordance", async () => {

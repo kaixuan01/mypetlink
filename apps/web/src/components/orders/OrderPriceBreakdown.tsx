@@ -13,6 +13,11 @@ export type OrderPriceLine = {
   discountAmount: number;
   finalAmount: number;
   promotionName?: string;
+  /**
+   * Activation wording for this line's physical tags. Absent during checkout,
+   * where no tag exists yet, so nothing renders there.
+   */
+  activation?: string[];
 };
 
 export function priceLinesFromOrder(order: TagOrder): OrderPriceLine[] {
@@ -97,6 +102,23 @@ export function OrderPriceBreakdown({
               </p>
               {line.promotionName ? (
                 <p className="mt-1 text-xs font-bold text-pet-coral">{line.promotionName}</p>
+              ) : null}
+              {/* Kept visually secondary to the product name, in neutral tone:
+                  waiting to be activated is a normal step, not a problem. */}
+              {line.activation?.length ? (
+                <div className="mt-3" data-testid="line-tag-activation">
+                  <p className="text-[0.68rem] font-extrabold uppercase text-pet-muted">
+                    Tag activation
+                  </p>
+                  {line.activation.map((entry) => (
+                    <p
+                      className="mt-0.5 break-words text-xs font-bold text-pet-ink"
+                      key={entry}
+                    >
+                      {entry}
+                    </p>
+                  ))}
+                </div>
               ) : null}
             </div>
             <div className="text-left sm:text-right">

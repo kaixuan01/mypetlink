@@ -27,12 +27,9 @@ import {
   getPaymentStatusLabel,
   getShipmentSummaryLabel,
 } from "@/lib/orders";
-import { formatOrderOption } from "@/lib/orderDisplay";
 import {
   findOrderLinkedTag,
-  getOrderTagActivations,
-  getSharedTagActivationState,
-  type OrderTagActivation,
+  getOrderItemActivationLines,
 } from "@/lib/tagStatus";
 import { smartTagOrderingEnabled } from "@/lib/features";
 import { ownerRoutes } from "@/lib/routes";
@@ -361,11 +358,7 @@ export function OrdersList({
             </p>
 
             {openOrderId === order.id ? (
-              <OrderInlineDetail
-                order={order}
-                petName={petName}
-                tag={linkedTag}
-              />
+              <OrderInlineDetail order={order} tag={linkedTag} />
             ) : null}
           </article>
         );
@@ -374,147 +367,123 @@ export function OrdersList({
   );
 }
 
+/**
+ * Everything the compact card does not already say, in the three groups a
+ * customer actually thinks in: what they bought, what they paid, and where it
+ * is going.
+ *
+ * Pet, option and the fulfilment status are deliberately absent — the priced
+ * items carry the first two and the status badge above carries the third, so
+ * repeating them here only made the panel longer.
+ */
 function OrderInlineDetail({
   order,
-  petName,
   tag,
 }: {
   order: TagOrder;
-  petName: string;
   tag?: PetTag;
 }) {
   const shipment = getOrderShipmentView(order);
-  const tagActivations = getOrderTagActivations(order, tag);
+  // Activation belongs to the physical unit, so it is resolved per line rather
+  // than averaged into one answer for the whole order.
+  const lines = priceLinesFromOrder(order).map((line, index) => ({
+    ...line,
+    activation: getOrderItemActivationLines(order, index, tag),
+  }));
 
   return (
-    <div className="mt-4 grid gap-4 rounded-[1.25rem] border border-pet-border bg-white p-4">
-      {/* Every line of the order, priced, using the same breakdown the order
-          page and checkout show so the numbers can never disagree. */}
-      <section className="min-w-0">
-        <h3 className="text-[0.68rem] font-extrabold uppercase tracking-wide text-pet-teal">
-          Order items
-        </h3>
-        <div className="mt-2">
-          <OrderPriceBreakdown
-            compact
-            currency={order.currency}
-            deliveryFee={order.deliveryFee ?? 0}
-            deliveryMethod={order.delivery.deliveryMethod}
-            discountTotal={order.discountTotal}
-            freeDeliveryReason={order.delivery.freeDeliveryReason}
-            lines={priceLinesFromOrder(order)}
-            merchandiseSubtotal={order.merchandiseSubtotal}
-            total={order.totalAmount}
-          />
-        </div>
-      </section>
-
-      <DetailSection title="Order">
-        <CompactItem label="Pet" value={petName} />
-        <CompactItem label="Option" value={formatOrderOption(order)} />
-        <CompactItem
-          label="Fulfilment status"
-          value={getOrderStatusDisplay(order.status)}
+    <div className="mt-4 grid gap-5 rounded-[1.25rem] border border-pet-border bg-white p-4">
+      <DetailSection title="Order items">
+        {/* The same breakdown checkout and the order page use, so the numbers
+            can never disagree. It carries the only Total inside this panel. */}
+        <OrderPriceBreakdown
+          compact
+          currency={order.currency}
+          deliveryFee={order.deliveryFee ?? 0}
+          deliveryMethod={order.delivery.deliveryMethod}
+          discountTotal={order.discountTotal}
+          freeDeliveryReason={order.delivery.freeDeliveryReason}
+          lines={lines}
+          merchandiseSubtotal={order.merchandiseSubtotal}
+          total={order.totalAmount}
         />
       </DetailSection>
-
-      {/* The tag's own state, kept apart from the order's progress above so a
-          fulfilment step can never read as the tag's activation state. */}
-      <TagActivationSection activations={tagActivations} />
 
       <DetailSection title="Payment">
-        <CompactItem
-          label="Payment method"
-          value={order.paymentMethod ?? "QR Payment"}
-        />
-        <CompactItem
-          label="Payment date"
-          value={getPaymentDateLabel(order)}
-        />
-        {/* Optional: owners may pay without ever quoting a reference. A blank
-            one is not an outstanding task, so it must not read like one. */}
-        <CompactItem
-          label="Bank/eWallet transaction ID"
-          value={order.paymentReference || "Not provided"}
-        />
-        <CompactItem
-          label="Submitted file"
-          value={order.paymentProofName || getMissingProofLabel(order)}
-        />
-      </DetailSection>
-
-      {/* The complete address lives here and nowhere else, so it is never
-          shown twice in two different truncated forms. */}
-      <DetailSection title="Delivery">
-        <CompactItem label="Recipient" value={order.delivery.recipientName} />
-        <CompactItem label="Phone" value={order.delivery.phone} />
-        <CompactItem
-          label="Delivery address"
-          value={formatFullDeliveryAddress(order)}
-        />
-        {order.delivery.notes ? (
-          <CompactItem label="Delivery notes" value={order.delivery.notes} />
-        ) : null}
-      </DetailSection>
-
-      {shipment.visible ? (
-        <DetailSection title="Shipment">
-          <CompactItem
-            label="Courier"
-            value={shipment.courierName ?? "Handed to courier"}
+        <DetailPanel>
+          <DetailRow
+            label="Payment method"
+            value={order.paymentMethod ?? "QR Payment"}
           />
-          {shipment.courierService ? (
-            <CompactItem label="Service" value={shipment.courierService} />
+          <DetailRow label="Payment date" value={getPaymentDateLabel(order)} />
+          {order.submittedPaymentAmount != null ? (
+            <DetailRow
+              label="Amount paid"
+              value={`${order.currency ?? "MYR"} ${order.submittedPaymentAmount.toFixed(2)}`}
+            />
           ) : null}
-          {shipment.shippedDate ? (
-            <CompactItem label="Shipped" value={shipment.shippedDate} />
+          {/* Optional: owners may pay without ever quoting a reference. A blank
+              one is not an outstanding task, so it must not read like one. */}
+          <DetailRow
+            label="Bank/eWallet transaction ID"
+            value={order.paymentReference || "Not provided"}
+          />
+          <DetailRow
+            label="Submitted receipt"
+            value={order.paymentProofName || getMissingProofLabel(order)}
+          />
+        </DetailPanel>
+      </DetailSection>
+
+      {/* One journey, one section. The complete address appears here and
+          nowhere else, so it is never shown twice in two different forms. */}
+      <DetailSection title="Delivery &amp; shipment">
+        <DetailPanel>
+          <DetailRow label="Recipient" value={order.delivery.recipientName} />
+          <DetailRow label="Phone" value={order.delivery.phone} />
+          <DetailRow
+            label="Delivery address"
+            value={formatFullDeliveryAddress(order)}
+            wide
+          />
+          {order.delivery.notes ? (
+            <DetailRow label="Delivery notes" value={order.delivery.notes} wide />
           ) : null}
-          {shipment.deliveredDate ? (
-            <CompactItem label="Delivered" value={shipment.deliveredDate} />
+
+          {shipment.visible ? (
+            <div className="sm:col-span-2">
+              <p className="border-t border-pet-border pt-4 text-[0.68rem] font-extrabold uppercase tracking-wide text-pet-teal">
+                Shipment
+              </p>
+              <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+                <DetailRow
+                  label="Courier"
+                  value={
+                    shipment.courierService
+                      ? `${shipment.courierName ?? "Handed to courier"} · ${shipment.courierService}`
+                      : shipment.courierName ?? "Handed to courier"
+                  }
+                />
+                {/* Reference only. Copying lives on the tracking card above, so
+                    the same action is not offered twice. */}
+                {shipment.trackingNumber ? (
+                  <DetailRow
+                    label="Tracking number"
+                    value={shipment.trackingNumber}
+                  />
+                ) : null}
+                {shipment.shippedDate ? (
+                  <DetailRow label="Shipped" value={shipment.shippedDate} />
+                ) : null}
+                {shipment.deliveredDate ? (
+                  <DetailRow label="Delivered" value={shipment.deliveredDate} />
+                ) : null}
+              </dl>
+            </div>
           ) : null}
-        </DetailSection>
-      ) : null}
+        </DetailPanel>
+      </DetailSection>
     </div>
-  );
-}
-
-/**
- * The physical tags on this order and whether each one has been activated.
- *
- * A single shared answer is shown when every tag agrees. When they differ —
- * one tag already tapped, another still in the envelope — each is listed, since
- * one aggregate value would be wrong for at least one of them.
- */
-function TagActivationSection({
-  activations,
-}: {
-  activations: OrderTagActivation[];
-}) {
-  const shared = getSharedTagActivationState(activations);
-
-  if (shared) {
-    return (
-      <DetailSection title="Tag">
-        <CompactItem label="Tag activation" value={shared} />
-      </DetailSection>
-    );
-  }
-
-  return (
-    <section className="min-w-0">
-      <h3 className="text-[0.68rem] font-extrabold uppercase tracking-wide text-pet-teal">
-        Tag
-      </h3>
-      <div className="mt-2 grid gap-3 md:grid-cols-3">
-        {activations.map((activation) => (
-          <CompactItem
-            key={activation.id}
-            label={`Tag activation - ${activation.tagCode}`}
-            value={`${activation.state} (${activation.petName})`}
-          />
-        ))}
-      </div>
-    </section>
   );
 }
 
@@ -528,11 +497,43 @@ function DetailSection({
 }) {
   return (
     <section className="min-w-0">
-      <h3 className="text-[0.68rem] font-extrabold uppercase tracking-wide text-pet-teal">
-        {title}
-      </h3>
-      <div className="mt-2 grid gap-3 md:grid-cols-3">{children}</div>
+      <h3 className="text-sm font-black text-pet-ink">{title}</h3>
+      <div className="mt-2">{children}</div>
     </section>
+  );
+}
+
+/**
+ * Related fields share one surface. A tile per field made a short list of
+ * facts read like a dashboard.
+ */
+function DetailPanel({ children }: { children: React.ReactNode }) {
+  return (
+    <dl className="grid min-w-0 gap-3 rounded-2xl border border-pet-border bg-pet-cream p-4 sm:grid-cols-2">
+      {children}
+    </dl>
+  );
+}
+
+function DetailRow({
+  label,
+  value,
+  wide = false,
+}: {
+  label: string;
+  value: string;
+  /** Full width, for addresses and notes that need the room. */
+  wide?: boolean;
+}) {
+  return (
+    <div className={`min-w-0 ${wide ? "sm:col-span-2" : ""}`}>
+      <dt className="text-[0.68rem] font-extrabold uppercase text-pet-muted">
+        {label}
+      </dt>
+      <dd className="mt-1 break-words text-sm font-bold text-pet-ink [overflow-wrap:anywhere]">
+        {value || "Not set"}
+      </dd>
+    </div>
   );
 }
 
