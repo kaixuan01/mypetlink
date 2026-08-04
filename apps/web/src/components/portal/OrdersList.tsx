@@ -19,13 +19,21 @@ import {
   formatDeliveryDestination,
   formatFullDeliveryAddress,
   formatOrderNumber,
+  getMissingProofLabel,
   getOrderNextStep,
   getOrderShipmentView,
   getOrderStatusDisplay,
+  getPaymentDateLabel,
   getPaymentStatusLabel,
   getShipmentSummaryLabel,
 } from "@/lib/orders";
 import { formatOrderOption } from "@/lib/orderDisplay";
+import {
+  findOrderLinkedTag,
+  getOrderTagActivations,
+  getSharedTagActivationState,
+  type OrderTagActivation,
+} from "@/lib/tagStatus";
 import { smartTagOrderingEnabled } from "@/lib/features";
 import { ownerRoutes } from "@/lib/routes";
 import { isApiConfigured } from "@/services/apiConfig";
@@ -79,10 +87,6 @@ export function OrdersList({
   const petMap = useMemo(
     () => new Map(portalPets.map((pet) => [pet.id, pet])),
     [portalPets]
-  );
-  const tagMap = useMemo(
-    () => new Map(tags.map((tag) => [tag.id, tag])),
-    [tags]
   );
 
   useEffect(() => {
@@ -221,18 +225,21 @@ export function OrdersList({
 
       {orders.map((order) => {
         const pet = petMap.get(order.petId);
-        const linkedTag = order.tagId ? tagMap.get(order.tagId) : undefined;
+        const linkedTag = findOrderLinkedTag(order, tags);
+        // Only the order itself may unlock tag actions, so a reserved tag
+        // reports activation without changing what else the card offers.
+        const orderDisclosedTag = order.tagId ? linkedTag : undefined;
         const petName = pet?.name ?? order.petName ?? "Pet profile";
         const orderNumber = formatOrderNumber(order);
         const replacementHref =
-          linkedTag && order.petId
+          orderDisclosedTag && order.petId
             ? ownerRoutes.petTagOrder(order.petId, {
                 type: order.tagType.includes("NFC") ? "nfc" : "qr",
-                replacementFor: linkedTag.id,
+                replacementFor: orderDisclosedTag.id,
               })
             : "";
         const receiptReady = canDownloadPaymentReceipt(order);
-        const replacementReady = canRequestReplacement(order, linkedTag);
+        const replacementReady = canRequestReplacement(order, orderDisclosedTag);
         const shipment = getOrderShipmentView(order);
         const shipmentSummary = getShipmentSummaryLabel(order);
 
@@ -377,6 +384,7 @@ function OrderInlineDetail({
   tag?: PetTag;
 }) {
   const shipment = getOrderShipmentView(order);
+  const tagActivations = getOrderTagActivations(order, tag);
 
   return (
     <div className="mt-4 grid gap-4 rounded-[1.25rem] border border-pet-border bg-white p-4">
@@ -405,10 +413,14 @@ function OrderInlineDetail({
         <CompactItem label="Pet" value={petName} />
         <CompactItem label="Option" value={formatOrderOption(order)} />
         <CompactItem
-          label="Tag status"
-          value={tag?.status ?? "Pending tag preparation"}
+          label="Fulfilment status"
+          value={getOrderStatusDisplay(order.status)}
         />
       </DetailSection>
+
+      {/* The tag's own state, kept apart from the order's progress above so a
+          fulfilment step can never read as the tag's activation state. */}
+      <TagActivationSection activations={tagActivations} />
 
       <DetailSection title="Payment">
         <CompactItem
@@ -417,15 +429,17 @@ function OrderInlineDetail({
         />
         <CompactItem
           label="Payment date"
-          value={order.paymentConfirmedDate ?? "Not confirmed yet"}
+          value={getPaymentDateLabel(order)}
         />
+        {/* Optional: owners may pay without ever quoting a reference. A blank
+            one is not an outstanding task, so it must not read like one. */}
         <CompactItem
           label="Bank/eWallet transaction ID"
-          value={order.paymentReference ?? "Not submitted yet"}
+          value={order.paymentReference || "Not provided"}
         />
         <CompactItem
           label="Submitted file"
-          value={order.paymentProofName ?? "Not submitted yet"}
+          value={order.paymentProofName || getMissingProofLabel(order)}
         />
       </DetailSection>
 
@@ -461,6 +475,46 @@ function OrderInlineDetail({
         </DetailSection>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * The physical tags on this order and whether each one has been activated.
+ *
+ * A single shared answer is shown when every tag agrees. When they differ —
+ * one tag already tapped, another still in the envelope — each is listed, since
+ * one aggregate value would be wrong for at least one of them.
+ */
+function TagActivationSection({
+  activations,
+}: {
+  activations: OrderTagActivation[];
+}) {
+  const shared = getSharedTagActivationState(activations);
+
+  if (shared) {
+    return (
+      <DetailSection title="Tag">
+        <CompactItem label="Tag activation" value={shared} />
+      </DetailSection>
+    );
+  }
+
+  return (
+    <section className="min-w-0">
+      <h3 className="text-[0.68rem] font-extrabold uppercase tracking-wide text-pet-teal">
+        Tag
+      </h3>
+      <div className="mt-2 grid gap-3 md:grid-cols-3">
+        {activations.map((activation) => (
+          <CompactItem
+            key={activation.id}
+            label={`Tag activation - ${activation.tagCode}`}
+            value={`${activation.state} (${activation.petName})`}
+          />
+        ))}
+      </div>
+    </section>
   );
 }
 

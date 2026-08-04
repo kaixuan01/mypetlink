@@ -329,6 +329,9 @@ export type PetTag = {
   tagCode: string;
   petId?: string;
   ownerUserId?: string;
+  // The order this tag was reserved for. An order only lists its assigned tags
+  // once it has shipped, so before then this is how a tag finds its order.
+  orderId?: string;
   hasNfc: boolean;
   variant: TagVariant;
   status: TagStatus;

@@ -44,7 +44,27 @@ export const pendingOrderStatuses: OrderStatus[] = [
 type LinkedPetLifecycle = Parameters<typeof isActivePet>[0];
 
 export function getTagOrder(tag: PetTag, orders: TagOrder[] = []) {
-  return orders.find((order) => order.tagId === tag.id);
+  return (
+    orders.find((order) => order.tagId === tag.id) ??
+    orders.find((order) => tag.orderId && order.id === tag.orderId)
+  );
+}
+
+/**
+ * The physical tag reserved for an order.
+ *
+ * An order only lists its assigned tags once it has shipped, so before then the
+ * link has to be read from the owner's own tags. Without this a reserved tag
+ * looked unassigned on the order pages while the Smart Tags page showed it.
+ */
+export function findOrderLinkedTag(
+  order: Pick<TagOrder, "id" | "tagId">,
+  tags: PetTag[] = []
+) {
+  return (
+    (order.tagId ? tags.find((tag) => tag.id === order.tagId) : undefined) ??
+    tags.find((tag) => tag.orderId === order.id)
+  );
 }
 
 export function isActivePhysicalTag(tag: PetTag) {
@@ -92,6 +112,125 @@ export function canActivateTagFromOwnerPortal(tag: PetTag) {
   return !tag.isArchived && tag.status === "Unassigned" && !tag.petId;
 }
 
+/**
+ * Owner-facing activation state of a physical tag.
+ *
+ * `TagStatus` carries two different ideas in one field: how far the tag has
+ * travelled towards the owner (`Pending`, `Preparing`, `Delivered`) and what
+ * the tag itself is doing (`Active`, `Lost`, `Disabled`, `Replaced`,
+ * `Archived`). Only the second group describes activation. Showing the first
+ * group verbatim is what produced "Tag status — Preparing" on an order that
+ * had already shipped.
+ *
+ * This collapses the pre-activation values to one honest answer and never
+ * consults the order, so a tag can never report a fulfilment step as its own
+ * activation state.
+ */
+export type TagActivationState =
+  | "Not assigned yet"
+  | "Awaiting activation"
+  | "Active"
+  | "Lost"
+  | "Disabled"
+  | "Replaced"
+  | "Archived";
+
+export type TagActivationInput = {
+  status: string;
+  isArchived?: boolean;
+  activatedAt?: string;
+};
+
+export function getTagActivationState(
+  tag: TagActivationInput
+): TagActivationState {
+  // Archival is a shelf state that outranks whatever the tag was doing before.
+  if (tag.isArchived || tag.status === "Archived") {
+    return "Archived";
+  }
+
+  // A replaced, lost or disabled tag stays in that state even though it was
+  // activated at some point, so these are checked before `activatedAt`.
+  if (tag.status === "Replaced") return "Replaced";
+  if (tag.status === "Lost") return "Lost";
+  if (tag.status === "Disabled") return "Disabled";
+
+  // Activation is recorded on the tag itself, never derived from the order.
+  if (tag.status === "Active" || tag.activatedAt) {
+    return "Active";
+  }
+
+  if (tag.status === "Unassigned") {
+    return "Not assigned yet";
+  }
+
+  // Pending / Preparing / Delivered: reserved for this owner, still waiting to
+  // be scanned or tapped.
+  return "Awaiting activation";
+}
+
+export type OrderTagActivation = {
+  id: string;
+  tagCode: string;
+  petName: string;
+  state: TagActivationState;
+};
+
+/**
+ * Activation state of every physical tag assigned to an order.
+ *
+ * A multi-tag order can hold tags at different points — one activated, one
+ * still in the envelope — so the order surfaces list them individually rather
+ * than collapsing them into a single misleading answer. Orders placed before
+ * multi-item checkout carry no item-level tags, so the owner's linked tag is
+ * used instead.
+ */
+export function getOrderTagActivations(
+  order: Pick<TagOrder, "items" | "petName">,
+  linkedTag?: PetTag
+): OrderTagActivation[] {
+  const fromItems = (order.items ?? []).flatMap((item) =>
+    item.assignedTags.map((tag) => ({
+      id: tag.id,
+      tagCode: tag.tagCode,
+      petName: tag.petName || item.petName,
+      state: getTagActivationState({ status: tag.status }),
+    }))
+  );
+
+  if (fromItems.length > 0) {
+    return fromItems;
+  }
+
+  if (linkedTag) {
+    return [
+      {
+        id: linkedTag.id,
+        tagCode: linkedTag.tagCode,
+        petName: order.petName ?? "Pet",
+        state: getTagActivationState(linkedTag),
+      },
+    ];
+  }
+
+  return [];
+}
+
+/**
+ * One activation answer for an order, used only when every tag agrees.
+ * Returns undefined when the tags differ, so the caller lists them instead.
+ */
+export function getSharedTagActivationState(
+  activations: OrderTagActivation[]
+): TagActivationState | undefined {
+  if (activations.length === 0) {
+    return "Not assigned yet";
+  }
+
+  const first = activations[0].state;
+  return activations.every((entry) => entry.state === first) ? first : undefined;
+}
+
 export function getTagDisplayStatus(
   tag: PetTag,
   order?: TagOrder,
@@ -117,15 +256,20 @@ export function getTagDisplayStatus(
     return tag.status;
   }
 
-  if (tag.status === "Delivered" && !tag.activatedAt) {
-    return "Delivered - awaiting owner activation";
+  // Once a physical tag is reserved for this owner, the tag card reports the
+  // tag's own state. The order's fulfilment progress is still one click away
+  // on the linked order, so the two are never shown as the same thing.
+  if (pendingTagStatuses.includes(tag.status)) {
+    return "Awaiting activation";
   }
 
-  if (order && isPendingPhysicalTag(tag, order)) {
+  // Before a tag is assigned there is nothing to activate yet, so the order's
+  // fulfilment progress is the only meaningful answer.
+  if (order && isPendingOrderStatus(order.status)) {
     return getOrderStatusDisplay(order.status);
   }
 
-  return tag.status;
+  return getTagActivationState(tag);
 }
 
 export function getTagScanDisplay(

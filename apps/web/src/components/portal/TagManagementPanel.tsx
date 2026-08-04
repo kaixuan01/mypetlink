@@ -606,7 +606,7 @@ function TagCard({
                 {tag.status === "Unassigned"
                   ? "Scan or open the physical QR to activate this tag for a pet."
                   : tag.petId
-                    ? "Waiting for owner activation. Scan or tap the physical tag when you receive it."
+                    ? "Awaiting activation. Scan or tap the physical tag when you receive it."
                     : "Physical tag QR will appear after an inventory tag is assigned."}
               </p>
             </div>
@@ -774,9 +774,9 @@ function TagCard({
         </p>
       ) : isPending ? (
         <p className="mt-4 rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted">
-          Waiting for owner activation. Scan or tap the physical tag when you
-          receive it to activate it. It will not show owner contact details
-          before activation.
+          Awaiting activation. Scan or tap the physical tag when you receive
+          it to activate it. It will not show owner contact details before
+          activation.
         </p>
       ) : null}
 

@@ -244,6 +244,41 @@ export function formatFullDeliveryAddress(order: Pick<TagOrder, "delivery">) {
 }
 
 /**
+ * Wording for a payment proof file that is not on the order.
+ *
+ * Distinguishes an action the owner still has to take from data that simply
+ * does not exist for this order, so a settled order never shows a placeholder
+ * that reads like an outstanding task.
+ */
+export function getMissingProofLabel(order: Pick<TagOrder, "status">) {
+  if (order.status === "Draft" || order.status === "Pending Payment") {
+    return "Not submitted yet";
+  }
+
+  if (order.status === "Cancelled") {
+    return "Not applicable";
+  }
+
+  return "Not available";
+}
+
+/**
+ * Wording for a payment date that is not on the order.
+ *
+ * An order that ended without payment will never gain one, so it must not be
+ * described as still awaiting confirmation.
+ */
+export function getPaymentDateLabel(
+  order: Pick<TagOrder, "status" | "paymentConfirmedDate">
+) {
+  if (order.paymentConfirmedDate) {
+    return order.paymentConfirmedDate;
+  }
+
+  return order.status === "Cancelled" ? "Not applicable" : "Not confirmed yet";
+}
+
+/**
  * Short destination for a compact summary: city and state only.
  *
  * Deliberately not a slice of the full address — the compact card must never

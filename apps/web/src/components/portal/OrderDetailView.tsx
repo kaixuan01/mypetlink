@@ -17,13 +17,21 @@ import {
   canRequestReplacement,
   formatFullDeliveryAddress,
   formatOrderNumber,
+  getMissingProofLabel,
   getOrderNextStep,
   getOrderShipmentView,
   getOrderStatusDisplay,
   getOrderStatusRank,
+  getPaymentDateLabel,
   getPaymentStatusLabel,
 } from "@/lib/orders";
 import { formatStateAndZone } from "@/lib/orderDisplay";
+import {
+  findOrderLinkedTag,
+  getOrderTagActivations,
+  getSharedTagActivationState,
+  getTagActivationState,
+} from "@/lib/tagStatus";
 import {
   loadingTitle,
   orderNotFoundTitle,
@@ -126,10 +134,6 @@ export function OrderDetailView({
   const petMap = useMemo(
     () => new Map(portalPets.map((pet) => [pet.id, pet])),
     [portalPets]
-  );
-  const tagMap = useMemo(
-    () => new Map(tags.map((tag) => [tag.id, tag])),
-    [tags]
   );
 
   useEffect(() => {
@@ -242,27 +246,37 @@ export function OrderDetailView({
   }
 
   const pet = petMap.get(order.petId);
-  const linkedTag = order.tagId ? tagMap.get(order.tagId) : undefined;
+  // Resolved from the owner's own tags so a reserved tag can report its
+  // activation state before the order starts listing its tags.
+  const linkedTag = findOrderLinkedTag(order, tags);
+  // Only the order itself may reveal a tag code or unlock tag actions, so
+  // nothing about the physical tag surfaces here earlier than it did before.
+  const orderDisclosedTag = order.tagId ? linkedTag : undefined;
   const orderNumber = formatOrderNumber(order);
   const petName = pet?.name ?? order.petName ?? "Pet profile";
   const receiptReady = canDownloadPaymentReceipt(order);
-  const replacementReady = canRequestReplacement(order, linkedTag);
+  const replacementReady = canRequestReplacement(order, orderDisclosedTag);
   // Courier and tracking details are entered while the parcel is still being
   // packed, so they are only shown once it is actually on its way. Otherwise a
   // customer would try to track a number the courier has not accepted yet.
   const shipment = getOrderShipmentView(order);
+  // Undefined when this order's tags are in different activation states; the
+  // per-tag list below then carries the detail instead of one wrong answer.
+  const sharedTagActivation = getSharedTagActivationState(
+    getOrderTagActivations(order, linkedTag)
+  );
   const timelineEvents =
     order.timeline && order.timeline.length > 0
       ? order.timeline
       : buildFallbackTimeline(order);
   const replacementHref =
-    linkedTag && order.petId
+    orderDisclosedTag && order.petId
       ? ownerRoutes.petTagOrder(order.petId, {
           type: order.tagType.includes("NFC") ? "nfc" : "qr",
-          replacementFor: linkedTag.id,
+          replacementFor: orderDisclosedTag.id,
         })
       : "";
-  const linkedTagScanPath = linkedTag ? tagQrPath(linkedTag.tagCode) : "";
+  const linkedTagScanPath = orderDisclosedTag ? tagQrPath(orderDisclosedTag.tagCode) : "";
   const linkedTagScanUrl = linkedTagScanPath
     ? toAbsoluteUrl(linkedTagScanPath, base)
     : "";
@@ -525,26 +539,41 @@ export function OrderDetailView({
             <DetailItem label="Delivery state" value={formatStateAndZone(order.delivery.state, order.delivery.zoneName)} />
             <DetailItem label="Ordered date" value={order.orderedDate} />
             <DetailItem
-              label="Tag status"
-              value={linkedTag?.status ?? "Pending tag preparation"}
+              label="Fulfilment status"
+              value={getOrderStatusDisplay(order.status)}
             />
+            {/* The tag's own state, never the order's. A shipped order whose
+                tag has not been tapped yet reads "Awaiting activation". */}
+            {sharedTagActivation ? (
+              <DetailItem
+                label="Tag activation"
+                value={sharedTagActivation}
+              />
+            ) : null}
           </div>
           {order.items?.some((item) => item.assignedTags.length > 0) ? (
             <div className="mt-4 grid gap-2">
               <h3 className="text-sm font-black text-pet-ink">Physical tags in this shipment</h3>
               {order.items.flatMap((item) => item.assignedTags.map((tag) => (
                 <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-xl bg-pet-cream p-3" key={tag.id}>
-                  <span className="min-w-0"><span className="block font-black text-pet-ink">{item.petName} · {item.productName}</span><span className="block break-all font-mono text-xs font-bold text-pet-muted">{tag.tagCode}</span></span>
+                  <span className="min-w-0">
+                    <span className="block font-black text-pet-ink">{item.petName} · {item.productName}</span>
+                    <span className="block break-all font-mono text-xs font-bold text-pet-muted">{tag.tagCode}</span>
+                    {/* Per tag, so a part-activated order stays readable. */}
+                    <span className="block text-xs font-bold text-pet-muted">
+                      {getTagActivationState({ status: tag.status })}
+                    </span>
+                  </span>
                   <CTAButton href={tagQrPath(tag.tagCode)} variant="outline">View Tag Scan Page</CTAButton>
                 </div>
               )))}
             </div>
           ) : null}
-          {linkedTag?.tagCode && !order.items?.some((item) => item.assignedTags.length > 0) ? (
-            linkedTag.status === "Active" ? (
+          {orderDisclosedTag?.tagCode && !order.items?.some((item) => item.assignedTags.length > 0) ? (
+            orderDisclosedTag.status === "Active" ? (
               <QrCodeCard
                 className="mt-4"
-                fileNameBase={`${linkedTag.tagCode}-physical-tag-qr`}
+                fileNameBase={`${orderDisclosedTag.tagCode}-physical-tag-qr`}
                 helperText="This is the QR printed on your physical tag. If the tag is lost or disabled, the scan page will stop showing your contact details."
                 targetPath={linkedTagScanPath}
                 title="Physical Tag QR"
@@ -556,7 +585,7 @@ export function OrderDetailView({
                   Tag code
                 </p>
                 <p className="mt-1 break-words text-lg font-black text-pet-ink">
-                  {linkedTag.tagCode}
+                  {orderDisclosedTag.tagCode}
                 </p>
                 <p className="mt-2 text-xs font-bold leading-5 text-pet-muted">
                   Your tag is linked to {petName}. Scan or tap the physical tag
@@ -598,7 +627,9 @@ export function OrderDetailView({
                 ) : null}
               </div>
             )
-          ) : (
+          ) : order.items?.some((item) => item.assignedTags.length > 0) ? null : (
+            // Only when there is genuinely no tag code to show. Otherwise this
+            // contradicted the tag codes listed directly above it.
             <div className="mt-4 rounded-[1.25rem] bg-pet-cream p-4">
               <p className="text-sm font-bold leading-6 text-pet-ink">
                 {unassignedTagMessage(order.status)}
@@ -619,17 +650,19 @@ export function OrderDetailView({
               value={order.paymentMethod ?? "QR Payment"}
             />
             <DetailItem label="Payment status" value={getPaymentStatusLabel(order)} />
+            {/* Optional: an owner can pay without ever quoting a reference, so
+                a blank one is not an outstanding task. */}
             <DetailItem
               label="Bank/eWallet transaction ID"
-              value={order.paymentReference ?? "Not submitted yet"}
+              value={order.paymentReference || "Not provided"}
             />
             <DetailItem
               label="Submitted file"
-              value={order.paymentProofName ?? "Not submitted yet"}
+              value={order.paymentProofName || getMissingProofLabel(order)}
             />
             <DetailItem
               label="Payment date"
-              value={order.paymentConfirmedDate ?? "Not confirmed yet"}
+              value={getPaymentDateLabel(order)}
             />
           </div>
           <p className="mt-4 rounded-[1.25rem] bg-pet-cream p-4 text-sm leading-6 text-pet-muted">

@@ -126,6 +126,7 @@ export function mapBackendTag(tag: BackendSmartTag): PetTag {
     tagCode: tag.tagCode,
     petId: tag.petId ?? undefined,
     ownerUserId: tag.ownerUserId ?? undefined,
+    orderId: tag.orderId ?? undefined,
     hasNfc: tag.hasNfc,
     variant: toTagVariant(tag.variant),
     status: fromBackendTagStatus(tag.status),
