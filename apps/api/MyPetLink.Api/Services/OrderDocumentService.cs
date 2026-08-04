@@ -345,8 +345,10 @@ public sealed class OrderDocumentService : IOrderDocumentService
     {
         // The configured method is an immutable order snapshot. Historical
         // documents must not replace it with today's configuration or a
-        // generic label.
-        return Fallback(methodSnapshot, "Delivery");
+        // generic label. Only the wording of a MyPetLink-issued label is
+        // brought up to date; the stored snapshot and the fee are untouched.
+        var normalized = DeliveryLabels.NormalizeCustomerMethod(methodSnapshot, zoneSnapshot);
+        return Fallback(normalized, "Delivery");
     }
 
     private static string FormatDeliveryDestination(string? stateSnapshot, string? postcodeSnapshot)

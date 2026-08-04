@@ -56,7 +56,9 @@ public sealed class DeliveryServiceTests
         Assert.Equal(expectedZone, quote.ZoneCode);
         Assert.Equal(12.50m, quote.DeliveryFee);
         Assert.Equal(52.40m, quote.Total);
-        Assert.EndsWith("Standard Delivery", quote.DeliveryMethod);
+        // Customers read the region, never the zone code or "Peninsular".
+        Assert.StartsWith("Standard Delivery — ", quote.DeliveryMethod);
+        Assert.DoesNotContain("Peninsular", quote.DeliveryMethod);
     }
 
     [Fact]
@@ -212,7 +214,7 @@ public sealed class DeliveryServiceTests
         {
             Db.DeliveryRates.Add(new DeliveryRate
             {
-                Name = $"{MalaysiaDelivery.Zones[zone]} Standard Delivery",
+                Name = DeliveryLabels.CustomerMethodFor(zone),
                 ZoneCode = zone,
                 ApplicableStateCodesJson = "[]",
                 Fee = fee,

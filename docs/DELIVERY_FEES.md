@@ -4,10 +4,26 @@ MyPetLink physical-tag orders support delivery within Malaysia. The API owns the
 
 ## Canonical zones
 
-- Peninsular (`PEN`): Johor, Kedah, Kelantan, Melaka, Negeri Sembilan, Pahang, Perak, Perlis, Pulau Pinang, Selangor, Terengganu, Kuala Lumpur, and Putrajaya
+- Peninsular Malaysia (West Malaysia) (`PEN`): Johor, Kedah, Kelantan, Melaka, Negeri Sembilan, Pahang, Perak, Perlis, Pulau Pinang, Selangor, Terengganu, Kuala Lumpur, and Putrajaya
 - Sabah (`SBH`)
 - Sarawak (`SWK`)
 - Labuan (`LBN`)
+
+## Naming
+
+Zone codes (`PEN`, `SBH`, `SWK`, `LBN`) are stable identifiers and never change.
+Only the wording differs by audience, and both come from one place —
+`DeliveryLabels` in the API, mirrored by `lib/deliveryLabels.ts` in the web app:
+
+- Customers see `Standard Delivery — West Malaysia`, and `West Malaysia` for the
+  region on its own. "Peninsular" is accurate but unfamiliar to most customers.
+- The Admin Portal keeps `Peninsular Malaysia (West Malaysia)` so the zone stays
+  recognisable to whoever configures it.
+
+An order stores the delivery method and fee it was quoted at. Those snapshots are
+never rewritten: a label MyPetLink itself shipped (for example
+`Peninsular Standard Delivery`) is re-worded on its way to the screen, while a
+name an administrator typed is shown exactly as entered.
 
 The Owner Portal loads the canonical state options from `GET /api/v1/delivery/states`. Exact legacy aliases are limited to KL/Kuala Lumpur W.P., Penang/Pulau Pinang, and Malacca/Melaka. New orders send a state code, not a free-text state.
 

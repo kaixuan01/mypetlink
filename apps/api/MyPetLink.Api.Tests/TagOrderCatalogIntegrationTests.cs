@@ -715,7 +715,8 @@ public sealed class TagOrderCatalogIntegrationTests
         Assert.Equal(10m, order.DeliveryFee);
         Assert.Equal("StateOverride", order.DeliveryRateSource);
         Assert.Equal("KUL", order.StateCode);
-        Assert.Equal("Peninsular", order.DeliveryZoneName);
+        // The snapshot records the wording customers were shown.
+        Assert.Equal("West Malaysia", order.DeliveryZoneName);
     }
 
     [Fact]
@@ -798,7 +799,7 @@ public sealed class TagOrderCatalogIntegrationTests
         {
             db.DeliveryRates.Add(new DeliveryRate
             {
-                Name = $"{MalaysiaDelivery.Zones[zone]} Standard Delivery",
+                Name = DeliveryLabels.CustomerMethodFor(zone),
                 ZoneCode = zone,
                 ApplicableStateCodesJson = "[]",
                 Fee = fee,

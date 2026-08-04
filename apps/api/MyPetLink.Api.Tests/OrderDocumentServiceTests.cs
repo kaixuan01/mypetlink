@@ -254,7 +254,7 @@ public sealed class OrderDocumentServiceTests
         var text = Squash(ExtractText(
             (await h.Service.GetOwnerReceiptAsync(Harness.OwnerAId, "MPL-ORD-DELIVERY")).Content));
 
-        Assert.Contains("DeliverymethodSabahStandardDelivery", text);
+        Assert.Contains("DeliverymethodStandardDelivery—Sabah", text);
         Assert.Contains("DestinationSabah,88000", text);
         Assert.DoesNotContain("ZoneSabah", text, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(2, CountOccurrences(text, "Sabah"));

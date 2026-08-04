@@ -15,19 +15,19 @@ public static class MalaysiaDelivery
 
     public static readonly IReadOnlyCollection<MalaysiaStateDefinition> States =
     [
-        State("JHR", "Johor", "PEN", "Peninsular"),
-        State("KDH", "Kedah", "PEN", "Peninsular"),
-        State("KTN", "Kelantan", "PEN", "Peninsular"),
-        State("MLK", "Melaka", "PEN", "Peninsular", "Malacca"),
-        State("NSN", "Negeri Sembilan", "PEN", "Peninsular"),
-        State("PHG", "Pahang", "PEN", "Peninsular"),
-        State("PRK", "Perak", "PEN", "Peninsular"),
-        State("PLS", "Perlis", "PEN", "Peninsular"),
-        State("PNG", "Pulau Pinang", "PEN", "Peninsular", "Penang"),
-        State("SGR", "Selangor", "PEN", "Peninsular"),
-        State("TRG", "Terengganu", "PEN", "Peninsular"),
-        State("KUL", "Kuala Lumpur", "PEN", "Peninsular", "KL", "Kuala Lumpur W.P."),
-        State("PJY", "Putrajaya", "PEN", "Peninsular"),
+        State("JHR", "Johor", "PEN", DeliveryLabels.WestMalaysia),
+        State("KDH", "Kedah", "PEN", DeliveryLabels.WestMalaysia),
+        State("KTN", "Kelantan", "PEN", DeliveryLabels.WestMalaysia),
+        State("MLK", "Melaka", "PEN", DeliveryLabels.WestMalaysia, "Malacca"),
+        State("NSN", "Negeri Sembilan", "PEN", DeliveryLabels.WestMalaysia),
+        State("PHG", "Pahang", "PEN", DeliveryLabels.WestMalaysia),
+        State("PRK", "Perak", "PEN", DeliveryLabels.WestMalaysia),
+        State("PLS", "Perlis", "PEN", DeliveryLabels.WestMalaysia),
+        State("PNG", "Pulau Pinang", "PEN", DeliveryLabels.WestMalaysia, "Penang"),
+        State("SGR", "Selangor", "PEN", DeliveryLabels.WestMalaysia),
+        State("TRG", "Terengganu", "PEN", DeliveryLabels.WestMalaysia),
+        State("KUL", "Kuala Lumpur", "PEN", DeliveryLabels.WestMalaysia, "KL", "Kuala Lumpur W.P."),
+        State("PJY", "Putrajaya", "PEN", DeliveryLabels.WestMalaysia),
         State("SBH", "Sabah", "SBH", "Sabah"),
         State("SWK", "Sarawak", "SWK", "Sarawak"),
         State("LBN", "Labuan", "LBN", "Labuan")
@@ -36,7 +36,7 @@ public static class MalaysiaDelivery
     public static readonly IReadOnlyDictionary<string, string> Zones =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
-            ["PEN"] = "Peninsular",
+            ["PEN"] = DeliveryLabels.WestMalaysia,
             ["SBH"] = "Sabah",
             ["SWK"] = "Sarawak",
             ["LBN"] = "Labuan"

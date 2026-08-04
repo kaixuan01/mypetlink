@@ -1,3 +1,4 @@
+using MyPetLink.Api.Common;
 using MyPetLink.Api.DTOs;
 using MyPetLink.Api.Entities;
 
@@ -87,8 +88,10 @@ internal static class TagDtoMapper
                 order.State,
                 order.StateCode,
                 order.Country ?? "Malaysia",
-                order.DeliveryZoneName,
-                order.DeliveryMethodName,
+                // Presentation only: the stored snapshot keeps its original
+                // wording, and the fee it was quoted at never changes.
+                DeliveryLabels.NormalizeCustomerRegion(order.DeliveryZoneName, order.StateCode),
+                DeliveryLabels.NormalizeCustomerMethod(order.DeliveryMethodName, order.StateCode),
                 order.FreeShippingReason,
                 order.DeliveryNotes),
             latestProof?.UploadedAt,

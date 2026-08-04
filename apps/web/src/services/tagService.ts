@@ -14,6 +14,10 @@ import {
   isInactivePhysicalTag,
   isPendingPhysicalTag,
 } from "@/lib/tagStatus";
+import {
+  normalizeDeliveryMethod,
+  normalizeDeliveryRegion,
+} from "@/lib/deliveryLabels";
 import { resolveTagCodeAlias } from "@/lib/tagCodes";
 import {
   mockDelay,
@@ -193,8 +197,15 @@ export function mapBackendOrder(order: BackendTagOrder): TagOrder {
       state: order.delivery.state,
       stateCode: order.delivery.stateCode ?? "",
       country: order.delivery.country ?? "Malaysia",
-      zoneName: order.delivery.zoneName ?? undefined,
-      deliveryMethod: order.delivery.deliveryMethod ?? undefined,
+      // Presentation only: the stored snapshot and its fee are untouched.
+      zoneName: normalizeDeliveryRegion(
+        order.delivery.zoneName,
+        order.delivery.stateCode
+      ) || undefined,
+      deliveryMethod: normalizeDeliveryMethod(
+        order.delivery.deliveryMethod,
+        order.delivery.stateCode
+      ) || undefined,
       freeDeliveryReason: order.delivery.freeDeliveryReason ?? undefined,
       notes: order.delivery.notes ?? "",
     },

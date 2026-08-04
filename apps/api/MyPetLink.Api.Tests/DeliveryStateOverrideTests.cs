@@ -47,7 +47,8 @@ public sealed class DeliveryStateOverrideTests
         Assert.Equal(DeliveryRateSources.StateOverrideLabel, kelantan.RateSource);
         // The zone still identifies the delivery method and zone name.
         Assert.Equal("PEN", kelantan.ZoneCode);
-        Assert.Equal("Peninsular", kelantan.ZoneName);
+        // A quote is customer-facing, so it carries the customer wording.
+        Assert.Equal("West Malaysia", kelantan.ZoneName);
     }
 
     [Fact]
@@ -397,7 +398,7 @@ public sealed class DeliveryStateOverrideTests
         {
             Db.DeliveryRates.Add(new DeliveryRate
             {
-                Name = $"{MalaysiaDelivery.Zones[zone]} Standard Delivery",
+                Name = DeliveryLabels.CustomerMethodFor(zone),
                 ZoneCode = zone,
                 ApplicableStateCodesJson = "[]",
                 Fee = fee,

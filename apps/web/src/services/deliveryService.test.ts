@@ -56,3 +56,76 @@ describe("deliveryService", () => {
     (value) => expect(resolveLegacyStateCode(value, states)).toBe("")
   );
 });
+
+describe("legacy delivery snapshots reaching the owner portal", () => {
+  it("re-words the label without altering the fee or total", async () => {
+    const { mapBackendOrder } = await import("@/services/tagService");
+
+    const legacy = mapBackendOrder({
+      id: "order-1",
+      orderNumber: "MPL-0001",
+      petId: "pet-1",
+      tagType: "QrPetTag",
+      variant: "Standard",
+      amount: 39.9,
+      deliveryFee: 8,
+      totalAmount: 47.9,
+      currency: "MYR",
+      status: "Delivered",
+      createdAt: "2026-07-20T00:00:00Z",
+      delivery: {
+        recipientName: "Aina",
+        phoneE164: "+60123456789",
+        addressLine1: "1 Jalan Pet",
+        postcode: "68000",
+        city: "Ampang",
+        state: "Selangor",
+        stateCode: "SGR",
+        country: "Malaysia",
+        zoneName: "Peninsular",
+        deliveryMethod: "Peninsular Standard Delivery",
+      },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    expect(legacy.delivery.deliveryMethod).toBe("Standard Delivery — West Malaysia");
+    expect(legacy.delivery.zoneName).toBe("West Malaysia");
+    // The historical money is exactly as it was snapshotted.
+    expect(legacy.deliveryFee).toBe(8);
+    expect(legacy.totalAmount).toBe(47.9);
+  });
+
+  it("leaves a merchant's own delivery label alone", async () => {
+    const { mapBackendOrder } = await import("@/services/tagService");
+
+    const custom = mapBackendOrder({
+      id: "order-2",
+      orderNumber: "MPL-0002",
+      petId: "pet-1",
+      tagType: "QrPetTag",
+      variant: "Standard",
+      amount: 39.9,
+      deliveryFee: 12,
+      totalAmount: 51.9,
+      currency: "MYR",
+      status: "Delivered",
+      createdAt: "2026-07-20T00:00:00Z",
+      delivery: {
+        recipientName: "Aina",
+        phoneE164: "+60123456789",
+        addressLine1: "1 Jalan Pet",
+        postcode: "68000",
+        city: "Ampang",
+        state: "Selangor",
+        stateCode: "SGR",
+        country: "Malaysia",
+        zoneName: "Peninsular",
+        deliveryMethod: "Weekend Express (Klang Valley)",
+      },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    expect(custom.delivery.deliveryMethod).toBe("Weekend Express (Klang Valley)");
+    expect(custom.deliveryFee).toBe(12);
+  });
+});

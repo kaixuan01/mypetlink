@@ -17,9 +17,10 @@ import {
   type AdminDeliveryRate,
   type DeliveryRateInput,
 } from "@/services/adminDeliveryRateService";
+import { WEST_MALAYSIA_ADMIN } from "@/lib/deliveryLabels";
 
 const zones = [
-  ["PEN", "Peninsular"],
+  ["PEN", WEST_MALAYSIA_ADMIN],
   ["SBH", "Sabah"],
   ["SWK", "Sarawak"],
   ["LBN", "Labuan"],
@@ -169,7 +170,7 @@ export function AdminDeliveryRatesManager() {
         >
           {rates.length === 0 ? (
             <AdminEmptyPanel
-              description="Add a rate for Peninsular Malaysia, Sabah, Sarawak or Labuan to start accepting orders."
+              description="Add a rate for Peninsular Malaysia (West Malaysia), Sabah, Sarawak or Labuan to start accepting orders."
               icon="pin"
               title="No delivery zones configured yet"
             />
@@ -261,7 +262,7 @@ export function AdminDeliveryRatesManager() {
           >
             <div className="space-y-5 p-4 sm:p-5">
               <Field
-                help="Shown to customers at checkout, for example “Peninsular Standard Delivery”."
+                help="Shown to customers at checkout, for example “Standard Delivery — West Malaysia”."
                 label="Rate name"
               >
                 <input

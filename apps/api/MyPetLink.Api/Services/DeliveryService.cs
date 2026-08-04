@@ -264,7 +264,8 @@ public sealed class DeliveryService : SkeletonService, IDeliveryService
                 state.Code,
                 state.Name,
                 state.ZoneCode,
-                state.ZoneName,
+                // Operators see both names so the zone code stays recognisable.
+                DeliveryLabels.AdminRegionFor(state.ZoneCode),
                 applies ? stored!.Fee : zoneRate?.Fee ?? 0m,
                 applies ? stored!.FreeShippingThreshold : zoneRate?.FreeShippingThreshold,
                 zoneRate?.Fee ?? 0m,
@@ -283,7 +284,7 @@ public sealed class DeliveryService : SkeletonService, IDeliveryService
 
         return new AdminDeliveryZoneStateRatesResponse(
             zone,
-            MalaysiaDelivery.Zones.GetValueOrDefault(zone, zone),
+            DeliveryLabels.AdminRegionFor(zone),
             zoneRate?.IsActive ?? false,
             zoneRate?.Fee ?? 0m,
             zoneRate?.FreeShippingThreshold,
@@ -307,7 +308,7 @@ public sealed class DeliveryService : SkeletonService, IDeliveryService
         {
             throw Validation(
                 "stateCode",
-                $"{state.Name} belongs to the {state.ZoneName} delivery zone.");
+                $"{state.Name} belongs to the {DeliveryLabels.AdminRegionFor(state.ZoneCode)} delivery zone.");
         }
 
         if (request.Fee < 0)
@@ -381,7 +382,7 @@ public sealed class DeliveryService : SkeletonService, IDeliveryService
         {
             throw Validation(
                 "stateCode",
-                $"{state.Name} belongs to the {state.ZoneName} delivery zone.");
+                $"{state.Name} belongs to the {DeliveryLabels.AdminRegionFor(state.ZoneCode)} delivery zone.");
         }
 
         var stored = await _dbContext.DeliveryStateRateOverrides
@@ -476,8 +477,12 @@ public sealed class DeliveryService : SkeletonService, IDeliveryService
                     : "Free delivery for this zone."
                 : null;
         return new DeliveryQuoteResponse(
-            state.Code, state.Name, MalaysiaDelivery.CountryName, state.ZoneCode, state.ZoneName,
-            effective.ZoneRate.Name, subtotal, discount, fee, fee == 0, reason,
+            state.Code, state.Name, MalaysiaDelivery.CountryName, state.ZoneCode,
+            DeliveryLabels.CustomerRegionFor(state.ZoneCode),
+            // A MyPetLink-issued name is shown in today's wording; an
+            // administrator's own name is quoted exactly as configured.
+            DeliveryLabels.NormalizeCustomerMethod(effective.ZoneRate.Name, state.ZoneCode),
+            subtotal, discount, fee, fee == 0, reason,
             decimal.Round(discountedItems + fee, 2), MalaysiaDelivery.Currency,
             threshold, isOverride, DeliveryRateSources.LabelFor(effective.Source));
     }
@@ -524,7 +529,7 @@ public sealed class DeliveryService : SkeletonService, IDeliveryService
     {
         var states = MalaysiaDelivery.States.Where(state => state.ZoneCode == rate.ZoneCode).ToArray();
         return new(rate.Id, rate.Name, rate.ZoneCode,
-            MalaysiaDelivery.Zones.GetValueOrDefault(rate.ZoneCode, rate.ZoneCode),
+            DeliveryLabels.AdminRegionFor(rate.ZoneCode),
             states.Select(state => state.Code).ToArray(), states.Select(state => state.Name).ToArray(),
             rate.Fee, rate.Currency, rate.FreeShippingThreshold, rate.IsActive, rate.DisplayOrder,
             rate.CreatedAt, rate.UpdatedAt, Convert.ToBase64String(rate.RowVersion),
