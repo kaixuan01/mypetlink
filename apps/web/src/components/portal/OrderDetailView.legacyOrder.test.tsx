@@ -237,7 +237,12 @@ describe("OrderDetailView legacy order labelling", () => {
     expect(screen.queryByText("Overnight")).toBeNull();
     expect(screen.queryByText("PL-QA-9999")).toBeNull();
     expect(screen.queryByRole("button", { name: "Copy tracking number" })).toBeNull();
-    expect(screen.getAllByText("Not available yet").length).toBeGreaterThan(0);
+    // The shipment card only appears after handover, so there are no empty
+    // courier rows for the customer to read as a problem.
+    expect(screen.queryByRole("heading", { name: "Shipment" })).toBeNull();
+    expect(screen.queryByText("Not available yet")).toBeNull();
+    // The fulfilment progress the customer can act on is still shown.
+    expect(screen.getAllByText("30 Jul 2026").length).toBeGreaterThan(0);
   });
 
   it("does not tell the customer a timeline step has no recorded time", async () => {

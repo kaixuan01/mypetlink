@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { OrderPriceBreakdown, priceLinesFromOrder } from "@/components/orders/OrderPriceBreakdown";
 import { ManualPaymentPanel } from "@/components/portal/ManualPaymentPanel";
+import {
+  MissingTrackingNumberNote,
+  OrderTrackingPanel,
+} from "@/components/portal/OrderTrackingPanel";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -14,6 +18,7 @@ import {
   formatFullDeliveryAddress,
   formatOrderNumber,
   getOrderNextStep,
+  getOrderShipmentView,
   getOrderStatusDisplay,
   getOrderStatusRank,
   getPaymentStatusLabel,
@@ -109,7 +114,6 @@ export function OrderDetailView({
   const [downloadError, setDownloadError] = useState("");
   const [downloadBusy, setDownloadBusy] = useState(false);
   const [copyTagStatus, setCopyTagStatus] = useState("");
-  const [copyTrackingStatus, setCopyTrackingStatus] = useState("");
   const [paymentMessage, setPaymentMessage] = useState("");
   const [loadError, setLoadError] = useState("");
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
@@ -246,16 +250,7 @@ export function OrderDetailView({
   // Courier and tracking details are entered while the parcel is still being
   // packed, so they are only shown once it is actually on its way. Otherwise a
   // customer would try to track a number the courier has not accepted yet.
-  const shipmentHandedToCourier =
-    Boolean(order.shippedDate) ||
-    order.status === "Shipped" ||
-    order.status === "Delivered";
-  const courierProviderLabel = shipmentHandedToCourier
-    ? order.courierProvider
-    : undefined;
-  const trackingNumberLabel = shipmentHandedToCourier
-    ? order.trackingNumber
-    : undefined;
+  const shipment = getOrderShipmentView(order);
   const timelineEvents =
     order.timeline && order.timeline.length > 0
       ? order.timeline
@@ -673,63 +668,39 @@ export function OrderDetailView({
             label="Tracking status"
             value={order.trackingStatus ?? "Not shipped yet"}
           />
-          <DetailItem
-            label="Courier provider"
-            value={courierProviderLabel ?? "Not available yet"}
-          />
-          {shipmentHandedToCourier && order.courierService ? (
-            <DetailItem label="Courier service" value={order.courierService} />
-          ) : null}
-          <DetailItem
-            label="Tracking number"
-            value={trackingNumberLabel ?? "Not available yet"}
-          />
           {order.readyToShipDate ? (
             <DetailItem label="Ready to ship" value={order.readyToShipDate} />
           ) : null}
-          {order.shippedDate ? (
-            <DetailItem label="Shipped" value={order.shippedDate} />
-          ) : null}
-          {order.deliveredDate ? (
-            <DetailItem label="Delivered" value={order.deliveredDate} />
-          ) : null}
         </div>
-        {trackingNumberLabel ? (
-          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-            <button
-              className="inline-flex min-h-11 items-center justify-center rounded-full border border-pet-border bg-white px-4 py-2 text-sm font-extrabold text-pet-ink transition hover:bg-pet-cream"
-              onClick={() => {
-                void copyText(trackingNumberLabel).then((copied) => {
-                  setCopyTrackingStatus(
-                    copied
-                      ? "Tracking number copied."
-                      : "Copy unavailable. Select and copy the tracking number."
-                  );
-                  window.setTimeout(() => setCopyTrackingStatus(""), 2500);
-                });
-              }}
-              type="button"
-            >
-              Copy tracking number
-            </button>
-            {shipmentHandedToCourier && order.trackingUrl ? (
-              <a
-                className="inline-flex min-h-11 items-center justify-center rounded-full bg-pet-teal px-4 py-2 text-sm font-extrabold text-white transition hover:bg-[#0f5fd0]"
-                href={order.trackingUrl}
-                rel="noopener noreferrer"
-                target="_blank"
-              >
-                Track Parcel
-              </a>
+      </section>
+
+      {/* Courier and tracking live in their own section so nothing about the
+          shipment appears until the parcel has actually been handed over. */}
+      {shipment.visible ? (
+        <section className="brand-card rounded-[1.75rem] p-5 sm:p-6">
+          <h2 className="text-xl font-black text-pet-ink">Shipment</h2>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <DetailItem
+              label="Courier"
+              value={shipment.courierName ?? "Handed to courier"}
+            />
+            {shipment.courierService ? (
+              <DetailItem
+                label="Courier service"
+                value={shipment.courierService}
+              />
             ) : null}
-            {copyTrackingStatus ? (
-              <p className="basis-full text-xs font-bold text-pet-sage" role="status">
-                {copyTrackingStatus}
-              </p>
+            {shipment.shippedDate ? (
+              <DetailItem label="Shipped" value={shipment.shippedDate} />
+            ) : null}
+            {shipment.deliveredDate ? (
+              <DetailItem label="Delivered" value={shipment.deliveredDate} />
             ) : null}
           </div>
-        ) : null}
-      </section>
+          <OrderTrackingPanel shipment={shipment} />
+          <MissingTrackingNumberNote shipment={shipment} />
+        </section>
+      ) : null}
 
       <section className="brand-card rounded-[1.75rem] p-5 sm:p-6">
         <h2 className="text-xl font-black text-pet-ink">Available actions</h2>

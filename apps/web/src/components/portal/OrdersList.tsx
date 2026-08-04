@@ -1,6 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import {
+  OrderPriceBreakdown,
+  priceLinesFromOrder,
+} from "@/components/orders/OrderPriceBreakdown";
+import {
+  MissingTrackingNumberNote,
+  OrderTrackingPanel,
+} from "@/components/portal/OrderTrackingPanel";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -8,12 +16,14 @@ import { Icon } from "@/components/ui/Icon";
 import {
   canDownloadPaymentReceipt,
   canRequestReplacement,
-  formatDeliverySummary,
+  formatDeliveryDestination,
   formatFullDeliveryAddress,
   formatOrderNumber,
   getOrderNextStep,
+  getOrderShipmentView,
   getOrderStatusDisplay,
   getPaymentStatusLabel,
+  getShipmentSummaryLabel,
 } from "@/lib/orders";
 import { formatOrderOption } from "@/lib/orderDisplay";
 import { smartTagOrderingEnabled } from "@/lib/features";
@@ -223,6 +233,8 @@ export function OrdersList({
             : "";
         const receiptReady = canDownloadPaymentReceipt(order);
         const replacementReady = canRequestReplacement(order, linkedTag);
+        const shipment = getOrderShipmentView(order);
+        const shipmentSummary = getShipmentSummaryLabel(order);
 
         return (
           <article
@@ -256,8 +268,15 @@ export function OrdersList({
                 value={getPaymentStatusLabel(order)}
               />
               <CompactItem
-                label="Delivery"
-                value={formatDeliverySummary(order) || "Delivery details added"}
+                label={shipmentSummary.label}
+                value={shipmentSummary.value}
+              />
+              {/* A short, normalised destination. The complete address belongs
+                  to the expanded details, so this is never a cut-off copy of
+                  it. */}
+              <CompactItem
+                label="Deliver to"
+                value={formatDeliveryDestination(order)}
               />
             </div>
 
@@ -269,6 +288,9 @@ export function OrdersList({
                 {order.trackingStatus || getOrderNextStep(order)}
               </p>
             </div>
+
+            <OrderTrackingPanel compact shipment={shipment} />
+            <MissingTrackingNumberNote shipment={shipment} />
 
             <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
               {order.status === "Pending Payment" ? (
@@ -354,51 +376,121 @@ function OrderInlineDetail({
   petName: string;
   tag?: PetTag;
 }) {
+  const shipment = getOrderShipmentView(order);
+
   return (
-    <div className="mt-4 grid gap-3 rounded-[1.25rem] border border-pet-border bg-white p-4 md:grid-cols-3">
-      <CompactItem label="Pet" value={petName} />
-      <CompactItem label="Option" value={formatOrderOption(order)} />
-      <CompactItem
-        label="Payment method"
-        value={order.paymentMethod ?? "QR Payment"}
-      />
-      <CompactItem
-        label="Bank/eWallet transaction ID"
-        value={order.paymentReference ?? "Not submitted yet"}
-      />
-      <CompactItem
-        label="Payment date"
-        value={order.paymentConfirmedDate ?? "Not confirmed yet"}
-      />
-      <CompactItem
-        label="Submitted file"
-        value={order.paymentProofName ?? "Not submitted yet"}
-      />
-      <CompactItem
-        label="Recipient"
-        value={order.delivery.recipientName}
-      />
-      <CompactItem
-        label="Delivery address"
-        value={formatFullDeliveryAddress(order)}
-        wrap
-      />
-      <CompactItem
-        label="Tag status"
-        value={tag?.status ?? "Pending tag preparation"}
-      />
+    <div className="mt-4 grid gap-4 rounded-[1.25rem] border border-pet-border bg-white p-4">
+      {/* Every line of the order, priced, using the same breakdown the order
+          page and checkout show so the numbers can never disagree. */}
+      <section className="min-w-0">
+        <h3 className="text-[0.68rem] font-extrabold uppercase tracking-wide text-pet-teal">
+          Order items
+        </h3>
+        <div className="mt-2">
+          <OrderPriceBreakdown
+            compact
+            currency={order.currency}
+            deliveryFee={order.deliveryFee ?? 0}
+            deliveryMethod={order.delivery.deliveryMethod}
+            discountTotal={order.discountTotal}
+            freeDeliveryReason={order.delivery.freeDeliveryReason}
+            lines={priceLinesFromOrder(order)}
+            merchandiseSubtotal={order.merchandiseSubtotal}
+            total={order.totalAmount}
+          />
+        </div>
+      </section>
+
+      <DetailSection title="Order">
+        <CompactItem label="Pet" value={petName} />
+        <CompactItem label="Option" value={formatOrderOption(order)} />
+        <CompactItem
+          label="Tag status"
+          value={tag?.status ?? "Pending tag preparation"}
+        />
+      </DetailSection>
+
+      <DetailSection title="Payment">
+        <CompactItem
+          label="Payment method"
+          value={order.paymentMethod ?? "QR Payment"}
+        />
+        <CompactItem
+          label="Payment date"
+          value={order.paymentConfirmedDate ?? "Not confirmed yet"}
+        />
+        <CompactItem
+          label="Bank/eWallet transaction ID"
+          value={order.paymentReference ?? "Not submitted yet"}
+        />
+        <CompactItem
+          label="Submitted file"
+          value={order.paymentProofName ?? "Not submitted yet"}
+        />
+      </DetailSection>
+
+      {/* The complete address lives here and nowhere else, so it is never
+          shown twice in two different truncated forms. */}
+      <DetailSection title="Delivery">
+        <CompactItem label="Recipient" value={order.delivery.recipientName} />
+        <CompactItem label="Phone" value={order.delivery.phone} />
+        <CompactItem
+          label="Delivery address"
+          value={formatFullDeliveryAddress(order)}
+        />
+        {order.delivery.notes ? (
+          <CompactItem label="Delivery notes" value={order.delivery.notes} />
+        ) : null}
+      </DetailSection>
+
+      {shipment.visible ? (
+        <DetailSection title="Shipment">
+          <CompactItem
+            label="Courier"
+            value={shipment.courierName ?? "Handed to courier"}
+          />
+          {shipment.courierService ? (
+            <CompactItem label="Service" value={shipment.courierService} />
+          ) : null}
+          {shipment.shippedDate ? (
+            <CompactItem label="Shipped" value={shipment.shippedDate} />
+          ) : null}
+          {shipment.deliveredDate ? (
+            <CompactItem label="Delivered" value={shipment.deliveredDate} />
+          ) : null}
+        </DetailSection>
+      ) : null}
     </div>
+  );
+}
+
+/** One labelled group inside the expanded panel. */
+function DetailSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="min-w-0">
+      <h3 className="text-[0.68rem] font-extrabold uppercase tracking-wide text-pet-teal">
+        {title}
+      </h3>
+      <div className="mt-2 grid gap-3 md:grid-cols-3">{children}</div>
+    </section>
   );
 }
 
 function CompactItem({
   label,
   value,
-  wrap,
+  truncate,
 }: {
   label: string;
   value: string;
-  wrap?: boolean;
+  /** Compact summary tiles only. Full-detail values always wrap. */
+  truncate?: boolean;
 }) {
   return (
     <div className="min-w-0 rounded-[1rem] bg-pet-cream px-3 py-3">
@@ -407,8 +499,9 @@ function CompactItem({
       </p>
       <p
         className={`mt-1 text-sm font-bold text-pet-ink ${
-          wrap ? "break-words" : "truncate"
+          truncate ? "truncate" : "break-words [overflow-wrap:anywhere]"
         }`}
+        title={truncate ? value : undefined}
       >
         {value || "Not set"}
       </p>

@@ -243,3 +243,82 @@ export function formatFullDeliveryAddress(order: Pick<TagOrder, "delivery">) {
     .join(", ");
 }
 
+/**
+ * Short destination for a compact summary: city and state only.
+ *
+ * Deliberately not a slice of the full address — the compact card must never
+ * render a clipped copy of what the expanded details already show in full.
+ */
+export function formatDeliveryDestination(order: Pick<TagOrder, "delivery">) {
+  return [order.delivery.city, order.delivery.state]
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(", ");
+}
+
+/**
+ * What the owner may see about a shipment, derived once so the list and the
+ * order detail page cannot drift apart.
+ *
+ * The server already withholds courier and tracking values before shipment, so
+ * this only decides presentation. Note that `trackingNumber` and `trackingUrl`
+ * are independent: a courier with no configured tracking template still yields
+ * a usable number, and the number must be shown either way.
+ */
+export type OrderShipmentView = {
+  /** True once the parcel has been handed to the courier. */
+  visible: boolean;
+  courierName?: string;
+  courierService?: string;
+  trackingNumber?: string;
+  /** Only present when a safe courier template produced one server-side. */
+  trackingUrl?: string;
+  shippedDate?: string;
+  deliveredDate?: string;
+};
+
+export function getOrderShipmentView(order: TagOrder): OrderShipmentView {
+  const visible =
+    Boolean(order.shippedDate) ||
+    order.status === "Shipped" ||
+    order.status === "Delivered";
+
+  if (!visible) {
+    return { visible: false };
+  }
+
+  return {
+    visible: true,
+    courierName: order.courierProvider || undefined,
+    courierService: order.courierService || undefined,
+    trackingNumber: order.trackingNumber || undefined,
+    trackingUrl: order.trackingUrl || undefined,
+    shippedDate: order.shippedDate || undefined,
+    deliveredDate: order.deliveredDate || undefined,
+  };
+}
+
+/**
+ * Compact fulfilment wording for the summary row. Before shipment this
+ * describes progress instead of showing an empty courier field.
+ */
+export function getShipmentSummaryLabel(order: TagOrder): {
+  label: string;
+  value: string;
+} {
+  const shipment = getOrderShipmentView(order);
+  if (shipment.visible) {
+    return { label: "Shipment", value: shipment.courierName ?? "Handed to courier" };
+  }
+
+  switch (order.status) {
+    case "Preparing":
+      return { label: "Fulfilment", value: "Preparing" };
+    case "Ready to Ship":
+      return { label: "Fulfilment", value: "Ready to ship" };
+    case "Cancelled":
+      return { label: "Fulfilment", value: "Cancelled" };
+    default:
+      return { label: "Fulfilment", value: "Awaiting shipment" };
+  }
+}
