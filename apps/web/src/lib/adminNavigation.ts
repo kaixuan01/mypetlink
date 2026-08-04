@@ -12,6 +12,9 @@ export type AdminNavItem = {
 };
 
 export type AdminNavGroup = {
+  // Stable key for persisted expand/collapse state. Never derive this from the
+  // label — renaming a section must not silently reset someone's preference.
+  id: string;
   // null = ungrouped items rendered without a section heading (Overview).
   label: string | null;
   items: AdminNavItem[];
@@ -19,17 +22,22 @@ export type AdminNavGroup = {
 
 export const adminNavGroups: AdminNavGroup[] = [
   {
+    id: "overview",
     label: null,
     items: [{ href: "/admin", label: "Overview", icon: "home" }],
   },
   {
+    id: "commerce",
     label: "Commerce",
     items: [
-      { href: "/admin/orders", label: "Orders", icon: "record" },
+      // "Retail" distinguishes owner purchases from Merchant Sales. The Owner
+      // Portal keeps its plain "Orders" — this clarification is Admin-only.
+      { href: "/admin/orders", label: "Retail Orders", icon: "record" },
       { href: "/admin/payment-proofs", label: "Payment Proofs", icon: "shield" },
     ],
   },
   {
+    id: "catalog",
     label: "Catalog",
     items: [
       { href: `${adminRoutes.productCatalog}?tab=products`, label: "Tag Products", icon: "plans" },
@@ -38,6 +46,7 @@ export const adminNavGroups: AdminNavGroup[] = [
     ],
   },
   {
+    id: "tag-operations",
     label: "Tag Operations",
     items: [
       { href: "/admin/tag-inventory", label: "Tag Inventory", icon: "copy" },
@@ -45,6 +54,7 @@ export const adminNavGroups: AdminNavGroup[] = [
     ],
   },
   {
+    id: "customers",
     label: "Customers",
     items: [
       { href: "/admin/pets", label: "Pets", icon: "pets" },
@@ -52,6 +62,7 @@ export const adminNavGroups: AdminNavGroup[] = [
     ],
   },
   {
+    id: "configuration",
     label: "Configuration",
     items: [
       { href: "/admin/plans", label: "Plans", icon: "plans" },
@@ -62,6 +73,7 @@ export const adminNavGroups: AdminNavGroup[] = [
     ],
   },
   {
+    id: "system",
     label: "System",
     items: [
       { href: adminRoutes.operationalStatus, label: "Operational Status", icon: "settings" },
@@ -111,6 +123,52 @@ export function isAdminNavItemActive(
 // visible, but the filter keeps that invariant if items become conditional.
 export function visibleAdminNavGroups(): AdminNavGroup[] {
   return adminNavGroups.filter((group) => group.items.length > 0);
+}
+
+/**
+ * The section containing the current route, so it can be opened automatically.
+ *
+ * Collapsing sections must never be able to hide where you actually are: the
+ * sidebar treats this section as open regardless of what was stored.
+ */
+export function activeAdminNavGroupId(
+  pathname: string,
+  search: string
+): string | null {
+  for (const group of adminNavGroups) {
+    for (const item of group.items) {
+      if (isAdminNavItemActive(item, pathname, search)) {
+        return group.id;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Whether a section should render expanded.
+ *
+ * First-time behaviour is deliberately quiet: only the section you are in
+ * starts open, so a new admin sees a short sidebar rather than every module at
+ * once. After that, an explicit choice wins — except for the active section,
+ * which stays open so the current page is always reachable.
+ */
+export function isAdminNavGroupOpen(
+  group: AdminNavGroup,
+  activeGroupId: string | null,
+  stored: Record<string, boolean>
+): boolean {
+  if (group.label === null) {
+    // Ungrouped items have no heading to click.
+    return true;
+  }
+
+  if (group.id === activeGroupId) {
+    return true;
+  }
+
+  return stored[group.id] ?? false;
 }
 
 // Page title shown in the compact mobile Admin header.

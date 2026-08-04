@@ -40,8 +40,10 @@ describe("AdminLayout navigation", () => {
     expect(screen.getByText("Customers")).toBeDefined();
     expect(screen.getByText("Configuration")).toBeDefined();
 
-    // Catalog deep links carry their tab query.
-    const promotions = screen.getByRole("link", { name: "Promotions" });
+    // Catalog deep links carry their tab query. Sections now start collapsed
+    // unless they hold the active route, so open Catalog before reading it.
+    fireEvent.click(screen.getAllByRole("button", { name: /Catalog/ })[0]);
+    const promotions = screen.getAllByRole("link", { name: "Promotions" })[0];
     expect(promotions.getAttribute("href")).toBe("/admin/tag-products?tab=promotions");
   });
 
@@ -87,5 +89,153 @@ describe("AdminLayout navigation", () => {
     // Appears both as the sidebar link and as the mobile header's current
     // page label.
     expect(screen.getAllByText("Tag Inventory").length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("collapsible sidebar sections", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  it("starts with only the section you are in open, so the sidebar stays short", () => {
+    navState.pathname = "/admin/orders";
+    render(<AdminLayout>content</AdminLayout>);
+
+    const commerce = screen.getAllByRole("button", { name: /Commerce/ })[0];
+    expect(commerce.getAttribute("aria-expanded")).toBe("true");
+
+    const catalog = screen.getAllByRole("button", { name: /Catalog/ })[0];
+    expect(catalog.getAttribute("aria-expanded")).toBe("false");
+    // A collapsed section's links are removed, not merely hidden.
+    expect(screen.queryByRole("link", { name: "Promotions" })).toBeNull();
+  });
+
+  it("expands and collapses a section on click and records aria-expanded", () => {
+    render(<AdminLayout>content</AdminLayout>);
+
+    const catalog = screen.getAllByRole("button", { name: /Catalog/ })[0];
+    expect(catalog.getAttribute("aria-expanded")).toBe("false");
+
+    fireEvent.click(catalog);
+    expect(
+      screen.getAllByRole("button", { name: /Catalog/ })[0].getAttribute("aria-expanded")
+    ).toBe("true");
+    expect(screen.getAllByRole("link", { name: "Promotions" }).length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getAllByRole("button", { name: /Catalog/ })[0]);
+    expect(
+      screen.getAllByRole("button", { name: /Catalog/ })[0].getAttribute("aria-expanded")
+    ).toBe("false");
+  });
+
+  it("persists the choice under a versioned key", () => {
+    render(<AdminLayout>content</AdminLayout>);
+    fireEvent.click(screen.getAllByRole("button", { name: /Catalog/ })[0]);
+
+    const stored = window.localStorage.getItem("mypetlink_admin_nav_sections_v1");
+    expect(stored).toBeTruthy();
+    expect(JSON.parse(stored as string).catalog).toBe(true);
+  });
+
+  it("restores a stored choice on the next visit", () => {
+    window.localStorage.setItem(
+      "mypetlink_admin_nav_sections_v1",
+      JSON.stringify({ customers: true })
+    );
+    render(<AdminLayout>content</AdminLayout>);
+
+    expect(
+      screen.getAllByRole("button", { name: /Customers/ })[0].getAttribute("aria-expanded")
+    ).toBe("true");
+  });
+
+  it("never lets a collapsed preference hide the page you are on", () => {
+    // Commerce was explicitly collapsed earlier, but the active route lives there.
+    window.localStorage.setItem(
+      "mypetlink_admin_nav_sections_v1",
+      JSON.stringify({ commerce: false })
+    );
+    navState.pathname = "/admin/orders";
+    render(<AdminLayout>content</AdminLayout>);
+
+    expect(
+      screen.getAllByRole("button", { name: /Commerce/ })[0].getAttribute("aria-expanded")
+    ).toBe("true");
+    expect(screen.getAllByRole("link", { name: "Retail Orders" }).length).toBeGreaterThan(0);
+  });
+
+  it("ignores unusable stored values instead of breaking the sidebar", () => {
+    window.localStorage.setItem("mypetlink_admin_nav_sections_v1", "not json at all");
+    navState.pathname = "/admin/orders";
+
+    expect(() => render(<AdminLayout>content</AdminLayout>)).not.toThrow();
+    expect(screen.getAllByRole("link", { name: "Retail Orders" }).length).toBeGreaterThan(0);
+  });
+
+  it("labels the owner-order module Retail Orders in Admin only", () => {
+    render(<AdminLayout>content</AdminLayout>);
+
+    expect(screen.getAllByRole("link", { name: "Retail Orders" }).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("link", { name: "Orders" })).toBeNull();
+  });
+});
+
+describe("whole-sidebar collapse", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  it("collapses to an icon rail and keeps every destination reachable by name", () => {
+    navState.pathname = "/admin/orders";
+    render(<AdminLayout>content</AdminLayout>);
+
+    fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
+
+    const toggle = screen.getByRole("button", { name: "Expand sidebar" });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    // The rail drops headings, so every item is listed regardless of section.
+    expect(screen.getAllByRole("link", { name: "Promotions" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("link", { name: "Retail Orders" }).length).toBeGreaterThan(0);
+    // Section headings make no sense without labels.
+    expect(screen.queryByRole("button", { name: /Commerce/ })).toBeNull();
+  });
+
+  it("keeps logout reachable while collapsed", () => {
+    render(<AdminLayout>content</AdminLayout>);
+    fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
+
+    expect(screen.getAllByRole("button", { name: "Logout" }).length).toBeGreaterThan(0);
+  });
+
+  it("persists the rail preference under a versioned key", () => {
+    render(<AdminLayout>content</AdminLayout>);
+    fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
+
+    expect(window.localStorage.getItem("mypetlink_admin_sidebar_collapsed_v1")).toBe("true");
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand sidebar" }));
+    expect(window.localStorage.getItem("mypetlink_admin_sidebar_collapsed_v1")).toBe("false");
+  });
+
+  it("still marks the active route while collapsed", () => {
+    window.localStorage.setItem("mypetlink_admin_sidebar_collapsed_v1", "true");
+    navState.pathname = "/admin/orders";
+    render(<AdminLayout>content</AdminLayout>);
+
+    const active = screen
+      .getAllByRole("link", { name: "Retail Orders" })
+      .filter((node) => node.getAttribute("aria-current") === "page");
+    expect(active.length).toBeGreaterThan(0);
+  });
+
+  it("does not force the mobile drawer into icon-only mode", () => {
+    window.localStorage.setItem("mypetlink_admin_sidebar_collapsed_v1", "true");
+    render(<AdminLayout>content</AdminLayout>);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open admin navigation" }));
+
+    // The drawer keeps its section headings even when the desktop rail is on.
+    const drawer = screen.getByRole("dialog", { name: "Admin navigation" });
+    expect(drawer.querySelectorAll("button[aria-expanded]").length).toBeGreaterThan(0);
   });
 });

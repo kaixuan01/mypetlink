@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  activeAdminNavGroupId,
   activeAdminNavLabel,
   adminNavGroups,
+  isAdminNavGroupOpen,
   isAdminNavItemActive,
   visibleAdminNavGroups,
 } from "./adminNavigation";
@@ -49,7 +51,7 @@ describe("adminNavigation", () => {
   it("matches plain routes including nested paths", () => {
     const orders = adminNavGroups
       .flatMap((group) => group.items)
-      .find((item) => item.label === "Orders")!;
+      .find((item) => item.label === "Retail Orders")!;
 
     expect(isAdminNavItemActive(orders, "/admin/orders", "")).toBe(true);
     expect(isAdminNavItemActive(orders, "/admin/orders/123", "")).toBe(true);
@@ -79,5 +81,48 @@ describe("adminNavigation", () => {
     expect(activeAdminNavLabel("/admin/tag-inventory", "")).toBe("Tag Inventory");
     expect(activeAdminNavLabel("/admin/order-checkout", "")).toBe("Order Checkout");
     expect(activeAdminNavLabel("/somewhere-else", "")).toBe("Admin");
+  });
+});
+
+describe("section expansion", () => {
+  it("gives every section a stable id that is not derived from its label", () => {
+    const ids = adminNavGroups.map((group) => group.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids).toContain("commerce");
+    expect(ids).toContain("catalog");
+  });
+
+  it("finds the section holding the active route", () => {
+    expect(activeAdminNavGroupId("/admin/orders", "")).toBe("commerce");
+    expect(activeAdminNavGroupId("/admin/tag-inventory", "")).toBe("tag-operations");
+    expect(activeAdminNavGroupId("/admin/tag-products", "?tab=promotions")).toBe("catalog");
+    expect(activeAdminNavGroupId("/admin/nowhere", "")).toBeNull();
+  });
+
+  it("opens only the active section for a first-time visitor", () => {
+    const commerce = adminNavGroups.find((group) => group.id === "commerce")!;
+    const catalog = adminNavGroups.find((group) => group.id === "catalog")!;
+
+    expect(isAdminNavGroupOpen(commerce, "commerce", {})).toBe(true);
+    expect(isAdminNavGroupOpen(catalog, "commerce", {})).toBe(false);
+  });
+
+  it("honours a stored choice for sections you are not currently in", () => {
+    const catalog = adminNavGroups.find((group) => group.id === "catalog")!;
+
+    expect(isAdminNavGroupOpen(catalog, "commerce", { catalog: true })).toBe(true);
+    expect(isAdminNavGroupOpen(catalog, "commerce", { catalog: false })).toBe(false);
+  });
+
+  it("refuses to hide the section you are in, whatever was stored", () => {
+    const commerce = adminNavGroups.find((group) => group.id === "commerce")!;
+
+    expect(isAdminNavGroupOpen(commerce, "commerce", { commerce: false })).toBe(true);
+  });
+
+  it("always shows ungrouped items, which have no heading to click", () => {
+    const overview = adminNavGroups.find((group) => group.id === "overview")!;
+
+    expect(isAdminNavGroupOpen(overview, null, { overview: false })).toBe(true);
   });
 });
