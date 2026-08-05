@@ -350,7 +350,7 @@ public sealed class PaymentConfirmationEmailTests
                 new EmailTemplateGate(db, emailOptions),
                 Clock,
                 NullLogger<EmailOutboxDispatcher>.Instance,
-                new EmailAttachmentResolver(new OrderDocumentService(db)));
+                new EmailAttachmentResolver(new OrderDocumentService(db), new MerchantDocumentService(db)));
             var gate = new EmailTemplateGate(db, emailOptions);
             var outbox = new EmailOutboxService(db, audit, Clock, gate);
             Admin = new AdminService(

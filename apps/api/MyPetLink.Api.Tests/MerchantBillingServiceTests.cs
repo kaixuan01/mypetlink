@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using MyPetLink.Api.Common;
 using MyPetLink.Api.Data;
 using MyPetLink.Api.DTOs;
@@ -71,8 +72,17 @@ public class MerchantBillingServiceTests
     [Fact]
     public async Task IssuingIsBlockedUntilTheBusinessIdentityCanCarryAnInvoice()
     {
-        using var h = await Harness.CreateAsync(completeIdentity: false);
+        using var h = await Harness.CreateAsync();
         var order = await h.AwaitingPaymentOrderAsync();
+
+        // The registered address is removed after the order exists, which is
+        // exactly the state an incomplete setup leaves behind.
+        var identity = await h.Db.BusinessIdentitySettings.SingleAsync();
+        identity.RegisteredAddressLine1 = "";
+        identity.RegisteredPostcode = "";
+        identity.RegisteredCity = "";
+        identity.RegisteredState = "";
+        await h.Db.SaveChangesAsync();
 
         var error = await Assert.ThrowsAsync<ApiException>(() => h.IssueAsync(order.Id));
 
@@ -419,11 +429,21 @@ public class MerchantBillingServiceTests
             var audit = new AuditLogService(db, new HttpContextAccessor());
             var numbers = new DocumentNumberService(db);
             var identity = new BusinessIdentityService(db, audit, time);
+            var gate = new EmailTemplateGate(db, Options.Create(new EmailOptions
+            {
+                Enabled = true,
+                FromAddress = "support@mypetlink.com.my",
+                FromName = "MyPetLink",
+                OwnerPortalBaseUrl = "http://localhost:3000",
+            }));
 
             return new Harness(
                 db,
-                new MerchantSalesService(db, numbers, audit, time),
-                new MerchantBillingService(db, numbers, identity, audit, time))
+                new MerchantSalesService(db, numbers, identity, audit, time),
+                new MerchantBillingService(
+                    db, numbers, identity,
+                    new MerchantEmailService(db, gate, audit, time),
+                    audit, time))
             {
                 VariantId = variant.Id,
             };

@@ -345,6 +345,9 @@ public sealed class AdminEmailTemplateService : IAdminEmailTemplateService
         EmailMessageType.OwnerWelcome => "Welcome email",
         EmailMessageType.PaymentConfirmed => "Payment confirmation",
         EmailMessageType.OrderShipped => "Order shipped",
+        EmailMessageType.MerchantQuotation => "Business quotation",
+        EmailMessageType.MerchantInvoice => "Business invoice",
+        EmailMessageType.MerchantPaymentConfirmation => "Business payment confirmation",
         _ => messageType.ToString()
     };
 
@@ -356,6 +359,12 @@ public sealed class AdminEmailTemplateService : IAdminEmailTemplateService
             "Sent when an order payment is confirmed, with a link to the Official Receipt.",
         EmailMessageType.OrderShipped =>
             "Sent once when an order is marked shipped, with courier and tracking details.",
+        EmailMessageType.MerchantQuotation =>
+            "Sent to a business customer when an administrator emails their quotation, with the quotation attached.",
+        EmailMessageType.MerchantInvoice =>
+            "Sent to a business customer when an administrator emails their invoice, with the invoice attached.",
+        EmailMessageType.MerchantPaymentConfirmation =>
+            "Sent once when a business payment is recorded, with the official receipt attached.",
         _ => "Customer email."
     };
 }

@@ -63,7 +63,13 @@ public enum EmailMessageType
 {
     PaymentConfirmed,
     OwnerWelcome,
-    OrderShipped
+    OrderShipped,
+
+    // Merchant Sales. Stored as strings, so appending values cannot disturb
+    // rows already written.
+    MerchantQuotation,
+    MerchantInvoice,
+    MerchantPaymentConfirmation
 }
 
 public enum EmailOutboxStatus

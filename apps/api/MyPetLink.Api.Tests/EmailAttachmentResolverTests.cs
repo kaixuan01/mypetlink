@@ -12,7 +12,7 @@ public sealed class EmailAttachmentResolverTests
         var documents = new FakeDocuments(new OrderDocumentResult(
             "%PDF-1.7 receipt for MPL-ORD-TEST MYR 47.90"u8.ToArray(),
             "MyPetLink-Official-Receipt-MPL-ORD-TEST.pdf"));
-        var resolver = new EmailAttachmentResolver(documents);
+        var resolver = new EmailAttachmentResolver(documents, new FakeMerchantDocuments());
 
         var attachments = await resolver.ResolveAsync(Message(EmailMessageType.PaymentConfirmed, orderId));
 
@@ -27,7 +27,7 @@ public sealed class EmailAttachmentResolverTests
     public async Task ShippedEmail_HasNoReceiptAttachment()
     {
         var documents = new FakeDocuments(new OrderDocumentResult("%PDF-test"u8.ToArray(), "receipt.pdf"));
-        var attachments = await new EmailAttachmentResolver(documents)
+        var attachments = await new EmailAttachmentResolver(documents, new FakeMerchantDocuments())
             .ResolveAsync(Message(EmailMessageType.OrderShipped, Guid.NewGuid()));
 
         Assert.Empty(attachments);
@@ -41,7 +41,8 @@ public sealed class EmailAttachmentResolverTests
     public async Task RejectsUnsafeOrIncorrectReceiptNames(string fileName)
     {
         var resolver = new EmailAttachmentResolver(
-            new FakeDocuments(new OrderDocumentResult("%PDF-test"u8.ToArray(), fileName)));
+            new FakeDocuments(new OrderDocumentResult("%PDF-test"u8.ToArray(), fileName)),
+            new FakeMerchantDocuments());
 
         var error = await Assert.ThrowsAsync<EmailDeliveryException>(() =>
             resolver.ResolveAsync(Message(EmailMessageType.PaymentConfirmed, Guid.NewGuid())));
@@ -52,7 +53,9 @@ public sealed class EmailAttachmentResolverTests
     [Fact]
     public async Task GenerationFailure_IsRetryableAndDoesNotExposeTheUnderlyingError()
     {
-        var resolver = new EmailAttachmentResolver(new FakeDocuments(new InvalidOperationException("private path C:\\secret")));
+        var resolver = new EmailAttachmentResolver(
+            new FakeDocuments(new InvalidOperationException("private path C:\\secret")),
+            new FakeMerchantDocuments());
         var error = await Assert.ThrowsAsync<EmailDeliveryException>(() =>
             resolver.ResolveAsync(Message(EmailMessageType.PaymentConfirmed, Guid.NewGuid())));
 
@@ -92,5 +95,17 @@ public sealed class EmailAttachmentResolverTests
         public Task<OrderDocumentResult> GetOwnerReceiptAsync(Guid? currentUserId, string orderKey, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<OrderDocumentResult> GetAdminSummaryAsync(Guid orderId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<OrderDocumentResult> GetAdminReceiptAsync(Guid orderId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
+    /// <summary>
+    /// Merchant documents are covered by their own tests; here they only need
+    /// to exist so the resolver can be built.
+    /// </summary>
+    private sealed class FakeMerchantDocuments : IMerchantDocumentService
+    {
+        public Task<OrderDocumentResult> GetQuotationAsync(Guid quotationId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<OrderDocumentResult> GetInvoiceAsync(Guid invoiceId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<OrderDocumentResult> GetReceiptAsync(Guid receiptId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<OrderDocumentResult> GetReceiptForInvoiceAsync(Guid invoiceId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 }

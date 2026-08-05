@@ -792,6 +792,22 @@ public class MerchantSalesServiceTests
             };
 
             db.AddRange(product, variant, second);
+            // Sending a quotation freezes the seller identity, so the harness
+            // needs the same configured business a real deployment has.
+            db.BusinessIdentitySettings.Add(new BusinessIdentitySetting
+            {
+                Id = BusinessIdentityService.SettingsId,
+                BrandName = "MyPetLink",
+                LegalBusinessName = "GBB Software Solutions",
+                BusinessRegistrationNumber = "202603141718 (AS0515813-P)",
+                RegisteredAddressLine1 = "12 Jalan Teknologi 3/1",
+                RegisteredPostcode = "57000",
+                RegisteredCity = "Kuala Lumpur",
+                RegisteredState = "Kuala Lumpur",
+                RegisteredCountry = "Malaysia",
+                SupportEmail = "support@mypetlink.com.my",
+                RowVersion = [1, 2, 3],
+            });
             db.SaveChanges();
 
             var time = now.HasValue
@@ -799,7 +815,9 @@ public class MerchantSalesServiceTests
                 : (TimeProvider)TimeProvider.System;
 
             var audit = new AuditLogService(db, new HttpContextAccessor());
-            var service = new MerchantSalesService(db, new DocumentNumberService(db), audit, time);
+            var service = new MerchantSalesService(
+                db, new DocumentNumberService(db),
+                new BusinessIdentityService(db, audit, time), audit, time);
 
             return new Harness(db, service, variant.Id, second.Id);
         }

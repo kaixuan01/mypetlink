@@ -120,6 +120,12 @@ public sealed class MerchantQuotation : AuditableEntity
     public string? SalespersonNameSnapshot { get; set; }
     public decimal? SalespersonCommissionPercentageSnapshot { get; set; }
 
+    /// <summary>
+    /// Who issued it, frozen when the quotation was sent. Null while it is
+    /// still a draft, because a draft has never been shown to anyone.
+    /// </summary>
+    public SellerIdentitySnapshot? Seller { get; set; }
+
     public DateTimeOffset QuotationDate { get; set; }
     public DateTimeOffset ValidUntil { get; set; }
     public string Currency { get; set; } = MerchantSalesConstants.Currency;

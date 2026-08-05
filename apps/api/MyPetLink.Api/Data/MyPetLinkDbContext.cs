@@ -260,6 +260,7 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.Property(item => item.SalespersonCodeSnapshot).HasMaxLength(32);
             entity.Property(item => item.SalespersonNameSnapshot).HasMaxLength(160);
             entity.Property(item => item.CustomerNotes).HasMaxLength(2000);
+            ConfigureSellerSnapshot(entity.OwnsOne(item => item.Seller));
             entity.Property(item => item.InternalNotes).HasMaxLength(2000);
             entity.HasIndex(item => new { item.Status, item.QuotationDate });
             entity.HasIndex(item => item.MerchantId);
@@ -1310,7 +1311,10 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.ToTable("EmailOutbox", table =>
                 table.HasCheckConstraint(
                     "CK_EmailOutbox_RelatedEntity",
-                    "([RelatedOrderId] IS NOT NULL AND [RelatedUserId] IS NULL) OR ([RelatedOrderId] IS NULL AND [RelatedUserId] IS NOT NULL)"));
+                    "(CASE WHEN [RelatedOrderId] IS NULL THEN 0 ELSE 1 END"
+                    + " + CASE WHEN [RelatedUserId] IS NULL THEN 0 ELSE 1 END"
+                    + " + CASE WHEN [RelatedMerchantQuotationId] IS NULL THEN 0 ELSE 1 END"
+                    + " + CASE WHEN [RelatedMerchantInvoiceId] IS NULL THEN 0 ELSE 1 END) = 1"));
             entity.Property(item => item.MessageType).HasConversion<string>().HasMaxLength(64);
             entity.Property(item => item.RecipientEmail).HasMaxLength(320);
             entity.Property(item => item.RecipientName).HasMaxLength(160);
@@ -1326,6 +1330,15 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasIndex(item => new { item.RelatedUserId, item.MessageType })
                 .IsUnique()
                 .HasFilter("[RelatedUserId] IS NOT NULL");
+            // One email of each kind per merchant document. This is what makes
+            // a repeated send a no-op rather than a second copy in the
+            // merchant's inbox.
+            entity.HasIndex(item => new { item.RelatedMerchantQuotationId, item.MessageType })
+                .IsUnique()
+                .HasFilter("[RelatedMerchantQuotationId] IS NOT NULL");
+            entity.HasIndex(item => new { item.RelatedMerchantInvoiceId, item.MessageType })
+                .IsUnique()
+                .HasFilter("[RelatedMerchantInvoiceId] IS NOT NULL");
             entity.HasIndex(item => new { item.Status, item.NextAttemptAt });
             entity.HasIndex(item => item.LockedUntil);
             entity.HasOne(item => item.RelatedOrder)
@@ -1335,6 +1348,14 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasOne(item => item.RelatedUser)
                 .WithMany(user => user.EmailOutboxMessages)
                 .HasForeignKey(item => item.RelatedUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.RelatedMerchantQuotation)
+                .WithMany()
+                .HasForeignKey(item => item.RelatedMerchantQuotationId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.RelatedMerchantInvoice)
+                .WithMany()
+                .HasForeignKey(item => item.RelatedMerchantInvoiceId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

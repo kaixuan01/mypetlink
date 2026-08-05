@@ -40,6 +40,46 @@ public sealed record OrderShippedEmailTemplateData(
     DateTimeOffset ShippedAt,
     string? TrackingUrl = null);
 
+// Merchant Sales templates. Every value is copied from the issued document's
+// snapshot, so the email and its attachment can never disagree, and nothing
+// internal (notes, commission, margin, identifiers) is carried here at all.
+
+public sealed record MerchantQuotationEmailTemplateData(
+    string MerchantName,
+    string ContactPerson,
+    string QuotationNumber,
+    DateTimeOffset QuotationDate,
+    DateTimeOffset ValidUntil,
+    decimal GrandTotal,
+    string Currency,
+    string PaymentTerm,
+    string SupportEmail);
+
+public sealed record MerchantInvoiceEmailTemplateData(
+    string MerchantName,
+    string ContactPerson,
+    string InvoiceNumber,
+    string MerchantOrderNumber,
+    DateTimeOffset InvoiceDate,
+    DateTimeOffset DueDate,
+    decimal AmountDue,
+    string Currency,
+    string PaymentTerm,
+    string? PaymentInstructions,
+    string SupportEmail);
+
+public sealed record MerchantPaymentConfirmationEmailTemplateData(
+    string MerchantName,
+    string ContactPerson,
+    string InvoiceNumber,
+    string ReceiptNumber,
+    string MerchantOrderNumber,
+    decimal AmountReceived,
+    string Currency,
+    DateTimeOffset PaymentDate,
+    string PaymentMethod,
+    string SupportEmail);
+
 public sealed record RenderedEmail(
     string HtmlBody,
     string TextBody);

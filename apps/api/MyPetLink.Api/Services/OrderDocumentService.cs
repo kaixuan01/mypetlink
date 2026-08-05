@@ -556,11 +556,13 @@ internal sealed record OrderDocumentModel(
 
 internal static class OrderDocumentRenderer
 {
-    private const string Ink = "#0d1b3d";
-    private const string Muted = "#5f6b85";
-    private const string Border = "#d9deeb";
-    private const string Accent = "#1570ef";
-    private const string PaidGreen = "#0f8a5f";
+    // The shared MyPetLink document look, so a retail receipt and a merchant
+    // invoice cannot drift apart visually.
+    private const string Ink = DocumentTheme.Ink;
+    private const string Muted = DocumentTheme.Muted;
+    private const string Border = DocumentTheme.Border;
+    private const string Accent = DocumentTheme.Accent;
+    private const string PaidGreen = DocumentTheme.PaidGreen;
 
     public static byte[] Render(OrderDocumentModel model)
     {
@@ -692,27 +694,8 @@ internal static class OrderDocumentRenderer
         });
     }
 
-    private static void MetaBlock(IContainer container, string heading, (string Label, string Value)[] rows)
-    {
-        container.Border(1).BorderColor(Border).Padding(10).Column(column =>
-        {
-            column.Item().PaddingBottom(6).Text(heading).FontSize(9).Bold().FontColor(Accent);
-
-            foreach (var (label, value) in rows)
-            {
-                if (string.IsNullOrEmpty(label))
-                {
-                    continue;
-                }
-
-                column.Item().PaddingBottom(3).Row(row =>
-                {
-                    row.ConstantItem(120).Text(label).FontSize(9).FontColor(Muted);
-                    row.RelativeItem().Text(value).FontSize(9);
-                });
-            }
-        });
-    }
+    private static void MetaBlock(IContainer container, string heading, (string Label, string Value)[] rows) =>
+        DocumentTheme.MetaBlock(container, heading, rows);
 
     private static void ComposeItemsTable(IContainer container, OrderDocumentModel model)
     {
@@ -784,25 +767,11 @@ internal static class OrderDocumentRenderer
         });
     }
 
-    private static IContainer HeaderCell(IContainer container)
-    {
-        return container
-            .Background("#f1f4fb")
-            .BorderBottom(1)
-            .BorderColor(Border)
-            .PaddingVertical(6)
-            .PaddingHorizontal(6)
-            .DefaultTextStyle(text => text.FontSize(9).Bold().FontColor(Muted));
-    }
+    private static IContainer HeaderCell(IContainer container) =>
+        DocumentTheme.HeaderCell(container);
 
-    private static IContainer BodyCell(IContainer container)
-    {
-        return container
-            .BorderBottom(1)
-            .BorderColor(Border)
-            .PaddingVertical(6)
-            .PaddingHorizontal(6);
-    }
+    private static IContainer BodyCell(IContainer container) =>
+        DocumentTheme.BodyCell(container);
 
     private static void ComposeFooter(IContainer container, OrderDocumentModel model)
     {

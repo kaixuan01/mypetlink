@@ -596,7 +596,10 @@ public sealed class EmailTemplateFlagTests
                 new EmailTemplateRenderer(
                     new PaymentConfirmedEmailTemplateRenderer(optionValue, layout),
                     new OwnerWelcomeEmailTemplateRenderer(layout),
-                    new OrderShippedEmailTemplateRenderer(optionValue, layout)),
+                    new OrderShippedEmailTemplateRenderer(optionValue, layout),
+                    new MerchantQuotationEmailTemplateRenderer(layout),
+                    new MerchantInvoiceEmailTemplateRenderer(layout),
+                    new MerchantPaymentConfirmationEmailTemplateRenderer(layout)),
                 Sender,
                 gate,
                 clock,

@@ -53,6 +53,7 @@ public sealed class MerchantBillingService : IMerchantBillingService
     private readonly MyPetLinkDbContext _dbContext;
     private readonly IDocumentNumberService _numbers;
     private readonly IBusinessIdentityService _businessIdentity;
+    private readonly IMerchantEmailService _merchantEmail;
     private readonly IAuditLogService _auditLogService;
     private readonly TimeProvider _timeProvider;
 
@@ -60,12 +61,14 @@ public sealed class MerchantBillingService : IMerchantBillingService
         MyPetLinkDbContext dbContext,
         IDocumentNumberService numbers,
         IBusinessIdentityService businessIdentity,
+        IMerchantEmailService merchantEmail,
         IAuditLogService auditLogService,
         TimeProvider timeProvider)
     {
         _dbContext = dbContext;
         _numbers = numbers;
         _businessIdentity = businessIdentity;
+        _merchantEmail = merchantEmail;
         _auditLogService = auditLogService;
         _timeProvider = timeProvider;
     }
@@ -366,11 +369,16 @@ public sealed class MerchantBillingService : IMerchantBillingService
                 "SalesCommission", commission.Id, null, CommissionAuditSnapshot(commission));
         }
 
+        // Queued inside the same unit of work, so a merchant is never told
+        // their payment arrived by an email that outlived a rolled-back save.
+        await _merchantEmail.EnqueuePaymentConfirmationAsync(
+            invoice, receipt, payment, cancellationToken);
+
         try
         {
-            // Payment, receipt, commission and both status changes land
-            // together: a merchant must never hold a receipt for an invoice
-            // the system still thinks is unpaid.
+            // Payment, receipt, commission, the email and both status changes
+            // land together: a merchant must never hold a receipt for an
+            // invoice the system still thinks is unpaid.
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
         catch (DbUpdateConcurrencyException)

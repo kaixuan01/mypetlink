@@ -104,9 +104,16 @@ public sealed class MerchantSalesRelationalTests
         Assert.All(succeeded, result => Assert.Equal(orders[0].Id, result!.Order.Id));
     }
 
-    private static MerchantSalesService CreateService(MyPetLinkDbContext db) =>
-        new(db, new DocumentNumberService(db),
-            new AuditLogService(db, new HttpContextAccessor()), TimeProvider.System);
+    private static MerchantSalesService CreateService(MyPetLinkDbContext db)
+    {
+        var audit = new AuditLogService(db, new HttpContextAccessor());
+        return new MerchantSalesService(
+            db,
+            new DocumentNumberService(db),
+            new BusinessIdentityService(db, audit, TimeProvider.System),
+            audit,
+            TimeProvider.System);
+    }
 
     private static async Task<Guid> SeedCatalogAsync(MyPetLinkDbContext db)
     {
@@ -126,6 +133,29 @@ public sealed class MerchantSalesRelationalTests
         };
 
         db.AddRange(product, variant);
+        // Sending a quotation freezes the seller identity, so the seed needs
+        // the same configured business a real deployment has.
+        var identity = await db.BusinessIdentitySettings.SingleOrDefaultAsync();
+        if (identity is null)
+        {
+            identity = new BusinessIdentitySetting
+            {
+                Id = BusinessIdentityService.SettingsId,
+                BrandName = "MyPetLink",
+                LegalBusinessName = "GBB Software Solutions",
+                BusinessRegistrationNumber = "202603141718 (AS0515813-P)",
+                RegisteredCountry = "Malaysia",
+                SupportEmail = "support@mypetlink.com.my",
+            };
+            db.BusinessIdentitySettings.Add(identity);
+        }
+
+        // The migration seeds the identity with the address deliberately empty
+        // for an administrator to complete; these tests need it completed.
+        identity.RegisteredAddressLine1 = "12 Jalan Teknologi 3/1";
+        identity.RegisteredPostcode = "57000";
+        identity.RegisteredCity = "Kuala Lumpur";
+        identity.RegisteredState = "Kuala Lumpur";
         await db.SaveChangesAsync();
         return variant.Id;
     }

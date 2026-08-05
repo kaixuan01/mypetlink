@@ -59,17 +59,20 @@ public sealed class MerchantSalesService : IMerchantSalesService
 
     private readonly MyPetLinkDbContext _dbContext;
     private readonly IDocumentNumberService _numbers;
+    private readonly IBusinessIdentityService _businessIdentity;
     private readonly IAuditLogService _auditLogService;
     private readonly TimeProvider _timeProvider;
 
     public MerchantSalesService(
         MyPetLinkDbContext dbContext,
         IDocumentNumberService numbers,
+        IBusinessIdentityService businessIdentity,
         IAuditLogService auditLogService,
         TimeProvider timeProvider)
     {
         _dbContext = dbContext;
         _numbers = numbers;
+        _businessIdentity = businessIdentity;
         _auditLogService = auditLogService;
         _timeProvider = timeProvider;
     }
@@ -438,7 +441,16 @@ public sealed class MerchantSalesService : IMerchantSalesService
 
         switch (target)
         {
-            case MerchantQuotationStatus.Sent: quotation.SentAt = now; break;
+            case MerchantQuotationStatus.Sent:
+                quotation.SentAt = now;
+                // Sending is the moment the quotation becomes an external
+                // document, so this is where the seller identity is frozen.
+                // Fails closed: a quotation without a registered address is
+                // not something to put in front of a business.
+                quotation.Seller ??= SellerIdentitySnapshot.From(
+                    await _businessIdentity.RequireForDocumentAsync(
+                        BusinessDocumentKind.MerchantQuotation, cancellationToken));
+                break;
             case MerchantQuotationStatus.Accepted: quotation.AcceptedAt = now; break;
             case MerchantQuotationStatus.Rejected: quotation.RejectedAt = now; break;
             case MerchantQuotationStatus.Expired: quotation.ExpiredAt = now; break;
