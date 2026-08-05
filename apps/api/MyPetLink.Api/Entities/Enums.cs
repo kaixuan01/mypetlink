@@ -250,6 +250,42 @@ public enum MerchantOrderPaymentStatus
 }
 
 /// <summary>
+/// An invoice is paid in full or not at all in this phase, so there is no
+/// Partial value to reconcile against.
+/// </summary>
+public enum MerchantInvoiceStatus
+{
+    Draft,
+    Issued,
+    Paid,
+    Cancelled
+}
+
+/// <summary>
+/// How a merchant paid. Every value is recorded by an administrator from a
+/// bank or wallet statement; MyPetLink takes no payment itself.
+/// </summary>
+public enum MerchantPaymentMethod
+{
+    BankTransfer,
+    DuitNow,
+    Cheque,
+    Cash,
+    Other
+}
+
+/// <summary>
+/// A commission only exists once payment is confirmed, so there is no pending
+/// state before it.
+/// </summary>
+public enum SalesCommissionStatus
+{
+    Payable,
+    Paid,
+    Reversed
+}
+
+/// <summary>
 /// Fulfilment is a later phase; an order starts outside it. Values beyond
 /// NotStarted are introduced with the allocation and shipping work.
 /// </summary>

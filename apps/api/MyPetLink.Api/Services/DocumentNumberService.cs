@@ -22,6 +22,8 @@ public interface IDocumentNumberService
     Task<string> NextSalespersonCodeAsync(CancellationToken cancellationToken);
     Task<string> NextQuotationNumberAsync(DateTimeOffset issuedAtUtc, CancellationToken cancellationToken);
     Task<string> NextMerchantOrderNumberAsync(DateTimeOffset issuedAtUtc, CancellationToken cancellationToken);
+    Task<string> NextMerchantInvoiceNumberAsync(DateTimeOffset issuedAtUtc, CancellationToken cancellationToken);
+    Task<string> NextMerchantReceiptNumberAsync(DateTimeOffset issuedAtUtc, CancellationToken cancellationToken);
 }
 
 public sealed class DocumentNumberService : IDocumentNumberService
@@ -65,6 +67,28 @@ public sealed class DocumentNumberService : IDocumentNumberService
         return $"MPL-B2B-ORD-{day}-{value:0000}";
     }
 
+    public async Task<string> NextMerchantInvoiceNumberAsync(
+        DateTimeOffset issuedAtUtc,
+        CancellationToken cancellationToken)
+    {
+        var day = DayKey(issuedAtUtc);
+        var value = await NextAsync($"merchant-invoice:{day}", cancellationToken);
+        return $"MPL-INV-{day}-{value:0000}";
+    }
+
+    /// <summary>
+    /// Merchant receipts carry their own series so they can never collide with
+    /// a retail receipt number.
+    /// </summary>
+    public async Task<string> NextMerchantReceiptNumberAsync(
+        DateTimeOffset issuedAtUtc,
+        CancellationToken cancellationToken)
+    {
+        var day = DayKey(issuedAtUtc);
+        var value = await NextAsync($"merchant-receipt:{day}", cancellationToken);
+        return $"MPL-RCP-B2B-{day}-{value:0000}";
+    }
+
     /// <summary>
     /// Numbers are grouped by Malaysian calendar day, so a document issued at
     /// 9am local does not land in the previous day's series.
@@ -76,18 +100,29 @@ public sealed class DocumentNumberService : IDocumentNumberService
     {
         // Relational path: one statement does the read, the increment and the
         // return, holding an update lock for the row's lifetime in the
-        // transaction. UPDLOCK on the seed SELECT stops two connections both
-        // deciding the row is missing.
+        // transaction.
         if (_dbContext.Database.IsSqlServer())
         {
+            // Seeding a brand new series is the one genuinely racy moment: the
+            // UPDLOCK is released when the IF's SELECT ends, so two connections
+            // opening the same day's series can both decide the row is missing
+            // and both insert. Only one can win the primary key, and losing is
+            // success — the row we needed now exists. Any other error is real.
             var seeded = await _dbContext.Database.ExecuteSqlRawAsync(
                 """
                 IF NOT EXISTS (
                     SELECT 1 FROM [DocumentNumberCounters] WITH (UPDLOCK, HOLDLOCK)
                     WHERE [CounterKey] = {0}
                 )
-                INSERT INTO [DocumentNumberCounters] ([CounterKey], [NextValue], [UpdatedAt])
-                VALUES ({0}, 0, SYSDATETIMEOFFSET());
+                BEGIN
+                    BEGIN TRY
+                        INSERT INTO [DocumentNumberCounters] ([CounterKey], [NextValue], [UpdatedAt])
+                        VALUES ({0}, 0, SYSDATETIMEOFFSET());
+                    END TRY
+                    BEGIN CATCH
+                        IF ERROR_NUMBER() NOT IN (2601, 2627) THROW;
+                    END CATCH
+                END;
                 """,
                 [counterKey],
                 cancellationToken);
