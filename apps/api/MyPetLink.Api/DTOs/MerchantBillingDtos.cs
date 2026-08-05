@@ -148,3 +148,33 @@ public static class MerchantBillingParsing
         _ => "Other",
     };
 }
+
+/// <summary>
+/// Counters for the Merchant Sales workspace. Computed from the database so
+/// the numbers an administrator acts on are not assembled in the browser.
+/// </summary>
+public sealed record MerchantSalesOverviewResponse(
+    int ActiveMerchants,
+    int ActiveSalespersons,
+    int DraftQuotations,
+    int SentQuotations,
+    int AcceptedQuotationsAwaitingConversion,
+    int OrdersAwaitingInvoice,
+    int InvoicesAwaitingPayment,
+    int PaidOrdersAwaitingAllocation,
+    decimal OutstandingInvoiceTotal,
+    decimal PayableCommissionTotal,
+    string Currency);
+
+/// <summary>
+/// What happened to the email for one document. Queued is not delivered, so
+/// the status is reported exactly as the outbox holds it.
+/// </summary>
+public sealed record MerchantDocumentEmailStatusResponse(
+    Guid RelatedId,
+    string MessageType,
+    string Status,
+    string? SuppressionReason,
+    string RecipientEmail,
+    DateTimeOffset? SentAt,
+    bool CanRetry);

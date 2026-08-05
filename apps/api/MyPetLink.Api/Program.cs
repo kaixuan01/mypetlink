@@ -336,6 +336,7 @@ builder.Services.AddScoped<IDocumentNumberService, DocumentNumberService>();
 builder.Services.AddScoped<IMerchantSalesService, MerchantSalesService>();
 builder.Services.AddScoped<IMerchantBillingService, MerchantBillingService>();
 builder.Services.AddScoped<IMerchantEmailService, MerchantEmailService>();
+builder.Services.AddScoped<IMerchantSalesOverviewService, MerchantSalesOverviewService>();
 builder.Services.AddScoped<IShippingFulfilmentService, ShippingFulfilmentService>();
 builder.Services.AddScoped<ITagPricingService, TagPricingService>();
 builder.Services.AddScoped<ITagOrderInventoryAvailabilityService, TagOrderInventoryAvailabilityService>();

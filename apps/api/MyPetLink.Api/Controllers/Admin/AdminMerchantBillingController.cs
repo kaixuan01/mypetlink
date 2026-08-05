@@ -152,3 +152,44 @@ public sealed class AdminSalesCommissionsController : ApiControllerBase
                 new Dictionary<string, string[]> { ["status"] = ["That commission status is not valid."] });
     }
 }
+
+/// <summary>
+/// Read-only projections for the Merchant Sales workspace: the overview
+/// counters, and the email state of a page of documents in one request.
+/// </summary>
+[Authorize(Policy = AuthorizationPolicies.Admin)]
+[Route("api/v1/admin/merchant-sales")]
+public sealed class AdminMerchantSalesOverviewController : ApiControllerBase
+{
+    private readonly IMerchantSalesOverviewService _service;
+
+    public AdminMerchantSalesOverviewController(IMerchantSalesOverviewService service)
+    {
+        _service = service;
+    }
+
+    [HttpGet("overview")]
+    public async Task<IActionResult> Overview(CancellationToken cancellationToken) =>
+        Ok(ApiEnvelope.Ok(await _service.GetOverviewAsync(cancellationToken), HttpContext));
+
+    [HttpGet("email-status")]
+    public async Task<IActionResult> EmailStatus(
+        [FromQuery] string? quotationIds,
+        [FromQuery] string? invoiceIds,
+        CancellationToken cancellationToken) =>
+        Ok(ApiEnvelope.Ok(
+            await _service.GetEmailStatusesAsync(
+                ParseIds(quotationIds), ParseIds(invoiceIds), cancellationToken),
+            HttpContext));
+
+    /// <summary>Unparseable entries are ignored rather than failing the page.</summary>
+    private static IReadOnlyCollection<Guid> ParseIds(string? value) =>
+        string.IsNullOrWhiteSpace(value)
+            ? []
+            : value
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(part => Guid.TryParse(part, out var parsed) ? parsed : (Guid?)null)
+                .Where(parsed => parsed.HasValue)
+                .Select(parsed => parsed!.Value)
+                .ToArray();
+}

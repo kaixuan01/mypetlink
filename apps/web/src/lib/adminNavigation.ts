@@ -34,6 +34,9 @@ export const adminNavGroups: AdminNavGroup[] = [
       // Portal keeps its plain "Orders" — this clarification is Admin-only.
       { href: "/admin/orders", label: "Retail Orders", icon: "record" },
       { href: "/admin/payment-proofs", label: "Payment Proofs", icon: "shield" },
+      // Bulk sales to business customers. One entry: merchants, quotations,
+      // orders and invoices are sections inside the workspace.
+      { href: adminRoutes.merchantSales, label: "Merchant Sales", icon: "users" },
     ],
   },
   {
