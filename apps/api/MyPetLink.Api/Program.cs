@@ -223,7 +223,11 @@ builder.Services.AddCors(options =>
             policy
                 .WithOrigins(origins)
                 .AllowAnyHeader()
-                .AllowAnyMethod();
+                .AllowAnyMethod()
+                // Content-Disposition is not CORS-safelisted, so without this
+                // the Admin Portal cannot read the filename the API chose and
+                // every downloaded document falls back to a generic name.
+                .WithExposedHeaders("Content-Disposition");
         }
     });
 });
