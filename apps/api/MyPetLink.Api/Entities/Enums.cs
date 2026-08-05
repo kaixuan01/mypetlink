@@ -220,3 +220,40 @@ public enum TagScanSource
     Nfc,
     Legacy
 }
+
+/// <summary>
+/// Merchant payment terms. The MVP sells prepaid only; the enum exists so a
+/// future terms feature is an addition rather than a schema rewrite.
+/// </summary>
+public enum MerchantPaymentTerm
+{
+    /// <summary>Paid in full before fulfilment. Documents word this "Due on receipt".</summary>
+    Prepaid
+}
+
+public enum MerchantQuotationStatus
+{
+    Draft,
+    Sent,
+    Accepted,
+    Rejected,
+    Expired,
+    Converted,
+    Cancelled
+}
+
+public enum MerchantOrderPaymentStatus
+{
+    AwaitingPayment,
+    PaymentConfirmed,
+    Cancelled
+}
+
+/// <summary>
+/// Fulfilment is a later phase; an order starts outside it. Values beyond
+/// NotStarted are introduced with the allocation and shipping work.
+/// </summary>
+public enum MerchantOrderFulfilmentStatus
+{
+    NotStarted
+}

@@ -331,6 +331,8 @@ builder.Services.AddScoped<ITagScanService, TagScanService>();
 builder.Services.AddScoped<ISmartTagService, SmartTagService>();
 builder.Services.AddScoped<IOrderService, OrderService>();
 builder.Services.AddScoped<IDeliveryService, DeliveryService>();
+builder.Services.AddScoped<IDocumentNumberService, DocumentNumberService>();
+builder.Services.AddScoped<IMerchantSalesService, MerchantSalesService>();
 builder.Services.AddScoped<IShippingFulfilmentService, ShippingFulfilmentService>();
 builder.Services.AddScoped<ITagPricingService, TagPricingService>();
 builder.Services.AddScoped<ITagOrderInventoryAvailabilityService, TagOrderInventoryAvailabilityService>();

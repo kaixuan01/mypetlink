@@ -67,6 +67,13 @@ public sealed class MyPetLinkDbContext : DbContext
     public DbSet<ShippingCourierProvider> ShippingCourierProviders =>
         Set<ShippingCourierProvider>();
     public DbSet<PaymentProof> PaymentProofs => Set<PaymentProof>();
+    public DbSet<Merchant> Merchants => Set<Merchant>();
+    public DbSet<Salesperson> Salespersons => Set<Salesperson>();
+    public DbSet<MerchantQuotation> MerchantQuotations => Set<MerchantQuotation>();
+    public DbSet<MerchantQuotationItem> MerchantQuotationItems => Set<MerchantQuotationItem>();
+    public DbSet<MerchantOrder> MerchantOrders => Set<MerchantOrder>();
+    public DbSet<MerchantOrderItem> MerchantOrderItems => Set<MerchantOrderItem>();
+    public DbSet<DocumentNumberCounter> DocumentNumberCounters => Set<DocumentNumberCounter>();
     public DbSet<EmailOutbox> EmailOutbox => Set<EmailOutbox>();
     public DbSet<EmailTemplateSetting> EmailTemplateSettings => Set<EmailTemplateSetting>();
     // Legacy, no runtime consumer. Mapped only so the table and its rows
@@ -146,6 +153,220 @@ public sealed class MyPetLinkDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(item => item.UpdatedByAdminUserId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+
+        // --- Merchant Sales ------------------------------------------------
+        // Bulk B2B sales keeps its own tables. A merchant order carries
+        // wholesale prices and never a pet, so folding it into TagOrders would
+        // mean a column set where half is always null.
+        modelBuilder.Entity<Merchant>(entity =>
+        {
+            entity.ToTable("Merchants");
+            entity.Property(item => item.RowVersion).IsRowVersion();
+            entity.Property(item => item.MerchantCode).HasMaxLength(32).IsRequired();
+            entity.HasIndex(item => item.MerchantCode).IsUnique();
+            entity.Property(item => item.LegalBusinessName).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.TradingName).HasMaxLength(200);
+            entity.Property(item => item.BusinessRegistrationNumber).HasMaxLength(64);
+            entity.Property(item => item.NormalizedBusinessRegistrationNumber).HasMaxLength(64);
+            // Duplicate detection reads this column, so it is indexed but not
+            // unique: several merchants may legitimately leave it blank.
+            entity.HasIndex(item => item.NormalizedBusinessRegistrationNumber);
+            entity.Property(item => item.TaxIdentificationNumber).HasMaxLength(64);
+            entity.Property(item => item.SstRegistrationNumber).HasMaxLength(64);
+            entity.Property(item => item.ContactPerson).HasMaxLength(160).IsRequired();
+            entity.Property(item => item.ContactEmail).HasMaxLength(254).IsRequired();
+            entity.Property(item => item.ContactPhone).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.BillingAddressLine1).HasMaxLength(240).IsRequired();
+            entity.Property(item => item.BillingAddressLine2).HasMaxLength(240);
+            entity.Property(item => item.BillingPostcode).HasMaxLength(16).IsRequired();
+            entity.Property(item => item.BillingCity).HasMaxLength(120).IsRequired();
+            entity.Property(item => item.BillingState).HasMaxLength(120).IsRequired();
+            entity.Property(item => item.BillingCountry).HasMaxLength(80).IsRequired();
+            entity.Property(item => item.DeliveryAddressLine1).HasMaxLength(240).IsRequired();
+            entity.Property(item => item.DeliveryAddressLine2).HasMaxLength(240);
+            entity.Property(item => item.DeliveryPostcode).HasMaxLength(16).IsRequired();
+            entity.Property(item => item.DeliveryCity).HasMaxLength(120).IsRequired();
+            entity.Property(item => item.DeliveryState).HasMaxLength(120).IsRequired();
+            entity.Property(item => item.DeliveryCountry).HasMaxLength(80).IsRequired();
+            entity.Property(item => item.PaymentTerm).HasConversion<string>().HasMaxLength(32);
+            entity.Property(item => item.InternalNotes).HasMaxLength(2000);
+            entity.HasIndex(item => item.IsActive);
+            entity.HasOne(item => item.AssignedSalesperson)
+                .WithMany()
+                .HasForeignKey(item => item.AssignedSalespersonId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Salesperson>(entity =>
+        {
+            entity.ToTable("Salespersons");
+            entity.Property(item => item.RowVersion).IsRowVersion();
+            entity.Property(item => item.SalespersonCode).HasMaxLength(32).IsRequired();
+            entity.HasIndex(item => item.SalespersonCode).IsUnique();
+            entity.Property(item => item.Name).HasMaxLength(160).IsRequired();
+            entity.Property(item => item.Email).HasMaxLength(254);
+            entity.Property(item => item.Phone).HasMaxLength(32);
+            entity.Property(item => item.DefaultCommissionPercentage).HasPrecision(5, 2);
+            entity.Property(item => item.InternalNotes).HasMaxLength(2000);
+            entity.HasIndex(item => item.IsActive);
+        });
+
+        modelBuilder.Entity<MerchantQuotation>(entity =>
+        {
+            entity.ToTable("MerchantQuotations");
+            entity.Property(item => item.RowVersion).IsRowVersion();
+            entity.Property(item => item.QuotationNumber).HasMaxLength(48).IsRequired();
+            entity.HasIndex(item => item.QuotationNumber).IsUnique();
+            entity.Property(item => item.Status).HasConversion<string>().HasMaxLength(32);
+            entity.Property(item => item.PaymentTermSnapshot).HasConversion<string>().HasMaxLength(32);
+            entity.Property(item => item.Currency).HasMaxLength(3).IsRequired();
+            entity.Property(item => item.MerchandiseSubtotal).HasPrecision(18, 2);
+            entity.Property(item => item.DiscountTotal).HasPrecision(18, 2);
+            entity.Property(item => item.DeliveryFee).HasPrecision(18, 2);
+            entity.Property(item => item.GrandTotal).HasPrecision(18, 2);
+            entity.Property(item => item.SalespersonCommissionPercentageSnapshot).HasPrecision(5, 2);
+            entity.Property(item => item.MerchantCodeSnapshot).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.MerchantLegalNameSnapshot).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.MerchantTradingNameSnapshot).HasMaxLength(200);
+            entity.Property(item => item.MerchantRegistrationNumberSnapshot).HasMaxLength(64);
+            entity.Property(item => item.MerchantTaxIdentificationNumberSnapshot).HasMaxLength(64);
+            entity.Property(item => item.MerchantSstRegistrationNumberSnapshot).HasMaxLength(64);
+            entity.Property(item => item.ContactPersonSnapshot).HasMaxLength(160).IsRequired();
+            entity.Property(item => item.ContactEmailSnapshot).HasMaxLength(254).IsRequired();
+            entity.Property(item => item.ContactPhoneSnapshot).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.BillingAddressLine1Snapshot).HasMaxLength(240).IsRequired();
+            entity.Property(item => item.BillingAddressLine2Snapshot).HasMaxLength(240);
+            entity.Property(item => item.BillingPostcodeSnapshot).HasMaxLength(16).IsRequired();
+            entity.Property(item => item.BillingCitySnapshot).HasMaxLength(120).IsRequired();
+            entity.Property(item => item.BillingStateSnapshot).HasMaxLength(120).IsRequired();
+            entity.Property(item => item.BillingCountrySnapshot).HasMaxLength(80).IsRequired();
+            entity.Property(item => item.DeliveryAddressLine1Snapshot).HasMaxLength(240).IsRequired();
+            entity.Property(item => item.DeliveryAddressLine2Snapshot).HasMaxLength(240);
+            entity.Property(item => item.DeliveryPostcodeSnapshot).HasMaxLength(16).IsRequired();
+            entity.Property(item => item.DeliveryCitySnapshot).HasMaxLength(120).IsRequired();
+            entity.Property(item => item.DeliveryStateSnapshot).HasMaxLength(120).IsRequired();
+            entity.Property(item => item.DeliveryCountrySnapshot).HasMaxLength(80).IsRequired();
+            entity.Property(item => item.SalespersonCodeSnapshot).HasMaxLength(32);
+            entity.Property(item => item.SalespersonNameSnapshot).HasMaxLength(160);
+            entity.Property(item => item.CustomerNotes).HasMaxLength(2000);
+            entity.Property(item => item.InternalNotes).HasMaxLength(2000);
+            entity.HasIndex(item => new { item.Status, item.QuotationDate });
+            entity.HasIndex(item => item.MerchantId);
+            entity.HasOne(item => item.Merchant)
+                .WithMany()
+                .HasForeignKey(item => item.MerchantId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.Salesperson)
+                .WithMany()
+                .HasForeignKey(item => item.SalespersonId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.ConvertedMerchantOrder)
+                .WithMany()
+                .HasForeignKey(item => item.ConvertedMerchantOrderId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasMany(item => item.Items)
+                .WithOne(line => line.Quotation!)
+                .HasForeignKey(line => line.QuotationId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<MerchantQuotationItem>(entity =>
+        {
+            entity.ToTable("MerchantQuotationItems");
+            entity.Property(item => item.ProductNameSnapshot).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.SkuCodeSnapshot).HasMaxLength(64).IsRequired();
+            entity.Property(item => item.OptionNameSnapshot).HasMaxLength(120).IsRequired();
+            entity.Property(item => item.WholesaleUnitPrice).HasPrecision(18, 2);
+            entity.Property(item => item.LineDiscount).HasPrecision(18, 2);
+            entity.Property(item => item.LineSubtotal).HasPrecision(18, 2);
+            entity.Property(item => item.UnitWeightGramsSnapshot).HasPrecision(10, 2);
+            entity.HasIndex(item => item.QuotationId);
+        });
+
+        modelBuilder.Entity<MerchantOrder>(entity =>
+        {
+            entity.ToTable("MerchantOrders");
+            entity.Property(item => item.RowVersion).IsRowVersion();
+            entity.Property(item => item.MerchantOrderNumber).HasMaxLength(48).IsRequired();
+            entity.HasIndex(item => item.MerchantOrderNumber).IsUnique();
+            // One order per quotation. This unique filtered index is what makes
+            // a second concurrent conversion impossible rather than unlikely.
+            entity.HasIndex(item => item.SourceQuotationId)
+                .IsUnique()
+                .HasFilter("[SourceQuotationId] IS NOT NULL");
+            entity.Property(item => item.PaymentStatus).HasConversion<string>().HasMaxLength(32);
+            entity.Property(item => item.FulfilmentStatus).HasConversion<string>().HasMaxLength(32);
+            entity.Property(item => item.PaymentTermSnapshot).HasConversion<string>().HasMaxLength(32);
+            entity.Property(item => item.Currency).HasMaxLength(3).IsRequired();
+            entity.Property(item => item.MerchandiseSubtotal).HasPrecision(18, 2);
+            entity.Property(item => item.DiscountTotal).HasPrecision(18, 2);
+            entity.Property(item => item.DeliveryFee).HasPrecision(18, 2);
+            entity.Property(item => item.GrandTotal).HasPrecision(18, 2);
+            entity.Property(item => item.SalespersonCommissionPercentageSnapshot).HasPrecision(5, 2);
+            entity.Property(item => item.MerchantCodeSnapshot).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.MerchantLegalNameSnapshot).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.MerchantTradingNameSnapshot).HasMaxLength(200);
+            entity.Property(item => item.MerchantRegistrationNumberSnapshot).HasMaxLength(64);
+            entity.Property(item => item.MerchantTaxIdentificationNumberSnapshot).HasMaxLength(64);
+            entity.Property(item => item.MerchantSstRegistrationNumberSnapshot).HasMaxLength(64);
+            entity.Property(item => item.ContactPersonSnapshot).HasMaxLength(160).IsRequired();
+            entity.Property(item => item.ContactEmailSnapshot).HasMaxLength(254).IsRequired();
+            entity.Property(item => item.ContactPhoneSnapshot).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.BillingAddressLine1Snapshot).HasMaxLength(240).IsRequired();
+            entity.Property(item => item.BillingAddressLine2Snapshot).HasMaxLength(240);
+            entity.Property(item => item.BillingPostcodeSnapshot).HasMaxLength(16).IsRequired();
+            entity.Property(item => item.BillingCitySnapshot).HasMaxLength(120).IsRequired();
+            entity.Property(item => item.BillingStateSnapshot).HasMaxLength(120).IsRequired();
+            entity.Property(item => item.BillingCountrySnapshot).HasMaxLength(80).IsRequired();
+            entity.Property(item => item.DeliveryAddressLine1Snapshot).HasMaxLength(240).IsRequired();
+            entity.Property(item => item.DeliveryAddressLine2Snapshot).HasMaxLength(240);
+            entity.Property(item => item.DeliveryPostcodeSnapshot).HasMaxLength(16).IsRequired();
+            entity.Property(item => item.DeliveryCitySnapshot).HasMaxLength(120).IsRequired();
+            entity.Property(item => item.DeliveryStateSnapshot).HasMaxLength(120).IsRequired();
+            entity.Property(item => item.DeliveryCountrySnapshot).HasMaxLength(80).IsRequired();
+            entity.Property(item => item.SalespersonCodeSnapshot).HasMaxLength(32);
+            entity.Property(item => item.SalespersonNameSnapshot).HasMaxLength(160);
+            entity.Property(item => item.InternalNotes).HasMaxLength(2000);
+            entity.HasIndex(item => new { item.PaymentStatus, item.CreatedAt });
+            entity.HasIndex(item => item.MerchantId);
+            entity.HasOne(item => item.Merchant)
+                .WithMany()
+                .HasForeignKey(item => item.MerchantId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.Salesperson)
+                .WithMany()
+                .HasForeignKey(item => item.SalespersonId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.SourceQuotation)
+                .WithMany()
+                .HasForeignKey(item => item.SourceQuotationId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasMany(item => item.Items)
+                .WithOne(line => line.MerchantOrder!)
+                .HasForeignKey(line => line.MerchantOrderId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<MerchantOrderItem>(entity =>
+        {
+            entity.ToTable("MerchantOrderItems");
+            entity.Property(item => item.ProductNameSnapshot).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.SkuCodeSnapshot).HasMaxLength(64).IsRequired();
+            entity.Property(item => item.OptionNameSnapshot).HasMaxLength(120).IsRequired();
+            entity.Property(item => item.WholesaleUnitPrice).HasPrecision(18, 2);
+            entity.Property(item => item.LineDiscount).HasPrecision(18, 2);
+            entity.Property(item => item.LineSubtotal).HasPrecision(18, 2);
+            entity.Property(item => item.UnitWeightGramsSnapshot).HasPrecision(10, 2);
+            entity.HasIndex(item => item.MerchantOrderId);
+        });
+
+        modelBuilder.Entity<DocumentNumberCounter>(entity =>
+        {
+            entity.ToTable("DocumentNumberCounters");
+            entity.HasKey(item => item.CounterKey);
+            entity.Property(item => item.CounterKey).HasMaxLength(64);
         });
 
         modelBuilder.Entity<ShippingFulfilmentSetting>(entity =>
