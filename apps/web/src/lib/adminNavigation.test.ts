@@ -33,6 +33,7 @@ describe("adminNavigation", () => {
     const configuration = adminNavGroups.find((group) => group.label === "Configuration")!;
     expect(configuration.items.map((item) => item.label)).toEqual([
       "Plans",
+      "Business Identity",
       "Delivery Rates",
       "Shipping & Fulfilment",
       "Order Checkout",

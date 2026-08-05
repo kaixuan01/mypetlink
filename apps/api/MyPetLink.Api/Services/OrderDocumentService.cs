@@ -52,12 +52,14 @@ public sealed record OrderDocumentResult(byte[] Content, string FileName)
 
 public sealed class OrderDocumentService : IOrderDocumentService
 {
-    // Business identity shown on every document.
-    private const string BusinessName = "MyPetLink";
-    private const string BusinessOwner = "Issued by GBB Software Solutions";
-    private const string BusinessRegNo = "Business Registration No.: 202603141718 (AS0515813-P)";
-    private const string BusinessWebsite = "mypetlink.com.my";
-    private const string SupportEmail = "support@mypetlink.com.my";
+    // Business identity now comes from BusinessIdentitySettings. These remain
+    // as a last-resort fallback: a receipt must still render if the settings
+    // row is missing or has been emptied.
+    private const string FallbackBusinessName = "MyPetLink";
+    private const string FallbackBusinessOwner = "Issued by GBB Software Solutions";
+    private const string FallbackBusinessRegNo = "Business Registration No.: 202603141718 (AS0515813-P)";
+    private const string FallbackBusinessWebsite = "mypetlink.com.my";
+    private const string FallbackSupportEmail = "support@mypetlink.com.my";
 
     private readonly MyPetLinkDbContext _dbContext;
 
@@ -72,7 +74,7 @@ public sealed class OrderDocumentService : IOrderDocumentService
         CancellationToken cancellationToken = default)
     {
         var order = await LoadOwnedOrderAsync(currentUserId, orderKey, cancellationToken);
-        return BuildSummary(order);
+        return await BuildSummaryAsync(order, cancellationToken);
     }
 
     public async Task<OrderDocumentResult> GetOwnerReceiptAsync(
@@ -81,7 +83,7 @@ public sealed class OrderDocumentService : IOrderDocumentService
         CancellationToken cancellationToken = default)
     {
         var order = await LoadOwnedOrderAsync(currentUserId, orderKey, cancellationToken);
-        return BuildReceipt(order);
+        return await BuildReceiptAsync(order, cancellationToken);
     }
 
     public async Task<OrderDocumentResult> GetAdminSummaryAsync(
@@ -89,7 +91,7 @@ public sealed class OrderDocumentService : IOrderDocumentService
         CancellationToken cancellationToken = default)
     {
         var order = await LoadOrderByIdAsync(orderId, cancellationToken);
-        return BuildSummary(order);
+        return await BuildSummaryAsync(order, cancellationToken);
     }
 
     public async Task<OrderDocumentResult> GetAdminReceiptAsync(
@@ -97,7 +99,7 @@ public sealed class OrderDocumentService : IOrderDocumentService
         CancellationToken cancellationToken = default)
     {
         var order = await LoadOrderByIdAsync(orderId, cancellationToken);
-        return BuildReceipt(order);
+        return await BuildReceiptAsync(order, cancellationToken);
     }
 
     public async Task<OrderDocumentResult> GetTransactionalReceiptAsync(
@@ -105,19 +107,21 @@ public sealed class OrderDocumentService : IOrderDocumentService
         CancellationToken cancellationToken = default)
     {
         var order = await LoadOrderByIdAsync(orderId, cancellationToken);
-        return BuildReceipt(order);
+        return await BuildReceiptAsync(order, cancellationToken);
     }
 
-    private OrderDocumentResult BuildSummary(TagOrder order)
+    private async Task<OrderDocumentResult> BuildSummaryAsync(
+        TagOrder order, CancellationToken cancellationToken)
     {
-        var model = MapModel(order, isReceipt: false);
+        var model = MapModel(order, isReceipt: false, await ResolveIdentityAsync(cancellationToken));
         var bytes = OrderDocumentRenderer.Render(model);
         return new OrderDocumentResult(
             bytes,
             $"MyPetLink-Order-Summary-{SafeFileReference(order.OrderNumber)}.pdf");
     }
 
-    private OrderDocumentResult BuildReceipt(TagOrder order)
+    private async Task<OrderDocumentResult> BuildReceiptAsync(
+        TagOrder order, CancellationToken cancellationToken)
     {
         if (!order.PaymentConfirmedAt.HasValue)
         {
@@ -134,7 +138,7 @@ public sealed class OrderDocumentService : IOrderDocumentService
                 "the confirmed order has no persisted receipt number");
         }
 
-        var model = MapModel(order, isReceipt: true);
+        var model = MapModel(order, isReceipt: true, await ResolveIdentityAsync(cancellationToken));
         var bytes = OrderDocumentRenderer.Render(model);
         return new OrderDocumentResult(
             bytes,
@@ -178,7 +182,8 @@ public sealed class OrderDocumentService : IOrderDocumentService
                 .ThenInclude(item => item.Pet);
     }
 
-    private OrderDocumentModel MapModel(TagOrder order, bool isReceipt)
+    private static OrderDocumentModel MapModel(
+        TagOrder order, bool isReceipt, RetailSellerIdentity identity)
     {
         var latestProof = order.PaymentProofs
             .OrderByDescending(proof => proof.UploadedAt)
@@ -198,11 +203,11 @@ public sealed class OrderDocumentService : IOrderDocumentService
         return new OrderDocumentModel(
             IsReceipt: isReceipt,
             BrandLogo: LoadBrandLogo(),
-            BusinessName: BusinessName,
-            BusinessOwner: BusinessOwner,
-            BusinessRegNo: BusinessRegNo,
-            BusinessWebsite: BusinessWebsite,
-            SupportEmail: SupportEmail,
+            BusinessName: identity.BrandName,
+            BusinessOwner: identity.BusinessOwner,
+            BusinessRegNo: identity.BusinessRegNo,
+            BusinessWebsite: identity.BusinessWebsite,
+            SupportEmail: identity.SupportEmail,
             DocumentTitle: isReceipt ? "Official Receipt" : "Order Summary",
             OrderNumber: order.OrderNumber,
             ReceiptNumber: isReceipt ? order.ReceiptNumber : null,
@@ -340,6 +345,47 @@ public sealed class OrderDocumentService : IOrderDocumentService
             ? option[..^4].TrimEnd()
             : option;
     }
+
+
+    /// <summary>
+    /// Seller details for a retail document, read from settings and falling
+    /// back to the shipped values if anything is missing.
+    /// </summary>
+    private async Task<RetailSellerIdentity> ResolveIdentityAsync(CancellationToken cancellationToken)
+    {
+        var settings = await _dbContext.BusinessIdentitySettings
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == BusinessIdentityService.SettingsId, cancellationToken);
+
+        if (settings is null)
+        {
+            return new RetailSellerIdentity(
+                FallbackBusinessName, FallbackBusinessOwner, FallbackBusinessRegNo,
+                FallbackBusinessWebsite, FallbackSupportEmail);
+        }
+
+        static string Or(string? value, string fallback) =>
+            string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
+
+        var legalName = Or(settings.LegalBusinessName, "GBB Software Solutions");
+        var registration = Or(settings.BusinessRegistrationNumber, "");
+
+        return new RetailSellerIdentity(
+            Or(settings.BrandName, FallbackBusinessName),
+            $"Issued by {legalName}",
+            registration.Length == 0
+                ? FallbackBusinessRegNo
+                : $"Business Registration No.: {registration}",
+            Or(settings.BusinessWebsite, FallbackBusinessWebsite),
+            Or(settings.SupportEmail, FallbackSupportEmail));
+    }
+
+    private sealed record RetailSellerIdentity(
+        string BrandName,
+        string BusinessOwner,
+        string BusinessRegNo,
+        string BusinessWebsite,
+        string SupportEmail);
 
     private static string FormatDeliveryMethod(string? methodSnapshot, string? zoneSnapshot)
     {

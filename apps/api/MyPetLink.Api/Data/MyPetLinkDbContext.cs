@@ -74,6 +74,8 @@ public sealed class MyPetLinkDbContext : DbContext
     public DbSet<MerchantOrder> MerchantOrders => Set<MerchantOrder>();
     public DbSet<MerchantOrderItem> MerchantOrderItems => Set<MerchantOrderItem>();
     public DbSet<DocumentNumberCounter> DocumentNumberCounters => Set<DocumentNumberCounter>();
+    public DbSet<BusinessIdentitySetting> BusinessIdentitySettings =>
+        Set<BusinessIdentitySetting>();
     public DbSet<EmailOutbox> EmailOutbox => Set<EmailOutbox>();
     public DbSet<EmailTemplateSetting> EmailTemplateSettings => Set<EmailTemplateSetting>();
     // Legacy, no runtime consumer. Mapped only so the table and its rows
@@ -367,6 +369,36 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.ToTable("DocumentNumberCounters");
             entity.HasKey(item => item.CounterKey);
             entity.Property(item => item.CounterKey).HasMaxLength(64);
+        });
+
+
+        modelBuilder.Entity<BusinessIdentitySetting>(entity =>
+        {
+            entity.ToTable("BusinessIdentitySettings");
+            entity.Property(item => item.RowVersion).IsRowVersion();
+            entity.Property(item => item.BrandName).HasMaxLength(120).IsRequired();
+            entity.Property(item => item.LegalBusinessName).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.BusinessRegistrationNumber).HasMaxLength(64).IsRequired();
+            entity.Property(item => item.TaxIdentificationNumber).HasMaxLength(64);
+            entity.Property(item => item.SstRegistrationNumber).HasMaxLength(64);
+            entity.Property(item => item.RegisteredAddressLine1).HasMaxLength(240);
+            entity.Property(item => item.RegisteredAddressLine2).HasMaxLength(240);
+            entity.Property(item => item.RegisteredPostcode).HasMaxLength(16);
+            entity.Property(item => item.RegisteredCity).HasMaxLength(120);
+            entity.Property(item => item.RegisteredState).HasMaxLength(120);
+            entity.Property(item => item.RegisteredCountry).HasMaxLength(80).IsRequired();
+            entity.Property(item => item.SupportEmail).HasMaxLength(254).IsRequired();
+            entity.Property(item => item.BusinessPhone).HasMaxLength(32);
+            entity.Property(item => item.BusinessWebsite).HasMaxLength(200);
+            entity.Property(item => item.PaymentInstructions).HasMaxLength(2000);
+            entity.Property(item => item.BankAccountName).HasMaxLength(200);
+            entity.Property(item => item.BankName).HasMaxLength(120);
+            entity.Property(item => item.BankAccountNumber).HasMaxLength(64);
+            entity.Property(item => item.DuitNowDisplayName).HasMaxLength(120);
+            entity.HasOne(item => item.UpdatedByAdminUser)
+                .WithMany()
+                .HasForeignKey(item => item.UpdatedByAdminUserId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<ShippingFulfilmentSetting>(entity =>
@@ -1217,6 +1249,26 @@ public sealed class MyPetLinkDbContext : DbContext
 
         // Checkout payment-window policy. Seeded at the approved two-hour
         // default so a fresh deployment never leaves reservations unbounded.
+        modelBuilder.Entity<BusinessIdentitySetting>().HasData(
+            new BusinessIdentitySetting
+            {
+                Id = BusinessIdentityService.SettingsId,
+                BrandName = "MyPetLink",
+                LegalBusinessName = "GBB Software Solutions",
+                BusinessRegistrationNumber = "202603141718 (AS0515813-P)",
+                RegisteredCountry = "Malaysia",
+                SupportEmail = "support@mypetlink.com.my",
+                BusinessWebsite = "mypetlink.com.my",
+                // Registered address, tax numbers and bank details are left for
+                // Admin to complete; guessing them would put fiction on an
+                // invoice.
+                RegisteredAddressLine1 = "",
+                RegisteredPostcode = "",
+                RegisteredCity = "",
+                RegisteredState = "",
+                UpdatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
+            });
+
         modelBuilder.Entity<OrderCheckoutSetting>().HasData(
             new OrderCheckoutSetting
             {

@@ -160,6 +160,7 @@ export const adminRoutes = {
   smartTagsForOwner: (ownerId: string) => `/admin/tags?ownerId=${encodeURIComponent(ownerId)}`,
   order: (orderId: string) => `/admin/orders?order=${encodeURIComponent(orderId)}`,
   plans: "/admin/plans",
+  businessIdentity: "/admin/business-identity",
   deliveryRates: "/admin/delivery-rates",
   shippingFulfilment: "/admin/shipping-fulfilment",
   emailTemplates: "/admin/email-templates",
