@@ -6,23 +6,27 @@ namespace MyPetLink.Api.DTOs;
 // Admin-only contracts. Internal notes appear here because every consumer is an
 // authenticated admin; nothing in this file is safe to hand to a merchant.
 
+// Every validation attribute carries its own wording. Without it the framework
+// writes the C# property name into the message, and that message is what the
+// Admin Portal shows the operator.
 public sealed record MerchantAddressDto(
-    [Required, MaxLength(240)] string AddressLine1,
+    [Required(ErrorMessage = "Enter the street address."), MaxLength(240)] string AddressLine1,
     [MaxLength(240)] string? AddressLine2,
-    [Required, MaxLength(16)] string Postcode,
-    [Required, MaxLength(120)] string City,
-    [Required, MaxLength(120)] string State,
-    [Required, MaxLength(80)] string Country);
+    [Required(ErrorMessage = "Enter the postcode."), MaxLength(16)] string Postcode,
+    [Required(ErrorMessage = "Enter the city or town."), MaxLength(120)] string City,
+    [Required(ErrorMessage = "Enter the state."), MaxLength(120)] string State,
+    [Required(ErrorMessage = "Enter the country."), MaxLength(80)] string Country);
 
 public sealed record UpsertMerchantRequest(
-    [Required, MaxLength(200)] string LegalBusinessName,
+    [Required(ErrorMessage = "Enter the registered business name."), MaxLength(200)]
+    string LegalBusinessName,
     [MaxLength(200)] string? TradingName,
     [MaxLength(64)] string? BusinessRegistrationNumber,
     [MaxLength(64)] string? TaxIdentificationNumber,
     [MaxLength(64)] string? SstRegistrationNumber,
-    [Required, MaxLength(160)] string ContactPerson,
-    [Required, MaxLength(254)] string ContactEmail,
-    [Required, MaxLength(32)] string ContactPhone,
+    [Required(ErrorMessage = "Enter a contact person."), MaxLength(160)] string ContactPerson,
+    [Required(ErrorMessage = "Enter a contact email address."), MaxLength(254)] string ContactEmail,
+    [Required(ErrorMessage = "Enter a contact phone number."), MaxLength(32)] string ContactPhone,
     MerchantAddressDto BillingAddress,
     bool DeliveryAddressSameAsBilling,
     MerchantAddressDto? DeliveryAddress,
@@ -54,10 +58,12 @@ public sealed record MerchantResponse(
     string ConcurrencyToken);
 
 public sealed record UpsertSalespersonRequest(
-    [Required, MaxLength(160)] string Name,
+    [Required(ErrorMessage = "Enter the salesperson's name."), MaxLength(160)] string Name,
     [MaxLength(254)] string? Email,
     [MaxLength(32)] string? Phone,
-    [Range(typeof(decimal), "0", "100")] decimal DefaultCommissionPercentage,
+    [Range(typeof(decimal), "0", "100",
+        ErrorMessage = "Commission must be between 0 and 100 percent.")]
+    decimal DefaultCommissionPercentage,
     [MaxLength(2000)] string? InternalNotes,
     string? ConcurrencyToken = null);
 
@@ -80,17 +86,27 @@ public sealed record SalespersonResponse(
 /// tampered product name or subtotal cannot reach a document.
 /// </summary>
 public sealed record UpsertQuotationItemRequest(
-    [Required] Guid ProductVariantId,
-    [Range(1, MerchantSalesConstants.MaxQuantityPerLine)] int Quantity,
-    [Range(typeof(decimal), "0", "999999.99")] decimal WholesaleUnitPrice,
-    [Range(typeof(decimal), "0", "999999.99")] decimal LineDiscount = 0m);
+    [Required(ErrorMessage = "Choose a product option for this line.")] Guid ProductVariantId,
+    [Range(1, MerchantSalesConstants.MaxQuantityPerLine,
+        ErrorMessage = "Quantity must be a whole number of at least 1.")]
+    int Quantity,
+    [Range(typeof(decimal), "0", "999999.99",
+        ErrorMessage = "A wholesale price cannot be negative.")]
+    decimal WholesaleUnitPrice,
+    [Range(typeof(decimal), "0", "999999.99",
+        ErrorMessage = "A line discount cannot be negative.")]
+    decimal LineDiscount = 0m);
 
 public sealed record UpsertQuotationRequest(
-    [Required] Guid MerchantId,
+    [Required(ErrorMessage = "Choose the merchant this quotation is for.")] Guid MerchantId,
     Guid? SalespersonId,
     DateTimeOffset? ValidUntil,
-    [Range(typeof(decimal), "0", "999999.99")] decimal DiscountTotal,
-    [Range(typeof(decimal), "0", "999999.99")] decimal DeliveryFee,
+    [Range(typeof(decimal), "0", "999999.99",
+        ErrorMessage = "An order discount cannot be negative.")]
+    decimal DiscountTotal,
+    [Range(typeof(decimal), "0", "999999.99",
+        ErrorMessage = "A delivery fee cannot be negative.")]
+    decimal DeliveryFee,
     [MaxLength(2000)] string? CustomerNotes,
     [MaxLength(2000)] string? InternalNotes,
     IReadOnlyCollection<UpsertQuotationItemRequest> Items,

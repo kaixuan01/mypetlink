@@ -400,6 +400,7 @@ export function getMerchantSalesError(error: unknown, fallback: string): string 
   switch (error.code) {
     case "concurrency_conflict":
       return "This record was updated by another administrator. Reload the latest version before saving again.";
+    case "merchant_registration_duplicate":
     case "merchant_registration_taken":
     case "duplicate_business_registration":
       return "Another merchant already uses that business registration number.";
@@ -431,7 +432,13 @@ export function getMerchantSalesError(error: unknown, fallback: string): string 
   if (error.status === 401) return "Your session has expired. Please sign in again.";
   if (error.status === 403) return "You do not have permission to do that.";
   if (error.status === 404) return "That record no longer exists. It may have been removed.";
-  if (error.status === 409) return "That action is no longer available. Reload and try again.";
+  // A 409 is not always a stale record. When the server has named the reason,
+  // telling the operator to reload sends them after the wrong problem.
+  if (error.status === 409) {
+    return error.message?.trim()
+      ? error.message
+      : "That action is no longer available. Reload and try again.";
+  }
   if (error.status === 0) {
     return "We couldn’t connect right now. Check your connection and try again.";
   }
@@ -447,7 +454,12 @@ export function getMerchantSalesFieldErrors(error: unknown): Record<string, stri
   for (const [field, messages] of Object.entries(error.details)) {
     const first = messages?.[0];
     if (!first) continue;
-    const key = field.charAt(0).toLowerCase() + field.slice(1);
+    // Nested keys arrive as "BillingAddress.AddressLine1"; lowering only the
+    // very first character leaves the rest unmatched and the message unseen.
+    const key = field
+      .split(".")
+      .map((part) => part.charAt(0).toLowerCase() + part.slice(1))
+      .join(".");
     fields[key] = first;
   }
   return fields;

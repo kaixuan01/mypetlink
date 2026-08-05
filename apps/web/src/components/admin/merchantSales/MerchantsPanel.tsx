@@ -748,15 +748,29 @@ function AddressFields({
         />
       </div>
       <Field
+        error={fieldErrors[`${prefix}Address.postcode`]}
         label="Postcode"
         maxLength={5}
         onChange={(next) => set({ postcode: next })}
         required
         value={value.postcode}
       />
-      <Field label="City" onChange={(next) => set({ city: next })} required value={value.city} />
-      <Field label="State" onChange={(next) => set({ state: next })} required value={value.state} />
       <Field
+        error={fieldErrors[`${prefix}Address.city`]}
+        label="City"
+        onChange={(next) => set({ city: next })}
+        required
+        value={value.city}
+      />
+      <Field
+        error={fieldErrors[`${prefix}Address.state`]}
+        label="State"
+        onChange={(next) => set({ state: next })}
+        required
+        value={value.state}
+      />
+      <Field
+        error={fieldErrors[`${prefix}Address.country`]}
         label="Country"
         onChange={(next) => set({ country: next })}
         required

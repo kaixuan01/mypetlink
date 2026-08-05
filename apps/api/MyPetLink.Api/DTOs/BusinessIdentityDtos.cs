@@ -6,9 +6,12 @@ namespace MyPetLink.Api.DTOs;
 // customer documents, but this endpoint itself is never public.
 
 public sealed record UpdateBusinessIdentityRequest(
-    [Required, MaxLength(120)] string BrandName,
-    [Required, MaxLength(200)] string LegalBusinessName,
-    [Required, MaxLength(64)] string BusinessRegistrationNumber,
+    [Required(ErrorMessage = "Enter the brand name shown on documents."), MaxLength(120)]
+    string BrandName,
+    [Required(ErrorMessage = "Enter the registered business name."), MaxLength(200)]
+    string LegalBusinessName,
+    [Required(ErrorMessage = "Enter the business registration number."), MaxLength(64)]
+    string BusinessRegistrationNumber,
     [MaxLength(64)] string? TaxIdentificationNumber,
     [MaxLength(64)] string? SstRegistrationNumber,
     [MaxLength(240)] string RegisteredAddressLine1,
@@ -16,8 +19,8 @@ public sealed record UpdateBusinessIdentityRequest(
     [MaxLength(16)] string RegisteredPostcode,
     [MaxLength(120)] string RegisteredCity,
     [MaxLength(120)] string RegisteredState,
-    [Required, MaxLength(80)] string RegisteredCountry,
-    [Required, MaxLength(254)] string SupportEmail,
+    [Required(ErrorMessage = "Enter the country."), MaxLength(80)] string RegisteredCountry,
+    [Required(ErrorMessage = "Enter a support email address."), MaxLength(254)] string SupportEmail,
     [MaxLength(32)] string? BusinessPhone,
     [MaxLength(200)] string? BusinessWebsite,
     [MaxLength(2000)] string? PaymentInstructions,

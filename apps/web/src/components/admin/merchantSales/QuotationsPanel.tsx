@@ -954,7 +954,7 @@ function QuotationEditor({
       onSaved(saved);
     } catch (caught) {
       setError(getMerchantSalesError(caught, "We couldn’t save this quotation."));
-      setFieldErrors(getMerchantSalesFieldErrors(caught));
+      setFieldErrors(toEditorFieldErrors(getMerchantSalesFieldErrors(caught)));
     } finally {
       setSaving(false);
     }
@@ -1142,18 +1142,28 @@ function QuotationEditor({
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <NumberField
-            disabled={locked}
-            label="Order discount"
-            onChange={setOrderDiscount}
-            value={orderDiscount}
-          />
-          <NumberField
-            disabled={locked}
-            label="Delivery fee"
-            onChange={setDeliveryFee}
-            value={deliveryFee}
-          />
+          <div className="grid gap-1">
+            <NumberField
+              disabled={locked}
+              label="Order discount"
+              onChange={setOrderDiscount}
+              value={orderDiscount}
+            />
+            {fieldErrors.discountTotal ? (
+              <p className="text-sm font-bold text-[#a63c2e]">{fieldErrors.discountTotal}</p>
+            ) : null}
+          </div>
+          <div className="grid gap-1">
+            <NumberField
+              disabled={locked}
+              label="Delivery fee"
+              onChange={setDeliveryFee}
+              value={deliveryFee}
+            />
+            {fieldErrors.deliveryFee ? (
+              <p className="text-sm font-bold text-[#a63c2e]">{fieldErrors.deliveryFee}</p>
+            ) : null}
+          </div>
           <label className="grid gap-1 text-sm font-bold text-pet-ink sm:col-span-2">
             Notes shown to the merchant
             <textarea
@@ -1192,6 +1202,20 @@ function QuotationEditor({
       </div>
     </AdminSection>
   );
+}
+
+/**
+ * The server names a bad line as "items[2].lineDiscount"; the editor shows line
+ * messages under "line-2". Without this the message is dropped and the operator
+ * sees a rejection with nothing highlighted.
+ */
+function toEditorFieldErrors(fields: Record<string, string>): Record<string, string> {
+  const mapped: Record<string, string> = {};
+  for (const [key, message] of Object.entries(fields)) {
+    const line = key.match(/^items\[(\d+)\]/);
+    mapped[line ? `line-${line[1]}` : key] = message;
+  }
+  return mapped;
 }
 
 function newLine(): EditorLine {
