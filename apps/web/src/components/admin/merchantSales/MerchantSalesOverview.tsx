@@ -123,10 +123,26 @@ export function MerchantSalesOverview({
         />
         <Stat label="Invoices awaiting payment" value={String(data.invoicesAwaitingPayment)} />
         <Stat
-          hint="Paid orders. Allocation is a later phase."
-          label="Ready for allocation"
+          hint="Paid, with no tags allocated yet."
+          label="Awaiting allocation"
           value={String(data.paidOrdersAwaitingAllocation)}
         />
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <Stat
+          hint="Some tags allocated, more still needed."
+          label="Partially allocated"
+          value={String(data.partiallyAllocatedOrders)}
+        />
+        <Stat
+          hint="Every ordered unit is held. Not the same as ready to ship."
+          label="Fully allocated"
+          value={String(data.fullyAllocatedOrders)}
+        />
+        <Stat label="Ready to ship" value={String(data.ordersReadyToShip)} />
+        <Stat label="Shipped" value={String(data.ordersShipped)} />
+        <Stat label="Delivered" value={String(data.ordersDelivered)} />
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
@@ -161,10 +177,30 @@ export function MerchantSalesOverview({
           </button>
           <button
             className={secondaryButton}
-            onClick={() => onGoTo("orders", { paymentStatus: "PaymentConfirmed" })}
+            onClick={() =>
+              onGoTo("orders", { paymentStatus: "PaymentConfirmed", allocationState: "none" })
+            }
             type="button"
           >
-            View paid orders
+            View awaiting allocation
+          </button>
+          <button
+            className={secondaryButton}
+            onClick={() =>
+              onGoTo("orders", { paymentStatus: "PaymentConfirmed", allocationState: "incomplete" })
+            }
+            type="button"
+          >
+            View partially allocated
+          </button>
+          <button
+            className={secondaryButton}
+            onClick={() =>
+              onGoTo("orders", { paymentStatus: "PaymentConfirmed", allocationState: "complete" })
+            }
+            type="button"
+          >
+            View fully allocated
           </button>
         </div>
       </AdminSection>

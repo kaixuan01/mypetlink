@@ -159,6 +159,8 @@ describe("Merchant orders", () => {
       <OrdersPanel
         onOpen={noop}
         onOpenInvoice={noop}
+        allocationState={null}
+        fulfilmentStatus={null}
         openId={null}
         paymentStatus={null}
         {...props}

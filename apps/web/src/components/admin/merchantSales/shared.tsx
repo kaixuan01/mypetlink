@@ -129,6 +129,104 @@ export function MerchantOrderStatusBadge({ status }: { status: string }) {
 }
 
 /**
+ * Operational progress, kept separate from payment status so neither can be
+ * read from the other.
+ */
+export function fulfilmentStatusLabel(status: string): string {
+  switch (status) {
+    case "NotStarted":
+      return "Not started";
+    case "Preparing":
+      return "Preparing";
+    case "ReadyToShip":
+      return "Ready to ship";
+    case "Shipped":
+      return "Shipped";
+    case "Delivered":
+      return "Delivered";
+    default:
+      return status;
+  }
+}
+
+export function FulfilmentStatusBadge({ status }: { status: string }) {
+  const tone: Tone =
+    status === "Delivered" || status === "Shipped"
+      ? "mint"
+      : status === "ReadyToShip"
+        ? "teal"
+        : status === "Preparing"
+          ? "warm"
+          : "soft";
+  // The word carries the meaning; the tone only reinforces it.
+  return <Badge tone={tone}>{fulfilmentStatusLabel(status)}</Badge>;
+}
+
+/**
+ * Allocation progress as a sentence plus an accessible meter. Completion is
+ * never signalled by colour alone, and the bar is decorative: the numbers
+ * beside it are what a screen reader announces.
+ */
+export function AllocationProgress({
+  allocated,
+  required,
+  compact = false,
+  label = "Inventory allocation",
+}: {
+  allocated: number;
+  required: number;
+  compact?: boolean;
+  label?: string;
+}) {
+  const safeRequired = Math.max(0, required);
+  // A released allocation lowers the count; it can never read above the total.
+  const safeAllocated = Math.min(Math.max(0, allocated), safeRequired);
+  const remaining = Math.max(0, safeRequired - safeAllocated);
+  const percent = safeRequired === 0 ? 0 : Math.round((safeAllocated / safeRequired) * 100);
+  const complete = safeRequired > 0 && safeAllocated === safeRequired;
+
+  return (
+    <div className={compact ? "grid min-w-36 gap-1" : "grid gap-1.5"}>
+      <p
+        className={
+          compact
+            ? "whitespace-nowrap text-xs font-bold text-slate-700"
+            : "text-sm font-black text-slate-900"
+        }
+      >
+        {safeAllocated} / {safeRequired} allocated
+      </p>
+      <div
+        aria-label={`${label}: ${safeAllocated} of ${safeRequired} tags allocated`}
+        aria-valuemax={safeRequired}
+        aria-valuemin={0}
+        aria-valuenow={safeAllocated}
+        aria-valuetext={`${safeAllocated} of ${safeRequired} allocated, ${remaining} remaining`}
+        className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200"
+        role="progressbar"
+      >
+        <div
+          className={`h-full rounded-full ${complete ? "bg-[#0f8a5f]" : "bg-[#1570ef]"}`}
+          style={{ width: `${percent}%` }}
+        />
+      </div>
+      <p className={compact ? "text-[0.68rem] text-slate-500" : "text-xs font-semibold text-slate-500"}>
+        {complete ? "Fully allocated" : `${remaining} remaining`}
+      </p>
+    </div>
+  );
+}
+
+/** "B-2601 x 50 · B-2602 x 25", or a dash when nothing is allocated yet. */
+export function batchSummaryText(
+  batches: readonly { batchNo: string; quantity: number }[]
+): string {
+  return batches.length === 0
+    ? "—"
+    : batches.map((batch) => `${batch.batchNo} × ${batch.quantity}`).join(" · ");
+}
+
+/**
  * Email state, in words. Queued is never presented as delivered, and the state
  * is never carried by colour alone.
  */

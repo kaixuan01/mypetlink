@@ -33,10 +33,13 @@ import {
   type AdminMerchantOrder,
 } from "@/services/adminMerchantSalesService";
 import { AddressBlock, ItemsTable } from "./QuotationsPanel";
+import { Badge } from "@/components/ui/Badge";
 import {
+  AllocationProgress,
   BusinessIdentityBlockedNotice,
   DetailGrid,
   DetailRow,
+  FulfilmentStatusBadge,
   InlineError,
   InvoiceStatusBadge,
   MerchantOrderStatusBadge,
@@ -51,18 +54,28 @@ import {
   shortDate,
 } from "./shared";
 
-const filterKeys = ["paymentStatus", "merchantId", "salespersonId"] as const;
+const filterKeys = [
+  "paymentStatus",
+  "fulfilmentStatus",
+  "allocationState",
+  "merchantId",
+  "salespersonId",
+] as const;
 
 export function OrdersPanel({
   openId,
   onOpen,
   onOpenInvoice,
   paymentStatus,
+  fulfilmentStatus,
+  allocationState,
 }: {
   openId: string | null;
   onOpen: (id: string | null) => void;
   onOpenInvoice: (invoiceId: string) => void;
   paymentStatus: string | null;
+  fulfilmentStatus: string | null;
+  allocationState: string | null;
 }) {
   const { query, actions, hasActiveFilters } = useAdminTableQuery({
     filterKeys,
@@ -76,12 +89,16 @@ export function OrdersPanel({
       search: query.search || undefined,
       // A quick action from the Overview arrives as a plain URL parameter.
       paymentStatus: query.filters.paymentStatus || paymentStatus || undefined,
+      // Allocation and fulfilment are filtered in SQL by the list endpoint, so
+      // the table never loads every order to count rows in the browser.
+      fulfilmentStatus: query.filters.fulfilmentStatus || fulfilmentStatus || undefined,
+      allocationState: query.filters.allocationState || allocationState || undefined,
       merchantId: query.filters.merchantId || undefined,
       salespersonId: query.filters.salespersonId || undefined,
       fromDate: query.filters.fromDate || undefined,
       toDate: query.filters.toDate || undefined,
     }),
-    [paymentStatus, query]
+    [allocationState, fulfilmentStatus, paymentStatus, query]
   );
 
   const paramsKey = useMemo(() => JSON.stringify(listParams), [listParams]);
@@ -177,6 +194,28 @@ export function OrdersPanel({
     },
     {
       type: "select",
+      key: "fulfilmentStatus",
+      label: "Fulfilment",
+      options: [
+        { value: "NotStarted", label: "Not started" },
+        { value: "Preparing", label: "Preparing" },
+        { value: "ReadyToShip", label: "Ready to ship" },
+        { value: "Shipped", label: "Shipped" },
+        { value: "Delivered", label: "Delivered" },
+      ],
+    },
+    {
+      type: "select",
+      key: "allocationState",
+      label: "Inventory",
+      options: [
+        { value: "none", label: "None allocated" },
+        { value: "incomplete", label: "Partially allocated" },
+        { value: "complete", label: "Fully allocated" },
+      ],
+    },
+    {
+      type: "select",
       key: "merchantId",
       label: "Merchant",
       options: merchants.map((item) => ({ value: item.id, label: item.legalBusinessName })),
@@ -187,8 +226,17 @@ export function OrdersPanel({
   /** What the order is actually waiting for, in words an operator uses. */
   function stageLabel(order: AdminMerchantOrder): string {
     if (order.paymentStatus === "Cancelled") return "Cancelled";
-    if (order.paymentStatus === "PaymentConfirmed") return "Ready for inventory allocation";
-    return invoicesByOrder[order.id] ? "Awaiting payment" : "Awaiting invoice";
+    if (order.paymentStatus !== "PaymentConfirmed") {
+      return invoicesByOrder[order.id] ? "Awaiting payment" : "Awaiting invoice";
+    }
+
+    if (order.requiredUnits > 0 && order.allocatedUnits >= order.requiredUnits) {
+      // Fully allocated is not the same as ready to ship; that step is its own
+      // decision in the fulfilment workflow.
+      return "Ready for fulfilment";
+    }
+
+    return order.allocatedUnits === 0 ? "Allocate inventory" : "Finish allocating inventory";
   }
 
   const columns: AdminColumn<AdminMerchantOrder>[] = [
@@ -224,8 +272,34 @@ export function OrdersPanel({
       cell: (row) => <MerchantOrderStatusBadge status={row.paymentStatus} />,
     },
     {
+      id: "inventory",
+      header: "Inventory",
+      cell: (row) =>
+        row.paymentStatus === "PaymentConfirmed" ? (
+          <AllocationProgress
+            allocated={row.allocatedUnits}
+            compact
+            required={row.requiredUnits}
+          />
+        ) : (
+          <span className="whitespace-nowrap text-xs font-semibold text-slate-500">
+            Awaiting payment
+          </span>
+        ),
+    },
+    {
+      id: "fulfilment",
+      header: "Fulfilment",
+      cell: (row) =>
+        row.paymentStatus === "Cancelled" ? (
+          <Badge tone="danger">Cancelled</Badge>
+        ) : (
+          <FulfilmentStatusBadge status={row.fulfilmentStatus} />
+        ),
+    },
+    {
       id: "stage",
-      header: "Stage",
+      header: "Next step",
       cell: (row) => (
         <span className="break-words text-xs font-bold text-slate-600">{stageLabel(row)}</span>
       ),

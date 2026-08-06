@@ -155,6 +155,8 @@ export function AdminMerchantSalesWorkspace() {
 
       {tab === "orders" ? (
         <OrdersPanel
+          allocationState={searchParams.get("allocationState")}
+          fulfilmentStatus={searchParams.get("fulfilmentStatus")}
           onOpen={openRecord}
           onOpenInvoice={(invoiceId) => goToTab("invoices", { open: invoiceId })}
           openId={openId}

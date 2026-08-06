@@ -117,7 +117,14 @@ export type MerchantSalesOverview = {
   acceptedQuotationsAwaitingConversion: number;
   ordersAwaitingInvoice: number;
   invoicesAwaitingPayment: number;
+  // Three distinct allocation shapes: nothing allocated, some allocated, and
+  // every ordered unit held. A partially allocated order is never counted twice.
   paidOrdersAwaitingAllocation: number;
+  partiallyAllocatedOrders: number;
+  fullyAllocatedOrders: number;
+  ordersReadyToShip: number;
+  ordersShipped: number;
+  ordersDelivered: number;
   outstandingInvoiceTotal: number;
   payableCommissionTotal: number;
   currency: string;
