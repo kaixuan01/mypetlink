@@ -161,7 +161,14 @@ public sealed record MerchantSalesOverviewResponse(
     int AcceptedQuotationsAwaitingConversion,
     int OrdersAwaitingInvoice,
     int InvoicesAwaitingPayment,
+    // Three distinct allocation shapes, never conflated: nothing allocated yet,
+    // some allocated, and every ordered unit held.
     int PaidOrdersAwaitingAllocation,
+    int PartiallyAllocatedOrders,
+    int FullyAllocatedOrders,
+    int OrdersReadyToShip,
+    int OrdersShipped,
+    int OrdersDelivered,
     decimal OutstandingInvoiceTotal,
     decimal PayableCommissionTotal,
     string Currency);

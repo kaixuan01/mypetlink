@@ -248,11 +248,16 @@ public sealed class AdminMerchantOrdersController : ApiControllerBase
         [FromQuery] Guid? salespersonId,
         [FromQuery] DateTimeOffset? fromDate,
         [FromQuery] DateTimeOffset? toDate,
+        [FromQuery] MerchantOrderFulfilmentStatus? fulfilmentStatus,
+        /// <summary>none, incomplete or complete.</summary>
+        [FromQuery] string? allocationState,
+        [FromQuery] string? courierProviderCode,
         CancellationToken cancellationToken)
     {
         var (items, total) = await _service.ListMerchantOrdersAsync(
             query.Page, query.PageSize, search, paymentStatus, merchantId, salespersonId,
-            fromDate, toDate, cancellationToken);
+            fromDate, toDate, fulfilmentStatus, allocationState, courierProviderCode,
+            cancellationToken);
 
         return Ok(ApiEnvelope.Ok(items, HttpContext, query.Page, query.PageSize, total));
     }
@@ -260,6 +265,15 @@ public sealed class AdminMerchantOrdersController : ApiControllerBase
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> Get(Guid id, CancellationToken cancellationToken) =>
         Ok(ApiEnvelope.Ok(await _service.GetMerchantOrderAsync(id, cancellationToken), HttpContext));
+
+    /// <summary>
+    /// Rendered fulfilment history. The server turns audit rows into sentences,
+    /// so no action code or stored payload reaches the browser.
+    /// </summary>
+    [HttpGet("{id:guid}/timeline")]
+    public async Task<IActionResult> Timeline(Guid id, CancellationToken cancellationToken) =>
+        Ok(ApiEnvelope.Ok(
+            await _service.GetMerchantOrderTimelineAsync(id, cancellationToken), HttpContext));
 
     [HttpPost("{id:guid}/cancel")]
     public async Task<IActionResult> Cancel(

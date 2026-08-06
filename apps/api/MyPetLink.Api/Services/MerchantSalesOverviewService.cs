@@ -79,6 +79,30 @@ public sealed class MerchantSalesOverviewService : IMerchantSalesOverviewService
             .Select(item => item.CommissionAmount)
             .ToListAsync(cancellationToken);
 
+        // Allocation counts are derived from the same rows the allocation
+        // service writes, so the dashboard cannot drift from the order pages.
+        // "Awaiting allocation" means paid with nothing allocated at all;
+        // "partially allocated" is strictly between none and complete.
+        var allocationShape = await _dbContext.MerchantOrders
+            .AsNoTracking()
+            .Where(order => order.PaymentStatus == MerchantOrderPaymentStatus.PaymentConfirmed
+                && order.FulfilmentStatus != MerchantOrderFulfilmentStatus.Shipped
+                && order.FulfilmentStatus != MerchantOrderFulfilmentStatus.Delivered)
+            .Select(order => new
+            {
+                Required = order.Items.Sum(item => item.Quantity),
+                Allocated = _dbContext.MerchantOrderAllocatedTags
+                    .Count(allocation =>
+                        allocation.MerchantOrderId == order.Id && allocation.ReleasedAt == null),
+            })
+            .ToListAsync(cancellationToken);
+
+        var fulfilmentCounts = await _dbContext.MerchantOrders
+            .AsNoTracking()
+            .GroupBy(order => order.FulfilmentStatus)
+            .Select(group => new { Status = group.Key, Count = group.Count() })
+            .ToDictionaryAsync(row => row.Status, row => row.Count, cancellationToken);
+
         return new MerchantSalesOverviewResponse(
             ActiveMerchants: await _dbContext.Merchants
                 .AsNoTracking().CountAsync(item => item.IsActive, cancellationToken),
@@ -89,10 +113,18 @@ public sealed class MerchantSalesOverviewService : IMerchantSalesOverviewService
             AcceptedQuotationsAwaitingConversion: Count(quotations, MerchantQuotationStatus.Accepted),
             OrdersAwaitingInvoice: awaitingInvoice,
             InvoicesAwaitingPayment: unpaidInvoices.Count,
-            // Paid but not yet allocated. Allocation is the next phase, so
-            // every confirmed order is currently waiting for it.
-            PaidOrdersAwaitingAllocation: Count(
-                orders, MerchantOrderPaymentStatus.PaymentConfirmed),
+            PaidOrdersAwaitingAllocation: allocationShape
+                .Count(row => row.Allocated == 0),
+            PartiallyAllocatedOrders: allocationShape
+                .Count(row => row.Allocated > 0 && row.Allocated < row.Required),
+            FullyAllocatedOrders: allocationShape
+                .Count(row => row.Required > 0 && row.Allocated == row.Required),
+            OrdersReadyToShip: fulfilmentCounts
+                .GetValueOrDefault(MerchantOrderFulfilmentStatus.ReadyToShip),
+            OrdersShipped: fulfilmentCounts
+                .GetValueOrDefault(MerchantOrderFulfilmentStatus.Shipped),
+            OrdersDelivered: fulfilmentCounts
+                .GetValueOrDefault(MerchantOrderFulfilmentStatus.Delivered),
             OutstandingInvoiceTotal: unpaidInvoices.Sum(),
             PayableCommissionTotal: payableCommission.Sum(),
             Currency: MerchantSalesConstants.Currency);

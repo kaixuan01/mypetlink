@@ -222,7 +222,27 @@ public sealed record MerchantOrderResponse(
     DateTimeOffset? PaymentConfirmedAt,
     DateTimeOffset? CancelledAt,
     IReadOnlyCollection<MerchantOrderItemResponse> Items,
-    string ConcurrencyToken);
+    string ConcurrencyToken,
+    // Operational summary, filled for the listing so the Admin table never has
+    // to ask for one allocation summary per row.
+    int RequiredUnits = 0,
+    int AllocatedUnits = 0,
+    string? CourierProvider = null,
+    string? CourierService = null,
+    string? TrackingNumber = null,
+    string? TrackingUrl = null,
+    DateTimeOffset? ShippedAt = null,
+    DateTimeOffset? DeliveredAt = null);
+
+/// <summary>
+/// One customer-safe fulfilment event for the Admin timeline. The raw audit
+/// payload never leaves the server: only a rendered summary does.
+/// </summary>
+public sealed record MerchantOrderTimelineEntry(
+    string Action,
+    string Summary,
+    string? ActorName,
+    DateTimeOffset OccurredAt);
 
 /// <summary>
 /// Conversion result. <paramref name="AlreadyConverted"/> lets a repeated call

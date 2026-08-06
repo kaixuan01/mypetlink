@@ -145,6 +145,24 @@ export type AdminMerchantOrder = {
   cancelledAt: string | null;
   items: AdminQuotationItem[];
   concurrencyToken: string;
+  // Operational summary carried by the listing, so a table of a hundred rows
+  // still costs one request instead of one summary call per row.
+  requiredUnits: number;
+  allocatedUnits: number;
+  courierProvider: string | null;
+  courierService: string | null;
+  trackingNumber: string | null;
+  trackingUrl: string | null;
+  shippedAt: string | null;
+  deliveredAt: string | null;
+};
+
+/** One rendered fulfilment event. The server writes the sentence, not the client. */
+export type AdminMerchantOrderTimelineEntry = {
+  action: string;
+  summary: string;
+  actorName: string | null;
+  occurredAt: string;
 };
 
 export type AdminPagedResult<T> = { items: T[]; total: number };
@@ -358,6 +376,10 @@ export type MerchantOrderListParams = {
   pageSize: number;
   search?: string;
   paymentStatus?: string;
+  fulfilmentStatus?: string;
+  /** none, incomplete or complete. */
+  allocationState?: string;
+  courierProviderCode?: string;
   merchantId?: string;
   salespersonId?: string;
   fromDate?: string;
@@ -371,6 +393,14 @@ export function listMerchantOrders(params: MerchantOrderListParams, signal?: Abo
 export async function getMerchantOrder(id: string) {
   const response = await apiRequest<AdminMerchantOrder>(`${base}/orders/${id}`);
   return must(response.data, "order");
+}
+
+export async function getMerchantOrderTimeline(id: string, signal?: AbortSignal) {
+  const response = await apiRequest<AdminMerchantOrderTimelineEntry[]>(
+    `${base}/orders/${id}/timeline`,
+    { signal }
+  );
+  return response.data ?? [];
 }
 
 export async function cancelMerchantOrder(id: string, concurrencyToken: string) {

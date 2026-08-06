@@ -731,9 +731,11 @@ public class MerchantSalesServiceTests
         var result = await h.Service.ConvertQuotationAsync(null, quotation.Id, null, default);
 
         var (awaiting, awaitingTotal) = await h.Service.ListMerchantOrdersAsync(
-            1, 20, null, MerchantOrderPaymentStatus.AwaitingPayment, null, null, null, null, default);
+            1, 20, null, MerchantOrderPaymentStatus.AwaitingPayment, null, null, null, null,
+            null, null, null, default);
         var (cancelled, cancelledTotal) = await h.Service.ListMerchantOrdersAsync(
-            1, 20, null, MerchantOrderPaymentStatus.Cancelled, null, null, null, null, default);
+            1, 20, null, MerchantOrderPaymentStatus.Cancelled, null, null, null, null,
+            null, null, null, default);
 
         Assert.Equal(1, awaitingTotal);
         Assert.Equal(result.Order.Id, Assert.Single(awaiting).Id);

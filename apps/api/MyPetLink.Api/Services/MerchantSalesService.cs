@@ -42,8 +42,12 @@ public interface IMerchantSalesService
     Task<(IReadOnlyCollection<MerchantOrderResponse> Items, int Total)> ListMerchantOrdersAsync(
         int page, int pageSize, string? search, MerchantOrderPaymentStatus? paymentStatus,
         Guid? merchantId, Guid? salespersonId, DateTimeOffset? fromDate, DateTimeOffset? toDate,
+        MerchantOrderFulfilmentStatus? fulfilmentStatus, string? allocationState,
+        string? courierProviderCode,
         CancellationToken cancellationToken);
     Task<MerchantOrderResponse> GetMerchantOrderAsync(Guid id, CancellationToken cancellationToken);
+    Task<IReadOnlyCollection<MerchantOrderTimelineEntry>> GetMerchantOrderTimelineAsync(
+        Guid id, CancellationToken cancellationToken);
     Task<MerchantOrderResponse> CancelMerchantOrderAsync(Guid? actorId, Guid id, string? concurrencyToken, CancellationToken cancellationToken);
 }
 
@@ -588,21 +592,56 @@ public sealed class MerchantSalesService : IMerchantSalesService
     public async Task<(IReadOnlyCollection<MerchantOrderResponse> Items, int Total)> ListMerchantOrdersAsync(
         int page, int pageSize, string? search, MerchantOrderPaymentStatus? paymentStatus,
         Guid? merchantId, Guid? salespersonId, DateTimeOffset? fromDate, DateTimeOffset? toDate,
+        MerchantOrderFulfilmentStatus? fulfilmentStatus, string? allocationState,
+        string? courierProviderCode,
         CancellationToken cancellationToken)
     {
         var query = MerchantOrderQuery().AsQueryable();
 
         if (paymentStatus.HasValue) query = query.Where(o => o.PaymentStatus == paymentStatus.Value);
+        if (fulfilmentStatus.HasValue) query = query.Where(o => o.FulfilmentStatus == fulfilmentStatus.Value);
         if (merchantId.HasValue) query = query.Where(o => o.MerchantId == merchantId.Value);
         if (salespersonId.HasValue) query = query.Where(o => o.SalespersonId == salespersonId.Value);
         if (fromDate.HasValue) query = query.Where(o => o.CreatedAt >= fromDate.Value);
         if (toDate.HasValue) query = query.Where(o => o.CreatedAt <= toDate.Value);
+        if (!string.IsNullOrWhiteSpace(courierProviderCode))
+        {
+            var code = courierProviderCode.Trim();
+            query = query.Where(o => o.CourierProviderCode == code);
+        }
+
+        // Allocation state is a comparison between two counts, so it is filtered
+        // in the database rather than by loading every order and counting here.
+        if (!string.IsNullOrWhiteSpace(allocationState))
+        {
+            query = allocationState.Trim().ToLowerInvariant() switch
+            {
+                "none" => query.Where(o =>
+                    !_dbContext.MerchantOrderAllocatedTags.Any(a =>
+                        a.MerchantOrderId == o.Id && a.ReleasedAt == null)),
+                "incomplete" => query.Where(o =>
+                    _dbContext.MerchantOrderAllocatedTags.Count(a =>
+                        a.MerchantOrderId == o.Id && a.ReleasedAt == null)
+                    < o.Items.Sum(item => item.Quantity)),
+                "complete" => query.Where(o =>
+                    o.Items.Any()
+                    && _dbContext.MerchantOrderAllocatedTags.Count(a =>
+                        a.MerchantOrderId == o.Id && a.ReleasedAt == null)
+                    == o.Items.Sum(item => item.Quantity)),
+                _ => query,
+            };
+        }
 
         if (!string.IsNullOrWhiteSpace(search))
         {
             var term = search.Trim();
             query = query.Where(o =>
-                o.MerchantOrderNumber.Contains(term) || o.MerchantLegalNameSnapshot.Contains(term));
+                o.MerchantOrderNumber.Contains(term)
+                || o.MerchantLegalNameSnapshot.Contains(term)
+                || (o.TrackingNumber != null && o.TrackingNumber.Contains(term))
+                || (o.SourceQuotation != null && o.SourceQuotation.QuotationNumber.Contains(term))
+                || _dbContext.MerchantInvoices.Any(invoice =>
+                    invoice.MerchantOrderId == o.Id && invoice.InvoiceNumber.Contains(term)));
         }
 
         var total = await query.CountAsync(cancellationToken);
@@ -612,11 +651,121 @@ public sealed class MerchantSalesService : IMerchantSalesService
             .Take(pageSize)
             .ToListAsync(cancellationToken);
 
-        return (items.Select(ToResponse).ToArray(), total);
+        var allocatedCounts = await LoadAllocatedCountsAsync(
+            items.Select(order => order.Id).ToArray(), cancellationToken);
+
+        return (
+            items.Select(order => ToResponse(order, allocatedCounts.GetValueOrDefault(order.Id))).ToArray(),
+            total);
     }
 
-    public async Task<MerchantOrderResponse> GetMerchantOrderAsync(Guid id, CancellationToken cancellationToken) =>
-        ToResponse(await RequireMerchantOrderAsync(id, cancellationToken));
+    /// <summary>
+    /// One grouped query for the whole page, so a hundred-row table stays two
+    /// round trips instead of a hundred and one.
+    /// </summary>
+    private async Task<Dictionary<Guid, int>> LoadAllocatedCountsAsync(
+        IReadOnlyCollection<Guid> orderIds, CancellationToken cancellationToken)
+    {
+        if (orderIds.Count == 0)
+        {
+            return [];
+        }
+
+        return await _dbContext.MerchantOrderAllocatedTags
+            .AsNoTracking()
+            .Where(allocation =>
+                orderIds.Contains(allocation.MerchantOrderId) && allocation.ReleasedAt == null)
+            .GroupBy(allocation => allocation.MerchantOrderId)
+            .Select(group => new { OrderId = group.Key, Count = group.Count() })
+            .ToDictionaryAsync(row => row.OrderId, row => row.Count, cancellationToken);
+    }
+
+    public async Task<MerchantOrderResponse> GetMerchantOrderAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var order = await RequireMerchantOrderAsync(id, cancellationToken);
+        var allocated = await _dbContext.MerchantOrderAllocatedTags
+            .CountAsync(
+                allocation => allocation.MerchantOrderId == id && allocation.ReleasedAt == null,
+                cancellationToken);
+
+        return ToResponse(order, allocated);
+    }
+
+    /// <summary>
+    /// The Admin timeline. Audit rows are rendered into sentences here so no
+    /// action code, enum name or stored payload ever reaches the browser.
+    /// </summary>
+    public async Task<IReadOnlyCollection<MerchantOrderTimelineEntry>> GetMerchantOrderTimelineAsync(
+        Guid id, CancellationToken cancellationToken)
+    {
+        var order = await RequireMerchantOrderAsync(id, cancellationToken);
+        var deliveryOrderIds = await _dbContext.MerchantDeliveryOrders
+            .Where(document => document.MerchantOrderId == id)
+            .Select(document => document.Id)
+            .ToListAsync(cancellationToken);
+
+        var rows = await _dbContext.AuditLogs
+            .AsNoTracking()
+            .Where(log =>
+                (log.EntityId == id
+                    && (log.Entity == "MerchantOrder" || log.Entity == "MerchantInvoice"))
+                || deliveryOrderIds.Contains(log.EntityId!.Value))
+            .OrderBy(log => log.CreatedAt)
+            .Select(log => new
+            {
+                log.Action,
+                log.NewValue,
+                log.CreatedAt,
+                ActorName = _dbContext.AdminUsers
+                    .Where(admin => admin.Id == log.ActorId || admin.UserId == log.ActorId)
+                    .Select(admin => admin.User!.DisplayName)
+                    .FirstOrDefault(),
+            })
+            .ToListAsync(cancellationToken);
+
+        return rows
+            .Select(row => new MerchantOrderTimelineEntry(
+                row.Action,
+                DescribeTimelineEvent(row.Action, row.NewValue, order),
+                row.ActorName,
+                row.CreatedAt))
+            .Where(entry => entry.Summary.Length > 0)
+            .ToArray();
+    }
+
+    private static string DescribeTimelineEvent(string action, string? payload, MerchantOrder order)
+    {
+        var count = ReadInt(payload, "allocated") ?? ReadInt(payload, "released");
+        var courier = order.CourierProvider ?? "the courier";
+
+        return action switch
+        {
+            "merchant-order.created" => "Order created from the accepted quotation.",
+            "merchant-order.payment-confirmed" => "Payment confirmed.",
+            "merchant-invoice.issued" => "Invoice issued.",
+            "merchant-invoice.paid" => "Invoice paid in full.",
+            "merchant-inventory.allocated" =>
+                $"{count ?? 0} tag(s) allocated by hand.",
+            "merchant-inventory.auto-allocated" =>
+                $"{count ?? 0} tag(s) allocated automatically.",
+            "merchant-inventory.released" =>
+                $"{count ?? 0} tag(s) released back to stock.",
+            "merchant-order.preparing" => "Preparation started.",
+            "merchant-order.ready-to-ship" => "Marked ready to ship.",
+            "merchant-delivery-order.issued" => "Delivery order issued.",
+            "merchant-order.shipped" => $"Shipped via {courier}.",
+            "merchant-order.delivered" => "Delivered.",
+            _ => "",
+        };
+    }
+
+    /// <summary>Reads one integer out of an audit payload without deserialising it into a shape.</summary>
+    private static int? ReadInt(string? payload, string property)
+    {
+        if (string.IsNullOrWhiteSpace(payload)) return null;
+        var match = Regex.Match(payload, $"\"{property}\"\\s*:\\s*(\\d+)");
+        return match.Success && int.TryParse(match.Groups[1].Value, out var value) ? value : null;
+    }
 
     public async Task<MerchantOrderResponse> CancelMerchantOrderAsync(
         Guid? actorId, Guid id, string? concurrencyToken, CancellationToken cancellationToken)
@@ -1219,7 +1368,7 @@ public sealed class MerchantSalesService : IMerchantSalesService
             item.WholesaleUnitPrice, item.LineDiscount, item.LineSubtotal, item.SortOrder)).ToArray(),
         Convert.ToBase64String(quotation.RowVersion));
 
-    private static MerchantOrderResponse ToResponse(MerchantOrder order) => new(
+    private static MerchantOrderResponse ToResponse(MerchantOrder order, int allocatedUnits = 0) => new(
         order.Id, order.MerchantOrderNumber, order.SourceQuotationId,
         order.SourceQuotation?.QuotationNumber, order.MerchantId, order.MerchantCodeSnapshot,
         order.MerchantLegalNameSnapshot, order.MerchantTradingNameSnapshot, order.ContactPersonSnapshot,
@@ -1242,7 +1391,15 @@ public sealed class MerchantSalesService : IMerchantSalesService
             item.SkuCodeSnapshot, item.OptionNameSnapshot, item.SupportsQrSnapshot,
             item.SupportsNfcSnapshot, item.UnitWeightGramsSnapshot, item.Quantity,
             item.WholesaleUnitPrice, item.LineDiscount, item.LineSubtotal, item.SortOrder)).ToArray(),
-        Convert.ToBase64String(order.RowVersion));
+        Convert.ToBase64String(order.RowVersion),
+        order.Items.Sum(item => item.Quantity),
+        allocatedUnits,
+        order.CourierProvider,
+        order.CourierService,
+        order.TrackingNumber,
+        order.TrackingUrlSnapshot,
+        order.ShippedAt,
+        order.DeliveredAt);
 
     // Audit payloads carry identifiers and money, never notes or addresses.
     private static object MerchantAuditSnapshot(Merchant merchant) => new
