@@ -250,9 +250,151 @@ public sealed class MerchantOrder : AuditableEntity
     public DateTimeOffset? PaymentConfirmedAt { get; set; }
     public DateTimeOffset? CancelledAt { get; set; }
 
+    // --- Shipment, following the retail order's own courier conventions -----
+    // CourierProviderCode is the stable configured key; CourierProvider is the
+    // display name frozen at the moment of shipment.
+    public string? CourierProviderCode { get; set; }
+    public string? CourierProvider { get; set; }
+    public string? CourierService { get; set; }
+    public string? TrackingNumber { get; set; }
+    /// <summary>Frozen at shipment so a later template change cannot rewrite history.</summary>
+    public string? TrackingUrlSnapshot { get; set; }
+    /// <summary>Admin only. Never reaches a merchant document or email.</summary>
+    public decimal? InternalCourierCost { get; set; }
+    /// <summary>Admin only. Never reaches a merchant document or email.</summary>
+    public string? InternalShippingNotes { get; set; }
+
+    public DateTimeOffset? PreparingAt { get; set; }
+    public DateTimeOffset? ReadyToShipAt { get; set; }
+    public DateTimeOffset? ShippedAt { get; set; }
+    public DateTimeOffset? DeliveredAt { get; set; }
+
+    public Guid? FulfilmentUpdatedByAdminUserId { get; set; }
+    public AdminUser? FulfilmentUpdatedByAdminUser { get; set; }
+
     public byte[] RowVersion { get; set; } = [];
 
     public ICollection<MerchantOrderItem> Items { get; set; } = [];
+    public ICollection<MerchantOrderAllocatedTag> AllocatedTags { get; set; } = [];
+}
+
+/// <summary>
+/// One row per physical tag held for one merchant order line. This is the only
+/// place a merchant order and a <see cref="SmartTag"/> are connected: quantity
+/// alone can never stand in for the individual units that were sold.
+/// </summary>
+public sealed class MerchantOrderAllocatedTag : Entity
+{
+    public Guid MerchantOrderId { get; set; }
+    public MerchantOrder? MerchantOrder { get; set; }
+
+    public Guid MerchantOrderItemId { get; set; }
+    public MerchantOrderItem? MerchantOrderItem { get; set; }
+
+    /// <summary>Denormalised for the merchant-facing lookups that never join the order.</summary>
+    public Guid MerchantId { get; set; }
+    public Merchant? Merchant { get; set; }
+
+    public Guid SmartTagId { get; set; }
+    public SmartTag? SmartTag { get; set; }
+
+    /// <summary>Frozen so a released tag still shows what was allocated.</summary>
+    public string TagCodeSnapshot { get; set; } = "";
+    public Guid ProductVariantId { get; set; }
+    public Guid? BatchId { get; set; }
+    public SmartTagBatch? Batch { get; set; }
+    public string? BatchNoSnapshot { get; set; }
+
+    public MerchantAllocationStatus Status { get; set; } = MerchantAllocationStatus.Allocated;
+
+    public DateTimeOffset AllocatedAt { get; set; }
+    public Guid AllocatedByAdminUserId { get; set; }
+    public AdminUser? AllocatedByAdminUser { get; set; }
+    /// <summary>True when the server chose the tag rather than the admin.</summary>
+    public bool WasAutomatic { get; set; }
+
+    public DateTimeOffset? SentToMerchantAt { get; set; }
+
+    /// <summary>Set instead of deleting the row, so the decision stays auditable.</summary>
+    public DateTimeOffset? ReleasedAt { get; set; }
+    public string? ReleasedReason { get; set; }
+    public Guid? ReleasedByAdminUserId { get; set; }
+    public AdminUser? ReleasedByAdminUser { get; set; }
+
+    public byte[] RowVersion { get; set; } = [];
+
+    /// <summary>An allocation counts towards an order only while it is unreleased.</summary>
+    public bool IsActive => ReleasedAt is null;
+}
+
+/// <summary>
+/// The immutable record behind the Delivery Order document. Every value is a
+/// snapshot: reading live merchant or catalog data later would silently rewrite
+/// a document that has already left the building.
+/// </summary>
+public sealed class MerchantDeliveryOrder : Entity
+{
+    public string DeliveryOrderNumber { get; set; } = "";
+
+    public Guid MerchantOrderId { get; set; }
+    public MerchantOrder? MerchantOrder { get; set; }
+    public string MerchantOrderNumberSnapshot { get; set; } = "";
+
+    public Guid MerchantId { get; set; }
+    public string MerchantCodeSnapshot { get; set; } = "";
+    public string MerchantLegalNameSnapshot { get; set; } = "";
+    public string? MerchantTradingNameSnapshot { get; set; }
+    public string ContactPersonSnapshot { get; set; } = "";
+    public string ContactEmailSnapshot { get; set; } = "";
+    public string ContactPhoneSnapshot { get; set; } = "";
+
+    public string DeliveryAddressLine1Snapshot { get; set; } = "";
+    public string? DeliveryAddressLine2Snapshot { get; set; }
+    public string DeliveryPostcodeSnapshot { get; set; } = "";
+    public string DeliveryCitySnapshot { get; set; } = "";
+    public string DeliveryStateSnapshot { get; set; } = "";
+    public string DeliveryCountrySnapshot { get; set; } = "";
+
+    public string? CourierProviderSnapshot { get; set; }
+    public string? CourierServiceSnapshot { get; set; }
+    public string? TrackingNumberSnapshot { get; set; }
+
+    public DateTimeOffset IssuedAt { get; set; }
+    public Guid IssuedByAdminUserId { get; set; }
+    public AdminUser? IssuedByAdminUser { get; set; }
+
+    public DateTimeOffset? CancelledAt { get; set; }
+
+    public byte[] RowVersion { get; set; } = [];
+
+    public ICollection<MerchantDeliveryOrderItem> Items { get; set; } = [];
+}
+
+/// <summary>
+/// One line of a Delivery Order, with the production batches the units came
+/// from. Individual tag database ids and tag codes are deliberately absent:
+/// this record backs a document that leaves the building.
+/// </summary>
+public sealed class MerchantDeliveryOrderItem : Entity
+{
+    public Guid MerchantDeliveryOrderId { get; set; }
+    public MerchantDeliveryOrder? MerchantDeliveryOrder { get; set; }
+
+    public Guid MerchantOrderItemId { get; set; }
+
+    public string ProductNameSnapshot { get; set; } = "";
+    public string SkuCodeSnapshot { get; set; } = "";
+    public string OptionNameSnapshot { get; set; } = "";
+    public bool SupportsQrSnapshot { get; set; }
+    public bool SupportsNfcSnapshot { get; set; }
+
+    public int OrderedQuantity { get; set; }
+    public int AllocatedQuantity { get; set; }
+
+    /// <summary>"B-2601 x 60; B-2602 x 40" — batch numbers and counts only.</summary>
+    public string BatchSummarySnapshot { get; set; } = "";
+
+    public int SortOrder { get; set; }
 }
 
 public sealed class MerchantOrderItem : Entity

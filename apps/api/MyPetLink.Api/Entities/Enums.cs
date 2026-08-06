@@ -292,10 +292,27 @@ public enum SalesCommissionStatus
 }
 
 /// <summary>
-/// Fulfilment is a later phase; an order starts outside it. Values beyond
-/// NotStarted are introduced with the allocation and shipping work.
+/// Operational progress, kept separate from payment status and from inventory
+/// allocation progress so none of the three can be read from the other two.
+/// An order stays NotStarted until payment is confirmed and preparation opens.
 /// </summary>
 public enum MerchantOrderFulfilmentStatus
 {
-    NotStarted
+    NotStarted,
+    Preparing,
+    ReadyToShip,
+    Shipped,
+    Delivered
+}
+
+/// <summary>
+/// One physical tag's place in a merchant order. A tag is held for the order
+/// while it is Allocated, and belongs to the merchant once the order ships.
+/// A withdrawn allocation is recorded by <c>ReleasedAt</c> rather than by a
+/// third status, so the row stays auditable.
+/// </summary>
+public enum MerchantAllocationStatus
+{
+    Allocated,
+    SentToMerchant
 }

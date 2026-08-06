@@ -49,7 +49,10 @@ public sealed class TagOrderInventoryAvailabilityService : ITagOrderInventoryAva
             && tag.OwnerUserId == null
             && tag.PetId == null
             && tag.OrderId == null
-            && tag.OrderItemId == null,
+            && tag.OrderItemId == null
+            // A tag held for a merchant order is no longer retail stock.
+            && !_dbContext.MerchantOrderAllocatedTags.Any(allocation =>
+                allocation.SmartTagId == tag.Id && allocation.ReleasedAt == null),
             cancellationToken);
 
         var reserved = await _dbContext.TagOrderItems
@@ -96,7 +99,10 @@ public sealed class TagOrderInventoryAvailabilityService : ITagOrderInventoryAva
                 && tag.OwnerUserId == null
                 && tag.PetId == null
                 && tag.OrderId == null
-                && tag.OrderItemId == null)
+                && tag.OrderItemId == null
+                // A tag held for a merchant order is no longer retail stock.
+                && !_dbContext.MerchantOrderAllocatedTags.Any(allocation =>
+                    allocation.SmartTagId == tag.Id && allocation.ReleasedAt == null))
             .GroupBy(tag => tag.ProductVariantId!.Value)
             .Select(group => new { VariantId = group.Key, Count = group.Count() })
             .ToDictionaryAsync(row => row.VariantId, row => row.Count, cancellationToken);

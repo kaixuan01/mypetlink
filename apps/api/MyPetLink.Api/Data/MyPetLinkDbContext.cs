@@ -74,6 +74,11 @@ public sealed class MyPetLinkDbContext : DbContext
     public DbSet<MerchantQuotationItem> MerchantQuotationItems => Set<MerchantQuotationItem>();
     public DbSet<MerchantOrder> MerchantOrders => Set<MerchantOrder>();
     public DbSet<MerchantOrderItem> MerchantOrderItems => Set<MerchantOrderItem>();
+    public DbSet<MerchantOrderAllocatedTag> MerchantOrderAllocatedTags =>
+        Set<MerchantOrderAllocatedTag>();
+    public DbSet<MerchantDeliveryOrder> MerchantDeliveryOrders => Set<MerchantDeliveryOrder>();
+    public DbSet<MerchantDeliveryOrderItem> MerchantDeliveryOrderItems =>
+        Set<MerchantDeliveryOrderItem>();
     public DbSet<DocumentNumberCounter> DocumentNumberCounters => Set<DocumentNumberCounter>();
     public DbSet<MerchantInvoice> MerchantInvoices => Set<MerchantInvoice>();
     public DbSet<MerchantInvoiceItem> MerchantInvoiceItems => Set<MerchantInvoiceItem>();
@@ -339,8 +344,20 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.Property(item => item.SalespersonCodeSnapshot).HasMaxLength(32);
             entity.Property(item => item.SalespersonNameSnapshot).HasMaxLength(160);
             entity.Property(item => item.InternalNotes).HasMaxLength(2000);
+            entity.Property(item => item.CourierProviderCode).HasMaxLength(32);
+            entity.Property(item => item.CourierProvider).HasMaxLength(120);
+            entity.Property(item => item.CourierService).HasMaxLength(120);
+            entity.Property(item => item.TrackingNumber).HasMaxLength(64);
+            entity.Property(item => item.TrackingUrlSnapshot).HasMaxLength(500);
+            entity.Property(item => item.InternalCourierCost).HasPrecision(18, 2);
+            entity.Property(item => item.InternalShippingNotes).HasMaxLength(2000);
             entity.HasIndex(item => new { item.PaymentStatus, item.CreatedAt });
+            entity.HasIndex(item => new { item.FulfilmentStatus, item.CreatedAt });
             entity.HasIndex(item => item.MerchantId);
+            entity.HasOne(item => item.FulfilmentUpdatedByAdminUser)
+                .WithMany()
+                .HasForeignKey(item => item.FulfilmentUpdatedByAdminUserId)
+                .OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(item => item.Merchant)
                 .WithMany()
                 .HasForeignKey(item => item.MerchantId)
@@ -370,6 +387,112 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.Property(item => item.LineSubtotal).HasPrecision(18, 2);
             entity.Property(item => item.UnitWeightGramsSnapshot).HasPrecision(10, 2);
             entity.HasIndex(item => item.MerchantOrderId);
+        });
+
+        modelBuilder.Entity<MerchantOrderAllocatedTag>(entity =>
+        {
+            entity.ToTable("MerchantOrderAllocatedTags");
+            entity.Property(item => item.RowVersion).IsRowVersion();
+            entity.Property(item => item.Status).HasConversion<string>().HasMaxLength(32);
+            entity.Property(item => item.TagCodeSnapshot).HasMaxLength(64).IsRequired();
+            entity.Property(item => item.BatchNoSnapshot).HasMaxLength(64);
+            entity.Property(item => item.ReleasedReason).HasMaxLength(500);
+
+            // One physical tag can be held by one merchant order at a time. The
+            // filter is what makes a second concurrent allocation impossible
+            // rather than unlikely, while still keeping released rows for audit.
+            entity.HasIndex(item => item.SmartTagId)
+                .IsUnique()
+                .HasDatabaseName("IX_MerchantOrderAllocatedTags_SmartTagId_Active")
+                .HasFilter("[ReleasedAt] IS NULL");
+
+            entity.HasIndex(item => new { item.MerchantOrderItemId, item.ReleasedAt });
+            entity.HasIndex(item => new { item.MerchantOrderId, item.ReleasedAt });
+            entity.HasIndex(item => item.MerchantId);
+
+            entity.HasOne(item => item.MerchantOrder)
+                .WithMany(order => order.AllocatedTags)
+                .HasForeignKey(item => item.MerchantOrderId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(item => item.MerchantOrderItem)
+                .WithMany()
+                .HasForeignKey(item => item.MerchantOrderItemId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.Merchant)
+                .WithMany()
+                .HasForeignKey(item => item.MerchantId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.SmartTag)
+                .WithMany()
+                .HasForeignKey(item => item.SmartTagId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.Batch)
+                .WithMany()
+                .HasForeignKey(item => item.BatchId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.AllocatedByAdminUser)
+                .WithMany()
+                .HasForeignKey(item => item.AllocatedByAdminUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.ReleasedByAdminUser)
+                .WithMany()
+                .HasForeignKey(item => item.ReleasedByAdminUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<MerchantDeliveryOrder>(entity =>
+        {
+            entity.ToTable("MerchantDeliveryOrders");
+            entity.Property(item => item.RowVersion).IsRowVersion();
+            entity.Property(item => item.DeliveryOrderNumber).HasMaxLength(48).IsRequired();
+            entity.HasIndex(item => item.DeliveryOrderNumber).IsUnique();
+
+            // One live delivery order per merchant order, enforced by the
+            // database so a concurrent second issue cannot succeed.
+            entity.HasIndex(item => item.MerchantOrderId)
+                .IsUnique()
+                .HasDatabaseName("IX_MerchantDeliveryOrders_MerchantOrderId_Active")
+                .HasFilter("[CancelledAt] IS NULL");
+
+            entity.Property(item => item.MerchantOrderNumberSnapshot).HasMaxLength(48).IsRequired();
+            entity.Property(item => item.MerchantCodeSnapshot).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.MerchantLegalNameSnapshot).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.MerchantTradingNameSnapshot).HasMaxLength(200);
+            entity.Property(item => item.ContactPersonSnapshot).HasMaxLength(160).IsRequired();
+            entity.Property(item => item.ContactEmailSnapshot).HasMaxLength(254).IsRequired();
+            entity.Property(item => item.ContactPhoneSnapshot).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.DeliveryAddressLine1Snapshot).HasMaxLength(240).IsRequired();
+            entity.Property(item => item.DeliveryAddressLine2Snapshot).HasMaxLength(240);
+            entity.Property(item => item.DeliveryPostcodeSnapshot).HasMaxLength(16).IsRequired();
+            entity.Property(item => item.DeliveryCitySnapshot).HasMaxLength(120).IsRequired();
+            entity.Property(item => item.DeliveryStateSnapshot).HasMaxLength(120).IsRequired();
+            entity.Property(item => item.DeliveryCountrySnapshot).HasMaxLength(80).IsRequired();
+            entity.Property(item => item.CourierProviderSnapshot).HasMaxLength(120);
+            entity.Property(item => item.CourierServiceSnapshot).HasMaxLength(120);
+            entity.Property(item => item.TrackingNumberSnapshot).HasMaxLength(64);
+
+            entity.HasOne(item => item.MerchantOrder)
+                .WithMany()
+                .HasForeignKey(item => item.MerchantOrderId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.IssuedByAdminUser)
+                .WithMany()
+                .HasForeignKey(item => item.IssuedByAdminUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasMany(item => item.Items)
+                .WithOne(line => line.MerchantDeliveryOrder!)
+                .HasForeignKey(line => line.MerchantDeliveryOrderId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<MerchantDeliveryOrderItem>(entity =>
+        {
+            entity.ToTable("MerchantDeliveryOrderItems");
+            entity.Property(item => item.ProductNameSnapshot).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.SkuCodeSnapshot).HasMaxLength(64).IsRequired();
+            entity.Property(item => item.OptionNameSnapshot).HasMaxLength(120).IsRequired();
+            entity.Property(item => item.BatchSummarySnapshot).HasMaxLength(1000).IsRequired();
+            entity.HasIndex(item => item.MerchantDeliveryOrderId);
         });
 
 

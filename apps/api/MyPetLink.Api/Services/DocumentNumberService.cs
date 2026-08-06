@@ -24,6 +24,7 @@ public interface IDocumentNumberService
     Task<string> NextMerchantOrderNumberAsync(DateTimeOffset issuedAtUtc, CancellationToken cancellationToken);
     Task<string> NextMerchantInvoiceNumberAsync(DateTimeOffset issuedAtUtc, CancellationToken cancellationToken);
     Task<string> NextMerchantReceiptNumberAsync(DateTimeOffset issuedAtUtc, CancellationToken cancellationToken);
+    Task<string> NextMerchantDeliveryOrderNumberAsync(DateTimeOffset issuedAtUtc, CancellationToken cancellationToken);
 }
 
 public sealed class DocumentNumberService : IDocumentNumberService
@@ -87,6 +88,19 @@ public sealed class DocumentNumberService : IDocumentNumberService
         var day = DayKey(issuedAtUtc);
         var value = await NextAsync($"merchant-receipt:{day}", cancellationToken);
         return $"MPL-RCP-B2B-{day}-{value:0000}";
+    }
+
+    /// <summary>
+    /// Delivery orders carry their own daily series, so a document number can
+    /// never be shared with an invoice or a receipt issued the same day.
+    /// </summary>
+    public async Task<string> NextMerchantDeliveryOrderNumberAsync(
+        DateTimeOffset issuedAtUtc,
+        CancellationToken cancellationToken)
+    {
+        var day = DayKey(issuedAtUtc);
+        var value = await NextAsync($"merchant-delivery-order:{day}", cancellationToken);
+        return $"MPL-DO-{day}-{value:0000}";
     }
 
     /// <summary>
