@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { AdminSection } from "@/components/admin/AdminPanels";
 import {
   AdminDataTable,
@@ -799,7 +799,12 @@ function Field({
   type?: string;
   maxLength?: number;
 }) {
-  const describedBy = error ? `${label}-error` : hint ? `${label}-hint` : undefined;
+  // aria-describedby is a space-separated list of ids, so a label-derived id
+  // such as "Registered business name-error" resolves to nothing and the
+  // message is never announced. Billing and delivery also share label text, so
+  // the id has to be unique per field as well as valid.
+  const fieldId = useId();
+  const describedBy = error ? `${fieldId}-error` : hint ? `${fieldId}-hint` : undefined;
 
   return (
     <label className="grid gap-1 text-sm font-bold text-pet-ink">
@@ -816,11 +821,11 @@ function Field({
         value={value}
       />
       {error ? (
-        <span className="text-sm font-bold text-[#a63c2e]" id={`${label}-error`}>
+        <span className="text-sm font-bold text-[#a63c2e]" id={`${fieldId}-error`}>
           {error}
         </span>
       ) : hint ? (
-        <span className="text-sm font-semibold text-pet-muted" id={`${label}-hint`}>
+        <span className="text-sm font-semibold text-pet-muted" id={`${fieldId}-hint`}>
           {hint}
         </span>
       ) : null}

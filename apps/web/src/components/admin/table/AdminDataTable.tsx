@@ -150,11 +150,14 @@ export function AdminDataTable<T>({
     onSelectedIdsChange(next);
   }
 
+  // Below the small breakpoint the pinned column takes most of the screen, and
+  // the row-action control scrolls underneath it with no way to reach it. Let
+  // the first column scroll with the rest until there is room to pin it.
   const stickyCellClass = stickyFirstColumn
-    ? "sticky left-0 z-[1] bg-inherit"
+    ? "sm:sticky sm:left-0 sm:z-[1] sm:bg-inherit"
     : "";
   const stickyDataCellClass = stickyFirstColumn
-    ? `sticky ${selectable ? "left-10" : "left-0"} z-[1] bg-inherit`
+    ? `sm:sticky ${selectable ? "sm:left-10" : "sm:left-0"} sm:z-[1] sm:bg-inherit`
     : "";
 
   const headerFor = (column: AdminColumn<T>, index: number) => {
@@ -248,9 +251,12 @@ export function AdminDataTable<T>({
     body = (
       <tbody>
         <tr>
+          {/* Announced, so changing a filter into an empty result is not
+              silent for anyone relying on a screen reader. */}
           <td
             className="px-4 py-10 text-center"
             colSpan={visibleColumns.length + (selectable ? 1 : 0) + (onRowOpen ? 1 : 0)}
+            role="status"
           >
             <p className="text-sm font-black text-slate-900">{emptyTitle}</p>
             {emptyDescription ? (
@@ -357,7 +363,11 @@ export function AdminDataTable<T>({
         </div>
       ) : null}
 
-      <div className="overflow-x-auto">
+      {/* The scroll container is the containing block on purpose: the
+          absolutely positioned screen-reader labels inside the table would
+          otherwise be laid out against a far ancestor, which lets the whole
+          page be dragged sideways into empty space. */}
+      <div className="relative overflow-x-auto">
         <table className="min-w-full text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase text-slate-500">
             <tr className="bg-slate-50">

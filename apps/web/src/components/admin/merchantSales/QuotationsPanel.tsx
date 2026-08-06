@@ -909,8 +909,20 @@ function QuotationEditor({
       lineDiscount: Number(line.lineDiscount || 0),
     }));
 
-    if (parsedLines.length === 0 || parsedLines.some((line) => !line.productVariantId)) {
+    // Nothing has been chosen anywhere: the operator really does need to add a
+    // line. Asking for that once a complete line exists would be misleading —
+    // there the problem is the extra line with no product option chosen.
+    if (parsedLines.length === 0 || parsedLines.every((line) => !line.productVariantId)) {
       setFieldErrors({ items: "Add at least one product line." });
+      return;
+    }
+
+    const unfinished = parsedLines.findIndex((line) => !line.productVariantId);
+    if (unfinished >= 0) {
+      setFieldErrors({
+        items: "Complete or remove the unfinished product line.",
+        [`line-${unfinished}`]: "Choose a product option for this line, or remove it.",
+      });
       return;
     }
 

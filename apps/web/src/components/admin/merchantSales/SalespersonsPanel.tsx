@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { AdminSection } from "@/components/admin/AdminPanels";
 import {
   AdminDataTable,
@@ -473,7 +473,10 @@ function Field({
   error?: string;
   type?: string;
 }) {
-  const describedBy = error ? `${label}-error` : hint ? `${label}-hint` : undefined;
+  // aria-describedby takes a space-separated list of ids, so a label-derived id
+  // never resolves once the label has a space in it.
+  const fieldId = useId();
+  const describedBy = error ? `${fieldId}-error` : hint ? `${fieldId}-hint` : undefined;
 
   return (
     <label className="grid gap-1 text-sm font-bold text-pet-ink">
@@ -489,11 +492,11 @@ function Field({
         value={value}
       />
       {error ? (
-        <span className="text-sm font-bold text-[#a63c2e]" id={`${label}-error`}>
+        <span className="text-sm font-bold text-[#a63c2e]" id={`${fieldId}-error`}>
           {error}
         </span>
       ) : hint ? (
-        <span className="text-sm font-semibold text-pet-muted" id={`${label}-hint`}>
+        <span className="text-sm font-semibold text-pet-muted" id={`${fieldId}-hint`}>
           {hint}
         </span>
       ) : null}
