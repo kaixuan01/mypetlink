@@ -3,7 +3,14 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClientError } from "@/services/apiClient";
-import { merchant, order, overview, paged, quotation } from "./merchantSalesFixtures";
+import {
+  allocationSummary,
+  merchant,
+  order,
+  overview,
+  paged,
+  quotation,
+} from "./merchantSalesFixtures";
 
 const getMerchantSalesOverview = vi.fn();
 const listMerchantOrders = vi.fn();
@@ -14,6 +21,10 @@ const issueInvoice = vi.fn();
 const listInvoices = vi.fn();
 const listCommissions = vi.fn();
 const getMerchantEmailStatuses = vi.fn();
+const getAllocationSummary = vi.fn();
+const listAllocatedTags = vi.fn();
+const listEligibleInventory = vi.fn();
+const getMerchantOrderTimeline = vi.fn();
 
 vi.mock("@/services/adminMerchantBillingService", async () => {
   const actual = await vi.importActual<
@@ -29,6 +40,18 @@ vi.mock("@/services/adminMerchantBillingService", async () => {
   };
 });
 
+vi.mock("@/services/adminMerchantFulfilmentService", async () => {
+  const actual = await vi.importActual<
+    typeof import("@/services/adminMerchantFulfilmentService")
+  >("@/services/adminMerchantFulfilmentService");
+  return {
+    ...actual,
+    getAllocationSummary: (...a: unknown[]) => getAllocationSummary(...a),
+    listAllocatedTags: (...a: unknown[]) => listAllocatedTags(...a),
+    listEligibleInventory: (...a: unknown[]) => listEligibleInventory(...a),
+  };
+});
+
 vi.mock("@/services/adminMerchantSalesService", async () => {
   const actual = await vi.importActual<
     typeof import("@/services/adminMerchantSalesService")
@@ -39,6 +62,7 @@ vi.mock("@/services/adminMerchantSalesService", async () => {
     listMerchants: (...a: unknown[]) => listMerchants(...a),
     listSalespersons: (...a: unknown[]) => listSalespersons(...a),
     listQuotations: (...a: unknown[]) => listQuotations(...a),
+    getMerchantOrderTimeline: (...a: unknown[]) => getMerchantOrderTimeline(...a),
   };
 });
 
@@ -63,6 +87,10 @@ beforeEach(() => {
   listInvoices.mockResolvedValue(paged([]));
   listCommissions.mockResolvedValue(paged([]));
   getMerchantEmailStatuses.mockResolvedValue([]);
+  getAllocationSummary.mockResolvedValue(allocationSummary());
+  listAllocatedTags.mockResolvedValue([]);
+  listEligibleInventory.mockResolvedValue({ items: [], total: 0 });
+  getMerchantOrderTimeline.mockResolvedValue([]);
 });
 afterEach(cleanup);
 
@@ -183,20 +211,18 @@ describe("Merchant orders", () => {
     expect(number.className).not.toContain("break-all");
   });
 
-  it("states plainly that inventory is not reserved", async () => {
+  it("says nothing is allocated yet once payment is confirmed", async () => {
     renderOrders({ openId: "order-1" });
 
-    expect(
-      await screen.findByTestId("order-allocation-state")
-    ).toBeTruthy();
-    expect(screen.getByTestId("order-allocation-state").textContent).toMatch(
-      /not been allocated or reserved/i
+    expect(await screen.findByTestId("allocation-state-message")).toBeTruthy();
+    expect(screen.getByTestId("allocation-state-message").textContent).toBe(
+      "Payment confirmed. Inventory has not been allocated yet."
     );
   });
 
   it("offers no shipping, courier or packing action", async () => {
     renderOrders({ openId: "order-1" });
-    await screen.findByTestId("order-allocation-state");
+    await screen.findByTestId("allocation-state-message");
 
     const actions = screen.getAllByRole("button").map((el) => el.textContent ?? "");
     expect(
@@ -216,15 +242,21 @@ describe("Merchant orders", () => {
     expect(labels).toContain("Issue invoice");
   });
 
-  it("says the order is ready for allocation once payment is confirmed", async () => {
-    listMerchantOrders.mockResolvedValue(
-      paged([order({ paymentStatus: "PaymentConfirmed" })])
+  it("waits for payment before offering allocation", async () => {
+    getAllocationSummary.mockResolvedValue(
+      allocationSummary({
+        paymentStatus: "AwaitingPayment",
+        allocationAllowed: false,
+        allocationBlockedReason:
+          "Inventory is allocated only after the merchant's payment is confirmed.",
+      })
     );
     renderOrders({ openId: "order-1" });
 
-    expect((await screen.findByTestId("order-allocation-state")).textContent).toMatch(
-      /ready for inventory allocation/i
+    expect((await screen.findByTestId("allocation-state-message")).textContent).toBe(
+      "Inventory allocation is available after full payment is confirmed."
     );
+    expect(screen.queryByRole("button", { name: /Allocate tags/i })).toBeNull();
   });
 
   it("explains a failed load without leaking the error code", async () => {

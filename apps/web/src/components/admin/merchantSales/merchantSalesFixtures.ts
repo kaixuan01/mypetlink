@@ -9,6 +9,12 @@ import type {
   AdminSalesCommission,
   MerchantSalesOverview,
 } from "@/services/adminMerchantBillingService";
+import type {
+  MerchantAllocatedTag,
+  MerchantAllocationSummary,
+  MerchantEligibleInventoryItem,
+  MerchantItemAllocationProgress,
+} from "@/services/adminMerchantFulfilmentService";
 
 // Deterministic fixtures. Every test builds from these with an explicit
 // override, so nothing leaks between cases through a shared mutable object.
@@ -220,6 +226,83 @@ export function overview(
     currency: "MYR",
     ...overrides,
   } as MerchantSalesOverview;
+}
+
+export function allocationItem(
+  overrides: Partial<MerchantItemAllocationProgress> = {}
+): MerchantItemAllocationProgress {
+  return {
+    merchantOrderItemId: "line-1",
+    productVariantId: "variant-1",
+    productName: "Wholesale Smart Tag",
+    skuCode: "WS-QR-0001",
+    optionName: "Lightweight",
+    supportsQr: true,
+    supportsNfc: false,
+    requiredUnits: 100,
+    allocatedUnits: 0,
+    remainingUnits: 100,
+    isFullyAllocated: false,
+    eligibleAvailableUnits: 40,
+    batches: [],
+    ...overrides,
+  } as MerchantItemAllocationProgress;
+}
+
+export function allocationSummary(
+  overrides: Partial<MerchantAllocationSummary> = {}
+): MerchantAllocationSummary {
+  return {
+    merchantOrderId: "order-1",
+    merchantOrderNumber: "MPL-B2B-ORD-260806-0001",
+    paymentStatus: "PaymentConfirmed",
+    fulfilmentStatus: "NotStarted",
+    allocationAllowed: true,
+    allocationBlockedReason: null,
+    requiredUnits: 100,
+    allocatedUnits: 0,
+    remainingUnits: 100,
+    isFullyAllocated: false,
+    canMarkReadyToShip: false,
+    items: [allocationItem()],
+    concurrencyToken: "token-allocation-1",
+    ...overrides,
+  } as MerchantAllocationSummary;
+}
+
+export function eligibleTag(
+  overrides: Partial<MerchantEligibleInventoryItem> = {}
+): MerchantEligibleInventoryItem {
+  return {
+    smartTagId: "tag-1",
+    tagCode: "MPL-TAG-000001",
+    batchId: "batch-1",
+    batchNo: "BATCH-2026-01",
+    fulfilmentStatus: "Unclaimed",
+    printedAt: "2026-07-01T02:00:00Z",
+    createdAt: "2026-07-01T01:00:00Z",
+    ...overrides,
+  } as MerchantEligibleInventoryItem;
+}
+
+export function allocatedTag(
+  overrides: Partial<MerchantAllocatedTag> = {}
+): MerchantAllocatedTag {
+  return {
+    id: "allocation-1",
+    merchantOrderItemId: "line-1",
+    smartTagId: "tag-1",
+    tagCode: "MPL-TAG-000001",
+    batchNo: "BATCH-2026-01",
+    status: "Allocated",
+    allocatedAt: "2026-08-06T03:00:00Z",
+    wasAutomatic: false,
+    sentToMerchantAt: null,
+    releasedAt: null,
+    releasedReason: null,
+    concurrencyToken: "token-allocation-row-1",
+    ...overrides,
+  } as MerchantAllocatedTag;
 }
 
 export const paged = <T,>(items: T[], total = items.length) => ({ items, total });

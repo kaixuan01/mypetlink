@@ -32,6 +32,7 @@ import {
   type AdminMerchant,
   type AdminMerchantOrder,
 } from "@/services/adminMerchantSalesService";
+import { OrderInventorySection } from "./OrderInventorySection";
 import { AddressBlock, ItemsTable } from "./QuotationsPanel";
 import { Badge } from "@/components/ui/Badge";
 import {
@@ -366,7 +367,7 @@ export function OrdersPanel({
       ) : null}
 
       <AdminSection
-        description="Confirmed bulk sales. Inventory allocation and shipping are a later phase."
+        description="Confirmed bulk sales. Allocate the physical tags each order needs."
         title="Merchant orders"
       >
         <AdminFilterBar
@@ -483,8 +484,6 @@ function MerchantOrderDetail({
   onIssueInvoice: () => void;
   onOpenInvoice: (invoiceId: string) => void;
 }) {
-  const paid = order.paymentStatus === "PaymentConfirmed";
-
   return (
     <AdminSection
       action={
@@ -527,19 +526,8 @@ function MerchantOrderDetail({
           <AddressBlock heading="Delivery address" lines={addressLines(order.deliveryAddress)} />
         </div>
 
-        <div
-          className={
-            paid
-              ? "rounded-xl border border-[#bfe6d5] bg-[#eef8f5] p-4"
-              : "rounded-xl border border-[#ffe2b8] bg-[#fff8ec] p-4"
-          }
-          data-testid="order-allocation-state"
-        >
-          <p className={`text-sm font-bold ${paid ? "text-[#0f8a5f]" : "text-[#8a5a12]"}`}>
-            {paid
-              ? "Payment confirmed. This order is ready for inventory allocation."
-              : "Inventory has not been allocated or reserved for this Merchant Order."}
-          </p>
+        <div data-testid="order-allocation-state">
+          <OrderInventorySection order={order} />
         </div>
 
         <div className="rounded-xl border border-slate-200 p-4">
