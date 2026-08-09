@@ -65,8 +65,24 @@ public sealed class ConcurrencyRelationalTests
         }
     }
 
+    /// <summary>
+    /// Two administrators racing for the same physical tag. Which typed refusal
+    /// the loser receives depends on where its read falls relative to the
+    /// winner's commit, and the database gives no ordering guarantee:
+    ///
+    ///   * reads before the winner commits → the tag still looks unclaimed, so
+    ///     the loser proceeds to save and the rowversion token rejects it:
+    ///     409 inventory_allocation_conflict.
+    ///   * reads after the winner commits → the tag is already linked to an
+    ///     order, so the eligibility precondition refuses it up front:
+    ///     422 invalid_state.
+    ///
+    /// Both are deliberate, typed, admin-readable refusals, so the test asserts
+    /// the invariant that actually matters — one winner, one live allocation,
+    /// no raw database exception — rather than one arbitrary interleaving.
+    /// </summary>
     [RelationalFact]
-    public async Task InventoryAllocation_FromTwoContexts_AllocatesOnce_AndSecondGets409()
+    public async Task InventoryAllocation_FromTwoContexts_AllocatesOnce_AndSecondIsRefusedTyped()
     {
         await using var scope = await RelationalDatabase.CreateAsync();
         Guid firstOrderId;
@@ -106,20 +122,141 @@ public sealed class ConcurrencyRelationalTests
             Capture(() => adminA.AssignInventoryTagAsync(AdminId, firstOrderId, tagId)),
             Capture(() => adminB.AssignInventoryTagAsync(AdminId, secondOrderId, tagId)));
 
-        var successes = results.Count(result => result.Error is null);
-        var conflicts = results.Count(result => result.Error is ApiException api && api.StatusCode == StatusCodes.Status409Conflict);
         var diagnostics = string.Join(" | ", results.Select(result =>
             result.Error is null
                 ? "success"
-                : $"{result.Error.GetType().Name}: {result.Error.Message}"));
-        Assert.True(successes == 1, $"Expected one successful assignment. {diagnostics}");
-        Assert.True(conflicts == 1, $"Expected one allocation conflict. {diagnostics}");
+                : $"{result.Error.GetType().Name}({(result.Error as ApiException)?.Code}): {result.Error.Message}"));
+
+        var successes = results.Count(result => result.Error is null);
+        Assert.True(successes == 1, $"Expected exactly one successful assignment. {diagnostics}");
+
+        // The loser must be refused by name, not by whatever the database threw.
+        var refusals = results.Where(result => result.Error is not null).ToArray();
+        Assert.True(refusals.Length == 1, $"Expected exactly one refusal. {diagnostics}");
+
+        var refusal = Assert.IsType<ApiException>(refusals[0].Error);
+        Assert.True(
+            AllowedAllocationRaceRefusals.Contains((refusal.StatusCode, refusal.Code)),
+            $"The loser must receive an approved typed refusal. {diagnostics}");
+        Assert.False(string.IsNullOrWhiteSpace(refusal.Message));
+
+        // A raw persistence failure reaching the caller would be a real defect.
+        Assert.DoesNotContain("DbUpdate", refusal.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("SqlException", refusal.Message, StringComparison.OrdinalIgnoreCase);
 
         await using var verify = scope.NewContext();
         var allocatedTag = await verify.SmartTags.SingleAsync(item => item.Id == tagId);
         Assert.NotNull(allocatedTag.OrderId);
+
+        // Exactly one order holds the tag, and nothing partial was left behind.
         var ordersWithTag = await verify.TagOrders.CountAsync(order => order.SmartTagId == tagId);
         Assert.Equal(1, ordersWithTag);
+
+        var loserOrderId = allocatedTag.OrderId == firstOrderId ? secondOrderId : firstOrderId;
+        var loserOrder = await verify.TagOrders
+            .Include(order => order.AssignedTags)
+            .SingleAsync(order => order.Id == loserOrderId);
+        Assert.Null(loserOrder.SmartTagId);
+        Assert.Empty(loserOrder.AssignedTags);
+    }
+
+    /// <summary>
+    /// The refusals an administrator may legitimately see when another
+    /// administrator takes the same tag first. Anything outside this set is a
+    /// defect, not a race.
+    /// </summary>
+    private static readonly (int Status, string Code)[] AllowedAllocationRaceRefusals =
+    [
+        (StatusCodes.Status409Conflict, "inventory_allocation_conflict"),
+        (StatusCodes.Status422UnprocessableEntity, "invalid_state"),
+    ];
+
+    /// <summary>
+    /// The serialized half of the race, pinned deterministically: the second
+    /// administrator reads only after the first has committed, so the tag is
+    /// visibly taken and the eligibility check refuses it before any write.
+    /// </summary>
+    [RelationalFact]
+    public async Task InventoryAllocation_AfterAnotherAdminCommitted_IsRefusedAsIneligible()
+    {
+        await using var scope = await RelationalDatabase.CreateAsync();
+        var (firstOrderId, secondOrderId, tagId) = await SeedTwoOrdersCompetingForOneTagAsync(scope);
+
+        await using (var contextA = scope.NewContext())
+        {
+            await AdminService(contextA).AssignInventoryTagAsync(AdminId, firstOrderId, tagId);
+        }
+
+        await using var contextB = scope.NewContext();
+        var refusal = await Assert.ThrowsAsync<ApiException>(() =>
+            AdminService(contextB).AssignInventoryTagAsync(AdminId, secondOrderId, tagId));
+
+        Assert.Equal(StatusCodes.Status422UnprocessableEntity, refusal.StatusCode);
+        Assert.Equal("invalid_state", refusal.Code);
+        Assert.Equal(
+            "Only unclaimed, available production inventory can be assigned to an order.",
+            refusal.Message);
+
+        await using var verify = scope.NewContext();
+        Assert.Equal(1, await verify.TagOrders.CountAsync(order => order.SmartTagId == tagId));
+    }
+
+    /// <summary>
+    /// The interleaved half of the race, pinned deterministically: the second
+    /// administrator has already read the tag as unclaimed, so the eligibility
+    /// check passes and only the rowversion token can stop the write.
+    /// </summary>
+    [RelationalFact]
+    public async Task InventoryAllocation_WithATagReadBeforeTheWinnerCommitted_Returns409()
+    {
+        await using var scope = await RelationalDatabase.CreateAsync();
+        var (firstOrderId, secondOrderId, tagId) = await SeedTwoOrdersCompetingForOneTagAsync(scope);
+
+        await using var contextB = scope.NewContext();
+        // B reads the tag while it is genuinely still free. This tracked copy —
+        // rowversion and all — is what B will later try to save.
+        var seenAsFree = await contextB.SmartTags.SingleAsync(tag => tag.Id == tagId);
+        Assert.Null(seenAsFree.OrderId);
+
+        await using (var contextA = scope.NewContext())
+        {
+            await AdminService(contextA).AssignInventoryTagAsync(AdminId, firstOrderId, tagId);
+        }
+
+        var refusal = await Assert.ThrowsAsync<ApiException>(() =>
+            AdminService(contextB).AssignInventoryTagAsync(AdminId, secondOrderId, tagId));
+
+        Assert.Equal(StatusCodes.Status409Conflict, refusal.StatusCode);
+        Assert.Equal("inventory_allocation_conflict", refusal.Code);
+        Assert.DoesNotContain("DbUpdate", refusal.Message, StringComparison.OrdinalIgnoreCase);
+
+        await using var verify = scope.NewContext();
+        Assert.Equal(1, await verify.TagOrders.CountAsync(order => order.SmartTagId == tagId));
+        var loser = await verify.TagOrders.SingleAsync(order => order.Id == secondOrderId);
+        Assert.Null(loser.SmartTagId);
+    }
+
+    private static async Task<(Guid FirstOrderId, Guid SecondOrderId, Guid TagId)>
+        SeedTwoOrdersCompetingForOneTagAsync(RelationalScope scope)
+    {
+        await using var seed = scope.NewContext();
+        SeedAdmin(seed);
+        SeedOwnerAndPet(seed);
+        var (product, variant) = SeedProductWithVariant(seed);
+        var tag = new SmartTag
+        {
+            TagCode = "MPL-REL-0002",
+            ProductVariant = variant,
+            HasNfc = variant.SupportsNfc,
+            Variant = variant.TagVariant,
+            Status = SmartTagStatus.Unclaimed,
+            FulfilmentStatus = TagFulfilmentStatus.Generated,
+        };
+        var first = ConfirmedOrder(variant, "ORD-REL-A");
+        var second = ConfirmedOrder(variant, "ORD-REL-B");
+        seed.AddRange(product, variant, tag, first, second);
+        await seed.SaveChangesAsync();
+        return (first.Id, second.Id, tag.Id);
     }
 
     [RelationalFact]
