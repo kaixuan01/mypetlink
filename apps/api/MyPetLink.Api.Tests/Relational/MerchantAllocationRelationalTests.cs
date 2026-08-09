@@ -1,4 +1,6 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using MyPetLink.Api.Common;
 using MyPetLink.Api.Data;
 using MyPetLink.Api.DTOs;
@@ -98,6 +100,80 @@ public sealed class MerchantAllocationRelationalTests
         // Retail and merchant demand draw on one pool, not two.
         Assert.Equal(before - 4, after);
     }
+
+    /// <summary>
+    /// A merchant claim lives in the allocation table, not on the tag row, so
+    /// nothing on the tag itself tells the retail assignment path that the unit
+    /// is spoken for. Without an explicit check the same physical tag could be
+    /// promised to a merchant and shipped to a pet owner.
+    /// </summary>
+    [RelationalFact]
+    public async Task AnAllocatedTagCannotBeAssignedToARetailOrder()
+    {
+        await using var scope = await RelationalDatabase.CreateAsync();
+        await using var db = scope.NewContext();
+        await SeedAsync(db);
+        var retail = await SeedRetailOrderAsync(db);
+
+        var chosen = TagIds(db, QrVariantId, 1);
+        await Service(db).AllocateAsync(
+            AdminAccountId, OrderId, new AllocateMerchantInventoryRequest(QrItemId, chosen));
+
+        var refusal = await Assert.ThrowsAsync<ApiException>(() =>
+            RetailAdminService(db).AssignInventoryTagAsync(
+                AdminAccountId, retail.OrderId, chosen[0], retail.OrderItemId));
+
+        Assert.Equal(StatusCodes.Status422UnprocessableEntity, refusal.StatusCode);
+        Assert.Equal("invalid_state", refusal.Code);
+        Assert.Equal(
+            "This tag is already held for a merchant order. Release it from that order first.",
+            refusal.Message);
+
+        // The refused assignment left no trace on the tag.
+        var tag = await db.SmartTags.AsNoTracking().SingleAsync(item => item.Id == chosen[0]);
+        Assert.Null(tag.OrderId);
+        Assert.Null(tag.OwnerUserId);
+        Assert.Null(tag.PetId);
+        Assert.Equal(SmartTagStatus.Unclaimed, tag.Status);
+    }
+
+    /// <summary>
+    /// The other half of the same rule: once the merchant lets a unit go, retail
+    /// may have it. A one-way exclusion would quietly strand stock.
+    /// </summary>
+    [RelationalFact]
+    public async Task AReleasedTagBecomesRetailStockAgain()
+    {
+        await using var scope = await RelationalDatabase.CreateAsync();
+        await using var db = scope.NewContext();
+        await SeedAsync(db);
+        var retail = await SeedRetailOrderAsync(db);
+
+        var chosen = TagIds(db, QrVariantId, 1);
+        await Service(db).AllocateAsync(
+            AdminAccountId, OrderId, new AllocateMerchantInventoryRequest(QrItemId, chosen));
+
+        var allocationId = await db.MerchantOrderAllocatedTags
+            .Where(allocation => allocation.SmartTagId == chosen[0] && allocation.ReleasedAt == null)
+            .Select(allocation => allocation.Id)
+            .SingleAsync();
+        await Service(db).ReleaseAsync(
+            AdminAccountId, OrderId,
+            new ReleaseMerchantInventoryRequest([allocationId], "Returned to shared stock."));
+
+        await using var fresh = scope.NewContext();
+        var assigned = await RetailAdminService(fresh).AssignInventoryTagAsync(
+            AdminAccountId, retail.OrderId, chosen[0], retail.OrderItemId);
+
+        Assert.NotNull(assigned);
+        var tag = await fresh.SmartTags.AsNoTracking().SingleAsync(item => item.Id == chosen[0]);
+        Assert.Equal(retail.OrderId, tag.OrderId);
+    }
+
+    private static AdminService RetailAdminService(MyPetLinkDbContext db) => new(
+        db,
+        new AuditLogService(db, new HttpContextAccessor()),
+        Options.Create(new FeatureOptions()));
 
     // =====================================================================
     // Allocation

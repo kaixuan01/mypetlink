@@ -1651,6 +1651,20 @@ public sealed class AdminService : SkeletonService, IAdminService
             throw InvalidState("Only unclaimed, available production inventory can be assigned to an order.");
         }
 
+        // A tag held for a merchant order looks untouched on the tag row itself:
+        // the claim lives in the allocation table. Without this check the same
+        // physical tag could be promised to a merchant and to a pet owner.
+        var heldForMerchant = await _dbContext.MerchantOrderAllocatedTags
+            .AsNoTracking()
+            .AnyAsync(
+                allocation => allocation.SmartTagId == tag.Id && allocation.ReleasedAt == null,
+                cancellationToken);
+        if (heldForMerchant)
+        {
+            throw InvalidState(
+                "This tag is already held for a merchant order. Release it from that order first.");
+        }
+
         if (orderItem?.ProductVariantId is { } productVariantId)
         {
             if (tag.ProductVariantId != productVariantId)

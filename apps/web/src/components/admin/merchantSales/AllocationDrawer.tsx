@@ -10,6 +10,7 @@ import { isAbortError } from "@/services/apiClient";
 import {
   allocateTags,
   autoAllocateTags,
+  getAllocationSummary,
   getMerchantFulfilmentError,
   isStaleInventory,
   listAllocatedTags,
@@ -73,6 +74,10 @@ export function AllocationDrawer({
     error: string;
   } | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // The batch list an admin can filter by is the batches this SKU's stock has
+  // actually been seen in — not only the ones already allocated, which would
+  // leave the filter empty on an order that has allocated nothing yet.
+  const [seenBatches, setSeenBatches] = useState<Record<string, string>>({});
 
   // --- Active allocations --------------------------------------------------
   const [active, setActive] = useState<{
@@ -105,6 +110,19 @@ export function AllocationDrawer({
   const autoQuantity = typedQuantity ?? (defaultAuto > 0 ? String(defaultAuto) : "");
   const setAutoQuantity = setTypedQuantity;
 
+  // Batches already allocated stay listed even once none of their stock is
+  // left, so the filter an admin used a moment ago does not vanish under them.
+  const batchOptions = Object.entries({
+    ...Object.fromEntries(
+      item.batches
+        .filter((batch) => batch.batchId)
+        .map((batch) => [batch.batchId as string, batch.batchNo])
+    ),
+    ...seenBatches,
+  })
+    .map(([batchId, batchNo]) => ({ batchId, batchNo }))
+    .sort((a, b) => a.batchNo.localeCompare(b.batchNo));
+
   const eligibleKey = `${page}|${search}|${batchFilter}|${reloadKey}`;
   const activeKey = `${item.merchantOrderItemId}|${reloadKey}`;
   const eligibleRows = eligible?.key === eligibleKey ? eligible.items : [];
@@ -129,6 +147,17 @@ export function AllocationDrawer({
       .then((result) => {
         if (controller.signal.aborted) return;
         setEligible({ key, items: result.items, total: result.total, error: "" });
+        setSeenBatches((current) => {
+          let added = false;
+          const next = { ...current };
+          for (const row of result.items) {
+            if (row.batchId && row.batchNo && !next[row.batchId]) {
+              next[row.batchId] = row.batchNo;
+              added = true;
+            }
+          }
+          return added ? next : current;
+        });
         // Anything that stopped being eligible must leave the selection rather
         // than travel into a request that would be refused.
         setSelected((current) => {
@@ -221,14 +250,24 @@ export function AllocationDrawer({
   }, [onClose]);
 
   // --- Mutations -----------------------------------------------------------
-  function handleFailure(caught: unknown, fallback: string) {
+  async function handleFailure(caught: unknown, fallback: string) {
     setError(getMerchantFulfilmentError(caught, fallback));
-    if (isStaleInventory(caught)) {
-      // The page's view of stock is out of date: drop invalid selections and
-      // reload everything rather than retrying behind the admin's back.
-      setSelected(new Set());
-      setSelectedAllocations(new Set());
-      reload();
+    if (!isStaleInventory(caught)) return;
+
+    // The page's view of stock is out of date: drop invalid selections and
+    // reload everything rather than retrying behind the admin's back.
+    setSelected(new Set());
+    setSelectedAllocations(new Set());
+    reload();
+
+    // The refusal means someone else moved this order's inventory, so the
+    // figures on screen are stale too — take them from the server, not from
+    // the request that was just refused.
+    try {
+      onAllocationChanged(await getAllocationSummary(order.id));
+    } catch {
+      // The refusal message is what matters; a failed refresh must not replace
+      // it with a second, more confusing error.
     }
   }
 
@@ -251,7 +290,7 @@ export function AllocationDrawer({
       onAllocationChanged(summary);
       reload();
     } catch (caught) {
-      handleFailure(caught, "We couldn’t allocate those tags.");
+      await handleFailure(caught, "We couldn’t allocate those tags.");
     } finally {
       setBusy(false);
     }
@@ -277,7 +316,7 @@ export function AllocationDrawer({
       onAllocationChanged(summary);
       reload();
     } catch (caught) {
-      handleFailure(caught, "We couldn’t allocate those tags.");
+      await handleFailure(caught, "We couldn’t allocate those tags.");
     } finally {
       setBusy(false);
     }
@@ -298,7 +337,7 @@ export function AllocationDrawer({
       onAllocationChanged(summary);
       reload();
     } catch (caught) {
-      handleFailure(caught, "We couldn’t release those tags.");
+      await handleFailure(caught, "We couldn’t release those tags.");
     } finally {
       setBusy(false);
     }
@@ -499,13 +538,11 @@ export function AllocationDrawer({
                       value={batchFilter}
                     >
                       <option value="">All batches</option>
-                      {item.batches
-                        .filter((batch) => batch.batchId)
-                        .map((batch) => (
-                          <option key={batch.batchId} value={batch.batchId ?? ""}>
-                            {batch.batchNo}
-                          </option>
-                        ))}
+                      {batchOptions.map((batch) => (
+                        <option key={batch.batchId} value={batch.batchId}>
+                          {batch.batchNo}
+                        </option>
+                      ))}
                     </select>
                   </label>
                 </div>

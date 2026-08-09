@@ -497,6 +497,81 @@ describe("Stale inventory", () => {
     expect(screen.getByTestId("selection-summary").textContent).toContain("0 selected");
     expect(allocateTags).toHaveBeenCalledTimes(1);
   });
+
+  it("takes the order's figures from the server after a refused allocation", async () => {
+    listEligibleInventory.mockResolvedValue({ items: [eligibleTag()], total: 1 });
+    allocateTags.mockRejectedValue(
+      new ApiClientError(409, "inventory_already_allocated", "Taken.")
+    );
+    // Someone else allocated while this drawer was open.
+    getAllocationSummary.mockResolvedValueOnce(allocationSummary()).mockResolvedValue(
+      allocationSummary({
+        allocatedUnits: 12,
+        remainingUnits: 88,
+        items: [allocationItem({ allocatedUnits: 12, remainingUnits: 88 })],
+      })
+    );
+    await openDrawer();
+
+    fireEvent.click(await screen.findByLabelText("Select row tag-1"));
+    fireEvent.click(screen.getByTestId("allocate-selected"));
+    fireEvent.click(screen.getByRole("button", { name: "Allocate tags" }));
+
+    // The figures shown must be the server's, not the ones the drawer opened with.
+    expect(await screen.findByText("12 of 100 tags allocated. 88 remaining.")).toBeTruthy();
+  });
+});
+
+describe("Batch filter", () => {
+  it("offers the batches this SKU's stock is actually in", async () => {
+    listEligibleInventory.mockResolvedValue({
+      items: [
+        eligibleTag(),
+        eligibleTag({ smartTagId: "tag-2", tagCode: "MPL-TAG-000002", batchId: "batch-2", batchNo: "BATCH-2026-02" }),
+      ],
+      total: 2,
+    });
+    await openDrawer();
+
+    await screen.findByText("MPL-TAG-000002");
+    const options = [...screen.getByRole("combobox").querySelectorAll("option")].map(
+      (option) => option.textContent
+    );
+    expect(options).toEqual(["All batches", "BATCH-2026-01", "BATCH-2026-02"]);
+  });
+
+  it("still lists a batch after its last eligible unit is gone", async () => {
+    getAllocationSummary.mockResolvedValue(
+      allocationSummary({
+        items: [
+          allocationItem({
+            batches: [{ batchId: "batch-9", batchNo: "BATCH-2025-09", quantity: 4 }],
+          }),
+        ],
+      })
+    );
+    listEligibleInventory.mockResolvedValue({ items: [eligibleTag()], total: 1 });
+    await openDrawer();
+
+    await screen.findByText("MPL-TAG-000001");
+    const options = [...screen.getByRole("combobox").querySelectorAll("option")].map(
+      (option) => option.textContent
+    );
+    // The batch it already holds stays selectable even with no stock left in it.
+    expect(options).toContain("BATCH-2025-09");
+  });
+
+  it("asks the server for the chosen batch and returns to the first page", async () => {
+    listEligibleInventory.mockResolvedValue({ items: [eligibleTag()], total: 60 });
+    await openDrawer();
+    await screen.findByText("MPL-TAG-000001");
+
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "batch-1" } });
+
+    const last = listEligibleInventory.mock.calls.at(-1)?.[1];
+    expect(last.batchId).toBe("batch-1");
+    expect(last.page).toBe(1);
+  });
 });
 
 describe("Accessibility", () => {
