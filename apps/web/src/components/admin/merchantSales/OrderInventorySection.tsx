@@ -245,8 +245,20 @@ function ItemCard({
             SKU {item.skuCode} · {item.optionName}
           </p>
         </div>
-        {blockedReason ? null : item.isFullyAllocated ? (
-          <span className="text-sm font-bold text-[#0f8a5f]">This item is fully allocated.</span>
+        {blockedReason || shipped ? null : item.isFullyAllocated ? (
+          // A complete line still needs a way in: the tags it holds can be
+          // reviewed, and released, right up until the order ships.
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-sm font-bold text-[#0f8a5f]">This item is fully allocated.</span>
+            <button
+              className={secondaryButton}
+              data-testid={`manage-${item.skuCode}`}
+              onClick={onAllocate}
+              type="button"
+            >
+              Manage tags
+            </button>
+          </div>
         ) : (
           <button
             className={primaryButton}

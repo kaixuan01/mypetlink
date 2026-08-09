@@ -163,6 +163,14 @@ export function OrderFulfilmentSection({
   const showShipmentForm = status === "ReadyToShip";
   const shipped = status === "Shipped" || status === "Delivered";
 
+  // From Ready to Ship onward the delivery note should exist. Deriving this
+  // from the server's answer rather than from the failed call means a reload,
+  // a Back, or a different admin opening the order all see the same warning
+  // and the same way out.
+  const deliveryOrderExpected =
+    !fulfilment.deliveryOrder
+    && (status === "ReadyToShip" || status === "Shipped" || status === "Delivered");
+
   async function handleFailure(caught: unknown, fallback: string) {
     setError(getMerchantFulfilmentError(caught, fallback));
     if (isStaleInventory(caught) || isConflict(caught)) {
@@ -184,16 +192,37 @@ export function OrderFulfilmentSection({
       // The delivery note is the paperwork for this shipment. The server issues
       // one per order and returns the existing one if asked again, so recording
       // it here needs no separate decision from the admin.
+      //
+      // A failure here must not make the completed transition look failed — but
+      // it must not vanish either, or the order sits Ready to Ship with no
+      // paperwork and nobody knows. The missing record is derived from the
+      // server's own answer below, so the warning and its retry survive a
+      // reload rather than living only in this moment.
       try {
         await issueDeliveryOrder(order.id);
       } catch {
-        // A missing delivery note must not make a completed transition look
-        // like a failure; the reload below shows whatever the server has.
+        // Deliberately not rethrown: the transition itself succeeded.
       }
       reload();
       onFulfilmentChanged();
     } catch (caught) {
       await handleFailure(caught, "We couldn’t mark this order ready to ship.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** The deterministic way back from a delivery note that was never prepared. */
+  async function runRetryDeliveryOrder() {
+    setBusy(true);
+    setError("");
+    try {
+      await issueDeliveryOrder(order.id);
+      setMessage("The Delivery Order is prepared.");
+      reload();
+      onFulfilmentChanged();
+    } catch (caught) {
+      await handleFailure(caught, "We couldn’t prepare the Delivery Order.");
     } finally {
       setBusy(false);
     }
@@ -493,6 +522,26 @@ export function OrderFulfilmentSection({
               </span>
             </DetailRow>
           </DetailGrid>
+        ) : deliveryOrderExpected ? (
+          <div
+            className="grid gap-3 rounded-xl border border-[#ffe2b8] bg-[#fff8ec] p-4"
+            data-testid="delivery-order-missing"
+          >
+            <p className="text-sm font-bold text-[#8a5a12]">
+              The order is Ready to Ship, but the Delivery Order could not be prepared. Try again.
+            </p>
+            <div>
+              <button
+                className={secondaryButton}
+                data-testid="retry-delivery-order"
+                disabled={busy}
+                onClick={() => void runRetryDeliveryOrder()}
+                type="button"
+              >
+                Retry Delivery Order
+              </button>
+            </div>
+          </div>
         ) : null}
       </div>
 

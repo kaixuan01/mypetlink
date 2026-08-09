@@ -136,6 +136,9 @@ describe("Order inventory detail", () => {
     );
     expect(screen.getByText("This item is fully allocated.")).toBeTruthy();
     expect(screen.queryByTestId("allocate-WS-QR-0001")).toBeNull();
+    // A complete line keeps a door into its allocations: they can still be
+    // reviewed and released until the order ships.
+    expect(screen.getByTestId("manage-WS-QR-0001")).toBeTruthy();
 
     // Full allocation offers the next step; it never takes it. The order must
     // still read Preparing until an admin confirms readiness themselves.

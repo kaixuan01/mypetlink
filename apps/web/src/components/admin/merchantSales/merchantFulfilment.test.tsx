@@ -203,6 +203,75 @@ describe("Ready to Ship", () => {
       .toBeTruthy();
   });
 
+  it("says so and offers a way back when the delivery note was not prepared", async () => {
+    issueDeliveryOrder.mockRejectedValue(new ApiClientError(409, "delivery_order_not_ready", ""));
+    // The order starts Preparing so the action is offered; every read after the
+    // transition finds it Ready to Ship with no delivery note.
+    getFulfilment
+      .mockResolvedValueOnce(fulfilment())
+      .mockResolvedValue(fulfilment({ fulfilmentStatus: "ReadyToShip", deliveryOrder: null }));
+    renderSection();
+    fireEvent.click(await screen.findByTestId("mark-ready-to-ship"));
+    fireEvent.click(screen.getByRole("button", { name: "Mark Ready to Ship" }));
+
+    const warning = await screen.findByTestId("delivery-order-missing");
+    expect(warning.textContent).toContain(
+      "The order is Ready to Ship, but the Delivery Order could not be prepared. Try again."
+    );
+    expect(screen.getByTestId("retry-delivery-order")).toBeTruthy();
+  });
+
+  it("shows the same warning on a later visit, not only right after the failure", async () => {
+    // A reload, a Back, or another admin opening the order must all find the
+    // stranded delivery note and the way out of it.
+    getFulfilment.mockResolvedValue(
+      fulfilment({ fulfilmentStatus: "ReadyToShip", deliveryOrder: null })
+    );
+    renderSection();
+
+    expect(await screen.findByTestId("delivery-order-missing")).toBeTruthy();
+    expect(issueDeliveryOrder).not.toHaveBeenCalled();
+  });
+
+  it("retrying prepares the delivery note and clears the warning", async () => {
+    getFulfilment
+      .mockResolvedValueOnce(fulfilment({ fulfilmentStatus: "ReadyToShip", deliveryOrder: null }))
+      .mockResolvedValue(
+        fulfilment({ fulfilmentStatus: "ReadyToShip", deliveryOrder: deliveryOrder() })
+      );
+    renderSection();
+
+    fireEvent.click(await screen.findByTestId("retry-delivery-order"));
+
+    expect((await screen.findByTestId("delivery-order-number")).textContent)
+      .toBe("MPL-DO-260806-0001");
+    expect(screen.queryByTestId("delivery-order-missing")).toBeNull();
+    expect(issueDeliveryOrder).toHaveBeenCalledWith("order-1");
+  });
+
+  it("explains a failed retry without losing the way back", async () => {
+    getFulfilment.mockResolvedValue(
+      fulfilment({ fulfilmentStatus: "ReadyToShip", deliveryOrder: null })
+    );
+    issueDeliveryOrder.mockRejectedValue(
+      new ApiClientError(409, "allocation_incomplete", "Every line must be fully allocated.")
+    );
+    renderSection();
+
+    fireEvent.click(await screen.findByTestId("retry-delivery-order"));
+
+    expect(await screen.findByText("Every line must be fully allocated.")).toBeTruthy();
+    expect(screen.getByTestId("retry-delivery-order")).toBeTruthy();
+  });
+
+  it("never warns about a delivery note before the order is ready", async () => {
+    getFulfilment.mockResolvedValue(fulfilment({ fulfilmentStatus: "Preparing" }));
+    renderSection();
+
+    await screen.findByTestId("mark-ready-to-ship");
+    expect(screen.queryByTestId("delivery-order-missing")).toBeNull();
+  });
+
   it("explains a refusal in plain words", async () => {
     markReadyToShip.mockRejectedValue(
       new ApiClientError(409, "allocation_incomplete", "WS-QR-0001 still needs 5 more unit(s).")
