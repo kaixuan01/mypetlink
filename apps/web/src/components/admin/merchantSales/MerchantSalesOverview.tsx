@@ -202,6 +202,20 @@ export function MerchantSalesOverview({
           >
             View fully allocated
           </button>
+          <button
+            className={secondaryButton}
+            onClick={() => onGoTo("orders", { fulfilmentStatus: "ReadyToShip" })}
+            type="button"
+          >
+            View Ready to Ship
+          </button>
+          <button
+            className={secondaryButton}
+            onClick={() => onGoTo("orders", { fulfilmentStatus: "Shipped" })}
+            type="button"
+          >
+            View Shipped
+          </button>
         </div>
       </AdminSection>
     </div>

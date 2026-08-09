@@ -13,8 +13,11 @@ import type {
   MerchantAllocatedTag,
   MerchantAllocationSummary,
   MerchantEligibleInventoryItem,
+  MerchantDeliveryOrder,
   MerchantItemAllocationProgress,
+  MerchantOrderFulfilment,
 } from "@/services/adminMerchantFulfilmentService";
+import type { ShippingCourierOption } from "@/services/adminShippingFulfilmentService";
 
 // Deterministic fixtures. Every test builds from these with an explicit
 // override, so nothing leaks between cases through a shared mutable object.
@@ -303,6 +306,69 @@ export function allocatedTag(
     concurrencyToken: "token-allocation-row-1",
     ...overrides,
   } as MerchantAllocatedTag;
+}
+
+export function fulfilment(
+  overrides: Partial<MerchantOrderFulfilment> = {}
+): MerchantOrderFulfilment {
+  return {
+    merchantOrderId: "order-1",
+    merchantOrderNumber: "MPL-B2B-ORD-260806-0001",
+    paymentStatus: "PaymentConfirmed",
+    fulfilmentStatus: "Preparing",
+    courierProviderCode: null,
+    courierProvider: null,
+    courierService: null,
+    trackingNumber: null,
+    trackingUrl: null,
+    internalCourierCost: null,
+    internalShippingNotes: null,
+    preparingAt: "2026-08-07T02:00:00Z",
+    readyToShipAt: null,
+    shippedAt: null,
+    deliveredAt: null,
+    allocation: allocationSummary(),
+    deliveryOrder: null,
+    concurrencyToken: "token-fulfilment-1",
+    ...overrides,
+  } as MerchantOrderFulfilment;
+}
+
+export function deliveryOrder(
+  overrides: Partial<MerchantDeliveryOrder> = {}
+): MerchantDeliveryOrder {
+  return {
+    id: "delivery-order-1",
+    deliveryOrderNumber: "MPL-DO-260806-0001",
+    merchantOrderId: "order-1",
+    merchantOrderNumber: "MPL-B2B-ORD-260806-0001",
+    merchantCode: "MPL-MER-00001",
+    merchantLegalName: "Happy Paws Veterinary Group Sdn Bhd",
+    merchantTradingName: "Happy Paws",
+    contactPerson: "Aina Rahman",
+    contactEmail: "orders@happypaws.example",
+    contactPhone: "+60123456789",
+    deliveryAddress: { ...address },
+    courierProvider: "J&T Express",
+    courierService: "Express",
+    trackingNumber: "JT123456789MY",
+    issuedAt: "2026-08-08T03:00:00Z",
+    items: [],
+    concurrencyToken: "token-delivery-order-1",
+    ...overrides,
+  } as MerchantDeliveryOrder;
+}
+
+export function courierOption(
+  overrides: Partial<ShippingCourierOption> = {}
+): ShippingCourierOption {
+  return {
+    code: "JNT",
+    displayName: "J&T Express",
+    isDefault: true,
+    displayOrder: 1,
+    ...overrides,
+  } as ShippingCourierOption;
 }
 
 export const paged = <T,>(items: T[], total = items.length) => ({ items, total });

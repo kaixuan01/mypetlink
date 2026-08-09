@@ -7,7 +7,10 @@ import {
   allocatedTag,
   allocationItem,
   allocationSummary,
+  courierOption,
+  deliveryOrder,
   eligibleTag,
+  fulfilment,
   order,
 } from "./merchantSalesFixtures";
 
@@ -18,6 +21,12 @@ const allocateTags = vi.fn();
 const autoAllocateTags = vi.fn();
 const releaseAllocations = vi.fn();
 const getMerchantOrderTimeline = vi.fn();
+const getFulfilment = vi.fn();
+const markReadyToShip = vi.fn();
+const markShipped = vi.fn();
+const markDelivered = vi.fn();
+const issueDeliveryOrder = vi.fn();
+const listShippingCourierOptions = vi.fn();
 
 vi.mock("@/services/adminMerchantFulfilmentService", async () => {
   const actual = await vi.importActual<
@@ -31,6 +40,21 @@ vi.mock("@/services/adminMerchantFulfilmentService", async () => {
     allocateTags: (...a: unknown[]) => allocateTags(...a),
     autoAllocateTags: (...a: unknown[]) => autoAllocateTags(...a),
     releaseAllocations: (...a: unknown[]) => releaseAllocations(...a),
+    getFulfilment: (...a: unknown[]) => getFulfilment(...a),
+    markReadyToShip: (...a: unknown[]) => markReadyToShip(...a),
+    markShipped: (...a: unknown[]) => markShipped(...a),
+    markDelivered: (...a: unknown[]) => markDelivered(...a),
+    issueDeliveryOrder: (...a: unknown[]) => issueDeliveryOrder(...a),
+  };
+});
+
+vi.mock("@/services/adminShippingFulfilmentService", async () => {
+  const actual = await vi.importActual<
+    typeof import("@/services/adminShippingFulfilmentService")
+  >("@/services/adminShippingFulfilmentService");
+  return {
+    ...actual,
+    listShippingCourierOptions: (...a: unknown[]) => listShippingCourierOptions(...a),
   };
 });
 
@@ -54,6 +78,12 @@ beforeEach(() => {
   listAllocatedTags.mockResolvedValue([]);
   listEligibleInventory.mockResolvedValue({ items: [], total: 0 });
   getMerchantOrderTimeline.mockResolvedValue([]);
+  getFulfilment.mockResolvedValue(fulfilment());
+  markReadyToShip.mockResolvedValue(fulfilment({ fulfilmentStatus: "ReadyToShip" }));
+  markShipped.mockResolvedValue(fulfilment({ fulfilmentStatus: "Shipped" }));
+  markDelivered.mockResolvedValue(fulfilment({ fulfilmentStatus: "Delivered" }));
+  issueDeliveryOrder.mockResolvedValue(deliveryOrder());
+  listShippingCourierOptions.mockResolvedValue([courierOption()]);
 });
 afterEach(cleanup);
 
@@ -104,11 +134,14 @@ describe("Order inventory detail", () => {
     expect((await screen.findByTestId("allocation-state-message")).textContent).toBe(
       "All required tags are allocated. This order is ready for the fulfilment step."
     );
-    expect(screen.queryByText(/Ready to Ship/i)).toBeNull();
-    expect(screen.getByText("Shipping actions will be available in the fulfilment workflow."))
-      .toBeTruthy();
     expect(screen.getByText("This item is fully allocated.")).toBeTruthy();
     expect(screen.queryByTestId("allocate-WS-QR-0001")).toBeNull();
+
+    // Full allocation offers the next step; it never takes it. The order must
+    // still read Preparing until an admin confirms readiness themselves.
+    expect(await screen.findByTestId("mark-ready-to-ship")).toBeTruthy();
+    expect(markReadyToShip).not.toHaveBeenCalled();
+    expect(screen.getByTestId("fulfilment-status").textContent).toBe("Preparing");
   });
 
   it("offers no allocation controls before payment is confirmed", async () => {

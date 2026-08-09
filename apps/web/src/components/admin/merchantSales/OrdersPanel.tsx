@@ -231,6 +231,12 @@ export function OrdersPanel({
       return invoicesByOrder[order.id] ? "Awaiting payment" : "Awaiting invoice";
     }
 
+    // Once shipping has begun the fulfilment status is the authority. A
+    // tracking number on its own never implies the order left the building.
+    if (order.fulfilmentStatus === "Delivered") return "Complete";
+    if (order.fulfilmentStatus === "Shipped") return "Confirm delivery";
+    if (order.fulfilmentStatus === "ReadyToShip") return "Ship order";
+
     if (order.requiredUnits > 0 && order.allocatedUnits >= order.requiredUnits) {
       // Fully allocated is not the same as ready to ship; that step is its own
       // decision in the fulfilment workflow.
@@ -296,6 +302,23 @@ export function OrdersPanel({
           <Badge tone="danger">Cancelled</Badge>
         ) : (
           <FulfilmentStatusBadge status={row.fulfilmentStatus} />
+        ),
+    },
+    {
+      id: "shipment",
+      header: "Courier",
+      cell: (row) =>
+        row.trackingNumber ? (
+          <div className="min-w-32">
+            <p className="break-words text-xs font-bold text-slate-700">
+              {row.courierProvider ?? "Courier not recorded"}
+            </p>
+            <p className="break-all font-mono text-[0.68rem] text-slate-500">
+              {row.trackingNumber}
+            </p>
+          </div>
+        ) : (
+          <span className="text-xs text-slate-400">—</span>
         ),
     },
     {

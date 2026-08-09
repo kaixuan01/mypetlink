@@ -339,11 +339,25 @@ describe("Merchant Sales overview counters", () => {
     });
   });
 
-  it("offers no shortcut into a workflow that does not exist yet", async () => {
+  it("sends the fulfilment shortcuts to the matching order filter", async () => {
+    const onGoTo = vi.fn();
+    renderOverview({ onGoTo });
+    await screen.findByText("Awaiting allocation");
+
+    fireEvent.click(screen.getByRole("button", { name: "View Ready to Ship" }));
+    expect(onGoTo).toHaveBeenCalledWith("orders", { fulfilmentStatus: "ReadyToShip" });
+
+    fireEvent.click(screen.getByRole("button", { name: "View Shipped" }));
+    expect(onGoTo).toHaveBeenCalledWith("orders", { fulfilmentStatus: "Shipped" });
+  });
+
+  it("keeps the overview to two fulfilment shortcuts", async () => {
     renderOverview();
     await screen.findByText("Awaiting allocation");
 
-    const actions = screen.getAllByRole("button").map((el) => el.textContent ?? "");
-    expect(actions.some((label) => /ship|courier|tracking|deliver/i.test(label))).toBe(false);
+    const shipping = screen.getAllByRole("button")
+      .map((el) => el.textContent ?? "")
+      .filter((label) => /ship|courier|tracking|deliver/i.test(label));
+    expect(shipping).toEqual(["View Ready to Ship", "View Shipped"]);
   });
 });

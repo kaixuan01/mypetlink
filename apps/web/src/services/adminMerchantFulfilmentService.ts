@@ -262,6 +262,19 @@ export async function markDelivered(orderId: string, concurrencyToken?: string |
   return must(response.data, "fulfilment");
 }
 
+/**
+ * Records the delivery note for a shipment. The server issues one document per
+ * merchant order and returns the existing one when asked again, so calling this
+ * after a transition that already produced it is safe.
+ */
+export async function issueDeliveryOrder(orderId: string) {
+  const response = await apiRequest<MerchantDeliveryOrder>(
+    `${base}/${orderId}/delivery-order`,
+    { method: "POST", body: {} }
+  );
+  return must(response.data, "delivery order");
+}
+
 // --- Failure wording -------------------------------------------------------
 
 /**

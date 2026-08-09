@@ -15,6 +15,7 @@ import {
   type AdminMerchantOrderTimelineEntry,
 } from "@/services/adminMerchantSalesService";
 import { AllocationDrawer } from "./AllocationDrawer";
+import { OrderFulfilmentSection } from "./OrderFulfilmentSection";
 import {
   AllocationProgress,
   FulfilmentStatusBadge,
@@ -140,9 +141,14 @@ export function OrderInventorySection({ order }: { order: AdminMerchantOrder }) 
             {stateMessage(summary)}
           </p>
 
-          {summary.isFullyAllocated ? (
-            <p className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-              Shipping actions will be available in the fulfilment workflow.
+          {summary.fulfilmentStatus === "ReadyToShip" ? (
+            <p
+              className="rounded-xl border border-[#ffe2b8] bg-[#fff8ec] p-4 text-sm text-[#8a5a12]"
+              data-testid="ready-release-warning"
+            >
+              This order is already Ready to Ship. Releasing inventory will return the order to
+              Preparing and the shipping step will no longer be available until all required tags
+              are allocated again.
             </p>
           ) : null}
 
@@ -159,6 +165,12 @@ export function OrderInventorySection({ order }: { order: AdminMerchantOrder }) 
           </div>
         </div>
       </AdminSection>
+
+      <OrderFulfilmentSection
+        onFulfilmentChanged={reload}
+        order={order}
+        summary={summary}
+      />
 
       <AdminSection description="What happened to this order's inventory." title="Allocation history">
         <div className="grid gap-3 p-5">
