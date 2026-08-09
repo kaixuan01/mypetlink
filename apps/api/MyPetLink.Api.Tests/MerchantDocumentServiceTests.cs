@@ -457,6 +457,20 @@ public sealed class MerchantDocumentServiceTests
 
     // The document travels with the goods and is opened by couriers, warehouse
     // staff and whoever signs for the parcel. Money must not be on it.
+    // The parcel is opened by whoever receives it, so the address block must
+    // name what it actually is.
+    [Fact]
+    public async Task DeliveryOrder_AddressesTheDeliveryRecipientNotThePayer()
+    {
+        using var h = await MerchantDocumentHarness.CreateAsync();
+        var document = await h.DeliveryOrderAsync();
+
+        var text = Squash(await h.DeliveryOrderTextAsync(document.Id));
+
+        Assert.Contains(Squash("Deliver to"), text);
+        Assert.DoesNotContain(Squash("Billed to"), text);
+    }
+
     [Fact]
     public async Task DeliveryOrder_NeverShowsPrices()
     {
@@ -531,6 +545,66 @@ public sealed class MerchantDocumentServiceTests
         Assert.Contains(Squash("Received in good order"), text);
     }
 
+    // Whoever signs for the parcel counts lines against the goods. A line whose
+    // quantity is on the previous page cannot be checked, so no row may be
+    // split across a page break.
+    // Whoever signs for the parcel counts lines against the goods, so a line
+    // whose quantity is on the previous page cannot be checked. Line counts are
+    // swept because a page break only lands inside a row at particular heights.
+    [Theory]
+    [InlineData(12)]
+    [InlineData(14)]
+    [InlineData(16)]
+    [InlineData(18)]
+    [InlineData(20)]
+    [InlineData(22)]
+    [InlineData(24)]
+    [InlineData(26)]
+    public async Task DeliveryOrder_NeverSplitsALineAcrossAPageBreak(int lineCount)
+    {
+        using var h = await MerchantDocumentHarness.CreateAsync();
+        // A tall header pushes the table down, so the first break lands part way
+        // through a row rather than neatly between two.
+        var document = await h.DeliveryOrderAsync(
+            lineCount: lineCount,
+            batchSummary: "MPL-BAT-260810014430-6388 x 1; MPL-BAT-260810014430-9330 x 1",
+            merchantNameOverride:
+                "Happy Paws Wholesale Distribution And Pet Supplies Holdings Berhad (Malaysia)",
+            addressLine1Override:
+                "Lot 12A-3, Level 12, Menara Perdana Utama, Jalan Teknologi Perdana 3/1A");
+
+        var rendered = await h.Documents.GetDeliveryOrderAsync(document.Id);
+        using var pdf = PdfDocument.Open(rendered.Content);
+        var pages = pdf.GetPages().Select(page => Squash(page.Text)).ToArray();
+
+        foreach (var item in document.Items)
+        {
+            var sku = Squash(item.SkuCodeSnapshot);
+            var page = Array.FindIndex(pages, text => text.Contains(sku, StringComparison.Ordinal));
+            Assert.True(page >= 0, $"{item.SkuCodeSnapshot} is missing entirely");
+
+            // Every part of the line must sit on the same page as its SKU.
+            Assert.Contains(Squash(item.ProductNameSnapshot), pages[page]);
+            Assert.Contains(Squash(item.BatchSummarySnapshot), pages[page]);
+            Assert.Contains(Squash(item.AllocatedQuantity.ToString()), pages[page]);
+        }
+
+        // A page that carries a capability line but none of the SKUs is holding
+        // an orphaned fragment of a row that began on the page before.
+        var orphans = pages
+            .Select((text, index) => (text, index))
+            .Where(entry => entry.text.Contains(Squash("QR Pet Tag"), StringComparison.Ordinal)
+                || entry.text.Contains(Squash("QR + NFC Smart Tag"), StringComparison.Ordinal))
+            .Where(entry => !document.Items.Any(item =>
+                entry.text.Contains(Squash(item.SkuCodeSnapshot), StringComparison.Ordinal)))
+            .Select(entry => entry.index + 1)
+            .ToArray();
+
+        Assert.True(orphans.Length == 0,
+            $"page(s) {string.Join(", ", orphans)} of {pages.Length} carry a line fragment "
+            + "with no SKU");
+    }
+
     [Fact]
     public async Task DeliveryOrder_SurvivesLongMerchantProductAndAddressText()
     {
@@ -592,6 +666,7 @@ public sealed class MerchantDocumentServiceTests
 
         Assert.Contains(Squash("Invoice"), invoiceText);
         Assert.Contains(Squash("MYR"), invoiceText);
+        Assert.Contains(Squash("Billed to"), invoiceText);
         Assert.DoesNotContain(Squash("Received in good order"), invoiceText);
 
         Assert.Contains(Squash("Receipt"), receiptText);

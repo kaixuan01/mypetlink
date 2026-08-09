@@ -253,7 +253,15 @@ internal static class MerchantDocumentRenderer
         var merchant = model.Merchant;
         container.Border(1).BorderColor(DocumentTheme.Border).Padding(10).Column(column =>
         {
-            column.Item().PaddingBottom(6).Text("Billed to").FontSize(9).Bold()
+            // The financial documents address the party who owes the money. A
+            // delivery order carries the delivery address and travels with the
+            // parcel, so "Billed to" would name the wrong thing to whoever
+            // opens the box.
+            var heading = model.Kind == MerchantDocumentKind.DeliveryOrder
+                ? "Deliver to"
+                : "Billed to";
+
+            column.Item().PaddingBottom(6).Text(heading).FontSize(9).Bold()
                 .FontColor(DocumentTheme.Accent);
 
             column.Item().Text(merchant.LegalName).FontSize(9).Bold();
@@ -450,7 +458,11 @@ internal static class MerchantDocumentRenderer
 
                 foreach (var line in model.Lines)
                 {
-                    table.Cell().Element(DocumentTheme.BodyCell).Column(cell =>
+                    // Every cell of a line is kept whole on one page. Whoever
+                    // signs for the parcel counts rows against the goods, and a
+                    // line whose quantity sits on the previous page cannot be
+                    // checked at all.
+                    table.Cell().Element(DocumentTheme.BodyCell).ShowEntire().Column(cell =>
                     {
                         cell.Item().Text(line.ProductName).FontSize(9).Bold();
                         cell.Item().Text(line.OptionName).FontSize(8)
@@ -461,11 +473,11 @@ internal static class MerchantDocumentRenderer
                                 .FontColor(DocumentTheme.Muted);
                         }
                     });
-                    table.Cell().Element(DocumentTheme.BodyCell)
+                    table.Cell().Element(DocumentTheme.BodyCell).ShowEntire()
                         .Text(line.SkuCode).FontSize(9);
-                    table.Cell().Element(DocumentTheme.BodyCell).AlignRight()
+                    table.Cell().Element(DocumentTheme.BodyCell).ShowEntire().AlignRight()
                         .Text(line.Quantity.ToString()).FontSize(9);
-                    table.Cell().Element(DocumentTheme.BodyCell)
+                    table.Cell().Element(DocumentTheme.BodyCell).ShowEntire()
                         .Text(string.IsNullOrWhiteSpace(line.BatchSummary)
                             ? "—"
                             : line.BatchSummary!)
