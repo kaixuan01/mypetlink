@@ -470,6 +470,7 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.Property(item => item.CourierProviderSnapshot).HasMaxLength(120);
             entity.Property(item => item.CourierServiceSnapshot).HasMaxLength(120);
             entity.Property(item => item.TrackingNumberSnapshot).HasMaxLength(64);
+            entity.OwnsOne(item => item.Seller, ConfigureSellerSnapshot);
 
             entity.HasOne(item => item.MerchantOrder)
                 .WithMany()

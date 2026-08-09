@@ -14,6 +14,12 @@ internal enum MerchantDocumentKind
     Quotation,
     Invoice,
     Receipt,
+
+    /// <summary>
+    /// The packing document that travels with the goods. It is operational,
+    /// not financial: it says what is in the box, never what it cost.
+    /// </summary>
+    DeliveryOrder,
 }
 
 internal sealed record MerchantDocumentLine(
@@ -24,7 +30,12 @@ internal sealed record MerchantDocumentLine(
     int Quantity,
     string UnitPrice,
     string? LineDiscount,
-    string LineSubtotal);
+    string LineSubtotal,
+    /// <summary>
+    /// Production batches behind the quantity, for the delivery order only.
+    /// Financial documents leave it null and never render the column.
+    /// </summary>
+    string? BatchSummary = null);
 
 internal sealed record MerchantDocumentParty(
     string LegalName,
@@ -52,16 +63,23 @@ internal sealed record MerchantDocumentModel(
     IReadOnlyList<(string Label, string Value)> PaymentRows,
     IReadOnlyList<string>? DeliveryAddressLines,
     IReadOnlyList<MerchantDocumentLine> Lines,
-    string MerchandiseSubtotal,
+    // Financial documents only. A delivery order leaves these null rather
+    // than carrying zeroes that would read as a real price of nothing.
+    string? MerchandiseSubtotal,
     string? OrderDiscount,
-    string DeliveryFee,
-    string TotalLabel,
-    string TotalAmount,
+    string? DeliveryFee,
+    string? TotalLabel,
+    string? TotalAmount,
     string Currency,
     string? PaymentInstructions,
     string? CustomerNotes,
     string ClosingNotice,
-    bool ShowPaidBadge);
+    bool ShowPaidBadge,
+    /// <summary>
+    /// A place for a person to sign when the parcel changes hands. Paper
+    /// convenience only: nothing in the system waits on it.
+    /// </summary>
+    bool ShowReceivingBlock = false);
 
 internal static class MerchantDocumentRenderer
 {
@@ -204,6 +222,11 @@ internal static class MerchantDocumentRenderer
                     });
             }
 
+            if (model.ShowReceivingBlock)
+            {
+                column.Item().Element(ComposeReceivingBlock);
+            }
+
             column.Item()
                 .Background(model.ShowPaidBadge
                     ? DocumentTheme.NoticeGreenBackground
@@ -221,6 +244,7 @@ internal static class MerchantDocumentRenderer
     {
         MerchantDocumentKind.Quotation => "Quotation details",
         MerchantDocumentKind.Invoice => "Invoice details",
+        MerchantDocumentKind.DeliveryOrder => "Delivery details",
         _ => "Receipt details",
     };
 
@@ -288,6 +312,12 @@ internal static class MerchantDocumentRenderer
 
     private static void ComposeItemsTable(IContainer container, MerchantDocumentModel model)
     {
+        if (model.Kind == MerchantDocumentKind.DeliveryOrder)
+        {
+            ComposeDeliveryItemsTable(container, model);
+            return;
+        }
+
         var anyDiscount = model.Lines.Any(line => line.LineDiscount is not null);
 
         container.Column(column =>
@@ -349,6 +379,8 @@ internal static class MerchantDocumentRenderer
 
             // Kept on one page where it fits, so the total is never orphaned
             // from the figures it sums.
+            if (model.TotalAmount is null) return;
+
             column.Item().ShowEntire().PaddingTop(8).AlignRight().Column(totals =>
             {
                 totals.Item().Row(row =>
@@ -382,6 +414,81 @@ internal static class MerchantDocumentRenderer
                     row.ConstantItem(95).AlignRight().Text(model.TotalAmount).FontSize(11).Bold();
                 });
             });
+        });
+    }
+
+
+    /// <summary>
+    /// What is in the box: quantities and the production batches they came
+    /// from. No prices, no totals, and no individual tag codes — this document
+    /// leaves the building with the parcel.
+    /// </summary>
+    private static void ComposeDeliveryItemsTable(
+        IContainer container, MerchantDocumentModel model)
+    {
+        container.Column(column =>
+        {
+            column.Item().Table(table =>
+            {
+                table.ColumnsDefinition(columns =>
+                {
+                    columns.RelativeColumn(4.2f);
+                    columns.RelativeColumn(2.4f);
+                    columns.RelativeColumn(1f);
+                    columns.RelativeColumn(3.4f);
+                });
+
+                // Repeats on every page, so a twenty-line packing list stays
+                // readable after the first break.
+                table.Header(header =>
+                {
+                    header.Cell().Element(DocumentTheme.HeaderCell).Text("Item");
+                    header.Cell().Element(DocumentTheme.HeaderCell).Text("SKU");
+                    header.Cell().Element(DocumentTheme.HeaderCell).AlignRight().Text("Qty");
+                    header.Cell().Element(DocumentTheme.HeaderCell).Text("Batch");
+                });
+
+                foreach (var line in model.Lines)
+                {
+                    table.Cell().Element(DocumentTheme.BodyCell).Column(cell =>
+                    {
+                        cell.Item().Text(line.ProductName).FontSize(9).Bold();
+                        cell.Item().Text(line.OptionName).FontSize(8)
+                            .FontColor(DocumentTheme.Muted);
+                        if (!string.IsNullOrWhiteSpace(line.Capability))
+                        {
+                            cell.Item().Text(line.Capability!).FontSize(8)
+                                .FontColor(DocumentTheme.Muted);
+                        }
+                    });
+                    table.Cell().Element(DocumentTheme.BodyCell)
+                        .Text(line.SkuCode).FontSize(9);
+                    table.Cell().Element(DocumentTheme.BodyCell).AlignRight()
+                        .Text(line.Quantity.ToString()).FontSize(9);
+                    table.Cell().Element(DocumentTheme.BodyCell)
+                        .Text(string.IsNullOrWhiteSpace(line.BatchSummary)
+                            ? "—"
+                            : line.BatchSummary!)
+                        .FontSize(8).FontColor(DocumentTheme.Muted);
+                }
+            });
+        });
+    }
+
+    /// <summary>
+    /// Somewhere for whoever accepts the parcel to sign. Kept whole on one
+    /// page: half a signature line across a page break helps nobody.
+    /// </summary>
+    private static void ComposeReceivingBlock(IContainer container)
+    {
+        container.ShowEntire().PaddingTop(6).Column(column =>
+        {
+            column.Item().PaddingBottom(6).Text("Received in good order")
+                .FontSize(9).Bold().FontColor(DocumentTheme.Accent);
+            column.Item().Text("Received by: ______________________________")
+                .FontSize(9).FontColor(DocumentTheme.Muted);
+            column.Item().PaddingTop(6).Text("Date: _____________________________________")
+                .FontSize(9).FontColor(DocumentTheme.Muted);
         });
     }
 

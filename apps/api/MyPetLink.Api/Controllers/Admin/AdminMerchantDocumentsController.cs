@@ -54,6 +54,14 @@ public sealed class AdminMerchantDocumentsController : ApiControllerBase
         var document = await _documents.GetReceiptAsync(receiptId, cancellationToken);
         return File(document.Content, document.ContentType, document.FileName);
     }
+
+    [HttpGet("delivery-orders/{deliveryOrderId:guid}/delivery-order.pdf")]
+    public async Task<IActionResult> DeliveryOrderPdf(
+        Guid deliveryOrderId, CancellationToken cancellationToken)
+    {
+        var document = await _documents.GetDeliveryOrderAsync(deliveryOrderId, cancellationToken);
+        return File(document.Content, document.ContentType, document.FileName);
+    }
 }
 
 /// <summary>

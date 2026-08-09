@@ -707,9 +707,34 @@ public sealed class MerchantFulfilmentService : IMerchantFulfilmentService
                 "Every line must be fully allocated before the delivery order is issued.");
         }
 
+        // The delivery order takes its own copy of the issuer identity the
+        // invoice already froze for this transaction. Copying it here means the
+        // document renders years later without consulting the settings table or
+        // the invoice, so a rebrand never rewrites paperwork that has already
+        // travelled with a parcel.
+        var invoiceSeller = await _dbContext.MerchantInvoices
+            .AsNoTracking()
+            .Where(invoice => invoice.MerchantOrderId == order.Id)
+            .OrderBy(invoice => invoice.IssuedAt)
+            .Select(invoice => invoice.Seller)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (invoiceSeller is null || string.IsNullOrWhiteSpace(invoiceSeller.LegalBusinessName))
+        {
+            // Merchant fulfilment is payment-first, so an invoice must already
+            // exist. Falling back to current settings would silently produce a
+            // document that rewrites itself later.
+            throw new ApiException(
+                StatusCodes.Status409Conflict,
+                "delivery_order_seller_unavailable",
+                "This order has no issued invoice, so its delivery order cannot record who "
+                + "issued it. Issue the invoice first.");
+        }
+
         var now = _timeProvider.GetUtcNow();
         var document = new MerchantDeliveryOrder
         {
+            Seller = CopySeller(invoiceSeller),
             DeliveryOrderNumber =
                 await _documentNumbers.NextMerchantDeliveryOrderNumberAsync(now, cancellationToken),
             MerchantOrderId = order.Id,
@@ -1265,6 +1290,33 @@ public sealed class MerchantFulfilmentService : IMerchantFulfilmentService
     private static bool IsUniqueViolation(DbUpdateException exception) =>
         exception.InnerException is Microsoft.Data.SqlClient.SqlException sql
         && sql.Number is 2601 or 2627;
+
+    /// <summary>
+    /// A value copy, never the invoice's own owned instance: two documents
+    /// must not share one row, and editing either must never move the other.
+    /// </summary>
+    private static SellerIdentitySnapshot CopySeller(SellerIdentitySnapshot source) => new()
+    {
+        BrandName = source.BrandName,
+        LegalBusinessName = source.LegalBusinessName,
+        BusinessRegistrationNumber = source.BusinessRegistrationNumber,
+        TaxIdentificationNumber = source.TaxIdentificationNumber,
+        SstRegistrationNumber = source.SstRegistrationNumber,
+        AddressLine1 = source.AddressLine1,
+        AddressLine2 = source.AddressLine2,
+        Postcode = source.Postcode,
+        City = source.City,
+        State = source.State,
+        Country = source.Country,
+        SupportEmail = source.SupportEmail,
+        BusinessPhone = source.BusinessPhone,
+        BusinessWebsite = source.BusinessWebsite,
+        PaymentInstructions = source.PaymentInstructions,
+        BankAccountName = source.BankAccountName,
+        BankName = source.BankName,
+        BankAccountNumber = source.BankAccountNumber,
+        DuitNowDisplayName = source.DuitNowDisplayName,
+    };
 
     private static ApiException InvalidTransition(
         MerchantOrderFulfilmentStatus current, string target) =>

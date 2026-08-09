@@ -23,6 +23,10 @@ public interface IMerchantDocumentService
     /// <summary>The receipt belonging to an invoice, for the payment email.</summary>
     Task<OrderDocumentResult> GetReceiptForInvoiceAsync(
         Guid invoiceId, CancellationToken cancellationToken = default);
+
+    /// <summary>The packing document that travels with the goods.</summary>
+    Task<OrderDocumentResult> GetDeliveryOrderAsync(
+        Guid deliveryOrderId, CancellationToken cancellationToken = default);
 }
 
 public sealed class MerchantDocumentService : IMerchantDocumentService
@@ -352,6 +356,115 @@ public sealed class MerchantDocumentService : IMerchantDocumentService
             // item; the SKU and option above already identify it.
             _ => null,
         };
+
+
+    // --- Delivery order ----------------------------------------------------
+
+    /// <summary>
+    /// Renders the delivery order from its own snapshot and nothing else. No
+    /// business identity lookup, no merchant record, no catalog, no courier
+    /// configuration and no invoice: a document reprinted next year must say
+    /// exactly what the copy in the box said.
+    /// </summary>
+    public async Task<OrderDocumentResult> GetDeliveryOrderAsync(
+        Guid deliveryOrderId, CancellationToken cancellationToken = default)
+    {
+        var document = await _dbContext.MerchantDeliveryOrders
+            .AsNoTracking()
+            .Include(item => item.Items)
+            .SingleOrDefaultAsync(item => item.Id == deliveryOrderId, cancellationToken)
+            ?? throw NotFound(
+                "merchant_delivery_order_not_found", "That delivery order no longer exists.");
+
+        var model = new MerchantDocumentModel(
+            Kind: MerchantDocumentKind.DeliveryOrder,
+            BrandLogo: LoadBrandLogo(),
+            BrandName: BrandName,
+            Seller: SellerParty(document.Seller),
+            Merchant: new MerchantDocumentParty(
+                document.MerchantLegalNameSnapshot,
+                document.MerchantTradingNameSnapshot,
+                null,
+                null,
+                null,
+                document.ContactPersonSnapshot,
+                document.ContactEmailSnapshot,
+                document.ContactPhoneSnapshot,
+                Address(
+                    document.DeliveryAddressLine1Snapshot,
+                    document.DeliveryAddressLine2Snapshot,
+                    document.DeliveryPostcodeSnapshot,
+                    document.DeliveryCitySnapshot,
+                    document.DeliveryStateSnapshot,
+                    document.DeliveryCountrySnapshot)),
+            SupportEmail: document.Seller.SupportEmail,
+            Website: document.Seller.BusinessWebsite,
+            DocumentTitle: "Delivery Order",
+            DocumentNumberLabel: "Delivery Order No.",
+            DocumentNumber: document.DeliveryOrderNumber,
+            DocumentRows: DeliveryRows(document),
+            PaymentRows: [],
+            DeliveryAddressLines: null,
+            Lines: document.Items
+                .OrderBy(item => item.ProductNameSnapshot)
+                .ThenBy(item => item.SkuCodeSnapshot)
+                .Select(item => new MerchantDocumentLine(
+                    item.ProductNameSnapshot,
+                    item.SkuCodeSnapshot,
+                    item.OptionNameSnapshot,
+                    Capability(item.SupportsQrSnapshot, item.SupportsNfcSnapshot),
+                    item.AllocatedQuantity,
+                    UnitPrice: "",
+                    LineDiscount: null,
+                    LineSubtotal: "",
+                    BatchSummary: item.BatchSummarySnapshot))
+                .ToList(),
+            MerchandiseSubtotal: null,
+            OrderDiscount: null,
+            DeliveryFee: null,
+            TotalLabel: null,
+            TotalAmount: null,
+            Currency: MerchantSalesConstants.Currency,
+            PaymentInstructions: null,
+            CustomerNotes: null,
+            ClosingNotice:
+                "This Delivery Order records the goods prepared for delivery and is not an "
+                + "invoice or proof of payment.",
+            ShowPaidBadge: false,
+            ShowReceivingBlock: true);
+
+        return new OrderDocumentResult(
+            MerchantDocumentRenderer.Render(model),
+            $"MyPetLink-Delivery-Order-{SafeReference(document.DeliveryOrderNumber)}.pdf");
+    }
+
+    private static IReadOnlyList<(string Label, string Value)> DeliveryRows(
+        MerchantDeliveryOrder document)
+    {
+        var rows = new List<(string, string)>
+        {
+            ("Delivery Order No.", document.DeliveryOrderNumber),
+            ("Merchant Order No.", document.MerchantOrderNumberSnapshot),
+            ("Issue date", Date(document.IssuedAt)),
+        };
+
+        // A delivery order legitimately exists before the parcel leaves, so
+        // the shipment lines only appear once there is something to say.
+        if (!string.IsNullOrWhiteSpace(document.CourierProviderSnapshot))
+        {
+            rows.Add(("Courier", document.CourierProviderSnapshot!));
+        }
+        if (!string.IsNullOrWhiteSpace(document.CourierServiceSnapshot))
+        {
+            rows.Add(("Service", document.CourierServiceSnapshot!));
+        }
+        if (!string.IsNullOrWhiteSpace(document.TrackingNumberSnapshot))
+        {
+            rows.Add(("Tracking number", document.TrackingNumberSnapshot!));
+        }
+
+        return rows;
+    }
 
     private static MerchantDocumentParty SellerParty(SellerIdentitySnapshot seller) =>
         new(

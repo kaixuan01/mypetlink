@@ -33,6 +33,18 @@ vi.mock("@/services/adminMerchantFulfilmentService", async () => {
   };
 });
 
+const downloadMerchantDocument = vi.fn();
+
+vi.mock("@/services/adminMerchantBillingService", async () => {
+  const actual = await vi.importActual<
+    typeof import("@/services/adminMerchantBillingService")
+  >("@/services/adminMerchantBillingService");
+  return {
+    ...actual,
+    downloadMerchantDocument: (...a: unknown[]) => downloadMerchantDocument(...a),
+  };
+});
+
 vi.mock("@/services/adminShippingFulfilmentService", async () => {
   const actual = await vi.importActual<
     typeof import("@/services/adminShippingFulfilmentService")
@@ -61,6 +73,7 @@ beforeEach(() => {
   markShipped.mockResolvedValue(fulfilment({ fulfilmentStatus: "Shipped" }));
   markDelivered.mockResolvedValue(fulfilment({ fulfilmentStatus: "Delivered" }));
   issueDeliveryOrder.mockResolvedValue(deliveryOrder());
+  downloadMerchantDocument.mockResolvedValue({ fileName: "MyPetLink-Delivery-Order-MPL-DO-260806-0001.pdf" });
   listShippingCourierOptions.mockResolvedValue([
     courierOption(),
     courierOption({ code: "POSLAJU", displayName: "Pos Laju", isDefault: false, displayOrder: 2 }),
@@ -262,6 +275,46 @@ describe("Ready to Ship", () => {
 
     expect(await screen.findByText("Every line must be fully allocated.")).toBeTruthy();
     expect(screen.getByTestId("retry-delivery-order")).toBeTruthy();
+  });
+
+  it("offers the delivery note as a download once it exists", async () => {
+    getFulfilment.mockResolvedValue(
+      fulfilment({ fulfilmentStatus: "ReadyToShip", deliveryOrder: deliveryOrder() })
+    );
+    renderSection();
+
+    const button = await screen.findByTestId("download-deliveryOrder");
+    expect(button.textContent).toBe("Download Delivery Order");
+
+    fireEvent.click(button);
+
+    expect(downloadMerchantDocument).toHaveBeenCalledWith("deliveryOrder", "delivery-order-1");
+  });
+
+  it("offers no delivery note download before one has been prepared", async () => {
+    getFulfilment.mockResolvedValue(
+      fulfilment({ fulfilmentStatus: "ReadyToShip", deliveryOrder: null })
+    );
+    renderSection();
+
+    await screen.findByTestId("delivery-order-missing");
+    expect(screen.queryByTestId("download-deliveryOrder")).toBeNull();
+  });
+
+  it("says plainly when the delivery note could not be prepared for download", async () => {
+    getFulfilment.mockResolvedValue(
+      fulfilment({ fulfilmentStatus: "Shipped", deliveryOrder: deliveryOrder() })
+    );
+    downloadMerchantDocument.mockRejectedValue(
+      new Error("That document is not available. The record may have been removed.")
+    );
+    renderSection();
+
+    fireEvent.click(await screen.findByTestId("download-deliveryOrder"));
+
+    expect(
+      await screen.findByText("That document is not available. The record may have been removed.")
+    ).toBeTruthy();
   });
 
   it("never warns about a delivery note before the order is ready", async () => {
@@ -596,7 +649,7 @@ describe("Shipped state", () => {
     );
   });
 
-  it("never offers to download, print or email the delivery note", async () => {
+  it("offers only the download, never printing or emailing the delivery note", async () => {
     getFulfilment.mockResolvedValue(
       fulfilment({
         fulfilmentStatus: "Shipped",
@@ -608,7 +661,8 @@ describe("Shipped state", () => {
     await screen.findByTestId("delivery-order-number");
 
     const labels = screen.getAllByRole("button").map((el) => el.textContent ?? "");
-    expect(labels.some((l) => /download|print|email/i.test(l))).toBe(false);
+    expect(labels.some((l) => /^Download Delivery Order$/.test(l))).toBe(true);
+    expect(labels.some((l) => /print|email/i.test(l))).toBe(false);
   });
 
   it("closes the shipment to further editing", async () => {

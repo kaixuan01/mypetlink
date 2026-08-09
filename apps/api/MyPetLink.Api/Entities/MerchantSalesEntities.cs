@@ -359,6 +359,14 @@ public sealed class MerchantDeliveryOrder : Entity
     public string? CourierServiceSnapshot { get; set; }
     public string? TrackingNumberSnapshot { get; set; }
 
+    /// <summary>
+    /// Who issued it, frozen when the delivery order was created. The document
+    /// is renderable years later without consulting the settings table or the
+    /// invoice it was copied from, so a rebrand never rewrites paperwork that
+    /// already travelled with a parcel.
+    /// </summary>
+    public SellerIdentitySnapshot Seller { get; set; } = new();
+
     public DateTimeOffset IssuedAt { get; set; }
     public Guid IssuedByAdminUserId { get; set; }
     public AdminUser? IssuedByAdminUser { get; set; }

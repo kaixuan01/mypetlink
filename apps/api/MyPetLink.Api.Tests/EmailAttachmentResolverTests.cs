@@ -107,5 +107,6 @@ public sealed class EmailAttachmentResolverTests
         public Task<OrderDocumentResult> GetInvoiceAsync(Guid invoiceId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<OrderDocumentResult> GetReceiptAsync(Guid receiptId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<OrderDocumentResult> GetReceiptForInvoiceAsync(Guid invoiceId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<OrderDocumentResult> GetDeliveryOrderAsync(Guid deliveryOrderId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 }

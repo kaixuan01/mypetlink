@@ -23,6 +23,7 @@ import type { AdminMerchantOrder } from "@/services/adminMerchantSalesService";
 import {
   DetailGrid,
   DetailRow,
+  DocumentDownloadButton,
   FulfilmentStatusBadge,
   InlineError,
   StatusMessage,
@@ -75,6 +76,7 @@ export function OrderFulfilmentSection({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const [busy, setBusy] = useState(false);
+  const [downloadError, setDownloadError] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [pending, setPending] = useState<Pending>(null);
@@ -515,13 +517,23 @@ export function OrderFulfilmentSection({
         ) : null}
 
         {fulfilment.deliveryOrder ? (
-          <DetailGrid>
-            <DetailRow label="Delivery Order">
-              <span data-testid="delivery-order-number">
-                {fulfilment.deliveryOrder.deliveryOrderNumber}
-              </span>
-            </DetailRow>
-          </DetailGrid>
+          <div className="grid gap-3">
+            <DetailGrid>
+              <DetailRow label="Delivery Order">
+                <span data-testid="delivery-order-number">
+                  {fulfilment.deliveryOrder.deliveryOrderNumber}
+                </span>
+              </DetailRow>
+            </DetailGrid>
+            <div>
+              <DocumentDownloadButton
+                id={fulfilment.deliveryOrder.id}
+                kind="deliveryOrder"
+                onError={setDownloadError}
+              />
+            </div>
+            {downloadError ? <InlineError message={downloadError} /> : null}
+          </div>
         ) : deliveryOrderExpected ? (
           <div
             className="grid gap-3 rounded-xl border border-[#ffe2b8] bg-[#fff8ec] p-4"

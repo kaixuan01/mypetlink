@@ -1,5 +1,8 @@
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
+using MyPetLink.Api.Common;
 using MyPetLink.Api.Data;
+using MyPetLink.Api.DTOs;
 using MyPetLink.Api.Entities;
 using MyPetLink.Api.Services;
 
@@ -48,6 +51,85 @@ internal static class MerchantFulfilmentFixture
     /// A paid two-line order: 10 QR units and 4 QR+NFC units, with more stock
     /// on hand than the order needs so partial allocation has somewhere to go.
     /// </summary>
+    /// <summary>
+    /// Puts the order through the step production always takes before a
+    /// delivery order exists: an issued invoice, which is where the delivery
+    /// order gets the seller identity it freezes. Issuing it through the real
+    /// billing service means the snapshot under test is the one production
+    /// writes, not one the fixture invented.
+    /// </summary>
+    public static async Task<Guid> IssueInvoiceAsync(
+        MyPetLinkDbContext db, Guid? merchantOrderId = null)
+    {
+        var settings = await db.BusinessIdentitySettings.FirstOrDefaultAsync();
+        if (settings is null)
+        {
+            settings = new BusinessIdentitySetting();
+            db.BusinessIdentitySettings.Add(settings);
+        }
+
+        // Issuing any document refuses an incomplete identity, so give the
+        // fixture the same minimum an operator has to supply.
+        settings.BrandName = "MyPetLink";
+        settings.LegalBusinessName = "MyPetLink Sdn Bhd";
+        settings.BusinessRegistrationNumber = "202601000001";
+        settings.TaxIdentificationNumber = "IG00000000010";
+        settings.SstRegistrationNumber = "W10-1808-32000123";
+        settings.RegisteredAddressLine1 = "12 Jalan Teknologi";
+        settings.RegisteredPostcode = "57000";
+        settings.RegisteredCity = "Kuala Lumpur";
+        settings.RegisteredState = "WP Kuala Lumpur";
+        settings.RegisteredCountry = "Malaysia";
+        settings.SupportEmail = "support@mypetlink.local";
+        settings.BusinessPhone = "+60312345678";
+        settings.BusinessWebsite = "mypetlink.com.my";
+        settings.UpdatedAt = Now;
+        await db.SaveChangesAsync();
+
+        var audit = new AuditLogService(db, new HttpContextAccessor());
+        var time = new FixedClock(Now);
+        var options = Microsoft.Extensions.Options.Options.Create<EmailOptions>(new EmailOptions
+        {
+            Enabled = false,
+            FromAddress = "support@mypetlink.local",
+            FromName = "MyPetLink",
+            OwnerPortalBaseUrl = "http://localhost:3000",
+        });
+        var billing = new MerchantBillingService(
+            db,
+            new DocumentNumberService(db),
+            new BusinessIdentityService(db, audit, time),
+            new MerchantEmailService(db, new EmailTemplateGate(db, options), audit, time),
+            audit,
+            time);
+
+        var orderId = merchantOrderId ?? OrderId;
+
+        // The fixture seeds an order that is already paid, which is where the
+        // billing service refuses to issue. Walk the real route instead: an
+        // order awaiting payment, an invoice, then the payment that confirms
+        // it — so the seller snapshot is the one production would freeze.
+        var order = await db.MerchantOrders.SingleAsync(item => item.Id == orderId);
+        var originalStatus = order.PaymentStatus;
+        order.PaymentStatus = MerchantOrderPaymentStatus.AwaitingPayment;
+        await db.SaveChangesAsync();
+
+        var invoice = await billing.IssueInvoiceAsync(
+            AdminAccountId, orderId, new IssueMerchantInvoiceRequest(), default);
+
+        if (originalStatus == MerchantOrderPaymentStatus.PaymentConfirmed)
+        {
+            await billing.RecordPaymentAsync(
+                AdminAccountId,
+                invoice.Id,
+                new RecordMerchantPaymentRequest(
+                    Now, invoice.GrandTotal, "BankTransfer", "TXN-FIXTURE-0001"),
+                default);
+        }
+
+        return invoice.Id;
+    }
+
     public static async Task SeedAsync(
         MyPetLinkDbContext db,
         int qrStock = 14,

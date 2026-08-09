@@ -338,6 +338,7 @@ const documentLabels: Record<MerchantDocumentKind, string> = {
   quotation: "Download Quotation",
   invoice: "Download Invoice",
   receipt: "Download Receipt",
+  deliveryOrder: "Download Delivery Order",
 };
 
 /**

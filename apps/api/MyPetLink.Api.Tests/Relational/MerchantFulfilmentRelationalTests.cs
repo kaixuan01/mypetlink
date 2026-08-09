@@ -232,6 +232,10 @@ public sealed class MerchantFulfilmentRelationalTests
         await using var scope = await RelationalDatabase.CreateAsync();
         await using var db = scope.NewContext();
         await SeedAsync(db);
+        // A delivery order records who issued it, and that identity comes from
+        // the order's invoice, so the fixture takes the same payment-first
+        // route production does.
+        await IssueInvoiceAsync(db);
         var service = Service(db);
         await AllocateEverythingAsync(service);
         await service.MarkReadyToShipAsync(
@@ -316,6 +320,10 @@ public sealed class MerchantFulfilmentRelationalTests
         await using var scope = await RelationalDatabase.CreateAsync();
         await using var db = scope.NewContext();
         await SeedAsync(db);
+        // A delivery order records who issued it, and that identity comes from
+        // the order's invoice, so the fixture takes the same payment-first
+        // route production does.
+        await IssueInvoiceAsync(db);
         var service = Service(db);
         await AllocateEverythingAsync(service);
         await service.MarkReadyToShipAsync(
@@ -356,6 +364,10 @@ public sealed class MerchantFulfilmentRelationalTests
         await using var scope = await RelationalDatabase.CreateAsync();
         await using var db = scope.NewContext();
         await SeedAsync(db);
+        // A delivery order records who issued it, and that identity comes from
+        // the order's invoice, so the fixture takes the same payment-first
+        // route production does.
+        await IssueInvoiceAsync(db);
         var service = Service(db);
         await AllocateEverythingAsync(service);
         await service.MarkReadyToShipAsync(
@@ -376,6 +388,10 @@ public sealed class MerchantFulfilmentRelationalTests
         await using (var setup = scope.NewContext())
         {
             await SeedAsync(setup);
+        // A delivery order records who issued it, and that identity comes from
+        // the order's invoice, so the fixture takes the same payment-first
+        // route production does.
+            await IssueInvoiceAsync(setup);
             var service = Service(setup);
             await AllocateEverythingAsync(service);
             await service.MarkReadyToShipAsync(
@@ -446,6 +462,10 @@ public sealed class MerchantFulfilmentRelationalTests
         await using var scope = await RelationalDatabase.CreateAsync();
         await using var db = scope.NewContext();
         await SeedAsync(db);
+        // A delivery order records who issued it, and that identity comes from
+        // the order's invoice, so the fixture takes the same payment-first
+        // route production does.
+        await IssueInvoiceAsync(db);
         var service = Service(db);
         await AllocateEverythingAsync(service);
         await service.MarkReadyToShipAsync(
@@ -470,5 +490,120 @@ public sealed class MerchantFulfilmentRelationalTests
         Assert.Contains("TRK-0001", shipped);
         Assert.DoesNotContain("18.5", shipped);
         Assert.DoesNotContain("gate B", shipped);
+    }
+
+    // =====================================================================
+    // Delivery order seller snapshot
+    // =====================================================================
+
+    /// <summary>
+    /// Merchant fulfilment is payment-first, so an invoice always exists by the
+    /// time a delivery order is issued — and the delivery order takes its
+    /// issuer identity from it. An order that somehow reaches this point
+    /// without one must be refused rather than quietly stamped with whatever
+    /// the settings table happens to say today.
+    /// </summary>
+    [RelationalFact]
+    public async Task ADeliveryOrderIsRefusedWhenTheOrderHasNoInvoice()
+    {
+        await using var scope = await RelationalDatabase.CreateAsync();
+        await using var db = scope.NewContext();
+        await SeedAsync(db);
+        var service = Service(db);
+        await AllocateEverythingAsync(service);
+        await service.MarkReadyToShipAsync(
+            AdminAccountId, OrderId, new MerchantFulfilmentTransitionRequest());
+
+        Assert.Empty(await db.MerchantInvoices.AsNoTracking().ToListAsync());
+
+        var refusal = await Assert.ThrowsAsync<ApiException>(
+            () => service.IssueDeliveryOrderAsync(AdminAccountId, OrderId));
+
+        Assert.Equal(409, refusal.StatusCode);
+        Assert.Equal("delivery_order_seller_unavailable", refusal.Code);
+        Assert.Contains("Issue the invoice first", refusal.Message);
+        // Admin-readable: no code, no type name, no stack.
+        Assert.DoesNotContain("_", refusal.Message);
+
+        // Nothing half-created.
+        await using var verify = scope.NewContext();
+        Assert.Empty(await verify.MerchantDeliveryOrders.AsNoTracking().ToListAsync());
+        Assert.DoesNotContain(
+            await verify.AuditLogs.AsNoTracking().Select(log => log.Action).ToListAsync(),
+            action => action.Contains("delivery-order", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [RelationalFact]
+    public async Task TheDeliveryOrderKeepsItsOwnCopyOfTheSellerIdentity()
+    {
+        await using var scope = await RelationalDatabase.CreateAsync();
+        Guid deliveryOrderId;
+
+        await using (var db = scope.NewContext())
+        {
+            await SeedAsync(db);
+            await IssueInvoiceAsync(db);
+            var service = Service(db);
+            await AllocateEverythingAsync(service);
+            await service.MarkReadyToShipAsync(
+                AdminAccountId, OrderId, new MerchantFulfilmentTransitionRequest());
+            deliveryOrderId = (await service.IssueDeliveryOrderAsync(AdminAccountId, OrderId)).Id;
+        }
+
+        await using (var check = scope.NewContext())
+        {
+            var document = await check.MerchantDeliveryOrders
+                .AsNoTracking()
+                .SingleAsync(item => item.Id == deliveryOrderId);
+            var invoice = await check.MerchantInvoices.AsNoTracking().FirstAsync();
+
+            // The copy carries the issuer, field for field.
+            Assert.Equal(invoice.Seller.BrandName, document.Seller.BrandName);
+            Assert.Equal(invoice.Seller.LegalBusinessName, document.Seller.LegalBusinessName);
+            Assert.Equal(
+                invoice.Seller.BusinessRegistrationNumber,
+                document.Seller.BusinessRegistrationNumber);
+            Assert.Equal(invoice.Seller.TaxIdentificationNumber, document.Seller.TaxIdentificationNumber);
+            Assert.Equal(invoice.Seller.SstRegistrationNumber, document.Seller.SstRegistrationNumber);
+            Assert.Equal(invoice.Seller.AddressLine1, document.Seller.AddressLine1);
+            Assert.Equal(invoice.Seller.Postcode, document.Seller.Postcode);
+            Assert.Equal(invoice.Seller.City, document.Seller.City);
+            Assert.Equal(invoice.Seller.State, document.Seller.State);
+            Assert.Equal(invoice.Seller.Country, document.Seller.Country);
+            Assert.Equal(invoice.Seller.SupportEmail, document.Seller.SupportEmail);
+            Assert.Equal(invoice.Seller.BusinessPhone, document.Seller.BusinessPhone);
+            Assert.Equal(invoice.Seller.BusinessWebsite, document.Seller.BusinessWebsite);
+            Assert.False(string.IsNullOrWhiteSpace(document.Seller.LegalBusinessName));
+        }
+
+        // Rebrand everything the identity could have come from.
+        await using (var rebrand = scope.NewContext())
+        {
+            var settings = await rebrand.BusinessIdentitySettings.FirstAsync();
+            settings.BrandName = "Rebranded Brand";
+            settings.LegalBusinessName = "Rebranded Holdings Berhad";
+            settings.BusinessRegistrationNumber = "999999999999";
+            settings.RegisteredAddressLine1 = "999 New Tower";
+            settings.SupportEmail = "new@rebranded.example";
+
+            var invoice = await rebrand.MerchantInvoices.FirstAsync();
+            invoice.Seller.LegalBusinessName = "Invoice Was Edited Later";
+            invoice.Seller.BrandName = "Invoice Brand Edited";
+            await rebrand.SaveChangesAsync();
+        }
+
+        await using (var after = scope.NewContext())
+        {
+            var document = await after.MerchantDeliveryOrders
+                .AsNoTracking()
+                .SingleAsync(item => item.Id == deliveryOrderId);
+
+            // A value copy, not a shared row: neither edit reached it.
+            Assert.Equal("MyPetLink Sdn Bhd", document.Seller.LegalBusinessName);
+            Assert.Equal("MyPetLink", document.Seller.BrandName);
+            Assert.Equal("202601000001", document.Seller.BusinessRegistrationNumber);
+            Assert.Equal("12 Jalan Teknologi", document.Seller.AddressLine1);
+            Assert.Equal("support@mypetlink.local", document.Seller.SupportEmail);
+        }
     }
 }

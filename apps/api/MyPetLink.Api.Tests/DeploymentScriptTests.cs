@@ -128,4 +128,31 @@ public sealed class DeploymentScriptTests
             duplicates.Length == 0,
             $"Migration history inserted more than once for: {string.Join(", ", duplicates)}");
     }
+
+    [Fact]
+    public void TheScriptCoversEveryMigrationOnDisk()
+    {
+        var scriptPath = ScriptPath();
+        var root = Path.GetDirectoryName(scriptPath)!;
+        var migrationsDirectory = Path.Combine(root, "apps", "api", "MyPetLink.Api", "Migrations");
+        Assert.True(Directory.Exists(migrationsDirectory), migrationsDirectory);
+
+        var onDisk = Directory.GetFiles(migrationsDirectory, "*.cs")
+            .Select(Path.GetFileNameWithoutExtension)
+            .Where(name => name is not null
+                && !name.EndsWith(".Designer", StringComparison.Ordinal)
+                && Regex.IsMatch(name, @"^\d{14}_"))
+            .Select(name => name!)
+            .OrderBy(name => name)
+            .ToArray();
+
+        var script = File.ReadAllText(scriptPath);
+        var missing = onDisk
+            .Where(id => !script.Contains($"N'{id}'", StringComparison.Ordinal))
+            .ToArray();
+
+        Assert.True(
+            missing.Length == 0,
+            $"The deployment script is missing migration(s): {string.Join(", ", missing)}");
+    }
 }

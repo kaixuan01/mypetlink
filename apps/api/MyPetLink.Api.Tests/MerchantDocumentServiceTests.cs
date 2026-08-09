@@ -422,6 +422,183 @@ public sealed class MerchantDocumentServiceTests
         Assert.Equal(404, receipt.StatusCode);
     }
 
+    // ===================== Delivery order =====================
+
+    [Fact]
+    public async Task DeliveryOrder_IdentifiesItselfAndTheOrderItBelongsTo()
+    {
+        using var h = await MerchantDocumentHarness.CreateAsync();
+        var document = await h.DeliveryOrderAsync();
+
+        var text = Squash(await h.DeliveryOrderTextAsync(document.Id));
+
+        Assert.Contains(Squash("Delivery Order"), text);
+        Assert.Contains(Squash("MPL-DO-260809-0001"), text);
+        Assert.Contains(Squash(document.MerchantOrderNumberSnapshot), text);
+        Assert.DoesNotContain(Squash("Quotation"), text);
+        Assert.DoesNotContain(Squash("Invoice"), text);
+        Assert.DoesNotContain(Squash("Receipt"), text);
+    }
+
+    [Fact]
+    public async Task DeliveryOrder_ShowsWhatIsInTheBoxAndTheBatchesItCameFrom()
+    {
+        using var h = await MerchantDocumentHarness.CreateAsync();
+        var document = await h.DeliveryOrderAsync(lineCount: 2, batchSummary: "B-2601 x 60; B-2602 x 40");
+
+        var text = Squash(await h.DeliveryOrderTextAsync(document.Id));
+
+        Assert.Contains(Squash("Wholesale Tag 01"), text);
+        Assert.Contains(Squash("Wholesale Tag 02"), text);
+        Assert.Contains(Squash("WS-SKU-01"), text);
+        Assert.Contains(Squash("B-2601 x 60; B-2602 x 40"), text);
+        Assert.Contains(Squash("Received in good order"), text);
+    }
+
+    // The document travels with the goods and is opened by couriers, warehouse
+    // staff and whoever signs for the parcel. Money must not be on it.
+    [Fact]
+    public async Task DeliveryOrder_NeverShowsPrices()
+    {
+        using var h = await MerchantDocumentHarness.CreateAsync();
+        var document = await h.DeliveryOrderAsync(lineCount: 2);
+
+        var text = Squash(await h.DeliveryOrderTextAsync(document.Id));
+
+        Assert.DoesNotContain(Squash("Unit price"), text);
+        Assert.DoesNotContain(Squash("Subtotal"), text);
+        Assert.DoesNotContain(Squash("Grand total"), text);
+        Assert.DoesNotContain(Squash("Amount due"), text);
+        Assert.DoesNotContain(Squash("Delivery fee"), text);
+        Assert.DoesNotContain(Squash("MYR"), text);
+        Assert.DoesNotContain(Squash("12.50"), text);
+    }
+
+    [Fact]
+    public async Task DeliveryOrder_ShowsTheShipmentDetailsOnlyOnceThereAreSome()
+    {
+        using var h = await MerchantDocumentHarness.CreateAsync();
+        var shipped = await h.DeliveryOrderAsync();
+        var shippedText = Squash(await h.DeliveryOrderTextAsync(shipped.Id));
+
+        Assert.Contains(Squash("PosLaju"), shippedText);
+        Assert.Contains(Squash("PL260809MY0001"), shippedText);
+
+        using var pending = await MerchantDocumentHarness.CreateAsync();
+        var waiting = await pending.DeliveryOrderAsync(
+            courier: null, service: null, tracking: null);
+        var waitingText = Squash(await pending.DeliveryOrderTextAsync(waiting.Id));
+
+        Assert.DoesNotContain(Squash("Tracking number"), waitingText);
+        Assert.DoesNotContain(Squash("Courier"), waitingText);
+    }
+
+    // A rebrand must not rewrite paperwork that already travelled in a parcel.
+    [Fact]
+    public async Task DeliveryOrder_KeepsItsIdentityWhenTheLiveSettingsChange()
+    {
+        using var h = await MerchantDocumentHarness.CreateAsync();
+        var document = await h.DeliveryOrderAsync();
+
+        var settings = await h.Db.BusinessIdentitySettings.SingleAsync();
+        settings.LegalBusinessName = "Renamed Holdings Bhd";
+        settings.SupportEmail = "changed@example.com";
+        var merchant = await h.Db.Merchants.SingleAsync();
+        merchant.LegalBusinessName = "Renamed Merchant Sdn Bhd";
+        await h.Db.SaveChangesAsync();
+
+        var text = Squash(await h.DeliveryOrderTextAsync(document.Id));
+
+        Assert.Contains(Squash("GBB Software Solutions"), text);
+        Assert.Contains(Squash("Happy Paws Sdn Bhd"), text);
+        Assert.DoesNotContain(Squash("Renamed Holdings"), text);
+        Assert.DoesNotContain(Squash("Renamed Merchant"), text);
+    }
+
+    [Fact]
+    public async Task DeliveryOrder_KeepsEveryLineWhenThereAreEnoughToPaginate()
+    {
+        using var h = await MerchantDocumentHarness.CreateAsync();
+        var document = await h.DeliveryOrderAsync(lineCount: 20);
+
+        var text = Squash(await h.DeliveryOrderTextAsync(document.Id));
+
+        for (var index = 1; index <= 20; index++)
+        {
+            Assert.Contains(Squash($"WS-SKU-{index:00}"), text);
+        }
+
+        Assert.Contains(Squash("Received in good order"), text);
+    }
+
+    [Fact]
+    public async Task DeliveryOrder_SurvivesLongMerchantProductAndAddressText()
+    {
+        using var h = await MerchantDocumentHarness.CreateAsync();
+        var document = await h.DeliveryOrderAsync(
+            merchantNameOverride:
+                "Happy Paws Wholesale Distribution And Pet Supplies Holdings Sdn Bhd",
+            addressLine1Override:
+                "Lot 12A-3, Level 12, Menara Perdana Utama, Jalan Teknologi Perdana 3/1A",
+            productNameOverride:
+                "Premium Stainless Steel Engraved Wholesale Identification Smart Tag",
+            skuOverride: "WS-QR-LIGHTWEIGHT-ENGRAVED-2026-01");
+
+        var text = Squash(await h.DeliveryOrderTextAsync(document.Id));
+
+        Assert.Contains(Squash("Happy Paws Wholesale Distribution"), text);
+        Assert.Contains(Squash("Menara Perdana Utama"), text);
+        Assert.Contains(Squash("Premium Stainless Steel Engraved"), text);
+        Assert.Contains(Squash("WS-QR-LIGHTWEIGHT-ENGRAVED-2026-01"), text);
+    }
+
+    [Fact]
+    public async Task DeliveryOrder_HasAStableFilenameBuiltFromItsNumber()
+    {
+        using var h = await MerchantDocumentHarness.CreateAsync();
+        var document = await h.DeliveryOrderAsync();
+
+        var first = await h.Documents.GetDeliveryOrderAsync(document.Id);
+        var second = await h.Documents.GetDeliveryOrderAsync(document.Id);
+
+        Assert.Equal("MyPetLink-Delivery-Order-MPL-DO-260809-0001.pdf", first.FileName);
+        Assert.Equal(first.FileName, second.FileName);
+        Assert.Equal("application/pdf", first.ContentType);
+    }
+
+    [Fact]
+    public async Task DeliveryOrder_IsNotFoundWhenItDoesNotExist()
+    {
+        using var h = await MerchantDocumentHarness.CreateAsync();
+
+        var error = await Assert.ThrowsAsync<ApiException>(
+            () => h.Documents.GetDeliveryOrderAsync(Guid.NewGuid()));
+
+        Assert.Equal(404, error.StatusCode);
+    }
+
+    // The other three documents are financial and must keep their totals and
+    // stay free of a goods-received block.
+    [Fact]
+    public async Task TheFinancialDocumentsKeepTheirTotalsAndHaveNoReceivingBlock()
+    {
+        using var h = await MerchantDocumentHarness.CreateAsync();
+        var payment = await h.PaidInvoiceAsync();
+        var invoice = await h.Db.MerchantInvoices.AsNoTracking()
+            .SingleAsync(item => item.Id == payment.Invoice.Id);
+
+        var invoiceText = Squash(await h.InvoiceTextAsync(invoice.Id));
+        var receiptText = Squash(await h.ReceiptTextAsync(invoice.Id));
+
+        Assert.Contains(Squash("Invoice"), invoiceText);
+        Assert.Contains(Squash("MYR"), invoiceText);
+        Assert.DoesNotContain(Squash("Received in good order"), invoiceText);
+
+        Assert.Contains(Squash("Receipt"), receiptText);
+        Assert.Contains(Squash("MYR"), receiptText);
+        Assert.DoesNotContain(Squash("Received in good order"), receiptText);
+    }
+
     internal static string ExtractText(byte[] pdf)
     {
         using var document = PdfDocument.Open(pdf);

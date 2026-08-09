@@ -5693,3 +5693,185 @@ GO
 
 COMMIT;
 GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260809141450_AddMerchantDeliveryOrderSellerSnapshot'
+)
+BEGIN
+    ALTER TABLE [MerchantDeliveryOrders] ADD [Seller_AddressLine1] nvarchar(240) NOT NULL DEFAULT N'';
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260809141450_AddMerchantDeliveryOrderSellerSnapshot'
+)
+BEGIN
+    ALTER TABLE [MerchantDeliveryOrders] ADD [Seller_AddressLine2] nvarchar(240) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260809141450_AddMerchantDeliveryOrderSellerSnapshot'
+)
+BEGIN
+    ALTER TABLE [MerchantDeliveryOrders] ADD [Seller_BankAccountName] nvarchar(200) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260809141450_AddMerchantDeliveryOrderSellerSnapshot'
+)
+BEGIN
+    ALTER TABLE [MerchantDeliveryOrders] ADD [Seller_BankAccountNumber] nvarchar(64) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260809141450_AddMerchantDeliveryOrderSellerSnapshot'
+)
+BEGIN
+    ALTER TABLE [MerchantDeliveryOrders] ADD [Seller_BankName] nvarchar(120) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260809141450_AddMerchantDeliveryOrderSellerSnapshot'
+)
+BEGIN
+    ALTER TABLE [MerchantDeliveryOrders] ADD [Seller_BrandName] nvarchar(120) NOT NULL DEFAULT N'';
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260809141450_AddMerchantDeliveryOrderSellerSnapshot'
+)
+BEGIN
+    ALTER TABLE [MerchantDeliveryOrders] ADD [Seller_BusinessPhone] nvarchar(32) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260809141450_AddMerchantDeliveryOrderSellerSnapshot'
+)
+BEGIN
+    ALTER TABLE [MerchantDeliveryOrders] ADD [Seller_BusinessRegistrationNumber] nvarchar(64) NOT NULL DEFAULT N'';
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260809141450_AddMerchantDeliveryOrderSellerSnapshot'
+)
+BEGIN
+    ALTER TABLE [MerchantDeliveryOrders] ADD [Seller_BusinessWebsite] nvarchar(200) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260809141450_AddMerchantDeliveryOrderSellerSnapshot'
+)
+BEGIN
+    ALTER TABLE [MerchantDeliveryOrders] ADD [Seller_City] nvarchar(120) NOT NULL DEFAULT N'';
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260809141450_AddMerchantDeliveryOrderSellerSnapshot'
+)
+BEGIN
+    ALTER TABLE [MerchantDeliveryOrders] ADD [Seller_Country] nvarchar(80) NOT NULL DEFAULT N'';
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260809141450_AddMerchantDeliveryOrderSellerSnapshot'
+)
+BEGIN
+    ALTER TABLE [MerchantDeliveryOrders] ADD [Seller_DuitNowDisplayName] nvarchar(120) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260809141450_AddMerchantDeliveryOrderSellerSnapshot'
+)
+BEGIN
+    ALTER TABLE [MerchantDeliveryOrders] ADD [Seller_LegalBusinessName] nvarchar(200) NOT NULL DEFAULT N'';
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260809141450_AddMerchantDeliveryOrderSellerSnapshot'
+)
+BEGIN
+    ALTER TABLE [MerchantDeliveryOrders] ADD [Seller_PaymentInstructions] nvarchar(2000) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260809141450_AddMerchantDeliveryOrderSellerSnapshot'
+)
+BEGIN
+    ALTER TABLE [MerchantDeliveryOrders] ADD [Seller_Postcode] nvarchar(16) NOT NULL DEFAULT N'';
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260809141450_AddMerchantDeliveryOrderSellerSnapshot'
+)
+BEGIN
+    ALTER TABLE [MerchantDeliveryOrders] ADD [Seller_SstRegistrationNumber] nvarchar(64) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260809141450_AddMerchantDeliveryOrderSellerSnapshot'
+)
+BEGIN
+    ALTER TABLE [MerchantDeliveryOrders] ADD [Seller_State] nvarchar(120) NOT NULL DEFAULT N'';
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260809141450_AddMerchantDeliveryOrderSellerSnapshot'
+)
+BEGIN
+    ALTER TABLE [MerchantDeliveryOrders] ADD [Seller_SupportEmail] nvarchar(254) NOT NULL DEFAULT N'';
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260809141450_AddMerchantDeliveryOrderSellerSnapshot'
+)
+BEGIN
+    ALTER TABLE [MerchantDeliveryOrders] ADD [Seller_TaxIdentificationNumber] nvarchar(64) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260809141450_AddMerchantDeliveryOrderSellerSnapshot'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260809141450_AddMerchantDeliveryOrderSellerSnapshot', N'8.0.26');
+END;
+GO
+

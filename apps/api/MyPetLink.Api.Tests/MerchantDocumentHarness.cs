@@ -261,7 +261,88 @@ internal sealed class MerchantDocumentHarness : IDisposable
             Now, invoice.GrandTotal, "BankTransfer", reference, internalNote), default);
     }
 
+    /// <summary>
+    /// A delivery order for a paid merchant order, carrying its own copy of the
+    /// seller identity exactly as <c>IssueDeliveryOrderAsync</c> writes it. The
+    /// allocation machinery that normally produces one is relational-only, so
+    /// the snapshot is built here directly; the document tests are about what
+    /// the snapshot renders to, not about how it was filled in.
+    /// </summary>
+    public async Task<MerchantDeliveryOrder> DeliveryOrderAsync(
+        int lineCount = 1,
+        string? batchSummary = "B-2601 x 100",
+        string? courier = "PosLaju",
+        string? service = "Next Day",
+        string? tracking = "PL260809MY0001",
+        string? merchantNameOverride = null,
+        string? addressLine1Override = null,
+        string? productNameOverride = null,
+        string? skuOverride = null)
+    {
+        var payment = await PaidInvoiceAsync();
+        var invoice = await Db.MerchantInvoices.AsNoTracking()
+            .SingleAsync(item => item.Id == payment.Invoice.Id);
+        var order = await Db.MerchantOrders.AsNoTracking()
+            .SingleAsync(item => item.Id == invoice.MerchantOrderId);
+        var merchant = await Db.Merchants.AsNoTracking()
+            .SingleAsync(item => item.Id == order.MerchantId);
+
+        var document = new MerchantDeliveryOrder
+        {
+            Id = Guid.NewGuid(),
+            DeliveryOrderNumber = "MPL-DO-260809-0001",
+            MerchantOrderId = order.Id,
+            MerchantOrderNumberSnapshot = order.MerchantOrderNumber,
+            MerchantId = merchant.Id,
+            MerchantCodeSnapshot = merchant.MerchantCode,
+            MerchantLegalNameSnapshot = merchantNameOverride ?? merchant.LegalBusinessName,
+            MerchantTradingNameSnapshot = merchant.TradingName,
+            ContactPersonSnapshot = merchant.ContactPerson,
+            ContactEmailSnapshot = merchant.ContactEmail,
+            ContactPhoneSnapshot = merchant.ContactPhone,
+            DeliveryAddressLine1Snapshot = addressLine1Override ?? merchant.BillingAddressLine1,
+            DeliveryAddressLine2Snapshot = merchant.BillingAddressLine2,
+            DeliveryPostcodeSnapshot = merchant.BillingPostcode,
+            DeliveryCitySnapshot = merchant.BillingCity,
+            DeliveryStateSnapshot = merchant.BillingState,
+            DeliveryCountrySnapshot = merchant.BillingCountry,
+            CourierProviderSnapshot = courier,
+            CourierServiceSnapshot = service,
+            TrackingNumberSnapshot = tracking,
+            Seller = invoice.Seller,
+            IssuedAt = Now,
+            IssuedByAdminUserId = Guid.NewGuid(),
+            RowVersion = [1],
+        };
+
+        for (var index = 1; index <= lineCount; index++)
+        {
+            document.Items.Add(new MerchantDeliveryOrderItem
+            {
+                Id = Guid.NewGuid(),
+                MerchantDeliveryOrderId = document.Id,
+                MerchantOrderItemId = Guid.NewGuid(),
+                ProductNameSnapshot = productNameOverride ?? $"Wholesale Tag {index:00}",
+                SkuCodeSnapshot = skuOverride ?? $"WS-SKU-{index:00}",
+                OptionNameSnapshot = index % 2 == 0 ? "Standard" : "Lightweight",
+                SupportsQrSnapshot = true,
+                SupportsNfcSnapshot = index % 2 == 0,
+                OrderedQuantity = 100,
+                AllocatedQuantity = 100,
+                BatchSummarySnapshot = batchSummary ?? "",
+            });
+        }
+
+        Db.MerchantDeliveryOrders.Add(document);
+        await Db.SaveChangesAsync();
+        return document;
+    }
+
     // --- Document text -----------------------------------------------------
+
+    public async Task<string> DeliveryOrderTextAsync(Guid deliveryOrderId) =>
+        MerchantDocumentServiceTests.ExtractText(
+            (await Documents.GetDeliveryOrderAsync(deliveryOrderId)).Content);
 
     public async Task<string> QuotationTextAsync(Guid quotationId) =>
         MerchantDocumentServiceTests.ExtractText(

@@ -295,7 +295,11 @@ export async function sendInvoiceEmail(invoiceId: string) {
 
 // --- Documents -------------------------------------------------------------
 
-export type MerchantDocumentKind = "quotation" | "invoice" | "receipt";
+export type MerchantDocumentKind =
+  | "quotation"
+  | "invoice"
+  | "receipt"
+  | "deliveryOrder";
 
 function documentPath(kind: MerchantDocumentKind, id: string) {
   switch (kind) {
@@ -303,6 +307,8 @@ function documentPath(kind: MerchantDocumentKind, id: string) {
       return `${base}/quotations/${id}/quotation.pdf`;
     case "invoice":
       return `${base}/invoices/${id}/invoice.pdf`;
+    case "deliveryOrder":
+      return `${base}/delivery-orders/${id}/delivery-order.pdf`;
     default:
       // The receipt is addressed by its invoice, which is what the Admin has
       // in hand at every point it can be downloaded.
@@ -397,7 +403,7 @@ async function documentError(response: Response): Promise<Error> {
 
 /** Uses the server's filename; falls back to a safe local name. */
 function fileNameFrom(disposition: string | null, kind: MerchantDocumentKind): string {
-  const fallback = `MyPetLink-${kind}.pdf`;
+  const fallback = `MyPetLink-${kind === "deliveryOrder" ? "delivery-order" : kind}.pdf`;
   if (!disposition) return fallback;
 
   const encoded = /filename\*=UTF-8''([^;]+)/i.exec(disposition);
