@@ -71,6 +71,10 @@ export type MarketingMetadataInput = {
   path: string;
   title: string;
   description: string;
+  socialImage?: {
+    path: string;
+    alt: string;
+  };
 };
 
 export function canonicalUrl(path = "/") {
@@ -81,8 +85,11 @@ export function createMarketingMetadata({
   path,
   title,
   description,
+  socialImage,
 }: MarketingMetadataInput): Metadata {
   const canonical = canonicalUrl(path);
+  const imageUrl = canonicalUrl(socialImage?.path ?? "/og-image.png");
+  const imageAlt = socialImage?.alt ?? "MyPetLink pet safety and share profile";
 
   return {
     title: { absolute: title },
@@ -98,10 +105,12 @@ export function createMarketingMetadata({
       type: "website",
       images: [
         {
-          url: canonicalUrl("/og-image.png"),
+          url: imageUrl,
+          secureUrl: imageUrl,
+          type: "image/png",
           width: 1200,
           height: 630,
-          alt: "MyPetLink pet safety and share profile",
+          alt: imageAlt,
         },
       ],
     },
@@ -109,7 +118,7 @@ export function createMarketingMetadata({
       card: "summary_large_image",
       title,
       description,
-      images: [canonicalUrl("/og-image.png")],
+      images: [{ url: imageUrl, alt: imageAlt }],
     },
   };
 }

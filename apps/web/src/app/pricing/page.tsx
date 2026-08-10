@@ -17,9 +17,13 @@ import { createMarketingMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = createMarketingMetadata({
   path: marketingRoutes.pricing,
-  title: "MyPetLink Pricing | Free Pet Profiles and Smart Tags",
+  title: "MyPetLink Pricing | Free Profile & Smart Tags",
   description:
-    "Compare the free MyPetLink profile, upcoming Premium features, and optional one-time QR and QR + NFC smart tags in Malaysian Ringgit.",
+    "Create your pet profile for free. Add a QR tag from RM19.90 or QR + NFC tag from RM39.90 — one-time purchase.",
+  socialImage: {
+    path: "/pricing-og.png",
+    alt: "MyPetLink pricing: free profile and one-time QR and QR plus NFC smart tags",
+  },
 });
 
 const freePlan = mockPlans.find((plan) => plan.id === "plan_free") ?? mockPlans[0];

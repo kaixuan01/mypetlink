@@ -522,18 +522,23 @@ function LandingPetProfilePreview({ pet }: { pet: Pet }) {
         <p className="mt-5 line-clamp-3 text-sm leading-6 text-pet-muted">
           {pet.bio}
         </p>
-        <div className="mt-5 grid gap-3 rounded-[1.5rem] bg-pet-cream p-4 sm:grid-cols-[1fr_auto] sm:items-center">
-          <div>
-            <p className="text-xs font-bold uppercase text-pet-muted">
-              Scan to contact owner
-            </p>
-            <p className="mt-1 text-sm font-black text-pet-ink">
-              WhatsApp &middot; Call &middot; Found location
-            </p>
+        <div className="mt-5 rounded-[1.5rem] bg-pet-cream p-4">
+          <p className="text-xs font-bold uppercase tracking-[0.08em] text-pet-muted">
+            If someone finds {pet.name}
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2" aria-label="Finder contact options">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-sm font-black text-pet-ink shadow-sm">
+              <Icon name="phone" className="h-4 w-4 text-pet-teal" />
+              WhatsApp owner
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-sm font-black text-pet-ink shadow-sm">
+              <Icon name="phone" className="h-4 w-4 text-pet-blue" />
+              Call owner
+            </span>
           </div>
-          <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white text-pet-teal shadow-sm">
-            <Icon name="qr" className="h-6 w-6" />
-          </span>
+          <p className="mt-2 text-sm leading-5 text-pet-muted">
+            Found location can be shared with the owner.
+          </p>
         </div>
       </div>
     </article>

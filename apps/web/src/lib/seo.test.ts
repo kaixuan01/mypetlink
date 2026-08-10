@@ -237,6 +237,64 @@ describe("canonical metadata", () => {
   });
 });
 
+describe("pricing social metadata", () => {
+  it("uses dedicated pricing copy and imagery for Open Graph and Twitter", () => {
+    const openGraph = pricingMetadata.openGraph as {
+      description?: string;
+      images?: Array<{
+        alt?: string;
+        height?: number;
+        secureUrl?: string;
+        type?: string;
+        url?: string;
+        width?: number;
+      }>;
+      title?: string;
+    };
+    const twitter = pricingMetadata.twitter as {
+      description?: string;
+      images?: Array<{ alt?: string; url?: string }>;
+      title?: string;
+    };
+    const image = openGraph.images?.[0];
+    const description =
+      "Create your pet profile for free. Add a QR tag from RM19.90 or QR + NFC tag from RM39.90 — one-time purchase.";
+    const imageAlt =
+      "MyPetLink pricing: free profile and one-time QR and QR plus NFC smart tags";
+
+    expect(pricingMetadata.title).toEqual({
+      absolute: "MyPetLink Pricing | Free Profile & Smart Tags",
+    });
+    expect(pricingMetadata.description).toBe(description);
+    expect(openGraph.title).toBe("MyPetLink Pricing | Free Profile & Smart Tags");
+    expect(openGraph.description).toBe(description);
+    expect(image).toEqual({
+      url: "https://mypetlink.com.my/pricing-og.png",
+      secureUrl: "https://mypetlink.com.my/pricing-og.png",
+      type: "image/png",
+      width: 1200,
+      height: 630,
+      alt: imageAlt,
+    });
+    expect(twitter.title).toBe("MyPetLink Pricing | Free Profile & Smart Tags");
+    expect(twitter.description).toBe(description);
+    expect(twitter.images?.[0]).toEqual({
+      url: "https://mypetlink.com.my/pricing-og.png",
+      alt: imageAlt,
+    });
+  });
+
+  it("leaves other marketing pages on the shared social image", () => {
+    for (const [path, metadata] of marketingPageCases) {
+      if (path === marketingRoutes.pricing) continue;
+
+      expect(JSON.stringify(metadata.openGraph)).toContain(
+        "https://mypetlink.com.my/og-image.png"
+      );
+    }
+  });
+});
+
 describe("structured data", () => {
   it("is valid JSON and contains no fake review or rating claims", () => {
     const parsed = JSON.parse(JSON.stringify(homepageStructuredData));
