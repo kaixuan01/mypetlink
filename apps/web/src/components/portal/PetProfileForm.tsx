@@ -609,10 +609,6 @@ export function PetProfileForm({
       }
     }
 
-    if (form.adoptionDate && !isValidDate(form.adoptionDate)) {
-      nextErrors.adoptionDate = "Choose a valid adoption day.";
-    }
-
     if (form.passedAwayDate) {
       if (!isValidDate(form.passedAwayDate)) {
         nextErrors.passedAwayDate = "Choose a valid date.";
@@ -1599,15 +1595,6 @@ export function PetProfileForm({
               ) : null}
             </div>
 
-            <Field error={errors.adoptionDate} label="Adoption day">
-              <DateInput
-                onChange={(event) =>
-                  updateField("adoptionDate", event.target.value)
-                }
-                value={form.adoptionDate}
-              />
-            </Field>
-
             <PrivacyGroup title="What appears on the public profile">
               <Checkbox
                 checked={form.showOwnerName}
@@ -1641,13 +1628,6 @@ export function PetProfileForm({
                   label="Show birthday in Life Timeline"
                   onChange={(value) =>
                     updateField("showBirthdayOnTimeline", value)
-                  }
-                />
-                <Checkbox
-                  checked={form.showAdoptionDayOnTimeline}
-                  label="Show adoption day in Life Timeline"
-                  onChange={(value) =>
-                    updateField("showAdoptionDayOnTimeline", value)
                   }
                 />
                 <div className="grid gap-1">
@@ -2027,7 +2007,8 @@ export function PetProfileForm({
             Manage {form.name || currentPet.name}&apos;s content
           </p>
           <p className="-mt-1 text-xs leading-5 text-pet-muted">
-            Records and memories are managed on their own pages.
+            Records and memories are managed on their own pages. Add life
+            events such as Adoption Day as a Moment.
           </p>
           <div
             className={`grid min-w-0 gap-3 ${

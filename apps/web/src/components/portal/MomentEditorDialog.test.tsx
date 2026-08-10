@@ -48,6 +48,9 @@ describe("MomentEditorDialog", () => {
       expect(screen.getByLabelText("Title")).toBeTruthy();
       expect(screen.getByLabelText("Date")).toBeTruthy();
       expect(screen.getByLabelText("Moment category")).toBeTruthy();
+      expect(
+        screen.getByRole("option", { name: "Adoption Day" })
+      ).toBeTruthy();
       expect(screen.getByLabelText("Visibility")).toBeTruthy();
       expect(screen.getByLabelText("Caption")).toBeTruthy();
       expect(screen.getByTestId("shared-moment-media")).toBeTruthy();

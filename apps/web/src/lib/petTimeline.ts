@@ -36,7 +36,7 @@ export type PetTimelineItem = {
 
 type TimelinePet = Pick<
   Pet | PublicPetProfile,
-  "name" | "birthday" | "estimatedBirthYear" | "adoptionDay" | "visibility"
+  "name" | "birthday" | "estimatedBirthYear" | "visibility"
 >;
 
 const MONTHS = [
@@ -54,8 +54,7 @@ const MONTHS = [
   "Dec",
 ];
 
-// Moment categories that mean "the day the pet joined the family", i.e. the
-// same milestone as the auto adoption-day item.
+// Moment categories that mean "the day the pet joined the family".
 const ADOPTION_EQUIVALENT_TYPES: MomentType[] = ["First Day Home", "Adoption Day"];
 
 /** Turn a display date ("18 Aug 2021", "Estimated 2021", "2021") into a sortable number. */
@@ -90,9 +89,10 @@ function momentGroup(type: MomentType): TimelineGroup {
 }
 
 /**
- * Build the full, ordered Life Timeline for a pet from its birthday/adoption
- * details and the moments marked "Show in Life Timeline". Auto and moment items
- * are merged, de-duplicated, and sorted oldest-first.
+ * Build the full, ordered Life Timeline for a pet from its birthday details
+ * and the moments marked "Show in Life Timeline". Adoption Day is deliberately
+ * owner-managed through Moments; the legacy Pet.AdoptionDay value is retained
+ * in storage but never creates an automatic timeline item.
  *
  * Pass ALL moments on the owner side; pass only public moments on the public
  * side (private moments must never reach the public client).
@@ -134,30 +134,6 @@ export function buildPetTimeline(
       isPublic: visibility.showBirthdayOnTimeline,
       sortValue: parseTimelineDate(estimatedDate),
     });
-  }
-
-  // Auto adoption milestone — skipped when an owner-created adoption/first-day
-  // moment shares the same date (prefer the user's moment, hide the duplicate).
-  if (hasDate(pet.adoptionDay)) {
-    const adoptionSort = parseTimelineDate(pet.adoptionDay);
-    const duplicateMoment = timelineMoments.find(
-      (moment) =>
-        momentGroup(moment.type) === "adoption" &&
-        parseTimelineDate(moment.date) === adoptionSort
-    );
-
-    if (!duplicateMoment) {
-      items.push({
-        id: "auto-adoption",
-        title: `${pet.name} came home`,
-        date: pet.adoptionDay,
-        description: `The day ${pet.name} joined the family.`,
-        source: "auto",
-        group: "adoption",
-        isPublic: visibility.showAdoptionDayOnTimeline,
-        sortValue: adoptionSort,
-      });
-    }
   }
 
   // Moment items.

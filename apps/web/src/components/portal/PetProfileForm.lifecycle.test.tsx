@@ -143,15 +143,16 @@ describe("PetProfileForm lifecycle workflow", () => {
     expect(mocks.updatePetLifecycle).not.toHaveBeenCalled();
   });
 
-  it("uses the shared native date control for adoption and memorial dates", async () => {
+  it("keeps Adoption Day out of Public Profile settings and uses the shared date control for memorial dates", async () => {
     render(<PetProfileForm initialPet={pet} mode="edit" />);
     await openPublicProfile();
 
+    expect(screen.queryByLabelText(/Adoption day/i)).toBeNull();
     expect(
-      (await screen.findByLabelText(/Adoption day/)).classList.contains(
-        "brand-date-input"
-      )
-    ).toBe(true);
+      screen.queryByRole("checkbox", {
+        name: "Show adoption day in Life Timeline",
+      })
+    ).toBeNull();
 
     fireEvent.click(screen.getByRole("radio", { name: /^Memorial/ }));
     expect(
@@ -161,22 +162,17 @@ describe("PetProfileForm lifecycle workflow", () => {
     ).toBe(true);
   });
 
-  it("loads and saves Adoption day through the shared date control", async () => {
+  it("preserves a stored legacy Adoption Day when other pet details are saved", async () => {
     render(<PetProfileForm initialPet={pet} mode="edit" />);
     await openPublicProfile();
 
-    const adoptionDay = (await screen.findByLabelText(
-      /Adoption day/
-    )) as HTMLInputElement;
-    expect(adoptionDay.value).toBe("2021-08-18");
-
-    fireEvent.change(adoptionDay, { target: { value: "2026-01-19" } });
+    expect(screen.queryByLabelText(/Adoption day/i)).toBeNull();
     clickSave();
 
     await waitFor(() =>
       expect(mocks.updatePet).toHaveBeenCalledWith(
         pet.id,
-        expect.objectContaining({ adoptionDay: "19 Jan 2026" })
+        expect.objectContaining({ adoptionDay: pet.adoptionDay })
       )
     );
   });
@@ -788,6 +784,9 @@ describe("PetProfileForm lifecycle workflow", () => {
 
     expect(
       await screen.findByText(`Manage ${pet.name}'s content`)
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/Add life events such as Adoption Day as a Moment/)
     ).toBeTruthy();
     expect(screen.getByRole("link", { name: /Manage Care Records/ })).toBeTruthy();
 
