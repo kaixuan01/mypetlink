@@ -1438,7 +1438,9 @@ public sealed class MyPetLinkDbContext : DbContext
                     "(CASE WHEN [RelatedOrderId] IS NULL THEN 0 ELSE 1 END"
                     + " + CASE WHEN [RelatedUserId] IS NULL THEN 0 ELSE 1 END"
                     + " + CASE WHEN [RelatedMerchantQuotationId] IS NULL THEN 0 ELSE 1 END"
-                    + " + CASE WHEN [RelatedMerchantInvoiceId] IS NULL THEN 0 ELSE 1 END) = 1"));
+                    + " + CASE WHEN [RelatedMerchantInvoiceId] IS NULL THEN 0 ELSE 1 END"
+                    + " + CASE WHEN [RelatedMerchantDeliveryOrderId] IS NULL THEN 0 ELSE 1 END)"
+                    + " = 1"));
             entity.Property(item => item.MessageType).HasConversion<string>().HasMaxLength(64);
             entity.Property(item => item.RecipientEmail).HasMaxLength(320);
             entity.Property(item => item.RecipientName).HasMaxLength(160);
@@ -1463,6 +1465,13 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasIndex(item => new { item.RelatedMerchantInvoiceId, item.MessageType })
                 .IsUnique()
                 .HasFilter("[RelatedMerchantInvoiceId] IS NOT NULL");
+            // One shipment notice per delivery order. Two admins pressing Mark
+            // Shipped at the same moment lose the race here, in the database,
+            // rather than in whichever one happened to read first.
+            entity.HasIndex(item =>
+                    new { item.RelatedMerchantDeliveryOrderId, item.MessageType })
+                .IsUnique()
+                .HasFilter("[RelatedMerchantDeliveryOrderId] IS NOT NULL");
             entity.HasIndex(item => new { item.Status, item.NextAttemptAt });
             entity.HasIndex(item => item.LockedUntil);
             entity.HasOne(item => item.RelatedOrder)
@@ -1480,6 +1489,10 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasOne(item => item.RelatedMerchantInvoice)
                 .WithMany()
                 .HasForeignKey(item => item.RelatedMerchantInvoiceId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.RelatedMerchantDeliveryOrder)
+                .WithMany()
+                .HasForeignKey(item => item.RelatedMerchantDeliveryOrderId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

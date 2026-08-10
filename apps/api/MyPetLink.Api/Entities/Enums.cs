@@ -69,7 +69,8 @@ public enum EmailMessageType
     // rows already written.
     MerchantQuotation,
     MerchantInvoice,
-    MerchantPaymentConfirmation
+    MerchantPaymentConfirmation,
+    MerchantOrderShipped
 }
 
 public enum EmailOutboxStatus

@@ -92,6 +92,7 @@ public sealed class MerchantFulfilmentService : IMerchantFulfilmentService
     private readonly IAuditLogService _auditLogService;
     private readonly IDocumentNumberService _documentNumbers;
     private readonly IShippingFulfilmentService? _shipping;
+    private readonly IMerchantEmailService? _merchantEmails;
     private readonly TimeProvider _timeProvider;
 
     public MerchantFulfilmentService(
@@ -99,13 +100,15 @@ public sealed class MerchantFulfilmentService : IMerchantFulfilmentService
         IAuditLogService auditLogService,
         IDocumentNumberService documentNumbers,
         TimeProvider timeProvider,
-        IShippingFulfilmentService? shipping = null)
+        IShippingFulfilmentService? shipping = null,
+        IMerchantEmailService? merchantEmails = null)
     {
         _dbContext = dbContext;
         _auditLogService = auditLogService;
         _documentNumbers = documentNumbers;
         _timeProvider = timeProvider;
         _shipping = shipping;
+        _merchantEmails = merchantEmails;
     }
 
     // =====================================================================
@@ -602,6 +605,31 @@ public sealed class MerchantFulfilmentService : IMerchantFulfilmentService
             // to scan and activate the tag themselves.
         }
 
+        // The shipment notice carries the delivery order, so the document must
+        // exist before the order can ship. Issuing it here rather than trusting
+        // that Ready to Ship succeeded means an email is never queued against
+        // an attachment that cannot resolve.
+        var deliveryOrder = await _dbContext.MerchantDeliveryOrders
+            .Include(item => item.Items)
+            .FirstOrDefaultAsync(
+                item => item.MerchantOrderId == order.Id && item.CancelledAt == null,
+                cancellationToken);
+
+        deliveryOrder ??= await BuildDeliveryOrderAsync(
+            order, admin.Id, progress, now, cancellationToken);
+
+        if (_merchantEmails is not null)
+        {
+            await _merchantEmails.EnqueueOrderShippedAsync(
+                order,
+                deliveryOrder,
+                [.. progress.OrderBy(row => row.SortOrder)
+                    .Select(row => new MerchantShippedItemLine(
+                        row.ProductName, row.Sku, row.Allocated))],
+                await SellerSupportEmailAsync(order, cancellationToken),
+                cancellationToken);
+        }
+
         _auditLogService.Append(
             admin.Id, ActorType.Admin, "merchant-order.shipped",
             "MerchantOrder", order.Id, null,
@@ -732,62 +760,10 @@ public sealed class MerchantFulfilmentService : IMerchantFulfilmentService
         }
 
         var now = _timeProvider.GetUtcNow();
-        var document = new MerchantDeliveryOrder
-        {
-            Seller = CopySeller(invoiceSeller),
-            DeliveryOrderNumber =
-                await _documentNumbers.NextMerchantDeliveryOrderNumberAsync(now, cancellationToken),
-            MerchantOrderId = order.Id,
-            MerchantOrderNumberSnapshot = order.MerchantOrderNumber,
-            MerchantId = order.MerchantId,
-            MerchantCodeSnapshot = order.MerchantCodeSnapshot,
-            MerchantLegalNameSnapshot = order.MerchantLegalNameSnapshot,
-            MerchantTradingNameSnapshot = order.MerchantTradingNameSnapshot,
-            ContactPersonSnapshot = order.ContactPersonSnapshot,
-            ContactEmailSnapshot = order.ContactEmailSnapshot,
-            ContactPhoneSnapshot = order.ContactPhoneSnapshot,
-            DeliveryAddressLine1Snapshot = order.DeliveryAddressLine1Snapshot,
-            DeliveryAddressLine2Snapshot = order.DeliveryAddressLine2Snapshot,
-            DeliveryPostcodeSnapshot = order.DeliveryPostcodeSnapshot,
-            DeliveryCitySnapshot = order.DeliveryCitySnapshot,
-            DeliveryStateSnapshot = order.DeliveryStateSnapshot,
-            DeliveryCountrySnapshot = order.DeliveryCountrySnapshot,
-            CourierProviderSnapshot = order.CourierProvider,
-            CourierServiceSnapshot = order.CourierService,
-            TrackingNumberSnapshot = order.TrackingNumber,
-            IssuedAt = now,
-            IssuedByAdminUserId = admin.Id,
-        };
-
-        foreach (var row in progress.OrderBy(row => row.SortOrder))
-        {
-            document.Items.Add(new MerchantDeliveryOrderItem
-            {
-                MerchantOrderItemId = row.ItemId,
-                ProductNameSnapshot = row.ProductName,
-                SkuCodeSnapshot = row.Sku,
-                OptionNameSnapshot = row.OptionName,
-                SupportsQrSnapshot = row.SupportsQr,
-                SupportsNfcSnapshot = row.SupportsNfc,
-                OrderedQuantity = row.Required,
-                AllocatedQuantity = row.Allocated,
-                // Batch numbers and counts only: no tag codes, no database ids.
-                BatchSummarySnapshot = FormatBatches(row.Batches),
-                SortOrder = row.SortOrder,
-            });
-        }
-
-        _dbContext.MerchantDeliveryOrders.Add(document);
-        _auditLogService.Append(
-            admin.Id, ActorType.Admin, "merchant-delivery-order.issued",
-            "MerchantDeliveryOrder", document.Id, null,
-            new
-            {
-                document.DeliveryOrderNumber,
-                order.MerchantOrderNumber,
-                lines = document.Items.Count,
-                issuedAt = now,
-            });
+        // Built but not saved: the caller decides which transaction it
+        // rides, so shipping can create it alongside the shipment itself.
+        var document = await BuildDeliveryOrderAsync(
+            order, admin.Id, progress, now, cancellationToken);
 
         try
         {
@@ -811,6 +787,154 @@ public sealed class MerchantFulfilmentService : IMerchantFulfilmentService
         }
 
         return MapDeliveryOrder(document);
+    }
+
+    /// <summary>
+    /// The outbox row for this shipment, described rather than exposed: an
+    /// operator sees what happened, never the raw status name, the message id,
+    /// or whatever the mail server said.
+    /// </summary>
+    private async Task<MerchantShipmentEmailStatusResponse?> ShipmentEmailStatusAsync(
+        Guid deliveryOrderId, CancellationToken cancellationToken)
+    {
+        var row = await _dbContext.EmailOutbox
+            .AsNoTracking()
+            .Where(item => item.RelatedMerchantDeliveryOrderId == deliveryOrderId
+                && item.MessageType == EmailMessageType.MerchantOrderShipped)
+            .Select(item => new
+            {
+                item.Status,
+                item.SuppressionReason,
+                item.RecipientEmail,
+                item.SentAt,
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (row is null)
+        {
+            return null;
+        }
+
+        var state = row.Status switch
+        {
+            EmailOutboxStatus.Sent => "Sent",
+            EmailOutboxStatus.Failed => "Failed",
+            EmailOutboxStatus.Suppressed
+                when row.SuppressionReason == EmailSuppressionReasons.TemplateDisabled
+                => "HeldTemplateOff",
+            EmailOutboxStatus.Suppressed => "Held",
+            _ => "Queued",
+        };
+
+        return new MerchantShipmentEmailStatusResponse(state, row.RecipientEmail, row.SentAt);
+    }
+
+    /// <summary>
+    /// The support address the merchant already sees on their paperwork, taken
+    /// from the invoice's frozen seller identity rather than current settings.
+    /// </summary>
+    private async Task<string> SellerSupportEmailAsync(
+        MerchantOrder order, CancellationToken cancellationToken)
+    {
+        var email = await _dbContext.MerchantInvoices
+            .AsNoTracking()
+            .Where(invoice => invoice.MerchantOrderId == order.Id)
+            .OrderBy(invoice => invoice.IssuedAt)
+            .Select(invoice => invoice.Seller.SupportEmail)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return string.IsNullOrWhiteSpace(email) ? "" : email;
+    }
+
+    /// <summary>
+    /// Composes the delivery order and adds it to the context without saving.
+    /// Issuing it and shipping the order both need the same document, but
+    /// only the caller knows which transaction it belongs to.
+    /// </summary>
+    private async Task<MerchantDeliveryOrder> BuildDeliveryOrderAsync(
+        MerchantOrder order,
+        Guid adminUserId,
+        IReadOnlyList<ItemProgress> progress,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        // The delivery order takes its own copy of the issuer identity the
+        // invoice already froze for this transaction, so the document renders
+        // years later without consulting the settings table or the invoice.
+        var invoiceSeller = await _dbContext.MerchantInvoices
+            .AsNoTracking()
+            .Where(invoice => invoice.MerchantOrderId == order.Id)
+            .OrderBy(invoice => invoice.IssuedAt)
+            .Select(invoice => invoice.Seller)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (invoiceSeller is null || string.IsNullOrWhiteSpace(invoiceSeller.LegalBusinessName))
+        {
+            throw new ApiException(
+                StatusCodes.Status409Conflict,
+                "delivery_order_seller_unavailable",
+                "This order has no issued invoice, so its delivery order cannot record who "
+                + "issued it. Issue the invoice first.");
+        }
+
+            var document = new MerchantDeliveryOrder
+            {
+                Seller = CopySeller(invoiceSeller),
+                DeliveryOrderNumber =
+                    await _documentNumbers.NextMerchantDeliveryOrderNumberAsync(now, cancellationToken),
+                MerchantOrderId = order.Id,
+                MerchantOrderNumberSnapshot = order.MerchantOrderNumber,
+                MerchantId = order.MerchantId,
+                MerchantCodeSnapshot = order.MerchantCodeSnapshot,
+                MerchantLegalNameSnapshot = order.MerchantLegalNameSnapshot,
+                MerchantTradingNameSnapshot = order.MerchantTradingNameSnapshot,
+                ContactPersonSnapshot = order.ContactPersonSnapshot,
+                ContactEmailSnapshot = order.ContactEmailSnapshot,
+                ContactPhoneSnapshot = order.ContactPhoneSnapshot,
+                DeliveryAddressLine1Snapshot = order.DeliveryAddressLine1Snapshot,
+                DeliveryAddressLine2Snapshot = order.DeliveryAddressLine2Snapshot,
+                DeliveryPostcodeSnapshot = order.DeliveryPostcodeSnapshot,
+                DeliveryCitySnapshot = order.DeliveryCitySnapshot,
+                DeliveryStateSnapshot = order.DeliveryStateSnapshot,
+                DeliveryCountrySnapshot = order.DeliveryCountrySnapshot,
+                CourierProviderSnapshot = order.CourierProvider,
+                CourierServiceSnapshot = order.CourierService,
+                TrackingNumberSnapshot = order.TrackingNumber,
+                IssuedAt = now,
+                IssuedByAdminUserId = adminUserId,
+            };
+
+            foreach (var row in progress.OrderBy(row => row.SortOrder))
+            {
+                document.Items.Add(new MerchantDeliveryOrderItem
+                {
+                    MerchantOrderItemId = row.ItemId,
+                    ProductNameSnapshot = row.ProductName,
+                    SkuCodeSnapshot = row.Sku,
+                    OptionNameSnapshot = row.OptionName,
+                    SupportsQrSnapshot = row.SupportsQr,
+                    SupportsNfcSnapshot = row.SupportsNfc,
+                    OrderedQuantity = row.Required,
+                    AllocatedQuantity = row.Allocated,
+                    // Batch numbers and counts only: no tag codes, no database ids.
+                    BatchSummarySnapshot = FormatBatches(row.Batches),
+                    SortOrder = row.SortOrder,
+                });
+            }
+
+            _dbContext.MerchantDeliveryOrders.Add(document);
+            _auditLogService.Append(
+                adminUserId, ActorType.Admin, "merchant-delivery-order.issued",
+                "MerchantDeliveryOrder", document.Id, null,
+                new
+                {
+                    document.DeliveryOrderNumber,
+                    order.MerchantOrderNumber,
+                    lines = document.Items.Count,
+                    issuedAt = now,
+                });
+
+        return document;
     }
 
     // =====================================================================
@@ -1106,6 +1230,9 @@ public sealed class MerchantFulfilmentService : IMerchantFulfilmentService
     {
         var summary = await BuildSummaryAsync(order, cancellationToken);
         var deliveryOrder = await GetDeliveryOrderAsync(order.Id, cancellationToken);
+        var shipmentEmail = deliveryOrder is null
+            ? null
+            : await ShipmentEmailStatusAsync(deliveryOrder.Id, cancellationToken);
 
         return new MerchantOrderFulfilmentResponse(
             order.Id,
@@ -1125,6 +1252,7 @@ public sealed class MerchantFulfilmentService : IMerchantFulfilmentService
             order.DeliveredAt,
             summary,
             deliveryOrder,
+            shipmentEmail,
             Convert.ToBase64String(order.RowVersion));
     }
 

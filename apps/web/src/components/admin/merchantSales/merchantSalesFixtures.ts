@@ -329,6 +329,7 @@ export function fulfilment(
     deliveredAt: null,
     allocation: allocationSummary(),
     deliveryOrder: null,
+    shipmentEmail: null,
     concurrencyToken: "token-fulfilment-1",
     ...overrides,
   } as MerchantOrderFulfilment;

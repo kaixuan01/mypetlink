@@ -251,6 +251,8 @@ public sealed class OwnerWelcomeEmailTests
                 new MerchantInvoiceEmailTemplateRenderer(
                     new TransactionalEmailLayout(disabledOptions)),
                 new MerchantPaymentConfirmationEmailTemplateRenderer(
+                    new TransactionalEmailLayout(disabledOptions)),
+                new MerchantOrderShippedEmailTemplateRenderer(
                     new TransactionalEmailLayout(disabledOptions))),
             harness.Sender,
             new EmailTemplateGate(harness.Db, disabledOptions),
@@ -613,7 +615,8 @@ public sealed class OwnerWelcomeEmailTests
                     new OrderShippedEmailTemplateRenderer(optionValue, layout),
                     new MerchantQuotationEmailTemplateRenderer(layout),
                     new MerchantInvoiceEmailTemplateRenderer(layout),
-                    new MerchantPaymentConfirmationEmailTemplateRenderer(layout)),
+                    new MerchantPaymentConfirmationEmailTemplateRenderer(layout),
+                new MerchantOrderShippedEmailTemplateRenderer(layout)),
                 Sender,
                 new EmailTemplateGate(db, optionValue),
                 Clock,

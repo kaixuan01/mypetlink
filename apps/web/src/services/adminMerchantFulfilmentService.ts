@@ -84,6 +84,19 @@ export type MerchantDeliveryOrderItem = {
   batchSummary: string;
 };
 
+export type MerchantShipmentEmailState =
+  | "Queued"
+  | "Sent"
+  | "HeldTemplateOff"
+  | "Held"
+  | "Failed";
+
+export type MerchantShipmentEmailStatus = {
+  state: MerchantShipmentEmailState;
+  recipientEmail: string;
+  sentAt: string | null;
+};
+
 export type MerchantDeliveryOrder = {
   id: string;
   deliveryOrderNumber: string;
@@ -122,6 +135,7 @@ export type MerchantOrderFulfilment = {
   deliveredAt: string | null;
   allocation: MerchantAllocationSummary;
   deliveryOrder: MerchantDeliveryOrder | null;
+  shipmentEmail: MerchantShipmentEmailStatus | null;
   concurrencyToken: string;
 };
 

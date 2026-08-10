@@ -30,6 +30,17 @@ public interface IMerchantEmailService
     /// Adds the payment confirmation to the caller's unit of work. The caller
     /// saves, so the email and the payment land together or not at all.
     /// </summary>
+    /// <summary>
+    /// Records the shipment notice. The caller saves, so the email is written
+    /// in the same transaction as the shipment itself.
+    /// </summary>
+    Task EnqueueOrderShippedAsync(
+        MerchantOrder order,
+        MerchantDeliveryOrder deliveryOrder,
+        IReadOnlyList<MerchantShippedItemLine> items,
+        string supportEmail,
+        CancellationToken cancellationToken = default);
+
     Task EnqueuePaymentConfirmationAsync(
         MerchantInvoice invoice,
         MerchantReceipt receipt,
@@ -236,6 +247,67 @@ public sealed class MerchantEmailService : IMerchantEmailService
             "MerchantInvoice", invoice.Id, null,
             new { invoice.InvoiceNumber, receipt.ReceiptNumber, Status = message.Status.ToString() });
     }
+
+    public async Task EnqueueOrderShippedAsync(
+        MerchantOrder order,
+        MerchantDeliveryOrder deliveryOrder,
+        IReadOnlyList<MerchantShippedItemLine> items,
+        string supportEmail,
+        CancellationToken cancellationToken = default)
+    {
+        var alreadyQueued = await _dbContext.EmailOutbox.AnyAsync(
+            item => item.RelatedMerchantDeliveryOrderId == deliveryOrder.Id
+                && item.MessageType == EmailMessageType.MerchantOrderShipped,
+            cancellationToken);
+
+        if (alreadyQueued)
+        {
+            return;
+        }
+
+        // Everything the merchant will read is copied here and now. Courier
+        // settings, the merchant record and the catalog are all free to change
+        // afterwards without rewriting a notice that has already been sent.
+        var template = new MerchantOrderShippedEmailTemplateData(
+            MerchantName: order.MerchantLegalNameSnapshot,
+            ContactPerson: Clean(order.ContactPersonSnapshot, "there"),
+            MerchantOrderNumber: order.MerchantOrderNumber,
+            DeliveryOrderNumber: deliveryOrder.DeliveryOrderNumber,
+            CourierName: Clean(order.CourierProvider, "the courier"),
+            CourierService: Trim(order.CourierService),
+            TrackingNumber: Clean(order.TrackingNumber, ""),
+            // Built and validated by the fulfilment service from the courier's
+            // own configured template, never from anything a request supplied.
+            TrackingUrl: Trim(order.TrackingUrlSnapshot),
+            Items: items,
+            ShippedAt: order.ShippedAt ?? _timeProvider.GetUtcNow(),
+            SupportEmail: supportEmail);
+
+        var message = await BuildAsync(
+            EmailMessageType.MerchantOrderShipped,
+            order.ContactEmailSnapshot,
+            order.ContactPersonSnapshot,
+            $"MyPetLink Order Shipped {order.MerchantOrderNumber}",
+            JsonSerializer.Serialize(template, TemplateJson),
+            cancellationToken);
+
+        message.RelatedMerchantDeliveryOrderId = deliveryOrder.Id;
+        _dbContext.EmailOutbox.Add(message);
+
+        // The caller saves, so this rides the shipment's transaction.
+        _auditLogService.Append(null, ActorType.System,
+            "merchant-order-shipped.email-queued",
+            "MerchantDeliveryOrder", deliveryOrder.Id, null,
+            new
+            {
+                order.MerchantOrderNumber,
+                deliveryOrder.DeliveryOrderNumber,
+                Status = message.Status.ToString(),
+            });
+    }
+
+    private static string? Trim(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private async Task<EmailOutbox> BuildAsync(
         EmailMessageType messageType,

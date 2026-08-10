@@ -105,6 +105,7 @@ public sealed class MerchantFulfilmentProjectionRelationalTests
         await using var scope = await RelationalDatabase.CreateAsync();
         await using var db = scope.NewContext();
         await SeedAsync(db);
+        await IssueInvoiceAsync(db);
         var service = Service(db);
         await service.AutoAllocateAsync(
             AdminAccountId, OrderId, new AutoAllocateMerchantInventoryRequest(QrItemId, 10));
@@ -200,6 +201,7 @@ public sealed class MerchantFulfilmentProjectionRelationalTests
         await using var scope = await RelationalDatabase.CreateAsync();
         await using var db = scope.NewContext();
         await SeedAsync(db);
+        await IssueInvoiceAsync(db);
         var service = Service(db);
         await service.AutoAllocateAsync(
             AdminAccountId, OrderId, new AutoAllocateMerchantInventoryRequest(QrItemId, 10));
@@ -261,6 +263,7 @@ public sealed class MerchantFulfilmentProjectionRelationalTests
         await using var scope = await RelationalDatabase.CreateAsync();
         await using var db = scope.NewContext();
         await SeedAsync(db);
+        await IssueInvoiceAsync(db);
         var service = Service(db);
         await service.AutoAllocateAsync(
             AdminAccountId, OrderId, new AutoAllocateMerchantInventoryRequest(QrItemId, 10));
@@ -334,6 +337,7 @@ public sealed class MerchantFulfilmentProjectionRelationalTests
         await using var scope = await RelationalDatabase.CreateAsync();
         await using var db = scope.NewContext();
         await SeedAsync(db);
+        await IssueInvoiceAsync(db);
         var service = Service(db);
         await service.AutoAllocateAsync(
             AdminAccountId, OrderId, new AutoAllocateMerchantInventoryRequest(QrItemId, 10));

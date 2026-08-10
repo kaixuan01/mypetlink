@@ -5875,3 +5875,60 @@ BEGIN
 END;
 GO
 
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260810015044_AddEmailOutboxMerchantDeliveryOrder'
+)
+BEGIN
+    ALTER TABLE [EmailOutbox] DROP CONSTRAINT [CK_EmailOutbox_RelatedEntity];
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260810015044_AddEmailOutboxMerchantDeliveryOrder'
+)
+BEGIN
+    ALTER TABLE [EmailOutbox] ADD [RelatedMerchantDeliveryOrderId] uniqueidentifier NULL;
+END;
+GO
+
+SET QUOTED_IDENTIFIER ON;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260810015044_AddEmailOutboxMerchantDeliveryOrder'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [IX_EmailOutbox_RelatedMerchantDeliveryOrderId_MessageType] ON [EmailOutbox] ([RelatedMerchantDeliveryOrderId], [MessageType]) WHERE [RelatedMerchantDeliveryOrderId] IS NOT NULL');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260810015044_AddEmailOutboxMerchantDeliveryOrder'
+)
+BEGIN
+    EXEC(N'ALTER TABLE [EmailOutbox] ADD CONSTRAINT [CK_EmailOutbox_RelatedEntity] CHECK ((CASE WHEN [RelatedOrderId] IS NULL THEN 0 ELSE 1 END + CASE WHEN [RelatedUserId] IS NULL THEN 0 ELSE 1 END + CASE WHEN [RelatedMerchantQuotationId] IS NULL THEN 0 ELSE 1 END + CASE WHEN [RelatedMerchantInvoiceId] IS NULL THEN 0 ELSE 1 END + CASE WHEN [RelatedMerchantDeliveryOrderId] IS NULL THEN 0 ELSE 1 END) = 1)');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260810015044_AddEmailOutboxMerchantDeliveryOrder'
+)
+BEGIN
+    ALTER TABLE [EmailOutbox] ADD CONSTRAINT [FK_EmailOutbox_MerchantDeliveryOrders_RelatedMerchantDeliveryOrderId] FOREIGN KEY ([RelatedMerchantDeliveryOrderId]) REFERENCES [MerchantDeliveryOrders] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260810015044_AddEmailOutboxMerchantDeliveryOrder'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260810015044_AddEmailOutboxMerchantDeliveryOrder', N'8.0.26');
+END;
+GO

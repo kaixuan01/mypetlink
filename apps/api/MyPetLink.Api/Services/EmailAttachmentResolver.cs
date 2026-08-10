@@ -53,7 +53,15 @@ public sealed class EmailAttachmentResolver : IEmailAttachmentResolver
                 id => _merchantDocuments.GetReceiptForInvoiceAsync(id, cancellationToken),
                 cancellationToken),
 
-            // Welcome and shipped emails carry no attachment. An unknown type
+            // The delivery order the shipment was recorded against. It is
+            // immutable, so this renders the same document the merchant would
+            // have received on the day, however long the retry takes.
+            EmailMessageType.MerchantOrderShipped => await LoadAsync(
+                message.RelatedMerchantDeliveryOrderId,
+                id => _merchantDocuments.GetDeliveryOrderAsync(id, cancellationToken),
+                cancellationToken),
+
+            // Welcome and retail shipped emails carry no attachment. An unknown type
             // gets nothing rather than a guess.
             _ => null,
         };

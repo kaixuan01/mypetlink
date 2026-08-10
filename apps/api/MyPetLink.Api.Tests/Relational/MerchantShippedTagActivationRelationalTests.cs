@@ -22,6 +22,7 @@ public sealed class MerchantShippedTagActivationRelationalTests
         Data.MyPetLinkDbContext db)
     {
         await SeedAsync(db);
+        await IssueInvoiceAsync(db);
         var service = Service(db);
         await service.AutoAllocateAsync(
             AdminAccountId, OrderId, new AutoAllocateMerchantInventoryRequest(QrItemId, 10));

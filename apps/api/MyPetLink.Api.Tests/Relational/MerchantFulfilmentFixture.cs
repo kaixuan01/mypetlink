@@ -40,12 +40,58 @@ internal static class MerchantFulfilmentFixture
     public static readonly Guid SecondOrderItemId = Guid.Parse("f5000000-0000-0000-0000-000000000005");
 
     public static MerchantFulfilmentService Service(
-        MyPetLinkDbContext db, TimeProvider? clock = null) =>
-        new(
-            db,
-            new AuditLogService(db, new HttpContextAccessor()),
-            new DocumentNumberService(db),
-            clock ?? new FixedClock(Now));
+        MyPetLinkDbContext db,
+        TimeProvider? clock = null,
+        bool withEmails = true)
+    {
+        var time = clock ?? new FixedClock(Now);
+        var audit = new AuditLogService(db, new HttpContextAccessor());
+
+        // The real email service, so the shipment notice is written by the same
+        // code and in the same transaction production uses.
+        var emails = withEmails
+            ? new MerchantEmailService(db, EmailGate(db), audit, time)
+            : null;
+
+        return new MerchantFulfilmentService(
+            db, audit, new DocumentNumberService(db), time, null, emails);
+    }
+
+    /// <summary>The real gate, reading the real EmailTemplateSettings rows.</summary>
+    public static EmailTemplateGate EmailGate(
+        MyPetLinkDbContext db, bool globallyEnabled = true) =>
+        new(db, Microsoft.Extensions.Options.Options.Create(new EmailOptions
+        {
+            Enabled = globallyEnabled,
+            FromAddress = "support@mypetlink.com.my",
+            FromName = "MyPetLink",
+            OwnerPortalBaseUrl = "http://localhost:3000",
+        }));
+
+    /// <summary>Switches one template on, exactly as an admin would.</summary>
+    public static async Task EnableTemplateAsync(
+        MyPetLinkDbContext db, EmailMessageType messageType, bool enabled = true)
+    {
+        var setting = await db.EmailTemplateSettings
+            .SingleOrDefaultAsync(item => item.MessageType == messageType);
+
+        if (setting is null)
+        {
+            setting = new EmailTemplateSetting
+            {
+                Id = Guid.NewGuid(),
+                MessageType = messageType,
+                CreatedAt = Now,
+                RowVersion = [],
+            };
+            db.EmailTemplateSettings.Add(setting);
+        }
+
+        setting.IsEnabled = enabled;
+        setting.EnabledFromUtc = enabled ? Now.AddDays(-1) : null;
+        setting.UpdatedAt = Now;
+        await db.SaveChangesAsync();
+    }
 
     /// <summary>
     /// A paid two-line order: 10 QR units and 4 QR+NFC units, with more stock

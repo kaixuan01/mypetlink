@@ -161,4 +161,15 @@ public sealed record MerchantOrderFulfilmentResponse(
     DateTimeOffset? DeliveredAt,
     MerchantOrderAllocationSummary Allocation,
     MerchantDeliveryOrderResponse? DeliveryOrder,
+    MerchantShipmentEmailStatusResponse? ShipmentEmail,
     string ConcurrencyToken);
+
+/// <summary>
+/// What happened to the shipment notice, in words an operator can act on.
+/// Carried on the fulfilment payload the order screen already loads, so the
+/// status costs no extra request and cannot become an N+1 per order.
+/// </summary>
+public sealed record MerchantShipmentEmailStatusResponse(
+    string State,
+    string RecipientEmail,
+    DateTimeOffset? SentAt);

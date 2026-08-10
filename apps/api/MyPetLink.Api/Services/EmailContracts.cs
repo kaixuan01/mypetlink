@@ -80,6 +80,31 @@ public sealed record MerchantPaymentConfirmationEmailTemplateData(
     string PaymentMethod,
     string SupportEmail);
 
+/// <summary>
+/// Everything the shipment notice shows, frozen when the order shipped. A
+/// retry next week renders exactly what the merchant would have read today,
+/// whatever the courier settings or the merchant record say by then.
+/// </summary>
+public sealed record MerchantOrderShippedEmailTemplateData(
+    string MerchantName,
+    string ContactPerson,
+    string MerchantOrderNumber,
+    string DeliveryOrderNumber,
+    string CourierName,
+    string? CourierService,
+    string TrackingNumber,
+    // Already resolved and validated when the order shipped; null when the
+    // courier has no tracking link configured.
+    string? TrackingUrl,
+    IReadOnlyList<MerchantShippedItemLine> Items,
+    DateTimeOffset ShippedAt,
+    string SupportEmail);
+
+public sealed record MerchantShippedItemLine(
+    string ProductName,
+    string SkuCode,
+    int Quantity);
+
 public sealed record RenderedEmail(
     string HtmlBody,
     string TextBody);

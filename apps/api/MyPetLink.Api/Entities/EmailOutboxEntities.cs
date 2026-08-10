@@ -15,6 +15,14 @@ public sealed class EmailOutbox : AuditableEntity
     // links -- which are also what makes the dedupe indexes possible.
     public Guid? RelatedMerchantQuotationId { get; set; }
     public Guid? RelatedMerchantInvoiceId { get; set; }
+
+    /// <summary>
+    /// The shipment email hangs off the delivery order, not the order: the
+    /// delivery order is the document the email carries, there is exactly one
+    /// live one per merchant order, and anchoring here is what makes a repeated
+    /// Mark Shipped a no-op instead of a second parcel notice.
+    /// </summary>
+    public Guid? RelatedMerchantDeliveryOrderId { get; set; }
     public EmailOutboxStatus Status { get; set; } = EmailOutboxStatus.Pending;
     public int AttemptCount { get; set; }
     public int MaxAttempts { get; set; } = 5;
@@ -31,6 +39,7 @@ public sealed class EmailOutbox : AuditableEntity
     public User? RelatedUser { get; set; }
     public MerchantQuotation? RelatedMerchantQuotation { get; set; }
     public MerchantInvoice? RelatedMerchantInvoice { get; set; }
+    public MerchantDeliveryOrder? RelatedMerchantDeliveryOrder { get; set; }
 }
 
 /// <summary>

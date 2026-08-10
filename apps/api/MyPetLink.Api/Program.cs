@@ -374,6 +374,7 @@ builder.Services.AddScoped<OrderShippedEmailTemplateRenderer>();
 builder.Services.AddScoped<MerchantQuotationEmailTemplateRenderer>();
 builder.Services.AddScoped<MerchantInvoiceEmailTemplateRenderer>();
 builder.Services.AddScoped<MerchantPaymentConfirmationEmailTemplateRenderer>();
+builder.Services.AddScoped<MerchantOrderShippedEmailTemplateRenderer>();
 builder.Services.AddSingleton<IBusinessReferenceSuffixSource, CryptographicBusinessReferenceSuffixSource>();
 builder.Services.AddSingleton<IBusinessReferenceGenerator, BusinessReferenceGenerator>();
 builder.Services.AddScoped<OwnerWelcomeEmailTemplateRenderer>();

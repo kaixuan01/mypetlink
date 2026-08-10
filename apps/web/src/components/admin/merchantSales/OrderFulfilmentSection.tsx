@@ -14,6 +14,7 @@ import {
   markShipped,
   type MerchantAllocationSummary,
   type MerchantOrderFulfilment,
+  type MerchantShipmentEmailStatus,
 } from "@/services/adminMerchantFulfilmentService";
 import {
   listShippingCourierOptions,
@@ -37,6 +38,25 @@ import {
 } from "./shared";
 
 const NOTES_MAX = 1000;
+
+/**
+ * Plain words for what happened to the merchant's shipment notice. The outbox
+ * status itself never reaches the screen.
+ */
+function shipmentEmailLabel(state: MerchantShipmentEmailStatus["state"]): string {
+  switch (state) {
+    case "Sent":
+      return "Sent";
+    case "Failed":
+      return "Failed — we will try again";
+    case "HeldTemplateOff":
+      return "Held — template off";
+    case "Held":
+      return "Held";
+    default:
+      return "Queued";
+  }
+}
 const SERVICE_MAX = 80;
 const TRACKING_MAX = 64;
 
@@ -533,6 +553,15 @@ export function OrderFulfilmentSection({
               />
             </div>
             {downloadError ? <InlineError message={downloadError} /> : null}
+            {fulfilment.shipmentEmail ? (
+              <DetailGrid>
+                <DetailRow label="Shipment email">
+                  <span data-testid="shipment-email-status">
+                    {shipmentEmailLabel(fulfilment.shipmentEmail.state)}
+                  </span>
+                </DetailRow>
+              </DetailGrid>
+            ) : null}
           </div>
         ) : deliveryOrderExpected ? (
           <div

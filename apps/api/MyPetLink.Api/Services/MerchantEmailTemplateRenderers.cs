@@ -262,3 +262,121 @@ public sealed class MerchantPaymentConfirmationEmailTemplateRenderer : IEmailTem
                 "You are receiving this because MyPetLink recorded a payment for your business."));
     }
 }
+
+public sealed class MerchantOrderShippedEmailTemplateRenderer : IEmailTemplateRenderer
+{
+    private readonly TransactionalEmailLayout _layout;
+
+    public MerchantOrderShippedEmailTemplateRenderer(TransactionalEmailLayout layout)
+    {
+        _layout = layout;
+    }
+
+    public RenderedEmail Render(EmailOutbox message)
+    {
+        if (message.MessageType != EmailMessageType.MerchantOrderShipped)
+        {
+            throw new EmailDeliveryException("The email template is not supported.", false);
+        }
+
+        var data = MerchantEmailJson.Read<MerchantOrderShippedEmailTemplateData>(message);
+        var shipped = MerchantEmailJson.Date(data.ShippedAt);
+
+        var details = new List<TransactionalEmailDetail>
+        {
+            new("Order number", data.MerchantOrderNumber),
+            new("Delivery order number", data.DeliveryOrderNumber),
+            new("Shipped on", shipped),
+            new("Courier", data.CourierName),
+        };
+
+        if (!string.IsNullOrWhiteSpace(data.CourierService))
+        {
+            details.Add(new("Service", data.CourierService!));
+        }
+
+        // Always shown, link or no link: the number is what a merchant needs to
+        // chase a parcel, and it is the only thing that works on the phone.
+        details.Add(new("Tracking number", data.TrackingNumber));
+
+        var items = data.Items.Count == 0
+            ? ""
+            : _layout.DetailRows(data.Items
+                .Select(item => new TransactionalEmailDetail(
+                    $"{item.ProductName} ({item.SkuCode})",
+                    $"{item.Quantity}"))
+                .ToList());
+
+        var body =
+            _layout.Paragraph($"Hi {data.ContactPerson},")
+            + _layout.Paragraph(
+                $"Your MyPetLink order has been shipped. The delivery order for "
+                + $"{data.MerchantName} is attached as a PDF.")
+            + _layout.DetailRows(details)
+            + (data.TrackingUrl is null
+                ? _layout.Paragraph(
+                    "You can track your parcel directly with the courier using this "
+                    + "tracking number.")
+                : "")
+            + (items.Length > 0
+                ? _layout.Paragraph("What is in this shipment") + items
+                : "")
+            + _layout.Paragraph(
+                "Please check the parcel on arrival and keep the delivery order for your "
+                + "records.", subdued: true);
+
+        var lines = new List<string>
+        {
+            $"Hi {data.ContactPerson},",
+            "",
+            $"Your MyPetLink order has been shipped. The delivery order for {data.MerchantName}",
+            "is attached as a PDF.",
+            "",
+            $"Order number: {data.MerchantOrderNumber}",
+            $"Delivery order number: {data.DeliveryOrderNumber}",
+            $"Shipped on: {shipped}",
+            $"Courier: {data.CourierName}",
+        };
+
+        if (!string.IsNullOrWhiteSpace(data.CourierService))
+        {
+            lines.Add($"Service: {data.CourierService}");
+        }
+
+        lines.Add($"Tracking number: {data.TrackingNumber}");
+        lines.Add(data.TrackingUrl is null
+            ? "You can track your parcel directly with the courier using this tracking number."
+            : $"Track parcel: {data.TrackingUrl}");
+
+        if (data.Items.Count > 0)
+        {
+            lines.Add("");
+            lines.Add("What is in this shipment:");
+            lines.AddRange(data.Items.Select(item =>
+                $"  {item.ProductName} ({item.SkuCode}) x {item.Quantity}"));
+        }
+
+        lines.Add("");
+        lines.Add("Please check the parcel on arrival and keep the delivery order for your");
+        lines.Add("records.");
+        lines.Add("");
+        lines.Add($"Questions? Email {data.SupportEmail}.");
+
+        // No button at all when there is nothing to link to: an empty Track
+        // Parcel is worse than none.
+        var action = data.TrackingUrl is null
+            ? null
+            : new TransactionalEmailAction("Track Parcel", data.TrackingUrl, Wide: true);
+
+        return _layout.Render(new TransactionalEmailContent(
+            Subject: message.Subject,
+            Preheader: $"{data.MerchantOrderNumber} shipped — tracking {data.TrackingNumber}.",
+            Eyebrow: "Shipped",
+            Title: "Your order is on its way",
+            BodyHtml: body,
+            TextBody: string.Join(Environment.NewLine, lines),
+            PrimaryAction: action,
+            TransactionReason:
+                "You are receiving this because MyPetLink shipped an order for your business."));
+    }
+}

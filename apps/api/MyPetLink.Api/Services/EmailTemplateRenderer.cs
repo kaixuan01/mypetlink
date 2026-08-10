@@ -10,6 +10,7 @@ public sealed class EmailTemplateRenderer : IEmailTemplateRenderer
     private readonly MerchantQuotationEmailTemplateRenderer _merchantQuotation;
     private readonly MerchantInvoiceEmailTemplateRenderer _merchantInvoice;
     private readonly MerchantPaymentConfirmationEmailTemplateRenderer _merchantPaymentConfirmation;
+    private readonly MerchantOrderShippedEmailTemplateRenderer _merchantOrderShipped;
 
     public EmailTemplateRenderer(
         PaymentConfirmedEmailTemplateRenderer paymentConfirmed,
@@ -17,7 +18,8 @@ public sealed class EmailTemplateRenderer : IEmailTemplateRenderer
         OrderShippedEmailTemplateRenderer orderShipped,
         MerchantQuotationEmailTemplateRenderer merchantQuotation,
         MerchantInvoiceEmailTemplateRenderer merchantInvoice,
-        MerchantPaymentConfirmationEmailTemplateRenderer merchantPaymentConfirmation)
+        MerchantPaymentConfirmationEmailTemplateRenderer merchantPaymentConfirmation,
+        MerchantOrderShippedEmailTemplateRenderer merchantOrderShipped)
     {
         _paymentConfirmed = paymentConfirmed;
         _ownerWelcome = ownerWelcome;
@@ -25,6 +27,7 @@ public sealed class EmailTemplateRenderer : IEmailTemplateRenderer
         _merchantQuotation = merchantQuotation;
         _merchantInvoice = merchantInvoice;
         _merchantPaymentConfirmation = merchantPaymentConfirmation;
+        _merchantOrderShipped = merchantOrderShipped;
     }
 
     public RenderedEmail Render(EmailOutbox message) =>
@@ -35,6 +38,7 @@ public sealed class EmailTemplateRenderer : IEmailTemplateRenderer
             EmailMessageType.OrderShipped => _orderShipped.Render(message),
             EmailMessageType.MerchantQuotation => _merchantQuotation.Render(message),
             EmailMessageType.MerchantInvoice => _merchantInvoice.Render(message),
+            EmailMessageType.MerchantOrderShipped => _merchantOrderShipped.Render(message),
             EmailMessageType.MerchantPaymentConfirmation =>
                 _merchantPaymentConfirmation.Render(message),
             _ => throw new EmailDeliveryException("The email template is not supported.", false)

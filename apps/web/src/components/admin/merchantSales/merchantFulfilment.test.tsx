@@ -291,6 +291,92 @@ describe("Ready to Ship", () => {
     expect(downloadMerchantDocument).toHaveBeenCalledWith("deliveryOrder", "delivery-order-1");
   });
 
+  it("reports the shipment email once the order has shipped", async () => {
+    getFulfilment.mockResolvedValue(
+      fulfilment({
+        fulfilmentStatus: "Shipped",
+        trackingNumber: "JT1",
+        deliveryOrder: deliveryOrder(),
+        shipmentEmail: {
+          state: "Sent",
+          recipientEmail: "orders@happypaws.example",
+          sentAt: "2026-08-10T02:00:00Z",
+        },
+      })
+    );
+    renderSection();
+
+    expect((await screen.findByTestId("shipment-email-status")).textContent).toBe("Sent");
+  });
+
+  it("says plainly when the shipment email is held because the template is off", async () => {
+    getFulfilment.mockResolvedValue(
+      fulfilment({
+        fulfilmentStatus: "Shipped",
+        trackingNumber: "JT1",
+        deliveryOrder: deliveryOrder(),
+        shipmentEmail: {
+          state: "HeldTemplateOff",
+          recipientEmail: "orders@happypaws.example",
+          sentAt: null,
+        },
+      })
+    );
+    renderSection();
+
+    expect((await screen.findByTestId("shipment-email-status")).textContent)
+      .toBe("Held — template off");
+  });
+
+  it("describes a queued or failed shipment email without exposing internals", async () => {
+    for (const [state, label] of [
+      ["Queued", "Queued"],
+      ["Failed", "Failed — we will try again"],
+    ] as const) {
+      cleanup();
+      getFulfilment.mockResolvedValue(
+        fulfilment({
+          fulfilmentStatus: "Shipped",
+          trackingNumber: "JT1",
+          deliveryOrder: deliveryOrder(),
+          shipmentEmail: { state, recipientEmail: "a@b.example", sentAt: null },
+        })
+      );
+      renderSection();
+
+      const status = await screen.findByTestId("shipment-email-status");
+      expect(status.textContent).toBe(label);
+      // Never the raw outbox vocabulary, never a message id.
+      expect(status.textContent).not.toMatch(/Suppressed|Pending|Sending|[0-9a-f]{8}-/i);
+    }
+  });
+
+  it("shows no shipment email before the order has one", async () => {
+    getFulfilment.mockResolvedValue(
+      fulfilment({ fulfilmentStatus: "ReadyToShip", deliveryOrder: deliveryOrder() })
+    );
+    renderSection();
+
+    await screen.findByTestId("delivery-order-number");
+    expect(screen.queryByTestId("shipment-email-status")).toBeNull();
+  });
+
+  it("never offers to send or resend the shipment email", async () => {
+    getFulfilment.mockResolvedValue(
+      fulfilment({
+        fulfilmentStatus: "Shipped",
+        trackingNumber: "JT1",
+        deliveryOrder: deliveryOrder(),
+        shipmentEmail: { state: "HeldTemplateOff", recipientEmail: "a@b.example", sentAt: null },
+      })
+    );
+    renderSection();
+
+    await screen.findByTestId("shipment-email-status");
+    const labels = screen.getAllByRole("button").map((el) => el.textContent ?? "");
+    expect(labels.some((l) => /send|resend|retry email/i.test(l))).toBe(false);
+  });
+
   it("offers no delivery note download before one has been prepared", async () => {
     getFulfilment.mockResolvedValue(
       fulfilment({ fulfilmentStatus: "ReadyToShip", deliveryOrder: null })

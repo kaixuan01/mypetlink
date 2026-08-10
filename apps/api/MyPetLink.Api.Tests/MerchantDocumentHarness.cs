@@ -144,7 +144,8 @@ internal sealed class MerchantDocumentHarness : IDisposable
                 new OrderShippedEmailTemplateRenderer(options, layout),
                 new MerchantQuotationEmailTemplateRenderer(layout),
                 new MerchantInvoiceEmailTemplateRenderer(layout),
-                new MerchantPaymentConfirmationEmailTemplateRenderer(layout)),
+                new MerchantPaymentConfirmationEmailTemplateRenderer(layout),
+                new MerchantOrderShippedEmailTemplateRenderer(layout)),
             new EmailAttachmentResolver(new OrderDocumentService(db), documents))
         {
             VariantId = variant.Id,
