@@ -10,9 +10,11 @@ import {
 } from "@testing-library/react";
 import { mockPets } from "@/data/mockPets";
 import { getQrSafetyPath } from "@/lib/routes";
+import type { PetMoment } from "@/types";
 
 const publicProfileMocks = vi.hoisted(() => ({
   profile: null as (typeof mockPets)[number] | null,
+  moments: [] as PetMoment[],
   getProfile: vi.fn(),
 }));
 
@@ -26,7 +28,7 @@ vi.mock("@/services/petService", () => ({
 }));
 
 vi.mock("@/services/momentService", () => ({
-  getPublicPetMoments: async () => ({ data: [] }),
+  getPublicPetMoments: async () => ({ data: publicProfileMocks.moments }),
 }));
 
 vi.mock("@/services/recordService", () => ({
@@ -59,6 +61,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  publicProfileMocks.moments = [];
   vi.clearAllMocks();
 });
 
@@ -81,6 +84,56 @@ it("applies the pet's saved focal position to the public profile cover", async (
 
   const cover = (await screen.findByAltText("Milo cover photo")) as HTMLImageElement;
   expect(cover.style.objectPosition).toBe("31% 68%");
+});
+
+it("uses the timeline media presentation while leaving photo-free milestones unchanged", async () => {
+  const profile = {
+    ...mockPets[0],
+    estimatedBirthYear: 2021,
+  };
+  const timelineMoment = {
+    id: "timeline-photo-memory",
+    petId: profile.id,
+    title: "First beach trip",
+    date: "11 Jul 2022",
+    type: "Outdoor / Trip",
+    caption: "A bright afternoon by the water.",
+    media: [
+      {
+        id: "timeline-portrait-photo",
+        type: "image",
+        url: "https://media.mypetlink.test/moments/portrait.jpg",
+        altText: "Milo sitting beside the sea",
+        sortOrder: 0,
+      },
+    ],
+    coverMediaId: "timeline-portrait-photo",
+    visibility: "Public",
+    showOnPublicProfile: true,
+    showInLifeTimeline: true,
+    timelineNote: "Milo's first seaside adventure.",
+  } satisfies PetMoment;
+  publicProfileMocks.profile = profile;
+  publicProfileMocks.moments = [timelineMoment];
+
+  render(
+    <PublicSharePetProfile
+      initialMoments={[timelineMoment]}
+      initialProfile={profile}
+      initialRecords={[]}
+    />
+  );
+
+  fireEvent.click(await screen.findByRole("button", { name: "Timeline" }));
+
+  const carousel = screen.getByRole("region", {
+    name: "First beach trip media carousel",
+  });
+  expect(carousel.className).toContain("aspect-[4/3]");
+  expect(carousel.className).toContain("sm:aspect-[16/10]");
+  expect(screen.getByText("Milo was born")).toBeTruthy();
+  expect(screen.getByText("First beach trip")).toBeTruthy();
+  expect(screen.getAllByRole("region")).toHaveLength(1);
 });
 
 it("refreshes an already-open profile when the visitor returns to its tab", async () => {

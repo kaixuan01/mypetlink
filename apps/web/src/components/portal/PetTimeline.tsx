@@ -170,7 +170,7 @@ function TimelineRow({ item, pet }: { item: PetTimelineItem; pet: Pet }) {
   return (
     <article className="overflow-hidden rounded-[1.25rem] bg-pet-cream">
       {item.moment?.media.length ? (
-        <MomentMediaCarousel compact moment={item.moment} />
+        <MomentMediaCarousel moment={item.moment} presentation="timeline" />
       ) : null}
       <div className="grid gap-3 p-4 sm:grid-cols-[1fr_auto] sm:items-start">
         <div className="min-w-0">

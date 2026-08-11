@@ -600,7 +600,7 @@ export function PublicSharePetProfile({
         >
           {tabs.map((tab) => (
             <button
-              className="min-h-10 flex-1 rounded-full px-4 py-2 text-sm font-bold transition"
+              className="min-h-10 min-w-0 flex-1 rounded-full px-2 py-2 text-sm font-bold transition sm:px-4"
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               style={
@@ -953,7 +953,7 @@ function TimelineTab({
 
   return (
     <section
-      className="brand-card rounded-[1.75rem] p-6"
+      className="brand-card rounded-[1.75rem] p-4 sm:p-6"
       style={{
         background: theme.colors.surface,
         borderColor: theme.colors.border,
@@ -979,7 +979,11 @@ function TimelineTab({
             style={{ background: theme.colors.surfaceAlt }}
           >
             {event.moment?.media.length ? (
-              <MomentMediaCarousel compact moment={event.moment} theme={theme} />
+              <MomentMediaCarousel
+                moment={event.moment}
+                presentation="timeline"
+                theme={theme}
+              />
             ) : null}
             <div className="flex items-start gap-3 p-4">
               <span

@@ -94,6 +94,43 @@ describe("MomentMediaCarousel", () => {
     expect(screen.getByLabelText("Media 1 of 1").textContent).toBe("1 / 1");
   });
 
+  it("uses a chronology-first mobile ratio without changing the Moments presentation", () => {
+    const { container, rerender } = render(
+      <MomentMediaCarousel moment={makeMoment([photoOne, photoTwo])} />
+    );
+
+    let carousel = screen.getByRole("region", {
+      name: "Beach day media carousel",
+    });
+    expect(carousel.className).toContain("aspect-[4/5]");
+    expect(carousel.className).toContain("sm:aspect-[4/3]");
+
+    rerender(
+      <MomentMediaCarousel
+        moment={makeMoment([photoOne, photoTwo])}
+        presentation="timeline"
+      />
+    );
+
+    carousel = screen.getByRole("region", {
+      name: "Beach day media carousel",
+    });
+    expect(carousel.className).toContain("aspect-[4/3]");
+    expect(carousel.className).toContain("sm:aspect-[16/10]");
+    expect(carousel.className).toContain("max-h-[28rem]");
+    expect(screen.getByAltText("First photo").className).toContain(
+      "object-contain"
+    );
+    expect(container.querySelector('img[aria-hidden="true"]')?.className).toContain(
+      "object-cover"
+    );
+    expect(screen.getByLabelText("Media 1 of 2").textContent).toBe("1 / 2");
+    expect(screen.getByText("Swipe for more")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Expand image 1 of 2" })
+    ).toBeTruthy();
+  });
+
   it("shows a centered Play button and duration before inline video playback", () => {
     render(<MomentMediaCarousel moment={makeMoment([video])} />);
 

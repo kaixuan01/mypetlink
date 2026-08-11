@@ -13,8 +13,8 @@ import type { PetProfileTheme } from "@/lib/petProfileThemes";
 import type { PetMoment } from "@/types";
 
 type MomentMediaCarouselProps = {
-  compact?: boolean;
   moment: PetMoment;
+  presentation?: "moment" | "timeline";
   theme?: PetProfileTheme;
 };
 
@@ -24,10 +24,11 @@ type PointerOrigin = {
 };
 
 export function MomentMediaCarousel({
-  compact = false,
   moment,
+  presentation = "moment",
   theme,
 }: MomentMediaCarouselProps) {
+  const timelinePresentation = presentation === "timeline";
   const media = useMemo(() => sortedMedia(moment.media ?? []), [moment.media]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [viewerIndex, setViewerIndex] = useState(0);
@@ -70,7 +71,7 @@ export function MomentMediaCarousel({
     return (
       <div
         className={`brand-paw-dots grid place-items-center bg-pet-cream px-6 text-center ${
-          compact ? "min-h-40" : "min-h-56"
+          timelinePresentation ? "min-h-40" : "min-h-56"
         }`}
         style={theme ? { background: theme.colors.surfaceAlt } : undefined}
       >
@@ -99,8 +100,8 @@ export function MomentMediaCarousel({
       <div
         aria-label={`${moment.title} media carousel`}
         className={`relative mx-auto w-full overflow-hidden bg-[#081329] ${
-          compact
-            ? "aspect-[16/10] max-h-[28rem]"
+          timelinePresentation
+            ? "aspect-[4/3] max-h-[28rem] sm:aspect-[16/10]"
             : "aspect-[4/5] max-h-[46rem] sm:aspect-[4/3]"
         }`}
         onClickCapture={(event) => {
@@ -160,7 +161,7 @@ export function MomentMediaCarousel({
           <div className="absolute inset-0">
             <MomentVideoPlayer
               alt={activeItem.altText ?? `${moment.title} video`}
-              compact={compact}
+              compact={timelinePresentation}
               durationSeconds={activeItem.durationSeconds}
               posterUrl={activeItem.posterUrl}
               url={activeItem.url}
