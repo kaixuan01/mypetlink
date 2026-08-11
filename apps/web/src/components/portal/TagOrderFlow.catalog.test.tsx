@@ -103,6 +103,13 @@ const qrOnlyVariant = {
   price: { ...catalog[0].variants[0].price, basePrice: 19.9, discountAmount: 0, finalPrice: 19.9, promotionName: null, promotionLabel: null },
 };
 
+const queenQrVariant = {
+  ...qrOnlyVariant,
+  key: "QUEENQRVARIANT01",
+  sku: "QUEEN-LW-QR",
+  name: "Queen QR",
+};
+
 describe("TagOrderFlow catalog pricing", () => {
   beforeEach(() => {
     window.localStorage.clear();
@@ -115,22 +122,22 @@ describe("TagOrderFlow catalog pricing", () => {
   it("renders backend-calculated product, capabilities, promotion and effective price", async () => {
     render(<TagOrderFlow initialTagType="MyPetLink QR + NFC Smart Tag" pets={[mockPets[0]]} preselectedPetId={mockPets[0].id} />);
 
-    expect((await screen.findAllByText("MyPetLink Smart Tag")).length).toBeGreaterThan(0);
-    expect(screen.getByText("Standard NFC")).toBeTruthy();
-    expect(screen.getByText("NFC tap")).toBeTruthy();
-    expect(screen.getByText("QR code")).toBeTruthy();
-    expect(screen.getByText("Stainless steel")).toBeTruthy();
+    expect(await screen.findByRole("button", { name: /Change tag for Tag 1: Smart Tag, Standard, QR \+ NFC, RM\s*39\.90/ })).toBeTruthy();
+    expect(screen.getByText("Smart Tag")).toBeTruthy();
+    expect(screen.getByText("Standard")).toBeTruthy();
+    expect(screen.getByText("QR + NFC")).toBeTruthy();
     expect(screen.getByText("Save RM10")).toBeTruthy();
     expect(screen.getAllByText(/39\.90/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/49\.90/).length).toBeGreaterThan(0);
     expect(screen.queryByText(/MPL-[A-Z0-9]{4}-[A-Z0-9]{4}/)).toBeNull();
+    expect(screen.queryByText("Stainless steel")).toBeNull();
   });
 
   it("never advertises NFC for a QR-only option", async () => {
     catalogData = [{ ...catalog[0], variants: [qrOnlyVariant] }];
     render(<TagOrderFlow pets={[mockPets[0]]} preselectedPetId={mockPets[0].id} />);
 
-    expect(await screen.findByText("QR code")).toBeTruthy();
+    expect(await screen.findByRole("button", { name: /Change tag for Tag 1: Smart Tag, Lightweight, QR, RM\s*19\.90/ })).toBeTruthy();
+    expect(screen.getByText("QR")).toBeTruthy();
     // No NFC wording anywhere in the flow for a tag that cannot be tapped.
     expect(screen.queryByText(/NFC/i)).toBeNull();
   });
@@ -147,7 +154,7 @@ describe("TagOrderFlow catalog pricing", () => {
   it("surfaces a quote failure and clears it after the address is corrected", async () => {
     deliveryQuoteFailure = new Error("network unavailable");
     render(<TagOrderFlow pets={[mockPets[0]]} preselectedPetId={mockPets[0].id} />);
-    await screen.findByText("Standard NFC");
+    await screen.findByRole("button", { name: /Change tag for Tag 1/ });
     fireEvent.click(screen.getByRole("button", { name: /Step 3/ }));
     fireEvent.change(screen.getByLabelText(/Recipient name/), { target: { value: "Kai Xuan" } });
     fireEvent.change(screen.getByLabelText(/Phone number/), { target: { value: "123456789" } });
@@ -163,13 +170,17 @@ describe("TagOrderFlow catalog pricing", () => {
     expect(screen.queryAllByText(/couldn’t calculate delivery right now/i)).toHaveLength(0);
   });
 
-  it("shows each option separately and never leads with the internal code", async () => {
+  it("groups technology options under one product and never exposes internal codes", async () => {
     catalogData = [{ ...catalog[0], variants: [qrOnlyVariant, catalog[0].variants[0]] }];
     render(<TagOrderFlow pets={[mockPets[0]]} preselectedPetId={mockPets[0].id} />);
 
-    expect(await screen.findByRole("option", { name: /Lightweight QR/ })).toBeTruthy();
-    expect(screen.getByRole("option", { name: /Standard NFC/ })).toBeTruthy();
-    // The customer chooses by name and price, not by decoding "PAW-LW-QR".
+    const selected = await screen.findByRole("button", { name: /Change tag for Tag 1/ });
+    fireEvent.click(selected);
+
+    expect(screen.getByRole("dialog", { name: "Choose a tag" })).toBeTruthy();
+    expect(screen.getAllByRole("heading", { name: "Smart Tag" })).toHaveLength(1);
+    expect(screen.getByRole("radio", { name: /Smart Tag, Lightweight, QR, RM\s*19\.90/ })).toBeTruthy();
+    expect(screen.getByRole("radio", { name: /Smart Tag, Standard, QR \+ NFC, RM\s*39\.90/ })).toBeTruthy();
     expect(screen.queryByText("PAW-LW-QR")).toBeNull();
     expect(screen.getAllByText(/19\.90/).length).toBeGreaterThan(0);
   });
@@ -178,18 +189,39 @@ describe("TagOrderFlow catalog pricing", () => {
     catalogData = [{ ...catalog[0], variants: [qrOnlyVariant, catalog[0].variants[0]] }];
     render(<TagOrderFlow initialTagType="MyPetLink QR + NFC Smart Tag" pets={[mockPets[0]]} preselectedPetId={mockPets[0].id} />);
 
-    // The QR + NFC option is preselected, so both features are listed.
-    expect(await screen.findByText("NFC tap")).toBeTruthy();
+    const selected = await screen.findByRole("button", { name: /Change tag for Tag 1: Smart Tag, Standard, QR \+ NFC/ });
+    fireEvent.click(selected);
+    fireEvent.click(screen.getByRole("radio", { name: /Smart Tag, Lightweight, QR, RM\s*19\.90/ }));
 
-    fireEvent.change(screen.getByLabelText(/Physical tag/), { target: { value: "PUBLICVARIANT002" } });
+    expect(await screen.findByRole("button", { name: /Change tag for Tag 1: Smart Tag, Lightweight, QR, RM\s*19\.90/ })).toBeTruthy();
+    expect(screen.queryByText("QR + NFC")).toBeNull();
+  });
 
-    // Selecting the QR-only option must drop the NFC feature.
-    await waitFor(() => expect(screen.getAllByText("QR code").length).toBeGreaterThan(0));
+  it("keeps product selections independent across multiple tag lines", async () => {
+    catalogData = [
+      { ...catalog[0], variants: [qrOnlyVariant, catalog[0].variants[0]] },
+      {
+        ...catalog[0],
+        slug: "queen-pet-tag",
+        name: "MyPetLink Queen Pet Tag",
+        variants: [queenQrVariant],
+      },
+    ];
+    petData = mockPets.slice(0, 2);
+    render(<TagOrderFlow initialTagType="MyPetLink QR + NFC Smart Tag" pets={petData} preselectedPetId={petData[0].id} />);
+
+    expect(await screen.findByRole("button", { name: /Change tag for Tag 1: Smart Tag, Standard, QR \+ NFC/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Add another tag" }));
+    fireEvent.click(screen.getByRole("button", { name: /Change tag for Tag 2/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Queen Pet Tag, Lightweight, QR, RM\s*19\.90/ }));
+
+    expect(screen.getByRole("button", { name: /Change tag for Tag 1: Smart Tag, Standard, QR \+ NFC/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Change tag for Tag 2: Queen Pet Tag, Lightweight, QR, RM\s*19\.90/ })).toBeTruthy();
   });
 
   it("does not let the customer reach review before delivery details are complete", async () => {
     render(<TagOrderFlow pets={[mockPets[0]]} preselectedPetId={mockPets[0].id} />);
-    await screen.findByText("Standard NFC");
+    await screen.findByRole("button", { name: /Change tag for Tag 1/ });
 
     fireEvent.click(screen.getByRole("button", { name: /Step 4/ }));
 
@@ -198,7 +230,7 @@ describe("TagOrderFlow catalog pricing", () => {
 
   it("uses owner-facing wording on the review step, never SKU or Variant", async () => {
     render(<TagOrderFlow pets={[mockPets[0]]} preselectedPetId={mockPets[0].id} />);
-    await screen.findByText("Standard NFC");
+    await screen.findByRole("button", { name: /Change tag for Tag 1/ });
 
     fireEvent.click(screen.getByRole("button", { name: /Step 3/ }));
     fireEvent.change(screen.getByLabelText(/Recipient name/), { target: { value: "Kai Xuan" } });

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { cloneElement, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactElement, type ReactNode } from "react";
 import { OrderPriceBreakdown, type OrderPriceLine } from "@/components/orders/OrderPriceBreakdown";
 import { ManualPaymentPanel } from "@/components/portal/ManualPaymentPanel";
+import { TagProductPickerDialog, conciseProductName, customerVariantLabel, tagTechnology } from "@/components/portal/TagProductPickerDialog";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -223,7 +224,7 @@ export function TagOrderFlow({ pets, preselectedPetId, initialTagType = "MyPetLi
     <section className="brand-card min-w-0 rounded-[1.75rem] p-4 sm:p-6">
       <ol className="grid grid-cols-2 gap-2 sm:grid-cols-4">{steps.map((label, index) => <li key={label}><button aria-current={step === index ? "step" : undefined} aria-disabled={!reachable[index]} className={`flex min-h-14 w-full flex-col justify-center rounded-2xl px-3 py-2 text-left text-xs font-bold ${step === index ? "bg-pet-teal text-white" : reachable[index] ? "bg-pet-cream text-pet-muted" : "cursor-not-allowed bg-pet-cream/60 text-pet-muted/50"}`} onClick={() => reachable[index] && setStep(index)} type="button"><span className="text-[10px] uppercase tracking-wide">Step {index + 1}</span>{label}</button></li>)}</ol>
       <div className="mt-6">
-        {step === 0 ? <ChooseTagsStep cart={cart} choices={choices} pets={orderablePets} maxed={Boolean(replacementFor) || cart.length >= MAX_LINES || cartUnits >= MAX_UNITS} error={errors.cart || errors.product || errors.pet || errors.items} onAdd={addLine} onRemove={removeLine} onUpdate={updateCartLine} /> : null}
+        {step === 0 ? <ChooseTagsStep cart={cart} choices={choices} products={products} pets={orderablePets} maxed={Boolean(replacementFor) || cart.length >= MAX_LINES || cartUnits >= MAX_UNITS} error={errors.cart || errors.product || errors.pet || errors.items} onAdd={addLine} onRemove={removeLine} onUpdate={updateCartLine} /> : null}
         {step === 1 ? <StepShell title="Review tags" description="Check each physical tag, pet, quantity, and price. One delivery fee will be calculated for the whole order."><OrderPriceBreakdown lines={priceLines} currency={priceLines[0]?.id ? selectedCurrency(cart, choices) : "MYR"} deliveryPendingLabel="Calculated after delivery details" /></StepShell> : null}
         {step === 2 ? <DeliveryStep delivery={delivery} states={states} errors={errors} quoteState={quoteState} onReviewTags={() => setStep(0)} onRetry={() => { if (quoteState.status === "failed") { invalidateCurrentQuote({ status: "loading", fingerprint: quoteFingerprint }); setQuoteRetry((value) => value + 1); } }} onChange={handleDeliveryChange} /> : null}
         {step === 3 ? <ConfirmationStep delivery={delivery} lines={priceLines} quote={quote} quoteState={quoteState} /> : null}
@@ -235,9 +236,106 @@ export function TagOrderFlow({ pets, preselectedPetId, initialTagType = "MyPetLi
   );
 }
 
-function ChooseTagsStep({ cart, choices, pets, maxed, error, onAdd, onRemove, onUpdate }: { cart: CartLine[]; choices: CatalogChoice[]; pets: Pet[]; maxed: boolean; error?: string; onAdd: () => void; onRemove: (id: string) => void; onUpdate: (id: string, patch: Partial<CartLine>) => void }) {
+function ChooseTagsStep({ cart, choices, products, pets, maxed, error, onAdd, onRemove, onUpdate }: { cart: CartLine[]; choices: CatalogChoice[]; products: TagProduct[]; pets: Pet[]; maxed: boolean; error?: string; onAdd: () => void; onRemove: (id: string) => void; onUpdate: (id: string, patch: Partial<CartLine>) => void }) {
+  const [pickerLineId, setPickerLineId] = useState<string | null>(null);
   const hasAvailable = choices.some((choice) => choice.variant.inStock);
-  return <StepShell title="Choose your physical tags" description="Choose the pet, tag option, and quantity for each line. You can include tags for different pets in one order.">{!hasAvailable ? <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-900">This product is temporarily unavailable. Please check again later.</p> : null}<div className="space-y-4">{cart.map((line, index) => { const selected = choices.find((choice) => choice.variant.key === line.productVariantKey); const image = selected?.variant.media[0] ?? selected?.product.media[0]; return <div className="min-w-0 rounded-2xl border border-pet-border bg-white p-4" key={line.id}><div className="flex items-center justify-between gap-3"><h3 className="font-black text-pet-ink">Tag {index + 1}</h3>{cart.length > 1 ? <button className="text-sm font-black text-red-700 underline" onClick={() => onRemove(line.id)} type="button">Remove</button> : null}</div><div className="mt-4 grid gap-4 md:grid-cols-3"><Field id={`cart-${line.id}-pet`} label="Pet" required><select className="brand-input" value={line.petId} onChange={(event) => onUpdate(line.id, { petId: event.target.value })}><option value="">Select a pet</option>{pets.map((pet) => <option key={pet.id} value={pet.id}>{pet.name}</option>)}</select></Field><Field id={`cart-${line.id}-tag`} label="Physical tag" required><select className="brand-input" value={line.productVariantKey} onChange={(event) => onUpdate(line.id, { productVariantKey: event.target.value })}><option value="">Select a tag</option>{choices.map(({ product, variant }) => <option disabled={!variant.inStock} key={variant.key} value={variant.key}>{product.name} — {formatProductOption(variant)} — {formatCatalogPrice(variant.price.finalPrice, variant.price.currency)}{variant.inStock ? "" : " — unavailable"}</option>)}</select></Field><Field id={`cart-${line.id}-quantity`} label="Quantity" required><select className="brand-input" value={line.quantity} onChange={(event) => onUpdate(line.id, { quantity: Number(event.target.value) })}>{Array.from({ length: Math.min(10, Math.max(1, MAX_UNITS - cart.reduce((sum, item) => item.id === line.id ? sum : sum + item.quantity, 0))) }, (_, value) => value + 1).map((quantity) => <option key={quantity} value={quantity}>{quantity}</option>)}</select></Field></div>{selected ? <div className="mt-4 grid min-w-0 gap-4 rounded-xl bg-pet-cream p-4 sm:grid-cols-[96px_minmax(0,1fr)_auto]">{image ? <div className="relative h-24 w-24 overflow-hidden rounded-xl bg-white"><Image alt={image.altText} className="object-cover" fill sizes="96px" src={image.url} unoptimized /></div> : <div className="grid h-24 w-24 place-items-center rounded-xl bg-white text-center text-xs font-bold text-pet-muted">Image coming soon</div>}<div className="min-w-0"><p className="break-words font-black text-pet-ink">{selected.product.name}</p><p className="text-sm font-semibold text-pet-muted">{formatProductOption(selected.variant)}</p><div className="mt-2 flex flex-wrap gap-2"><FeatureBadges variant={selected.variant} />{selected.variant.material ? <Badge tone="soft">{selected.variant.material}</Badge> : null}</div>{selected.variant.price.promotionLabel ? <p className="mt-2 text-xs font-bold text-pet-coral">{selected.variant.price.promotionLabel}</p> : null}</div><Price price={selected.variant.price} /></div> : null}</div>; })}</div><button className="mt-4 inline-flex min-h-11 items-center rounded-full border border-pet-teal px-4 py-2 text-sm font-black text-pet-teal disabled:opacity-50" disabled={maxed || !hasAvailable} onClick={onAdd} type="button">Add another tag</button>{cart.reduce((sum, line) => sum + line.quantity, 0) >= MAX_UNITS ? <p className="mt-2 text-xs font-bold text-pet-muted">Maximum {MAX_UNITS} tags per order.</p> : null}<ErrorText message={error} /></StepShell>;
+  const pickerLine = cart.find((line) => line.id === pickerLineId);
+
+  return (
+    <StepShell title="Choose your physical tags" description="Choose a pet, tag design, and quantity for each line. You can include tags for different pets in one order.">
+      {!hasAvailable ? <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-900">This product is temporarily unavailable. Please check again later.</p> : null}
+      <div className="space-y-4">
+        {cart.map((line, index) => {
+          const selected = choices.find((choice) => choice.variant.key === line.productVariantKey);
+          return (
+            <div className="min-w-0 rounded-2xl border border-pet-border bg-white p-4" key={line.id}>
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="font-black text-pet-ink">Tag {index + 1}</h3>
+                {cart.length > 1 ? <button className="text-sm font-black text-red-700 underline" onClick={() => onRemove(line.id)} type="button">Remove</button> : null}
+              </div>
+              <div className="mt-4 grid items-start gap-4 md:grid-cols-[minmax(0,0.7fr)_minmax(0,1.5fr)_minmax(7rem,0.55fr)]">
+                <Field id={`cart-${line.id}-pet`} label="Pet" required>
+                  <select className="brand-input" value={line.petId} onChange={(event) => onUpdate(line.id, { petId: event.target.value })}>
+                    <option value="">Select a pet</option>
+                    {pets.map((pet) => <option key={pet.id} value={pet.id}>{pet.name}</option>)}
+                  </select>
+                </Field>
+                <SelectedTagChoice
+                  index={index}
+                  selected={selected}
+                  onOpen={() => setPickerLineId(line.id)}
+                />
+                <Field id={`cart-${line.id}-quantity`} label="Quantity" required>
+                  <select className="brand-input" value={line.quantity} onChange={(event) => onUpdate(line.id, { quantity: Number(event.target.value) })}>
+                    {Array.from({ length: Math.min(10, Math.max(1, MAX_UNITS - cart.reduce((sum, item) => item.id === line.id ? sum : sum + item.quantity, 0))) }, (_, value) => value + 1).map((quantity) => <option key={quantity} value={quantity}>{quantity}</option>)}
+                  </select>
+                </Field>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <button className="mt-4 inline-flex min-h-11 items-center rounded-full border border-pet-teal px-4 py-2 text-sm font-black text-pet-teal disabled:opacity-50" disabled={maxed || !hasAvailable} onClick={onAdd} type="button">Add another tag</button>
+      {cart.reduce((sum, line) => sum + line.quantity, 0) >= MAX_UNITS ? <p className="mt-2 text-xs font-bold text-pet-muted">Maximum {MAX_UNITS} tags per order.</p> : null}
+      <ErrorText message={error} />
+      {pickerLine ? (
+        <TagProductPickerDialog
+          lineLabel={`Tag ${cart.findIndex((line) => line.id === pickerLine.id) + 1}`}
+          onClose={() => setPickerLineId(null)}
+          onSelect={(productVariantKey) => {
+            onUpdate(pickerLine.id, { productVariantKey });
+            setPickerLineId(null);
+          }}
+          products={products}
+          selectedVariantKey={pickerLine.productVariantKey}
+        />
+      ) : null}
+    </StepShell>
+  );
+}
+
+function SelectedTagChoice({ index, selected, onOpen }: { index: number; selected?: CatalogChoice; onOpen: () => void }) {
+  const image = selected?.product.media[0];
+  const technology = selected ? tagTechnology(selected.variant) : null;
+  const variantLabel = customerVariantLabel(selected?.variant.tagVariant);
+  const accessibleLabel = selected && technology
+    ? `Change tag for Tag ${index + 1}: ${conciseProductName(selected.product.name)}, ${variantLabel ? `${variantLabel}, ` : ""}${technology.label}, ${formatCatalogPrice(selected.variant.price.finalPrice, selected.variant.price.currency)}`
+    : `Choose a tag for Tag ${index + 1}`;
+  return (
+    <div className="grid min-w-0 gap-2">
+      <p className="text-sm font-bold text-pet-ink">Choose your tag <span aria-hidden="true">*</span></p>
+      <button
+        aria-label={accessibleLabel}
+        className="grid min-h-28 min-w-0 grid-cols-[5rem_minmax(0,1fr)] gap-3 rounded-2xl border border-pet-border bg-pet-cream/55 p-3 text-left transition hover:border-pet-teal focus:outline-none focus:ring-2 focus:ring-pet-teal"
+        onClick={onOpen}
+        type="button"
+      >
+        {image ? (
+          <span className="relative h-20 w-20 overflow-hidden rounded-xl bg-white">
+            <Image alt={image.altText || conciseProductName(selected?.product.name ?? "Pet Tag")} className="object-contain p-1" fill sizes="80px" src={image.url} unoptimized />
+          </span>
+        ) : (
+          <span className="grid h-20 w-20 place-items-center rounded-xl bg-white p-2 text-center text-[0.65rem] font-bold leading-4 text-pet-muted">Image coming soon</span>
+        )}
+        <span className="flex min-w-0 flex-col justify-center">
+          {selected && technology ? (
+            <>
+              <span className="break-words font-black leading-5 text-pet-ink">{conciseProductName(selected.product.name)}</span>
+              {variantLabel ? <span className="mt-1 text-xs font-bold text-pet-muted">{variantLabel}</span> : null}
+              <span className="mt-2 flex flex-wrap items-center gap-2">
+                <span className="rounded-full bg-[#e8f8f0] px-2.5 py-1 text-xs font-black text-pet-sage">{technology.label}</span>
+                <span className="whitespace-nowrap text-sm font-black text-pet-teal">{formatCatalogPrice(selected.variant.price.finalPrice, selected.variant.price.currency)}</span>
+              </span>
+              {selected.variant.price.promotionLabel ? <span className="mt-1 text-xs font-black text-pet-coral">{selected.variant.price.promotionLabel}</span> : null}
+              <span className="mt-2 text-xs font-black text-pet-teal underline">Change</span>
+            </>
+          ) : (
+            <span className="font-black text-pet-teal">Choose a tag</span>
+          )}
+        </span>
+      </button>
+    </div>
+  );
 }
 
 function DeliveryStep({ delivery, states, errors, quoteState, onRetry, onReviewTags, onChange }: { delivery: DeliveryDetails; states: MalaysiaState[]; errors: Record<string, string>; quoteState: DeliveryQuoteState; onRetry: () => void; onReviewTags: () => void; onChange: (field: DeliveryField, value: string) => void }) {
@@ -254,8 +352,6 @@ function buildPriceLines(cart: CartLine[], choices: CatalogChoice[], pets: Pet[]
   return cart.flatMap((line) => { const choice = choices.find((item) => item.variant.key === line.productVariantKey); const pet = pets.find((item) => item.id === line.petId); if (!choice) return []; const unit = choice.variant.price.finalPrice; return [{ id: line.id, productName: choice.product.name, optionName: formatProductOption(choice.variant), features: [choice.variant.supportsQr ? "QR code" : null, choice.variant.supportsNfc ? "NFC tap" : null].filter(Boolean).join(" · "), petName: pet?.name ?? "Select a pet", quantity: line.quantity, unitPrice: choice.variant.price.basePrice, subtotal: choice.variant.price.basePrice * line.quantity, discountAmount: choice.variant.price.discountAmount * line.quantity, finalAmount: unit * line.quantity, promotionName: choice.variant.price.promotionLabel ?? undefined }]; });
 }
 function selectedCurrency(cart: CartLine[], choices: CatalogChoice[]) { return choices.find((choice) => choice.variant.key === cart[0]?.productVariantKey)?.variant.price.currency ?? "MYR"; }
-function FeatureBadges({ variant }: { variant: Pick<TagProductVariant, "supportsQr" | "supportsNfc"> }) { return <>{variant.supportsQr ? <Badge tone="mint">QR code</Badge> : null}{variant.supportsNfc ? <Badge tone="mint">NFC tap</Badge> : null}</>; }
-function Price({ price }: { price: TagProductVariant["price"] }) { const discounted = price.discountAmount > 0 && price.finalPrice < price.basePrice; return <div className="text-left sm:text-right"><p className="text-lg font-black text-pet-teal">{formatCatalogPrice(price.finalPrice, price.currency)}</p>{discounted ? <p className="text-xs font-bold text-pet-muted line-through">{formatCatalogPrice(price.basePrice, price.currency)}</p> : null}</div>; }
 function StepShell({ title, description, children }: { title: string; description: string; children: ReactNode }) { return <div><h2 className="text-2xl font-black text-pet-ink">{title}</h2><p className="mt-2 text-sm leading-6 text-pet-muted">{description}</p><div className="mt-5">{children}</div></div>; }
 function Field({ id, label, error, required = false, children }: { id: string; label: string; error?: string; required?: boolean; children: ReactNode }) { const child = children as ReactElement<Record<string, unknown>>; const errorId = `${id}-error`; return <div className="grid gap-2"><label className="text-sm font-bold text-pet-ink" htmlFor={id}>{label}{required ? <span aria-hidden="true"> *</span> : null}</label>{cloneElement(child, { id, required: required || undefined, "aria-required": required || undefined, "aria-invalid": Boolean(error) || undefined, "aria-describedby": error ? errorId : undefined })}{error ? <span className="text-xs font-bold text-red-700" id={errorId}>{error}</span> : null}</div>; }
 function ErrorText({ message }: { message?: string }) { return message ? <span className="mt-2 block text-xs font-bold text-red-700">{message}</span> : null; }
