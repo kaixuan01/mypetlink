@@ -10,6 +10,8 @@ public sealed record PublicSamplePetResponse(
     string Name,
     string Species,
     string? Breed,
+    string AgeDisplayLabel,
+    string? Bio,
     string? ProfilePhotoUrl,
     string PublicSlug,
     string PublicCode,

@@ -115,12 +115,13 @@ Key rules baked into these helpers:
 - **Public share routes are looked up by `publicCode`** (the final segment),
   never the slug. The slug is cosmetic. Parse with `parsePublicProfileParam`
   (it splits on the **last** `-` because slugs can contain hyphens).
-- The public `/sample` page resolves its Featured Sample Pet from the typed
-  Admin configuration endpoint. Only pets explicitly approved with
+- The public homepage sample preview and `/sample` page resolve their Featured
+  Sample Pet at runtime from the same typed Admin configuration endpoint. Only
+  pets explicitly approved with
   `IsSampleEligible` can be selected, and an invalid selection fails closed.
   `samplePet` remains static seed data for other intentional preview/SEO
-  fixtures; it is not the authority for `/sample`. Never hardcode a pet id,
-  slug, or tag code in a page or component.
+  fixtures; it is not the authority for marketing sample content. Never
+  hardcode a pet id, slug, or tag code in a page or component.
 - New physical tag activation starts from the printed QR at `/q/{tagCode}`.
   Existing `/t/{tagCode}` links remain compatible. `/n/{tagCode}` never offers
   first-time activation; it instructs the owner to scan the printed QR.
@@ -190,7 +191,9 @@ without pet selection.
 2. **Mobile-first.** Large tap targets, single-action screens, works on a phone
    held by a stranger who found a pet.
 3. **No hardcoded pet/tag identifiers** outside `src/data/*`. Use `routes.ts`
-   helpers and `samplePet`.
+   helpers. Marketing sample surfaces must use the runtime Featured Sample Pet
+   read model; `samplePet` is reserved for intentional static route and SEO
+   fixtures.
 4. **Centralize data and routes.** Mock data in `src/data/*`, route strings in
    `src/lib/routes.ts`, tag/profile logic in `src/services/*`.
 5. **Respect static export** (Â§3). New dynamic routes need

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { marketingRoutes } from "@/lib/routes";
 
@@ -52,5 +52,7 @@ describe("PublicLayout crawlable navigation", () => {
         /^(?:http:|https:\/\/www\.|https:\/\/(?:api|media)\.)/.test(href)
       )
     ).toBe(false);
+    expect(screen.getAllByRole("link", { name: "Sample Profile" }).length).toBeGreaterThanOrEqual(2);
+    expect(screen.queryByRole("link", { name: /Topu Sample|Sample Experience/i })).toBeNull();
   });
 });

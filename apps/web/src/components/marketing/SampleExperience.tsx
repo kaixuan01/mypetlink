@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { SamplePetPhoto } from "@/components/marketing/SamplePetPhoto";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon } from "@/components/ui/Icon";
 import { publicProfilePath, qrSafetyPath } from "@/lib/routes";
@@ -38,7 +39,7 @@ export function SampleExperience() {
       <article className="brand-card min-w-0 overflow-hidden rounded-[2rem]">
         <div className="brand-paw-dots bg-pet-apricot p-6">
           <div className="flex min-w-0 flex-col items-start gap-4 sm:flex-row sm:items-center">
-            <PetPhoto name={pet.name} src={pet.profilePhotoUrl} />
+            <SamplePetPhoto name={pet.name} species={pet.species} src={pet.profilePhotoUrl} />
             <div className="min-w-0">
               <p className="text-sm font-bold uppercase text-pet-coral">Public Share Profile</p>
               <h2 className="mt-2 break-words text-2xl font-black text-pet-ink sm:text-3xl">
@@ -83,17 +84,6 @@ export function SampleExperience() {
         </CardBody>
       </article>
     </div>
-  );
-}
-
-function PetPhoto({ name, src }: { name: string; src: string | null }) {
-  return src ? (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img alt={`${name}'s profile`} className="h-24 w-24 shrink-0 rounded-[2rem] border-4 border-white object-cover shadow-lg" src={src} />
-  ) : (
-    <span aria-hidden="true" className="grid h-24 w-24 shrink-0 place-items-center rounded-[2rem] border-4 border-white bg-white text-3xl font-black text-pet-coral shadow-lg">
-      {name.slice(0, 1).toUpperCase()}
-    </span>
   );
 }
 

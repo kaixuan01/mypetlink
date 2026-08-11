@@ -1,24 +1,22 @@
 import type { Metadata } from "next";
 import { PublicLayout } from "@/components/layouts/PublicLayout";
 import { CreateProfileCTA } from "@/components/marketing/CreateProfileCTA";
+import { HomepageSamplePetPreview } from "@/components/marketing/HomepageSamplePetPreview";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { PetAvatar } from "@/components/ui/PetAvatar";
 import {
   freePlanLimits,
   phase1Positioning,
   premiumPlan,
   smartTagAddOnsStatus,
 } from "@/lib/planLimits";
-import { getPetSummaryLabel } from "@/lib/petDisplay";
-import { marketingRoutes, publicRoutes, samplePet } from "@/lib/routes";
+import { marketingRoutes } from "@/lib/routes";
 import {
   createMarketingMetadata,
   homepageStructuredData,
 } from "@/lib/seo";
-import type { Pet } from "@/types";
 
 export const metadata: Metadata = createMarketingMetadata({
   path: marketingRoutes.home,
@@ -139,8 +137,6 @@ const faqs = [
 ];
 
 export default function Home() {
-  const pet = samplePet;
-
   return (
     <PublicLayout>
       <script
@@ -170,10 +166,10 @@ export default function Home() {
                 icon="heart"
                 variant="secondary"
               >
-                Explore Topu&apos;s Sample
+                Explore Sample Profile
               </CTAButton>
               <CTAButton
-                href={publicRoutes.qrSafetyPage(pet)}
+                href={marketingRoutes.sample}
                 icon="qr"
                 variant="outline"
               >
@@ -191,7 +187,7 @@ export default function Home() {
               <Icon name="shield" className="h-4 w-4 text-pet-sky" />
               QR Active
             </div>
-            <LandingPetProfilePreview pet={pet} />
+            <HomepageSamplePetPreview />
           </div>
         </div>
       </section>
@@ -499,48 +495,6 @@ function PricingPreviewCard({
       <h3 className="mt-3 text-xl font-black text-pet-ink">{title}</h3>
       <p className="mt-2 text-2xl font-black text-pet-coral">{price}</p>
       <p className="mt-3 text-sm leading-6 text-pet-muted">{note}</p>
-    </article>
-  );
-}
-
-function LandingPetProfilePreview({ pet }: { pet: Pet }) {
-  return (
-    <article className="brand-card overflow-hidden rounded-[2rem]">
-      <div className="brand-paw-dots min-h-32 bg-[#e8f3ff] p-6">
-        <Badge tone="mint">Shareable pet profile</Badge>
-      </div>
-      <div className="px-6 pb-6">
-        <div className="-mt-12 flex items-end gap-4">
-          <PetAvatar pet={pet} size="xl" />
-          <div className="rounded-[1.5rem] bg-white/95 p-4 shadow-sm">
-            <h2 className="text-2xl font-black text-pet-ink">{pet.name}</h2>
-            <p className="mt-1 text-sm font-bold text-pet-muted">
-              {getPetSummaryLabel(pet)}
-            </p>
-          </div>
-        </div>
-        <p className="mt-5 line-clamp-3 text-sm leading-6 text-pet-muted">
-          {pet.bio}
-        </p>
-        <div className="mt-5 rounded-[1.5rem] bg-pet-cream p-4">
-          <p className="text-xs font-bold uppercase tracking-[0.08em] text-pet-muted">
-            If someone finds {pet.name}
-          </p>
-          <div className="mt-2 flex flex-wrap gap-2" aria-label="Finder contact options">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-sm font-black text-pet-ink shadow-sm">
-              <Icon name="phone" className="h-4 w-4 text-pet-teal" />
-              WhatsApp owner
-            </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-sm font-black text-pet-ink shadow-sm">
-              <Icon name="phone" className="h-4 w-4 text-pet-blue" />
-              Call owner
-            </span>
-          </div>
-          <p className="mt-2 text-sm leading-5 text-pet-muted">
-            Found location can be shared with the owner.
-          </p>
-        </div>
-      </div>
     </article>
   );
 }

@@ -4,7 +4,7 @@ import { CreateProfileCTA } from "@/components/marketing/CreateProfileCTA";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { marketingRoutes, publicRoutes, samplePet } from "@/lib/routes";
+import { marketingRoutes } from "@/lib/routes";
 import { createMarketingMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = createMarketingMetadata({
@@ -67,8 +67,8 @@ export default function PetProfileGuidePage() {
             <p className="mt-3 text-sm leading-6 text-pet-muted">
               A warm page for friends, family, and pet communities. It focuses on your pet&apos;s identity, personality, memories, and owner-approved details.
             </p>
-            <CTAButton className="mt-5" href={publicRoutes.publicProfile(samplePet)} variant="secondary">
-              Meet Topu
+            <CTAButton className="mt-5" href={marketingRoutes.sample} variant="secondary">
+              View Sample Profile
             </CTAButton>
           </article>
           <article className="rounded-[1.75rem] border border-pet-border p-6">

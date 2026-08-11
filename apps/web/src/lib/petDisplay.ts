@@ -42,7 +42,19 @@ export function getPetAgeLabel(
 }
 
 export function getPetSummaryLabel(pet: PetLike) {
-  return [getPetTypeLabel(pet), pet.breed, getPetAgeLabel(pet)]
+  return formatPetSummaryLabel({
+    species: getPetTypeLabel(pet),
+    breed: pet.breed,
+    ageDisplayLabel: getPetAgeLabel(pet),
+  });
+}
+
+export function formatPetSummaryLabel(pet: {
+  species: string;
+  breed?: string | null;
+  ageDisplayLabel?: string | null;
+}) {
+  return [pet.species, pet.breed, pet.ageDisplayLabel]
     .filter((value) => value && value !== "Not set")
     .join(" - ");
 }

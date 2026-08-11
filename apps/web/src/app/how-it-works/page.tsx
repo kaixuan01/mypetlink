@@ -4,7 +4,7 @@ import { CreateProfileCTA } from "@/components/marketing/CreateProfileCTA";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { marketingRoutes, publicRoutes, samplePet } from "@/lib/routes";
+import { marketingRoutes } from "@/lib/routes";
 import { createMarketingMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = createMarketingMetadata({
@@ -82,8 +82,8 @@ export default function HowItWorksPage() {
           </p>
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
             <CreateProfileCTA>Create Free Pet Profile</CreateProfileCTA>
-            <CTAButton href={publicRoutes.qrSafetyPage(samplePet)} variant="secondary">
-              View Topu&apos;s Safety Profile
+            <CTAButton href={marketingRoutes.sample} variant="secondary">
+              View Sample Profile
             </CTAButton>
             <CTAButton href={marketingRoutes.smartPetTags} variant="outline">
               Compare QR and NFC Tags

@@ -15,7 +15,7 @@ const publicNav = [
   { href: marketingRoutes.petProfile, label: "Pet Profiles" },
   { href: marketingRoutes.smartPetTags, label: "Smart Tags" },
   { href: marketingRoutes.pricing, label: "Pricing" },
-  { href: marketingRoutes.sample, label: "Sample Experience" },
+  { href: marketingRoutes.sample, label: "Sample Profile" },
 ];
 
 export function PublicLayout({
@@ -186,7 +186,7 @@ export function PublicLayout({
               Pricing
             </Link>
             <Link href={marketingRoutes.sample} className="hover:text-pet-teal transition">
-              Sample Experience
+              Sample Profile
             </Link>
             <Link href={marketingRoutes.privacy} className="hover:text-pet-teal transition">
               Privacy Notice

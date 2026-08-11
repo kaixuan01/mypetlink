@@ -87,6 +87,8 @@ public sealed class PublicSampleExperienceService : SkeletonService, IPublicSamp
                     profile.Name,
                     profile.CustomSpecies ?? profile.Species,
                     profile.Breed,
+                    profile.Age.DisplayLabel,
+                    profile.Bio,
                     profile.ProfilePhotoUrl,
                     profile.PublicSlug,
                     profile.PublicCode,

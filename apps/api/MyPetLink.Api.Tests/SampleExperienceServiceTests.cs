@@ -44,6 +44,8 @@ public sealed class SampleExperienceServiceTests
         Assert.Equal("Topu", topu.Pet!.Name);
         Assert.Equal("topu", topu.Pet.PublicSlug);
         Assert.Equal("safe-topu", topu.Pet.SafetyCode);
+        Assert.Equal("Topu's public-safe introduction.", topu.Pet.Bio);
+        Assert.Equal("4 years old", topu.Pet.AgeDisplayLabel);
 
         var settings = await harness.Db.PublicSiteSettings.SingleAsync();
         settings.FeaturedSamplePetId = harness.MiloId;
@@ -52,6 +54,8 @@ public sealed class SampleExperienceServiceTests
         Assert.Equal("Milo", milo.Pet!.Name);
         Assert.Equal("milo", milo.Pet.PublicSlug);
         Assert.Equal("safe-milo", milo.Pet.SafetyCode);
+        Assert.Equal("Milo's public-safe introduction.", milo.Pet.Bio);
+        Assert.Equal("About 2 years old", milo.Pet.AgeDisplayLabel);
 
         var json = JsonSerializer.Serialize(milo, new JsonSerializerOptions(JsonSerializerDefaults.Web));
         Assert.DoesNotContain(harness.MiloId.ToString(), json, StringComparison.OrdinalIgnoreCase);
@@ -102,6 +106,33 @@ public sealed class SampleExperienceServiceTests
         var admin = await harness.Admin.GetAsync();
         Assert.Equal("NeedsReplacement", admin.Status);
         Assert.Equal(harness.TopuId, admin.FeaturedSamplePetId);
+    }
+
+    [Theory]
+    [InlineData("unconfigured")]
+    [InlineData("ineligible")]
+    [InlineData("deleted")]
+    [InlineData("public-disabled")]
+    [InlineData("safety-disabled")]
+    public async Task MissingOrInvalidConfigurationNeverSelectsAnotherCustomerPet(string scenario)
+    {
+        using var harness = await Harness.CreateAsync();
+        var settings = await harness.Db.PublicSiteSettings.SingleAsync();
+        var topu = await harness.Db.Pets
+            .Include(pet => pet.PublicProfile)
+            .Include(pet => pet.SafetySetting)
+            .SingleAsync(pet => pet.Id == harness.TopuId);
+
+        if (scenario != "unconfigured") settings.FeaturedSamplePetId = harness.TopuId;
+        if (scenario == "ineligible") topu.IsSampleEligible = false;
+        if (scenario == "deleted") topu.DeletedAt = DateTimeOffset.UtcNow;
+        if (scenario == "public-disabled") topu.PublicProfile!.IsPublicProfileEnabled = false;
+        if (scenario == "safety-disabled") topu.SafetySetting!.QrSafetyEnabled = false;
+        await harness.Db.SaveChangesAsync();
+
+        var result = await harness.Public.GetAsync();
+        Assert.False(result.Available);
+        Assert.Null(result.Pet);
     }
 
     [Fact]
@@ -187,6 +218,10 @@ public sealed class SampleExperienceServiceTests
             };
             var topu = Pet(harness.TopuId, owner, "Topu", "topu", "PUBTOPU", "safe-topu", true, PetLifecycleStatus.Active);
             var milo = Pet(harness.MiloId, owner, "Milo", "milo", "PUBMILO", "safe-milo", true, PetLifecycleStatus.Active);
+            topu.Birthday = new DateOnly(DateTime.UtcNow.Year - 4, 1, 1);
+            topu.Bio = "Topu's public-safe introduction.";
+            milo.EstimatedBirthYear = (short)(DateTime.UtcNow.Year - 2);
+            milo.Bio = "Milo's public-safe introduction.";
             var customer = Pet(harness.CustomerPetId, owner, "Customer Pet", "customer", "PUBCUSTOMER", "safe-customer", false, PetLifecycleStatus.Active);
             var archived = Pet(harness.ArchivedPetId, owner, "Archived Demo", "archived", "PUBARCHIVED", "safe-archived", true, PetLifecycleStatus.Archived);
             var deleted = Pet(harness.DeletedPetId, owner, "Deleted Demo", "deleted", "PUBDELETED", "safe-deleted", true, PetLifecycleStatus.Active);

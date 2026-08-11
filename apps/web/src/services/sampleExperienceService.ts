@@ -4,6 +4,8 @@ export type PublicSamplePet = {
   name: string;
   species: string;
   breed: string | null;
+  ageDisplayLabel: string;
+  bio: string | null;
   profilePhotoUrl: string | null;
   publicSlug: string;
   publicCode: string;
