@@ -37,6 +37,7 @@ describe("adminNavigation", () => {
       "Delivery Rates",
       "Shipping & Fulfilment",
       "Order Checkout",
+      "Sample Experience",
       "Email Templates",
     ]);
 

@@ -92,6 +92,20 @@ public sealed class AdminPetsController : ApiControllerBase
         return Ok(ApiEnvelope.Ok(response, HttpContext));
     }
 
+    [HttpPut("{petId:guid}/sample-eligibility")]
+    public async Task<IActionResult> UpdateSampleEligibility(
+        Guid petId,
+        [FromBody] UpdateSamplePetEligibilityRequest request,
+        CancellationToken cancellationToken)
+    {
+        var response = await _petProfileQueryService.UpdateSampleEligibilityAsync(
+            _currentUserService.Current.UserId,
+            petId,
+            request,
+            cancellationToken);
+        return Ok(ApiEnvelope.Ok(response, HttpContext));
+    }
+
     private static IReadOnlyCollection<Guid>? ParseIds(string? value)
     {
         if (string.IsNullOrWhiteSpace(value)) return null;

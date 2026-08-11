@@ -43,6 +43,8 @@ const pet: AdminPetProfile = {
   totalSmartTagCount: 1,
   createdAt: "2026-07-01T00:00:00Z",
   updatedAt: "2026-07-16T07:42:00Z",
+  isSampleEligible: false,
+  rowVersion: "AQID",
 };
 
 const detail: AdminPetProfileDetail = {

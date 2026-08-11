@@ -72,6 +72,9 @@ export type AdminPetProfile = {
   totalSmartTagCount: number;
   createdAt: string;
   updatedAt: string;
+  isSampleEligible: boolean;
+  sampleEligibilityUpdatedAt?: string;
+  rowVersion: string;
 };
 
 export type AdminPetProfileCounts = {
@@ -169,6 +172,7 @@ function mapPet(item: BackendPetProfile): AdminPetProfile {
     publicSlug: item.publicSlug ?? undefined,
     publicCode: item.publicCode ?? undefined,
     safetyCode: item.safetyCode ?? undefined,
+    sampleEligibilityUpdatedAt: item.sampleEligibilityUpdatedAt ?? undefined,
   };
 }
 
@@ -377,7 +381,23 @@ function localPet(pet: Pet, tags: ReturnType<typeof readAdminTagCollection>): Ad
     totalSmartTagCount: tags.filter((tag) => tag.petId === pet.id).length,
     createdAt: pet.createdAt,
     updatedAt: pet.updatedAt,
+    isSampleEligible: false,
+    rowVersion: "",
   };
+}
+
+export async function setAdminPetSampleEligibility(
+  petId: string,
+  isSampleEligible: boolean,
+  rowVersion: string
+) {
+  if (!canUseAdminApi()) throw new Error("Sample eligibility is available when the Admin Portal is connected.");
+  const response = await apiRequest<BackendPetProfile>(`/api/v1/admin/pets/${encodeURIComponent(petId)}/sample-eligibility`, {
+    method: "PUT",
+    body: { isSampleEligible, rowVersion },
+  });
+  if (!response.data) throw new Error("The pet profile response was empty.");
+  return mapPet(response.data);
 }
 
 function filterLocal(rows: AdminPetProfile[], params: AdminPetProfileListParams) {

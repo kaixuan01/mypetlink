@@ -94,6 +94,8 @@ const basePet: AdminPetProfile = {
   totalSmartTagCount: 2,
   createdAt: "2026-07-01T00:00:00Z",
   updatedAt: "2026-07-16T07:42:00Z",
+  isSampleEligible: false,
+  rowVersion: "AQID",
 };
 
 const counts: AdminPetProfileCounts = { all: 7, active: 4, lostMode: 1, memorial: 1, archived: 2 };

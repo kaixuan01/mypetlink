@@ -10,6 +10,7 @@ import { toAbsoluteUrl } from "@/lib/siteUrl";
 import { useModalDialogFocus } from "@/lib/useModalDialogFocus";
 import {
   getAdminPetProfileDetail,
+  setAdminPetSampleEligibility,
   type AdminPetProfile,
   type AdminPetProfileDetail,
 } from "@/services/adminPetProfileService";
@@ -35,6 +36,8 @@ export function AdminPetProfileDetailDrawer({
     detail: AdminPetProfileDetail | null;
     error: string;
   } | null>(null);
+  const [eligibilityBusy, setEligibilityBusy] = useState(false);
+  const [eligibilityError, setEligibilityError] = useState("");
 
   useModalDialogFocus({ dialogRef, initialFocusRef: closeRef, onEscape: onClose });
 
@@ -63,6 +66,21 @@ export function AdminPetProfileDetailDrawer({
     ? publicProfilePath(pet.publicSlug, pet.publicCode)
     : null;
   const qrPath = pet.qrSafetyAccessible && pet.safetyCode ? qrSafetyPath(pet.safetyCode) : null;
+
+  async function changeSampleEligibility() {
+    if (!detail || eligibilityBusy) return;
+    setEligibilityBusy(true);
+    setEligibilityError("");
+    try {
+      const updatedPet = await setAdminPetSampleEligibility(pet.id, !pet.isSampleEligible, pet.rowVersion);
+      setState({ key: summary.id, detail: { ...detail, pet: updatedPet }, error: "" });
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : "We couldn’t update sample approval. Please try again.";
+      setEligibilityError(message.includes("Choose or clear") ? message : "We couldn’t update sample approval. Refresh and try again.");
+    } finally {
+      setEligibilityBusy(false);
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-pet-ink/35 backdrop-blur-sm">
@@ -183,6 +201,19 @@ export function AdminPetProfileDetailDrawer({
                 </div>
                 {qrPath ? <p className="mt-2 break-all rounded-xl bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600">{toAbsoluteUrl(qrPath)}</p> : null}
                 {pet.qrSafetySetupIssue ? <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-sm font-bold text-amber-900">The Safety Profile is enabled but its lifecycle or safety code prevents access. No broken link is shown.</p> : null}
+              </section>
+
+              <section aria-labelledby="pet-sample-heading" className="rounded-2xl border border-slate-200 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900" id="pet-sample-heading">Sample Experience approval</h3>
+                    <p className="mt-1 max-w-xl text-sm font-semibold text-slate-500">Admin-only approval that allows this pet to appear in the Featured Sample Pet selector. It does not change the owner’s pet profile.</p>
+                  </div>
+                  <Badge tone={pet.isSampleEligible ? "mint" : "soft"}>{pet.isSampleEligible ? "Approved" : "Not approved"}</Badge>
+                </div>
+                {eligibilityError ? <p className="mt-3 rounded-xl bg-red-50 p-3 text-sm font-bold text-red-700" role="alert">{eligibilityError} <Link className="underline" href={adminRoutes.sampleExperience}>Open Sample Experience settings</Link></p> : null}
+                {!pet.isSampleEligible && (!pet.publicProfileAccessible || !pet.qrSafetyAccessible || pet.lifecycle !== "Active") ? <p className="mt-3 rounded-xl bg-amber-50 p-3 text-sm font-bold text-amber-900">Approval requires an active pet with both its Public Share Profile and Safety Profile available.</p> : null}
+                <button className="mt-3 min-h-10 rounded-full border border-slate-200 px-4 text-xs font-extrabold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50" disabled={eligibilityBusy || (!pet.isSampleEligible && (!pet.publicProfileAccessible || !pet.qrSafetyAccessible || pet.lifecycle !== "Active"))} onClick={changeSampleEligibility} type="button">{eligibilityBusy ? "Saving…" : pet.isSampleEligible ? "Remove approval" : "Approve for Sample Experience"}</button>
               </section>
 
               <section aria-labelledby="pet-lost-heading">

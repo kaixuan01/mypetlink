@@ -68,7 +68,10 @@ public sealed record AdminPetProfileItemResponse(
     int ActiveSmartTagCount,
     int TotalSmartTagCount,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    bool IsSampleEligible,
+    DateTimeOffset? SampleEligibilityUpdatedAt,
+    string RowVersion);
 
 public sealed record AdminPetProfileCountsResponse(
     int All,

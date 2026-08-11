@@ -73,6 +73,7 @@ export const adminNavGroups: AdminNavGroup[] = [
       { href: adminRoutes.deliveryRates, label: "Delivery Rates", icon: "record" },
       { href: adminRoutes.shippingFulfilment, label: "Shipping & Fulfilment", icon: "tag" },
       { href: adminRoutes.orderCheckout, label: "Order Checkout", icon: "settings" },
+      { href: adminRoutes.sampleExperience, label: "Sample Experience", icon: "pets" },
       { href: adminRoutes.emailTemplates, label: "Email Templates", icon: "settings" },
     ],
   },

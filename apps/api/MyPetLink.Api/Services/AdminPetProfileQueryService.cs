@@ -30,15 +30,84 @@ public sealed class AdminPetProfileQueryService : SkeletonService, IAdminPetProf
     private readonly MyPetLinkDbContext _dbContext;
     private readonly IAuditLogService _auditLogService;
     private readonly string? _publicMediaBaseUrl;
+    private readonly TimeProvider _timeProvider;
 
     public AdminPetProfileQueryService(
         MyPetLinkDbContext dbContext,
         IAuditLogService auditLogService,
-        IOptions<CloudflareR2Options> r2Options)
+        IOptions<CloudflareR2Options> r2Options,
+        TimeProvider? timeProvider = null)
     {
         _dbContext = dbContext;
         _auditLogService = auditLogService;
         _publicMediaBaseUrl = r2Options.Value.PublicBaseUrl;
+        _timeProvider = timeProvider ?? TimeProvider.System;
+    }
+
+    public async Task<AdminPetProfileItemResponse> UpdateSampleEligibilityAsync(
+        Guid? currentUserId,
+        Guid petId,
+        UpdateSamplePetEligibilityRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var admin = await RequireAdminAsync(currentUserId, cancellationToken);
+        var pet = await IncludeSupportGraph(_dbContext.Pets.Where(item =>
+                item.Id == petId && item.DeletedAt == null))
+            .AsSplitQuery()
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? throw NotFound();
+
+        ApplyPetConcurrency(pet, request.RowVersion);
+        if (request.IsSampleEligible
+            && (pet.LifecycleStatus != PetLifecycleStatus.Active
+                || !IsPublicProfileAccessible(pet)
+                || !IsQrSafetyAccessible(pet)))
+        {
+            throw ValidationFailed(
+                "isSampleEligible",
+                "Only an active pet with both public experiences available can be approved.");
+        }
+
+        if (!request.IsSampleEligible)
+        {
+            var inUse = await _dbContext.PublicSiteSettings.AsNoTracking()
+                .AnyAsync(item => item.FeaturedSamplePetId == pet.Id, cancellationToken);
+            if (inUse)
+            {
+                throw new ApiException(
+                    StatusCodes.Status409Conflict,
+                    "featured_sample_pet_in_use",
+                    "Choose or clear the Featured Sample Pet before removing this approval.");
+            }
+        }
+
+        var previous = new { pet.IsSampleEligible };
+        pet.IsSampleEligible = request.IsSampleEligible;
+        pet.SampleEligibilityUpdatedAt = _timeProvider.GetUtcNow();
+        pet.SampleEligibilityUpdatedByAdminUserId = admin.Id;
+        pet.SampleEligibilityUpdatedByAdminUser = admin;
+        _auditLogService.Append(
+            admin.Id,
+            ActorType.Admin,
+            "pet-profiles.sample-eligibility.update",
+            "Pet",
+            pet.Id,
+            previous,
+            new { pet.IsSampleEligible });
+
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new ApiException(
+                StatusCodes.Status409Conflict,
+                "concurrency_conflict",
+                "This pet profile was changed by another administrator. Refresh and try again.");
+        }
+
+        return ToItem(pet);
     }
 
     public async Task<(IReadOnlyCollection<AdminPetProfileItemResponse> Items, int Total)> ListAsync(
@@ -450,7 +519,25 @@ public sealed class AdminPetProfileQueryService : SkeletonService, IAdminPetProf
             tags.Count(tag => tag.ArchivedAt == null && tag.Status == SmartTagStatus.Active),
             tags.Length,
             pet.CreatedAt,
-            pet.UpdatedAt);
+            pet.UpdatedAt,
+            pet.IsSampleEligible,
+            pet.SampleEligibilityUpdatedAt,
+            Convert.ToBase64String(pet.RowVersion));
+    }
+
+    private void ApplyPetConcurrency(Pet pet, string? rowVersion)
+    {
+        if (string.IsNullOrWhiteSpace(rowVersion))
+            throw ValidationFailed("rowVersion", "Refresh the pet profile before saving.");
+        try
+        {
+            _dbContext.Entry(pet).Property(item => item.RowVersion).OriginalValue =
+                Convert.FromBase64String(rowVersion);
+        }
+        catch (FormatException)
+        {
+            throw ValidationFailed("rowVersion", "Reload the pet profile and try again.");
+        }
     }
 
     private static Expression<Func<Pet, bool>> IsPublicProfileAccessibleExpression()

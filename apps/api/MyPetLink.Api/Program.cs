@@ -326,6 +326,8 @@ builder.Services.AddScoped<IExternalTokenValidator, GoogleTokenValidator>();
 builder.Services.AddScoped<IAuthorizationHandler, ActiveAdminRequirementHandler>();
 builder.Services.AddScoped<IPetService, PetService>();
 builder.Services.AddScoped<IPublicProfileService, PublicProfileService>();
+builder.Services.AddScoped<IPublicSampleExperienceService, PublicSampleExperienceService>();
+builder.Services.AddScoped<IAdminSampleExperienceService, AdminSampleExperienceService>();
 builder.Services.AddSingleton<IPublicProfileSocialCardRenderer, PublicProfileSocialCardRenderer>();
 builder.Services.AddScoped<IMemoryService, MemoryService>();
 builder.Services.AddScoped<ICareRecordService, CareRecordService>();

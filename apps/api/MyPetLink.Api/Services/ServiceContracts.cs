@@ -114,6 +114,23 @@ public interface IPublicProfileService : ISkeletonService
         CancellationToken cancellationToken = default);
 }
 
+public interface IPublicSampleExperienceService : ISkeletonService
+{
+    Task<PublicSampleExperienceResponse> GetAsync(
+        CancellationToken cancellationToken = default);
+}
+
+public interface IAdminSampleExperienceService : ISkeletonService
+{
+    Task<AdminSampleExperienceResponse> GetAsync(
+        CancellationToken cancellationToken = default);
+
+    Task<AdminSampleExperienceResponse> UpdateAsync(
+        Guid? currentUserId,
+        UpdateSampleExperienceRequest request,
+        CancellationToken cancellationToken = default);
+}
+
 public interface IPublicProfileSocialCardRenderer
 {
     Task<byte[]> RenderAsync(
@@ -723,6 +740,12 @@ public interface IAdminPaymentProofQueryService : ISkeletonService
 
 public interface IAdminPetProfileQueryService : ISkeletonService
 {
+    Task<AdminPetProfileItemResponse> UpdateSampleEligibilityAsync(
+        Guid? currentUserId,
+        Guid petId,
+        UpdateSamplePetEligibilityRequest request,
+        CancellationToken cancellationToken = default);
+
     Task<(IReadOnlyCollection<AdminPetProfileItemResponse> Items, int Total)> ListAsync(
         AdminPetProfileQuery query,
         CancellationToken cancellationToken = default);

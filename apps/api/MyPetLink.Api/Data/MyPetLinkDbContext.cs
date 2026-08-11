@@ -44,6 +44,7 @@ public sealed class MyPetLinkDbContext : DbContext
     public DbSet<PetContact> PetContacts => Set<PetContact>();
     public DbSet<PetPublicProfile> PetPublicProfiles => Set<PetPublicProfile>();
     public DbSet<PetSafetySetting> PetSafetySettings => Set<PetSafetySetting>();
+    public DbSet<PublicSiteSetting> PublicSiteSettings => Set<PublicSiteSetting>();
     public DbSet<MediaFile> MediaFiles => Set<MediaFile>();
     public DbSet<MediaFileLink> MediaFileLinks => Set<MediaFileLink>();
     public DbSet<PetMemory> PetMemories => Set<PetMemory>();
@@ -114,6 +115,7 @@ public sealed class MyPetLinkDbContext : DbContext
         ConfigureAccounts(modelBuilder);
         ConfigurePlans(modelBuilder);
         ConfigurePets(modelBuilder);
+        ConfigurePublicSite(modelBuilder);
         ConfigureCareMedia(modelBuilder);
         ConfigureTagCatalog(modelBuilder);
         ConfigureDelivery(modelBuilder);
@@ -1033,6 +1035,8 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.Property(item => item.CoverPositionX).HasDefaultValue((byte)50);
             entity.Property(item => item.CoverPositionY).HasDefaultValue((byte)50);
             entity.Property(item => item.AllergiesJson).HasDefaultValue("[]");
+            entity.Property(item => item.IsSampleEligible).HasDefaultValue(false);
+            entity.Property(item => item.RowVersion).IsRowVersion();
             entity.Property(item => item.LifecycleStatus).HasConversion<string>().HasMaxLength(32);
             entity.Property(item => item.PreviousLifecycleStatus).HasConversion<string>().HasMaxLength(32);
             entity.HasIndex(item => item.OwnerUserId);
@@ -1044,6 +1048,7 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasIndex(item => item.Species);
             entity.HasIndex(item => item.CreatedAt);
             entity.HasIndex(item => item.UpdatedAt);
+            entity.HasIndex(item => item.IsSampleEligible);
             entity.HasOne(item => item.OwnerUser)
                 .WithMany(user => user.Pets)
                 .HasForeignKey(item => item.OwnerUserId)
@@ -1055,6 +1060,10 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasOne(item => item.CoverMediaFile)
                 .WithMany()
                 .HasForeignKey(item => item.CoverMediaFileId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.SampleEligibilityUpdatedByAdminUser)
+                .WithMany()
+                .HasForeignKey(item => item.SampleEligibilityUpdatedByAdminUserId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -1098,6 +1107,24 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasOne(item => item.Pet)
                 .WithOne(pet => pet.SafetySetting)
                 .HasForeignKey<PetSafetySetting>(item => item.PetId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+    }
+
+    private static void ConfigurePublicSite(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<PublicSiteSetting>(entity =>
+        {
+            entity.ToTable("PublicSiteSettings");
+            entity.Property(item => item.RowVersion).IsRowVersion();
+            entity.HasIndex(item => item.FeaturedSamplePetId).IsUnique();
+            entity.HasOne(item => item.FeaturedSamplePet)
+                .WithMany()
+                .HasForeignKey(item => item.FeaturedSamplePetId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.UpdatedByAdminUser)
+                .WithMany()
+                .HasForeignKey(item => item.UpdatedByAdminUserId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
     }
@@ -1666,6 +1693,17 @@ public sealed class MyPetLinkDbContext : DbContext
                 Id = OrderCheckoutSettingsService.SettingsId,
                 PaymentReservationMinutes =
                     OrderCheckoutSetting.DefaultPaymentReservationMinutes,
+                CreatedAt = SeededAt,
+                UpdatedAt = SeededAt
+            });
+
+        // Deliberately unconfigured. A migration must never choose a customer
+        // pet or enable a public marketing sample automatically.
+        modelBuilder.Entity<PublicSiteSetting>().HasData(
+            new PublicSiteSetting
+            {
+                Id = PublicSampleExperienceService.SettingsId,
+                FeaturedSamplePetId = null,
                 CreatedAt = SeededAt,
                 UpdatedAt = SeededAt
             });

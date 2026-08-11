@@ -3,17 +3,20 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using MyPetLink.Api.Data;
 
 #nullable disable
 
-namespace MyPetLink.Api.Migrations
+namespace MyPetLink.Api.Data.Migrations
 {
     [DbContext(typeof(MyPetLinkDbContext))]
-    partial class MyPetLinkDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260810180418_AddFeaturedSamplePet")]
+    partial class AddFeaturedSamplePet
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

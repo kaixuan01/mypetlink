@@ -43,6 +43,10 @@ public sealed class Pet : AuditableEntity
     public string? EmergencyNote { get; set; }
     public DateTimeOffset? ArchivedAt { get; set; }
     public DateTimeOffset? DeletedAt { get; set; }
+    public bool IsSampleEligible { get; set; }
+    public DateTimeOffset? SampleEligibilityUpdatedAt { get; set; }
+    public Guid? SampleEligibilityUpdatedByAdminUserId { get; set; }
+    public byte[] RowVersion { get; set; } = [];
 
     public User OwnerUser { get; set; } = null!;
     public MediaFile? ProfileMediaFile { get; set; }
@@ -54,6 +58,7 @@ public sealed class Pet : AuditableEntity
     public ICollection<PetMemory> Memories { get; set; } = new List<PetMemory>();
     public ICollection<CareRecord> CareRecords { get; set; } = new List<CareRecord>();
     public ICollection<SmartTag> SmartTags { get; set; } = new List<SmartTag>();
+    public AdminUser? SampleEligibilityUpdatedByAdminUser { get; set; }
 }
 
 public sealed class PetContact : AuditableEntity

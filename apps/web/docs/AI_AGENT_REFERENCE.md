@@ -115,10 +115,12 @@ Key rules baked into these helpers:
 - **Public share routes are looked up by `publicCode`** (the final segment),
   never the slug. The slug is cosmetic. Parse with `parsePublicProfileParam`
   (it splits on the **last** `-` because slugs can contain hyphens).
-- **`samplePet`** (exported from `routes.ts`, = `mockPets[0]`) is the only
-  approved source for demo/marketing links. Never hardcode a specific pet id,
-  slug, or tag code (e.g. `pet_milo`, `/p/milo`, `/t/8KX29A`) in a page or
-  component. Seed values may only live in `src/data/*`.
+- The public `/sample` page resolves its Featured Sample Pet from the typed
+  Admin configuration endpoint. Only pets explicitly approved with
+  `IsSampleEligible` can be selected, and an invalid selection fails closed.
+  `samplePet` remains static seed data for other intentional preview/SEO
+  fixtures; it is not the authority for `/sample`. Never hardcode a pet id,
+  slug, or tag code in a page or component.
 - New physical tag activation starts from the printed QR at `/q/{tagCode}`.
   Existing `/t/{tagCode}` links remain compatible. `/n/{tagCode}` never offers
   first-time activation; it instructs the owner to scan the printed QR.
