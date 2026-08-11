@@ -65,6 +65,105 @@ public sealed class ConcurrencyRelationalTests
         }
     }
 
+    [RelationalFact]
+    public async Task CatalogMediaOnlyEdit_RotatesProductToken_AndRejectsStaleReorder()
+    {
+        await using var scope = await RelationalDatabase.CreateAsync();
+        Guid productId;
+        Guid frontId;
+        Guid packagingId;
+
+        await using (var seed = scope.NewContext())
+        {
+            SeedAdmin(seed);
+            var product = new TagProduct { Name = "Media product", Slug = "media-product", SortOrder = 0 };
+            var front = ProductImage("tag-front.jpg", "tag-products/front.jpg");
+            var packaging = ProductImage("packaging.jpg", "tag-products/packaging.jpg");
+            product.Media.Add(new TagProductMedia
+            {
+                MediaFile = front,
+                SortOrder = 0,
+                AltText = "Front of the tag"
+            });
+            product.Media.Add(new TagProductMedia
+            {
+                MediaFile = packaging,
+                SortOrder = 1,
+                AltText = "Product packaging"
+            });
+            seed.TagProducts.Add(product);
+            await seed.SaveChangesAsync();
+            productId = product.Id;
+            frontId = front.Id;
+            packagingId = packaging.Id;
+        }
+
+        string tokenA;
+        string tokenB;
+        await using (var readA = scope.NewContext())
+        await using (var readB = scope.NewContext())
+        {
+            tokenA = (await CatalogService(readA).GetAdminAsync(productId)).ConcurrencyToken;
+            tokenB = (await CatalogService(readB).GetAdminAsync(productId)).ConcurrencyToken;
+        }
+
+        string updatedToken;
+        await using (var contextA = scope.NewContext())
+        {
+            var saved = await CatalogService(contextA).UpdateProductAsync(
+                AdminId,
+                productId,
+                new UpsertTagProductRequest(
+                    "Media product",
+                    "media-product",
+                    null,
+                    null,
+                    false,
+                    0,
+                    [
+                        new TagProductMediaRequest(packagingId, null, 0, "Product packaging"),
+                        new TagProductMediaRequest(frontId, null, 1, "Front of the tag")
+                    ],
+                    tokenA));
+            updatedToken = saved.ConcurrencyToken;
+        }
+
+        Assert.NotEqual(tokenA, updatedToken);
+
+        await using (var contextB = scope.NewContext())
+        {
+            var conflict = await Assert.ThrowsAsync<ApiException>(() =>
+                CatalogService(contextB).UpdateProductAsync(
+                    AdminId,
+                    productId,
+                    new UpsertTagProductRequest(
+                        "Media product",
+                        "media-product",
+                        null,
+                        null,
+                        false,
+                        0,
+                        [
+                            new TagProductMediaRequest(frontId, null, 0, "Front of the tag"),
+                            new TagProductMediaRequest(packagingId, null, 1, "Product packaging")
+                        ],
+                        tokenB)));
+            Assert.Equal(StatusCodes.Status409Conflict, conflict.StatusCode);
+            Assert.Equal("concurrency_conflict", conflict.Code);
+        }
+
+        await using (var verify = scope.NewContext())
+        {
+            var activeMedia = await verify.TagProductMedia
+                .Where(item => item.TagProductId == productId && item.ArchivedAt == null)
+                .OrderBy(item => item.SortOrder)
+                .ToArrayAsync();
+            Assert.Collection(activeMedia,
+                first => Assert.Equal(packagingId, first.MediaFileId),
+                second => Assert.Equal(frontId, second.MediaFileId));
+        }
+    }
+
     /// <summary>
     /// Two administrators racing for the same physical tag. Which typed refusal
     /// the loser receives depends on where its read falls relative to the
@@ -399,6 +498,22 @@ public sealed class ConcurrencyRelationalTests
             AdminUser = new AdminUser { UserId = AdminId, Role = AdminRole.Admin, IsActive = true },
         });
     }
+
+    private static MediaFile ProductImage(string originalFileName, string objectKey) => new()
+    {
+        OriginalFileName = originalFileName,
+        StorageFileName = Path.GetFileName(objectKey),
+        ContentType = "image/jpeg",
+        FileSize = 128,
+        StorageProvider = "Local",
+        StoragePath = objectKey,
+        ObjectKey = objectKey,
+        MediaType = MediaFileType.Image,
+        Category = MediaUploadCategory.TagProductImage,
+        IsPublic = true,
+        UploadStatus = MediaUploadStatus.Ready,
+        Sha256 = new string('a', 64)
+    };
 
     private static void SeedOwnerAndPet(MyPetLinkDbContext db)
     {

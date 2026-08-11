@@ -4,7 +4,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AdminActionButton, AdminNotice, AdminSection } from "@/components/admin/AdminPanels";
+import { AdminImagePreviewDialog } from "@/components/admin/AdminImagePreviewDialog";
+import { AdminActionButton, AdminNotice, AdminOperationNotice, AdminSection } from "@/components/admin/AdminPanels";
 import { AdminListPagination } from "@/components/admin/table/AdminListPagination";
 import { AdminSearchInput } from "@/components/admin/table/AdminSearchInput";
 import { useAdminTableQuery } from "@/components/admin/table/useAdminTableQuery";
@@ -40,6 +41,13 @@ import {
 
 type CatalogTab = "products" | "promotions" | "settings";
 type FieldErrors = Record<string, string>;
+type OperationFeedback = {
+  tone: "success" | "error";
+  title: string;
+  detail?: string;
+  reference?: string;
+  refreshProduct?: boolean;
+};
 type CatalogEditorMode =
   | { kind: "none" }
   | { kind: "create-product" }
@@ -222,8 +230,8 @@ export function AdminTagProductsManager() {
   const [productsLoading, setProductsLoading] = useState(true);
   const [promotionsLoading, setPromotionsLoading] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
-  const [actionError, setActionError] = useState("");
+  const [imageUploading, setImageUploading] = useState(false);
+  const [operationFeedback, setOperationFeedback] = useState<OperationFeedback | null>(null);
   const [productLoadError, setProductLoadError] = useState("");
   const [productDetailError, setProductDetailError] = useState<{ productId: string; message: string } | null>(null);
   const [productDetailRetry, setProductDetailRetry] = useState(0);
@@ -241,11 +249,26 @@ export function AdminTagProductsManager() {
   const [pendingArchive, setPendingArchive] = useState<"product" | "sku" | null>(null);
   const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null);
   const submitLock = useRef(false);
+  const imageUploadLock = useRef(false);
   const productListRequest = useRef(0);
   const detailPanelRef = useRef<HTMLDivElement | null>(null);
 
   const productDirty = JSON.stringify(productForm) !== productBaseline;
   const variantDirty = JSON.stringify(variantForm) !== variantBaseline;
+
+  function setMessage(message: string) {
+    setOperationFeedback(message ? { tone: "success", title: message } : null);
+  }
+
+  function setActionError(message: string) {
+    setOperationFeedback(message ? { tone: "error", title: message } : null);
+  }
+
+  useEffect(() => {
+    if (operationFeedback?.tone !== "success") return undefined;
+    const timer = window.setTimeout(() => setOperationFeedback(null), 5_000);
+    return () => window.clearTimeout(timer);
+  }, [operationFeedback]);
 
   // Shared admin listing state (search / filters / page / sort) lives in the
   // URL alongside the master/detail keys (tab / product / sku). The hook's
@@ -493,6 +516,7 @@ export function AdminTagProductsManager() {
     if (Object.keys(validationErrors).length > 0) {
       setProductFieldErrors(validationErrors);
       setProductFormError("");
+      setOperationFeedback({ tone: "error", title: "Please review the highlighted fields." });
       focusFirstInvalidField(validationErrors, productFieldIds);
       return false;
     }
@@ -504,14 +528,14 @@ export function AdminTagProductsManager() {
     setProductFieldErrors({});
     try {
       const saved = await saveAdminTagProduct(
-        { ...productForm, concurrencyToken: selectedProduct?.concurrencyToken },
+        { ...productForm, concurrencyToken: productForm.concurrencyToken ?? selectedProduct?.concurrencyToken },
         selectedProduct?.id
       );
       setSelectedProduct(saved);
       const input = productInput(saved);
       setProductForm(input);
       setProductBaseline(JSON.stringify(input));
-      setMessage(`${saved.name} saved.`);
+      setMessage("Product saved successfully.");
       await refreshProducts();
       if (productParam === "new" && navigateAfterSave) navigate({ product: saved.id });
       return true;
@@ -519,9 +543,27 @@ export function AdminTagProductsManager() {
       const fieldErrors = apiFieldErrors(caught, Object.keys(productFieldIds));
       if (Object.keys(fieldErrors).length > 0) {
         setProductFieldErrors(fieldErrors);
+        setOperationFeedback({ tone: "error", title: "Please review the highlighted fields." });
         focusFirstInvalidField(fieldErrors, productFieldIds);
+      } else if (isApiClientError(caught) && caught.code === "concurrency_conflict") {
+        setProductFormError("");
+        setOperationFeedback({
+          tone: "error",
+          title: "This product was updated after you opened it.",
+          detail: "Refresh the latest version before saving again.",
+          reference: caught.requestId,
+          refreshProduct: true,
+        });
       } else {
-        setProductFormError(saveError(caught, "product"));
+        setProductFormError("");
+        setOperationFeedback({
+          tone: "error",
+          title: "Product could not be saved.",
+          detail: isApiClientError(caught) && caught.status >= 500
+            ? "Please try again."
+            : friendlyError(caught),
+          reference: isApiClientError(caught) ? caught.requestId : undefined,
+        });
       }
       return false;
     } finally {
@@ -531,14 +573,17 @@ export function AdminTagProductsManager() {
   }
 
   async function uploadProductImage(file: File) {
+    if (imageUploadLock.current || imageUploading || busy) return;
     const imageError = validateProductImage(file);
     if (imageError) {
       setProductFieldErrors({ media: imageError });
       setProductFormError("");
+      setOperationFeedback({ tone: "error", title: "Product image could not be uploaded.", detail: imageError });
       focusFirstInvalidField({ media: imageError }, productFieldIds);
       return;
     }
-    setBusy(true);
+    imageUploadLock.current = true;
+    setImageUploading(true);
     setActionError("");
     try {
       const uploaded = await uploadMediaFile({ file, category: "TagProductImage" });
@@ -548,14 +593,55 @@ export function AdminTagProductsManager() {
           ...current.media,
           {
             mediaFileId: uploaded.mediaId,
-            altText: file.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " "),
+            altText: `${current.name.trim() || "MyPetLink product"} product image`,
             sortOrder: current.media.length,
+            originalFileName: uploaded.originalFileName,
+            url: uploaded.publicUrl,
           },
         ],
       }));
+      setProductFieldErrors((current) => {
+        const remaining = { ...current };
+        delete remaining.media;
+        return remaining;
+      });
       setMessage("Product image uploaded. Save the product to publish this change.");
     } catch (caught) {
-      setProductFormError(saveError(caught, "product image"));
+      setProductFormError("");
+      setOperationFeedback({
+        tone: "error",
+        title: "Product image could not be uploaded.",
+        detail: isApiClientError(caught) && caught.status >= 500
+          ? "Please try again."
+          : friendlyError(caught),
+        reference: isApiClientError(caught) ? caught.requestId : undefined,
+      });
+    } finally {
+      setImageUploading(false);
+      imageUploadLock.current = false;
+    }
+  }
+
+  async function refreshProductAfterConflict() {
+    if (!selectedProduct || busy) return;
+    setBusy(true);
+    try {
+      const detail = await getAdminTagProduct(selectedProduct.id);
+      setSelectedProduct(detail);
+      const input = productInput(detail);
+      setProductForm(input);
+      setProductBaseline(JSON.stringify(input));
+      setProductFormError("");
+      setProductFieldErrors({});
+      setMessage("Latest product version loaded.");
+    } catch (caught) {
+      setOperationFeedback({
+        tone: "error",
+        title: "Latest product version could not be loaded.",
+        detail: loadError(caught, "this product"),
+        reference: isApiClientError(caught) ? caught.requestId : undefined,
+        refreshProduct: true,
+      });
     } finally {
       setBusy(false);
     }
@@ -797,11 +883,16 @@ export function AdminTagProductsManager() {
         ))}
       </nav>
 
-      {message ? <AdminNotice>{message}</AdminNotice> : null}
-      {actionError ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-800" role="alert">
-          {actionError}
-        </div>
+      {operationFeedback ? (
+        <AdminOperationNotice
+          actionLabel={operationFeedback.refreshProduct ? "Refresh" : undefined}
+          detail={operationFeedback.detail}
+          onAction={operationFeedback.refreshProduct ? () => void refreshProductAfterConflict() : undefined}
+          onDismiss={() => setOperationFeedback(null)}
+          reference={operationFeedback.reference}
+          title={operationFeedback.title}
+          tone={operationFeedback.tone}
+        />
       ) : null}
 
       {tab === "products" ? (
@@ -919,6 +1010,7 @@ export function AdminTagProductsManager() {
                     errors={productFieldErrors}
                     form={productForm}
                     formError={productFormError}
+                    imageUploading={imageUploading}
                     isNew
                     onArchive={() => setPendingArchive("product")}
                     onChange={(value) => {
@@ -939,6 +1031,7 @@ export function AdminTagProductsManager() {
                       errors={productFieldErrors}
                       form={productForm}
                       formError={productFormError}
+                      imageUploading={imageUploading}
                       isNew={false}
                       onArchive={() => setPendingArchive("product")}
                       onChange={(value) => {
@@ -1129,11 +1222,12 @@ function BackBar({ label, onBack }: { label: string; onBack: () => void }) {
   );
 }
 
-function ProductEditor({ product, form, isNew, busy, errors, formError, onChange, onImageUpload, onSave, onArchive }: {
+function ProductEditor({ product, form, isNew, busy, imageUploading, errors, formError, onChange, onImageUpload, onSave, onArchive }: {
   product: AdminTagProduct | null;
   form: AdminProductInput;
   isNew: boolean;
   busy: boolean;
+  imageUploading: boolean;
   errors: FieldErrors;
   formError: string;
   onChange: (value: AdminProductInput) => void;
@@ -1141,12 +1235,30 @@ function ProductEditor({ product, form, isNew, busy, errors, formError, onChange
   onSave: () => void;
   onArchive: () => void;
 }) {
+  const [preview, setPreview] = useState<{ src: string; alt: string; fileName: string } | null>(null);
+
+  function changeMedia(nextMedia: AdminProductInput["media"]) {
+    onChange({
+      ...form,
+      media: nextMedia.map((item, index) => ({ ...item, sortOrder: index })),
+    });
+  }
+
+  function moveImage(index: number, direction: -1 | 1) {
+    const nextIndex = index + direction;
+    if (nextIndex < 0 || nextIndex >= form.media.length) return;
+    const nextMedia = [...form.media];
+    [nextMedia[index], nextMedia[nextIndex]] = [nextMedia[nextIndex], nextMedia[index]];
+    changeMedia(nextMedia);
+  }
+
   return (
-    <AdminSection
-      title={isNew ? "Create product" : `Edit ${product?.name ?? "product"}`}
-      description="A product is the customer-facing item shown in the Owner Portal. Each of its SKUs is one exact sellable and manufacturable configuration."
-    >
-      <div className="grid gap-5 p-4 sm:p-5">
+    <>
+      <AdminSection
+        title={isNew ? "Create product" : `Edit ${product?.name ?? "product"}`}
+        description="A product is the customer-facing item shown in the Owner Portal. Each of its SKUs is one exact sellable and manufacturable configuration."
+      >
+        <div className="grid gap-5 p-4 sm:p-5">
         {form.isPublished && form.media.length === 0 ? (
           <AdminNotice>
             This published product has no customer image. Checkout will use the
@@ -1183,25 +1295,67 @@ function ProductEditor({ product, form, isNew, busy, errors, formError, onChange
             <textarea className={textAreaClass} value={form.description ?? ""} onChange={(event) => onChange({ ...form, description: event.target.value })} />
           </Field>
         </FormGroup>
-        <FormGroup title="Images">
-          {form.media.map((media, index) => (
-            <div className="grid gap-2 rounded-xl border border-slate-200 p-3 sm:col-span-2 sm:grid-cols-[minmax(8rem,0.65fr)_minmax(0,1fr)_auto]" key={`${media.mediaFileId}-${index}`}>
-              <div className="grid min-h-10 place-items-center overflow-hidden rounded-lg bg-slate-100 text-xs font-bold text-slate-500">
-                {product?.media.find((item) => item.mediaFileId === media.mediaFileId)?.url
-                  ? <Image alt="" className="h-16 w-full object-cover" height={128} src={product.media.find((item) => item.mediaFileId === media.mediaFileId)?.url ?? ""} unoptimized width={240} />
-                  : `Product image ${index + 1}`}
-              </div>
-              <input aria-label={`Image ${index + 1} alt text`} className={fieldClass} placeholder="Useful image description" value={media.altText} onChange={(event) => onChange({ ...form, media: form.media.map((item, itemIndex) => itemIndex === index ? { ...item, altText: event.target.value } : item) })} />
-              <AdminActionButton onClick={() => onChange({ ...form, media: form.media.filter((_, itemIndex) => itemIndex !== index) })} tone="danger">Remove</AdminActionButton>
-            </div>
-          ))}
-          <label className="sm:col-span-2 grid cursor-pointer gap-1 rounded-xl border border-dashed border-slate-300 p-4 text-sm font-bold text-slate-700" htmlFor={productFieldIds.media}>
-            Upload product image
-            <span className="text-xs font-medium text-slate-500">JPEG, PNG, or WebP, up to 10 MB. Add useful alternative text after upload.</span>
-            <input {...invalidFieldProps(productFieldIds.media, errors.media)} accept="image/jpeg,image/png,image/webp" className="mt-2 block w-full text-sm" disabled={busy || form.media.length >= 12} id={productFieldIds.media} onChange={(event) => { const file = event.target.files?.[0]; if (file) onImageUpload(file); event.target.value = ""; }} type="file" />
-            {errors.media ? <InlineFieldError id={`${productFieldIds.media}-error`}>{errors.media}</InlineFieldError> : null}
-          </label>
-        </FormGroup>
+          <FormGroup title="Images">
+            {form.media.length === 0 ? (
+              <p className="sm:col-span-2 text-sm font-semibold text-slate-500">No product images uploaded.</p>
+            ) : null}
+            {form.media.map((media, index) => {
+              const fileName = friendlyProductImageName(media.originalFileName, index);
+              const imageAlt = media.altText.trim() || fileName;
+              return (
+                <article
+                  className="grid min-w-0 gap-3 rounded-xl border border-slate-200 p-3 sm:col-span-2 sm:grid-cols-[9rem_minmax(0,1fr)]"
+                  key={media.mediaFileId}
+                >
+                  {media.url ? (
+                    <button
+                      aria-label={`View image ${fileName}`}
+                      className="group relative min-h-32 overflow-hidden rounded-xl border border-slate-200 bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-500"
+                      onClick={() => setPreview({ src: media.url!, alt: imageAlt, fileName })}
+                      type="button"
+                    >
+                      <Image alt={imageAlt} className="h-32 w-full object-contain transition group-hover:scale-[1.02]" height={256} src={media.url} unoptimized width={288} />
+                      <span className="absolute inset-x-2 bottom-2 rounded-full bg-slate-950/80 px-3 py-1 text-xs font-extrabold text-white">View image</span>
+                    </button>
+                  ) : (
+                    <div className="grid min-h-32 place-items-center rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 text-center text-xs font-bold text-slate-500">
+                      Image preview unavailable
+                    </div>
+                  )}
+                  <div className="grid min-w-0 content-start gap-3">
+                    <div className="min-w-0">
+                      <p className="break-words text-sm font-black text-slate-950">{fileName}</p>
+                      <p className="mt-1 text-xs font-bold text-slate-500">
+                        Image {index + 1}{index === 0 ? " · Primary image" : ""}
+                      </p>
+                    </div>
+                    <Field helper="Describe the product image for customers who cannot see it." label="Alt text" wide>
+                      <input
+                        aria-label={`Alt text for ${fileName}`}
+                        className={fieldClass}
+                        maxLength={300}
+                        placeholder="Black MyPetLink paw-shaped QR pet tag"
+                        value={media.altText}
+                        onChange={(event) => changeMedia(form.media.map((item, itemIndex) => itemIndex === index ? { ...item, altText: event.target.value } : item))}
+                      />
+                    </Field>
+                    <div className="flex flex-wrap gap-2">
+                      {media.url ? <AdminActionButton onClick={() => setPreview({ src: media.url!, alt: imageAlt, fileName })}>View image</AdminActionButton> : null}
+                      <AdminActionButton ariaLabel={`Move ${fileName} up`} disabled={index === 0 || busy || imageUploading} onClick={() => moveImage(index, -1)}>Move up</AdminActionButton>
+                      <AdminActionButton ariaLabel={`Move ${fileName} down`} disabled={index === form.media.length - 1 || busy || imageUploading} onClick={() => moveImage(index, 1)}>Move down</AdminActionButton>
+                      <AdminActionButton ariaLabel={`Remove ${fileName}`} disabled={busy || imageUploading} onClick={() => changeMedia(form.media.filter((_, itemIndex) => itemIndex !== index))} tone="danger">Remove image</AdminActionButton>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+            <label className="sm:col-span-2 grid cursor-pointer gap-1 rounded-xl border border-dashed border-slate-300 p-4 text-sm font-bold text-slate-700" htmlFor={productFieldIds.media}>
+              {imageUploading ? "Uploading product image..." : "Upload product image"}
+              <span className="text-xs font-medium text-slate-500">JPEG, PNG, or WebP, up to 10 MB. You can edit the alternative text after upload.</span>
+              <input {...invalidFieldProps(productFieldIds.media, errors.media)} accept="image/jpeg,image/png,image/webp" className="mt-2 block w-full text-sm" disabled={busy || imageUploading || form.media.length >= 12} id={productFieldIds.media} onChange={(event) => { const file = event.target.files?.[0]; if (file) onImageUpload(file); event.target.value = ""; }} type="file" />
+              {errors.media ? <InlineFieldError id={`${productFieldIds.media}-error`}>{errors.media}</InlineFieldError> : null}
+            </label>
+          </FormGroup>
         <FormGroup title="Publication">
           <Field error={errors.sortOrder} errorId={`${productFieldIds.sortOrder}-error`} label="Display order">
             <input {...invalidFieldProps(productFieldIds.sortOrder, errors.sortOrder)} className={fieldClass} id={productFieldIds.sortOrder} min={0} type="number" value={form.sortOrder} onChange={(event) => onChange({ ...form, sortOrder: numberValue(event.target.value) })} />
@@ -1209,12 +1363,21 @@ function ProductEditor({ product, form, isNew, busy, errors, formError, onChange
           <Toggle checked={form.isPublished} error={errors.isPublished} id={productFieldIds.isPublished} label="Published for customers" onChange={(checked) => onChange({ ...form, isPublished: checked })} />
         </FormGroup>
         {formError ? <InlineFormError>{formError}</InlineFormError> : null}
-        <div className="sticky bottom-0 -mx-4 flex flex-wrap justify-end gap-2 border-t border-slate-100 bg-white/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:static sm:m-0 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
-          {!isNew && !product?.isArchived ? <AdminActionButton disabled={busy} onClick={onArchive} tone="danger">Archive Product</AdminActionButton> : null}
-          <AdminActionButton disabled={busy || product?.isArchived} onClick={onSave} tone="primary">{busy ? "Saving..." : "Save Product"}</AdminActionButton>
+          <div className="sticky bottom-0 -mx-4 flex flex-wrap justify-end gap-2 border-t border-slate-100 bg-white/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:static sm:m-0 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
+            {!isNew && !product?.isArchived ? <AdminActionButton disabled={busy || imageUploading} onClick={onArchive} tone="danger">Archive Product</AdminActionButton> : null}
+            <AdminActionButton disabled={busy || imageUploading || product?.isArchived} onClick={onSave} tone="primary">{busy ? "Saving..." : "Save Product"}</AdminActionButton>
+          </div>
         </div>
-      </div>
-    </AdminSection>
+      </AdminSection>
+      {preview ? (
+        <AdminImagePreviewDialog
+          alt={preview.alt}
+          fileName={preview.fileName}
+          onClose={() => setPreview(null)}
+          src={preview.src}
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -1615,7 +1778,44 @@ function EditorStatus({ children }: { children: React.ReactNode }) { return <div
 function LoadFailure({ message, onRetry }: { message: string; onRetry: () => void }) { return <div className="grid gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800" role="alert"><p>{message}</p><div><AdminActionButton onClick={onRetry}>Retry</AdminActionButton></div></div>; }
 function InlineFieldError({ id, children }: { id?: string; children: React.ReactNode }) { return <span className="normal-case text-xs font-bold text-red-700" id={id}>{children}</span>; }
 function InlineFormError({ children }: { children: React.ReactNode }) { return <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-800" role="alert">{children}</div>; }
-function productInput(product: AdminTagProduct): AdminProductInput { return { name: product.name, slug: product.slug, shortDescription: product.shortDescription, description: product.description, isPublished: product.isPublished, sortOrder: product.sortOrder, media: product.media.map((item) => ({ mediaFileId: item.mediaFileId, productVariantId: item.productVariantId, sortOrder: item.sortOrder, altText: item.altText })), concurrencyToken: product.concurrencyToken }; }
+function productInput(product: AdminTagProduct): AdminProductInput {
+  return {
+    name: product.name,
+    slug: product.slug,
+    shortDescription: product.shortDescription,
+    description: product.description,
+    isPublished: product.isPublished,
+    sortOrder: product.sortOrder,
+    media: [...product.media]
+      .sort((left, right) => left.sortOrder - right.sortOrder)
+      .map((item, index) => ({
+        mediaFileId: item.mediaFileId,
+        productVariantId: item.productVariantId,
+        sortOrder: index,
+        altText: isUnfriendlyImageIdentifier(item.altText) ? "" : item.altText,
+        originalFileName: item.originalFileName,
+        url: item.url,
+      })),
+    concurrencyToken: product.concurrencyToken,
+  };
+}
+
+function friendlyProductImageName(originalFileName: string | null | undefined, index: number) {
+  const fallback = `Product image ${index + 1}`;
+  const fileName = originalFileName?.split(/[\\/]/).at(-1)?.trim();
+  if (!fileName) return fallback;
+  const stem = fileName.replace(/\.[^.]+$/, "");
+  if (isUnfriendlyImageIdentifier(stem)) {
+    return fallback;
+  }
+  return fileName;
+}
+
+function isUnfriendlyImageIdentifier(value: string | null | undefined) {
+  const normalized = value?.trim() ?? "";
+  return /^\d+$/.test(normalized)
+    || /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(normalized);
+}
 function variantInput(variant: AdminTagProductVariant): AdminVariantInput { return { sku: variant.sku, displayName: variant.displayName, supportsQr: variant.supportsQr, supportsNfc: variant.supportsNfc, tagVariantPresetId: variant.tagVariantPresetId ?? null, widthMm: variant.widthMm, heightMm: variant.heightMm, thicknessMm: variant.thicknessMm, weightGrams: variant.weightGrams, material: variant.material, shape: variant.shape, colour: variant.colour, packagingType: variant.packagingType, basePrice: variant.basePrice, currency: variant.currency, compareAtPrice: variant.compareAtPrice, printTemplateCode: variant.printTemplateCode, productionNotes: variant.productionNotes, isActive: variant.isActive, isPurchasable: variant.isPurchasable, sortOrder: variant.sortOrder, concurrencyToken: variant.concurrencyToken }; }
 function presetInput(preset: AdminTagVariantPreset): AdminTagVariantPresetInput { return { code: preset.code, displayName: preset.displayName, description: preset.description ?? "", isActive: preset.isActive, sortOrder: preset.sortOrder, concurrencyToken: preset.concurrencyToken }; }
 function validateProductForm(form: AdminProductInput, product: AdminTagProduct | null): FieldErrors {

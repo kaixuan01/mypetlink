@@ -105,6 +105,7 @@ export type AdminTagProduct = {
     productVariantId?: string | null;
     sortOrder: number;
     altText: string;
+    originalFileName?: string | null;
     url?: string | null;
   }[];
   variants: AdminTagProductVariant[];
@@ -120,7 +121,15 @@ export type AdminProductInput = {
   description?: string | null;
   isPublished: boolean;
   sortOrder: number;
-  media: { mediaFileId: string; productVariantId?: string | null; sortOrder: number; altText: string }[];
+  media: {
+    mediaFileId: string;
+    productVariantId?: string | null;
+    sortOrder: number;
+    altText: string;
+    /** Admin-only presentation metadata; omitted from the update request. */
+    originalFileName?: string | null;
+    url?: string | null;
+  }[];
   concurrencyToken?: string | null;
 };
 
@@ -297,11 +306,20 @@ export async function listAdminTagCatalogOptions(signal?: AbortSignal) {
 }
 
 export async function saveAdminTagProduct(input: AdminProductInput, productId?: string) {
+  const body = {
+    ...input,
+    media: input.media.map(({ mediaFileId, productVariantId, sortOrder, altText }) => ({
+      mediaFileId,
+      productVariantId,
+      sortOrder,
+      altText,
+    })),
+  };
   const response = await apiRequest<AdminTagProduct>(
     productId
       ? `/api/v1/admin/tag-products/${encodeURIComponent(productId)}`
       : "/api/v1/admin/tag-products",
-    { method: productId ? "PUT" : "POST", body: input }
+    { method: productId ? "PUT" : "POST", body }
   );
   if (!response.data) throw new Error("Product could not be saved.");
   return response.data;

@@ -82,11 +82,13 @@ export function AdminActionButton({
   onClick,
   tone = "neutral",
   disabled,
+  ariaLabel,
 }: {
   children: ReactNode;
   onClick: () => void;
   tone?: "primary" | "neutral" | "danger";
   disabled?: boolean;
+  ariaLabel?: string;
 }) {
   const tones = {
     primary:
@@ -99,6 +101,7 @@ export function AdminActionButton({
 
   return (
     <button
+      aria-label={ariaLabel}
       className={`inline-flex min-h-9 items-center justify-center rounded-full border px-3.5 py-1.5 text-xs font-extrabold transition disabled:cursor-not-allowed disabled:opacity-50 ${tones[tone]}`}
       disabled={disabled}
       onClick={onClick}
@@ -113,6 +116,66 @@ export function AdminNotice({ children }: { children: ReactNode }) {
   return (
     <div className="min-w-0 rounded-xl border border-[#cfe3ff] bg-[#f0f7ff] px-4 py-3 text-sm font-semibold text-[#1b4f9c]">
       {children}
+    </div>
+  );
+}
+
+export function AdminOperationNotice({
+  tone,
+  title,
+  detail,
+  reference,
+  actionLabel,
+  onAction,
+  onDismiss,
+}: {
+  tone: "success" | "error";
+  title: string;
+  detail?: string;
+  reference?: string;
+  actionLabel?: string;
+  onAction?: () => void;
+  onDismiss: () => void;
+}) {
+  const isError = tone === "error";
+
+  return (
+    <div className="sticky top-[4.5rem] z-20 lg:top-4" data-testid="admin-operation-notice">
+      <div
+        aria-live={isError ? "assertive" : "polite"}
+        className={`flex items-start gap-3 rounded-xl border px-4 py-3 shadow-lg ${
+          isError
+            ? "border-red-300 bg-red-50 text-red-900"
+            : "border-emerald-300 bg-emerald-50 text-emerald-950"
+        }`}
+        role={isError ? "alert" : "status"}
+      >
+        <span aria-hidden="true" className="mt-0.5 shrink-0 font-black">
+          {isError ? "!" : "✓"}
+        </span>
+        <div className="min-w-0 flex-1 text-sm">
+          <p className="font-black">{title}</p>
+          {detail ? <p className="mt-1 font-semibold">{detail}</p> : null}
+          {reference ? <p className="mt-1 break-all text-xs font-semibold opacity-70">Reference: {reference}</p> : null}
+          {actionLabel && onAction ? (
+            <button
+              className="mt-2 min-h-9 rounded-full border border-current px-3 text-xs font-extrabold"
+              onClick={onAction}
+              type="button"
+            >
+              {actionLabel}
+            </button>
+          ) : null}
+        </div>
+        <button
+          aria-label="Dismiss notification"
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-current text-lg font-black"
+          onClick={onDismiss}
+          type="button"
+        >
+          ×
+        </button>
+      </div>
     </div>
   );
 }

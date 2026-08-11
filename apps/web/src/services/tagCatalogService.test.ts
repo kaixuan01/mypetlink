@@ -93,6 +93,46 @@ describe("tagCatalogService", () => {
     });
   });
 
+  it("keeps Admin image presentation metadata out of the product update request", async () => {
+    apiRequest.mockResolvedValue({ data: { id: "product-1" } });
+
+    await saveAdminTagProduct({
+      name: "QR Pet Tag",
+      slug: "qr-pet-tag",
+      shortDescription: null,
+      description: null,
+      isPublished: false,
+      sortOrder: 0,
+      concurrencyToken: "AQ==",
+      media: [{
+        mediaFileId: "media-1",
+        sortOrder: 0,
+        altText: "Front of the tag",
+        originalFileName: "tag-front.jpg",
+        url: "https://media.example/tag-front.jpg",
+      }],
+    }, "product-1");
+
+    expect(apiRequest).toHaveBeenCalledWith("/api/v1/admin/tag-products/product-1", {
+      method: "PUT",
+      body: {
+        name: "QR Pet Tag",
+        slug: "qr-pet-tag",
+        shortDescription: null,
+        description: null,
+        isPublished: false,
+        sortOrder: 0,
+        concurrencyToken: "AQ==",
+        media: [{
+          mediaFileId: "media-1",
+          productVariantId: undefined,
+          sortOrder: 0,
+          altText: "Front of the tag",
+        }],
+      },
+    });
+  });
+
   it("uses the Promotions routes and preserves enum, decimal, and ISO date values", async () => {
     apiRequest
       .mockResolvedValueOnce({ data: [] })

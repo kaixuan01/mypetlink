@@ -184,6 +184,12 @@ public sealed partial class TagCatalogService : ITagCatalogService
         product.SortOrder = request.SortOrder;
         await ReplaceMediaAsync(product, request.Media, cancellationToken);
 
+        // A media-only edit changes child rows, which does not automatically
+        // update SQL Server's rowversion on the product. Force one parent-row
+        // update so image add/remove/reorder operations participate in the
+        // same optimistic-concurrency contract as the rest of the aggregate.
+        _dbContext.Entry(product).Property(item => item.UpdatedAt).IsModified = true;
+
         _auditLogService.Append(admin.Id, ActorType.Admin,
             wasPublished == product.IsPublished ? "tag-product.update" : product.IsPublished ? "tag-product.publish" : "tag-product.unpublish",
             "TagProduct", product.Id, before, ProductSnapshot(product));
@@ -440,6 +446,7 @@ public sealed partial class TagCatalogService : ITagCatalogService
 
         var media = product.Media.Where(item => item.ArchivedAt == null).OrderBy(item => item.SortOrder)
             .Select(item => new TagProductMediaResponse(item.Id, item.MediaFileId, item.TagProductVariantId, item.SortOrder, item.AltText,
+                item.MediaFile.OriginalFileName,
                 PetDtoMapper.ResolvePublicMediaUrl(item.MediaFile, _r2Options.PublicBaseUrl))).ToArray();
         var variants = product.Variants.OrderBy(item => item.SortOrder).ThenBy(item => item.DisplayName)
             .Select(item => ToAdminVariant(item, locked.Contains(item.Id), inventory.GetValueOrDefault(item.Id))).ToArray();
@@ -467,6 +474,7 @@ public sealed partial class TagCatalogService : ITagCatalogService
         if (requests is null) return;
         if (requests.Count > 12) throw ValidationFailed("media", "Add no more than 12 product images.");
         var ids = requests.Select(item => item.MediaFileId).Distinct().ToArray();
+        if (ids.Length != requests.Count) throw ValidationFailed("media", "Choose each product image only once.");
         var files = await _dbContext.MediaFiles.Where(item => ids.Contains(item.Id) && item.DeletedAt == null).ToListAsync(cancellationToken);
         if (files.Count != ids.Length || files.Any(item => item.Category != MediaUploadCategory.TagProductImage
             || item.MediaType != MediaFileType.Image || item.UploadStatus != MediaUploadStatus.Ready || !item.IsPublic))
@@ -475,10 +483,28 @@ public sealed partial class TagCatalogService : ITagCatalogService
         if (variantIds.Length > 0 && await _dbContext.TagProductVariants.CountAsync(item => item.TagProductId == product.Id && variantIds.Contains(item.Id), cancellationToken) != variantIds.Length)
             throw ValidationFailed("media", "A variant image must belong to this product.");
         foreach (var existing in product.Media.Where(item => item.ArchivedAt == null)) existing.ArchivedAt = DateTimeOffset.UtcNow;
-        foreach (var request in requests)
+        var orderedRequests = requests
+            .Select((request, requestIndex) => new { Request = request, RequestIndex = requestIndex })
+            .OrderBy(item => item.Request.SortOrder)
+            .ThenBy(item => item.RequestIndex)
+            .Select(item => item.Request)
+            .ToArray();
+        for (var index = 0; index < orderedRequests.Length; index++)
         {
-            product.Media.Add(new TagProductMedia { TagProduct = product, MediaFileId = request.MediaFileId, TagProductVariantId = request.ProductVariantId,
-                SortOrder = request.SortOrder, AltText = request.AltText.Trim() });
+            var request = orderedRequests[index];
+            var link = new TagProductMedia
+            {
+                TagProduct = product,
+                MediaFileId = request.MediaFileId,
+                TagProductVariantId = request.ProductVariantId,
+                SortOrder = index,
+                AltText = request.AltText.Trim()
+            };
+            // Entity IDs are generated client-side. Adding only through a
+            // tracked navigation can make EF interpret a new link as an
+            // existing row and issue UPDATE (0 rows) instead of INSERT, which
+            // surfaces as a false concurrency conflict. Declare the insert.
+            _dbContext.TagProductMedia.Add(link);
         }
     }
 
@@ -810,7 +836,19 @@ public sealed partial class TagCatalogService : ITagCatalogService
     private static AdminPromotionResponse ToAdminPromotion(Promotion item) => new(item.Id, item.Name, item.InternalDescription, item.DisplayLabel,
         item.IsActive, item.IsAutomatic, item.DiscountType, item.DiscountValue, item.StartsAt, item.EndsAt, item.Priority,
         item.PromotionVariants.Select(link => link.TagProductVariantId).ToArray(), item.UpdatedAt, EncodeToken(item.RowVersion));
-    private static object ProductSnapshot(TagProduct item) => new { item.Name, item.Slug, item.IsPublished, item.IsArchived, item.SortOrder };
+    private static object ProductSnapshot(TagProduct item) => new
+    {
+        item.Name,
+        item.Slug,
+        item.IsPublished,
+        item.IsArchived,
+        item.SortOrder,
+        Media = item.Media
+            .Where(media => media.ArchivedAt == null)
+            .OrderBy(media => media.SortOrder)
+            .Select(media => new { media.MediaFileId, media.TagProductVariantId, media.SortOrder, media.AltText })
+            .ToArray()
+    };
     private static object VariantSnapshot(TagProductVariant item) => new { item.Sku, item.DisplayName, item.SupportsQr, item.SupportsNfc, item.TagVariant, item.WidthMm, item.HeightMm, item.ThicknessMm, item.WeightGrams, item.Material, item.Shape, item.Colour, item.PackagingType, item.BasePrice, item.Currency, item.PrintTemplateCode, item.IsActive, item.IsPurchasable, item.ArchivedAt };
     private static object PromotionSnapshot(Promotion item) => new { item.Name, item.IsActive, item.IsAutomatic, item.DiscountType, item.DiscountValue, item.StartsAt, item.EndsAt, item.Priority, productVariantIds = item.PromotionVariants.Select(link => link.TagProductVariantId).ToArray() };
     private static string EncodeToken(byte[] value) => Convert.ToBase64String(value);

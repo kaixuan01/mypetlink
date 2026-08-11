@@ -955,7 +955,7 @@ describe("AdminTagProductsManager products", () => {
       media: [],
       concurrencyToken: undefined,
     }, undefined);
-    await screen.findByText("MyPetLink Pet Tag saved.");
+    await screen.findByText("Product saved successfully.");
   });
 
   it("rejects publication without an eligible SKU before sending", async () => {
@@ -995,7 +995,170 @@ describe("AdminTagProductsManager products", () => {
 
     expect(mocks.saveProduct).toHaveBeenCalledTimes(1);
     resolveSave?.({ ...productDetail, name: "MyPetLink Pet Tag", slug: "mypetlink-pet-tag", isPublished: false, variants: [] });
-    await screen.findByText("MyPetLink Pet Tag saved.");
+    await screen.findByText("Product saved successfully.");
+  });
+});
+
+describe("AdminTagProductsManager product images and operation feedback", () => {
+  const productWithImages: AdminTagProduct = {
+    ...productDetail,
+    media: [
+      {
+        id: "61000000-0000-4000-8000-000000000001",
+        mediaFileId: "62000000-0000-4000-8000-000000000001",
+        sortOrder: 0,
+        altText: "Front of the tag",
+        originalFileName: "tag-front.jpg",
+        url: "/media/uploads/tag-front.jpg",
+      },
+      {
+        id: "61000000-0000-4000-8000-000000000002",
+        mediaFileId: "62000000-0000-4000-8000-000000000002",
+        sortOrder: 1,
+        altText: "Back of the tag",
+        originalFileName: "tag-back.jpg",
+        url: "/media/uploads/tag-back.jpg",
+      },
+      {
+        id: "61000000-0000-4000-8000-000000000003",
+        mediaFileId: "62000000-0000-4000-8000-000000000003",
+        sortOrder: 2,
+        altText: "1000188360",
+        originalFileName: "1000188360.jpg",
+        url: "/media/uploads/1000188360.jpg",
+      },
+    ],
+  };
+
+  async function openProductWithImages() {
+    mocks.getProduct.mockResolvedValue(productWithImages);
+    await openExistingProduct();
+  }
+
+  it("renders real thumbnails, friendly filenames, a legacy fallback, and the primary marker", async () => {
+    await openProductWithImages();
+
+    expect(screen.getByRole("img", { name: "Front of the tag" }).getAttribute("src")).toBe("/media/uploads/tag-front.jpg");
+    expect(screen.getByText("tag-front.jpg")).toBeDefined();
+    expect(screen.getByText("Product image 3")).toBeDefined();
+    expect(screen.queryByText("1000188360")).toBeNull();
+    expect((screen.getByLabelText("Alt text for Product image 3") as HTMLInputElement).value).toBe("");
+    expect(screen.getByText(/Image 1.*Primary image/)).toBeDefined();
+  });
+
+  it("opens an accessible lightbox, closes with Escape, and restores trigger focus", async () => {
+    await openProductWithImages();
+    const trigger = screen.getByRole("button", { name: "View image tag-front.jpg" });
+    trigger.focus();
+    fireEvent.click(trigger);
+
+    const dialog = screen.getByRole("dialog", { name: "Image preview" });
+    expect(within(dialog).getByRole("img", { name: "Front of the tag" })).toBeDefined();
+    expect(document.activeElement).toBe(within(dialog).getByRole("button", { name: "Close" }));
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Image preview" })).toBeNull());
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it("supports explicit ordering, updates Primary, and submits contiguous positions", async () => {
+    await openProductWithImages();
+    const legacyCard = screen.getByRole("img", { name: "Product image 3" }).closest("article");
+    if (!legacyCard) throw new Error("Legacy image card not found");
+    fireEvent.click(within(legacyCard).getByRole("button", { name: "Move Product image 3 up" }));
+    const movedLegacyCard = screen.getByRole("img", { name: "Product image 2" }).closest("article");
+    if (!movedLegacyCard) throw new Error("Moved legacy image card not found");
+    fireEvent.click(within(movedLegacyCard).getByRole("button", { name: "Move Product image 2 up" }));
+
+    const cards = screen.getAllByRole("article");
+    expect(cards[0].textContent).toContain("Product image 1");
+    expect(cards[0].textContent).toContain("Primary image");
+    expect(within(cards[0]).getByRole("button", { name: "Move Product image 1 up" }).hasAttribute("disabled")).toBe(true);
+    expect(within(cards[2]).getByRole("button", { name: "Move tag-back.jpg down" }).hasAttribute("disabled")).toBe(true);
+    fireEvent.change(screen.getByLabelText("Alt text for Product image 1"), { target: { value: "Product packaging" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Save Product" }));
+    await waitFor(() => expect(mocks.saveProduct).toHaveBeenCalledTimes(1));
+    const submitted = mocks.saveProduct.mock.calls[0][0];
+    expect(submitted.media.map((item: { mediaFileId: string; sortOrder: number }) => [item.mediaFileId, item.sortOrder])).toEqual([
+      [productWithImages.media[2].mediaFileId, 0],
+      [productWithImages.media[0].mediaFileId, 1],
+      [productWithImages.media[1].mediaFileId, 2],
+    ]);
+  });
+
+  it("shows upload progress, prevents duplicate upload, and preserves unsaved product fields", async () => {
+    let resolveUpload: ((value: Record<string, unknown>) => void) | undefined;
+    mocks.uploadMedia.mockReturnValueOnce(new Promise((resolve) => { resolveUpload = resolve; }));
+    await openExistingProduct();
+    fireEvent.change(screen.getByLabelText("Full description"), { target: { value: "Unsaved description" } });
+    const input = screen.getByLabelText(/Upload product image/);
+    const file = new File(["image"], "mypetlink-qr-tag-front.jpg", { type: "image/jpeg" });
+    fireEvent.change(input, { target: { files: [file] } });
+    fireEvent.change(input, { target: { files: [file] } });
+
+    expect(await screen.findByText("Uploading product image...")).toBeDefined();
+    expect(mocks.uploadMedia).toHaveBeenCalledTimes(1);
+    expect(input.hasAttribute("disabled")).toBe(true);
+    resolveUpload?.({
+      mediaId: "63000000-0000-4000-8000-000000000001",
+      originalFileName: file.name,
+      publicUrl: "/media/uploads/mypetlink-qr-tag-front.jpg",
+    });
+
+    expect(await screen.findByText(file.name)).toBeDefined();
+    expect((screen.getByLabelText("Full description") as HTMLTextAreaElement).value).toBe("Unsaved description");
+    expect(screen.getByRole("img", { name: "MyPetLink Pet Tag product image" }).getAttribute("src")).toBe("/media/uploads/mypetlink-qr-tag-front.jpg");
+    expect((screen.getByLabelText(`Alt text for ${file.name}`) as HTMLInputElement).value).toBe("MyPetLink Pet Tag product image");
+
+    fireEvent.click(screen.getByRole("button", { name: "Save Product" }));
+    await waitFor(() => expect(mocks.saveProduct).toHaveBeenCalledTimes(1));
+    expect(mocks.saveProduct).toHaveBeenCalledWith(
+      expect.objectContaining({ description: "Unsaved description", concurrencyToken: productDetail.concurrencyToken }),
+      productDetail.id
+    );
+  });
+
+  it("removes the selected image, promotes the next image, and saves the remaining order", async () => {
+    await openProductWithImages();
+    const firstCard = screen.getByText("tag-front.jpg").closest("article");
+    if (!firstCard) throw new Error("First image card not found");
+    fireEvent.click(within(firstCard).getByRole("button", { name: "Remove tag-front.jpg" }));
+
+    expect(screen.queryByText("tag-front.jpg")).toBeNull();
+    expect(screen.getByText(/Image 1.*Primary image/)).toBeDefined();
+    fireEvent.change(screen.getByLabelText("Alt text for Product image 2"), { target: { value: "Legacy product image" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save Product" }));
+    await waitFor(() => expect(mocks.saveProduct).toHaveBeenCalledTimes(1));
+    expect(mocks.saveProduct.mock.calls[0][0].media.map((item: { sortOrder: number }) => item.sortOrder)).toEqual([0, 1]);
+  });
+
+  it("shows sticky dismissible concurrency feedback and refreshes authoritative state", async () => {
+    mocks.saveProduct.mockRejectedValueOnce(new ApiClientError(
+      409,
+      "concurrency_conflict",
+      "This record was changed by another administrator.",
+      null,
+      undefined,
+      "req-conflict"
+    ));
+    mocks.getProduct
+      .mockResolvedValueOnce(productDetail)
+      .mockResolvedValueOnce({ ...productDetail, description: "Updated elsewhere", concurrencyToken: "Aw==" });
+    await openExistingProduct();
+    fireEvent.change(screen.getByLabelText("Full description"), { target: { value: "Stale edit" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save Product" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("This product was updated after you opened it.");
+    expect(alert.textContent).toContain("Reference: req-conflict");
+    expect(screen.getByTestId("admin-operation-notice").className).toContain("sticky");
+    fireEvent.click(within(alert).getByRole("button", { name: "Refresh" }));
+    await waitFor(() => expect((screen.getByLabelText("Full description") as HTMLTextAreaElement).value).toBe("Updated elsewhere"));
+
+    const status = screen.getByRole("status");
+    fireEvent.click(within(status).getByRole("button", { name: "Dismiss notification" }));
+    expect(screen.queryByTestId("admin-operation-notice")).toBeNull();
   });
 });
 

@@ -97,6 +97,7 @@ public sealed record TagProductMediaResponse(
     Guid? ProductVariantId,
     int SortOrder,
     string AltText,
+    string? OriginalFileName,
     string? Url);
 
 // Lightweight projection for admin Product/SKU selectors (Tag Inventory

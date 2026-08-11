@@ -465,6 +465,56 @@ public sealed class TagCatalogServiceTests
         Assert.Equal(0, total);
     }
 
+    [Fact]
+    public async Task ProductMedia_ProjectsOriginalFilename_NormalizesOrder_AndDrivesPublicCatalog()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await harness.Service.CreateVariantAsync(
+            AdminId,
+            harness.Product.Id,
+            harness.ValidVariant("MPL-MEDIA-V1"));
+
+        var front = ProductImage("tag-front.jpg", "tag-products/front.jpg");
+        var packaging = ProductImage("packaging.jpg", "tag-products/packaging.jpg");
+        harness.Db.MediaFiles.AddRange(front, packaging);
+        await harness.Db.SaveChangesAsync();
+
+        var saved = await harness.Service.UpdateProductAsync(
+            AdminId,
+            harness.Product.Id,
+            new UpsertTagProductRequest(
+                harness.Product.Name,
+                harness.Product.Slug,
+                harness.Product.ShortDescription,
+                harness.Product.Description,
+                true,
+                harness.Product.SortOrder,
+                [
+                    new TagProductMediaRequest(front.Id, null, 8, "Front of the tag"),
+                    new TagProductMediaRequest(packaging.Id, null, 2, "Product packaging")
+                ],
+                Convert.ToBase64String(harness.Product.RowVersion)));
+
+        Assert.Collection(saved.Media,
+            first =>
+            {
+                Assert.Equal(packaging.Id, first.MediaFileId);
+                Assert.Equal("packaging.jpg", first.OriginalFileName);
+                Assert.Equal(0, first.SortOrder);
+            },
+            second =>
+            {
+                Assert.Equal(front.Id, second.MediaFileId);
+                Assert.Equal("tag-front.jpg", second.OriginalFileName);
+                Assert.Equal(1, second.SortOrder);
+            });
+
+        var publicProduct = Assert.Single(await harness.Service.ListPublicAsync());
+        Assert.Collection(publicProduct.Media,
+            first => Assert.Equal("Product packaging", first.AltText),
+            second => Assert.Equal("Front of the tag", second.AltText));
+    }
+
     // --- Variant presets (Catalog Settings) --------------------------------------------
 
     [Fact]
@@ -585,6 +635,22 @@ public sealed class TagCatalogServiceTests
 
     private static UpsertPromotionRequest PromotionRequest(Guid variantId, DateTimeOffset startsAt, DateTimeOffset endsAt, PromotionDiscountType type, decimal value) =>
         new("Sale", null, "Sale", true, true, type, value, startsAt, endsAt, 1, [variantId], null);
+
+    private static MediaFile ProductImage(string originalFileName, string objectKey) => new()
+    {
+        OriginalFileName = originalFileName,
+        StorageFileName = Path.GetFileName(objectKey),
+        ContentType = "image/jpeg",
+        FileSize = 128,
+        StorageProvider = "Local",
+        StoragePath = objectKey,
+        ObjectKey = objectKey,
+        MediaType = MediaFileType.Image,
+        Category = MediaUploadCategory.TagProductImage,
+        IsPublic = true,
+        UploadStatus = MediaUploadStatus.Ready,
+        Sha256 = new string('a', 64)
+    };
 
     private static TagProductVariant Variant(decimal price) => new()
     {
