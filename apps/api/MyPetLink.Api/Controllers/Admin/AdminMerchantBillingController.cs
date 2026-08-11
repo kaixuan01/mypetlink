@@ -35,11 +35,12 @@ public sealed class AdminMerchantInvoicesController : ApiControllerBase
         [FromQuery] Guid? merchantId,
         [FromQuery] DateTimeOffset? fromDate,
         [FromQuery] DateTimeOffset? toDate,
+        [FromQuery] string? merchantOrderIds,
         CancellationToken cancellationToken)
     {
         var (items, total) = await _service.ListInvoicesAsync(
             query.Page, query.PageSize, search, ParseStatus(status), merchantId,
-            fromDate, toDate, cancellationToken);
+            fromDate, toDate, ParseIds(merchantOrderIds), cancellationToken);
 
         return Ok(ApiEnvelope.Ok(items, HttpContext, query.Page, query.PageSize, total));
     }
@@ -73,6 +74,17 @@ public sealed class AdminMerchantInvoicesController : ApiControllerBase
             : throw new ApiException(400, "validation_failed", "Please check the submitted fields.",
                 new Dictionary<string, string[]> { ["status"] = ["That invoice status is not valid."] });
     }
+
+    /// <summary>Unparseable entries are ignored rather than failing the page.</summary>
+    private static IReadOnlyCollection<Guid> ParseIds(string? value) =>
+        string.IsNullOrWhiteSpace(value)
+            ? []
+            : value
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(part => Guid.TryParse(part, out var parsed) ? parsed : (Guid?)null)
+                .Where(parsed => parsed.HasValue)
+                .Select(parsed => parsed!.Value)
+                .ToArray();
 }
 
 [Authorize(Policy = AuthorizationPolicies.Admin)]
