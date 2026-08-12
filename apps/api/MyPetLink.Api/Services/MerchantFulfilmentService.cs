@@ -557,6 +557,22 @@ public sealed class MerchantFulfilmentService : IMerchantFulfilmentService
                 "Enter the tracking number before marking this order shipped.");
         }
 
+        // Couriers use letters, digits, spaces and punctuation, so the rule is
+        // not a narrow alphanumeric pattern. What a tracking number may never
+        // contain is a control character: this value is snapshotted, written
+        // into the customer's shipped email and interpolated into a tracking
+        // URL, and a newline in any of those is a header- or display-injection
+        // waiting to happen. Surrounding whitespace is trimmed as before.
+        var trackingNumber = request.TrackingNumber.Trim();
+        if (trackingNumber.Any(char.IsControl))
+        {
+            throw new ApiException(
+                StatusCodes.Status400BadRequest,
+                "tracking_invalid",
+                "The tracking number contains characters that are not allowed. "
+                    + "Enter it exactly as the courier shows it.");
+        }
+
         var progress = await LoadProgressAsync(order, cancellationToken);
         if (progress.Any(row => row.Allocated != row.Required))
         {
@@ -572,7 +588,7 @@ public sealed class MerchantFulfilmentService : IMerchantFulfilmentService
         order.CourierProviderCode = courier.Code;
         order.CourierProvider = courier.DisplayName;
         order.CourierService = Trim(request.CourierService);
-        order.TrackingNumber = request.TrackingNumber.Trim();
+        order.TrackingNumber = trackingNumber;
         order.TrackingUrlSnapshot = courier.TrackingUrlTemplate is { Length: > 0 } template
             ? template.Replace("{trackingNumber}", Uri.EscapeDataString(order.TrackingNumber))
             : null;

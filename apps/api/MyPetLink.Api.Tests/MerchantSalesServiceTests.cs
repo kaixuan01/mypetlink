@@ -430,6 +430,126 @@ public class MerchantSalesServiceTests
         Assert.Equal("quotation_not_editable", error.Code);
     }
 
+    // ============ Catalog sellability on new quotation lines ============
+    // The Admin editor hides retired SKUs, but the server owns the rule: a SKU
+    // the shop cannot sell is not a SKU a merchant can be quoted for either.
+
+    [Fact]
+    public async Task ASellableSkuIsAcceptedOnANewQuotationLine()
+    {
+        using var h = Harness.Create();
+        var merchant = await h.CreateMerchantAsync();
+
+        var quotation = await h.CreateQuotationAsync(merchant.Id);
+
+        Assert.Single(quotation.Items);
+        Assert.Equal("WS-QR-1", quotation.Items.Single().SkuCode);
+    }
+
+    [Theory]
+    [InlineData("inactive")]
+    [InlineData("not-purchasable")]
+    [InlineData("archived")]
+    [InlineData("product-archived")]
+    [InlineData("product-unpublished")]
+    public async Task ANonSellableSkuIsRefusedOnANewQuotationLine(string state)
+    {
+        using var h = Harness.Create();
+        var merchant = await h.CreateMerchantAsync();
+        await h.MakeVariantNonSellableAsync(h.VariantId, state);
+
+        var error = await Assert.ThrowsAsync<ApiException>(() =>
+            h.CreateQuotationAsync(merchant.Id));
+
+        Assert.Equal(409, error.StatusCode);
+        Assert.Equal("merchant_sku_unavailable", error.Code);
+        Assert.Equal(
+            "This tag option is no longer available for new quotations. Choose another option.",
+            error.Message);
+        // Named per line so the editor can highlight the offending row.
+        Assert.True(error.Details!.ContainsKey("items[0].productVariantId"));
+        // Nothing about the catalog's internal state leaks into the message.
+        Assert.DoesNotContain("Archived", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Purchasable", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task AnUnknownSkuStillReportsThatItNoLongerExists()
+    {
+        using var h = Harness.Create();
+        var merchant = await h.CreateMerchantAsync();
+
+        var error = await Assert.ThrowsAsync<ApiException>(() =>
+            h.Service.CreateQuotationAsync(null, new UpsertQuotationRequest(
+                merchant.Id, null, null, 0m, 0m, null, null,
+                [new UpsertQuotationItemRequest(Guid.NewGuid(), 1, 10m)]), default));
+
+        Assert.Equal(400, error.StatusCode);
+        Assert.Equal("validation_failed", error.Code);
+    }
+
+    [Fact]
+    public async Task ADraftCannotBeSavedAfterItsSkuIsRetired()
+    {
+        using var h = Harness.Create();
+        var merchant = await h.CreateMerchantAsync();
+        var quotation = await h.CreateQuotationAsync(merchant.Id);
+
+        await h.MakeVariantNonSellableAsync(h.VariantId, "archived");
+
+        var error = await Assert.ThrowsAsync<ApiException>(() =>
+            h.Service.UpdateQuotationAsync(null, quotation.Id,
+                new UpsertQuotationRequest(merchant.Id, null, null, 0m, 0m, null, null,
+                    [new UpsertQuotationItemRequest(h.VariantId, 2, 10m)]), default));
+
+        Assert.Equal("merchant_sku_unavailable", error.Code);
+    }
+
+    [Fact]
+    public async Task ADraftCannotBeSentAfterItsSkuIsRetired()
+    {
+        using var h = Harness.Create();
+        var merchant = await h.CreateMerchantAsync();
+        var quotation = await h.CreateQuotationAsync(merchant.Id);
+
+        await h.MakeVariantNonSellableAsync(h.VariantId, "archived");
+
+        var error = await Assert.ThrowsAsync<ApiException>(() =>
+            h.Service.TransitionQuotationAsync(
+                null, quotation.Id, MerchantQuotationStatus.Sent, null, default));
+
+        Assert.Equal(409, error.StatusCode);
+        Assert.Equal("merchant_sku_unavailable", error.Code);
+
+        // The refusal leaves the draft exactly as it was — no half-sent state.
+        var after = await h.Service.GetQuotationAsync(quotation.Id, default);
+        Assert.Equal(MerchantQuotationStatus.Draft, after.Status);
+        Assert.Null(after.SentAt);
+    }
+
+    [Fact]
+    public async Task AQuotationSentBeforeArchivalStaysReadableAndCanStillProgress()
+    {
+        using var h = Harness.Create();
+        var sent = await h.SentQuotationAsync();
+
+        // The SKU is retired only after the merchant already has the offer.
+        await h.MakeVariantNonSellableAsync(h.VariantId, "archived");
+
+        var reread = await h.Service.GetQuotationAsync(sent.Id, default);
+        Assert.Equal("WS-QR-1", reread.Items.Single().SkuCode);
+        Assert.Equal("Wholesale Tag", reread.Items.Single().ProductName);
+
+        // Already a commitment: accepting and converting must not be blocked by
+        // a catalog change that happened afterwards.
+        await h.Service.TransitionQuotationAsync(
+            null, sent.Id, MerchantQuotationStatus.Accepted, null, default);
+        var converted = await h.Service.ConvertQuotationAsync(null, sent.Id, null, default);
+
+        Assert.Equal("WS-QR-1", converted.Order.Items.Single().SkuCode);
+        Assert.Equal("Wholesale Tag", converted.Order.Items.Single().ProductName);
+    }
+
     // ===================== Transitions =====================
 
     [Theory]
@@ -855,6 +975,45 @@ public class MerchantSalesServiceTests
             Service.CreateQuotationAsync(null, new UpsertQuotationRequest(
                 merchantId, salespersonId, validUntil, 0m, 0m, null, null,
                 [new UpsertQuotationItemRequest(VariantId, 100, unitPrice)]), default);
+
+        /// <summary>
+        /// Puts one variant into a state the catalog treats as not sellable,
+        /// mirroring what the catalog service does for each case.
+        /// </summary>
+        public async Task MakeVariantNonSellableAsync(Guid variantId, string state)
+        {
+            var variant = await Db.TagProductVariants
+                .Include(item => item.TagProduct)
+                .SingleAsync(item => item.Id == variantId);
+
+            switch (state)
+            {
+                case "inactive":
+                    variant.IsActive = false;
+                    break;
+                case "not-purchasable":
+                    variant.IsPurchasable = false;
+                    break;
+                case "archived":
+                    // ArchiveVariantAsync clears all three together.
+                    variant.ArchivedAt = DateTimeOffset.UtcNow;
+                    variant.IsActive = false;
+                    variant.IsPurchasable = false;
+                    break;
+                case "product-archived":
+                    // ArchiveProductAsync unpublishes and de-lists its SKUs.
+                    variant.TagProduct.IsArchived = true;
+                    variant.TagProduct.IsPublished = false;
+                    break;
+                case "product-unpublished":
+                    variant.TagProduct.IsPublished = false;
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(state), state, "Unknown SKU state.");
+            }
+
+            await Db.SaveChangesAsync();
+        }
 
         public async Task<QuotationResponse> SentQuotationAsync()
         {
