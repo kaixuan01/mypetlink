@@ -323,6 +323,8 @@ export function getMerchantFulfilmentError(error: unknown, fallback: string): st
       return error.message;
     case "tracking_required":
       return "Enter the tracking number before marking this order shipped.";
+    case "tracking_invalid":
+      return "The tracking number contains characters that are not allowed. Enter it exactly as the courier shows it.";
     case "delivery_order_not_ready":
       return "Mark the order ready to ship before issuing its delivery order.";
     case "delivery_order_already_issued":

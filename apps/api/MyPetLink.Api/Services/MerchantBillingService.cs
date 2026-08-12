@@ -19,6 +19,7 @@ public interface IMerchantBillingService
     Task<(IReadOnlyCollection<MerchantInvoiceResponse> Items, int Total)> ListInvoicesAsync(
         int page, int pageSize, string? search, MerchantInvoiceStatus? status,
         Guid? merchantId, DateTimeOffset? fromDate, DateTimeOffset? toDate,
+        IReadOnlyCollection<Guid>? merchantOrderIds,
         CancellationToken cancellationToken);
 
     Task<MerchantInvoiceResponse> GetInvoiceAsync(Guid id, CancellationToken cancellationToken);
@@ -78,12 +79,23 @@ public sealed class MerchantBillingService : IMerchantBillingService
     public async Task<(IReadOnlyCollection<MerchantInvoiceResponse> Items, int Total)> ListInvoicesAsync(
         int page, int pageSize, string? search, MerchantInvoiceStatus? status,
         Guid? merchantId, DateTimeOffset? fromDate, DateTimeOffset? toDate,
+        IReadOnlyCollection<Guid>? merchantOrderIds,
         CancellationToken cancellationToken)
     {
         var query = InvoiceQuery().AsNoTracking();
 
         if (status.HasValue) query = query.Where(item => item.Status == status.Value);
         if (merchantId.HasValue) query = query.Where(item => item.MerchantId == merchantId.Value);
+
+        // Scopes the list to a known set of orders so a caller showing one page
+        // of orders can fetch exactly their invoices in one request, instead of
+        // reading the newest invoices globally and hoping they overlap.
+        if (merchantOrderIds is { Count: > 0 })
+        {
+            var ids = merchantOrderIds.Distinct().ToArray();
+            query = query.Where(item => ids.Contains(item.MerchantOrderId));
+        }
+
         if (fromDate.HasValue) query = query.Where(item => item.InvoiceDate >= fromDate.Value);
         if (toDate.HasValue) query = query.Where(item => item.InvoiceDate <= toDate.Value);
 

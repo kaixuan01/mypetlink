@@ -436,6 +436,8 @@ export function getMerchantSalesError(error: unknown, fallback: string): string 
       return "Another merchant already uses that business registration number.";
     case "merchant_inactive":
       return "This merchant is inactive, so a new quotation cannot be created for them.";
+    case "merchant_sku_unavailable":
+      return "This tag option is no longer available for new quotations. Choose another option.";
     case "salesperson_inactive":
       return "This salesperson is inactive and cannot be assigned to new sales.";
     case "invalid_quotation_transition":

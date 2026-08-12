@@ -341,7 +341,7 @@ public sealed partial class TagCatalogService : ITagCatalogService
         var variants = await _dbContext.TagProductVariants.Include(item => item.TagProduct)
             .Where(item => variantIds.Contains(item.Id)).ToListAsync(cancellationToken);
         if (variants.Count != variantIds.Length) throw ValidationFailed("productVariantIds", "One or more selected SKUs could not be found.");
-        if (request.IsActive && variants.Any(item => item.ArchivedAt.HasValue || !item.IsActive || !item.IsPurchasable || item.TagProduct.IsArchived || !item.TagProduct.IsPublished))
+        if (request.IsActive && variants.Any(item => !TagCatalogSellability.IsSellable(item)))
             throw ValidationFailed("productVariantIds", "Active promotions can only use published, active, purchasable SKUs.");
         if (request.DiscountType == PromotionDiscountType.FixedAmount && variants.Any(item => request.DiscountValue > item.BasePrice))
             throw ValidationFailed("discountValue", "A fixed discount cannot reduce any selected SKU below zero.");

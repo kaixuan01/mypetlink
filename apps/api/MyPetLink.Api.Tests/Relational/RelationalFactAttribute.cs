@@ -13,3 +13,15 @@ public sealed class RelationalFactAttribute : FactAttribute
         }
     }
 }
+
+// The [Theory] counterpart, skipped under the same condition.
+public sealed class RelationalTheoryAttribute : TheoryAttribute
+{
+    public RelationalTheoryAttribute()
+    {
+        if (!RelationalDatabase.IsAvailable)
+        {
+            Skip = "SQL Server (LocalDB or MYPETLINK_TEST_SQLSERVER) is not available; relational concurrency tests skipped.";
+        }
+    }
+}

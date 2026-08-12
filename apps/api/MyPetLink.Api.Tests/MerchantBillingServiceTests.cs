@@ -44,6 +44,50 @@ public class MerchantBillingServiceTests
         Assert.Equal("MPL-INV-260805-0002", second.InvoiceNumber);
     }
 
+    // The Orders screen fetches one page's invoices in a single request. Before
+    // this filter existed it asked for the newest invoices globally and kept the
+    // ones that happened to match, so a filtered or later page of orders showed
+    // "No invoice has been issued yet" for orders that were already invoiced.
+    [Fact]
+    public async Task ListingInvoicesByMerchantOrderIdsReturnsOnlyThoseOrdersInvoices()
+    {
+        using var h = await Harness.CreateAsync();
+        var first = await h.AwaitingPaymentOrderAsync();
+        var second = await h.AwaitingPaymentOrderAsync("Second Merchant", "AS2222222-B");
+        var third = await h.AwaitingPaymentOrderAsync("Third Merchant", "AS3333333-C");
+
+        var firstInvoice = await h.IssueAsync(first.Id);
+        await h.IssueAsync(second.Id);
+        await h.IssueAsync(third.Id);
+
+        // Ask only for the oldest order, exactly as a one-row page would.
+        var (items, total) = await h.Billing.ListInvoicesAsync(
+            page: 1, pageSize: 1, search: null, status: null, merchantId: null,
+            fromDate: null, toDate: null, merchantOrderIds: [first.Id],
+            cancellationToken: default);
+
+        Assert.Equal(1, total);
+        var only = Assert.Single(items);
+        Assert.Equal(firstInvoice.InvoiceNumber, only.InvoiceNumber);
+        Assert.Equal(first.Id, only.MerchantOrderId);
+    }
+
+    [Fact]
+    public async Task ListingInvoicesWithoutMerchantOrderIdsStillReturnsEveryInvoice()
+    {
+        using var h = await Harness.CreateAsync();
+        await h.IssueAsync((await h.AwaitingPaymentOrderAsync()).Id);
+        await h.IssueAsync((await h.AwaitingPaymentOrderAsync("Second Merchant", "AS2222222-B")).Id);
+
+        var (items, total) = await h.Billing.ListInvoicesAsync(
+            page: 1, pageSize: 20, search: null, status: null, merchantId: null,
+            fromDate: null, toDate: null, merchantOrderIds: null,
+            cancellationToken: default);
+
+        Assert.Equal(2, total);
+        Assert.Equal(2, items.Count);
+    }
+
     [Fact]
     public async Task IssuingIsDueOnReceiptSoTheDueDateIsTheInvoiceDate()
     {

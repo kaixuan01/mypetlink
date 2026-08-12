@@ -133,14 +133,23 @@ export function OrdersPanel({
         if (controller.signal.aborted) return;
         setListState({ key, items: result.items, total: result.total, error: "" });
 
-        // One invoice request for the whole page rather than one per row.
-        const invoices = await listInvoices(
-          { page: 1, pageSize: Math.max(result.items.length, 1) * 2 },
-          controller.signal
-        ).catch(() => ({ items: [] as AdminMerchantInvoice[], total: 0 }));
+        // One invoice request for the whole page rather than one per row. The
+        // request names the orders on this page, so a filtered or later page
+        // still finds its own invoices instead of the newest ones globally.
+        const orderIds = result.items.map((item) => item.id);
+        const invoices = orderIds.length
+          ? await listInvoices(
+              {
+                page: 1,
+                pageSize: orderIds.length,
+                merchantOrderIds: orderIds.join(","),
+              },
+              controller.signal
+            ).catch(() => ({ items: [] as AdminMerchantInvoice[], total: 0 }))
+          : { items: [] as AdminMerchantInvoice[], total: 0 };
         if (controller.signal.aborted) return;
 
-        const wanted = new Set(result.items.map((item) => item.id));
+        const wanted = new Set(orderIds);
         setInvoicesByOrder(
           Object.fromEntries(
             invoices.items

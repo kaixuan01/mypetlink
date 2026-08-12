@@ -202,6 +202,8 @@ export type InvoiceListParams = {
   merchantId?: string;
   fromDate?: string;
   toDate?: string;
+  /** Comma-separated merchant order ids, to fetch exactly one page's invoices. */
+  merchantOrderIds?: string;
 };
 
 export async function listInvoices(

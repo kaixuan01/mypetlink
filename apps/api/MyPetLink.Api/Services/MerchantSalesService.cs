@@ -437,6 +437,17 @@ public sealed class MerchantSalesService : IMerchantSalesService
         }
 
         ApplyConcurrency(quotation, concurrencyToken);
+
+        // Sending is the moment a draft becomes a priced offer the merchant
+        // acts on, so it is the last point where the catalog still gets a say.
+        // A draft left open while its SKU was retired must not go out. Only
+        // this one transition re-checks: a quotation that is already Sent,
+        // Accepted or Converted keeps its snapshots and moves on untouched.
+        if (target == MerchantQuotationStatus.Sent)
+        {
+            await RequireSellableLinesAsync(quotation, cancellationToken);
+        }
+
         var before = QuotationAuditSnapshot(quotation);
         var now = _timeProvider.GetUtcNow();
 
@@ -885,6 +896,22 @@ public sealed class MerchantSalesService : IMerchantSalesService
                     "That tag option no longer exists.");
             }
 
+            // The Admin editor already hides SKUs the catalog has retired, but
+            // the server owns the rule: a draft left open while a SKU is
+            // archived must not be able to save it into a new quotation. Lines
+            // already sent, accepted or converted keep their own snapshots and
+            // are untouched by this.
+            if (!TagCatalogSellability.IsSellable(variant))
+            {
+                throw new ApiException(409, "merchant_sku_unavailable",
+                    "This tag option is no longer available for new quotations. Choose another option.",
+                    new Dictionary<string, string[]>
+                    {
+                        [$"items[{sortOrder}].productVariantId"] =
+                            ["This tag option is no longer available for new quotations. Choose another option."]
+                    });
+            }
+
             if (line.Quantity < 1)
             {
                 throw Validation($"items[{sortOrder}].quantity", "Quantity must be at least 1.");
@@ -1027,6 +1054,40 @@ public sealed class MerchantSalesService : IMerchantSalesService
 
         return await query.SingleOrDefaultAsync(s => s.Id == id, cancellationToken)
             ?? throw NotFound("salesperson_not_found", "That salesperson could not be found.");
+    }
+
+    /// <summary>
+    /// Every line on the quotation must still point at a SKU the catalog says
+    /// is sellable. Named per line so the editor can highlight the offender.
+    /// </summary>
+    private async Task RequireSellableLinesAsync(
+        MerchantQuotation quotation, CancellationToken cancellationToken)
+    {
+        var variantIds = quotation.Items.Select(item => item.ProductVariantId).Distinct().ToArray();
+        if (variantIds.Length == 0) return;
+
+        var variants = await _dbContext.TagProductVariants
+            .AsNoTracking()
+            .Include(variant => variant.TagProduct)
+            .Where(variant => variantIds.Contains(variant.Id))
+            .ToDictionaryAsync(variant => variant.Id, cancellationToken);
+
+        foreach (var item in quotation.Items.OrderBy(item => item.SortOrder))
+        {
+            if (variants.TryGetValue(item.ProductVariantId, out var variant)
+                && TagCatalogSellability.IsSellable(variant))
+            {
+                continue;
+            }
+
+            throw new ApiException(409, "merchant_sku_unavailable",
+                "This tag option is no longer available for new quotations. Choose another option.",
+                new Dictionary<string, string[]>
+                {
+                    [$"items[{item.SortOrder}].productVariantId"] =
+                        ["This tag option is no longer available for new quotations. Choose another option."]
+                });
+        }
     }
 
     private async Task<MerchantQuotation> RequireQuotationAsync(

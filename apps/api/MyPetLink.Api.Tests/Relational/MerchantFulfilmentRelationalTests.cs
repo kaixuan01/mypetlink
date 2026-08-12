@@ -106,6 +106,74 @@ public sealed class MerchantFulfilmentRelationalTests
         Assert.Equal(MerchantOrderFulfilmentStatus.ReadyToShip, order.FulfilmentStatus);
     }
 
+    // A tracking number is snapshotted, written into the merchant's shipped
+    // email and interpolated into a tracking URL. A control character in any of
+    // those is an injection or a broken display, so it never gets stored.
+    [RelationalTheory]
+    [InlineData("JT123\rInjected")]
+    [InlineData("JT123\nInjected")]
+    [InlineData("JT123\r\nInjected")]
+    [InlineData("JT123\tInjected")]
+    [InlineData("JT\0123")]
+    [InlineData("JT\a123")]
+    public async Task ShippingRefusesATrackingNumberContainingControlCharacters(string tracking)
+    {
+        await using var scope = await RelationalDatabase.CreateAsync();
+        await using var db = scope.NewContext();
+        await SeedAsync(db);
+        var service = Service(db);
+        await AllocateEverythingAsync(service);
+        await service.MarkReadyToShipAsync(
+            AdminAccountId, OrderId, new MerchantFulfilmentTransitionRequest());
+
+        var failure = await Assert.ThrowsAsync<ApiException>(() =>
+            service.MarkShippedAsync(AdminAccountId, OrderId, Shipment(tracking: tracking)));
+
+        Assert.Equal(400, failure.StatusCode);
+        Assert.Equal("tracking_invalid", failure.Code);
+
+        // Nothing about the shipment survives the refusal.
+        var order = await db.MerchantOrders.AsNoTracking().SingleAsync(item => item.Id == OrderId);
+        Assert.Equal(MerchantOrderFulfilmentStatus.ReadyToShip, order.FulfilmentStatus);
+        Assert.Null(order.TrackingNumber);
+        Assert.Null(order.TrackingUrlSnapshot);
+        Assert.Null(order.ShippedAt);
+        Assert.Empty(await db.MerchantDeliveryOrders.AsNoTracking()
+            .Where(item => item.MerchantOrderId == OrderId).ToListAsync());
+        Assert.Empty(await db.EmailOutbox.AsNoTracking()
+            .Where(item => item.MessageType == EmailMessageType.MerchantOrderShipped).ToListAsync());
+    }
+
+    // Couriers use letters, digits, spaces and punctuation, so the rule bans
+    // control characters rather than imposing a narrow alphanumeric pattern.
+    [RelationalTheory]
+    [InlineData("123456789012", "123456789012")]
+    [InlineData("JT123456789", "JT123456789")]
+    [InlineData("JT-1234-5678", "JT-1234-5678")]
+    [InlineData("AB 123456", "AB 123456")]
+    [InlineData("   JT-9999-0001   ", "JT-9999-0001")]
+    public async Task ShippingAcceptsOrdinaryCourierTrackingFormats(string tracking, string stored)
+    {
+        await using var scope = await RelationalDatabase.CreateAsync();
+        await using var db = scope.NewContext();
+        await SeedAsync(db);
+        await IssueInvoiceAsync(db);
+        var service = Service(db);
+        await AllocateEverythingAsync(service);
+        await service.MarkReadyToShipAsync(
+            AdminAccountId, OrderId, new MerchantFulfilmentTransitionRequest());
+
+        var result = await service.MarkShippedAsync(
+            AdminAccountId, OrderId, Shipment(tracking: tracking));
+
+        Assert.Equal("Shipped", result.FulfilmentStatus);
+        Assert.Equal(stored, result.TrackingNumber);
+
+        var order = await db.MerchantOrders.AsNoTracking().SingleAsync(item => item.Id == OrderId);
+        Assert.Equal(stored, order.TrackingNumber);
+        Assert.DoesNotContain(order.TrackingNumber!, character => char.IsControl(character));
+    }
+
     [RelationalFact]
     public async Task AnOrderCannotShipBeforeItIsReady()
     {
