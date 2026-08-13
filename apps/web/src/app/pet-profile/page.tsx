@@ -67,7 +67,7 @@ export default function PetProfileGuidePage() {
             <p className="mt-3 text-sm leading-6 text-pet-muted">
               A warm page for friends, family, and pet communities. It focuses on your pet&apos;s identity, personality, memories, and owner-approved details.
             </p>
-            <CTAButton className="mt-5" href={marketingRoutes.sample} variant="secondary">
+            <CTAButton className="mt-5" href={marketingRoutes.samplePublicProfile} variant="secondary">
               View Sample Profile
             </CTAButton>
           </article>

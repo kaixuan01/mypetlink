@@ -115,12 +115,13 @@ Key rules baked into these helpers:
 - **Public share routes are looked up by `publicCode`** (the final segment),
   never the slug. The slug is cosmetic. Parse with `parsePublicProfileParam`
   (it splits on the **last** `-` because slugs can contain hyphens).
-- The public homepage sample preview and `/sample` page resolve their Featured
-  Sample Pet at runtime from the same typed Admin configuration endpoint. Only
-  pets explicitly approved with
-  `IsSampleEligible` can be selected, and an invalid selection fails closed.
-  `samplePet` remains static seed data for other intentional preview/SEO
-  fixtures; it is not the authority for marketing sample content. Never
+- The public homepage preview and `/sample` page may enrich their guided examples
+  at runtime with the Featured Sample Pet from the same typed Admin configuration
+  endpoint. Only pets explicitly approved with `IsSampleEligible` can be selected.
+  Missing or invalid selection falls back to the intentional static sample, and the
+  sample journey never links to a database-selected pet's static-export route.
+  `samplePet` is the deletion-proof marketing fallback and intentional SEO
+  fixture; it is not a database record or the optional personalization authority. Never
   hardcode a pet id, slug, or tag code in a page or component.
 - New physical tag activation starts from the printed QR at `/q/{tagCode}`.
   Existing `/t/{tagCode}` links remain compatible. `/n/{tagCode}` never offers

@@ -37,7 +37,7 @@ From [`CODEX_FIX_BACKLOG.md`](CODEX_FIX_BACKLOG.md):
 - **Owner-managed / excluded** — Migration SQL artefacts are managed by the repository owner and are not part of the Codex launch backlog.
 - **P1-001** — Minimum funnel analytics (~8 events).
 - **P1-002** — Add an `overdue` care-record state.
-- **P1-003** — Configure the sample pet, or hide the sample CTAs when none exists.
+- **P1-003 — implemented** — The guided Sample Experience is complete with or without optional approved-pet personalization; public and safety CTAs deep-link to matching sections.
 
 Strongly worth including if time allows: **P1-004** (a single primary CTA after pet creation, leading to "Add your first Moment") — the cheapest available activation improvement.
 

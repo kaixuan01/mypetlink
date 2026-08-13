@@ -162,14 +162,14 @@ export default function Home() {
                 Create Free Pet Profile
               </CreateProfileCTA>
               <CTAButton
-                href={marketingRoutes.sample}
+                href={marketingRoutes.samplePublicProfile}
                 icon="heart"
                 variant="secondary"
               >
                 Explore Sample Profile
               </CTAButton>
               <CTAButton
-                href={marketingRoutes.sample}
+                href={marketingRoutes.sampleSafetyProfile}
                 icon="qr"
                 variant="outline"
               >

@@ -2,6 +2,7 @@ import { mockPets } from "@/data/mockPets";
 import {
   indexableSamplePublicCode,
   indexableSamplePublicSlug,
+  staticSampleExperiencePet,
 } from "@/data/publicSample";
 import type { Pet } from "@/types";
 
@@ -15,8 +16,8 @@ export const samplePet: Pet = {
   id: "sample_topu",
   ownerUserId: undefined,
   slug: "topu",
-  name: "Topu",
-  species: "Cat",
+  name: staticSampleExperiencePet.name,
+  species: staticSampleExperiencePet.species,
   breed: "Domestic Shorthair",
   gender: "Male",
   color: "Grey",
@@ -29,8 +30,7 @@ export const samplePet: Pet = {
   generalArea: "Ampang, Kuala Lumpur",
   photoInitial: "T",
   photoTone: "mint",
-  photoUrl:
-    "https://media.mypetlink.com.my/pets/03241526-0d9e-42fb-9ef5-8bbcbdb424f5/profile/880dee99fa4d44e2ab1ccac3eb31bf85.jpg",
+  photoUrl: staticSampleExperiencePet.profilePhotoUrl,
   coverUrl:
     "https://media.mypetlink.com.my/pets/03241526-0d9e-42fb-9ef5-8bbcbdb424f5/covers/e2d9387de749425ba576e3a3baf78574.jpg",
   coverPositionX: 50,
@@ -41,7 +41,7 @@ export const samplePet: Pet = {
   qrSafetyPath: "/q/sl3j2b2q3e2oqhe4iamqa",
   finderProfileUrl: "/q/sl3j2b2q3e2oqhe4iamqa",
   publicProfilePath: `/p/${indexableSamplePublicSlug}`,
-  bio: "Curious, friendly, and always looking for treats.",
+  bio: staticSampleExperiencePet.bio,
   personalityTags: ["Curious", "Friendly", "Treat lover"],
   allergies: [],
   safetyNote: "Please contact the owner if this pet is found.",

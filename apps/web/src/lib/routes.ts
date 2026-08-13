@@ -182,6 +182,8 @@ export const marketingRoutes = {
   smartPetTags: "/smart-pet-tags",
   petProfile: "/pet-profile",
   sample: "/sample",
+  samplePublicProfile: "/sample#public-share-profile",
+  sampleSafetyProfile: "/sample#safety-profile",
   privacy: "/privacy",
   terms: "/terms",
 } as const;

@@ -145,11 +145,7 @@ The rendered page at `/q/stysjmj4bayjd23ff7jva` shows:
 The authenticated API response remains authoritative. One shared frontend helper handles the static/local fallback and public records that do not receive a derived status. This rule is derived from an existing date rather than configured, so no application setting or database migration was introduced.
 
 ### P1-003 — `/sample` is empty on a fresh database, dead-ending four homepage CTAs
-Four homepage links ("Explore Sample Profile", "View Sample Safety Profile", and two footer/nav "Sample Profile" links) all point to `/sample`, which renders only:
-
-> The Sample Experience is being prepared. Please check again soon.
-
-The degradation is honest and safe, but the primary "show me what this is" path for every first-time visitor leads nowhere until an admin configures a sample pet in `/admin/sample-experience`. Either make this a hard pre-launch checklist item or hide the CTAs when no sample exists.
+**Resolved in code and verified on 2026-08-13.** Every public sample entry point now reaches a complete, static-export-safe guided experience. The approved Featured Sample Pet remains optional personalization: missing, invalid, loading, and request-failure states render the intentional static sample rather than a holding card. The page exposes no contact details or internal identifiers and ends with one anonymous-safe create-profile action.
 
 ### P1-004 — The post-creation screen offers five competing CTAs and no primary action
 After creating a pet (`PetProfileForm.tsx:900`) the success screen renders up to five buttons — View Public Profile, View Safety Profile, Order Physical Tag, Manage {pet}, Go to Dashboard — at similar visual weight, which stack into a long column on mobile. There is no single obvious next step, and notably **"Add your first Moment" is not among them**, even though Moments are the core retention loop. This is the highest-leverage activation moment in the product and it currently diffuses attention.
@@ -161,7 +157,7 @@ Care-record validation returns, e.g., *"Vaccination date cannot be in the future
 There is no email OTP, password, or Apple option. Any user without a usable Google account — or on a device where Google Sign-In fails to load — cannot enter the product at all, and the failure mode is a small inline error. For a Malaysian consumer launch this is a real addressable-audience constraint. It is a deliberate scope decision, not a defect, but it should be a conscious launch decision rather than an implicit one.
 
 ### P1-007 — Two differently-labelled CTAs resolve to the same page
-"Explore Sample Profile" and "View Sample Safety Profile" both link to `/sample`. They promise two different things (the shareable page vs. the finder page) and deliver the same destination.
+**Resolved with P1-003 on 2026-08-13.** "Explore Sample Profile" targets the Public Share Profile section and "View Sample Safety Profile" targets the Safety Profile section through centralized static route anchors.
 
 ---
 
@@ -295,9 +291,9 @@ Stated plainly so this report is not over-trusted:
 
 1. **Enable and validate P1-001** — configure the production GA4 measurement id, rebuild, and confirm events in GA4 after privacy/consent review.
 2. **P1-002** — Overdue care-record status. Cheap, and it repairs the only retention surface that exists.
-3. **P1-003** — Configure the sample pet (or hide the CTAs). A launch-checklist item as much as a code change.
+3. **P1-003 — complete** — The sample journey no longer depends on launch-time pet selection; the release checklist verifies both generic and optional personalized states.
 
-**Why not "READY FOR CONTROLLED SOFT LAUNCH" today:** the P0 finder issue and analytics code are complete, but production analytics configuration, retention-correctness, and sample-experience work remain. Migration SQL artefacts are owner-managed and excluded from this recommendation.
+**Why not "READY FOR CONTROLLED SOFT LAUNCH" today:** the P0 finder issue, analytics code, retention correctness, and sample experience are complete, but production analytics configuration remains. Migration SQL artefacts are owner-managed and excluded from this recommendation.
 
 **Why not "NOT READY":** the platform underneath is sound. Authentication, authorization, data ownership, privacy boundaries, and mobile rendering were all verified and hold up. The remaining P1 and P2 items are genuine improvements, not obstacles.
 

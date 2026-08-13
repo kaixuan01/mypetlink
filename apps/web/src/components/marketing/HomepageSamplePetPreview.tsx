@@ -24,7 +24,7 @@ export function HomepageSamplePetPreview() {
   }, []);
 
   if (!state?.available || !state.pet) {
-    return <UnavailablePreview loading={!state} />;
+    return <GenericPreview />;
   }
 
   const pet = state.pet;
@@ -87,9 +87,9 @@ function ContactOption({ children, icon, tone = "text-pet-teal" }: { children: R
   );
 }
 
-function UnavailablePreview({ loading }: { loading: boolean }) {
+function GenericPreview() {
   return (
-    <article className="brand-card overflow-hidden rounded-[2rem]" role="status">
+    <article className="brand-card overflow-hidden rounded-[2rem]">
       <div className="brand-paw-dots min-h-32 bg-[#e8f3ff] p-6">
         <Badge tone="mint">Shareable pet profile</Badge>
       </div>
@@ -98,10 +98,11 @@ function UnavailablePreview({ loading }: { loading: boolean }) {
           <Icon name="pets" className="h-10 w-10" />
         </span>
         <h2 className="mt-5 text-xl font-black text-pet-ink">
-          {loading ? "Loading the sample profileâ€¦" : "Sample profile coming soon"}
+          Your pet&apos;s shareable profile
         </h2>
         <p className="mt-2 text-sm leading-6 text-pet-muted">
-          No pet information is shown until an approved sample is ready.
+          Bring their photo, personality, moments, and owner-approved details
+          together in one warm page.
         </p>
       </div>
     </article>

@@ -88,8 +88,20 @@ describe("homepage pet finder preview", () => {
 
     mocks.load.mockResolvedValueOnce({ available: false, pet: null });
     render(<HomePage />);
-    expect(await screen.findByRole("heading", { name: "Sample profile coming soon" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Your pet's shareable profile" })).toBeTruthy();
     expect(screen.queryByText("Milo")).toBeNull();
     expect(screen.queryByText("Topu")).toBeNull();
+  });
+
+  it("routes the two homepage sample actions to their matching guided sections", async () => {
+    mocks.load.mockResolvedValue({ available: false, pet: null });
+    render(<HomePage />);
+
+    expect(
+      screen.getByRole("link", { name: "Explore Sample Profile" }).getAttribute("href")
+    ).toBe("/sample#public-share-profile");
+    expect(
+      screen.getByRole("link", { name: "View Sample Safety Profile" }).getAttribute("href")
+    ).toBe("/sample#safety-profile");
   });
 });

@@ -82,7 +82,7 @@ export default function HowItWorksPage() {
           </p>
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
             <CreateProfileCTA>Create Free Pet Profile</CreateProfileCTA>
-            <CTAButton href={marketingRoutes.sample} variant="secondary">
+            <CTAButton href={marketingRoutes.samplePublicProfile} variant="secondary">
               View Sample Profile
             </CTAButton>
             <CTAButton href={marketingRoutes.smartPetTags} variant="outline">

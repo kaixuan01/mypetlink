@@ -86,7 +86,7 @@ Typed domain tables with audit and `RowVersion`. This is the correct pattern.
 | Inventory | `SmartTagBatches`, `SmartTags` | `/admin/tag-inventory` | Batch generation, stock lifecycle |
 | Email templates | `EmailTemplateSettings` | `/admin/email-templates` | One row per message type. `IsEnabled` + `EnabledFromUtc`, audited, `RowVersion`. Missing row = disabled. |
 | Order checkout | `OrderCheckoutSettings` | `/admin/order-checkout` | Unpaid payment-reservation duration (30 minutes to 72 hours), snapshotted onto each order. Audited with `RowVersion`. |
-| Public Sample Experience | `PublicSiteSettings`, `Pets.IsSampleEligible` | `/admin/sample-experience`, `/admin/pets` | References one explicitly Admin-approved pet by `PetId`; never copies pet or owner data. Both settings and eligibility changes are audited and concurrency controlled. Missing or invalid selection fails closed without selecting another pet. |
+| Public Sample Experience | `PublicSiteSettings`, `Pets.IsSampleEligible` | `/admin/sample-experience`, `/admin/pets` | Optionally personalizes the homepage and `/sample` previews with one explicitly Admin-approved pet referenced by `PetId`; never copies pet or owner data. Both settings and eligibility changes are audited and concurrency controlled. Missing or invalid selection fails closed to intentional static sample content without selecting another database pet. |
 
 ### Email outbox counts
 

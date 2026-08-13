@@ -50,6 +50,11 @@ Public tag states:
 - [ ] Pending/unclaimed tag shows no owner contact (pending) / activation prompt (unclaimed).
 - [ ] Lost/disabled/archived tag and memorial/archived-pet tag show no owner contact.
 
+Public Sample Experience:
+
+- [ ] As a signed-out visitor, follow every visible Sample Profile entry point and confirm `/sample` shows both guided profile sections plus one create-profile action on desktop and mobile.
+- [ ] If an approved Featured Sample Pet is selected in `/admin/sample-experience`, confirm only its approved public projection personalizes the previews. Clear the selection and confirm the complete generic journey remains available.
+
 - [ ] Logout clears the session and protected pages redirect to login.
 
 ## Post-release

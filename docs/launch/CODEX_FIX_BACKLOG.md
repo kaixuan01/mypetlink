@@ -185,13 +185,22 @@ The API owns the status returned for authenticated care records. `apps/web/src/l
 
 ## MPL-SL-P1-003 — Stop the sample-experience CTAs from dead-ending
 
+**Resolved in code and verified on 2026-08-13.** `/sample` is now a stable,
+self-contained guided experience. An approved Featured Sample Pet may personalize
+public-only fields, while missing, invalid, or unavailable configuration falls
+back to the intentional static sample instead of a holding card. The page has one
+anonymous-safe create-profile CTA. Public Share Profile and Safety Profile entry
+points use centralized section routes, also resolving MPL-SL-P1-007 without
+linking to runtime-selected dynamic pet routes that are not guaranteed by the
+static export.
+
 **Problem.** Four homepage links point to `/sample`, which renders "The Sample Experience is being prepared" until an admin configures a sample pet.
 
 **User impact.** The primary "show me what this is" path for a first-time visitor leads nowhere. The wording is honest, but the conversion path is lost.
 
 **Reproduction.** With no featured sample pet configured, load `/` and follow "Explore Sample Profile".
 
-**Expected.** Either the sample pet is configured as a hard launch prerequisite, or the CTAs are hidden/replaced when no approved sample exists, so no visible link leads to an empty page.
+**Expected.** No visible link leads to an empty page, regardless of optional sample-pet configuration.
 
 **Scope.** Frontend, plus a launch-checklist entry.
 
@@ -206,7 +215,7 @@ The API owns the status returned for authenticated care records. `apps/web/src/l
 **Acceptance criteria.**
 1. With no sample configured, no homepage CTA leads to an empty sample page.
 2. With a sample configured, all sample CTAs work.
-3. The release checklist names configuring the sample pet as a pre-launch step.
+3. The release checklist verifies both optional personalized and generic states.
 
 **Required tests.** Component tests for the homepage in both states; one browser check per state. **Dependencies.** None. **Risk.** Low.
 
@@ -274,6 +283,9 @@ No implementation is proposed here. The decision needed is whether soft launch p
 ---
 
 ## MPL-SL-P1-007 — Differentiate the two sample CTAs
+
+**Resolved with MPL-SL-P1-003 on 2026-08-13.** The two homepage actions now use
+centralized `/sample` section links and land on content matching their labels.
 
 "Explore Sample Profile" and "View Sample Safety Profile" both link to `/sample`, promising the shareable page and the finder page respectively while delivering the same destination. Either deep-link each to its own sample view or align the labels.
 
