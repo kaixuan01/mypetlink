@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -22,6 +23,7 @@ import { Icon } from "@/components/ui/Icon";
 import { PetPhotoViewer } from "@/components/ui/PetPhotoViewer";
 import { PetProfileLoading } from "@/components/ui/PetProfileLoading";
 import { getCareRecordDateTerminology } from "@/lib/careRecordTerminology";
+import { AnalyticsEvent, trackEvent } from "@/lib/analytics";
 import {
   getPetProfileTheme,
   type PetProfileTheme,
@@ -130,6 +132,7 @@ export function PublicSharePetProfile({
   const [ownerSettings, setOwnerSettings] =
     useState<OwnerSettings>(defaultOwnerSettings);
   const [activeTab, setActiveTab] = useState<TabId>("about");
+  const viewTrackedRef = useRef(false);
   // Owner-approved finder contact for the Lost Mode card. The public profile
   // data never includes contact numbers, so they are loaded from the pet's
   // Safety Profile — the single source of finder contact — when Lost Mode is
@@ -141,6 +144,12 @@ export function PublicSharePetProfile({
       setAbsolutePageTitle(publicPetProfileDocumentTitle(profile.name));
     }
   }, [profile]);
+
+  useEffect(() => {
+    if (!loaded || !profile || viewTrackedRef.current) return;
+    viewTrackedRef.current = true;
+    trackEvent(AnalyticsEvent.PublicProfileViewed, { surface: "public_profile" });
+  }, [loaded, profile]);
 
   useEffect(() => {
     let active = true;

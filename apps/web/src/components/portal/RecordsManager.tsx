@@ -19,6 +19,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { DateInput } from "@/components/ui/DateInput";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
+import { AnalyticsEvent, toAnalyticsRecordType, trackEvent } from "@/lib/analytics";
 import {
   careRecordTypes,
   newCareRecordTypes,
@@ -245,6 +246,7 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
     };
 
     try {
+      const isCreating = !editingRecord;
       const response = editingRecord
         ? await updateRecord(editingRecord.id, payload)
         : await createRecord(petId, payload);
@@ -259,6 +261,12 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
               )
             : [savedRecord, ...current]
         );
+        if (isCreating) {
+          trackEvent(AnalyticsEvent.CareRecordCreated, {
+            source: "owner_portal",
+            record_type: toAnalyticsRecordType(savedRecord.type),
+          });
+        }
       }
 
       setForm(emptyForm);

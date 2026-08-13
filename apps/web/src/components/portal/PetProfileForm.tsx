@@ -24,6 +24,7 @@ import { FormSection } from "@/components/ui/FormSection";
 import { Icon } from "@/components/ui/Icon";
 import { PetAvatar } from "@/components/ui/PetAvatar";
 import { PhoneNumberInput } from "@/components/ui/PhoneNumberInput";
+import { AnalyticsEvent, trackEvent } from "@/lib/analytics";
 import { SegmentedTabs, type SegmentedTab } from "@/components/ui/SegmentedTabs";
 import { isValidE164, normalizeStoredPhone } from "@/lib/phone";
 import {
@@ -334,6 +335,13 @@ export function PetProfileForm({
   const [bioSheetOpen, setBioSheetOpen] = useState(false);
   const contactLostModeRef = useRef<HTMLDivElement | null>(null);
   const petContactSectionRef = useRef<HTMLDivElement | null>(null);
+  const createStartedRef = useRef(false);
+
+  function trackCreateStarted() {
+    if (mode !== "create" || createStartedRef.current) return;
+    createStartedRef.current = true;
+    trackEvent(AnalyticsEvent.PetCreateStarted, { source: "owner_portal" });
+  }
 
   // "Update Contact" for a pet with its own contact details: bring the
   // Emergency Contact section into view and move focus into it so the owner
@@ -461,6 +469,7 @@ export function PetProfileForm({
   }, [initialPetId, mode, router]);
 
   function updateField<K extends keyof FormState>(key: K, value: FormState[K]) {
+    trackCreateStarted();
     setForm((current) => ({ ...current, [key]: value }));
     setErrors((current) => ({ ...current, [key]: undefined }));
     setFormError("");
@@ -691,6 +700,7 @@ export function PetProfileForm({
     try {
       if (mode === "create") {
         const response = await createPet(payload);
+        trackEvent(AnalyticsEvent.PetCreated, { source: "owner_portal" });
         let savedPet = response.data;
 
         try {
@@ -1034,6 +1044,7 @@ export function PetProfileForm({
     // Save bar.
     <form
       className="mx-auto grid w-full min-w-0 max-w-[1140px] gap-5"
+      onChangeCapture={trackCreateStarted}
       onSubmit={handleSubmit}
     >
       {success ? (

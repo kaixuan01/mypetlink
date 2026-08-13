@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { QrCodeButton } from "@/components/qr/QrCodeButton";
@@ -11,6 +11,7 @@ import { Icon } from "@/components/ui/Icon";
 import { SegmentedTabs, type SegmentedTab } from "@/components/ui/SegmentedTabs";
 import { SmartTagsComingSoon } from "@/components/portal/SmartTagsComingSoon";
 import { smartTagOrderingEnabled } from "@/lib/features";
+import { AnalyticsEvent, trackEvent } from "@/lib/analytics";
 import { formatOrderNumber } from "@/lib/orders";
 import {
   getActivePets,
@@ -97,6 +98,7 @@ export function TagManagementPanel({
   showOrderAction = true,
 }: TagManagementPanelProps) {
   const router = useRouter();
+  const viewTrackedRef = useRef(false);
   const apiMode = isApiConfigured();
   const [pets, setPets] = useState(apiMode ? [] : initialPets);
   const [tags, setTags] = useState<PetTag[]>(apiMode ? [] : initialTags);
@@ -117,6 +119,14 @@ export function TagManagementPanel({
   const [lostTag, setLostTag] = useState<PetTag | null>(null);
   const [disableTagTarget, setDisableTagTarget] = useState<PetTag | null>(null);
   const [archiveTagTarget, setArchiveTagTarget] = useState<PetTag | null>(null);
+
+  useEffect(() => {
+    if (viewTrackedRef.current) return;
+    viewTrackedRef.current = true;
+    trackEvent(AnalyticsEvent.SmartTagViewed, {
+      surface: petId ? "pet_tags" : "owner_tags",
+    });
+  }, [petId]);
   const petMap = useMemo(
     () => new Map(pets.map((pet) => [pet.id, pet])),
     [pets]

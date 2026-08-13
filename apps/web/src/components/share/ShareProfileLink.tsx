@@ -8,6 +8,7 @@ import {
   getPublicProfileSocialTitle,
 } from "@/lib/publicProfileSocial";
 import { getServerFallbackBaseUrl } from "@/lib/siteUrl";
+import { AnalyticsEvent, trackEvent, type AnalyticsSurface } from "@/lib/analytics";
 import type { PetProfileTheme } from "@/lib/petProfileThemes";
 
 type ShareProfileLinkProps = {
@@ -21,6 +22,7 @@ type ShareProfileLinkProps = {
   copyButtonFullWidth?: boolean;
   shareVersion?: string;
   theme?: PetProfileTheme;
+  analyticsSurface?: Extract<AnalyticsSurface, "public_profile" | "owner_portal">;
 };
 
 export function ShareProfileLink({
@@ -34,6 +36,7 @@ export function ShareProfileLink({
   copyButtonFullWidth = false,
   shareVersion,
   theme,
+  analyticsSurface = "owner_portal",
 }: ShareProfileLinkProps) {
   const origin = useSyncExternalStore(
     subscribeToOrigin,
@@ -68,6 +71,7 @@ export function ShareProfileLink({
     setStatus(null);
 
     if (await writeTextToClipboard(fullUrl)) {
+      trackEvent(AnalyticsEvent.ShareLinkCopied, { surface: analyticsSurface });
       setStatus({ message: "Profile link copied.", url: fullUrl });
       return true;
     }
@@ -81,6 +85,7 @@ export function ShareProfileLink({
 
   async function shareProfile() {
     setStatus(null);
+    trackEvent(AnalyticsEvent.ShareClicked, { surface: analyticsSurface });
 
     if (navigator.share) {
       try {

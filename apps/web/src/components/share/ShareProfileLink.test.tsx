@@ -2,12 +2,23 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { ShareProfileLink } from "./ShareProfileLink";
+const analytics = vi.hoisted(() => ({ trackEvent: vi.fn() }));
+
+vi.mock("@/lib/analytics", () => ({
+  AnalyticsEvent: {
+    ShareClicked: "share_clicked",
+    ShareLinkCopied: "share_link_copied",
+  },
+  trackEvent: (...args: unknown[]) => analytics.trackEvent(...args),
+}));
+
+const { ShareProfileLink } = await import("./ShareProfileLink");
 
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  analytics.trackEvent.mockReset();
 });
 
 describe("ShareProfileLink", () => {
@@ -36,6 +47,9 @@ describe("ShareProfileLink", () => {
       url: "https://mypetlink.com.my/p/nori-futurepet1234?share=0123456789abcdef",
     });
     expect(JSON.stringify(share.mock.calls)).not.toContain("/social/pets/");
+    expect(analytics.trackEvent).toHaveBeenCalledWith("share_clicked", {
+      surface: "owner_portal",
+    });
   });
 
   it("displays and copies one complete, safely wrapped versioned URL", async () => {
@@ -72,5 +86,8 @@ describe("ShareProfileLink", () => {
 
     fireEvent.click(copyButton);
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(completeUrl));
+    expect(analytics.trackEvent).toHaveBeenCalledWith("share_link_copied", {
+      surface: "owner_portal",
+    });
   });
 });

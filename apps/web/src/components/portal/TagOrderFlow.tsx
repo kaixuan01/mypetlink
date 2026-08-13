@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PhoneNumberInput } from "@/components/ui/PhoneNumberInput";
+import { AnalyticsEvent, trackEvent, type AnalyticsTagType } from "@/lib/analytics";
 import { formatOrderNumber } from "@/lib/orders";
 import { formatOrderProduct, formatStateAndZone } from "@/lib/orderDisplay";
 import { readOwnerSettings } from "@/lib/ownerSettings";
@@ -71,6 +72,16 @@ export function TagOrderFlow({ pets, preselectedPetId, initialTagType = "MyPetLi
   const quoteRequestRef = useRef(0);
   const quoteControllerRef = useRef<AbortController | null>(null);
   const [quoteRetry, setQuoteRetry] = useState(0);
+  const orderStartedRef = useRef(false);
+
+  useEffect(() => {
+    if (orderStartedRef.current) return;
+    orderStartedRef.current = true;
+    trackEvent(AnalyticsEvent.OrderStarted, {
+      source: "owner_portal",
+      tag_type: initialTagType.includes("NFC") ? "qr_nfc" : "qr",
+    });
+  }, [initialTagType]);
 
   const orderPrefsKey = useSyncExternalStore(subscribeNoop, getBrowserOrderPrefsKey, getDefaultOrderPrefsKey);
   const orderPrefs = useMemo(() => parseOrderPrefs(orderPrefsKey), [orderPrefsKey]);
@@ -210,6 +221,11 @@ export function TagOrderFlow({ pets, preselectedPetId, initialTagType = "MyPetLi
       });
       if (changed) { setProducts(latest); setStep(1); setNotice("Availability or pricing changed for one or more tags. Please review the updated order before continuing."); return; }
       const response = await createTagOrder({ items: cart.map(({ petId, productVariantKey, quantity }) => ({ petId, productVariantKey, quantity })), delivery: { ...delivery, phone: normalizeStoredPhone(delivery.phone) }, replacementForTagId: replacementFor, idempotencyKey: idempotencyKeyRef.current });
+      trackEvent(AnalyticsEvent.OrderSubmitted, {
+        source: "owner_portal",
+        tag_type: getCartTagType(cart, choices),
+        item_count: cartUnits,
+      });
       idempotencyKeyRef.current = null;
       setCreatedOrder(response.data.order);
       router.push(ownerRoutes.orderDetail(formatOrderNumber(response.data.order)));
@@ -292,6 +308,17 @@ function ChooseTagsStep({ cart, choices, products, pets, maxed, error, onAdd, on
       ) : null}
     </StepShell>
   );
+}
+
+function getCartTagType(cart: CartLine[], choices: CatalogChoice[]): AnalyticsTagType {
+  const technologies = new Set(
+    cart.map((line) =>
+      choices.find((choice) => choice.variant.key === line.productVariantKey)?.variant.supportsNfc
+        ? "qr_nfc"
+        : "qr"
+    )
+  );
+  return technologies.size > 1 ? "mixed" : technologies.values().next().value ?? "qr";
 }
 
 function SelectedTagChoice({ index, selected, onOpen }: { index: number; selected?: CatalogChoice; onOpen: () => void }) {

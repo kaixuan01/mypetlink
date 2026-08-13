@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   router: { replace: vi.fn() },
   createPetMoment: vi.fn(),
   getPetMoments: vi.fn(),
+  trackEvent: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({ useRouter: () => mocks.router }));
@@ -19,6 +20,10 @@ vi.mock("@/services/momentService", () => ({
 vi.mock("@/components/portal/MomentMediaField", () => ({
   MomentMediaField: () => <div data-testid="moment-media-field" />,
 }));
+vi.mock("@/lib/analytics", () => ({
+  AnalyticsEvent: { MomentCreated: "moment_created" },
+  trackEvent: (...args: unknown[]) => mocks.trackEvent(...args),
+}));
 
 const { PetMomentForm } = await import("./PetMomentForm");
 
@@ -27,6 +32,7 @@ describe("PetMomentForm route-backed create flow", () => {
     mocks.router.replace.mockReset();
     mocks.createPetMoment.mockReset();
     mocks.getPetMoments.mockReset();
+    mocks.trackEvent.mockReset();
     mocks.getPetMoments.mockResolvedValue({ data: [] });
     mocks.createPetMoment.mockResolvedValue({ data: { id: "new-moment" } });
     window.history.replaceState({}, "", `/pets/${mockPets[0].id}/moments/new`);
@@ -59,6 +65,9 @@ describe("PetMomentForm route-backed create flow", () => {
       date: "10 Jul 2026",
       type: "Funny Moment",
     });
+    expect(mocks.trackEvent).toHaveBeenCalledWith("moment_created", {
+      source: "owner_portal",
+    });
 
     window.dispatchEvent(new PopStateEvent("popstate"));
     await waitFor(() =>
@@ -66,6 +75,20 @@ describe("PetMomentForm route-backed create flow", () => {
         `/pets/${mockPets[0].id}/moments`
       )
     );
+  });
+
+  it("does not report a completed moment when creation fails", async () => {
+    mocks.createPetMoment.mockRejectedValueOnce(new Error("failed"));
+    render(<PetMomentForm pet={mockPets[0]} />);
+    await screen.findByRole("dialog", { name: /add a moment/i });
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Attempt" } });
+    fireEvent.change(screen.getByLabelText("Date"), { target: { value: "2026-07-10" } });
+    fireEvent.change(screen.getByLabelText("Moment category"), {
+      target: { value: "Other" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add Moment" }));
+    expect(await screen.findByText("Please try again.")).toBeTruthy();
+    expect(mocks.trackEvent).not.toHaveBeenCalled();
   });
 
   it("asks before discarding changed fields and treats browser Back like Close", async () => {

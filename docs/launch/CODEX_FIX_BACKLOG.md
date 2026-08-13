@@ -109,13 +109,15 @@ md5sum migration.sql database/migration.sql
 
 ## MPL-SL-P1-001 — Add minimum funnel analytics
 
-**Problem.** No analytics exist. Searching `apps/web/src` for `gtag`, `posthog`, `mixpanel`, `plausible`, `segment` and `dataLayer` returns zero matches.
+**Status (2026-08-13): Implemented in code; production configuration remains.** A provider-neutral, runtime-allowlisted event layer and optional GA4 adapter now cover page views and the reliably measurable activation, share, care, Smart Tag, and order actions. Analytics remains inert until Operations configures `NEXT_PUBLIC_GA_MEASUREMENT_ID` and rebuilds. Signup events are excluded until authentication can distinguish a new account from a returning owner; WhatsApp sharing is excluded until there is an explicit WhatsApp share control.
+
+**Original problem.** No analytics existed. The initial search for `gtag`, `posthog`, `mixpanel`, `plausible`, `segment` and `dataLayer` returned zero matches.
 
 **User impact.** Indirect but decisive: a soft launch exists to produce evidence. Without instrumentation, drop-off is unknowable and every later change is guesswork.
 
-**Expected.** A single privacy-respecting platform, with **~8 events** — not the full wish list:
+**Implemented event set.** A single privacy-respecting adapter, with the smallest reliably measurable funnel:
 
-`signup_completed` · `pet_create_started` · `pet_created` · `public_profile_viewed` · `share_clicked` · `moment_created` · `care_record_created` · `safety_profile_viewed`
+`page_view` · `pet_create_started` · `pet_created` · `public_profile_viewed` · `share_clicked` · `share_link_copied` · `moment_created` · `care_record_created` · `smart_tag_viewed` · `order_started` · `order_submitted`
 
 **Scope.** Frontend, plus a privacy-policy update.
 
@@ -123,14 +125,14 @@ md5sum migration.sql database/migration.sql
 - `apps/web/src/app/layout.tsx` — script/provider mount point
 - `apps/web/src/lib/features.ts` — follow the existing `readPublicBoolean` flag pattern
 - `apps/web/src/components/portal/PetProfileForm.tsx:693` — `pet_created`
-- `apps/web/src/components/portal/MomentEditorDialog.tsx` — `moment_created`
+- `apps/web/src/components/portal/PetMomentForm.tsx` — `moment_created`
 - `apps/web/src/components/portal/RecordsManager.tsx` — `care_record_created`
 - `apps/web/src/components/marketing/PublicSharePetProfile.tsx` — `public_profile_viewed`
 - `apps/web/src/components/marketing/QrSafetyPageView.tsx` — `safety_profile_viewed`
 - `apps/web/src/app/privacy/page.tsx` — must describe what is collected
 
 **Acceptance criteria.**
-1. Events carry **only opaque identifiers** (`publicCode`, pet UUID). No pet names, owner names, phone numbers, emails, or free-text notes.
+1. Events carry **no identifiers**. Metadata is limited to fixed source/surface/type categories and a bounded item count; names, contact details, codes, references, care content, filenames, and free text are prohibited.
 2. Analytics is behind a `NEXT_PUBLIC_*` flag and is inert when unset, so the static export stays clean.
 3. No analytics call blocks or breaks a user action if the provider fails to load.
 4. The privacy policy reflects the chosen provider (note PDPA obligations for a Malaysian launch).

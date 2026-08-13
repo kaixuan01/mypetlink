@@ -8,16 +8,16 @@
 
 ## Executive Summary
 
-**Overall status: P0 COMPLETE — READY AFTER 3 SELECTED P1 ITEMS.**
+**Overall status: P0 COMPLETE — READY AFTER 2 REMAINING SELECTED P1 ITEMS AND ANALYTICS CONFIGURATION.**
 
 MyPetLink is substantially more complete than its own top-level documentation claimed. `apps/api` is a working ASP.NET Core + EF Core service with 39 migrations, real Google authentication, ownership-scoped authorization, an email outbox with background dispatch, PDF document generation, and a broad Admin Portal. Security and privacy posture is genuinely good — the usual launch killers (IDOR, public PII leakage, weak identifiers) were checked and **not** found.
 
-The risk at soft launch is not the platform. It is that **the two things the launch actually sells — a pet's page, and a way to be contacted — each have one sharp edge**, and that **nothing is instrumented**, so a soft launch would produce no learning.
+The risk at soft launch is not the platform. The finder-contact edge is fixed and the activation funnel is now instrumented in code; production analytics still needs to be configured and validated before launch learning begins.
 
 | Priority | Count |
 | --- | ---: |
 | P0 — open Codex launch blocker | 0 |
-| P1 — strongly recommended first | 7 |
+| P1 — open recommendations | 6 |
 | P2 — after launch | 6 |
 | P3 — do not build yet | 5 |
 
@@ -25,7 +25,7 @@ The risk at soft launch is not the platform. It is that **the two things the lau
 
 1. **Finder contact dead-end — implemented and verified.** The Safety Profile now replaces contact instructions with a clear fallback when the pet has zero public contact methods.
 2. **Migration SQL artefacts are owner-managed.** The audit finding is retained for history, but the artefacts are excluded from Codex work and are not a Codex launch blocker.
-3. **Zero analytics.** No funnel instrumentation of any kind exists, so a soft launch cannot answer whether onboarding works.
+3. **Analytics is implemented but not yet enabled.** The optional GA4 adapter is privacy-limited and inert until Operations supplies the production measurement id and rebuilds.
 4. **The homepage's primary demo CTA dead-ends** until an admin configures a sample pet.
 5. **Care reminders decay into noise** — anything overdue is labelled "Due soon" forever.
 
@@ -65,7 +65,7 @@ This is the single most important scoping fact in the repository. In `apps/web/s
 ### What does not exist
 
 - **Email OTP, password login, Apple Sign-In** — not implemented. Google is the only way in.
-- **Analytics / product event tracking** — nothing. No gtag, PostHog, Plausible, Segment, or `dataLayer` anywhere in `apps/web`.
+- **Production analytics delivery** — not active until Operations supplies the GA4 measurement id and rebuilds. The code-side event layer is implemented and remains inert when configuration is absent.
 - **Reminder delivery** — no scheduled reminder job, no reminder email. Due dates are captured and shown on the dashboard, but nothing ever reaches the user outside the app.
 - **Profile completion meter / onboarding checklist** — not implemented.
 
@@ -137,7 +137,7 @@ The rendered page at `/q/stysjmj4bayjd23ff7jva` shows:
 ## P1 Findings
 
 ### P1-001 — No analytics or funnel instrumentation exists
-A repo-wide search for `gtag`, `posthog`, `mixpanel`, `plausible`, `segment`, and `dataLayer` in `apps/web/src` returns **zero** matches. A soft launch exists to produce learning; without at least signup → pet created → profile viewed → share clicked, it produces only anecdotes. This is the highest-value non-blocking item.
+**Implemented in code on 2026-08-13; production configuration remains.** The initial repo-wide search found no provider or event layer. MyPetLink now has optional GA4 behind `NEXT_PUBLIC_GA_MEASUREMENT_ID`, manual App Router page views, and the reliably measurable create → view → share → return and Smart Tag events. Dynamic routes and event metadata are sanitized at runtime. Signup is not emitted because the current Google auth response cannot reliably distinguish new and returning owners.
 
 ### P1-002 — Overdue care records are labelled "Due soon" forever
 `deriveStatus` in `apps/web/src/services/recordService.ts:342` and `DeriveStatus` in `apps/api/.../Services/CareRecordService.cs:469` both return `"due-soon"` for **any** due date ≤ today + 30 days, with no lower bound and no `overdue` state.
@@ -252,11 +252,11 @@ Only **three owner-facing** templates exist: `OwnerWelcome`, `PaymentConfirmed`,
 
 ## Analytics Assessment
 
-**Nothing exists.** No platform is integrated and no events are emitted. Recommended minimum before soft launch — roughly 8 events, not the full list:
+**Implemented, disabled until configured.** The frontend now exposes a provider-neutral event contract with an optional GA4 adapter. It emits manual page views plus:
 
-`signup_completed` · `pet_create_started` · `pet_created` · `public_profile_viewed` · `share_clicked` · `moment_created` · `care_record_created` · `safety_profile_viewed`
+`pet_create_started` · `pet_created` · `public_profile_viewed` · `share_clicked` · `share_link_copied` · `moment_created` · `care_record_created` · `smart_tag_viewed` · `order_started` · `order_submitted`
 
-**Privacy:** because there is no platform yet, this is a clean slate — specify now that events carry only opaque IDs (`publicCode`, pet UUID) and never pet names, owner names, phone numbers, or email addresses. Note that a Malaysian consumer launch brings PDPA obligations, and the existing privacy policy will need to describe whatever analytics is added.
+**Privacy:** no raw or opaque user/pet identifiers are sent. The runtime allowlist accepts only fixed source/surface/type categories and a bounded item count. Dynamic routes are replaced with templates; names, contact details, codes, order references, care content, free text, query strings, filenames, and tokens are excluded. The Privacy Notice now describes the optional GA4 use. Operations must still confirm consent requirements before enabling production analytics.
 
 ## Security / Privacy Assessment
 
@@ -274,7 +274,7 @@ Residual items are the P2 rate-limiting gaps above. **No authentication, authori
 
 **Present:** `/health`, `/health/live`, and a real `/health/ready` that probes the database and returns 503 with `Retry-After`; EF Core retry-on-failure; a rate limiter with proper 429 envelopes; audit logging; business reference numbering; two background workers (email dispatch, payment reservation expiry); and a documented deployment plan, release checklist and smoke-test script.
 
-**Gaps:** no error-tracking/telemetry integration (no Sentry or equivalent) — combined with zero analytics, production failures would be invisible; the migration-script ambiguity in P0-002; and log noise from the reservation worker.
+**Gaps:** no error-tracking integration (no Sentry or equivalent), product analytics still needs production configuration and delivery validation, and the reservation worker produces avoidable log noise. Migration SQL artefacts remain owner-managed and excluded from Codex action.
 
 ---
 
@@ -295,11 +295,11 @@ Stated plainly so this report is not over-trusted:
 
 **Fix before soft launch:**
 
-1. **P1-001** — Minimum funnel analytics. Without it the soft launch cannot pay for itself in learning.
+1. **Enable and validate P1-001** — configure the production GA4 measurement id, rebuild, and confirm events in GA4 after privacy/consent review.
 2. **P1-002** — Overdue care-record status. Cheap, and it repairs the only retention surface that exists.
 3. **P1-003** — Configure the sample pet (or hide the CTAs). A launch-checklist item as much as a code change.
 
-**Why not "READY FOR CONTROLLED SOFT LAUNCH" today:** the P0 finder issue is fixed, but the selected P1 measurement, retention-correctness, and sample-experience work remains. Migration SQL artefacts are owner-managed and excluded from this recommendation.
+**Why not "READY FOR CONTROLLED SOFT LAUNCH" today:** the P0 finder issue and analytics code are complete, but production analytics configuration, retention-correctness, and sample-experience work remain. Migration SQL artefacts are owner-managed and excluded from this recommendation.
 
 **Why not "NOT READY":** the platform underneath is sound. Authentication, authorization, data ownership, privacy boundaries, and mobile rendering were all verified and hold up. The remaining P1 and P2 items are genuine improvements, not obstacles.
 

@@ -68,6 +68,7 @@ export function PublicProfileOwnerControls({
           shareVersion={getPublicProfileShareVersion(profile)}
           showShareButton
           compact
+          analyticsSurface="public_profile"
           theme={theme}
         />
       </div>
@@ -96,6 +97,7 @@ export function PublicProfileOwnerControls({
           petName={profile.name}
           shareVersion={getPublicProfileShareVersion(profile)}
           compact
+          analyticsSurface="public_profile"
           theme={theme}
         />
         <CTAButton

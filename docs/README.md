@@ -54,6 +54,7 @@ Repo-wide documentation. Frontend-specific docs (agent reference, owner portal f
 ## Operations
 
 - [`operations/configuration-inventory.md`](operations/configuration-inventory.md) — current configuration ownership inventory
+- [`operations/product-analytics.md`](operations/product-analytics.md) — event, privacy, and GA4 configuration contract
 - [`operations/order-and-payment-proof-flow.md`](operations/order-and-payment-proof-flow.md) — manual order/payment proof flow
 - [`operations/smart-tag-lifecycle.md`](operations/smart-tag-lifecycle.md) — smart tag lifecycle and scan behaviour
 - [`operations/smart-tag-scan-sources.md`](operations/smart-tag-scan-sources.md) — QR / NFC / legacy scan sources

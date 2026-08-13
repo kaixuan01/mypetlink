@@ -8,6 +8,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { getMemoryLimitState } from "@/lib/planLimits";
 import { isArchivedPet } from "@/lib/petLifecycle";
 import { ownerRoutes } from "@/lib/routes";
+import { AnalyticsEvent, trackEvent } from "@/lib/analytics";
 import {
   createPetMoment,
   getFriendlyMomentErrorMessage,
@@ -80,6 +81,7 @@ export function PetMomentForm({ pet }: { pet: Pet }) {
     setFormError("");
     try {
       await createPetMoment(pet.id, payload);
+      trackEvent(AnalyticsEvent.MomentCreated, { source: "owner_portal" });
       setDirty(false);
       closeEditor();
     } catch (caught) {

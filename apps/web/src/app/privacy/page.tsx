@@ -18,7 +18,7 @@ export const metadata: Metadata = createMarketingMetadata({
     "Read how MyPetLink handles pet profiles, owner contact choices, safety profile information, account data, and privacy in Malaysia.",
 });
 
-const lastUpdated = "1 July 2026";
+const lastUpdated = "13 August 2026";
 
 const quickLinks = [
   { id: "introduction", title: "Introduction" },
@@ -295,7 +295,7 @@ export default function PrivacyPage() {
               items={[
                 "Hosting and cloud service providers.",
                 "Email, support, or customer communication tools.",
-                "Analytics providers if analytics is used.",
+                "Google Analytics if privacy-limited product analytics is enabled.",
                 "Payment or payment proof review tools if used.",
                 "Delivery or courier partners for tag orders.",
                 "Professional advisers where needed.",
@@ -323,7 +323,8 @@ export default function PrivacyPage() {
             <LegalBulletList
               items={[
                 "MyPetLink may use cookies or local storage to keep users signed in, remember preferences, save information you choose to keep on your device, and improve the service.",
-                "Analytics may be used to understand page usage and improve features if enabled.",
+                "If enabled, Google Analytics receives page categories and a small set of product actions, such as creating or sharing a profile. Dynamic profile, safety, tag, pet, and order links are replaced with general route labels before they are sent.",
+                "Product analytics does not include names, contact details, addresses, profile or tag codes, order numbers, care notes, captions, uploaded filenames, or other free text.",
                 "You can manage cookies through your browser settings, but some features may not work properly if cookies or local storage are disabled.",
               ]}
               icon="settings"

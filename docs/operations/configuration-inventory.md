@@ -165,6 +165,7 @@ is financially or security authoritative** — the API re-checks everything.
 | --- | --- | --- |
 | `NEXT_PUBLIC_API_BASE_URL` | Backend origin; empty ⇒ local preview mode | Retain |
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Google Identity Services | Retain |
+| `NEXT_PUBLIC_GA_MEASUREMENT_ID` | Optional GA4 adapter; unset disables product analytics | Retain; Operations-owned, build-time infrastructure |
 | `NEXT_PUBLIC_MEDIA_BASE_URL` | Media CDN | Retain |
 | `NEXT_PUBLIC_SITE_URL` | Canonical public site | Retain (primary) |
 | `NEXT_PUBLIC_APP_URL` | Legacy local-dev URL | **Consolidate** into `NEXT_PUBLIC_SITE_URL` (`lib/siteUrl.ts` already prefers SITE_URL) |
