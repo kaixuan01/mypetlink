@@ -2,7 +2,7 @@
 
 Hosting, deployment, and operations documentation.
 
-- [`hosting-and-deployment.md`](hosting-and-deployment.md) - recommended hosting, storage, and deployment architecture
+- Hosting and deployment: see [`../deployment/production-deployment-plan.md`](../deployment/production-deployment-plan.md) (the earlier strategy is archived at [`../archive/2026-08/hosting-and-deployment.md`](../archive/2026-08/hosting-and-deployment.md))
 - [`phase-1-operations-flow.md`](phase-1-operations-flow.md) - current frontend/manual operations flow
 - [`phase-1-admin-operations.md`](phase-1-admin-operations.md) - Admin Portal MVP limitations and backend requirements
 - [`order-and-payment-proof-flow.md`](order-and-payment-proof-flow.md) - manual smart tag order and payment proof review flow

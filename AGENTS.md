@@ -4,15 +4,16 @@ This is the **MyPetLink monorepo**. Read this file before making changes anywher
 
 ## Layout
 
-- The current frontend app lives in **`apps/web`** (Next.js App Router, TypeScript, Tailwind CSS, static export). Before working on it, read `apps/web/AGENTS.md` and `apps/web/docs/AI_AGENT_REFERENCE.md`.
-- `apps/api` is a **placeholder** for the future C# .NET API. Do not generate backend code until explicitly requested.
-- `database/` holds **placeholders** for future migrations, seed scripts, and database docs. Do not create real SQL scripts until the schema is approved.
+- The frontend app lives in **`apps/web`** (Next.js App Router, TypeScript, Tailwind CSS, static export). Before working on it, read `apps/web/AGENTS.md` and `apps/web/docs/AI_AGENT_REFERENCE.md`.
+- **`apps/api` is a live C# .NET Web API** (ASP.NET Core, EF Core, SQL Server) — not a placeholder. It backs owner auth, pets, public profiles, safety pages, media, care records, moments, Smart Tags, orders, payment proofs, transactional email, and the Admin Portal.
+- Database schema is owned by **EF Core migrations in `apps/api/MyPetLink.Api/Migrations`**. The deployable script is the **root `migration.sql`**; regenerate it whenever a migration is added.
+- `database/` holds documentation placeholders only. **Do not treat `database/migration.sql` as authoritative — it is stale.**
 - `docs/` holds product, architecture, API, database, and operations documentation.
 
 ## Hard rules
 
 1. **Do not edit generated folders**: `node_modules`, `.next`, `out`, build caches.
-2. **Do not implement the backend or database unless explicitly asked.** Keep frontend-only behavior for now; all data is local/demo state inside `apps/web`.
+2. **Data lives in SQL Server behind `apps/api`.** The `apps/web` mock/localStorage layer (`src/services/mockApi.ts`, `src/data/mock*.ts`) is only the fallback used when `NEXT_PUBLIC_API_BASE_URL` is not configured. Keep both paths in sync when changing a data contract.
 3. **Never expose internal wording in user-facing UI** — no "mock", "demo", "backend", "API", "payload", "service", or "frontend-only" text in anything a visitor or owner can see.
 4. **Premium is Coming Soon only.** No subscription, upgrade, or checkout flow.
 5. **GPS Safety is Coming Later only.**

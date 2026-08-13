@@ -37,5 +37,5 @@ How MyPetLink operations run in the early launch phase, using the Admin Portal (
 ## Phase 1 constraints
 
 - All state is local/demo (browser localStorage); the Admin Portal and Owner Portal share the same collections, so status changes are consistent across both.
-- Admin access is a local placeholder — before real operations begin, the backend must add real admin auth, roles, and audit logs (`docs/backend-needed-features.md`).
+- Admin access is enforced by the API: every `/api/v1/admin` endpoint requires an active admin account, and actions are written to the audit log.
 - Payment proof files are names only (no file storage yet); verify against the actual bank/eWallet statement out-of-band.

@@ -67,4 +67,4 @@ Admin pages read and write through the same services as the Owner Portal (`petSe
 - Owner↔pet attribution is by display name (no owner id on pets in the demo).
 - Print/reseller tracking, account suspension, and settings editing are placeholders.
 - No pagination/search on tables (demo data volumes are small).
-- Every admin action needs a backend audit trail later — see `backend-needed-features.md`.
+- Admin actions are recorded through the API audit log (`AuditLogService`).

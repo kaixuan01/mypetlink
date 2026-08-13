@@ -221,4 +221,4 @@ Recommended sequence:
 
 ## 10. Related docs
 
-The older [`../operations/hosting-and-deployment.md`](../operations/hosting-and-deployment.md) predates the .NET/SQL Server direction and still references Supabase/PostgreSQL as historical assumptions — treat this deployment plan (SQL Server + .NET App Service) as the current source of truth for Phase 1 infrastructure.
+The older [`../archive/2026-08/hosting-and-deployment.md`](../archive/2026-08/hosting-and-deployment.md) predates the .NET/SQL Server direction and still references Supabase/PostgreSQL as historical assumptions — treat this deployment plan (SQL Server + .NET App Service) as the current source of truth for Phase 1 infrastructure.
