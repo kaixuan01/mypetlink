@@ -1,4 +1,4 @@
-IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
+﻿IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
 BEGIN
     CREATE TABLE [__EFMigrationsHistory] (
         [MigrationId] nvarchar(150) NOT NULL,
@@ -1652,6 +1652,7 @@ GO
 
 COMMIT;
 GO
+
 BEGIN TRANSACTION;
 GO
 
@@ -1770,9 +1771,6 @@ IF NOT EXISTS (
 BEGIN
     CREATE INDEX [IX_Pets_ProfileMediaFileId] ON [Pets] ([ProfileMediaFileId]);
 END;
-GO
-
-SET QUOTED_IDENTIFIER ON;
 GO
 
 IF NOT EXISTS (
@@ -2074,7 +2072,6 @@ GO
 
 COMMIT;
 GO
-
 BEGIN TRANSACTION;
 GO
 
@@ -3005,9 +3002,6 @@ BEGIN
 END;
 GO
 
-SET QUOTED_IDENTIFIER ON;
-GO
-
 IF NOT EXISTS (
     SELECT * FROM [__EFMigrationsHistory]
     WHERE [MigrationId] = N'20260721001123_AddTagOrderIdempotencyKey'
@@ -3231,9 +3225,6 @@ BEGIN
 END;
 GO
 
-SET QUOTED_IDENTIFIER ON;
-GO
-
 IF NOT EXISTS (
     SELECT * FROM [__EFMigrationsHistory]
     WHERE [MigrationId] = N'20260726183156_AddOwnerWelcomeEmail'
@@ -3241,9 +3232,6 @@ IF NOT EXISTS (
 BEGIN
     EXEC(N'CREATE UNIQUE INDEX [IX_EmailOutbox_RelatedOrderId_MessageType] ON [EmailOutbox] ([RelatedOrderId], [MessageType]) WHERE [RelatedOrderId] IS NOT NULL');
 END;
-GO
-
-SET QUOTED_IDENTIFIER ON;
 GO
 
 IF NOT EXISTS (
@@ -3445,9 +3433,6 @@ BEGIN
     WHERE [PaymentConfirmedAt] IS NOT NULL
       AND [ReceiptNumber] IS NULL;
 END;
-GO
-
-SET QUOTED_IDENTIFIER ON;
 GO
 
 IF NOT EXISTS (
@@ -3805,9 +3790,6 @@ BEGIN
 END;
 GO
 
-SET QUOTED_IDENTIFIER ON;
-GO
-
 IF NOT EXISTS (
     SELECT * FROM [__EFMigrationsHistory]
     WHERE [MigrationId] = N'20260730131244_AddShippingFulfilmentSettings'
@@ -4085,9 +4067,6 @@ IF NOT EXISTS (
 BEGIN
     CREATE INDEX [IX_OrderCheckoutSettings_UpdatedByAdminUserId] ON [OrderCheckoutSettings] ([UpdatedByAdminUserId]);
 END;
-GO
-
-SET QUOTED_IDENTIFIER ON;
 GO
 
 IF NOT EXISTS (
@@ -4433,9 +4412,6 @@ IF NOT EXISTS (
 BEGIN
     CREATE INDEX [IX_MerchantOrders_SalespersonId] ON [MerchantOrders] ([SalespersonId]);
 END;
-GO
-
-SET QUOTED_IDENTIFIER ON;
 GO
 
 IF NOT EXISTS (
@@ -4935,9 +4911,6 @@ BEGIN
 END;
 GO
 
-SET QUOTED_IDENTIFIER ON;
-GO
-
 IF NOT EXISTS (
     SELECT * FROM [__EFMigrationsHistory]
     WHERE [MigrationId] = N'20260805062232_AddMerchantBillingDomain'
@@ -5287,9 +5260,6 @@ BEGIN
 END;
 GO
 
-SET QUOTED_IDENTIFIER ON;
-GO
-
 IF NOT EXISTS (
     SELECT * FROM [__EFMigrationsHistory]
     WHERE [MigrationId] = N'20260805092912_AddMerchantDocumentsAndEmails'
@@ -5297,9 +5267,6 @@ IF NOT EXISTS (
 BEGIN
     EXEC(N'CREATE UNIQUE INDEX [IX_EmailOutbox_RelatedMerchantInvoiceId_MessageType] ON [EmailOutbox] ([RelatedMerchantInvoiceId], [MessageType]) WHERE [RelatedMerchantInvoiceId] IS NOT NULL');
 END;
-GO
-
-SET QUOTED_IDENTIFIER ON;
 GO
 
 IF NOT EXISTS (
@@ -5604,9 +5571,6 @@ BEGIN
 END;
 GO
 
-SET QUOTED_IDENTIFIER ON;
-GO
-
 IF NOT EXISTS (
     SELECT * FROM [__EFMigrationsHistory]
     WHERE [MigrationId] = N'20260806023332_AddMerchantInventoryAllocation'
@@ -5668,9 +5632,6 @@ IF NOT EXISTS (
 BEGIN
     CREATE INDEX [IX_MerchantOrderAllocatedTags_ReleasedByAdminUserId] ON [MerchantOrderAllocatedTags] ([ReleasedByAdminUserId]);
 END;
-GO
-
-SET QUOTED_IDENTIFIER ON;
 GO
 
 IF NOT EXISTS (
@@ -5910,9 +5871,6 @@ IF NOT EXISTS (
 BEGIN
     ALTER TABLE [EmailOutbox] ADD [RelatedMerchantDeliveryOrderId] uniqueidentifier NULL;
 END;
-GO
-
-SET QUOTED_IDENTIFIER ON;
 GO
 
 IF NOT EXISTS (
