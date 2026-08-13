@@ -11,6 +11,37 @@ vi.mock("@/components/ui/PetPhotoViewer", () => ({
 
 afterEach(cleanup);
 
+function withFinderContact({
+  phone = "",
+  whatsapp = "",
+  showPhone = true,
+  showWhatsapp = true,
+}: {
+  phone?: string;
+  whatsapp?: string;
+  showPhone?: boolean;
+  showWhatsapp?: boolean;
+}) {
+  return {
+    ...mockPets[0],
+    owner: {
+      ...mockPets[0].owner,
+      phone,
+      whatsapp,
+    },
+    contactOverride: {
+      useOwnerDefaults: false,
+      phoneNumber: phone,
+      whatsappNumber: whatsapp,
+    },
+    visibility: {
+      ...mockPets[0].visibility,
+      showPhone,
+      showWhatsapp,
+    },
+  };
+}
+
 it("applies the same saved theme to the QR safety profile", async () => {
   const pet = { ...mockPets[0], profileTheme: "peach" as const };
   const { container } = render(<QrSafetyPageView pet={pet} />);
@@ -63,32 +94,134 @@ it("hides the allergy safety section when none are saved", async () => {
   expect(screen.queryByText("Known allergies")).toBeNull();
 });
 
-it("does not render broken contact actions when both optional numbers are empty", async () => {
+it("shows the normal instruction and WhatsApp action when only public WhatsApp is available", async () => {
+  const pet = withFinderContact({ whatsapp: "+60123456789" });
+
+  render(<QrSafetyPageView pet={pet} />);
+
+  expect(
+    await screen.findByText(
+      "Please contact the owner directly using one of the options below."
+    )
+  ).toBeTruthy();
+  expect(screen.getByRole("link", { name: "WhatsApp Owner" })).toBeTruthy();
+  expect(screen.queryByRole("link", { name: "Call Owner" })).toBeNull();
+  expect(screen.queryByText("Contact unavailable")).toBeNull();
+});
+
+it("shows the normal instruction and phone action when only public phone is available", async () => {
+  const pet = withFinderContact({ phone: "+60123456789" });
+
+  render(<QrSafetyPageView pet={pet} />);
+
+  expect(
+    await screen.findByText(
+      "Please contact the owner directly using one of the options below."
+    )
+  ).toBeTruthy();
+  expect(screen.getByRole("link", { name: "Call Owner" })).toBeTruthy();
+  expect(screen.queryByRole("link", { name: "WhatsApp Owner" })).toBeNull();
+  expect(screen.queryByText("Contact unavailable")).toBeNull();
+});
+
+it("shows every valid public contact action when phone and WhatsApp are available", async () => {
+  const pet = withFinderContact({
+    phone: "+60111222333",
+    whatsapp: "+60123456789",
+  });
+
+  render(<QrSafetyPageView pet={pet} />);
+
+  expect(
+    await screen.findByText(
+      "Please contact the owner directly using one of the options below."
+    )
+  ).toBeTruthy();
+  expect(screen.getByRole("link", { name: "Call Owner" })).toBeTruthy();
+  expect(screen.getByRole("link", { name: "WhatsApp Owner" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Send Found Location" })).toBeTruthy();
+});
+
+it("shows a clear fallback instead of contact instructions when no public contact is available", async () => {
+  const pet = withFinderContact({});
+
+  render(<QrSafetyPageView pet={pet} />);
+
+  await screen.findByText("MyPetLink Safety Profile");
+  expect(
+    screen.getByText("The owner has not added a public contact method yet.")
+  ).toBeTruthy();
+  expect(screen.getByText("Contact unavailable")).toBeTruthy();
+  expect(
+    screen.getByText(
+      `Please keep ${pet.name} safe and check this Safety Profile again later.`
+    )
+  ).toBeTruthy();
+  expect(document.body.textContent).not.toContain("options below");
+  expect(screen.queryByRole("link", { name: "Call Owner" })).toBeNull();
+  expect(screen.queryByRole("link", { name: "WhatsApp Owner" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Send Found Location" })).toBeNull();
+});
+
+it("does not expose private account contact when finder contact visibility is off", async () => {
+  const privatePhone = "+60112223344";
+  const privateWhatsapp = "+60198887766";
+  const pet = withFinderContact({
+    phone: privatePhone,
+    whatsapp: privateWhatsapp,
+    showPhone: false,
+    showWhatsapp: false,
+  });
+
+  const { container } = render(<QrSafetyPageView pet={pet} />);
+
+  expect(await screen.findByText("Contact unavailable")).toBeTruthy();
+  expect(screen.queryByRole("link", { name: "Call Owner" })).toBeNull();
+  expect(screen.queryByRole("link", { name: "WhatsApp Owner" })).toBeNull();
+  expect(container.innerHTML).not.toContain(privatePhone);
+  expect(container.innerHTML).not.toContain(privateWhatsapp);
+});
+
+it("shows the no-contact fallback in Lost Mode without implying an action exists", async () => {
   const pet = {
-    ...mockPets[0],
-    owner: {
-      ...mockPets[0].owner,
-      phone: "",
-      whatsapp: "",
-      emergencyContact: "",
-    },
-    contactOverride: {
-      useOwnerDefaults: false,
-      phoneNumber: "",
-      whatsappNumber: "",
-    },
-    visibility: {
-      ...mockPets[0].visibility,
-      showPhone: true,
-      showWhatsapp: true,
+    ...withFinderContact({}),
+    lostModeEnabled: true,
+    lostMode: {
+      ...mockPets[0].lostMode,
+      lostMessage: "Please help Milo get home safely.",
     },
   };
 
   render(<QrSafetyPageView pet={pet} />);
 
-  await screen.findByText("MyPetLink Safety Profile");
+  expect(
+    await screen.findByText("The owner has not added a public contact method yet.")
+  ).toBeTruthy();
+  expect(screen.getByText("Lost Mode Active")).toBeTruthy();
+  expect(screen.getByText("Contact unavailable")).toBeTruthy();
+  expect(document.body.textContent).not.toContain("options below");
+  expect(document.body.textContent).not.toContain(
+    "If you have found this pet, please contact the owner immediately."
+  );
   expect(screen.queryByRole("link", { name: "Call Owner" })).toBeNull();
   expect(screen.queryByRole("link", { name: "WhatsApp Owner" })).toBeNull();
+});
+
+it("keeps the memorial state separate from the no-contact fallback", async () => {
+  const pet = {
+    ...withFinderContact({}),
+    lifecycleStatus: "Memorial" as const,
+  };
+
+  render(<QrSafetyPageView pet={pet} />);
+
+  expect(
+    await screen.findByText(`${pet.name}'s Safety Profile is no longer active`)
+  ).toBeTruthy();
+  expect(screen.queryByText("Contact unavailable")).toBeNull();
+  expect(
+    screen.queryByText("The owner has not added a public contact method yet.")
+  ).toBeNull();
 });
 
 it("adds labeled finder details and removes the urgent state when found", async () => {

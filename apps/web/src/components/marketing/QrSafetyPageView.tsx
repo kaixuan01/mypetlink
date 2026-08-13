@@ -18,6 +18,7 @@ import { isActivePet, isArchivedPet, isMemorialPet } from "@/lib/petLifecycle";
 import {
   getCallLink,
   getWhatsAppLink,
+  isValidE164,
   normalizeStoredPhone,
 } from "@/lib/phone";
 import { sendFoundLocationViaWhatsApp } from "@/lib/foundLocation";
@@ -50,6 +51,10 @@ export function QrSafetyPageView({ pet }: QrSafetyPageViewProps) {
     : `Hi, I found ${pet.name} from the MyPetLink safety profile.`;
   const whatsappE164 = normalizeStoredPhone(effectiveContact.whatsappNumber);
   const phoneE164 = normalizeStoredPhone(effectiveContact.phoneNumber);
+  const hasPublicWhatsapp =
+    visibility.showWhatsapp && isValidE164(whatsappE164);
+  const hasPublicPhone = visibility.showPhone && isValidE164(phoneE164);
+  const hasPublicContact = hasPublicWhatsapp || hasPublicPhone;
   const safetySummary = [
     getPetTypeLabel(pet),
     [pet.breed, pet.color].find((value) => value && value !== "Not set"),
@@ -162,7 +167,9 @@ export function QrSafetyPageView({ pet }: QrSafetyPageViewProps) {
           {isLostMode ? `${pet.name} is currently missing` : `Found ${pet.name}?`}
         </h1>
         <p className="mx-auto mt-3 max-w-sm text-sm font-semibold leading-6 text-pet-muted">
-          {isLostMode
+          {!hasPublicContact
+            ? "The owner has not added a public contact method yet."
+            : isLostMode
             ? "If you have found this pet, please contact the owner immediately."
             : "Please contact the owner directly using one of the options below."}
         </p>
@@ -197,7 +204,7 @@ export function QrSafetyPageView({ pet }: QrSafetyPageViewProps) {
       ) : null}
 
       <div className="mt-5 grid gap-3">
-        {visibility.showWhatsapp && whatsappE164 ? (
+        {hasPublicWhatsapp ? (
           <CTAButton
             href={getWhatsAppLink(whatsappE164, introMessage)}
             icon="phone"
@@ -210,7 +217,7 @@ export function QrSafetyPageView({ pet }: QrSafetyPageViewProps) {
             WhatsApp Owner
           </CTAButton>
         ) : null}
-        {visibility.showPhone && phoneE164 ? (
+        {hasPublicPhone ? (
           <CTAButton
             href={getCallLink(phoneE164)}
             icon="phone"
@@ -221,7 +228,7 @@ export function QrSafetyPageView({ pet }: QrSafetyPageViewProps) {
             Call Owner
           </CTAButton>
         ) : null}
-        {visibility.showWhatsapp && whatsappE164 ? (
+        {hasPublicWhatsapp ? (
           <CTAButton
             disabled={sendingLocation}
             icon="pin"
@@ -232,6 +239,18 @@ export function QrSafetyPageView({ pet }: QrSafetyPageViewProps) {
           >
             {sendingLocation ? "Getting Location..." : "Send Found Location"}
           </CTAButton>
+        ) : null}
+        {!hasPublicContact ? (
+          <div className="rounded-[1.25rem] border border-pet-sand bg-pet-cream p-4 text-center">
+            <div className="flex items-center justify-center gap-2 text-sm font-black text-pet-ink">
+              <Icon name="shield" className="h-4 w-4 text-pet-teal" />
+              Contact unavailable
+            </div>
+            <p className="mt-2 text-sm font-semibold leading-6 text-pet-muted">
+              Please keep {pet.name} safe and check this Safety Profile again
+              later.
+            </p>
+          </div>
         ) : null}
       </div>
 
