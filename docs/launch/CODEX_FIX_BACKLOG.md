@@ -262,6 +262,15 @@ a separate card below the activation decision.
 
 ## MPL-SL-P1-005 — Remove promises of reminders that are not delivered
 
+**Resolved in code and verified on 2026-08-13.** Add/Edit Care Record helpers
+and frontend/API validation now direct owners to use the next due date to track
+future care, without implying that MyPetLink will contact them. The dashboard
+labels the same data as **Care due dates**, and the Terms refer to due-date
+information rather than active reminders. Existing overdue, due-today,
+due-soon, and upcoming status behavior is unchanged. References that remain on
+Home, Pricing, and Owner Settings are explicitly marked Coming Soon/Later and
+disabled where interactive controls are shown.
+
 **Problem.** Care-record validation messages reference reminders — e.g. "Use Next Vaccination Due Date for future reminders." No reminder is ever delivered; no reminder job or email exists.
 
 **User impact.** Sets an expectation the product does not meet, and erodes trust precisely where the product asks for ongoing data entry.

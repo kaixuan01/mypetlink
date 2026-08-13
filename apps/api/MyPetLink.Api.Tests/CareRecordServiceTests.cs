@@ -41,7 +41,7 @@ public sealed class CareRecordServiceTests
 
         Assert.Equal(StatusCodes.Status400BadRequest, exception.StatusCode);
         Assert.Equal(
-            "Grooming date cannot be in the future. Use Next Grooming Date for future care or reminders.",
+            "Grooming date cannot be in the future. Use Next Grooming Date to track future care.",
             Assert.Single(exception.Details!["date"]));
         Assert.Empty(harness.Db.CareRecords);
     }
@@ -69,7 +69,7 @@ public sealed class CareRecordServiceTests
 
         Assert.Equal(StatusCodes.Status400BadRequest, exception.StatusCode);
         Assert.Equal(
-            "Visit date cannot be in the future. Use Next Follow-up Date for future care or reminders.",
+            "Visit date cannot be in the future. Use Next Follow-up Date to track future care.",
             Assert.Single(exception.Details!["date"]));
         Assert.Equal(originalDate, record.RecordDate);
     }

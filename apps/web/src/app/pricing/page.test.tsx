@@ -23,6 +23,13 @@ describe("PricingPage product hierarchy", () => {
     expect(screen.getByRole("heading", { name: "Free" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Premium" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Start Free Profile" })).toBeTruthy();
+
+    const premiumCard = screen
+      .getByRole("heading", { name: "Premium" })
+      .closest("article");
+    expect(premiumCard).toBeTruthy();
+    expect(within(premiumCard!).getAllByText("Coming Soon").length).toBeGreaterThan(0);
+    expect(within(premiumCard!).getByText("Care reminders")).toBeTruthy();
   });
 
   it("makes the QR and QR + NFC differences explicit without changing availability", () => {

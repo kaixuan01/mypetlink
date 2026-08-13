@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-**Overall status: P0 COMPLETE — READY AFTER 2 REMAINING SELECTED P1 ITEMS AND ANALYTICS CONFIGURATION.**
+**Overall status: SELECTED CODE FIXES COMPLETE — PRODUCTION CONFIGURATION AND FINAL END-TO-END VERIFICATION REMAIN.**
 
 MyPetLink is substantially more complete than its own top-level documentation claimed. `apps/api` is a working ASP.NET Core + EF Core service with 39 migrations, real Google authentication, ownership-scoped authorization, an email outbox with background dispatch, PDF document generation, and a broad Admin Portal. Security and privacy posture is genuinely good — the usual launch killers (IDOR, public PII leakage, weak identifiers) were checked and **not** found.
 
@@ -17,7 +17,7 @@ The risk at soft launch is not the platform. The finder-contact edge is fixed an
 | Priority | Count |
 | --- | ---: |
 | P0 — open Codex launch blocker | 0 |
-| P1 — open recommendations | 6 |
+| P1 — open configuration/product decisions | 2 |
 | P2 — after launch | 6 |
 | P3 — do not build yet | 5 |
 
@@ -26,8 +26,8 @@ The risk at soft launch is not the platform. The finder-contact edge is fixed an
 1. **Finder contact dead-end — implemented and verified.** The Safety Profile now replaces contact instructions with a clear fallback when the pet has zero public contact methods.
 2. **Migration SQL artefacts are owner-managed.** The audit finding is retained for history, but the artefacts are excluded from Codex work and are not a Codex launch blocker.
 3. **Analytics is implemented but not yet enabled.** The optional GA4 adapter is privacy-limited and inert until Operations supplies the production measurement id and rebuilds.
-4. **The homepage's primary demo CTA dead-ends** until an admin configures a sample pet.
-5. **Care reminders decay into noise** — anything overdue is labelled "Due soon" forever.
+4. **The sample journey is resilient.** It uses a complete static fallback when optional personalization is unavailable.
+5. **Care due-date tracking is accurate and honestly described.** Overdue items are distinct, and no active UI promises reminder delivery.
 
 ---
 
@@ -151,7 +151,7 @@ The authenticated API response remains authoritative. One shared frontend helper
 **Resolved in code and verified on 2026-08-13.** Pet creation now focuses the success heading and presents exactly one primary activation action: View {pet}'s Profile. Add {pet}'s First Moment is the single visually secondary action. The primary opens the real Public Share Profile, where the existing share control remains available; the secondary opens the first-Moment editor. A private/disabled public profile safely promotes Add First Moment instead. Missing owner-contact guidance remains below the activation card rather than interrupting it. Desktop and 375 × 812 authenticated first-pet journeys were verified with long-name wrapping, no horizontal overflow, no console errors, and refresh without duplicate creation.
 
 ### P1-005 — Owner-facing copy promises reminders that do not exist
-Care-record validation returns, e.g., *"Vaccination date cannot be in the future. Use Next Vaccination Due Date for future reminders."* No reminder is ever delivered. The homepage is honest ("Reminders coming soon"); this in-product copy is not.
+**Resolved in code and verified on 2026-08-13.** Care-record helpers and frontend/API validation now describe next dates as future-care tracking rather than reminder delivery. The dashboard uses **Care due dates** and an accurate empty state, while the Terms describe due-date information. Existing overdue, due-today, due-soon, and upcoming derivation and ordering are unchanged. Repository-wide review found only intentional future references that are explicitly marked Coming Soon/Later; disabled Owner Settings controls remain unchecked and unavailable.
 
 ### P1-006 — Google is the only way to sign in
 There is no email OTP, password, or Apple option. Any user without a usable Google account — or on a device where Google Sign-In fails to load — cannot enter the product at all, and the failure mode is a small inline error. For a Malaysian consumer launch this is a real addressable-audience constraint. It is a deliberate scope decision, not a defect, but it should be a conscious launch decision rather than an implicit one.
@@ -190,7 +190,7 @@ The building blocks are unusually complete: Moments with categories and media, a
 | --- | --- | --- |
 | Moments / Life Timeline | Built | None — needs promotion in onboarding (P1-004) |
 | Care Records | Built | None |
-| Dashboard reminders | Built but degrading | Low — fix `deriveStatus`, add `overdue` (P1-002) |
+| Care due-date dashboard | Built and corrected | None |
 | Profile completion checklist | Not built | Medium — high activation value |
 | Care reminder **email** | Not built | Medium — outbox, templates and worker already exist; needs a scheduled query + template |
 | Birthday / adoption anniversary | Data exists, unused | Low — `Birthday` and `AdoptionDay` are already stored |
@@ -285,16 +285,17 @@ Stated plainly so this report is not over-trusted:
 
 ## Final Recommendation
 
-### P0 COMPLETE — READY AFTER 3 SELECTED P1 ITEMS
+### SELECTED CODE FIXES COMPLETE — MOVE TO PRODUCTION CONFIGURATION
 
-**Fix before soft launch:**
+**Selected P1 status:**
 
 1. **Enable and validate P1-001** — configure the production GA4 measurement id, rebuild, and confirm events in GA4 after privacy/consent review.
-2. **P1-002** — Overdue care-record status. Cheap, and it repairs the only retention surface that exists.
+2. **P1-002 — complete** — Care records distinguish overdue, due-soon, upcoming, and complete states.
 3. **P1-003 — complete** — The sample journey no longer depends on launch-time pet selection; the release checklist verifies both generic and optional personalized states.
 4. **P1-004 — complete** — Pet creation now leads to one primary View Profile action and one secondary Add First Moment action.
+5. **P1-005 — complete** — Active Care surfaces describe due-date tracking accurately; automatic reminders remain clearly future functionality.
 
-**Why not "READY FOR CONTROLLED SOFT LAUNCH" today:** the P0 finder issue, analytics code, overdue-state correctness, sample experience, and post-create activation are complete, but production analytics configuration and the remaining P1-005 reminder-copy correction remain. Migration SQL artefacts are owner-managed and excluded from this recommendation.
+**Why not "READY FOR CONTROLLED SOFT LAUNCH" today:** the selected code-side fixes are complete, but the production environment has not yet been configured and validated. Operations must configure and consent-review analytics, make the documented email and Safety Profile UI scope decisions, complete production OAuth/hosting settings, then run the final end-to-end launch journeys. Migration SQL artefacts are owner-managed and excluded from this recommendation.
 
 **Why not "NOT READY":** the platform underneath is sound. Authentication, authorization, data ownership, privacy boundaries, and mobile rendering were all verified and hold up. The remaining P1 and P2 items are genuine improvements, not obstacles.
 

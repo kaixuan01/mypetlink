@@ -26,99 +26,83 @@ export type CareRecordDateTerminology = {
   futureDateValidationMessage: string;
 };
 
-const premiumReminderMessage =
-  "WhatsApp reminders will be available with Premium.";
-
 const fallbackTerminology: CareRecordDateTerminology = {
   primaryDateLabel: "Record Date",
   primaryDateHelper:
-    "Record when this care happened. For future care or reminders, use the next date below.",
+    "Record when this care happened. Use the next date below to track future care.",
   nextDateLabel: "Next Care Date",
-  nextDateHelper: withPremiumReminder(
-    "Set the date for your pet’s next follow-up or routine care."
-  ),
+  nextDateHelper: "Set the date for your pet’s next follow-up or routine care.",
   futureDateValidationMessage:
-    "Care date cannot be in the future. Use the next care date for future care or reminders.",
+    "Care date cannot be in the future. Use the next care date to track future care.",
 };
 
 const terminologyByType: Record<RecordType, CareRecordDateTerminology> = {
   Vaccine: {
     primaryDateLabel: "Vaccination Date",
     primaryDateHelper:
-      "Record when this vaccination was given. Use the next vaccination date below for future reminders.",
+      "Record when this vaccination was given. Use the next vaccination date below to track future care.",
     nextDateLabel: "Next Vaccination Due Date",
-    nextDateHelper: withPremiumReminder(
-      "Set the date when your pet’s next vaccination is due."
-    ),
+    nextDateHelper: "Set the date when your pet’s next vaccination is due.",
     futureDateValidationMessage:
-      "Vaccination date cannot be in the future. Use Next Vaccination Due Date for future reminders.",
+      "Vaccination date cannot be in the future. Use Next Vaccination Due Date to track future care.",
   },
   Deworming: {
     primaryDateLabel: "Deworming Date",
     primaryDateHelper:
-      "Record when this treatment was given. Use the next deworming date below for future reminders.",
+      "Record when this treatment was given. Use the next deworming date below to track future care.",
     nextDateLabel: "Next Deworming Due Date",
-    nextDateHelper: withPremiumReminder(
-      "Set the date when your pet’s next deworming treatment is due."
-    ),
+    nextDateHelper:
+      "Set the date when your pet’s next deworming treatment is due.",
     futureDateValidationMessage:
-      "Deworming date cannot be in the future. Use Next Deworming Due Date for future care or reminders.",
+      "Deworming date cannot be in the future. Use Next Deworming Due Date to track future care.",
   },
   Grooming: {
     primaryDateLabel: "Grooming Date",
     primaryDateHelper:
-      "Record when this grooming happened. Use the next grooming date below for future care or reminders.",
+      "Record when this grooming happened. Use the next grooming date below to track future care.",
     nextDateLabel: "Next Grooming Date",
-    nextDateHelper: withPremiumReminder(
-      "Set the date for your pet’s next grooming session."
-    ),
+    nextDateHelper: "Set the date for your pet’s next grooming session.",
     futureDateValidationMessage:
-      "Grooming date cannot be in the future. Use Next Grooming Date for future care or reminders.",
+      "Grooming date cannot be in the future. Use Next Grooming Date to track future care.",
   },
   "Vet Visit": {
     primaryDateLabel: "Visit Date",
     primaryDateHelper:
-      "Record when this vet visit happened. Use the next follow-up date below for future care or reminders.",
+      "Record when this vet visit happened. Use the next follow-up date below to track future care.",
     nextDateLabel: "Next Follow-up Date",
-    nextDateHelper: withPremiumReminder(
-      "Set the date for your pet’s next follow-up visit."
-    ),
+    nextDateHelper: "Set the date for your pet’s next follow-up visit.",
     futureDateValidationMessage:
-      "Visit date cannot be in the future. Use Next Follow-up Date for future care or reminders.",
+      "Visit date cannot be in the future. Use Next Follow-up Date to track future care.",
   },
   Medication: {
     primaryDateLabel: "Start Date",
     primaryDateHelper:
-      "Record when this medication started. Use the next review date below for future reminders.",
+      "Record when this medication started. Use the next review date below to track future care.",
     nextDateLabel: "Next Review Date",
-    nextDateHelper: withPremiumReminder(
-      "Set the date for your pet’s next medication review."
-    ),
+    nextDateHelper: "Set the date for your pet’s next medication review.",
     futureDateValidationMessage:
-      "Start date cannot be in the future. Use Next Review Date for future care or reminders.",
+      "Start date cannot be in the future. Use Next Review Date to track future care.",
   },
   Allergy: fallbackTerminology,
   Surgery: {
     primaryDateLabel: "Surgery Date",
     primaryDateHelper:
-      "Record when this surgery took place. Use the next follow-up date below for future reminders.",
+      "Record when this surgery took place. Use the next follow-up date below to track future care.",
     nextDateLabel: "Next Follow-up Date",
-    nextDateHelper: withPremiumReminder(
-      "Set the date for your pet’s next post-surgery follow-up."
-    ),
+    nextDateHelper:
+      "Set the date for your pet’s next post-surgery follow-up.",
     futureDateValidationMessage:
-      "Surgery date cannot be in the future. Use Next Follow-up Date for future care or reminders.",
+      "Surgery date cannot be in the future. Use Next Follow-up Date to track future care.",
   },
   "Lab Test": {
     primaryDateLabel: "Test Date",
     primaryDateHelper:
-      "Record when this lab test happened. Use the next follow-up date below for future care or reminders.",
+      "Record when this lab test happened. Use the next follow-up date below to track future care.",
     nextDateLabel: "Next Follow-up Date",
-    nextDateHelper: withPremiumReminder(
-      "Set the date for your pet’s next follow-up or repeat test."
-    ),
+    nextDateHelper:
+      "Set the date for your pet’s next follow-up or repeat test.",
     futureDateValidationMessage:
-      "Test date cannot be in the future. Use Next Follow-up Date for future care or reminders.",
+      "Test date cannot be in the future. Use Next Follow-up Date to track future care.",
   },
   Other: fallbackTerminology,
 };
@@ -157,8 +141,4 @@ export function isFutureCareRecordDate(
   today = getLocalTodayDateInputValue()
 ) {
   return isValidDateInputValue(value) && value > today;
-}
-
-function withPremiumReminder(message: string) {
-  return `${message} ${premiumReminderMessage}`;
 }

@@ -160,10 +160,10 @@ export default function TermsPage() {
 
           <LegalSection id="veterinary-advice" number={8} title="No Veterinary Advice">
             <p>
-              Care records, notes, allergies, medication notes, and reminders are
-              for owner reference only. MyPetLink does not provide veterinary
-              diagnosis, treatment, or medical advice. Please consult a
-              qualified veterinarian for pet health concerns.
+              Care records, notes, allergies, medication notes, and due-date
+              information are for owner reference only. MyPetLink does not
+              provide veterinary diagnosis, treatment, or medical advice.
+              Please consult a qualified veterinarian for pet health concerns.
             </p>
           </LegalSection>
 

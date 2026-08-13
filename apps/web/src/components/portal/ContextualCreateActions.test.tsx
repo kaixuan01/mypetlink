@@ -90,6 +90,11 @@ describe("contextual create actions", () => {
     expect(
       screen.getAllByRole("button", { name: /add first care record/i })
     ).toHaveLength(1);
+    expect(
+      screen.getByText(
+        "Add your pet's first record so important health details are easy to find later."
+      )
+    ).toBeTruthy();
 
     fireEvent.click(action);
     expect(screen.getByRole("dialog")).toBeTruthy();
@@ -133,8 +138,9 @@ describe("contextual create actions", () => {
       screen.getByText(/Record when this grooming happened/)
     ).toBeTruthy();
     expect(
-      screen.getByText(/WhatsApp reminders will be available with Premium/)
+      screen.getByText("Set the date for your pet’s next grooming session.")
     ).toBeTruthy();
+    expect(screen.queryByText(/remind|notif/i)).toBeNull();
     expect(
       (screen.getByLabelText("Grooming Date") as HTMLInputElement).value
     ).toBe("2020-06-15");
@@ -212,7 +218,7 @@ describe("contextual create actions", () => {
 
     expect(
       screen.getByText(
-        "Grooming date cannot be in the future. Use Next Grooming Date for future care or reminders."
+        "Grooming date cannot be in the future. Use Next Grooming Date to track future care."
       )
     ).toBeTruthy();
     expect(mocks.createRecord).not.toHaveBeenCalled();

@@ -21,7 +21,7 @@ Everything below is implemented, enabled by default, and verified.
 | Moments — 12 categories, media, public/private | `/pets/:id/moments` |
 | Life Timeline | `/pets/:id/timeline` |
 | Care Records — 9 types, due dates, visibility | `/pets/:id/records` |
-| Owner dashboard with upcoming-care widget | `/dashboard` |
+| Owner dashboard with care due-date widget | `/dashboard` |
 | Marketing site, pricing, FAQ, legal pages | `/`, `/pricing`, `/privacy`, `/terms` |
 | Admin Portal for owner/pet support | `/admin` |
 
@@ -35,12 +35,13 @@ From [`CODEX_FIX_BACKLOG.md`](CODEX_FIX_BACKLOG.md):
 
 - **P0-001 — implemented** — Safety Profile no longer instructs a finder to use contact options it is not showing.
 - **Owner-managed / excluded** — Migration SQL artefacts are managed by the repository owner and are not part of the Codex launch backlog.
-- **P1-001** — Minimum funnel analytics (~8 events).
-- **P1-002** — Add an `overdue` care-record state.
+- **P1-001 — implemented in code; production configuration remains** — Privacy-limited funnel analytics are inert until Operations configures GA4 and rebuilds.
+- **P1-002 — implemented** — Care records distinguish overdue, due-soon, upcoming, and complete states.
 - **P1-003 — implemented** — The guided Sample Experience is complete with or without optional approved-pet personalization; public and safety CTAs deep-link to matching sections.
 - **P1-004 — implemented** — Pet creation leads to one primary View Profile action, with Add First Moment secondary and missing-contact guidance kept separate.
+- **P1-005 — implemented** — Active Care surfaces describe due-date tracking without promising automatic reminder delivery.
 
-The remaining selected retention-copy correction is **P1-005**; run final end-to-end soft-launch verification after it and production analytics configuration are complete.
+The selected code corrections are complete. Proceed through production configuration, then run final end-to-end soft-launch verification before a controlled launch.
 
 ---
 

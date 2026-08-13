@@ -566,7 +566,7 @@ function UpcomingCareSection({
 }) {
   return (
     <DashboardSection
-      title="Care reminders"
+      title="Care due dates"
       action={
         records.length ? (
           <Link
@@ -591,7 +591,7 @@ function UpcomingCareSection({
       ) : (
         <div className="flex flex-col gap-2 rounded-[1.25rem] border border-pet-border bg-white px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm font-semibold text-pet-muted">
-            No care reminders scheduled.
+            No care due dates added.
           </p>
           <Link
             className="text-sm font-bold text-pet-teal transition hover:text-[#0f5fd0]"

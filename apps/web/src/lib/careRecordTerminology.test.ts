@@ -33,11 +33,8 @@ describe("care record date terminology", () => {
       primaryDateLabel: "Grooming Date",
       nextDateLabel: "Next Grooming Date",
       futureDateValidationMessage:
-        "Grooming date cannot be in the future. Use Next Grooming Date for future care or reminders.",
+        "Grooming date cannot be in the future. Use Next Grooming Date to track future care.",
     });
-    expect(
-      getCareRecordDateTerminology("Grooming").nextDateHelper
-    ).toContain("WhatsApp reminders will be available with Premium.");
 
     expect(getCareRecordDateTerminology("Vet Visit")).toMatchObject({
       primaryDateLabel: "Visit Date",
@@ -47,6 +44,17 @@ describe("care record date terminology", () => {
       primaryDateLabel: "Vaccination Date",
       nextDateLabel: "Next Vaccination Due Date",
     });
+
+    for (const type of careRecordTypes) {
+      const terminology = getCareRecordDateTerminology(type);
+      expect(
+        [
+          terminology.primaryDateHelper,
+          terminology.nextDateHelper,
+          terminology.futureDateValidationMessage,
+        ].join(" ")
+      ).not.toMatch(/remind|notif/i);
+    }
   });
 
   it("uses safe fallback terminology before a type is chosen", () => {

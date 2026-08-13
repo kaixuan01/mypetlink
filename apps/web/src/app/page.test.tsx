@@ -104,4 +104,12 @@ describe("homepage pet finder preview", () => {
       screen.getByRole("link", { name: "View Sample Safety Profile" }).getAttribute("href")
     ).toBe("/sample#safety-profile");
   });
+
+  it("labels reminders as future functionality instead of an active promise", () => {
+    mocks.load.mockResolvedValue({ available: false, pet: null });
+    render(<HomePage />);
+
+    expect(screen.getByText("Reminders coming soon")).toBeTruthy();
+    expect(screen.queryByText(/we.?ll remind|automatic reminders|notify you/i)).toBeNull();
+  });
 });

@@ -324,21 +324,21 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
         return recordType switch
         {
             CareRecordType.Vaccine =>
-                "Vaccination date cannot be in the future. Use Next Vaccination Due Date for future reminders.",
+                "Vaccination date cannot be in the future. Use Next Vaccination Due Date to track future care.",
             CareRecordType.Deworming =>
-                "Deworming date cannot be in the future. Use Next Deworming Due Date for future care or reminders.",
+                "Deworming date cannot be in the future. Use Next Deworming Due Date to track future care.",
             CareRecordType.Grooming =>
-                "Grooming date cannot be in the future. Use Next Grooming Date for future care or reminders.",
+                "Grooming date cannot be in the future. Use Next Grooming Date to track future care.",
             CareRecordType.VetVisit =>
-                "Visit date cannot be in the future. Use Next Follow-up Date for future care or reminders.",
+                "Visit date cannot be in the future. Use Next Follow-up Date to track future care.",
             CareRecordType.Medication =>
-                "Start date cannot be in the future. Use Next Review Date for future care or reminders.",
+                "Start date cannot be in the future. Use Next Review Date to track future care.",
             CareRecordType.Surgery =>
-                "Surgery date cannot be in the future. Use Next Follow-up Date for future care or reminders.",
+                "Surgery date cannot be in the future. Use Next Follow-up Date to track future care.",
             CareRecordType.LabTest =>
-                "Test date cannot be in the future. Use Next Follow-up Date for future care or reminders.",
+                "Test date cannot be in the future. Use Next Follow-up Date to track future care.",
             _ =>
-                "Care date cannot be in the future. Use the next care date for future care or reminders."
+                "Care date cannot be in the future. Use the next care date to track future care."
         };
     }
 

@@ -227,7 +227,7 @@ describe("DashboardClient with pets", () => {
     await screen.findByRole("heading", { name: "Your pets" });
     const body = document.body.textContent ?? "";
     expect(body.indexOf("Welcome back")).toBeLessThan(body.indexOf("Your pets"));
-    expect(body.indexOf("Your pets")).toBeLessThan(body.indexOf("Care reminders"));
+    expect(body.indexOf("Your pets")).toBeLessThan(body.indexOf("Care due dates"));
     expect(screen.getByText("Manage and share your pet profiles.")).toBeTruthy();
     expect(screen.queryByText("Share your pets")).toBeNull();
     expect(document.querySelectorAll("[data-dashboard-pet-card]")).toHaveLength(1);
@@ -437,13 +437,21 @@ describe("DashboardClient with pets", () => {
 
     renderDashboard();
 
-    await screen.findByText("Care reminders");
+    await screen.findByText("Care due dates");
     const body = document.body.textContent ?? "";
     expect(body.indexOf("Grooming")).toBeLessThan(body.indexOf("Vet Visit"));
     expect(body.indexOf("Vet Visit")).toBeLessThan(body.indexOf("Medication"));
     expect(screen.getByText("Overdue")).toBeTruthy();
     expect(screen.queryByText("Vaccine")).toBeNull();
     expect(screen.queryByText("Surgery")).toBeNull();
+  });
+
+  it("describes an empty care schedule without promising reminder delivery", async () => {
+    renderDashboard();
+
+    expect(await screen.findByText("Care due dates")).toBeTruthy();
+    expect(screen.getByText("No care due dates added.")).toBeTruthy();
+    expect(screen.queryByText(/remind|notif/i)).toBeNull();
   });
 });
 
