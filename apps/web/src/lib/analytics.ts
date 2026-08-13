@@ -138,8 +138,8 @@ export function initializeAnalytics() {
   }
 
   window.dataLayer ??= [];
-  window.gtag ??= function gtag(..._args: unknown[]) {
-    window.dataLayer?.push(arguments);
+  window.gtag ??= function gtag(...args: unknown[]) {
+    window.dataLayer?.push(args);
   };
   sendToProvider("js", new Date());
   sendToProvider("config", measurementId, {
