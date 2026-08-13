@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClientError } from "@/services/apiClient";
 import {
@@ -647,7 +647,9 @@ describe("Shipment form", () => {
         "Inventory changed while you were working. The latest availability has been loaded."
       )
     ).toBeTruthy();
-    expect(listShippingCourierOptions.mock.calls.length).toBeGreaterThan(1);
+    await waitFor(() =>
+      expect(listShippingCourierOptions.mock.calls.length).toBeGreaterThan(1)
+    );
   });
 });
 

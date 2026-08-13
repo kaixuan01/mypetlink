@@ -14,6 +14,7 @@ namespace MyPetLink.Api.Tests.Relational;
 /// invariant here, not an application convention, so these run where the unique
 /// index actually exists.
 /// </summary>
+[Collection("PDF document rendering")]
 public sealed class MerchantShippedEmailRelationalTests
 {
     // The markers an operator records for themselves. None may ever reach the

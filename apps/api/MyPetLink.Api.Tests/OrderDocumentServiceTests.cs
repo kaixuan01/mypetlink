@@ -26,6 +26,7 @@ internal static class OrderDocumentTestModuleInitializer
 // availability, ownership, immutable-snapshot behaviour, capability-aware
 // wording, discounts, and that nothing internal leaks. Assertions render the
 // real PDF and read its text rather than inspecting internal DTOs.
+[Collection("PDF document rendering")]
 public sealed class OrderDocumentServiceTests
 {
     // --- Availability -----------------------------------------------------

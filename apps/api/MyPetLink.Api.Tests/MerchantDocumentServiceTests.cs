@@ -13,6 +13,7 @@ namespace MyPetLink.Api.Tests;
 // Covers the three merchant documents by rendering the real PDF and reading
 // its text, rather than inspecting internal models. What a merchant actually
 // sees is the thing under test.
+[Collection("PDF document rendering")]
 public sealed class MerchantDocumentServiceTests
 {
     private static readonly DateTimeOffset Now = DateTimeOffset.Parse("2026-08-05T04:00:00Z");

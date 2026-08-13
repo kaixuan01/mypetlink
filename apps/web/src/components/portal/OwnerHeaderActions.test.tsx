@@ -223,7 +223,7 @@ describe("OwnerHeaderActions", () => {
     const originalAction = await screen.findByRole("link", {
       name: /add moment for the current pet/i,
     });
-    expect(observedOrigin).toBeTruthy();
+    await waitFor(() => expect(observedOrigin).toBeTruthy());
     expect(document.querySelector("[data-owner-compact-action-bar]")).toBeNull();
 
     notifyIntersection({ isIntersecting: false, bottom: -1 });
@@ -272,6 +272,7 @@ describe("OwnerHeaderActions", () => {
     render(<HeaderHarness />);
 
     await screen.findByRole("link", { name: "Add Pet" });
+    await waitFor(() => expect(observedOrigin).toBeTruthy());
     notifyIntersection({ isIntersecting: false, bottom: 720 });
 
     expect(document.querySelector("[data-owner-compact-action-bar]")).toBeNull();
@@ -300,7 +301,7 @@ describe("OwnerHeaderActions", () => {
     const view = render(<HeaderHarness />);
 
     await screen.findByRole("link", { name: "Add Pet" });
-    expect(observedOrigin).toBeTruthy();
+    await waitFor(() => expect(observedOrigin).toBeTruthy());
 
     mocks.pathname = "/settings";
     view.rerender(<HeaderHarness />);

@@ -9,6 +9,7 @@ namespace MyPetLink.Api.Tests;
 // The three merchant emails, checked as a merchant would receive them: the
 // rendered HTML and plain text, and the attachment actually resolved at send
 // time. Nothing is asserted against internal DTOs.
+[Collection("PDF document rendering")]
 public sealed class MerchantEmailTests
 {
     // ===================== Quotation =====================

@@ -3,6 +3,7 @@ using MyPetLink.Api.Services;
 
 namespace MyPetLink.Api.Tests;
 
+[Collection("PDF document rendering")]
 public sealed class EmailAttachmentResolverTests
 {
     [Fact]
