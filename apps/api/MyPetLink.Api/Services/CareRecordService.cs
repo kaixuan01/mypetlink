@@ -10,10 +10,14 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
 {
     private static readonly TimeSpan MalaysiaUtcOffset = TimeSpan.FromHours(8);
     private readonly MyPetLinkDbContext _dbContext;
+    private readonly TimeProvider _timeProvider;
 
-    public CareRecordService(MyPetLinkDbContext dbContext)
+    public CareRecordService(
+        MyPetLinkDbContext dbContext,
+        TimeProvider? timeProvider = null)
     {
         _dbContext = dbContext;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public async Task<(IReadOnlyCollection<CareRecordResponse> Items, int Total)> ListForPetAsync(
@@ -448,7 +452,7 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
         });
     }
 
-    private static CareRecordResponse ToResponse(CareRecord record)
+    private CareRecordResponse ToResponse(CareRecord record)
     {
         return new CareRecordResponse(
             record.Id,
@@ -466,7 +470,7 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
             record.ArchivedAt);
     }
 
-    private static string DeriveStatus(CareRecord record)
+    private string DeriveStatus(CareRecord record)
     {
         if (!record.DueDate.HasValue)
         {
@@ -474,12 +478,17 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
         }
 
         var today = GetMalaysiaToday();
+        if (record.DueDate.Value < today)
+        {
+            return "overdue";
+        }
+
         return record.DueDate.Value <= today.AddDays(30) ? "due-soon" : "upcoming";
     }
 
-    private static DateOnly GetMalaysiaToday()
+    private DateOnly GetMalaysiaToday()
     {
-        var malaysiaNow = DateTimeOffset.UtcNow.ToOffset(MalaysiaUtcOffset);
+        var malaysiaNow = _timeProvider.GetUtcNow().ToOffset(MalaysiaUtcOffset);
         return DateOnly.FromDateTime(malaysiaNow.DateTime);
     }
 

@@ -14,6 +14,10 @@ import { Icon, type IconName } from "@/components/ui/Icon";
 import { PetAvatar } from "@/components/ui/PetAvatar";
 import { getCareRecordDateTerminology } from "@/lib/careRecordTerminology";
 import {
+  getCareRecordStatusLabel,
+  selectDashboardCareRecords,
+} from "@/lib/careRecordStatus";
+import {
   hasUsableOwnerContact,
   readOwnerSettings,
   subscribeOwnerSettings,
@@ -129,10 +133,7 @@ export function DashboardClient({
   ).length;
   const lostModePets = pets.filter((pet) => pet.lostModeEnabled);
   const upcomingRecords = useMemo(
-    () =>
-      allRecords
-        .filter((record) => record.dueDate)
-        .sort((a, b) => dateScore(a.dueDate) - dateScore(b.dueDate)),
+    () => selectDashboardCareRecords(allRecords),
     [allRecords]
   );
 
@@ -563,11 +564,9 @@ function UpcomingCareSection({
   pets: Pet[];
   records: CareRecord[];
 }) {
-  const nearest = records.slice(0, 3);
-
   return (
     <DashboardSection
-      title="Upcoming care"
+      title="Care reminders"
       action={
         records.length ? (
           <Link
@@ -579,9 +578,9 @@ function UpcomingCareSection({
         ) : null
       }
     >
-      {nearest.length ? (
+      {records.length ? (
         <div className="grid gap-2.5">
-          {nearest.map((record) => (
+          {records.map((record) => (
             <ReminderItem
               key={record.id}
               pet={pets.find((pet) => pet.id === record.petId)}
@@ -592,7 +591,7 @@ function UpcomingCareSection({
       ) : (
         <div className="flex flex-col gap-2 rounded-[1.25rem] border border-pet-border bg-white px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm font-semibold text-pet-muted">
-            No upcoming care reminders.
+            No care reminders scheduled.
           </p>
           <Link
             className="text-sm font-bold text-pet-teal transition hover:text-[#0f5fd0]"
@@ -624,10 +623,16 @@ function ReminderItem({ record, pet }: { record: CareRecord; pet?: Pet }) {
         </p>
       </div>
       <Badge
-        tone={record.status === "due-soon" ? "warm" : "soft"}
+        tone={
+          record.status === "overdue"
+            ? "danger"
+            : record.status === "due-soon"
+              ? "warm"
+              : "soft"
+        }
         className="shrink-0"
       >
-        {getRecordStatusLabel(record)}
+        {getCareRecordStatusLabel(record)}
       </Badge>
     </div>
   );
@@ -704,18 +709,6 @@ function collectFulfilled<T>(
   );
 }
 
-function getRecordStatusLabel(record: CareRecord) {
-  if (record.status === "due-soon") {
-    return "Due soon";
-  }
-
-  if (record.status === "upcoming") {
-    return "Upcoming";
-  }
-
-  return "Next due";
-}
-
 function recordIcon(type: CareRecord["type"]): IconName {
   if (type === "Grooming") {
     return "heart";
@@ -726,38 +719,4 @@ function recordIcon(type: CareRecord["type"]): IconName {
   }
 
   return "record";
-}
-
-function dateScore(value?: string) {
-  if (!value) {
-    return Number.MAX_SAFE_INTEGER;
-  }
-
-  const match = value.match(/^(\d{1,2}) ([A-Za-z]{3}) (\d{4})$/);
-
-  if (!match) {
-    return Number.MAX_SAFE_INTEGER;
-  }
-
-  const [, day, month, year] = match;
-  const monthIndex = [
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
-    "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dec",
-  ].indexOf(month);
-
-  if (monthIndex < 0) {
-    return Number.MAX_SAFE_INTEGER;
-  }
-
-  return new Date(Number(year), monthIndex, Number(day)).getTime();
 }

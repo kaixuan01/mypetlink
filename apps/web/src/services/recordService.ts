@@ -7,6 +7,7 @@ import {
 } from "@/services/mockApi";
 import { apiRequest, isApiClientError } from "@/services/apiClient";
 import { canUseApi } from "@/services/apiConfig";
+import { deriveCareRecordStatus } from "@/lib/careRecordStatus";
 import type {
   BackendCareRecord,
   BackendCareRecordPublicVisibility,
@@ -25,6 +26,7 @@ function normalizeRecord(record: CareRecord): CareRecord {
   return {
     ...record,
     publicVisibility: record.publicVisibility ?? "Public badge only",
+    status: deriveCareRecordStatus(record.dueDate),
   };
 }
 
@@ -77,7 +79,7 @@ export async function createRecord(petId: string, payload: RecordPayload) {
     provider: payload.provider ?? "Owner recorded",
     notes: payload.notes ?? "No notes yet.",
     publicVisibility: payload.publicVisibility ?? "Public badge only",
-    status: "complete",
+    status: deriveCareRecordStatus(payload.dueDate),
   };
 
   writeStoredCollection(RECORD_STORAGE_KEY, [record, ...records]);
@@ -118,6 +120,11 @@ export async function updateRecord(recordId: string, payload: RecordPayload) {
         ...payload,
         publicVisibility:
           payload.publicVisibility ?? existingRecord.publicVisibility,
+        status: deriveCareRecordStatus(
+          Object.prototype.hasOwnProperty.call(payload, "dueDate")
+            ? payload.dueDate
+            : existingRecord.dueDate
+        ),
       }
     : null;
 
@@ -275,7 +282,7 @@ function mapBackendPublicRecord(
     provider: record.provider || "Owner recorded",
     notes: record.notes || "",
     publicVisibility,
-    status: deriveStatus(record.dueDate),
+    status: deriveCareRecordStatus(record.dueDate),
   };
 }
 
@@ -336,23 +343,9 @@ function fromBackendVisibility(
 }
 
 function toFrontendStatus(value: string): CareRecord["status"] {
-  return value === "due-soon" || value === "upcoming" ? value : "complete";
-}
-
-function deriveStatus(dueDate?: string | null): CareRecord["status"] {
-  if (!dueDate) {
-    return "complete";
-  }
-
-  const date = new Date(`${dueDate}T00:00:00`);
-  if (Number.isNaN(date.getTime())) {
-    return "complete";
-  }
-
-  const soon = new Date();
-  soon.setDate(soon.getDate() + 30);
-
-  return date <= soon ? "due-soon" : "upcoming";
+  return value === "overdue" || value === "due-soon" || value === "upcoming"
+    ? value
+    : "complete";
 }
 
 function toDisplayDate(value?: string | null) {

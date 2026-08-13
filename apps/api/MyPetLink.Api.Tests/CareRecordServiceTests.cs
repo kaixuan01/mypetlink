@@ -141,6 +141,65 @@ public sealed class CareRecordServiceTests
         Assert.Equal("Updated legacy allergy note", response.Title);
     }
 
+    [Fact]
+    public async Task ListForPetAsync_DerivesStatusesAtEveryDueDateBoundary()
+    {
+        var utcNow = DateTimeOffset.Parse("2026-08-12T17:00:00Z");
+        using var harness = await CareRecordHarness.CreateAsync(utcNow: utcNow);
+        var today = new DateOnly(2026, 8, 13);
+
+        AddRecord(harness.Db, "Long overdue", today.AddYears(-2), today.AddYears(-2));
+        AddRecord(harness.Db, "Yesterday", today.AddDays(-30), today.AddDays(-1));
+        AddRecord(harness.Db, "Today", today.AddDays(-30), today);
+        AddRecord(harness.Db, "Tomorrow", today.AddDays(-30), today.AddDays(1));
+        AddRecord(harness.Db, "Boundary", today.AddDays(-30), today.AddDays(30));
+        AddRecord(harness.Db, "Beyond boundary", today.AddDays(-30), today.AddDays(31));
+        AddRecord(harness.Db, "Completed history", today.AddDays(-30), null);
+        await harness.Db.SaveChangesAsync();
+
+        var result = await harness.Service.ListForPetAsync(
+            OwnerId,
+            PetId,
+            page: 1,
+            pageSize: 20,
+            type: null,
+            fromDate: null,
+            toDate: null,
+            includeArchived: false);
+        var statuses = result.Items.ToDictionary(item => item.Title, item => item.DerivedStatus);
+
+        Assert.Equal("overdue", statuses["Long overdue"]);
+        Assert.Equal("overdue", statuses["Yesterday"]);
+        Assert.Equal("due-soon", statuses["Today"]);
+        Assert.Equal("due-soon", statuses["Tomorrow"]);
+        Assert.Equal("due-soon", statuses["Boundary"]);
+        Assert.Equal("upcoming", statuses["Beyond boundary"]);
+        Assert.Equal("complete", statuses["Completed history"]);
+    }
+
+    [Fact]
+    public async Task GetAsync_UsesMalaysiaCalendarDayAtUtcBoundary()
+    {
+        var dueDate = new DateOnly(2026, 8, 12);
+        using var beforeMidnight = await CareRecordHarness.CreateAsync(
+            utcNow: DateTimeOffset.Parse("2026-08-12T15:59:00Z"));
+        AddRecord(beforeMidnight.Db, "Boundary care", dueDate.AddDays(-30), dueDate);
+        await beforeMidnight.Db.SaveChangesAsync();
+        var beforeRecord = await beforeMidnight.Db.CareRecords.SingleAsync();
+
+        var before = await beforeMidnight.Service.GetAsync(OwnerId, beforeRecord.Id);
+
+        using var afterMidnight = await CareRecordHarness.CreateAsync(
+            utcNow: DateTimeOffset.Parse("2026-08-12T16:01:00Z"));
+        AddRecord(afterMidnight.Db, "Boundary care", dueDate.AddDays(-30), dueDate);
+        await afterMidnight.Db.SaveChangesAsync();
+        var afterRecord = await afterMidnight.Db.CareRecords.SingleAsync();
+        var after = await afterMidnight.Service.GetAsync(OwnerId, afterRecord.Id);
+
+        Assert.Equal("due-soon", before.DerivedStatus);
+        Assert.Equal("overdue", after.DerivedStatus);
+    }
+
     private static CreateCareRecordRequest CreateRequest(
         CareRecordType type,
         DateOnly date)
@@ -162,19 +221,38 @@ public sealed class CareRecordServiceTests
         return DateOnly.FromDateTime(malaysiaNow.DateTime);
     }
 
+    private static void AddRecord(
+        MyPetLinkDbContext db,
+        string title,
+        DateOnly recordDate,
+        DateOnly? dueDate)
+    {
+        db.CareRecords.Add(new CareRecord
+        {
+            PetId = PetId,
+            Type = CareRecordType.Other,
+            Title = title,
+            RecordDate = recordDate,
+            DueDate = dueDate,
+            PublicVisibility = CareRecordPublicVisibility.Private
+        });
+    }
+
     private sealed class CareRecordHarness : IDisposable
     {
-        private CareRecordHarness(MyPetLinkDbContext db)
+        private CareRecordHarness(MyPetLinkDbContext db, TimeProvider? timeProvider = null)
         {
             Db = db;
-            Service = new CareRecordService(db);
+            Service = new CareRecordService(db, timeProvider);
         }
 
         public MyPetLinkDbContext Db { get; }
 
         public CareRecordService Service { get; }
 
-        public static async Task<CareRecordHarness> CreateAsync(bool withRecord = false)
+        public static async Task<CareRecordHarness> CreateAsync(
+            bool withRecord = false,
+            DateTimeOffset? utcNow = null)
         {
             var options = new DbContextOptionsBuilder<MyPetLinkDbContext>()
                 .UseInMemoryDatabase(Guid.NewGuid().ToString("N"))
@@ -216,12 +294,19 @@ public sealed class CareRecordServiceTests
             }
 
             await db.SaveChangesAsync();
-            return new CareRecordHarness(db);
+            return new CareRecordHarness(
+                db,
+                utcNow.HasValue ? new CareRecordTimeProvider(utcNow.Value) : null);
         }
 
         public void Dispose()
         {
             Db.Dispose();
         }
+    }
+
+    private sealed class CareRecordTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => utcNow;
     }
 }

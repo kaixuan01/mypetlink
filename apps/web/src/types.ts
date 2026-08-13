@@ -217,7 +217,7 @@ export type CareRecord = {
   provider: string;
   notes: string;
   publicVisibility: "Private" | "Public badge only" | "Public details";
-  status: "complete" | "due-soon" | "upcoming";
+  status: "complete" | "overdue" | "due-soon" | "upcoming";
 };
 
 export type MockUser = {

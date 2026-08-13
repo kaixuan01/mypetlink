@@ -288,7 +288,7 @@ export type BackendCareRecord = {
   provider?: string | null;
   notes?: string | null;
   publicVisibility: BackendCareRecordPublicVisibility;
-  derivedStatus: "complete" | "due-soon" | "upcoming" | string;
+  derivedStatus: "complete" | "overdue" | "due-soon" | "upcoming" | string;
   createdAt: string;
   updatedAt: string;
   archivedAt?: string | null;

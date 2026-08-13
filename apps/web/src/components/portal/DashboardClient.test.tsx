@@ -10,6 +10,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockPets } from "@/data/mockPets";
 import { OWNER_SETTINGS_STORAGE_KEY } from "@/lib/ownerSettings";
+import type { CareRecord } from "@/types";
 
 const mocks = vi.hoisted(() => ({
   getPets: vi.fn(),
@@ -226,7 +227,7 @@ describe("DashboardClient with pets", () => {
     await screen.findByRole("heading", { name: "Your pets" });
     const body = document.body.textContent ?? "";
     expect(body.indexOf("Welcome back")).toBeLessThan(body.indexOf("Your pets"));
-    expect(body.indexOf("Your pets")).toBeLessThan(body.indexOf("Upcoming care"));
+    expect(body.indexOf("Your pets")).toBeLessThan(body.indexOf("Care reminders"));
     expect(screen.getByText("Manage and share your pet profiles.")).toBeTruthy();
     expect(screen.queryByText("Share your pets")).toBeNull();
     expect(document.querySelectorAll("[data-dashboard-pet-card]")).toHaveLength(1);
@@ -422,4 +423,45 @@ describe("DashboardClient with pets", () => {
       expect.objectContaining({ refreshOnMount: false })
     );
   });
+
+  it("shows recent overdue care without letting stale items hide imminent care", async () => {
+    mocks.getPetRecords.mockResolvedValue({
+      data: [
+        dashboardRecord("Vaccine", "01 Jan 2024", "overdue"),
+        dashboardRecord("Grooming", "12 Aug 2026", "overdue"),
+        dashboardRecord("Vet Visit", "13 Aug 2026", "due-soon"),
+        dashboardRecord("Medication", "16 Aug 2026", "due-soon"),
+        dashboardRecord("Surgery", "01 Jan 2027", "upcoming"),
+      ],
+    });
+
+    renderDashboard();
+
+    await screen.findByText("Care reminders");
+    const body = document.body.textContent ?? "";
+    expect(body.indexOf("Grooming")).toBeLessThan(body.indexOf("Vet Visit"));
+    expect(body.indexOf("Vet Visit")).toBeLessThan(body.indexOf("Medication"));
+    expect(screen.getByText("Overdue")).toBeTruthy();
+    expect(screen.queryByText("Vaccine")).toBeNull();
+    expect(screen.queryByText("Surgery")).toBeNull();
+  });
 });
+
+function dashboardRecord(
+  type: CareRecord["type"],
+  dueDate: string,
+  status: CareRecord["status"]
+): CareRecord {
+  return {
+    id: `${type}-${dueDate}`,
+    petId: mockPets[0].id,
+    type,
+    title: `${type} care`,
+    date: "01 Jan 2026",
+    dueDate,
+    provider: "Owner recorded",
+    notes: "",
+    publicVisibility: "Private",
+    status,
+  };
+}

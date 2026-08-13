@@ -140,11 +140,9 @@ The rendered page at `/q/stysjmj4bayjd23ff7jva` shows:
 **Implemented in code on 2026-08-13; production configuration remains.** The initial repo-wide search found no provider or event layer. MyPetLink now has optional GA4 behind `NEXT_PUBLIC_GA_MEASUREMENT_ID`, manual App Router page views, and the reliably measurable create → view → share → return and Smart Tag events. Dynamic routes and event metadata are sanitized at runtime. Signup is not emitted because the current Google auth response cannot reliably distinguish new and returning owners.
 
 ### P1-002 — Overdue care records are labelled "Due soon" forever
-`deriveStatus` in `apps/web/src/services/recordService.ts:342` and `DeriveStatus` in `apps/api/.../Services/CareRecordService.cs:469` both return `"due-soon"` for **any** due date ≤ today + 30 days, with no lower bound and no `overdue` state.
+**Resolved in code and verified on 2026-08-13.** Care records now distinguish overdue, due-soon, upcoming, and completed history using the Malaysia calendar day. Boundary tests cover yesterday, today, day 30, day 31, long-overdue dates, and the UTC-to-Malaysia midnight transition. The dashboard keeps the most recently missed item visible, prioritizes the nearest current/future care, and only fills spare slots with additional overdue items from newest to oldest. The full Care Records history order is unchanged.
 
-**Verified live:** a care record created with `dueDate = 2024-06-10` (≈26 months past) returned `derivedStatus: "due-soon"`. The dashboard sorts by due date ascending, so the oldest overdue items permanently pin to the top of the reminders widget. The one retention surface that exists degrades into noise.
-
-The rule is also duplicated across frontend and backend, which conflicts with the single-owner principle in `docs/architecture/configuration-governance.md`.
+The authenticated API response remains authoritative. One shared frontend helper handles the static/local fallback and public records that do not receive a derived status. This rule is derived from an existing date rather than configured, so no application setting or database migration was introduced.
 
 ### P1-003 — `/sample` is empty on a fresh database, dead-ending four homepage CTAs
 Four homepage links ("Explore Sample Profile", "View Sample Safety Profile", and two footer/nav "Sample Profile" links) all point to `/sample`, which renders only:

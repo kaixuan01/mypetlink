@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/Badge";
 import { getCareRecordDateTerminology } from "@/lib/careRecordTerminology";
+import { getCareRecordStatusLabel } from "@/lib/careRecordStatus";
 import type { CareRecord } from "@/types";
 
 type RecordCardProps = {
@@ -39,6 +40,11 @@ export function RecordCard({ record, onDelete, onEdit }: RecordCardProps) {
         ) : null}
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2">
+        {record.dueDate ? (
+          <Badge tone={record.status === "overdue" ? "danger" : "warm"}>
+            {getCareRecordStatusLabel(record)}
+          </Badge>
+        ) : null}
         <Badge tone={visibilityTone[record.publicVisibility]}>
           {record.publicVisibility}
         </Badge>

@@ -27,4 +27,25 @@ describe("RecordCard date terminology", () => {
     expect(screen.getByText("Visit Date:")).toBeTruthy();
     expect(screen.getByText(/Next Follow-up Date: 15 Aug 2026/)).toBeTruthy();
   });
+
+  it("shows an overdue next date as a distinct danger status", () => {
+    const record: CareRecord = {
+      id: "record-overdue",
+      petId: "pet-1",
+      type: "Vaccine",
+      title: "Annual vaccination",
+      date: "15 Jul 2025",
+      dueDate: "15 Jul 2026",
+      provider: "Happy Paws Vet",
+      notes: "Schedule the next visit.",
+      publicVisibility: "Private",
+      status: "overdue",
+    };
+
+    render(<RecordCard record={record} />);
+
+    const overdue = screen.getByText("Overdue");
+    expect(overdue.className).toContain("bg-[#ffe8e3]");
+    expect(screen.queryByText("Due soon")).toBeNull();
+  });
 });

@@ -146,6 +146,10 @@ md5sum migration.sql database/migration.sql
 
 ## MPL-SL-P1-002 — Add an `overdue` care-record state
 
+**Status (2026-08-13): Implemented and verified.** Care records now derive `overdue` before the current Malaysia calendar day, `due-soon` from today through day 30 inclusive, `upcoming` after day 30, and `complete` when no next due date exists. The dashboard shows at most one most-recent overdue item before the nearest current/future items, then uses additional recent overdue items only to fill unused slots. This keeps missed care visible without allowing the oldest records to crowd out imminent care. The full Care Records list keeps its existing history ordering.
+
+The API owns the status returned for authenticated care records. `apps/web/src/lib/careRecordStatus.ts` is the single frontend implementation used by static/local fallback records and public-profile records, where no API-derived status is available. This is a derived presentation rule, not a deployment or business setting, so it does not add configuration ownership or a schema migration.
+
 **Problem.** `deriveStatus` returns `"due-soon"` for any due date ≤ today + 30 days with **no lower bound**. A record years overdue is labelled "Due soon" indefinitely, and the dashboard sorts due dates ascending, pinning the stalest items to the top. The rule is duplicated in frontend and backend.
 
 **User impact.** The only retention surface in the product degrades into permanent noise, and genuinely urgent items become indistinguishable from long-abandoned ones.
@@ -154,7 +158,7 @@ md5sum migration.sql database/migration.sql
 
 **Expected.** A distinct `overdue` state for due dates before today, visually differentiated on the dashboard, with sorting that surfaces actionable items rather than the oldest. One authoritative implementation of the rule.
 
-**Current.** `dueDate <= today+30 ? "due-soon" : "upcoming"` in both layers; `"complete"` only when `dueDate` is null.
+**Previous.** `dueDate <= today+30 ? "due-soon" : "upcoming"` in both layers; `"complete"` only when `dueDate` is null.
 
 **Scope.** Frontend + backend.
 
