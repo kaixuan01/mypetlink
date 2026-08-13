@@ -14,6 +14,8 @@ import { useRouter } from "next/navigation";
 import { ImageUploadField } from "@/components/portal/ImageUploadField";
 import { LostModeControl } from "@/components/portal/LostModeControl";
 import { MobileFormActionBar } from "@/components/portal/MobileFormActionBar";
+import { OwnerContactSetupCard } from "@/components/portal/OwnerContactSetupCard";
+import { PetCreationSuccess } from "@/components/portal/PetCreationSuccess";
 import { ShareProfileLink } from "@/components/share/ShareProfileLink";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
@@ -41,7 +43,6 @@ import {
   readOwnerSettings,
   type OwnerSettings,
 } from "@/lib/ownerSettings";
-import { OwnerContactSetupCard } from "@/components/portal/OwnerContactSetupCard";
 import {
   applyPetAgeMode,
   calculatePetAge,
@@ -51,7 +52,6 @@ import {
   type PetAgeMode,
 } from "@/lib/petAge";
 import { PET_TYPE_OPTIONS } from "@/lib/petDisplay";
-import { isActivePet } from "@/lib/petLifecycle";
 import {
   getBioTemplates,
   getPetSuggestions,
@@ -62,9 +62,7 @@ import { getSafetyProfileStatusView } from "@/lib/safetyProfile";
 import {
   publicProfilesEnabled,
   safetyProfilesOwnerUiEnabled,
-  smartTagOrderingEnabled,
   smartTagsEnabled,
-  tagOrdersEnabled,
 } from "@/lib/features";
 import {
   getCurrentLocalDestination,
@@ -910,70 +908,15 @@ export function PetProfileForm({
   if (createdPet) {
     return (
       <div className="grid gap-5">
-      {!hasUsableOwnerContact(ownerSettings) ? <OwnerContactSetupCard /> : null}
-      <section className="rounded-[1.75rem] border border-pet-mint bg-[#e8f8f0] p-6 shadow-sm">
-        <p className="text-sm font-bold uppercase text-pet-sage">
-          Profile ready
-        </p>
-        <h2 className="mt-3 text-3xl font-black text-pet-ink">
-          {createdPet.name}&apos;s profile is ready.
-        </h2>
-        <p className="mt-3 max-w-2xl text-sm leading-6 text-pet-muted">
-          You can keep adding care records and moments from the owner portal.
-        </p>
-        {publicProfilesEnabled && createdPet.publicProfileEnabled ? (
-          <ShareProfileLink
-            className="mt-5"
-            path={createdPet.publicProfilePath}
-            petName={createdPet.name}
-            shareVersion={getPublicProfileShareVersion(createdPet)}
-          />
+        <PetCreationSuccess
+          canViewPublicProfile={
+            publicProfilesEnabled && createdPet.publicProfileEnabled
+          }
+          pet={createdPet}
+        />
+        {!hasUsableOwnerContact(ownerSettings) ? (
+          <OwnerContactSetupCard />
         ) : null}
-        <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-          {publicProfilesEnabled && createdPet.publicProfileEnabled ? (
-            <CTAButton
-              href={createdPet.publicProfilePath}
-              icon="heart"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              View Public Profile
-            </CTAButton>
-          ) : null}
-          {safetyProfilesOwnerUiEnabled ? (
-            <CTAButton
-              href={createdPet.qrSafetyPath}
-              icon="qr"
-              variant="secondary"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              View Safety Profile
-            </CTAButton>
-          ) : null}
-          {isActivePet(createdPet) &&
-          tagOrdersEnabled &&
-          smartTagOrderingEnabled ? (
-            <CTAButton
-              href={ownerRoutes.petTagOrder(createdPet.id)}
-              icon="tag"
-              variant="outline"
-            >
-              Order Physical Tag
-            </CTAButton>
-          ) : null}
-          <CTAButton
-            href={ownerRoutes.petProfile(createdPet.id)}
-            icon="pets"
-            variant="outline"
-          >
-            Manage {createdPet.name}
-          </CTAButton>
-          <CTAButton href={ownerRoutes.dashboard} icon="home" variant="outline">
-            Go to Dashboard
-          </CTAButton>
-        </div>
-      </section>
       </div>
     );
   }

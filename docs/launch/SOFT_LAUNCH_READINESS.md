@@ -148,7 +148,7 @@ The authenticated API response remains authoritative. One shared frontend helper
 **Resolved in code and verified on 2026-08-13.** Every public sample entry point now reaches a complete, static-export-safe guided experience. The approved Featured Sample Pet remains optional personalization: missing, invalid, loading, and request-failure states render the intentional static sample rather than a holding card. The page exposes no contact details or internal identifiers and ends with one anonymous-safe create-profile action.
 
 ### P1-004 — The post-creation screen offers five competing CTAs and no primary action
-After creating a pet (`PetProfileForm.tsx:900`) the success screen renders up to five buttons — View Public Profile, View Safety Profile, Order Physical Tag, Manage {pet}, Go to Dashboard — at similar visual weight, which stack into a long column on mobile. There is no single obvious next step, and notably **"Add your first Moment" is not among them**, even though Moments are the core retention loop. This is the highest-leverage activation moment in the product and it currently diffuses attention.
+**Resolved in code and verified on 2026-08-13.** Pet creation now focuses the success heading and presents exactly one primary activation action: View {pet}'s Profile. Add {pet}'s First Moment is the single visually secondary action. The primary opens the real Public Share Profile, where the existing share control remains available; the secondary opens the first-Moment editor. A private/disabled public profile safely promotes Add First Moment instead. Missing owner-contact guidance remains below the activation card rather than interrupting it. Desktop and 375 × 812 authenticated first-pet journeys were verified with long-name wrapping, no horizontal overflow, no console errors, and refresh without duplicate creation.
 
 ### P1-005 — Owner-facing copy promises reminders that do not exist
 Care-record validation returns, e.g., *"Vaccination date cannot be in the future. Use Next Vaccination Due Date for future reminders."* No reminder is ever delivered. The homepage is honest ("Reminders coming soon"); this in-product copy is not.
@@ -292,8 +292,9 @@ Stated plainly so this report is not over-trusted:
 1. **Enable and validate P1-001** — configure the production GA4 measurement id, rebuild, and confirm events in GA4 after privacy/consent review.
 2. **P1-002** — Overdue care-record status. Cheap, and it repairs the only retention surface that exists.
 3. **P1-003 — complete** — The sample journey no longer depends on launch-time pet selection; the release checklist verifies both generic and optional personalized states.
+4. **P1-004 — complete** — Pet creation now leads to one primary View Profile action and one secondary Add First Moment action.
 
-**Why not "READY FOR CONTROLLED SOFT LAUNCH" today:** the P0 finder issue, analytics code, retention correctness, and sample experience are complete, but production analytics configuration remains. Migration SQL artefacts are owner-managed and excluded from this recommendation.
+**Why not "READY FOR CONTROLLED SOFT LAUNCH" today:** the P0 finder issue, analytics code, overdue-state correctness, sample experience, and post-create activation are complete, but production analytics configuration and the remaining P1-005 reminder-copy correction remain. Migration SQL artefacts are owner-managed and excluded from this recommendation.
 
 **Why not "NOT READY":** the platform underneath is sound. Authentication, authorization, data ownership, privacy boundaries, and mobile rendering were all verified and hold up. The remaining P1 and P2 items are genuine improvements, not obstacles.
 

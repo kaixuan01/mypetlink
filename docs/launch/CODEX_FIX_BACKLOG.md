@@ -223,13 +223,23 @@ static export.
 
 ## MPL-SL-P1-004 — Give the post-creation screen one primary action
 
+**Resolved in code and verified on 2026-08-13.** The success state now has one
+visually dominant action: **View {pet}'s Profile**. This gives the owner an
+immediate reward and leads naturally to the existing share action on the Public
+Share Profile. **Add {pet}'s First Moment** is the single secondary activation
+action. Share-link controls, Safety Profile, physical-tag ordering, pet
+management, and Dashboard buttons no longer compete in the success action
+group. If the Public Share Profile is unavailable, Add First Moment becomes the
+primary action and Manage Pet is secondary. Missing-contact guidance remains as
+a separate card below the activation decision.
+
 **Problem.** After a pet is created, up to five CTAs render at similar weight — View Public Profile, View Safety Profile, Order Physical Tag, Manage {pet}, Go to Dashboard — stacking into a long column on mobile. **"Add your first Moment" is absent**, despite Moments being the core retention loop.
 
 **User impact.** The highest-leverage activation moment diffuses attention across five choices, and the action most likely to create lasting value is not offered.
 
 **Expected.** One visually dominant primary CTA, with the rest demoted to secondary. Given the product direction, the primary should be either "Add your first Moment" or "View {pet}'s public profile"; the other becomes secondary. Order Physical Tag should not compete while tag ordering is disabled.
 
-**Current.** `PetProfileForm.tsx:900-966` renders the CTA row with near-equal prominence.
+**Previous implementation.** `PetProfileForm.tsx` rendered the CTA row with near-equal prominence.
 
 **Scope.** Frontend.
 

@@ -38,8 +38,9 @@ From [`CODEX_FIX_BACKLOG.md`](CODEX_FIX_BACKLOG.md):
 - **P1-001** — Minimum funnel analytics (~8 events).
 - **P1-002** — Add an `overdue` care-record state.
 - **P1-003 — implemented** — The guided Sample Experience is complete with or without optional approved-pet personalization; public and safety CTAs deep-link to matching sections.
+- **P1-004 — implemented** — Pet creation leads to one primary View Profile action, with Add First Moment secondary and missing-contact guidance kept separate.
 
-Strongly worth including if time allows: **P1-004** (a single primary CTA after pet creation, leading to "Add your first Moment") — the cheapest available activation improvement.
+The remaining selected retention-copy correction is **P1-005**; run final end-to-end soft-launch verification after it and production analytics configuration are complete.
 
 ---
 
