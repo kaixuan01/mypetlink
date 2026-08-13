@@ -1,31 +1,37 @@
 # MyPetLink Soft Launch Readiness
 
 **Audit date:** 2026-08-13
-**Branch audited:** `main` @ `a2ac6ab`
-**Method:** repository inspection + live local verification (API on `:5281` against SQL LocalDB `MyPetLinkDev`, web on `:3000`)
+**Branch audited:** `main` (production-configuration audit refreshed 2026-08-13)
+**Method:** repository/configuration inspection plus the earlier local journey verification documented below; external production host state was not accessible
 
 ---
 
 ## Executive Summary
 
-**Overall status: SELECTED CODE FIXES COMPLETE — PRODUCTION CONFIGURATION AND FINAL END-TO-END VERIFICATION REMAIN.**
+**Overall status: READY AFTER OWNER ACTIONS.** Follow
+[`PRODUCTION_SOFT_LAUNCH_CHECKLIST.md`](PRODUCTION_SOFT_LAUNCH_CHECKLIST.md),
+then deploy and run the production-only smoke/E2E gate. No production host
+configuration was assumed from repository defaults.
 
-MyPetLink is substantially more complete than its own top-level documentation claimed. `apps/api` is a working ASP.NET Core + EF Core service with 39 migrations, real Google authentication, ownership-scoped authorization, an email outbox with background dispatch, PDF document generation, and a broad Admin Portal. Security and privacy posture is genuinely good — the usual launch killers (IDOR, public PII leakage, weak identifiers) were checked and **not** found.
+MyPetLink is substantially more complete than its old top-level documentation claimed. `apps/api` is a working ASP.NET Core + EF Core service with 38 migrations, real Google authentication, ownership-scoped authorization, an email outbox with background dispatch, PDF document generation, and a broad Admin Portal. Security and privacy posture is genuinely good — the usual launch killers (IDOR, public PII leakage, weak identifiers) were checked and **not** found.
 
-The risk at soft launch is not the platform. The finder-contact edge is fixed and the activation funnel is now instrumented in code; production analytics still needs to be configured and validated before launch learning begins.
+The risk at soft launch is not the platform. The finder-contact edge is fixed
+and the activation funnel is instrumented in code; the remaining gate is owner
+configuration plus production-only E2E. Analytics may stay off until its
+consent/product decision is complete.
 
 | Priority | Count |
 | --- | ---: |
 | P0 — open Codex launch blocker | 0 |
-| P1 — open configuration/product decisions | 2 |
-| P2 — after launch | 6 |
+| P1 — owner configuration actions | See production checklist |
+| P2 — after launch | 5 open; 1 resolved |
 | P3 — do not build yet | 5 |
 
 ### Top risks
 
 1. **Finder contact dead-end — implemented and verified.** The Safety Profile now replaces contact instructions with a clear fallback when the pet has zero public contact methods.
 2. **Migration SQL artefacts are owner-managed.** The audit finding is retained for history, but the artefacts are excluded from Codex work and are not a Codex launch blocker.
-3. **Analytics is implemented but not yet enabled.** The optional GA4 adapter is privacy-limited and inert until Operations supplies the production measurement id and rebuilds.
+3. **Analytics is implemented and safe to leave disabled.** The optional GA4 adapter is privacy-limited and inert until Operations resolves consent/product policy, supplies a production measurement id, and rebuilds.
 4. **The sample journey is resilient.** It uses a complete static fallback when optional personalization is unavailable.
 5. **Care due-date tracking is accurate and honestly described.** Overdue items are distinct, and no active UI promises reminder delivery.
 
@@ -167,7 +173,7 @@ There is no email OTP, password, or Apple option. Any user without a usable Goog
 - **No rate limiting on `/api/v1/auth/google` or `/api/v1/auth/refresh`.** Rate limiting is configured only for tag scan and tag activation policies.
 - **Footer links are ~20px tall** at 375px, below the 40px comfortable tap-target threshold (8 such links on the homepage).
 - **`/q` and `/t` are excluded from the edge OG rewrite** (`public/_routes.json` includes only `/p/*` and `/social/pets/*`). Sharing a Lost Mode safety page to social media produces generic previews — a missed opportunity precisely when reach matters most.
-- **`.env.example` carries dead configuration** — `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`, `PAYMENT_PROVIDER`, `PAYMENT_SECRET_KEY`, with a comment claiming "Checkout is not implemented yet" although the manual payment-proof flow is fully built.
+- **Dead `.env.example` placeholders — resolved in the production-configuration audit.** Unused Supabase, future payment-provider, and support-number variables were removed so the example now lists only live configuration reads.
 - **`PaymentReservationExpiryWorker` logs a full SQL statement on every poll** at Information level, which will dominate production logs.
 
 ---
@@ -285,18 +291,21 @@ Stated plainly so this report is not over-trusted:
 
 ## Final Recommendation
 
-### SELECTED CODE FIXES COMPLETE — MOVE TO PRODUCTION CONFIGURATION
+### READY AFTER OWNER ACTIONS
 
 **Selected P1 status:**
 
-1. **Enable and validate P1-001** — configure the production GA4 measurement id, rebuild, and confirm events in GA4 after privacy/consent review.
+1. **P1-001 code complete** — leave GA4 disabled until privacy/consent review; enabling analytics is not a product launch blocker.
 2. **P1-002 — complete** — Care records distinguish overdue, due-soon, upcoming, and complete states.
 3. **P1-003 — complete** — The sample journey no longer depends on launch-time pet selection; the release checklist verifies both generic and optional personalized states.
 4. **P1-004 — complete** — Pet creation now leads to one primary View Profile action and one secondary Add First Moment action.
 5. **P1-005 — complete** — Active Care surfaces describe due-date tracking accurately; automatic reminders remain clearly future functionality.
 
-**Why not "READY FOR CONTROLLED SOFT LAUNCH" today:** the selected code-side fixes are complete, but the production environment has not yet been configured and validated. Operations must configure and consent-review analytics, make the documented email and Safety Profile UI scope decisions, complete production OAuth/hosting settings, then run the final end-to-end launch journeys. Migration SQL artefacts are owner-managed and excluded from this recommendation.
+**Why deployment is not authorized today:** the selected code-side fixes are complete, but production Cloudflare/Azure/Google/SQL/R2 values are not visible from this checkout. The owner must configure and verify them, apply the owner-managed root migration script, then run the final production journeys. Analytics and transactional email may remain off.
 
 **Why not "NOT READY":** the platform underneath is sound. Authentication, authorization, data ownership, privacy boundaries, and mobile rendering were all verified and hold up. The remaining P1 and P2 items are genuine improvements, not obstacles.
 
-A deliberate decision is still needed on two scope questions that are currently settled by default values rather than by choice: whether `Email:Enabled` is turned on, and whether the Safety Profile owner UI ships. Launching with both off means launching a product whose "safety" promise the owner cannot actually manage.
+The configuration recommendation is explicit: owner Safety Profile UI on;
+transactional email and GA4 off initially; Smart Tags, commerce, Premium, GPS,
+and reminder delivery deferred. This preserves the marketed free Safety Profile
+while keeping unverified integrations outside the first controlled launch.

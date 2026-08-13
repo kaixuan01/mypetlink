@@ -12,6 +12,12 @@ Categories: **A** secret · **B** infrastructure · **C** global emergency
 control · **D** database/Admin editable · **E** database/system managed ·
 **F** Admin read-only · **G** code constant · **H** remove/consolidate.
 
+Repository defaults and local `.env.local`/Development settings do **not** prove
+that a value exists in Cloudflare, Azure, Google, SQL Server, or R2. Host-side
+production values remain owner-verified operational state. See the executable
+gate in
+[`../launch/PRODUCTION_SOFT_LAUNCH_CHECKLIST.md`](../launch/PRODUCTION_SOFT_LAUNCH_CHECKLIST.md).
+
 ---
 
 ## Secrets (A)
@@ -41,9 +47,9 @@ Owner: Operations. Changing requires redeploy or restart.
 | `GoogleAuth:ClientId` | `GoogleAuthOptions` | Non-secret public client id |
 | `Cors:AllowedOrigins` | bound inline in `Program.cs` | **Empty allows no origins** — fail-closed but total |
 | `ForwardedHeaders:ForwardLimit`, `KnownProxies`, `KnownNetworks` | bound inline | Unset ⇒ rate limiting partitions on the proxy IP |
-| `Storage:Provider`, `Storage:LocalRoot`, `Storage:PublicBaseUrl` | `StorageOptions` | Defaults to `Local` — see risk R3 |
+| `Storage:Provider`, `Storage:LocalRoot`, `Storage:PublicBaseUrl` | `StorageOptions` | `Provider=CloudflareR2` activates R2 validation/status. Current media requests always use `IObjectStorageService`; Local settings are not a working media fallback. See R3. |
 | `CloudflareR2:*` (non-secret members) | `CloudflareR2Options` | Bucket names, service URL, presign expiry |
-| `PublicSite:BaseUrl` | `PublicSiteOptions` | Intentionally empty so a misconfigured environment fails loudly instead of printing physical tags pointing at the wrong host |
+| `PublicSite:BaseUrl` | `PublicSiteOptions` | Manufacturer QR/NFC export only; intentionally empty so tag production fails loudly. Optional while physical tags are deferred, required before export. |
 | `Email:Provider`, `FromAddress`, `FromName`, `OwnerPortalBaseUrl`, `BrandLogoUrl`, `BrandAssetBaseUrl` | `EmailOptions` | Brand asset URLs validated HTTPS-only |
 | `Email:Smtp:Host`, `Port`, `UseStartTls`, `ConnectionTimeoutSeconds` | `SmtpEmailOptions` | `UseStartTls` must be true |
 | `Email:Dispatch:PollIntervalSeconds`, `BatchSize`, `MaxConcurrency`, `VisibilityTimeoutSeconds` | `EmailDispatchOptions` | Worker tuning — must not be exposed to business Admin |
@@ -214,7 +220,7 @@ These require an owner's approval before any implementation:
 | --- | --- | --- |
 | R1 | Delivery rates seeded inactive | Checkout returns 409 `delivery_unavailable` — fail-closed, correct, but ordering is blocked until an admin activates zones |
 | R2 | ~~`FileStorageEnabled: false` hardcoded~~ | **Fixed.** Storage status is derived from `StorageOptions`/`CloudflareR2Options`. |
-| R3 | `Storage:Provider` defaults to `Local` | A Production deployment that forgets to set R2 writes to local disk instead of failing |
+| R3 | `Storage:Provider` defaults to `Local` | R2 validation is skipped even though current `MediaService` still uses R2; the API starts and media operations fail later. Production must set `CloudflareR2`. |
 | R4 | `Cors:AllowedOrigins` empty in Production | No origins allowed; the frontend cannot reach the API at all |
 | R5 | `SmartTagBatches.BatchNo` has no unique database index | Application-level 12-attempt check only |
 | R6 | `PublicSite:BaseUrl` empty | Manufacturer export fails loudly — correct, but blocks tag production |

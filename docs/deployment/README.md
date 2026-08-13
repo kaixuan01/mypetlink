@@ -1,12 +1,17 @@
 # Deployment Docs
 
+- [`../launch/PRODUCTION_SOFT_LAUNCH_CHECKLIST.md`](../launch/PRODUCTION_SOFT_LAUNCH_CHECKLIST.md) — current production configuration, feature matrix, owner actions, deploy gate, and final E2E
+
 - [`search-indexing.md`](search-indexing.md) — production SEO audit, Cloudflare canonical-host redirect, sitemap maintenance, and Search Console follow-up
 
 - [`owner-welcome-email.md`](owner-welcome-email.md) — exact-once Owner Portal welcome trigger, eligibility, branding, and rollout
 
 - [`payment-confirmation-email.md`](payment-confirmation-email.md) — Zoho SMTP rollout, retry operations, DNS checks, and migration order
 
-Phase 1 production deployment planning for the backend-connected MyPetLink stack (branch `feature/connect-admin-apis`). Planning only — nothing here deploys automatically.
+The current release target is `main`. Older Phase 1 architecture and PR notes
+remain for context, but the production soft-launch checklist and
+`release-checklist.md` are the executable runbooks. Nothing here deploys
+automatically.
 
 - [`production-deployment-plan.md`](production-deployment-plan.md) — hosting options, recommended architecture, database deployment, merge strategy, launch limitations
 - [`environment-variables.md`](environment-variables.md) — required frontend/backend variables with secret flags and real config-key names
@@ -17,6 +22,6 @@ Phase 1 production deployment planning for the backend-connected MyPetLink stack
 - [`smoke-test-script.md`](smoke-test-script.md) — step-by-step manual smoke test (backend, owner, admin, public states)
 - [`sql/first-admin-template.sql`](sql/first-admin-template.sql) — placeholder SQL to promote the first admin
 
-Release tooling: CI runs on every PR via [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) (web lint + build, API Release build; no database, no secrets). Env templates: [`apps/web/.env.example`](../../apps/web/.env.example) and [`apps/api/MyPetLink.Api/appsettings.Example.json`](../../apps/api/MyPetLink.Api/appsettings.Example.json).
+Release tooling: CI runs on every PR via [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) (web lint, typecheck, tests, build and Functions compile; API Release build and tests; no database or secrets). Env templates: [`apps/web/.env.example`](../../apps/web/.env.example) and [`apps/api/MyPetLink.Api/appsettings.Example.json`](../../apps/api/MyPetLink.Api/appsettings.Example.json).
 
 Recommended Phase 1 hosting: Azure App Service (.NET API) + Azure SQL Database, frontend on Cloudflare Pages.

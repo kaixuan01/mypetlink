@@ -2,7 +2,7 @@
 
 Repo-wide documentation. Frontend-specific docs (agent reference, owner portal flow, public routing) live in [`apps/web/docs/`](../apps/web/docs/).
 
-> **Repository state (2026-08-13):** MyPetLink is a working full-stack product. `apps/web` is a Next.js static export; **`apps/api` is a live ASP.NET Core + EF Core + SQL Server API** (39 migrations), not a placeholder. Documentation that still describes the backend as "future" has been archived. The deployable schema script is the **root `migration.sql`**.
+> **Repository state (2026-08-13):** MyPetLink is a working full-stack product. `apps/web` is a Next.js static export; **`apps/api` is a live ASP.NET Core + EF Core + SQL Server API** (38 migrations), not a placeholder. Documentation that still describes the backend as "future" has been archived. The deployable schema script is the **root `migration.sql`**.
 
 ## Start Here
 

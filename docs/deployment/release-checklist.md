@@ -1,21 +1,23 @@
 # MyPetLink Phase 1 Release Checklist
 
-Work top to bottom. Do not merge `feature/connect-admin-apis` into `main` until the pre-release items pass against a production API + database (see `production-deployment-plan.md` §8).
+Work top to bottom on the exact `main` commit intended for deployment. The
+current controlled-launch decisions and environment matrix are in
+[`../launch/PRODUCTION_SOFT_LAUNCH_CHECKLIST.md`](../launch/PRODUCTION_SOFT_LAUNCH_CHECKLIST.md).
 
 ## Pre-release
 
-- [ ] All feature/docs branches pushed to origin (`feature/connect-admin-apis` at the latest verified commit).
+- [ ] `main` is pushed and CI is green on the exact intended commit.
 - [ ] `dotnet build apps/api/MyPetLink.Api/MyPetLink.Api.csproj` passes.
 - [ ] `npm run lint:web` and `npm run build:web` pass.
-- [ ] Backend hosted (e.g. Azure App Service) and reachable at `https://api.mypetlink.com.my/api/v1/health` → `{ "status": "ok" }`.
-- [ ] Production SQL Server database created; `InitialCreate` migration applied; 24 tables present; plan/limit/app-setting seed rows present.
+- [ ] Backend hosted (e.g. Azure App Service); `/api/v1/health` returns the normal success envelope and `/api/v1/health/ready` returns 200 with database readiness.
+- [ ] Production SQL Server database created; the authoritative root `migration.sql` applied with `sqlcmd -I`; `__EFMigrationsHistory` matches `dotnet ef migrations list`; expected typed seed rows are present.
 - [ ] Google OAuth: production frontend origin added to Authorized JavaScript origins; consent screen published; frontend and backend use the same client id.
 - [ ] **Manual Google popup login test passes** on a preview/prod frontend (real account → `/dashboard`, `/api/v1/auth/me` returns the user).
-- [ ] Frontend production env set in Cloudflare Pages (`NEXT_PUBLIC_SITE_URL=https://mypetlink.com.my`, `NEXT_PUBLIC_API_BASE_URL=https://api.mypetlink.com.my`, `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, `NEXT_PUBLIC_SMART_TAG_ORDERING_ENABLED=false`) and the frontend **rebuilt** so values are baked in.
+- [ ] Frontend production env set in Cloudflare Pages, including the explicit feature matrix in the production soft-launch checklist, and the frontend **rebuilt** so values are baked in.
 - [ ] Pages Functions runtime env includes `PUBLIC_API_BASE_URL=https://api.mypetlink.com.my`; `/p/*` and `/social/pets/*` are present in the deployed Functions routes.
-- [ ] Backend env set: `ASPNETCORE_ENVIRONMENT=Production`, `ConnectionStrings__MyPetLinkDb`, `Jwt__SigningKey`, `Jwt__Issuer`, `Jwt__Audience`, `GoogleAuth__ClientId`, `Cors__AllowedOrigins__0=https://mypetlink.com.my`, `Cors__AllowedOrigins__1=https://www.mypetlink.com.my` if `www` is served, and `Features__SmartTagOrderingEnabled=false` for the free-profiles launch.
-- [ ] Smart Tag ordering flag confirmed for the intended launch: backend `Features__SmartTagOrderingEnabled` and frontend `NEXT_PUBLIC_SMART_TAG_ORDERING_ENABLED` both **false** for the free-profiles launch (default), or both **true** only when physical tags are ready. Mismatched values (frontend shows CTAs but backend blocks) should be avoided.
-- [ ] Confirm `PublicApp__BaseUrl` is not required by the current backend; public links are generated from frontend `NEXT_PUBLIC_SITE_URL=https://mypetlink.com.my`.
+- [ ] Backend env and secrets match the production soft-launch checklist, including SQL, JWT, Google, exact CORS origins, R2, explicit ordering off, and email off.
+- [ ] Smart Tag ordering flags confirmed **false** for this launch: backend `Features__SmartTagOrderingEnabled` and frontend `NEXT_PUBLIC_SMART_TAG_ORDERING_ENABLED`. Mismatched values must not ship.
+- [ ] Leave `PublicSite__BaseUrl` unset only while physical-tag production is deferred; set it to `https://mypetlink.com.my` before any manufacturer QR/NFC export.
 - [ ] CORS confirmed: production frontend can call the API; other origins are blocked.
 - [ ] Production safety checks pass: `DevAuth__Enabled` and `NEXT_PUBLIC_DEV_AUTH_ENABLED` are unset, `POST /api/v1/dev-auth/admin-login` returns `404`, `/swagger` returns `404`, the Development login action is absent from the production frontend, and no secrets, `.env.local`, or authenticated browser state are committed.
 - [ ] First admin `admin@mypetlink.com.my` logged in once via Google, then was manually seeded and verified (`/api/v1/admin/auth/check` returns 200 for admin and 403 for non-admin) — see `first-admin-setup.md`.

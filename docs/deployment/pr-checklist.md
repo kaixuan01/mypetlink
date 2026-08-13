@@ -1,5 +1,10 @@
 # MyPetLink Release PR Checklist
 
+> **Historical branch-era checklist.** Do not use its branch names, migration
+> counts, or limitation list as current production truth. Use
+> [`../launch/PRODUCTION_SOFT_LAUNCH_CHECKLIST.md`](../launch/PRODUCTION_SOFT_LAUNCH_CHECKLIST.md)
+> and [`release-checklist.md`](release-checklist.md).
+
 Use before merging the backend-connected Phase 1 branch (`feature/connect-admin-apis`) into `main`. This is a stricter, production-gated view of `release-checklist.md` focused on the PR/merge decision.
 
 **Do not merge into `main` until the production backend and database are ready** — `main` builds the live Cloudflare Pages frontend, and merging early would point live login/data at an API that does not exist yet.

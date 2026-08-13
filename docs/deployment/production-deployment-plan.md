@@ -1,5 +1,11 @@
 # MyPetLink Phase 1 Production Deployment Plan
 
+> **Historical architecture narrative.** Branch names, migration/table counts,
+> payment/media limitations, and configuration notes later in this document
+> predate the current repository. Do not execute them as a release runbook. Use
+> [`../launch/PRODUCTION_SOFT_LAUNCH_CHECKLIST.md`](../launch/PRODUCTION_SOFT_LAUNCH_CHECKLIST.md)
+> and [`release-checklist.md`](release-checklist.md) for the current gate.
+
 Planning document only. Nothing here deploys automatically. It describes how to take the backend-connected Phase 1 stack (branch `feature/connect-admin-apis`) to production for a solo, Malaysia-based developer.
 
 Companion docs:
@@ -114,7 +120,10 @@ Frontend Cloudflare Pages:
 - `NEXT_PUBLIC_GOOGLE_CLIENT_ID=<same Web client id as backend>`
 - `NEXT_PUBLIC_SMART_TAG_ORDERING_ENABLED=false` for the initial free-profiles launch
 
-`PublicApp__BaseUrl=https://mypetlink.com.my` is not currently consumed by the .NET API; public link generation uses `NEXT_PUBLIC_SITE_URL` in the static frontend.
+`PublicSite__BaseUrl=https://mypetlink.com.my` is consumed by the .NET API for
+manufacturer QR/NFC production exports. It may remain unset while physical tags
+are deferred, but must be configured before any manufacturer export. Frontend
+share links still use `NEXT_PUBLIC_SITE_URL`.
 
 ## 4. Google OAuth production setup
 

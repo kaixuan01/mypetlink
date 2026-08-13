@@ -54,7 +54,7 @@ Deferred by existing feature flags — **no code removal required**:
 | Smart Tag ordering and purchase | `NEXT_PUBLIC_SMART_TAG_ORDERING_ENABLED=false`, `Features:SmartTagOrderingEnabled=false` |
 | Smart Tag navigation and management | `NEXT_PUBLIC_SMART_TAGS_ENABLED=false` |
 | Tag order history | `NEXT_PUBLIC_TAG_ORDERS_ENABLED=false` |
-| Owner-facing Safety Profile management UI | `NEXT_PUBLIC_SAFETY_PROFILES_OWNER_UI_ENABLED=false` |
+| Smart Tag-linked Safety/activation flows | Smart Tag and order flags remain `false` |
 | Transactional email | `Email:Enabled=false` |
 
 Deferred because unbuilt: Premium plans, care reminder delivery, profile completion checklist, FIUU payment gateway, GPS.
@@ -65,12 +65,19 @@ Deferred because unbuilt: Premium plans, care reminder delivery, profile complet
 
 ---
 
-## Two Scope Decisions That Need an Explicit Answer
+## Production Scope Decisions
 
-Both are currently decided by a default value rather than by intent:
+The controlled-launch recommendation is now explicit:
 
-1. **Does `Email:Enabled` go to `true`?** If not, new owners receive no welcome email and the product never contacts them. Everything needed to send is built and templated.
-2. **Does the Safety Profile owner UI ship (`NEXT_PUBLIC_SAFETY_PROFILES_OWNER_UI_ENABLED`)?** The `/q/:safetyCode` page works and the homepage advertises "Basic QR download" as a free feature — but with this flag off, owners have no first-class place to manage what a finder sees. Launching with it off means launching a safety promise the owner cannot administer.
+1. Keep `Email:Enabled=false` initially. Email is not authentication-critical;
+   SMTP and the Owner Welcome template can be enabled in a separate controlled
+   step after delivery testing. Commerce templates remain off with commerce.
+2. Set `NEXT_PUBLIC_SAFETY_PROFILES_OWNER_UI_ENABLED=true`. The public marketing
+   surface promises a free Safety Profile and basic QR download, the finder
+   no-contact defect is fixed, and showing the existing owner controls is safer
+   than leaving an active finder page without its first-class management UI.
+3. Keep Smart Tags, tag orders, ordering, manual payment, and fulfilment outside
+   this launch. Existing finder routes remain available for existing data.
 
 ---
 
@@ -91,6 +98,6 @@ This is well supported. The Public Profile genuinely reads as a pet's own page r
 | **Care** | Keep, stated modestly — records yes, reminders no |
 | **Share** | Keep — best-executed pillar, real per-pet previews |
 | **Smart Tag** | **Drop from launch messaging** — disabled; already correctly marked "Coming Soon" |
-| **Safety** | **Qualify** — the finder page works, but owner-side management is flagged off and P0-001 is open |
+| **Safety** | Keep at the free-profile level — finder fallback is fixed and owner management is recommended on; physical tags remain Coming Soon |
 
-**Recommended launch pillars: Profile · Memories · Care · Share**, with Safety promoted to a pillar once P0-001 is fixed and the owner UI flag is decided. That yields four pillars fully backed by shipping functionality — a smaller, more honest promise than six pillars where two are conditional.
+**Recommended launch pillars: Profile · Memories · Care · Share · basic Safety**, while physical Smart Tags, commerce, reminders, Premium, and GPS remain explicitly deferred.

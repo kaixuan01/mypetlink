@@ -328,7 +328,9 @@ centralized `/sample` section links and land on content matching their labels.
 `apps/api/MyPetLink.Api/Services/PaymentReservationExpiryWorker.cs`; `appsettings.json` logging section. **Risk.** Low.
 
 ## MPL-SL-P2-004 — Remove dead configuration from `.env.example`
-`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `PAYMENT_PROVIDER` and `PAYMENT_SECRET_KEY` are unused, and a comment claims "Checkout is not implemented yet" although the manual payment-proof flow is built. Misleading configuration is a real onboarding cost for new developers.
+**Resolved in the production-configuration audit.** Unused Supabase,
+future-payment-provider, and support-number placeholders were removed. The
+example now contains only values read by current web code or deployment tooling.
 `apps/web/.env.example`; cross-check `docs/deployment/environment-variables.md`. **Risk.** Low.
 
 ## MPL-SL-P2-005 — Consider edge social previews for Lost Mode safety pages
