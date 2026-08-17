@@ -3,10 +3,8 @@ import { notFound } from "next/navigation";
 import { AppLayout } from "@/components/layouts/AppLayout";
 import { PetDetailHeader } from "@/components/portal/PetDetailHeader";
 import { PetManagementTabs } from "@/components/portal/PetManagementTabs";
-import { mockPets } from "@/data/mockPets";
 import { staticPetIdParams } from "@/data/staticRouteParams";
 import { smartTagsEnabled } from "@/lib/features";
-import { getActivePets } from "@/lib/petLifecycle";
 import { loadingTitle, ownerPetPageTitle } from "@/lib/pageTitles";
 import { getPetMoments } from "@/services/momentService";
 import { getPetById } from "@/services/petService";
@@ -65,7 +63,6 @@ export default async function PetDetailPage({ params }: PetDetailPageProps) {
       <PetDetailHeader pet={pet} petOrders={petOrders} tags={tags} />
 
       <PetManagementTabs
-        activePetCount={getActivePets(mockPets).length}
         pet={pet}
         records={records.data}
         moments={moments.data}

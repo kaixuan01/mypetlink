@@ -27,7 +27,13 @@ import { getEffectivePlanLimits, getMemoryLimitState } from "@/lib/planLimits";
 import { deriveProfileCompletion } from "@/lib/profileCompletion";
 import { getCareRecordDateTerminology } from "@/lib/careRecordTerminology";
 import { getPetProfileTheme } from "@/lib/petProfileThemes";
-import { isActivePet, isArchivedPet, isMemorialPet } from "@/lib/petLifecycle";
+import {
+  getActivePets,
+  isActivePet,
+  isArchivedPet,
+  isMemorialPet,
+} from "@/lib/petLifecycle";
+import { useOwnerPets } from "@/components/portal/OwnerHeaderActions";
 import {
   addPublicProfileShareVersion,
   getAvailablePetShareCardOptions,
@@ -64,7 +70,6 @@ type PetManagementTabsProps = {
   moments: PetMoment[];
   orders?: TagOrder[];
   tags: PetTag[];
-  activePetCount?: number;
 };
 
 const tabs: (SegmentedTab & { id: TabId })[] = [
@@ -86,9 +91,13 @@ export function PetManagementTabs({
   moments,
   orders = [],
   tags,
-  activePetCount,
 }: PetManagementTabsProps) {
   const apiMode = isApiConfigured();
+  // The owner header already loads this owner's pets on every owner route, so
+  // the real active-pet count is read from that shared state rather than
+  // requested again here.
+  const { pets: ownerPets } = useOwnerPets();
+  const activePetCount = ownerPets ? getActivePets(ownerPets).length : undefined;
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [currentPet, setCurrentPet] = useState(pet);
   const [currentRecords, setCurrentRecords] = useState<CareRecord[]>(

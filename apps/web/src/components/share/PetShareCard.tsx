@@ -10,7 +10,11 @@ import {
 } from "react";
 import { copyTextToClipboard } from "@/components/portal/PublicLinkActions";
 import { Icon } from "@/components/ui/Icon";
-import { AnalyticsEvent, trackEvent } from "@/lib/analytics";
+import {
+  AnalyticsEvent,
+  trackEvent,
+  type AnalyticsCardAction,
+} from "@/lib/analytics";
 import {
   addPublicProfileShareVersion,
   getPetShareCardFileName,
@@ -150,8 +154,21 @@ export function PetShareCard({
     setRetryKey((value) => value + 1);
   }
 
+  function trackCardAction(action: AnalyticsCardAction) {
+    trackEvent(AnalyticsEvent.ShareCardAction, {
+      card_action: action,
+      card_variant: selectedOption.variant,
+    });
+  }
+
+  // Recorded on clipboard success only, and from every route that reaches it —
+  // including the Share fallback — because the measurable outcome is the same:
+  // the owner now has this pet's profile link to paste.
   async function copyProfileLink(message = "Profile link copied.") {
     const copied = await copyTextToClipboard(profileUrl);
+    if (copied) {
+      trackCardAction("copy_link");
+    }
     setStatus(
       copied
         ? message
@@ -228,6 +245,9 @@ export function PetShareCard({
       link.click();
       document.body.removeChild(link);
       window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+      // Only once a valid image was fetched and the download actually started.
+      // A failed or rejected fetch throws above and records nothing.
+      trackCardAction("save");
       setStatus("Image download started.");
     } catch {
       setStatus("We couldn't save the image. Please try again.");
@@ -393,6 +413,7 @@ export function PetShareCard({
               <a
                 className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-white px-4 text-center text-sm font-extrabold text-pet-ink"
                 href={imageUrl}
+                onClick={() => trackCardAction("open_image")}
                 rel="noopener noreferrer"
                 target="_blank"
               >

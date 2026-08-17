@@ -32,11 +32,28 @@ navigation, without autocapture.
 | `share_link_copied` | Clipboard write succeeds | `surface=public_profile|owner_portal` |
 | `share_card_viewed` | The generated owner Share Card preview loads successfully | `card_variant=profile|birthday|adoption` |
 | `share_card_shared` | A native Share Card share request resolves without cancellation or rejection | `card_variant=profile|birthday|adoption` |
+| `share_card_action` | An owner completes a direct Share Card action: the image download starts, the profile link reaches the clipboard, or the image is opened | `card_variant=profile|birthday|adoption`, `card_action=save|copy_link|open_image` |
 | `create_profile_cta_clicked` | A visitor uses the closing "Create a profile for your pet" invitation on a shared public profile | `surface=public_profile` |
 | `care_record_created` | Care-record create request succeeds; edits excluded | `source=owner_portal`, controlled `record_type` |
 | `smart_tag_viewed` | Owner or pet Smart Tags screen opens | `surface=owner_tags|pet_tags` |
 | `order_started` | Smart Tag order flow opens | `source=owner_portal`, `tag_type=qr|qr_nfc` |
 | `order_submitted` | Order create request succeeds | `source=owner_portal`, `tag_type=qr|qr_nfc|mixed`, bounded `item_count` |
+
+Share Card events keep their meanings separate on purpose. `share_card_shared`
+means the owner handed the card to the system share sheet and the sheet accepted
+it — it never claims the card was delivered to anyone, and a cancelled sheet
+records nothing. `share_card_action` covers the three outcomes the app can
+observe itself, each at its own success boundary: `save` only once a validated
+JPEG has been fetched and the download has started, `copy_link` only once the
+clipboard write succeeds, and `open_image` when the owner opens the image in a
+new tab. A failed fetch, a rejected file type, or a failed clipboard write
+records nothing, so the funnel never reports work that did not happen.
+
+`copy_link` is also recorded when the Share button falls back to copying —
+on a browser without Web Share, or when the share sheet cannot open. The owner
+pressed Share, but the measurable outcome is the same: this pet's profile link
+is on their clipboard. Recording it is what keeps desktop distribution visible
+instead of appearing inactive.
 
 `create_profile_cta_clicked` is emitted only where the create-profile control is
 a measured acquisition step. It carries the surface and nothing else, so a click

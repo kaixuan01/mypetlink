@@ -14,6 +14,7 @@ export const AnalyticsEvent = {
   CompletionActionClicked: "completion_action_clicked",
   ShareCardViewed: "share_card_viewed",
   ShareCardShared: "share_card_shared",
+  ShareCardAction: "share_card_action",
   CreateProfileCtaClicked: "create_profile_cta_clicked",
 } as const;
 
@@ -36,6 +37,12 @@ export type AnalyticsRecordType =
 
 export type AnalyticsTagType = "qr" | "qr_nfc" | "mixed";
 export type AnalyticsCardVariant = "profile" | "birthday" | "adoption";
+/**
+ * What an owner did with a Share Card in the app. Handing the card to the
+ * system share sheet stays its own event (`share_card_shared`) because it is a
+ * different moment: these three are actions the app can see complete.
+ */
+export type AnalyticsCardAction = "save" | "copy_link" | "open_image";
 export type AnalyticsCompletionItem =
   | "photo"
   | "basics"
@@ -71,6 +78,10 @@ type AnalyticsPayloads = {
   };
   share_card_viewed: { card_variant: AnalyticsCardVariant };
   share_card_shared: { card_variant: AnalyticsCardVariant };
+  share_card_action: {
+    card_variant: AnalyticsCardVariant;
+    card_action: AnalyticsCardAction;
+  };
   create_profile_cta_clicked: { surface: "public_profile" };
 };
 
@@ -113,6 +124,7 @@ const allowedValues = {
     "care_record",
   ]),
   card_variant: new Set(["profile", "birthday", "adoption"]),
+  card_action: new Set(["save", "copy_link", "open_image"]),
 } as const;
 
 const allowedKeys: Record<AnalyticsEventName, readonly string[]> = {
@@ -130,6 +142,7 @@ const allowedKeys: Record<AnalyticsEventName, readonly string[]> = {
   completion_action_clicked: ["surface", "completion_item"],
   share_card_viewed: ["card_variant"],
   share_card_shared: ["card_variant"],
+  share_card_action: ["card_variant", "card_action"],
   create_profile_cta_clicked: ["surface"],
 };
 

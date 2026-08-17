@@ -14,6 +14,7 @@ vi.mock("@/components/portal/PublicLinkActions", () => ({
 
 vi.mock("@/lib/analytics", () => ({
   AnalyticsEvent: {
+    ShareCardAction: "share_card_action",
     ShareCardShared: "share_card_shared",
     ShareCardViewed: "share_card_viewed",
   },
@@ -269,6 +270,238 @@ describe("PetShareCard", () => {
     expect(link.download).toMatch(/^mypetlink-[a-z0-9-]+-share-card\.jpg$/);
     expect(link.download.length).toBeLessThanOrEqual(67);
     expect(await screen.findByText("Image download started.")).toBeTruthy();
+  });
+
+  it("records a save only once the validated image download starts", async () => {
+    vi.mocked(fetch).mockResolvedValue(jpegResponse());
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: vi.fn().mockReturnValue("blob:share-card"),
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: vi.fn(),
+    });
+
+    render(<PetShareCard {...defaultProps} />);
+    fireEvent.click(screen.getByRole("button", { name: "Share Card" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save Image" }));
+
+    await waitFor(() =>
+      expect(mocks.trackEvent).toHaveBeenCalledWith("share_card_action", {
+        card_action: "save",
+        card_variant: "profile",
+      })
+    );
+  });
+
+  it("records no save when the image cannot be retrieved", async () => {
+    vi.mocked(fetch).mockRejectedValue(new Error("offline"));
+
+    render(<PetShareCard {...defaultProps} />);
+    fireEvent.click(screen.getByRole("button", { name: "Share Card" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save Image" }));
+
+    expect(await screen.findByText(/couldn't save the image/i)).toBeTruthy();
+    expect(
+      mocks.trackEvent.mock.calls.filter(([name]) => name === "share_card_action")
+    ).toHaveLength(0);
+  });
+
+  it("records no save when the response is not a validated JPEG", async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      blob: async () => new Blob(["nope"], { type: "text/html" }),
+      headers: new Headers({ "Content-Type": "text/html" }),
+      ok: true,
+    } as Response);
+
+    render(<PetShareCard {...defaultProps} />);
+    fireEvent.click(screen.getByRole("button", { name: "Share Card" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save Image" }));
+
+    expect(await screen.findByText(/couldn't save the image/i)).toBeTruthy();
+    expect(
+      mocks.trackEvent.mock.calls.filter(([name]) => name === "share_card_action")
+    ).toHaveLength(0);
+  });
+
+  it("records a copied link only after the clipboard write succeeds", async () => {
+    render(<PetShareCard {...defaultProps} />);
+    fireEvent.click(screen.getByRole("button", { name: "Share Card" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy Profile Link" }));
+
+    await waitFor(() =>
+      expect(mocks.trackEvent).toHaveBeenCalledWith("share_card_action", {
+        card_action: "copy_link",
+        card_variant: "profile",
+      })
+    );
+    expect(
+      mocks.trackEvent.mock.calls.filter(([name]) => name === "share_card_shared")
+    ).toHaveLength(0);
+  });
+
+  it("records nothing when the clipboard write fails", async () => {
+    mocks.copyTextToClipboard.mockResolvedValue(false);
+
+    render(<PetShareCard {...defaultProps} />);
+    fireEvent.click(screen.getByRole("button", { name: "Share Card" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy Profile Link" }));
+
+    expect(await screen.findByText(/Unable to copy automatically/i)).toBeTruthy();
+    expect(
+      mocks.trackEvent.mock.calls.filter(([name]) => name === "share_card_action")
+    ).toHaveLength(0);
+  });
+
+  it("records the fallback copy when Share runs without native sharing", async () => {
+    render(<PetShareCard {...defaultProps} />);
+    fireEvent.click(screen.getByRole("button", { name: "Share Card" }));
+    // No native share is available, so Share falls through to copying the link.
+    fireEvent.click(screen.getByRole("button", { name: "Copy Profile Link" }));
+
+    await waitFor(() =>
+      expect(
+        mocks.trackEvent.mock.calls.filter(([name]) => name === "share_card_action")
+      ).toHaveLength(1)
+    );
+    expect(
+      mocks.trackEvent.mock.calls.filter(([name]) => name === "share_card_shared")
+    ).toHaveLength(0);
+  });
+
+  it("records opening the image as its own action, never as a share", () => {
+    render(<PetShareCard {...defaultProps} />);
+    fireEvent.click(screen.getByRole("button", { name: "Share Card" }));
+    fireEvent.click(screen.getByRole("link", { name: "Open Image" }));
+
+    expect(mocks.trackEvent).toHaveBeenCalledWith("share_card_action", {
+      card_action: "open_image",
+      card_variant: "profile",
+    });
+    expect(
+      mocks.trackEvent.mock.calls.filter(([name]) => name === "share_card_shared")
+    ).toHaveLength(0);
+  });
+
+  it("keeps the bounded occasion variant on every action", async () => {
+    vi.mocked(fetch).mockResolvedValue(jpegResponse());
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: vi.fn().mockReturnValue("blob:share-card"),
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: vi.fn(),
+    });
+
+    render(
+      <PetShareCard
+        {...defaultProps}
+        variants={[
+          { variant: "profile", label: "Profile", imagePath: defaultProps.imagePath },
+          {
+            variant: "birthday",
+            label: "Birthday",
+            imagePath: "/social/pets/milo-k7q2.jpg?v=abc123&variant=birthday",
+          },
+          {
+            variant: "adoption",
+            label: "Adoption Day",
+            imagePath: "/social/pets/milo-k7q2.jpg?v=abc123&variant=adoption",
+          },
+        ]}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Share Card" }));
+    fireEvent.click(screen.getByRole("button", { name: "Birthday" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy Profile Link" }));
+    await waitFor(() =>
+      expect(mocks.trackEvent).toHaveBeenCalledWith("share_card_action", {
+        card_action: "copy_link",
+        card_variant: "birthday",
+      })
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Adoption Day" }));
+    fireEvent.click(screen.getByRole("link", { name: "Open Image" }));
+    expect(mocks.trackEvent).toHaveBeenCalledWith("share_card_action", {
+      card_action: "open_image",
+      card_variant: "adoption",
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Save Image" }));
+    await waitFor(() =>
+      expect(mocks.trackEvent).toHaveBeenCalledWith("share_card_action", {
+        card_action: "save",
+        card_variant: "adoption",
+      })
+    );
+  });
+
+  it("emits one action event per user action and never on rerender", async () => {
+    render(<PetShareCard {...defaultProps} />);
+    fireEvent.click(screen.getByRole("button", { name: "Share Card" }));
+
+    const image = screen.getByRole("img");
+    fireEvent.load(image);
+    fireEvent.load(image);
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy Profile Link" }));
+    await waitFor(() =>
+      expect(
+        mocks.trackEvent.mock.calls.filter(([name]) => name === "share_card_action")
+      ).toHaveLength(1)
+    );
+    expect(
+      mocks.trackEvent.mock.calls.filter(([name]) => name === "share_card_viewed")
+    ).toHaveLength(1);
+  });
+
+  it("sends only bounded card metadata, never identifiers or free text", async () => {
+    vi.mocked(fetch).mockResolvedValue(jpegResponse());
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: vi.fn().mockReturnValue("blob:share-card"),
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: vi.fn(),
+    });
+
+    render(<PetShareCard {...defaultProps} />);
+    fireEvent.click(screen.getByRole("button", { name: "Share Card" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy Profile Link" }));
+    fireEvent.click(screen.getByRole("link", { name: "Open Image" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save Image" }));
+
+    await waitFor(() =>
+      expect(
+        mocks.trackEvent.mock.calls.filter(([name]) => name === "share_card_action")
+      ).toHaveLength(3)
+    );
+
+    const allowedActions = ["save", "copy_link", "open_image"];
+    const allowedVariants = ["profile", "birthday", "adoption"];
+
+    for (const [, payload] of mocks.trackEvent.mock.calls) {
+      for (const key of Object.keys(payload)) {
+        expect(["card_action", "card_variant"]).toContain(key);
+      }
+      if (payload.card_action) {
+        expect(allowedActions).toContain(payload.card_action);
+      }
+      expect(allowedVariants).toContain(payload.card_variant);
+
+      const serialised = JSON.stringify(payload).toLowerCase();
+      for (const forbidden of ["milo", "k7q2", "/p/", "http", ".jpg", "abc123"]) {
+        expect(serialised).not.toContain(forbidden);
+      }
+    }
   });
 
   it("restores focus after the dialog closes", async () => {

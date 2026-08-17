@@ -116,6 +116,19 @@ export function OwnerHeaderActionsProvider({
   );
 }
 
+/**
+ * Read-only access to the owner's pets that this provider already loads for the
+ * header on every owner route. Consumers get the real signed-in owner's pets
+ * without issuing another request; `pets` is null until that load settles.
+ */
+export function useOwnerPets() {
+  const ownerHeader = useContext(OwnerHeaderActionsContext);
+  return {
+    pets: ownerHeader?.pets ?? null,
+    petsStatus: ownerHeader?.petsStatus ?? "loading",
+  };
+}
+
 export function useOwnerHeaderPageContext(
   context: Omit<OwnerHeaderPageContext, "pathname">
 ) {

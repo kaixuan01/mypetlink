@@ -28,8 +28,8 @@ Phase G3 — Free growth loop fixes (from the 2026-08-17 review)
   MPL-GROWTH-FIX-002  Public profile acquisition CTA     Done    G1 (highest value)
   MPL-GROWTH-FIX-001  Dashboard completion/occasion data Done    G1
   MPL-GROWTH-FIX-003  Card fallback, logo + profile QR   Done    G1
-  MPL-GROWTH-FIX-004  Share Card action analytics        Ready   G1
-  MPL-GROWTH-FIX-005  First-pet heading never renders    Ready   G2
+  MPL-GROWTH-FIX-004  Share Card action analytics        Done    G1
+  MPL-GROWTH-FIX-005  First-pet heading never renders    Done    G2
 
 Phase P0 — Premium foundations (ships dark)
   MPL-PREM-001     Malaysia calendar day + reminder schema   Ready
@@ -58,11 +58,12 @@ Later (not scheduled)
   MPL-LATER-005    Year in Review
 ```
 
-**The approved Free Growth loop is complete through MPL-GROWTH-004**, and has
-been reviewed end to end (2026-08-17). The loop works from profile completion
-through to a shared card, and no G0 issue was found — but it **does not yet
-close**: the page every share lands on offers a recipient no way to create their
-own profile. Ship Phase G3 before any marketing campaign; Premium work
+**The Free Growth loop is complete and closed.** It was reviewed end to end on
+2026-08-17 with no G0 issue, and every G1/G2 fix that review raised has since
+shipped: the loop now runs from profile completion through a shared card and QR,
+onto the public profile, into an acquisition invitation, and on to pet creation
+— with the owner-side and landing-side steps both measurable. The next step is
+production verification of that loop, not more Free work. Premium
 (`MPL-PREM-001`) can start in parallel.
 
 ---
@@ -494,7 +495,21 @@ with real R2 media before promoting Share Cards.
 
 ## MPL-GROWTH-FIX-004 — Share Card success actions emit no analytics
 
-**Status:** Ready · **Priority:** G1
+**Status:** Done (2026-08-17) · **Priority:** G1
+
+**Implemented.** One bounded event, `share_card_action`, carrying the existing
+`card_variant` plus `card_action` (`save` \| `copy_link` \| `open_image`). This
+follows the `completion_action_clicked` precedent — one event for a control
+family, one bounded dimension for which control — rather than three new events.
+
+`share_card_shared` is unchanged and still means only that the system share
+sheet accepted the payload; cancellation still records nothing. Each new action
+fires at its own success boundary: `save` after a validated JPEG is fetched and
+the download starts, `copy_link` after the clipboard write succeeds,
+`open_image` on the explicit open. The Share button's fallback to copying also
+records `copy_link`, which is what makes desktop distribution visible instead of
+reading as an inactive funnel. Contract documented in
+[`../operations/product-analytics.md`](../operations/product-analytics.md).
 
 **Problem.** `share_card_shared` fires **only** on a successful
 `navigator.share`. The other three success paths are silent.
@@ -540,7 +555,21 @@ correct variant, including the no-Web-Share fallback path.
 
 ## MPL-GROWTH-FIX-005 — The first-pet completion heading can never render
 
-**Status:** Ready · **Priority:** G2
+**Status:** Done (2026-08-17) · **Priority:** G2
+
+**Implemented.** `PetManagementTabs` now derives the active-pet count from the
+signed-in owner's real pets, read through a new `useOwnerPets()` consumer of the
+`OwnerHeaderActionsProvider` context. That provider already loads the owner's
+pets for the header on every owner route, so no request was added — verified by
+a test asserting `getPets` is never called from this component. The
+`activePetCount` prop and the `mockPets` import are gone from
+`apps/web/src/app/pets/[id]/page.tsx` and from `RuntimeRouteFallback`.
+
+The Active-only domain rule is preserved: archived and memorial pets do not
+count. While the owner's pets are still loading, the neutral heading is used, so
+a multi-pet owner never sees the first-pet wording flash. Verified in a browser:
+one active pet renders "Finish Coco's profile", two render "Add more about
+Coco", on desktop and at 375 × 812.
 
 **Problem.** `apps/web/src/app/pets/[id]/page.tsx` passes
 `activePetCount={getActivePets(mockPets).length}`. `mockPets` is the static
