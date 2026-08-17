@@ -4,6 +4,22 @@ export const productionSiteOrigin = "https://mypetlink.com.my";
 export const socialCardCacheControl =
   "public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400";
 
+export type SocialCardVariant = "open-graph" | "share-card";
+
+const socialCardVariants = {
+  "open-graph": {
+    queryValue: null,
+    templateVersion: "social-card-v2",
+  },
+  "share-card": {
+    queryValue: "share-card",
+    templateVersion: "pet-share-card-v1",
+  },
+} as const satisfies Record<
+  SocialCardVariant,
+  { queryValue: string | null; templateVersion: string }
+>;
+
 const profileFetchTimeoutMs = 8_000;
 const cardFetchTimeoutMs = 12_000;
 const maxProfileResponseBytes = 64 * 1024;
@@ -38,6 +54,8 @@ type SocialCardPayload = {
   bytes: Uint8Array;
   contentType: "image/jpeg";
   etag: string;
+  templateVersion: string;
+  variant: SocialCardVariant;
   version: string;
 };
 
@@ -157,6 +175,9 @@ export async function handleSocialCardRequest(
     return notFoundImageResponse();
   }
 
+  const variant = getSocialCardVariant(context.request);
+  const variantConfig = socialCardVariants[variant];
+
   // Revalidate the restricted public projection before reading the image cache.
   // This makes an archived/private profile unavailable immediately even if an
   // older versioned JPEG still exists in a Cloudflare cache.
@@ -174,18 +195,32 @@ export async function handleSocialCardRequest(
 
   const { profile } = profileResult;
   const currentSlug = profile.publicSlug;
-  const cacheUrl = `${productionSiteOrigin}/social/pets/${encodeURIComponent(currentSlug)}.jpg?v=${encodeURIComponent(profile.publicProfileVersion)}`;
+  const cacheUrl = new URL(
+    `/social/pets/${encodeURIComponent(currentSlug)}.jpg`,
+    productionSiteOrigin
+  );
+  cacheUrl.searchParams.set("v", profile.publicProfileVersion);
+  if (variantConfig.queryValue) {
+    cacheUrl.searchParams.set("variant", variantConfig.queryValue);
+    cacheUrl.searchParams.set("template", variantConfig.templateVersion);
+  }
   const cacheKey = new Request(cacheUrl, { method: "GET" });
   const cache = dependencies.cache ?? caches.default;
   const cached = await cache.match(cacheKey);
   if (cached) {
-    return withCardResponseHeaders(cached, profile.publicProfileVersion, "HIT");
+    return withCardResponseHeaders(
+      cached,
+      profile.publicProfileVersion,
+      variant,
+      variantConfig.templateVersion,
+      "HIT"
+    );
   }
 
-  const inflightKey = `${currentSlug}:${profile.publicProfileVersion}`;
+  const inflightKey = `${currentSlug}:${profile.publicProfileVersion}:${variant}:${variantConfig.templateVersion}`;
   let generation = socialCardInflight.get(inflightKey);
   if (!generation) {
-    generation = fetchSocialCardFromApi(context.env, profile, fetcher);
+    generation = fetchSocialCardFromApi(context.env, profile, variant, fetcher);
     socialCardInflight.set(inflightKey, generation);
   }
 
@@ -366,6 +401,7 @@ function parseEdgePublicProfile(value: unknown): EdgePublicProfile | null {
 async function fetchSocialCardFromApi(
   env: MyPetLinkPagesEnv,
   profile: EdgePublicProfile,
+  variant: SocialCardVariant,
   fetcher: FetchLike
 ): Promise<SocialCardPayload> {
   const apiBase = getPublicApiBaseUrl(env);
@@ -375,6 +411,10 @@ async function fetchSocialCardFromApi(
     `${apiBase}/`
   );
   url.searchParams.set("v", profile.publicProfileVersion);
+  const variantConfig = socialCardVariants[variant];
+  if (variantConfig.queryValue) {
+    url.searchParams.set("variant", variantConfig.queryValue);
+  }
 
   const response = await fetchWithTimeout(
     fetcher,
@@ -392,6 +432,16 @@ async function fetchSocialCardFromApi(
     cardFetchTimeoutMs
   );
   if (!response.ok) throw new Error("Social-card origin returned an error.");
+
+  const templateVersion = response.headers.get(
+    "x-social-card-template-version"
+  );
+  if (
+    variant === "share-card" &&
+    templateVersion !== variantConfig.templateVersion
+  ) {
+    throw new Error("Social-card origin returned the wrong template.");
+  }
 
   const contentType = (response.headers.get("content-type") ?? "")
     .split(";", 1)[0]
@@ -414,7 +464,12 @@ async function fetchSocialCardFromApi(
   return {
     bytes,
     contentType: "image/jpeg",
-    etag: `"${profile.publicProfileVersion}"`,
+    etag:
+      variant === "share-card"
+        ? `"${profile.publicProfileVersion}-${variantConfig.templateVersion}"`
+        : `"${profile.publicProfileVersion}"`,
+    templateVersion: variantConfig.templateVersion,
+    variant,
     version: profile.publicProfileVersion,
   };
 }
@@ -431,6 +486,8 @@ function payloadToResponse(payload: SocialCardPayload, cacheStatus: "HIT" | "MIS
       ETag: payload.etag,
       "X-Public-Profile-Version": payload.version,
       "X-Social-Card-Cache": cacheStatus,
+      "X-Social-Card-Template-Version": payload.templateVersion,
+      "X-Social-Card-Variant": payload.variant,
       "X-Content-Type-Options": "nosniff",
     },
     status: 200,
@@ -440,16 +497,35 @@ function payloadToResponse(payload: SocialCardPayload, cacheStatus: "HIT" | "MIS
 function withCardResponseHeaders(
   response: Response,
   version: string,
+  variant: SocialCardVariant,
+  templateVersion: string,
   cacheStatus: "HIT" | "MISS"
 ) {
   const headers = new Headers(response.headers);
   headers.set("Cache-Control", socialCardCacheControl);
   headers.set("Content-Type", "image/jpeg");
-  headers.set("ETag", `"${version}"`);
+  headers.set(
+    "ETag",
+    variant === "share-card"
+      ? `"${version}-${templateVersion}"`
+      : `"${version}"`
+  );
   headers.set("X-Public-Profile-Version", version);
   headers.set("X-Social-Card-Cache", cacheStatus);
+  headers.set("X-Social-Card-Template-Version", templateVersion);
+  headers.set("X-Social-Card-Variant", variant);
   headers.set("X-Content-Type-Options", "nosniff");
   return new Response(response.body, { headers, status: 200 });
+}
+
+function getSocialCardVariant(request: Request): SocialCardVariant {
+  try {
+    return new URL(request.url).searchParams.get("variant") === "share-card"
+      ? "share-card"
+      : "open-graph";
+  } catch {
+    return "open-graph";
+  }
 }
 
 function createUnavailableProfileResponse(state: "not-found" | "error") {

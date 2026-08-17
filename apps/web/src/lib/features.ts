@@ -36,6 +36,16 @@ export const publicProfilesEnabled = readPublicBoolean(
 );
 
 /**
+ * Owner-facing Pet Share Card preview and actions. Routes remain available so
+ * shared images keep working while rollout is disabled. Remove this flag after
+ * the first stable production rollout is confirmed.
+ */
+export const shareCardsEnabled = readPublicBoolean(
+  process.env.NEXT_PUBLIC_SHARE_CARDS_ENABLED,
+  false
+);
+
+/**
  * Owner-facing Safety Profile management UI (badges, metrics, settings entry
  * points). The /q/{code} pages themselves stay reachable regardless.
  */

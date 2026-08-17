@@ -19,10 +19,10 @@ it is split into sequential phases.
 Phase G1 — Free growth, no backend risk
   MPL-GROWTH-001   Profile Completion                    Done
   MPL-GROWTH-002   Share Card renderer variant (API)     Done
-  MPL-GROWTH-003   Share Card edge + owner UI            Ready
+  MPL-GROWTH-003   Share Card edge + owner UI            Done
 
 Phase G2 — Seasonal reach
-  MPL-GROWTH-004   Birthday / Adoption card variants     Blocked by 003
+  MPL-GROWTH-004   Birthday / Adoption card variants     Ready
 
 Phase P0 — Premium foundations (ships dark)
   MPL-PREM-001     Malaysia calendar day + reminder schema   Ready
@@ -51,8 +51,9 @@ Later (not scheduled)
   MPL-LATER-005    Year in Review
 ```
 
-**MPL-GROWTH-003 is the recommended next task.** Its renderer dependency is now
-complete, so it is the next Ready package in the approved free-growth sequence.
+**MPL-GROWTH-004 is the recommended next task.** Its renderer and owner-sharing
+dependencies are complete, so it is the next Ready package in the approved
+free-growth sequence.
 
 ---
 
@@ -159,7 +160,7 @@ existing OG previews.
 
 ## MPL-GROWTH-003 — Share Card Edge Route + Owner Share UI
 
-**Status:** Ready
+**Status:** Done
 
 **Goal.** Deliver the new card to owners through the existing edge cache and
 share controls.
@@ -206,7 +207,7 @@ expire.
 
 ## MPL-GROWTH-004 — Birthday and Adoption Card Variants
 
-**Status:** Blocked by MPL-GROWTH-003
+**Status:** Ready
 
 **Goal.** Give owners something worth posting on the two days of the year they
 already feel like posting — with no scheduler and no notification.

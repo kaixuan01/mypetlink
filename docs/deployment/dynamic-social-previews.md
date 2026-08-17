@@ -8,7 +8,7 @@ MyPetLink serves public-profile metadata and JPEG social cards at request time. 
 2. The Function calls the restricted Azure API projection at `GET /api/v1/public/pets/{slug}/social`.
 3. A valid `/p/{slug}` request passes through to the exported Next.js HTML shell. `HTMLRewriter` removes the existing title, description, robots, canonical, Open Graph, and Twitter elements and inserts one pet-specific set into the initial response.
 4. The injected `og:image` points to `/social/pets/{slug}.jpg?v={publicProfileVersion}` on the canonical site origin.
-5. The social-card Function revalidates the current public projection, checks Cloudflare Cache with the current slug and version, and fetches `GET /api/v1/public/pets/{slug}/social-card.jpg` only on a miss.
+5. The social-card Function revalidates the current public projection, checks Cloudflare Cache with the current slug, version, and variant identity, and fetches `GET /api/v1/public/pets/{slug}/social-card.jpg` only on a miss.
 6. The API renders the default 1200 x 630 Open Graph JPEG with SkiaSharp. It also keeps a short-lived in-process cache and deduplicates concurrent generation for the same public code, profile version, card variant, and renderer version.
 
 The former static `/share/pets/{slug}.jpg` route and its separate renderer were removed so there is one card template and one privacy boundary. Existing build-time metadata remains a fallback for a static asset response, but production `/p/*` responses are replaced at the edge.
@@ -23,9 +23,17 @@ its own `pet-share-card-v1` template identity in the API memory-cache key and
 ETag, so it cannot collide with the Open Graph entry. The API exposes that
 identity in `X-Social-Card-Template-Version` for the later edge integration.
 
-The current Cloudflare route continues to request only the Open Graph variant.
-Pet Share Card edge delivery and owner controls are intentionally deferred to
-MPL-GROWTH-003.
+Cloudflare exposes the Share Card through the same stable public resource:
+`/social/pets/{slug}.jpg?v={publicProfileVersion}&variant=share-card`. The edge
+forwards only the controlled `share-card` variant, requires renderer identity
+`pet-share-card-v1`, and keeps that identity in the cache key and response ETag.
+Unknown variants continue to resolve to the ordinary Open Graph card.
+
+The owner Share Card controls are build-time gated by
+`NEXT_PUBLIC_SHARE_CARDS_ENABLED` (default `false`). Turning the owner UI off
+does not remove either image route. The image is requested only after an owner
+opens the Share Card dialog; ordinary Dashboard, pet management, and Public
+Share Profile loads do not generate it.
 
 ## Required configuration
 
@@ -82,9 +90,10 @@ Create a pet through the normal owner flow after the build, then verify:
 curl.exe -A "facebookexternalhit/1.1" "http://127.0.0.1:8788/p/{new-pet-slug}"
 curl.exe -A "WhatsApp/2.0" "http://127.0.0.1:8788/p/{new-pet-slug}"
 curl.exe -I "http://127.0.0.1:8788/social/pets/{new-pet-slug}.jpg?v={version}"
+curl.exe -I "http://127.0.0.1:8788/social/pets/{new-pet-slug}.jpg?v={version}&variant=share-card"
 ```
 
-Update the name or public photos and repeat without rebuilding. Confirm the metadata and `X-Public-Profile-Version` changed, the image is JPEG, and the second card request reports `X-Social-Card-Cache: HIT`.
+Update the name or public photos and repeat without rebuilding. Confirm the metadata and `X-Public-Profile-Version` changed, both images are JPEG, the Share Card reports `X-Social-Card-Template-Version: pet-share-card-v1`, and each second card request reports `X-Social-Card-Cache: HIT` without crossing variants.
 
 ## Production verification
 
@@ -100,6 +109,7 @@ Do not deploy the Pages Functions first: a missing API endpoint is treated as an
 curl -A "facebookexternalhit/1.1" "https://mypetlink.com.my/p/{new-pet-slug}"
 curl -A "WhatsApp/2.0" "https://mypetlink.com.my/p/{new-pet-slug}"
 curl -I "https://mypetlink.com.my/social/pets/{new-pet-slug}.jpg?v={version}"
+curl -I "https://mypetlink.com.my/social/pets/{new-pet-slug}.jpg?v={version}&variant=share-card"
 ```
 
 Inspect the raw `<head>` for one title, description, canonical, Open Graph set, and Twitter set. Confirm that it contains no owner contact data. Share the same public profile URL through WhatsApp, update a public photo, then share its new versioned URL without redeploying.

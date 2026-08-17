@@ -6,6 +6,11 @@ export const publicProfileSocialImageSize = {
   height: 630,
 } as const;
 
+export const publicProfileShareCardImageSize = {
+  width: 1080,
+  height: 1350,
+} as const;
+
 export const publicProfileSocialImageContentType = "image/jpeg";
 
 export function getPublicProfileSocialTitle(petName: string) {
@@ -112,6 +117,24 @@ export function getPublicProfileSocialImagePath(profile: SocialProfileFields) {
   const slug = getPublicProfileSlug(profile.publicProfilePath);
   const version = getPublicProfileShareVersion(profile);
   return `/social/pets/${encodeURIComponent(slug)}.jpg?v=${version}`;
+}
+
+export function getPublicProfileShareCardImagePath(
+  profile: SocialProfileFields
+) {
+  return `${getPublicProfileSocialImagePath(profile)}&variant=share-card`;
+}
+
+export function getPetShareCardFileName(petName: string) {
+  const safeName = cleanSocialText(petName, 48)
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40)
+    .replace(/-+$/g, "");
+  return `mypetlink-${safeName || "pet"}-share-card.jpg`;
 }
 
 export function addPublicProfileShareVersion(path: string, version?: string) {

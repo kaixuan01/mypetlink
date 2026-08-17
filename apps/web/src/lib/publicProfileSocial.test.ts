@@ -3,6 +3,8 @@ import { samplePet } from "@/data/samplePet";
 import {
   addPublicProfileShareVersion,
   getPublicProfileSocialDescription,
+  getPetShareCardFileName,
+  getPublicProfileShareCardImagePath,
   getPublicProfileSocialTitle,
   getPublicProfileShareVersion,
   getPublicProfileSocialImagePath,
@@ -46,6 +48,21 @@ describe("public profile social sharing", () => {
     expect(getPublicProfileShareVersion(profile)).toBe("0123456789abcdef");
     expect(getPublicProfileSocialImagePath(profile)).toBe(
       "/social/pets/topu-pnpr4ipnr6ppelnsn.jpg?v=0123456789abcdef"
+    );
+    expect(getPublicProfileShareCardImagePath(profile)).toBe(
+      "/social/pets/topu-pnpr4ipnr6ppelnsn.jpg?v=0123456789abcdef&variant=share-card"
+    );
+  });
+
+  it("creates a bounded filename without identifiers or unsafe characters", () => {
+    expect(getPetShareCardFileName("  Mílo / ../../ Owner  ")).toBe(
+      "mypetlink-milo-owner-share-card.jpg"
+    );
+    expect(getPetShareCardFileName("🐾")).toBe(
+      "mypetlink-pet-share-card.jpg"
+    );
+    expect(getPetShareCardFileName("A".repeat(100)).length).toBeLessThanOrEqual(
+      65
     );
   });
 

@@ -19,6 +19,14 @@ vi.mock("@/services/petService", () => ({
   getOwnedPetByPublicCode: ownerMocks.getOwnedPetByPublicCode,
 }));
 
+vi.mock("@/lib/features", () => ({
+  shareCardsEnabled: true,
+}));
+
+vi.mock("@/components/share/PetShareCard", () => ({
+  PetShareCard: () => <button type="button">Share Card</button>,
+}));
+
 vi.mock("@/components/share/ShareProfileLink", () => ({
   ShareProfileLink: ({
     shareVersion,
@@ -69,6 +77,7 @@ describe("PublicProfileOwnerControls", () => {
 
     expect(await screen.findByText(/viewing as public/i)).toBeTruthy();
     expect(screen.getByText("Copy Link")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Share Card" })).toBeTruthy();
     expect(
       screen.getByText("Copy Link").getAttribute("data-share-version")
     ).toMatch(/^[a-z0-9]+$/);
@@ -90,6 +99,7 @@ describe("PublicProfileOwnerControls", () => {
     expect(screen.queryByText(/viewing as public/i)).toBeNull();
     expect(screen.queryByText("Back to Edit")).toBeNull();
     expect(screen.getByText("Share profile")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Share Card" })).toBeNull();
   });
 
   it("hides management for a logged-out visitor", () => {
@@ -100,6 +110,7 @@ describe("PublicProfileOwnerControls", () => {
     expect(ownerMocks.getOwnedPetByPublicCode).not.toHaveBeenCalled();
     expect(screen.queryByLabelText("Owner profile management")).toBeNull();
     expect(screen.queryByText("Back to Edit")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Share Card" })).toBeNull();
   });
 
   it("does not flash management while ownership is loading", async () => {

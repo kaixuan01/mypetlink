@@ -30,6 +30,8 @@ navigation, without autocapture.
 | `moment_created` | Moment create request succeeds | `source=owner_portal` |
 | `share_clicked` | Explicit Share Profile action | `surface=public_profile|owner_portal` |
 | `share_link_copied` | Clipboard write succeeds | `surface=public_profile|owner_portal` |
+| `share_card_viewed` | The generated owner Share Card preview loads successfully | `card_variant=profile` |
+| `share_card_shared` | A native Share Card share request resolves without cancellation or rejection | `card_variant=profile` |
 | `care_record_created` | Care-record create request succeeds; edits excluded | `source=owner_portal`, controlled `record_type` |
 | `smart_tag_viewed` | Owner or pet Smart Tags screen opens | `surface=owner_tags|pet_tags` |
 | `order_started` | Smart Tag order flow opens | `source=owner_portal`, `tag_type=qr|qr_nfc` |
@@ -41,6 +43,11 @@ returning owner, so emitting those events would make the acquisition funnel
 unreliable. `share_whatsapp_clicked` is also absent because the app has no
 dedicated WhatsApp profile-share action and the native share sheet does not
 report the selected destination.
+
+Share Card saves and failed or cancelled native share requests do not emit a
+share event. The controlled `card_variant` dimension reserves `birthday` and
+`adoption` for their approved future work package; this release emits only
+`profile`.
 
 ## Operations
 

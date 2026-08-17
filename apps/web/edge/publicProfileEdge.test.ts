@@ -161,18 +161,79 @@ describe("Cloudflare social-card proxy", () => {
     expect(fetcher.mock.calls.filter(([input]) => String(input).includes("social-card.jpg"))).toHaveLength(1);
   });
 
+  it("isolates the Share Card cache and sends the approved variant to the renderer", async () => {
+    const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
+    const fetcher = vi.fn(async (input: URL | RequestInfo) => {
+      const url = String(input);
+      if (url.endsWith("/social")) return jsonResponse({ data: newPet });
+      return new Response(jpeg, {
+        headers: {
+          "Content-Type": "image/jpeg",
+          "X-Social-Card-Template-Version": "pet-share-card-v1",
+        },
+        status: 200,
+      });
+    });
+    const cache = createMemoryCache();
+
+    const shareContext = createContext(
+      `${newPet.publicSlug}.jpg`,
+      fetcher,
+      "?v=stale-request&variant=share-card"
+    );
+    const shareResponse = await handleSocialCardRequest(shareContext, {
+      cache: cache.value,
+      fetch: fetcher as typeof fetch,
+    });
+    await Promise.all(shareContext.waitUntilPromises);
+
+    const openGraphContext = createContext(`${newPet.publicSlug}.jpg`, fetcher);
+    const openGraphResponse = await handleSocialCardRequest(openGraphContext, {
+      cache: cache.value,
+      fetch: fetcher as typeof fetch,
+    });
+    await Promise.all(openGraphContext.waitUntilPromises);
+
+    const originUrls = fetcher.mock.calls
+      .map(([input]) => String(input))
+      .filter((url) => url.includes("social-card.jpg"));
+    expect(originUrls).toHaveLength(2);
+    expect(originUrls[0]).toContain("variant=share-card");
+    expect(originUrls[0]).toContain(`v=${newPet.publicProfileVersion}`);
+    expect(originUrls[0]).not.toContain("stale-request");
+    expect(originUrls[1]).not.toContain("variant=");
+    expect(shareResponse.headers.get("x-social-card-variant")).toBe("share-card");
+    expect(shareResponse.headers.get("x-social-card-template-version")).toBe(
+      "pet-share-card-v1"
+    );
+    expect(openGraphResponse.headers.get("x-social-card-variant")).toBe(
+      "open-graph"
+    );
+    expect(cache.keys()).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("variant=share-card&template=pet-share-card-v1"),
+        `https://mypetlink.com.my/social/pets/${newPet.publicSlug}.jpg?v=${newPet.publicProfileVersion}`,
+      ])
+    );
+    expect(JSON.stringify(fetcher.mock.calls)).not.toContain("pet_milo");
+  });
+
   it("revalidates profile visibility before consulting an old image cache", async () => {
     const fetcher = vi.fn(async () => new Response("not found", { status: 404 }));
     const cache = createMemoryCache();
     await cache.value.put(
       new Request(
-        `https://mypetlink.com.my/social/pets/${newPet.publicSlug}.jpg?v=${newPet.publicProfileVersion}`
+        `https://mypetlink.com.my/social/pets/${newPet.publicSlug}.jpg?v=${newPet.publicProfileVersion}&variant=share-card&template=pet-share-card-v1`
       ),
       new Response(new Uint8Array([0xff, 0xd8, 0xff, 0xd9]), {
         headers: { "Content-Type": "image/jpeg" },
       })
     );
-    const context = createContext(`${newPet.publicSlug}.jpg`, fetcher);
+    const context = createContext(
+      `${newPet.publicSlug}.jpg`,
+      fetcher,
+      "?variant=share-card"
+    );
 
     const response = await handleSocialCardRequest(context, {
       cache: cache.value,
@@ -181,6 +242,49 @@ describe("Cloudflare social-card proxy", () => {
 
     expect(response.status).toBe(404);
     expect(cache.matchCalls()).toBe(0);
+  });
+
+  it("rejects a Share Card response from an unexpected renderer template", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const fetcher = vi.fn(async (input: URL | RequestInfo) => {
+      if (String(input).endsWith("/social")) {
+        return jsonResponse({ data: newPet });
+      }
+      return new Response(new Uint8Array([0xff, 0xd8, 0xff, 0xd9]), {
+        headers: {
+          "Content-Type": "image/jpeg",
+          "X-Social-Card-Template-Version": "social-card-v2",
+        },
+      });
+    });
+    const context = createContext(
+      `${newPet.publicSlug}.jpg`,
+      fetcher,
+      "?variant=share-card"
+    );
+
+    const response = await handleSocialCardRequest(context, {
+      cache: createMemoryCache().value,
+      fetch: fetcher as typeof fetch,
+    });
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(consoleError).toHaveBeenCalledTimes(1);
+    consoleError.mockRestore();
+  });
+
+  it("rejects a malformed public identifier before any upstream request", async () => {
+    const fetcher = vi.fn();
+    const context = createContext("..%2Fprivate.jpg", fetcher);
+
+    const response = await handleSocialCardRequest(context, {
+      cache: createMemoryCache().value,
+      fetch: fetcher as typeof fetch,
+    });
+
+    expect(response.status).toBe(404);
+    expect(fetcher).not.toHaveBeenCalled();
   });
 
   it("rejects origin redirects instead of following them", async () => {
@@ -217,10 +321,17 @@ function jsonResponse(value: unknown) {
   });
 }
 
-function createContext(slug: string, fetcher: ReturnType<typeof vi.fn>) {
+function createContext(
+  slug: string,
+  fetcher: ReturnType<typeof vi.fn>,
+  query = ""
+) {
   const waitUntilPromises: Promise<unknown>[] = [];
+  const path = slug.toLowerCase().endsWith(".jpg")
+    ? `/social/pets/${slug}${query}`
+    : `/p/${slug}`;
   return {
-    request: new Request(`https://mypetlink.com.my/p/${slug}`),
+    request: new Request(`https://mypetlink.com.my${path}`),
     env: { PUBLIC_API_BASE_URL: "https://api.mypetlink.test" },
     params: { slug },
     data: {},
@@ -254,5 +365,9 @@ function createMemoryCache() {
     },
   } as Cache;
 
-  return { value, matchCalls: () => matches };
+  return {
+    value,
+    keys: () => Array.from(values.keys()),
+    matchCalls: () => matches,
+  };
 }

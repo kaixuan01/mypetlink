@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const featureEnvKeys = [
   "NEXT_PUBLIC_PUBLIC_PROFILES_ENABLED",
+  "NEXT_PUBLIC_SHARE_CARDS_ENABLED",
   "NEXT_PUBLIC_SAFETY_PROFILES_OWNER_UI_ENABLED",
   "NEXT_PUBLIC_SMART_TAGS_ENABLED",
   "NEXT_PUBLIC_TAG_ORDERS_ENABLED",
@@ -29,6 +30,7 @@ describe("owner product availability", () => {
       tagOrdersEnabled: false,
     });
     expect(features.smartTagOrderingEnabled).toBe(false);
+    expect(features.shareCardsEnabled).toBe(false);
   });
 
   it("can restore owner UI without changing route implementations", async () => {
@@ -46,6 +48,7 @@ describe("owner product availability", () => {
       tagOrdersEnabled: true,
     });
     expect(features.smartTagOrderingEnabled).toBe(true);
+    expect(features.shareCardsEnabled).toBe(true);
   });
 
   it("never exposes tag Orders in navigation without Smart Tags", async () => {

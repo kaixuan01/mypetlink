@@ -12,6 +12,8 @@ export const AnalyticsEvent = {
   OrderSubmitted: "order_submitted",
   CompletionPromptViewed: "completion_prompt_viewed",
   CompletionActionClicked: "completion_action_clicked",
+  ShareCardViewed: "share_card_viewed",
+  ShareCardShared: "share_card_shared",
 } as const;
 
 export type AnalyticsSurface =
@@ -32,6 +34,7 @@ export type AnalyticsRecordType =
   | "other";
 
 export type AnalyticsTagType = "qr" | "qr_nfc" | "mixed";
+export type AnalyticsCardVariant = "profile" | "birthday" | "adoption";
 export type AnalyticsCompletionItem =
   | "photo"
   | "basics"
@@ -65,6 +68,8 @@ type AnalyticsPayloads = {
     surface: "owner_portal";
     completion_item: AnalyticsCompletionItem;
   };
+  share_card_viewed: { card_variant: AnalyticsCardVariant };
+  share_card_shared: { card_variant: AnalyticsCardVariant };
 };
 
 type AnalyticsEventName = keyof AnalyticsPayloads;
@@ -105,6 +110,7 @@ const allowedValues = {
     "bio",
     "care_record",
   ]),
+  card_variant: new Set(["profile", "birthday", "adoption"]),
 } as const;
 
 const allowedKeys: Record<AnalyticsEventName, readonly string[]> = {
@@ -120,6 +126,8 @@ const allowedKeys: Record<AnalyticsEventName, readonly string[]> = {
   order_submitted: ["source", "tag_type", "item_count"],
   completion_prompt_viewed: ["surface"],
   completion_action_clicked: ["surface", "completion_item"],
+  share_card_viewed: ["card_variant"],
+  share_card_shared: ["card_variant"],
 };
 
 export function getAnalyticsMeasurementId(

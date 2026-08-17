@@ -119,4 +119,23 @@ describe("product analytics privacy boundary", () => {
     );
     expect(JSON.stringify(event)).not.toMatch(/private-pet-id|Milo|60123456789/);
   });
+
+  it("allows only the controlled Share Card variant", () => {
+    trackEvent(AnalyticsEvent.ShareCardShared, {
+      card_variant: "profile",
+      pet_name: "Milo",
+      slug: "milo-secret-code",
+      file_name: "mypetlink-milo-share-card.jpg",
+    } as never);
+
+    const event = analyticsCalls().find(
+      (call) => call[1] === "share_card_shared"
+    );
+    expect(event?.[2]).toEqual(
+      expect.objectContaining({ card_variant: "profile" })
+    );
+    expect(JSON.stringify(event)).not.toMatch(
+      /Milo|milo-secret-code|mypetlink-milo-share-card/
+    );
+  });
 });

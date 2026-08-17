@@ -16,10 +16,25 @@ const mocks = vi.hoisted(() => ({
   getPetRecords: vi.fn(),
   updatePetLostMode: vi.fn(),
   writeText: vi.fn(),
+  shareCardsEnabled: true,
 }));
 
 vi.mock("@/services/apiConfig", () => ({
   isApiConfigured: () => false,
+}));
+
+vi.mock("@/lib/features", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/features")>();
+  return {
+    ...actual,
+    get shareCardsEnabled() {
+      return mocks.shareCardsEnabled;
+    },
+  };
+});
+
+vi.mock("@/components/share/PetShareCard", () => ({
+  PetShareCard: () => <button type="button">Share Card</button>,
 }));
 
 vi.mock("@/services/petService", async (importOriginal) => {
@@ -49,6 +64,7 @@ vi.mock("@/components/qr/QrCodeButton", () => ({
 const { PetManagementTabs } = await import("./PetManagementTabs");
 
 beforeEach(() => {
+  mocks.shareCardsEnabled = true;
   const pet = structuredClone(mockPets[0]);
   mocks.getPetById.mockResolvedValue({ data: pet });
   mocks.getPetMoments.mockResolvedValue({ data: [] });
@@ -89,6 +105,7 @@ it("keeps one Public Profile action set and hides unreleased owner tools", async
   expect(screen.queryByRole("link", { name: "View Safety Profile" })).toBeNull();
   expect(screen.getAllByRole("button", { name: "Copy Link" })).toHaveLength(1);
   expect(screen.getAllByRole("button", { name: "Show QR" })).toHaveLength(1);
+  expect(screen.getByRole("button", { name: "Share Card" })).toBeTruthy();
   expect(screen.queryByRole("tab", { name: "Smart Tag" })).toBeNull();
   expect(screen.queryByText("Edit Public Profile Settings")).toBeNull();
   expect(screen.queryByText("Edit Safety Settings")).toBeNull();
@@ -115,6 +132,18 @@ it("does not expose public actions when the pet profile is private", async () =>
   expect(screen.queryByRole("button", { name: "Copy Link" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Show QR" })).toBeNull();
   expect(screen.queryByRole("link", { name: "View Public Profile" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Share Card" })).toBeNull();
+});
+
+it("hides Share Card controls while the rollout flag is off", async () => {
+  mocks.shareCardsEnabled = false;
+  render(
+    <PetManagementTabs moments={[]} pet={structuredClone(mockPets[0])} records={[]} tags={[]} />
+  );
+
+  await screen.findByText("Public Share Profile");
+  expect(screen.getByRole("link", { name: "View Public Profile" })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Share Card" })).toBeNull();
 });
 
 it("round-trips the shared Lost Mode control from the pet Overview", async () => {

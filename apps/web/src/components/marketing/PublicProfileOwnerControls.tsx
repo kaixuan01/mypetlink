@@ -2,10 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { ShareProfileLink } from "@/components/share/ShareProfileLink";
+import { PetShareCard } from "@/components/share/PetShareCard";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon } from "@/components/ui/Icon";
 import type { PetProfileTheme } from "@/lib/petProfileThemes";
-import { getPublicProfileShareVersion } from "@/lib/publicProfileSocial";
+import { shareCardsEnabled } from "@/lib/features";
+import {
+  getPublicProfileShareCardImagePath,
+  getPublicProfileShareVersion,
+} from "@/lib/publicProfileSocial";
 import { ownerRoutes } from "@/lib/routes";
 import { isOwnerAuthenticated } from "@/services/authService";
 import { getOwnedPetByPublicCode } from "@/services/petService";
@@ -100,6 +105,14 @@ export function PublicProfileOwnerControls({
           analyticsSurface="public_profile"
           theme={theme}
         />
+        {shareCardsEnabled ? (
+          <PetShareCard
+            imagePath={getPublicProfileShareCardImagePath(profile)}
+            petName={profile.name}
+            profilePath={profile.publicProfilePath}
+            shareVersion={getPublicProfileShareVersion(profile)}
+          />
+        ) : null}
         <CTAButton
           href={ownerRoutes.petEdit(ownedPet.id)}
           variant="secondary"

@@ -9,6 +9,7 @@ import {
 import { PetMomentsManager } from "@/components/portal/PetMomentsManager";
 import { ProfileCompletionCard } from "@/components/portal/ProfileCompletionCard";
 import { PublicLinkActions } from "@/components/portal/PublicLinkActions";
+import { PetShareCard } from "@/components/share/PetShareCard";
 import { RecordsManager } from "@/components/portal/RecordsManager";
 import { TagManagementPanel } from "@/components/portal/TagManagementPanel";
 import { LostModeControl } from "@/components/portal/LostModeControl";
@@ -29,6 +30,7 @@ import { getPetProfileTheme } from "@/lib/petProfileThemes";
 import { isActivePet, isArchivedPet, isMemorialPet } from "@/lib/petLifecycle";
 import {
   addPublicProfileShareVersion,
+  getPublicProfileShareCardImagePath,
   getPublicProfileShareVersion,
 } from "@/lib/publicProfileSocial";
 import {
@@ -37,6 +39,7 @@ import {
   smartTagOrderingEnabled,
   smartTagsEnabled,
   tagOrdersEnabled,
+  shareCardsEnabled,
 } from "@/lib/features";
 import { ownerRoutes, tagQrPath } from "@/lib/routes";
 import { getTagScanDisplay, isActivePhysicalTagForPet } from "@/lib/tagStatus";
@@ -278,17 +281,34 @@ function OverviewTab({
           description={`The ${theme.name.toLowerCase()}-theme profile you share with family, friends, and pet communities.`}
         >
           {publicProfileAccessible ? (
-            <PublicLinkActions
-              copyLabel="Copy Link"
-              copyMessage="Public Share Profile link copied."
-              fileNameBase={`${pet.slug}-share-profile-qr`}
-              helperText="Share your pet's public profile with friends and family."
-              path={publicProfileSharePath}
-              qrTitle="Share Profile QR"
-              viewLabel={
-                isMemorial ? "View Memorial Profile" : "View Public Profile"
-              }
-            />
+            <div className="grid gap-3">
+              <PublicLinkActions
+                copyLabel="Copy Link"
+                copyMessage="Public Share Profile link copied."
+                fileNameBase={`${pet.slug}-share-profile-qr`}
+                helperText="Share your pet's public profile with friends and family."
+                path={publicProfileSharePath}
+                qrTitle="Share Profile QR"
+                viewLabel={
+                  isMemorial ? "View Memorial Profile" : "View Public Profile"
+                }
+              />
+              {shareCardsEnabled ? (
+                <div className="rounded-[1.25rem] bg-pet-cream p-4">
+                  <p className="mb-3 text-sm font-semibold leading-6 text-pet-muted">
+                    Turn this profile into a ready-to-share image for messages
+                    and social posts.
+                  </p>
+                  <PetShareCard
+                    className="w-full"
+                    imagePath={getPublicProfileShareCardImagePath(pet)}
+                    petName={pet.name}
+                    profilePath={pet.publicProfilePath}
+                    shareVersion={getPublicProfileShareVersion(pet)}
+                  />
+                </div>
+              ) : null}
+            </div>
           ) : (
             <div className="grid gap-3">
               <p className="text-sm leading-6 text-pet-muted">
