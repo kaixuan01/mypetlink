@@ -27,7 +27,7 @@ Phase G2 — Seasonal reach
 Phase G3 — Free growth loop fixes (from the 2026-08-17 review)
   MPL-GROWTH-FIX-002  Public profile acquisition CTA     Ready   G1 (highest value)
   MPL-GROWTH-FIX-001  Dashboard completion/occasion data Done    G1
-  MPL-GROWTH-FIX-003  Card fallback panel + brand logo   Ready   G1
+  MPL-GROWTH-FIX-003  Card fallback, logo + profile QR   Done    G1
   MPL-GROWTH-FIX-004  Share Card action analytics        Ready   G1
   MPL-GROWTH-FIX-005  First-pet heading never renders    Ready   G2
 
@@ -398,7 +398,7 @@ before implementation.
 
 ## MPL-GROWTH-FIX-003 — Share Cards render a blank panel without a photo, and never show the real logo
 
-**Status:** Ready · **Priority:** G1
+**Status:** Done · **Priority:** G1
 
 **Problem.** Two rendering defects make the shareable image markedly weaker than
 its layout intends. Both live in code shared with the existing Open Graph card,
@@ -445,6 +445,18 @@ output changes only in the fallback case.
 **Risk.** Medium — a shared production renderer; Open Graph output changes.
 
 **Codex effort:** **Medium.**
+
+**Implemented (2026-08-17).** The shared fallback now renders an opaque brand
+gradient with the pet initial, paw, and soft shapes; the packaged horizontal
+logo is loaded from the API assembly with a canonical content-root fallback.
+Profile, Birthday, and Adoption cards no longer print the long public slug URL.
+They render a locally generated, Q-error-correction QR for the canonical Public
+Share Profile plus the short root domain. QR decode tests cover every portrait
+variant and a 540 x 675, JPEG-quality-68 resize/compression pass. The restricted
+public projection and existing clickable native/text and Copy Profile Link
+payloads are unchanged. Cache identities advanced independently to
+`social-card-v3`, `pet-share-card-v2`, `pet-birthday-card-v2`, and
+`pet-adoption-card-v2`.
 
 **Note.** This review could not verify the photo-bearing card at all: the local
 database has 39 pets and **zero** with a profile or cover photo, and the

@@ -19,20 +19,20 @@ The same restricted renderer also accepts
 `GET /api/v1/public/pets/{slug}/social-card.jpg?v={publicProfileVersion}&variant=share-card`
 for a 1080 x 1350 Pet Share Card JPEG. Missing, `open-graph`, and unknown variant
 values preserve the existing Open Graph layout and bytes. The Share Card uses
-its own `pet-share-card-v1` template identity in the API memory-cache key and
+its own `pet-share-card-v2` template identity in the API memory-cache key and
 ETag, so it cannot collide with the Open Graph entry. The API exposes that
 identity in `X-Social-Card-Template-Version` for the later edge integration.
 
 Cloudflare exposes the Share Card through the same stable public resource:
 `/social/pets/{slug}.jpg?v={publicProfileVersion}&variant=share-card`. The edge
 forwards only the controlled `share-card` variant, requires renderer identity
-`pet-share-card-v1`, and keeps that identity in the cache key and response ETag.
+`pet-share-card-v2`, and keeps that identity in the cache key and response ETag.
 Unknown variants continue to resolve to the ordinary Open Graph card.
 
 Two occasion variants use the same renderer and 1080 x 1350 JPEG output:
 
-- `variant=birthday` with template `pet-birthday-card-v1`;
-- `variant=adoption` with template `pet-adoption-card-v1`.
+- `variant=birthday` with template `pet-birthday-card-v2`;
+- `variant=adoption` with template `pet-adoption-card-v2`.
 
 They are available only when the exact stored date matches today in the
 Malaysia calendar. Estimated birth years do not qualify, and Memorial or
@@ -49,6 +49,19 @@ prompt from pet data it already holds, but ordinary Dashboard, pet management,
 and Public Share Profile loads do not request or generate image bytes. Only the
 selected modal variant is loaded.
 
+All three portrait variants contain a locally generated, high-contrast QR code
+for the canonical Public Share Profile URL built from `PublicSite:BaseUrl` and
+the restricted projection's public slug. The QR uses Q error correction, a
+quiet zone, and a 218 px square. The full `/p/{slug}` URL is not printed on the
+image; `mypetlink.com.my` remains as short branding. Native/text sharing and
+Copy Profile Link continue to carry the clickable profile URL. Ordinary Open
+Graph cards do not include a QR.
+
+The brand logo is embedded in the API assembly from
+`Assets/Brand/mypetlink-logo-horizontal.png`, with the same canonical
+content-root path as a fallback. Photo-less cards use the shared opaque brand
+gradient, pet initial, paw, and soft shapes rather than an empty panel.
+
 ## Required configuration
 
 Cloudflare Pages needs this non-secret runtime variable in both Production and Preview environments:
@@ -58,6 +71,17 @@ PUBLIC_API_BASE_URL=https://api.mypetlink.com.my
 ```
 
 `NEXT_PUBLIC_API_BASE_URL` remains a supported fallback for existing deployments. `PUBLIC_API_BASE_URL` is preferred because Pages Functions consume it at request time rather than baking it into browser JavaScript.
+
+The API also needs its existing canonical public-site origin in every environment
+that serves portrait Share Cards:
+
+```text
+PublicSite__BaseUrl=https://mypetlink.com.my
+```
+
+The renderer accepts an HTTP loopback origin only for local development. A
+missing or invalid value fails portrait rendering instead of encoding a QR for
+the wrong destination; ordinary Open Graph rendering remains available.
 
 No Cloudflare R2 binding, KV namespace, database change, or new secret is required for social cards. Existing pet photos continue to use the configured public R2 media domain. The API renderer accepts only HTTPS images from `media.mypetlink.com.my` or the host configured by `CloudflareR2:PublicBaseUrl`; redirects, custom ports, oversized responses, and excessively large decoded images are rejected.
 
@@ -77,6 +101,10 @@ The API hashes the following public inputs with SHA-256 and exposes the first 16
 - lifecycle and Lost Mode state.
 
 Changing any card input produces a different URL while the canonical profile URL stays unchanged. Share and Copy Link actions add only `?share={version}` to the public profile URL. The application ignores that parameter for page behavior.
+
+The renderer identities are `social-card-v3` (Open Graph),
+`pet-share-card-v2`, `pet-birthday-card-v2`, and `pet-adoption-card-v2`. Keep the
+API and edge constants synchronized whenever rendered bytes change.
 
 ## Privacy and cache behavior
 
@@ -110,6 +138,11 @@ curl.exe -I "http://127.0.0.1:8788/social/pets/{new-pet-slug}.jpg?v={version}&va
 ```
 
 Update the name or public photos and repeat without rebuilding. Confirm the metadata and `X-Public-Profile-Version` changed, all eligible images are JPEG, each variant reports its documented template version, and each second card request reports `X-Social-Card-Cache: HIT` without crossing variants. Occasion routes return `404` when the matching Malaysia day is not today.
+
+Renderer tests decode the QR on Profile, Birthday, and Adoption cards to the
+exact canonical URL. The robustness case also resizes a 1080 x 1350 Profile
+card to 540 x 675 and re-encodes it as JPEG at quality 68 before decoding it
+again.
 
 ## Production verification
 

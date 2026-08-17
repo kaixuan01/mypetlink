@@ -11,6 +11,8 @@ using MyPetLink.Api.Entities;
 using MyPetLink.Api.Services;
 using MyPetLink.Api.Storage;
 using SkiaSharp;
+using ZXing;
+using ZXing.Common;
 
 namespace MyPetLink.Api.Tests;
 
@@ -320,6 +322,129 @@ public sealed class PublicProfileSocialCardTests
             (openGraphBitmap.Width, openGraphBitmap.Height));
         Assert.Equal((PublicProfileSocialCardRenderer.ShareCardWidth, PublicProfileSocialCardRenderer.ShareCardHeight),
             (shareCardBitmap.Width, shareCardBitmap.Height));
+    }
+
+    [Theory]
+    [InlineData(PublicProfileSocialCardVariant.OpenGraph)]
+    [InlineData(PublicProfileSocialCardVariant.ShareCard)]
+    [InlineData(PublicProfileSocialCardVariant.Birthday)]
+    [InlineData(PublicProfileSocialCardVariant.Adoption)]
+    public async Task Renderer_NoPhotoFallbackIsAnOpaqueDesignedGradient(
+        PublicProfileSocialCardVariant variant)
+    {
+        using var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var renderer = CreateRenderer(memoryCache, new CountingHandler(_ =>
+            new HttpResponseMessage(HttpStatusCode.NotFound)));
+
+        var jpeg = await renderer.RenderAsync(CreateProfile(), variant, 4, "20260817");
+
+        using var bitmap = SKBitmap.Decode(jpeg);
+        var first = bitmap.GetPixel(110, 115);
+        var second = variant == PublicProfileSocialCardVariant.OpenGraph
+            ? bitmap.GetPixel(480, 430)
+            : bitmap.GetPixel(860, 500);
+        Assert.Equal(byte.MaxValue, first.Alpha);
+        Assert.Equal(byte.MaxValue, second.Alpha);
+        Assert.NotEqual(first, second);
+    }
+
+    [Theory]
+    [InlineData(PublicProfileSocialCardVariant.OpenGraph)]
+    [InlineData(PublicProfileSocialCardVariant.ShareCard)]
+    [InlineData(PublicProfileSocialCardVariant.Birthday)]
+    [InlineData(PublicProfileSocialCardVariant.Adoption)]
+    public async Task Renderer_AllVariantsPreserveAllowedPhotoFetchAndCropPath(
+        PublicProfileSocialCardVariant variant)
+    {
+        var fixture = CreatePhotoFixture();
+        var handler = new CountingHandler(_ => ImageResponse(fixture));
+        using var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var renderer = CreateRenderer(memoryCache, handler);
+        var profile = CreateProfile() with
+        {
+            ProfilePhotoUrl = "https://media.mypetlink.com.my/profile/test-fixture.jpg",
+            CoverPhotoUrl = "https://media.mypetlink.com.my/cover/test-fixture.jpg",
+            CoverPositionX = 78,
+            CoverPositionY = 22
+        };
+
+        var jpeg = await renderer.RenderAsync(profile, variant, 4, "20260817");
+
+        Assert.Equal(2, handler.RequestCount);
+        using var bitmap = SKBitmap.Decode(jpeg);
+        var expected = variant == PublicProfileSocialCardVariant.OpenGraph
+            ? (PublicProfileSocialCardRenderer.Width, PublicProfileSocialCardRenderer.Height)
+            : (PublicProfileSocialCardRenderer.ShareCardWidth, PublicProfileSocialCardRenderer.ShareCardHeight);
+        Assert.Equal(expected, (bitmap.Width, bitmap.Height));
+    }
+
+    [Fact]
+    public void Renderer_BrandLogoIsPackagedAsADecodableEmbeddedAsset()
+    {
+        var assembly = typeof(PublicProfileSocialCardRenderer).Assembly;
+        const string resourceName = "MyPetLink.Api.Assets.Brand.mypetlink-logo-horizontal.png";
+
+        Assert.Contains(resourceName, assembly.GetManifestResourceNames());
+        using var stream = assembly.GetManifestResourceStream(resourceName);
+        Assert.NotNull(stream);
+        using var bitmap = SKBitmap.Decode(stream);
+        Assert.NotNull(bitmap);
+        Assert.True(bitmap.Width > bitmap.Height);
+    }
+
+    [Theory]
+    [InlineData(PublicProfileSocialCardVariant.ShareCard)]
+    [InlineData(PublicProfileSocialCardVariant.Birthday)]
+    [InlineData(PublicProfileSocialCardVariant.Adoption)]
+    public async Task Renderer_PortraitQrDecodesToExactCanonicalPublicProfile(
+        PublicProfileSocialCardVariant variant)
+    {
+        using var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var renderer = CreateRenderer(memoryCache, new CountingHandler(_ =>
+            new HttpResponseMessage(HttpStatusCode.NotFound)));
+
+        var jpeg = await renderer.RenderAsync(CreateProfile(), variant, 4, "20260817");
+
+        Assert.Equal("https://mypetlink.com.my/p/topu-public-code", DecodeQr(jpeg));
+    }
+
+    [Fact]
+    public async Task Renderer_ProfileQrSurvivesHalfSizeAndMessagingQualityJpegCompression()
+    {
+        using var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var renderer = CreateRenderer(memoryCache, new CountingHandler(_ =>
+            new HttpResponseMessage(HttpStatusCode.NotFound)));
+        var jpeg = await renderer.RenderAsync(
+            CreateProfile(),
+            PublicProfileSocialCardVariant.ShareCard);
+
+        using var original = SKBitmap.Decode(jpeg);
+        using var surface = SKSurface.Create(new SKImageInfo(540, 675));
+        surface.Canvas.Clear(SKColors.White);
+        surface.Canvas.DrawBitmap(original, new SKRect(0, 0, 540, 675));
+        using var resized = surface.Snapshot();
+        using var compressed = resized.Encode(SKEncodedImageFormat.Jpeg, 68);
+
+        Assert.Equal(
+            "https://mypetlink.com.my/p/topu-public-code",
+            DecodeQr(compressed.ToArray()));
+    }
+
+    [Fact]
+    public async Task Renderer_MissingPublicSiteOnlyFailsClosedForPortraitCards()
+    {
+        using var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var renderer = CreateRenderer(
+            memoryCache,
+            new CountingHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound)),
+            publicSiteBaseUrl: "");
+
+        var openGraph = await renderer.RenderAsync(CreateProfile());
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            renderer.RenderAsync(CreateProfile(), PublicProfileSocialCardVariant.ShareCard));
+
+        Assert.NotEmpty(openGraph);
+        Assert.Contains("PublicSite:BaseUrl", error.Message, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -655,9 +780,66 @@ public sealed class PublicProfileSocialCardTests
             (lostBitmap.Width, lostBitmap.Height));
     }
 
+    private static string? DecodeQr(byte[] jpeg)
+    {
+        using var bitmap = SKBitmap.Decode(jpeg);
+        var rgb = new byte[bitmap.Width * bitmap.Height * 3];
+        var pixels = bitmap.Pixels;
+        for (var index = 0; index < pixels.Length; index += 1)
+        {
+            var offset = index * 3;
+            rgb[offset] = pixels[index].Red;
+            rgb[offset + 1] = pixels[index].Green;
+            rgb[offset + 2] = pixels[index].Blue;
+        }
+
+        var source = new RGBLuminanceSource(
+            rgb,
+            bitmap.Width,
+            bitmap.Height,
+            RGBLuminanceSource.BitmapFormat.RGB24);
+        var reader = new BarcodeReaderGeneric
+        {
+            Options = new DecodingOptions
+            {
+                PossibleFormats = [BarcodeFormat.QR_CODE],
+                TryHarder = true
+            }
+        };
+        return reader.Decode(source)?.Text;
+    }
+
+    private static byte[] CreatePhotoFixture()
+    {
+        using var surface = SKSurface.Create(new SKImageInfo(960, 720));
+        var canvas = surface.Canvas;
+        canvas.Clear(SKColor.Parse("#1E5C8A"));
+        using var mint = new SKPaint { Color = SKColor.Parse("#72D5B0"), IsAntialias = true };
+        using var coral = new SKPaint { Color = SKColor.Parse("#FF8F79"), IsAntialias = true };
+        using var cream = new SKPaint { Color = SKColor.Parse("#FFF2D8"), IsAntialias = true };
+        canvas.DrawCircle(210, 350, 230, mint);
+        canvas.DrawCircle(720, 245, 180, coral);
+        canvas.DrawRect(510, 440, 390, 220, cream);
+        using var image = surface.Snapshot();
+        using var data = image.Encode(SKEncodedImageFormat.Jpeg, 90);
+        return data.ToArray();
+    }
+
+    private static HttpResponseMessage ImageResponse(byte[] fixture)
+    {
+        return new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new ByteArrayContent(fixture)
+            {
+                Headers = { ContentType = new("image/jpeg") }
+            }
+        };
+    }
+
     private static PublicProfileSocialCardRenderer CreateRenderer(
         IMemoryCache memoryCache,
-        HttpMessageHandler handler)
+        HttpMessageHandler handler,
+        string publicSiteBaseUrl = "https://mypetlink.com.my")
     {
         return new PublicProfileSocialCardRenderer(
             new TestHttpClientFactory(handler),
@@ -666,6 +848,10 @@ public sealed class PublicProfileSocialCardTests
             Options.Create(new CloudflareR2Options
             {
                 PublicBaseUrl = "https://media.mypetlink.com.my"
+            }),
+            Options.Create(new PublicSiteOptions
+            {
+                BaseUrl = publicSiteBaseUrl
             }));
     }
 

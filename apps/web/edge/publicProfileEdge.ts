@@ -9,19 +9,19 @@ export type SocialCardVariant = "open-graph" | "share-card" | "birthday" | "adop
 const socialCardVariants = {
   "open-graph": {
     queryValue: null,
-    templateVersion: "social-card-v2",
+    templateVersion: "social-card-v3",
   },
   "share-card": {
     queryValue: "share-card",
-    templateVersion: "pet-share-card-v1",
+    templateVersion: "pet-share-card-v2",
   },
   birthday: {
     queryValue: "birthday",
-    templateVersion: "pet-birthday-card-v1",
+    templateVersion: "pet-birthday-card-v2",
   },
   adoption: {
     queryValue: "adoption",
-    templateVersion: "pet-adoption-card-v1",
+    templateVersion: "pet-adoption-card-v2",
   },
 } as const satisfies Record<
   SocialCardVariant,

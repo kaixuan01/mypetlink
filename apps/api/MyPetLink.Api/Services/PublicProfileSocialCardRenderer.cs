@@ -1,8 +1,10 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
+using MyPetLink.Api.Common;
 using MyPetLink.Api.DTOs;
 using MyPetLink.Api.Storage;
+using QRCoder;
 using SkiaSharp;
 
 namespace MyPetLink.Api.Services;
@@ -13,6 +15,9 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
     public const int Height = 630;
     public const int ShareCardWidth = 1080;
     public const int ShareCardHeight = 1350;
+    public const int ShareCardQrSize = 218;
+
+    private const string BrandLogoResourceName = "MyPetLink.Api.Assets.Brand.mypetlink-logo-horizontal.png";
 
     private const int MaxSourceImageBytes = 8 * 1024 * 1024;
     private const int MaxSourceImageDimension = 8192;
@@ -23,17 +28,20 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IWebHostEnvironment _hostEnvironment;
     private readonly IMemoryCache _memoryCache;
+    private readonly Uri? _publicSiteBaseUri;
 
     public PublicProfileSocialCardRenderer(
         IHttpClientFactory httpClientFactory,
         IMemoryCache memoryCache,
         IWebHostEnvironment hostEnvironment,
-        IOptions<CloudflareR2Options> r2Options)
+        IOptions<CloudflareR2Options> r2Options,
+        IOptions<PublicSiteOptions> publicSiteOptions)
     {
         _httpClientFactory = httpClientFactory;
         _memoryCache = memoryCache;
         _hostEnvironment = hostEnvironment;
         _r2Options = r2Options.Value;
+        _publicSiteBaseUri = ResolvePublicSiteBaseUri(publicSiteOptions.Value.BaseUrl);
     }
 
     public async Task<byte[]> RenderAsync(
@@ -84,11 +92,14 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
         using var profileImage = DecodeImage(await profileImageTask);
         using var coverImage = DecodeImage(await coverImageTask);
         using var logo = LoadLogo();
+        var publicProfileUrl = variant == PublicProfileSocialCardVariant.OpenGraph
+            ? null
+            : BuildPublicProfileUrl(profile.PublicSlug);
         var jpeg = variant switch
         {
-            PublicProfileSocialCardVariant.ShareCard => DrawShareCard(profile, profileImage, coverImage, logo),
-            PublicProfileSocialCardVariant.Birthday => DrawOccasionCard(profile, profileImage, coverImage, logo, occasionCount ?? 0, true),
-            PublicProfileSocialCardVariant.Adoption => DrawOccasionCard(profile, profileImage, coverImage, logo, occasionCount ?? 0, false),
+            PublicProfileSocialCardVariant.ShareCard => DrawShareCard(profile, profileImage, coverImage, logo, publicProfileUrl!),
+            PublicProfileSocialCardVariant.Birthday => DrawOccasionCard(profile, profileImage, coverImage, logo, publicProfileUrl!, occasionCount ?? 0, true),
+            PublicProfileSocialCardVariant.Adoption => DrawOccasionCard(profile, profileImage, coverImage, logo, publicProfileUrl!, occasionCount ?? 0, false),
             _ => DrawOpenGraphCard(profile, profileImage, coverImage, logo)
         };
 
@@ -209,13 +220,59 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
     {
         try
         {
-            var path = Path.Combine(_hostEnvironment.ContentRootPath, "Assets", "logo-horizontal.png");
+            var assembly = typeof(PublicProfileSocialCardRenderer).Assembly;
+            using var embedded = assembly.GetManifestResourceStream(BrandLogoResourceName);
+            if (embedded is not null)
+            {
+                return SKBitmap.Decode(embedded);
+            }
+
+            var path = Path.Combine(
+                _hostEnvironment.ContentRootPath,
+                "Assets",
+                "Brand",
+                "mypetlink-logo-horizontal.png");
             return File.Exists(path) ? SKBitmap.Decode(path) : null;
         }
         catch
         {
             return null;
         }
+    }
+
+    private static Uri? ResolvePublicSiteBaseUri(string value)
+    {
+        var normalized = value.Trim().TrimEnd('/') + "/";
+        if (!Uri.TryCreate(normalized, UriKind.Absolute, out var uri)
+            || !uri.IsDefaultPort
+            || !string.IsNullOrEmpty(uri.UserInfo)
+            || !string.IsNullOrEmpty(uri.Query)
+            || !string.IsNullOrEmpty(uri.Fragment)
+            || uri.AbsolutePath != "/"
+            || (uri.Scheme != Uri.UriSchemeHttps
+                && !(uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback)))
+        {
+            return null;
+        }
+
+        return uri;
+    }
+
+    private string BuildPublicProfileUrl(string publicSlug)
+    {
+        if (_publicSiteBaseUri is null)
+        {
+            throw new InvalidOperationException(
+                "PublicSite:BaseUrl must be an HTTPS origin, or an HTTP loopback origin for local development, to render a portrait Share Card.");
+        }
+
+        var slug = Uri.EscapeDataString(CleanText(publicSlug, 160, string.Empty));
+        if (string.IsNullOrEmpty(slug))
+        {
+            throw new InvalidOperationException("A public profile slug is required to render a portrait Share Card.");
+        }
+
+        return new Uri(_publicSiteBaseUri, $"p/{slug}").AbsoluteUri;
     }
 
     private static SKBitmap? DecodeImage(byte[]? bytes)
@@ -277,7 +334,7 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
         }
 
         var coverRect = new SKRect(58, top, 606, top + imageHeight);
-        DrawCover(canvas, coverRect, coverImage, profile.CoverPositionX, profile.CoverPositionY);
+        DrawCover(canvas, coverRect, coverImage, profile.CoverPositionX, profile.CoverPositionY, profile.Name);
         DrawProfilePhoto(canvas, new SKPoint(545, Height - 127), 93, profileImage, profile.Name);
         DrawContent(canvas, profile, logo, top, imageHeight);
 
@@ -290,7 +347,8 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
         PublicProfileSocialResponse profile,
         SKBitmap? profileImage,
         SKBitmap? coverImage,
-        SKBitmap? logo)
+        SKBitmap? logo,
+        string publicProfileUrl)
     {
         using var surface = SKSurface.Create(new SKImageInfo(ShareCardWidth, ShareCardHeight));
         var canvas = surface.Canvas;
@@ -320,16 +378,15 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
         }
 
         var heroTop = bannerHeight + 50;
-        var heroBottom = lost ? 720f : 760f;
+        var heroBottom = lost ? 680f : 650f;
         var heroRect = new SKRect(64, heroTop, ShareCardWidth - 64, heroBottom);
         var heroImage = coverImage ?? profileImage;
-        DrawCover(canvas, heroRect, heroImage, profile.CoverPositionX, profile.CoverPositionY);
+        DrawCover(canvas, heroRect, heroImage, profile.CoverPositionX, profile.CoverPositionY, profile.Name);
 
         var portraitCenter = new SKPoint(ShareCardWidth / 2f, heroBottom - 6);
         DrawProfilePhoto(canvas, portraitCenter, 112, profileImage, profile.Name);
 
-        var contentTop = heroBottom + 140;
-        DrawShareCardContent(canvas, profile, logo, contentTop);
+        DrawShareCardContent(canvas, profile, logo, publicProfileUrl, 786);
 
         using var image = surface.Snapshot();
         using var data = image.Encode(SKEncodedImageFormat.Jpeg, 84);
@@ -341,6 +398,7 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
         SKBitmap? profileImage,
         SKBitmap? coverImage,
         SKBitmap? logo,
+        string publicProfileUrl,
         int count,
         bool birthday)
     {
@@ -375,16 +433,16 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
                 true);
         }
 
-        var heroRect = new SKRect(68, lost ? 96 : 72, ShareCardWidth - 68, 690);
-        DrawCover(canvas, heroRect, coverImage ?? profileImage, profile.CoverPositionX, profile.CoverPositionY);
-        DrawProfilePhoto(canvas, new SKPoint(ShareCardWidth / 2f, 686), 108, profileImage, profile.Name);
+        var heroRect = new SKRect(68, lost ? 96 : 72, ShareCardWidth - 68, 620);
+        DrawCover(canvas, heroRect, coverImage ?? profileImage, profile.CoverPositionX, profile.CoverPositionY, profile.Name);
+        DrawProfilePhoto(canvas, new SKPoint(ShareCardWidth / 2f, 616), 104, profileImage, profile.Name);
 
         var centerX = ShareCardWidth / 2f;
-        var y = 858f;
+        var y = 758f;
         var eyebrow = birthday ? "HAPPY BIRTHDAY" : "HAPPY ADOPTION DAY";
         DrawCenteredText(canvas, eyebrow, centerX, y, 27, accent, true);
 
-        y += 88;
+        y += 78;
         var name = CleanText(profile.Name, 48, "Pet");
         var headline = birthday
             ? count == 0 ? $"Celebrating {name} today" : $"{name} turns {count}"
@@ -409,7 +467,7 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
             SKColor.Parse("#102247"),
             true);
 
-        y += headlineSize + 54;
+        y += headlineSize + 38;
         var message = birthday
             ? "A little more loved with every year."
             : count == 1
@@ -417,28 +475,8 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
                 : "Forever grateful you joined our family.";
         DrawCenteredText(canvas, message, centerX, y, 29, SKColor.Parse("#53627F"), true);
 
-        y += 84;
-        if (logo is not null)
-        {
-            var bounds = new SKRect(centerX - 130, y - 38, centerX + 130, y + 20);
-            var logoRect = FitInside(logo.Width, logo.Height, bounds);
-            logoRect.Offset((bounds.Width - logoRect.Width) / 2f, 0);
-            canvas.DrawBitmap(logo, logoRect);
-        }
-        else
-        {
-            DrawCenteredText(canvas, "MyPetLink", centerX, y, 30, SKColor.Parse("#102247"), true);
-        }
-
-        y += 62;
-        DrawCenteredText(
-            canvas,
-            FitText($"mypetlink.com.my/p/{profile.PublicSlug}", 760, 22, true),
-            centerX,
-            y,
-            22,
-            SKColor.Parse("#53627F"),
-            true);
+        DrawBrandLogoCentered(canvas, logo, centerX, 981, 250, 50);
+        DrawProfileQrFooter(canvas, publicProfileUrl, name, 1030);
 
         using var image = surface.Snapshot();
         using var data = image.Encode(SKEncodedImageFormat.Jpeg, 86);
@@ -449,25 +487,15 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
         SKCanvas canvas,
         PublicProfileSocialResponse profile,
         SKBitmap? logo,
+        string publicProfileUrl,
         float top)
     {
         var centerX = ShareCardWidth / 2f;
         var y = top;
 
-        if (logo is not null)
-        {
-            var bounds = new SKRect(centerX - 150, y, centerX + 150, y + 64);
-            var logoRect = FitInside(logo.Width, logo.Height, bounds);
-            logoRect.Offset((bounds.Width - logoRect.Width) / 2f, 0);
-            canvas.DrawBitmap(logo, logoRect);
-        }
-        else
-        {
-            DrawPaw(canvas, centerX - 78, y + 31, 0.34f, SKColor.Parse("#E95F55"));
-            DrawText(canvas, "MyPetLink", centerX - 46, y + 43, 35, SKColor.Parse("#102247"), true);
-        }
+        DrawBrandLogoCentered(canvas, logo, centerX, y, 290, 58);
 
-        y += 145;
+        y += 105;
         var name = CleanText(profile.Name, 48, "Pet");
         var nameSize = name.Length switch
         {
@@ -479,13 +507,13 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
         var displayName = FitText(name, ShareCardWidth - 150, nameSize, true);
         DrawCenteredText(canvas, displayName, centerX, y, nameSize, SKColor.Parse("#102247"), true);
 
-        y += nameSize + 28;
+        y += nameSize + 20;
         var summary = BuildSummary(profile);
         if (!string.IsNullOrWhiteSpace(summary))
         {
             var summaryText = FitText(summary, ShareCardWidth - 150, 28, true);
             DrawCenteredText(canvas, summaryText, centerX, y, 28, SKColor.Parse("#53627F"), true);
-            y += 58;
+            y += 48;
         }
 
         var callToAction = FitText($"Meet {name} on MyPetLink", 650, 27, true);
@@ -498,9 +526,7 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
             buttonText.Draw(canvas, callToAction, centerX - buttonText.MeasureText(callToAction) / 2, y + 1);
         }
 
-        y += 72;
-        var profileUrl = FitText($"mypetlink.com.my/p/{profile.PublicSlug}", 750, 23, true);
-        DrawCenteredText(canvas, profileUrl, centerX, y, 23, SKColor.Parse("#53627F"), true);
+        DrawProfileQrFooter(canvas, publicProfileUrl, name, 1068);
     }
 
     private static void DrawBackgroundDecorations(SKCanvas canvas)
@@ -516,7 +542,8 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
         SKRect rect,
         SKBitmap? cover,
         byte focalX,
-        byte focalY)
+        byte focalY,
+        string petName)
     {
         using var shadow = Paint(SKColor.Parse("#D7CCB7").WithAlpha(150));
         canvas.DrawRoundRect(new SKRect(rect.Left + 8, rect.Top + 14, rect.Right + 8, rect.Bottom + 14), 42, 42, shadow);
@@ -536,7 +563,7 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
         }
         else
         {
-            using var gradient = Paint();
+            using var gradient = Paint(SKColors.White);
             gradient.Shader = SKShader.CreateLinearGradient(
                 new SKPoint(inner.Left, inner.Top),
                 new SKPoint(inner.Right, inner.Bottom),
@@ -549,8 +576,18 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
                 new[] { 0f, 0.56f, 1f },
                 SKShaderTileMode.Clamp);
             canvas.DrawRect(inner, gradient);
-            DrawPaw(canvas, inner.MidX, inner.MidY - 12, 1.85f, SKColors.White.WithAlpha(150));
-            DrawCenteredText(canvas, "MYPETLINK", inner.MidX, inner.Bottom - 55, 21, SKColor.Parse("#53627F"), true);
+
+            using (var glow = Paint(SKColors.White.WithAlpha(68)))
+            using (var soft = Paint(SKColor.Parse("#157A6E").WithAlpha(28)))
+            {
+                canvas.DrawCircle(inner.Left + inner.Width * 0.16f, inner.Top + inner.Height * 0.20f, inner.Width * 0.20f, glow);
+                canvas.DrawCircle(inner.Right - inner.Width * 0.11f, inner.Bottom - inner.Height * 0.13f, inner.Width * 0.18f, soft);
+            }
+
+            var name = CleanText(petName, 24, "Pet");
+            var initial = name[0].ToString().ToUpperInvariant();
+            DrawPaw(canvas, inner.Right - 105, inner.Top + 100, 0.9f, SKColors.White.WithAlpha(92));
+            DrawCenteredText(canvas, initial, inner.MidX, inner.MidY + 48, 146, SKColor.Parse("#102247").WithAlpha(218), true);
         }
 
         canvas.Restore();
@@ -580,7 +617,7 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
         }
         else
         {
-            using var gradient = Paint();
+            using var gradient = Paint(SKColors.White);
             gradient.Shader = SKShader.CreateLinearGradient(
                 rect.Location,
                 new SKPoint(rect.Right, rect.Bottom),
@@ -595,6 +632,88 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
         }
 
         canvas.Restore();
+    }
+
+    private static void DrawBrandLogoCentered(
+        SKCanvas canvas,
+        SKBitmap? logo,
+        float centerX,
+        float top,
+        float maxWidth,
+        float maxHeight)
+    {
+        if (logo is not null)
+        {
+            var bounds = new SKRect(
+                centerX - maxWidth / 2,
+                top,
+                centerX + maxWidth / 2,
+                top + maxHeight);
+            var logoRect = FitInsideCentered(logo.Width, logo.Height, bounds);
+            canvas.DrawBitmap(logo, logoRect);
+            return;
+        }
+
+        DrawPaw(canvas, centerX - 80, top + maxHeight / 2, 0.32f, SKColor.Parse("#E95F55"));
+        DrawText(canvas, "MyPetLink", centerX - 49, top + maxHeight * 0.72f, 33, SKColor.Parse("#102247"), true);
+    }
+
+    private static void DrawProfileQrFooter(
+        SKCanvas canvas,
+        string publicProfileUrl,
+        string petName,
+        float top)
+    {
+        var left = (ShareCardWidth - ShareCardQrSize) / 2f;
+        var bounds = new SKRect(left, top, left + ShareCardQrSize, top + ShareCardQrSize);
+        DrawQrCode(canvas, publicProfileUrl, bounds);
+
+        var name = CleanText(petName, 48, "Pet");
+        DrawCenteredText(
+            canvas,
+            FitText($"Scan to view {name}'s profile", 690, 24, true),
+            ShareCardWidth / 2f,
+            bounds.Bottom + 30,
+            24,
+            SKColor.Parse("#102247"),
+            true);
+        DrawCenteredText(
+            canvas,
+            "mypetlink.com.my",
+            ShareCardWidth / 2f,
+            bounds.Bottom + 56,
+            20,
+            SKColor.Parse("#53627F"),
+            true);
+    }
+
+    private static void DrawQrCode(SKCanvas canvas, string payload, SKRect bounds)
+    {
+        using var data = QRCodeGenerator.GenerateQrCode(payload, QRCodeGenerator.ECCLevel.Q);
+        var matrix = data.ModuleMatrix;
+        var moduleCount = matrix.Count;
+        var moduleSize = Math.Max(1, (int)Math.Floor(bounds.Width / moduleCount));
+        var renderedSize = moduleCount * moduleSize;
+        var left = bounds.MidX - renderedSize / 2f;
+        var top = bounds.MidY - renderedSize / 2f;
+
+        using var light = Paint(SKColors.White);
+        using var dark = Paint(SKColor.Parse("#0D1B3D"));
+        canvas.DrawRoundRect(bounds, 12, 12, light);
+
+        for (var row = 0; row < moduleCount; row += 1)
+        {
+            for (var column = 0; column < moduleCount; column += 1)
+            {
+                if (!matrix[row][column]) continue;
+                canvas.DrawRect(
+                    left + column * moduleSize,
+                    top + row * moduleSize,
+                    moduleSize,
+                    moduleSize,
+                    dark);
+            }
+        }
     }
 
     private static void DrawContent(
@@ -751,6 +870,13 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
             bounds.Top + (bounds.Height - targetHeight) / 2,
             bounds.Left + targetWidth,
             bounds.Top + (bounds.Height + targetHeight) / 2);
+    }
+
+    private static SKRect FitInsideCentered(float width, float height, SKRect bounds)
+    {
+        var fitted = FitInside(width, height, bounds);
+        fitted.Offset((bounds.Width - fitted.Width) / 2f, 0);
+        return fitted;
     }
 
     private static void DrawPaw(SKCanvas canvas, float x, float y, float scale, SKColor color)

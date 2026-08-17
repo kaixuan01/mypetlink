@@ -18,9 +18,9 @@ public static class PublicProfileSocialCardVariants
     // The Open Graph layout is already versioned through PublicProfileVersion.
     // Share Card has its own template version so its API cache can be invalidated
     // without changing the production Open Graph image URL or bytes.
-    public const string ShareCardTemplateVersion = "pet-share-card-v1";
-    public const string BirthdayTemplateVersion = "pet-birthday-card-v1";
-    public const string AdoptionTemplateVersion = "pet-adoption-card-v1";
+    public const string ShareCardTemplateVersion = "pet-share-card-v2";
+    public const string BirthdayTemplateVersion = "pet-birthday-card-v2";
+    public const string AdoptionTemplateVersion = "pet-adoption-card-v2";
 
     public static PublicProfileSocialCardVariant Parse(string? value)
     {

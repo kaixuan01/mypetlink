@@ -169,7 +169,7 @@ describe("Cloudflare social-card proxy", () => {
       return new Response(jpeg, {
         headers: {
           "Content-Type": "image/jpeg",
-          "X-Social-Card-Template-Version": "pet-share-card-v1",
+          "X-Social-Card-Template-Version": "pet-share-card-v2",
         },
         status: 200,
       });
@@ -204,14 +204,14 @@ describe("Cloudflare social-card proxy", () => {
     expect(originUrls[1]).not.toContain("variant=");
     expect(shareResponse.headers.get("x-social-card-variant")).toBe("share-card");
     expect(shareResponse.headers.get("x-social-card-template-version")).toBe(
-      "pet-share-card-v1"
+      "pet-share-card-v2"
     );
     expect(openGraphResponse.headers.get("x-social-card-variant")).toBe(
       "open-graph"
     );
     expect(cache.keys()).toEqual(
       expect.arrayContaining([
-        expect.stringContaining("variant=share-card&template=pet-share-card-v1"),
+        expect.stringContaining("variant=share-card&template=pet-share-card-v2"),
         `https://mypetlink.com.my/social/pets/${newPet.publicSlug}.jpg?v=${newPet.publicProfileVersion}`,
       ])
     );
@@ -232,8 +232,8 @@ describe("Cloudflare social-card proxy", () => {
             "Content-Type": "image/jpeg",
             ETag: birthday ? '"birthday-etag"' : '"adoption-etag"',
             "X-Social-Card-Template-Version": birthday
-              ? "pet-birthday-card-v1"
-              : "pet-adoption-card-v1",
+              ? "pet-birthday-card-v2"
+              : "pet-adoption-card-v2",
           },
         });
       });
@@ -256,8 +256,8 @@ describe("Cloudflare social-card proxy", () => {
 
       expect(cache.keys()).toEqual(
         expect.arrayContaining([
-          expect.stringContaining("variant=birthday&template=pet-birthday-card-v1&day=2026-08-17"),
-          expect.stringContaining("variant=adoption&template=pet-adoption-card-v1&day=2026-08-17"),
+          expect.stringContaining("variant=birthday&template=pet-birthday-card-v2&day=2026-08-17"),
+          expect.stringContaining("variant=adoption&template=pet-adoption-card-v2&day=2026-08-17"),
         ])
       );
     } finally {
@@ -291,7 +291,7 @@ describe("Cloudflare social-card proxy", () => {
     const cache = createMemoryCache();
     await cache.value.put(
       new Request(
-        `https://mypetlink.com.my/social/pets/${newPet.publicSlug}.jpg?v=${newPet.publicProfileVersion}&variant=share-card&template=pet-share-card-v1`
+        `https://mypetlink.com.my/social/pets/${newPet.publicSlug}.jpg?v=${newPet.publicProfileVersion}&variant=share-card&template=pet-share-card-v2`
       ),
       new Response(new Uint8Array([0xff, 0xd8, 0xff, 0xd9]), {
         headers: { "Content-Type": "image/jpeg" },
@@ -321,7 +321,7 @@ describe("Cloudflare social-card proxy", () => {
       return new Response(new Uint8Array([0xff, 0xd8, 0xff, 0xd9]), {
         headers: {
           "Content-Type": "image/jpeg",
-          "X-Social-Card-Template-Version": "social-card-v2",
+          "X-Social-Card-Template-Version": "social-card-v3",
         },
       });
     });

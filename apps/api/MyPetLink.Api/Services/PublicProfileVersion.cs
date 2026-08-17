@@ -8,7 +8,7 @@ namespace MyPetLink.Api.Services;
 public static class PublicProfileVersion
 {
     // Increment whenever the social-card layout or its public field selection changes.
-    public const string TemplateVersion = "social-card-v2";
+    public const string TemplateVersion = "social-card-v3";
 
     public static string Create(
         PetPublicProfile profile,
