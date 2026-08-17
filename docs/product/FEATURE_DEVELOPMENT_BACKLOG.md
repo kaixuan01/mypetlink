@@ -24,6 +24,13 @@ Phase G1 — Free growth, no backend risk
 Phase G2 — Seasonal reach
   MPL-GROWTH-004   Birthday / Adoption card variants     Done
 
+Phase G3 — Free growth loop fixes (from the 2026-08-17 review)
+  MPL-GROWTH-FIX-002  Public profile acquisition CTA     Ready   G1 (highest value)
+  MPL-GROWTH-FIX-001  Dashboard completion/occasion data Ready   G1
+  MPL-GROWTH-FIX-003  Card fallback panel + brand logo   Ready   G1
+  MPL-GROWTH-FIX-004  Share Card action analytics        Ready   G1
+  MPL-GROWTH-FIX-005  First-pet heading never renders    Ready   G2
+
 Phase P0 — Premium foundations (ships dark)
   MPL-PREM-001     Malaysia calendar day + reminder schema   Ready
 
@@ -51,9 +58,12 @@ Later (not scheduled)
   MPL-LATER-005    Year in Review
 ```
 
-**The approved Free Growth loop is complete through MPL-GROWTH-004.** Review
-the combined loop and production evidence before selecting another
-implementation package.
+**The approved Free Growth loop is complete through MPL-GROWTH-004**, and has
+been reviewed end to end (2026-08-17). The loop works from profile completion
+through to a shared card, and no G0 issue was found — but it **does not yet
+close**: the page every share lands on offers a recipient no way to create their
+own profile. Ship Phase G3 before any marketing campaign; Premium work
+(`MPL-PREM-001`) can start in parallel.
 
 ---
 
@@ -241,6 +251,310 @@ exclusions. Renderer tests for both variants.
 **Risk.** Low.
 
 **Codex effort:** **Medium.**
+
+---
+
+# Phase G3 — Free Growth Loop Fixes
+
+Findings from the cross-feature growth-loop review of `main` @ `75d1047`
+(2026-08-17), run end to end against a local API + Cloudflare Pages build with
+`NEXT_PUBLIC_SHARE_CARDS_ENABLED=true`.
+
+**No G0 issue was found.** Privacy and lifecycle invariants were verified live:
+disabling a public profile, archiving, or marking a pet memorial made every card
+variant return `404` immediately at both the edge and the origin, and occasion
+cards return `404` on any day that is not the anniversary.
+
+The four items below are **G1 — strongly recommended before any marketing
+campaign**. `MPL-GROWTH-FIX-002` is the single highest-value item in this
+backlog: without it the acquisition loop does not close.
+
+---
+
+## MPL-GROWTH-FIX-001 — Dashboard completion and occasion cards read an incomplete pet payload
+
+**Status:** Ready · **Priority:** G1
+
+**Problem.** `DashboardClient` derives both profile completion and today's
+occasions from the pets **list** response, which does not carry `breed`,
+`gender`, `bio`, or `adoptionDay`. `petService` substitutes placeholders for the
+missing fields, so the derivation silently reads fabricated values.
+
+**Evidence (live, 2026-08-17).** For one pet, in one session:
+
+| Surface | Percentage | "Basic information" | "About" |
+| --- | --- | --- | --- |
+| `/dashboard` compact card | **65%** | counted **incomplete** | counted **complete** |
+| `/pets/[id]` full card | **76%** | complete | complete |
+
+The pet had `breed: "Golden Retriever"`, `gender: "Male"`, and an owner-written
+bio. `GET /api/v1/pets` omits all three keys; `GET /api/v1/pets/{id}` returns
+them. Separately, a pet whose adoption anniversary was that day showed **no**
+"Celebrate today" card, while its Share Card modal on the pet page correctly
+offered the **Adoption Day** variant.
+
+**Root cause.**
+- `apps/web/src/services/petService.ts:530-531` — `breed`/`gender` fall back to
+  `"Not set"`, which `hasText()` in `profileCompletion.ts` treats as absent.
+- `apps/web/src/services/petService.ts:538` — `adoptionDay` falls back to
+  `"Not set"`, so `derivePetOccasions` never produces an adoption occasion.
+- `apps/web/src/services/petService.ts:572-574` — `bio` falls back to a
+  generated sentence, so "About" reads complete for a pet with no bio.
+
+**User / growth impact.** The dashboard is the most-seen surface. It under-reports
+progress, asks owners to re-enter information they already entered — the exact
+"nagging" failure `features/PROFILE_COMPLETION.md` set out to avoid — and hides a
+genuinely missing bio. Half of `MPL-GROWTH-004` (adoption anniversaries) is dead
+on its primary surface, leaving that occasion discoverable only by chance.
+
+**Exact surface.** `apps/web/src/components/portal/DashboardClient.tsx`,
+`apps/web/src/lib/profileCompletion.ts`, `apps/web/src/lib/petOccasions.ts`,
+`apps/web/src/services/petService.ts`, and the pets list DTO in
+`apps/api/MyPetLink.Api/DTOs/PetDtos.cs` if the list projection is widened.
+
+**Acceptance criteria**
+1. The same pet reports the **same** percentage on `/dashboard` and
+   `/pets/[id]`.
+2. A field the client cannot actually see is **excluded from both numerator and
+   denominator**, never counted as incomplete and never counted as complete from
+   a placeholder.
+3. `"Not set"` and the generated bio sentence can never satisfy a completion
+   item.
+4. A pet whose adoption anniversary is today shows a "Celebrate today" card on
+   the dashboard.
+5. Whichever fix is chosen — widening the list projection or marking unknown
+   fields unavailable — is applied in **one** place, not per surface.
+6. No additional per-pet request is introduced on dashboard load.
+
+**Required tests.** Unit tests for `deriveProfileCompletion` with placeholder
+`"Not set"` values and with the generated bio fallback; a `derivePetOccasions`
+test for an adoption anniversary reaching the dashboard; a `DashboardClient`
+test asserting dashboard and pet-page percentages agree for identical data.
+
+**Risk.** Medium — touches the shared pet mapper used by every owner surface.
+
+**Codex effort:** **Medium.**
+
+---
+
+## MPL-GROWTH-FIX-002 — The Public Share Profile gives a recipient no way to create their own profile
+
+**Status:** Ready · **Priority:** G1 — highest value in this backlog
+
+**Problem.** Every share lands on `/p/:slug`. That page contains **no**
+acquisition path.
+
+**Evidence (live, anonymous session, 375 × 812).** A full inventory of the
+rendered page returned:
+
+- links: exactly **one** — `href="/"`, the header logo, with no accessible
+  label and a 36 px height (below the 40 px tap-target threshold);
+- occurrences of "MyPetLink" in visible text: **one**, in the closing line
+  "Powered by MyPetLink. This profile only shows owner-approved public
+  information.";
+- any create/sign-up wording: **none**.
+
+`CreateProfileCTA` is used on `/`, `/pricing`, `/how-it-works`, `/pet-profile`,
+`/sample`, and `PublicLayout` — every public surface **except** the one that
+receives the traffic.
+
+**User / growth impact.** This is where the loop terminates. A visitor who
+likes what they see must notice a small unlabelled logo, realise it is
+clickable, and tap it. Once on the homepage the CTAs are strong ("Create Free
+Pet Profile"), so the gap is exactly one step — and it is the step every share
+depends on. It also makes share-driven signup **unmeasurable**, because there is
+no instrumented CTA to attribute against.
+
+**Exact surface.**
+`apps/web/src/components/marketing/PublicSharePetProfile.tsx:656-662` (the
+closing line, after the tab content) and
+`apps/web/src/components/marketing/CreateProfileCTA.tsx`.
+
+**Acceptance criteria**
+1. An anonymous visitor is offered one clear, calm way to create a profile for
+   their own pet, placed **after** the pet's content — never above or beside it.
+2. The page still reads as the owner's pet page, not an advertisement: one CTA,
+   no interstitial, no banner, no repetition.
+3. The owner viewing their own profile does not see the acquisition CTA.
+4. Signed-in visitors are routed to create a pet; signed-out visitors go through
+   login, reusing `CreateProfileCTA`'s existing behaviour.
+5. Memorial profiles are handled deliberately and respectfully — this review
+   recommends suppressing the CTA there.
+6. One analytics event distinguishes a CTA click on a public profile from the
+   same CTA elsewhere, so share-driven signup becomes measurable, using only
+   existing controlled dimensions.
+7. Tap target ≥ 40 px; no horizontal overflow at 375 × 812.
+
+**Required tests.** Component tests for anonymous vs owner vs memorial;
+analytics emission test; a mobile layout assertion.
+
+**Risk.** Medium — this page is the product's public face. The failure mode is
+tonal, not technical.
+
+**Codex effort:** **Medium.** → Product should approve the copy and placement
+before implementation.
+
+---
+
+## MPL-GROWTH-FIX-003 — Share Cards render a blank panel without a photo, and never show the real logo
+
+**Status:** Ready · **Priority:** G1
+
+**Problem.** Two rendering defects make the shareable image markedly weaker than
+its layout intends. Both live in code shared with the existing Open Graph card,
+and both were reproduced on the OG card too — they are **pre-existing**, not
+introduced by `MPL-GROWTH-002`, but the portrait cards make them dominant.
+
+**Evidence (rendered 1080 × 1350 JPEGs, 2026-08-17).**
+
+1. **The photo-less hero renders as a near-empty white panel** occupying roughly
+   55% of the card. `DrawCover`'s fallback builds a three-stop gradient but
+   assigns it to a paint created by `Paint()`, whose `Color` is
+   `SKColors.Transparent`. Skia modulates a shader by the paint's alpha, so the
+   gradient is drawn at alpha 0. Only the white paw watermark survives. The same
+   blank panel appears on the existing OG card.
+2. **The brand logo never loads.** `LoadLogo()` reads
+   `Assets/logo-horizontal.png` relative to the content root; the repository
+   ships `apps/api/MyPetLink.Api/Assets/Brand/mypetlink-logo-horizontal.png`.
+   Every card therefore falls back to plain "MyPetLink" text.
+
+**User / growth impact.** A new owner's very first share is the product's first
+impression on a dozen strangers. A profile without a photo currently produces an
+image that looks unfinished, and no card carries real branding. Both directly
+reduce the value of every share.
+
+**Exact surface.**
+`apps/api/MyPetLink.Api/Services/PublicProfileSocialCardRenderer.cs` —
+`DrawCover` fallback branch, `LoadLogo`, and `Paint`.
+
+**Acceptance criteria**
+1. A pet with no photo and no cover produces a deliberately designed panel, not
+   a blank one, on every variant **and** on the existing Open Graph card.
+2. The real brand logo renders on every variant; if the asset is genuinely
+   missing the text fallback still applies.
+3. Photo-bearing cards are unchanged.
+4. A test asserts the fallback panel is not a single flat colour — for example,
+   by sampling pixels at opposite corners of the hero and requiring a
+   difference.
+5. A test asserts the logo asset resolves from the content root.
+
+**Required tests.** Renderer tests for the no-photo fallback on all four
+variants, a logo-resolution test, and confirmation that the OG card's byte
+output changes only in the fallback case.
+
+**Risk.** Medium — a shared production renderer; Open Graph output changes.
+
+**Codex effort:** **Medium.**
+
+**Note.** This review could not verify the photo-bearing card at all: the local
+database has 39 pets and **zero** with a profile or cover photo, and the
+renderer's host allowlist only accepts `media.mypetlink.com.my` or the
+configured R2 public host. Verify the photo path against a staging environment
+with real R2 media before promoting Share Cards.
+
+---
+
+## MPL-GROWTH-FIX-004 — Share Card success actions emit no analytics
+
+**Status:** Ready · **Priority:** G1
+
+**Problem.** `share_card_shared` fires **only** on a successful
+`navigator.share`. The other three success paths are silent.
+
+**Evidence (code, confirmed against the live modal).**
+- `PetShareCard.handleSave` — downloads the image, emits nothing.
+- `PetShareCard.copyProfileLink` — calls `copyTextToClipboard` directly and
+  emits nothing (it does not reuse the `share_link_copied` event that
+  `ShareProfileLink` fires).
+- `handleShare` with no Web Share support falls through to `copyProfileLink`,
+  also silent.
+
+On the review's desktop run the modal exposed **Save Image**, **Copy Profile
+Link** and **Open Image**; on a browser without Web Share these are the *only*
+ways to succeed.
+
+**User / growth impact.** `share_card_viewed` will show opens while
+`share_card_shared` shows near-zero on desktop, making the feature look like it
+fails when it is working. `share_card_viewed` also fires from the image `onLoad`
+handler, so a failed preview records neither a view nor an error — a broken card
+is invisible in analytics.
+
+**Exact surface.** `apps/web/src/components/share/PetShareCard.tsx`,
+`apps/web/src/lib/analytics.ts`.
+
+**Acceptance criteria**
+1. Saving the image, copying the profile link from the modal, and opening the
+   image each emit an event carrying `card_variant`.
+2. The distinction between "shared natively" and "saved/copied" is preserved.
+3. Every new value passes the runtime allowlist; no identifier, slug, name, or
+   free text is emitted.
+4. A failed preview is distinguishable from a card that was never opened.
+5. `docs/operations/product-analytics.md` is updated with the new rows.
+
+**Required tests.** Component tests asserting one event per action, with the
+correct variant, including the no-Web-Share fallback path.
+
+**Risk.** Low.
+
+**Codex effort:** **Medium.**
+
+---
+
+## MPL-GROWTH-FIX-005 — The first-pet completion heading can never render
+
+**Status:** Ready · **Priority:** G2
+
+**Problem.** `apps/web/src/app/pets/[id]/page.tsx` passes
+`activePetCount={getActivePets(mockPets).length}`. `mockPets` is the static
+local-fallback fixture and contains exactly two active pets, so `isFirstPet` is
+`false` for every real owner. The "Finish {pet}'s profile" framing written for
+the new-owner activation moment is unreachable in production; every owner sees
+"Add more about {pet}".
+
+**Evidence.** Confirmed by code and by live rendering — a two-pet account and a
+freshly created first pet both rendered "Add more about Milo".
+
+**User / growth impact.** Low individually, but it silently disables the one
+piece of copy aimed at the activation moment the whole feature exists to serve.
+It also imports demo fixture data into a production page, which will mislead
+later work.
+
+**Acceptance criteria**
+1. `isFirstPet` reflects the signed-in owner's real active pet count.
+2. `mockPets` is not imported by `apps/web/src/app/pets/[id]/page.tsx`.
+3. A single-pet account renders "Finish {pet}'s profile"; a multi-pet account
+   renders "Add more about {pet}".
+
+**Required tests.** Component test for both headings.
+
+**Risk.** Low. Ships naturally with `MPL-GROWTH-FIX-001`.
+
+**Codex effort:** **Medium.**
+
+---
+
+## G2 — Recorded, not scheduled
+
+These are product judgements from the review, not defects. No work item yet.
+
+- **Dashboard action button reads only "Add".** The compact card shows
+  "Add more about {pet} · 65% complete · [Add]". The accessible label is
+  correct ("Add Milo's profile photo"), but a sighted owner cannot see *what*
+  the button adds without tapping. Naming the next step would make the most-seen
+  growth surface self-explanatory.
+- **Occasion availability window.** Birthday and adoption cards exist only on
+  the exact Malaysia calendar day, at both the client and the origin. An owner
+  who opens the app the next morning has missed it entirely. Recommendation:
+  widen to roughly 7 days before through 7 days after, with the day itself
+  highlighted, once there is usage data. This changes the origin's
+  `PetOccasionCalculator` guard and the per-day cache key, so it is not a copy
+  change.
+- **"First care record" in a sharing checklist.** Care records do not appear on
+  the card and do not make a profile more shareable; the item lengthens the
+  checklist without serving the loop. Weighted 1, so the cost is small.
+- **Weighting review.** After seeing the real UX the weights hold. Photo (3) is
+  correctly the joint-highest — it is the single biggest determinant of whether
+  a shared card looks finished, which `MPL-GROWTH-FIX-003` reinforces.
 
 ---
 
@@ -684,6 +998,11 @@ required.**
 | MPL-GROWTH-002 | Codex | Medium | No |
 | MPL-GROWTH-003 | Codex | **High** | Optional (edge caching + privacy) |
 | MPL-GROWTH-004 | Codex | Medium | No |
+| MPL-GROWTH-FIX-001 | Codex | Medium | No |
+| MPL-GROWTH-FIX-002 | Codex | Medium | No — but Product approves copy/placement first |
+| MPL-GROWTH-FIX-003 | Codex | Medium | No — verify photo-bearing cards on staging |
+| MPL-GROWTH-FIX-004 | Codex | Medium | No |
+| MPL-GROWTH-FIX-005 | Codex | Medium | No |
 | MPL-PREM-001 | Codex | **High** | **Yes** — schema + uniqueness invariant |
 | MPL-PREM-002 | Codex | **High** | **Yes** — worker scheduling + dedupe |
 | MPL-PREM-003 | Codex | Medium | No |
