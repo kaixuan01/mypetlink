@@ -32,10 +32,18 @@ navigation, without autocapture.
 | `share_link_copied` | Clipboard write succeeds | `surface=public_profile|owner_portal` |
 | `share_card_viewed` | The generated owner Share Card preview loads successfully | `card_variant=profile|birthday|adoption` |
 | `share_card_shared` | A native Share Card share request resolves without cancellation or rejection | `card_variant=profile|birthday|adoption` |
+| `create_profile_cta_clicked` | A visitor uses the closing "Create a profile for your pet" invitation on a shared public profile | `surface=public_profile` |
 | `care_record_created` | Care-record create request succeeds; edits excluded | `source=owner_portal`, controlled `record_type` |
 | `smart_tag_viewed` | Owner or pet Smart Tags screen opens | `surface=owner_tags|pet_tags` |
 | `order_started` | Smart Tag order flow opens | `source=owner_portal`, `tag_type=qr|qr_nfc` |
 | `order_submitted` | Order create request succeeds | `source=owner_portal`, `tag_type=qr|qr_nfc|mixed`, bounded `item_count` |
+
+`create_profile_cta_clicked` is emitted only where the create-profile control is
+a measured acquisition step. It carries the surface and nothing else, so a click
+arriving from a shared pet profile can be told apart from the same control on
+the marketing pages without ever identifying the pet, the profile, or the owner.
+Attributing a completed signup back to that click is deliberately not attempted
+yet; it needs the signup events below.
 
 `signup_started` and `signup_completed` are intentionally absent. The current
 Google sign-in response does not distinguish a newly created account from a

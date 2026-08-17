@@ -12,6 +12,8 @@ import {
   PrivateMemorialOwnerAction,
   PublicProfileOwnerControls,
 } from "@/components/marketing/PublicProfileOwnerControls";
+import { PublicProfileCreateCTA } from "@/components/marketing/PublicProfileCreateCTA";
+import { useOwnedPublicProfilePet } from "@/components/marketing/useOwnedPublicProfilePet";
 import { LostModeContactActions } from "@/components/marketing/LostModeContactActions";
 import { LostModeFinderDetails } from "@/components/marketing/LostModeFinderDetails";
 import { SafetyAllergies } from "@/components/marketing/SafetyAllergies";
@@ -139,6 +141,10 @@ export function PublicSharePetProfile({
   // active. null = not loaded (or still loading).
   const [lostModeContact, setLostModeContact] =
     useState<LostModeContact | null>(null);
+  // Ownership is resolved once here and shared by the owner controls and the
+  // closing visitor invitation, so the page never asks for it twice.
+  const { pet: ownedPet, resolved: ownershipResolved } =
+    useOwnedPublicProfilePet(initialProfile.publicCode);
   useEffect(() => {
     if (profile) {
       setAbsolutePageTitle(publicPetProfileDocumentTitle(profile.name));
@@ -353,7 +359,11 @@ export function PublicSharePetProfile({
 
   if (isMemorial && !profile.memorial.showMemorialOnPublicProfile) {
     return (
-      <PrivateMemorialProfile profile={profile} theme={theme} />
+      <PrivateMemorialProfile
+        ownedPet={ownedPet}
+        profile={profile}
+        theme={theme}
+      />
     );
   }
 
@@ -569,7 +579,11 @@ export function PublicSharePetProfile({
           </section>
         ) : null}
 
-        <PublicProfileOwnerControls profile={profile} theme={theme} />
+        <PublicProfileOwnerControls
+          ownedPet={ownedPet}
+          profile={profile}
+          theme={theme}
+        />
 
         {isActiveProfile && !lostMode && canContact ? (
           <div className="mt-3">
@@ -653,6 +667,10 @@ export function PublicSharePetProfile({
           ) : null}
         </div>
 
+        {isActiveProfile && ownershipResolved && !ownedPet ? (
+          <PublicProfileCreateCTA theme={theme} />
+        ) : null}
+
         <p
           className="mt-6 text-center text-xs font-semibold leading-5 text-pet-muted"
           style={{ color: theme.colors.mutedText }}
@@ -700,9 +718,11 @@ function PublicProfileStatusCard({
 }
 
 function PrivateMemorialProfile({
+  ownedPet,
   profile,
   theme,
 }: {
+  ownedPet: Pet | null;
   profile: PublicPetProfile;
   theme: PetProfileTheme;
 }) {
@@ -758,7 +778,7 @@ function PrivateMemorialProfile({
             {profile.name}&apos;s owner has kept this memorial profile from
             public view.
           </p>
-          <PrivateMemorialOwnerAction profile={profile} />
+          <PrivateMemorialOwnerAction ownedPet={ownedPet} />
         </section>
       </main>
     </article>

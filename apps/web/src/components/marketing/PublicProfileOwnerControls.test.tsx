@@ -1,23 +1,10 @@
 // @vitest-environment jsdom
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { mockPets } from "@/data/mockPets";
 import { getPetProfileTheme } from "@/lib/petProfileThemes";
-
-const ownerMocks = vi.hoisted(() => ({
-  authenticated: true,
-  getOwnedPetByPublicCode: vi.fn(),
-}));
-
-vi.mock("@/services/authService", () => ({
-  isOwnerAuthenticated: () => ownerMocks.authenticated,
-}));
-
-vi.mock("@/services/petService", () => ({
-  getOwnedPetByPublicCode: ownerMocks.getOwnedPetByPublicCode,
-}));
 
 vi.mock("@/lib/features", () => ({
   shareCardsEnabled: true,
@@ -64,18 +51,17 @@ const theme = getPetProfileTheme(profile.profileTheme);
 
 afterEach(cleanup);
 
-beforeEach(() => {
-  ownerMocks.authenticated = true;
-  ownerMocks.getOwnedPetByPublicCode.mockReset();
-});
-
 describe("PublicProfileOwnerControls", () => {
-  it("shows owner management and the correct edit link for the pet owner", async () => {
-    ownerMocks.getOwnedPetByPublicCode.mockResolvedValue({ data: mockPets[0] });
+  it("shows owner management and the correct edit link for the pet owner", () => {
+    render(
+      <PublicProfileOwnerControls
+        ownedPet={mockPets[0]}
+        profile={profile}
+        theme={theme}
+      />
+    );
 
-    render(<PublicProfileOwnerControls profile={profile} theme={theme} />);
-
-    expect(await screen.findByText(/viewing as public/i)).toBeTruthy();
+    expect(screen.getByText(/viewing as public/i)).toBeTruthy();
     expect(screen.getByText("Copy Link")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Share Card" })).toBeTruthy();
     expect(
@@ -87,47 +73,19 @@ describe("PublicProfileOwnerControls", () => {
     ).toBe("/pets/pet_milo/edit");
   });
 
-  it("hides the complete management card for another authenticated user", async () => {
-    ownerMocks.getOwnedPetByPublicCode.mockResolvedValue({ data: null });
-
-    render(<PublicProfileOwnerControls profile={profile} theme={theme} />);
-
-    await waitFor(() =>
-      expect(ownerMocks.getOwnedPetByPublicCode).toHaveBeenCalledWith("k7q2")
+  it("hides the complete management card when the visitor does not own the pet", () => {
+    render(
+      <PublicProfileOwnerControls
+        ownedPet={null}
+        profile={profile}
+        theme={theme}
+      />
     );
+
     expect(screen.queryByLabelText("Owner profile management")).toBeNull();
     expect(screen.queryByText(/viewing as public/i)).toBeNull();
     expect(screen.queryByText("Back to Edit")).toBeNull();
     expect(screen.getByText("Share profile")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Share Card" })).toBeNull();
-  });
-
-  it("hides management for a logged-out visitor", () => {
-    ownerMocks.authenticated = false;
-
-    render(<PublicProfileOwnerControls profile={profile} theme={theme} />);
-
-    expect(ownerMocks.getOwnedPetByPublicCode).not.toHaveBeenCalled();
-    expect(screen.queryByLabelText("Owner profile management")).toBeNull();
-    expect(screen.queryByText("Back to Edit")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Share Card" })).toBeNull();
-  });
-
-  it("does not flash management while ownership is loading", async () => {
-    let resolveOwnership: (value: { data: null }) => void = () => undefined;
-    ownerMocks.getOwnedPetByPublicCode.mockReturnValue(
-      new Promise((resolve) => {
-        resolveOwnership = resolve;
-      })
-    );
-
-    render(<PublicProfileOwnerControls profile={profile} theme={theme} />);
-
-    await waitFor(() => expect(ownerMocks.getOwnedPetByPublicCode).toHaveBeenCalled());
-    expect(screen.queryByLabelText("Owner profile management")).toBeNull();
-    expect(screen.queryByText(/viewing as public/i)).toBeNull();
-    expect(screen.queryByText("Back to Edit")).toBeNull();
-
-    resolveOwnership({ data: null });
   });
 });

@@ -16,15 +16,29 @@ const publicProfileMocks = vi.hoisted(() => ({
   profile: null as (typeof mockPets)[number] | null,
   moments: [] as PetMoment[],
   getProfile: vi.fn(),
+  authenticated: false,
+  ownedPet: null as unknown,
+  push: vi.fn(),
 }));
 
 vi.mock("@/services/apiConfig", () => ({
   isApiConfigured: () => false,
 }));
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: publicProfileMocks.push }),
+}));
+
+vi.mock("@/services/authService", () => ({
+  isOwnerAuthenticated: () => publicProfileMocks.authenticated,
+}));
+
 vi.mock("@/services/petService", () => ({
   getPublicPetProfileByPublicCode: (...args: unknown[]) =>
     publicProfileMocks.getProfile(...args),
+  getOwnedPetByPublicCode: async () => ({
+    data: publicProfileMocks.ownedPet,
+  }),
 }));
 
 vi.mock("@/services/momentService", () => ({
@@ -54,6 +68,8 @@ const { PublicSharePetProfile } = await import(
 );
 
 beforeEach(() => {
+  publicProfileMocks.authenticated = false;
+  publicProfileMocks.ownedPet = null;
   publicProfileMocks.getProfile.mockImplementation(async () => ({
     data: publicProfileMocks.profile,
   }));
@@ -62,8 +78,12 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   publicProfileMocks.moments = [];
+  publicProfileMocks.authenticated = false;
+  publicProfileMocks.ownedPet = null;
   vi.clearAllMocks();
 });
+
+const createCtaName = "Create a profile for your pet";
 
 it("applies the pet's saved focal position to the public profile cover", async () => {
   const profile = {
@@ -510,4 +530,140 @@ it("shows allergies only when explicit Public Profile visibility is enabled", as
   expect(screen.getByText("Chicken")).toBeTruthy();
   expect(screen.getByText("Penicillin")).toBeTruthy();
   expect(document.body.textContent).not.toContain('["Chicken"');
+});
+
+it("closes the loop for a visitor with one invitation after the pet's content, above the public-information notice", async () => {
+  const profile = mockPets[0];
+  publicProfileMocks.profile = profile;
+
+  const { container } = render(
+    <PublicSharePetProfile
+      initialMoments={[]}
+      initialProfile={profile}
+      initialRecords={[]}
+    />
+  );
+
+  const heading = await screen.findByRole("heading", { name: createCtaName });
+  expect(
+    screen.getByRole("button", { name: "Create your pet's profile" })
+  ).toBeTruthy();
+
+  // Exactly one invitation, so the page never reads as an advertisement.
+  expect(screen.getAllByRole("heading", { name: createCtaName })).toHaveLength(1);
+
+  const notice = screen.getByText(
+    /Powered by MyPetLink\. This profile only shows owner-approved public information\./
+  );
+  const section = heading.closest("section")!;
+  expect(
+    section.compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING
+  ).toBeTruthy();
+
+  // The pet still leads the page.
+  const petHeading = screen.getByRole("heading", { name: profile.name });
+  expect(
+    petHeading.compareDocumentPosition(section) &
+      Node.DOCUMENT_POSITION_FOLLOWING
+  ).toBeTruthy();
+
+  expect(container.textContent).toContain(
+    "Keep their profile, moments and care details together with MyPetLink."
+  );
+});
+
+it("does not invite the pet's own owner to create a profile", async () => {
+  const profile = mockPets[0];
+  publicProfileMocks.profile = profile;
+  publicProfileMocks.authenticated = true;
+  publicProfileMocks.ownedPet = profile;
+
+  render(
+    <PublicSharePetProfile
+      initialMoments={[]}
+      initialProfile={profile}
+      initialRecords={[]}
+    />
+  );
+
+  await screen.findByText(`About ${profile.name}`);
+  await waitFor(() =>
+    expect(screen.queryByRole("heading", { name: createCtaName })).toBeNull()
+  );
+});
+
+it("still invites an authenticated visitor who does not own the pet", async () => {
+  const profile = mockPets[0];
+  publicProfileMocks.profile = profile;
+  publicProfileMocks.authenticated = true;
+  publicProfileMocks.ownedPet = null;
+
+  render(
+    <PublicSharePetProfile
+      initialMoments={[]}
+      initialProfile={profile}
+      initialRecords={[]}
+    />
+  );
+
+  expect(
+    await screen.findByRole("heading", { name: createCtaName })
+  ).toBeTruthy();
+});
+
+it("keeps the invitation off memorial and archived profiles", async () => {
+  const memorialProfile = {
+    ...mockPets[0],
+    lifecycleStatus: "Memorial" as const,
+    memorial: {
+      ...mockPets[0].memorial,
+      showMemorialOnPublicProfile: true,
+    },
+  };
+  publicProfileMocks.profile = memorialProfile;
+
+  const { unmount } = render(
+    <PublicSharePetProfile
+      initialMoments={[]}
+      initialProfile={memorialProfile}
+      initialRecords={[]}
+    />
+  );
+
+  await screen.findByText(`About ${memorialProfile.name}`);
+  expect(screen.queryByRole("heading", { name: createCtaName })).toBeNull();
+  unmount();
+
+  const archivedProfile = {
+    ...mockPets[0],
+    lifecycleStatus: "Archived" as const,
+  };
+  publicProfileMocks.profile = archivedProfile;
+
+  render(
+    <PublicSharePetProfile
+      initialMoments={[]}
+      initialProfile={archivedProfile}
+      initialRecords={[]}
+    />
+  );
+
+  await screen.findByText(`About ${archivedProfile.name}`);
+  expect(screen.queryByRole("heading", { name: createCtaName })).toBeNull();
+});
+
+it("keeps the invitation off an unavailable profile", async () => {
+  const profile = mockPets[0];
+  publicProfileMocks.profile = null;
+
+  render(
+    <PublicSharePetProfile
+      initialMoments={[]}
+      initialProfile={profile}
+      initialRecords={[]}
+    />
+  );
+
+  await screen.findByText("Pet profile not found");
+  expect(screen.queryByRole("heading", { name: createCtaName })).toBeNull();
 });

@@ -14,6 +14,7 @@ export const AnalyticsEvent = {
   CompletionActionClicked: "completion_action_clicked",
   ShareCardViewed: "share_card_viewed",
   ShareCardShared: "share_card_shared",
+  CreateProfileCtaClicked: "create_profile_cta_clicked",
 } as const;
 
 export type AnalyticsSurface =
@@ -70,6 +71,7 @@ type AnalyticsPayloads = {
   };
   share_card_viewed: { card_variant: AnalyticsCardVariant };
   share_card_shared: { card_variant: AnalyticsCardVariant };
+  create_profile_cta_clicked: { surface: "public_profile" };
 };
 
 type AnalyticsEventName = keyof AnalyticsPayloads;
@@ -128,6 +130,7 @@ const allowedKeys: Record<AnalyticsEventName, readonly string[]> = {
   completion_action_clicked: ["surface", "completion_item"],
   share_card_viewed: ["card_variant"],
   share_card_shared: ["card_variant"],
+  create_profile_cta_clicked: ["surface"],
 };
 
 export function getAnalyticsMeasurementId(

@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { ShareProfileLink } from "@/components/share/ShareProfileLink";
 import { PetShareCard } from "@/components/share/PetShareCard";
 import { CTAButton } from "@/components/ui/CTAButton";
@@ -13,56 +12,23 @@ import {
   getPublicProfileShareVersion,
 } from "@/lib/publicProfileSocial";
 import { ownerRoutes } from "@/lib/routes";
-import { isOwnerAuthenticated } from "@/services/authService";
-import { getOwnedPetByPublicCode } from "@/services/petService";
 import type { Pet, PublicPetProfile } from "@/types";
 
 type OwnerControlProps = {
   profile: PublicPetProfile;
   theme: PetProfileTheme;
+  /**
+   * Resolved once by the page (see useOwnedPublicProfilePet) so ownership is
+   * requested a single time and shared by every owner-aware section.
+   */
+  ownedPet: Pet | null;
 };
-
-function useOwnedPublicProfilePet(publicCode: string) {
-  const [resolution, setResolution] = useState<{
-    publicCode: string;
-    pet: Pet | null;
-  } | null>(null);
-
-  useEffect(() => {
-    let active = true;
-
-    if (!isOwnerAuthenticated()) {
-      return () => {
-        active = false;
-      };
-    }
-
-    void getOwnedPetByPublicCode(publicCode)
-      .then((response) => {
-        if (active) {
-          setResolution({ publicCode, pet: response.data });
-        }
-      })
-      .catch(() => {
-        if (active) {
-          setResolution({ publicCode, pet: null });
-        }
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [publicCode]);
-
-  return resolution?.publicCode === publicCode ? resolution.pet : null;
-}
 
 export function PublicProfileOwnerControls({
   profile,
   theme,
+  ownedPet,
 }: OwnerControlProps) {
-  const ownedPet = useOwnedPublicProfilePet(profile.publicCode);
-
   // Public share remains available while ownership is checked. The management
   // card is intentionally absent until an owned pet has been verified.
   if (!ownedPet) {
@@ -129,10 +95,8 @@ export function PublicProfileOwnerControls({
 }
 
 export function PrivateMemorialOwnerAction({
-  profile,
-}: Pick<OwnerControlProps, "profile">) {
-  const ownedPet = useOwnedPublicProfilePet(profile.publicCode);
-
+  ownedPet,
+}: Pick<OwnerControlProps, "ownedPet">) {
   if (!ownedPet) {
     return null;
   }

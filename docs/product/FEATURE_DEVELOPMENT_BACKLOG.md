@@ -25,7 +25,7 @@ Phase G2 — Seasonal reach
   MPL-GROWTH-004   Birthday / Adoption card variants     Done
 
 Phase G3 — Free growth loop fixes (from the 2026-08-17 review)
-  MPL-GROWTH-FIX-002  Public profile acquisition CTA     Ready   G1 (highest value)
+  MPL-GROWTH-FIX-002  Public profile acquisition CTA     Done    G1 (highest value)
   MPL-GROWTH-FIX-001  Dashboard completion/occasion data Done    G1
   MPL-GROWTH-FIX-003  Card fallback, logo + profile QR   Done    G1
   MPL-GROWTH-FIX-004  Share Card action analytics        Ready   G1
@@ -339,7 +339,33 @@ test asserting dashboard and pet-page percentages agree for identical data.
 
 ## MPL-GROWTH-FIX-002 — The Public Share Profile gives a recipient no way to create their own profile
 
-**Status:** Ready · **Priority:** G1 — highest value in this backlog
+**Status:** Done (2026-08-17) · **Priority:** G1 — highest value in this backlog
+
+**Implemented.** A shared pet profile now closes with one calm invitation —
+"Create a profile for your pet" / "Keep their profile, moments and care details
+together with MyPetLink." / **Create your pet's profile** — placed after the
+pet's content and before the public-information notice, in
+`apps/web/src/components/marketing/PublicProfileCreateCTA.tsx`.
+
+It reuses `CreateProfileCTA`, so redirect behaviour is unchanged and
+unduplicated: a signed-out visitor goes to `/login?redirect=%2Fpets%2Fnew` and a
+signed-in visitor goes straight to `/pets/new`. Ownership is now resolved once
+per page by `useOwnedPublicProfilePet` and shared with the owner controls, so
+the invitation is hidden for the pet's own owner without adding a request — a
+logged-out visitor still triggers none at all. The invitation is absent on
+memorial, archived, private and unavailable profiles.
+
+One bounded event was added, `create_profile_cta_clicked` with
+`surface=public_profile`; see
+[`../operations/product-analytics.md`](../operations/product-analytics.md).
+Signup attribution remains deliberately out of scope.
+
+Verified in a real browser against a local API and Cloudflare Pages build:
+anonymous mobile (375 × 812) shows exactly one invitation after the pet content
+and above the notice, no horizontal overflow, no console errors, 50 px tap
+target; the click lands on `/login?redirect=%2Fpets%2Fnew`; the owner sees the
+management controls and no invitation; an authenticated non-owner sees the
+invitation and reaches `/pets/new` without re-authenticating.
 
 **Problem.** Every share lands on `/p/:slug`. That page contains **no**
 acquisition path.
