@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { samplePet } from "@/data/samplePet";
 import {
+  getAvailablePetShareCardOptions,
   addPublicProfileShareVersion,
   getPublicProfileSocialDescription,
   getPetShareCardFileName,
@@ -64,6 +65,41 @@ describe("public profile social sharing", () => {
     expect(getPetShareCardFileName("A".repeat(100)).length).toBeLessThanOrEqual(
       65
     );
+    expect(getPetShareCardFileName("Milo", "birthday")).toBe(
+      "mypetlink-milo-birthday-card.jpg"
+    );
+    expect(getPetShareCardFileName("Milo", "adoption")).toBe(
+      "mypetlink-milo-adoption-card.jpg"
+    );
+  });
+
+  it("offers only eligible card variants for the Malaysia calendar day", () => {
+    const profile = {
+      ...toPublicProfile(samplePet),
+      birthday: "2025-08-17",
+      adoptionDay: "2022-08-17",
+      lifecycleStatus: "Active" as const,
+      publicProfileVersion: "0123456789abcdef",
+    };
+
+    const full = getAvailablePetShareCardOptions(
+      profile,
+      new Date("2026-08-16T16:00:00Z")
+    );
+    expect(full.map((option) => option.variant)).toEqual([
+      "profile",
+      "birthday",
+      "adoption",
+    ]);
+    expect(full[1].imagePath).toContain("variant=birthday");
+    expect(full[2].imagePath).toContain("variant=adoption");
+
+    expect(
+      getAvailablePetShareCardOptions(
+        { ...profile, birthday: "", adoptionDay: "" },
+        new Date("2026-08-16T16:00:00Z")
+      ).map((option) => option.variant)
+    ).toEqual(["profile"]);
   });
 
   it("retains a deterministic local fallback before an API version is available", () => {

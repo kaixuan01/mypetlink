@@ -1,5 +1,7 @@
 import { getPetTypeLabel } from "@/lib/petDisplay";
 import type { PublicPetProfile } from "@/types";
+import type { PetShareCardVariant } from "@/lib/petOccasions";
+import { derivePetOccasions } from "@/lib/petOccasions";
 
 export const publicProfileSocialImageSize = {
   width: 1200,
@@ -49,6 +51,9 @@ type SocialProfileFields = Pick<
   | "species"
   | "visibility"
 >;
+
+type OccasionSocialProfileFields = SocialProfileFields &
+  Pick<PublicPetProfile, "birthday" | "adoptionDay">;
 
 const unavailableValues = new Set([
   "",
@@ -120,12 +125,35 @@ export function getPublicProfileSocialImagePath(profile: SocialProfileFields) {
 }
 
 export function getPublicProfileShareCardImagePath(
-  profile: SocialProfileFields
+  profile: SocialProfileFields,
+  variant: PetShareCardVariant = "profile"
 ) {
-  return `${getPublicProfileSocialImagePath(profile)}&variant=share-card`;
+  const queryVariant = variant === "profile" ? "share-card" : variant;
+  return `${getPublicProfileSocialImagePath(profile)}&variant=${queryVariant}`;
 }
 
-export function getPetShareCardFileName(petName: string) {
+export function getAvailablePetShareCardOptions(
+  profile: OccasionSocialProfileFields,
+  now: Date = new Date()
+) {
+  return [
+    {
+      variant: "profile" as const,
+      label: "Profile",
+      imagePath: getPublicProfileShareCardImagePath(profile, "profile"),
+    },
+    ...derivePetOccasions(profile, now).map((occasion) => ({
+      variant: occasion.variant,
+      label: occasion.label,
+      imagePath: getPublicProfileShareCardImagePath(profile, occasion.variant),
+    })),
+  ];
+}
+
+export function getPetShareCardFileName(
+  petName: string,
+  variant: PetShareCardVariant = "profile"
+) {
   const safeName = cleanSocialText(petName, 48)
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -134,7 +162,8 @@ export function getPetShareCardFileName(petName: string) {
     .replace(/^-+|-+$/g, "")
     .slice(0, 40)
     .replace(/-+$/g, "");
-  return `mypetlink-${safeName || "pet"}-share-card.jpg`;
+  const suffix = variant === "profile" ? "share-card" : `${variant}-card`;
+  return `mypetlink-${safeName || "pet"}-${suffix}.jpg`;
 }
 
 export function addPublicProfileShareVersion(path: string, version?: string) {

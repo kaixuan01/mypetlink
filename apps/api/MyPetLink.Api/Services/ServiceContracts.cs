@@ -112,6 +112,10 @@ public interface IPublicProfileService : ISkeletonService
     Task<PublicProfileSocialResponse> GetSocialByPublicSlugAsync(
         string publicSlug,
         CancellationToken cancellationToken = default);
+
+    Task<PublicProfileCardOccasions> GetSocialCardOccasionsAsync(
+        string publicSlug,
+        CancellationToken cancellationToken = default);
 }
 
 public interface IPublicSampleExperienceService : ISkeletonService
@@ -136,6 +140,8 @@ public interface IPublicProfileSocialCardRenderer
     Task<byte[]> RenderAsync(
         PublicProfileSocialResponse profile,
         PublicProfileSocialCardVariant variant = PublicProfileSocialCardVariant.OpenGraph,
+        int? occasionCount = null,
+        string? occasionCacheIdentity = null,
         CancellationToken cancellationToken = default);
 }
 

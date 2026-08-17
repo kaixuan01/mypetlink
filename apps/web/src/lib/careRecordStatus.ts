@@ -92,6 +92,13 @@ function dashboardDateScore(record: CareRecord) {
 }
 
 function malaysiaTodayScore(now: Date) {
+  const values = getMalaysiaCalendarDateParts(now);
+  return Math.floor(
+    Date.UTC(values.year, values.month - 1, values.day) / millisecondsPerDay
+  );
+}
+
+export function getMalaysiaCalendarDateParts(now: Date = new Date()) {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: MALAYSIA_TIME_ZONE,
     year: "numeric",
@@ -99,10 +106,11 @@ function malaysiaTodayScore(now: Date) {
     day: "2-digit",
   }).formatToParts(now);
   const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  return Math.floor(
-    Date.UTC(Number(values.year), Number(values.month) - 1, Number(values.day)) /
-      millisecondsPerDay
-  );
+  return {
+    year: Number(values.year),
+    month: Number(values.month),
+    day: Number(values.day),
+  };
 }
 
 function isValidCalendarDate(year: number, month: number, day: number) {

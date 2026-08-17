@@ -8,6 +8,7 @@ import { Icon } from "@/components/ui/Icon";
 import type { PetProfileTheme } from "@/lib/petProfileThemes";
 import { shareCardsEnabled } from "@/lib/features";
 import {
+  getAvailablePetShareCardOptions,
   getPublicProfileShareCardImagePath,
   getPublicProfileShareVersion,
 } from "@/lib/publicProfileSocial";
@@ -111,6 +112,7 @@ export function PublicProfileOwnerControls({
             petName={profile.name}
             profilePath={profile.publicProfilePath}
             shareVersion={getPublicProfileShareVersion(profile)}
+            variants={getAvailablePetShareCardOptions(profile)}
           />
         ) : null}
         <CTAButton

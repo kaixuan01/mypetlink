@@ -4,7 +4,7 @@ export const productionSiteOrigin = "https://mypetlink.com.my";
 export const socialCardCacheControl =
   "public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400";
 
-export type SocialCardVariant = "open-graph" | "share-card";
+export type SocialCardVariant = "open-graph" | "share-card" | "birthday" | "adoption";
 
 const socialCardVariants = {
   "open-graph": {
@@ -14,6 +14,14 @@ const socialCardVariants = {
   "share-card": {
     queryValue: "share-card",
     templateVersion: "pet-share-card-v1",
+  },
+  birthday: {
+    queryValue: "birthday",
+    templateVersion: "pet-birthday-card-v1",
+  },
+  adoption: {
+    queryValue: "adoption",
+    templateVersion: "pet-adoption-card-v1",
   },
 } as const satisfies Record<
   SocialCardVariant,
@@ -204,6 +212,8 @@ export async function handleSocialCardRequest(
     cacheUrl.searchParams.set("variant", variantConfig.queryValue);
     cacheUrl.searchParams.set("template", variantConfig.templateVersion);
   }
+  const occasionDay = isOccasionVariant(variant) ? malaysiaCalendarDay() : null;
+  if (occasionDay) cacheUrl.searchParams.set("day", occasionDay);
   const cacheKey = new Request(cacheUrl, { method: "GET" });
   const cache = dependencies.cache ?? caches.default;
   const cached = await cache.match(cacheKey);
@@ -217,7 +227,7 @@ export async function handleSocialCardRequest(
     );
   }
 
-  const inflightKey = `${currentSlug}:${profile.publicProfileVersion}:${variant}:${variantConfig.templateVersion}`;
+  const inflightKey = `${currentSlug}:${profile.publicProfileVersion}:${variant}:${variantConfig.templateVersion}:${occasionDay ?? ""}`;
   let generation = socialCardInflight.get(inflightKey);
   if (!generation) {
     generation = fetchSocialCardFromApi(context.env, profile, variant, fetcher);
@@ -230,6 +240,7 @@ export async function handleSocialCardRequest(
     context.waitUntil(cache.put(cacheKey, cacheResponse.clone()));
     return cacheResponse;
   } catch (error) {
+    if (error instanceof SocialCardNotFoundError) return notFoundImageResponse();
     console.error("MyPetLink social-card proxy failed.", safeErrorMessage(error));
     return new Response("Social card temporarily unavailable.", {
       headers: { "Cache-Control": "no-store" },
@@ -431,13 +442,14 @@ async function fetchSocialCardFromApi(
     },
     cardFetchTimeoutMs
   );
+  if (response.status === 404) throw new SocialCardNotFoundError();
   if (!response.ok) throw new Error("Social-card origin returned an error.");
 
   const templateVersion = response.headers.get(
     "x-social-card-template-version"
   );
   if (
-    variant === "share-card" &&
+    variant !== "open-graph" &&
     templateVersion !== variantConfig.templateVersion
   ) {
     throw new Error("Social-card origin returned the wrong template.");
@@ -464,10 +476,10 @@ async function fetchSocialCardFromApi(
   return {
     bytes,
     contentType: "image/jpeg",
-    etag:
-      variant === "share-card"
-        ? `"${profile.publicProfileVersion}-${variantConfig.templateVersion}"`
-        : `"${profile.publicProfileVersion}"`,
+    etag: response.headers.get("etag") ??
+      (variant === "open-graph"
+        ? `"${profile.publicProfileVersion}"`
+        : `"${profile.publicProfileVersion}-${variantConfig.templateVersion}"`),
     templateVersion: variantConfig.templateVersion,
     variant,
     version: profile.publicProfileVersion,
@@ -504,12 +516,8 @@ function withCardResponseHeaders(
   const headers = new Headers(response.headers);
   headers.set("Cache-Control", socialCardCacheControl);
   headers.set("Content-Type", "image/jpeg");
-  headers.set(
-    "ETag",
-    variant === "share-card"
-      ? `"${version}-${templateVersion}"`
-      : `"${version}"`
-  );
+  if (variant === "open-graph") headers.set("ETag", `"${version}"`);
+  else if (!headers.has("ETag")) headers.set("ETag", `"${version}-${templateVersion}"`);
   headers.set("X-Public-Profile-Version", version);
   headers.set("X-Social-Card-Cache", cacheStatus);
   headers.set("X-Social-Card-Template-Version", templateVersion);
@@ -520,13 +528,31 @@ function withCardResponseHeaders(
 
 function getSocialCardVariant(request: Request): SocialCardVariant {
   try {
-    return new URL(request.url).searchParams.get("variant") === "share-card"
-      ? "share-card"
+    const value = new URL(request.url).searchParams.get("variant");
+    return value === "share-card" || value === "birthday" || value === "adoption"
+      ? value
       : "open-graph";
   } catch {
     return "open-graph";
   }
 }
+
+function isOccasionVariant(variant: SocialCardVariant) {
+  return variant === "birthday" || variant === "adoption";
+}
+
+function malaysiaCalendarDay(now: Date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kuala_Lumpur",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+class SocialCardNotFoundError extends Error {}
 
 function createUnavailableProfileResponse(state: "not-found" | "error") {
   const status = state === "not-found" ? 404 : 503;

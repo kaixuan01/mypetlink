@@ -29,11 +29,25 @@ forwards only the controlled `share-card` variant, requires renderer identity
 `pet-share-card-v1`, and keeps that identity in the cache key and response ETag.
 Unknown variants continue to resolve to the ordinary Open Graph card.
 
+Two occasion variants use the same renderer and 1080 x 1350 JPEG output:
+
+- `variant=birthday` with template `pet-birthday-card-v1`;
+- `variant=adoption` with template `pet-adoption-card-v1`.
+
+They are available only when the exact stored date matches today in the
+Malaysia calendar. Estimated birth years do not qualify, and Memorial or
+Archived pets are excluded. The restricted social DTO is unchanged: the API
+derives only the celebration count internally and never adds an exact date to
+the edge projection. Occasion cache keys also contain the current Malaysia day,
+so a card from a previous anniversary cannot be reused in a later year.
+
 The owner Share Card controls are build-time gated by
 `NEXT_PUBLIC_SHARE_CARDS_ENABLED` (default `false`). Turning the owner UI off
 does not remove either image route. The image is requested only after an owner
-opens the Share Card dialog; ordinary Dashboard, pet management, and Public
-Share Profile loads do not generate it.
+opens the Share Card dialog. The Dashboard may show a lightweight occasion
+prompt from pet data it already holds, but ordinary Dashboard, pet management,
+and Public Share Profile loads do not request or generate image bytes. Only the
+selected modal variant is loaded.
 
 ## Required configuration
 
@@ -91,9 +105,11 @@ curl.exe -A "facebookexternalhit/1.1" "http://127.0.0.1:8788/p/{new-pet-slug}"
 curl.exe -A "WhatsApp/2.0" "http://127.0.0.1:8788/p/{new-pet-slug}"
 curl.exe -I "http://127.0.0.1:8788/social/pets/{new-pet-slug}.jpg?v={version}"
 curl.exe -I "http://127.0.0.1:8788/social/pets/{new-pet-slug}.jpg?v={version}&variant=share-card"
+curl.exe -I "http://127.0.0.1:8788/social/pets/{new-pet-slug}.jpg?v={version}&variant=birthday"
+curl.exe -I "http://127.0.0.1:8788/social/pets/{new-pet-slug}.jpg?v={version}&variant=adoption"
 ```
 
-Update the name or public photos and repeat without rebuilding. Confirm the metadata and `X-Public-Profile-Version` changed, both images are JPEG, the Share Card reports `X-Social-Card-Template-Version: pet-share-card-v1`, and each second card request reports `X-Social-Card-Cache: HIT` without crossing variants.
+Update the name or public photos and repeat without rebuilding. Confirm the metadata and `X-Public-Profile-Version` changed, all eligible images are JPEG, each variant reports its documented template version, and each second card request reports `X-Social-Card-Cache: HIT` without crossing variants. Occasion routes return `404` when the matching Malaysia day is not today.
 
 ## Production verification
 

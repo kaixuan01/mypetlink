@@ -11,11 +11,13 @@ import { toAbsoluteUrl } from "@/lib/siteUrl";
 import {
   publicProfilesEnabled,
   safetyProfilesOwnerUiEnabled,
+  shareCardsEnabled,
 } from "@/lib/features";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { PetAvatar } from "@/components/ui/PetAvatar";
+import { PetShareCard } from "@/components/share/PetShareCard";
 import { getCareRecordDateTerminology } from "@/lib/careRecordTerminology";
 import {
   getCareRecordStatusLabel,
@@ -31,9 +33,13 @@ import { getEffectivePlanLimits } from "@/lib/planLimits";
 import { deriveProfileCompletion } from "@/lib/profileCompletion";
 import { getActivePets, getMemorialPets } from "@/lib/petLifecycle";
 import {
+  getAvailablePetShareCardOptions,
+  getPublicProfileShareCardImagePath,
+  getPublicProfileShareVersion,
   getPublicProfileSocialDescription,
   getPublicProfileSocialTitle,
 } from "@/lib/publicProfileSocial";
+import { derivePetOccasions, type PetOccasion } from "@/lib/petOccasions";
 import { ownerRoutes } from "@/lib/routes";
 import { isApiConfigured } from "@/services/apiConfig";
 import { getPetMoments } from "@/services/momentService";
@@ -271,6 +277,8 @@ export function DashboardClient({
 
       <DashboardPetsSection pets={pets} />
 
+      {shareCardsEnabled ? <DashboardOccasionSection pets={pets} /> : null}
+
       {completionCandidate ? (
         <ProfileCompletionCard
           compact
@@ -295,6 +303,63 @@ export function DashboardClient({
       </div>
     </div>
   );
+}
+
+function DashboardOccasionSection({ pets }: { pets: Pet[] }) {
+  const now = new Date();
+  const celebrations = pets.flatMap((pet) =>
+    pet.publicProfileEnabled
+      ? derivePetOccasions(pet, now).map((occasion) => ({ pet, occasion }))
+      : []
+  );
+  if (!celebrations.length) return null;
+
+  return (
+    <DashboardSection
+      title="Celebrate today"
+      description="Create a card for today's special moments."
+    >
+      <div className="grid gap-3 md:grid-cols-2">
+        {celebrations.map(({ pet, occasion }) => (
+          <article
+            className="brand-card flex min-w-0 items-center gap-3 rounded-[1.35rem] p-4"
+            key={`${pet.id}-${occasion.variant}`}
+          >
+            <PetAvatar pet={pet} size="sm" />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-extrabold uppercase text-pet-coral">
+                {occasion.label}
+              </p>
+              <p className="mt-0.5 text-sm font-black leading-5 text-pet-ink">
+                {occasionMessage(pet.name, occasion)}
+              </p>
+            </div>
+            <PetShareCard
+              className="shrink-0 px-3 text-xs"
+              imagePath={getPublicProfileShareCardImagePath(pet, occasion.variant)}
+              initialVariant={occasion.variant}
+              petName={pet.name}
+              profilePath={pet.publicProfilePath}
+              shareVersion={getPublicProfileShareVersion(pet)}
+              variants={getAvailablePetShareCardOptions(pet)}
+            />
+          </article>
+        ))}
+      </div>
+    </DashboardSection>
+  );
+}
+
+function occasionMessage(name: string, occasion: PetOccasion) {
+  if (occasion.variant === "birthday") {
+    return occasion.count === 0
+      ? `${name} is celebrating today.`
+      : `${name} turns ${occasion.count} today.`;
+  }
+  if (occasion.count === 0) return `${name} joined your family today.`;
+  return occasion.count === 1
+    ? `One year since ${name} joined your family.`
+    : `${occasion.count} years since ${name} joined your family.`;
 }
 
 type DashboardStatData = {

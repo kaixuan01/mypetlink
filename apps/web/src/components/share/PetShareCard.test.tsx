@@ -93,6 +93,47 @@ describe("PetShareCard", () => {
     });
   });
 
+  it("loads only the selected occasion card and keeps analytics variant-specific", () => {
+    render(
+      <PetShareCard
+        {...defaultProps}
+        variants={[
+          { variant: "profile", label: "Profile", imagePath: defaultProps.imagePath },
+          {
+            variant: "birthday",
+            label: "Birthday",
+            imagePath: "/social/pets/milo-k7q2.jpg?v=abc123&variant=birthday",
+          },
+          {
+            variant: "adoption",
+            label: "Adoption Day",
+            imagePath: "/social/pets/milo-k7q2.jpg?v=abc123&variant=adoption",
+          },
+        ]}
+      />
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Share Card" }));
+    expect(screen.getAllByRole("img")).toHaveLength(1);
+    fireEvent.load(screen.getByRole("img"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Birthday" }));
+    const birthday = screen.getByRole("img", { name: /Birthday Share Card/ });
+    expect(birthday.getAttribute("src")).toContain("variant=birthday");
+    expect(screen.getAllByRole("img")).toHaveLength(1);
+    fireEvent.load(birthday);
+    fireEvent.load(birthday);
+
+    expect(mocks.trackEvent).toHaveBeenCalledWith("share_card_viewed", {
+      card_variant: "birthday",
+    });
+    expect(
+      mocks.trackEvent.mock.calls.filter(
+        ([event, data]) =>
+          event === "share_card_viewed" && data.card_variant === "birthday"
+      )
+    ).toHaveLength(1);
+  });
+
   it("replaces a failed preview with a retry action", () => {
     render(<PetShareCard {...defaultProps} />);
     fireEvent.click(screen.getByRole("button", { name: "Share Card" }));
@@ -126,6 +167,37 @@ describe("PetShareCard", () => {
     expect(data.text).toContain("/p/milo-k7q2?share=abc123");
     expect(mocks.trackEvent).toHaveBeenCalledWith("share_card_shared", {
       card_variant: "profile",
+    });
+  });
+
+  it("shares the selected occasion JPEG with its bounded variant filename", async () => {
+    const share = vi.fn().mockResolvedValue(undefined);
+    setNativeShare(share, () => true);
+    vi.mocked(fetch).mockResolvedValue(jpegResponse());
+
+    render(
+      <PetShareCard
+        {...defaultProps}
+        initialVariant="birthday"
+        variants={[
+          { variant: "profile", label: "Profile", imagePath: defaultProps.imagePath },
+          {
+            variant: "birthday",
+            label: "Birthday",
+            imagePath: "/social/pets/milo-k7q2.jpg?v=abc123&variant=birthday",
+          },
+        ]}
+      />
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Share Card" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Share$/ }));
+
+    await waitFor(() => expect(share).toHaveBeenCalledOnce());
+    const data = share.mock.calls[0][0] as ShareData;
+    expect(data.files?.[0].name).toBe("mypetlink-milo-birthday-card.jpg");
+    expect(String(data.files?.[0].name)).not.toContain("k7q2");
+    expect(mocks.trackEvent).toHaveBeenCalledWith("share_card_shared", {
+      card_variant: "birthday",
     });
   });
 

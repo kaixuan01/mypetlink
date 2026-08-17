@@ -39,9 +39,11 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
     public async Task<byte[]> RenderAsync(
         PublicProfileSocialResponse profile,
         PublicProfileSocialCardVariant variant = PublicProfileSocialCardVariant.OpenGraph,
+        int? occasionCount = null,
+        string? occasionCacheIdentity = null,
         CancellationToken cancellationToken = default)
     {
-        var cacheKey = $"public-social-card:{variant.CacheIdentity()}:{profile.PublicCode}:{profile.PublicProfileVersion}";
+        var cacheKey = $"public-social-card:{variant.CacheIdentity()}:{profile.PublicCode}:{profile.PublicProfileVersion}:{occasionCacheIdentity}:{occasionCount}";
         if (_memoryCache.TryGetValue<byte[]>(cacheKey, out var cached) && cached is not null)
         {
             return cached;
@@ -50,7 +52,7 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
         var generation = _inflight.GetOrAdd(
             cacheKey,
             _ => new Lazy<Task<byte[]>>(
-                () => GenerateAndCacheAsync(cacheKey, profile, variant, cancellationToken),
+                () => GenerateAndCacheAsync(cacheKey, profile, variant, occasionCount, cancellationToken),
                 LazyThreadSafetyMode.ExecutionAndPublication));
 
         try
@@ -67,6 +69,7 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
         string cacheKey,
         PublicProfileSocialResponse profile,
         PublicProfileSocialCardVariant variant,
+        int? occasionCount,
         CancellationToken cancellationToken)
     {
         if (_memoryCache.TryGetValue<byte[]>(cacheKey, out var cached) && cached is not null)
@@ -81,9 +84,13 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
         using var profileImage = DecodeImage(await profileImageTask);
         using var coverImage = DecodeImage(await coverImageTask);
         using var logo = LoadLogo();
-        var jpeg = variant == PublicProfileSocialCardVariant.ShareCard
-            ? DrawShareCard(profile, profileImage, coverImage, logo)
-            : DrawOpenGraphCard(profile, profileImage, coverImage, logo);
+        var jpeg = variant switch
+        {
+            PublicProfileSocialCardVariant.ShareCard => DrawShareCard(profile, profileImage, coverImage, logo),
+            PublicProfileSocialCardVariant.Birthday => DrawOccasionCard(profile, profileImage, coverImage, logo, occasionCount ?? 0, true),
+            PublicProfileSocialCardVariant.Adoption => DrawOccasionCard(profile, profileImage, coverImage, logo, occasionCount ?? 0, false),
+            _ => DrawOpenGraphCard(profile, profileImage, coverImage, logo)
+        };
 
         _memoryCache.Set(
             cacheKey,
@@ -326,6 +333,115 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
 
         using var image = surface.Snapshot();
         using var data = image.Encode(SKEncodedImageFormat.Jpeg, 84);
+        return data.ToArray();
+    }
+
+    private static byte[] DrawOccasionCard(
+        PublicProfileSocialResponse profile,
+        SKBitmap? profileImage,
+        SKBitmap? coverImage,
+        SKBitmap? logo,
+        int count,
+        bool birthday)
+    {
+        using var surface = SKSurface.Create(new SKImageInfo(ShareCardWidth, ShareCardHeight));
+        var canvas = surface.Canvas;
+        var background = birthday ? SKColor.Parse("#FFF2D8") : SKColor.Parse("#EAF8F2");
+        var accent = birthday ? SKColor.Parse("#E95F55") : SKColor.Parse("#157A6E");
+        var softAccent = birthday ? SKColor.Parse("#FFD2C5") : SKColor.Parse("#BCEBDD");
+        canvas.Clear(background);
+
+        using (var decoration = Paint(softAccent.WithAlpha(205)))
+        using (var sky = Paint(SKColor.Parse("#D7E8FF").WithAlpha(190)))
+        {
+            canvas.DrawCircle(25, 60, 215, decoration);
+            canvas.DrawCircle(1050, 1300, 245, sky);
+            canvas.DrawCircle(970, 120, 72, decoration);
+            canvas.DrawCircle(110, 1160, 54, decoration);
+        }
+
+        var lost = profile.LostModeEnabled && profile.LifecycleStatus == Entities.PetLifecycleStatus.Active;
+        if (lost)
+        {
+            using var banner = Paint(SKColor.Parse("#E95F55"));
+            canvas.DrawRect(0, 0, ShareCardWidth, 70, banner);
+            DrawCenteredText(
+                canvas,
+                "PET IS LOST  -  Open this profile to contact the owner.",
+                ShareCardWidth / 2f,
+                46,
+                24,
+                SKColors.White,
+                true);
+        }
+
+        var heroRect = new SKRect(68, lost ? 96 : 72, ShareCardWidth - 68, 690);
+        DrawCover(canvas, heroRect, coverImage ?? profileImage, profile.CoverPositionX, profile.CoverPositionY);
+        DrawProfilePhoto(canvas, new SKPoint(ShareCardWidth / 2f, 686), 108, profileImage, profile.Name);
+
+        var centerX = ShareCardWidth / 2f;
+        var y = 858f;
+        var eyebrow = birthday ? "HAPPY BIRTHDAY" : "HAPPY ADOPTION DAY";
+        DrawCenteredText(canvas, eyebrow, centerX, y, 27, accent, true);
+
+        y += 88;
+        var name = CleanText(profile.Name, 48, "Pet");
+        var headline = birthday
+            ? count == 0 ? $"Celebrating {name} today" : $"{name} turns {count}"
+            : count == 0 ? $"{name} joined our family today" : count == 1
+                ? $"1 year with {name}"
+                : $"{count} years with {name}";
+        var headlineSize = headline.Length switch
+        {
+            > 34 => 50,
+            > 25 => 58,
+            _ => 68
+        };
+        var fittedHeadline = birthday && count > 0
+            ? FitTextPreservingSuffix(name, $" turns {count}", ShareCardWidth - 130, headlineSize, true)
+            : FitText(headline, ShareCardWidth - 130, headlineSize, true);
+        DrawCenteredText(
+            canvas,
+            fittedHeadline,
+            centerX,
+            y,
+            headlineSize,
+            SKColor.Parse("#102247"),
+            true);
+
+        y += headlineSize + 54;
+        var message = birthday
+            ? "A little more loved with every year."
+            : count == 1
+                ? "One wonderful year since joining our family."
+                : "Forever grateful you joined our family.";
+        DrawCenteredText(canvas, message, centerX, y, 29, SKColor.Parse("#53627F"), true);
+
+        y += 84;
+        if (logo is not null)
+        {
+            var bounds = new SKRect(centerX - 130, y - 38, centerX + 130, y + 20);
+            var logoRect = FitInside(logo.Width, logo.Height, bounds);
+            logoRect.Offset((bounds.Width - logoRect.Width) / 2f, 0);
+            canvas.DrawBitmap(logo, logoRect);
+        }
+        else
+        {
+            DrawCenteredText(canvas, "MyPetLink", centerX, y, 30, SKColor.Parse("#102247"), true);
+        }
+
+        y += 62;
+        DrawCenteredText(
+            canvas,
+            FitText($"mypetlink.com.my/p/{profile.PublicSlug}", 760, 22, true),
+            centerX,
+            y,
+            22,
+            SKColor.Parse("#53627F"),
+            true);
+
+        using var image = surface.Snapshot();
+        using var data = image.Encode(SKEncodedImageFormat.Jpeg, 86);
         return data.ToArray();
     }
 
@@ -588,6 +704,26 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
         }
 
         return candidate.TrimEnd() + ellipsis;
+    }
+
+    private static string FitTextPreservingSuffix(
+        string value,
+        string suffix,
+        float maxWidth,
+        float textSize,
+        bool bold)
+    {
+        using var paint = new TextStyle(textSize, SKColors.Black, bold);
+        if (paint.MeasureText(value + suffix) <= maxWidth) return value + suffix;
+
+        const string ellipsis = "...";
+        var candidate = value;
+        while (candidate.Length > 1
+               && paint.MeasureText(candidate + ellipsis + suffix) > maxWidth)
+        {
+            candidate = candidate[..^1];
+        }
+        return candidate.TrimEnd() + ellipsis + suffix;
     }
 
     private static void DrawCroppedBitmap(

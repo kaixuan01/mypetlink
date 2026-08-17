@@ -38,6 +38,8 @@ public sealed class PublicProfileSocialCardTests
             Name = "Nori",
             Species = "Cat",
             Breed = "Domestic Shorthair",
+            Birthday = new DateOnly(2025, 8, 17),
+            AdoptionDay = new DateOnly(2022, 8, 17),
             LifecycleStatus = PetLifecycleStatus.Active,
             Contact = new PetContact
             {
@@ -58,7 +60,8 @@ public sealed class PublicProfileSocialCardTests
             Options.Create(new CloudflareR2Options
             {
                 PublicBaseUrl = "https://media.mypetlink.com.my"
-            }));
+            }),
+            new FixedTimeProvider(DateTimeOffset.Parse("2026-08-16T16:00:00Z")));
 
         var response = await service.GetSocialByPublicSlugAsync("nori-futurepet1234");
         var propertyNames = typeof(PublicProfileSocialResponse)
@@ -75,6 +78,9 @@ public sealed class PublicProfileSocialCardTests
         Assert.DoesNotContain("GeneralArea", propertyNames);
         Assert.DoesNotContain("Memories", propertyNames);
         Assert.DoesNotContain("CareRecords", propertyNames);
+        var occasions = await service.GetSocialCardOccasionsAsync("nori-futurepet1234");
+        Assert.Equal(1, occasions.BirthdayAge);
+        Assert.Equal(4, occasions.AdoptionYears);
 
         pet.PublicProfile.IsPublicProfileEnabled = false;
         pet.PublicProfile.UpdatedAt = DateTimeOffset.UtcNow.AddMinutes(1);
@@ -85,6 +91,15 @@ public sealed class PublicProfileSocialCardTests
         Assert.Equal(404, privateException.StatusCode);
 
         pet.PublicProfile.IsPublicProfileEnabled = true;
+        pet.LifecycleStatus = PetLifecycleStatus.Memorial;
+        pet.ShowMemorialOnPublicProfile = true;
+        pet.UpdatedAt = DateTimeOffset.UtcNow.AddMinutes(1);
+        await db.SaveChangesAsync();
+
+        var memorialException = await Assert.ThrowsAsync<ApiException>(() =>
+            service.GetSocialCardOccasionsAsync("nori-futurepet1234"));
+        Assert.Equal(404, memorialException.StatusCode);
+
         pet.LifecycleStatus = PetLifecycleStatus.Archived;
         pet.UpdatedAt = DateTimeOffset.UtcNow.AddMinutes(1);
         await db.SaveChangesAsync();
@@ -312,7 +327,6 @@ public sealed class PublicProfileSocialCardTests
     [InlineData("")]
     [InlineData("open-graph")]
     [InlineData("unknown")]
-    [InlineData("birthday")]
     public void CardVariantParser_DefaultsUnknownAndMissingValuesToOpenGraph(string? value)
     {
         Assert.Equal(
@@ -326,6 +340,109 @@ public sealed class PublicProfileSocialCardTests
         Assert.Equal(
             PublicProfileSocialCardVariant.ShareCard,
             PublicProfileSocialCardVariants.Parse("SHARE-CARD"));
+    }
+
+    [Theory]
+    [InlineData("birthday", PublicProfileSocialCardVariant.Birthday)]
+    [InlineData("ADOPTION", PublicProfileSocialCardVariant.Adoption)]
+    public void CardVariantParser_AcceptsOccasionVariants(
+        string value,
+        PublicProfileSocialCardVariant expected)
+    {
+        Assert.Equal(expected, PublicProfileSocialCardVariants.Parse(value));
+    }
+
+    [Fact]
+    public void OccasionCalculator_UsesMalaysiaMidnightAndKeepsLeapDayExact()
+    {
+        var beforeMidnight = PetOccasionCalculator.MalaysiaToday(
+            DateTimeOffset.Parse("2028-02-28T15:59:59Z"));
+        var midnight = PetOccasionCalculator.MalaysiaToday(
+            DateTimeOffset.Parse("2028-02-28T16:00:00Z"));
+        var leapBirthday = new DateOnly(2024, 2, 29);
+
+        Assert.Equal(new DateOnly(2028, 2, 28), beforeMidnight);
+        Assert.Equal(new DateOnly(2028, 2, 29), midnight);
+        Assert.Null(PetOccasionCalculator.Calculate(leapBirthday, null, beforeMidnight).BirthdayAge);
+        Assert.Equal(4, PetOccasionCalculator.Calculate(leapBirthday, null, midnight).BirthdayAge);
+        Assert.Null(PetOccasionCalculator.Calculate(
+            leapBirthday,
+            null,
+            new DateOnly(2027, 2, 28)).BirthdayAge);
+    }
+
+    [Fact]
+    public void OccasionCalculator_SupportsFirstAndSharedAnniversaries()
+    {
+        var today = new DateOnly(2026, 8, 17);
+        var occasions = PetOccasionCalculator.Calculate(
+            new DateOnly(2025, 8, 17),
+            new DateOnly(2022, 8, 17),
+            today);
+
+        Assert.Equal(1, occasions.BirthdayAge);
+        Assert.Equal(4, occasions.AdoptionYears);
+        Assert.Equal("20260817", occasions.CacheIdentity);
+        Assert.Null(PetOccasionCalculator.Calculate(null, null, today).BirthdayAge);
+    }
+
+    [Fact]
+    public async Task Renderer_OccasionCardsUsePortraitDimensionsAndIsolatedCaches()
+    {
+        using var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var renderer = CreateRenderer(memoryCache, new CountingHandler(_ =>
+            new HttpResponseMessage(HttpStatusCode.NotFound)));
+        var profile = CreateProfile();
+
+        var birthday = await renderer.RenderAsync(
+            profile,
+            PublicProfileSocialCardVariant.Birthday,
+            1,
+            "20260817");
+        var adoption = await renderer.RenderAsync(
+            profile,
+            PublicProfileSocialCardVariant.Adoption,
+            4,
+            "20260817");
+        var nextBirthday = await renderer.RenderAsync(
+            profile,
+            PublicProfileSocialCardVariant.Birthday,
+            2,
+            "20270817");
+
+        Assert.False(birthday.SequenceEqual(adoption));
+        Assert.False(birthday.SequenceEqual(nextBirthday));
+        using var bitmap = SKBitmap.Decode(birthday);
+        Assert.Equal((PublicProfileSocialCardRenderer.ShareCardWidth, PublicProfileSocialCardRenderer.ShareCardHeight),
+            (bitmap.Width, bitmap.Height));
+    }
+
+    [Theory]
+    [InlineData(PublicProfileSocialCardVariant.Birthday, 1)]
+    [InlineData(PublicProfileSocialCardVariant.Adoption, 4)]
+    public async Task Renderer_OccasionCardsHandleLongNamesAndMissingOptionalMedia(
+        PublicProfileSocialCardVariant variant,
+        int count)
+    {
+        using var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var renderer = CreateRenderer(memoryCache, new CountingHandler(_ =>
+            new HttpResponseMessage(HttpStatusCode.NotFound)));
+        var profile = CreateProfile() with
+        {
+            Name = "A Very Long Pet Name That Must Stay Inside The Celebration Card Layout",
+            Breed = null,
+            ProfilePhotoUrl = null,
+            CoverPhotoUrl = null
+        };
+
+        var jpeg = await renderer.RenderAsync(profile, variant, count, "20260817");
+
+        Assert.True(jpeg.Length > 4);
+        Assert.Equal(0xFF, jpeg[0]);
+        Assert.Equal(0xD8, jpeg[1]);
+        using var bitmap = SKBitmap.Decode(jpeg);
+        Assert.Equal((PublicProfileSocialCardRenderer.ShareCardWidth, PublicProfileSocialCardRenderer.ShareCardHeight),
+            (bitmap.Width, bitmap.Height));
     }
 
     [Fact]

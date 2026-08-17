@@ -56,9 +56,18 @@ public sealed class PublicProfilesController : ApiControllerBase
     {
         var profile = await _publicProfileService.GetSocialByPublicSlugAsync(publicSlug, cancellationToken);
         var cardVariant = PublicProfileSocialCardVariants.Parse(variant);
+        PublicProfileCardOccasions? occasions = null;
+        int? occasionCount = null;
+        if (cardVariant is PublicProfileSocialCardVariant.Birthday or PublicProfileSocialCardVariant.Adoption)
+        {
+            occasions = await _publicProfileService.GetSocialCardOccasionsAsync(publicSlug, cancellationToken);
+            occasionCount = occasions.CountFor(cardVariant);
+            if (!occasionCount.HasValue) return NotFound();
+        }
         var entityTagValue = cardVariant == PublicProfileSocialCardVariant.OpenGraph
             ? profile.PublicProfileVersion
-            : $"{profile.PublicProfileVersion}-{cardVariant.TemplateVersion()}";
+            : $"{profile.PublicProfileVersion}-{cardVariant.TemplateVersion()}" +
+              (occasions is null ? string.Empty : $"-{occasions.CacheIdentity}-{occasionCount}");
         var entityTag = $"\"{entityTagValue}\"";
 
         // This origin endpoint is consumed by the Pages Function, which owns
@@ -79,7 +88,12 @@ public sealed class PublicProfilesController : ApiControllerBase
         // A stale or missing query version is safe: the current public projection
         // remains the authority, and the response always contains the current card.
         _ = requestedVersion;
-        var jpeg = await _socialCardRenderer.RenderAsync(profile, cardVariant, cancellationToken);
+        var jpeg = await _socialCardRenderer.RenderAsync(
+            profile,
+            cardVariant,
+            occasionCount,
+            occasions?.CacheIdentity,
+            cancellationToken);
         return File(jpeg, "image/jpeg");
     }
 

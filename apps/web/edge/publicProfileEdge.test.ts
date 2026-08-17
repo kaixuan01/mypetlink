@@ -218,6 +218,74 @@ describe("Cloudflare social-card proxy", () => {
     expect(JSON.stringify(fetcher.mock.calls)).not.toContain("pet_milo");
   });
 
+  it("isolates birthday and adoption caches by variant, template, and Malaysia day", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-16T16:00:00Z"));
+    try {
+      const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
+      const fetcher = vi.fn(async (input: URL | RequestInfo) => {
+        const url = String(input);
+        if (url.endsWith("/social")) return jsonResponse({ data: newPet });
+        const birthday = url.includes("variant=birthday");
+        return new Response(jpeg, {
+          headers: {
+            "Content-Type": "image/jpeg",
+            ETag: birthday ? '"birthday-etag"' : '"adoption-etag"',
+            "X-Social-Card-Template-Version": birthday
+              ? "pet-birthday-card-v1"
+              : "pet-adoption-card-v1",
+          },
+        });
+      });
+      const cache = createMemoryCache();
+
+      for (const variant of ["birthday", "adoption"] as const) {
+        const context = createContext(
+          `${newPet.publicSlug}.jpg`,
+          fetcher,
+          `?variant=${variant}`
+        );
+        const response = await handleSocialCardRequest(context, {
+          cache: cache.value,
+          fetch: fetcher as typeof fetch,
+        });
+        await Promise.all(context.waitUntilPromises);
+        expect(response.status).toBe(200);
+        expect(response.headers.get("x-social-card-variant")).toBe(variant);
+      }
+
+      expect(cache.keys()).toEqual(
+        expect.arrayContaining([
+          expect.stringContaining("variant=birthday&template=pet-birthday-card-v1&day=2026-08-17"),
+          expect.stringContaining("variant=adoption&template=pet-adoption-card-v1&day=2026-08-17"),
+        ])
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("returns not found when an occasion is not eligible at the origin", async () => {
+    const fetcher = vi.fn(async (input: URL | RequestInfo) =>
+      String(input).endsWith("/social")
+        ? jsonResponse({ data: newPet })
+        : new Response("not today", { status: 404 })
+    );
+    const context = createContext(
+      `${newPet.publicSlug}.jpg`,
+      fetcher,
+      "?variant=birthday"
+    );
+
+    const response = await handleSocialCardRequest(context, {
+      cache: createMemoryCache().value,
+      fetch: fetcher as typeof fetch,
+    });
+
+    expect(response.status).toBe(404);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+  });
+
   it("revalidates profile visibility before consulting an old image cache", async () => {
     const fetcher = vi.fn(async () => new Response("not found", { status: 404 }));
     const cache = createMemoryCache();

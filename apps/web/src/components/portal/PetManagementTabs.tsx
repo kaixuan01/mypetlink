@@ -30,6 +30,7 @@ import { getPetProfileTheme } from "@/lib/petProfileThemes";
 import { isActivePet, isArchivedPet, isMemorialPet } from "@/lib/petLifecycle";
 import {
   addPublicProfileShareVersion,
+  getAvailablePetShareCardOptions,
   getPublicProfileShareCardImagePath,
   getPublicProfileShareVersion,
 } from "@/lib/publicProfileSocial";
@@ -305,6 +306,7 @@ function OverviewTab({
                     petName={pet.name}
                     profilePath={pet.publicProfilePath}
                     shareVersion={getPublicProfileShareVersion(pet)}
+                    variants={getAvailablePetShareCardOptions(pet)}
                   />
                 </div>
               ) : null}

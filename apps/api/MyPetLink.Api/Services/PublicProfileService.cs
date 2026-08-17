@@ -12,11 +12,16 @@ public sealed class PublicProfileService : SkeletonService, IPublicProfileServic
 {
     private readonly MyPetLinkDbContext _dbContext;
     private readonly CloudflareR2Options _r2Options;
+    private readonly TimeProvider _timeProvider;
 
-    public PublicProfileService(MyPetLinkDbContext dbContext, IOptions<CloudflareR2Options> r2Options)
+    public PublicProfileService(
+        MyPetLinkDbContext dbContext,
+        IOptions<CloudflareR2Options> r2Options,
+        TimeProvider? timeProvider = null)
     {
         _dbContext = dbContext;
         _r2Options = r2Options.Value;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public async Task<PublicPetProfileResponse> GetByPublicSlugAsync(
@@ -232,6 +237,38 @@ public sealed class PublicProfileService : SkeletonService, IPublicProfileServic
             coverPhotoUrl,
             pet.CoverPositionX,
             pet.CoverPositionY);
+    }
+
+    public async Task<PublicProfileCardOccasions> GetSocialCardOccasionsAsync(
+        string publicSlug,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(publicSlug)) throw NotFound();
+
+        var publicCode = PetDtoMapper.ExtractPublicCode(publicSlug);
+        var source = await _dbContext.PetPublicProfiles
+            .AsNoTracking()
+            .Where(item => item.PublicCode == publicCode)
+            .Select(item => new
+            {
+                item.IsPublicProfileEnabled,
+                item.Pet.Birthday,
+                item.Pet.AdoptionDay,
+                item.Pet.DeletedAt,
+                item.Pet.LifecycleStatus
+            })
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (source is null
+            || !source.IsPublicProfileEnabled
+            || source.DeletedAt.HasValue
+            || source.LifecycleStatus is PetLifecycleStatus.Archived or PetLifecycleStatus.Memorial)
+        {
+            throw NotFound();
+        }
+
+        var today = PetOccasionCalculator.MalaysiaToday(_timeProvider.GetUtcNow());
+        return PetOccasionCalculator.Calculate(source.Birthday, source.AdoptionDay, today);
     }
 
     private async Task<Dictionary<Guid, MemoryMediaResponse[]>> LoadPublicMemoryMediaAsync(

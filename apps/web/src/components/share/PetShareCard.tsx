@@ -19,6 +19,13 @@ import {
   publicProfileShareCardImageSize,
 } from "@/lib/publicProfileSocial";
 import { getServerFallbackBaseUrl, toAbsoluteUrl } from "@/lib/siteUrl";
+import type { PetShareCardVariant } from "@/lib/petOccasions";
+
+export type PetShareCardOption = {
+  variant: PetShareCardVariant;
+  label: string;
+  imagePath: string;
+};
 
 type PetShareCardProps = {
   imagePath: string;
@@ -26,6 +33,8 @@ type PetShareCardProps = {
   profilePath: string;
   shareVersion?: string;
   className?: string;
+  variants?: PetShareCardOption[];
+  initialVariant?: PetShareCardVariant;
 };
 
 type PreviewState = "loading" | "ready" | "error";
@@ -36,6 +45,8 @@ export function PetShareCard({
   profilePath,
   shareVersion,
   className = "",
+  variants,
+  initialVariant = "profile",
 }: PetShareCardProps) {
   const origin = useSyncExternalStore(
     subscribeToOrigin,
@@ -49,7 +60,14 @@ export function PetShareCard({
   );
   const triggerRef = useRef<HTMLButtonElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
-  const viewTrackedRef = useRef(false);
+  const viewTrackedRef = useRef(new Set<PetShareCardVariant>());
+  const options = useMemo<PetShareCardOption[]>(
+    () => variants?.length ? variants : [{ variant: "profile", label: "Profile", imagePath }],
+    [imagePath, variants]
+  );
+  const initialOption = options.find((option) => option.variant === initialVariant) ?? options[0];
+  const [selectedVariant, setSelectedVariant] = useState<PetShareCardVariant>(initialOption.variant);
+  const selectedOption = options.find((option) => option.variant === selectedVariant) ?? initialOption;
   const [open, setOpen] = useState(false);
   const [previewState, setPreviewState] =
     useState<PreviewState>("loading");
@@ -64,7 +82,7 @@ export function PetShareCard({
     [origin, profilePath, shareVersion]
   );
   const imageUrl = useMemo(() => {
-    const absolute = toAbsoluteUrl(imagePath, origin);
+    const absolute = toAbsoluteUrl(selectedOption.imagePath, origin);
     if (retryKey === 0) return absolute;
 
     try {
@@ -74,8 +92,8 @@ export function PetShareCard({
     } catch {
       return absolute;
     }
-  }, [imagePath, origin, retryKey]);
-  const fileName = getPetShareCardFileName(petName);
+  }, [origin, retryKey, selectedOption.imagePath]);
+  const fileName = getPetShareCardFileName(petName, selectedOption.variant);
 
   const closeDialog = useCallback(() => {
     setOpen(false);
@@ -104,7 +122,8 @@ export function PetShareCard({
   }, [closeDialog, open]);
 
   function openDialog() {
-    viewTrackedRef.current = false;
+    viewTrackedRef.current.clear();
+    setSelectedVariant(initialOption.variant);
     setPreviewState("loading");
     setStatus("");
     setOpen(true);
@@ -112,10 +131,18 @@ export function PetShareCard({
 
   function handlePreviewLoaded() {
     setPreviewState("ready");
-    if (!viewTrackedRef.current) {
-      viewTrackedRef.current = true;
-      trackEvent(AnalyticsEvent.ShareCardViewed, { card_variant: "profile" });
+    if (!viewTrackedRef.current.has(selectedOption.variant)) {
+      viewTrackedRef.current.add(selectedOption.variant);
+      trackEvent(AnalyticsEvent.ShareCardViewed, { card_variant: selectedOption.variant });
     }
+  }
+
+  function selectVariant(variant: PetShareCardVariant) {
+    if (variant === selectedOption.variant) return;
+    setSelectedVariant(variant);
+    setPreviewState("loading");
+    setRetryKey(0);
+    setStatus("");
   }
 
   function retryPreview() {
@@ -177,7 +204,7 @@ export function PetShareCard({
   async function requestNativeShare(data: ShareData) {
     try {
       await navigator.share(data);
-      trackEvent(AnalyticsEvent.ShareCardShared, { card_variant: "profile" });
+      trackEvent(AnalyticsEvent.ShareCardShared, { card_variant: selectedOption.variant });
       setStatus("Share options opened.");
       return "completed" as const;
     } catch (error) {
@@ -261,6 +288,30 @@ export function PetShareCard({
               </button>
             </div>
 
+            {options.length > 1 ? (
+              <div
+                aria-label="Share Card style"
+                className="mt-4 grid grid-cols-3 gap-1 rounded-2xl bg-white p-1"
+                role="group"
+              >
+                {options.map((option) => (
+                  <button
+                    aria-pressed={option.variant === selectedOption.variant}
+                    className={`min-h-11 rounded-xl px-2 text-xs font-extrabold transition ${
+                      option.variant === selectedOption.variant
+                        ? "bg-pet-teal text-white"
+                        : "text-pet-muted hover:bg-pet-cream"
+                    }`}
+                    key={option.variant}
+                    onClick={() => selectVariant(option.variant)}
+                    type="button"
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+
             <div
               aria-busy={previewState === "loading"}
               className="relative mt-4 aspect-[4/5] overflow-hidden rounded-[1.5rem] border border-pet-border bg-white shadow-lg shadow-[#102247]/10"
@@ -298,7 +349,9 @@ export function PetShareCard({
               {/* The image is mounted only while this owner-opened dialog is visible. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                alt={`${petName}'s MyPetLink Share Card`}
+                alt={`${petName}'s MyPetLink ${
+                  selectedOption.variant === "profile" ? "" : `${selectedOption.label} `
+                }Share Card`}
                 className={`h-full w-full object-contain transition-opacity ${
                   previewState === "ready" ? "opacity-100" : "opacity-0"
                 }`}
