@@ -74,6 +74,23 @@ public sealed record PublicCareSummaryResponse(
     string? Provider,
     string? Notes);
 
+/// <summary>
+/// Deliberately tiny projection used only to build link-preview metadata for the
+/// finder-facing pages (<c>/q</c>, <c>/t</c>, <c>/n</c>).
+///
+/// Link previews are public and are cached by platforms we do not control, so
+/// this record carries no contact details, no owner identity, no location, no
+/// codes and no identifiers — only what a visitor already sees at the top of the
+/// page. <see cref="PublicSlug"/> is populated solely when the owner has the
+/// Public Share Profile switched on, which is what allows the existing social
+/// card to be reused; otherwise the preview falls back to generic branding.
+/// </summary>
+public sealed record PublicFinderSocialResponse(
+    string State,
+    string Name,
+    string? PublicSlug,
+    string? PublicProfileVersion);
+
 public sealed record PublicSafetyContactResponse(
     string? OwnerDisplayName,
     string? PhoneE164,

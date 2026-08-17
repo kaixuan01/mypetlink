@@ -126,6 +126,72 @@ public sealed class QrSafetyService : SkeletonService, IQrSafetyService
             contact);
     }
 
+    public async Task<PublicFinderSocialResponse> GetSocialBySafetyCodeAsync(
+        string safetyCode,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(safetyCode))
+        {
+            throw NotFound();
+        }
+
+        var safetySetting = await _dbContext.PetSafetySettings
+            .AsNoTracking()
+            .Include(item => item.Pet)
+                .ThenInclude(pet => pet.PublicProfile)
+            .Include(item => item.Pet)
+                .ThenInclude(pet => pet.ProfileMediaFile)
+            .Include(item => item.Pet)
+                .ThenInclude(pet => pet.CoverMediaFile)
+            .SingleOrDefaultAsync(item => item.SafetyCode == safetyCode.Trim(), cancellationToken);
+
+        // Same availability rules as the page itself: a preview must never exist
+        // for something a visitor could not open.
+        if (safetySetting is null
+            || safetySetting.Pet.DeletedAt.HasValue
+            || safetySetting.Pet.LifecycleStatus == PetLifecycleStatus.Archived
+            || !safetySetting.QrSafetyEnabled)
+        {
+            throw NotFound();
+        }
+
+        return BuildFinderSocial(safetySetting.Pet, _r2Options.PublicBaseUrl);
+    }
+
+    /// <summary>
+    /// Shared finder-preview projection. Carries no contact, owner, location or
+    /// code values, and only exposes the public slug when the owner has the
+    /// Public Share Profile switched on.
+    /// </summary>
+    internal static PublicFinderSocialResponse BuildFinderSocial(Pet pet, string publicMediaBaseUrl)
+    {
+        var memorial = pet.LifecycleStatus == PetLifecycleStatus.Memorial;
+        var lost = !memorial && pet.LostModeEnabled;
+        var publicProfile = pet.PublicProfile;
+        string? publicSlug = null;
+        string? publicVersion = null;
+
+        if (publicProfile is not null && publicProfile.IsPublicProfileEnabled && !memorial)
+        {
+            var age = PetAgeCalculator.Calculate(pet.Birthday, pet.EstimatedBirthYear);
+            var profilePhotoUrl = PetDtoMapper.ResolvePublicMediaUrl(pet.ProfileMediaFile, publicMediaBaseUrl);
+            var coverPhotoUrl = PetDtoMapper.ResolvePublicMediaUrl(pet.CoverMediaFile, publicMediaBaseUrl);
+            publicSlug = PetDtoMapper.ResolvePublicSlug(pet);
+            publicVersion = PublicProfileVersion.Create(
+                publicProfile,
+                pet,
+                age.DisplayLabel,
+                profilePhotoUrl,
+                coverPhotoUrl);
+        }
+
+        return new PublicFinderSocialResponse(
+            memorial ? "memorial" : lost ? "lostMode" : "active",
+            pet.Name,
+            publicSlug,
+            publicVersion);
+    }
+
     private static ApiException NotFound()
     {
         return new ApiException(

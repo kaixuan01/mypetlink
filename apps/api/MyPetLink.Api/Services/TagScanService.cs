@@ -194,6 +194,58 @@ public sealed class TagScanService : SkeletonService, ITagScanService
         }
     }
 
+    public async Task<PublicFinderSocialResponse> GetSocialByTagCodeAsync(
+        string tagCode,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedCode = NormalizeTagCode(tagCode);
+        if (string.IsNullOrWhiteSpace(normalizedCode))
+        {
+            throw TagPreviewNotFound();
+        }
+
+        // Read-only on purpose. ResolveAsync records a TagScan for every call, and
+        // a link preview must never land in an owner's scan history.
+        var tag = await _dbContext.SmartTags
+            .AsNoTracking()
+            .Include(item => item.Pet)
+                .ThenInclude(pet => pet!.PublicProfile)
+            .Include(item => item.Pet)
+                .ThenInclude(pet => pet!.SafetySetting)
+            .Include(item => item.Pet)
+                .ThenInclude(pet => pet!.ProfileMediaFile)
+            .Include(item => item.Pet)
+                .ThenInclude(pet => pet!.CoverMediaFile)
+            .SingleOrDefaultAsync(
+                item => item.TagCode == normalizedCode && item.DeletedAt == null,
+                cancellationToken);
+
+        // Unclaimed, inactive, unknown, or attached to a pet whose Safety Profile
+        // is off: there is no pet to preview, so the caller falls back to generic
+        // branding rather than revealing tag or inventory state.
+        if (tag is null
+            || tag.ArchivedAt.HasValue
+            || IsInactiveTagStatus(tag.Status)
+            || tag.Status == SmartTagStatus.Unclaimed
+            || !tag.PetId.HasValue
+            || !IsActiveSafetyPet(tag.Pet)
+            || tag.Pet!.SafetySetting is null
+            || !tag.Pet.SafetySetting.QrSafetyEnabled)
+        {
+            throw TagPreviewNotFound();
+        }
+
+        return QrSafetyService.BuildFinderSocial(tag.Pet, _r2Options.PublicBaseUrl);
+    }
+
+    private static ApiException TagPreviewNotFound()
+    {
+        return new ApiException(
+            StatusCodes.Status404NotFound,
+            "tag_preview_not_found",
+            "This tag does not have a shareable pet preview.");
+    }
+
     private static bool IsActiveSafetyPet(Pet? pet)
     {
         return pet is not null

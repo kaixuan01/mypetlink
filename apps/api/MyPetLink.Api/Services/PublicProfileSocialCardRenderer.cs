@@ -17,6 +17,23 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
     public const int ShareCardHeight = 1350;
     public const int ShareCardQrSize = 218;
 
+    // Portrait Share Card text rhythm. These are gaps between measured ink
+    // edges, not offsets from a band top, so every name size keeps the same
+    // visible separation.
+    internal const float ShareCardLogoToNameGap = 14f;
+    /// <summary>
+    /// Occasion cards put the QR panel directly under the brand lockup, and the
+    /// panel is a filled white card rather than text, so it needs more clearance
+    /// than a text-to-text gap.
+    /// </summary>
+    internal const float OccasionLogoToQrGap = 30f;
+    internal const float ShareCardNameToSummaryGap = 16f;
+    internal const float ShareCardSummaryToActionGap = 18f;
+    /// <summary>Distance from the action block's top edge to its text baseline.</summary>
+    internal const float ShareCardActionBaselineOffset = 39f;
+    /// <summary>Top of the QR footer; the action block must finish above it.</summary>
+    public const float ShareCardQrFooterTop = 1068f;
+
     private const string BrandLogoResourceName = "MyPetLink.Api.Assets.Brand.mypetlink-logo-horizontal.png";
 
     private const int MaxSourceImageBytes = 8 * 1024 * 1024;
@@ -475,8 +492,15 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
                 : "Forever grateful you joined our family.";
         DrawCenteredText(canvas, message, centerX, y, 29, SKColor.Parse("#53627F"), true);
 
-        DrawBrandLogoCentered(canvas, logo, centerX, 981, 250, 50);
-        DrawProfileQrFooter(canvas, publicProfileUrl, name, 1030);
+        // Same rule as the portrait Share Card: the QR footer is placed from the
+        // logo's measured bottom, not from a fixed offset that assumed a shorter
+        // text lockup.
+        var occasionLogoBottom = DrawBrandLogoCentered(canvas, logo, centerX, 966, 250, 50);
+        DrawProfileQrFooter(
+            canvas,
+            publicProfileUrl,
+            name,
+            occasionLogoBottom + OccasionLogoToQrGap);
 
         using var image = surface.Snapshot();
         using var data = image.Encode(SKEncodedImageFormat.Jpeg, 86);
@@ -491,30 +515,46 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
         float top)
     {
         var centerX = ShareCardWidth / 2f;
-        var y = top;
 
-        DrawBrandLogoCentered(canvas, logo, centerX, y, 290, 58);
+        var logoBottom = DrawBrandLogoCentered(canvas, logo, centerX, top, 290, 58);
 
-        y += 105;
         var name = CleanText(profile.Name, 48, "Pet");
-        var nameSize = name.Length switch
-        {
-            > 30 => 52,
-            > 20 => 61,
-            > 14 => 70,
-            _ => 82
-        };
+        var nameSize = ResolveShareCardNameSize(name);
         var displayName = FitText(name, ShareCardWidth - 150, nameSize, true);
+
+        // Lay the name out from the logo's real bottom and the name's own ink
+        // bounds. Spacing used to be a fixed offset from the logo band's top,
+        // which ignored both the logo's real height and the tall ascenders that
+        // the largest (shortest-name) size produces — so short names collided
+        // with the logo while long ones looked correct.
+        float y;
+        float nameInkBottom;
+        using (var nameStyle = new TextStyle(nameSize, SKColors.Black, true))
+        {
+            var ink = nameStyle.MeasureInk(displayName);
+            y = logoBottom + ShareCardLogoToNameGap - ink.Top;
+            nameInkBottom = y + Math.Max(0, ink.Bottom);
+        }
+
         DrawCenteredText(canvas, displayName, centerX, y, nameSize, SKColor.Parse("#102247"), true);
 
-        y += nameSize + 20;
+        y = nameInkBottom + ShareCardNameToSummaryGap;
         var summary = BuildSummary(profile);
         if (!string.IsNullOrWhiteSpace(summary))
         {
             var summaryText = FitText(summary, ShareCardWidth - 150, 28, true);
-            DrawCenteredText(canvas, summaryText, centerX, y, 28, SKColor.Parse("#53627F"), true);
-            y += 48;
+            using (var summaryStyle = new TextStyle(28, SKColors.Black, true))
+            {
+                var ink = summaryStyle.MeasureInk(summaryText);
+                y -= ink.Top;
+                DrawCenteredText(canvas, summaryText, centerX, y, 28, SKColor.Parse("#53627F"), true);
+                y += Math.Max(0, ink.Bottom) + ShareCardSummaryToActionGap;
+            }
         }
+
+        // The call to action is drawn from its baseline; shift so the measured
+        // block top lands where the flow reached.
+        y += ShareCardActionBaselineOffset;
 
         var callToAction = FitText($"Meet {name} on MyPetLink", 650, 27, true);
         using (var button = Paint(SKColor.Parse("#1570EF")))
@@ -526,8 +566,20 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
             buttonText.Draw(canvas, callToAction, centerX - buttonText.MeasureText(callToAction) / 2, y + 1);
         }
 
-        DrawProfileQrFooter(canvas, publicProfileUrl, name, 1068);
+        DrawProfileQrFooter(canvas, publicProfileUrl, name, ShareCardQrFooterTop);
     }
+
+    /// <summary>
+    /// Name size for the portrait Share Card. Short names get the largest size,
+    /// which is exactly the case that used to collide with the brand lockup.
+    /// </summary>
+    internal static float ResolveShareCardNameSize(string name) => name.Length switch
+    {
+        > 30 => 52,
+        > 20 => 61,
+        > 14 => 70,
+        _ => 82
+    };
 
     private static void DrawBackgroundDecorations(SKCanvas canvas)
     {
@@ -634,7 +686,15 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
         canvas.Restore();
     }
 
-    private static void DrawBrandLogoCentered(
+    /// <summary>
+    /// Draws the brand lockup and returns the bottom edge it actually occupied.
+    ///
+    /// The real logo asset carries a tagline line, so the drawn height depends on
+    /// the asset's aspect ratio rather than the requested band. Callers must lay
+    /// the next element out from this measured value: spacing taken from the band
+    /// top instead let tall name glyphs run back into the logo.
+    /// </summary>
+    private static float DrawBrandLogoCentered(
         SKCanvas canvas,
         SKBitmap? logo,
         float centerX,
@@ -651,11 +711,12 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
                 top + maxHeight);
             var logoRect = FitInsideCentered(logo.Width, logo.Height, bounds);
             canvas.DrawBitmap(logo, logoRect);
-            return;
+            return logoRect.Bottom;
         }
 
         DrawPaw(canvas, centerX - 80, top + maxHeight / 2, 0.32f, SKColor.Parse("#E95F55"));
         DrawText(canvas, "MyPetLink", centerX - 49, top + maxHeight * 0.72f, 33, SKColor.Parse("#102247"), true);
+        return top + maxHeight;
     }
 
     private static void DrawProfileQrFooter(
@@ -946,6 +1007,19 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
         }
 
         public float MeasureText(string value) => _font.MeasureText(value, _paint);
+
+        /// <summary>
+        /// Tight ink bounds of this exact string relative to its baseline at the
+        /// origin: <c>Top</c> is negative (above the baseline) and <c>Bottom</c>
+        /// positive. Layout uses these real bounds rather than font-wide metrics
+        /// so a short all-caps-height name does not reserve accent headroom it
+        /// never uses.
+        /// </summary>
+        public SKRect MeasureInk(string value)
+        {
+            _font.MeasureText(value, out var bounds, _paint);
+            return bounds;
+        }
 
         public void Draw(SKCanvas canvas, string value, float x, float baselineY)
         {

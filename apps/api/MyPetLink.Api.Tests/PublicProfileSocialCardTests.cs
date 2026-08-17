@@ -836,6 +836,222 @@ public sealed class PublicProfileSocialCardTests
         };
     }
 
+    [Theory]
+    [InlineData("Bo")]
+    [InlineData("Topu")]
+    [InlineData("Milo")]
+    [InlineData("Luna")]
+    [InlineData("Maximilian Pup")]
+    [InlineData("Sir Reginald Fluffington")]
+    [InlineData("Sir Reginald Fluffington The Third Of Bangsar")]
+    public async Task ShareCard_KeepsTheBrandLockupClearOfThePetName(string petName)
+    {
+        using var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var renderer = CreateRenderer(memoryCache, new CountingHandler(_ =>
+            new HttpResponseMessage(HttpStatusCode.NotFound)));
+
+        var jpeg = await renderer.RenderAsync(
+            CreateProfile() with { Name = petName },
+            PublicProfileSocialCardVariant.ShareCard);
+
+        using var bitmap = SKBitmap.Decode(jpeg);
+        Assert.Equal(PublicProfileSocialCardRenderer.ShareCardWidth, bitmap.Width);
+        Assert.Equal(PublicProfileSocialCardRenderer.ShareCardHeight, bitmap.Height);
+
+        var bands = FindInkBands(bitmap, 770, 1060);
+
+        // The brand lockup and the name must be separate blocks of ink with at
+        // least one clear row between them. A collision merges them into one.
+        Assert.True(
+            bands.Count >= 2,
+            $"Expected the logo and the name to render as separate blocks for '{petName}', found {bands.Count}.");
+
+        var logoBand = bands[0];
+        var nameBand = bands[1];
+        var separation = nameBand.Top - logoBand.Bottom;
+        Assert.True(
+            separation >= 6,
+            $"Logo and name are only {separation}px apart for '{petName}'; they must not touch.");
+    }
+
+    [Theory]
+    [InlineData("Bo")]
+    [InlineData("Topu")]
+    [InlineData("Sir Reginald Fluffington The Third Of Bangsar")]
+    public async Task ShareCard_KeepsTextContentClearOfTheQrFooter(string petName)
+    {
+        using var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var renderer = CreateRenderer(memoryCache, new CountingHandler(_ =>
+            new HttpResponseMessage(HttpStatusCode.NotFound)));
+
+        var jpeg = await renderer.RenderAsync(
+            CreateProfile() with { Name = petName },
+            PublicProfileSocialCardVariant.ShareCard);
+
+        using var bitmap = SKBitmap.Decode(jpeg);
+        var bands = FindInkBands(bitmap, 770, (int)PublicProfileSocialCardRenderer.ShareCardQrFooterTop - 2);
+
+        Assert.NotEmpty(bands);
+        Assert.True(
+            bands[^1].Bottom < PublicProfileSocialCardRenderer.ShareCardQrFooterTop,
+            $"Share Card text runs into the QR footer for '{petName}'.");
+    }
+
+    [Fact]
+    public async Task ShareCard_KeepsTheNameClearOfTheLogoWithARealPetPhoto()
+    {
+        using var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var renderer = CreateRenderer(memoryCache, new CountingHandler(_ =>
+            ImageResponse(SolidJpeg(600, 600, new SKColor(90, 140, 200)))));
+
+        var jpeg = await renderer.RenderAsync(
+            CreateProfile() with
+            {
+                Name = "Topu",
+                ProfilePhotoUrl = "https://media.mypetlink.com.my/pets/topu/profile.jpg",
+                CoverPhotoUrl = "https://media.mypetlink.com.my/pets/topu/cover.jpg"
+            },
+            PublicProfileSocialCardVariant.ShareCard);
+
+        using var bitmap = SKBitmap.Decode(jpeg);
+        var bands = FindInkBands(bitmap, 770, 1060);
+
+        Assert.True(bands.Count >= 2, "Expected separate logo and name blocks with a photo present.");
+        Assert.True(bands[1].Top - bands[0].Bottom >= 6, "Logo and name must not touch when a photo is present.");
+    }
+
+    [Theory]
+    [InlineData(PublicProfileSocialCardVariant.Birthday)]
+    [InlineData(PublicProfileSocialCardVariant.Adoption)]
+    public async Task OccasionCard_KeepsTheBrandLockupClearOfTheQrFooter(
+        PublicProfileSocialCardVariant variant)
+    {
+        using var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var renderer = CreateRenderer(memoryCache, new CountingHandler(_ =>
+            new HttpResponseMessage(HttpStatusCode.NotFound)));
+
+        var jpeg = await renderer.RenderAsync(
+            CreateProfile() with { Name = "Bo" },
+            variant,
+            3,
+            "20260817");
+
+        using var bitmap = SKBitmap.Decode(jpeg);
+        Assert.Equal(PublicProfileSocialCardRenderer.ShareCardWidth, bitmap.Width);
+        Assert.Equal(PublicProfileSocialCardRenderer.ShareCardHeight, bitmap.Height);
+
+        // The brand lockup and the QR panel must be separate: they used to be laid
+        // out from fixed offsets and collided once the real logo, which carries a
+        // tagline, replaced the shorter text fallback. The QR panel is a filled
+        // white card, so the check is against the panel rather than its modules.
+        var bands = FindInkBands(bitmap, 940, bitmap.Height - 1);
+        Assert.NotEmpty(bands);
+        var panelTop = FindQrPanelTop(bitmap, 940);
+        Assert.NotNull(panelTop);
+
+        var logoBand = bands.First(band => band.Bottom < panelTop!.Value);
+        Assert.True(
+            panelTop!.Value - logoBand.Bottom >= 12,
+            $"The brand lockup ends at {logoBand.Bottom} but the QR panel starts at {panelTop}; they must stay clearly apart.");
+        Assert.True(
+            bands[^1].Bottom < bitmap.Height,
+            "Occasion card content must stay inside the card.");
+    }
+
+    /// <summary>
+    /// First row of the QR code's white panel, found as a wide run of pure white
+    /// against the card's tinted background.
+    /// </summary>
+    private static int? FindQrPanelTop(SKBitmap bitmap, int fromY)
+    {
+        var centre = bitmap.Width / 2;
+        for (var y = fromY; y < bitmap.Height; y++)
+        {
+            var white = 0;
+            for (var x = centre - 90; x <= centre + 90; x++)
+            {
+                var pixel = bitmap.GetPixel(x, y);
+                if (pixel.Red > 250 && pixel.Green > 250 && pixel.Blue > 250)
+                {
+                    white++;
+                }
+            }
+
+            if (white > 150)
+            {
+                return y;
+            }
+        }
+
+        return null;
+    }
+
+    private readonly record struct InkBand(int Top, int Bottom);
+
+    /// <summary>
+    /// Contiguous runs of rows containing drawn content in the centre column of
+    /// the card, used to assert that separate elements stay separate without
+    /// hard-coding their exact positions.
+    /// </summary>
+    private static List<InkBand> FindInkBands(SKBitmap bitmap, int fromY, int toY)
+    {
+        const int inspectHalfWidth = 380;
+        var centre = bitmap.Width / 2;
+        var left = Math.Max(0, centre - inspectHalfWidth);
+        var right = Math.Min(bitmap.Width - 1, centre + inspectHalfWidth);
+        var bands = new List<InkBand>();
+        var bandTop = -1;
+
+        for (var y = Math.Max(0, fromY); y <= Math.Min(bitmap.Height - 1, toY); y++)
+        {
+            var hasInk = false;
+            for (var x = left; x <= right; x++)
+            {
+                if (IsInk(bitmap.GetPixel(x, y)))
+                {
+                    hasInk = true;
+                    break;
+                }
+            }
+
+            if (hasInk && bandTop < 0)
+            {
+                bandTop = y;
+            }
+            else if (!hasInk && bandTop >= 0)
+            {
+                bands.Add(new InkBand(bandTop, y - 1));
+                bandTop = -1;
+            }
+        }
+
+        if (bandTop >= 0)
+        {
+            bands.Add(new InkBand(bandTop, Math.Min(bitmap.Height - 1, toY)));
+        }
+
+        return bands;
+    }
+
+    /// <summary>
+    /// True when a pixel is clearly drawn content rather than the card's cream
+    /// background or its very soft decorative tints.
+    /// </summary>
+    private static bool IsInk(SKColor pixel)
+    {
+        var brightness = (pixel.Red * 0.299) + (pixel.Green * 0.587) + (pixel.Blue * 0.114);
+        return brightness < 200;
+    }
+
+    private static byte[] SolidJpeg(int width, int height, SKColor color)
+    {
+        using var surface = SKSurface.Create(new SKImageInfo(width, height));
+        surface.Canvas.Clear(color);
+        using var image = surface.Snapshot();
+        using var data = image.Encode(SKEncodedImageFormat.Jpeg, 90);
+        return data.ToArray();
+    }
+
     private static PublicProfileSocialCardRenderer CreateRenderer(
         IMemoryCache memoryCache,
         HttpMessageHandler handler,

@@ -343,6 +343,11 @@ public sealed class TagScanSourceTests
                     "notFound", tagCode, null, source, null));
         }
 
+        public Task<PublicFinderSocialResponse> GetSocialByTagCodeAsync(
+            string tagCode,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new PublicFinderSocialResponse("active", "Nori", null, null));
+
         public Task SubmitLocationConsentAsync(
             string tagCode,
             SubmitScanLocationConsentRequest request,

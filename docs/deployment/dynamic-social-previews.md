@@ -2,9 +2,29 @@
 
 MyPetLink serves public-profile metadata and JPEG social cards at request time. A pet created or updated after the frontend build therefore does not require a new Cloudflare Pages deployment.
 
+## Route matrix
+
+Every shareable pet URL now receives pet-specific metadata from the same edge
+pipeline. Finder routes previously fell through to the static shell, which
+produced a preview titled "Loading | MyPetLink" (`MPL-GROWTH-PROD-003`).
+
+| Route | Metadata | Image | `X-MyPetLink-Metadata` |
+| --- | --- | --- | --- |
+| `/p/{slug}` | Public Share Profile | 1200 x 630 card | `dynamic-public-profile` |
+| `/p/{slug}/` | 308 to the canonical path, query preserved | — | `canonical-redirect` |
+| `/q/{safetyCode}` | Safety Profile preview | pet card when the Public Share Profile is on, otherwise `og-image.png` | `dynamic-finder-profile` |
+| `/q/{tagCode}` | Falls back to the tag lookup, matching the page | as above | `dynamic-finder-profile` |
+| `/t/{tagCode}`, `/n/{tagCode}` | Tag page preview | as above | `dynamic-finder-profile` |
+| Any finder code that does not resolve | Generic MyPetLink finder copy, `no-store` | `og-image.png` | `generic-finder` |
+| `/social/pets/{slug}.jpg` | — | card variants | — |
+
+Finder previews are always `noindex,follow`, whatever the Public Share Profile
+chooses, because they are per-pet safety URLs.
+
 ## Request flow
 
-1. Cloudflare Pages Functions intercepts `/p/*` and `/social/pets/*` (see `apps/web/public/_routes.json`).
+1. Cloudflare Pages Functions intercepts `/p/*`, `/q/*`, `/t/*`, `/n/*` and `/social/pets/*` (see `apps/web/public/_routes.json`).
+0. Any request whose path ends in a slash is answered with a `308` to the canonical path first, preserving the query string. The Function claims these routes, so the platform's own trailing-slash normalisation never runs; without this step `/p/{slug}/` answered `503` with generic preview metadata (`MPL-GROWTH-PROD-002`).
 2. The Function calls the restricted Azure API projection at `GET /api/v1/public/pets/{slug}/social`.
 3. A valid `/p/{slug}` request passes through to the exported Next.js HTML shell. `HTMLRewriter` removes the existing title, description, robots, canonical, Open Graph, and Twitter elements and inserts one pet-specific set into the initial response.
 4. The injected `og:image` points to `/social/pets/{slug}.jpg?v={publicProfileVersion}` on the canonical site origin.
@@ -114,6 +134,22 @@ API and edge constants synchronized whenever rendered bytes change.
 - The card Function checks current visibility before consulting its image cache. An old requested version can therefore never retrieve an old private card through the Function.
 - JPEG responses use `public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400`. The edge cache key contains the current public-profile version. The API cache additionally contains the card variant and its renderer version. In-flight generation is deduplicated per complete cache identity at both layers.
 - Lost Mode cards show an urgent banner and contact instruction without placing contact details on the image.
+
+### Finder preview privacy boundary
+
+- `/q`, `/t` and `/n` previews are built from `GET /api/v1/public/safety/{code}/social` and `GET /api/v1/public/tags/{code}/social`, which return only a lifecycle state, the pet's name, and — when the Public Share Profile is switched on — the public slug and version. No contact details, owner identity, general area, notes, safety code, tag code or database identifier is in that projection.
+- The tag projection is deliberately read-only. The scan routes record a `TagScan` for every call; a link preview must never appear in an owner's scan history, so the preview endpoint has its own query and records nothing.
+- A pet whose Public Share Profile is off keeps its finder preview but falls back to generic MyPetLink branding, because the pet card belongs to the profile the owner switched off.
+- Unclaimed, inactive, replaced and unknown tags return `404` from the projection, and the edge answers with generic finder copy — the preview never reveals tag or inventory state.
+- A finder code appears only as the canonical URL of the page being shared, never in the image URL, title or description.
+
+### External preview caches
+
+These changes guarantee that a *new* crawler fetch receives correct metadata and
+a valid image. They cannot purge a preview a platform has already cached for a
+given URL: WhatsApp in particular builds previews on the sender's device and
+keeps them per URL. A previously shared link may keep showing an older preview
+until that platform refreshes it, which is outside our control.
 
 ## Local verification
 

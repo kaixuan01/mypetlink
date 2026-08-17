@@ -31,6 +31,13 @@ Phase G3 — Free growth loop fixes (from the 2026-08-17 review)
   MPL-GROWTH-FIX-004  Share Card action analytics        Done    G1
   MPL-GROWTH-FIX-005  First-pet heading never renders    Done    G2
 
+Phase G4 — Production social preview hardening (from the 2026-08-17 prod smoke)
+  MPL-GROWTH-PROD-001 Share Card logo/name + logo/QR overlap  Done   G1
+  MPL-GROWTH-PROD-002 /p trailing slash returned 503          Done   G1
+  MPL-GROWTH-PROD-003 /q /t /n had no pet preview             Done   G1
+  MPL-GROWTH-PROD-004 robots.txt meta-externalagent           Open   G2  OWNER CONFIG
+  MPL-GROWTH-PROD-005 OG summary truncates the age            Open   G2
+
 Phase P0 — Premium foundations (ships dark)
   MPL-PREM-001     Malaysia calendar day + reminder schema   Ready
 
@@ -622,6 +629,86 @@ These are product judgements from the review, not defects. No work item yet.
 - **Weighting review.** After seeing the real UX the weights hold. Photo (3) is
   correctly the joint-highest — it is the single biggest determinant of whether
   a shared card looks finished, which `MPL-GROWTH-FIX-003` reinforces.
+
+---
+
+# Phase G4 — Production Social Preview Hardening
+
+Three G1 defects found by the production Free Growth smoke test on 2026-08-17,
+all fixed and verified against a local API plus Cloudflare Pages runtime.
+
+## MPL-GROWTH-PROD-001 — Share Card overlaps
+
+**Status:** Done (2026-08-17) · **Priority:** G1
+
+**Problem.** The real brand logo, which carries a tagline line, was laid out from
+fixed offsets tuned for the shorter text fallback it replaced. On the portrait
+Share Card the logo overlapped the pet's name, and visual QA during this fix
+found a second instance: on Birthday and Adoption cards the logo overlapped the
+QR panel.
+
+**Root cause.** Spacing was measured from the logo band's *top* rather than the
+logo's real bottom, and the name was positioned by its baseline rather than by
+its ink. Short names take the largest size (82), whose ascenders reach furthest,
+so the collision appeared exactly on the common case and not on long names.
+
+**Fix.** `DrawBrandLogoCentered` now returns the bottom it actually occupied,
+`TextStyle.MeasureInk` exposes a string's tight ink bounds, and both cards lay
+out from measured edges with named gap constants. No type sizes changed and no
+extra whitespace was added.
+
+**Verified.** Rendered cards for names from 2 to 45 characters, with and without
+a photo, across Profile, Birthday and Adoption. Measured clearance on occasion
+cards went from a 1–2px overlap to 35px. Regression tests assert separation from
+rendered pixels rather than from hard-coded positions.
+
+---
+
+## MPL-GROWTH-PROD-002 — Trailing-slash profile URLs returned 503
+
+**Status:** Done (2026-08-17) · **Priority:** G1
+
+**Problem.** `https://mypetlink.com.my/p/{slug}/` answered `503` with generic
+"temporarily unavailable" preview metadata, reproducibly. Chat clients and
+link cleaners routinely add trailing slashes, so this produced exactly the weak
+preview the owner reported.
+
+**Root cause.** The Function claims `/p/*` and runs before Cloudflare's own
+trailing-slash normalisation, then `context.next()` found no static asset for the
+slashed path and fell through to the error page.
+
+**Fix.** `buildCanonicalPathRedirect` issues a `308` to the canonical path before
+any origin work, preserving the query string so the share version survives.
+Repeated slashes collapse to one canonical URL; already-canonical URLs are
+untouched, so there is no redirect loop. Applied to the finder routes too.
+
+**Verified.** `/p/{slug}/`, `/p/{slug}/?share=…` and `/q/{code}/` all resolve in
+exactly one hop; canonical stays `https://mypetlink.com.my/p/{slug}`.
+
+---
+
+## MPL-GROWTH-PROD-003 — Finder routes had no pet preview
+
+**Status:** Done (2026-08-17) · **Priority:** G1
+
+**Problem.** Shared `/q/*` and `/t/*` links previewed as the static shell:
+title "Loading | MyPetLink" with the generic image.
+
+**Fix.** `/q/*`, `/t/*` and `/n/*` now use the same edge rewrite pipeline, backed
+by two new read-only API projections. `/q` resolves a safety code first and then
+a tag code, matching how the page itself resolves. Unresolvable codes get useful
+generic MyPetLink finder copy with `no-store`, never the shell.
+
+**Privacy boundary.** The projection carries only a lifecycle state, the pet's
+name, and the public slug/version when the Public Share Profile is on. The tag
+projection is read-only and records no `TagScan`, so a crawler preview never
+lands in an owner's scan history. Finder previews are always `noindex,follow`.
+See [`../deployment/dynamic-social-previews.md`](../deployment/dynamic-social-previews.md).
+
+**Verified.** Live local edge across valid, unknown, Lost Mode and memorial
+states, five crawler user agents plus a normal browser (identical metadata, no
+UA-specific HTML), and a head inspection confirming no contact, owner name or
+email appears.
 
 ---
 

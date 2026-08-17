@@ -73,6 +73,15 @@ export async function handlePublicProfileRequest(
   context: EdgeContext,
   dependencies: { fetch?: FetchLike } = {}
 ) {
+  // This Function claims /p/*, which pre-empts the platform's own trailing-slash
+  // normalisation. Without this the static asset lookup below misses and a
+  // perfectly good profile link answers 503 with generic preview metadata, so
+  // canonicalise first and keep exactly one URL per profile.
+  const canonicalRedirect = buildCanonicalPathRedirect(context.request);
+  if (canonicalRedirect) {
+    return canonicalRedirect;
+  }
+
   const slug = getSingleParam(context.params.slug);
   if (!isValidPublicProfileSlug(slug)) {
     return createUnavailableProfileResponse("not-found");
@@ -105,6 +114,38 @@ export async function handlePublicProfileRequest(
   const metadata = buildPublicProfileHead(profileResult.profile);
   const headers = profileHtmlHeaders(assetResponse.headers);
   return rewriteProfileHead(assetResponse, metadata, headers);
+}
+
+/**
+ * Permanent redirect from a trailing-slash profile URL to its canonical form,
+ * preserving the query string so the share version survives. Returns null when
+ * the request is already canonical.
+ */
+export function buildCanonicalPathRedirect(request: Request) {
+  let url: URL;
+  try {
+    url = new URL(request.url);
+  } catch {
+    return null;
+  }
+
+  if (!url.pathname.endsWith("/")) {
+    return null;
+  }
+
+  const canonicalPath = url.pathname.replace(/\/+$/, "");
+  if (!canonicalPath) {
+    return null;
+  }
+
+  return new Response(null, {
+    headers: {
+      "Cache-Control": "public, max-age=3600",
+      Location: `${canonicalPath}${url.search}`,
+      "X-MyPetLink-Metadata": "canonical-redirect",
+    },
+    status: 308,
+  });
 }
 
 async function createOperationalApiFallbackResponse(context: EdgeContext) {
@@ -697,4 +738,261 @@ function safeErrorMessage(error: unknown) {
   return error instanceof Error
     ? `${error.name}: ${error.message}`.slice(0, 300)
     : "Unknown social-card proxy error";
+}
+
+/* -------------------------------------------------------------------------
+ * Finder routes (/q, /t, /n)
+ *
+ * These are shared as often as a Public Share Profile, but they used to answer
+ * crawlers with the static shell — a preview titled "Loading | MyPetLink". They
+ * now reuse this same rewrite pipeline, backed by a deliberately tiny API
+ * projection carrying no contact details, owner identity, location or codes.
+ * ---------------------------------------------------------------------- */
+
+export type FinderRouteKind = "safety" | "tag";
+
+export type EdgeFinderPreview = {
+  state: "active" | "lostMode" | "memorial";
+  name: string;
+  publicSlug: string | null;
+  publicProfileVersion: string | null;
+};
+
+const finderCodePattern = /^[A-Za-z0-9][A-Za-z0-9-]{3,63}$/;
+
+export function isValidFinderCode(value: string) {
+  return finderCodePattern.test(value);
+}
+
+export async function handleFinderPreviewRequest(
+  context: EdgeContext,
+  kind: FinderRouteKind,
+  dependencies: { fetch?: FetchLike } = {}
+) {
+  const canonicalRedirect = buildCanonicalPathRedirect(context.request);
+  if (canonicalRedirect) {
+    return canonicalRedirect;
+  }
+
+  const assetResponse = await getAssetHtmlResponse(context);
+  if (!assetResponse) {
+    // Nothing to rewrite; let the platform serve whatever it already resolved.
+    return context.next();
+  }
+
+  const code = getSingleParam(context.params.slug);
+  const canonicalPath = getRequestPathname(context.request);
+  const preview = isValidFinderCode(code)
+    ? await fetchFinderPreview(context.env, kind, code, dependencies.fetch ?? fetch)
+    : null;
+
+  const headers = profileHtmlHeaders(assetResponse.headers);
+  headers.set(
+    "X-MyPetLink-Metadata",
+    preview ? "dynamic-finder-profile" : "generic-finder"
+  );
+  if (!preview) {
+    // An unresolved code may be a tag that is about to be activated, so never let
+    // the generic answer stick in a shared cache.
+    headers.set("Cache-Control", "no-store");
+  }
+
+  return rewriteProfileHead(
+    assetResponse,
+    preview
+      ? buildFinderPreviewHead(preview, canonicalPath)
+      : buildGenericFinderHead(kind, canonicalPath),
+    headers
+  );
+}
+
+export async function fetchFinderPreview(
+  env: MyPetLinkPagesEnv,
+  kind: FinderRouteKind,
+  code: string,
+  fetcher: FetchLike = fetch
+): Promise<EdgeFinderPreview | null> {
+  // A /q link may carry either a Safety Profile code or a printed tag code —
+  // the same order the page itself resolves them in.
+  const paths =
+    kind === "safety"
+      ? [
+          `/api/v1/public/safety/${encodeURIComponent(code)}/social`,
+          `/api/v1/public/tags/${encodeURIComponent(code)}/social`,
+        ]
+      : [`/api/v1/public/tags/${encodeURIComponent(code)}/social`];
+
+  for (const path of paths) {
+    const preview = await requestFinderPreview(env, path, fetcher);
+    if (preview) {
+      return preview;
+    }
+  }
+
+  return null;
+}
+
+async function requestFinderPreview(
+  env: MyPetLinkPagesEnv,
+  path: string,
+  fetcher: FetchLike
+): Promise<EdgeFinderPreview | null> {
+  const apiBase = getPublicApiBaseUrl(env);
+  if (!apiBase) return null;
+
+  try {
+    const response = await fetchWithTimeout(
+      fetcher,
+      new URL(path, `${apiBase}/`),
+      {
+        cache: "no-store",
+        headers: {
+          Accept: "application/json",
+          "User-Agent": "MyPetLink-Cloudflare-Social/1.0",
+        },
+      },
+      profileFetchTimeoutMs
+    );
+    if (!response.ok) return null;
+
+    const declaredLength = Number(response.headers.get("content-length") ?? 0);
+    if (declaredLength > maxProfileResponseBytes) return null;
+
+    const text = await response.text();
+    if (new TextEncoder().encode(text).byteLength > maxProfileResponseBytes) {
+      return null;
+    }
+
+    const envelope = JSON.parse(text) as { data?: unknown };
+    return parseEdgeFinderPreview(envelope.data);
+  } catch {
+    return null;
+  }
+}
+
+function parseEdgeFinderPreview(value: unknown): EdgeFinderPreview | null {
+  if (!value || typeof value !== "object") return null;
+  const item = value as Record<string, unknown>;
+  const name = stringValue(item.name, 120);
+  const state = item.state;
+  if (
+    !name ||
+    (state !== "active" && state !== "lostMode" && state !== "memorial")
+  ) {
+    return null;
+  }
+
+  const publicSlug = optionalString(item.publicSlug, 160);
+  const publicProfileVersion = optionalString(item.publicProfileVersion, 64);
+  const shareable =
+    publicSlug !== null &&
+    isValidPublicProfileSlug(publicSlug) &&
+    publicProfileVersion !== null &&
+    /^[a-f0-9]{16,64}$/i.test(publicProfileVersion);
+
+  return {
+    state,
+    name,
+    publicSlug: shareable ? publicSlug.toLowerCase() : null,
+    publicProfileVersion: shareable ? publicProfileVersion.toLowerCase() : null,
+  };
+}
+
+export function buildFinderPreviewHead(
+  preview: EdgeFinderPreview,
+  canonicalPath: string
+) {
+  const name = cleanMetadataText(preview.name, 80) || "this pet";
+  const canonical = `${productionSiteOrigin}${canonicalPath}`;
+  const copy = finderPreviewCopy(preview.state, name);
+  // Only the owner's own public card is reused, and only while the Public Share
+  // Profile is switched on. Otherwise the preview stays generic.
+  const socialImage =
+    preview.publicSlug && preview.publicProfileVersion
+      ? `${productionSiteOrigin}/social/pets/${encodeURIComponent(preview.publicSlug)}.jpg?v=${encodeURIComponent(preview.publicProfileVersion)}`
+      : `${productionSiteOrigin}/og-image.png`;
+
+  return finderHead(
+    copy.title,
+    copy.description,
+    canonical,
+    socialImage,
+    `${name} on MyPetLink`
+  );
+}
+
+export function buildGenericFinderHead(
+  kind: FinderRouteKind,
+  canonicalPath: string
+) {
+  return finderHead(
+    kind === "safety" ? "Pet Safety Profile | MyPetLink" : "Pet Tag | MyPetLink",
+    "Open this MyPetLink link to see a pet's safety information and how to help them get home.",
+    `${productionSiteOrigin}${canonicalPath}`,
+    `${productionSiteOrigin}/og-image.png`,
+    "MyPetLink"
+  );
+}
+
+function finderPreviewCopy(state: EdgeFinderPreview["state"], name: string) {
+  if (state === "lostMode") {
+    return {
+      title: `Help ${name} get home | MyPetLink`,
+      description: `${name} is missing. Open this Safety Profile to see how you can help.`,
+    };
+  }
+
+  if (state === "memorial") {
+    return {
+      title: `In memory of ${name} | MyPetLink`,
+      description: `A memorial page for ${name} on MyPetLink.`,
+    };
+  }
+
+  return {
+    title: `Found ${name}? | MyPetLink`,
+    description: `Open ${name}'s Safety Profile on MyPetLink to see what to do next.`,
+  };
+}
+
+function finderHead(
+  title: string,
+  description: string,
+  canonical: string,
+  socialImage: string,
+  imageAlt: string
+) {
+  // Finder pages are per-pet safety URLs and must never be indexed, whatever the
+  // Public Share Profile chooses to do.
+  const robots = "noindex,follow";
+
+  return [
+    `<title>${escapeHtmlText(title)}</title>`,
+    meta("name", "description", description),
+    meta("name", "robots", robots),
+    meta("name", "googlebot", robots),
+    `<link rel="canonical" href="${escapeHtmlAttribute(canonical)}">`,
+    meta("property", "og:title", title),
+    meta("property", "og:description", description),
+    meta("property", "og:type", "website"),
+    meta("property", "og:url", canonical),
+    meta("property", "og:image", socialImage),
+    meta("property", "og:image:secure_url", socialImage),
+    meta("property", "og:image:alt", imageAlt),
+    meta("property", "og:site_name", "MyPetLink"),
+    meta("property", "og:locale", "en_MY"),
+    meta("name", "twitter:card", "summary_large_image"),
+    meta("name", "twitter:title", title),
+    meta("name", "twitter:description", description),
+    meta("name", "twitter:image", socialImage),
+    meta("name", "twitter:image:alt", imageAlt),
+  ].join("");
+}
+
+function getRequestPathname(request: Request) {
+  try {
+    return new URL(request.url).pathname;
+  } catch {
+    return "/";
+  }
 }

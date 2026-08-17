@@ -252,6 +252,13 @@ public interface IQrSafetyService : ISkeletonService
     Task<PublicSafetyPageResponse> GetBySafetyCodeAsync(
         string safetyCode,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Link-preview projection for the Safety Profile. Read-only and contact-free.
+    /// </summary>
+    Task<PublicFinderSocialResponse> GetSocialBySafetyCodeAsync(
+        string safetyCode,
+        CancellationToken cancellationToken = default);
 }
 
 public interface ITagScanService : ISkeletonService
@@ -260,6 +267,15 @@ public interface ITagScanService : ISkeletonService
         string tagCode,
         TagScanSource source,
         TagScanContext context,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Link-preview projection for a physical tag page. Read-only and contact-free,
+    /// and deliberately does NOT record a scan: crawlers fetching a preview must
+    /// never appear in an owner's scan history.
+    /// </summary>
+    Task<PublicFinderSocialResponse> GetSocialByTagCodeAsync(
+        string tagCode,
         CancellationToken cancellationToken = default);
 
     Task SubmitLocationConsentAsync(

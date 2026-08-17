@@ -1,5 +1,5 @@
 {
   "version": 1,
-  "include": ["/p/*", "/social/pets/*"],
+  "include": ["/p/*", "/q/*", "/t/*", "/n/*", "/social/pets/*"],
   "exclude": []
 }

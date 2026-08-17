@@ -58,6 +58,20 @@ public sealed class TagScanController : ApiControllerBase
         return Ok(ApiEnvelope.Ok(response, HttpContext));
     }
 
+    /// <summary>
+    /// Restricted projection used by the edge to build a tag page's link preview.
+    /// Read-only: unlike the scan routes above it records no TagScan, so crawler
+    /// previews never appear in an owner's scan history.
+    /// </summary>
+    [HttpGet("{tagCode}/social")]
+    [EnableRateLimiting(SmartTagRateLimitPolicies.PublicTagScan)]
+    public async Task<IActionResult> GetSocial(string tagCode, CancellationToken cancellationToken)
+    {
+        Response.Headers.CacheControl = "no-store";
+        var response = await _tagScanService.GetSocialByTagCodeAsync(tagCode, cancellationToken);
+        return Ok(ApiEnvelope.Ok(response, HttpContext));
+    }
+
     [HttpPost("{tagCode}/scan-location-consent")]
     public async Task<IActionResult> SubmitLocationConsent(
         string tagCode,
