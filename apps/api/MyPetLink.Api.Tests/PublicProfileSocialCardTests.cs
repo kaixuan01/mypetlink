@@ -92,6 +92,10 @@ public sealed class PublicProfileSocialCardTests
         var exception = await Assert.ThrowsAsync<ApiException>(() =>
             service.GetSocialByPublicSlugAsync("nori-futurepet1234"));
         Assert.Equal(404, exception.StatusCode);
+
+        var malformedException = await Assert.ThrowsAsync<ApiException>(() =>
+            service.GetSocialByPublicSlugAsync(" "));
+        Assert.Equal(404, malformedException.StatusCode);
     }
 
     [Fact]
@@ -258,6 +262,73 @@ public sealed class PublicProfileSocialCardTests
     }
 
     [Fact]
+    public async Task Renderer_DefaultAndExplicitOpenGraphVariantsAreByteIdentical()
+    {
+        using var defaultCache = new MemoryCache(new MemoryCacheOptions());
+        using var explicitCache = new MemoryCache(new MemoryCacheOptions());
+        var defaultRenderer = CreateRenderer(defaultCache, new CountingHandler(_ =>
+            new HttpResponseMessage(HttpStatusCode.NotFound)));
+        var explicitRenderer = CreateRenderer(explicitCache, new CountingHandler(_ =>
+            new HttpResponseMessage(HttpStatusCode.NotFound)));
+        var profile = CreateProfile();
+
+        var defaultJpeg = await defaultRenderer.RenderAsync(profile);
+        var explicitJpeg = await explicitRenderer.RenderAsync(
+            profile,
+            PublicProfileSocialCardVariant.OpenGraph);
+
+        Assert.Equal(defaultJpeg, explicitJpeg);
+        using var bitmap = SKBitmap.Decode(defaultJpeg);
+        Assert.Equal(PublicProfileSocialCardRenderer.Width, bitmap.Width);
+        Assert.Equal(PublicProfileSocialCardRenderer.Height, bitmap.Height);
+    }
+
+    [Fact]
+    public async Task Renderer_ShareCardHasPortraitDimensionsAndAnIsolatedCacheEntry()
+    {
+        using var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var renderer = CreateRenderer(memoryCache, new CountingHandler(_ =>
+            new HttpResponseMessage(HttpStatusCode.NotFound)));
+        var profile = CreateProfile();
+
+        var openGraph = await renderer.RenderAsync(profile);
+        var shareCard = await renderer.RenderAsync(profile, PublicProfileSocialCardVariant.ShareCard);
+        var cachedOpenGraph = await renderer.RenderAsync(profile);
+        var cachedShareCard = await renderer.RenderAsync(profile, PublicProfileSocialCardVariant.ShareCard);
+
+        Assert.Same(openGraph, cachedOpenGraph);
+        Assert.Same(shareCard, cachedShareCard);
+        Assert.False(openGraph.SequenceEqual(shareCard));
+        using var openGraphBitmap = SKBitmap.Decode(openGraph);
+        using var shareCardBitmap = SKBitmap.Decode(shareCard);
+        Assert.Equal((PublicProfileSocialCardRenderer.Width, PublicProfileSocialCardRenderer.Height),
+            (openGraphBitmap.Width, openGraphBitmap.Height));
+        Assert.Equal((PublicProfileSocialCardRenderer.ShareCardWidth, PublicProfileSocialCardRenderer.ShareCardHeight),
+            (shareCardBitmap.Width, shareCardBitmap.Height));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("open-graph")]
+    [InlineData("unknown")]
+    [InlineData("birthday")]
+    public void CardVariantParser_DefaultsUnknownAndMissingValuesToOpenGraph(string? value)
+    {
+        Assert.Equal(
+            PublicProfileSocialCardVariant.OpenGraph,
+            PublicProfileSocialCardVariants.Parse(value));
+    }
+
+    [Fact]
+    public void CardVariantParser_AcceptsShareCardCaseInsensitively()
+    {
+        Assert.Equal(
+            PublicProfileSocialCardVariant.ShareCard,
+            PublicProfileSocialCardVariants.Parse("SHARE-CARD"));
+    }
+
+    [Fact]
     public async Task Renderer_RejectsExternalMediaWithoutFetchingIt()
     {
         var handler = new CountingHandler(_ =>
@@ -301,6 +372,126 @@ public sealed class PublicProfileSocialCardTests
     }
 
     [Fact]
+    public async Task Renderer_ShareCardUsesFallbacksForMissingMediaAndOptionalSummaryFields()
+    {
+        using var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var renderer = CreateRenderer(memoryCache, new CountingHandler(_ =>
+            new HttpResponseMessage(HttpStatusCode.NotFound)));
+        var profile = CreateProfile() with
+        {
+            Name = "A Very Long Pet Name That Must Be Bounded Without Breaking The Portrait Layout",
+            Breed = null,
+            AgeDisplayLabel = "Age unknown",
+            ProfilePhotoUrl = null,
+            CoverPhotoUrl = null
+        };
+
+        var jpeg = await renderer.RenderAsync(profile, PublicProfileSocialCardVariant.ShareCard);
+
+        using var bitmap = SKBitmap.Decode(jpeg);
+        Assert.NotNull(bitmap);
+        Assert.Equal(PublicProfileSocialCardRenderer.ShareCardWidth, bitmap.Width);
+        Assert.Equal(PublicProfileSocialCardRenderer.ShareCardHeight, bitmap.Height);
+    }
+
+    [Fact]
+    public async Task Renderer_InvalidAllowedHostPayloadFallsBackWithoutRenderFailure()
+    {
+        var handler = new CountingHandler(_ =>
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent("not an image"u8.ToArray())
+                {
+                    Headers = { ContentType = new("image/jpeg") }
+                }
+            });
+        using var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var renderer = CreateRenderer(memoryCache, handler);
+        var profile = CreateProfile() with
+        {
+            ProfilePhotoUrl = "https://media.mypetlink.com.my/profile/invalid.jpg",
+            CoverPhotoUrl = "https://media.mypetlink.com.my/cover/invalid.jpg"
+        };
+
+        var jpeg = await renderer.RenderAsync(profile, PublicProfileSocialCardVariant.ShareCard);
+
+        Assert.Equal(2, handler.RequestCount);
+        using var bitmap = SKBitmap.Decode(jpeg);
+        Assert.Equal(PublicProfileSocialCardRenderer.ShareCardWidth, bitmap.Width);
+        Assert.Equal(PublicProfileSocialCardRenderer.ShareCardHeight, bitmap.Height);
+    }
+
+    [Fact]
+    public async Task Renderer_RejectsDeclaredOversizedMediaBeforeReadingIt()
+    {
+        var handler = new CountingHandler(_ =>
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent([0xff, 0xd8, 0xff, 0xd9])
+            };
+            response.Content.Headers.ContentType = new("image/jpeg");
+            response.Content.Headers.ContentLength = 8 * 1024 * 1024 + 1;
+            return response;
+        });
+        using var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var renderer = CreateRenderer(memoryCache, handler);
+        var profile = CreateProfile() with
+        {
+            ProfilePhotoUrl = "https://media.mypetlink.com.my/profile/large.jpg",
+            CoverPhotoUrl = "https://media.mypetlink.com.my/cover/large.jpg"
+        };
+
+        var jpeg = await renderer.RenderAsync(profile, PublicProfileSocialCardVariant.ShareCard);
+
+        Assert.Equal(2, handler.RequestCount);
+        Assert.NotEmpty(jpeg);
+    }
+
+    [Fact]
+    public async Task Renderer_MediaTimeoutFallsBackWithoutRenderFailure()
+    {
+        var handler = new AsyncCountingHandler(_ =>
+            Task.FromException<HttpResponseMessage>(new OperationCanceledException("Timed out.")));
+        using var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var renderer = CreateRenderer(memoryCache, handler);
+        var profile = CreateProfile() with
+        {
+            ProfilePhotoUrl = "https://media.mypetlink.com.my/profile/slow.jpg",
+            CoverPhotoUrl = "https://media.mypetlink.com.my/cover/slow.jpg"
+        };
+
+        var jpeg = await renderer.RenderAsync(profile, PublicProfileSocialCardVariant.ShareCard);
+
+        Assert.Equal(2, handler.RequestCount);
+        Assert.NotEmpty(jpeg);
+    }
+
+    [Fact]
+    public async Task Renderer_ConcurrentShareCardRequestsUseOneInflightGeneration()
+    {
+        var handler = new AsyncCountingHandler(async cancellationToken =>
+        {
+            await Task.Delay(100, cancellationToken);
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
+        });
+        using var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var renderer = CreateRenderer(memoryCache, handler);
+        var profile = CreateProfile() with
+        {
+            ProfilePhotoUrl = "https://media.mypetlink.com.my/profile/missing.jpg",
+            CoverPhotoUrl = "https://media.mypetlink.com.my/cover/missing.jpg"
+        };
+
+        var first = renderer.RenderAsync(profile, PublicProfileSocialCardVariant.ShareCard);
+        var second = renderer.RenderAsync(profile, PublicProfileSocialCardVariant.ShareCard);
+        var results = await Task.WhenAll(first, second);
+
+        Assert.Same(results[0], results[1]);
+        Assert.Equal(2, handler.RequestCount);
+    }
+
+    [Fact]
     public async Task Renderer_LostModeVariantDiffersFromTheNormalCard()
     {
         using var memoryCache = new MemoryCache(new MemoryCacheOptions());
@@ -322,6 +513,28 @@ public sealed class PublicProfileSocialCardTests
         Assert.Equal((PublicProfileSocialCardRenderer.Width, PublicProfileSocialCardRenderer.Height),
             (normalBitmap.Width, normalBitmap.Height));
         Assert.Equal((PublicProfileSocialCardRenderer.Width, PublicProfileSocialCardRenderer.Height),
+            (lostBitmap.Width, lostBitmap.Height));
+    }
+
+    [Fact]
+    public async Task Renderer_ShareCardPreservesLostModeTreatment()
+    {
+        using var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var renderer = CreateRenderer(memoryCache, new CountingHandler(_ =>
+            new HttpResponseMessage(HttpStatusCode.NotFound)));
+        var normal = CreateProfile();
+        var lost = normal with
+        {
+            PublicProfileVersion = "fedcba9876543210",
+            LostModeEnabled = true
+        };
+
+        var normalJpeg = await renderer.RenderAsync(normal, PublicProfileSocialCardVariant.ShareCard);
+        var lostJpeg = await renderer.RenderAsync(lost, PublicProfileSocialCardVariant.ShareCard);
+
+        Assert.False(normalJpeg.SequenceEqual(lostJpeg));
+        using var lostBitmap = SKBitmap.Decode(lostJpeg);
+        Assert.Equal((PublicProfileSocialCardRenderer.ShareCardWidth, PublicProfileSocialCardRenderer.ShareCardHeight),
             (lostBitmap.Width, lostBitmap.Height));
     }
 
@@ -374,6 +587,21 @@ public sealed class PublicProfileSocialCardTests
         {
             RequestCount += 1;
             return Task.FromResult(responseFactory(request));
+        }
+    }
+
+    private sealed class AsyncCountingHandler(
+        Func<CancellationToken, Task<HttpResponseMessage>> responseFactory) : HttpMessageHandler
+    {
+        private int _requestCount;
+        public int RequestCount => _requestCount;
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref _requestCount);
+            return responseFactory(cancellationToken);
         }
     }
 

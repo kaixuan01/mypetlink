@@ -18,8 +18,8 @@ it is split into sequential phases.
 ```text
 Phase G1 — Free growth, no backend risk
   MPL-GROWTH-001   Profile Completion                    Done
-  MPL-GROWTH-002   Share Card renderer variant (API)     Ready
-  MPL-GROWTH-003   Share Card edge + owner UI            Blocked by 002
+  MPL-GROWTH-002   Share Card renderer variant (API)     Done
+  MPL-GROWTH-003   Share Card edge + owner UI            Ready
 
 Phase G2 — Seasonal reach
   MPL-GROWTH-004   Birthday / Adoption card variants     Blocked by 003
@@ -51,8 +51,8 @@ Later (not scheduled)
   MPL-LATER-005    Year in Review
 ```
 
-**MPL-GROWTH-002 is the recommended next task.** It is the next Ready package
-in the approved free-growth sequence and unlocks MPL-GROWTH-003.
+**MPL-GROWTH-003 is the recommended next task.** Its renderer dependency is now
+complete, so it is the next Ready package in the approved free-growth sequence.
 
 ---
 
@@ -114,7 +114,7 @@ state, complete state, and analytics emission. `npm run test`, `npm run lint`,
 
 ## MPL-GROWTH-002 — Share Card Renderer Variant (API)
 
-**Status:** Ready
+**Status:** Done
 
 **Goal.** Teach the existing social-card renderer to produce a second,
 share-sheet-friendly card layout, without creating a second image service.
@@ -159,7 +159,7 @@ existing OG previews.
 
 ## MPL-GROWTH-003 — Share Card Edge Route + Owner Share UI
 
-**Status:** Blocked by MPL-GROWTH-002
+**Status:** Ready
 
 **Goal.** Deliver the new card to owners through the existing edge cache and
 share controls.

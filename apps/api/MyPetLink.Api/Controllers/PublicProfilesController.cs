@@ -51,10 +51,15 @@ public sealed class PublicProfilesController : ApiControllerBase
     public async Task<IActionResult> GetSocialCard(
         string publicSlug,
         [FromQuery(Name = "v")] string? requestedVersion,
+        [FromQuery] string? variant,
         CancellationToken cancellationToken)
     {
         var profile = await _publicProfileService.GetSocialByPublicSlugAsync(publicSlug, cancellationToken);
-        var entityTag = $"\"{profile.PublicProfileVersion}\"";
+        var cardVariant = PublicProfileSocialCardVariants.Parse(variant);
+        var entityTagValue = cardVariant == PublicProfileSocialCardVariant.OpenGraph
+            ? profile.PublicProfileVersion
+            : $"{profile.PublicProfileVersion}-{cardVariant.TemplateVersion()}";
+        var entityTag = $"\"{entityTagValue}\"";
 
         // This origin endpoint is consumed by the Pages Function, which owns
         // the versioned public cache after revalidating profile visibility.
@@ -63,6 +68,7 @@ public sealed class PublicProfilesController : ApiControllerBase
         Response.Headers.CacheControl = "private, no-store";
         Response.Headers.ETag = entityTag;
         Response.Headers["X-Public-Profile-Version"] = profile.PublicProfileVersion;
+        Response.Headers["X-Social-Card-Template-Version"] = cardVariant.TemplateVersion();
 
         if (Request.Headers.IfNoneMatch.Any(value =>
                 string.Equals(value, entityTag, StringComparison.Ordinal)))
@@ -73,7 +79,7 @@ public sealed class PublicProfilesController : ApiControllerBase
         // A stale or missing query version is safe: the current public projection
         // remains the authority, and the response always contains the current card.
         _ = requestedVersion;
-        var jpeg = await _socialCardRenderer.RenderAsync(profile, cancellationToken);
+        var jpeg = await _socialCardRenderer.RenderAsync(profile, cardVariant, cancellationToken);
         return File(jpeg, "image/jpeg");
     }
 

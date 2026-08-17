@@ -135,6 +135,7 @@ public interface IPublicProfileSocialCardRenderer
 {
     Task<byte[]> RenderAsync(
         PublicProfileSocialResponse profile,
+        PublicProfileSocialCardVariant variant = PublicProfileSocialCardVariant.OpenGraph,
         CancellationToken cancellationToken = default);
 }
 

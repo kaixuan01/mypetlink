@@ -9,9 +9,23 @@ MyPetLink serves public-profile metadata and JPEG social cards at request time. 
 3. A valid `/p/{slug}` request passes through to the exported Next.js HTML shell. `HTMLRewriter` removes the existing title, description, robots, canonical, Open Graph, and Twitter elements and inserts one pet-specific set into the initial response.
 4. The injected `og:image` points to `/social/pets/{slug}.jpg?v={publicProfileVersion}` on the canonical site origin.
 5. The social-card Function revalidates the current public projection, checks Cloudflare Cache with the current slug and version, and fetches `GET /api/v1/public/pets/{slug}/social-card.jpg` only on a miss.
-6. The API renders a 1200 x 630 JPEG with SkiaSharp. It also keeps a short-lived in-process cache and deduplicates concurrent generation for the same public code and version.
+6. The API renders the default 1200 x 630 Open Graph JPEG with SkiaSharp. It also keeps a short-lived in-process cache and deduplicates concurrent generation for the same public code, profile version, card variant, and renderer version.
 
 The former static `/share/pets/{slug}.jpg` route and its separate renderer were removed so there is one card template and one privacy boundary. Existing build-time metadata remains a fallback for a static asset response, but production `/p/*` responses are replaced at the edge.
+
+## Renderer variants
+
+The same restricted renderer also accepts
+`GET /api/v1/public/pets/{slug}/social-card.jpg?v={publicProfileVersion}&variant=share-card`
+for a 1080 x 1350 Pet Share Card JPEG. Missing, `open-graph`, and unknown variant
+values preserve the existing Open Graph layout and bytes. The Share Card uses
+its own `pet-share-card-v1` template identity in the API memory-cache key and
+ETag, so it cannot collide with the Open Graph entry. The API exposes that
+identity in `X-Social-Card-Template-Version` for the later edge integration.
+
+The current Cloudflare route continues to request only the Open Graph variant.
+Pet Share Card edge delivery and owner controls are intentionally deferred to
+MPL-GROWTH-003.
 
 ## Required configuration
 
@@ -48,7 +62,7 @@ Changing any card input produces a different URL while the canonical profile URL
 - Invalid, disabled, archived, deleted, and non-shared memorial profiles return generic metadata or `404` without pet data.
 - API failures return generic noindex metadata and leave a functional response; they never reuse another pet's card.
 - The card Function checks current visibility before consulting its image cache. An old requested version can therefore never retrieve an old private card through the Function.
-- JPEG responses use `public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400`. The cache key contains the current public-profile version. In-flight generation is deduplicated at both layers.
+- JPEG responses use `public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400`. The edge cache key contains the current public-profile version. The API cache additionally contains the card variant and its renderer version. In-flight generation is deduplicated per complete cache identity at both layers.
 - Lost Mode cards show an urgent banner and contact instruction without placing contact details on the image.
 
 ## Local verification
