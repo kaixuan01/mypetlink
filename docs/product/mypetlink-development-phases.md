@@ -1,5 +1,20 @@
 # MyPetLink Development Phases & Product Roadmap
 
+> **Status (2026-08-17): historical, with two exceptions.** Phases 0–2 are
+> delivered and the product has completed its soft-launch readiness work, so the
+> phase sequencing below no longer describes what to build next. For anything
+> post-launch — Free growth features, Premium scope, and build order — use
+> [`GROWTH_AND_PREMIUM_ROADMAP.md`](GROWTH_AND_PREMIUM_ROADMAP.md) and
+> [`FEATURE_DEVELOPMENT_BACKLOG.md`](FEATURE_DEVELOPMENT_BACKLOG.md).
+>
+> Two parts of this document **remain in force**: the *Important Product Rules*
+> and *AI Coding Assistant Rules* sections near the end — in particular that
+> basic finder contact must never be locked behind Premium, and that the
+> location tracker stays deferred.
+>
+> One factual correction: the Phase 1 text below names Supabase. The delivered
+> backend is **ASP.NET Core + EF Core + SQL Server** in `apps/api`.
+
 ## Purpose
 
 This document defines the recommended development phases for the MyPetLink project.

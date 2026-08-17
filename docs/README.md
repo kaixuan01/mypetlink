@@ -12,10 +12,12 @@ Repo-wide documentation. Frontend-specific docs (agent reference, owner portal f
 
 ## Product
 
+- [`product/GROWTH_AND_PREMIUM_ROADMAP.md`](product/GROWTH_AND_PREMIUM_ROADMAP.md) — **current** post-launch direction, Free/Premium boundary, and build order
+- [`product/FEATURE_DEVELOPMENT_BACKLOG.md`](product/FEATURE_DEVELOPMENT_BACKLOG.md) — Codex-ready work packages for the growth/Premium phase
 - [`product/MARKETING_STRATEGY.md`](product/MARKETING_STRATEGY.md) — positioning, audiences, home/pricing copy rules
 - [`product/SMART_TAG_PRODUCT_STRATEGY.md`](product/SMART_TAG_PRODUCT_STRATEGY.md) — physical Smart Tag product/business strategy
 - [`product/SMART_TAG_CATALOG_ARCHITECTURE.md`](product/SMART_TAG_CATALOG_ARCHITECTURE.md) — tag catalog, SKUs, and variants
-- [`product/mypetlink-development-phases.md`](product/mypetlink-development-phases.md) — development phases and roadmap
+- [`product/mypetlink-development-phases.md`](product/mypetlink-development-phases.md) — historical Phase 0–4 plan and standing product rules
 - [`phase-1-product-rules.md`](phase-1-product-rules.md) — non-negotiable Phase 1 product rules
 - [`DELIVERY_FEES.md`](DELIVERY_FEES.md) — delivery fee model
 
