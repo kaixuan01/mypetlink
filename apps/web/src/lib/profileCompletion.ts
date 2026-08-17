@@ -51,6 +51,13 @@ function hasRealDate(value: string | undefined) {
   return hasText(value) && !Number.isNaN(Date.parse(value as string));
 }
 
+function hasOwnerWrittenBio(pet: Pet) {
+  const bio = pet.bio?.trim() ?? "";
+  const legacyDisplayFallback =
+    `${pet.name} has a safe MyPetLink profile ready for family and friends.`;
+  return hasText(bio) && bio !== legacyDisplayFallback;
+}
+
 /**
  * Derives owner guidance entirely from data already available to the caller.
  * Missing count data means that item is unavailable and is excluded from both
@@ -140,7 +147,7 @@ export function deriveProfileCompletion({
     {
       id: "bio",
       weight: 1,
-      isComplete: hasText(pet.bio),
+      isComplete: hasOwnerWrittenBio(pet),
       label: "About",
       actionLabel: `Add more about ${pet.name}`,
       href: ownerRoutes.petEdit(pet.id),

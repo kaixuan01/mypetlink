@@ -26,7 +26,7 @@ Phase G2 — Seasonal reach
 
 Phase G3 — Free growth loop fixes (from the 2026-08-17 review)
   MPL-GROWTH-FIX-002  Public profile acquisition CTA     Ready   G1 (highest value)
-  MPL-GROWTH-FIX-001  Dashboard completion/occasion data Ready   G1
+  MPL-GROWTH-FIX-001  Dashboard completion/occasion data Done    G1
   MPL-GROWTH-FIX-003  Card fallback panel + brand logo   Ready   G1
   MPL-GROWTH-FIX-004  Share Card action analytics        Ready   G1
   MPL-GROWTH-FIX-005  First-pet heading never renders    Ready   G2
@@ -273,7 +273,7 @@ backlog: without it the acquisition loop does not close.
 
 ## MPL-GROWTH-FIX-001 — Dashboard completion and occasion cards read an incomplete pet payload
 
-**Status:** Ready · **Priority:** G1
+**Status:** Done · **Priority:** G1
 
 **Problem.** `DashboardClient` derives both profile completion and today's
 occasions from the pets **list** response, which does not carry `breed`,

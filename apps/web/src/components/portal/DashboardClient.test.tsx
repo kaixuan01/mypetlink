@@ -39,6 +39,8 @@ vi.mock("@/components/portal/PlanSummaryCard", () => ({
   },
 }));
 
+vi.stubEnv("NEXT_PUBLIC_SHARE_CARDS_ENABLED", "true");
+
 const { DashboardClient } = await import("./DashboardClient");
 
 function renderDashboard() {
@@ -166,6 +168,39 @@ describe("DashboardClient with pets", () => {
     expect(
       screen.getByRole("link", { name: "Manage pets" }).getAttribute("href")
     ).toBe("/pets");
+  });
+
+  it("discovers today's adoption anniversary from dashboard pet data", async () => {
+    const malaysiaParts = Object.fromEntries(
+      new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Kuala_Lumpur",
+        month: "2-digit",
+        day: "2-digit",
+      })
+        .formatToParts(new Date())
+        .map(({ type, value }) => [type, value])
+    );
+    mocks.getPets.mockResolvedValue({
+      data: [
+        {
+          ...mockPets[0],
+          birthday: "Not set",
+          adoptionDay: `2022-${malaysiaParts.month}-${malaysiaParts.day}`,
+          hasUsableSafetyContact: true,
+        },
+      ],
+    });
+
+    renderDashboard();
+
+    expect(await screen.findByText("Celebrate today")).toBeTruthy();
+    expect(screen.getByText("Adoption Day")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Share Card" }));
+    expect(
+      screen
+        .getByRole("img", { name: /Milo's MyPetLink Adoption Day Share Card/i })
+        .getAttribute("src")
+    ).toContain("variant=adoption");
   });
 
   it("points Owner Settings at the correct route", async () => {

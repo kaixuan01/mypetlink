@@ -496,7 +496,7 @@ export function mapBackendPetToFrontend(
   const slug = getSlugFromPublicSlug(publicSlug, pet.publicCode);
   const birthday = toDisplayDate(pet.birthday);
   const estimatedBirthYear = pet.estimatedBirthYear ?? undefined;
-  const adoptionDay = detail ? toDisplayDate(detail.adoptionDay) : "Not set";
+  const adoptionDay = toDisplayDate(pet.adoptionDay);
   const ageLabel = getPetAgeLabel({
     birthday,
     estimatedBirthYear,
@@ -527,8 +527,8 @@ export function mapBackendPetToFrontend(
     name: pet.name,
     species: species.species,
     customSpecies: species.customSpecies,
-    breed: detail?.breed || "Not set",
-    gender: detail?.gender || "Not set",
+    breed: pet.breed?.trim() ?? "",
+    gender: pet.gender?.trim() ?? "",
     color: detail?.color || "Not set",
     ageLabel,
     ageSource: age.source,
@@ -569,9 +569,7 @@ export function mapBackendPetToFrontend(
     qrSafetyPath: safetyPath,
     finderProfileUrl: safetyPath,
     publicProfilePath: publicProfilePath(slug, pet.publicCode),
-    bio:
-      detail?.bio ||
-      `${pet.name} has a safe MyPetLink profile ready for family and friends.`,
+    bio: pet.bio?.trim() ?? "",
     personalityTags: pet.personalityTags ?? [],
     favoriteFoods: toFavoriteList(detail?.favoriteFoods, detail?.favoriteFood),
     favoriteToys: toFavoriteList(detail?.favoriteToys, detail?.favoriteToy),

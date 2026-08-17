@@ -5,7 +5,9 @@
 **Roadmap:** [`../GROWTH_AND_PREMIUM_ROADMAP.md`](../GROWTH_AND_PREMIUM_ROADMAP.md)
 **Backlog:** [`../FEATURE_DEVELOPMENT_BACKLOG.md`](../FEATURE_DEVELOPMENT_BACKLOG.md)
 
-**Scope: frontend only. No API endpoint, no DTO change, no database migration.**
+**Original scope:** frontend only. **Follow-up:** `MPL-GROWTH-FIX-001` widened
+the existing authenticated pet-list DTO so dashboard derivation receives the
+same truthful completion fields as pet detail. No endpoint or database change.
 
 ---
 
@@ -230,11 +232,14 @@ and the pet's public profile is enabled.
 
 ## 6. API and Data Model Changes
 
-**None.**
+The original work package made no API or data-model change. Follow-up
+`MPL-GROWTH-FIX-001` adds `breed`, `gender`, `adoptionDay`, and `bio` to the
+existing authenticated owner pet-list response. These are existing pet columns,
+not new stored facts; the public projections remain unchanged.
 
-No endpoint, no DTO field, no entity, no migration, no App Setting, no admin
-screen. If implementation appears to require any of these, stop and revisit this
-spec — it means an item was chosen that the client cannot see.
+The dashboard continues to use one paginated pet-list request and does not fetch
+pet detail per row. Missing values remain missing instead of being replaced by
+completion-satisfying display copy.
 
 ---
 

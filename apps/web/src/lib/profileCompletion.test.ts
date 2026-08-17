@@ -159,4 +159,12 @@ describe("deriveProfileCompletion", () => {
     expect(first.percentage).toBeGreaterThanOrEqual(0);
     expect(first.percentage).toBeLessThanOrEqual(100);
   });
+
+  it("never counts the legacy generated bio sentence as owner-written content", () => {
+    const pet = minimalPet({
+      bio: "Milo has a safe MyPetLink profile ready for family and friends.",
+    });
+
+    expect(derive(pet).items.find((item) => item.id === "bio")?.isComplete).toBe(false);
+  });
 });
