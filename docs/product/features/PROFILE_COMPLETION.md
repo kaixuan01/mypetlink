@@ -1,6 +1,6 @@
 # Feature Spec — Profile Completion
 
-**Work package:** `MPL-GROWTH-001` · **Status:** Ready for implementation
+**Work package:** `MPL-GROWTH-001` · **Status:** Implemented
 **Date:** 2026-08-17 · **Branch:** `main` @ `a06ab48`
 **Roadmap:** [`../GROWTH_AND_PREMIUM_ROADMAP.md`](../GROWTH_AND_PREMIUM_ROADMAP.md)
 **Backlog:** [`../FEATURE_DEVELOPMENT_BACKLOG.md`](../FEATURE_DEVELOPMENT_BACKLOG.md)

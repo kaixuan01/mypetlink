@@ -10,6 +10,8 @@ export const AnalyticsEvent = {
   SmartTagViewed: "smart_tag_viewed",
   OrderStarted: "order_started",
   OrderSubmitted: "order_submitted",
+  CompletionPromptViewed: "completion_prompt_viewed",
+  CompletionActionClicked: "completion_action_clicked",
 } as const;
 
 export type AnalyticsSurface =
@@ -30,6 +32,15 @@ export type AnalyticsRecordType =
   | "other";
 
 export type AnalyticsTagType = "qr" | "qr_nfc" | "mixed";
+export type AnalyticsCompletionItem =
+  | "photo"
+  | "basics"
+  | "personality"
+  | "birthday"
+  | "moment"
+  | "contact"
+  | "bio"
+  | "care_record";
 
 type AnalyticsPayloads = {
   pet_create_started: { source: "owner_portal" };
@@ -48,6 +59,11 @@ type AnalyticsPayloads = {
     source: "owner_portal";
     tag_type: AnalyticsTagType;
     item_count: number;
+  };
+  completion_prompt_viewed: { surface: "owner_portal" };
+  completion_action_clicked: {
+    surface: "owner_portal";
+    completion_item: AnalyticsCompletionItem;
   };
 };
 
@@ -79,6 +95,16 @@ const allowedValues = {
     "other",
   ]),
   tag_type: new Set(["qr", "qr_nfc", "mixed"]),
+  completion_item: new Set([
+    "photo",
+    "basics",
+    "personality",
+    "birthday",
+    "moment",
+    "contact",
+    "bio",
+    "care_record",
+  ]),
 } as const;
 
 const allowedKeys: Record<AnalyticsEventName, readonly string[]> = {
@@ -92,6 +118,8 @@ const allowedKeys: Record<AnalyticsEventName, readonly string[]> = {
   smart_tag_viewed: ["surface"],
   order_started: ["source", "tag_type"],
   order_submitted: ["source", "tag_type", "item_count"],
+  completion_prompt_viewed: ["surface"],
+  completion_action_clicked: ["surface", "completion_item"],
 };
 
 export function getAnalyticsMeasurementId(

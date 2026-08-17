@@ -17,7 +17,7 @@ it is split into sequential phases.
 
 ```text
 Phase G1 — Free growth, no backend risk
-  MPL-GROWTH-001   Profile Completion                    Ready
+  MPL-GROWTH-001   Profile Completion                    Done
   MPL-GROWTH-002   Share Card renderer variant (API)     Ready
   MPL-GROWTH-003   Share Card edge + owner UI            Blocked by 002
 
@@ -51,8 +51,8 @@ Later (not scheduled)
   MPL-LATER-005    Year in Review
 ```
 
-**MPL-GROWTH-001 is the recommended next task.** It has no dependencies, no
-backend surface, and no rollback risk.
+**MPL-GROWTH-002 is the recommended next task.** It is the next Ready package
+in the approved free-growth sequence and unlocks MPL-GROWTH-003.
 
 ---
 
@@ -60,7 +60,7 @@ backend surface, and no rollback risk.
 
 ## MPL-GROWTH-001 — Profile Completion
 
-**Status:** Ready · **Full spec:**
+**Status:** Done · **Full spec:**
 [`features/PROFILE_COMPLETION.md`](features/PROFILE_COMPLETION.md)
 
 **Goal.** Give owners a clear, honest next action on a new pet profile, raising

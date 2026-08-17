@@ -98,4 +98,25 @@ describe("product analytics privacy boundary", () => {
       trackEvent(AnalyticsEvent.ShareClicked, { surface: "owner_portal" })
     ).not.toThrow();
   });
+
+  it("allows only bounded profile-completion metadata", () => {
+    trackEvent(AnalyticsEvent.CompletionActionClicked, {
+      surface: "owner_portal",
+      completion_item: "moment",
+      pet_id: "private-pet-id",
+      pet_name: "Milo",
+      phone: "+60123456789",
+    } as never);
+
+    const event = analyticsCalls().find(
+      (call) => call[1] === "completion_action_clicked"
+    );
+    expect(event?.[2]).toEqual(
+      expect.objectContaining({
+        surface: "owner_portal",
+        completion_item: "moment",
+      })
+    );
+    expect(JSON.stringify(event)).not.toMatch(/private-pet-id|Milo|60123456789/);
+  });
 });

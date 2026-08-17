@@ -453,16 +453,115 @@ describe("DashboardClient with pets", () => {
     expect(screen.getByText("No care due dates added.")).toBeTruthy();
     expect(screen.queryByText(/remind|notif/i)).toBeNull();
   });
+
+  it("shows one compact prompt for the lowest-completion pet", async () => {
+    const leastComplete = {
+      ...mockPets[0],
+      hasUsableSafetyContact: true,
+      breed: "Not set",
+      gender: "Not set",
+      personalityTags: [],
+      estimatedBirthYear: undefined,
+      birthday: "Not set",
+      bio: "",
+    };
+    const moreComplete = {
+      ...mockPets[1],
+      hasUsableSafetyContact: true,
+      photoUrl: "luna.jpg",
+    };
+    mocks.getPets.mockResolvedValue({ data: [leastComplete, moreComplete] });
+
+    renderDashboard();
+
+    expect(
+      await screen.findByRole("heading", { name: "Add more about Milo" })
+    ).toBeTruthy();
+    expect(
+      document.querySelectorAll('[data-profile-completion="compact"]')
+    ).toHaveLength(1);
+    expect(
+      screen.queryByRole("heading", { name: "Add more about Luna" })
+    ).toBeNull();
+  });
+
+  it("breaks equal-percentage ties with the most recently created pet", async () => {
+    mocks.getPets.mockResolvedValue({
+      data: mockPets.map((pet) => ({
+        ...pet,
+        hasUsableSafetyContact: true,
+      })),
+    });
+
+    renderDashboard();
+
+    expect(
+      await screen.findByRole("heading", { name: "Add more about Luna" })
+    ).toBeTruthy();
+    expect(
+      document.querySelectorAll('[data-profile-completion="compact"]')
+    ).toHaveLength(1);
+  });
+
+  it("hides the prompt when every applicable item is complete", async () => {
+    mocks.getPets.mockResolvedValue({
+      data: [
+        {
+          ...mockPets[0],
+          photoUrl: "milo.jpg",
+          hasUsableSafetyContact: true,
+        },
+      ],
+    });
+    mocks.getPetMoments.mockImplementation(async (petId: string) => ({
+      data: [{ id: "moment-1", petId }],
+    }));
+    mocks.getPetRecords.mockImplementation(async (petId: string) => ({
+      data: [dashboardRecord("Vaccine", "01 Jan 2027", "upcoming", petId)],
+    }));
+
+    renderDashboard();
+    await screen.findAllByText("Milo");
+    expect(
+      document.querySelector('[data-profile-completion="compact"]')
+    ).toBeNull();
+  });
+
+  it("omits a failed Moment item and introduces no extra per-pet requests", async () => {
+    mocks.getPets.mockResolvedValue({
+      data: [
+        {
+          ...mockPets[0],
+          photoUrl: "milo.jpg",
+          hasUsableSafetyContact: true,
+        },
+      ],
+    });
+    mocks.getPetMoments.mockRejectedValueOnce(new Error("moments unavailable"));
+    mocks.getPetRecords.mockImplementation(async (petId: string) => ({
+      data: [dashboardRecord("Vaccine", "01 Jan 2027", "upcoming", petId)],
+    }));
+
+    renderDashboard();
+    await screen.findAllByText("Milo");
+    expect(
+      document.querySelector('[data-profile-completion="compact"]')
+    ).toBeNull();
+    expect(mocks.getPets).toHaveBeenCalledTimes(1);
+    expect(mocks.getPetMoments).toHaveBeenCalledTimes(1);
+    expect(mocks.getPetRecords).toHaveBeenCalledTimes(1);
+  });
 });
 
 function dashboardRecord(
   type: CareRecord["type"],
   dueDate: string,
-  status: CareRecord["status"]
+  status: CareRecord["status"],
+  petId = mockPets[0].id
 ): CareRecord {
   return {
     id: `${type}-${dueDate}`,
-    petId: mockPets[0].id,
+    petId,
     type,
     title: `${type} care`,
     date: "01 Jan 2026",

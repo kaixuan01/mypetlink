@@ -679,6 +679,9 @@ function OwnerRuntimeView({
       <PetDetailHeader pet={pet} petOrders={petOrders} tags={tags} />
 
       <PetManagementTabs
+        activePetCount={
+          pets.filter((item) => item.lifecycleStatus === "Active").length
+        }
         pet={pet}
         records={records}
         moments={moments}

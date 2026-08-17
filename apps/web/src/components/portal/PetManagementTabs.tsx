@@ -7,6 +7,7 @@ import {
   getSmartTagStatusBadge,
 } from "@/components/portal/ProfileAccessStatus";
 import { PetMomentsManager } from "@/components/portal/PetMomentsManager";
+import { ProfileCompletionCard } from "@/components/portal/ProfileCompletionCard";
 import { PublicLinkActions } from "@/components/portal/PublicLinkActions";
 import { RecordsManager } from "@/components/portal/RecordsManager";
 import { TagManagementPanel } from "@/components/portal/TagManagementPanel";
@@ -21,7 +22,8 @@ import {
   readOwnerSettings,
   type OwnerSettings,
 } from "@/lib/ownerSettings";
-import { getMemoryLimitState } from "@/lib/planLimits";
+import { getEffectivePlanLimits, getMemoryLimitState } from "@/lib/planLimits";
+import { deriveProfileCompletion } from "@/lib/profileCompletion";
 import { getCareRecordDateTerminology } from "@/lib/careRecordTerminology";
 import { getPetProfileTheme } from "@/lib/petProfileThemes";
 import { isActivePet, isArchivedPet, isMemorialPet } from "@/lib/petLifecycle";
@@ -58,6 +60,7 @@ type PetManagementTabsProps = {
   moments: PetMoment[];
   orders?: TagOrder[];
   tags: PetTag[];
+  activePetCount?: number;
 };
 
 const tabs: (SegmentedTab & { id: TabId })[] = [
@@ -79,6 +82,7 @@ export function PetManagementTabs({
   moments,
   orders = [],
   tags,
+  activePetCount,
 }: PetManagementTabsProps) {
   const apiMode = isApiConfigured();
   const [activeTab, setActiveTab] = useState<TabId>("overview");
@@ -89,6 +93,8 @@ export function PetManagementTabs({
   const [currentMoments, setCurrentMoments] = useState<PetMoment[]>(
     apiMode ? [] : moments
   );
+  const [recordsAvailable, setRecordsAvailable] = useState(!apiMode);
+  const [momentsAvailable, setMomentsAvailable] = useState(!apiMode);
 
   // The page is server-rendered from seed data; re-read the pet on the client so
   // persisted edits (e.g. Lost Mode) survive a refresh and match the safety
@@ -110,20 +116,27 @@ export function PetManagementTabs({
   useEffect(() => {
     let active = true;
 
-    Promise.all([
+    Promise.allSettled([
       getPetRecords(currentPet.id),
       getPetMoments(currentPet.id),
     ])
-      .then(([recordResponse, momentResponse]) => {
+      .then(([recordResult, momentResult]) => {
         if (active) {
-          setCurrentRecords(recordResponse.data);
-          setCurrentMoments(momentResponse.data);
-        }
-      })
-      .catch(() => {
-        if (active) {
-          setCurrentRecords([]);
-          setCurrentMoments([]);
+          if (recordResult.status === "fulfilled") {
+            setCurrentRecords(recordResult.value.data);
+            setRecordsAvailable(true);
+          } else {
+            setCurrentRecords([]);
+            setRecordsAvailable(false);
+          }
+
+          if (momentResult.status === "fulfilled") {
+            setCurrentMoments(momentResult.value.data);
+            setMomentsAvailable(true);
+          } else {
+            setCurrentMoments([]);
+            setMomentsAvailable(false);
+          }
         }
       });
 
@@ -146,8 +159,11 @@ export function PetManagementTabs({
           pet={currentPet}
           records={currentRecords}
           moments={currentMoments}
+          momentsAvailable={momentsAvailable}
           onPetChange={setCurrentPet}
           orders={orders}
+          activePetCount={activePetCount}
+          recordsAvailable={recordsAvailable}
           tags={tags}
         />
       ) : null}
@@ -181,6 +197,9 @@ function OverviewTab({
   onPetChange,
   orders,
   tags,
+  activePetCount,
+  recordsAvailable,
+  momentsAvailable,
 }: {
   pet: Pet;
   records: CareRecord[];
@@ -188,6 +207,9 @@ function OverviewTab({
   onPetChange: (pet: Pet) => void;
   orders: TagOrder[];
   tags: PetTag[];
+  activePetCount?: number;
+  recordsAvailable: boolean;
+  momentsAvailable: boolean;
 }) {
   const recentRecords = records.slice(0, 3);
   const recentMoments = moments.slice(0, 3);
@@ -215,6 +237,15 @@ function OverviewTab({
     pet.publicProfilePath,
     getPublicProfileShareVersion(pet)
   );
+  const completion = deriveProfileCompletion({
+    pet,
+    momentCount: momentsAvailable ? moments.length : undefined,
+    careRecordCount: recordsAvailable ? records.length : undefined,
+    ownerSettings,
+    safetyProfilesEnabled: safetyProfilesOwnerUiEnabled,
+    publicProfilesEnabled,
+    memoryLimit: getEffectivePlanLimits().maxMemoriesPerPet,
+  });
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -225,7 +256,15 @@ function OverviewTab({
   }, []);
 
   return (
-    <div className="grid min-w-0 gap-5 lg:grid-cols-2">
+    <div className="grid min-w-0 gap-5">
+      {isActiveProfile ? (
+        <ProfileCompletionCard
+          completion={completion}
+          isFirstPet={activePetCount === 1}
+          pet={pet}
+        />
+      ) : null}
+      <div className="grid min-w-0 gap-5 lg:grid-cols-2">
       {/* Public Share Profile */}
       {publicProfilesEnabled ? (
         <SectionCard
@@ -555,6 +594,7 @@ function OverviewTab({
         </div>
       </SectionCard>
       ) : null}
+      </div>
     </div>
   );
 }

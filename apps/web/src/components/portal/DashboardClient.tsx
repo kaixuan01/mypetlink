@@ -3,11 +3,15 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { OwnerContactSetupCard } from "@/components/portal/OwnerContactSetupCard";
+import { ProfileCompletionCard } from "@/components/portal/ProfileCompletionCard";
 import { PlanSummaryCard } from "@/components/portal/PlanSummaryCard";
 import { copyTextToClipboard } from "@/components/portal/PublicLinkActions";
 import { QrCodeButton } from "@/components/qr/QrCodeButton";
 import { toAbsoluteUrl } from "@/lib/siteUrl";
-import { publicProfilesEnabled } from "@/lib/features";
+import {
+  publicProfilesEnabled,
+  safetyProfilesOwnerUiEnabled,
+} from "@/lib/features";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon, type IconName } from "@/components/ui/Icon";
@@ -23,6 +27,8 @@ import {
   subscribeOwnerSettings,
 } from "@/lib/ownerSettings";
 import { getPetSummaryLabel } from "@/lib/petDisplay";
+import { getEffectivePlanLimits } from "@/lib/planLimits";
+import { deriveProfileCompletion } from "@/lib/profileCompletion";
 import { getActivePets, getMemorialPets } from "@/lib/petLifecycle";
 import {
   getPublicProfileSocialDescription,
@@ -68,6 +74,12 @@ export function DashboardClient({
   );
   const [loading, setLoading] = useState(apiMode);
   const [error, setError] = useState("");
+  const [recordAvailability, setRecordAvailability] = useState<Set<string>>(
+    () => new Set(apiMode ? [] : getActivePets(initialPets).map((pet) => pet.id))
+  );
+  const [momentAvailability, setMomentAvailability] = useState<Set<string>>(
+    () => new Set(apiMode ? [] : getActivePets(initialPets).map((pet) => pet.id))
+  );
   const hasOwnerContact = useSyncExternalStore(
     subscribeOwnerSettings,
     getHasOwnerContactSnapshot,
@@ -116,6 +128,8 @@ export function DashboardClient({
 
       setAllRecords(collectFulfilled(recordResults));
       setAllMoments(collectFulfilled(momentResults));
+      setRecordAvailability(fulfilledPetIds(activePets, recordResults));
+      setMomentAvailability(fulfilledPetIds(activePets, momentResults));
       setLoading(false);
     }
 
@@ -136,6 +150,40 @@ export function DashboardClient({
     () => selectDashboardCareRecords(allRecords),
     [allRecords]
   );
+  const momentCounts = useMemo(
+    () => countByPet(allMoments),
+    [allMoments]
+  );
+  const recordCounts = useMemo(
+    () => countByPet(allRecords),
+    [allRecords]
+  );
+  const completionCandidate = useMemo(() => {
+    const candidates = pets
+      .map((pet) => ({
+        pet,
+        completion: deriveProfileCompletion({
+          pet,
+          momentCount: momentAvailability.has(pet.id)
+            ? (momentCounts.get(pet.id) ?? 0)
+            : undefined,
+          careRecordCount: recordAvailability.has(pet.id)
+            ? (recordCounts.get(pet.id) ?? 0)
+            : undefined,
+          safetyProfilesEnabled: safetyProfilesOwnerUiEnabled,
+          publicProfilesEnabled,
+          memoryLimit: getEffectivePlanLimits().maxMemoriesPerPet,
+        }),
+      }))
+      .filter(({ completion }) => !completion.isComplete);
+
+    return candidates.sort((left, right) => {
+      const percentageDifference =
+        left.completion.percentage - right.completion.percentage;
+      if (percentageDifference) return percentageDifference;
+      return Date.parse(right.pet.createdAt) - Date.parse(left.pet.createdAt);
+    })[0];
+  }, [momentAvailability, momentCounts, pets, recordAvailability, recordCounts]);
 
   if (loading) {
     return (
@@ -222,6 +270,15 @@ export function DashboardClient({
       </section>
 
       <DashboardPetsSection pets={pets} />
+
+      {completionCandidate ? (
+        <ProfileCompletionCard
+          compact
+          completion={completionCandidate.completion}
+          pet={completionCandidate.pet}
+          suppressedItems={!hasOwnerContact ? ["contact"] : []}
+        />
+      ) : null}
 
       <UpcomingCareSection pets={pets} records={upcomingRecords} />
 
@@ -707,6 +764,25 @@ function collectFulfilled<T>(
   return results.flatMap((result) =>
     result.status === "fulfilled" ? result.value.data : []
   );
+}
+
+function fulfilledPetIds<T>(
+  pets: Pet[],
+  results: PromiseSettledResult<{ data: T[] }>[]
+) {
+  return new Set(
+    pets.flatMap((pet, index) =>
+      results[index]?.status === "fulfilled" ? [pet.id] : []
+    )
+  );
+}
+
+function countByPet(items: Array<{ petId: string }>) {
+  const counts = new Map<string, number>();
+  for (const item of items) {
+    counts.set(item.petId, (counts.get(item.petId) ?? 0) + 1);
+  }
+  return counts;
 }
 
 function recordIcon(type: CareRecord["type"]): IconName {
