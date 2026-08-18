@@ -36,18 +36,6 @@ export const publicProfilesEnabled = readPublicBoolean(
 );
 
 /**
- * Owner-facing Pet Share Card preview and actions. The card images and their
- * routes have been serving in production since the first share rollout, so the
- * owner-facing entry point defaults on; the flag now exists only as a kill
- * switch. Set NEXT_PUBLIC_SHARE_CARDS_ENABLED=false to hide the actions again
- * without removing anything. Remove this flag once the rollout is settled.
- */
-export const shareCardsEnabled = readPublicBoolean(
-  process.env.NEXT_PUBLIC_SHARE_CARDS_ENABLED,
-  true
-);
-
-/**
  * Owner-facing Safety Profile management UI (badges, metrics, settings entry
  * points). The /q/{code} pages themselves stay reachable regardless.
  */

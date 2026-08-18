@@ -4,11 +4,11 @@
  * Owner-visible availability of the Share Pet Card, exercised through the two
  * surfaces owners actually use.
  *
- * These tests deliberately do NOT stub NEXT_PUBLIC_SHARE_CARDS_ENABLED and do
- * NOT mock @/lib/features or PetShareCard. The first version of the Share
- * Center shipped with the card action invisible because every suite forced the
- * flag on, so the shipped default was never rendered. Keep this file free of
- * feature-flag stubs.
+ * The Share Card once sat behind a build-time flag, and an environment that
+ * simply did not set it lost the action with nothing to show for it. These
+ * tests run with no share-card environment variable at all, and do not mock
+ * @/lib/features or PetShareCard, so availability is decided only by real
+ * product eligibility. Keep this file free of feature-flag stubs.
  */
 
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
@@ -81,6 +81,14 @@ afterEach(() => {
 });
 
 describe("Share Pet Card availability", () => {
+  it("is not gated by any environment variable", async () => {
+    // Guards against a build-time gate being reintroduced by habit.
+    expect(process.env.NEXT_PUBLIC_SHARE_CARDS_ENABLED).toBeUndefined();
+
+    const features = await import("@/lib/features");
+    expect("shareCardsEnabled" in features).toBe(false);
+  });
+
   it("is offered from the Dashboard pet card for an eligible public pet", async () => {
     const pet = eligiblePet();
     mocks.getPets.mockResolvedValue({ data: [pet] });

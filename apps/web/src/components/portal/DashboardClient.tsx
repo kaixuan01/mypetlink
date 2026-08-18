@@ -9,7 +9,6 @@ import { ShareCenter } from "@/components/share/ShareCenter";
 import {
   publicProfilesEnabled,
   safetyProfilesOwnerUiEnabled,
-  shareCardsEnabled,
 } from "@/lib/features";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
@@ -273,7 +272,7 @@ export function DashboardClient({
 
       <DashboardPetsSection pets={pets} />
 
-      {shareCardsEnabled ? <DashboardOccasionSection pets={pets} /> : null}
+      <DashboardOccasionSection pets={pets} />
 
       {completionCandidate ? (
         <ProfileCompletionCard

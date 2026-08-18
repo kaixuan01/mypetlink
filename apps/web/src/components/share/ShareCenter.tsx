@@ -14,7 +14,6 @@ import {
 import {
   publicProfilesEnabled,
   safetyProfilesOwnerUiEnabled,
-  shareCardsEnabled,
 } from "@/lib/features";
 import { isActivePet } from "@/lib/petLifecycle";
 import {
@@ -202,7 +201,7 @@ export function ShareCenter({
                   one hero choice here. The real 1080x1350 image is requested
                   only after it is chosen; this tile is a static preview.
                 */}
-                {shareCardsEnabled && publicShareable ? (
+                {publicShareable ? (
                   <PetShareCard
                     imagePath={getPublicProfileShareCardImagePath(pet)}
                     petName={pet.name}

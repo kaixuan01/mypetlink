@@ -59,12 +59,10 @@ Availability rules:
   be on. When it is off, the dialog says so rather than hiding silently.
 - Safety options require `safetyProfilesOwnerUiEnabled`, the pet's safety
   profile to be on, and an active pet.
-- The pet card requires `shareCardsEnabled`, which defaults **on**. It is now a
-  kill switch rather than a rollout gate: set
-  `NEXT_PUBLIC_SHARE_CARDS_ENABLED=false` to hide the card actions without
-  removing anything. When a deployment leaves this unset, the entry point still
-  appears — which is the point, because an unset variable previously made the
-  action silently vanish.
+- The pet card has **no flag of its own**. It is a launched part of the free
+  sharing experience, so an eligible public profile always offers it. A
+  build-time gate previously hid it whenever a deployment forgot to set the
+  variable; do not reintroduce one.
 
 The dialog always reopens on the first level, is named on every panel, traps
 focus, closes on Escape, and returns focus to the control that opened it.

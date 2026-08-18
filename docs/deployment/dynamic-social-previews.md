@@ -61,10 +61,9 @@ derives only the celebration count internally and never adds an exact date to
 the edge projection. Occasion cache keys also contain the current Malaysia day,
 so a card from a previous anniversary cannot be reused in a later year.
 
-The owner Share Card controls are build-time gated by
-`NEXT_PUBLIC_SHARE_CARDS_ENABLED` (default `false`). Turning the owner UI off
-does not remove either image route. The image is requested only after an owner
-opens the Share Card dialog. The Dashboard may show a lightweight occasion
+The owner Share Card controls are always available to an owner whose pet has a
+shareable Public Profile; there is no build-time flag for them. The image is
+requested only after an owner opens the Share Card dialog. The Dashboard may show a lightweight occasion
 prompt from pet data it already holds, but ordinary Dashboard, pet management,
 and Public Share Profile loads do not request or generate image bytes. Only the
 selected modal variant is loaded.

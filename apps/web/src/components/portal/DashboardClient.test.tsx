@@ -39,8 +39,6 @@ vi.mock("@/components/portal/PlanSummaryCard", () => ({
   },
 }));
 
-vi.stubEnv("NEXT_PUBLIC_SHARE_CARDS_ENABLED", "true");
-
 const { DashboardClient } = await import("./DashboardClient");
 
 function renderDashboard() {

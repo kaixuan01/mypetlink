@@ -8,7 +8,6 @@ import type { Pet } from "@/types";
 const mocks = vi.hoisted(() => ({
   publicProfilesEnabled: true,
   safetyProfilesOwnerUiEnabled: true,
-  shareCardsEnabled: true,
   writeText: vi.fn(),
 }));
 
@@ -18,9 +17,6 @@ vi.mock("@/lib/features", () => ({
   },
   get safetyProfilesOwnerUiEnabled() {
     return mocks.safetyProfilesOwnerUiEnabled;
-  },
-  get shareCardsEnabled() {
-    return mocks.shareCardsEnabled;
   },
 }));
 
@@ -67,7 +63,6 @@ function openCenter(pet: Pet) {
 beforeEach(() => {
   mocks.publicProfilesEnabled = true;
   mocks.safetyProfilesOwnerUiEnabled = true;
-  mocks.shareCardsEnabled = true;
   mocks.writeText.mockResolvedValue(undefined);
   Object.defineProperty(navigator, "clipboard", {
     configurable: true,

@@ -178,7 +178,6 @@ is financially or security authoritative** — the API re-checks everything.
 | `NEXT_PUBLIC_DEV_AUTH_ENABLED` | Local Admin login affordance | Retain; never set in Production |
 | `NEXT_PUBLIC_NOINDEX` | SEO suppression | Retain |
 | `NEXT_PUBLIC_PUBLIC_PROFILES_ENABLED` | UI gate | Retain |
-| `NEXT_PUBLIC_SHARE_CARDS_ENABLED` | Owner Share Card UI gate; defaults off while the public image route remains available | Retain until the first stable production rollout is confirmed |
 | `NEXT_PUBLIC_SAFETY_PROFILES_OWNER_UI_ENABLED` | UI gate | Retain |
 | `NEXT_PUBLIC_SMART_TAGS_ENABLED` | UI gate | Retain |
 | `NEXT_PUBLIC_TAG_ORDERS_ENABLED` | UI gate | Retain |

@@ -192,7 +192,8 @@ share controls.
 - `apps/web/functions/social/pets/[slug].ts`, `apps/web/public/_routes.json`
 - `apps/web/src/components/share/ShareProfileLink.tsx`
 - `apps/web/src/lib/publicProfileSocial.ts`, `apps/web/src/lib/features.ts`
-  (new `NEXT_PUBLIC_SHARE_CARDS_ENABLED`, default `false`)
+  (originally behind `NEXT_PUBLIC_SHARE_CARDS_ENABLED`; the flag was removed
+  once the feature launched, so the card follows Public Profile eligibility)
 - `apps/web/src/lib/analytics.ts` — `share_card_viewed`, `share_card_shared`,
   new controlled dimension `card_variant`
 

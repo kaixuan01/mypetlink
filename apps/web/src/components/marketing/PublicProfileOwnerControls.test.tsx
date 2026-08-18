@@ -7,7 +7,6 @@ import { mockPets } from "@/data/mockPets";
 import { getPetProfileTheme } from "@/lib/petProfileThemes";
 
 vi.mock("@/lib/features", () => ({
-  shareCardsEnabled: true,
   publicProfilesEnabled: true,
   safetyProfilesOwnerUiEnabled: false,
 }));

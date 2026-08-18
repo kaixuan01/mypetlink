@@ -659,7 +659,7 @@ Two mechanisms exist and are correct for their jobs:
 | Feature | Flag | Type | Default |
 | --- | --- | --- | --- |
 | F1 Profile Completion | **none** | — | Ship on. Additive, reversible by revert, no external effect. |
-| F2 + F3 Share Cards | `NEXT_PUBLIC_SHARE_CARDS_ENABLED` | Build-time | `false` |
+| F2 + F3 Share Cards | none (launched; follows Public Profile eligibility) | n/a | n/a |
 | P1 Care Reminders | `EmailMessageType.CareReminder` template row **AND** `Email:Enabled` | Runtime DB + App Setting | disabled |
 | P1 owner-facing UI | `NEXT_PUBLIC_CARE_REMINDERS_ENABLED` | Build-time | `false` |
 | P3 Document Vault | `NEXT_PUBLIC_DOCUMENT_VAULT_ENABLED` | Build-time | `false` |

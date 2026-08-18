@@ -16,22 +16,11 @@ const mocks = vi.hoisted(() => ({
   getPetRecords: vi.fn(),
   updatePetLostMode: vi.fn(),
   writeText: vi.fn(),
-  shareCardsEnabled: true,
 }));
 
 vi.mock("@/services/apiConfig", () => ({
   isApiConfigured: () => false,
 }));
-
-vi.mock("@/lib/features", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/features")>();
-  return {
-    ...actual,
-    get shareCardsEnabled() {
-      return mocks.shareCardsEnabled;
-    },
-  };
-});
 
 vi.mock("@/components/share/PetShareCard", () => ({
   PetShareCard: () => <button type="button">Share Card</button>,
@@ -64,7 +53,6 @@ vi.mock("@/components/qr/QrCodeButton", () => ({
 const { PetManagementTabs } = await import("./PetManagementTabs");
 
 beforeEach(() => {
-  mocks.shareCardsEnabled = true;
   const pet = structuredClone(mockPets[0]);
   mocks.getPetById.mockResolvedValue({ data: pet });
   mocks.getPetMoments.mockResolvedValue({ data: [] });
@@ -141,8 +129,7 @@ it("does not expose public actions when the pet profile is private", async () =>
   expect(screen.queryByRole("button", { name: "Share Card" })).toBeNull();
 });
 
-it("hides Share Card controls while the rollout flag is off", async () => {
-  mocks.shareCardsEnabled = false;
+it("offers the Share Card beside the other sharing choices", async () => {
   const pet = structuredClone(mockPets[0]);
   render(<PetManagementTabs moments={[]} pet={pet} records={[]} tags={[]} />);
 
@@ -150,8 +137,8 @@ it("hides Share Card controls while the rollout flag is off", async () => {
   expect(screen.getByRole("link", { name: "View Profile" })).toBeTruthy();
 
   fireEvent.click(screen.getByRole("button", { name: `Share ${pet.name}` }));
+  expect(screen.getByRole("button", { name: "Share Card" })).toBeTruthy();
   expect(screen.getByRole("button", { name: /Copy Profile Link/ })).toBeTruthy();
-  expect(screen.queryByRole("button", { name: "Share Card" })).toBeNull();
 });
 
 it("round-trips the shared Lost Mode control from the pet Overview", async () => {
