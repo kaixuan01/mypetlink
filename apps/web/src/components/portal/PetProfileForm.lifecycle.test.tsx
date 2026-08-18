@@ -399,7 +399,7 @@ describe("PetProfileForm lifecycle workflow", () => {
 
     expect(screen.queryByText("Manage Lost Mode")).toBeNull();
     fireEvent.click(
-      screen.getByRole("button", { name: `Mark ${pet.name} as Lost` })
+      screen.getByRole("button", { name: "Turn on Lost Mode" })
     );
     expect(screen.getByText(`Mark ${pet.name} as lost?`)).toBeTruthy();
 

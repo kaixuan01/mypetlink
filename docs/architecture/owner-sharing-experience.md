@@ -69,25 +69,36 @@ focus, closes on Escape, and returns focus to the control that opened it.
 
 ## Pet Overview: Sharing & Safety
 
-The Pet Overview has one **Sharing & Safety** section instead of two equally
-large cards. It holds:
+The Pet Overview has one **Sharing & Safety** section. Inside it the two
+profiles are **equal siblings** — side by side on desktop, stacked on mobile —
+built from the same `ProfileSubcard` so neither can drift into looking like the
+more important half:
 
-- **Public Profile** — status badge, one line of description, a compact Share
-  Center trigger, and a View link. The pet hero already owns the page's primary
-  Share, so this row is management and status rather than a second competing
-  call to action.
-- **Safety Profile** — status badge (Safety Profile Active / Contact Update
-  Needed / Safety Profile Off), one line of description, the contact warning
-  when it applies, copy/QR/view actions, and the general area.
-- **Lost Mode** — the same `LostModeControl`, rendered in its `compact` variant.
-  Lost Mode is a safety state, so it lives with safety rather than as its own
-  top-level card. All of its rules, confirmations, and API behaviour are
-  unchanged.
+| | Public Profile | Safety Profile |
+| --- | --- | --- |
+| Status | Public / Private | Safety Profile Active / Contact Update Needed / Safety Profile Off |
+| Description | one line | one line |
+| Metadata | — | `General area · {area}` |
+| Action | Share (opens the Share Center) | Show Safety QR |
+| Link | View profile → | View profile → |
 
-  Urgent styling belongs to an urgent state. While Lost Mode is **off** the
-  section is a status row with one short line and a quiet outlined action, so a
-  safe pet's page is not dominated by an alarm. The confirmation step keeps its
-  coral action, and an **on** state stays visually prominent.
+Rules that keep the two halves balanced:
+
+- One action and one quiet link per side. **No Copy Link here** — copying
+  belongs to the Share Center, and repeating it made the safety half heavier.
+- The general area is a line of metadata, never a filled panel with its own
+  label.
+- The contact warning is a compact inline notice, not a full card.
+
+**Lost Mode** is the same `LostModeControl` in its `compact` variant, rendered
+as one full-width row *below* both subcards. It belongs to safety conceptually,
+but nesting it inside the Safety subcard made that column tower over the other.
+All of its rules, confirmations, and API behaviour are unchanged.
+
+Urgent styling belongs to an urgent state. While Lost Mode is **off** the row is
+a status line and a quiet teal text action ("Turn on Lost Mode →") with no coral
+anywhere. Coral appears only in the activation confirmation and once Lost Mode
+is actually **on**, where the missing-pet notice stays prominent.
 
 Long URLs are not printed by default; the address is available through Copy Link
 and the QR panels.

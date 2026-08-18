@@ -88,7 +88,7 @@ it("keeps one Public Profile action set and hides unreleased owner tools", async
   await screen.findByText("Sharing & Safety");
 
   // Sharing is reached through one entry point, not a row of competing actions.
-  expect(screen.getAllByRole("link", { name: "View Profile" })).toHaveLength(1);
+  expect(screen.getAllByRole("link", { name: /View profile/ })).toHaveLength(1);
   expect(screen.queryByRole("link", { name: "View Safety Profile" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Copy Link" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Show Profile QR" })).toBeNull();
@@ -97,7 +97,7 @@ it("keeps one Public Profile action set and hides unreleased owner tools", async
   expect(screen.queryByText("Edit Public Profile Settings")).toBeNull();
   expect(screen.queryByText("Edit Safety Settings")).toBeNull();
 
-  const publicView = screen.getByRole("link", { name: "View Profile" });
+  const publicView = screen.getByRole("link", { name: /View profile/ });
   expect(publicView.getAttribute("target")).toBe("_blank");
   expect(publicView.getAttribute("rel")).toBe("noopener noreferrer");
 
@@ -121,11 +121,11 @@ it("does not expose public actions when the pet profile is private", async () =>
 
   await screen.findByText("Private");
   expect(screen.getByText(/sharing actions are unavailable/i)).toBeTruthy();
-  expect(screen.getByRole("link", { name: "Manage Public Profile" })).toBeTruthy();
+  expect(screen.getByRole("link", { name: /Manage/ })).toBeTruthy();
   expect(screen.queryByRole("button", { name: `Share ${pet.name}` })).toBeNull();
   expect(screen.queryByRole("button", { name: "Copy Link" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Show Profile QR" })).toBeNull();
-  expect(screen.queryByRole("link", { name: "View Profile" })).toBeNull();
+  expect(screen.queryByRole("link", { name: /View profile/ })).toBeNull();
   expect(screen.queryByRole("button", { name: "Share Card" })).toBeNull();
 });
 
@@ -134,7 +134,7 @@ it("offers the Share Card beside the other sharing choices", async () => {
   render(<PetManagementTabs moments={[]} pet={pet} records={[]} tags={[]} />);
 
   await screen.findByText("Sharing & Safety");
-  expect(screen.getByRole("link", { name: "View Profile" })).toBeTruthy();
+  expect(screen.getByRole("link", { name: /View profile/ })).toBeTruthy();
 
   fireEvent.click(screen.getByRole("button", { name: `Share ${pet.name}` }));
   expect(screen.getByRole("button", { name: "Share Card" })).toBeTruthy();
@@ -149,7 +149,7 @@ it("round-trips the shared Lost Mode control from the pet Overview", async () =>
 
   await screen.findByText("Lost Mode");
   fireEvent.click(
-    screen.getByRole("button", { name: `Mark ${pet.name} as Lost` })
+    screen.getByRole("button", { name: "Turn on Lost Mode" })
   );
   fireEvent.click(screen.getByRole("button", { name: "Activate Lost Mode" }));
 

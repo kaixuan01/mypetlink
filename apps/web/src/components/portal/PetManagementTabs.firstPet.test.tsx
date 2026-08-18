@@ -167,7 +167,7 @@ describe("first-pet completion heading", () => {
     renderTabs(pet);
 
     await screen.findByText("Sharing & Safety");
-    expect(screen.getAllByRole("link", { name: "View Profile" })).toHaveLength(
+    expect(screen.getAllByRole("link", { name: /View profile/ })).toHaveLength(
       1
     );
     expect(

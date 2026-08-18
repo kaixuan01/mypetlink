@@ -144,19 +144,26 @@ export function LostModeControl({
 
       <div className="flex flex-col gap-3 sm:flex-row">
         <button
-          className={`inline-flex min-h-12 items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-bold transition disabled:cursor-wait disabled:opacity-70 ${
+          className={`inline-flex items-center gap-2 transition disabled:cursor-wait disabled:opacity-70 ${
             pet.lostModeEnabled
-              ? "flex-1 border border-pet-border bg-white text-pet-ink hover:bg-pet-cream"
-              : "self-start border border-pet-coral bg-white text-pet-coral hover:bg-[#fff1ee]"
+              ? "min-h-12 flex-1 justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-bold text-pet-ink hover:bg-pet-cream"
+              : "min-h-11 self-start px-1 text-sm font-extrabold text-pet-teal hover:underline"
           }`}
           disabled={isSaving}
           onClick={openLostModeEditor}
           type="button"
         >
-          <Icon name="shield" className="h-4 w-4" />
-          {pet.lostModeEnabled
-            ? "Edit Lost Mode"
-            : `Mark ${pet.name} as Lost`}
+          {pet.lostModeEnabled ? (
+            <>
+              <Icon name="shield" className="h-4 w-4" />
+              Edit Lost Mode
+            </>
+          ) : (
+            <>
+              Turn on Lost Mode
+              <span aria-hidden="true">&rarr;</span>
+            </>
+          )}
         </button>
         {pet.lostModeEnabled ? (
           <button
@@ -209,18 +216,15 @@ export function LostModeControl({
           {body}
         </section>
       ) : (
-        <section className="grid min-w-0 gap-4 rounded-[1.25rem] border border-pet-border bg-white p-4 sm:p-5">
+        <section className="grid min-w-0 gap-2 rounded-[1.35rem] border border-pet-border bg-white p-4">
           <div className="flex min-w-0 items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-3">
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-[#e8f3ff] text-pet-teal">
-                <Icon name="shield" className="h-5 w-5" />
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#e8f3ff] text-pet-teal">
+                <Icon name="shield" className="h-4 w-4" />
               </span>
-              <div className="min-w-0">
-                <h2 className="text-base font-black text-pet-ink">Lost Mode</h2>
-                <p className="mt-0.5 text-xs font-semibold text-pet-muted">
-                  Current status
-                </p>
-              </div>
+              <h2 className="min-w-0 text-base font-black text-pet-ink">
+                Lost Mode
+              </h2>
             </div>
             <Badge tone={pet.lostModeEnabled ? "danger" : "soft"}>
               {pet.lostModeEnabled ? "On" : "Off"}

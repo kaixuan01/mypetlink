@@ -11,6 +11,7 @@ import {
 import { PetMomentsManager } from "@/components/portal/PetMomentsManager";
 import { ProfileCompletionCard } from "@/components/portal/ProfileCompletionCard";
 import { PublicLinkActions } from "@/components/portal/PublicLinkActions";
+import { QrCodeButton } from "@/components/qr/QrCodeButton";
 import { ShareCenter } from "@/components/share/ShareCenter";
 import { RecordsManager } from "@/components/portal/RecordsManager";
 import { TagManagementPanel } from "@/components/portal/TagManagementPanel";
@@ -282,137 +283,154 @@ function OverviewTab({
           title="Sharing & Safety"
           description={`Share ${pet.name}'s profile with people you know, and manage what someone sees if they find ${pet.name}.`}
         >
-          {publicProfilesEnabled ? (
-            <div className="grid min-w-0 gap-3">
-              <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-                <h3 className="text-base font-black text-pet-ink">
-                  Public Profile
-                </h3>
-                <Badge tone={publicProfileAccessible ? "mint" : "soft"}>
-                  {publicProfileAccessible ? "Public" : "Private"}
-                </Badge>
-              </div>
-              <p className="text-sm leading-6 text-pet-muted">
-                The profile friends, family, and pet communities see.
-              </p>
-              {publicProfileAccessible ? (
-                <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  <ShareCenter
-                    pet={pet}
-                    triggerClassName="inline-flex min-h-11 min-w-0 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-pet-border bg-white px-4 text-sm font-extrabold text-pet-ink shadow-sm transition hover:bg-pet-cream"
-                  />
-                  <Link
-                    className="inline-flex min-h-11 items-center gap-1 rounded-full px-2 text-sm font-extrabold text-pet-teal transition hover:underline"
-                    href={publicProfileSharePath}
-                    rel="noopener noreferrer"
-                    target="_blank"
-                  >
-                    {isMemorial ? "View Memorial Profile" : "View Profile"}
-                    <span aria-hidden="true">&rarr;</span>
-                  </Link>
-                </div>
-              ) : (
-                <div className="grid min-w-0 gap-3">
-                  <p className="text-sm leading-6 text-pet-muted">
-                    This profile is private, so sharing actions are unavailable.
-                  </p>
-                  <CTAButton
-                    href={`${ownerRoutes.petEdit(pet.id)}?tab=public`}
-                    icon="settings"
-                    variant="outline"
-                    fullWidth
-                  >
-                    Manage Public Profile
-                  </CTAButton>
-                </div>
-              )}
-            </div>
-          ) : null}
-
-          {safetyProfilesOwnerUiEnabled || isActiveProfile ? (
-            <div
-              className={
-                publicProfilesEnabled
-                  ? "grid min-w-0 gap-3 border-t border-pet-border pt-5"
-                  : "grid min-w-0 gap-3"
-              }
-            >
-              {safetyProfilesOwnerUiEnabled ? (
-                <>
-                  <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-                    <h3 className="text-base font-black text-pet-ink">
-                      Safety Profile
-                    </h3>
-                    <Badge tone={safetyBadge.tone}>{safetyBadge.label}</Badge>
-                  </div>
-                  <p className="text-sm leading-6 text-pet-muted">
-                    {isMemorial
-                      ? "Memorial profiles keep Safety Profile contact actions turned off."
-                      : isArchived
-                        ? "Restore this profile to manage Safety Profile contact settings again."
-                        : `The page someone sees if they find ${pet.name} — through a QR code, an NFC tag, or this link.`}
-                  </p>
-                  {isActiveProfile &&
-                  safetyBadge.label === "Contact Update Needed" ? (
-                    <section
-                      aria-labelledby={`safety-contact-warning-${pet.id}`}
-                      className="rounded-[1.25rem] border border-[#f0dfae] bg-[#fffbea] p-4"
-                      role="status"
+          {/*
+            The two profiles are siblings of equal weight: one is who you show
+            the pet to, the other is who finds them. Neither should look like
+            the more important half of the page.
+          */}
+          <div className="grid min-w-0 gap-4 lg:grid-cols-2">
+            {publicProfilesEnabled ? (
+              <ProfileSubcard
+                action={
+                  publicProfileAccessible ? (
+                    <ShareCenter
+                      pet={pet}
+                      triggerClassName={subcardActionClass}
+                    />
+                  ) : (
+                    <Link
+                      className={subcardActionClass}
+                      href={`${ownerRoutes.petEdit(pet.id)}?tab=public`}
                     >
-                      <h4
-                        className="text-sm font-black text-[#6b5500]"
-                        id={`safety-contact-warning-${pet.id}`}
-                      >
-                        Update your contact details
-                      </h4>
-                      <p className="mt-1 text-xs font-bold leading-5 text-[#856a00]">
-                        Add a phone or WhatsApp number so finders can contact
-                        you if your pet goes missing.
-                      </p>
-                      <div className="mt-3">
-                        <CTAButton
-                          href={`${ownerRoutes.petEdit(pet.id)}?tab=contact`}
-                          icon="phone"
-                          variant="secondary"
-                        >
-                          Update Contact
-                        </CTAButton>
-                      </div>
-                    </section>
-                  ) : null}
-                  <PublicLinkActions
-                    copyLabel="Copy Link"
-                    copyMessage="Safety Profile link copied."
-                    fileNameBase={`${pet.slug}-safety-profile`}
-                    helperText="Use this Safety Profile if someone finds your pet."
-                    path={pet.qrSafetyPath}
-                    qrTitle="Safety Profile QR"
-                    showUrl={false}
-                    viewLabel="View Safety Profile"
+                      <Icon
+                        aria-hidden="true"
+                        className="h-4 w-4 shrink-0"
+                        name="settings"
+                      />
+                      Manage
+                    </Link>
+                  )
+                }
+                badge={
+                  <Badge tone={publicProfileAccessible ? "mint" : "soft"}>
+                    {publicProfileAccessible ? "Public" : "Private"}
+                  </Badge>
+                }
+                description={
+                  publicProfileAccessible
+                    ? "The profile friends, family, and pet communities see."
+                    : "This profile is private, so sharing actions are unavailable."
+                }
+                icon="heart"
+                link={
+                  publicProfileAccessible ? (
+                    <Link
+                      className={subcardLinkClass}
+                      href={publicProfileSharePath}
+                      rel="noopener noreferrer"
+                      target="_blank"
+                    >
+                      {isMemorial ? "View memorial profile" : "View profile"}
+                      <span aria-hidden="true">&rarr;</span>
+                    </Link>
+                  ) : null
+                }
+                title="Public Profile"
+              />
+            ) : null}
+
+            {safetyProfilesOwnerUiEnabled ? (
+              <ProfileSubcard
+                action={
+                  <QrCodeButton
+                    ariaLabel={`Show ${pet.name}'s Safety Profile QR code`}
+                    className={subcardActionClass}
+                    fileNameBase={`${pet.slug}-safety-profile-qr`}
+                    helperText={`Scan if you have found ${pet.name}`}
+                    label={
+                      <>
+                        <Icon
+                          aria-hidden="true"
+                          className="h-4 w-4 shrink-0"
+                          name="qr"
+                        />
+                        Show Safety QR
+                      </>
+                    }
+                    targetPath={pet.qrSafetyPath}
+                    title={`${pet.name}'s Safety Profile`}
+                    viewLabel="Open Safety Profile"
                     warning={
                       isActiveProfile
                         ? undefined
                         : "This profile is inactive, so the Safety Profile does not reveal finder contact details."
                     }
                   />
-                  <div className="rounded-[1.25rem] bg-pet-cream p-4">
-                    <p className="text-xs font-bold uppercase text-pet-muted">
-                      General area
-                    </p>
-                    <p className="mt-1 font-black text-pet-ink">
-                      {effectiveContact.generalArea}
-                    </p>
-                  </div>
-                </>
-              ) : null}
-              {isActiveProfile ? (
-                <LostModeControl
-                  onPetChange={onPetChange}
-                  pet={pet}
-                  variant="compact"
-                />
-              ) : null}
-            </div>
+                }
+                badge={<Badge tone={safetyBadge.tone}>{safetyBadge.label}</Badge>}
+                description={
+                  isMemorial
+                    ? "Memorial profiles keep Safety Profile contact actions turned off."
+                    : isArchived
+                      ? "Restore this profile to manage Safety Profile contact settings again."
+                      : `The page someone sees if they find ${pet.name}.`
+                }
+                icon="qr"
+                link={
+                  <Link
+                    className={subcardLinkClass}
+                    href={pet.qrSafetyPath}
+                    rel="noopener noreferrer"
+                    target="_blank"
+                  >
+                    View profile
+                    <span aria-hidden="true">&rarr;</span>
+                  </Link>
+                }
+                meta={
+                  effectiveContact.generalArea
+                    ? `General area \u00b7 ${effectiveContact.generalArea}`
+                    : undefined
+                }
+                notice={
+                  isActiveProfile &&
+                  safetyBadge.label === "Contact Update Needed" ? (
+                    <section
+                      aria-labelledby={`safety-contact-warning-${pet.id}`}
+                      className="rounded-[1rem] border border-[#f0dfae] bg-[#fffbea] px-3 py-2.5"
+                      role="status"
+                    >
+                      <h4
+                        className="text-xs font-black text-[#6b5500]"
+                        id={`safety-contact-warning-${pet.id}`}
+                      >
+                        Update your contact details
+                      </h4>
+                      <p className="mt-1 text-xs font-bold leading-5 text-[#856a00]">
+                        Add a phone or WhatsApp number so finders can reach you.
+                      </p>
+                      <Link
+                        className="mt-1.5 inline-flex min-h-9 items-center gap-1 text-xs font-extrabold text-[#6b5500] hover:underline"
+                        href={`${ownerRoutes.petEdit(pet.id)}?tab=contact`}
+                      >
+                        Update contact
+                        <span aria-hidden="true">&rarr;</span>
+                      </Link>
+                    </section>
+                  ) : null
+                }
+                title="Safety Profile"
+              />
+            ) : null}
+          </div>
+
+          {/* Lost Mode belongs to safety, but not inside either profile. */}
+          {isActiveProfile ? (
+            <LostModeControl
+              onPetChange={onPetChange}
+              pet={pet}
+              variant="compact"
+            />
           ) : null}
         </SectionCard>
       ) : null}
@@ -689,6 +707,61 @@ function PrivacyTab({ pet }: { pet: Pet }) {
           </div>
         </SectionCard>
       ) : null}
+    </div>
+  );
+}
+
+const subcardActionClass =
+  "inline-flex min-h-11 min-w-0 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-pet-border bg-white px-4 text-sm font-extrabold text-pet-ink shadow-sm transition hover:bg-pet-cream";
+
+const subcardLinkClass =
+  "inline-flex min-h-11 items-center gap-1 whitespace-nowrap px-1 text-sm font-extrabold text-pet-teal transition hover:underline";
+
+/**
+ * One of the two equal halves of Sharing & Safety. Both profiles get the same
+ * shape - title, status, a line of description, optional metadata, one action
+ * and one quiet link - so neither reads as the more important one.
+ */
+function ProfileSubcard({
+  action,
+  badge,
+  description,
+  icon,
+  link,
+  meta,
+  notice,
+  title,
+}: {
+  action: React.ReactNode;
+  badge: React.ReactNode;
+  description: string;
+  icon: Parameters<typeof Icon>[0]["name"];
+  link?: React.ReactNode;
+  meta?: string;
+  notice?: React.ReactNode;
+  title: string;
+}) {
+  return (
+    <div className="flex min-w-0 flex-col gap-3 rounded-[1.35rem] border border-pet-border bg-white p-4">
+      {/* The badge wraps below on narrow cards rather than squeezing the title. */}
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#e8f3ff] text-pet-teal">
+            <Icon aria-hidden="true" className="h-4 w-4" name={icon} />
+          </span>
+          <h3 className="min-w-0 text-base font-black text-pet-ink">{title}</h3>
+        </div>
+        {badge}
+      </div>
+      <p className="text-sm leading-6 text-pet-muted">{description}</p>
+      {meta ? (
+        <p className="text-xs font-bold leading-5 text-pet-muted">{meta}</p>
+      ) : null}
+      {notice}
+      <div className="mt-auto flex min-w-0 flex-wrap items-center gap-2 pt-1">
+        {action}
+        {link}
+      </div>
     </div>
   );
 }

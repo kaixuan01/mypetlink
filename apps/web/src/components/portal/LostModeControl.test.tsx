@@ -64,10 +64,10 @@ describe("LostModeControl", () => {
     const pet = petWithLostMode(false);
     render(<Harness initialPet={pet} />);
 
-    expect(screen.getByText("Current status")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Lost Mode" })).toBeTruthy();
     expect(screen.getByText("Off")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: `Mark ${pet.name} as Lost` }));
+    fireEvent.click(screen.getByRole("button", { name: "Turn on Lost Mode" }));
     expect(screen.getByRole("dialog")).toBeTruthy();
     expect(screen.getByText(`Mark ${pet.name} as lost?`)).toBeTruthy();
     expect(screen.getByText("Reward note (optional)")).toBeTruthy();
@@ -122,7 +122,7 @@ describe("LostModeControl", () => {
     mocks.updatePetLostMode.mockRejectedValueOnce(new Error("offline"));
     render(<Harness initialPet={pet} />);
 
-    fireEvent.click(screen.getByRole("button", { name: `Mark ${pet.name} as Lost` }));
+    fireEvent.click(screen.getByRole("button", { name: "Turn on Lost Mode" }));
     fireEvent.click(screen.getByRole("button", { name: "Activate Lost Mode" }));
 
     expect((await screen.findByRole("alert")).textContent).toContain(
@@ -137,7 +137,7 @@ describe("LostModeControl", () => {
     mocks.updatePetLostMode.mockResolvedValueOnce({ data: pet });
     render(<Harness initialPet={pet} />);
 
-    fireEvent.click(screen.getByRole("button", { name: `Mark ${pet.name} as Lost` }));
+    fireEvent.click(screen.getByRole("button", { name: "Turn on Lost Mode" }));
     fireEvent.click(screen.getByRole("button", { name: "Activate Lost Mode" }));
 
     expect(await screen.findByRole("alert")).toBeTruthy();
@@ -152,7 +152,7 @@ describe("LostModeControl", () => {
     mocks.updatePetLostMode.mockReturnValueOnce(pending.promise);
     render(<Harness initialPet={pet} />);
 
-    fireEvent.click(screen.getByRole("button", { name: `Mark ${pet.name} as Lost` }));
+    fireEvent.click(screen.getByRole("button", { name: "Turn on Lost Mode" }));
     const activate = screen.getByRole("button", { name: "Activate Lost Mode" });
     fireEvent.click(activate);
     fireEvent.click(activate);
@@ -168,7 +168,7 @@ describe("LostModeControl", () => {
     render(<Harness initialPet={pet} />);
 
     const trigger = screen.getByRole("button", {
-      name: `Mark ${pet.name} as Lost`,
+      name: "Turn on Lost Mode",
     });
     trigger.focus();
     fireEvent.click(trigger);
@@ -187,7 +187,7 @@ describe("LostModeControl", () => {
     const pet = petWithLostMode(false);
     render(<Harness initialPet={pet} />);
 
-    fireEvent.click(screen.getByRole("button", { name: `Mark ${pet.name} as Lost` }));
+    fireEvent.click(screen.getByRole("button", { name: "Turn on Lost Mode" }));
     const dialog = screen.getByRole("dialog");
     const focusable = dialog.querySelectorAll<HTMLElement>(
       "button, input, textarea"
@@ -229,7 +229,7 @@ describe("LostModeControl", () => {
     );
 
     const action = screen.getByRole("button", {
-      name: `Mark ${pet.name} as Lost`,
+      name: "Turn on Lost Mode",
     }) as HTMLButtonElement;
     expect(action.type).toBe("button");
     fireEvent.click(action);
