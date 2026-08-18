@@ -18,9 +18,18 @@ public static class PublicProfileSocialCardVariants
     // The Open Graph layout is already versioned through PublicProfileVersion.
     // Share Card has its own template version so its API cache can be invalidated
     // without changing the production Open Graph image URL or bytes.
-    public const string ShareCardTemplateVersion = "pet-share-card-v2";
-    public const string BirthdayTemplateVersion = "pet-birthday-card-v2";
-    public const string AdoptionTemplateVersion = "pet-adoption-card-v2";
+    //
+    // Bump the matching value here whenever a portrait layout changes its
+    // rendered bytes: the cache key is otherwise identical and already-cached
+    // cards keep the old drawing for the full edge TTL. v3 releases the cards
+    // still holding the pre-fix brand-lockup collision.
+    //
+    // These strings are mirrored in apps/web/edge/publicProfileEdge.ts, which
+    // rejects an origin response whose template version does not match. Change
+    // both together.
+    public const string ShareCardTemplateVersion = "pet-share-card-v3";
+    public const string BirthdayTemplateVersion = "pet-birthday-card-v3";
+    public const string AdoptionTemplateVersion = "pet-adoption-card-v3";
 
     public static PublicProfileSocialCardVariant Parse(string? value)
     {

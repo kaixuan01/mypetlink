@@ -6,6 +6,10 @@ export const socialCardCacheControl =
 
 export type SocialCardVariant = "open-graph" | "share-card" | "birthday" | "adoption";
 
+// Mirrors PublicProfileSocialCardVariants in the API. These values are part of
+// the Cloudflare cache key AND are checked against the origin's response header,
+// so a mismatch fails the request rather than serving the wrong drawing. Change
+// both sides together whenever a card's rendered bytes change.
 const socialCardVariants = {
   "open-graph": {
     queryValue: null,
@@ -13,15 +17,15 @@ const socialCardVariants = {
   },
   "share-card": {
     queryValue: "share-card",
-    templateVersion: "pet-share-card-v2",
+    templateVersion: "pet-share-card-v3",
   },
   birthday: {
     queryValue: "birthday",
-    templateVersion: "pet-birthday-card-v2",
+    templateVersion: "pet-birthday-card-v3",
   },
   adoption: {
     queryValue: "adoption",
-    templateVersion: "pet-adoption-card-v2",
+    templateVersion: "pet-adoption-card-v3",
   },
 } as const satisfies Record<
   SocialCardVariant,

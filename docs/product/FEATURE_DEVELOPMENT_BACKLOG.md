@@ -37,6 +37,7 @@ Phase G4 — Production social preview hardening (from the 2026-08-17 prod smoke
   MPL-GROWTH-PROD-003 /q /t /n had no pet preview             Done   G1
   MPL-GROWTH-PROD-004 robots.txt meta-externalagent           Open   G2  OWNER CONFIG
   MPL-GROWTH-PROD-005 OG summary truncates the age            Open   G2
+  MPL-GROWTH-PROD-006 Stale cached portrait share cards       Done   G1
 
 Phase P0 — Premium foundations (ships dark)
   MPL-PREM-001     Malaysia calendar day + reminder schema   Ready
@@ -489,8 +490,8 @@ Share Profile plus the short root domain. QR decode tests cover every portrait
 variant and a 540 x 675, JPEG-quality-68 resize/compression pass. The restricted
 public projection and existing clickable native/text and Copy Profile Link
 payloads are unchanged. Cache identities advanced independently to
-`social-card-v3`, `pet-share-card-v2`, `pet-birthday-card-v2`, and
-`pet-adoption-card-v2`.
+`social-card-v3`, `pet-share-card-v3`, `pet-birthday-card-v3`, and
+`pet-adoption-card-v3`.
 
 **Note.** This review could not verify the photo-bearing card at all: the local
 database has 39 pets and **zero** with a profile or cover photo, and the
@@ -709,6 +710,34 @@ See [`../deployment/dynamic-social-previews.md`](../deployment/dynamic-social-pr
 states, five crawler user agents plus a normal browser (identical metadata, no
 UA-specific HTML), and a head inspection confirming no contact, owner name or
 email appears.
+
+---
+
+## MPL-GROWTH-PROD-006 — Stale cached portrait Share Cards
+
+**Status:** Done (2026-08-18) · **Priority:** G1
+
+**Problem.** After `1aaac3f` deployed, production served two different images for
+the same Share Card URL: 188,038 bytes with `X-Social-Card-Cache: HIT` (the old
+overlapping drawing) and 188,153 bytes on `MISS` (the fixed one). The API origin
+was stably correct across repeated calls, so the fix was live but not reaching
+owners whose card was already cached.
+
+**Root cause.** `1aaac3f` changed the rendered bytes of the Share Card, Birthday
+and Adoption layouts but left their template-version constants at `v2`. Those
+constants are the only part of the cache key that a layout change moves — the
+public code, profile version and variant are all unchanged — so cached entries
+survived at `s-maxage=604800`, up to seven days per pet and per Cloudflare colo.
+
+**Fix.** Bumped the three portrait identities to `v3` in
+`PublicProfileSocialCardVariants` and their mirror in `publicProfileEdge.ts`.
+The Open Graph card's drawing was not part of that layout fix — `DrawContent`
+never calls the changed helper — so `social-card-v3` deliberately stays, and OG
+cards are not invalidated.
+
+**Note for future layout work.** The edge validates the origin's
+`X-Social-Card-Template-Version` against its own copy and fails the request on a
+mismatch, so the two files must always move together. A test now asserts that.
 
 ---
 

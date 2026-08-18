@@ -39,20 +39,20 @@ The same restricted renderer also accepts
 `GET /api/v1/public/pets/{slug}/social-card.jpg?v={publicProfileVersion}&variant=share-card`
 for a 1080 x 1350 Pet Share Card JPEG. Missing, `open-graph`, and unknown variant
 values preserve the existing Open Graph layout and bytes. The Share Card uses
-its own `pet-share-card-v2` template identity in the API memory-cache key and
+its own `pet-share-card-v3` template identity in the API memory-cache key and
 ETag, so it cannot collide with the Open Graph entry. The API exposes that
 identity in `X-Social-Card-Template-Version` for the later edge integration.
 
 Cloudflare exposes the Share Card through the same stable public resource:
 `/social/pets/{slug}.jpg?v={publicProfileVersion}&variant=share-card`. The edge
 forwards only the controlled `share-card` variant, requires renderer identity
-`pet-share-card-v2`, and keeps that identity in the cache key and response ETag.
+`pet-share-card-v3`, and keeps that identity in the cache key and response ETag.
 Unknown variants continue to resolve to the ordinary Open Graph card.
 
 Two occasion variants use the same renderer and 1080 x 1350 JPEG output:
 
-- `variant=birthday` with template `pet-birthday-card-v2`;
-- `variant=adoption` with template `pet-adoption-card-v2`.
+- `variant=birthday` with template `pet-birthday-card-v3`;
+- `variant=adoption` with template `pet-adoption-card-v3`.
 
 They are available only when the exact stored date matches today in the
 Malaysia calendar. Estimated birth years do not qualify, and Memorial or
@@ -123,7 +123,7 @@ The API hashes the following public inputs with SHA-256 and exposes the first 16
 Changing any card input produces a different URL while the canonical profile URL stays unchanged. Share and Copy Link actions add only `?share={version}` to the public profile URL. The application ignores that parameter for page behavior.
 
 The renderer identities are `social-card-v3` (Open Graph),
-`pet-share-card-v2`, `pet-birthday-card-v2`, and `pet-adoption-card-v2`. Keep the
+`pet-share-card-v3`, `pet-birthday-card-v3`, and `pet-adoption-card-v3`. Keep the
 API and edge constants synchronized whenever rendered bytes change.
 
 ## Privacy and cache behavior
