@@ -290,7 +290,7 @@ describe("DashboardClient with pets", () => {
     renderDashboard();
 
     fireEvent.click(await screen.findByRole("button", { name: "Share Milo" }));
-    fireEvent.click(screen.getByRole("button", { name: /Show QR/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Show Profile QR/ }));
 
     const qrLink = screen.getByLabelText("Milo's Public Profile link");
     expect(qrLink.textContent).toMatch(/\/p\/[^?]+$/);
@@ -315,7 +315,7 @@ describe("DashboardClient with pets", () => {
       screen.getByRole("heading", { name: "Share Milo" })
     ).toBeTruthy();
     expect(screen.getByRole("button", { name: /Copy Profile Link/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Show QR/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Show Profile QR/ })).toBeTruthy();
     expect(
       screen.getByRole("button", { name: /More sharing options/ })
     ).toBeTruthy();

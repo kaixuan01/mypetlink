@@ -30,6 +30,15 @@ describe("owner product availability", () => {
       tagOrdersEnabled: false,
     });
     expect(features.smartTagOrderingEnabled).toBe(false);
+    // The share card entry point ships on; the flag is only a kill switch now.
+    expect(features.shareCardsEnabled).toBe(true);
+  });
+
+  it("can hide the share card actions again without touching routes", async () => {
+    vi.stubEnv("NEXT_PUBLIC_SHARE_CARDS_ENABLED", "false");
+
+    const features = await import("@/lib/features");
+
     expect(features.shareCardsEnabled).toBe(false);
   });
 

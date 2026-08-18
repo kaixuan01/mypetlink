@@ -36,13 +36,15 @@ export const publicProfilesEnabled = readPublicBoolean(
 );
 
 /**
- * Owner-facing Pet Share Card preview and actions. Routes remain available so
- * shared images keep working while rollout is disabled. Remove this flag after
- * the first stable production rollout is confirmed.
+ * Owner-facing Pet Share Card preview and actions. The card images and their
+ * routes have been serving in production since the first share rollout, so the
+ * owner-facing entry point defaults on; the flag now exists only as a kill
+ * switch. Set NEXT_PUBLIC_SHARE_CARDS_ENABLED=false to hide the actions again
+ * without removing anything. Remove this flag once the rollout is settled.
  */
 export const shareCardsEnabled = readPublicBoolean(
   process.env.NEXT_PUBLIC_SHARE_CARDS_ENABLED,
-  false
+  true
 );
 
 /**

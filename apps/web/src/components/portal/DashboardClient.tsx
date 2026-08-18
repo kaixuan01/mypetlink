@@ -593,11 +593,16 @@ function ShareProfileActions({
   // One Share entry point; the QR now lives inside the Share Center rather than
   // competing with it as a third equally weighted button.
   return (
+    // Full width on a phone for tap comfort; compact from sm upwards so a
+    // desktop card does not read as one giant button.
     <div
-      className="grid min-w-0 grid-cols-[1fr_auto] gap-2"
+      className="grid min-w-0 grid-cols-[1fr_auto] gap-2 sm:flex sm:flex-wrap sm:items-center"
       data-dashboard-pet-actions
     >
-      <ShareCenter pet={pet} />
+      <ShareCenter
+        pet={pet}
+        triggerClassName="inline-flex min-h-11 min-w-0 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-pet-teal bg-pet-teal px-5 text-sm font-extrabold text-white shadow-sm transition hover:bg-[#0f5fd0] sm:px-4"
+      />
       <Link
         aria-label={`View ${pet.name}'s public profile`}
         className="inline-flex min-h-11 min-w-0 items-center justify-center whitespace-nowrap rounded-full border border-pet-border bg-white px-4 text-sm font-extrabold text-pet-ink transition hover:bg-white/70"

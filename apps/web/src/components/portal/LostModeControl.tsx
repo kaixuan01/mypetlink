@@ -130,20 +130,24 @@ export function LostModeControl({
             </div>
           ) : null}
         </div>
-      ) : (
+      ) : variant === "card" ? (
         <p className="rounded-[1.25rem] bg-pet-cream p-4 text-sm font-semibold leading-6 text-pet-muted">
           Turn this on only when {pet.name} is missing. It adds a clear missing
           pet notice to the Public Share Profile and makes the Safety Profile
           more urgent without disabling active smart tags.
         </p>
+      ) : (
+        <p className="text-sm font-semibold leading-6 text-pet-muted">
+          {`Only turn this on if ${pet.name} is missing.`}
+        </p>
       )}
 
       <div className="flex flex-col gap-3 sm:flex-row">
         <button
-          className={`inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-bold transition disabled:cursor-wait disabled:opacity-70 ${
+          className={`inline-flex min-h-12 items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-bold transition disabled:cursor-wait disabled:opacity-70 ${
             pet.lostModeEnabled
-              ? "border border-pet-border bg-white text-pet-ink hover:bg-pet-cream"
-              : "bg-pet-coral text-white hover:bg-[#f26155]"
+              ? "flex-1 border border-pet-border bg-white text-pet-ink hover:bg-pet-cream"
+              : "self-start border border-pet-coral bg-white text-pet-coral hover:bg-[#fff1ee]"
           }`}
           disabled={isSaving}
           onClick={openLostModeEditor}

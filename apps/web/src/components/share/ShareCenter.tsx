@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { copyTextToClipboard } from "@/components/portal/PublicLinkActions";
 import { PetShareCard } from "@/components/share/PetShareCard";
 import { QrCodeCard } from "@/components/qr/QrCodeCard";
+import { PetAvatar } from "@/components/ui/PetAvatar";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import {
   AnalyticsEvent,
@@ -175,7 +176,7 @@ export function ShareCenter({
                     >
                       <Icon
                         aria-hidden="true"
-                        className="h-4 w-4"
+                        className="h-4 w-4 rotate-90"
                         name="chevron"
                       />
                       Back
@@ -196,31 +197,40 @@ export function ShareCenter({
 
             {view === "home" ? (
               <div className="mt-5 grid gap-2.5">
+                {/*
+                  The pet card is the everyday way to share a pet, so it is the
+                  one hero choice here. The real 1080x1350 image is requested
+                  only after it is chosen; this tile is a static preview.
+                */}
                 {shareCardsEnabled && publicShareable ? (
                   <PetShareCard
                     imagePath={getPublicProfileShareCardImagePath(pet)}
                     petName={pet.name}
                     profilePath={pet.publicProfilePath}
                     shareVersion={getPublicProfileShareVersion(pet)}
-                    triggerClassName="flex w-full min-w-0 items-center gap-3 rounded-[1.35rem] border border-pet-teal bg-pet-teal p-4 text-left text-white shadow-sm transition hover:bg-[#0f5fd0]"
+                    triggerClassName="relative flex w-full min-w-0 items-center gap-4 overflow-hidden rounded-[1.5rem] bg-gradient-to-br from-pet-teal to-[#0b4fae] p-4 text-left text-white shadow-lg shadow-[#1570ef]/25 transition hover:from-[#0f5fd0] hover:to-[#0a4599]"
                     triggerLabel={
                       <>
-                        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/20">
-                          <Icon
-                            aria-hidden="true"
-                            className="h-5 w-5"
-                            name="heart"
-                          />
+                        <span
+                          aria-hidden="true"
+                          className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-white/10"
+                        />
+                        <span className="relative shrink-0 rounded-[1.15rem] bg-white/20 p-1">
+                          <PetAvatar pet={pet} size="sm" />
                         </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block text-base font-black leading-6">
+                        <span className="relative min-w-0 flex-1">
+                          <span className="block text-lg font-black leading-7">
                             Share Pet Card
                           </span>
-                          <span className="mt-0.5 block text-xs font-semibold leading-5 text-white/85">
-                            A beautiful card with {pet.name}&apos;s photo and
-                            profile QR.
+                          <span className="mt-1 block text-sm font-semibold leading-5 text-white/90">
+                            {`A beautiful card with ${pet.name}'s photo and profile QR.`}
                           </span>
                         </span>
+                        <Icon
+                          aria-hidden="true"
+                          className="relative h-5 w-5 shrink-0 -rotate-90 text-white/80"
+                          name="chevron"
+                        />
                       </>
                     }
                     variants={getAvailablePetShareCardOptions(pet)}
@@ -240,12 +250,14 @@ export function ShareCenter({
                           analyticsSurface,
                         )
                       }
+                      tone="quiet"
                     />
                     <ShareRow
-                      description={`Anyone can scan to meet ${pet.name}.`}
+                      description={`Scan to view ${pet.name}'s profile.`}
                       icon="qr"
-                      label="Show QR"
+                      label="Show Profile QR"
                       onClick={() => setView("public-qr")}
+                      tone="quiet"
                     />
                   </>
                 ) : (
@@ -256,10 +268,15 @@ export function ShareCenter({
                 )}
 
                 <ShareRow
-                  description="Downloads, and the page for finders."
+                  description={
+                    safetyShareable
+                      ? "Downloads and safety sharing."
+                      : "More profile options."
+                  }
                   icon="settings"
                   label="More sharing options"
                   onClick={() => setView("more")}
+                  tone="quiet"
                 />
               </div>
             ) : null}
@@ -375,13 +392,18 @@ function ShareRow({
   icon: IconName;
   label: string;
   onClick?: () => void;
-  tone?: "card" | "plain";
+  tone?: "card" | "quiet" | "plain";
 }) {
+  const tones = {
+    card: "border border-pet-border bg-white hover:bg-white/70",
+    // Deliberately lighter than the hero tile it sits under.
+    quiet: "bg-white/70 hover:bg-white",
+    plain: "bg-pet-cream hover:bg-pet-cream/70",
+  };
   const className = [
     "flex w-full min-w-0 items-center gap-3 rounded-[1.25rem] px-4 py-3 text-left transition",
-    tone === "card"
-      ? "border border-pet-border bg-white hover:bg-white/70"
-      : "bg-pet-cream hover:bg-pet-cream/70",
+    tones[tone],
+    // Comfortable touch target on a phone.
     "min-h-[3.25rem]",
   ].join(" ");
 

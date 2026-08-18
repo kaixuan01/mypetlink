@@ -91,7 +91,7 @@ describe("ShareCenter", () => {
 
     expect(screen.getByText("Share Pet Card")).toBeTruthy();
     expect(screen.getByRole("button", { name: /Copy Profile Link/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Show QR/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Show Profile QR/ })).toBeTruthy();
     expect(
       screen.getByRole("button", { name: /More sharing options/ })
     ).toBeTruthy();
@@ -147,7 +147,7 @@ describe("ShareCenter", () => {
     const pet = petFixture();
     openCenter(pet);
 
-    fireEvent.click(screen.getByRole("button", { name: /Show QR/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Show Profile QR/ }));
     const publicQr = screen.getByText(`${pet.name}'s Public Profile`);
     expect(publicQr.getAttribute("data-target")).toBe(pet.publicProfilePath);
 
@@ -215,7 +215,7 @@ describe("ShareCenter", () => {
     const pet = petFixture();
     openCenter(pet);
 
-    fireEvent.click(screen.getByRole("button", { name: /Show QR/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Show Profile QR/ }));
     expect(screen.getByText(`${pet.name}'s Public Profile`)).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Close share options" }));

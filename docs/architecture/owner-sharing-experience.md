@@ -26,11 +26,24 @@ surface needs sharing, render `ShareCenter` there.
 
 The first level answers "I want to share my pet" and stops at four choices:
 
-1. **Share Pet Card** — the rendered image card (`PetShareCard`), including the
-   birthday and adoption variants when the occasion applies that day.
+1. **Share Pet Card** — the rendered image card (`PetShareCard`). This is the
+   hero of the dialog: a richer tile carrying the pet's photo, because it is
+   the everyday way owners share a pet. The three rows under it are
+   deliberately quieter.
 2. **Copy Profile Link** — the Public Share Profile address.
-3. **Show QR** — the Public Share Profile QR.
-4. **More sharing options**.
+3. **Show Profile QR** — the Public Share Profile QR. Named "Profile" because
+   MyPetLink also has a Safety QR; the two must never read as the same thing.
+4. **More sharing options** — its supporting line depends on what is actually
+   available: "Downloads and safety sharing." when the Safety Profile can be
+   shared, "More profile options." when it cannot.
+
+The tile is a static preview. The real 1080x1350 image is only requested once
+an owner chooses Share Pet Card.
+
+**The profile card is not occasion-dependent.** Any pet with a shareable public
+profile can share its profile card, every day of the year. A birthday or
+adoption anniversary falling today *adds* a variant to choose from; it never
+decides whether the card exists. `ShareCardAvailability.test.tsx` pins this.
 
 Everything rarer sits one level down, under **More sharing options**:
 
@@ -46,7 +59,12 @@ Availability rules:
   be on. When it is off, the dialog says so rather than hiding silently.
 - Safety options require `safetyProfilesOwnerUiEnabled`, the pet's safety
   profile to be on, and an active pet.
-- The pet card requires `shareCardsEnabled`.
+- The pet card requires `shareCardsEnabled`, which defaults **on**. It is now a
+  kill switch rather than a rollout gate: set
+  `NEXT_PUBLIC_SHARE_CARDS_ENABLED=false` to hide the card actions without
+  removing anything. When a deployment leaves this unset, the entry point still
+  appears — which is the point, because an unset variable previously made the
+  action silently vanish.
 
 The dialog always reopens on the first level, is named on every panel, traps
 focus, closes on Escape, and returns focus to the control that opened it.
@@ -56,8 +74,10 @@ focus, closes on Escape, and returns focus to the control that opened it.
 The Pet Overview has one **Sharing & Safety** section instead of two equally
 large cards. It holds:
 
-- **Public Profile** — status badge, one line of description, Share Center, and
-  a View link.
+- **Public Profile** — status badge, one line of description, a compact Share
+  Center trigger, and a View link. The pet hero already owns the page's primary
+  Share, so this row is management and status rather than a second competing
+  call to action.
 - **Safety Profile** — status badge (Safety Profile Active / Contact Update
   Needed / Safety Profile Off), one line of description, the contact warning
   when it applies, copy/QR/view actions, and the general area.
@@ -66,6 +86,11 @@ large cards. It holds:
   top-level card. All of its rules, confirmations, and API behaviour are
   unchanged.
 
+  Urgent styling belongs to an urgent state. While Lost Mode is **off** the
+  section is a status row with one short line and a quiet outlined action, so a
+  safe pet's page is not dominated by an alarm. The confirmation step keeps its
+  coral action, and an **on** state stays visually prominent.
+
 Long URLs are not printed by default; the address is available through Copy Link
 and the QR panels.
 
@@ -73,7 +98,7 @@ and the QR panels.
 
 Pet Overview reads top to bottom as: hero → profile completion → Sharing &
 Safety → Pet Memories → Care Records → Smart Tags. Each of the last three offers
-one primary action and one quiet "View All", so no single feature shouts louder
+one primary action and one quiet text "View all", so no single feature shouts louder
 than sharing.
 
 ## Analytics

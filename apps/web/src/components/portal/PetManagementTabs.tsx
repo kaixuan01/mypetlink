@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useEffect, useState } from "react";
 import { MomentMediaThumbnail } from "@/components/moments/MomentMediaThumbnail";
 import {
@@ -26,7 +28,6 @@ import {
 import { getEffectivePlanLimits, getMemoryLimitState } from "@/lib/planLimits";
 import { deriveProfileCompletion } from "@/lib/profileCompletion";
 import { getCareRecordDateTerminology } from "@/lib/careRecordTerminology";
-import { getPetProfileTheme } from "@/lib/petProfileThemes";
 import {
   getActivePets,
   isActivePet,
@@ -230,7 +231,6 @@ function OverviewTab({
     ? getTagScanDisplay(activeTag, undefined, pet)
     : null;
   const activeTagScanPath = activeTag ? tagQrPath(activeTag.tagCode) : "";
-  const theme = getPetProfileTheme(pet.profileTheme);
   const safetyBadge = getSafetyProfileBadge(pet);
   const smartTagBadge = getSmartTagStatusBadge(tags, orders, pet);
   const isMemorial = isMemorialPet(pet);
@@ -293,21 +293,23 @@ function OverviewTab({
                 </Badge>
               </div>
               <p className="text-sm leading-6 text-pet-muted">
-                The {theme.name.toLowerCase()}-theme profile you share with
-                family, friends, and pet communities.
+                The profile friends, family, and pet communities see.
               </p>
               {publicProfileAccessible ? (
-                <div className="grid min-w-0 gap-2 sm:grid-cols-[1fr_auto]">
-                  <ShareCenter pet={pet} />
-                  <CTAButton
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <ShareCenter
+                    pet={pet}
+                    triggerClassName="inline-flex min-h-11 min-w-0 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-pet-border bg-white px-4 text-sm font-extrabold text-pet-ink shadow-sm transition hover:bg-pet-cream"
+                  />
+                  <Link
+                    className="inline-flex min-h-11 items-center gap-1 rounded-full px-2 text-sm font-extrabold text-pet-teal transition hover:underline"
                     href={publicProfileSharePath}
-                    icon="paw"
                     rel="noopener noreferrer"
                     target="_blank"
-                    variant="secondary"
                   >
                     {isMemorial ? "View Memorial Profile" : "View Profile"}
-                  </CTAButton>
+                    <span aria-hidden="true">&rarr;</span>
+                  </Link>
                 </div>
               ) : (
                 <div className="grid min-w-0 gap-3">
@@ -456,13 +458,13 @@ function OverviewTab({
           >
             {memoryLimit.canCreate ? "Add Moment" : "Memory Limit Reached"}
           </CTAButton>
-          <CTAButton
+          <Link
+            className="inline-flex min-h-12 items-center justify-center gap-1 px-2 text-sm font-extrabold text-pet-teal transition hover:underline"
             href={ownerRoutes.petMoments(pet.id)}
-            variant="secondary"
-            icon="heart"
           >
-            View All
-          </CTAButton>
+            View all
+            <span aria-hidden="true">&rarr;</span>
+          </Link>
         </div>
       </SectionCard>
 
@@ -504,13 +506,13 @@ function OverviewTab({
           >
             Add Care Record
           </CTAButton>
-          <CTAButton
+          <Link
+            className="inline-flex min-h-12 items-center justify-center gap-1 px-2 text-sm font-extrabold text-pet-teal transition hover:underline"
             href={ownerRoutes.petRecords(pet.id)}
-            variant="secondary"
-            icon="record"
           >
-            View All
-          </CTAButton>
+            View all
+            <span aria-hidden="true">&rarr;</span>
+          </Link>
         </div>
       </SectionCard>
 

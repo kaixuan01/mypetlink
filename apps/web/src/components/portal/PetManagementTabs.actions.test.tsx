@@ -103,7 +103,7 @@ it("keeps one Public Profile action set and hides unreleased owner tools", async
   expect(screen.getAllByRole("link", { name: "View Profile" })).toHaveLength(1);
   expect(screen.queryByRole("link", { name: "View Safety Profile" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Copy Link" })).toBeNull();
-  expect(screen.queryByRole("button", { name: "Show QR" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Show Profile QR" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Share Card" })).toBeNull();
   expect(screen.queryByRole("tab", { name: "Smart Tag" })).toBeNull();
   expect(screen.queryByText("Edit Public Profile Settings")).toBeNull();
@@ -115,7 +115,7 @@ it("keeps one Public Profile action set and hides unreleased owner tools", async
 
   fireEvent.click(screen.getByRole("button", { name: `Share ${pet.name}` }));
   expect(screen.getByRole("button", { name: "Share Card" })).toBeTruthy();
-  expect(screen.getAllByRole("button", { name: /Show QR/ })).toHaveLength(1);
+  expect(screen.getAllByRole("button", { name: /Show Profile QR/ })).toHaveLength(1);
 
   fireEvent.click(screen.getByRole("button", { name: /Copy Profile Link/ }));
   await waitFor(() => expect(mocks.writeText).toHaveBeenCalledTimes(1));
@@ -136,7 +136,7 @@ it("does not expose public actions when the pet profile is private", async () =>
   expect(screen.getByRole("link", { name: "Manage Public Profile" })).toBeTruthy();
   expect(screen.queryByRole("button", { name: `Share ${pet.name}` })).toBeNull();
   expect(screen.queryByRole("button", { name: "Copy Link" })).toBeNull();
-  expect(screen.queryByRole("button", { name: "Show QR" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Show Profile QR" })).toBeNull();
   expect(screen.queryByRole("link", { name: "View Profile" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Share Card" })).toBeNull();
 });
