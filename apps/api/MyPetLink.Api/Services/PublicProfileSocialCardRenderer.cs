@@ -32,7 +32,20 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
     /// <summary>Distance from the action block's top edge to its text baseline.</summary>
     internal const float ShareCardActionBaselineOffset = 39f;
     /// <summary>Top of the QR footer; the action block must finish above it.</summary>
-    public const float ShareCardQrFooterTop = 1068f;
+    public const float ShareCardQrFooterTop = 1026f;
+
+    /// <summary>Baseline gap from the QR panel to the scan instruction.</summary>
+    public const float ShareCardQrToScanGap = 30f;
+
+    /// <summary>Baseline gap from the scan instruction to the domain line.</summary>
+    public const float ShareCardScanToDomainGap = 28f;
+
+    /// <summary>
+    /// Clear space the domain line must keep below its own descenders. The
+    /// owner review flagged the domain as cramped against the bottom edge, so
+    /// this is asserted in tests rather than left to drift.
+    /// </summary>
+    public const float ShareCardFooterBottomPadding = 46f;
 
     private const string BrandLogoResourceName = "MyPetLink.Api.Assets.Brand.mypetlink-logo-horizontal.png";
 
@@ -58,7 +71,9 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
         _memoryCache = memoryCache;
         _hostEnvironment = hostEnvironment;
         _r2Options = r2Options.Value;
-        _publicSiteBaseUri = ResolvePublicSiteBaseUri(publicSiteOptions.Value.BaseUrl);
+        _publicSiteBaseUri = ResolvePublicSiteBaseUri(
+            publicSiteOptions.Value.BaseUrl,
+            hostEnvironment.IsDevelopment());
     }
 
     public async Task<byte[]> RenderAsync(
@@ -257,17 +272,36 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
         }
     }
 
-    private static Uri? ResolvePublicSiteBaseUri(string value)
+    /// <summary>
+    /// The public site origin baked into a portrait Share Card's QR.
+    ///
+    /// Production stays strict: HTTPS on the default port, no credentials,
+    /// query, fragment, or path. Development additionally allows a loopback
+    /// origin on a development port, because a local site necessarily runs on
+    /// one (http://localhost:3000) and rejecting it made Share Cards
+    /// unrenderable on every developer machine. The relaxation is loopback
+    /// only - it never widens the set of hosts, just the port for a host that
+    /// is already unreachable from outside the machine.
+    /// </summary>
+    public static Uri? ResolvePublicSiteBaseUri(string value, bool allowDevelopmentLoopback = false)
     {
         var normalized = value.Trim().TrimEnd('/') + "/";
         if (!Uri.TryCreate(normalized, UriKind.Absolute, out var uri)
-            || !uri.IsDefaultPort
             || !string.IsNullOrEmpty(uri.UserInfo)
             || !string.IsNullOrEmpty(uri.Query)
             || !string.IsNullOrEmpty(uri.Fragment)
-            || uri.AbsolutePath != "/"
-            || (uri.Scheme != Uri.UriSchemeHttps
-                && !(uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback)))
+            || uri.AbsolutePath != "/")
+        {
+            return null;
+        }
+
+        var loopbackHttp = uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback;
+        if (uri.Scheme != Uri.UriSchemeHttps && !loopbackHttp)
+        {
+            return null;
+        }
+
+        if (!uri.IsDefaultPort && !(allowDevelopmentLoopback && loopbackHttp))
         {
             return null;
         }
@@ -367,15 +401,18 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
         SKBitmap? logo,
         string publicProfileUrl)
     {
+        // One layout, themed colours. See ShareCardPalette for the bounds.
+        var palette = ShareCardPalette.Resolve(profile.ProfileTheme);
+
         using var surface = SKSurface.Create(new SKImageInfo(ShareCardWidth, ShareCardHeight));
         var canvas = surface.Canvas;
-        canvas.Clear(SKColor.Parse("#FFF8E8"));
+        canvas.Clear(palette.Background);
 
-        using (var mint = Paint(SKColor.Parse("#CCEFE4").WithAlpha(190)))
-        using (var sky = Paint(SKColor.Parse("#D7E8FF").WithAlpha(200)))
+        using (var primaryBlob = Paint(palette.BlobPrimary))
+        using (var secondaryBlob = Paint(palette.BlobSecondary))
         {
-            canvas.DrawCircle(20, 70, 190, mint);
-            canvas.DrawCircle(1050, 1315, 230, sky);
+            canvas.DrawCircle(20, 70, 190, primaryBlob);
+            canvas.DrawCircle(1050, 1315, 230, secondaryBlob);
         }
 
         var lost = profile.LostModeEnabled && profile.LifecycleStatus == Entities.PetLifecycleStatus.Active;
@@ -400,10 +437,12 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
         var heroImage = coverImage ?? profileImage;
         DrawCover(canvas, heroRect, heroImage, profile.CoverPositionX, profile.CoverPositionY, profile.Name);
 
+        // The hero photo and the circular portrait below it are both deliberate
+        // parts of this composition. Neither is optional.
         var portraitCenter = new SKPoint(ShareCardWidth / 2f, heroBottom - 6);
-        DrawProfilePhoto(canvas, portraitCenter, 112, profileImage, profile.Name);
+        DrawProfilePhoto(canvas, portraitCenter, 112, profileImage, profile.Name, palette);
 
-        DrawShareCardContent(canvas, profile, logo, publicProfileUrl, 786);
+        DrawShareCardContent(canvas, profile, logo, publicProfileUrl, 786, palette);
 
         using var image = surface.Snapshot();
         using var data = image.Encode(SKEncodedImageFormat.Jpeg, 84);
@@ -495,12 +534,16 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
         // Same rule as the portrait Share Card: the QR footer is placed from the
         // logo's measured bottom, not from a fixed offset that assumed a shorter
         // text lockup.
-        var occasionLogoBottom = DrawBrandLogoCentered(canvas, logo, centerX, 966, 250, 50);
+        // Raised with the Share Card footer so the closing domain line keeps the
+        // same breathing room above the bottom edge on every portrait card.
+        var occasionLogoBottom = DrawBrandLogoCentered(canvas, logo, centerX, 944, 250, 50);
         DrawProfileQrFooter(
             canvas,
             publicProfileUrl,
             name,
-            occasionLogoBottom + OccasionLogoToQrGap);
+            occasionLogoBottom + OccasionLogoToQrGap,
+            softAccent.WithAlpha(150),
+            SKColor.Parse("#53627F"));
 
         using var image = surface.Snapshot();
         using var data = image.Encode(SKEncodedImageFormat.Jpeg, 86);
@@ -512,7 +555,8 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
         PublicProfileSocialResponse profile,
         SKBitmap? logo,
         string publicProfileUrl,
-        float top)
+        float top,
+        ShareCardPalette palette)
     {
         var centerX = ShareCardWidth / 2f;
 
@@ -536,7 +580,7 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
             nameInkBottom = y + Math.Max(0, ink.Bottom);
         }
 
-        DrawCenteredText(canvas, displayName, centerX, y, nameSize, SKColor.Parse("#102247"), true);
+        DrawCenteredText(canvas, displayName, centerX, y, nameSize, ShareCardPalette.PrimaryText, true);
 
         y = nameInkBottom + ShareCardNameToSummaryGap;
         var summary = BuildSummary(profile);
@@ -547,7 +591,7 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
             {
                 var ink = summaryStyle.MeasureInk(summaryText);
                 y -= ink.Top;
-                DrawCenteredText(canvas, summaryText, centerX, y, 28, SKColor.Parse("#53627F"), true);
+                DrawCenteredText(canvas, summaryText, centerX, y, 28, palette.SupportingText, true);
                 y += Math.Max(0, ink.Bottom) + ShareCardSummaryToActionGap;
             }
         }
@@ -557,16 +601,22 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
         y += ShareCardActionBaselineOffset;
 
         var callToAction = FitText($"Meet {name} on MyPetLink", 650, 27, true);
-        using (var button = Paint(SKColor.Parse("#1570EF")))
-        using (var buttonText = new TextStyle(27, SKColors.White, true))
+        using (var taglineFill = Paint(palette.TaglineFill))
+        using (var taglineText = new TextStyle(27, palette.TaglineText, true))
         {
-            var buttonWidth = Math.Min(720, buttonText.MeasureText(callToAction) + 68);
-            var buttonRect = new SKRect(centerX - buttonWidth / 2, y - 39, centerX + buttonWidth / 2, y + 25);
-            canvas.DrawRoundRect(buttonRect, 32, 32, button);
-            buttonText.Draw(canvas, callToAction, centerX - buttonText.MeasureText(callToAction) / 2, y + 1);
+            var taglineWidth = Math.Min(720, taglineText.MeasureText(callToAction) + 68);
+            var taglineRect = new SKRect(centerX - taglineWidth / 2, y - 39, centerX + taglineWidth / 2, y + 25);
+            canvas.DrawRoundRect(taglineRect, 32, 32, taglineFill);
+            taglineText.Draw(canvas, callToAction, centerX - taglineText.MeasureText(callToAction) / 2, y + 1);
         }
 
-        DrawProfileQrFooter(canvas, publicProfileUrl, name, ShareCardQrFooterTop);
+        DrawProfileQrFooter(
+            canvas,
+            publicProfileUrl,
+            name,
+            ShareCardQrFooterTop,
+            palette.QrSurround,
+            palette.SupportingText);
     }
 
     /// <summary>
@@ -650,11 +700,18 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
         SKPoint center,
         float radius,
         SKBitmap? photo,
-        string name)
+        string name,
+        ShareCardPalette? palette = null)
     {
+        var resolved = palette ?? ShareCardPalette.Default;
         using var shadow = Paint(SKColor.Parse("#102247").WithAlpha(45));
         canvas.DrawCircle(center.X + 5, center.Y + 10, radius + 8, shadow);
-        using var border = Paint(SKColor.Parse("#FFF8E8"));
+        using (var accent = Paint(resolved.AvatarRing))
+        {
+            canvas.DrawCircle(center, radius + 13, accent);
+        }
+
+        using var border = Paint(resolved.HeroFrame);
         canvas.DrawCircle(center, radius + 9, border);
 
         canvas.Save();
@@ -723,10 +780,22 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
         SKCanvas canvas,
         string publicProfileUrl,
         string petName,
-        float top)
+        float top,
+        SKColor surroundColor,
+        SKColor domainColor)
     {
         var left = (ShareCardWidth - ShareCardQrSize) / 2f;
         var bounds = new SKRect(left, top, left + ShareCardQrSize, top + ShareCardQrSize);
+
+        // A soft halo behind the panel. The panel itself stays white and the
+        // modules stay dark, so scanability never depends on the surrounding
+        // colour.
+        using (var surround = Paint(surroundColor))
+        {
+            var halo = SKRect.Inflate(bounds, 16, 16);
+            canvas.DrawRoundRect(halo, 26, 26, surround);
+        }
+
         DrawQrCode(canvas, publicProfileUrl, bounds);
 
         var name = CleanText(petName, 48, "Pet");
@@ -734,19 +803,26 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
             canvas,
             FitText($"Scan to view {name}'s profile", 690, 24, true),
             ShareCardWidth / 2f,
-            bounds.Bottom + 30,
+            bounds.Bottom + ShareCardQrToScanGap,
             24,
-            SKColor.Parse("#102247"),
+            ShareCardPalette.PrimaryText,
             true);
         DrawCenteredText(
             canvas,
             "mypetlink.com.my",
             ShareCardWidth / 2f,
-            bounds.Bottom + 56,
+            DomainBaselineFor(top),
             20,
-            SKColor.Parse("#53627F"),
+            domainColor,
             true);
     }
+
+    /// <summary>Baseline of the closing domain line for a QR footer at <paramref name="footerTop"/>.</summary>
+    public static float DomainBaselineFor(float footerTop) =>
+        footerTop + ShareCardQrSize + ShareCardQrToScanGap + ShareCardScanToDomainGap;
+
+    /// <summary>Baseline of the closing domain line on the portrait Share Card.</summary>
+    public static float ShareCardDomainBaseline => DomainBaselineFor(ShareCardQrFooterTop);
 
     private static void DrawQrCode(SKCanvas canvas, string payload, SKRect bounds)
     {
@@ -837,13 +913,34 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
 
     private static string BuildSummary(PublicProfileSocialResponse profile)
     {
+        var values = BuildSummaryParts(profile);
+        return string.Join("  -  ", values);
+    }
+
+    /// <summary>
+    /// The one line of metadata under the pet's name.
+    ///
+    /// A breed already tells a reader the species, so "Cat - Domestic
+    /// Shorthair - 4 years old" repeats itself. When a breed is known it stands
+    /// in for the species; the species is only shown when there is no breed.
+    /// Custom species and custom breeds flow through unchanged, and nothing new
+    /// is exposed - every value here already appears on the public profile.
+    /// </summary>
+    public static IReadOnlyList<string> BuildSummaryParts(
+        PublicProfileSocialResponse profile)
+    {
         var species = string.Equals(profile.Species, "Other", StringComparison.OrdinalIgnoreCase)
             ? profile.CustomSpecies
             : profile.Species;
-        var values = new[] { species, profile.Breed, profile.AgeDisplayLabel }
-            .Select(value => CleanOptionalText(value, 48))
-            .Where(value => value is not null);
-        return string.Join("  -  ", values!);
+
+        var breed = CleanOptionalText(profile.Breed, 48);
+        var age = CleanOptionalText(profile.AgeDisplayLabel, 48);
+        var lead = breed ?? CleanOptionalText(species, 48);
+
+        return new[] { lead, age }
+            .Where(value => value is not null)
+            .Select(value => value!)
+            .ToArray();
     }
 
     private static string? CleanOptionalText(string? value, int maxLength)

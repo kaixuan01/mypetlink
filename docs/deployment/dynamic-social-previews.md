@@ -62,7 +62,10 @@ the edge projection. Occasion cache keys also contain the current Malaysia day,
 so a card from a previous anniversary cannot be reused in a later year.
 
 The owner Share Card controls are always available to an owner whose pet has a
-shareable Public Profile; there is no build-time flag for them. The image is
+shareable Public Profile; there is no build-time flag for them. The portrait
+card follows the pet's Public Profile theme through the bounded
+`ShareCardPalette` allowlist; the QR panel, its modules, and the brand lockup
+are never theme-driven, so scanability does not depend on the owner's choice. The image is
 requested only after an owner opens the Share Card dialog. The Dashboard may show a lightweight occasion
 prompt from pet data it already holds, but ordinary Dashboard, pet management,
 and Public Share Profile loads do not request or generate image bytes. Only the

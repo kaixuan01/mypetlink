@@ -18,7 +18,7 @@ import {
 import {
   addPublicProfileShareVersion,
   getPetShareCardFileName,
-  getPublicProfileSocialDescription,
+  getPetShareCardMessage,
   getPublicProfileSocialTitle,
   publicProfileShareCardImageSize,
 } from "@/lib/publicProfileSocial";
@@ -202,16 +202,20 @@ export function PetShareCard({
       // The public profile share below remains available without a card file.
     }
 
+    // Exactly one native share per user click, whichever branch runs. The
+    // profile URL rides inside `text` rather than as a separate `url`, because
+    // targets that accept files commonly drop `url` - and those that keep both
+    // would show the same link twice.
     if (file && canShareFiles(file)) {
       const requested = await requestNativeShare({
         files: [file],
-        text: `${getPublicProfileSocialDescription(petName)}\n${profileUrl}`,
+        text: `${getPetShareCardMessage(petName)}\n${profileUrl}`,
         title: getPublicProfileSocialTitle(petName),
       });
       if (requested === "completed" || requested === "cancelled") return;
     } else {
       const requested = await requestNativeShare({
-        text: getPublicProfileSocialDescription(petName),
+        text: getPetShareCardMessage(petName),
         title: getPublicProfileSocialTitle(petName),
         url: profileUrl,
       });

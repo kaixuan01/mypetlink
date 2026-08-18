@@ -13,9 +13,9 @@ public sealed class SocialCardTemplateVersionTests
     [Fact]
     public void PortraitCards_UseTheCurrentTemplateGeneration()
     {
-        Assert.Equal("pet-share-card-v3", PublicProfileSocialCardVariants.ShareCardTemplateVersion);
-        Assert.Equal("pet-birthday-card-v3", PublicProfileSocialCardVariants.BirthdayTemplateVersion);
-        Assert.Equal("pet-adoption-card-v3", PublicProfileSocialCardVariants.AdoptionTemplateVersion);
+        Assert.Equal("pet-share-card-v4", PublicProfileSocialCardVariants.ShareCardTemplateVersion);
+        Assert.Equal("pet-birthday-card-v4", PublicProfileSocialCardVariants.BirthdayTemplateVersion);
+        Assert.Equal("pet-adoption-card-v4", PublicProfileSocialCardVariants.AdoptionTemplateVersion);
     }
 
     [Fact]
@@ -30,9 +30,9 @@ public sealed class SocialCardTemplateVersionTests
     }
 
     [Theory]
-    [InlineData(PublicProfileSocialCardVariant.ShareCard, "pet-share-card-v3")]
-    [InlineData(PublicProfileSocialCardVariant.Birthday, "pet-birthday-card-v3")]
-    [InlineData(PublicProfileSocialCardVariant.Adoption, "pet-adoption-card-v3")]
+    [InlineData(PublicProfileSocialCardVariant.ShareCard, "pet-share-card-v4")]
+    [InlineData(PublicProfileSocialCardVariant.Birthday, "pet-birthday-card-v4")]
+    [InlineData(PublicProfileSocialCardVariant.Adoption, "pet-adoption-card-v4")]
     [InlineData(PublicProfileSocialCardVariant.OpenGraph, "social-card-v3")]
     public void EveryVariant_ReportsItsOwnTemplateVersion(
         PublicProfileSocialCardVariant variant,
@@ -57,9 +57,9 @@ public sealed class SocialCardTemplateVersionTests
     }
 
     [Theory]
-    [InlineData(PublicProfileSocialCardVariant.ShareCard, "pet-share-card-v2")]
-    [InlineData(PublicProfileSocialCardVariant.Birthday, "pet-birthday-card-v2")]
-    [InlineData(PublicProfileSocialCardVariant.Adoption, "pet-adoption-card-v2")]
+    [InlineData(PublicProfileSocialCardVariant.ShareCard, "pet-share-card-v3")]
+    [InlineData(PublicProfileSocialCardVariant.Birthday, "pet-birthday-card-v3")]
+    [InlineData(PublicProfileSocialCardVariant.Adoption, "pet-adoption-card-v3")]
     public void PortraitCacheIdentities_DifferFromThePreviousGeneration(
         PublicProfileSocialCardVariant variant,
         string previousTemplateVersion)
@@ -90,9 +90,9 @@ public sealed class SocialCardTemplateVersionTests
 
         foreach (var stale in new[]
                  {
-                     "pet-share-card-v2",
-                     "pet-birthday-card-v2",
-                     "pet-adoption-card-v2",
+                     "pet-share-card-v3",
+                     "pet-birthday-card-v3",
+                     "pet-adoption-card-v3",
                  })
         {
             Assert.DoesNotContain(stale, edge);

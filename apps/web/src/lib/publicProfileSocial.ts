@@ -25,6 +25,16 @@ export function getPublicProfileSocialDescription(petName: string) {
   return `View ${name}'s public profile, memories, and important safety information.`;
 }
 
+/**
+ * Caption an owner sends alongside a Share Card. The card is a warm, social
+ * thing, so it gets warm, social wording rather than the descriptive line used
+ * for crawler metadata. The caller appends the profile URL.
+ */
+export function getPetShareCardMessage(petName: string) {
+  const name = cleanSocialText(petName, 80) || "Pet";
+  return `Meet ${name} on MyPetLink 🐾`;
+}
+
 export type PublicProfileSocialCardData = {
   ageLabel?: string;
   coverUrl?: string;

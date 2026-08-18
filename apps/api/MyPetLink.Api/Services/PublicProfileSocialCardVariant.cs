@@ -21,15 +21,18 @@ public static class PublicProfileSocialCardVariants
     //
     // Bump the matching value here whenever a portrait layout changes its
     // rendered bytes: the cache key is otherwise identical and already-cached
-    // cards keep the old drawing for the full edge TTL. v3 releases the cards
-    // still holding the pre-fix brand-lockup collision.
+    // cards keep the old drawing for the full edge TTL. v3 released the cards
+    // still holding the pre-fix brand-lockup collision; v4 releases the themed
+    // palette, the softened tagline, the tightened metadata line, and the extra
+    // footer breathing room. Birthday and Adoption changed too, because they
+    // share the QR footer that gained its halo and new spacing.
     //
     // These strings are mirrored in apps/web/edge/publicProfileEdge.ts, which
     // rejects an origin response whose template version does not match. Change
     // both together.
-    public const string ShareCardTemplateVersion = "pet-share-card-v3";
-    public const string BirthdayTemplateVersion = "pet-birthday-card-v3";
-    public const string AdoptionTemplateVersion = "pet-adoption-card-v3";
+    public const string ShareCardTemplateVersion = "pet-share-card-v4";
+    public const string BirthdayTemplateVersion = "pet-birthday-card-v4";
+    public const string AdoptionTemplateVersion = "pet-adoption-card-v4";
 
     public static PublicProfileSocialCardVariant Parse(string? value)
     {

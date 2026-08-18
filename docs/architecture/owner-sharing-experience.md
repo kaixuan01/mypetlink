@@ -64,6 +64,58 @@ Availability rules:
   build-time gate previously hid it whenever a deployment forgot to set the
   variable; do not reintroduce one.
 
+## The Share Card itself
+
+The 1080x1350 portrait card has one canonical composition, and it is owner
+approved. It carries, top to bottom: the large hero photo in its rounded frame,
+the **circular pet portrait** overlapping below it, the MyPetLink lockup, the
+pet's name, one line of metadata, the "Meet {Pet} on MyPetLink" tagline, the
+Public Profile QR, the scan instruction, and mypetlink.com.my. **The hero photo
+and the circular portrait are both deliberate. Neither is redundant, and
+neither may be removed.**
+
+Three refinements are worth knowing about:
+
+- The tagline is a soft tinted pill with dark text, not a saturated primary
+  button. The card is a static JPEG, so nothing in it should look pressable.
+  The QR is the real action.
+- The metadata line drops the species when a breed is present, because a breed
+  already implies it: "Domestic Shorthair - 4 years old", not "Cat - Domestic
+  Shorthair - 4 years old". With no breed the species leads instead.
+- The closing domain line keeps deliberate clear space above the bottom edge.
+  `ShareCardFooterSpacingTests` asserts it on the rendered pixels so it cannot
+  drift back against the edge.
+
+### Theme awareness
+
+The Share Card follows the pet's selected Public Profile theme through
+`ShareCardPalette` - **one layout, a bounded allowlisted palette**. There is no
+renderer or template per theme, and no owner-supplied colour ever reaches the
+canvas.
+
+A theme may influence: the card background tint, the two decorative blobs, the
+supporting metadata text colour, the circular portrait's accent ring, the
+tagline fill and text, and the halo around the QR panel.
+
+A theme may never influence: the MyPetLink lockup, the dark primary text, the
+white QR panel, the dark QR modules, the quiet zone, the 1080x1350 dimensions,
+the composition, or the QR destination. Accessibility and scanability outrank
+theme fidelity, and an unknown or retired theme falls back to the MyPetLink
+default rather than failing the render.
+
+The theme travels to the renderer as a single bounded key on the public social
+projection - normalised to a known value before it leaves the service. No
+owner, contact, safety, tag, or internal identifier rides along with it.
+
+### Cache versions
+
+The portrait template versions are the only lever that releases a changed
+drawing; the rest of the cache key is identical. Bump the matching constant in
+`PublicProfileSocialCardVariants` **and** its mirror in
+`apps/web/edge/publicProfileEdge.ts` whenever rendered bytes change - the edge
+rejects a mismatched origin response rather than serving a stale card. Leave
+the Open Graph version alone when only the portrait cards change.
+
 The dialog always reopens on the first level, is named on every panel, traps
 focus, closes on Escape, and returns focus to the control that opened it.
 
@@ -109,6 +161,36 @@ Pet Overview reads top to bottom as: hero → profile completion → Sharing &
 Safety → Pet Memories → Care Records → Smart Tags. Each of the last three offers
 one primary action and one quiet text "View all", so no single feature shouts louder
 than sharing.
+
+## Sharing a card versus sharing a link
+
+These are two different things and should stay that way.
+
+- **Plain profile share** - the owner sends the Public Profile URL, and the
+  receiving platform renders its own preview from our Open Graph metadata and
+  the 1200x630 OG image.
+- **Share Pet Card** - the owner sends the 1080x1350 JPEG with a short caption
+  and the profile link. The QR lives inside the image.
+
+Do not replace platform OG previews with the portrait card, and do not expect a
+messaging app to show both.
+
+## One share, one native call
+
+`Share` inside the Share Card makes **exactly one** `navigator.share` call.
+Where the target accepts files it receives `{ files: [card], text, title }`,
+with the profile URL inside `text`; the URL is not also passed as `url`,
+because targets that take files commonly drop it, and those that keep both
+would show the same link twice. Where files are unsupported the single call
+carries `{ text, title, url }` instead.
+
+**The receiving app decides how to present that payload.** WhatsApp, for
+example, attaches the image and places the caption as its own message. That is
+WhatsApp's choice, not two share actions on our side. Do not try to defeat it
+by automating the target app or by using undocumented attachment links.
+
+Fallbacks stay explicit: a cancelled share is silent, a failed share copies the
+profile link, and an image is never downloaded on the owner's behalf.
 
 ## Analytics
 

@@ -1071,7 +1071,7 @@ public sealed class PublicProfileSocialCardTests
             }));
     }
 
-    private static PublicProfileSocialResponse CreateProfile()
+    private static PublicProfileSocialResponse CreateProfile(string profileTheme = "default")
     {
         return new PublicProfileSocialResponse(
             PublicCode: "public-code",
@@ -1087,7 +1087,8 @@ public sealed class PublicProfileSocialCardTests
             ProfilePhotoUrl: null,
             CoverPhotoUrl: null,
             CoverPositionX: 50,
-            CoverPositionY: 50);
+            CoverPositionY: 50,
+            ProfileTheme: profileTheme);
     }
 
     private sealed class TestHttpClientFactory(HttpMessageHandler handler) : IHttpClientFactory

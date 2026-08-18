@@ -54,7 +54,10 @@ public sealed record PublicProfileSocialResponse(
     string? ProfilePhotoUrl,
     string? CoverPhotoUrl,
     byte CoverPositionX,
-    byte CoverPositionY);
+    byte CoverPositionY,
+    // Bounded presentation key only, so the Share Card can match the profile a
+    // reader will land on. Never any owner, contact, safety, or tag data.
+    string ProfileTheme);
 
 public sealed record PublicMemorySummaryResponse(
     string Title,

@@ -236,7 +236,10 @@ public sealed class PublicProfileService : SkeletonService, IPublicProfileServic
             profilePhotoUrl,
             coverPhotoUrl,
             pet.CoverPositionX,
-            pet.CoverPositionY);
+            pet.CoverPositionY,
+            ShareCardPalette.Resolve(pet.ProfileTheme) == ShareCardPalette.Default
+                ? "default"
+                : pet.ProfileTheme.Trim());
     }
 
     public async Task<PublicProfileCardOccasions> GetSocialCardOccasionsAsync(
