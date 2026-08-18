@@ -27,6 +27,7 @@ export function ProfileCompletionCard({
   suppressedItems = [],
 }: ProfileCompletionCardProps) {
   const viewed = useRef(false);
+  const [expanded, setExpanded] = useState(false);
   const completedConfirmationKey = `mypetlink-profile-completion-confirmed:${pet.id}`;
   const [showCompletedConfirmation, setShowCompletedConfirmation] = useState(
     !completion.isComplete
@@ -123,7 +124,8 @@ export function ProfileCompletionCard({
   }
 
   const completedItems = completion.items.filter((item) => item.isComplete);
-  const visibleIncompleteItems = incompleteItems.slice(0, 3);
+  const nextItem = incompleteItems[0];
+  const remaining = incompleteItems.length;
 
   return (
     <section
@@ -144,38 +146,65 @@ export function ProfileCompletionCard({
       </p>
       <Progress percentage={completion.percentage} />
 
-      <ul className="mt-4 grid gap-2.5">
-        {completedItems.map((item) => (
-          <li
-            className="flex min-w-0 items-center gap-3 rounded-[1rem] bg-white/65 px-3 py-2.5 text-sm font-bold text-pet-muted"
-            key={item.id}
-          >
-            <span
-              aria-hidden="true"
-              className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[#dff6e8] text-xs text-pet-sage"
+      {/* Default to the single next step; the full checklist is one tap away. */}
+      {nextItem ? (
+        <div className="mt-4 flex min-w-0 items-center gap-3 rounded-[1rem] border border-pet-border bg-white px-3 py-2.5">
+          <span className="min-w-0 flex-1">
+            <span className="block text-xs font-bold uppercase tracking-wide text-pet-muted">
+              {remaining === 1 ? "1 thing left" : `${remaining} things left`}
+            </span>
+            <span className="mt-0.5 block break-words text-sm font-bold text-pet-ink">
+              {nextItem.actionLabel}
+            </span>
+          </span>
+          <CompletionAction item={nextItem} />
+        </div>
+      ) : null}
+
+      <button
+        aria-controls={`completion-steps-${pet.id}`}
+        aria-expanded={expanded}
+        className="mt-3 inline-flex min-h-11 items-center gap-1.5 text-sm font-extrabold text-pet-teal transition hover:text-[#0f5fd0]"
+        onClick={() => setExpanded((value) => !value)}
+        type="button"
+      >
+        {expanded ? "Hide profile steps" : "View all profile steps"}
+      </button>
+
+      {expanded ? (
+        <ul className="mt-3 grid gap-2.5" id={`completion-steps-${pet.id}`}>
+          {completedItems.map((item) => (
+            <li
+              className="flex min-w-0 items-center gap-3 rounded-[1rem] bg-white/65 px-3 py-2.5 text-sm font-bold text-pet-muted"
+              key={item.id}
             >
-              ✓
-            </span>
-            <span className="min-w-0 break-words">{item.label}</span>
-            <span className="sr-only">Complete</span>
-          </li>
-        ))}
-        {visibleIncompleteItems.map((item) => (
-          <li
-            className="flex min-w-0 items-center gap-3 rounded-[1rem] border border-pet-border bg-white px-3 py-2"
-            key={item.id}
-          >
-            <span
-              aria-hidden="true"
-              className="h-6 w-6 shrink-0 rounded-full border-2 border-pet-border"
-            />
-            <span className="min-w-0 flex-1 break-words text-sm font-bold text-pet-ink">
-              {item.label}
-            </span>
-            <CompletionAction item={item} />
-          </li>
-        ))}
-      </ul>
+              <span
+                aria-hidden="true"
+                className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[#dff6e8] text-xs text-pet-sage"
+              >
+                ✓
+              </span>
+              <span className="min-w-0 break-words">{item.label}</span>
+              <span className="sr-only">Complete</span>
+            </li>
+          ))}
+          {incompleteItems.map((item) => (
+            <li
+              className="flex min-w-0 items-center gap-3 rounded-[1rem] border border-pet-border bg-white px-3 py-2"
+              key={item.id}
+            >
+              <span
+                aria-hidden="true"
+                className="h-6 w-6 shrink-0 rounded-full border-2 border-pet-border"
+              />
+              <span className="min-w-0 flex-1 break-words text-sm font-bold text-pet-ink">
+                {item.label}
+              </span>
+              <CompletionAction item={item} />
+            </li>
+          ))}
+        </ul>
+      ) : null}
 
       {completion.isReadyToShare ? (
         <div className="mt-4 border-t border-pet-border pt-4 text-sm font-semibold text-pet-muted">

@@ -39,6 +39,9 @@ type PetShareCardProps = {
   className?: string;
   variants?: PetShareCardOption[];
   initialVariant?: PetShareCardVariant;
+  /** Replaces the default pill trigger, so the Share Center can present this as a full-width choice. */
+  triggerLabel?: React.ReactNode;
+  triggerClassName?: string;
 };
 
 type PreviewState = "loading" | "ready" | "error";
@@ -51,6 +54,8 @@ export function PetShareCard({
   className = "",
   variants,
   initialVariant = "profile",
+  triggerLabel,
+  triggerClassName,
 }: PetShareCardProps) {
   const origin = useSyncExternalStore(
     subscribeToOrigin,
@@ -258,7 +263,8 @@ export function PetShareCard({
     <>
       <button
         className={[
-          "inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-pet-coral bg-pet-coral px-4 py-2 text-sm font-extrabold text-white shadow-sm transition hover:bg-[#f26155]",
+          triggerClassName ??
+            "inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-pet-coral bg-pet-coral px-4 py-2 text-sm font-extrabold text-white shadow-sm transition hover:bg-[#f26155]",
           className,
         ]
           .filter(Boolean)
@@ -267,8 +273,12 @@ export function PetShareCard({
         ref={triggerRef}
         type="button"
       >
-        <Icon className="h-4 w-4" name="heart" />
-        Share Card
+        {triggerLabel ?? (
+          <>
+            <Icon className="h-4 w-4" name="heart" />
+            Share Card
+          </>
+        )}
       </button>
 
       {open ? (
@@ -383,42 +393,44 @@ export function PetShareCard({
               />
             </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-2">
+            <div className="mt-4 grid gap-2">
               {nativeShareAvailable ? (
                 <button
-                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-pet-teal px-4 text-sm font-extrabold text-white"
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-pet-teal px-4 text-sm font-extrabold text-white shadow-sm transition hover:bg-[#0f5fd0]"
                   onClick={handleShare}
                   type="button"
                 >
-                  <Icon className="h-4 w-4" name="heart" />
+                  <Icon aria-hidden="true" className="h-4 w-4" name="heart" />
                   Share
                 </button>
               ) : null}
               <button
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-pet-border bg-white px-4 text-sm font-extrabold text-pet-ink"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-pet-border bg-white px-4 text-sm font-extrabold text-pet-ink transition hover:bg-pet-cream"
                 onClick={handleSave}
                 type="button"
               >
-                <Icon className="h-4 w-4" name="record" />
+                <Icon aria-hidden="true" className="h-4 w-4" name="record" />
                 Save Image
               </button>
-              <button
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-pet-border bg-white px-4 text-sm font-extrabold text-pet-ink"
-                onClick={() => void copyProfileLink()}
-                type="button"
-              >
-                <Icon className="h-4 w-4" name="copy" />
-                Copy Profile Link
-              </button>
-              <a
-                className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-white px-4 text-center text-sm font-extrabold text-pet-ink"
-                href={imageUrl}
-                onClick={() => trackCardAction("open_image")}
-                rel="noopener noreferrer"
-                target="_blank"
-              >
-                Open Image
-              </a>
+              {/* Same actions as before, demoted to text so Share and Save lead. */}
+              <div className="mt-1 flex flex-wrap items-center justify-center gap-x-5 gap-y-1">
+                <button
+                  className="inline-flex min-h-11 items-center text-sm font-bold text-pet-teal transition hover:text-[#0f5fd0]"
+                  onClick={() => void copyProfileLink()}
+                  type="button"
+                >
+                  Copy profile link
+                </button>
+                <a
+                  className="inline-flex min-h-11 items-center text-sm font-bold text-pet-teal transition hover:text-[#0f5fd0]"
+                  href={imageUrl}
+                  onClick={() => trackCardAction("open_image")}
+                  rel="noopener noreferrer"
+                  target="_blank"
+                >
+                  View full image
+                </a>
+              </div>
             </div>
 
             {status ? (

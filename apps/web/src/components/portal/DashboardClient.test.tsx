@@ -268,14 +268,13 @@ describe("DashboardClient with pets", () => {
     expect(document.querySelectorAll("[data-dashboard-pet-card]")).toHaveLength(1);
     expect(screen.getAllByText("Milo")).toHaveLength(1);
 
+    // One Share entry point; the QR moved inside it.
+    expect(screen.getByRole("button", { name: "Share Milo" })).toBeTruthy();
     expect(
-      screen.getByRole("button", { name: "Share Milo's public profile" })
-    ).toBeTruthy();
-    expect(
-      screen.getByRole("button", {
+      screen.queryByRole("button", {
         name: "Show QR code for Milo's public profile",
       })
-    ).toBeTruthy();
+    ).toBeNull();
     const viewProfile = screen.getByRole("link", {
       name: "View Milo's public profile",
     });
@@ -287,19 +286,16 @@ describe("DashboardClient with pets", () => {
     ).toBe(`/pets/${mockPets[0].id}`);
   });
 
-  it("keeps the Public Profile QR available and pointed at the canonical profile", async () => {
+  it("keeps the Public Profile QR available through the Share Center", async () => {
     renderDashboard();
 
-    fireEvent.click(
-      await screen.findByRole("button", {
-        name: "Show QR code for Milo's public profile",
-      })
-    );
+    fireEvent.click(await screen.findByRole("button", { name: "Share Milo" }));
+    fireEvent.click(screen.getByRole("button", { name: /Show QR/ }));
 
-    const qrLink = screen.getByLabelText("Milo's profile QR link");
+    const qrLink = screen.getByLabelText("Milo's Public Profile link");
     expect(qrLink.textContent).toMatch(/\/p\/[^?]+$/);
     expect(qrLink.textContent).not.toContain("/q/");
-    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    fireEvent.click(screen.getByRole("button", { name: "Close share options" }));
   });
 
   it("does not fetch or render hidden tag and order dashboard data", async () => {
@@ -310,64 +306,33 @@ describe("DashboardClient with pets", () => {
     expect(screen.queryByText(/order/i)).toBeNull();
   });
 
-  it("uses the native share sheet with the canonical Public Profile URL", async () => {
-    mocks.share.mockResolvedValue(undefined);
-    Object.defineProperty(navigator, "share", {
-      configurable: true,
-      value: mocks.share,
-    });
+  it("opens the Share Center from the pet card", async () => {
     renderDashboard();
 
-    fireEvent.click(
-      await screen.findByRole("button", {
-        name: "Share Milo's public profile",
-      })
-    );
+    fireEvent.click(await screen.findByRole("button", { name: "Share Milo" }));
 
-    await waitFor(() => expect(mocks.share).toHaveBeenCalledOnce());
-    expect(mocks.share).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: "Meet Milo | MyPetLink",
-        text: "View Milo's public profile, memories, and important safety information.",
-        url: expect.stringMatching(/\/p\/[^?]+$/),
-      })
-    );
-    expect(mocks.writeText).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("heading", { name: "Share Milo" })
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Copy Profile Link/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Show QR/ })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: /More sharing options/ })
+    ).toBeTruthy();
   });
 
-  it("copies the Public Profile URL when native sharing is unavailable", async () => {
+  it("copies the canonical Public Profile URL from the Share Center", async () => {
     renderDashboard();
 
-    fireEvent.click(
-      await screen.findByRole("button", {
-        name: "Share Milo's public profile",
-      })
-    );
+    fireEvent.click(await screen.findByRole("button", { name: "Share Milo" }));
+    fireEvent.click(screen.getByRole("button", { name: /Copy Profile Link/ }));
 
     await waitFor(() => expect(mocks.writeText).toHaveBeenCalledOnce());
     expect(mocks.writeText.mock.calls[0]?.[0]).toMatch(/\/p\/[^?]+$/);
+    expect(mocks.writeText.mock.calls[0]?.[0]).not.toContain("/q/");
     expect((await screen.findByRole("status")).textContent).toContain(
       "Milo's profile link copied."
     );
-  });
-
-  it("does not report an error when the native share sheet is cancelled", async () => {
-    mocks.share.mockRejectedValue(new DOMException("Cancelled", "AbortError"));
-    Object.defineProperty(navigator, "share", {
-      configurable: true,
-      value: mocks.share,
-    });
-    renderDashboard();
-
-    fireEvent.click(
-      await screen.findByRole("button", {
-        name: "Share Milo's public profile",
-      })
-    );
-
-    await waitFor(() => expect(mocks.share).toHaveBeenCalledOnce());
-    expect(mocks.writeText).not.toHaveBeenCalled();
-    expect(screen.queryByRole("status")).toBeNull();
   });
 
   it("does not expose share, QR, or preview actions for a private profile", async () => {

@@ -229,18 +229,25 @@ without pet selection.
    wrongly made the share page finder-first; do not reintroduce that.
 10. **Do not recreate a separate owner QR Safety management page.**
     `/pets/{id}/qr` is a legacy compatibility route that redirects back to the
-    pet overview. Owners manage the Public Share Profile link, Safety Profile
-    link, and Physical Smart Tag link from `/pets/{id}` using compact
-    Copy/View/Show QR actions. Safety and contact settings live in
+    pet overview. Owners manage the Public Share Profile, Safety Profile, and
+    Physical Smart Tag link from `/pets/{id}`. The Public Share Profile and the
+    Safety Profile now share one **Sharing & Safety** section, which also holds
+    Lost Mode. Safety and contact settings live in
     `Edit Pet -> Contact & Safety`; tag management lives in the hub **Smart Tag**
     tab and `/tags`.
+    **Sharing has exactly one entry point:** `ShareCenter`
+    (`src/components/share/ShareCenter.tsx`). The Dashboard pet card, the pet
+    detail hero, the Sharing & Safety section, and the owner bar on `/p/` all
+    open the same dialog. Do not add a competing Copy/QR/Share Card row beside
+    it. See
+    [`docs/architecture/owner-sharing-experience.md`](../../../docs/architecture/owner-sharing-experience.md).
 11. **Public previews open in a new tab.** Every owner-portal button that opens a
     public route - "View / Preview Public Profile" (`/p/{slug}-{publicCode}`),
     "View Safety Profile" (`/q/{safetyCode}`), "View Tag Scan Page"
     (`/t/{tagCode}`) - must use `target="_blank"` + `rel="noopener noreferrer"`
     so the portal stays open in the original tab. `CTAButton` forwards
     `target`/`rel` to both internal `Link` and external `<a>`. When the logged-in
-    owner views their own `/p/` page, a small "Viewing as public" bar (Copy Link
+    owner views their own `/p/` page, a small "Viewing as public" bar (Share
     + Back to Edit) is shown; normal visitors only get a compact Share button.
 12. **All phone, WhatsApp, and call inputs use `PhoneNumberInput`.** Never add a
     plain `<input type="tel">` or text input for a phone, WhatsApp, emergency

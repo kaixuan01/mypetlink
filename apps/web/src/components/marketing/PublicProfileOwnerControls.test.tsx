@@ -1,13 +1,15 @@
 // @vitest-environment jsdom
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { mockPets } from "@/data/mockPets";
 import { getPetProfileTheme } from "@/lib/petProfileThemes";
 
 vi.mock("@/lib/features", () => ({
   shareCardsEnabled: true,
+  publicProfilesEnabled: true,
+  safetyProfilesOwnerUiEnabled: false,
 }));
 
 vi.mock("@/components/share/PetShareCard", () => ({
@@ -62,11 +64,20 @@ describe("PublicProfileOwnerControls", () => {
     );
 
     expect(screen.getByText(/viewing as public/i)).toBeTruthy();
-    expect(screen.getByText("Copy Link")).toBeTruthy();
+    // Owners get the same single share entry point they use in the portal.
+    expect(screen.queryByText("Copy Link")).toBeNull();
+    const share = screen.getByRole("button", { name: `Share ${profile.name}` });
+    expect(share.getAttribute("aria-haspopup")).toBe("dialog");
+
+    fireEvent.click(share);
+    expect(screen.getByRole("dialog")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Share Card" })).toBeTruthy();
     expect(
-      screen.getByText("Copy Link").getAttribute("data-share-version")
-    ).toMatch(/^[a-z0-9]+$/);
+      screen.getByRole("button", { name: /Copy Profile Link/ })
+    ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Close share options" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
     expect(
       (screen.getByRole("link", { name: "Back to Edit" }) as HTMLAnchorElement)
         .getAttribute("href")

@@ -15,13 +15,20 @@ import type { Pet, PetLifecycleStatus } from "@/types";
 type PetLifecycleActionsProps = {
   pet: Pet;
   compact?: boolean;
+  /**
+   * Renders the lifecycle actions inside a "More" disclosure so they stop
+   * competing with Share and Edit. Behaviour and confirmations are unchanged.
+   */
+  asMenu?: boolean;
 };
 
 export function PetLifecycleActions({
   pet,
   compact = false,
+  asMenu = false,
 }: PetLifecycleActionsProps) {
   const router = useRouter();
+  const [menuOpen, setMenuOpen] = useState(false);
   const [action, setAction] = useState<
     "active" | "memorial" | "archive" | "restore" | null
   >(null);
@@ -73,6 +80,76 @@ export function PetLifecycleActions({
     } finally {
       setAction(null);
     }
+  }
+
+  if (asMenu) {
+    return (
+      <div className="relative grid gap-3">
+        <button
+          aria-expanded={menuOpen}
+          aria-haspopup="menu"
+          aria-label={`More actions for ${pet.name}`}
+          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-pet-border bg-white px-4 text-sm font-extrabold text-pet-ink transition hover:bg-pet-cream sm:w-auto"
+          onClick={() => setMenuOpen((value) => !value)}
+          type="button"
+        >
+          More
+        </button>
+        {menuOpen ? (
+          <div
+            className="absolute right-0 top-full z-20 mt-2 w-60 rounded-[1.25rem] border border-pet-border bg-white p-2 shadow-xl"
+            role="menu"
+          >
+            {lifecycleActions(pet).map((item) => (
+              <button
+                className="flex min-h-11 w-full items-center rounded-[0.9rem] px-3 text-left text-sm font-extrabold text-pet-ink transition hover:bg-pet-cream"
+                key={item.action}
+                onClick={() => {
+                  setMenuOpen(false);
+                  setAction(item.action);
+                }}
+                role="menuitem"
+                type="button"
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
+
+        {message ? (
+          <p className="rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted">
+            {message}
+          </p>
+        ) : null}
+
+        {copy ? (
+          <ConfirmDialog
+            cancelLabel="Cancel"
+            confirmLabel={copy.confirmLabel}
+            destructive={action === "archive"}
+            message={copy.message}
+            onCancel={() => setAction(null)}
+            open={Boolean(action)}
+            onConfirm={() => {
+              if (action === "restore") {
+                void restore();
+                return;
+              }
+
+              void updateLifecycle(
+                action === "memorial"
+                  ? "Memorial"
+                  : action === "archive"
+                    ? "Archived"
+                    : "Active"
+              );
+            }}
+            title={copy.title}
+          />
+        ) : null}
+      </div>
+    );
   }
 
   return (
@@ -153,6 +230,21 @@ export function PetLifecycleActions({
       ) : null}
     </div>
   );
+}
+
+type LifecycleAction = "active" | "memorial" | "archive" | "restore";
+
+function lifecycleActions(pet: Pet): { action: LifecycleAction; label: string }[] {
+  if (isArchivedPet(pet)) {
+    return [{ action: "restore", label: "Restore to List" }];
+  }
+
+  return [
+    isMemorialPet(pet)
+      ? { action: "active", label: "Restore to Active" }
+      : { action: "memorial", label: "Move to Memorial" },
+    { action: "archive", label: "Archive Pet" },
+  ];
 }
 
 function getActionCopy(

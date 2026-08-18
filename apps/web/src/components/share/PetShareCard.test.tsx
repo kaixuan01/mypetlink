@@ -224,7 +224,7 @@ describe("PetShareCard", () => {
 
     expect(screen.queryByRole("button", { name: /^Share$/ })).toBeNull();
     expect(screen.getByRole("button", { name: "Save Image" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Copy Profile Link" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy profile link" }));
 
     await waitFor(() =>
       expect(mocks.copyTextToClipboard).toHaveBeenCalledWith(
@@ -329,7 +329,7 @@ describe("PetShareCard", () => {
   it("records a copied link only after the clipboard write succeeds", async () => {
     render(<PetShareCard {...defaultProps} />);
     fireEvent.click(screen.getByRole("button", { name: "Share Card" }));
-    fireEvent.click(screen.getByRole("button", { name: "Copy Profile Link" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy profile link" }));
 
     await waitFor(() =>
       expect(mocks.trackEvent).toHaveBeenCalledWith("share_card_action", {
@@ -347,7 +347,7 @@ describe("PetShareCard", () => {
 
     render(<PetShareCard {...defaultProps} />);
     fireEvent.click(screen.getByRole("button", { name: "Share Card" }));
-    fireEvent.click(screen.getByRole("button", { name: "Copy Profile Link" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy profile link" }));
 
     expect(await screen.findByText(/Unable to copy automatically/i)).toBeTruthy();
     expect(
@@ -359,7 +359,7 @@ describe("PetShareCard", () => {
     render(<PetShareCard {...defaultProps} />);
     fireEvent.click(screen.getByRole("button", { name: "Share Card" }));
     // No native share is available, so Share falls through to copying the link.
-    fireEvent.click(screen.getByRole("button", { name: "Copy Profile Link" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy profile link" }));
 
     await waitFor(() =>
       expect(
@@ -374,7 +374,7 @@ describe("PetShareCard", () => {
   it("records opening the image as its own action, never as a share", () => {
     render(<PetShareCard {...defaultProps} />);
     fireEvent.click(screen.getByRole("button", { name: "Share Card" }));
-    fireEvent.click(screen.getByRole("link", { name: "Open Image" }));
+    fireEvent.click(screen.getByRole("link", { name: "View full image" }));
 
     expect(mocks.trackEvent).toHaveBeenCalledWith("share_card_action", {
       card_action: "open_image",
@@ -418,7 +418,7 @@ describe("PetShareCard", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Share Card" }));
     fireEvent.click(screen.getByRole("button", { name: "Birthday" }));
-    fireEvent.click(screen.getByRole("button", { name: "Copy Profile Link" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy profile link" }));
     await waitFor(() =>
       expect(mocks.trackEvent).toHaveBeenCalledWith("share_card_action", {
         card_action: "copy_link",
@@ -427,7 +427,7 @@ describe("PetShareCard", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Adoption Day" }));
-    fireEvent.click(screen.getByRole("link", { name: "Open Image" }));
+    fireEvent.click(screen.getByRole("link", { name: "View full image" }));
     expect(mocks.trackEvent).toHaveBeenCalledWith("share_card_action", {
       card_action: "open_image",
       card_variant: "adoption",
@@ -450,7 +450,7 @@ describe("PetShareCard", () => {
     fireEvent.load(image);
     fireEvent.load(image);
 
-    fireEvent.click(screen.getByRole("button", { name: "Copy Profile Link" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy profile link" }));
     await waitFor(() =>
       expect(
         mocks.trackEvent.mock.calls.filter(([name]) => name === "share_card_action")
@@ -475,8 +475,8 @@ describe("PetShareCard", () => {
 
     render(<PetShareCard {...defaultProps} />);
     fireEvent.click(screen.getByRole("button", { name: "Share Card" }));
-    fireEvent.click(screen.getByRole("button", { name: "Copy Profile Link" }));
-    fireEvent.click(screen.getByRole("link", { name: "Open Image" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy profile link" }));
+    fireEvent.click(screen.getByRole("link", { name: "View full image" }));
     fireEvent.click(screen.getByRole("button", { name: "Save Image" }));
 
     await waitFor(() =>

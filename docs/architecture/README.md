@@ -6,3 +6,5 @@ System architecture documentation will grow as the platform moves beyond the fro
 - For the current frontend architecture, see [`apps/web/docs/AI_AGENT_REFERENCE.md`](../../apps/web/docs/AI_AGENT_REFERENCE.md).
 - Communication consent boundaries are in
   [`communication-preferences.md`](communication-preferences.md).
+- The owner sharing surfaces and the Share Center are described in
+  [`owner-sharing-experience.md`](owner-sharing-experience.md).

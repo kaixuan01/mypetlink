@@ -5,9 +5,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { OwnerContactSetupCard } from "@/components/portal/OwnerContactSetupCard";
 import { ProfileCompletionCard } from "@/components/portal/ProfileCompletionCard";
 import { PlanSummaryCard } from "@/components/portal/PlanSummaryCard";
-import { copyTextToClipboard } from "@/components/portal/PublicLinkActions";
-import { QrCodeButton } from "@/components/qr/QrCodeButton";
-import { toAbsoluteUrl } from "@/lib/siteUrl";
+import { ShareCenter } from "@/components/share/ShareCenter";
 import {
   publicProfilesEnabled,
   safetyProfilesOwnerUiEnabled,
@@ -36,8 +34,6 @@ import {
   getAvailablePetShareCardOptions,
   getPublicProfileShareCardImagePath,
   getPublicProfileShareVersion,
-  getPublicProfileSocialDescription,
-  getPublicProfileSocialTitle,
 } from "@/lib/publicProfileSocial";
 import { derivePetOccasions, type PetOccasion } from "@/lib/petOccasions";
 import { ownerRoutes } from "@/lib/routes";
@@ -594,87 +590,23 @@ function ShareProfileActions({
   pet: Pet;
   sharePath: string;
 }) {
-  const [status, setStatus] = useState("");
-
-  async function handleShare() {
-    const url = toAbsoluteUrl(sharePath, window.location.origin);
-
-    if (typeof navigator.share === "function") {
-      try {
-        await navigator.share({
-          title: getPublicProfileSocialTitle(pet.name),
-          text: getPublicProfileSocialDescription(pet.name),
-          url,
-        });
-        return;
-      } catch (caught) {
-        // The owner closing the share sheet is not an error; anything else
-        // falls back to copying the link.
-        if ((caught as DOMException)?.name === "AbortError") {
-          return;
-        }
-      }
-    }
-
-    const copied = await copyTextToClipboard(url);
-    setStatus(
-      copied
-        ? `${pet.name}'s profile link copied.`
-        : "Copy unavailable. Open View profile and copy the address."
-    );
-    window.setTimeout(() => setStatus(""), 2500);
-  }
-
-  const secondaryClass =
-    "inline-flex min-h-11 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border border-pet-border bg-white px-2 text-xs font-extrabold text-pet-ink transition hover:bg-white/70";
-
+  // One Share entry point; the QR now lives inside the Share Center rather than
+  // competing with it as a third equally weighted button.
   return (
-    <div className="grid min-w-0 gap-2">
-      <div
-        className="grid min-w-0 grid-cols-2 gap-2 min-[360px]:grid-cols-3"
-        data-dashboard-pet-actions
+    <div
+      className="grid min-w-0 grid-cols-[1fr_auto] gap-2"
+      data-dashboard-pet-actions
+    >
+      <ShareCenter pet={pet} />
+      <Link
+        aria-label={`View ${pet.name}'s public profile`}
+        className="inline-flex min-h-11 min-w-0 items-center justify-center whitespace-nowrap rounded-full border border-pet-border bg-white px-4 text-sm font-extrabold text-pet-ink transition hover:bg-white/70"
+        href={sharePath}
+        rel="noopener noreferrer"
+        target="_blank"
       >
-        <button
-          aria-label={`Share ${pet.name}'s public profile`}
-          className="col-span-2 inline-flex min-h-11 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border border-pet-teal bg-pet-teal px-2 text-xs font-extrabold text-white shadow-sm transition hover:bg-[#0f5fd0] min-[360px]:col-span-1"
-          onClick={handleShare}
-          type="button"
-        >
-          <Icon name="copy" className="h-4 w-4 shrink-0" />
-          <span className="min-[1280px]:hidden">Share</span>
-          <span className="hidden min-[1280px]:inline">Share profile</span>
-        </button>
-        <QrCodeButton
-          ariaLabel={`Show QR code for ${pet.name}'s public profile`}
-          className={secondaryClass}
-          fileNameBase={`${pet.slug}-share-profile-qr`}
-          helperText={`Share ${pet.name}'s public profile with friends and family.`}
-          label={
-            <>
-              <span className="min-[1280px]:hidden">QR</span>
-              <span className="hidden min-[1280px]:inline">QR code</span>
-            </>
-          }
-          targetPath={sharePath}
-          title={`${pet.name}'s profile QR`}
-          viewLabel="View profile"
-        />
-        <Link
-          aria-label={`View ${pet.name}'s public profile`}
-          className={secondaryClass}
-          href={sharePath}
-          rel="noopener noreferrer"
-          target="_blank"
-        >
-          <span className="min-[1280px]:hidden">View</span>
-          <span className="hidden min-[1280px]:inline">View profile</span>
-        </Link>
-      </div>
-      {status ? (
-        <p className="text-xs font-bold text-pet-sage" role="status">
-          {status}
-        </p>
-      ) : null}
+        View
+      </Link>
     </div>
   );
 }

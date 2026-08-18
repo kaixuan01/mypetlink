@@ -160,16 +160,18 @@ describe("first-pet completion heading", () => {
     expect(mocks.getPets).not.toHaveBeenCalled();
   });
 
-  it("keeps the Public Share Profile actions intact alongside the heading", async () => {
+  it("keeps the sharing actions intact alongside the heading", async () => {
     const pet = incompletePet();
     mocks.ownerPets = [pet];
 
     renderTabs(pet);
 
-    await screen.findByText("Public Share Profile");
+    await screen.findByText("Sharing & Safety");
+    expect(screen.getAllByRole("link", { name: "View Profile" })).toHaveLength(
+      1
+    );
     expect(
-      screen.getAllByRole("link", { name: "View Public Profile" })
+      screen.getAllByRole("button", { name: `Share ${pet.name}` })
     ).toHaveLength(1);
-    expect(screen.getAllByRole("button", { name: "Copy Link" })).toHaveLength(1);
   });
 });

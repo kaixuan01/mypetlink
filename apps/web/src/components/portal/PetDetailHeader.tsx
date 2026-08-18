@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { PetLifecycleActions } from "@/components/portal/PetLifecycleActions";
+import { ShareCenter } from "@/components/share/ShareCenter";
 import { ProfileAccessBadges } from "@/components/portal/ProfileAccessStatus";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
+import { Icon } from "@/components/ui/Icon";
 import { PetAvatar } from "@/components/ui/PetAvatar";
 import { publicProfilesEnabled } from "@/lib/features";
 import { getPetSummaryLabel } from "@/lib/petDisplay";
@@ -71,14 +73,28 @@ export function PetDetailHeader({
             </div>
           </div>
         </div>
-        <div className="flex flex-col gap-3 sm:flex-row">
+        {/* Share and Edit lead; rarer lifecycle actions sit under More. */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+          {!isArchived ? (
+            <ShareCenter
+              pet={currentPet}
+              triggerClassName="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-pet-teal bg-pet-teal px-5 text-sm font-extrabold text-white shadow-sm transition hover:bg-[#0f5fd0] sm:w-auto"
+              triggerLabel={
+                <>
+                  <Icon aria-hidden="true" className="h-4 w-4" name="copy" />
+                  Share
+                </>
+              }
+            />
+          ) : null}
           <CTAButton
             href={ownerRoutes.petEdit(currentPet.id)}
             icon="settings"
+            variant="secondary"
             fullWidth
             className="sm:w-auto"
           >
-            {isMemorial ? "Edit Memorial" : "Edit Pet Details"}
+            {isMemorial ? "Edit Memorial" : "Edit"}
           </CTAButton>
           {canViewMemorialProfile ? (
             <CTAButton
@@ -93,6 +109,7 @@ export function PetDetailHeader({
               View Memorial Profile
             </CTAButton>
           ) : null}
+          <PetLifecycleActions asMenu pet={currentPet} />
         </div>
       </div>
       {isMemorial ? (
@@ -152,9 +169,6 @@ export function PetDetailHeader({
           tags={tags}
         />
       )}
-      <div className="mt-4">
-        <PetLifecycleActions pet={currentPet} />
-      </div>
     </section>
   );
 }

@@ -1,16 +1,11 @@
 "use client";
 
 import { ShareProfileLink } from "@/components/share/ShareProfileLink";
-import { PetShareCard } from "@/components/share/PetShareCard";
+import { ShareCenter } from "@/components/share/ShareCenter";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon } from "@/components/ui/Icon";
 import type { PetProfileTheme } from "@/lib/petProfileThemes";
-import { shareCardsEnabled } from "@/lib/features";
-import {
-  getAvailablePetShareCardOptions,
-  getPublicProfileShareCardImagePath,
-  getPublicProfileShareVersion,
-} from "@/lib/publicProfileSocial";
+import { getPublicProfileShareVersion } from "@/lib/publicProfileSocial";
 import { ownerRoutes } from "@/lib/routes";
 import type { Pet, PublicPetProfile } from "@/types";
 
@@ -64,23 +59,12 @@ export function PublicProfileOwnerControls({
         Viewing as public
       </span>
       <div className="flex flex-wrap items-center justify-center gap-2">
-        <ShareProfileLink
-          path={profile.publicProfilePath}
-          petName={profile.name}
-          shareVersion={getPublicProfileShareVersion(profile)}
-          compact
+        {/* One share entry point, matching the Owner Portal. */}
+        <ShareCenter
           analyticsSurface="public_profile"
-          theme={theme}
+          pet={ownedPet}
+          triggerAriaLabel={`Share ${profile.name}`}
         />
-        {shareCardsEnabled ? (
-          <PetShareCard
-            imagePath={getPublicProfileShareCardImagePath(profile)}
-            petName={profile.name}
-            profilePath={profile.publicProfilePath}
-            shareVersion={getPublicProfileShareVersion(profile)}
-            variants={getAvailablePetShareCardOptions(profile)}
-          />
-        ) : null}
         <CTAButton
           href={ownerRoutes.petEdit(ownedPet.id)}
           variant="secondary"

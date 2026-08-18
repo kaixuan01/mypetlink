@@ -38,20 +38,44 @@ describe("ProfileCompletionCard", () => {
   });
   afterEach(cleanup);
 
-  it("renders progress, no more than three missing actions, and precise routes", () => {
+  it("leads with progress and a single next step, keeping the route precise", () => {
     const pet = completionPet();
     const result = completion(pet);
     render(<ProfileCompletionCard completion={result} isFirstPet pet={pet} />);
 
     expect(screen.getByRole("heading", { name: "Finish Milo's profile" })).toBeTruthy();
     expect(screen.getByText(`${result.percentage}% complete`)).toBeTruthy();
-    expect(screen.getAllByRole("link", { name: /^Add / })).toHaveLength(3);
+    // Compact by default: one next action rather than the whole checklist.
+    expect(screen.getAllByRole("link", { name: /^Add / })).toHaveLength(1);
     expect(
       screen.getByRole("link", { name: "Add Milo's profile photo" }).getAttribute("href")
     ).toBe("/pets/pet_milo/edit");
+  });
+
+  it("expands to the full checklist without changing the percentage or routes", () => {
+    const pet = completionPet();
+    const result = completion(pet);
+    render(<ProfileCompletionCard completion={result} isFirstPet pet={pet} />);
+
+    const toggle = screen.getByRole("button", { name: "View all profile steps" });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+
+    fireEvent.click(toggle);
+
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    // Same percentage, same deep links as before the redesign.
+    expect(screen.getByText(`${result.percentage}% complete`)).toBeTruthy();
     expect(
       screen.getByRole("link", { name: "Add Milo's first Moment" }).getAttribute("href")
     ).toBe("/pets/pet_milo/moments/new");
+    expect(
+      screen.getByRole("link", { name: "Add Milo's first care record" }).getAttribute("href")
+    ).toBe("/pets/pet_milo/records?create=1");
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide profile steps" }));
+    expect(
+      screen.queryByRole("link", { name: "Add Milo's first care record" })
+    ).toBeNull();
   });
 
   it("uses neutral framing for an additional pet and supports long names", () => {
