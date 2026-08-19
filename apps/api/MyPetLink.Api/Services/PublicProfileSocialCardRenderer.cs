@@ -34,6 +34,29 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
     /// <summary>Top of the QR footer; the action block must finish above it.</summary>
     public const float ShareCardQrFooterTop = 1026f;
 
+    /// <summary>How far the themed halo extends beyond the QR panel.</summary>
+    public const float ShareCardQrHaloInset = 16f;
+
+    /// <summary>Clear space required between the tagline and the QR halo.</summary>
+    public const float ShareCardTaglineToQrGap = 12f;
+
+    /// <summary>
+    /// Lowest baseline the tagline may use. The content above it flows from the
+    /// logo, so a short name - which gets the largest type - pushes the whole
+    /// block down; without this clamp it slid under the QR panel.
+    /// </summary>
+    public static float ShareCardTaglineMaxBaseline =>
+        ShareCardQrFooterTop
+        - ShareCardQrHaloInset
+        - ShareCardTaglineToQrGap
+        - ShareCardTaglineBelowBaseline;
+
+    /// <summary>How far the tagline pill extends below its own baseline.</summary>
+    public const float ShareCardTaglineBelowBaseline = 25f;
+
+    /// <summary>How far the tagline pill extends above its own baseline.</summary>
+    public const float ShareCardTaglineAboveBaseline = 39f;
+
     /// <summary>Baseline gap from the QR panel to the scan instruction.</summary>
     public const float ShareCardQrToScanGap = 30f;
 
@@ -597,15 +620,21 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
         }
 
         // The call to action is drawn from its baseline; shift so the measured
-        // block top lands where the flow reached.
-        y += ShareCardActionBaselineOffset;
+        // block top lands where the flow reached, then hold it clear of the QR
+        // halo. Short names take the largest type, so the flow above can push
+        // this far enough down to slide behind the QR panel.
+        y = Math.Min(y + ShareCardActionBaselineOffset, ShareCardTaglineMaxBaseline);
 
         var callToAction = FitText($"Meet {name} on MyPetLink", 650, 27, true);
         using (var taglineFill = Paint(palette.TaglineFill))
         using (var taglineText = new TextStyle(27, palette.TaglineText, true))
         {
             var taglineWidth = Math.Min(720, taglineText.MeasureText(callToAction) + 68);
-            var taglineRect = new SKRect(centerX - taglineWidth / 2, y - 39, centerX + taglineWidth / 2, y + 25);
+            var taglineRect = new SKRect(
+                centerX - taglineWidth / 2,
+                y - ShareCardTaglineAboveBaseline,
+                centerX + taglineWidth / 2,
+                y + ShareCardTaglineBelowBaseline);
             canvas.DrawRoundRect(taglineRect, 32, 32, taglineFill);
             taglineText.Draw(canvas, callToAction, centerX - taglineText.MeasureText(callToAction) / 2, y + 1);
         }
@@ -792,7 +821,7 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
         // colour.
         using (var surround = Paint(surroundColor))
         {
-            var halo = SKRect.Inflate(bounds, 16, 16);
+            var halo = SKRect.Inflate(bounds, ShareCardQrHaloInset, ShareCardQrHaloInset);
             canvas.DrawRoundRect(halo, 26, 26, surround);
         }
 
