@@ -454,8 +454,12 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
                 true);
         }
 
+        // The hero gives up a little height so the text block below it keeps a
+        // real vertical budget: raising the QR footer for bottom breathing room
+        // took that space, and the name, metadata line, and tagline need it to
+        // sit apart at the largest name size.
         var heroTop = bannerHeight + 50;
-        var heroBottom = lost ? 680f : 650f;
+        var heroBottom = lost ? 610f : 580f;
         var heroRect = new SKRect(64, heroTop, ShareCardWidth - 64, heroBottom);
         var heroImage = coverImage ?? profileImage;
         DrawCover(canvas, heroRect, heroImage, profile.CoverPositionX, profile.CoverPositionY, profile.Name);
@@ -465,7 +469,7 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
         var portraitCenter = new SKPoint(ShareCardWidth / 2f, heroBottom - 6);
         DrawProfilePhoto(canvas, portraitCenter, 112, profileImage, profile.Name, palette);
 
-        DrawShareCardContent(canvas, profile, logo, publicProfileUrl, 786, palette);
+        DrawShareCardContent(canvas, profile, logo, publicProfileUrl, ShareCardContentTop, palette);
 
         using var image = surface.Snapshot();
         using var data = image.Encode(SKEncodedImageFormat.Jpeg, 84);
@@ -586,44 +590,38 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
         var logoBottom = DrawBrandLogoCentered(canvas, logo, centerX, top, 290, 58);
 
         var name = CleanText(profile.Name, 48, "Pet");
-        var nameSize = ResolveShareCardNameSize(name);
-        var displayName = FitText(name, ShareCardWidth - 150, nameSize, true);
-
-        // Lay the name out from the logo's real bottom and the name's own ink
-        // bounds. Spacing used to be a fixed offset from the logo band's top,
-        // which ignored both the logo's real height and the tall ascenders that
-        // the largest (shortest-name) size produces — so short names collided
-        // with the logo while long ones looked correct.
-        float y;
-        float nameInkBottom;
-        using (var nameStyle = new TextStyle(nameSize, SKColors.Black, true))
-        {
-            var ink = nameStyle.MeasureInk(displayName);
-            y = logoBottom + ShareCardLogoToNameGap - ink.Top;
-            nameInkBottom = y + Math.Max(0, ink.Bottom);
-        }
-
-        DrawCenteredText(canvas, displayName, centerX, y, nameSize, ShareCardPalette.PrimaryText, true);
-
-        y = nameInkBottom + ShareCardNameToSummaryGap;
         var summary = BuildSummary(profile);
-        if (!string.IsNullOrWhiteSpace(summary))
+
+        // The name, the metadata line and the tagline share a fixed vertical
+        // budget between the brand lockup and the QR halo. Rather than clamp
+        // the tagline - which only trades one collision for another - pick the
+        // largest name size whose whole block genuinely fits, then lay it out
+        // from the measured ink as before.
+        var layout = ResolveShareCardTextLayout(name, summary, logoBottom);
+        var displayName = FitText(name, ShareCardWidth - 150, layout.NameSize, true);
+
+        DrawCenteredText(
+            canvas,
+            displayName,
+            centerX,
+            layout.NameBaseline,
+            layout.NameSize,
+            ShareCardPalette.PrimaryText,
+            true);
+
+        if (layout.SummaryBaseline is { } summaryBaseline)
         {
-            var summaryText = FitText(summary, ShareCardWidth - 150, 28, true);
-            using (var summaryStyle = new TextStyle(28, SKColors.Black, true))
-            {
-                var ink = summaryStyle.MeasureInk(summaryText);
-                y -= ink.Top;
-                DrawCenteredText(canvas, summaryText, centerX, y, 28, palette.SupportingText, true);
-                y += Math.Max(0, ink.Bottom) + ShareCardSummaryToActionGap;
-            }
+            DrawCenteredText(
+                canvas,
+                FitText(summary, ShareCardWidth - 150, ShareCardSummarySize, true),
+                centerX,
+                summaryBaseline,
+                ShareCardSummarySize,
+                palette.SupportingText,
+                true);
         }
 
-        // The call to action is drawn from its baseline; shift so the measured
-        // block top lands where the flow reached, then hold it clear of the QR
-        // halo. Short names take the largest type, so the flow above can push
-        // this far enough down to slide behind the QR panel.
-        y = Math.Min(y + ShareCardActionBaselineOffset, ShareCardTaglineMaxBaseline);
+        var y = layout.TaglineBaseline;
 
         var callToAction = FitText($"Meet {name} on MyPetLink", 650, 27, true);
         using (var taglineFill = Paint(palette.TaglineFill))
@@ -659,6 +657,90 @@ public sealed class PublicProfileSocialCardRenderer : IPublicProfileSocialCardRe
         > 14 => 70,
         _ => 82
     };
+
+    /// <summary>Type size of the metadata line under the name.</summary>
+    public const float ShareCardSummarySize = 28f;
+
+    /// <summary>Top of the text block: brand lockup, name, metadata, tagline.</summary>
+    public const float ShareCardContentTop = 720f;
+
+    /// <summary>Height budget the brand lockup is drawn into.</summary>
+    public const float ShareCardLogoBandHeight = 58f;
+
+    /// <summary>Lowest the brand lockup can end, used to size the text block.</summary>
+    public static float ShareCardLogoBottomBound =>
+        ShareCardContentTop + ShareCardLogoBandHeight;
+
+    /// <summary>Sizes the name may take, largest first.</summary>
+    private static readonly float[] ShareCardNameSizeLadder = { 82, 70, 61, 52, 46 };
+
+    /// <summary>Measured positions for the Share Card's text block.</summary>
+    public readonly record struct ShareCardTextLayout(
+        float NameSize,
+        float NameBaseline,
+        float? SummaryBaseline,
+        float TaglineBaseline);
+
+    /// <summary>
+    /// Places the name, the metadata line, and the tagline between the brand
+    /// lockup and the QR halo.
+    ///
+    /// The block flows downward from the logo, so a short name - which takes
+    /// the largest type - pushes the tagline lowest. Stepping the name down the
+    /// size ladder until the tagline lands above the QR keeps every gap honest,
+    /// instead of moving one element on top of another.
+    /// </summary>
+    public static ShareCardTextLayout ResolveShareCardTextLayout(
+        string name,
+        string? summary,
+        float logoBottom)
+    {
+        var preferred = ResolveShareCardNameSize(name);
+        var hasSummary = !string.IsNullOrWhiteSpace(summary);
+        ShareCardTextLayout? smallest = null;
+
+        foreach (var nameSize in ShareCardNameSizeLadder)
+        {
+            if (nameSize > preferred) continue;
+
+            var displayName = FitText(name, ShareCardWidth - 150, nameSize, true);
+            float nameBaseline;
+            float flow;
+            using (var nameStyle = new TextStyle(nameSize, SKColors.Black, true))
+            {
+                var ink = nameStyle.MeasureInk(displayName);
+                nameBaseline = logoBottom + ShareCardLogoToNameGap - ink.Top;
+                flow = nameBaseline + Math.Max(0, ink.Bottom) + ShareCardNameToSummaryGap;
+            }
+
+            float? summaryBaseline = null;
+            if (hasSummary)
+            {
+                var summaryText = FitText(summary!, ShareCardWidth - 150, ShareCardSummarySize, true);
+                using var summaryStyle = new TextStyle(ShareCardSummarySize, SKColors.Black, true);
+                var ink = summaryStyle.MeasureInk(summaryText);
+                summaryBaseline = flow - ink.Top;
+                flow = summaryBaseline.Value + Math.Max(0, ink.Bottom) + ShareCardSummaryToActionGap;
+            }
+
+            var candidate = new ShareCardTextLayout(
+                nameSize,
+                nameBaseline,
+                summaryBaseline,
+                flow + ShareCardActionBaselineOffset);
+
+            smallest = candidate;
+            if (candidate.TaglineBaseline <= ShareCardTaglineMaxBaseline)
+            {
+                return candidate;
+            }
+        }
+
+        // Nothing on the ladder fitted, which needs content far beyond anything
+        // the profile allows. Keep the smallest and hold the tagline off the QR.
+        var fallback = smallest!.Value;
+        return fallback with { TaglineBaseline = ShareCardTaglineMaxBaseline };
+    }
 
     private static void DrawBackgroundDecorations(SKCanvas canvas)
     {

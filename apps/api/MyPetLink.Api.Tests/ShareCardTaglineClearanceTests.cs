@@ -74,6 +74,51 @@ public sealed class ShareCardTaglineClearanceTests
         }
     }
 
+    [Theory]
+    [InlineData("Topu", "Domestic Shorthair", "Under 1 year old")]
+    [InlineData("Bo", "Domestic Shorthair", "Under 1 year old")]
+    [InlineData("Linko", null, null)]
+    [InlineData("VariantTestPet", "Domestic Shorthair", "4 years old")]
+    [InlineData("Sir Reginald Fluffington The Third Of Bangsar", "Domestic Shorthair", "12 years old")]
+    public void TaglineNeverLandsOnTheMetadataLine(string petName, string? breed, string? age)
+    {
+        // v5 fixed the QR overlap by clamping the tagline upward, which simply
+        // moved the collision onto the metadata line above it. Both gaps have
+        // to hold at once.
+        var profile = CreateProfile() with
+        {
+            Name = petName,
+            Breed = breed,
+            AgeDisplayLabel = age ?? "Age unknown",
+        };
+        var summary = string.Join(
+            "  -  ",
+            PublicProfileSocialCardRenderer.BuildSummaryParts(profile));
+
+        // Worst case: the brand lockup fills its whole band.
+        var logoBottom = PublicProfileSocialCardRenderer.ShareCardLogoBottomBound;
+        var layout = PublicProfileSocialCardRenderer.ResolveShareCardTextLayout(
+            petName,
+            summary,
+            logoBottom);
+
+        Assert.True(
+            layout.TaglineBaseline <= PublicProfileSocialCardRenderer.ShareCardTaglineMaxBaseline,
+            $"'{petName}': tagline baseline {layout.TaglineBaseline} runs into the QR halo.");
+
+        if (layout.SummaryBaseline is { } summaryBaseline)
+        {
+            var taglineTop = layout.TaglineBaseline
+                - PublicProfileSocialCardRenderer.ShareCardTaglineAboveBaseline;
+            Assert.True(
+                taglineTop > summaryBaseline,
+                $"'{petName}': the tagline starts at {taglineTop} but the metadata "
+                + $"line sits at {summaryBaseline}; they overlap.");
+        }
+
+        Assert.True(layout.NameBaseline > logoBottom, $"'{petName}': the name overlaps the logo.");
+    }
+
     [Fact]
     public void TaglineBaselineIsClampedClearOfTheHalo()
     {

@@ -17,15 +17,15 @@ const socialCardVariants = {
   },
   "share-card": {
     queryValue: "share-card",
-    templateVersion: "pet-share-card-v5",
+    templateVersion: "pet-share-card-v6",
   },
   birthday: {
     queryValue: "birthday",
-    templateVersion: "pet-birthday-card-v5",
+    templateVersion: "pet-birthday-card-v6",
   },
   adoption: {
     queryValue: "adoption",
-    templateVersion: "pet-adoption-card-v5",
+    templateVersion: "pet-adoption-card-v6",
   },
 } as const satisfies Record<
   SocialCardVariant,

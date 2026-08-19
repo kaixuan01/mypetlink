@@ -25,15 +25,16 @@ public static class PublicProfileSocialCardVariants
     // still holding the pre-fix brand-lockup collision; v4 released the themed
     // palette, the softened tagline, the tightened metadata line, and the extra
     // footer breathing room. v5 releases the cards that shipped with the
-    // tagline sliding under the raised QR panel. Birthday and Adoption follow
-    // the Share Card because they share the QR footer.
+    // tagline sliding under the raised QR panel, and v6 the cards where that
+    // fix pushed the tagline onto the metadata line instead. Birthday and
+    // Adoption follow the Share Card because they share the QR footer.
     //
     // These strings are mirrored in apps/web/edge/publicProfileEdge.ts, which
     // rejects an origin response whose template version does not match. Change
     // both together.
-    public const string ShareCardTemplateVersion = "pet-share-card-v5";
-    public const string BirthdayTemplateVersion = "pet-birthday-card-v5";
-    public const string AdoptionTemplateVersion = "pet-adoption-card-v5";
+    public const string ShareCardTemplateVersion = "pet-share-card-v6";
+    public const string BirthdayTemplateVersion = "pet-birthday-card-v6";
+    public const string AdoptionTemplateVersion = "pet-adoption-card-v6";
 
     public static PublicProfileSocialCardVariant Parse(string? value)
     {
