@@ -18,7 +18,10 @@ import { RecordsManager } from "@/components/portal/RecordsManager";
 import { OrderDetailView } from "@/components/portal/OrderDetailView";
 import { TagFinderView } from "@/components/portal/TagFinderView";
 import { TagManagementPanel } from "@/components/portal/TagManagementPanel";
-import { SmartTagsComingSoon } from "@/components/portal/SmartTagsComingSoon";
+import {
+  SmartTagsComingSoon,
+  smartTagsUnavailablePageCopy,
+} from "@/components/portal/SmartTagsComingSoon";
 import { TagOrderFlow } from "@/components/portal/TagOrderFlow";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -39,7 +42,11 @@ import {
   tagNotFoundTitle,
   tagScanPageTitle,
 } from "@/lib/pageTitles";
-import { smartTagOrderingEnabled } from "@/lib/features";
+import {
+  smartTagOrderingEnabled,
+  smartTagsEnabled,
+  tagOrdersEnabled,
+} from "@/lib/features";
 import {
   getCurrentLocalDestination,
   ownerLoginPath,
@@ -100,6 +107,7 @@ type RuntimeRoute =
 
 type RuntimeState =
   | { status: "loading" }
+  | { status: "owner-feature-unavailable" }
   | { status: "unavailable"; message: string; title: string }
   | { status: "not-found"; title: string; owner?: boolean }
   | {
@@ -184,12 +192,20 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
       return;
     }
 
+    if (state.status === "owner-feature-unavailable") {
+      setPageTitle(smartTagsUnavailablePageCopy.title);
+      return;
+    }
+
     setPageTitle(state.title);
   }, [state]);
 
   useEffect(() => {
     let active = true;
-    const route = parseRuntimeRoute(window.location.pathname);
+    const route = parseRuntimeRoute(
+      window.location.pathname,
+      window.location.search
+    );
     const apiMode = isApiConfigured();
 
     async function resolveRoute() {
@@ -301,6 +317,17 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
             return;
           }
         }
+      }
+
+      if (
+        (route.kind === "order" && !tagOrdersEnabled) ||
+        (route.kind === "owner" &&
+          ((route.section === "tags" && !smartTagsEnabled) ||
+            (route.section === "tag-order" &&
+              (!tagOrdersEnabled || !smartTagOrderingEnabled))))
+      ) {
+        setState({ status: "owner-feature-unavailable" });
+        return;
       }
 
       if (route.kind === "order") {
@@ -431,6 +458,15 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
   if (state.status === "unavailable") {
     return (
       <RuntimeUnavailable title={state.title} message={state.message} />
+    );
+  }
+
+  if (state.status === "owner-feature-unavailable") {
+    return (
+      <AppLayout>
+        <PageHeader {...smartTagsUnavailablePageCopy} />
+        <SmartTagsComingSoon />
+      </AppLayout>
     );
   }
 
@@ -622,7 +658,7 @@ function OwnerRuntimeView({
           title={`${pet.name}'s MyPetLink Smart Tags`}
           description="One pet can have multiple tags for different collars, replacements, or upgrades."
           action={
-            smartTagOrderingEnabled ? (
+            tagOrdersEnabled && smartTagOrderingEnabled ? (
               <CTAButton href={ownerRoutes.petTagOrder(pet.id)} icon="tag">
                 Order Physical Tag
               </CTAButton>
@@ -641,14 +677,10 @@ function OwnerRuntimeView({
   }
 
   if (section === "tag-order") {
-    if (!smartTagOrderingEnabled) {
+    if (!tagOrdersEnabled || !smartTagOrderingEnabled) {
       return (
         <AppLayout>
-          <PageHeader
-            eyebrow="Physical tags"
-            title="Smart Tags coming soon"
-            description="Smart Tag ordering is not open yet. Your pet's free Safety Profile is already active."
-          />
+          <PageHeader {...smartTagsUnavailablePageCopy} />
           <SmartTagsComingSoon petId={pet.id} />
         </AppLayout>
       );
@@ -697,7 +729,7 @@ function RuntimeLoading() {
   );
 }
 
-function parseRuntimeRoute(pathname: string): RuntimeRoute {
+function parseRuntimeRoute(pathname: string, search = ""): RuntimeRoute {
   const parts = pathname
     .split("/")
     .filter(Boolean)
@@ -720,7 +752,13 @@ function parseRuntimeRoute(pathname: string): RuntimeRoute {
   }
 
   if (parts[0] === "orders" && parts.length === 2) {
-    return { kind: "order", orderKey: parts[1] };
+    const orderKey =
+      parts[1] === "view"
+        ? new URLSearchParams(search).get("order")?.trim()
+        : parts[1];
+    return orderKey
+      ? { kind: "order", orderKey }
+      : { kind: "none" };
   }
 
   if (parts[0] !== "pets" || !parts[1]) {

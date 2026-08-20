@@ -86,7 +86,10 @@ public sealed class PetService : SkeletonService, IPetService
             Birthday = age.Birthday,
             EstimatedBirthYear = age.EstimatedBirthYear,
             AdoptionDay = request.AdoptionDay,
-            GeneralArea = PetDtoMapper.NormalizeOptional(request.GeneralArea) ?? user.OwnerProfile!.DefaultGeneralArea,
+            // Keep the pet-specific value null when the owner did not enter an
+            // override. ResolveGeneralArea can still use the live owner default
+            // at read time without copying it into the pet row.
+            GeneralArea = PetDtoMapper.NormalizeOptional(request.GeneralArea),
             Bio = PetDtoMapper.NormalizeOptional(request.Bio),
             PersonalityTagsJson = PetDtoMapper.SerializePersonalityTags(request.PersonalityTags),
             FavoriteFoodsJson = PetDtoMapper.SerializeFavoriteList(
@@ -155,6 +158,11 @@ public sealed class PetService : SkeletonService, IPetService
         ValidateContact(request.Contact);
         ValidateCoverPosition(request.CoverPositionX, request.CoverPositionY);
         await EnsurePetPublicArtifactsAsync(pet, cancellationToken);
+        // The edit form sends Name and Species on a complete profile save.
+        // That lets explicit JSON null values clear optional fields while
+        // smaller compatibility updates (for example access switches) retain
+        // their existing partial-update behaviour.
+        var isFullProfileUpdate = request.Name is not null && request.Species is not null;
 
         if (request.Name is not null)
         {
@@ -169,22 +177,22 @@ public sealed class PetService : SkeletonService, IPetService
             pet.Species = request.Species.Trim();
         }
 
-        if (request.CustomSpecies is not null)
+        if (isFullProfileUpdate || request.CustomSpecies is not null)
         {
             pet.CustomSpecies = PetDtoMapper.NormalizeOptional(request.CustomSpecies);
         }
 
-        if (request.Breed is not null)
+        if (isFullProfileUpdate || request.Breed is not null)
         {
             pet.Breed = PetDtoMapper.NormalizeOptional(request.Breed);
         }
 
-        if (request.Gender is not null)
+        if (isFullProfileUpdate || request.Gender is not null)
         {
             pet.Gender = PetDtoMapper.NormalizeOptional(request.Gender);
         }
 
-        if (request.Color is not null)
+        if (isFullProfileUpdate || request.Color is not null)
         {
             pet.Color = PetDtoMapper.NormalizeOptional(request.Color);
         }
@@ -196,17 +204,17 @@ public sealed class PetService : SkeletonService, IPetService
             pet.EstimatedAgeLabel = null;
         }
 
-        if (request.AdoptionDay.HasValue)
+        if (isFullProfileUpdate || request.AdoptionDay.HasValue)
         {
             pet.AdoptionDay = request.AdoptionDay;
         }
 
-        if (request.GeneralArea is not null)
+        if (isFullProfileUpdate || request.GeneralArea is not null)
         {
             pet.GeneralArea = PetDtoMapper.NormalizeOptional(request.GeneralArea);
         }
 
-        if (request.Bio is not null)
+        if (isFullProfileUpdate || request.Bio is not null)
         {
             pet.Bio = PetDtoMapper.NormalizeOptional(request.Bio);
         }
@@ -254,12 +262,12 @@ public sealed class PetService : SkeletonService, IPetService
             pet.CoverPositionY = request.CoverPositionY.Value;
         }
 
-        if (request.SafetyNote is not null)
+        if (isFullProfileUpdate || request.SafetyNote is not null)
         {
             pet.SafetyNote = PetDtoMapper.NormalizeOptional(request.SafetyNote);
         }
 
-        if (request.EmergencyNote is not null)
+        if (isFullProfileUpdate || request.EmergencyNote is not null)
         {
             pet.EmergencyNote = PetDtoMapper.NormalizeOptional(request.EmergencyNote);
         }

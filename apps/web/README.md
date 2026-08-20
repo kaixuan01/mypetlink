@@ -13,7 +13,7 @@ Primary domain examples:
 - `https://mypetlink.com.my/q/MPL-SAFE-MILO`
 - `https://mypetlink.com.my/t/8KX29A`
 
-The owner pet flow can now run against the .NET backend API when `NEXT_PUBLIC_API_BASE_URL` is configured. If the API base URL is missing, the app keeps the local preview flow for static/UI work. There is still no Smart Tag, Orders, Payment Proof, Memories/Records, Admin Portal, Apple Login, Email OTP, password login, real file storage, NFC writing, GPS tracking, or supplier integration in this frontend slice.
+The owner pet flow can now run against the .NET backend API when `NEXT_PUBLIC_API_BASE_URL` is configured. Outside production, a missing API base URL keeps the local preview flow for intentional static/UI work. Production builds fail closed when the value is missing. There is still no Smart Tag, Orders, Payment Proof, Memories/Records, Admin Portal, Apple Login, Email OTP, password login, real file storage, NFC writing, GPS tracking, or supplier integration in this frontend slice.
 
 ## Phase 1 Product Rules
 
@@ -85,7 +85,7 @@ This project is configured with Next.js static export, so `npm run build` writes
 
 ## Owner Portal Routes
 
-Owner routes use Google Login through the backend when `NEXT_PUBLIC_API_BASE_URL` is set. When the API base URL is missing, routes use the local preview login flow.
+Owner routes use Google Login through the backend when `NEXT_PUBLIC_API_BASE_URL` is set. Outside production, a missing API base URL uses the intentional local preview login flow; production builds reject that configuration.
 
 - `/dashboard`
 - `/pets`
@@ -117,7 +117,7 @@ Admin routes are protected by localStorage auth. Use `/admin/login`, then click 
 The services return response envelopes and switch by environment:
 
 - API mode: `NEXT_PUBLIC_API_BASE_URL` is set in the browser. Owner auth, owner profile, pets, public profiles, and QR safety use the backend.
-- Local preview mode: `NEXT_PUBLIC_API_BASE_URL` is missing. The same flows use local data/localStorage for static preview work.
+- Local preview mode (development/test only): `NEXT_PUBLIC_API_BASE_URL` is missing. The same flows use local data/localStorage for intentional static preview work. Production builds reject this configuration.
 
 - `src/services/authService.ts`
 - `src/services/apiClient.ts`
@@ -156,4 +156,4 @@ Copy `.env.example` to `.env.local` for local backend integration:
 - `NEXT_PUBLIC_GOOGLE_CLIENT_ID` - browser Google OAuth client ID used by Google Identity Services
 - `NEXT_PUBLIC_DEV_AUTH_ENABLED` - set to `true` only for an explicitly enabled local Development Admin login; production builds never render this action
 
-Leave `NEXT_PUBLIC_API_BASE_URL` empty only when you intentionally want local preview mode.
+Leave `NEXT_PUBLIC_API_BASE_URL` empty only when you intentionally want local preview mode outside production. Production builds require it.

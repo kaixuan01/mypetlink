@@ -66,7 +66,11 @@ export function PublicProfileOwnerControls({
           triggerAriaLabel={`Share ${profile.name}`}
         />
         <CTAButton
-          href={ownerRoutes.petEdit(ownedPet.id)}
+          href={
+            ownedPet.lifecycleStatus === "Memorial"
+              ? ownerRoutes.petEdit(ownedPet.id, { tab: "public" })
+              : ownerRoutes.petEdit(ownedPet.id)
+          }
           variant="secondary"
           icon="settings"
           className="min-h-10"
@@ -88,7 +92,7 @@ export function PrivateMemorialOwnerAction({
   return (
     <CTAButton
       className="mt-6"
-      href={ownerRoutes.petEdit(ownedPet.id)}
+      href={ownerRoutes.petEdit(ownedPet.id, { tab: "public" })}
       icon="settings"
       variant="secondary"
     >

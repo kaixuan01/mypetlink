@@ -300,10 +300,10 @@ export type BackendCareRecord = {
 
 export type BackendPublicCareRecord = {
   type: BackendCareRecordType | string;
-  title: string;
+  title?: string | null;
   recordDate?: string | null;
   dueDate?: string | null;
-  provider?: string | null;
+  publicVisibility: BackendCareRecordPublicVisibility;
   notes?: string | null;
 };
 

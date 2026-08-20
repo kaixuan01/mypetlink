@@ -154,10 +154,12 @@ function mapAdminPet(item: BackendAdminPetListItem): Pet {
     qrSafetyEnabled: item.qrSafetyEnabled,
     qrStatus: item.qrSafetyEnabled ? "active" : "paused",
     owner: {
-      ...pet.owner,
       name: item.owner.displayName || item.owner.email,
+      phone: "",
+      whatsapp: "",
+      emergencyContact: "",
     },
-  };
+  } as Pet;
 }
 
 function formatBackendDate(value?: string | null) {

@@ -2,11 +2,15 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AppLayout } from "@/components/layouts/AppLayout";
 import { TagManagementPanel } from "@/components/portal/TagManagementPanel";
+import {
+  SmartTagsComingSoon,
+  smartTagsUnavailablePageCopy,
+} from "@/components/portal/SmartTagsComingSoon";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { staticPetIdParams } from "@/data/staticRouteParams";
 import { loadingTitle, ownerPetPageTitle } from "@/lib/pageTitles";
-import { smartTagOrderingEnabled } from "@/lib/features";
+import { smartTagOrderingEnabled, smartTagsEnabled } from "@/lib/features";
 import { ownerRoutes } from "@/lib/routes";
 import { getPetById, getPets } from "@/services/petService";
 import { getOrders, getPetTags } from "@/services/tagService";
@@ -40,6 +44,15 @@ export default async function PetTagsPage({ params }: PetTagsPageProps) {
     notFound();
   }
   const currentPet = pet.data;
+
+  if (!smartTagsEnabled) {
+    return (
+      <AppLayout>
+        <PageHeader {...smartTagsUnavailablePageCopy} />
+        <SmartTagsComingSoon petId={currentPet.id} />
+      </AppLayout>
+    );
+  }
 
   const [pets, tags, orders] = await Promise.all([
     getPets(),

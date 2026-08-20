@@ -69,6 +69,15 @@ describe("owner settings fallbacks", () => {
     expect(hasUsableOwnerContact(sampleOwnerSettings)).toBe(true);
   });
 
+  it("mirrors the API privacy baseline instead of a conflicting frontend copy", () => {
+    expect(defaultOwnerSettings.privacyDefaults).toMatchObject({
+      showOwnerName: false,
+      showPhone: false,
+      showBirthdayOnTimeline: false,
+      showAdoptionDayOnTimeline: false,
+    });
+  });
+
   it("keeps missing and legacy marketing consent opted out", () => {
     vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "https://api.mypetlink.test");
     window.localStorage.setItem(

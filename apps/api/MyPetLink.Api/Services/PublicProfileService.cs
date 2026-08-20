@@ -102,13 +102,21 @@ public sealed class PublicProfileService : SkeletonService, IPublicProfileServic
                     && record.PublicVisibility != CareRecordPublicVisibility.Private)
                 .OrderByDescending(record => record.RecordDate)
                 .ThenBy(record => record.Title)
-                .Select(record => new PublicCareSummaryResponse(
-                    record.Type.ToString(),
-                    record.Title,
-                    record.RecordDate,
-                    record.DueDate,
-                    record.Provider,
-                    record.PublicVisibility == CareRecordPublicVisibility.PublicDetails ? record.Notes : null))
+                .Select(record => new
+                {
+                    Record = record,
+                    AllowDetails = profile.ShowHealthSummary
+                        && record.PublicVisibility == CareRecordPublicVisibility.PublicDetails
+                })
+                .Select(item => new PublicCareSummaryResponse(
+                    item.Record.Type.ToString(),
+                    item.AllowDetails ? item.Record.Title : null,
+                    item.Record.RecordDate,
+                    item.Record.DueDate,
+                    item.AllowDetails
+                        ? CareRecordPublicVisibility.PublicDetails
+                        : CareRecordPublicVisibility.PublicBadgeOnly,
+                    item.AllowDetails ? item.Record.Notes : null))
                 .ToArray()
             : Array.Empty<PublicCareSummaryResponse>();
 

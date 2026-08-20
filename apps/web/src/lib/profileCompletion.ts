@@ -2,7 +2,7 @@ import { defaultOwnerSettings, type OwnerSettings } from "@/lib/ownerSettings";
 import { isArchivedPet, isMemorialPet } from "@/lib/petLifecycle";
 import { ownerRoutes } from "@/lib/routes";
 import { hasUsableSafetyContact } from "@/lib/safetyProfile";
-import type { Pet } from "@/types";
+import type { Pet, PetListItem } from "@/types";
 
 export type ProfileCompletionItemId =
   | "photo"
@@ -24,7 +24,7 @@ export type ProfileCompletionItem = {
 };
 
 export type ProfileCompletionInput = {
-  pet: Pet;
+  pet: Pet | PetListItem;
   momentCount?: number;
   careRecordCount?: number;
   ownerSettings?: OwnerSettings;
@@ -51,7 +51,7 @@ function hasRealDate(value: string | undefined) {
   return hasText(value) && !Number.isNaN(Date.parse(value as string));
 }
 
-function hasOwnerWrittenBio(pet: Pet) {
+function hasOwnerWrittenBio(pet: Pet | PetListItem) {
   const bio = pet.bio?.trim() ?? "";
   const legacyDisplayFallback =
     `${pet.name} has a safe MyPetLink profile ready for family and friends.`;
@@ -90,7 +90,7 @@ export function deriveProfileCompletion({
       isComplete: hasText(pet.photoUrl),
       label: "Profile photo",
       actionLabel: `Add ${pet.name}'s profile photo`,
-      href: ownerRoutes.petEdit(pet.id),
+      href: ownerRoutes.petEdit(pet.id, { tab: "appearance" }),
     },
     {
       id: "basics",
@@ -140,7 +140,7 @@ export function deriveProfileCompletion({
             isComplete: hasUsableSafetyContact(pet, ownerSettings),
             label: "Contact for finders",
             actionLabel: `Add a contact for finders of ${pet.name}`,
-            href: `${ownerRoutes.petEdit(pet.id)}?tab=contact`,
+            href: ownerRoutes.petEdit(pet.id, { tab: "contact" }),
           },
         ]
       : []),

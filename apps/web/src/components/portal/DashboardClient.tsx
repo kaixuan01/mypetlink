@@ -563,7 +563,7 @@ function DashboardPetCard({ pet }: { pet: Pet }) {
               <Link
                 aria-label={`Enable ${pet.name}'s public profile`}
                 className="inline-flex min-h-11 shrink-0 items-center justify-center self-start whitespace-nowrap rounded-full border border-pet-border bg-white px-4 text-xs font-extrabold text-pet-ink transition hover:bg-pet-cream"
-                href={`${ownerRoutes.petEdit(pet.id)}?tab=public`}
+                href={ownerRoutes.petEdit(pet.id, { tab: "public" })}
               >
                 Enable profile
               </Link>

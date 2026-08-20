@@ -52,3 +52,10 @@ export function SmartTagsComingSoon({ petId, className = "" }: SmartTagsComingSo
     </section>
   );
 }
+
+export const smartTagsUnavailablePageCopy = Object.freeze({
+  eyebrow: "Physical tags",
+  title: "Smart Tags coming soon",
+  description:
+    "Smart Tag management and ordering are not open yet. Your pet's free Safety Profile is already available.",
+});

@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AppLayout } from "@/components/layouts/AppLayout";
-import { SmartTagsComingSoon } from "@/components/portal/SmartTagsComingSoon";
+import {
+  SmartTagsComingSoon,
+  smartTagsUnavailablePageCopy,
+} from "@/components/portal/SmartTagsComingSoon";
 import { TagOrderFlow } from "@/components/portal/TagOrderFlow";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { staticPetIdParams } from "@/data/staticRouteParams";
@@ -45,11 +48,7 @@ export default async function PetTagOrderPage({ params }: PetTagOrderPageProps) 
   if (!smartTagOrderingEnabled || !tagOrdersEnabled) {
     return (
       <AppLayout>
-        <PageHeader
-          eyebrow="Physical tags"
-          title="Smart Tags coming soon"
-          description="Smart Tag ordering is not open yet. Your pet's free Safety Profile is already active."
-        />
+        <PageHeader {...smartTagsUnavailablePageCopy} />
         <SmartTagsComingSoon petId={selectedPet.id} />
       </AppLayout>
     );

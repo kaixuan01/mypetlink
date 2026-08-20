@@ -88,7 +88,9 @@ export function PetDetailHeader({
             />
           ) : null}
           <CTAButton
-            href={ownerRoutes.petEdit(currentPet.id)}
+            href={ownerRoutes.petEdit(currentPet.id, {
+              tab: isMemorial || isArchived ? "public" : "basic",
+            })}
             icon="settings"
             variant="secondary"
             fullWidth

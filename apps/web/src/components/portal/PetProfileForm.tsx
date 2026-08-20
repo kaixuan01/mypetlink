@@ -81,6 +81,7 @@ import { canUseApi } from "@/services/apiConfig";
 import { isApiClientError } from "@/services/apiClient";
 import { logoutOwner } from "@/services/authService";
 import { deleteMedia, uploadMediaFile } from "@/services/mediaService";
+import { getOwnerProfileSettings } from "@/services/ownerProfileService";
 import type {
   Pet,
   PetLifecycleStatus,
@@ -95,7 +96,7 @@ type PetProfileFormProps = {
   returnToSmartTagOrder?: boolean;
 };
 
-type FormState = {
+export type FormState = {
   name: string;
   species: PetSpecies;
   customSpecies: string;
@@ -280,18 +281,7 @@ const emptyForm: FormState = {
   useOwnerDefaults: true,
   qrSafetyEnabled: true,
   publicProfileEnabled: true,
-  showOwnerName: true,
-  showGeneralArea: true,
-  showWhatsapp: true,
-  showPhone: true,
-  showEmergencyNote: true,
-  showCareBadges: true,
-  showMoments: true,
-  showTimeline: true,
-  showBirthdayOnTimeline: true,
-  showAdoptionDayOnTimeline: true,
-  showHealthSummary: false,
-  showAllergiesOnPublicProfile: false,
+  ...defaultOwnerSettings.privacyDefaults,
 };
 
 export function PetProfileForm({
@@ -395,8 +385,25 @@ export function PetProfileForm({
   }, [mode, tab]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      const settings = readOwnerSettings();
+    let active = true;
+
+    async function loadOwnerDefaults() {
+      let settings: OwnerSettings;
+
+      try {
+        settings = canUseApi()
+          ? (await getOwnerProfileSettings()).data
+          : readOwnerSettings();
+      } catch {
+        // readOwnerSettings contains the last successfully loaded API-backed
+        // profile, or the same neutral privacy defaults as the backend.
+        settings = readOwnerSettings();
+      }
+
+      if (!active) {
+        return;
+      }
+
       setOwnerSettings(settings);
 
       if (mode === "create") {
@@ -407,9 +414,13 @@ export function PetProfileForm({
 
       setProfilePhotoFile(undefined);
       setCoverPhotoFile(undefined);
-    }, 0);
+    }
 
-    return () => window.clearTimeout(timer);
+    void loadOwnerDefaults();
+
+    return () => {
+      active = false;
+    };
   }, [initialPet, mode]);
 
   useEffect(() => {
@@ -693,7 +704,7 @@ export function PetProfileForm({
     setSuccess("");
     setFormError("");
 
-    const payload = buildPayload(form, ownerSettings);
+    const payload = buildPayload(form);
 
     try {
       if (mode === "create") {
@@ -2403,15 +2414,12 @@ function toFormState(
   };
 }
 
-function buildPayload(
-  form: FormState,
-  ownerSettings: OwnerSettings = defaultOwnerSettings
-): PetPayload {
+export function buildPayload(form: FormState): PetPayload {
   const name = form.name.trim();
   const birthday =
     form.ageInformationMode === "ExactBirthday" && form.birthdayDate
       ? formatDisplayDate(form.birthdayDate)
-      : "Not set";
+      : "";
   const estimatedBirthYear =
     form.ageInformationMode === "EstimatedBirthYear"
       ? Number(form.estimatedBirthYear) || undefined
@@ -2427,16 +2435,17 @@ function buildPayload(
     species: form.species,
     customSpecies:
       form.species === "Other" ? form.customSpecies.trim() : "",
-    breed: form.breed.trim() || "Mixed breed",
-    gender: form.gender.trim() || "Not set",
-    color: form.color.trim() || "Not set",
+    breed: form.breed.trim(),
+    gender: form.gender.trim(),
+    color: form.color.trim(),
     ageInformationMode: form.ageInformationMode,
     estimatedBirthYear,
     birthday,
     ageLabel,
-    adoptionDay: form.adoptionDate ? formatDisplayDate(form.adoptionDate) : "Not set",
-    generalArea:
-      form.generalArea.trim() || ownerSettings.defaultGeneralArea || "Malaysia",
+    adoptionDay: form.adoptionDate ? formatDisplayDate(form.adoptionDate) : "",
+    // Owner defaults are resolved live; do not copy the current default into
+    // the pet row and later present it as a pet-specific value.
+    generalArea: form.useOwnerDefaults ? "" : form.generalArea.trim(),
     photoInitial: getInitial(name),
     photoTone: form.species === "Cat" ? "mint" : "apricot",
     photoUrl: form.photoUrl,
@@ -2456,21 +2465,17 @@ function buildPayload(
       memorialMessage: form.memorialMessage.trim(),
       showMemorialOnPublicProfile: form.showMemorialOnPublicProfile,
     },
-    bio:
-      form.bio.trim() ||
-      `${name} is loved dearly and has a safe profile for family and friends.`,
+    bio: form.bio.trim(),
     personalityTags: normalizeTagList(form.personalityTags, 12),
     // Empty lists are intentional clear operations; omitted fields remain
     // unchanged for partial updates.
     favoriteFoods: normalizeTagList(form.favoriteFoods, 3),
     favoriteToys: normalizeTagList(form.favoriteToys, 3),
     allergies: normalizeTagList(form.allergies, MAX_ALLERGIES),
-    safetyNote:
-      form.safetyNote.trim() || "Please contact the owner if this pet is found.",
-    emergencyNote:
-      form.emergencyNote.trim() || "Keep calm and contact the owner first.",
+    safetyNote: form.safetyNote.trim(),
+    emergencyNote: form.emergencyNote.trim(),
     owner: {
-      name: form.ownerName.trim() || `${name}'s owner`,
+      name: form.ownerName.trim(),
       whatsapp: normalizeStoredPhone(form.whatsapp),
       phone: normalizeStoredPhone(form.phone),
       emergencyContact:
@@ -2485,10 +2490,7 @@ function buildPayload(
           ownerDisplayName: form.ownerName.trim(),
           whatsappNumber: normalizeStoredPhone(form.whatsapp),
           phoneNumber: normalizeStoredPhone(form.phone),
-          generalArea:
-            form.generalArea.trim() ||
-            ownerSettings.defaultGeneralArea ||
-            "Malaysia",
+          generalArea: form.generalArea.trim(),
         },
     visibility: {
       showOwnerName: form.showOwnerName,

@@ -6,6 +6,17 @@ export function isApiConfigured() {
   return Boolean(getApiBaseUrl());
 }
 
+export function assertProductionApiConfiguration(
+  environment = process.env.NODE_ENV,
+  apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL
+) {
+  if (environment === "production" && !apiBaseUrl?.trim()) {
+    throw new Error(
+      "NEXT_PUBLIC_API_BASE_URL is required for production builds. MyPetLink will not build in local preview mode for production."
+    );
+  }
+}
+
 export function isDevelopmentAdminLoginEnabled(
   environment = process.env.NODE_ENV,
   configured = process.env.NEXT_PUBLIC_DEV_AUTH_ENABLED

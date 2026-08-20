@@ -517,7 +517,7 @@ function OverviewTab({
         )}
         <div className="mt-auto grid gap-2 pt-1 sm:grid-cols-[1fr_auto]">
           <CTAButton
-            href={ownerRoutes.petRecords(pet.id)}
+            href={ownerRoutes.petRecords(pet.id, { create: true })}
             variant="primary"
             icon="plus"
             fullWidth
@@ -618,7 +618,7 @@ function OverviewTab({
             edit memorial details from the pet edit page.
           </p>
           <CTAButton
-            href={ownerRoutes.petEdit(pet.id)}
+            href={ownerRoutes.petEdit(pet.id, { tab: "public" })}
             variant="outline"
             icon="settings"
             fullWidth
@@ -638,7 +638,7 @@ function OverviewTab({
             your main pet list and Free profile count.
           </p>
           <CTAButton
-            href={ownerRoutes.petEdit(pet.id)}
+            href={ownerRoutes.petEdit(pet.id, { tab: "public" })}
             variant="outline"
             icon="settings"
             fullWidth
@@ -677,7 +677,7 @@ function PrivacyTab({ pet }: { pet: Pet }) {
           <StatusGrid items={publicStatuses} />
           <div className="mt-auto pt-1">
             <CTAButton
-              href={ownerRoutes.petEdit(pet.id)}
+              href={ownerRoutes.petEdit(pet.id, { tab: "public" })}
               variant="outline"
               icon="settings"
               fullWidth
@@ -697,7 +697,7 @@ function PrivacyTab({ pet }: { pet: Pet }) {
           <StatusGrid items={safetyStatuses} />
           <div className="mt-auto pt-1">
             <CTAButton
-              href={ownerRoutes.petEdit(pet.id)}
+              href={ownerRoutes.petEdit(pet.id, { tab: "contact" })}
               variant="outline"
               icon="settings"
               fullWidth

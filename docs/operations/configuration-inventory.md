@@ -169,7 +169,7 @@ is financially or security authoritative** — the API re-checks everything.
 
 | Variable | Purpose | Action |
 | --- | --- | --- |
-| `NEXT_PUBLIC_API_BASE_URL` | Backend origin; empty ⇒ local preview mode | Retain |
+| `NEXT_PUBLIC_API_BASE_URL` | Backend origin; empty permits intentional local preview only outside production. Production builds fail closed when it is missing. | Retain; required build-time production infrastructure |
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Google Identity Services | Retain |
 | `NEXT_PUBLIC_GA_MEASUREMENT_ID` | Optional GA4 adapter; unset disables product analytics | Retain; Operations-owned, build-time infrastructure |
 | `NEXT_PUBLIC_MEDIA_BASE_URL` | Media CDN | Retain |

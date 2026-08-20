@@ -24,6 +24,12 @@ type PetRecordsOptions = {
   create?: boolean;
 };
 
+export type PetEditTab = "basic" | "appearance" | "public" | "contact";
+
+type PetEditOptions = {
+  tab?: PetEditTab;
+};
+
 export const ownerRoutes = {
   dashboard: "/dashboard",
   pets: "/pets",
@@ -62,7 +68,8 @@ export const ownerRoutes = {
   // page (used by Home quick actions and contact reminders).
   settingsOwnerContact: "/settings#owner-contact",
   petProfile: (petId: string) => `/pets/${petId}`,
-  petEdit: (petId: string) => `/pets/${petId}/edit`,
+  petEdit: (petId: string, options: PetEditOptions = {}) =>
+    `/pets/${petId}/edit${options.tab ? `?tab=${options.tab}` : ""}`,
   petRecords: (petId: string, options: PetRecordsOptions = {}) =>
     `/pets/${petId}/records${options.create ? "?create=1" : ""}`,
   petMoments: (petId: string) => `/pets/${petId}/moments`,

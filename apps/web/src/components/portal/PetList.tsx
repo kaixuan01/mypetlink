@@ -64,7 +64,7 @@ export function PetList({
 
         // Tag and order data only feed the tag chip on pet cards, which is
         // hidden while Smart Tags is unreleased.
-        if (apiMode || !smartTagsEnabled) {
+        if (!smartTagsEnabled) {
           setTags([]);
           setOrders([]);
           return;

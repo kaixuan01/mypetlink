@@ -270,16 +270,18 @@ function mapBackendPublicRecord(
   publicCode: string,
   index: number
 ): CareRecord {
-  const publicVisibility = record.notes ? "Public details" : "Public badge only";
+  const publicVisibility = fromBackendVisibility(record.publicVisibility);
+  const type = fromBackendRecordType(record.type);
+  const title = record.title?.trim() || type;
 
   return {
-    id: `public_${publicCode}_${index}_${slugPart(record.title)}`,
+    id: `public_${publicCode}_${index}_${slugPart(title)}`,
     petId: publicCode,
-    type: fromBackendRecordType(record.type),
-    title: record.title,
+    type,
+    title,
     date: toDisplayDate(record.recordDate),
     dueDate: record.dueDate ? toDisplayDate(record.dueDate) : undefined,
-    provider: record.provider || "Owner recorded",
+    provider: "",
     notes: record.notes || "",
     publicVisibility,
     status: deriveCareRecordStatus(record.dueDate),

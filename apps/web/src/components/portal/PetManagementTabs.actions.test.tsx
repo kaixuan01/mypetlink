@@ -141,6 +141,53 @@ it("offers the Share Card beside the other sharing choices", async () => {
   expect(screen.getByRole("button", { name: /Copy Profile Link/ })).toBeTruthy();
 });
 
+it("opens the care-record create flow while View all keeps the list state", async () => {
+  const pet = structuredClone(mockPets[0]);
+  render(<PetManagementTabs moments={[]} pet={pet} records={[]} tags={[]} />);
+
+  const add = await screen.findByRole("link", { name: "Add Care Record" });
+  const viewAll = screen
+    .getAllByRole("link", { name: /View all/ })
+    .find((link) => link.getAttribute("href")?.includes("/records"));
+
+  expect(add.getAttribute("href")).toBe(`/pets/${pet.id}/records?create=1`);
+  expect(viewAll?.getAttribute("href")).toBe(`/pets/${pet.id}/records`);
+});
+
+it("sends memorial and profile-status actions to the Public Profile tab", async () => {
+  const memorial = {
+    ...structuredClone(mockPets[0]),
+    lifecycleStatus: "Memorial" as const,
+  };
+  mocks.getPetById.mockResolvedValue({ data: memorial });
+  const { unmount } = render(
+    <PetManagementTabs moments={[]} pet={memorial} records={[]} tags={[]} />
+  );
+
+  expect(
+    (await screen.findByRole("link", { name: "Edit Memorial" })).getAttribute(
+      "href"
+    )
+  ).toBe(`/pets/${memorial.id}/edit?tab=public`);
+
+  unmount();
+
+  const archived = {
+    ...structuredClone(mockPets[0]),
+    lifecycleStatus: "Archived" as const,
+  };
+  mocks.getPetById.mockResolvedValue({ data: archived });
+  render(
+    <PetManagementTabs moments={[]} pet={archived} records={[]} tags={[]} />
+  );
+
+  expect(
+    (await screen.findByRole("link", { name: "Open Profile Status" })).getAttribute(
+      "href"
+    )
+  ).toBe(`/pets/${archived.id}/edit?tab=public`);
+});
+
 it("round-trips the shared Lost Mode control from the pet Overview", async () => {
   const pet = structuredClone(mockPets[0]);
   render(

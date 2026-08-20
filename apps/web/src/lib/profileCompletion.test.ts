@@ -167,4 +167,11 @@ describe("deriveProfileCompletion", () => {
 
     expect(derive(pet).items.find((item) => item.id === "bio")?.isComplete).toBe(false);
   });
+
+  it("deep-links the photo completion action to Appearance", () => {
+    const result = derive(minimalPet());
+    expect(result.items.find((item) => item.id === "photo")?.href).toBe(
+      `/pets/${mockPets[0].id}/edit?tab=appearance`
+    );
+  });
 });

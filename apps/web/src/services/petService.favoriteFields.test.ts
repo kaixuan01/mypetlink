@@ -118,6 +118,31 @@ describe("pet favourite list API mapping", () => {
     expect(payload).not.toHaveProperty("favoriteToys");
   });
 
+  it("sends blank optional pet fields as null instead of invented content", () => {
+    const payload = buildBackendPetPayload({
+      breed: " ",
+      gender: "",
+      color: "  ",
+      bio: "",
+      generalArea: " ",
+      safetyNote: "",
+      emergencyNote: " ",
+    });
+
+    expect(payload).toMatchObject({
+      breed: null,
+      gender: null,
+      color: null,
+      bio: null,
+      generalArea: null,
+      safetyNote: null,
+      emergencyNote: null,
+    });
+    expect(JSON.stringify(payload)).not.toContain("Mixed breed");
+    expect(JSON.stringify(payload)).not.toContain("Not set");
+    expect(JSON.stringify(payload)).not.toContain("Malaysia");
+  });
+
   it("maps API list responses back into the owner model", () => {
     const pet = mapBackendPetToFrontend(
       backendPet({

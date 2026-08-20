@@ -30,6 +30,26 @@ it("hides Safety Profile and Smart Tag status while their owner UI is disabled",
   expect(screen.queryByText("No Smart Tag Linked")).toBeNull();
 });
 
+it("uses real list content and never presents emergency instructions as the card bio", () => {
+  const pet = {
+    ...mockPets[0],
+    bio: "Enjoys quiet walks and sunny naps.",
+    emergencyNote: "Keep calm and contact the owner first.",
+  };
+  const { rerender } = render(<PetCard pet={pet} />);
+
+  expect(screen.getByText(pet.bio)).toBeTruthy();
+  expect(screen.queryByText(pet.emergencyNote)).toBeNull();
+
+  rerender(
+    <PetCard
+      pet={{ ...pet, bio: "", personalityTags: ["Gentle", "Curious"] }}
+    />
+  );
+  expect(screen.getByText("Gentle · Curious")).toBeTruthy();
+  expect(screen.queryByText(pet.emergencyNote)).toBeNull();
+});
+
 it("shows management instead of public actions for a private profile", () => {
   const pet = { ...mockPets[0], publicProfileEnabled: false };
   render(<PetCard pet={pet} tags={[]} orders={[]} />);

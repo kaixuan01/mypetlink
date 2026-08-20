@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 import { AppLayout } from "@/components/layouts/AppLayout";
 import { TagManagementPanel } from "@/components/portal/TagManagementPanel";
+import {
+  SmartTagsComingSoon,
+  smartTagsUnavailablePageCopy,
+} from "@/components/portal/SmartTagsComingSoon";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { smartTagsEnabled } from "@/lib/features";
 import { getPets } from "@/services/petService";
 import { getAllTags, getOrders } from "@/services/tagService";
 
@@ -10,6 +15,15 @@ export const metadata: Metadata = {
 };
 
 export default async function TagsPage() {
+  if (!smartTagsEnabled) {
+    return (
+      <AppLayout>
+        <PageHeader {...smartTagsUnavailablePageCopy} />
+        <SmartTagsComingSoon />
+      </AppLayout>
+    );
+  }
+
   const [pets, tags, orders] = await Promise.all([
     getPets(),
     getAllTags(),

@@ -49,7 +49,7 @@ describe("ProfileCompletionCard", () => {
     expect(screen.getAllByRole("link", { name: /^Add / })).toHaveLength(1);
     expect(
       screen.getByRole("link", { name: "Add Milo's profile photo" }).getAttribute("href")
-    ).toBe("/pets/pet_milo/edit");
+    ).toBe("/pets/pet_milo/edit?tab=appearance");
   });
 
   it("expands to the full checklist without changing the percentage or routes", () => {

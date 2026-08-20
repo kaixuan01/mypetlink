@@ -2,7 +2,12 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { AppLayout } from "@/components/layouts/AppLayout";
 import { OrderViewClient } from "@/components/portal/OrderViewClient";
+import {
+  SmartTagsComingSoon,
+  smartTagsUnavailablePageCopy,
+} from "@/components/portal/SmartTagsComingSoon";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { tagOrdersEnabled } from "@/lib/features";
 import { loadingTitle } from "@/lib/pageTitles";
 import { getPets } from "@/services/petService";
 import { getAllTags } from "@/services/tagService";
@@ -12,6 +17,15 @@ export const metadata: Metadata = {
 };
 
 export default async function OrderViewPage() {
+  if (!tagOrdersEnabled) {
+    return (
+      <AppLayout>
+        <PageHeader {...smartTagsUnavailablePageCopy} />
+        <SmartTagsComingSoon />
+      </AppLayout>
+    );
+  }
+
   const [pets, tags] = await Promise.all([getPets(), getAllTags()]);
 
   return (

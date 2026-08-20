@@ -1,5 +1,6 @@
 import path from "node:path";
 import type { NextConfig } from "next";
+import { assertProductionApiConfiguration } from "./src/services/apiConfig";
 
 // `output: "export"` enforces, even in `next dev`, that any visited dynamic
 // segment must appear in `generateStaticParams()`. Because newly-created pets
@@ -10,6 +11,8 @@ import type { NextConfig } from "next";
 // dev server render `not-found.tsx` for unknown ids — where
 // `RuntimeRouteFallback` re-resolves the pet from localStorage.
 const isProductionBuild = process.env.NODE_ENV === "production";
+
+assertProductionApiConfiguration();
 
 const nextConfig: NextConfig = {
   ...(isProductionBuild ? { output: "export" as const } : {}),

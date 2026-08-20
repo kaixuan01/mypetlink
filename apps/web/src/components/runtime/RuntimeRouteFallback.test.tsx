@@ -195,6 +195,51 @@ describe("RuntimeRouteFallback owner authentication", () => {
   });
 });
 
+describe("RuntimeRouteFallback disabled owner products", () => {
+  beforeEach(() => {
+    mocks.authenticated = true;
+    mocks.replace.mockReset();
+    mocks.getCurrentOwnerSession.mockReset().mockResolvedValue({});
+    mocks.getPetById.mockReset();
+    mocks.getPets.mockReset();
+    mocks.getPetRecords.mockReset();
+    mocks.getPetMoments.mockReset();
+    mocks.getPetTags.mockReset();
+    mocks.getOrders.mockReset();
+  });
+
+  afterEach(() => cleanup());
+
+  it("does not resolve a direct per-pet Smart Tag management URL", async () => {
+    window.history.replaceState({}, "", "/pets/owner-pet-id/tags");
+
+    render(
+      <RuntimeRouteFallback>
+        <p>Page not found</p>
+      </RuntimeRouteFallback>
+    );
+
+    expect(await screen.findByText("Smart Tags coming soon")).toBeTruthy();
+    expect(mocks.getPetById).not.toHaveBeenCalled();
+    expect(mocks.getPetTags).not.toHaveBeenCalled();
+    expect(mocks.getOrders).not.toHaveBeenCalled();
+  });
+
+  it("does not resolve an order from the query-string detail route", async () => {
+    window.history.replaceState({}, "", "/orders/view?order=MPL-ORD-123");
+
+    render(
+      <RuntimeRouteFallback>
+        <p>Page not found</p>
+      </RuntimeRouteFallback>
+    );
+
+    expect(await screen.findByText("Smart Tags coming soon")).toBeTruthy();
+    expect(mocks.getPets).not.toHaveBeenCalled();
+    expect(mocks.getOrders).not.toHaveBeenCalled();
+  });
+});
+
 describe("RuntimeRouteFallback shared /q resolution", () => {
   beforeEach(() => {
     window.history.replaceState({}, "", "/q/MPL-QR-TITLE");

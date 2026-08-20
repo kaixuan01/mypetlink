@@ -87,6 +87,27 @@ function completion(input: BackendPetListItem | BackendPetDetail) {
 afterEach(() => window.localStorage.clear());
 
 describe("authenticated pet profile data mapping", () => {
+  it("keeps detail-only list fields unknown instead of fabricating them", () => {
+    window.localStorage.setItem(
+      "mypetlink_owner_settings",
+      JSON.stringify({
+        ownerDisplayName: "Browser Owner",
+        phoneNumber: "+60123456789",
+        defaultGeneralArea: "Kuala Lumpur",
+      })
+    );
+
+    const pet = mapBackendPetToFrontend(listPet({ bio: null }));
+
+    expect(pet).not.toHaveProperty("owner");
+    expect(pet).not.toHaveProperty("visibility");
+    expect(pet).not.toHaveProperty("generalArea");
+    expect(pet).not.toHaveProperty("emergencyNote");
+    expect(pet).not.toHaveProperty("safetyNote");
+    expect(pet).not.toHaveProperty("memorial");
+    expect(pet.bio).toBe("");
+  });
+
   it("keeps list and detail completion equivalent for a representative pet", () => {
     const fromList = completion(listPet());
     const fromDetail = completion(detailPet());

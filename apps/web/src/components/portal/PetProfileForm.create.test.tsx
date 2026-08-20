@@ -86,6 +86,25 @@ describe("PetProfileForm creation activation", () => {
     ).toBe(false);
   });
 
+  it("does not turn untouched optional fields into saved pet content", async () => {
+    render(<PetProfileForm mode="create" />);
+
+    enterNameAndSave();
+
+    await waitFor(() => expect(mocks.createPet).toHaveBeenCalledTimes(1));
+    expect(mocks.createPet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        breed: "",
+        gender: "",
+        color: "",
+        bio: "",
+        generalArea: "",
+        safetyNote: "",
+        emergencyNote: "",
+      })
+    );
+  });
+
   it("prevents duplicate creation while the first submission is pending", async () => {
     let resolveCreation: ((value: { data: typeof createdPet }) => void) | undefined;
     mocks.createPet.mockReturnValue(

@@ -26,10 +26,16 @@ import {
   restorePetProfile,
   updatePetLifecycle,
 } from "@/services/petService";
-import type { Pet, PetLifecycleStatus, PetTag, TagOrder } from "@/types";
+import type {
+  Pet,
+  PetLifecycleStatus,
+  PetListItem,
+  PetTag,
+  TagOrder,
+} from "@/types";
 
 type PetCardProps = {
-  pet: Pet;
+  pet: Pet | PetListItem;
   orders?: TagOrder[];
   tags?: PetTag[];
   onPetUpdated?: (pet: Pet) => void;
@@ -41,7 +47,7 @@ type PetMenuLink = {
   external?: boolean;
 };
 
-const moreLinks = (pet: Pet) => {
+const moreLinks = (pet: Pet | PetListItem) => {
   const links: PetMenuLink[] = [
     { label: "Edit profile", href: ownerRoutes.petEdit(pet.id) },
     { label: "Care records", href: ownerRoutes.petRecords(pet.id) },
@@ -86,11 +92,21 @@ export function PetCard({
     : null;
   const isMemorial = isMemorialPet(pet);
   const isArchived = isArchivedPet(pet);
+  const memorial = "memorial" in pet ? pet.memorial : undefined;
+  const description = isMemorial
+    ? memorial?.memorialMessage ||
+      "Memories, records, and timeline stay saved here."
+    : isArchived
+      ? "This profile is archived. Memories and records stay saved."
+      : pet.bio.trim() ||
+        (pet.personalityTags.length
+          ? pet.personalityTags.slice(0, 3).join(" · ")
+          : "");
   const publicProfileAccessible =
     publicProfilesEnabled &&
     pet.publicProfileEnabled &&
     !isArchived &&
-    (!isMemorial || pet.memorial.showMemorialOnPublicProfile);
+    (!isMemorial || memorial?.showMemorialOnPublicProfile !== false);
   const showPrivateBadge =
     publicProfilesEnabled && !publicProfileAccessible && !isArchived;
   const confirmCopy = getConfirmCopy(confirmAction, pet);
@@ -165,14 +181,9 @@ export function PetCard({
               {tagBadge.label}
             </div>
           ) : null}
-          {isMemorial || isArchived || pet.emergencyNote ? (
+          {description ? (
             <p className="mt-3 line-clamp-2 text-sm leading-6 text-pet-muted">
-              {isMemorial
-                ? pet.memorial.memorialMessage ||
-                  "Memories, records, and timeline stay saved here."
-                : isArchived
-                  ? "This profile is archived. Memories and records stay saved."
-                  : pet.emergencyNote}
+              {description}
             </p>
           ) : null}
         </div>
@@ -201,7 +212,7 @@ export function PetCard({
             </CTAButton>
           ) : (
             <CTAButton
-              href={`${ownerRoutes.petEdit(pet.id)}?tab=public`}
+              href={ownerRoutes.petEdit(pet.id, { tab: "public" })}
               variant="secondary"
               fullWidth
             >
@@ -314,7 +325,7 @@ export function PetCard({
 
 function getConfirmCopy(
   action: "active" | "memorial" | "archive" | "restore" | null,
-  pet: Pet
+  pet: Pet | PetListItem
 ) {
   if (action === "active") {
     return {

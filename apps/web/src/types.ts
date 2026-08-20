@@ -146,6 +146,57 @@ export type Pet = {
   medications: string[];
 };
 
+/**
+ * Lean owner-list projection returned by GET /pets.
+ *
+ * Detail-only contact, privacy, safety-note, memorial-detail, and health
+ * fields are deliberately absent. Consumers that need those values must load
+ * the pet detail instead of treating a browser fallback as saved pet data.
+ */
+export type PetListItem = Pick<
+  Pet,
+  | "id"
+  | "slug"
+  | "name"
+  | "species"
+  | "customSpecies"
+  | "breed"
+  | "gender"
+  | "ageLabel"
+  | "ageSource"
+  | "ageInformationMode"
+  | "estimatedBirthYear"
+  | "birthday"
+  | "adoptionDay"
+  | "createdAt"
+  | "updatedAt"
+  | "photoInitial"
+  | "photoTone"
+  | "profilePhotoLabel"
+  | "coverPhotoLabel"
+  | "photoUrl"
+  | "coverUrl"
+  | "coverPositionX"
+  | "coverPositionY"
+  | "profileMediaId"
+  | "coverMediaId"
+  | "lifecycleStatus"
+  | "previousLifecycleStatus"
+  | "qrStatus"
+  | "publicCode"
+  | "safetyCode"
+  | "qrSafetyEnabled"
+  | "publicProfileEnabled"
+  | "hasUsableSafetyContact"
+  | "qrSafetyPath"
+  | "finderProfileUrl"
+  | "publicProfilePath"
+  | "publicProfileVersion"
+  | "bio"
+  | "personalityTags"
+  | "lostModeEnabled"
+>;
+
 export type PublicPetProfile = Pick<
   Pet,
   | "id"

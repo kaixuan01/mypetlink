@@ -47,6 +47,7 @@ import type {
 import type {
   ApiResponse,
   Pet,
+  PetListItem,
   PetLifecycleStatus,
   PetLostMode,
   PetMemorial,
@@ -65,20 +66,8 @@ function normalizeCoverPosition(value?: number | null) {
   return Math.min(100, Math.max(0, Math.round(value)));
 }
 
-const defaultVisibility: Pet["visibility"] = {
-  showOwnerName: true,
-  showGeneralArea: true,
-  showPhone: true,
-  showWhatsapp: true,
-  showEmergencyNote: true,
-  showCareBadges: true,
-  showMoments: true,
-  showTimeline: true,
-  showBirthdayOnTimeline: true,
-  showAdoptionDayOnTimeline: true,
-  showHealthSummary: false,
-  showAllergiesOnPublicProfile: false,
-};
+const defaultVisibility: Pet["visibility"] =
+  defaultOwnerSettings.privacyDefaults;
 
 type BackendListEnvelope<T> = {
   data?: T;
@@ -195,7 +184,7 @@ function mergeOwner(
 
 function getDefaultLostMode(petName: string, generalArea = ""): PetLostMode {
   return {
-    lastSeenArea: generalArea || "Malaysia",
+    lastSeenArea: generalArea,
     lastSeenDateTime: "",
     lostMessage: `${petName} is currently missing. If you have found ${petName}, please contact the owner immediately.`,
     rewardNote: "",
@@ -302,14 +291,14 @@ function normalizePet(pet: Pet): Pet {
     ...species,
     createdAt,
     updatedAt,
-    gender: pet.gender ?? "Not set",
-    color: pet.color ?? "Not set",
+    gender: pet.gender ?? "",
+    color: pet.color ?? "",
     ageLabel: age.displayLabel,
     ageSource: age.source,
     ageInformationMode: age.source,
     estimatedBirthYear,
-    birthday,
-    adoptionDay: pet.adoptionDay ?? "Not set",
+    birthday: birthday === "Not set" ? "" : birthday,
+    adoptionDay: pet.adoptionDay === "Not set" ? "" : pet.adoptionDay ?? "",
     photoInitial: pet.photoInitial ?? getPetInitial(pet.name),
     photoTone: pet.photoTone ?? (species.species === "Cat" ? "mint" : "apricot"),
     profilePhotoLabel: cleanMediaLabel(pet.profilePhotoLabel),
@@ -339,9 +328,7 @@ function normalizePet(pet: Pet): Pet {
     // Backward-compatible alias used by existing components. The value is the
     // pet-level /q safety page, not a physical /t tag scan link.
     finderProfileUrl: safetyPath,
-    bio:
-      pet.bio ??
-      `${pet.name} has a safe MyPetLink profile ready for family and friends.`,
+    bio: pet.bio ?? "",
     // Preserve exactly what was saved, including an intentionally empty list.
     // Never substitute default/sample tags.
     personalityTags: pet.personalityTags ?? [],
@@ -354,9 +341,8 @@ function normalizePet(pet: Pet): Pet {
       (pet as Pet & { favoriteToy?: string }).favoriteToy
     ),
     allergies: pet.allergies ?? [],
-    safetyNote:
-      pet.safetyNote ?? "Please contact the owner if this pet is found.",
-    emergencyNote: pet.emergencyNote ?? "Keep calm and contact the owner first.",
+    safetyNote: pet.safetyNote ?? "",
+    emergencyNote: pet.emergencyNote ?? "",
     lostModeEnabled: pet.lostModeEnabled ?? false,
     lostMode: mergeLostMode(pet.name, pet.generalArea, pet.lostMode),
     contactOverride: pet.contactOverride ?? { useOwnerDefaults: false },
@@ -486,12 +472,16 @@ function getSlugFromPublicSlug(publicSlug: string, publicCode: string) {
   return publicSlug || "pet";
 }
 
+export function mapBackendPetToFrontend(pet: BackendPetDetail): Pet;
+export function mapBackendPetToFrontend(pet: BackendPetListItem): PetListItem;
 export function mapBackendPetToFrontend(
   pet: BackendPetDetail | BackendPetListItem
-): Pet {
+): Pet | PetListItem;
+export function mapBackendPetToFrontend(
+  pet: BackendPetDetail | BackendPetListItem
+): Pet | PetListItem {
   const species = normalizeBackendSpecies(pet.species, pet.customSpecies);
   const detail = "contact" in pet ? pet : null;
-  const ownerSettings = readOwnerSettings();
   const publicSlug = pet.publicSlug || PetDtoFallbackSlug(pet.name, pet.publicCode);
   const slug = getSlugFromPublicSlug(publicSlug, pet.publicCode);
   const birthday = toDisplayDate(pet.birthday);
@@ -502,23 +492,63 @@ export function mapBackendPetToFrontend(
     estimatedBirthYear,
   });
   const age = pet.age ?? calculatePetAge({ birthday, estimatedBirthYear });
+
+  if (!detail) {
+    const safetyPath = qrSafetyPath(pet.safetyCode);
+
+    return {
+      id: pet.id,
+      slug,
+      name: pet.name,
+      species: species.species,
+      customSpecies: species.customSpecies,
+      breed: pet.breed?.trim() ?? "",
+      gender: pet.gender?.trim() ?? "",
+      ageLabel,
+      ageSource: age.source,
+      ageInformationMode: age.source,
+      estimatedBirthYear,
+      birthday,
+      adoptionDay,
+      createdAt: pet.createdAt,
+      updatedAt: pet.updatedAt,
+      photoInitial: getPetInitial(pet.name),
+      photoTone: getPhotoTone(species.species),
+      profilePhotoLabel: "",
+      coverPhotoLabel: "",
+      photoUrl: pet.profilePhotoUrl ?? "",
+      coverUrl: pet.coverPhotoUrl ?? "",
+      coverPositionX: normalizeCoverPosition(pet.coverPositionX),
+      coverPositionY: normalizeCoverPosition(pet.coverPositionY),
+      profileMediaId: pet.profileMediaId ?? undefined,
+      coverMediaId: pet.coverMediaId ?? undefined,
+      lifecycleStatus: pet.lifecycleStatus,
+      previousLifecycleStatus:
+        pet.lifecycleStatus === "Memorial" ? "Memorial" : "Active",
+      qrStatus: (pet.qrSafetyEnabled ?? true) ? "active" : "paused",
+      publicCode: pet.publicCode,
+      publicProfileVersion: pet.publicProfileVersion ?? undefined,
+      safetyCode: pet.safetyCode,
+      qrSafetyEnabled: pet.qrSafetyEnabled ?? true,
+      publicProfileEnabled: pet.publicProfileEnabled ?? true,
+      hasUsableSafetyContact: pet.hasUsableSafetyContact,
+      qrSafetyPath: safetyPath,
+      finderProfileUrl: safetyPath,
+      publicProfilePath: publicProfilePath(slug, pet.publicCode),
+      bio: pet.bio?.trim() ?? "",
+      personalityTags: pet.personalityTags ?? [],
+      lostModeEnabled: pet.lostModeEnabled,
+    };
+  }
+
   const visibility = mergeVisibility(detail?.visibility ?? defaultVisibility);
   const contact = detail?.contact;
-  // A detail response is authoritative. An explicit null means that channel
-  // is absent and must not be replaced with an older browser-cached owner
-  // value. List projections have no contact object, so only those use the
-  // current local owner settings for their non-public display model.
-  const phone = detail
-    ? contact?.phoneE164 ?? ""
-    : ownerSettings.phoneNumber;
-  const whatsapp = detail
-    ? contact?.whatsappE164 ?? ""
-    : ownerSettings.whatsappNumber;
+  const phone = contact?.phoneE164 ?? "";
+  const whatsapp = contact?.whatsappE164 ?? "";
   const generalArea =
     detail?.generalArea ??
     contact?.generalAreaOverride ??
-    ownerSettings.defaultGeneralArea ??
-    "Malaysia";
+    "";
   const safetyPath = qrSafetyPath(pet.safetyCode);
 
   return normalizePet({
@@ -529,7 +559,7 @@ export function mapBackendPetToFrontend(
     customSpecies: species.customSpecies,
     breed: pet.breed?.trim() ?? "",
     gender: pet.gender?.trim() ?? "",
-    color: detail?.color || "Not set",
+    color: detail?.color?.trim() ?? "",
     ageLabel,
     ageSource: age.source,
     ageInformationMode: age.source,
@@ -573,10 +603,8 @@ export function mapBackendPetToFrontend(
     personalityTags: pet.personalityTags ?? [],
     favoriteFoods: toFavoriteList(detail?.favoriteFoods, detail?.favoriteFood),
     favoriteToys: toFavoriteList(detail?.favoriteToys, detail?.favoriteToy),
-    safetyNote:
-      detail?.safetyNote || "Please contact the owner if this pet is found.",
-    emergencyNote:
-      detail?.emergencyNote || "Keep calm and contact the owner first.",
+    safetyNote: detail?.safetyNote?.trim() ?? "",
+    emergencyNote: detail?.emergencyNote?.trim() ?? "",
     lostModeEnabled: pet.lostModeEnabled,
     lostMode: {
       lastSeenArea: detail?.lostLastSeenArea ?? generalArea,
@@ -588,10 +616,7 @@ export function mapBackendPetToFrontend(
       extraContactInstruction: detail?.lostExtraContactInstruction ?? "",
     },
     owner: {
-      name:
-        contact?.ownerDisplayName ??
-        ownerSettings.ownerDisplayName ??
-        `${pet.name}'s owner`,
+      name: contact?.ownerDisplayName ?? "",
       phone: phone ?? "",
       whatsapp: whatsapp ?? "",
       emergencyContact: contact?.emergencyContactE164 ?? phone ?? whatsapp ?? "",
@@ -822,10 +847,10 @@ export function buildBackendPetPayload(payload: PetPayload) {
   return {
     name: payload.name,
     species: payload.species,
-    customSpecies: payload.customSpecies,
-    breed: payload.breed,
-    gender: payload.gender,
-    color: payload.color,
+    customSpecies: optionalText(payload.customSpecies),
+    breed: optionalText(payload.breed),
+    gender: optionalText(payload.gender),
+    color: optionalText(payload.color),
     coverPositionX: payload.coverPositionX,
     coverPositionY: payload.coverPositionY,
     ...(hasAgeInformation
@@ -842,8 +867,8 @@ export function buildBackendPetPayload(payload: PetPayload) {
         }
       : {}),
     adoptionDay: toIsoDate(payload.adoptionDay),
-    generalArea: payload.generalArea,
-    bio: payload.bio,
+    generalArea: optionalText(payload.generalArea),
+    bio: optionalText(payload.bio),
     // Only send tags when the caller actually provided them. A partial update
     // (e.g. toggling Lost Mode) omits the field so the backend leaves the saved
     // tags untouched; a full save sends the exact selection (including []).
@@ -881,8 +906,8 @@ export function buildBackendPetPayload(payload: PetPayload) {
         : payload.contactOverride?.generalArea ?? payload.generalArea ?? null,
     },
     visibility: payload.visibility,
-    safetyNote: payload.safetyNote,
-    emergencyNote: payload.emergencyNote,
+    safetyNote: optionalText(payload.safetyNote),
+    emergencyNote: optionalText(payload.emergencyNote),
     // Only send the page-access switches when the caller changed them, so
     // partial updates never flip the saved settings.
     ...(payload.qrSafetyEnabled !== undefined
@@ -892,6 +917,10 @@ export function buildBackendPetPayload(payload: PetPayload) {
       ? { publicProfileEnabled: payload.publicProfileEnabled }
       : {}),
   };
+}
+
+function optionalText(value?: string) {
+  return value === undefined ? undefined : value.trim() || null;
 }
 
 function getPetCollection() {
@@ -912,11 +941,11 @@ function getUniquePetSlug(rawSlug: string, petName: string, pets: Pet[]) {
   return slug;
 }
 
-function getDefaultOwner(petName: string): Pet["owner"] {
+function getDefaultOwner(): Pet["owner"] {
   const settings = readOwnerSettings();
 
   return {
-    name: settings.ownerDisplayName || `${petName}'s owner`,
+    name: settings.ownerDisplayName,
     phone: settings.phoneNumber,
     whatsapp: settings.whatsappNumber,
     emergencyContact: settings.phoneNumber || settings.whatsappNumber,
@@ -939,7 +968,11 @@ export async function getPets() {
 
         return apiResponse(
           {
-            data: (response.data ?? []).map(mapBackendPetToFrontend),
+            // Runtime list items intentionally omit detail-only properties.
+            // Keep the long-standing collection signature for existing list
+            // consumers while mapBackendPetToFrontend's list overload exposes
+            // the truthful PetListItem shape to new code and tests.
+            data: (response.data ?? []).map(mapBackendPetToFrontend) as Pet[],
             meta: response.meta,
           },
           []
@@ -976,16 +1009,10 @@ export async function getOwnedPetByPublicCode(publicCode: string) {
 
   if (canUseApi()) {
     const response = await getPets();
-    return apiResponse(
-      {
-        data:
-          response.data.find(
-            (pet) => pet.publicCode.toLowerCase() === normalizedCode
-          ) ?? null,
-        meta: response.meta,
-      },
-      null
+    const summary = response.data.find(
+      (pet) => pet.publicCode.toLowerCase() === normalizedCode
     );
+    return summary ? getPetById(summary.id) : apiNullResponse<Pet>();
   }
 
   await mockDelay();
@@ -1215,10 +1242,7 @@ export async function createPet(payload: PetPayload) {
   const publicCode = generatePublicCode();
   const safetyCode = generateSafetyCode();
   const safetyPath = qrSafetyPath(safetyCode);
-  const generalArea =
-    payload.generalArea ??
-    ownerSettings.defaultGeneralArea ??
-    defaultOwnerSettings.defaultGeneralArea;
+  const generalArea = payload.generalArea?.trim() ?? "";
 
   const pet: Pet = {
     ...mockPets[0],
@@ -1229,14 +1253,15 @@ export async function createPet(payload: PetPayload) {
     species: payload.species ?? "Dog",
     customSpecies:
       payload.species === "Other" ? payload.customSpecies?.trim() : "",
-    breed: payload.breed ?? "Mixed breed",
-    gender: payload.gender ?? "Unknown",
-    color: payload.color ?? "Not set",
+    breed: payload.breed?.trim() ?? "",
+    gender: payload.gender?.trim() ?? "",
+    color: payload.color?.trim() ?? "",
     ageLabel: "Age unknown",
     ageInformationMode: payload.ageInformationMode,
     estimatedBirthYear: payload.estimatedBirthYear,
-    birthday: payload.birthday ?? "Not set",
-    adoptionDay: payload.adoptionDay ?? "Not set",
+    birthday: payload.birthday === "Not set" ? "" : payload.birthday ?? "",
+    adoptionDay:
+      payload.adoptionDay === "Not set" ? "" : payload.adoptionDay ?? "",
     createdAt: now,
     updatedAt: now,
     generalArea,
@@ -1261,21 +1286,19 @@ export async function createPet(payload: PetPayload) {
     qrSafetyPath: safetyPath,
     finderProfileUrl: safetyPath,
     publicProfilePath: publicProfilePath(slug, publicCode),
-    bio:
-      payload.bio ??
-      `${petName} has a safe MyPetLink profile ready for family and friends.`,
+    bio: payload.bio?.trim() ?? "",
     personalityTags: payload.personalityTags ?? [],
     favoriteFoods: payload.favoriteFoods ?? [],
     favoriteToys: payload.favoriteToys ?? [],
-    safetyNote: payload.safetyNote ?? "No safety note yet.",
-    emergencyNote: payload.emergencyNote ?? "No emergency note yet.",
+    safetyNote: payload.safetyNote?.trim() ?? "",
+    emergencyNote: payload.emergencyNote?.trim() ?? "",
     lostModeEnabled: payload.lostModeEnabled ?? false,
     lostMode: mergeLostMode(
       petName,
       generalArea,
       payload.lostMode
     ),
-    owner: mergeOwner(getDefaultOwner(petName), payload.owner),
+    owner: mergeOwner(getDefaultOwner(), payload.owner),
     contactOverride: payload.contactOverride ?? { useOwnerDefaults: true },
     visibility: mergeVisibility(
       payload.visibility,

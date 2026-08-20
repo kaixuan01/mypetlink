@@ -123,7 +123,8 @@ describe("Sharing & Safety layout", () => {
   });
 
   it("shows the general area as one line of metadata, not a highlighted block", async () => {
-    const pet = activePet();
+    const pet = activePet({ contactOverride: { useOwnerDefaults: false } });
+    mocks.getPetById.mockResolvedValue({ data: pet });
     renderOverview(pet);
     await screen.findByText("Sharing & Safety");
 

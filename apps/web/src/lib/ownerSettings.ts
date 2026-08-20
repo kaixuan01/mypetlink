@@ -63,16 +63,19 @@ export const defaultOwnerSettings: OwnerSettings = {
   phoneNumber: "",
   defaultGeneralArea: "",
   privacyDefaults: {
-    showOwnerName: true,
+    // Mirrors PetDtoMapper.DefaultVisibility on the API. API responses remain
+    // authoritative in configured deployments; this is only the neutral
+    // local-preview/SSR baseline.
+    showOwnerName: false,
     showGeneralArea: true,
-    showPhone: true,
+    showPhone: false,
     showWhatsapp: true,
     showEmergencyNote: true,
     showCareBadges: true,
     showMoments: true,
     showTimeline: true,
-    showBirthdayOnTimeline: true,
-    showAdoptionDayOnTimeline: true,
+    showBirthdayOnTimeline: false,
+    showAdoptionDayOnTimeline: false,
     showHealthSummary: false,
     showAllergiesOnPublicProfile: false,
   },
@@ -263,7 +266,7 @@ export function getEffectivePetContact(
     whatsappNumber: normalizeStoredPhone(whatsappNumber),
     phoneNumber: normalizeStoredPhone(phoneNumber),
     generalArea:
-      generalArea.trim() || settings.defaultGeneralArea || "Malaysia",
+      generalArea.trim() || settings.defaultGeneralArea,
     useOwnerDefaults: usesDefaults,
   };
 }
