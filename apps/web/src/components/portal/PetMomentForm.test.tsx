@@ -64,7 +64,12 @@ describe("PetMomentForm route-backed create flow", () => {
       title: "First swim",
       date: "10 Jul 2026",
       type: "Funny Moment",
+      visibility: "Private",
+      showInLifeTimeline: false,
     });
+    expect(mocks.createPetMoment.mock.calls[0][1]).not.toHaveProperty(
+      "showOnPublicProfile"
+    );
     expect(mocks.trackEvent).toHaveBeenCalledWith("moment_created", {
       source: "owner_portal",
     });

@@ -59,10 +59,7 @@ export function getPublicProfileMoments(
     return [];
   }
 
-  return moments.filter(
-    (moment) =>
-      moment.visibility === "Public" && moment.showOnPublicProfile
-  );
+  return moments.filter((moment) => moment.visibility === "Public");
 }
 
 export function formatMediaDuration(durationSeconds?: number) {

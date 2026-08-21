@@ -49,8 +49,11 @@ public sealed class MemoryService : SkeletonService, IMemoryService
 
         if (!string.IsNullOrWhiteSpace(visibility))
         {
-            var parsedVisibility = ParseVisibility(visibility, "visibility");
-            query = query.Where(memory => memory.Visibility == parsedVisibility);
+            var parsedVisibility = MemoryVisibilityPolicy.Normalize(
+                ParseVisibility(visibility, "visibility"));
+            query = parsedVisibility == MemoryVisibility.Public
+                ? query.Where(memory => memory.Visibility == MemoryVisibility.Public)
+                : query.Where(memory => memory.Visibility != MemoryVisibility.Public);
         }
 
         var total = await query.CountAsync(cancellationToken);
@@ -81,7 +84,8 @@ public sealed class MemoryService : SkeletonService, IMemoryService
         ValidateCreateRequest(request);
         await EnsureCanCreateMemoryAsync(user, petId, cancellationToken);
 
-        var visibility = request.Visibility ?? MemoryVisibility.Private;
+        var visibility = MemoryVisibilityPolicy.Normalize(
+            request.Visibility ?? MemoryVisibility.Private);
         var memory = new PetMemory
         {
             PetId = pet.Id,
@@ -91,8 +95,10 @@ public sealed class MemoryService : SkeletonService, IMemoryService
             Type = NormalizeOptional(request.Type),
             Caption = NormalizeOptional(request.Caption),
             Visibility = visibility,
-            ShowOnPublicProfile = visibility == MemoryVisibility.Public && (request.ShowOnPublicProfile ?? false),
-            ShowInLifeTimeline = visibility == MemoryVisibility.Public && (request.ShowInLifeTimeline ?? false),
+            // Kept in storage for compatibility until a later schema cleanup.
+            // Visibility is the authority, so the redundant value is derived.
+            ShowOnPublicProfile = MemoryVisibilityPolicy.IsPublic(visibility),
+            ShowInLifeTimeline = request.ShowInLifeTimeline ?? false,
             TimelineNote = NormalizeOptional(request.TimelineNote)
         };
 
@@ -151,12 +157,7 @@ public sealed class MemoryService : SkeletonService, IMemoryService
 
         if (request.Visibility.HasValue)
         {
-            memory.Visibility = request.Visibility.Value;
-        }
-
-        if (request.ShowOnPublicProfile.HasValue)
-        {
-            memory.ShowOnPublicProfile = request.ShowOnPublicProfile.Value;
+            memory.Visibility = MemoryVisibilityPolicy.Normalize(request.Visibility.Value);
         }
 
         if (request.ShowInLifeTimeline.HasValue)
@@ -164,11 +165,10 @@ public sealed class MemoryService : SkeletonService, IMemoryService
             memory.ShowInLifeTimeline = request.ShowInLifeTimeline.Value;
         }
 
-        if (memory.Visibility != MemoryVisibility.Public)
-        {
-            memory.ShowOnPublicProfile = false;
-            memory.ShowInLifeTimeline = false;
-        }
+        // Normalize legacy rows whenever they are written and keep the
+        // compatibility column aligned without clamping Timeline placement.
+        memory.Visibility = MemoryVisibilityPolicy.Normalize(memory.Visibility);
+        memory.ShowOnPublicProfile = MemoryVisibilityPolicy.IsPublic(memory.Visibility);
 
         if (request.TimelineNote is not null)
         {
@@ -494,6 +494,8 @@ public sealed class MemoryService : SkeletonService, IMemoryService
 
     private static MemoryResponse ToResponse(PetMemory memory, IReadOnlyCollection<MemoryMediaResponse> media)
     {
+        var visibility = MemoryVisibilityPolicy.Normalize(memory.Visibility);
+
         return new MemoryResponse(
             memory.Id,
             memory.PetId,
@@ -501,8 +503,8 @@ public sealed class MemoryService : SkeletonService, IMemoryService
             memory.MomentDate,
             memory.Type,
             memory.Caption,
-            memory.Visibility,
-            memory.ShowOnPublicProfile,
+            visibility,
+            MemoryVisibilityPolicy.IsPublic(visibility),
             memory.ShowInLifeTimeline,
             memory.TimelineNote,
             media,

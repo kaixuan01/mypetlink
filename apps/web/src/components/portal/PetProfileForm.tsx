@@ -1424,23 +1424,25 @@ export function PetProfileForm({
               </div>
             ) : null}
 
-            <div className="rounded-[1.5rem] border border-pet-border bg-white p-5">
-              <ToggleRow
-                checked={form.publicProfileEnabled}
-                helper="When off, the shareable page is hidden. Your Safety Profile stays available for finders."
-                label="Public Profile enabled"
-                onChange={(value) => updateField("publicProfileEnabled", value)}
-              />
-              {!form.publicProfileEnabled ? (
-                <p
-                  className="mt-3 rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted"
-                  role="status"
-                >
-                  The Public Profile page is hidden from visitors. This does not
-                  affect the Safety Profile finders see.
-                </p>
-              ) : null}
-            </div>
+            {mode === "edit" ? (
+              <div className="rounded-[1.5rem] border border-pet-border bg-white p-5">
+                <ToggleRow
+                  checked={form.publicProfileEnabled}
+                  helper="When off, the shareable page is hidden. Your Safety Profile stays available for finders."
+                  label="Public Profile enabled"
+                  onChange={(value) => updateField("publicProfileEnabled", value)}
+                />
+                {!form.publicProfileEnabled ? (
+                  <p
+                    className="mt-3 rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted"
+                    role="status"
+                  >
+                    The Public Profile page is hidden from visitors. This does
+                    not affect the Safety Profile finders see.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
 
             {mode === "edit" ? (
               <PrivacyGroup title="What appears on the public profile">

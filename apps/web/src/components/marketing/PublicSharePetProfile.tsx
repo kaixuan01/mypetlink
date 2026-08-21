@@ -361,11 +361,11 @@ export function PublicSharePetProfile({
     { id: "about", label: "About" },
   ];
 
-  if (visibility.showMoments) {
+  if (visibility.showMoments && publicMoments.length > 0) {
     tabs.push({ id: "moments", label: "Moments" });
   }
 
-  if (visibility.showTimeline) {
+  if (visibility.showTimeline && timelineEvents.length > 0) {
     tabs.push({ id: "timeline", label: "Timeline" });
   }
 

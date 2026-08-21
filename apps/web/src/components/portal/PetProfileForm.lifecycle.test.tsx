@@ -185,6 +185,26 @@ describe("PetProfileForm lifecycle workflow", () => {
     expect(window.location.search).toBe("?tab=public");
   });
 
+  it("keeps the functional Public Profile enabled control in Edit mode", async () => {
+    render(<PetProfileForm initialPet={pet} mode="edit" />);
+    await openSharingPrivacy();
+
+    const accessToggle = screen.getByRole("switch", {
+      name: /Public Profile enabled/,
+    });
+    expect(accessToggle.getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(accessToggle);
+    clickSave();
+
+    await waitFor(() =>
+      expect(mocks.updatePet).toHaveBeenCalledWith(
+        pet.id,
+        expect.objectContaining({ publicProfileEnabled: false }),
+        { completeProfile: true }
+      )
+    );
+  });
+
   it("places shared-profile and contact visibility controls under their owners", async () => {
     render(<PetProfileForm initialPet={pet} mode="edit" />);
     await openSharingPrivacy();

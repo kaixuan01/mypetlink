@@ -11,6 +11,7 @@ import {
   isItemPubliclyShown,
   type PetTimelineItem,
 } from "@/lib/petTimeline";
+import { normalizeMomentVisibility } from "@/lib/momentVisibility";
 import { ownerRoutes } from "@/lib/routes";
 import {
   getFriendlyMomentErrorMessage,
@@ -23,12 +24,6 @@ type PetTimelineProps = {
   pet: Pet;
   initialMoments: PetMoment[];
 };
-
-const visibilityTone = {
-  Public: "mint",
-  Private: "soft",
-  "Family Only": "warm",
-} as const;
 
 export function PetTimeline({ pet: initialPet, initialMoments }: PetTimelineProps) {
   const [pet, setPet] = useState(initialPet);
@@ -162,6 +157,9 @@ export function PetTimeline({ pet: initialPet, initialMoments }: PetTimelineProp
 
 function TimelineRow({ item, pet }: { item: PetTimelineItem; pet: Pet }) {
   const publiclyShown = isItemPubliclyShown(item, pet);
+  const audience = item.visibility
+    ? normalizeMomentVisibility(item.visibility)
+    : null;
   const editHref =
     item.source === "moment"
       ? ownerRoutes.petMoments(pet.id)
@@ -180,9 +178,9 @@ function TimelineRow({ item, pet }: { item: PetTimelineItem; pet: Pet }) {
             ) : (
               <Badge tone="soft">{item.typeLabel}</Badge>
             )}
-            {item.visibility ? (
-              <Badge tone={visibilityTone[item.visibility]}>
-                {item.visibility}
+            {audience ? (
+              <Badge tone={audience === "Public" ? "mint" : "soft"}>
+                {audience === "Public" ? "Shared" : "Only me"}
               </Badge>
             ) : null}
             <Badge tone={publiclyShown ? "mint" : "soft"}>

@@ -16,7 +16,7 @@ export const mockMoments: PetMoment[] = [
     ],
     coverMediaId: "media_001a",
     visibility: "Public",
-    showOnPublicProfile: false,
+    showOnPublicProfile: true,
     showInLifeTimeline: true,
     timelineNote: "The day Milo joined the family.",
   },

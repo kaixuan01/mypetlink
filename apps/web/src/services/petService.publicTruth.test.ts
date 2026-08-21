@@ -61,6 +61,7 @@ describe("public profile truth mapping", () => {
     );
 
     expect(mapped.birthday).toBe("15 Sept 2021");
+    expect(mapped.visibility.showMoments).toBe(false);
     expect(mapped.visibility.showTimeline).toBe(false);
     expect(mapped.visibility.showBirthdayOnTimeline).toBe(false);
     expect(mapped.visibility.showAdoptionDayOnTimeline).toBe(false);
@@ -83,6 +84,40 @@ describe("public profile truth mapping", () => {
     expect(birthdayHidden.visibility.showTimeline).toBe(true);
     expect(birthdayHidden.visibility.showBirthdayOnTimeline).toBe(false);
     expect(birthdayShown.visibility.showBirthdayOnTimeline).toBe(true);
+  });
+
+  it("uses the explicit gallery switch instead of Moment compatibility flags", () => {
+    const compatibilityTrueButGalleryOff = mapBackendPublicProfile(
+      publicProfile({
+        showMoments: false,
+        memories: [
+          {
+            title: "Timeline-only public Moment",
+            visibility: "Public",
+            showOnPublicProfile: true,
+            showInLifeTimeline: true,
+            media: [],
+          },
+        ],
+      })
+    );
+    const compatibilityFalseButGalleryOn = mapBackendPublicProfile(
+      publicProfile({
+        showMoments: true,
+        memories: [
+          {
+            title: "Gallery public Moment",
+            visibility: "Public",
+            showOnPublicProfile: false,
+            showInLifeTimeline: false,
+            media: [],
+          },
+        ],
+      })
+    );
+
+    expect(compatibilityTrueButGalleryOff.visibility.showMoments).toBe(false);
+    expect(compatibilityFalseButGalleryOn.visibility.showMoments).toBe(true);
   });
 
   it("keeps missing public values empty instead of inventing profile content", () => {

@@ -1,6 +1,7 @@
 import { MomentMediaCarousel } from "@/components/moments/MomentMediaCarousel";
 import { Badge } from "@/components/ui/Badge";
 import { mediaCountLabel } from "@/lib/momentMedia";
+import { normalizeMomentVisibility } from "@/lib/momentVisibility";
 import type { PetProfileTheme } from "@/lib/petProfileThemes";
 import type { PetMoment } from "@/types";
 
@@ -11,8 +12,6 @@ type PetMomentCardProps = {
   publicView?: boolean;
   theme?: PetProfileTheme;
 };
-
-const visibilityTone = { Public: "mint", Private: "soft", "Family Only": "teal" } as const;
 
 export function PetMomentCard({
   moment,
@@ -25,6 +24,7 @@ export function PetMomentCard({
     ? { background: theme.colors.surface, borderColor: theme.colors.border, color: theme.colors.text }
     : undefined;
   const countLabel = mediaCountLabel(moment.media);
+  const audience = normalizeMomentVisibility(moment.visibility);
 
   return (
     <article className="brand-card flex h-full flex-col overflow-hidden rounded-[1.75rem] p-0" style={themedStyle}>
@@ -45,9 +45,12 @@ export function PetMomentCard({
           </div>
           {publicView ? null : (
             <div className="flex flex-wrap justify-end gap-2">
-              <Badge tone={visibilityTone[moment.visibility]}>{moment.visibility}</Badge>
-              {moment.showOnPublicProfile ? <Badge tone="mint">Public Profile</Badge> : null}
-              {moment.showInLifeTimeline ? <Badge tone="teal">Life Timeline</Badge> : null}
+              <Badge tone={audience === "Public" ? "mint" : "soft"}>
+                {audience === "Public" ? "Shared" : "Only me"}
+              </Badge>
+              {moment.showInLifeTimeline ? (
+                <Badge tone="teal">In Life Timeline</Badge>
+              ) : null}
             </div>
           )}
         </div>

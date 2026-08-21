@@ -116,6 +116,9 @@ describe("PetProfileForm creation activation", () => {
     expect(
       screen.queryByRole("checkbox", { name: "Show owner name" })
     ).toBeNull();
+    expect(
+      screen.queryByRole("switch", { name: /Public Profile enabled/ })
+    ).toBeNull();
 
     fireEvent.click(screen.getByRole("tab", { name: /Contact & Safety/ }));
     expect(screen.queryByText("What finders can see")).toBeNull();

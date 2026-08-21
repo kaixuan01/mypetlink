@@ -207,6 +207,7 @@ export type BackendPublicPetProfile = {
   lostExtraContactInstruction?: string | null;
   ownerDisplayName?: string | null;
   generalArea?: string | null;
+  showMoments?: boolean | null;
   showTimeline?: boolean | null;
   showBirthdayOnTimeline?: boolean | null;
   bio?: string | null;
@@ -262,6 +263,7 @@ export type BackendPublicMemory = {
   momentDate?: string | null;
   type?: MomentType | string | null;
   caption?: string | null;
+  visibility?: BackendMemoryVisibility | null;
   showOnPublicProfile: boolean;
   showInLifeTimeline: boolean;
   timelineNote?: string | null;

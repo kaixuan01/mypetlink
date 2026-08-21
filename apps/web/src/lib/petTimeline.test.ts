@@ -36,6 +36,23 @@ describe("petTimeline Adoption Day ownership", () => {
     });
   });
 
+  it("keeps First Day Home in the adoption Moment group", () => {
+    const firstDayHome: PetMoment = {
+      ...adoptionMoment,
+      id: "moment-first-day-home",
+      title: "First day home",
+      type: "First Day Home",
+    };
+
+    expect(buildPetTimeline(mockPets[0], [firstDayHome])).toContainEqual(
+      expect.objectContaining({
+        id: `moment-${firstDayHome.id}`,
+        group: "adoption",
+        source: "moment",
+      })
+    );
+  });
+
   it("only exposes Adoption Day publicly through a public timeline Moment", () => {
     const privateMoment = {
       ...adoptionMoment,
@@ -58,5 +75,65 @@ describe("petTimeline Adoption Day ownership", () => {
         (item) => item.group === "adoption"
       )
     ).toHaveLength(1);
+  });
+});
+
+describe("public Moment timeline eligibility", () => {
+  const publicTimelineMoment: PetMoment = {
+    ...adoptionMoment,
+    id: "public-timeline",
+    type: "Memory",
+    title: "Public timeline Moment",
+    showOnPublicProfile: false,
+  };
+
+  it("uses Public visibility and Timeline placement without the gallery flag", () => {
+    const moments: PetMoment[] = [
+      publicTimelineMoment,
+      {
+        ...publicTimelineMoment,
+        id: "public-timeline-off",
+        title: "Public timeline off",
+        showInLifeTimeline: false,
+      },
+      {
+        ...publicTimelineMoment,
+        id: "private-timeline",
+        title: "Private timeline",
+        visibility: "Private",
+        showOnPublicProfile: true,
+      },
+      {
+        ...publicTimelineMoment,
+        id: "family-timeline",
+        title: "Family timeline",
+        visibility: "Family Only",
+        showOnPublicProfile: true,
+      },
+    ];
+    const timelinePet = {
+      ...mockPets[0],
+      birthday: "",
+      estimatedBirthYear: undefined,
+      visibility: {
+        ...mockPets[0].visibility,
+        showMoments: false,
+        showTimeline: true,
+        showBirthdayOnTimeline: false,
+      },
+    };
+
+    expect(getPublicTimeline(timelinePet, moments).map((item) => item.title)).toEqual([
+      "Public timeline Moment",
+    ]);
+    expect(
+      getPublicTimeline(
+        {
+          ...timelinePet,
+          visibility: { ...timelinePet.visibility, showTimeline: false },
+        },
+        moments
+      )
+    ).toEqual([]);
   });
 });

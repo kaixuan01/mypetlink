@@ -68,13 +68,17 @@ public sealed class PublicProfileService : SkeletonService, IPublicProfileServic
             throw NotFound();
         }
 
-        var publicMemories = profile.ShowMoments
+        // Gallery and Timeline are independent pet-level surfaces. Public is
+        // the only audience allowed through this boundary; FamilyOnly remains
+        // compatibility-private even before the data migration is applied.
+        var publicMemories = profile.ShowMoments || profile.ShowTimeline
             ? pet.Memories
                 .Where(memory =>
                     memory.DeletedAt == null
                     && memory.ArchivedAt == null
                     && memory.Visibility == MemoryVisibility.Public
-                    && (memory.ShowOnPublicProfile || memory.ShowInLifeTimeline))
+                    && (profile.ShowMoments
+                        || (profile.ShowTimeline && memory.ShowInLifeTimeline)))
                 .OrderByDescending(memory => memory.MomentDate)
                 .ThenByDescending(memory => memory.CreatedAt)
                 .ToArray()
@@ -88,7 +92,10 @@ public sealed class PublicProfileService : SkeletonService, IPublicProfileServic
                     memory.MomentDate,
                     memory.Type,
                     memory.Caption,
-                    memory.ShowOnPublicProfile,
+                    memory.Visibility,
+                    // This response field remains temporarily for existing
+                    // clients, but now represents effective gallery placement.
+                    profile.ShowMoments,
                     memory.ShowInLifeTimeline,
                     memory.TimelineNote,
                     memoryMedia.TryGetValue(memory.Id, out var media) ? media : Array.Empty<MemoryMediaResponse>()))
@@ -172,6 +179,7 @@ public sealed class PublicProfileService : SkeletonService, IPublicProfileServic
                 : null,
             profile.ShowOwnerName ? PetDtoMapper.ResolveOwnerDisplayName(pet) : null,
             profile.ShowGeneralArea ? PetDtoMapper.ResolveGeneralArea(pet) : null,
+            profile.ShowMoments,
             profile.ShowTimeline,
             profile.ShowBirthdayOnTimeline,
             profilePhotoUrl,

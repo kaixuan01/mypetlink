@@ -15,6 +15,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { getMemoryLimitState } from "@/lib/planLimits";
 import { isArchivedPet } from "@/lib/petLifecycle";
+import { normalizeMomentVisibility } from "@/lib/momentVisibility";
 import { ownerRoutes } from "@/lib/routes";
 import { isApiConfigured } from "@/services/apiConfig";
 import {
@@ -79,17 +80,13 @@ export function PetMomentsManager({
   const canCreateMemory = memoryLimit.canCreate && !archivedPet;
   const counts = useMemo(
     () => ({
-      publicProfile: moments.filter(
-        (moment) =>
-          moment.visibility === "Public" && moment.showOnPublicProfile
+      shared: moments.filter(
+        (moment) => normalizeMomentVisibility(moment.visibility) === "Public"
       ).length,
-      private: moments.filter((moment) => moment.visibility === "Private").length,
-      family: moments.filter((moment) => moment.visibility === "Family Only")
-        .length,
-      timeline: moments.filter(
-        (moment) =>
-          moment.visibility === "Public" && moment.showInLifeTimeline
+      onlyMe: moments.filter(
+        (moment) => normalizeMomentVisibility(moment.visibility) === "Private"
       ).length,
+      timeline: moments.filter((moment) => moment.showInLifeTimeline).length,
     }),
     [moments]
   );
@@ -283,10 +280,10 @@ export function PetMomentsManager({
         </div>
         <div className="brand-card rounded-[1.5rem] p-5">
           <p className="text-sm font-bold text-pet-muted">
-            Public memories
+            Shared moments
           </p>
           <p className="mt-2 text-3xl font-black text-pet-ink">
-            {counts.publicProfile}
+            {counts.shared}
           </p>
         </div>
         <div className="brand-card rounded-[1.5rem] p-5">
@@ -296,9 +293,9 @@ export function PetMomentsManager({
           </p>
         </div>
         <div className="brand-card rounded-[1.5rem] p-5">
-          <p className="text-sm font-bold text-pet-muted">Private memories</p>
+          <p className="text-sm font-bold text-pet-muted">Only me</p>
           <p className="mt-2 text-3xl font-black text-pet-ink">
-            {counts.private + counts.family}
+            {counts.onlyMe}
           </p>
         </div>
       </section>
@@ -310,8 +307,8 @@ export function PetMomentsManager({
               Moments and Life Timeline
             </h2>
             <p className="mt-1 text-sm leading-6 text-pet-muted">
-              Pet Memories are the public gallery. Life Timeline is built from
-              public moments you mark as milestones.
+              Keep every Moment in one chronological gallery. Audience and Life
+              Timeline placement stay separate.
             </p>
             {archivedPet ? (
               <p className="mt-3 rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted">

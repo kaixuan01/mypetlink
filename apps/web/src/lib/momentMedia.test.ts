@@ -107,15 +107,17 @@ describe("moment media presentation helpers", () => {
     expect(formatMediaDuration(Number.NaN)).toBeNull();
   });
 
-  it("excludes private and unshared moments from the public profile", () => {
+  it("uses Public visibility and the pet section switch as gallery authority", () => {
     const moments = [
       makeMoment("public", "Public", true),
       makeMoment("private", "Private", true),
-      makeMoment("not-shared", "Public", false),
+      makeMoment("public-compatibility-false", "Public", false),
+      makeMoment("family", "Family Only", true),
     ];
 
     expect(getPublicProfileMoments(moments).map((moment) => moment.id)).toEqual([
       "public",
+      "public-compatibility-false",
     ]);
     expect(getPublicProfileMoments(moments, false)).toEqual([]);
   });

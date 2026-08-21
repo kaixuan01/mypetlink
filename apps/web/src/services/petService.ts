@@ -728,7 +728,7 @@ export function mapBackendPublicProfile(
         showOwnerName: Boolean(profile.ownerDisplayName),
         showGeneralArea: Boolean(profile.generalArea),
         showCareBadges: profile.careRecords.length > 0,
-        showMoments: profile.memories.some((memory) => memory.showOnPublicProfile),
+        showMoments: profile.showMoments === true,
         showTimeline: profile.showTimeline === true,
         showBirthdayOnTimeline: profile.showBirthdayOnTimeline === true,
         showAdoptionDayOnTimeline: false,

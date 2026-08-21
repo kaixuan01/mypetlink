@@ -35,10 +35,23 @@ const momentCategories: MomentType[] = [
   "Other",
 ];
 
-const visibilityOptions: MomentVisibility[] = [
-  "Public",
-  "Private",
-  "Family Only",
+type OwnerMomentVisibility = Exclude<MomentVisibility, "Family Only">;
+
+const audienceOptions: Array<{
+  value: OwnerMomentVisibility;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: "Private",
+    label: "Only me",
+    description: "Keep this Moment private to your owner account.",
+  },
+  {
+    value: "Public",
+    label: "Anyone with the link",
+    description: "Allow this Moment to appear on your pet's shared profile.",
+  },
 ];
 
 type MomentEditorValues = {
@@ -48,8 +61,7 @@ type MomentEditorValues = {
   caption: string;
   media: MomentMedia[];
   coverMediaId?: string;
-  visibility: MomentVisibility;
-  showOnPublicProfile: boolean;
+  visibility: OwnerMomentVisibility;
   showInLifeTimeline: boolean;
   timelineNote: string;
 };
@@ -74,8 +86,7 @@ const emptyValues: MomentEditorValues = {
   caption: "",
   media: [],
   coverMediaId: undefined,
-  visibility: "Public",
-  showOnPublicProfile: true,
+  visibility: "Private",
   showInLifeTimeline: false,
   timelineNote: "",
 };
@@ -160,7 +171,6 @@ export function MomentEditorDialog({
       media: form.media,
       coverMediaId: form.coverMediaId,
       visibility: form.visibility,
-      showOnPublicProfile: form.showOnPublicProfile,
       showInLifeTimeline: form.showInLifeTimeline,
       timelineNote: form.timelineNote.trim(),
     });
@@ -248,18 +258,45 @@ export function MomentEditorDialog({
                     ))}
                   </select>
                 </Field>
-                <Field label="Visibility">
-                  <select
-                    className="brand-input brand-select"
-                    onChange={(event) => updateField("visibility", event.target.value as MomentVisibility)}
-                    value={form.visibility}
-                  >
-                    {visibilityOptions.map((visibility) => (
-                      <option key={visibility} value={visibility}>{visibility}</option>
-                    ))}
-                  </select>
-                </Field>
               </div>
+
+              <fieldset className="grid gap-3">
+                <legend className="text-sm font-bold text-pet-ink">
+                  Who can see this Moment?
+                </legend>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {audienceOptions.map((option) => {
+                    const descriptionId = `moment-editor-${mode}-audience-${option.value.toLowerCase()}-description`;
+
+                    return (
+                      <label
+                        className="flex cursor-pointer items-start gap-3 rounded-[1.25rem] border border-pet-border bg-white p-4 text-sm text-pet-ink transition has-[:checked]:border-pet-teal has-[:checked]:bg-[#e8f8f0]"
+                        key={option.value}
+                      >
+                        <input
+                          aria-describedby={descriptionId}
+                          aria-label={option.label}
+                          checked={form.visibility === option.value}
+                          className="mt-1 h-4 w-4 shrink-0 accent-pet-teal"
+                          name={`moment-editor-${mode}-audience`}
+                          onChange={() => updateField("visibility", option.value)}
+                          type="radio"
+                          value={option.value}
+                        />
+                        <span>
+                          <span className="block font-bold">{option.label}</span>
+                          <span
+                            className="mt-1 block text-xs font-semibold leading-5 text-pet-muted"
+                            id={descriptionId}
+                          >
+                            {option.description}
+                          </span>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </fieldset>
 
               <Field label="Caption">
                 <textarea
@@ -278,16 +315,10 @@ export function MomentEditorDialog({
                 }}
               />
 
-              <div className="grid gap-3 md:grid-cols-2">
-                <MomentCheckbox
-                  checked={form.showOnPublicProfile}
-                  description="Public memories appear in the Pet Memories gallery."
-                  label="Show on Public Profile"
-                  onChange={(value) => updateField("showOnPublicProfile", value)}
-                />
+              <div className="grid gap-3">
                 <MomentCheckbox
                   checked={form.showInLifeTimeline}
-                  description="Timeline moments appear in your pet's Life Timeline when visibility allows."
+                  description="Include this Moment in your pet's Life Timeline. Private Moments stay private."
                   label="Show in Life Timeline"
                   onChange={(value) => updateField("showInLifeTimeline", value)}
                 />
@@ -376,11 +407,16 @@ function valuesFromMoment(moment: PetMoment): MomentEditorValues {
     caption: moment.caption,
     media: moment.media ?? [],
     coverMediaId: moment.coverMediaId,
-    visibility: moment.visibility,
-    showOnPublicProfile: moment.showOnPublicProfile,
+    visibility: normalizeOwnerVisibility(moment.visibility),
     showInLifeTimeline: moment.showInLifeTimeline,
     timelineNote: moment.timelineNote ?? "",
   };
+}
+
+function normalizeOwnerVisibility(
+  visibility: MomentVisibility
+): OwnerMomentVisibility {
+  return visibility === "Public" ? "Public" : "Private";
 }
 
 function valuesFingerprint(values: MomentEditorValues) {

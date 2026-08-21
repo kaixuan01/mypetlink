@@ -3,7 +3,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockPets } from "@/data/mockPets";
-import type { Pet } from "@/types";
+import type { Pet, PetMoment } from "@/types";
 
 const mocks = vi.hoisted(() => ({
   getPetById: vi.fn(),
@@ -52,4 +52,38 @@ describe("PetTimeline owner guidance", () => {
       screen.queryByText(/Add a birthday or adoption day in Edit Pet Details/i)
     ).toBeNull();
   });
+
+  it("presents Public as Shared and Private or legacy FamilyOnly as Only me", async () => {
+    const moments: PetMoment[] = [
+      timelineMoment("public", "Public"),
+      timelineMoment("private", "Private"),
+      timelineMoment("legacy-family", "Family Only"),
+    ];
+    mocks.getPetMoments.mockResolvedValue({ data: moments });
+
+    render(<PetTimeline initialMoments={moments} pet={pet} />);
+
+    expect(await screen.findByText("public")).toBeTruthy();
+    expect(screen.getAllByText("Shared")).toHaveLength(1);
+    expect(screen.getAllByText("Only me")).toHaveLength(2);
+    expect(screen.queryByText("Family Only")).toBeNull();
+  });
 });
+
+function timelineMoment(
+  title: string,
+  visibility: PetMoment["visibility"]
+): PetMoment {
+  return {
+    id: title,
+    petId: mockPets[0].id,
+    title,
+    date: "21 Aug 2026",
+    type: title === "public" ? "First Day Home" : "Memory",
+    caption: "",
+    media: [],
+    visibility,
+    showOnPublicProfile: visibility !== "Private",
+    showInLifeTimeline: true,
+  };
+}

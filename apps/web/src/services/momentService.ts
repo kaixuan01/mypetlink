@@ -4,6 +4,7 @@ import {
   mediaIdsInSortOrder,
   sortedMedia,
 } from "@/lib/momentMedia";
+import { normalizeMomentVisibility } from "@/lib/momentVisibility";
 import {
   mockDelay,
   mockResponse,
@@ -62,7 +63,8 @@ function normalizeMediaItems(media: MomentMedia[]): MomentMedia[] {
 
 function normalizeMoment(moment: PetMoment): PetMoment {
   const legacyMoment = moment as LegacyPetMoment;
-  const isPublic = moment.visibility === "Public";
+  const visibility = normalizeMomentVisibility(moment.visibility);
+  const isPublic = visibility === "Public";
 
   const media = Array.isArray(legacyMoment.media)
     ? normalizeMediaItems(legacyMoment.media)
@@ -82,10 +84,11 @@ function normalizeMoment(moment: PetMoment): PetMoment {
 
   return {
     ...moment,
+    visibility,
     media,
     coverMediaId: legacyMoment.coverMediaId ?? media[0]?.id,
     timelineNote: legacyMoment.timelineNote ?? "",
-    showOnPublicProfile: legacyMoment.showOnPublicProfile ?? isPublic,
+    showOnPublicProfile: isPublic,
     showInLifeTimeline:
       legacyMoment.showInLifeTimeline ?? legacyMoment.showOnTimeline ?? false,
   };
@@ -118,9 +121,9 @@ export async function getPublicPetMoments(petId: string) {
         `/api/v1/public/pets/${encodeURIComponent(petId)}`,
         { auth: false }
       );
-      const moments = (response.data?.memories ?? []).map((moment, index) =>
-        mapBackendPublicMoment(moment, petId, index)
-      );
+      // Public profile responses carry an explicit audience so a missing or
+      // compatibility-only placement flag can never widen visibility.
+      const moments = mapBackendPublicMoments(response.data?.memories, petId);
 
       return apiResponse(moments, response.meta);
     } catch (error) {
@@ -134,10 +137,7 @@ export async function getPublicPetMoments(petId: string) {
 
   await mockDelay();
   const moments = getMomentCollection().filter(
-    (moment) =>
-      moment.petId === petId &&
-      moment.visibility === "Public" &&
-      (moment.showOnPublicProfile || moment.showInLifeTimeline)
+    (moment) => moment.petId === petId && moment.visibility === "Public"
   );
 
   return mockResponse(moments, {
@@ -188,6 +188,7 @@ export async function createPetMoment(
   await mockDelay();
   const moments = getMomentCollection();
   const media = normalizeMediaItems(payload.media ?? []);
+  const visibility = normalizeMomentVisibility(payload.visibility ?? "Private");
   const moment: PetMoment = {
     id: `moment_${Date.now()}`,
     petId,
@@ -197,9 +198,8 @@ export async function createPetMoment(
     caption: payload.caption?.trim() || "",
     media,
     coverMediaId: payload.coverMediaId ?? media[0]?.id,
-    visibility: payload.visibility ?? "Private",
-    showOnPublicProfile:
-      payload.showOnPublicProfile ?? payload.visibility === "Public",
+    visibility,
+    showOnPublicProfile: visibility === "Public",
     showInLifeTimeline: payload.showInLifeTimeline ?? false,
     timelineNote: payload.timelineNote ?? "",
   };
@@ -251,12 +251,12 @@ export async function updatePetMoment(
     ? normalizeMediaItems(payload.media)
     : existingMoment?.media ?? [];
   const updatedMoment = existingMoment
-    ? {
+    ? normalizeMoment({
         ...existingMoment,
         ...payload,
         media: nextMedia,
         coverMediaId: payload.coverMediaId ?? nextMedia[0]?.id,
-      }
+      })
     : null;
 
   if (updatedMoment) {
@@ -333,7 +333,7 @@ function apiResponse<T>(
 }
 
 export function buildBackendMomentPayload(payload: PetMomentPayload) {
-  const visibility = payload.visibility ?? "Private";
+  const visibility = normalizeMomentVisibility(payload.visibility ?? "Private");
   const isPublic = visibility === "Public";
 
   return {
@@ -342,8 +342,9 @@ export function buildBackendMomentPayload(payload: PetMomentPayload) {
     type: payload.type,
     caption: payload.caption,
     visibility: toBackendVisibility(visibility),
-    showOnPublicProfile: isPublic && Boolean(payload.showOnPublicProfile),
-    showInLifeTimeline: isPublic && Boolean(payload.showInLifeTimeline),
+    // Compatibility field only. Visibility is now the audience authority.
+    showOnPublicProfile: isPublic,
+    showInLifeTimeline: Boolean(payload.showInLifeTimeline),
     timelineNote: payload.timelineNote,
     mediaFileIds: mediaIdsInSortOrder(payload.media),
   };
@@ -389,6 +390,15 @@ function mapBackendPublicMoment(
   };
 }
 
+export function mapBackendPublicMoments(
+  moments: BackendPublicMemory[] | null | undefined,
+  petId: string
+): PetMoment[] {
+  return (moments ?? [])
+    .filter((moment) => moment.visibility === "Public")
+    .map((moment, index) => mapBackendPublicMoment(moment, petId, index));
+}
+
 function mapBackendMedia(media: BackendMemoryMedia): MomentMedia {
   return {
     id: media.id,
@@ -405,13 +415,13 @@ function mapBackendMedia(media: BackendMemoryMedia): MomentMedia {
 function toBackendVisibility(
   visibility: MomentVisibility
 ): BackendMemoryVisibility {
-  return visibility === "Family Only" ? "FamilyOnly" : visibility;
+  return normalizeMomentVisibility(visibility);
 }
 
 function fromBackendVisibility(
   visibility: BackendMemoryVisibility
 ): MomentVisibility {
-  return visibility === "FamilyOnly" ? "Family Only" : visibility;
+  return visibility === "Public" ? "Public" : "Private";
 }
 
 function fromBackendMomentType(type?: string | null): MomentType {

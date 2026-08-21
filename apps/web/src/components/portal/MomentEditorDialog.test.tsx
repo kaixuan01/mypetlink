@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PetMoment } from "@/types";
 
@@ -51,19 +51,22 @@ describe("MomentEditorDialog", () => {
       expect(
         screen.getByRole("option", { name: "Adoption Day" })
       ).toBeTruthy();
-      expect(screen.getByLabelText("Visibility")).toBeTruthy();
+      const audience = screen.getByRole("group", {
+        name: "Who can see this Moment?",
+      });
+      expect(within(audience).getAllByRole("radio")).toHaveLength(2);
+      expect(within(audience).getByLabelText("Only me")).toBeTruthy();
+      expect(within(audience).getByLabelText("Anyone with the link")).toBeTruthy();
       expect(screen.getByLabelText("Caption")).toBeTruthy();
       expect(screen.getByTestId("shared-moment-media")).toBeTruthy();
-      expect(screen.getByLabelText("Show on Public Profile")).toBeTruthy();
       expect(screen.getByLabelText("Show in Life Timeline")).toBeTruthy();
       expect(
-        screen.getByText("Public memories appear in the Pet Memories gallery.")
-      ).toBeTruthy();
-      expect(
         screen.getByText(
-          "Timeline moments appear in your pet's Life Timeline when visibility allows."
+          "Include this Moment in your pet's Life Timeline. Private Moments stay private."
         )
       ).toBeTruthy();
+      expect(screen.queryByText("Family Only")).toBeNull();
+      expect(screen.queryByText("Show on Public Profile")).toBeNull();
       expect(screen.queryByText(/Preview: this moment/i)).toBeNull();
       expect(
         screen.queryByText(/Private and family-only memories stay inside/i)
@@ -87,14 +90,12 @@ describe("MomentEditorDialog", () => {
     expect((screen.getByLabelText("Title") as HTMLInputElement).value).toBe("Beach day");
     expect((screen.getByLabelText("Date") as HTMLInputElement).value).toBe("2026-07-12");
     expect(
-      (screen.getByLabelText("Show on Public Profile") as HTMLInputElement)
-        .checked
+      (screen.getByLabelText("Anyone with the link") as HTMLInputElement).checked
     ).toBe(true);
     expect(
       (screen.getByLabelText("Show in Life Timeline") as HTMLInputElement)
         .checked
     ).toBe(false);
-    fireEvent.click(screen.getByLabelText("Show on Public Profile"));
     fireEvent.click(screen.getByLabelText("Show in Life Timeline"));
     fireEvent.change(screen.getByLabelText("Caption"), {
       target: { value: "Updated caption" },
@@ -108,9 +109,137 @@ describe("MomentEditorDialog", () => {
       type: "Outdoor / Trip",
       caption: "Updated caption",
       visibility: "Public",
-      showOnPublicProfile: false,
       showInLifeTimeline: true,
     });
+    expect(onSubmit.mock.calls[0][0]).not.toHaveProperty("showOnPublicProfile");
+  });
+
+  it.each([
+    { visibility: "Private" as const, timeline: false },
+    { visibility: "Private" as const, timeline: true },
+    { visibility: "Public" as const, timeline: false },
+    { visibility: "Public" as const, timeline: true },
+  ])(
+    "creates $visibility with Timeline $timeline",
+    async ({ visibility, timeline }) => {
+      const onSubmit = vi.fn();
+      render(
+        <MomentEditorDialog
+          mode="create"
+          onRequestClose={vi.fn()}
+          onSubmit={onSubmit}
+          petName="Topu"
+          submitting={false}
+        />
+      );
+
+      fireEvent.change(screen.getByLabelText("Title"), {
+        target: { value: "First swim" },
+      });
+      fireEvent.change(screen.getByLabelText("Date"), {
+        target: { value: "2026-07-10" },
+      });
+      fireEvent.change(screen.getByLabelText("Moment category"), {
+        target: { value: "Funny Moment" },
+      });
+      if (visibility === "Public") {
+        fireEvent.click(screen.getByLabelText("Anyone with the link"));
+      }
+      if (timeline) {
+        fireEvent.click(screen.getByLabelText("Show in Life Timeline"));
+      }
+      fireEvent.click(screen.getByRole("button", { name: "Add Moment" }));
+
+      await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce());
+      expect(onSubmit.mock.calls[0][0]).toMatchObject({
+        visibility,
+        showInLifeTimeline: timeline,
+      });
+      expect(onSubmit.mock.calls[0][0]).not.toHaveProperty("showOnPublicProfile");
+    }
+  );
+
+  it.each([
+    { source: "Private" as const, selected: "Only me" },
+    { source: "Public" as const, selected: "Anyone with the link" },
+    { source: "Family Only" as const, selected: "Only me" },
+  ])("hydrates $source as an effective owner audience", ({ source, selected }) => {
+    render(
+      <MomentEditorDialog
+        initialMoment={{ ...existingMoment, visibility: source }}
+        mode="edit"
+        onRequestClose={vi.fn()}
+        onSubmit={vi.fn()}
+        petName="Topu"
+        submitting={false}
+      />
+    );
+
+    expect((screen.getByLabelText(selected) as HTMLInputElement).checked).toBe(true);
+    expect(screen.queryByText("Family Only")).toBeNull();
+  });
+
+  it.each([
+    { from: "Public" as const, toLabel: "Only me", expected: "Private" },
+    {
+      from: "Private" as const,
+      toLabel: "Anyone with the link",
+      expected: "Public",
+    },
+  ])(
+    "preserves Timeline ON when changing $from audience",
+    async ({ from, toLabel, expected }) => {
+      const onSubmit = vi.fn();
+      render(
+        <MomentEditorDialog
+          initialMoment={{
+            ...existingMoment,
+            visibility: from,
+            showInLifeTimeline: true,
+          }}
+          mode="edit"
+          onRequestClose={vi.fn()}
+          onSubmit={onSubmit}
+          petName="Topu"
+          submitting={false}
+        />
+      );
+
+      fireEvent.click(screen.getByLabelText(toLabel));
+      expect(
+        (screen.getByLabelText("Show in Life Timeline") as HTMLInputElement)
+          .checked
+      ).toBe(true);
+      fireEvent.click(screen.getByRole("button", { name: "Save Changes" }));
+
+      await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce());
+      expect(onSubmit.mock.calls[0][0]).toMatchObject({
+        visibility: expected,
+        showInLifeTimeline: true,
+      });
+    }
+  );
+
+  it("saves legacy Family Only as Private without exposing compatibility state", async () => {
+    const onSubmit = vi.fn();
+    render(
+      <MomentEditorDialog
+        initialMoment={{ ...existingMoment, visibility: "Family Only" }}
+        mode="edit"
+        onRequestClose={vi.fn()}
+        onSubmit={onSubmit}
+        petName="Topu"
+        submitting={false}
+      />
+    );
+
+    expect(
+      (screen.getByLabelText("Only me") as HTMLInputElement).checked
+    ).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Save Changes" }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce());
+    expect(onSubmit.mock.calls[0][0].visibility).toBe("Private");
   });
 
   it("round-trips a September Moment date without clearing or changing it", async () => {

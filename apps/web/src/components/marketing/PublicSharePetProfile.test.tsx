@@ -85,6 +85,111 @@ afterEach(() => {
 
 const createCtaName = "Create a profile for your pet";
 
+const projectionMoments: PetMoment[] = [
+  {
+    id: "public-timeline",
+    petId: mockPets[0].id,
+    title: "Public timeline Moment",
+    date: "11 Jul 2026",
+    type: "Memory",
+    caption: "Eligible for both surfaces.",
+    media: [],
+    visibility: "Public",
+    showOnPublicProfile: false,
+    showInLifeTimeline: true,
+  },
+  {
+    id: "public-gallery",
+    petId: mockPets[0].id,
+    title: "Public gallery-only Moment",
+    date: "12 Jul 2026",
+    type: "Memory",
+    caption: "Eligible only for the gallery.",
+    media: [],
+    visibility: "Public",
+    showOnPublicProfile: false,
+    showInLifeTimeline: false,
+  },
+  {
+    id: "private-timeline",
+    petId: mockPets[0].id,
+    title: "Private timeline Moment",
+    date: "13 Jul 2026",
+    type: "Memory",
+    caption: "Never public.",
+    media: [],
+    visibility: "Private",
+    showOnPublicProfile: true,
+    showInLifeTimeline: true,
+  },
+  {
+    id: "family-timeline",
+    petId: mockPets[0].id,
+    title: "Family timeline Moment",
+    date: "14 Jul 2026",
+    type: "Memory",
+    caption: "Compatibility-private.",
+    media: [],
+    visibility: "Family Only",
+    showOnPublicProfile: true,
+    showInLifeTimeline: true,
+  },
+];
+
+it.each([
+  { showMoments: true, showTimeline: true },
+  { showMoments: true, showTimeline: false },
+  { showMoments: false, showTimeline: true },
+  { showMoments: false, showTimeline: false },
+])(
+  "renders independent public surfaces when Moments=$showMoments Timeline=$showTimeline",
+  async ({ showMoments, showTimeline }) => {
+    const profile = {
+      ...mockPets[0],
+      birthday: "",
+      estimatedBirthYear: undefined,
+      visibility: {
+        ...mockPets[0].visibility,
+        showMoments,
+        showTimeline,
+        showBirthdayOnTimeline: false,
+      },
+    };
+    publicProfileMocks.profile = profile;
+    publicProfileMocks.moments = projectionMoments;
+
+    render(
+      <PublicSharePetProfile
+        initialMoments={projectionMoments}
+        initialProfile={profile}
+        initialRecords={[]}
+      />
+    );
+
+    await screen.findByText(`About ${profile.name}`);
+    const momentsTab = screen.queryByRole("button", { name: "Moments" });
+    const timelineTab = screen.queryByRole("button", { name: "Timeline" });
+    expect(Boolean(momentsTab)).toBe(showMoments);
+    expect(Boolean(timelineTab)).toBe(showTimeline);
+
+    if (momentsTab) {
+      fireEvent.click(momentsTab);
+      expect(screen.getByText("Public timeline Moment")).toBeTruthy();
+      expect(screen.getByText("Public gallery-only Moment")).toBeTruthy();
+      expect(screen.queryByText("Private timeline Moment")).toBeNull();
+      expect(screen.queryByText("Family timeline Moment")).toBeNull();
+    }
+
+    if (timelineTab) {
+      fireEvent.click(timelineTab);
+      expect(screen.getByText("Public timeline Moment")).toBeTruthy();
+      expect(screen.queryByText("Public gallery-only Moment")).toBeNull();
+      expect(screen.queryByText("Private timeline Moment")).toBeNull();
+      expect(screen.queryByText("Family timeline Moment")).toBeNull();
+    }
+  }
+);
+
 it("fails closed when public-profile visibility is unexpectedly missing", async () => {
   const profile = {
     ...mockPets[0],
@@ -272,9 +377,9 @@ it("omits Birthday and its milestone when no birthday is saved", async () => {
     />
   );
 
-  await screen.findByRole("button", { name: "Timeline" });
+  await screen.findByText(`About ${profile.name}`);
+  expect(screen.queryByRole("button", { name: "Timeline" })).toBeNull();
   expect(screen.queryByText("Birthday")).toBeNull();
-  fireEvent.click(screen.getByRole("button", { name: "Timeline" }));
   expect(screen.queryByText("Milo was born")).toBeNull();
 });
 
