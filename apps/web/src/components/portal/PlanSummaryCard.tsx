@@ -13,10 +13,10 @@ import {
   type OwnerPlanSummary,
 } from "@/services/ownerProfileService";
 import { getPets } from "@/services/petService";
-import type { Pet, PetMoment } from "@/types";
+import type { PetListItem, PetMoment } from "@/types";
 
 type PlanSummaryCardProps = {
-  initialPets?: Pet[];
+  initialPets?: PetListItem[];
   initialMoments?: PetMoment[];
   compact?: boolean;
   refreshOnMount?: boolean;
@@ -28,7 +28,7 @@ export function PlanSummaryCard({
   compact = false,
   refreshOnMount = true,
 }: PlanSummaryCardProps) {
-  const [loadedPets, setLoadedPets] = useState<Pet[] | null>(null);
+  const [loadedPets, setLoadedPets] = useState<PetListItem[] | null>(null);
   const [planSummary, setPlanSummary] = useState<OwnerPlanSummary | null>(null);
   const [loadedMemoryCounts, setLoadedMemoryCounts] = useState<Record<
     string,

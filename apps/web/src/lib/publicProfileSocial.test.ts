@@ -68,9 +68,6 @@ describe("public profile social sharing", () => {
     expect(getPetShareCardFileName("Milo", "birthday")).toBe(
       "mypetlink-milo-birthday-card.jpg"
     );
-    expect(getPetShareCardFileName("Milo", "adoption")).toBe(
-      "mypetlink-milo-adoption-card.jpg"
-    );
   });
 
   it("offers only eligible card variants for the Malaysia calendar day", () => {
@@ -89,14 +86,12 @@ describe("public profile social sharing", () => {
     expect(full.map((option) => option.variant)).toEqual([
       "profile",
       "birthday",
-      "adoption",
     ]);
     expect(full[1].imagePath).toContain("variant=birthday");
-    expect(full[2].imagePath).toContain("variant=adoption");
 
     expect(
       getAvailablePetShareCardOptions(
-        { ...profile, birthday: "", adoptionDay: "" },
+        { ...profile, birthday: "" },
         new Date("2026-08-16T16:00:00Z")
       ).map((option) => option.variant)
     ).toEqual(["profile"]);

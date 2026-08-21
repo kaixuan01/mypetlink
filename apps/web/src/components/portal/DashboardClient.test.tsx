@@ -168,7 +168,40 @@ describe("DashboardClient with pets", () => {
     ).toBe("/pets");
   });
 
-  it("discovers today's adoption anniversary from dashboard pet data", async () => {
+  it("discovers today's birthday from dashboard pet data", async () => {
+    const malaysiaParts = Object.fromEntries(
+      new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Kuala_Lumpur",
+        month: "2-digit",
+        day: "2-digit",
+      })
+        .formatToParts(new Date())
+        .map(({ type, value }) => [type, value])
+    );
+    mocks.getPets.mockResolvedValue({
+      data: [
+        {
+          ...mockPets[0],
+          birthday: `2022-${malaysiaParts.month}-${malaysiaParts.day}`,
+          adoptionDay: "Not set",
+          hasUsableSafetyContact: true,
+        },
+      ],
+    });
+
+    renderDashboard();
+
+    expect(await screen.findByText("Celebrate today")).toBeTruthy();
+    expect(screen.getByText("Birthday")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Share Card" }));
+    expect(
+      screen
+        .getByRole("img", { name: /Milo's MyPetLink Birthday Share Card/i })
+        .getAttribute("src")
+    ).toContain("variant=birthday");
+  });
+
+  it("does not turn a historical Adoption Day into a dashboard occasion", async () => {
     const malaysiaParts = Object.fromEntries(
       new Intl.DateTimeFormat("en-CA", {
         timeZone: "Asia/Kuala_Lumpur",
@@ -191,14 +224,8 @@ describe("DashboardClient with pets", () => {
 
     renderDashboard();
 
-    expect(await screen.findByText("Celebrate today")).toBeTruthy();
-    expect(screen.getByText("Adoption Day")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Share Card" }));
-    expect(
-      screen
-        .getByRole("img", { name: /Milo's MyPetLink Adoption Day Share Card/i })
-        .getAttribute("src")
-    ).toContain("variant=adoption");
+    await screen.findByText("Quick actions");
+    expect(screen.queryByText("Celebrate today")).toBeNull();
   });
 
   it("points Owner Settings at the correct route", async () => {

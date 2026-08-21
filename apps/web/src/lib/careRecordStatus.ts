@@ -74,12 +74,16 @@ export function careDateScore(value?: string | null) {
   if (!value) return null;
 
   const iso = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  const display = value.match(/^(\d{1,2}) ([A-Za-z]{3}) (\d{4})$/);
+  const display = value.match(/^(\d{1,2}) ([A-Za-z]{3,4}) (\d{4})$/);
   const year = iso ? Number(iso[1]) : display ? Number(display[3]) : NaN;
   const month = iso
     ? Number(iso[2])
     : display
-      ? monthNames.indexOf(display[2]) + 1
+      ? monthNames.indexOf(
+          `${display[2].slice(0, 1).toUpperCase()}${display[2]
+            .slice(1, 3)
+            .toLowerCase()}`
+        ) + 1
       : NaN;
   const day = iso ? Number(iso[3]) : display ? Number(display[1]) : NaN;
 

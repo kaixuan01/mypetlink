@@ -105,11 +105,6 @@ describe("PetShareCard", () => {
             label: "Birthday",
             imagePath: "/social/pets/milo-k7q2.jpg?v=abc123&variant=birthday",
           },
-          {
-            variant: "adoption",
-            label: "Adoption Day",
-            imagePath: "/social/pets/milo-k7q2.jpg?v=abc123&variant=adoption",
-          },
         ]}
       />
     );
@@ -407,11 +402,6 @@ describe("PetShareCard", () => {
             label: "Birthday",
             imagePath: "/social/pets/milo-k7q2.jpg?v=abc123&variant=birthday",
           },
-          {
-            variant: "adoption",
-            label: "Adoption Day",
-            imagePath: "/social/pets/milo-k7q2.jpg?v=abc123&variant=adoption",
-          },
         ]}
       />
     );
@@ -426,18 +416,17 @@ describe("PetShareCard", () => {
       })
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Adoption Day" }));
     fireEvent.click(screen.getByRole("link", { name: "View full image" }));
     expect(mocks.trackEvent).toHaveBeenCalledWith("share_card_action", {
       card_action: "open_image",
-      card_variant: "adoption",
+      card_variant: "birthday",
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Save Image" }));
     await waitFor(() =>
       expect(mocks.trackEvent).toHaveBeenCalledWith("share_card_action", {
         card_action: "save",
-        card_variant: "adoption",
+        card_variant: "birthday",
       })
     );
   });
@@ -486,7 +475,7 @@ describe("PetShareCard", () => {
     );
 
     const allowedActions = ["save", "copy_link", "open_image"];
-    const allowedVariants = ["profile", "birthday", "adoption"];
+    const allowedVariants = ["profile", "birthday"];
 
     for (const [, payload] of mocks.trackEvent.mock.calls) {
       for (const key of Object.keys(payload)) {

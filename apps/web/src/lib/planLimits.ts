@@ -1,5 +1,7 @@
-import { getCountedPetProfiles as getLifecycleCountedPetProfiles } from "@/lib/petLifecycle";
-import type { Pet } from "@/types";
+import {
+  getCountedPetProfiles as getLifecycleCountedPetProfiles,
+  type PetLifecycleLike,
+} from "@/lib/petLifecycle";
 
 export const phase1Positioning =
   "Create a free pet profile first. Add a physical QR or QR + NFC smart tag when you want extra safety. Premium care features are coming soon.";
@@ -136,11 +138,11 @@ export function getPetLimitState(petCount: number) {
   };
 }
 
-export function getCountedPetProfiles(pets: Pet[]) {
+export function getCountedPetProfiles<T extends PetLifecycleLike>(pets: T[]) {
   return getLifecycleCountedPetProfiles(pets);
 }
 
-export function getPetLimitStateFromPets(pets: Pet[]) {
+export function getPetLimitStateFromPets<T extends PetLifecycleLike>(pets: T[]) {
   return getPetLimitState(getCountedPetProfiles(pets).length);
 }
 

@@ -54,7 +54,7 @@ import {
 } from "@/services/tagService";
 import { isApiConfigured } from "@/services/apiConfig";
 import type {
-  Pet,
+  PetListItem,
   PetTag,
   TagOrder,
   TagScanHistory,
@@ -63,7 +63,7 @@ import type {
 } from "@/types";
 
 type TagManagementPanelProps = {
-  pets: Pet[];
+  pets: PetListItem[];
   initialTags: PetTag[];
   initialOrders?: TagOrder[];
   petId?: string;
@@ -495,7 +495,7 @@ function TagCard({
   order,
   tag,
 }: {
-  linkedPet?: Pet;
+  linkedPet?: PetListItem;
   onArchive: () => void;
   onDisable: () => void;
   onReportLost: () => void;
@@ -1007,7 +1007,7 @@ function getTagEmptyState(filter: TagFilter, petName?: string) {
 function getStatusTone(
   tag: PetTag,
   order?: TagOrder,
-  linkedPet?: Pet
+  linkedPet?: PetListItem
 ): "warm" | "mint" | "teal" | "soft" | "danger" {
   if (isTagLinkedToInactivePet(tag, linkedPet)) {
     return "soft";

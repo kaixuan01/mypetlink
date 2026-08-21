@@ -20,7 +20,7 @@ import {
   getFriendlyRecordErrorMessage,
   getPetRecords,
 } from "@/services/recordService";
-import type { CareRecord, Pet, PetMoment } from "@/types";
+import type { CareRecord, PetListItem, PetMoment } from "@/types";
 
 type Section = "moments" | "records";
 
@@ -53,7 +53,7 @@ const copy: Record<
 // owners with multiple pets choose explicitly so a general dashboard action
 // never silently operates on whichever pet happened to load first.
 export function GenericPetSection({ section }: { section: Section }) {
-  const [pets, setPets] = useState<Pet[]>([]);
+  const [pets, setPets] = useState<PetListItem[]>([]);
   const [moments, setMoments] = useState<PetMoment[]>([]);
   const [records, setRecords] = useState<CareRecord[]>([]);
   const [loading, setLoading] = useState(true);

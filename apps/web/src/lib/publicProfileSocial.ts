@@ -59,11 +59,15 @@ type SocialProfileFields = Pick<
   | "publicProfilePath"
   | "publicProfileVersion"
   | "species"
-  | "visibility"
->;
+> & {
+  visibility?: PublicPetProfile["visibility"];
+};
 
 type OccasionSocialProfileFields = SocialProfileFields &
-  Pick<PublicPetProfile, "birthday" | "adoptionDay">;
+  Pick<PublicPetProfile, "birthday">;
+
+type ShareVersionFields = Pick<SocialProfileFields, "publicProfileVersion"> &
+  Partial<Omit<SocialProfileFields, "publicProfileVersion">>;
 
 const unavailableValues = new Set([
   "",
@@ -102,13 +106,13 @@ export function toPublicProfileSocialCardData(
   };
 }
 
-export function getPublicProfileShareVersion(profile: SocialProfileFields) {
+export function getPublicProfileShareVersion(profile: ShareVersionFields) {
   const serverVersion = profile.publicProfileVersion?.trim().toLowerCase();
   if (serverVersion && /^[a-z0-9]{8,64}$/.test(serverVersion)) {
     return serverVersion;
   }
 
-  const visibility = Object.entries(profile.visibility)
+  const visibility = Object.entries(profile.visibility ?? {})
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([key, value]) => `${key}:${value ? 1 : 0}`)
     .join(",");

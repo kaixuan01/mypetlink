@@ -375,7 +375,7 @@ function toIsoDate(value?: string | null) {
     return value;
   }
 
-  const match = value.match(/^(\d{1,2}) ([A-Za-z]{3}) (\d{4})$/);
+  const match = value.match(/^(\d{1,2}) ([A-Za-z]{3,4}) (\d{4})$/);
   if (!match) {
     return null;
   }
@@ -394,7 +394,7 @@ function toIsoDate(value?: string | null) {
     "Oct",
     "Nov",
     "Dec",
-  ].indexOf(month);
+  ].indexOf(`${month.slice(0, 1).toUpperCase()}${month.slice(1, 3).toLowerCase()}`);
 
   if (monthIndex < 0) {
     return null;

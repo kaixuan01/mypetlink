@@ -87,6 +87,16 @@ it("keeps one Public Profile action set and hides unreleased owner tools", async
 
   await screen.findByText("Sharing & Safety");
 
+  expect(screen.queryByRole("tab", { name: "Privacy" })).toBeNull();
+  expect(screen.queryByText("Public profile visibility")).toBeNull();
+  expect(screen.queryByText("Safety Profile visibility")).toBeNull();
+  expect(screen.getByText("Public profile is on")).toBeTruthy();
+  expect(
+    screen.getByRole("link", { name: /Edit sharing settings/ }).getAttribute(
+      "href"
+    )
+  ).toBe(`/pets/${pet.id}/edit?tab=public`);
+
   // Sharing is reached through one entry point, not a row of competing actions.
   expect(screen.getAllByRole("link", { name: /View profile/ })).toHaveLength(1);
   expect(screen.queryByRole("link", { name: "View Safety Profile" })).toBeNull();
@@ -119,9 +129,16 @@ it("does not expose public actions when the pet profile is private", async () =>
     <PetManagementTabs moments={[]} pet={pet} records={[]} tags={[]} />
   );
 
-  await screen.findByText("Private");
+  await screen.findByText("Public profile is off");
   expect(screen.getByText(/sharing actions are unavailable/i)).toBeTruthy();
-  expect(screen.getByRole("link", { name: /Manage/ })).toBeTruthy();
+  expect(screen.getByRole("link", { name: /Manage/ }).getAttribute("href")).toBe(
+    `/pets/${pet.id}/edit?tab=public`
+  );
+  expect(
+    screen.getByRole("link", { name: /Edit sharing settings/ }).getAttribute(
+      "href"
+    )
+  ).toBe(`/pets/${pet.id}/edit?tab=public`);
   expect(screen.queryByRole("button", { name: `Share ${pet.name}` })).toBeNull();
   expect(screen.queryByRole("button", { name: "Copy Link" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Show Profile QR" })).toBeNull();

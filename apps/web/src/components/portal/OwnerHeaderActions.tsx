@@ -24,7 +24,7 @@ import {
 import { getPetLimitStateFromPets } from "@/lib/planLimits";
 import { marketingRoutes, ownerRoutes } from "@/lib/routes";
 import { getPets } from "@/services/petService";
-import type { Pet } from "@/types";
+import type { PetListItem } from "@/types";
 
 type PetsStatus = "loading" | "ready" | "error";
 
@@ -34,7 +34,7 @@ type RegisteredPageContext = OwnerHeaderPageContext & {
 
 type OwnerHeaderActionsContextValue = {
   pageContext: RegisteredPageContext | null;
-  pets: Pet[] | null;
+  pets: PetListItem[] | null;
   petsStatus: PetsStatus;
   registerPageContext: (
     context: Omit<OwnerHeaderPageContext, "pathname">
@@ -51,7 +51,7 @@ export function OwnerHeaderActionsProvider({
 }) {
   const pathname = usePathname();
   const nextRegistrationId = useRef(0);
-  const [pets, setPets] = useState<Pet[] | null>(null);
+  const [pets, setPets] = useState<PetListItem[] | null>(null);
   const [petsStatus, setPetsStatus] = useState<PetsStatus>("loading");
   const [pageContext, setPageContext] =
     useState<RegisteredPageContext | null>(null);
@@ -309,7 +309,7 @@ function OwnerHeaderActionView({
   petsStatus,
 }: {
   action: NonNullable<ReturnType<typeof getOwnerHeaderAction>>;
-  pets: Pet[];
+  pets: PetListItem[];
   petsStatus: PetsStatus;
 }) {
   const router = useRouter();

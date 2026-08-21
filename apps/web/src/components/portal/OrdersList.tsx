@@ -44,10 +44,10 @@ import {
   getFriendlyTagErrorMessage,
   getOrders,
 } from "@/services/tagService";
-import type { OrderStatus, Pet, PetTag, TagOrder } from "@/types";
+import type { OrderStatus, PetListItem, PetTag, TagOrder } from "@/types";
 
 type OrdersListProps = {
-  pets: Pet[];
+  pets: PetListItem[];
   initialOrders: TagOrder[];
   initialTags: PetTag[];
 };
@@ -70,7 +70,7 @@ export function OrdersList({
   initialTags,
 }: OrdersListProps) {
   const apiMode = isApiConfigured();
-  const [portalPets, setPortalPets] = useState<Pet[]>(apiMode ? [] : pets);
+  const [portalPets, setPortalPets] = useState<PetListItem[]>(apiMode ? [] : pets);
   const [orders, setOrders] = useState<TagOrder[]>(
     apiMode ? [] : initialOrders
   );

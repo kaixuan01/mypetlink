@@ -59,7 +59,6 @@ export async function updateOwnerProfileSettings(
       phoneE164: expectedPhoneNumber || null,
       whatsappE164: expectedWhatsappNumber || null,
       defaultGeneralArea: settings.defaultGeneralArea.trim(),
-      privacyDefaults: settings.privacyDefaults,
       marketingEmailOptIn: settings.marketingEmailOptIn,
     },
   });
@@ -143,7 +142,6 @@ export function mapOwnerProfileToSettings(
     phoneNumber: profile.phoneE164 ?? "",
     whatsappNumber: profile.whatsappE164 ?? "",
     defaultGeneralArea: profile.defaultGeneralArea ?? "",
-    privacyDefaults: profile.defaultPrivacy ?? defaultOwnerSettings.privacyDefaults,
     notificationPreferences: {
       ...defaultOwnerSettings.notificationPreferences,
       ...profile.notificationPreferences,

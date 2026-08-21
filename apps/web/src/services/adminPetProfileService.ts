@@ -2,7 +2,7 @@ import { buildAdminListQuery, csvCell, triggerDownload } from "@/lib/adminListSh
 import { canUseAdminApi } from "@/services/adminService";
 import { apiRequest, apiRequestBlob } from "@/services/apiClient";
 import { mockDelay } from "@/services/mockApi";
-import { getPetById, getPets } from "@/services/petService";
+import { getPetById, getStoredPetsForInternalServices } from "@/services/petService";
 import { readAdminTagCollection } from "@/services/tagService";
 import type { Pet, PetLifecycleStatus, TagStatus, TagVariant } from "@/types";
 
@@ -335,7 +335,7 @@ export async function downloadAdminPetProfilesExport(
 
 
 async function loadLocalRows() {
-  const response = await getPets();
+  const response = await getStoredPetsForInternalServices();
   const tags = readAdminTagCollection();
   return (response.data ?? []).map((pet) => localPet(pet, tags));
 }

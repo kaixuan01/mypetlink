@@ -4,7 +4,7 @@ import { canUseAdminApi } from "@/services/adminService";
 import { apiRequest, apiRequestBlob } from "@/services/apiClient";
 import type { BackendMediaDownloadUrlResponse, BackendPaymentProof, BackendTagOrder } from "@/services/apiDtos";
 import { mockDelay } from "@/services/mockApi";
-import { getPets } from "@/services/petService";
+import { getStoredPetsForInternalServices } from "@/services/petService";
 import { getStoredOrdersForAdmin, mapBackendOrder } from "@/services/tagService";
 import type { OrderStatus, TagOrder, TagVariant } from "@/types";
 
@@ -404,7 +404,7 @@ export async function getAdminOrderDetail(orderId: string, signal?: AbortSignal)
   }
 
   await mockDelay();
-  const [orders, pets] = await Promise.all([getStoredOrdersForAdmin(), getPets()]);
+  const [orders, pets] = await Promise.all([getStoredOrdersForAdmin(), getStoredPetsForInternalServices()]);
   const order = orders.data.find((item) => item.id === orderId);
   if (!order) throw new Error("This order could not be found.");
   const pet = pets.data.find((item) => item.id === order.petId);
@@ -606,7 +606,7 @@ function stageFor(status: AdminOrder["orderStatus"]): AdminOrderStage {
 }
 
 async function loadLocalOrders(): Promise<AdminOrder[]> {
-  const [orders, pets] = await Promise.all([getStoredOrdersForAdmin(), getPets()]);
+  const [orders, pets] = await Promise.all([getStoredOrdersForAdmin(), getStoredPetsForInternalServices()]);
   const petMap = new Map(pets.data.map((pet) => [pet.id, pet]));
   return orders.data.map((order) => {
     const pet = petMap.get(order.petId);

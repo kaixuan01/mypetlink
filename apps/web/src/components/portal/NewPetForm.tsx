@@ -10,10 +10,10 @@ import {
   getFriendlyApiErrorMessage,
   getPets,
 } from "@/services/petService";
-import type { Pet } from "@/types";
+import type { PetListItem } from "@/types";
 
 export function NewPetForm() {
-  const [pets, setPets] = useState<Pet[] | null>(null);
+  const [pets, setPets] = useState<PetListItem[] | null>(null);
   const [error, setError] = useState("");
   const returnToSmartTagOrder = useSyncExternalStore(
     subscribeNoop,

@@ -18,7 +18,7 @@ import {
   getFriendlyTagErrorMessage,
   getAllTags,
 } from "@/services/tagService";
-import type { FinderResult, Pet, PetTag, TagEntrySource } from "@/types";
+import type { FinderResult, PetListItem, PetTag, TagEntrySource } from "@/types";
 
 type TagActivationFlowProps = {
   initialResult: FinderResult;
@@ -41,14 +41,14 @@ export function TagActivationFlow({
   const apiMode = isApiConfigured();
   const result = initialResult;
   const [authed, setAuthed] = useState(() => isOwnerAuthenticated());
-  const [pets, setPets] = useState<Pet[]>([]);
+  const [pets, setPets] = useState<PetListItem[]>([]);
   const [ownerTags, setOwnerTags] = useState<PetTag[]>([]);
   const [ownerDataLoaded, setOwnerDataLoaded] = useState(false);
   const [selectedPetId, setSelectedPetId] = useState(() =>
     getPreferredPetId(initialResult)
   );
   const [submitting, setSubmitting] = useState(false);
-  const [activatedPet, setActivatedPet] = useState<Pet | null>(null);
+  const [activatedPet, setActivatedPet] = useState<PetListItem | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {

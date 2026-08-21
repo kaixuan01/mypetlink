@@ -3,9 +3,9 @@
 import { useSyncExternalStore } from "react";
 import { TagOrderFlow } from "@/components/portal/TagOrderFlow";
 import { getPreferredSmartTagOrderPetId } from "@/lib/smartTagOrder";
-import type { Pet } from "@/types";
+import type { PetListItem } from "@/types";
 
-const noInitialPets: Pet[] = [];
+const noInitialPets: PetListItem[] = [];
 
 export function SmartTagOrderEntry() {
   const preferredPetId = useSyncExternalStore(

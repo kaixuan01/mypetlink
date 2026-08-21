@@ -3,9 +3,19 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, it } from "vitest";
 import { mockPets } from "@/data/mockPets";
+import { getPetLifecycleConfirmation } from "@/lib/petLifecycleActions";
+import type { Pet } from "@/types";
 import { PetCard } from "./PetCard";
 
 afterEach(cleanup);
+
+function pet(status: Pet["lifecycleStatus"]): Pet {
+  return {
+    ...structuredClone(mockPets[0]),
+    lifecycleStatus: status,
+    previousLifecycleStatus: status === "Memorial" ? "Memorial" : "Active",
+  };
+}
 
 it("keeps one accessible Public Profile action on the pet card", () => {
   const pet = mockPets[0];
@@ -57,4 +67,36 @@ it("shows management instead of public actions for a private profile", () => {
   expect(screen.getByText("Private")).toBeTruthy();
   expect(screen.getByRole("link", { name: "Enable Profile" })).toBeTruthy();
   expect(screen.queryByRole("link", { name: "Public Profile" })).toBeNull();
+});
+
+it.each([
+  ["Active", ["Move to Memorial", "Archive Pet"], "Restore to List"],
+  ["Memorial", ["Restore to Active", "Archive Pet"], "Move to Memorial"],
+  ["Archived", ["Restore to List"], "Archive Pet"],
+] as const)(
+  "offers only valid lifecycle shortcuts for %s pets",
+  (status, expected, absent) => {
+    render(<PetCard pet={pet(status)} />);
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+
+    for (const label of expected) {
+      expect(screen.getByRole("button", { name: label })).toBeTruthy();
+    }
+    expect(screen.queryByRole("button", { name: absent })).toBeNull();
+  }
+);
+
+it("uses the shared lifecycle confirmation copy", () => {
+  const active = pet("Active");
+  const copy = getPetLifecycleConfirmation("memorial", active.name);
+  render(<PetCard pet={active} />);
+
+  fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+  fireEvent.click(screen.getByRole("button", { name: "Move to Memorial" }));
+
+  expect(screen.getByText(copy.title)).toBeTruthy();
+  expect(screen.getByText(copy.message)).toBeTruthy();
+  expect(
+    screen.getByRole("button", { name: copy.confirmLabel })
+  ).toBeTruthy();
 });

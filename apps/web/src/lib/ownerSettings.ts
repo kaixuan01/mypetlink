@@ -4,22 +4,6 @@ import type { Pet, PublicPetProfile } from "@/types";
 
 export const OWNER_SETTINGS_STORAGE_KEY = "mypetlink_owner_settings";
 
-export type OwnerPrivacyDefaults = Pick<
-  Pet["visibility"],
-  | "showOwnerName"
-  | "showGeneralArea"
-  | "showPhone"
-  | "showWhatsapp"
-  | "showEmergencyNote"
-  | "showCareBadges"
-  | "showMoments"
-  | "showTimeline"
-  | "showBirthdayOnTimeline"
-  | "showAdoptionDayOnTimeline"
-  | "showHealthSummary"
-  | "showAllergiesOnPublicProfile"
->;
-
 export type OwnerNotificationPreferences = {
   whatsappReminders: boolean;
   emailReminders: boolean;
@@ -32,7 +16,6 @@ export type OwnerSettings = {
   whatsappNumber: string;
   phoneNumber: string;
   defaultGeneralArea: string;
-  privacyDefaults: OwnerPrivacyDefaults;
   notificationPreferences: OwnerNotificationPreferences;
   marketingEmailOptIn: boolean;
 };
@@ -43,17 +26,10 @@ type LegacySettings = Partial<{
   whatsapp: string;
   phone: string;
   defaultArea: string;
-  privacy: Partial<{
-    ownerName: boolean;
-    generalArea: boolean;
-    whatsapp: boolean;
-    moments: boolean;
-    careNotesPrivate: boolean;
-  }>;
   notifications: Partial<OwnerNotificationPreferences>;
 }>;
 
-// Neutral defaults: privacy/notification presets only, NO personal data. This
+// Neutral defaults: notification presets only, NO personal data. This
 // is the safe fallback shape everywhere — production must never show sample
 // names or phone numbers as if they were the signed-in owner's saved details.
 export const defaultOwnerSettings: OwnerSettings = {
@@ -62,23 +38,6 @@ export const defaultOwnerSettings: OwnerSettings = {
   whatsappNumber: "",
   phoneNumber: "",
   defaultGeneralArea: "",
-  privacyDefaults: {
-    // Mirrors PetDtoMapper.DefaultVisibility on the API. API responses remain
-    // authoritative in configured deployments; this is only the neutral
-    // local-preview/SSR baseline.
-    showOwnerName: false,
-    showGeneralArea: true,
-    showPhone: false,
-    showWhatsapp: true,
-    showEmergencyNote: true,
-    showCareBadges: true,
-    showMoments: true,
-    showTimeline: true,
-    showBirthdayOnTimeline: false,
-    showAdoptionDayOnTimeline: false,
-    showHealthSummary: false,
-    showAllergiesOnPublicProfile: false,
-  },
   notificationPreferences: {
     whatsappReminders: false,
     emailReminders: false,
@@ -182,25 +141,6 @@ export function getOwnerDisplayName(
 
 export function normalizeOwnerSettings(value: unknown): OwnerSettings {
   const current = value as Partial<OwnerSettings> & LegacySettings;
-  const privacyDefaults = {
-    ...defaultOwnerSettings.privacyDefaults,
-    ...current.privacyDefaults,
-  };
-
-  if (current.privacy) {
-    privacyDefaults.showOwnerName =
-      current.privacy.ownerName ?? privacyDefaults.showOwnerName;
-    privacyDefaults.showGeneralArea =
-      current.privacy.generalArea ?? privacyDefaults.showGeneralArea;
-    privacyDefaults.showWhatsapp =
-      current.privacy.whatsapp ?? privacyDefaults.showWhatsapp;
-    privacyDefaults.showMoments =
-      current.privacy.moments ?? privacyDefaults.showMoments;
-    privacyDefaults.showHealthSummary =
-      current.privacy.careNotesPrivate === undefined
-        ? privacyDefaults.showHealthSummary
-        : !current.privacy.careNotesPrivate;
-  }
 
   return {
     ownerDisplayName:
@@ -216,20 +156,12 @@ export function normalizeOwnerSettings(value: unknown): OwnerSettings {
       current.defaultGeneralArea ??
       current.defaultArea ??
       defaultOwnerSettings.defaultGeneralArea,
-    privacyDefaults,
     notificationPreferences: {
       ...defaultOwnerSettings.notificationPreferences,
       ...current.notificationPreferences,
       ...current.notifications,
     },
     marketingEmailOptIn: current.marketingEmailOptIn === true,
-  };
-}
-
-export function getDefaultPetVisibility(settings: OwnerSettings): Pet["visibility"] {
-  return {
-    ...defaultOwnerSettings.privacyDefaults,
-    ...settings.privacyDefaults,
   };
 }
 
@@ -259,14 +191,10 @@ export function getEffectivePetContact(
     : override?.generalArea ?? pet.generalArea;
 
   return {
-    ownerDisplayName:
-      ownerDisplayName.trim() ||
-      settings.ownerDisplayName.trim() ||
-      `${pet.name}'s owner`,
+    ownerDisplayName: ownerDisplayName.trim(),
     whatsappNumber: normalizeStoredPhone(whatsappNumber),
     phoneNumber: normalizeStoredPhone(phoneNumber),
-    generalArea:
-      generalArea.trim() || settings.defaultGeneralArea,
+    generalArea: generalArea.trim(),
     useOwnerDefaults: usesDefaults,
   };
 }

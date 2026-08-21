@@ -23,10 +23,10 @@ import {
 } from "@/lib/publicProfileSocial";
 import { toAbsoluteUrl } from "@/lib/siteUrl";
 import { useModalDialogFocus } from "@/lib/useModalDialogFocus";
-import type { Pet } from "@/types";
+import type { Pet, PetListItem } from "@/types";
 
 type ShareCenterProps = {
-  pet: Pet;
+  pet: Pet | PetListItem;
   /** Rendered inside the trigger button. Defaults to a "Share" label. */
   triggerLabel?: React.ReactNode;
   triggerClassName?: string;

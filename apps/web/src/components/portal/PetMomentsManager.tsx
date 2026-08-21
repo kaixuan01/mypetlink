@@ -24,13 +24,13 @@ import {
   updatePetMoment,
 } from "@/services/momentService";
 import type {
-  Pet,
+  PetListItem,
   PetMoment,
   PetMomentPayload,
 } from "@/types";
 
 type PetMomentsManagerProps = {
-  pet: Pet;
+  pet: PetListItem;
   initialMoments: PetMoment[];
 };
 

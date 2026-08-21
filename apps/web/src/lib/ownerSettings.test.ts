@@ -3,10 +3,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   defaultOwnerSettings,
+  getEffectivePetContact,
   hasUsableOwnerContact,
   OWNER_SETTINGS_STORAGE_KEY,
   readOwnerSettings,
   sampleOwnerSettings,
+  writeOwnerSettings,
 } from "@/lib/ownerSettings";
 
 afterEach(() => {
@@ -69,13 +71,69 @@ describe("owner settings fallbacks", () => {
     expect(hasUsableOwnerContact(sampleOwnerSettings)).toBe(true);
   });
 
-  it("mirrors the API privacy baseline instead of a conflicting frontend copy", () => {
-    expect(defaultOwnerSettings.privacyDefaults).toMatchObject({
-      showOwnerName: false,
-      showPhone: false,
-      showBirthdayOnTimeline: false,
-      showAdoptionDayOnTimeline: false,
-    });
+  it("does not fabricate an owner name or location for missing pet contact", () => {
+    const contact = getEffectivePetContact(
+      {
+        name: "Milo",
+        generalArea: "",
+        owner: { name: "", phone: "", whatsapp: "", emergencyContact: "" },
+        contactOverride: { useOwnerDefaults: false },
+      },
+      {
+        ...defaultOwnerSettings,
+        ownerDisplayName: "Account Owner",
+        defaultGeneralArea: "Account Area",
+      }
+    );
+
+    expect(contact.ownerDisplayName).toBe("");
+    expect(contact.generalArea).toBe("");
+    expect(JSON.stringify(contact)).not.toContain("Milo's owner");
+  });
+
+  it("uses real account defaults when the pet selects them", () => {
+    const contact = getEffectivePetContact(
+      {
+        name: "Milo",
+        generalArea: "",
+        owner: { name: "", phone: "", whatsapp: "", emergencyContact: "" },
+        contactOverride: { useOwnerDefaults: true },
+      },
+      {
+        ...defaultOwnerSettings,
+        ownerDisplayName: "Account Owner",
+        defaultGeneralArea: "Petaling Jaya",
+      }
+    );
+
+    expect(contact.ownerDisplayName).toBe("Account Owner");
+    expect(contact.generalArea).toBe("Petaling Jaya");
+  });
+
+  it("ignores stale privacy defaults and legacy privacy data on read and write", () => {
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "https://api.mypetlink.test");
+    window.localStorage.setItem(
+      OWNER_SETTINGS_STORAGE_KEY,
+      JSON.stringify({
+        ownerDisplayName: "Legacy Owner",
+        phoneNumber: "+60111222333",
+        privacyDefaults: { showPhone: true },
+        privacy: { ownerName: true, moments: false },
+      })
+    );
+
+    const settings = readOwnerSettings();
+    expect(settings.ownerDisplayName).toBe("Legacy Owner");
+    expect(settings.phoneNumber).toBe("+60111222333");
+    expect(settings).not.toHaveProperty("privacyDefaults");
+    expect(settings).not.toHaveProperty("privacy");
+
+    writeOwnerSettings(settings);
+    const stored = JSON.parse(
+      window.localStorage.getItem(OWNER_SETTINGS_STORAGE_KEY) ?? "{}"
+    );
+    expect(stored).not.toHaveProperty("privacyDefaults");
+    expect(stored).not.toHaveProperty("privacy");
   });
 
   it("keeps missing and legacy marketing consent opted out", () => {

@@ -107,6 +107,38 @@ describe("SettingsPanel loading behaviour", () => {
     expect(screen.getByRole("button", { name: "Logout" })).toBeTruthy();
   });
 
+  it("removes pet privacy defaults while preserving the other settings sections", async () => {
+    mocks.getOwnerProfileSettings.mockResolvedValue({
+      data: ownerData({ ownerDisplayName: "Real Owner" }),
+    });
+
+    render(<SettingsPanel />);
+
+    expect(await screen.findByText("Contact details")).toBeTruthy();
+    expect(screen.getByText("Communication preferences")).toBeTruthy();
+    expect(screen.getByText("Account actions")).toBeTruthy();
+    expect(screen.getByTestId("plan-card")).toBeTruthy();
+    expect(screen.queryByText("Privacy settings")).toBeNull();
+    expect(document.body.textContent).not.toMatch(/defaults for new pet profiles/i);
+
+    for (const label of [
+      "Show owner display name",
+      "Show general area",
+      "Show WhatsApp contact",
+      "Show call contact",
+      "Show emergency note",
+      "Show care badges",
+      "Show public memories",
+      "Show Life Timeline",
+      "Show birthday in Life Timeline",
+      "Show adoption day in Life Timeline",
+      "Allow public care record details",
+      "Show allergies on Public Profiles",
+    ]) {
+      expect(screen.queryByRole("checkbox", { name: label })).toBeNull();
+    }
+  });
+
   it("shows desktop and mobile Save actions only after a setting changes", async () => {
     mocks.getOwnerProfileSettings.mockResolvedValue({
       data: ownerData({ ownerDisplayName: "Real Owner" }),

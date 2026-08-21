@@ -48,6 +48,30 @@ describe("care record status", () => {
     ).toBe("Overdue");
   });
 
+  it("classifies and selects September display dates instead of treating them as complete", () => {
+    const septemberStatus = deriveCareRecordStatus(
+      "02 Sept 2026",
+      malaysiaMorning
+    );
+    const septemberRecord = record(
+      "september-care",
+      "02 Sept 2026",
+      septemberStatus
+    );
+
+    expect(septemberStatus).toBe("due-soon");
+    expect(septemberStatus).not.toBe("complete");
+    expect(selectDashboardCareRecords([septemberRecord])).toEqual([
+      septemberRecord,
+    ]);
+    expect(deriveCareRecordStatus("15 Sept 2026", malaysiaMorning)).toBe(
+      "upcoming"
+    );
+    expect(deriveCareRecordStatus("12 Oct 2026", malaysiaMorning)).toBe(
+      "upcoming"
+    );
+  });
+
   it("keeps one recent overdue item visible without hiding imminent care", () => {
     const selected = selectDashboardCareRecords([
       record("very-old", "2024-01-01", "overdue"),

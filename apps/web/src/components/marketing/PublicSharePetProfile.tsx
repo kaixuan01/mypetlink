@@ -46,6 +46,7 @@ import {
   getPetTypeLabel,
 } from "@/lib/petDisplay";
 import { isActivePet, isArchivedPet, isMemorialPet } from "@/lib/petLifecycle";
+import { mergeConservativePetVisibility } from "@/lib/petVisibility";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
 import { getPublicProfileMoments } from "@/lib/momentMedia";
 import { getQrSafetyPath } from "@/lib/routes";
@@ -86,21 +87,6 @@ type LostModeContact = {
   whatsappE164: string;
   phoneE164: string;
   ownerDisplayName: string;
-};
-
-const fallbackVisibility: Pet["visibility"] = {
-  showOwnerName: true,
-  showGeneralArea: true,
-  showPhone: true,
-  showWhatsapp: true,
-  showEmergencyNote: true,
-  showCareBadges: true,
-  showMoments: true,
-  showTimeline: true,
-  showBirthdayOnTimeline: true,
-  showAdoptionDayOnTimeline: true,
-  showHealthSummary: false,
-  showAllergiesOnPublicProfile: false,
 };
 
 // The shareable public profile (/p/{slug}-{publicCode}). This is the friendly,
@@ -328,9 +314,10 @@ export function PublicSharePetProfile({
   const isArchived = isArchivedPet(profile);
   const isActiveProfile = isActivePet(profile);
 
-  const ownerDisplayName = visibility.showOwnerName
-    ? getPublicOwnerName(effectiveContact.ownerDisplayName, profile.name)
-    : `${profile.name}'s owner`;
+  const publicOwnerName = visibility.showOwnerName
+    ? effectiveContact.ownerDisplayName.trim()
+    : "";
+  const ownerActionLabel = publicOwnerName || "owner";
   const whatsappE164 = normalizeStoredPhone(effectiveContact.whatsappNumber);
   const phoneE164 = normalizeStoredPhone(effectiveContact.phoneNumber);
   const whatsappHref = getWhatsAppLink(
@@ -355,7 +342,10 @@ export function PublicSharePetProfile({
   const careRecords = visibility.showCareBadges
     ? records.filter((record) => record.publicVisibility !== "Private").slice(0, 4)
     : [];
-  const timelineEvents = getPublicTimeline(profile, moments);
+  const timelineEvents = getPublicTimeline(
+    { ...profile, visibility },
+    moments
+  );
 
   if (isMemorial && !profile.memorial.showMemorialOnPublicProfile) {
     return (
@@ -462,12 +452,12 @@ export function PublicSharePetProfile({
               </div>
             ) : null}
 
-            {visibility.showOwnerName ? (
+            {publicOwnerName ? (
               <p
                 className="mt-4 text-sm font-bold text-pet-ink"
                 style={{ color: theme.colors.text }}
               >
-                Cared for by {ownerDisplayName}
+                Cared for by {publicOwnerName}
               </p>
             ) : null}
           </div>
@@ -486,7 +476,7 @@ export function PublicSharePetProfile({
               style={{ color: theme.colors.accent }}
             >
               <Icon name="heart" className="h-4 w-4" />
-              {profile.name} is lovingly remembered.
+              Memorial profile
             </div>
             {profile.memorial.passedAwayDate ? (
               <p
@@ -551,11 +541,8 @@ export function PublicSharePetProfile({
                 <LostModeContactActions
                   ownerDisplayName={
                     apiMode
-                      ? getPublicOwnerName(
-                          lostModeContact?.ownerDisplayName ?? "",
-                          profile.name
-                        )
-                      : ownerDisplayName
+                      ? lostModeContact?.ownerDisplayName?.trim() || "owner"
+                      : ownerActionLabel
                   }
                   petName={profile.name}
                   phoneE164={
@@ -597,7 +584,7 @@ export function PublicSharePetProfile({
                 fullWidth
                 className="min-h-11"
               >
-                Message {ownerDisplayName}
+                Message {ownerActionLabel}
               </CTAButton>
             ) : (
               <CTAButton
@@ -607,7 +594,7 @@ export function PublicSharePetProfile({
                 fullWidth
                 className="min-h-11"
               >
-                Call {ownerDisplayName}
+                Call {ownerActionLabel}
               </CTAButton>
             )}
           </div>
@@ -1072,14 +1059,7 @@ function ThemedBadge({
 function mergeVisibility(
   visibility?: Partial<Pet["visibility"]>
 ): Pet["visibility"] {
-  return {
-    ...fallbackVisibility,
-    ...visibility,
-  };
-}
-
-function getPublicOwnerName(name: string, petName: string) {
-  return name.trim() || `${petName}'s owner`;
+  return mergeConservativePetVisibility(visibility);
 }
 
 function getPublicProfileErrorMessage(error: unknown) {

@@ -9,7 +9,6 @@ import { FormSection } from "@/components/ui/FormSection";
 import { PhoneNumberInput } from "@/components/ui/PhoneNumberInput";
 import {
   defaultOwnerSettings,
-  type OwnerPrivacyDefaults,
   type OwnerSettings,
 } from "@/lib/ownerSettings";
 import { logoutOwner } from "@/services/authService";
@@ -19,59 +18,6 @@ import {
   getOwnerProfileSettings,
   updateOwnerProfileSettings,
 } from "@/services/ownerProfileService";
-
-type PrivacyKey = keyof OwnerPrivacyDefaults;
-
-const privacyDefaults: { key: PrivacyKey; label: string }[] = [
-  {
-    key: "showOwnerName",
-    label: "Show owner display name",
-  },
-  {
-    key: "showGeneralArea",
-    label: "Show general area",
-  },
-  {
-    key: "showWhatsapp",
-    label: "Show WhatsApp contact",
-  },
-  {
-    key: "showPhone",
-    label: "Show call contact",
-  },
-  {
-    key: "showEmergencyNote",
-    label: "Show emergency note",
-  },
-  {
-    key: "showCareBadges",
-    label: "Show care badges",
-  },
-  {
-    key: "showMoments",
-    label: "Show public memories",
-  },
-  {
-    key: "showTimeline",
-    label: "Show Life Timeline",
-  },
-  {
-    key: "showBirthdayOnTimeline",
-    label: "Show birthday in Life Timeline",
-  },
-  {
-    key: "showAdoptionDayOnTimeline",
-    label: "Show adoption day in Life Timeline",
-  },
-  {
-    key: "showHealthSummary",
-    label: "Allow public care record details",
-  },
-  {
-    key: "showAllergiesOnPublicProfile",
-    label: "Show allergies on Public Profiles",
-  },
-];
 
 const premiumReminderOptions = [
   {
@@ -148,18 +94,6 @@ export function SettingsPanel() {
     value: string
   ) {
     setSettings((current) => (current ? { ...current, [field]: value } : current));
-    setSaved(false);
-  }
-
-  function updatePrivacy(key: PrivacyKey, value: boolean) {
-    setSettings((current) =>
-      current
-        ? {
-            ...current,
-            privacyDefaults: { ...current.privacyDefaults, [key]: value },
-          }
-        : current
-    );
     setSaved(false);
   }
 
@@ -264,7 +198,7 @@ export function SettingsPanel() {
       <FormSection
         id="owner-contact"
         title="Contact details"
-        description="These details help finders contact you quickly if your pet is ever lost. They are also used as the defaults for new pet profiles."
+        description="These details help finders contact you quickly if your pet is ever lost."
       >
         <div className="grid gap-4 md:grid-cols-2">
           <TextField
@@ -302,30 +236,6 @@ export function SettingsPanel() {
           Your full address is not shown on public profiles. Use a general area
           so finders know where your pet is usually from.
         </p>
-      </FormSection>
-
-      <div className="brand-soft-card rounded-[1.5rem] p-5 text-sm leading-6 text-pet-muted">
-        The settings below are used as defaults for new pet profiles. You can
-        override them for each pet from that pet&apos;s Edit Pet Details page.
-      </div>
-
-      <FormSection
-        title="Privacy settings"
-        description="Choose what new pet profiles should show by default. Existing pets keep their own settings unless you update them."
-      >
-        <p className="mb-4 rounded-[1.25rem] bg-pet-cream p-4 text-sm leading-6 text-pet-muted">
-          To update an existing pet, open that pet&apos;s Edit Pet Details page.
-        </p>
-        <div className="grid gap-3">
-          {privacyDefaults.map((option) => (
-            <Checkbox
-              checked={settings.privacyDefaults[option.key]}
-              key={option.key}
-              label={option.label}
-              onChange={(value) => updatePrivacy(option.key, value)}
-            />
-          ))}
-        </div>
       </FormSection>
 
       <FormSection
@@ -446,7 +356,6 @@ function toEditableSettings(settings: OwnerSettings) {
     whatsappNumber: settings.whatsappNumber,
     phoneNumber: settings.phoneNumber,
     defaultGeneralArea: settings.defaultGeneralArea,
-    privacyDefaults: settings.privacyDefaults,
     marketingEmailOptIn: settings.marketingEmailOptIn,
   };
 }
@@ -523,28 +432,6 @@ function getSettingsErrorMessage(error: unknown) {
   }
 
   return "We could not save your settings. Please try again.";
-}
-
-function Checkbox({
-  checked,
-  label,
-  onChange,
-}: {
-  checked: boolean;
-  label: string;
-  onChange: (value: boolean) => void;
-}) {
-  return (
-    <label className="flex items-center justify-between gap-4 rounded-2xl bg-pet-cream p-4 text-sm font-bold text-pet-ink">
-      {label}
-      <input
-        checked={checked}
-        className="h-4 w-4 shrink-0 accent-pet-teal"
-        onChange={(event) => onChange(event.target.checked)}
-        type="checkbox"
-      />
-    </label>
-  );
 }
 
 function PreferenceCheckbox({

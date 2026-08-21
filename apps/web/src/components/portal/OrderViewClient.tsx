@@ -2,10 +2,10 @@
 
 import { useSearchParams } from "next/navigation";
 import { OrderDetailView } from "@/components/portal/OrderDetailView";
-import type { Pet, PetTag } from "@/types";
+import type { PetListItem, PetTag } from "@/types";
 
 type OrderViewClientProps = {
-  pets: Pet[];
+  pets: PetListItem[];
   initialTags: PetTag[];
 };
 

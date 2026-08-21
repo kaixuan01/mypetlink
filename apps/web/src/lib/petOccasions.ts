@@ -2,7 +2,7 @@ import { getMalaysiaCalendarDateParts } from "@/lib/careRecordStatus";
 import { parsePetBirthday } from "@/lib/petAge";
 import type { Pet, PublicPetProfile } from "@/types";
 
-export type PetShareCardVariant = "profile" | "birthday" | "adoption";
+export type PetShareCardVariant = "profile" | "birthday";
 
 export type PetOccasion = {
   variant: Exclude<PetShareCardVariant, "profile">;
@@ -12,7 +12,7 @@ export type PetOccasion = {
 
 type OccasionPet = Pick<
   Pet | PublicPetProfile,
-  "birthday" | "adoptionDay" | "lifecycleStatus"
+  "birthday" | "lifecycleStatus"
 >;
 
 export function derivePetOccasions(
@@ -26,15 +26,6 @@ export function derivePetOccasions(
   const birthdayAge = anniversaryCount(pet.birthday, today);
   if (birthdayAge !== null) {
     occasions.push({ variant: "birthday", count: birthdayAge, label: "Birthday" });
-  }
-
-  const adoptionYears = anniversaryCount(pet.adoptionDay, today);
-  if (adoptionYears !== null) {
-    occasions.push({
-      variant: "adoption",
-      count: adoptionYears,
-      label: "Adoption Day",
-    });
   }
 
   return occasions;

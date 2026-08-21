@@ -1,6 +1,13 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockPets } from "@/data/mockPets";
 import { ApiClientError } from "@/services/apiClient";
@@ -57,8 +64,16 @@ function activePet(): Pet {
   };
 }
 
-async function openPublicProfile() {
-  fireEvent.click(await screen.findByRole("tab", { name: /Public Profile/ }));
+async function openSharingPrivacy() {
+  fireEvent.click(
+    await screen.findByRole("tab", { name: /Sharing & Privacy/ })
+  );
+}
+
+async function openContactSafety() {
+  fireEvent.click(
+    await screen.findByRole("tab", { name: /Contact & Safety/ })
+  );
 }
 
 async function openAppearance() {
@@ -126,26 +141,125 @@ describe("PetProfileForm lifecycle workflow", () => {
     vi.clearAllMocks();
   });
 
-  it("marks the saved Active state as Current and stages Memorial locally", async () => {
+  it("does not expose lifecycle controls or transition an Active pet on save", async () => {
+    pet = {
+      ...pet,
+      memorial: {
+        passedAwayDate: "01 Jan 2099",
+        memorialMessage: "x".repeat(241),
+        showMemorialOnPublicProfile: true,
+      },
+    };
+    mocks.getPetById.mockResolvedValue({ data: pet });
     render(<PetProfileForm initialPet={pet} mode="edit" />);
-    await openPublicProfile();
+    await openSharingPrivacy();
 
-    expect(screen.getByText("Currently Active")).toBeTruthy();
-    expect(screen.getByText("Current")).toBeTruthy();
+    expect(screen.queryByText("Profile status & visibility")).toBeNull();
+    expect(screen.queryByRole("radio", { name: /^Active/ })).toBeNull();
+    expect(screen.queryByRole("radio", { name: /^Memorial/ })).toBeNull();
+    expect(screen.queryByRole("radio", { name: /^Archived/ })).toBeNull();
 
-    fireEvent.click(screen.getByRole("radio", { name: /^Memorial/ }));
-
-    expect(screen.getByRole("status").textContent).toContain(
-      "Status will change to Memorial when you save."
-    );
-    expect(screen.getByLabelText(/Date of passing, optional/)).toBeTruthy();
-    expect(mocks.updatePet).not.toHaveBeenCalled();
+    clickSave();
+    await waitFor(() => expect(mocks.updatePet).toHaveBeenCalledOnce());
     expect(mocks.updatePetLifecycle).not.toHaveBeenCalled();
+    expect(mocks.updatePet.mock.calls[0][1]).not.toHaveProperty(
+      "lifecycleStatus"
+    );
+    expect(mocks.updatePet.mock.calls[0][1]).not.toHaveProperty("memorial");
   });
 
-  it("keeps Adoption Day out of Public Profile settings and uses the shared date control for memorial dates", async () => {
+  it("keeps the public tab id while presenting Sharing & Privacy", async () => {
+    window.history.replaceState({}, "", `/pets/${pet.id}/edit?tab=public`);
     render(<PetProfileForm initialPet={pet} mode="edit" />);
-    await openPublicProfile();
+
+    const sharingTab = await screen.findByRole("tab", {
+      name: /Sharing & Privacy/,
+    });
+    await waitFor(() => expect(sharingTab.getAttribute("aria-selected")).toBe("true"));
+    expect(
+      screen.getByRole("heading", { name: "Sharing & Privacy" })
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("tab", { name: "Public Profile" })
+    ).toBeNull();
+    expect(window.location.search).toBe("?tab=public");
+  });
+
+  it("places shared-profile and contact visibility controls under their owners", async () => {
+    render(<PetProfileForm initialPet={pet} mode="edit" />);
+    await openSharingPrivacy();
+
+    expect(screen.queryByText("Advanced")).toBeNull();
+    expect(
+      screen.getByRole("checkbox", {
+        name: "Show birthday in Life Timeline",
+      })
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("checkbox", {
+        name: "Allow public health and care details",
+      })
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("checkbox", { name: "Show owner name" })
+    ).toBeNull();
+    expect(
+      screen.queryByRole("checkbox", {
+        name: "Show allergies on Public Profile",
+      })
+    ).toBeNull();
+
+    await openContactSafety();
+    expect(
+      screen.getAllByRole("checkbox", { name: "Show owner name" })
+    ).toHaveLength(1);
+    expect(
+      screen.getAllByRole("checkbox", {
+        name: "Show allergies on Public Profile",
+      })
+    ).toHaveLength(1);
+    expect(screen.getByText("Allergies")).toBeTruthy();
+    expect(
+      screen.getByText(/Public Profile or Safety Profile/)
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/general area on this pet's Public Profile and Safety Profile/)
+    ).toBeTruthy();
+  });
+
+  it("shows neutral contact-summary values instead of a fake location", async () => {
+    pet = {
+      ...pet,
+      generalArea: "",
+      owner: {
+        ...pet.owner,
+        name: "",
+        phone: "",
+        whatsapp: "",
+      },
+      contactOverride: {
+        useOwnerDefaults: false,
+        ownerDisplayName: "",
+        generalArea: "",
+        phoneNumber: "",
+        whatsappNumber: "",
+      },
+    };
+    mocks.getPetById.mockResolvedValue({ data: pet });
+    render(<PetProfileForm initialPet={pet} mode="edit" />);
+    await openContactSafety();
+
+    const contactCard = screen
+      .getByRole("heading", { name: "Emergency Contact" })
+      .closest(".scroll-mt-24");
+    expect(contactCard).not.toBeNull();
+    expect(within(contactCard as HTMLElement).getAllByText("Not provided")).toHaveLength(4);
+    expect(contactCard?.textContent).not.toContain("Malaysia");
+  });
+
+  it("keeps Adoption Day and lifecycle controls out of Public Profile settings", async () => {
+    render(<PetProfileForm initialPet={pet} mode="edit" />);
+    await openSharingPrivacy();
 
     expect(screen.queryByLabelText(/Adoption day/i)).toBeNull();
     expect(
@@ -154,17 +268,18 @@ describe("PetProfileForm lifecycle workflow", () => {
       })
     ).toBeNull();
 
-    fireEvent.click(screen.getByRole("radio", { name: /^Memorial/ }));
-    expect(
-      screen
-        .getByLabelText(/Date of passing, optional/)
-        .classList.contains("brand-date-input")
-    ).toBe(true);
+    expect(screen.queryByRole("radio", { name: /^Memorial/ })).toBeNull();
+    expect(screen.queryByLabelText(/Date of passing, optional/)).toBeNull();
   });
 
   it("preserves a stored legacy Adoption Day when other pet details are saved", async () => {
+    pet = {
+      ...pet,
+      visibility: { ...pet.visibility, showAdoptionDayOnTimeline: true },
+    };
+    mocks.getPetById.mockResolvedValue({ data: pet });
     render(<PetProfileForm initialPet={pet} mode="edit" />);
-    await openPublicProfile();
+    await openSharingPrivacy();
 
     expect(screen.queryByLabelText(/Adoption day/i)).toBeNull();
     clickSave();
@@ -172,7 +287,13 @@ describe("PetProfileForm lifecycle workflow", () => {
     await waitFor(() =>
       expect(mocks.updatePet).toHaveBeenCalledWith(
         pet.id,
-        expect.objectContaining({ adoptionDay: pet.adoptionDay })
+        expect.objectContaining({
+          adoptionDay: pet.adoptionDay,
+          visibility: expect.objectContaining({
+            showAdoptionDayOnTimeline: false,
+          }),
+        }),
+        { completeProfile: true }
       )
     );
   });
@@ -232,7 +353,8 @@ describe("PetProfileForm lifecycle workflow", () => {
     await waitFor(() =>
       expect(mocks.updatePet).toHaveBeenCalledWith(
         pet.id,
-        expect.objectContaining({ profileTheme: "mint" })
+        expect.objectContaining({ profileTheme: "mint" }),
+        { completeProfile: true }
       )
     );
 
@@ -336,7 +458,8 @@ describe("PetProfileForm lifecycle workflow", () => {
     await waitFor(() =>
       expect(mocks.updatePet).toHaveBeenCalledWith(
         pet.id,
-        expect.objectContaining({ coverPositionX: 31, coverPositionY: 83 })
+        expect.objectContaining({ coverPositionX: 31, coverPositionY: 83 }),
+        { completeProfile: true }
       )
     );
     expect(mocks.refresh).not.toHaveBeenCalled();
@@ -436,53 +559,134 @@ describe("PetProfileForm lifecycle workflow", () => {
     );
   });
 
-  it("confirms Active to Memorial through Save Changes only", async () => {
-    render(<PetProfileForm initialPet={pet} mode="edit" />);
-    await openPublicProfile();
-    fireEvent.click(screen.getByRole("radio", { name: /^Memorial/ }));
-    clickSave();
-
-    expect(screen.getByRole("dialog")).toBeTruthy();
-    expect(screen.getByText("Move this profile to Memorial?")).toBeTruthy();
-    expect(mocks.updatePetLifecycle).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    expect(mocks.updatePetLifecycle).not.toHaveBeenCalled();
-
-    clickSave();
-    fireEvent.click(screen.getByRole("button", { name: "Continue to Memorial" }));
-
-    await waitFor(() =>
-      expect(mocks.updatePetLifecycle).toHaveBeenCalledWith(
-        pet.id,
-        "Memorial",
-        expect.objectContaining({ showMemorialOnPublicProfile: true })
-      )
-    );
-  });
-
-  it("confirms Active to Archived and has no duplicate lifecycle action buttons", async () => {
-    render(<PetProfileForm initialPet={pet} mode="edit" />);
-    await openPublicProfile();
-
-    expect(screen.queryByRole("button", { name: "Move to Memorial" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Archive Pet" })).toBeNull();
-
-    fireEvent.click(screen.getByRole("radio", { name: /^Archived/ }));
-    expect(mocks.updatePetLifecycle).not.toHaveBeenCalled();
-    clickSave();
-
-    expect(screen.getByText("Archive this pet profile?")).toBeTruthy();
-  });
-
-  it("requires an archived profile to restore to Active before Memorial", async () => {
-    pet = { ...pet, lifecycleStatus: "Archived", previousLifecycleStatus: "Memorial" };
+  it("keeps an Archived pet archived without a lifecycle request", async () => {
+    pet = {
+      ...pet,
+      lifecycleStatus: "Archived",
+      previousLifecycleStatus: "Memorial",
+      memorial: {
+        passedAwayDate: "01 Jan 2099",
+        memorialMessage: "x".repeat(241),
+        showMemorialOnPublicProfile: true,
+      },
+    };
     mocks.getPetById.mockResolvedValue({ data: pet });
     render(<PetProfileForm initialPet={pet} mode="edit" />);
-    await openPublicProfile();
+    await openSharingPrivacy();
 
-    expect(screen.getByRole("radio", { name: /^Memorial/ }).hasAttribute("disabled")).toBe(true);
-    expect(screen.getByRole("radio", { name: /^Active/ }).hasAttribute("disabled")).toBe(false);
+    expect(screen.queryByText("Profile status & visibility")).toBeNull();
+    expect(screen.queryByRole("radio", { name: /^Active/ })).toBeNull();
+    expect(screen.queryByRole("radio", { name: /^Memorial/ })).toBeNull();
+    expect(screen.queryByRole("radio", { name: /^Archived/ })).toBeNull();
+    expect(screen.queryByText("Memorial details")).toBeNull();
+
+    clickSave();
+    await waitFor(() => expect(mocks.updatePet).toHaveBeenCalledOnce());
+    expect(mocks.updatePet.mock.calls[0][1]).not.toHaveProperty(
+      "lifecycleStatus"
+    );
+    expect(mocks.updatePet.mock.calls[0][1]).not.toHaveProperty("memorial");
+    expect(mocks.updatePetLifecycle).not.toHaveBeenCalled();
+  });
+
+  it("edits Memorial details without exposing a lifecycle selector", async () => {
+    pet = {
+      ...pet,
+      lifecycleStatus: "Memorial",
+      previousLifecycleStatus: "Memorial",
+      memorial: {
+        passedAwayDate: "01 Jan 2025",
+        memorialMessage: "Always remembered.",
+        showMemorialOnPublicProfile: true,
+      },
+    };
+    mocks.getPetById.mockResolvedValue({ data: pet });
+    render(<PetProfileForm initialPet={pet} mode="edit" />);
+    await openSharingPrivacy();
+
+    expect(screen.getByText("Memorial details")).toBeTruthy();
+    expect(screen.queryByRole("radio", { name: /^Active/ })).toBeNull();
+    expect(screen.queryByRole("radio", { name: /^Memorial/ })).toBeNull();
+    expect(screen.queryByRole("radio", { name: /^Archived/ })).toBeNull();
+
+    const passedAwayDate = screen.getByLabelText(
+      /Date of passing, optional/
+    ) as HTMLInputElement;
+    expect(passedAwayDate.classList.contains("brand-date-input")).toBe(true);
+    fireEvent.change(passedAwayDate, { target: { value: "2025-09-15" } });
+    fireEvent.change(screen.getByLabelText(/Memorial message, optional/), {
+      target: { value: "Forever in our hearts." },
+    });
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: "Show this memorial on the public profile",
+      })
+    );
+    clickSave();
+
+    await waitFor(() => expect(mocks.updatePetLifecycle).toHaveBeenCalledOnce());
+    expect(mocks.updatePet).toHaveBeenCalledWith(
+      pet.id,
+      expect.not.objectContaining({
+        lifecycleStatus: expect.anything(),
+        memorial: expect.anything(),
+      }),
+      { completeProfile: true }
+    );
+    expect(mocks.updatePetLifecycle).toHaveBeenCalledWith(pet.id, "Memorial", {
+      passedAwayDate: "15 Sept 2025",
+      memorialMessage: "Forever in our hearts.",
+      showMemorialOnPublicProfile: false,
+    });
+    expect(mocks.updatePet.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.updatePetLifecycle.mock.invocationCallOrder[0]
+    );
+    expect(await screen.findByText("Changes saved.")).toBeTruthy();
+    expect(screen.getByText("Memorial details")).toBeTruthy();
+  });
+
+  it("reports a Memorial-detail persistence failure after the profile save", async () => {
+    pet = {
+      ...pet,
+      lifecycleStatus: "Memorial",
+      previousLifecycleStatus: "Memorial",
+    };
+    mocks.getPetById.mockResolvedValue({ data: pet });
+    mocks.updatePetLifecycle.mockRejectedValueOnce(
+      new Error("Memorial details could not be saved")
+    );
+    render(<PetProfileForm initialPet={pet} mode="edit" />);
+    await openSharingPrivacy();
+    clickSave();
+
+    await waitFor(() => expect(mocks.updatePet).toHaveBeenCalledOnce());
+    await waitFor(() => expect(mocks.updatePetLifecycle).toHaveBeenCalledOnce());
+    expect(screen.queryByText("Changes saved.")).toBeNull();
+    expect(
+      screen.getByText("Something went wrong. Please try again.")
+    ).toBeTruthy();
+  });
+
+  it("keeps Memorial validation on Sharing & Privacy for Memorial pets", async () => {
+    pet = {
+      ...pet,
+      lifecycleStatus: "Memorial",
+      previousLifecycleStatus: "Memorial",
+      memorial: {
+        ...pet.memorial,
+        passedAwayDate: "01 Jan 2099",
+      },
+    };
+    mocks.getPetById.mockResolvedValue({ data: pet });
+    render(<PetProfileForm initialPet={pet} mode="edit" />);
+    await openSharingPrivacy();
+    clickSave();
+
+    expect(
+      await screen.findByText("Passed away date cannot be in the future.")
+    ).toBeTruthy();
+    expect(mocks.updatePet).not.toHaveBeenCalled();
+    expect(mocks.updatePetLifecycle).not.toHaveBeenCalled();
   });
 
   it("shows Pet Not Found only after an authenticated pet lookup returns empty", async () => {
@@ -600,7 +804,8 @@ describe("PetProfileForm lifecycle workflow", () => {
         expect.objectContaining({
           favoriteFoods: ["Ikan kembung 🐟", "参巴 ikan 🐟"],
           favoriteToys: ["毛绒小鼠 🐭"],
-        })
+        }),
+        { completeProfile: true }
       )
     );
     expect(
@@ -631,7 +836,8 @@ describe("PetProfileForm lifecycle workflow", () => {
         pet.id,
         expect.objectContaining({
           allergies: ["Chicken", "Penicillin 💊", "花粉"],
-        })
+        }),
+        { completeProfile: true }
       )
     );
 
@@ -645,35 +851,42 @@ describe("PetProfileForm lifecycle workflow", () => {
     await waitFor(() =>
       expect(mocks.updatePet).toHaveBeenLastCalledWith(
         pet.id,
-        expect.objectContaining({ allergies: [] })
+        expect.objectContaining({ allergies: [] }),
+        { completeProfile: true }
       )
     );
   });
 
-  it("saves and reloads the explicit Public Profile allergy visibility", async () => {
+  it("saves and reloads owner-name and allergy visibility from Contact & Safety", async () => {
     pet = {
       ...pet,
       allergies: ["Chicken"],
       visibility: {
         ...pet.visibility,
+        showOwnerName: false,
         showAllergiesOnPublicProfile: false,
       },
     };
     mocks.getPetById.mockResolvedValue({ data: pet });
     render(<PetProfileForm initialPet={pet} mode="edit" />);
-    await openPublicProfile();
+    await openContactSafety();
 
-    const visibility = screen.getByRole("checkbox", {
+    const allergyVisibility = screen.getByRole("checkbox", {
       name: "Show allergies on Public Profile",
     }) as HTMLInputElement;
-    expect(visibility.checked).toBe(false);
+    const ownerVisibility = screen.getByRole("checkbox", {
+      name: "Show owner name",
+    }) as HTMLInputElement;
+    expect(allergyVisibility.checked).toBe(false);
+    expect(ownerVisibility.checked).toBe(false);
     expect(
       screen.getByText(
         /Allergies are always shown on the Safety Profile for pet safety/
       )
     ).toBeTruthy();
 
-    fireEvent.click(visibility);
+    fireEvent.click(allergyVisibility);
+    fireEvent.click(ownerVisibility);
     clickSave();
 
     await waitFor(() =>
@@ -681,9 +894,11 @@ describe("PetProfileForm lifecycle workflow", () => {
         pet.id,
         expect.objectContaining({
           visibility: expect.objectContaining({
+            showOwnerName: true,
             showAllergiesOnPublicProfile: true,
           }),
-        })
+        }),
+        { completeProfile: true }
       )
     );
 
@@ -692,12 +907,13 @@ describe("PetProfileForm lifecycle workflow", () => {
       ...pet,
       visibility: {
         ...pet.visibility,
+        showOwnerName: true,
         showAllergiesOnPublicProfile: true,
       },
     };
     mocks.getPetById.mockResolvedValue({ data: pet });
     render(<PetProfileForm initialPet={pet} mode="edit" />);
-    await openPublicProfile();
+    await openContactSafety();
 
     expect(
       (
@@ -706,11 +922,46 @@ describe("PetProfileForm lifecycle workflow", () => {
         }) as HTMLInputElement
       ).checked
     ).toBe(true);
+    expect(
+      (
+        screen.getByRole("checkbox", {
+          name: "Show owner name",
+        }) as HTMLInputElement
+      ).checked
+    ).toBe(true);
+  });
+
+  it("routes owner-name validation to Contact & Safety", async () => {
+    pet = {
+      ...pet,
+      contactOverride: {
+        useOwnerDefaults: false,
+        ownerDisplayName: "Milo's owner",
+        generalArea: pet.generalArea,
+        whatsappNumber: pet.owner.whatsapp,
+        phoneNumber: pet.owner.phone,
+      },
+    };
+    mocks.getPetById.mockResolvedValue({ data: pet });
+    render(<PetProfileForm initialPet={pet} mode="edit" />);
+    await openContactSafety();
+    fireEvent.change(screen.getByRole("textbox", { name: "Owner display name" }), {
+      target: { value: "x".repeat(81) },
+    });
+    fireEvent.click(screen.getByRole("tab", { name: /Basic Info/ }));
+    clickSave();
+
+    const contactTab = screen.getByRole("tab", { name: /Contact & Safety/ });
+    await waitFor(() =>
+      expect(contactTab.getAttribute("aria-selected")).toBe("true")
+    );
+    expect(screen.getByText("Keep this under 80 characters.")).toBeTruthy();
+    expect(mocks.updatePet).not.toHaveBeenCalled();
   });
 
   it("shows one complete versioned share link only on the Public Profile tab", async () => {
     render(<PetProfileForm initialPet={pet} mode="edit" />);
-    await screen.findByRole("tab", { name: /Public Profile/ });
+    await screen.findByRole("tab", { name: /Sharing & Privacy/ });
 
     expect(
       screen.queryByRole("textbox", { name: "Share profile link" })
@@ -726,7 +977,7 @@ describe("PetProfileForm lifecycle workflow", () => {
       screen.queryByRole("textbox", { name: "Share profile link" })
     ).toBeNull();
 
-    fireEvent.click(screen.getByRole("tab", { name: /Public Profile/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Sharing & Privacy/ }));
     const displayedUrls = screen.getAllByRole("textbox", {
       name: "Share profile link",
     });
@@ -761,7 +1012,8 @@ describe("PetProfileForm lifecycle workflow", () => {
     await waitFor(() =>
       expect(mocks.updatePet).toHaveBeenCalledWith(
         pet.id,
-        expect.objectContaining({ favoriteFoods: [], favoriteToys: [] })
+        expect.objectContaining({ favoriteFoods: [], favoriteToys: [] }),
+        { completeProfile: true }
       )
     );
   });
@@ -790,7 +1042,7 @@ describe("PetProfileForm lifecycle workflow", () => {
     ).toBeTruthy();
     expect(screen.getByRole("link", { name: /Manage Care Records/ })).toBeTruthy();
 
-    for (const tabName of [/Appearance/, /Public Profile/, /Contact & Safety/]) {
+    for (const tabName of [/Appearance/, /Sharing & Privacy/, /Contact & Safety/]) {
       fireEvent.click(screen.getByRole("tab", { name: tabName }));
       expect(screen.queryByText(`Manage ${pet.name}'s content`)).toBeNull();
       expect(

@@ -70,7 +70,7 @@ public sealed class PetService : SkeletonService, IPetService
         var publicCode = await GenerateUniquePublicCodeAsync(cancellationToken);
         var safetyCode = await GenerateUniqueSafetyCodeAsync(cancellationToken);
         var publicSlug = PetDtoMapper.BuildPublicSlug(request.Name, publicCode);
-        var visibility = request.Visibility ?? ParseOwnerDefaultVisibility(user.OwnerProfile!);
+        var visibility = request.Visibility ?? PetDtoMapper.DefaultVisibilityRequest;
 
         var pet = new Pet
         {
@@ -158,11 +158,10 @@ public sealed class PetService : SkeletonService, IPetService
         ValidateContact(request.Contact);
         ValidateCoverPosition(request.CoverPositionX, request.CoverPositionY);
         await EnsurePetPublicArtifactsAsync(pet, cancellationToken);
-        // The edit form sends Name and Species on a complete profile save.
-        // That lets explicit JSON null values clear optional fields while
-        // smaller compatibility updates (for example access switches) retain
-        // their existing partial-update behaviour.
-        var isFullProfileUpdate = request.Name is not null && request.Species is not null;
+        // Only the Owner Edit Pet form opts into replacement semantics. Older
+        // and dedicated callers remain partial even when they happen to send
+        // both Name and Species.
+        var isFullProfileUpdate = request.CompleteProfile;
 
         if (request.Name is not null)
         {
@@ -565,24 +564,6 @@ public sealed class PetService : SkeletonService, IPetService
                 "plan_limit_reached",
                 $"Your current plan allows up to {maxPets} active pet profiles.");
         }
-    }
-
-    private static PetVisibilityRequest ParseOwnerDefaultVisibility(OwnerProfile ownerProfile)
-    {
-        var defaults = PetDtoMapper.ParseVisibility(ownerProfile.PrivacyDefaultsJson);
-        return new PetVisibilityRequest(
-            defaults.ShowOwnerName,
-            defaults.ShowGeneralArea,
-            defaults.ShowPhone,
-            defaults.ShowWhatsapp,
-            defaults.ShowEmergencyNote,
-            defaults.ShowCareBadges,
-            defaults.ShowMoments,
-            defaults.ShowTimeline,
-            defaults.ShowBirthdayOnTimeline,
-            defaults.ShowAdoptionDayOnTimeline,
-            defaults.ShowHealthSummary,
-            defaults.ShowAllergiesOnPublicProfile);
     }
 
     private static PetContact BuildPetContact(PetContactRequest? request)

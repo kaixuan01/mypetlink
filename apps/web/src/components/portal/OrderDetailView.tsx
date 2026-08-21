@@ -56,7 +56,7 @@ import type {
   OrderStatus,
   OrderTimelineEvent,
   OrderTimelineTone,
-  Pet,
+  PetListItem,
   PetTag,
   TagOrder,
 } from "@/types";
@@ -64,7 +64,7 @@ import type {
 type OrderDetailViewProps = {
   initialOrder: TagOrder | null;
   orderKey: string;
-  pets: Pet[];
+  pets: PetListItem[];
   initialTags: PetTag[];
   autoDownloadReceipt?: boolean;
 };
@@ -115,7 +115,7 @@ export function OrderDetailView({
 }: OrderDetailViewProps) {
   const apiMode = isApiConfigured();
   const [order, setOrder] = useState(initialOrder);
-  const [portalPets, setPortalPets] = useState<Pet[]>(apiMode ? [] : pets);
+  const [portalPets, setPortalPets] = useState<PetListItem[]>(apiMode ? [] : pets);
   const [tags, setTags] = useState<PetTag[]>(apiMode ? [] : initialTags);
   const [loaded, setLoaded] = useState(Boolean(initialOrder));
   const [downloadMessage, setDownloadMessage] = useState("");

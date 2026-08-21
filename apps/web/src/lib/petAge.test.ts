@@ -3,6 +3,7 @@ import {
   applyPetAgeMode,
   calculatePetAge,
   getPetAgeMode,
+  parsePetBirthday,
 } from "./petAge";
 
 const referenceDate = new Date("2026-07-11T00:00:00.000Z");
@@ -60,6 +61,13 @@ describe("calculatePetAge", () => {
 });
 
 describe("age information form state", () => {
+  it("parses September in both en-GB spellings and keeps ISO support", () => {
+    expect(parsePetBirthday("02 Sept 2020")).toEqual({ year: 2020, month: 9, day: 2 });
+    expect(parsePetBirthday("02 Sep 2020")).toEqual({ year: 2020, month: 9, day: 2 });
+    expect(parsePetBirthday("12 Oct 2023")).toEqual({ year: 2023, month: 10, day: 12 });
+    expect(parsePetBirthday("2020-09-02")).toEqual({ year: 2020, month: 9, day: 2 });
+  });
+
   it("loads birthday plus a legacy unknown label as exact birthday mode", () => {
     expect(
       getPetAgeMode({ birthday: "12 Oct 2023", estimatedBirthYear: null })

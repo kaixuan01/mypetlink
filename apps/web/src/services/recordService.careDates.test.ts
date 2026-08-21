@@ -16,6 +16,21 @@ describe("care record date request mapping", () => {
     });
   });
 
+  it("maps Sep, Sept, and normal three-letter display months to ISO", () => {
+    expect(
+      buildBackendRecordPayload({
+        date: "02 Sept 2020",
+        dueDate: "15 Sep 2027",
+      })
+    ).toMatchObject({
+      date: "2020-09-02",
+      dueDate: "2027-09-15",
+    });
+    expect(buildBackendRecordPayload({ date: "12 Oct 2023" }).date).toBe(
+      "2023-10-12"
+    );
+  });
+
   it("marks an explicitly cleared next date on update", () => {
     expect(
       buildBackendRecordPayload(

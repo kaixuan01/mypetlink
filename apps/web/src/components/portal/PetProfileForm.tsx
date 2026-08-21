@@ -19,7 +19,6 @@ import { PetCreationSuccess } from "@/components/portal/PetCreationSuccess";
 import { ShareProfileLink } from "@/components/share/ShareProfileLink";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { CoverPhoto } from "@/components/ui/CoverPhoto";
 import { DateInput } from "@/components/ui/DateInput";
 import { FormSection } from "@/components/ui/FormSection";
@@ -37,7 +36,6 @@ import {
 import type { CoverCropMetrics } from "@/lib/coverCrop";
 import {
   defaultOwnerSettings,
-  getDefaultPetVisibility,
   getEffectivePetContact,
   hasUsableOwnerContact,
   readOwnerSettings,
@@ -52,6 +50,10 @@ import {
   type PetAgeMode,
 } from "@/lib/petAge";
 import { PET_TYPE_OPTIONS } from "@/lib/petDisplay";
+import {
+  mergeConservativePetVisibility,
+  newPetVisibilityDefaults,
+} from "@/lib/petVisibility";
 import {
   getBioTemplates,
   getPetSuggestions,
@@ -84,7 +86,6 @@ import { deleteMedia, uploadMediaFile } from "@/services/mediaService";
 import { getOwnerProfileSettings } from "@/services/ownerProfileService";
 import type {
   Pet,
-  PetLifecycleStatus,
   PetPayload,
   PetProfileThemeId,
   PetSpecies,
@@ -111,7 +112,6 @@ export type FormState = {
   coverPositionX: number;
   coverPositionY: number;
   profileTheme: PetProfileThemeId;
-  lifecycleStatus: PetLifecycleStatus;
   passedAwayDate: string;
   memorialMessage: string;
   showMemorialOnPublicProfile: boolean;
@@ -159,7 +159,7 @@ type EditPetLoadState = "checking" | "ready" | "not-found" | "error";
 const editTabs: (SegmentedTab & { id: EditTab })[] = [
   { id: "basic", label: "Basic Info", mobileLabel: "Info" },
   { id: "appearance", label: "Appearance" },
-  { id: "public", label: "Public Profile", mobileLabel: "Public" },
+  { id: "public", label: "Sharing & Privacy", mobileLabel: "Sharing" },
   { id: "contact", label: "Contact & Safety", mobileLabel: "Safety" },
 ];
 
@@ -174,25 +174,6 @@ const allergySuggestions = [
   "Penicillin",
   "Flea bites",
   "Pollen",
-];
-
-const lifecycleOptions: {
-  status: PetLifecycleStatus;
-  description: string;
-}[] = [
-  {
-    status: "Active",
-    description: "Your pet profile is visible and works normally.",
-  },
-  {
-    status: "Memorial",
-    description: "Keep this profile as a gentle place for memories.",
-  },
-  {
-    status: "Archived",
-    description:
-      "Hide this pet from your active list and public pages. You can restore it later.",
-  },
 ];
 
 // Which tab each field lives on, so a validation error can pull the owner to
@@ -217,7 +198,6 @@ const fieldTab: Record<keyof FormState, EditTab> = {
   coverPositionX: "appearance",
   coverPositionY: "appearance",
   profileTheme: "appearance",
-  lifecycleStatus: "public",
   passedAwayDate: "public",
   memorialMessage: "public",
   showMemorialOnPublicProfile: "public",
@@ -232,14 +212,14 @@ const fieldTab: Record<keyof FormState, EditTab> = {
   useOwnerDefaults: "contact",
   qrSafetyEnabled: "contact",
   publicProfileEnabled: "public",
-  showOwnerName: "public",
+  showOwnerName: "contact",
   showCareBadges: "public",
   showMoments: "public",
   showTimeline: "public",
   showBirthdayOnTimeline: "public",
   showAdoptionDayOnTimeline: "public",
   showHealthSummary: "public",
-  showAllergiesOnPublicProfile: "public",
+  showAllergiesOnPublicProfile: "contact",
   showGeneralArea: "contact",
   showWhatsapp: "contact",
   showPhone: "contact",
@@ -261,7 +241,6 @@ const emptyForm: FormState = {
   coverPositionX: 50,
   coverPositionY: 50,
   profileTheme: "default",
-  lifecycleStatus: "Active",
   passedAwayDate: "",
   memorialMessage: "",
   showMemorialOnPublicProfile: true,
@@ -281,7 +260,7 @@ const emptyForm: FormState = {
   useOwnerDefaults: true,
   qrSafetyEnabled: true,
   publicProfileEnabled: true,
-  ...defaultOwnerSettings.privacyDefaults,
+  ...newPetVisibilityDefaults,
 };
 
 export function PetProfileForm({
@@ -311,9 +290,6 @@ export function PetProfileForm({
     mode === "edit" ? "checking" : "ready"
   );
   const [editPetLoadError, setEditPetLoadError] = useState("");
-  const [statusAction, setStatusAction] = useState<
-    "active" | "memorial" | "archive" | null
-  >(null);
   const origin = useSyncExternalStore(
     subscribeToOrigin,
     getBrowserOrigin,
@@ -627,12 +603,17 @@ export function PetProfileForm({
       }
     }
 
-    if (form.passedAwayDate) {
-      if (!isValidDate(form.passedAwayDate)) {
-        nextErrors.passedAwayDate = "Choose a valid date.";
-      } else if (new Date(`${form.passedAwayDate}T00:00:00`) > new Date()) {
-        nextErrors.passedAwayDate = "Passed away date cannot be in the future.";
+    if (currentPet?.lifecycleStatus === "Memorial") {
+      if (form.passedAwayDate) {
+        if (!isValidDate(form.passedAwayDate)) {
+          nextErrors.passedAwayDate = "Choose a valid date.";
+        } else if (new Date(`${form.passedAwayDate}T00:00:00`) > new Date()) {
+          nextErrors.passedAwayDate =
+            "Passed away date cannot be in the future.";
+        }
       }
+
+      enforceMax(nextErrors, "memorialMessage", form.memorialMessage, 240);
     }
 
     enforceMax(nextErrors, "name", form.name, 60);
@@ -647,7 +628,6 @@ export function PetProfileForm({
     // Multi-value fields are length- and count-capped at entry time by their
     // shared picker, so no separate free-text length check is needed here.
     enforceMax(nextErrors, "ownerName", form.ownerName, 80);
-    enforceMax(nextErrors, "memorialMessage", form.memorialMessage, 240);
 
     return nextErrors;
   }
@@ -667,31 +647,6 @@ export function PetProfileForm({
       return;
     }
 
-    if (
-      mode === "edit" &&
-      currentPet &&
-      form.lifecycleStatus !== currentPet.lifecycleStatus
-    ) {
-      if (
-        currentPet.lifecycleStatus === "Archived" &&
-        form.lifecycleStatus === "Memorial"
-      ) {
-        setFormError(
-          "Restore this profile to Active before moving it to Memorial."
-        );
-        return;
-      }
-
-      setStatusAction(
-        form.lifecycleStatus === "Memorial"
-          ? "memorial"
-          : form.lifecycleStatus === "Archived"
-            ? "archive"
-            : "active"
-      );
-      return;
-    }
-
     await saveChanges();
   }
 
@@ -704,7 +659,9 @@ export function PetProfileForm({
     setSuccess("");
     setFormError("");
 
-    const payload = buildPayload(form);
+    const payload = buildPayload(form, {
+      includeVisibility: mode === "edit",
+    });
 
     try {
       if (mode === "create") {
@@ -741,30 +698,25 @@ export function PetProfileForm({
         setCreatedPet(savedPet);
       } else if (currentPet) {
         const previousPet = currentPet;
-        // Lifecycle changes use the dedicated, owner-authorized endpoints. Keep
-        // the ordinary profile update pinned to the saved lifecycle so local
-        // demo mode follows the same contract as the API.
-        const response = await updatePet(currentPet.id, {
-          ...payload,
-          lifecycleStatus: currentPet.lifecycleStatus,
-          previousLifecycleStatus: currentPet.previousLifecycleStatus,
-          memorial: currentPet.memorial,
-        });
+        // Lifecycle state is intentionally absent from the ordinary profile
+        // update. Dedicated lifecycle endpoints own every state transition.
+        const response = await updatePet(
+          currentPet.id,
+          payload,
+          { completeProfile: true }
+        );
 
         if (response.data) {
           let savedPet = response.data;
 
-          if (
-            form.lifecycleStatus !== previousPet.lifecycleStatus ||
-            form.lifecycleStatus === "Memorial"
-          ) {
+          if (previousPet.lifecycleStatus === "Memorial") {
             const lifecycleResponse = await updatePetLifecycle(
               currentPet.id,
-              form.lifecycleStatus,
+              "Memorial",
               {
                 passedAwayDate: form.passedAwayDate
                   ? formatDisplayDate(form.passedAwayDate)
-                  : previousPet.memorial.passedAwayDate,
+                  : "",
                 memorialMessage: form.memorialMessage.trim(),
                 showMemorialOnPublicProfile:
                   form.showMemorialOnPublicProfile,
@@ -818,7 +770,6 @@ export function PetProfileForm({
       setFormError(getFriendlyApiErrorMessage(caught));
     } finally {
       setIsSubmitting(false);
-      setStatusAction(null);
     }
   }
 
@@ -964,7 +915,7 @@ export function PetProfileForm({
   // Live Safety Profile status preview: reflects unsaved toggles and contact
   // edits so the owner sees the status their save would produce.
   const safetyStatusView = getSafetyProfileStatusView({
-    lifecycleStatus: form.lifecycleStatus,
+    lifecycleStatus: currentPet?.lifecycleStatus ?? "Active",
     qrSafetyEnabled: form.qrSafetyEnabled,
     visibility: {
       showPhone: form.showPhone,
@@ -1420,85 +1371,18 @@ export function PetProfileForm({
 
       {tab === "public" ? (
         <FormSection
-          title="Public Profile"
+          title="Sharing & Privacy"
           description="Share your pet's profile, photos, memories, and life timeline with friends and family."
         >
           <div className="grid min-w-0 gap-4">
-            {mode === "edit" && currentPet ? (
-            <div className="rounded-[1.5rem] border border-pet-border bg-white p-5">
-              <fieldset aria-describedby="profile-status-help profile-status-pending">
-                <legend className="text-lg font-black text-pet-ink">
-                  Profile status &amp; visibility
-                </legend>
-                <p className="mt-2 text-sm font-bold text-pet-ink">
-                  Currently {currentPet.lifecycleStatus}
+            {mode === "edit" && currentPet?.lifecycleStatus === "Memorial" ? (
+              <div className="rounded-[1.5rem] border border-pet-border bg-white p-5">
+                <h2 className="text-lg font-black text-pet-ink">
+                  Memorial details
+                </h2>
+                <p className="mt-1 text-sm leading-6 text-pet-muted">
+                  Add a date and tribute for {form.name || "this pet"}&apos;s memorial profile.
                 </p>
-                <p id="profile-status-help" className="mt-1 text-sm leading-6 text-pet-muted">
-                  Choose the profile state you want, then use Save Changes to apply it.
-                </p>
-
-                <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                  {lifecycleOptions.map((option) => {
-                    const selected = form.lifecycleStatus === option.status;
-                    const current = currentPet.lifecycleStatus === option.status;
-                    const disabled =
-                      currentPet.lifecycleStatus === "Archived" &&
-                      option.status === "Memorial";
-
-                    return (
-                      <label
-                        className={`relative flex min-h-36 cursor-pointer flex-col rounded-[1.25rem] border p-4 transition focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-pet-teal ${
-                          selected
-                            ? "border-pet-teal bg-[#e8f3ff]"
-                            : "border-pet-border bg-white hover:bg-pet-cream"
-                        } ${disabled ? "cursor-not-allowed opacity-55" : ""}`}
-                        key={option.status}
-                      >
-                        <input
-                          checked={selected}
-                          className="sr-only"
-                          disabled={disabled}
-                          name="lifecycleStatus"
-                          onChange={() => updateField("lifecycleStatus", option.status)}
-                          type="radio"
-                          value={option.status}
-                        />
-                        <span className="flex items-center justify-between gap-2">
-                          <span className="text-sm font-black text-pet-ink">{option.status}</span>
-                          {current ? (
-                            <span className="rounded-full bg-white px-2.5 py-1 text-[0.65rem] font-black uppercase tracking-wide text-pet-teal">
-                              Current
-                            </span>
-                          ) : null}
-                        </span>
-                        <span className="mt-3 text-xs font-semibold leading-5 text-pet-muted">
-                          {option.description}
-                        </span>
-                        {disabled ? (
-                          <span className="mt-auto pt-2 text-xs font-bold text-pet-muted">
-                            Restore to Active first.
-                          </span>
-                        ) : null}
-                      </label>
-                    );
-                  })}
-                </div>
-
-                {form.lifecycleStatus !== currentPet.lifecycleStatus ? (
-                  <p
-                    aria-live="polite"
-                    className="mt-4 rounded-[1rem] bg-[#fffbea] px-4 py-3 text-xs font-bold text-[#856a00]"
-                    id="profile-status-pending"
-                    role="status"
-                  >
-                    Status will change to {form.lifecycleStatus} when you save.
-                  </p>
-                ) : (
-                  <span id="profile-status-pending" />
-                )}
-              </fieldset>
-
-              {form.lifecycleStatus === "Memorial" ? (
                 <div className="mt-4 grid gap-4 lg:grid-cols-2">
                   <Field
                     error={errors.passedAwayDate}
@@ -1537,9 +1421,7 @@ export function PetProfileForm({
                     />
                   </div>
                 </div>
-              ) : null}
-
-            </div>
+              </div>
             ) : null}
 
             <div className="rounded-[1.5rem] border border-pet-border bg-white p-5">
@@ -1560,34 +1442,23 @@ export function PetProfileForm({
               ) : null}
             </div>
 
-            <PrivacyGroup title="What appears on the public profile">
-              <Checkbox
-                checked={form.showOwnerName}
-                label="Show owner display name"
-                onChange={(value) => updateField("showOwnerName", value)}
-              />
-              <Checkbox
-                checked={form.showCareBadges}
-                label="Show care badges"
-                onChange={(value) => updateField("showCareBadges", value)}
-              />
-              <Checkbox
-                checked={form.showMoments}
-                label="Show public memories"
-                onChange={(value) => updateField("showMoments", value)}
-              />
-              <Checkbox
-                checked={form.showTimeline}
-                label="Show Life Timeline"
-                onChange={(value) => updateField("showTimeline", value)}
-              />
-            </PrivacyGroup>
-
-            <details className="rounded-[1.5rem] border border-pet-border bg-white">
-              <summary className="cursor-pointer px-5 py-4 text-sm font-bold text-pet-muted select-none">
-                Advanced
-              </summary>
-              <div className="grid gap-3 px-5 pb-5">
+            {mode === "edit" ? (
+              <PrivacyGroup title="What appears on the public profile">
+                <Checkbox
+                  checked={form.showCareBadges}
+                  label="Show care badges"
+                  onChange={(value) => updateField("showCareBadges", value)}
+                />
+                <Checkbox
+                  checked={form.showMoments}
+                  label="Show public memories"
+                  onChange={(value) => updateField("showMoments", value)}
+                />
+                <Checkbox
+                  checked={form.showTimeline}
+                  label="Show Life Timeline"
+                  onChange={(value) => updateField("showTimeline", value)}
+                />
                 <Checkbox
                   checked={form.showBirthdayOnTimeline}
                   label="Show birthday in Life Timeline"
@@ -1595,27 +1466,13 @@ export function PetProfileForm({
                     updateField("showBirthdayOnTimeline", value)
                   }
                 />
-                <div className="grid gap-1">
-                  <Checkbox
-                    checked={form.showAllergiesOnPublicProfile}
-                    label="Show allergies on Public Profile"
-                    onChange={(value) =>
-                      updateField("showAllergiesOnPublicProfile", value)
-                    }
-                  />
-                  <p className="pl-9 text-xs font-semibold leading-5 text-pet-muted">
-                    Allergies are always shown on the Safety Profile for pet
-                    safety. Choose whether to also show them on the regular
-                    Public Profile.
-                  </p>
-                </div>
                 <Checkbox
                   checked={form.showHealthSummary}
                   label="Allow public health and care details"
                   onChange={(value) => updateField("showHealthSummary", value)}
                 />
-              </div>
-            </details>
+              </PrivacyGroup>
+            ) : null}
 
             {shareProfilePet ? (
               <ShareProfileLink
@@ -1813,6 +1670,20 @@ export function PetProfileForm({
                 whatsapp={form.whatsapp}
               />
 
+              {mode === "edit" ? (
+                <div className="mt-4 grid gap-1">
+                  <Checkbox
+                    checked={form.showOwnerName}
+                    label="Show owner name"
+                    onChange={(value) => updateField("showOwnerName", value)}
+                  />
+                  <p className="pl-9 text-xs font-semibold leading-5 text-pet-muted">
+                    Show the owner name to people viewing this pet&apos;s Public
+                    Profile or Safety Profile.
+                  </p>
+                </div>
+              ) : null}
+
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <button
                   className={`min-h-12 rounded-2xl border px-4 py-3 text-sm font-black transition ${
@@ -1875,37 +1746,40 @@ export function PetProfileForm({
               </div>
             ) : null}
 
-            <div className="min-w-0 rounded-[1.5rem] border border-pet-border bg-white p-5">
-              <p className="text-sm font-black text-pet-ink">
-                What finders can see
-              </p>
-              <p className="mt-1 text-xs font-semibold leading-5 text-pet-muted">
-                These settings only affect {form.name || "this pet"}&apos;s
-                Safety Profile.
-              </p>
-              <div className="mt-3 grid min-w-0 gap-2">
-                <ToggleRow
-                  checked={form.showWhatsapp}
-                  label="WhatsApp"
-                  onChange={(value) => updateField("showWhatsapp", value)}
-                />
-                <ToggleRow
-                  checked={form.showPhone}
-                  label="Phone call"
-                  onChange={(value) => updateField("showPhone", value)}
-                />
-                <ToggleRow
-                  checked={form.showGeneralArea}
-                  label="General area"
-                  onChange={(value) => updateField("showGeneralArea", value)}
-                />
-                <ToggleRow
-                  checked={form.showEmergencyNote}
-                  label="Emergency note"
-                  onChange={(value) => updateField("showEmergencyNote", value)}
-                />
+            {mode === "edit" ? (
+              <div className="min-w-0 rounded-[1.5rem] border border-pet-border bg-white p-5">
+                <p className="text-sm font-black text-pet-ink">
+                  What finders can see
+                </p>
+                <p className="mt-1 text-xs font-semibold leading-5 text-pet-muted">
+                  WhatsApp, phone, and emergency notes appear on the Safety
+                  Profile. General area can also appear on the Public Profile.
+                </p>
+                <div className="mt-3 grid min-w-0 gap-2">
+                  <ToggleRow
+                    checked={form.showWhatsapp}
+                    label="WhatsApp"
+                    onChange={(value) => updateField("showWhatsapp", value)}
+                  />
+                  <ToggleRow
+                    checked={form.showPhone}
+                    label="Phone call"
+                    onChange={(value) => updateField("showPhone", value)}
+                  />
+                  <ToggleRow
+                    checked={form.showGeneralArea}
+                    helper="Show the general area on this pet's Public Profile and Safety Profile."
+                    label="General area"
+                    onChange={(value) => updateField("showGeneralArea", value)}
+                  />
+                  <ToggleRow
+                    checked={form.showEmergencyNote}
+                    label="Emergency note"
+                    onChange={(value) => updateField("showEmergencyNote", value)}
+                  />
+                </div>
               </div>
-            </div>
+            ) : null}
 
             <div className="min-w-0 rounded-[1.5rem] border border-pet-border bg-white p-5">
               <p className="text-sm font-black text-pet-ink">
@@ -1924,6 +1798,23 @@ export function PetProfileForm({
                   suggestions={allergySuggestions}
                   values={form.allergies}
                 />
+
+                {mode === "edit" ? (
+                  <div className="grid gap-1">
+                    <Checkbox
+                      checked={form.showAllergiesOnPublicProfile}
+                      label="Show allergies on Public Profile"
+                      onChange={(value) =>
+                        updateField("showAllergiesOnPublicProfile", value)
+                      }
+                    />
+                    <p className="pl-9 text-xs font-semibold leading-5 text-pet-muted">
+                      Allergies are always shown on the Safety Profile for pet
+                      safety. Turn this on to also show them on the Public
+                      Profile.
+                    </p>
+                  </div>
+                ) : null}
 
                 <div className="grid min-w-0 gap-4 lg:grid-cols-2">
                   <Field
@@ -2064,59 +1955,8 @@ export function PetProfileForm({
         }
       />
 
-      {statusAction ? (
-        <ConfirmDialog
-          cancelLabel={getStatusActionCopy(statusAction, form.name).cancelLabel}
-          confirmLabel={getStatusActionCopy(statusAction, form.name).confirmLabel}
-          destructive={statusAction === "archive"}
-          message={getStatusActionCopy(statusAction, form.name).message}
-          onCancel={() => setStatusAction(null)}
-          onConfirm={() => {
-            setStatusAction(null);
-            void saveChanges();
-          }}
-          open={Boolean(statusAction)}
-          title={getStatusActionCopy(statusAction, form.name).title}
-        />
-      ) : null}
     </form>
   );
-}
-
-function getStatusActionCopy(
-  action: "active" | "memorial" | "archive",
-  petName: string
-) {
-  const name = petName || "this pet";
-
-  if (action === "active") {
-    return {
-      title: "Restore to Active?",
-      message: `This will show ${name} in active pet pages again and use the pet's Safety Profile settings for finder contact actions.`,
-      confirmLabel: "Restore to Active",
-      cancelLabel: "Keep Current Status",
-    };
-  }
-
-  if (action === "memorial") {
-    return {
-      title: "Move this profile to Memorial?",
-      message: "This will turn the profile into a gentle place for memories. You can review the memorial details before saving.",
-      confirmLabel: "Continue to Memorial",
-      cancelLabel: "Cancel",
-    };
-  }
-
-  if (action === "archive") {
-    return {
-      title: "Archive this pet profile?",
-      message: "This pet will be hidden from your active pet list and public pages. You can restore it later.",
-      confirmLabel: "Archive Profile",
-      cancelLabel: "Keep Active",
-    };
-  }
-
-  return { title: "", message: "", confirmLabel: "", cancelLabel: "Cancel" };
 }
 
 function UrlDisplay({ label, url }: { label: string; url: string }) {
@@ -2158,10 +1998,10 @@ function ContactSummary({
   generalArea: string;
 }) {
   const items = [
-    ["Owner display name", ownerName || "Not set"],
-    ["WhatsApp number", whatsapp || "Not set"],
-    ["Phone number", phone || "Not set"],
-    ["General area", generalArea || "Malaysia"],
+    ["Owner display name", ownerName || "Not provided"],
+    ["WhatsApp number", whatsapp || "Not provided"],
+    ["Phone number", phone || "Not provided"],
+    ["General area", generalArea || "Not provided"],
   ];
 
   return (
@@ -2322,13 +2162,11 @@ function redirectAfterExpiredSession(
   return true;
 }
 
-function toFormState(
+export function toFormState(
   pet?: Pet,
   ownerSettings: OwnerSettings = defaultOwnerSettings
 ): FormState {
   if (!pet) {
-    const visibility = getDefaultPetVisibility(ownerSettings);
-
     return {
       ...emptyForm,
       generalArea: ownerSettings.defaultGeneralArea,
@@ -2336,19 +2174,7 @@ function toFormState(
       whatsapp: ownerSettings.whatsappNumber,
       phone: ownerSettings.phoneNumber,
       useOwnerDefaults: true,
-      showOwnerName: visibility.showOwnerName,
-      showGeneralArea: visibility.showGeneralArea,
-      showWhatsapp: visibility.showWhatsapp,
-      showPhone: visibility.showPhone,
-      showEmergencyNote: visibility.showEmergencyNote,
-      showCareBadges: visibility.showCareBadges,
-      showMoments: visibility.showMoments,
-      showTimeline: visibility.showTimeline,
-      showBirthdayOnTimeline: visibility.showBirthdayOnTimeline,
-      showAdoptionDayOnTimeline: visibility.showAdoptionDayOnTimeline,
-      showHealthSummary: visibility.showHealthSummary,
-      showAllergiesOnPublicProfile:
-        visibility.showAllergiesOnPublicProfile,
+      ...newPetVisibilityDefaults,
     };
   }
 
@@ -2377,7 +2203,6 @@ function toFormState(
     coverPositionX: pet.coverPositionX ?? 50,
     coverPositionY: pet.coverPositionY ?? 50,
     profileTheme: pet.profileTheme ?? "default",
-    lifecycleStatus: pet.lifecycleStatus ?? "Active",
     passedAwayDate: parseDisplayDate(pet.memorial?.passedAwayDate ?? ""),
     memorialMessage: pet.memorial?.memorialMessage ?? "",
     showMemorialOnPublicProfile:
@@ -2407,14 +2232,17 @@ function toFormState(
     showMoments: visibility.showMoments,
     showTimeline: visibility.showTimeline,
     showBirthdayOnTimeline: visibility.showBirthdayOnTimeline,
-    showAdoptionDayOnTimeline: visibility.showAdoptionDayOnTimeline,
+    showAdoptionDayOnTimeline: false,
     showHealthSummary: visibility.showHealthSummary,
     showAllergiesOnPublicProfile:
       visibility.showAllergiesOnPublicProfile,
   };
 }
 
-export function buildPayload(form: FormState): PetPayload {
+export function buildPayload(
+  form: FormState,
+  options: { includeVisibility?: boolean } = {}
+): PetPayload {
   const name = form.name.trim();
   const birthday =
     form.ageInformationMode === "ExactBirthday" && form.birthdayDate
@@ -2455,16 +2283,6 @@ export function buildPayload(form: FormState): PetPayload {
     profilePhotoLabel: form.photoUrl ? "Profile photo added" : "",
     coverPhotoLabel: form.coverUrl ? "Cover photo added" : "",
     profileTheme: form.profileTheme,
-    lifecycleStatus: form.lifecycleStatus,
-    previousLifecycleStatus:
-      form.lifecycleStatus === "Memorial" ? "Memorial" : undefined,
-    memorial: {
-      passedAwayDate: form.passedAwayDate
-        ? formatDisplayDate(form.passedAwayDate)
-        : "",
-      memorialMessage: form.memorialMessage.trim(),
-      showMemorialOnPublicProfile: form.showMemorialOnPublicProfile,
-    },
     bio: form.bio.trim(),
     personalityTags: normalizeTagList(form.personalityTags, 12),
     // Empty lists are intentional clear operations; omitted fields remain
@@ -2492,20 +2310,25 @@ export function buildPayload(form: FormState): PetPayload {
           phoneNumber: normalizeStoredPhone(form.phone),
           generalArea: form.generalArea.trim(),
         },
-    visibility: {
-      showOwnerName: form.showOwnerName,
-      showGeneralArea: form.showGeneralArea,
-      showWhatsapp: form.showWhatsapp,
-      showPhone: form.showPhone,
-      showEmergencyNote: form.showEmergencyNote,
-      showCareBadges: form.showCareBadges,
-      showMoments: form.showMoments,
-      showTimeline: form.showTimeline,
-      showBirthdayOnTimeline: form.showBirthdayOnTimeline,
-      showAdoptionDayOnTimeline: form.showAdoptionDayOnTimeline,
-      showHealthSummary: form.showHealthSummary,
-      showAllergiesOnPublicProfile: form.showAllergiesOnPublicProfile,
-    },
+    ...(options.includeVisibility !== false
+      ? {
+          visibility: {
+            showOwnerName: form.showOwnerName,
+            showGeneralArea: form.showGeneralArea,
+            showWhatsapp: form.showWhatsapp,
+            showPhone: form.showPhone,
+            showEmergencyNote: form.showEmergencyNote,
+            showCareBadges: form.showCareBadges,
+            showMoments: form.showMoments,
+            showTimeline: form.showTimeline,
+            showBirthdayOnTimeline: form.showBirthdayOnTimeline,
+            showAdoptionDayOnTimeline: false,
+            showHealthSummary: form.showHealthSummary,
+            showAllergiesOnPublicProfile:
+              form.showAllergiesOnPublicProfile,
+          },
+        }
+      : {}),
   };
 }
 
@@ -3451,7 +3274,7 @@ function parseDisplayDate(value: string) {
     return value;
   }
 
-  const match = value.match(/^(\d{2}) ([A-Za-z]{3}) (\d{4})$/);
+  const match = value.match(/^(\d{1,2}) ([A-Za-z]{3,4}) (\d{4})$/);
 
   if (!match) {
     return "";
@@ -3471,13 +3294,13 @@ function parseDisplayDate(value: string) {
     "Oct",
     "Nov",
     "Dec",
-  ].indexOf(month);
+  ].indexOf(`${month.slice(0, 1).toUpperCase()}${month.slice(1, 3).toLowerCase()}`);
 
   if (monthIndex < 0) {
     return "";
   }
 
-  return `${year}-${String(monthIndex + 1).padStart(2, "0")}-${day}`;
+  return `${year}-${String(monthIndex + 1).padStart(2, "0")}-${day.padStart(2, "0")}`;
 }
 
 function getInitial(name: string) {
@@ -3487,19 +3310,5 @@ function getInitial(name: string) {
 function mergeVisibility(
   visibility?: Partial<Pet["visibility"]>
 ): Pet["visibility"] {
-  return {
-    showOwnerName: true,
-    showGeneralArea: true,
-    showPhone: true,
-    showWhatsapp: true,
-    showEmergencyNote: true,
-    showCareBadges: true,
-    showMoments: true,
-    showTimeline: true,
-    showBirthdayOnTimeline: true,
-    showAdoptionDayOnTimeline: true,
-    showHealthSummary: false,
-    showAllergiesOnPublicProfile: false,
-    ...visibility,
-  };
+  return mergeConservativePetVisibility(visibility);
 }

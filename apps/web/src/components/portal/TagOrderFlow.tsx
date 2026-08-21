@@ -24,10 +24,10 @@ import { getDeliveryQuoteErrorMessage, getOwnerOrderFieldErrors, isDeliveryUnava
 import { getPets } from "@/services/petService";
 import { formatCatalogPrice, listTagProducts, type TagProduct, type TagProductVariant } from "@/services/tagCatalogService";
 import { createTagOrder, getFriendlyTagErrorMessage } from "@/services/tagService";
-import type { DeliveryDetails, Pet, TagOrder, TagType } from "@/types";
+import type { DeliveryDetails, PetListItem, TagOrder, TagType } from "@/types";
 
 type TagOrderFlowProps = {
-  pets: Pet[];
+  pets: PetListItem[];
   preselectedPetId?: string;
   initialTagType?: TagType;
   replacementForTagId?: string;
@@ -53,7 +53,7 @@ const requiredDeliveryFields: DeliveryField[] = ["recipientName", "phone", "addr
 export function TagOrderFlow({ pets, preselectedPetId, initialTagType = "MyPetLink QR Pet Tag", replacementForTagId }: TagOrderFlowProps) {
   const router = useRouter();
   const apiMode = isApiConfigured();
-  const [availablePets, setAvailablePets] = useState<Pet[]>(apiMode ? [] : pets);
+  const [availablePets, setAvailablePets] = useState<PetListItem[]>(apiMode ? [] : pets);
   const [products, setProducts] = useState<TagProduct[]>([]);
   const [states, setStates] = useState<MalaysiaState[]>([]);
   const [cart, setCart] = useState<CartLine[]>([]);
@@ -252,7 +252,7 @@ export function TagOrderFlow({ pets, preselectedPetId, initialTagType = "MyPetLi
   );
 }
 
-function ChooseTagsStep({ cart, choices, products, pets, maxed, error, onAdd, onRemove, onUpdate }: { cart: CartLine[]; choices: CatalogChoice[]; products: TagProduct[]; pets: Pet[]; maxed: boolean; error?: string; onAdd: () => void; onRemove: (id: string) => void; onUpdate: (id: string, patch: Partial<CartLine>) => void }) {
+function ChooseTagsStep({ cart, choices, products, pets, maxed, error, onAdd, onRemove, onUpdate }: { cart: CartLine[]; choices: CatalogChoice[]; products: TagProduct[]; pets: PetListItem[]; maxed: boolean; error?: string; onAdd: () => void; onRemove: (id: string) => void; onUpdate: (id: string, patch: Partial<CartLine>) => void }) {
   const [pickerLineId, setPickerLineId] = useState<string | null>(null);
   const hasAvailable = choices.some((choice) => choice.variant.inStock);
   const pickerLine = cart.find((line) => line.id === pickerLineId);
@@ -375,7 +375,7 @@ function ConfirmationStep({ delivery, lines, quote, quoteState }: { delivery: De
   return <StepShell title="Confirm order" description="Review every tag, the shared delivery address, and the authoritative total before payment."><OrderPriceBreakdown lines={lines} currency={quote.currency} merchandiseSubtotal={quote.itemSubtotal} discountTotal={quote.discountAmount} deliveryFee={quote.deliveryFee} deliveryMethod={quote.deliveryMethod} freeDeliveryReason={quote.freeDeliveryReason ?? undefined} total={quote.total} /><div className="mt-4 grid gap-3 sm:grid-cols-2"><SummaryItem label="Delivery area" value={formatStateAndZone(quote.stateName, quote.zoneName)} /><SummaryItem label="Delivery address" value={formatDeliverySummary(delivery)} /></div><p className="mt-4 rounded-xl bg-pet-cream p-4 text-sm leading-6 text-pet-muted">This is one order, one payment, and one shipment for {lines.reduce((sum, line) => sum + line.quantity, 0)} physical {lines.reduce((sum, line) => sum + line.quantity, 0) === 1 ? "tag" : "tags"}. After placing it, pay with the merchant QR code and upload one payment proof.</p></StepShell>;
 }
 
-function buildPriceLines(cart: CartLine[], choices: CatalogChoice[], pets: Pet[]): OrderPriceLine[] {
+function buildPriceLines(cart: CartLine[], choices: CatalogChoice[], pets: PetListItem[]): OrderPriceLine[] {
   return cart.flatMap((line) => { const choice = choices.find((item) => item.variant.key === line.productVariantKey); const pet = pets.find((item) => item.id === line.petId); if (!choice) return []; const unit = choice.variant.price.finalPrice; return [{ id: line.id, productName: choice.product.name, optionName: formatProductOption(choice.variant), features: [choice.variant.supportsQr ? "QR code" : null, choice.variant.supportsNfc ? "NFC tap" : null].filter(Boolean).join(" · "), petName: pet?.name ?? "Select a pet", quantity: line.quantity, unitPrice: choice.variant.price.basePrice, subtotal: choice.variant.price.basePrice * line.quantity, discountAmount: choice.variant.price.discountAmount * line.quantity, finalAmount: unit * line.quantity, promotionName: choice.variant.price.promotionLabel ?? undefined }]; });
 }
 function selectedCurrency(cart: CartLine[], choices: CatalogChoice[]) { return choices.find((choice) => choice.variant.key === cart[0]?.productVariantKey)?.variant.price.currency ?? "MYR"; }

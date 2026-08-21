@@ -128,7 +128,10 @@ public sealed record UpdatePetRequest(
     IReadOnlyList<string>? Allergies = null,
     // Null means "no change" so older clients keep current behaviour.
     bool? QrSafetyEnabled = null,
-    bool? PublicProfileEnabled = null);
+    bool? PublicProfileEnabled = null,
+    // Explicitly identifies the Owner Edit Pet form. Older and dedicated
+    // callers remain partial updates unless they opt in.
+    bool CompleteProfile = false);
 
 public sealed record PetContactResponse(
     bool UseOwnerDefaults,

@@ -114,8 +114,8 @@ export function PetTimeline({ pet: initialPet, initialMoments }: PetTimelineProp
             {pet.name}&apos;s life timeline
           </h2>
           <p className="mt-1 text-sm leading-6 text-pet-muted">
-            Timeline items come from birthday/adoption details and moments marked
-            as Show in Life Timeline.
+            Birthday milestones come from Pet Details. Adoption, First Day Home,
+            and other milestones come from Moments marked as Show in Life Timeline.
           </p>
         </div>
         {actions}
@@ -150,7 +150,7 @@ export function PetTimeline({ pet: initialPet, initialMoments }: PetTimelineProp
           <EmptyState
             icon="heart"
             title="No timeline items yet"
-            description="Add a birthday or adoption day in Edit Pet Details, or add a moment and choose Show in Life Timeline."
+            description="Add a birthday in Pet Details, or record Adoption Day, First Day Home, and other milestones as Moments with Show in Life Timeline."
             actionHref={ownerRoutes.petMomentNew(pet.id)}
             actionLabel="Add Moment"
           />

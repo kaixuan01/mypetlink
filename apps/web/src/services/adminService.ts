@@ -11,7 +11,10 @@ import {
 import { apiRequest } from "@/services/apiClient";
 import { canUseApi } from "@/services/apiConfig";
 import { readStoredAuthSession } from "@/services/authStorage";
-import { getPets, mapBackendPetToFrontend } from "@/services/petService";
+import {
+  getStoredPetsForInternalServices,
+  mapBackendPetToFrontend,
+} from "@/services/petService";
 import {
   archiveTag,
   disableTag,
@@ -31,6 +34,7 @@ import type {
 import type {
   MockUser,
   Pet,
+  PetListItem,
   PetTag,
   TagOrder,
 } from "@/types";
@@ -145,7 +149,11 @@ export function canUseAdminApi() {
   return canUseApi() && Boolean(readStoredAuthSession()?.accessToken);
 }
 
-function mapAdminPet(item: BackendAdminPetListItem): Pet {
+export type AdminPetListItem = PetListItem & {
+  owner: Pet["owner"];
+};
+
+function mapAdminPet(item: BackendAdminPetListItem): AdminPetListItem {
   const pet = mapBackendPetToFrontend(item.pet);
 
   return {
@@ -159,7 +167,7 @@ function mapAdminPet(item: BackendAdminPetListItem): Pet {
       whatsapp: "",
       emergencyContact: "",
     },
-  } as Pet;
+  };
 }
 
 function formatBackendDate(value?: string | null) {
@@ -185,7 +193,7 @@ function formatBackendDate(value?: string | null) {
 // collections the owner portal uses, so admin and owner views never diverge.
 
 export type AdminData = {
-  pets: Pet[];
+  pets: AdminPetListItem[];
   tags: PetTag[];
   orders: TagOrder[];
 };
@@ -212,7 +220,7 @@ export async function getAdminData(signal?: AbortSignal): Promise<AdminData> {
   }
 
   const [pets, tags, orders] = await Promise.all([
-    getPets(),
+    getStoredPetsForInternalServices(),
     getStoredTagsForAdmin(),
     getStoredOrdersForAdmin(),
   ]);
@@ -265,7 +273,11 @@ export type AdminOwnerSummary = {
 // owner account by the owner display name carried on each pet. Pets whose
 // display name matches no owner account (the portal lets the owner rename
 // their contact display) are attributed to the signed-in demo owner account.
-export function getPetsForOwner(user: MockUser, pets: Pet[], users: MockUser[]) {
+export function getPetsForOwner<T extends AdminPetListItem>(
+  user: MockUser,
+  pets: T[],
+  users: MockUser[]
+): T[] {
   const ownerNames = new Set(
     users.filter((item) => item.role === "owner").map((item) => item.name)
   );

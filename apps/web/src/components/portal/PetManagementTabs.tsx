@@ -61,7 +61,7 @@ import type {
   TagOrder,
 } from "@/types";
 
-type TabId = "overview" | "records" | "moments" | "tag" | "privacy";
+type TabId = "overview" | "records" | "moments" | "tag";
 
 type PetManagementTabsProps = {
   pet: Pet;
@@ -78,9 +78,6 @@ const tabs: (SegmentedTab & { id: TabId })[] = [
   // The Smart Tag tab returns automatically when the feature relaunches.
   ...(smartTagsEnabled
     ? [{ id: "tag", label: "Smart Tag", mobileLabel: "Tag" } as SegmentedTab & { id: TabId }]
-    : []),
-  ...(publicProfilesEnabled || safetyProfilesOwnerUiEnabled
-    ? [{ id: "privacy", label: "Privacy" } as SegmentedTab & { id: TabId }]
     : []),
 ];
 
@@ -196,12 +193,9 @@ export function PetManagementTabs({
           petId={currentPet.id}
         />
       ) : null}
-
-      {activeTab === "privacy" ? <PrivacyTab pet={currentPet} /> : null}
     </div>
   );
 }
-
 function OverviewTab({
   pet,
   records,
@@ -283,6 +277,34 @@ function OverviewTab({
           title="Sharing & Safety"
           description={`Share ${pet.name}'s profile with people you know, and manage what someone sees if they find ${pet.name}.`}
         >
+          {publicProfilesEnabled ? (
+            <div
+              aria-label="Public profile sharing status"
+              className="flex min-w-0 flex-col gap-3 rounded-[1.25rem] bg-pet-cream p-4 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div className="flex min-w-0 items-center gap-3">
+                <Badge tone={publicProfileAccessible ? "mint" : "soft"}>
+                  {publicProfileAccessible ? "On" : "Off"}
+                </Badge>
+                <div className="min-w-0">
+                  <p className="text-sm font-black text-pet-ink">
+                    Public profile is {publicProfileAccessible ? "on" : "off"}
+                  </p>
+                  <p className="mt-0.5 text-xs font-semibold leading-5 text-pet-muted">
+                    Manage what people can see in Edit Pet.
+                  </p>
+                </div>
+              </div>
+              <Link
+                className="inline-flex min-h-11 shrink-0 items-center gap-1 self-start px-1 text-sm font-extrabold text-pet-teal transition hover:underline sm:self-auto"
+                href={ownerRoutes.petEdit(pet.id, { tab: "public" })}
+              >
+                Edit sharing settings
+                <span aria-hidden="true">&rarr;</span>
+              </Link>
+            </div>
+          ) : null}
+
           {/*
             The two profiles are siblings of equal weight: one is who you show
             the pet to, the other is who finds them. Neither should look like
@@ -300,7 +322,7 @@ function OverviewTab({
                   ) : (
                     <Link
                       className={subcardActionClass}
-                      href={`${ownerRoutes.petEdit(pet.id)}?tab=public`}
+                      href={ownerRoutes.petEdit(pet.id, { tab: "public" })}
                     >
                       <Icon
                         aria-hidden="true"
@@ -411,7 +433,7 @@ function OverviewTab({
                       </p>
                       <Link
                         className="mt-1.5 inline-flex min-h-9 items-center gap-1 text-xs font-extrabold text-[#6b5500] hover:underline"
-                        href={`${ownerRoutes.petEdit(pet.id)}?tab=contact`}
+                        href={ownerRoutes.petEdit(pet.id, { tab: "contact" })}
                       >
                         Update contact
                         <span aria-hidden="true">&rarr;</span>
@@ -652,65 +674,6 @@ function OverviewTab({
   );
 }
 
-function PrivacyTab({ pet }: { pet: Pet }) {
-  const publicStatuses = [
-    { label: "Owner name", enabled: pet.visibility.showOwnerName },
-    { label: "Care badges", enabled: pet.visibility.showCareBadges },
-    { label: "Public memories", enabled: pet.visibility.showMoments },
-    { label: "Life Timeline", enabled: pet.visibility.showTimeline },
-  ];
-  const safetyStatuses = [
-    { label: "WhatsApp owner", enabled: pet.visibility.showWhatsapp },
-    { label: "Call owner", enabled: pet.visibility.showPhone },
-    { label: "Emergency note", enabled: pet.visibility.showEmergencyNote },
-    { label: "General area", enabled: pet.visibility.showGeneralArea },
-  ];
-
-  return (
-    <div className="grid min-w-0 gap-5 lg:grid-cols-2">
-      {publicProfilesEnabled ? (
-        <SectionCard
-          icon="heart"
-          title="Public profile visibility"
-          description="What friends and family see on the shareable public profile."
-        >
-          <StatusGrid items={publicStatuses} />
-          <div className="mt-auto pt-1">
-            <CTAButton
-              href={ownerRoutes.petEdit(pet.id, { tab: "public" })}
-              variant="outline"
-              icon="settings"
-              fullWidth
-            >
-              Edit public profile settings
-            </CTAButton>
-          </div>
-        </SectionCard>
-      ) : null}
-
-      {safetyProfilesOwnerUiEnabled ? (
-        <SectionCard
-          icon="qr"
-          title="Safety Profile visibility"
-          description="What a finder sees after opening the Safety Profile by QR code, NFC tag, or link."
-        >
-          <StatusGrid items={safetyStatuses} />
-          <div className="mt-auto pt-1">
-            <CTAButton
-              href={ownerRoutes.petEdit(pet.id, { tab: "contact" })}
-              variant="outline"
-              icon="settings"
-              fullWidth
-            >
-              Edit Safety Profile settings
-            </CTAButton>
-          </div>
-        </SectionCard>
-      ) : null}
-    </div>
-  );
-}
-
 const subcardActionClass =
   "inline-flex min-h-11 min-w-0 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-pet-border bg-white px-4 text-sm font-extrabold text-pet-ink shadow-sm transition hover:bg-pet-cream";
 
@@ -793,29 +756,5 @@ function SectionCard({
       <p className="-mt-1 text-sm leading-6 text-pet-muted">{description}</p>
       {children}
     </section>
-  );
-}
-
-function StatusGrid({
-  items,
-}: {
-  items: { label: string; enabled: boolean }[];
-}) {
-  return (
-    <div className="grid min-w-0 gap-2 sm:grid-cols-2">
-      {items.map((item) => (
-        <div
-          className="flex min-w-0 items-center justify-between gap-3 rounded-[1rem] bg-pet-cream px-3 py-2 text-sm font-bold text-pet-ink"
-          key={item.label}
-        >
-          <span className="min-w-0">{item.label}</span>
-          <span
-            className={`shrink-0 ${item.enabled ? "text-pet-sage" : "text-pet-muted"}`}
-          >
-            {item.enabled ? "Shown" : "Hidden"}
-          </span>
-        </div>
-      ))}
-    </div>
   );
 }

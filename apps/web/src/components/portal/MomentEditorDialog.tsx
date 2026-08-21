@@ -419,16 +419,16 @@ function parseDisplayDate(value: string) {
   if (!value) return "";
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
 
-  const match = value.match(/^(\d{2}) ([A-Za-z]{3}) (\d{4})$/);
+  const match = value.match(/^(\d{1,2}) ([A-Za-z]{3,4}) (\d{4})$/);
   if (!match) return "";
 
   const [, day, month, year] = match;
   const monthIndex = [
     "Jan", "Feb", "Mar", "Apr", "May", "Jun",
     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-  ].indexOf(month);
+  ].indexOf(`${month.slice(0, 1).toUpperCase()}${month.slice(1, 3).toLowerCase()}`);
 
   return monthIndex < 0
     ? ""
-    : `${year}-${String(monthIndex + 1).padStart(2, "0")}-${day}`;
+    : `${year}-${String(monthIndex + 1).padStart(2, "0")}-${day.padStart(2, "0")}`;
 }

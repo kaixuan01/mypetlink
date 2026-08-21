@@ -1,6 +1,6 @@
 import { getPetLimitStateFromPets } from "@/lib/planLimits";
 import { ownerRoutes } from "@/lib/routes";
-import type { Pet } from "@/types";
+import type { PetListItem } from "@/types";
 
 export type OwnerHeaderSection = "moments" | "records";
 
@@ -44,7 +44,7 @@ export type OwnerHeaderAction =
 
 type OwnerHeaderActionContext = {
   pathname: string;
-  pets: Pet[] | null;
+  pets: PetListItem[] | null;
   petsStatus: "loading" | "ready" | "error";
   pageContext: OwnerHeaderPageContext | null;
 };

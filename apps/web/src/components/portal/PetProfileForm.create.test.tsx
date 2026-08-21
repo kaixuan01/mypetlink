@@ -103,6 +103,23 @@ describe("PetProfileForm creation activation", () => {
         emergencyNote: "",
       })
     );
+    expect(mocks.createPet.mock.calls[0][0]).not.toHaveProperty("visibility");
+  });
+
+  it("hides per-pet privacy controls until the pet has been created", () => {
+    render(<PetProfileForm mode="create" />);
+
+    fireEvent.click(screen.getByRole("tab", { name: /Sharing & Privacy/ }));
+    expect(
+      screen.queryByText("What appears on the public profile")
+    ).toBeNull();
+    expect(
+      screen.queryByRole("checkbox", { name: "Show owner name" })
+    ).toBeNull();
+
+    fireEvent.click(screen.getByRole("tab", { name: /Contact & Safety/ }));
+    expect(screen.queryByText("What finders can see")).toBeNull();
+    expect(screen.queryByRole("switch", { name: "WhatsApp" })).toBeNull();
   });
 
   it("prevents duplicate creation while the first submission is pending", async () => {

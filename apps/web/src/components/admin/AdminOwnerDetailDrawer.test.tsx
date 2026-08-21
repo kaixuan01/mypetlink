@@ -99,15 +99,16 @@ afterEach(() => {
 });
 
 describe("AdminOwnerDetailDrawer", () => {
-  it("loads full contact on demand and shows read-only privacy, usage, and related records", async () => {
+  it("loads full contact without obsolete default-privacy rows and shows related records", async () => {
     mocks.getDetail.mockResolvedValue(detail);
     render(<AdminOwnerDetailDrawer onClose={vi.fn()} summary={owner} />);
 
     const dialog = await screen.findByRole("dialog", { name: "Owner account details for Aina Owner, aina@example.com" });
     expect(dialog).toBeTruthy();
     expect(screen.getAllByText("+60112223333").length).toBeGreaterThan(0);
-    expect(screen.getByText("Phone shown by default").parentElement?.textContent).toContain("Yes");
-    expect(screen.getByText("WhatsApp shown by default").parentElement?.textContent).toContain("No");
+    expect(screen.queryByText("Phone shown by default")).toBeNull();
+    expect(screen.queryByText("WhatsApp shown by default")).toBeNull();
+    expect(screen.queryByText("Owner name shown by default")).toBeNull();
     expect(screen.getByText("Memory usage is near the current plan limit.")).toBeTruthy();
     expect(screen.getByText("Pending Review")).toBeTruthy();
     expect(screen.getByText("Email Sent")).toBeTruthy();

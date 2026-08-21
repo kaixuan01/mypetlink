@@ -3,7 +3,7 @@ import { normalizeTagScanSource } from "@/lib/tagScanSource";
 import { canUseAdminApi } from "@/services/adminService";
 import { apiRequest, apiRequestBlob } from "@/services/apiClient";
 import { mockDelay } from "@/services/mockApi";
-import { getPets } from "@/services/petService";
+import { getStoredPetsForInternalServices } from "@/services/petService";
 import { clearAdminOrderTagAssignment, getStoredOrdersForAdmin, readAdminTagCollection, writeAdminTagCollection } from "@/services/tagService";
 import type { Pet, PetTag, TagOrder, TagScanSource, TagStatus, TagVariant } from "@/types";
 
@@ -379,7 +379,7 @@ export async function updateAdminSmartTagAssignment(
   if (!getSmartTagAssignmentActions(tag).includes(action)) {
     throw new Error("This assignment action is no longer available for the tag.");
   }
-  const petsResponse = await getPets();
+  const petsResponse = await getStoredPetsForInternalServices();
   const pet = input.petId ? (petsResponse.data ?? []).find((item) => item.id === input.petId) : undefined;
   const ownerId = action === "claim" || action === "transfer" ? input.ownerId : tag.ownerId;
   if (action !== "unassign-pet" && (!pet || !ownerId || pet.ownerUserId !== ownerId)) {
@@ -447,7 +447,7 @@ export async function downloadAdminSmartTagsExport(params: AdminSmartTagListPara
 
 
 async function loadLocalRows(): Promise<AdminSmartTag[]> {
-  const [petsResponse, ordersResponse] = await Promise.all([getPets(), getStoredOrdersForAdmin()]);
+  const [petsResponse, ordersResponse] = await Promise.all([getStoredPetsForInternalServices(), getStoredOrdersForAdmin()]);
   const pets = petsResponse.data ?? [];
   const orders = ordersResponse.data ?? [];
   const petMap = new Map(pets.map((pet) => [pet.id, pet]));

@@ -1,5 +1,6 @@
 import { buildAdminListQuery, csvCell, triggerDownload } from "@/lib/adminListShared";
 import { canUseAdminApi, getAdminData, getOwnerSummaries, getPetsForOwner } from "@/services/adminService";
+import { getStoredPetsForInternalServices } from "@/services/petService";
 import { apiRequest, apiRequestBlob } from "@/services/apiClient";
 import { mockDelay } from "@/services/mockApi";
 import { isValidE164 } from "@/lib/phone";
@@ -294,14 +295,15 @@ function normalizeDetail(detail: AdminOwnerDetail): AdminOwnerDetail {
 }
 
 async function loadLocalRows() {
-  const [{ mockUsers }, summaries, data] = await Promise.all([
+  const [{ mockUsers }, summaries, data, localPets] = await Promise.all([
     import("@/data/mockUsers"),
     getOwnerSummaries(),
     getAdminData(),
+    getStoredPetsForInternalServices(),
   ]);
   return summaries.map((summary): AdminOwner => {
     const user = mockUsers.find((item) => item.id === summary.user.id) ?? summary.user;
-    const pets = getPetsForOwner(user, data.pets, mockUsers);
+    const pets = getPetsForOwner(user, localPets.data, mockUsers);
     const petIds = new Set(pets.map((pet) => pet.id));
     const orders = data.orders.filter((order) => petIds.has(order.petId));
     const tags = data.tags.filter((tag) => petIds.has(tag.petId ?? ""));

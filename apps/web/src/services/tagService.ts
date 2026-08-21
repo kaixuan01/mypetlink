@@ -30,6 +30,7 @@ import { canUseApi } from "@/services/apiConfig";
 import { readStoredAuthSession } from "@/services/authStorage";
 import {
   getPets,
+  getStoredPetsForInternalServices,
   mapBackendSafetyPage,
   toPublicProfile,
   toQrSafetyProfile,
@@ -984,7 +985,7 @@ async function resolveFinderState(
     return { state: "unassigned", tagCode: tag.tagCode };
   }
 
-  const pets = await getPets();
+  const pets = await getStoredPetsForInternalServices();
   const pet = pets.data.find((item) => item.id === tag.petId);
 
   if (!pet) {

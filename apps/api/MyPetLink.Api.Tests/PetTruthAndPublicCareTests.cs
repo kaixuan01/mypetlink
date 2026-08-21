@@ -54,6 +54,76 @@ public sealed class PetTruthAndPublicCareTests
     }
 
     [Fact]
+    public async Task CreateAsync_WithoutVisibilityUsesBackendProductDefaults()
+    {
+        using var harness = await Harness.CreateAsync(includePet: false);
+
+        var created = await harness.Pets.CreateAsync(OwnerId, CreateRequest());
+
+        Assert.Equal(ProductDefaultVisibility(), created.Visibility);
+    }
+
+    [Fact]
+    public async Task CreateAsync_StoredOwnerPrivacyDefaultsDoNotAffectNewPet()
+    {
+        const string storedOwnerDefaults =
+            "{\"showOwnerName\":true,\"showGeneralArea\":false,\"showPhone\":true," +
+            "\"showWhatsapp\":false,\"showEmergencyNote\":false,\"showCareBadges\":false," +
+            "\"showMoments\":false,\"showTimeline\":false,\"showBirthdayOnTimeline\":true," +
+            "\"showAdoptionDayOnTimeline\":true,\"showHealthSummary\":true," +
+            "\"showAllergiesOnPublicProfile\":true}";
+        using var harness = await Harness.CreateAsync(
+            includePet: false,
+            privacyDefaultsJson: storedOwnerDefaults);
+
+        var created = await harness.Pets.CreateAsync(OwnerId, CreateRequest());
+
+        Assert.Equal(ProductDefaultVisibility(), created.Visibility);
+        Assert.Equal(
+            storedOwnerDefaults,
+            (await harness.Db.OwnerProfiles.SingleAsync()).PrivacyDefaultsJson);
+    }
+
+    [Fact]
+    public async Task CreateAsync_ExplicitVisibilityRemainsAuthoritative()
+    {
+        using var harness = await Harness.CreateAsync(includePet: false);
+        var explicitVisibility = new PetVisibilityRequest(
+            ShowOwnerName: true,
+            ShowGeneralArea: false,
+            ShowPhone: true,
+            ShowWhatsapp: false,
+            ShowEmergencyNote: false,
+            ShowCareBadges: false,
+            ShowMoments: false,
+            ShowTimeline: false,
+            ShowBirthdayOnTimeline: true,
+            ShowAdoptionDayOnTimeline: true,
+            ShowHealthSummary: true,
+            ShowAllergiesOnPublicProfile: true);
+
+        var created = await harness.Pets.CreateAsync(
+            OwnerId,
+            CreateRequest(explicitVisibility));
+
+        Assert.Equal(
+            new PetVisibilityResponse(
+                true,
+                false,
+                true,
+                false,
+                false,
+                false,
+                false,
+                false,
+                true,
+                true,
+                true,
+                true),
+            created.Visibility);
+    }
+
+    [Fact]
     public async Task UpdateAsync_FullProfileSaveCanClearOptionalFieldsWithNull()
     {
         using var harness = await Harness.CreateAsync();
@@ -70,6 +140,65 @@ public sealed class PetTruthAndPublicCareTests
         Assert.Null(saved.Bio);
         Assert.Null(saved.SafetyNote);
         Assert.Null(saved.EmergencyNote);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_PartialNameAndSpeciesUpdatePreservesOptionalFields()
+    {
+        using var harness = await Harness.CreateAsync();
+
+        await harness.Pets.UpdateAsync(
+            OwnerId,
+            PetId,
+            PartialUpdate());
+
+        var saved = await harness.Db.Pets.SingleAsync(item => item.Id == PetId);
+        Assert.Equal("Canine", saved.CustomSpecies);
+        Assert.Equal("Mixed breed", saved.Breed);
+        Assert.Equal("Male", saved.Gender);
+        Assert.Equal("Brown", saved.Color);
+        Assert.Equal(new DateOnly(2024, 1, 2), saved.AdoptionDay);
+        Assert.Equal("Petaling Jaya", saved.GeneralArea);
+        Assert.Equal("Saved bio", saved.Bio);
+        Assert.Equal("Saved safety note", saved.SafetyNote);
+        Assert.Equal("Saved emergency note", saved.EmergencyNote);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_FullProfileRoundTripPreservesAdoptionDay()
+    {
+        using var harness = await Harness.CreateAsync();
+        var adoptionDay = new DateOnly(2020, 9, 2);
+
+        await harness.Pets.UpdateAsync(
+            OwnerId,
+            PetId,
+            FullUpdate() with { AdoptionDay = adoptionDay });
+
+        var saved = await harness.Db.Pets.SingleAsync(item => item.Id == PetId);
+        Assert.Equal(adoptionDay, saved.AdoptionDay);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_LegacyPartialCallerKeepsExistingProfileData()
+    {
+        using var harness = await Harness.CreateAsync();
+
+        await harness.Pets.UpdateAsync(
+            OwnerId,
+            PetId,
+            PartialUpdate() with
+            {
+                Name = null,
+                Species = null,
+                QrSafetyEnabled = false,
+                CompleteProfile = false
+            });
+
+        var saved = await harness.Db.Pets.SingleAsync(item => item.Id == PetId);
+        Assert.Equal("Saved bio", saved.Bio);
+        Assert.Equal(new DateOnly(2024, 1, 2), saved.AdoptionDay);
+        Assert.False(saved.SafetySetting!.QrSafetyEnabled);
     }
 
     [Fact]
@@ -109,12 +238,78 @@ public sealed class PetTruthAndPublicCareTests
         Assert.Null(badgeOnly.Notes);
     }
 
+    [Fact]
+    public async Task PublicProfile_ExposesSavedTimelineVisibilityWithoutInferringFromBirthday()
+    {
+        using var harness = await Harness.CreateAsync();
+        var pet = await harness.Db.Pets.SingleAsync();
+        var profile = await harness.Db.PetPublicProfiles.SingleAsync();
+        pet.Birthday = new DateOnly(2021, 9, 15);
+        profile.ShowTimeline = true;
+        profile.ShowBirthdayOnTimeline = false;
+        await harness.Db.SaveChangesAsync();
+
+        var birthdayHidden = await harness.PublicProfiles.GetByPublicSlugAsync("milo-pub123");
+        Assert.Equal(new DateOnly(2021, 9, 15), birthdayHidden.Birthday);
+        Assert.True(birthdayHidden.ShowTimeline);
+        Assert.False(birthdayHidden.ShowBirthdayOnTimeline);
+
+        profile.ShowTimeline = false;
+        profile.ShowBirthdayOnTimeline = true;
+        await harness.Db.SaveChangesAsync();
+
+        var timelineHidden = await harness.PublicProfiles.GetByPublicSlugAsync("milo-pub123");
+        Assert.False(timelineHidden.ShowTimeline);
+        Assert.True(timelineHidden.ShowBirthdayOnTimeline);
+
+        var json = JsonSerializer.Serialize(
+            timelineHidden,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        Assert.Contains("\"showTimeline\":false", json);
+        Assert.Contains("\"showBirthdayOnTimeline\":true", json);
+    }
+
     private static string Serialize(PublicCareSummaryResponse response)
     {
         var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
         options.Converters.Add(new JsonStringEnumConverter());
         return JsonSerializer.Serialize(response, options);
     }
+
+    private static CreatePetRequest CreateRequest(
+        PetVisibilityRequest? visibility = null) => new(
+        Name: "Milo",
+        Species: "Dog",
+        CustomSpecies: null,
+        Breed: null,
+        Gender: null,
+        Color: null,
+        AgeInformationMode: PetAgeMode.Unknown,
+        Birthday: null,
+        EstimatedBirthYear: null,
+        AdoptionDay: null,
+        GeneralArea: null,
+        Bio: null,
+        PersonalityTags: [],
+        ProfileTheme: "default",
+        Contact: new PetContactRequest(true, null, null, null, null, null),
+        Visibility: visibility,
+        SafetyNote: null,
+        EmergencyNote: null);
+
+    private static PetVisibilityResponse ProductDefaultVisibility() => new(
+        ShowOwnerName: false,
+        ShowGeneralArea: true,
+        ShowPhone: false,
+        ShowWhatsapp: true,
+        ShowEmergencyNote: true,
+        ShowCareBadges: true,
+        ShowMoments: true,
+        ShowTimeline: true,
+        ShowBirthdayOnTimeline: false,
+        ShowAdoptionDayOnTimeline: false,
+        ShowHealthSummary: false,
+        ShowAllergiesOnPublicProfile: false);
 
     private static UpdatePetRequest FullUpdate() => new(
         Name: "Milo",
@@ -137,7 +332,19 @@ public sealed class PetTruthAndPublicCareTests
         EmergencyNote: null,
         FavoriteFoods: [],
         FavoriteToys: [],
-        Allergies: []);
+        Allergies: [],
+        CompleteProfile: true);
+
+    private static UpdatePetRequest PartialUpdate() => FullUpdate() with
+    {
+        PersonalityTags = null,
+        ProfileTheme = null,
+        Contact = null,
+        FavoriteFoods = null,
+        FavoriteToys = null,
+        Allergies = null,
+        CompleteProfile = false
+    };
 
     private sealed class Harness : IDisposable
     {
@@ -154,7 +361,8 @@ public sealed class PetTruthAndPublicCareTests
 
         public static async Task<Harness> CreateAsync(
             bool includePet = true,
-            bool showHealthSummary = false)
+            bool showHealthSummary = false,
+            string privacyDefaultsJson = "{}")
         {
             var options = new DbContextOptionsBuilder<MyPetLinkDbContext>()
                 .UseInMemoryDatabase(Guid.NewGuid().ToString("N"))
@@ -187,6 +395,7 @@ public sealed class PetTruthAndPublicCareTests
                     UserId = OwnerId,
                     OwnerDisplayName = "Owner",
                     DefaultGeneralArea = "Petaling Jaya",
+                    PrivacyDefaultsJson = privacyDefaultsJson,
                     Plan = plan
                 }
             };

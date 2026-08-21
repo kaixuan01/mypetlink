@@ -7,6 +7,7 @@ import {
   writeOwnerSettings,
   type OwnerSettings,
 } from "@/lib/ownerSettings";
+import { newPetVisibilityDefaults } from "@/lib/petVisibility";
 import type { BackendOwnerProfile } from "@/services/apiDtos";
 
 const mocks = vi.hoisted(() => ({
@@ -36,9 +37,11 @@ vi.mock("@/lib/planLimits", () => ({
   }),
 }));
 
-const { getOwnerProfileSettings, updateOwnerProfileSettings } = await import(
-  "@/services/ownerProfileService"
-);
+const {
+  getOwnerProfileSettings,
+  mapOwnerProfileToSettings,
+  updateOwnerProfileSettings,
+} = await import("@/services/ownerProfileService");
 
 function settings(overrides: Partial<OwnerSettings> = {}): OwnerSettings {
   return {
@@ -68,7 +71,7 @@ function profile(
       whatsappE164,
       defaultGeneralArea: "Petaling Jaya",
     },
-    defaultPrivacy: structuredClone(defaultOwnerSettings.privacyDefaults),
+    defaultPrivacy: structuredClone(newPetVisibilityDefaults),
     notificationPreferences: structuredClone(
       defaultOwnerSettings.notificationPreferences
     ),
@@ -86,6 +89,34 @@ beforeEach(() => {
 });
 
 describe("owner contact persistence", () => {
+  it("ignores compatibility privacy data and omits it from profile updates", async () => {
+    mocks.apiRequest.mockResolvedValue({
+      data: profile("+60123334444", "+60128889999"),
+      meta: { requestId: "request-no-privacy" },
+    });
+
+    const response = await updateOwnerProfileSettings(
+      settings({
+        ownerDisplayName: "Updated Owner",
+        phoneNumber: "+60123334444",
+        whatsappNumber: "+60128889999",
+      })
+    );
+
+    const request = mocks.apiRequest.mock.calls[0][1];
+    expect(request.body).toMatchObject({
+      displayName: "Updated Owner",
+      phoneE164: "+60123334444",
+      whatsappE164: "+60128889999",
+      defaultGeneralArea: "Petaling Jaya",
+    });
+    expect(request.body).not.toHaveProperty("privacyDefaults");
+    expect(response.data).not.toHaveProperty("privacyDefaults");
+    expect(mapOwnerProfileToSettings(profile(null, null))).not.toHaveProperty(
+      "privacyDefaults"
+    );
+  });
+
   it.each([
     {
       name: "WhatsApp only",

@@ -36,7 +36,7 @@ export type AnalyticsRecordType =
   | "other";
 
 export type AnalyticsTagType = "qr" | "qr_nfc" | "mixed";
-export type AnalyticsCardVariant = "profile" | "birthday" | "adoption";
+export type AnalyticsCardVariant = "profile" | "birthday";
 /**
  * What an owner did with a Share Card in the app. Handing the card to the
  * system share sheet stays its own event (`share_card_shared`) because it is a
@@ -123,7 +123,7 @@ const allowedValues = {
     "bio",
     "care_record",
   ]),
-  card_variant: new Set(["profile", "birthday", "adoption"]),
+  card_variant: new Set(["profile", "birthday"]),
   card_action: new Set(["save", "copy_link", "open_image"]),
 } as const;
 

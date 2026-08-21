@@ -245,6 +245,34 @@ describe("contextual create actions", () => {
     });
   });
 
+  it("round-trips September care dates without clearing or changing them", async () => {
+    const record = {
+      ...mockRecords[0],
+      date: "02 Sept 2020",
+      dueDate: "15 Sept 2027",
+    };
+    mocks.getPetRecords.mockResolvedValue({ data: [record] });
+    mocks.updateRecord.mockResolvedValue({ data: record });
+    render(<RecordsManager petId={mockPets[0].id} initialRecords={[record]} />);
+
+    expect(await screen.findByText(record.title)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    expect(
+      (screen.getByLabelText("Vaccination Date") as HTMLInputElement).value
+    ).toBe("2020-09-02");
+    expect(
+      (screen.getByLabelText(/Next Vaccination Due Date/) as HTMLInputElement)
+        .value
+    ).toBe("2027-09-15");
+    fireEvent.click(screen.getByRole("button", { name: "Save Changes" }));
+
+    await waitFor(() => expect(mocks.updateRecord).toHaveBeenCalledOnce());
+    expect(mocks.updateRecord.mock.calls[0][1]).toMatchObject({
+      date: "02 Sept 2020",
+      dueDate: "15 Sept 2027",
+    });
+  });
+
   it("does not expose a create action when Records fail to load", async () => {
     mocks.getPetRecords.mockRejectedValue(new Error("offline"));
     render(<RecordsManager petId={mockPets[0].id} initialRecords={[]} />);

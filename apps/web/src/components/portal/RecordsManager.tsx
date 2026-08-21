@@ -643,7 +643,7 @@ function parseDisplayDate(value: string) {
     return value;
   }
 
-  const match = value.match(/^(\d{2}) ([A-Za-z]{3}) (\d{4})$/);
+  const match = value.match(/^(\d{1,2}) ([A-Za-z]{3,4}) (\d{4})$/);
 
   if (!match) {
     return "";
@@ -663,11 +663,11 @@ function parseDisplayDate(value: string) {
     "Oct",
     "Nov",
     "Dec",
-  ].indexOf(month);
+  ].indexOf(`${month.slice(0, 1).toUpperCase()}${month.slice(1, 3).toLowerCase()}`);
 
   if (monthIndex < 0) {
     return "";
   }
 
-  return `${year}-${String(monthIndex + 1).padStart(2, "0")}-${day}`;
+  return `${year}-${String(monthIndex + 1).padStart(2, "0")}-${day.padStart(2, "0")}`;
 }

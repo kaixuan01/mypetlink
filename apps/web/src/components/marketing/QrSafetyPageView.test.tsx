@@ -75,6 +75,56 @@ it("never shows the Not set placeholder in the finder pet summary", async () => 
   expect(document.body.textContent).not.toContain("Not set");
 });
 
+it("omits missing owner-authored Safety Profile details", async () => {
+  const pet = {
+    ...mockPets[0],
+    generalArea: "",
+    safetyNote: "",
+    emergencyNote: "",
+    owner: {
+      ...mockPets[0].owner,
+      name: "",
+    },
+    contactOverride: { useOwnerDefaults: false },
+    visibility: {
+      ...mockPets[0].visibility,
+      showOwnerName: true,
+      showGeneralArea: true,
+      showEmergencyNote: true,
+    },
+  };
+  render(<QrSafetyPageView pet={pet} />);
+
+  await screen.findByText("MyPetLink Safety Profile");
+  expect(screen.queryByText(/^Owner:/)).toBeNull();
+  expect(screen.queryByText("General area")).toBeNull();
+  expect(screen.queryByText("Safety note")).toBeNull();
+  expect(screen.queryByText("Emergency note")).toBeNull();
+  expect(document.body.textContent).not.toContain("Milo's owner");
+  expect(document.body.textContent).not.toContain("Malaysia");
+});
+
+it("continues rendering real owner and general-area values", async () => {
+  const pet = {
+    ...mockPets[0],
+    generalArea: "Petaling Jaya",
+    owner: {
+      ...mockPets[0].owner,
+      name: "Aina",
+    },
+    contactOverride: { useOwnerDefaults: false },
+    visibility: {
+      ...mockPets[0].visibility,
+      showOwnerName: true,
+      showGeneralArea: true,
+    },
+  };
+  render(<QrSafetyPageView pet={pet} />);
+
+  expect(await screen.findByText("Owner: Aina")).toBeTruthy();
+  expect(screen.getByText("Petaling Jaya")).toBeTruthy();
+});
+
 it("falls back to the pet colour in the summary when the breed is unknown", async () => {
   const pet = {
     ...mockPets[0],
@@ -92,6 +142,20 @@ it("hides the allergy safety section when none are saved", async () => {
 
   await screen.findByText("MyPetLink Safety Profile");
   expect(screen.queryByText("Known allergies")).toBeNull();
+});
+
+it("fails closed when finder visibility is unexpectedly missing", async () => {
+  const pet = withFinderContact({
+    phone: "+60123456789",
+    whatsapp: "+60123456789",
+  });
+  Reflect.deleteProperty(pet, "visibility");
+
+  render(<QrSafetyPageView pet={pet} />);
+
+  await screen.findByText("MyPetLink Safety Profile");
+  expect(screen.queryByRole("link", { name: "WhatsApp Owner" })).toBeNull();
+  expect(screen.queryByRole("link", { name: "Call Owner" })).toBeNull();
 });
 
 it("shows the normal instruction and WhatsApp action when only public WhatsApp is available", async () => {

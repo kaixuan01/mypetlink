@@ -1,11 +1,7 @@
 import { mockPets } from "@/data/mockPets";
 import { samplePet } from "@/data/samplePet";
 import { mockRecords } from "@/data/mockRecords";
-import {
-  defaultOwnerSettings,
-  getDefaultPetVisibility,
-  readOwnerSettings,
-} from "@/lib/ownerSettings";
+import { readOwnerSettings } from "@/lib/ownerSettings";
 import { calculatePetAge, getPetAgeMode } from "@/lib/petAge";
 import { getPetAgeLabel, PET_TYPE_OPTIONS } from "@/lib/petDisplay";
 import { resolvePetProfileThemeId } from "@/lib/petProfileThemes";
@@ -17,6 +13,11 @@ import {
 } from "@/lib/petLifecycle";
 import { freePlanLimits } from "@/lib/planLimits";
 import { publicProfilePath, qrSafetyPath } from "@/lib/routes";
+import {
+  conservativePetVisibility,
+  mergeConservativePetVisibility,
+  newPetVisibilityDefaults,
+} from "@/lib/petVisibility";
 import {
   derivePublicCode,
   deriveSafetyCode,
@@ -66,8 +67,9 @@ function normalizeCoverPosition(value?: number | null) {
   return Math.min(100, Math.max(0, Math.round(value)));
 }
 
-const defaultVisibility: Pet["visibility"] =
-  defaultOwnerSettings.privacyDefaults;
+const defaultVisibility: Pet["visibility"] = {
+  ...newPetVisibilityDefaults,
+};
 
 type BackendListEnvelope<T> = {
   data?: T;
@@ -371,8 +373,8 @@ function normalizeBackendSpecies(
 }
 
 function toDisplayDate(value?: string | null) {
-  if (!value) {
-    return "Not set";
+  if (!value || value.trim().toLowerCase() === "not set") {
+    return "";
   }
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -386,6 +388,11 @@ function toDisplayDate(value?: string | null) {
   }).format(new Date(`${value}T00:00:00`));
 }
 
+function publicOptionalText(value?: string | null) {
+  const normalized = value?.trim() ?? "";
+  return normalized.toLowerCase() === "not set" ? "" : normalized;
+}
+
 function toIsoDate(value?: string | null) {
   if (!value || value === "Not set" || /^estimated/i.test(value)) {
     return null;
@@ -395,7 +402,7 @@ function toIsoDate(value?: string | null) {
     return value;
   }
 
-  const match = value.match(/^(\d{1,2}) ([A-Za-z]{3}) (\d{4})$/);
+  const match = value.match(/^(\d{1,2}) ([A-Za-z]{3,4}) (\d{4})$/);
 
   if (!match) {
     return null;
@@ -415,7 +422,7 @@ function toIsoDate(value?: string | null) {
     "Oct",
     "Nov",
     "Dec",
-  ].indexOf(month);
+  ].indexOf(`${month.slice(0, 1).toUpperCase()}${month.slice(1, 3).toLowerCase()}`);
 
   if (monthIndex < 0) {
     return null;
@@ -508,8 +515,8 @@ export function mapBackendPetToFrontend(
       ageSource: age.source,
       ageInformationMode: age.source,
       estimatedBirthYear,
-      birthday,
-      adoptionDay,
+      birthday: birthday === "Not set" ? "" : birthday,
+      adoptionDay: adoptionDay === "Not set" ? "" : adoptionDay,
       createdAt: pet.createdAt,
       updatedAt: pet.updatedAt,
       photoInitial: getPetInitial(pet.name),
@@ -541,7 +548,7 @@ export function mapBackendPetToFrontend(
     };
   }
 
-  const visibility = mergeVisibility(detail?.visibility ?? defaultVisibility);
+  const visibility = mergeConservativePetVisibility(detail?.visibility);
   const contact = detail?.contact;
   const phone = contact?.phoneE164 ?? "";
   const whatsapp = contact?.whatsappE164 ?? "";
@@ -653,9 +660,9 @@ export function mapBackendPublicProfile(
       name: profile.name,
       species: species.species,
       customSpecies: species.customSpecies,
-      breed: profile.breed ?? "Not set",
-      gender: profile.gender ?? "Not set",
-      color: profile.color ?? "Not set",
+      breed: publicOptionalText(profile.breed),
+      gender: publicOptionalText(profile.gender),
+      color: publicOptionalText(profile.color),
       ageLabel: age.displayLabel,
       ageSource: age.source,
       ageInformationMode: age.source,
@@ -664,7 +671,7 @@ export function mapBackendPublicProfile(
       adoptionDay: toDisplayDate(profile.adoptionDay),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      generalArea: profile.generalArea ?? "",
+      generalArea: publicOptionalText(profile.generalArea),
       photoInitial: getPetInitial(profile.name),
       photoTone: getPhotoTone(species.species),
       profilePhotoLabel: "",
@@ -679,8 +686,10 @@ export function mapBackendPublicProfile(
         profile.lifecycleStatus === "Memorial" ? "Memorial" : "Active",
       memorial: {
         passedAwayDate: "",
-        memorialMessage: profile.memorialMessage ?? "",
-        showMemorialOnPublicProfile: Boolean(profile.memorialMessage),
+        memorialMessage: publicOptionalText(profile.memorialMessage),
+        // A Memorial profile only reaches this mapper after the API has
+        // enforced the owner's public-Memorial setting.
+        showMemorialOnPublicProfile: true,
       },
       qrStatus: "active",
       publicCode: profile.publicCode,
@@ -691,9 +700,7 @@ export function mapBackendPublicProfile(
       qrSafetyPath: safetyPath,
       finderProfileUrl: safetyPath,
       publicProfilePath: publicProfilePath(slug, profile.publicCode),
-      bio:
-        profile.bio ??
-        `${profile.name} has a safe MyPetLink profile ready for family and friends.`,
+      bio: publicOptionalText(profile.bio),
       personalityTags: profile.personalityTags ?? [],
       favoriteFoods: toFavoriteList(profile.favoriteFoods, profile.favoriteFood),
       favoriteToys: toFavoriteList(profile.favoriteToys, profile.favoriteToy),
@@ -702,26 +709,29 @@ export function mapBackendPublicProfile(
       lostModeEnabled: profile.lostModeEnabled,
       lostMode: mergeLostMode(profile.name, profile.generalArea ?? "", {
         lastSeenArea:
-          profile.lostLastSeenArea ?? profile.generalArea ?? "",
-        lastSeenDateTime: profile.lostLastSeenDateTime ?? "",
-        lostMessage: profile.lostMessage ?? "",
-        rewardNote: profile.lostRewardNote ?? "",
+          publicOptionalText(profile.lostLastSeenArea) ||
+          publicOptionalText(profile.generalArea),
+        lastSeenDateTime: publicOptionalText(profile.lostLastSeenDateTime),
+        lostMessage: publicOptionalText(profile.lostMessage),
+        rewardNote: publicOptionalText(profile.lostRewardNote),
         extraContactInstruction:
-          profile.lostExtraContactInstruction ?? "",
+          publicOptionalText(profile.lostExtraContactInstruction),
       }),
       owner: {
-        name: profile.ownerDisplayName ?? "",
+        name: publicOptionalText(profile.ownerDisplayName),
         phone: "",
         whatsapp: "",
         emergencyContact: "",
       },
       visibility: {
-        ...defaultVisibility,
+        ...conservativePetVisibility,
         showOwnerName: Boolean(profile.ownerDisplayName),
         showGeneralArea: Boolean(profile.generalArea),
-        showPhone: false,
-        showWhatsapp: false,
-        showEmergencyNote: false,
+        showCareBadges: profile.careRecords.length > 0,
+        showMoments: profile.memories.some((memory) => memory.showOnPublicProfile),
+        showTimeline: profile.showTimeline === true,
+        showBirthdayOnTimeline: profile.showBirthdayOnTimeline === true,
+        showAdoptionDayOnTimeline: false,
         showAllergiesOnPublicProfile: Boolean(profile.allergies?.length),
       },
       allergies: profile.allergies ?? [],
@@ -757,18 +767,18 @@ export function mapBackendSafetyPage(page: BackendPublicSafetyPage): PublicPetPr
       name: page.name,
       species: species.species,
       customSpecies: species.customSpecies,
-      breed: "Not set",
-      gender: "Not set",
-      color: "Not set",
+      breed: "",
+      gender: "",
+      color: "",
       ageLabel: age.displayLabel,
       ageSource: age.source,
       ageInformationMode: age.source,
       estimatedBirthYear,
       birthday,
-      adoptionDay: "Not set",
+      adoptionDay: "",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      generalArea: page.generalArea ?? "",
+      generalArea: publicOptionalText(page.generalArea),
       photoInitial: getPetInitial(page.name),
       photoTone: getPhotoTone(species.species),
       profilePhotoLabel: "",
@@ -783,10 +793,7 @@ export function mapBackendSafetyPage(page: BackendPublicSafetyPage): PublicPetPr
         page.lifecycleStatus === "Memorial" ? "Memorial" : "Active",
       memorial: {
         passedAwayDate: "",
-        memorialMessage:
-          page.lifecycleStatus === "Memorial"
-            ? `${page.name} is lovingly remembered.`
-            : "",
+        memorialMessage: "",
         showMemorialOnPublicProfile: true,
       },
       qrStatus: "active",
@@ -801,24 +808,28 @@ export function mapBackendSafetyPage(page: BackendPublicSafetyPage): PublicPetPr
       personalityTags: [],
       favoriteFoods: [],
       favoriteToys: [],
-      safetyNote: page.safetyNote ?? "",
-      emergencyNote: page.emergencyNote ?? "",
+      safetyNote: publicOptionalText(page.safetyNote),
+      emergencyNote: publicOptionalText(page.emergencyNote),
       lostModeEnabled: page.lostModeEnabled || page.state === "LostMode",
       lostMode: {
-        lastSeenArea: page.lostLastSeenArea ?? page.generalArea ?? "",
-        lastSeenDateTime: page.lostLastSeenDateTime ?? "",
-        lostMessage: page.lostMessage ?? "",
-        rewardNote: page.lostRewardNote ?? "",
-        extraContactInstruction: page.lostExtraContactInstruction ?? "",
+        lastSeenArea:
+          publicOptionalText(page.lostLastSeenArea) ||
+          publicOptionalText(page.generalArea),
+        lastSeenDateTime: publicOptionalText(page.lostLastSeenDateTime),
+        lostMessage: publicOptionalText(page.lostMessage),
+        rewardNote: publicOptionalText(page.lostRewardNote),
+        extraContactInstruction: publicOptionalText(
+          page.lostExtraContactInstruction
+        ),
       },
       owner: {
-        name: contact?.ownerDisplayName ?? "",
+        name: publicOptionalText(contact?.ownerDisplayName),
         phone,
         whatsapp,
         emergencyContact: contact?.emergencyContactE164 ?? phone,
       },
       visibility: {
-        ...defaultVisibility,
+        ...conservativePetVisibility,
         showOwnerName: Boolean(contact?.ownerDisplayName),
         showGeneralArea: Boolean(page.generalArea),
         showPhone: Boolean(phone),
@@ -835,7 +846,10 @@ function PetDtoFallbackSlug(name: string, publicCode: string) {
   return `${slugifyPetSlug(name) || "pet"}-${publicCode}`;
 }
 
-export function buildBackendPetPayload(payload: PetPayload) {
+export function buildBackendPetPayload(
+  payload: PetPayload,
+  options: { completeProfile?: boolean } = {}
+) {
   const hasAgeInformation =
     "ageInformationMode" in payload ||
     "birthday" in payload ||
@@ -845,6 +859,7 @@ export function buildBackendPetPayload(payload: PetPayload) {
   const useOwnerDefaults = payload.contactOverride?.useOwnerDefaults ?? true;
 
   return {
+    completeProfile: options.completeProfile ?? false,
     name: payload.name,
     species: payload.species,
     customSpecies: optionalText(payload.customSpecies),
@@ -905,7 +920,9 @@ export function buildBackendPetPayload(payload: PetPayload) {
         ? null
         : payload.contactOverride?.generalArea ?? payload.generalArea ?? null,
     },
-    visibility: payload.visibility,
+    ...(payload.visibility !== undefined
+      ? { visibility: payload.visibility }
+      : {}),
     safetyNote: optionalText(payload.safetyNote),
     emergencyNote: optionalText(payload.emergencyNote),
     // Only send the page-access switches when the caller changed them, so
@@ -956,9 +973,9 @@ function getDefaultOwner(): Pet["owner"] {
 // Sharing the in-flight request collapses those concurrent calls into one
 // network fetch; the promise is cleared as soon as it settles, so later
 // calls (e.g. after a mutation) always fetch fresh data.
-let inFlightPetsRequest: Promise<ApiResponse<Pet[]>> | null = null;
+let inFlightPetsRequest: Promise<ApiResponse<PetListItem[]>> | null = null;
 
-export async function getPets() {
+export async function getPets(): Promise<ApiResponse<PetListItem[]>> {
   if (canUseApi()) {
     inFlightPetsRequest ??= (async () => {
       try {
@@ -968,11 +985,7 @@ export async function getPets() {
 
         return apiResponse(
           {
-            // Runtime list items intentionally omit detail-only properties.
-            // Keep the long-standing collection signature for existing list
-            // consumers while mapBackendPetToFrontend's list overload exposes
-            // the truthful PetListItem shape to new code and tests.
-            data: (response.data ?? []).map(mapBackendPetToFrontend) as Pet[],
+            data: (response.data ?? []).map(mapBackendPetToFrontend),
             meta: response.meta,
           },
           []
@@ -988,6 +1001,18 @@ export async function getPets() {
   await mockDelay();
   const pets = getPetCollection();
 
+  return mockResponse<PetListItem[]>(pets, {
+    page: 1,
+    pageSize: pets.length,
+    total: pets.length,
+  });
+}
+
+/** Full local-preview records for service fallbacks that emulate server-side
+ * admin or finder joins. Owner list UI must use getPets() instead. */
+export async function getStoredPetsForInternalServices(): Promise<ApiResponse<Pet[]>> {
+  await mockDelay();
+  const pets = getPetCollection();
   return mockResponse(pets, {
     page: 1,
     pageSize: pets.length,
@@ -1235,7 +1260,6 @@ export async function createPet(payload: PetPayload) {
 
   await mockDelay();
   const pets = getPetCollection();
-  const ownerSettings = readOwnerSettings();
   const petName = payload.name?.trim() || "New pet";
   const slug = getUniquePetSlug(payload.slug ?? petName, petName, pets);
   const now = new Date().toISOString();
@@ -1302,7 +1326,7 @@ export async function createPet(payload: PetPayload) {
     contactOverride: payload.contactOverride ?? { useOwnerDefaults: true },
     visibility: mergeVisibility(
       payload.visibility,
-      getDefaultPetVisibility(ownerSettings)
+      newPetVisibilityDefaults
     ),
     allergies: payload.allergies ?? [],
     medications: [],
@@ -1315,14 +1339,18 @@ export async function createPet(payload: PetPayload) {
   return mockResponse(normalizedPet);
 }
 
-export async function updatePet(id: string, payload: PetPayload) {
+export async function updatePet(
+  id: string,
+  payload: PetPayload,
+  options: { completeProfile?: boolean } = {}
+) {
   if (canUseApi()) {
     try {
       const response = await apiRequest<BackendPetDetail>(
         `/api/v1/pets/${encodeURIComponent(id)}`,
         {
           method: "PUT",
-          body: buildBackendPetPayload(payload),
+          body: buildBackendPetPayload(payload, options),
         }
       );
 

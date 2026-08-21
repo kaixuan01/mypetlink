@@ -85,6 +85,36 @@ afterEach(() => {
 
 const createCtaName = "Create a profile for your pet";
 
+it("fails closed when public-profile visibility is unexpectedly missing", async () => {
+  const profile = {
+    ...mockPets[0],
+    lostModeEnabled: true,
+    contactOverride: {
+      useOwnerDefaults: false,
+      phoneNumber: "+60198765432",
+      whatsappNumber: "+60111222333",
+    },
+  };
+  Reflect.deleteProperty(profile, "visibility");
+  publicProfileMocks.profile = profile;
+
+  render(
+    <PublicSharePetProfile
+      initialMoments={[]}
+      initialProfile={profile}
+      initialRecords={[]}
+    />
+  );
+
+  await screen.findByText(`${profile.name} is currently missing`);
+  expect(
+    screen.queryByRole("link", { name: `WhatsApp ${profile.name}'s owner` })
+  ).toBeNull();
+  expect(
+    screen.queryByRole("link", { name: `Call ${profile.name}'s owner` })
+  ).toBeNull();
+});
+
 it("applies the pet's saved focal position to the public profile cover", async () => {
   const profile = {
     ...mockPets[0],
@@ -154,6 +184,198 @@ it("uses the timeline media presentation while leaving photo-free milestones unc
   expect(screen.getByText("Milo was born")).toBeTruthy();
   expect(screen.getByText("First beach trip")).toBeTruthy();
   expect(screen.getAllByRole("region")).toHaveLength(1);
+});
+
+it("keeps Birthday in About while hiding only its timeline milestone", async () => {
+  const profile = {
+    ...mockPets[0],
+    birthday: "15 Sept 2021",
+    visibility: {
+      ...mockPets[0].visibility,
+      showTimeline: true,
+      showBirthdayOnTimeline: false,
+    },
+  };
+  const adoptionMoment = {
+    id: "adoption-moment",
+    petId: profile.id,
+    title: "First day home",
+    date: "16 Sept 2022",
+    type: "Adoption Day",
+    caption: "The day Milo joined the family.",
+    media: [],
+    visibility: "Public",
+    showOnPublicProfile: true,
+    showInLifeTimeline: true,
+    timelineNote: "Home at last.",
+  } satisfies PetMoment;
+  publicProfileMocks.profile = profile;
+  publicProfileMocks.moments = [adoptionMoment];
+
+  render(
+    <PublicSharePetProfile
+      initialMoments={[adoptionMoment]}
+      initialProfile={profile}
+      initialRecords={[]}
+    />
+  );
+
+  expect(await screen.findByText("15 Sept 2021")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Timeline" }));
+  expect(screen.queryByText("Milo was born")).toBeNull();
+  expect(screen.getByText("First day home")).toBeTruthy();
+});
+
+it("shows the birthday timeline milestone only when explicitly enabled", async () => {
+  const profile = {
+    ...mockPets[0],
+    birthday: "15 Sept 2021",
+    visibility: {
+      ...mockPets[0].visibility,
+      showTimeline: true,
+      showBirthdayOnTimeline: true,
+    },
+  };
+  publicProfileMocks.profile = profile;
+
+  render(
+    <PublicSharePetProfile
+      initialMoments={[]}
+      initialProfile={profile}
+      initialRecords={[]}
+    />
+  );
+
+  expect(await screen.findByText("15 Sept 2021")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Timeline" }));
+  expect(screen.getByText("Milo was born")).toBeTruthy();
+});
+
+it("omits Birthday and its milestone when no birthday is saved", async () => {
+  const profile = {
+    ...mockPets[0],
+    birthday: "",
+    estimatedBirthYear: undefined,
+    visibility: {
+      ...mockPets[0].visibility,
+      showTimeline: true,
+      showBirthdayOnTimeline: true,
+    },
+  };
+  publicProfileMocks.profile = profile;
+
+  render(
+    <PublicSharePetProfile
+      initialMoments={[]}
+      initialProfile={profile}
+      initialRecords={[]}
+    />
+  );
+
+  await screen.findByRole("button", { name: "Timeline" });
+  expect(screen.queryByText("Birthday")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Timeline" }));
+  expect(screen.queryByText("Milo was born")).toBeNull();
+});
+
+it("hides the whole timeline when its saved visibility is off", async () => {
+  const profile = {
+    ...mockPets[0],
+    visibility: {
+      ...mockPets[0].visibility,
+      showTimeline: false,
+      showBirthdayOnTimeline: true,
+    },
+  };
+  const timelineMoment = {
+    id: "hidden-timeline-moment",
+    petId: profile.id,
+    title: "First day home",
+    date: "16 Sept 2022",
+    type: "First Day Home",
+    caption: "A happy day.",
+    media: [],
+    visibility: "Public",
+    showOnPublicProfile: true,
+    showInLifeTimeline: true,
+    timelineNote: "Home at last.",
+  } satisfies PetMoment;
+  publicProfileMocks.profile = profile;
+  publicProfileMocks.moments = [timelineMoment];
+
+  render(
+    <PublicSharePetProfile
+      initialMoments={[timelineMoment]}
+      initialProfile={profile}
+      initialRecords={[]}
+    />
+  );
+
+  await screen.findByText(profile.bio);
+  expect(screen.queryByRole("button", { name: "Timeline" })).toBeNull();
+  expect(screen.queryByText("Life Timeline")).toBeNull();
+});
+
+it("does not present missing bio, owner name, or tribute as owner-authored", async () => {
+  const profile = {
+    ...mockPets[0],
+    bio: "",
+    lifecycleStatus: "Memorial" as const,
+    previousLifecycleStatus: "Memorial" as const,
+    owner: { ...mockPets[0].owner, name: "" },
+    contactOverride: { useOwnerDefaults: false },
+    memorial: {
+      passedAwayDate: "",
+      memorialMessage: "",
+      showMemorialOnPublicProfile: true,
+    },
+    visibility: { ...mockPets[0].visibility, showOwnerName: true },
+  };
+  publicProfileMocks.profile = profile;
+
+  render(
+    <PublicSharePetProfile
+      initialMoments={[]}
+      initialProfile={profile}
+      initialRecords={[]}
+    />
+  );
+
+  expect(await screen.findByText("Memorial profile")).toBeTruthy();
+  expect(document.body.textContent).not.toContain("safe MyPetLink profile ready");
+  expect(document.body.textContent).not.toContain("Milo's owner");
+  expect(document.body.textContent).not.toContain("lovingly remembered");
+  expect(screen.queryByText(/Cared for by/)).toBeNull();
+});
+
+it("continues rendering real bio, owner name, and memorial tribute", async () => {
+  const profile = {
+    ...mockPets[0],
+    bio: "Loved sunny walks.",
+    lifecycleStatus: "Memorial" as const,
+    previousLifecycleStatus: "Memorial" as const,
+    owner: { ...mockPets[0].owner, name: "Aina" },
+    contactOverride: { useOwnerDefaults: false },
+    memorial: {
+      passedAwayDate: "",
+      memorialMessage: "Forever in our hearts.",
+      showMemorialOnPublicProfile: true,
+    },
+    visibility: { ...mockPets[0].visibility, showOwnerName: true },
+  };
+  publicProfileMocks.profile = profile;
+
+  render(
+    <PublicSharePetProfile
+      initialMoments={[]}
+      initialProfile={profile}
+      initialRecords={[]}
+    />
+  );
+
+  expect(await screen.findByText("Loved sunny walks.")).toBeTruthy();
+  expect(screen.getByText("Cared for by Aina")).toBeTruthy();
+  expect(screen.getByText("Forever in our hearts.")).toBeTruthy();
 });
 
 it("refreshes an already-open profile when the visitor returns to its tab", async () => {

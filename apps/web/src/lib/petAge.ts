@@ -138,12 +138,15 @@ export function parsePetBirthday(value?: string | null) {
     );
   }
 
-  const displayMatch = trimmed.match(/^(\d{1,2}) ([A-Za-z]{3}) (\d{4})$/);
+  const displayMatch = trimmed.match(/^(\d{1,2}) ([A-Za-z]{3,4}) (\d{4})$/);
   if (!displayMatch) {
     return null;
   }
 
-  const month = MONTHS.indexOf(displayMatch[2] as (typeof MONTHS)[number]) + 1;
+  const monthToken = `${displayMatch[2].slice(0, 1).toUpperCase()}${displayMatch[2]
+    .slice(1, 3)
+    .toLowerCase()}` as (typeof MONTHS)[number];
+  const month = MONTHS.indexOf(monthToken) + 1;
   return validDateParts(Number(displayMatch[3]), month, Number(displayMatch[1]));
 }
 

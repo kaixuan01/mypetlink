@@ -108,6 +108,14 @@ describe("authenticated pet profile data mapping", () => {
     expect(pet.bio).toBe("");
   });
 
+  it("maps unexpectedly missing detail visibility with a fail-closed baseline", () => {
+    const backendPet = detailPet();
+    Reflect.deleteProperty(backendPet, "visibility");
+
+    const pet = mapBackendPetToFrontend(backendPet);
+    expect(Object.values(pet.visibility).every((value) => !value)).toBe(true);
+  });
+
   it("keeps list and detail completion equivalent for a representative pet", () => {
     const fromList = completion(listPet());
     const fromDetail = completion(detailPet());
@@ -131,15 +139,22 @@ describe("authenticated pet profile data mapping", () => {
     expect(completion(listPet({ bio: null })).items.find((item) => item.id === "bio")?.isComplete).toBe(false);
   });
 
+  it("normalises missing list dates to empty model values", () => {
+    const pet = mapBackendPetToFrontend(
+      listPet({ birthday: null, adoptionDay: null })
+    );
+
+    expect(pet.birthday).toBe("");
+    expect(pet.adoptionDay).toBe("");
+  });
+
   it("counts a real owner-written bio", () => {
     expect(completion(listPet()).items.find((item) => item.id === "bio")?.isComplete).toBe(true);
   });
 
-  it("maps an adoption anniversary into the shared occasion calculator", () => {
+  it("keeps a historical Adoption Day out of owner share occasions", () => {
     const pet = mapBackendPetToFrontend(listPet({ birthday: null }));
 
-    expect(derivePetOccasions(pet, new Date("2026-08-16T16:00:00Z"))).toEqual([
-      { variant: "adoption", count: 4, label: "Adoption Day" },
-    ]);
+    expect(derivePetOccasions(pet, new Date("2026-08-16T16:00:00Z"))).toEqual([]);
   });
 });

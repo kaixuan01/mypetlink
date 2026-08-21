@@ -27,6 +27,7 @@ vi.mock("@/lib/features", async (importOriginal) => {
     ...actual,
     publicProfilesEnabled: true,
     safetyProfilesOwnerUiEnabled: true,
+    smartTagsEnabled: true,
   };
 });
 vi.mock("@/services/petService", async (importOriginal) => {
@@ -73,6 +74,16 @@ afterEach(() => {
 });
 
 describe("Sharing & Safety layout", () => {
+  it("keeps Privacy absent when Public Profiles, Safety Profiles, and Smart Tags are enabled", async () => {
+    renderOverview(activePet());
+    await screen.findByText("Sharing & Safety");
+
+    expect(screen.queryByRole("tab", { name: "Privacy" })).toBeNull();
+    expect(screen.queryByText("Public profile visibility")).toBeNull();
+    expect(screen.queryByText("Safety Profile visibility")).toBeNull();
+    expect(screen.getByText("Public profile is on")).toBeTruthy();
+  });
+
   it("gives both profiles the same shape: status, description, one action, one link", async () => {
     const pet = activePet();
     renderOverview(pet);
@@ -110,6 +121,22 @@ describe("Sharing & Safety layout", () => {
     expect(
       subcardFor("Safety Profile")!.querySelector("a")?.getAttribute("href")
     ).toBe(pet.qrSafetyPath);
+  });
+
+  it("routes sharing and safety settings to their current Edit Pet tabs", async () => {
+    const pet = activePet({ hasUsableSafetyContact: false });
+    mocks.getPetById.mockResolvedValue({ data: pet });
+    renderOverview(pet);
+    await screen.findByText("Sharing & Safety");
+
+    expect(
+      screen.getByRole("link", { name: /Edit sharing settings/ }).getAttribute(
+        "href"
+      )
+    ).toBe(`/pets/${pet.id}/edit?tab=public`);
+    expect(
+      screen.getByRole("link", { name: /Update contact/ }).getAttribute("href")
+    ).toBe(`/pets/${pet.id}/edit?tab=contact`);
   });
 
   it("does not repeat Copy Link, which belongs to the Share Center", async () => {

@@ -113,6 +113,32 @@ describe("MomentEditorDialog", () => {
     });
   });
 
+  it("round-trips a September Moment date without clearing or changing it", async () => {
+    const onSubmit = vi.fn();
+    const septemberMoment = {
+      ...existingMoment,
+      date: "02 Sept 2020",
+    };
+    render(
+      <MomentEditorDialog
+        initialMoment={septemberMoment}
+        mode="edit"
+        onRequestClose={vi.fn()}
+        onSubmit={onSubmit}
+        petName="Topu"
+        submitting={false}
+      />
+    );
+
+    expect((screen.getByLabelText("Date") as HTMLInputElement).value).toBe(
+      "2020-09-02"
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Save Changes" }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce());
+    expect(onSubmit.mock.calls[0][0].date).toBe("02 Sept 2020");
+  });
+
   it("reports dirty state, locks page scrolling, and routes Escape through the close guard", async () => {
     const onDirtyChange = vi.fn();
     const onRequestClose = vi.fn();

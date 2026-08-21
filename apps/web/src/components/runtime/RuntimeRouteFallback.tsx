@@ -79,6 +79,7 @@ import type {
   CareRecord,
   FinderResult,
   Pet,
+  PetListItem,
   PetMoment,
   PetTag,
   PublicPetProfile,
@@ -132,13 +133,13 @@ type RuntimeState =
       status: "order";
       orderKey: string;
       order: TagOrder | null;
-      pets: Pet[];
+      pets: PetListItem[];
       tags: PetTag[];
     }
   | {
       status: "owner";
       pet: Pet;
-      pets: Pet[];
+      pets: PetListItem[];
       records: CareRecord[];
       moments: PetMoment[];
       tags: PetTag[];

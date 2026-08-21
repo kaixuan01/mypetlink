@@ -3,7 +3,7 @@ import { fulfilmentStatusLabels, paymentStatusLabels, type AdminOrderFulfilmentS
 import { canUseAdminApi } from "@/services/adminService";
 import { apiRequest, apiRequestBlob } from "@/services/apiClient";
 import { mockDelay } from "@/services/mockApi";
-import { getPets } from "@/services/petService";
+import { getStoredPetsForInternalServices } from "@/services/petService";
 import { adminConfirmOrderPayment, adminRejectOrderPayment, getStoredOrdersForAdmin } from "@/services/tagService";
 import type { OrderStatus, TagOrder } from "@/types";
 
@@ -211,7 +211,7 @@ export async function downloadAdminPaymentProofsExport(params: AdminPaymentProof
 }
 
 async function loadLocalProofs(): Promise<AdminPaymentProof[]> {
-  const [orders, pets] = await Promise.all([getStoredOrdersForAdmin(), getPets()]);
+  const [orders, pets] = await Promise.all([getStoredOrdersForAdmin(), getStoredPetsForInternalServices()]);
   const petMap = new Map(pets.data.map((pet) => [pet.id, pet]));
   return orders.data.flatMap((order) => {
     const pet = petMap.get(order.petId);

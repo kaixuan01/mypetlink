@@ -14,6 +14,12 @@ import { PetAvatar } from "@/components/ui/PetAvatar";
 import { getPetSummaryLabel } from "@/lib/petDisplay";
 import { isActivePet, isArchivedPet, isMemorialPet } from "@/lib/petLifecycle";
 import {
+  getPetLifecycleActionExecution,
+  getPetLifecycleActions,
+  getPetLifecycleConfirmation,
+  type PetLifecycleAction,
+} from "@/lib/petLifecycleActions";
+import {
   publicProfilesEnabled,
   safetyProfilesOwnerUiEnabled,
   smartTagOrderingEnabled,
@@ -81,9 +87,8 @@ export function PetCard({
 }: PetCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
-  const [confirmAction, setConfirmAction] = useState<
-    "active" | "memorial" | "archive" | "restore" | null
-  >(null);
+  const [confirmAction, setConfirmAction] =
+    useState<PetLifecycleAction | null>(null);
   const safetyBadge = safetyProfilesOwnerUiEnabled
     ? getSafetyProfileBadge(pet)
     : null;
@@ -109,7 +114,10 @@ export function PetCard({
     (!isMemorial || memorial?.showMemorialOnPublicProfile !== false);
   const showPrivateBadge =
     publicProfilesEnabled && !publicProfileAccessible && !isArchived;
-  const confirmCopy = getConfirmCopy(confirmAction, pet);
+  const lifecycleActions = getPetLifecycleActions(pet);
+  const confirmCopy = confirmAction
+    ? getPetLifecycleConfirmation(confirmAction, pet.name)
+    : null;
 
   async function handleLifecycleUpdate(status: PetLifecycleStatus) {
     try {
@@ -156,6 +164,18 @@ export function PetCard({
       setConfirmAction(null);
       setMenuOpen(false);
     }
+  }
+
+  function executeLifecycleAction() {
+    if (!confirmAction) return;
+
+    const execution = getPetLifecycleActionExecution(confirmAction);
+    if (execution.kind === "restore") {
+      void handleRestore();
+      return;
+    }
+
+    void handleLifecycleUpdate(execution.status);
   }
 
   return (
@@ -253,42 +273,22 @@ export function PetCard({
                 </Link>
               ))}
               <div className="my-1 border-t border-pet-border" />
-              {isArchived ? (
+              {lifecycleActions.map((item) => (
                 <button
-                  className="block w-full rounded-[0.9rem] px-4 py-2.5 text-left text-sm font-bold text-pet-teal transition hover:bg-pet-cream"
-                  onClick={() => setConfirmAction("restore")}
+                  className={`block w-full rounded-[0.9rem] px-4 py-2.5 text-left text-sm font-bold transition hover:bg-pet-cream ${
+                    item.action === "active" || item.action === "restore"
+                      ? "text-pet-teal"
+                      : item.action === "archive"
+                        ? "text-pet-muted"
+                        : "text-pet-ink"
+                  }`}
+                  key={item.action}
+                  onClick={() => setConfirmAction(item.action)}
                   type="button"
                 >
-                  Restore to List
+                  {item.label}
                 </button>
-              ) : (
-                <>
-                  {isMemorial ? (
-                    <button
-                      className="block w-full rounded-[0.9rem] px-4 py-2.5 text-left text-sm font-bold text-pet-teal transition hover:bg-pet-cream"
-                      onClick={() => setConfirmAction("active")}
-                      type="button"
-                    >
-                      Restore to Active
-                    </button>
-                  ) : (
-                    <button
-                      className="block w-full rounded-[0.9rem] px-4 py-2.5 text-left text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
-                      onClick={() => setConfirmAction("memorial")}
-                      type="button"
-                    >
-                      Move to Memorial
-                    </button>
-                  )}
-                  <button
-                    className="block w-full rounded-[0.9rem] px-4 py-2.5 text-left text-sm font-bold text-pet-muted transition hover:bg-pet-cream"
-                    onClick={() => setConfirmAction("archive")}
-                    type="button"
-                  >
-                    Archive Pet
-                  </button>
-                </>
-              )}
+              ))}
             </div>
           </>
         ) : null}
@@ -296,68 +296,16 @@ export function PetCard({
 
       {confirmCopy ? (
         <ConfirmDialog
-          cancelLabel="Cancel"
+          cancelLabel={confirmCopy.cancelLabel}
           confirmLabel={confirmCopy.confirmLabel}
           destructive={confirmAction === "archive"}
           message={confirmCopy.message}
           onCancel={() => setConfirmAction(null)}
-          onConfirm={() => {
-            if (confirmAction === "restore") {
-              void handleRestore();
-              return;
-            }
-
-            void handleLifecycleUpdate(
-              confirmAction === "memorial"
-                ? "Memorial"
-                : confirmAction === "active"
-                  ? "Active"
-                  : "Archived"
-            );
-          }}
+          onConfirm={executeLifecycleAction}
           open={Boolean(confirmAction)}
           title={confirmCopy.title}
         />
       ) : null}
     </article>
   );
-}
-
-function getConfirmCopy(
-  action: "active" | "memorial" | "archive" | "restore" | null,
-  pet: Pet | PetListItem
-) {
-  if (action === "active") {
-    return {
-      title: "Restore to Active?",
-      message: `This will show ${pet.name} in active pet pages again and use the pet's Safety Profile settings for finder contact actions.`,
-      confirmLabel: "Restore to Active",
-    };
-  }
-
-  if (action === "memorial") {
-    return {
-      title: "Move to Memorial?",
-      message: `This keeps ${pet.name}'s profile, memories, and timeline, but the Safety Profile will no longer show emergency finder contact actions.`,
-      confirmLabel: "Move to Memorial",
-    };
-  }
-
-  if (action === "archive") {
-    return {
-      title: "Archive this pet?",
-      message: `This hides ${pet.name} from your main pet list. Memories, records, tags, and order history stay saved.`,
-      confirmLabel: "Archive Pet",
-    };
-  }
-
-  if (action === "restore") {
-    return {
-      title: "Restore this pet?",
-      message: `This will show ${pet.name} in your main pet list again and count toward your Free profile limit.`,
-      confirmLabel: "Restore to List",
-    };
-  }
-
-  return null;
 }

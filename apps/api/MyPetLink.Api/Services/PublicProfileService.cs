@@ -172,6 +172,8 @@ public sealed class PublicProfileService : SkeletonService, IPublicProfileServic
                 : null,
             profile.ShowOwnerName ? PetDtoMapper.ResolveOwnerDisplayName(pet) : null,
             profile.ShowGeneralArea ? PetDtoMapper.ResolveGeneralArea(pet) : null,
+            profile.ShowTimeline,
+            profile.ShowBirthdayOnTimeline,
             profilePhotoUrl,
             coverPhotoUrl,
             pet.CoverPositionX,

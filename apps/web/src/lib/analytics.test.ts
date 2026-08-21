@@ -138,4 +138,15 @@ describe("product analytics privacy boundary", () => {
       /Milo|milo-secret-code|mypetlink-milo-share-card/
     );
   });
+
+  it("drops the retired Adoption Day Share Card variant", () => {
+    trackEvent(AnalyticsEvent.ShareCardShared, {
+      card_variant: "adoption",
+    } as never);
+
+    const event = analyticsCalls().find(
+      (call) => call[1] === "share_card_shared"
+    );
+    expect(event?.[2]).not.toHaveProperty("card_variant");
+  });
 });

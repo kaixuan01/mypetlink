@@ -2,7 +2,7 @@ import { buildAdminListQuery, csvCell, triggerDownload } from "@/lib/adminListSh
 import { canUseAdminApi } from "@/services/adminService";
 import { apiRequest, apiRequestBlob } from "@/services/apiClient";
 import { mockDelay } from "@/services/mockApi";
-import { getPets } from "@/services/petService";
+import { getStoredPetsForInternalServices } from "@/services/petService";
 import {
   getStoredOrdersForAdmin,
   readAdminTagCollection,
@@ -443,7 +443,7 @@ function deriveLocalFulfilment(tag: PetTag, orders: TagOrder[]): TagFulfilmentSt
 
 async function loadLocalInventory(): Promise<AdminInventoryTag[]> {
   const [pets, orders] = await Promise.all([
-    getPets(),
+    getStoredPetsForInternalServices(),
     getStoredOrdersForAdmin(),
   ]);
   const petMap = new Map<string, Pet>(pets.data.map((pet) => [pet.id, pet]));

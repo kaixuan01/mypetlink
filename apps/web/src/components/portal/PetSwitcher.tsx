@@ -5,12 +5,12 @@ import { useEffect, useState } from "react";
 import { getActivePets } from "@/lib/petLifecycle";
 import { ownerRoutes } from "@/lib/routes";
 import { getPets } from "@/services/petService";
-import type { Pet } from "@/types";
+import type { PetListItem } from "@/types";
 
 type PetSwitcherSection = "moments" | "records";
 
 type PetSwitcherProps = {
-  pets: Pet[];
+  pets: PetListItem[];
   activePetId: string;
   section: PetSwitcherSection;
 };
@@ -79,7 +79,7 @@ export function PetSwitcher({
   );
 }
 
-function getSelectablePets(pets: Pet[], activePetId: string) {
+function getSelectablePets(pets: PetListItem[], activePetId: string) {
   const activePets = getActivePets(pets);
   const currentPet = pets.find((pet) => pet.id === activePetId);
 

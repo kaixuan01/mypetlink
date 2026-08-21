@@ -207,6 +207,8 @@ export type BackendPublicPetProfile = {
   lostExtraContactInstruction?: string | null;
   ownerDisplayName?: string | null;
   generalArea?: string | null;
+  showTimeline?: boolean | null;
+  showBirthdayOnTimeline?: boolean | null;
   bio?: string | null;
   personalityTags?: string[] | null;
   favoriteFoods?: string[] | null;

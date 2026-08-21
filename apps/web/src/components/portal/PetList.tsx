@@ -16,10 +16,10 @@ import {
   getPets,
 } from "@/services/petService";
 import { getAllTags, getOrders } from "@/services/tagService";
-import type { Pet, PetTag, TagOrder } from "@/types";
+import type { PetListItem, PetTag, TagOrder } from "@/types";
 
 type PetListProps = {
-  initialPets: Pet[];
+  initialPets: PetListItem[];
   initialTags: PetTag[];
   initialOrders: TagOrder[];
 };
@@ -37,7 +37,7 @@ export function PetList({
   initialOrders,
 }: PetListProps) {
   const apiMode = isApiConfigured();
-  const [pets, setPets] = useState<Pet[]>(apiMode ? [] : initialPets);
+  const [pets, setPets] = useState<PetListItem[]>(apiMode ? [] : initialPets);
   const [tags, setTags] = useState<PetTag[]>(apiMode ? [] : initialTags);
   const [orders, setOrders] = useState<TagOrder[]>(apiMode ? [] : initialOrders);
   const [filter, setFilter] = useState<PetLifecycleFilter>("active");

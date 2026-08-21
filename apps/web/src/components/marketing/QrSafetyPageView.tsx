@@ -15,6 +15,7 @@ import {
 import { getPetProfileTheme } from "@/lib/petProfileThemes";
 import { getPetAgeLabel, getPetTypeLabel } from "@/lib/petDisplay";
 import { isActivePet, isArchivedPet, isMemorialPet } from "@/lib/petLifecycle";
+import { mergeConservativePetVisibility } from "@/lib/petVisibility";
 import {
   getCallLink,
   getWhatsAppLink,
@@ -39,9 +40,10 @@ export function QrSafetyPageView({ pet }: QrSafetyPageViewProps) {
     pet,
     ownerSettings || defaultOwnerSettings
   );
-  const ownerDisplayName = visibility.showOwnerName
-    ? getPublicOwnerName(effectiveContact.ownerDisplayName, pet.name)
-    : `${pet.name}'s owner`;
+  const publicOwnerName = visibility.showOwnerName
+    ? effectiveContact.ownerDisplayName.trim()
+    : "";
+  const ownerActionName = publicOwnerName || "owner";
   const isMemorial = isMemorialPet(pet);
   const isArchived = isArchivedPet(pet);
   const isLostMode = isActivePet(pet) && pet.lostModeEnabled;
@@ -133,7 +135,7 @@ export function QrSafetyPageView({ pet }: QrSafetyPageViewProps) {
     try {
       await sendFoundLocationViaWhatsApp({
         whatsappE164,
-        ownerDisplayName,
+        ownerDisplayName: ownerActionName,
         petName: pet.name,
         onStatus: setLocationStatus,
       });
@@ -176,9 +178,9 @@ export function QrSafetyPageView({ pet }: QrSafetyPageViewProps) {
         <p className="mt-4 text-sm text-pet-muted">
           {safetySummary}
         </p>
-        {visibility.showOwnerName ? (
+        {publicOwnerName ? (
           <p className="mt-2 text-sm font-bold text-pet-ink">
-            Owner: {ownerDisplayName}
+            Owner: {publicOwnerName}
           </p>
         ) : null}
       </div>
@@ -255,23 +257,25 @@ export function QrSafetyPageView({ pet }: QrSafetyPageViewProps) {
       </div>
 
       <div className="mt-5 grid gap-3">
-        <div
-          className="rounded-[1.25rem] bg-pet-apricot p-4"
-          style={{ background: theme.colors.accentSoft }}
-        >
-          <div className="flex items-center gap-2 text-sm font-black text-pet-ink">
-            <Icon
-              name="shield"
-              className="h-4 w-4 text-pet-coral"
-              style={{ color: theme.colors.accent }}
-            />
-            Safety note
+        {pet.safetyNote ? (
+          <div
+            className="rounded-[1.25rem] bg-pet-apricot p-4"
+            style={{ background: theme.colors.accentSoft }}
+          >
+            <div className="flex items-center gap-2 text-sm font-black text-pet-ink">
+              <Icon
+                name="shield"
+                className="h-4 w-4 text-pet-coral"
+                style={{ color: theme.colors.accent }}
+              />
+              Safety note
+            </div>
+            <p className="mt-2 text-sm leading-6 text-pet-muted">
+              {pet.safetyNote}
+            </p>
           </div>
-          <p className="mt-2 text-sm leading-6 text-pet-muted">
-            {pet.safetyNote}
-          </p>
-        </div>
-        {visibility.showEmergencyNote ? (
+        ) : null}
+        {visibility.showEmergencyNote && pet.emergencyNote ? (
           <div
             className="rounded-[1.25rem] bg-pet-cream p-4"
             style={{ background: theme.colors.surfaceAlt }}
@@ -289,7 +293,7 @@ export function QrSafetyPageView({ pet }: QrSafetyPageViewProps) {
             </p>
           </div>
         ) : null}
-        {visibility.showGeneralArea ? (
+        {visibility.showGeneralArea && effectiveContact.generalArea ? (
           <div
             className="rounded-[1.25rem] bg-[#e8f3ff] p-4"
             style={{ background: theme.colors.primarySoft }}
@@ -326,26 +330,8 @@ export function QrSafetyPageView({ pet }: QrSafetyPageViewProps) {
   );
 }
 
-function getPublicOwnerName(name: string, petName: string) {
-  return name.trim() || `${petName}'s owner`;
-}
-
 function mergeVisibility(
   visibility?: Partial<Pet["visibility"]>
 ): Pet["visibility"] {
-  return {
-    showOwnerName: true,
-    showGeneralArea: true,
-    showPhone: true,
-    showWhatsapp: true,
-    showEmergencyNote: true,
-    showCareBadges: true,
-    showMoments: true,
-    showTimeline: true,
-    showBirthdayOnTimeline: true,
-    showAdoptionDayOnTimeline: true,
-    showHealthSummary: false,
-    showAllergiesOnPublicProfile: false,
-    ...visibility,
-  };
+  return mergeConservativePetVisibility(visibility);
 }

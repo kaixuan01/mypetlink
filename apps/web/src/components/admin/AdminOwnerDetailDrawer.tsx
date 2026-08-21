@@ -133,9 +133,6 @@ export function AdminOwnerDetailDrawer({
                   <AdminDetailItem label="Phone" value={detail.phoneE164 || "—"} />
                   <AdminDetailItem label="WhatsApp" value={detail.whatsappE164 || "—"} />
                   <AdminDetailItem label="Default general area" value={detail.defaultGeneralArea || "—"} />
-                  <AdminDetailItem label="Phone shown by default" value={detail.defaultPrivacy.showPhone ? "Yes" : "No"} />
-                  <AdminDetailItem label="WhatsApp shown by default" value={detail.defaultPrivacy.showWhatsapp ? "Yes" : "No"} />
-                  <AdminDetailItem label="Owner name shown by default" value={detail.defaultPrivacy.showOwnerName ? "Yes" : "No"} />
                 </div>
                 <div className="mt-2 flex flex-wrap gap-2">
                   <CopyButton label="Copy email" onClick={() => void copy(owner.email, "Email")} />

@@ -1,10 +1,15 @@
 // @vitest-environment jsdom
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   defaultOwnerSettings,
+  OWNER_SETTINGS_STORAGE_KEY,
   writeOwnerSettings,
 } from "@/lib/ownerSettings";
+import {
+  conservativePetVisibility,
+  newPetVisibilityDefaults,
+} from "@/lib/petVisibility";
 import {
   buildBackendPetPayload,
   createPet,
@@ -21,6 +26,8 @@ beforeEach(() => {
 
 afterEach(() => {
   window.localStorage.clear();
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
 });
 
 async function createTestPet() {
@@ -73,6 +80,84 @@ describe("Public Profile and Safety Profile access independence", () => {
       emergencyContactE164: null,
       generalAreaOverride: null,
     });
+  });
+
+  it("omits visibility from a create request that leaves defaults to the backend", () => {
+    const payload = buildBackendPetPayload({
+      name: "Kopi",
+      species: "Cat",
+    });
+
+    expect(payload).not.toHaveProperty("visibility");
+  });
+
+  it("sends no visibility key in the Create Pet POST body", async () => {
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "https://api.example.test");
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: {
+            id: "pet-created",
+            name: "Kopi",
+            species: "Cat",
+            profileTheme: "default",
+            lifecycleStatus: "Active",
+            lostModeEnabled: false,
+            showMemorialOnPublicProfile: true,
+            publicCode: "public-code",
+            publicSlug: "kopi-public-code",
+            safetyCode: "safety-code",
+            publicProfilePath: "/p/kopi-public-code",
+            qrSafetyPath: "/q/safety-code",
+            contact: { useOwnerDefaults: true },
+            visibility: newPetVisibilityDefaults,
+            createdAt: "2026-08-21T00:00:00.000Z",
+            updatedAt: "2026-08-21T00:00:00.000Z",
+          },
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }
+      )
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await createPet({ name: "Kopi", species: "Cat" });
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [, request] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(request.body))).not.toHaveProperty("visibility");
+  });
+
+  it("uses product defaults for local creation and ignores stored owner privacy defaults", async () => {
+    const storedPrivacyDefaults = {
+      showOwnerName: true,
+      showGeneralArea: false,
+      showPhone: true,
+      showWhatsapp: false,
+      showEmergencyNote: false,
+      showCareBadges: false,
+      showMoments: false,
+      showTimeline: false,
+      showBirthdayOnTimeline: true,
+      showAdoptionDayOnTimeline: true,
+      showHealthSummary: true,
+      showAllergiesOnPublicProfile: true,
+    };
+    window.localStorage.setItem(
+      OWNER_SETTINGS_STORAGE_KEY,
+      JSON.stringify({
+        ...structuredClone(defaultOwnerSettings),
+        privacyDefaults: storedPrivacyDefaults,
+      })
+    );
+
+    const pet = await createTestPet();
+
+    expect(pet.visibility).toEqual(newPetVisibilityDefaults);
+    expect(pet.visibility).not.toEqual(conservativePetVisibility);
+    expect(pet.visibility).not.toEqual(storedPrivacyDefaults);
   });
 
   it("disabling the Public Profile keeps the Safety Profile reachable", async () => {

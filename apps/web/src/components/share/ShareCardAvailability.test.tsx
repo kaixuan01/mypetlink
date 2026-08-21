@@ -48,7 +48,7 @@ const { PetManagementTabs } = await import(
   "@/components/portal/PetManagementTabs"
 );
 
-/** 17 Aug — a plain day for this pet, with neither anniversary falling on it. */
+/** 17 Aug — a plain day for this pet, with no birthday falling on it. */
 const ORDINARY_DAY = new Date("2026-08-17T02:00:00Z");
 
 function eligiblePet(overrides: Partial<Pet> = {}): Pet {
@@ -122,7 +122,7 @@ describe("Share Pet Card availability", () => {
     expect(shareCardTrigger()).toBeTruthy();
   });
 
-  it("stays available on a day with no birthday or adoption anniversary", () => {
+  it("stays available on a day with no birthday", () => {
     const pet = eligiblePet();
     mocks.getPetById.mockResolvedValue({ data: pet });
 
@@ -136,7 +136,7 @@ describe("Share Pet Card availability", () => {
     const trigger = shareCardTrigger();
     expect(trigger).toBeTruthy();
 
-    // The profile card is the card; occasions are not part of this decision.
+    // The profile card is the card; birthdays are not part of this decision.
     // With nothing to choose between, the card opens straight to it.
     fireEvent.click(trigger!);
     expect(screen.getAllByRole("dialog").length).toBeGreaterThan(1);
@@ -145,8 +145,7 @@ describe("Share Pet Card availability", () => {
     expect(screen.queryByRole("button", { name: "Adoption Day" })).toBeNull();
   });
 
-  it("adds occasion cards alongside the profile card, never instead of it", () => {
-    // Both anniversaries land on the fixed test date.
+  it("adds a birthday card alongside the profile card and ignores Adoption Day", () => {
     const pet = eligiblePet({
       birthday: "2021-08-17",
       adoptionDay: "2022-08-17",
@@ -166,7 +165,7 @@ describe("Share Pet Card availability", () => {
     fireEvent.click(trigger!);
     expect(screen.getByRole("button", { name: "Profile" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Birthday" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Adoption Day" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Adoption Day" })).toBeNull();
   });
 
   it("is withheld while the pet's public profile is switched off", async () => {

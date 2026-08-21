@@ -9,10 +9,10 @@ import type {
   ProfileCompletionResult,
 } from "@/lib/profileCompletion";
 import { getPublicProfilePath } from "@/lib/routes";
-import type { Pet } from "@/types";
+import type { Pet, PetListItem } from "@/types";
 
 type ProfileCompletionCardProps = {
-  pet: Pet;
+  pet: Pet | PetListItem;
   completion: ProfileCompletionResult;
   compact?: boolean;
   isFirstPet?: boolean;

@@ -28,6 +28,8 @@ public sealed record PublicPetProfileResponse(
     string? LostExtraContactInstruction,
     string? OwnerDisplayName,
     string? GeneralArea,
+    bool ShowTimeline,
+    bool ShowBirthdayOnTimeline,
     string? ProfilePhotoUrl,
     string? CoverPhotoUrl,
     byte CoverPositionX,

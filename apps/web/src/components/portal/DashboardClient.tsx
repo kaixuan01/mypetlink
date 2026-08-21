@@ -40,10 +40,10 @@ import { isApiConfigured } from "@/services/apiConfig";
 import { getPetMoments } from "@/services/momentService";
 import { getFriendlyApiErrorMessage, getPets } from "@/services/petService";
 import { getPetRecords } from "@/services/recordService";
-import type { CareRecord, Pet, PetMoment } from "@/types";
+import type { CareRecord, PetListItem, PetMoment } from "@/types";
 
 type DashboardClientProps = {
-  initialPets: Pet[];
+  initialPets: PetListItem[];
   initialRecords: CareRecord[];
   initialMoments: PetMoment[];
 };
@@ -66,7 +66,7 @@ export function DashboardClient({
   initialMoments,
 }: DashboardClientProps) {
   const apiMode = isApiConfigured();
-  const [allPets, setAllPets] = useState<Pet[]>(apiMode ? [] : initialPets);
+  const [allPets, setAllPets] = useState<PetListItem[]>(apiMode ? [] : initialPets);
   const [allRecords, setAllRecords] = useState<CareRecord[]>(
     apiMode ? [] : initialRecords
   );
@@ -94,7 +94,7 @@ export function DashboardClient({
       setLoading(true);
       setError("");
 
-      let petsData: Pet[];
+      let petsData: PetListItem[];
 
       // Pets are the critical request: if it fails the dashboard can't render,
       // so it surfaces a retryable error.
@@ -300,7 +300,7 @@ export function DashboardClient({
   );
 }
 
-function DashboardOccasionSection({ pets }: { pets: Pet[] }) {
+function DashboardOccasionSection({ pets }: { pets: PetListItem[] }) {
   const now = new Date();
   const celebrations = pets.flatMap((pet) =>
     pet.publicProfileEnabled
@@ -346,15 +346,9 @@ function DashboardOccasionSection({ pets }: { pets: Pet[] }) {
 }
 
 function occasionMessage(name: string, occasion: PetOccasion) {
-  if (occasion.variant === "birthday") {
-    return occasion.count === 0
-      ? `${name} is celebrating today.`
-      : `${name} turns ${occasion.count} today.`;
-  }
-  if (occasion.count === 0) return `${name} joined your family today.`;
-  return occasion.count === 1
-    ? `One year since ${name} joined your family.`
-    : `${occasion.count} years since ${name} joined your family.`;
+  return occasion.count === 0
+    ? `${name} is celebrating today.`
+    : `${name} turns ${occasion.count} today.`;
 }
 
 type DashboardStatData = {
@@ -391,7 +385,7 @@ function DashboardStat({ label, value, href }: DashboardStatData) {
   );
 }
 
-function LostModeAlert({ pets }: { pets: Pet[] }) {
+function LostModeAlert({ pets }: { pets: PetListItem[] }) {
   const onePet = pets.length === 1 ? pets[0] : undefined;
   const href = onePet ? ownerRoutes.petProfile(onePet.id) : ownerRoutes.pets;
 
@@ -474,7 +468,7 @@ function DashboardSection({
   );
 }
 
-function DashboardPetsSection({ pets }: { pets: Pet[] }) {
+function DashboardPetsSection({ pets }: { pets: PetListItem[] }) {
   const visiblePets = pets.slice(0, 4);
   const remaining = pets.length - visiblePets.length;
 
@@ -514,7 +508,7 @@ function DashboardPetsSection({ pets }: { pets: Pet[] }) {
   );
 }
 
-function DashboardPetCard({ pet }: { pet: Pet }) {
+function DashboardPetCard({ pet }: { pet: PetListItem }) {
   const isPublic = pet.publicProfileEnabled;
   const sharePath = pet.publicProfilePath;
 
@@ -586,7 +580,7 @@ function ShareProfileActions({
   pet,
   sharePath,
 }: {
-  pet: Pet;
+  pet: PetListItem;
   sharePath: string;
 }) {
   // One Share entry point; the QR now lives inside the Share Center rather than
@@ -619,7 +613,7 @@ function UpcomingCareSection({
   pets,
   records,
 }: {
-  pets: Pet[];
+  pets: PetListItem[];
   records: CareRecord[];
 }) {
   return (
@@ -663,7 +657,7 @@ function UpcomingCareSection({
   );
 }
 
-function ReminderItem({ record, pet }: { record: CareRecord; pet?: Pet }) {
+function ReminderItem({ record, pet }: { record: CareRecord; pet?: PetListItem }) {
   const dateTerminology = getCareRecordDateTerminology(record.type);
 
   return (
@@ -768,7 +762,7 @@ function collectFulfilled<T>(
 }
 
 function fulfilledPetIds<T>(
-  pets: Pet[],
+  pets: PetListItem[],
   results: PromiseSettledResult<{ data: T[] }>[]
 ) {
   return new Set(

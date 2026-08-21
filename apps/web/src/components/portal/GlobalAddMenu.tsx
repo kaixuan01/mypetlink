@@ -16,10 +16,10 @@ import { Icon, type IconName } from "@/components/ui/Icon";
 import { getActivePets } from "@/lib/petLifecycle";
 import { getPetLimitStateFromPets } from "@/lib/planLimits";
 import { marketingRoutes, ownerRoutes } from "@/lib/routes";
-import type { Pet } from "@/types";
+import type { PetListItem } from "@/types";
 
 type GlobalAddMenuProps = {
-  pets: Pet[];
+  pets: PetListItem[];
   loading?: boolean;
   loadFailed?: boolean;
 };
@@ -388,7 +388,7 @@ function buildActions({
   onLimitReached,
   onSelectPet,
 }: {
-  activePets: Pet[];
+  activePets: PetListItem[];
   limitReached: boolean;
   loadFailed: boolean;
   loading: boolean;

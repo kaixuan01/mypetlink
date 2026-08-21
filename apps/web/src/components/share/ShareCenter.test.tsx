@@ -96,7 +96,7 @@ describe("ShareCenter", () => {
     expect(screen.queryByText("Copy Safety Profile Link")).toBeNull();
   });
 
-  it("always offers the profile card, and the occasion cards only on the day", () => {
+  it("always offers the profile card, and a birthday card only on the day", () => {
     // 17 Aug 2026, 10:00 in Malaysia — the calendar day occasions are keyed to.
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-17T02:00:00Z"));
@@ -119,7 +119,7 @@ describe("ShareCenter", () => {
       fireEvent.click(
         screen.getByRole("button", { name: `Share ${withOccasions.name}` })
       );
-      expect(shareCardVariants()).toBe("profile,birthday,adoption");
+      expect(shareCardVariants()).toBe("profile,birthday");
     } finally {
       vi.useRealTimers();
     }
