@@ -56,6 +56,18 @@ vi.mock("@/components/portal/PetMomentCard", () => ({
 const { RecordsManager } = await import("./RecordsManager");
 const { PetMomentsManager } = await import("./PetMomentsManager");
 
+function completeCareRecordForm() {
+  fireEvent.change(screen.getByLabelText("Record Type"), {
+    target: { value: "Grooming" },
+  });
+  fireEvent.change(screen.getByLabelText("Title"), {
+    target: { value: "Routine grooming" },
+  });
+  fireEvent.change(screen.getByLabelText("Grooming Date"), {
+    target: { value: "2020-06-15" },
+  });
+}
+
 describe("contextual create actions", () => {
   beforeEach(() => {
     mocks.getPetRecords.mockReset();
@@ -163,6 +175,107 @@ describe("contextual create actions", () => {
       "Allergy"
     );
     expect(screen.queryByRole("heading", { name: "Allergy" })).toBeNull();
+  });
+
+  it("offers exactly the two final Care audiences", async () => {
+    mocks.getPetRecords.mockResolvedValue({ data: [] });
+    render(<RecordsManager petId={mockPets[0].id} initialRecords={[]} />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: /add first care record/i })
+    );
+
+    const audience = screen.getByLabelText(
+      "Who can see this record?"
+    ) as HTMLSelectElement;
+    expect(Array.from(audience.options).map((option) => option.text)).toEqual([
+      "Only me",
+      "Anyone with the link",
+    ]);
+    expect(screen.queryByText("Public details")).toBeNull();
+    expect(screen.queryByText("Public badge only")).toBeNull();
+    expect(
+      screen.getByText("Public records show only their type and date.")
+    ).toBeTruthy();
+  });
+
+  it.each([
+    ["Only me", "Private"],
+    ["Anyone with the link", "Public badge only"],
+  ])("creates %s Care records with the normalized visibility", async (label, expected) => {
+    mocks.getPetRecords.mockResolvedValue({ data: [] });
+    mocks.createRecord.mockResolvedValue({ data: mockRecords[0] });
+    render(<RecordsManager petId={mockPets[0].id} initialRecords={[]} />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: /add first care record/i })
+    );
+    completeCareRecordForm();
+    fireEvent.change(screen.getByLabelText("Who can see this record?"), {
+      target: { value: label === "Only me" ? "Private" : "Public" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save Record" }));
+
+    await waitFor(() => expect(mocks.createRecord).toHaveBeenCalledOnce());
+    expect(mocks.createRecord.mock.calls[0][1].publicVisibility).toBe(expected);
+    expect(mocks.createRecord.mock.calls[0][1].publicVisibility).not.toBe(
+      "Public details"
+    );
+  });
+
+  it.each([
+    ["Private", "Private"],
+    ["Public badge only", "Public"],
+    ["Public details", "Public"],
+  ] as const)("hydrates %s as the effective %s audience", async (visibility, expected) => {
+    const record = {
+      ...mockRecords[0],
+      publicVisibility: visibility,
+    };
+    mocks.getPetRecords.mockResolvedValue({ data: [record] });
+    render(<RecordsManager petId={mockPets[0].id} initialRecords={[record]} />);
+
+    expect(await screen.findByText(record.title)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+
+    expect(
+      (screen.getByLabelText("Who can see this record?") as HTMLSelectElement)
+        .value
+    ).toBe(expected);
+    expect(screen.queryByText("Public details")).toBeNull();
+  });
+
+  it("normalizes a legacy public-details save without clearing owner Care data", async () => {
+    const record = {
+      ...mockRecords[0],
+      title: "Annual September vaccination",
+      date: "02 Sept 2020",
+      dueDate: "15 Sept 2027",
+      provider: "Happy Paws Clinic",
+      notes: "Booster batch and owner notes",
+      publicVisibility: "Public details" as const,
+      status: "upcoming" as const,
+    };
+    mocks.getPetRecords.mockResolvedValue({ data: [record] });
+    mocks.updateRecord.mockResolvedValue({
+      data: { ...record, publicVisibility: "Public badge only" },
+    });
+    render(<RecordsManager petId={mockPets[0].id} initialRecords={[record]} />);
+
+    expect(await screen.findByText(record.title)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save Changes" }));
+
+    await waitFor(() => expect(mocks.updateRecord).toHaveBeenCalledOnce());
+    expect(mocks.updateRecord.mock.calls[0][1]).toMatchObject({
+      title: record.title,
+      date: record.date,
+      dueDate: record.dueDate,
+      provider: record.provider,
+      notes: record.notes,
+      publicVisibility: "Public badge only",
+    });
+    expect(mocks.updateRecord.mock.calls[0][1]).not.toHaveProperty("status");
   });
 
   it("retains Allergy while explicitly editing a legacy record", async () => {

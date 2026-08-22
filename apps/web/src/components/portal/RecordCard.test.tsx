@@ -48,4 +48,28 @@ describe("RecordCard date terminology", () => {
     expect(overdue.className).toContain("bg-[#ffe8e3]");
     expect(screen.queryByText("Due soon")).toBeNull();
   });
+
+  it.each(["Public badge only", "Public details"] as const)(
+    "presents %s compatibility records as the public owner audience",
+    (publicVisibility) => {
+      render(
+        <RecordCard
+          record={{
+            id: `record-${publicVisibility}`,
+            petId: "pet-1",
+            type: "Vaccine",
+            title: "Annual vaccination",
+            date: "15 Jul 2026",
+            provider: "Happy Paws Vet",
+            notes: "Owner notes remain visible here.",
+            publicVisibility,
+            status: "complete",
+          }}
+        />
+      );
+
+      expect(screen.getByText("Anyone with the link")).toBeTruthy();
+      expect(screen.queryByText(publicVisibility)).toBeNull();
+    }
+  );
 });

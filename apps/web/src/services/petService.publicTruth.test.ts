@@ -86,6 +86,27 @@ describe("public profile truth mapping", () => {
     expect(birthdayShown.visibility.showBirthdayOnTimeline).toBe(true);
   });
 
+  it("uses the explicit Care switch and fails closed when it is missing", () => {
+    const missingFlagWithContent = mapBackendPublicProfile(
+      publicProfile({
+        careRecords: [{ type: "Vaccine", recordDate: "2026-08-01" }],
+      })
+    );
+    const enabledWithoutContent = mapBackendPublicProfile(
+      publicProfile({ showCareBadges: true, careRecords: [] })
+    );
+    const disabledWithContent = mapBackendPublicProfile(
+      publicProfile({
+        showCareBadges: false,
+        careRecords: [{ type: "Grooming", recordDate: "2026-08-02" }],
+      })
+    );
+
+    expect(missingFlagWithContent.visibility.showCareBadges).toBe(false);
+    expect(enabledWithoutContent.visibility.showCareBadges).toBe(true);
+    expect(disabledWithContent.visibility.showCareBadges).toBe(false);
+  });
+
   it("uses the explicit gallery switch instead of Moment compatibility flags", () => {
     const compatibilityTrueButGalleryOff = mapBackendPublicProfile(
       publicProfile({

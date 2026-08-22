@@ -141,11 +141,26 @@ export type FormState = {
   showTimeline: boolean;
   showBirthdayOnTimeline: boolean;
   showAdoptionDayOnTimeline: boolean;
-  showHealthSummary: boolean;
   showAllergiesOnPublicProfile: boolean;
 };
 
 type FormErrors = Partial<Record<keyof FormState, string>>;
+
+function toOwnerVisibilityFormState(visibility: Pet["visibility"]) {
+  return {
+    showOwnerName: visibility.showOwnerName,
+    showGeneralArea: visibility.showGeneralArea,
+    showWhatsapp: visibility.showWhatsapp,
+    showPhone: visibility.showPhone,
+    showEmergencyNote: visibility.showEmergencyNote,
+    showCareBadges: visibility.showCareBadges,
+    showMoments: visibility.showMoments,
+    showTimeline: visibility.showTimeline,
+    showBirthdayOnTimeline: visibility.showBirthdayOnTimeline,
+    showAdoptionDayOnTimeline: false,
+    showAllergiesOnPublicProfile: visibility.showAllergiesOnPublicProfile,
+  };
+}
 
 type EditTab = "basic" | "appearance" | "public" | "contact";
 
@@ -218,7 +233,6 @@ const fieldTab: Record<keyof FormState, EditTab> = {
   showTimeline: "public",
   showBirthdayOnTimeline: "public",
   showAdoptionDayOnTimeline: "public",
-  showHealthSummary: "public",
   showAllergiesOnPublicProfile: "contact",
   showGeneralArea: "contact",
   showWhatsapp: "contact",
@@ -260,7 +274,7 @@ const emptyForm: FormState = {
   useOwnerDefaults: true,
   qrSafetyEnabled: true,
   publicProfileEnabled: true,
-  ...newPetVisibilityDefaults,
+  ...toOwnerVisibilityFormState(newPetVisibilityDefaults),
 };
 
 export function PetProfileForm({
@@ -1446,11 +1460,17 @@ export function PetProfileForm({
 
             {mode === "edit" ? (
               <PrivacyGroup title="What appears on the public profile">
-                <Checkbox
-                  checked={form.showCareBadges}
-                  label="Show care badges"
-                  onChange={(value) => updateField("showCareBadges", value)}
-                />
+                <div>
+                  <Checkbox
+                    checked={form.showCareBadges}
+                    label="Show care history on Public Profile"
+                    onChange={(value) => updateField("showCareBadges", value)}
+                  />
+                  <p className="mt-2 pl-8 text-sm leading-6 text-pet-muted">
+                    Visitors can see the type and date of care records you
+                    choose to share.
+                  </p>
+                </div>
                 <Checkbox
                   checked={form.showMoments}
                   label="Show public memories"
@@ -1467,11 +1487,6 @@ export function PetProfileForm({
                   onChange={(value) =>
                     updateField("showBirthdayOnTimeline", value)
                   }
-                />
-                <Checkbox
-                  checked={form.showHealthSummary}
-                  label="Allow public health and care details"
-                  onChange={(value) => updateField("showHealthSummary", value)}
                 />
               </PrivacyGroup>
             ) : null}
@@ -2176,7 +2191,7 @@ export function toFormState(
       whatsapp: ownerSettings.whatsappNumber,
       phone: ownerSettings.phoneNumber,
       useOwnerDefaults: true,
-      ...newPetVisibilityDefaults,
+      ...toOwnerVisibilityFormState(newPetVisibilityDefaults),
     };
   }
 
@@ -2235,7 +2250,6 @@ export function toFormState(
     showTimeline: visibility.showTimeline,
     showBirthdayOnTimeline: visibility.showBirthdayOnTimeline,
     showAdoptionDayOnTimeline: false,
-    showHealthSummary: visibility.showHealthSummary,
     showAllergiesOnPublicProfile:
       visibility.showAllergiesOnPublicProfile,
   };
@@ -2325,7 +2339,6 @@ export function buildPayload(
             showTimeline: form.showTimeline,
             showBirthdayOnTimeline: form.showBirthdayOnTimeline,
             showAdoptionDayOnTimeline: false,
-            showHealthSummary: form.showHealthSummary,
             showAllergiesOnPublicProfile:
               form.showAllergiesOnPublicProfile,
           },

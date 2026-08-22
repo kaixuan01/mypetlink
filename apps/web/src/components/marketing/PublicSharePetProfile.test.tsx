@@ -10,11 +10,12 @@ import {
 } from "@testing-library/react";
 import { mockPets } from "@/data/mockPets";
 import { getQrSafetyPath } from "@/lib/routes";
-import type { PetMoment } from "@/types";
+import type { PetMoment, PublicCareRecord } from "@/types";
 
 const publicProfileMocks = vi.hoisted(() => ({
   profile: null as (typeof mockPets)[number] | null,
   moments: [] as PetMoment[],
+  records: [] as PublicCareRecord[],
   getProfile: vi.fn(),
   authenticated: false,
   ownedPet: null as unknown,
@@ -46,8 +47,7 @@ vi.mock("@/services/momentService", () => ({
 }));
 
 vi.mock("@/services/recordService", () => ({
-  getPetRecords: async () => ({ data: [] }),
-  getPublicPetRecords: async () => ({ data: [] }),
+  getPublicPetRecords: async () => ({ data: publicProfileMocks.records }),
 }));
 
 vi.mock("@/components/marketing/PublicProfileOwnerControls", () => ({
@@ -78,6 +78,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   publicProfileMocks.moments = [];
+  publicProfileMocks.records = [];
   publicProfileMocks.authenticated = false;
   publicProfileMocks.ownedPet = null;
   vi.clearAllMocks();
@@ -189,6 +190,92 @@ it.each([
     }
   }
 );
+
+it("renders enabled public Care as type and record date only", async () => {
+  const profile = {
+    ...mockPets[0],
+    visibility: {
+      ...mockPets[0].visibility,
+      showCareBadges: true,
+    },
+  };
+  const record = {
+    type: "Vaccine",
+    recordDate: "02 Sept 2026",
+    title: "Sensitive vaccination title",
+    notes: "Sensitive vaccination notes",
+    dueDate: "02 Sept 2027",
+    publicVisibility: "Public details",
+  } as unknown as PublicCareRecord;
+  publicProfileMocks.profile = profile;
+  publicProfileMocks.records = [record];
+
+  render(
+    <PublicSharePetProfile
+      initialMoments={[]}
+      initialProfile={profile}
+      initialRecords={[record]}
+    />
+  );
+
+  expect(await screen.findByText("Care history")).toBeTruthy();
+  expect(screen.getByText("Vaccine")).toBeTruthy();
+  expect(screen.getByText(/Vaccination Date:\s*02 Sept 2026/)).toBeTruthy();
+  expect(screen.queryByText("Sensitive vaccination title")).toBeNull();
+  expect(screen.queryByText("Sensitive vaccination notes")).toBeNull();
+  expect(screen.queryByText("02 Sept 2027")).toBeNull();
+  expect(screen.queryByText("Public details")).toBeNull();
+  expect(screen.queryByText("Public badge only")).toBeNull();
+});
+
+it("hides public Care when the saved master switch is off", async () => {
+  const profile = {
+    ...mockPets[0],
+    visibility: {
+      ...mockPets[0].visibility,
+      showCareBadges: false,
+    },
+  };
+  const records: PublicCareRecord[] = [
+    { type: "Grooming", recordDate: "03 Sept 2026" },
+  ];
+  publicProfileMocks.profile = profile;
+  publicProfileMocks.records = records;
+
+  render(
+    <PublicSharePetProfile
+      initialMoments={[]}
+      initialProfile={profile}
+      initialRecords={records}
+    />
+  );
+
+  await screen.findByText(`About ${profile.name}`);
+  expect(screen.queryByText("Care history")).toBeNull();
+  expect(screen.queryByText("Grooming")).toBeNull();
+});
+
+it("does not render an empty Care section when sharing is enabled", async () => {
+  const profile = {
+    ...mockPets[0],
+    visibility: {
+      ...mockPets[0].visibility,
+      showCareBadges: true,
+    },
+  };
+  publicProfileMocks.profile = profile;
+
+  render(
+    <PublicSharePetProfile
+      initialMoments={[]}
+      initialProfile={profile}
+      initialRecords={[]}
+    />
+  );
+
+  await screen.findByText(`About ${profile.name}`);
+  expect(screen.queryByText("Care history")).toBeNull();
+});
 
 it("fails closed when public-profile visibility is unexpectedly missing", async () => {
   const profile = {

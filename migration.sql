@@ -6086,3 +6086,30 @@ GO
 
 COMMIT;
 GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260822005625_NormalizeCareVisibilitySemantics'
+)
+BEGIN
+    UPDATE [CareRecords]
+    SET [PublicVisibility] = N'PublicBadgeOnly'
+    WHERE [PublicVisibility] = N'PublicDetails';
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260822005625_NormalizeCareVisibilitySemantics'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260822005625_NormalizeCareVisibilitySemantics', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO

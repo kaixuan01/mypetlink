@@ -727,7 +727,7 @@ export function mapBackendPublicProfile(
         ...conservativePetVisibility,
         showOwnerName: Boolean(profile.ownerDisplayName),
         showGeneralArea: Boolean(profile.generalArea),
-        showCareBadges: profile.careRecords.length > 0,
+        showCareBadges: profile.showCareBadges === true,
         showMoments: profile.showMoments === true,
         showTimeline: profile.showTimeline === true,
         showBirthdayOnTimeline: profile.showBirthdayOnTimeline === true,
@@ -921,7 +921,13 @@ export function buildBackendPetPayload(
         : payload.contactOverride?.generalArea ?? payload.generalArea ?? null,
     },
     ...(payload.visibility !== undefined
-      ? { visibility: payload.visibility }
+      ? {
+          visibility: {
+            ...payload.visibility,
+            // Compatibility-only until the API field can be retired.
+            showHealthSummary: false,
+          },
+        }
       : {}),
     safetyNote: optionalText(payload.safetyNote),
     emergencyNote: optionalText(payload.emergencyNote),

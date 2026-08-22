@@ -66,11 +66,43 @@ describe("PetProfileForm create visibility", () => {
       showTimeline: form.showTimeline,
       showBirthdayOnTimeline: form.showBirthdayOnTimeline,
       showAdoptionDayOnTimeline: form.showAdoptionDayOnTimeline,
-      showHealthSummary: form.showHealthSummary,
       showAllergiesOnPublicProfile: form.showAllergiesOnPublicProfile,
-    }).toEqual(newPetVisibilityDefaults);
+    }).toEqual({
+      showOwnerName: newPetVisibilityDefaults.showOwnerName,
+      showGeneralArea: newPetVisibilityDefaults.showGeneralArea,
+      showPhone: newPetVisibilityDefaults.showPhone,
+      showWhatsapp: newPetVisibilityDefaults.showWhatsapp,
+      showEmergencyNote: newPetVisibilityDefaults.showEmergencyNote,
+      showCareBadges: newPetVisibilityDefaults.showCareBadges,
+      showMoments: newPetVisibilityDefaults.showMoments,
+      showTimeline: newPetVisibilityDefaults.showTimeline,
+      showBirthdayOnTimeline: newPetVisibilityDefaults.showBirthdayOnTimeline,
+      showAdoptionDayOnTimeline: false,
+      showAllergiesOnPublicProfile:
+        newPetVisibilityDefaults.showAllergiesOnPublicProfile,
+    });
+    expect(form).not.toHaveProperty("showHealthSummary");
     expect(
       buildPayload(form, { includeVisibility: false })
     ).not.toHaveProperty("visibility");
+  });
+
+  it("keeps health-summary compatibility out of owner state and false at transport", () => {
+    const form = toFormState(
+      {
+        ...structuredClone(mockPets[0]),
+        visibility: {
+          ...structuredClone(mockPets[0].visibility),
+          showHealthSummary: true,
+        },
+      },
+      defaultOwnerSettings
+    );
+    const payload = buildPayload(form);
+    const request = buildBackendPetPayload(payload);
+
+    expect(form).not.toHaveProperty("showHealthSummary");
+    expect(payload.visibility).not.toHaveProperty("showHealthSummary");
+    expect(request.visibility?.showHealthSummary).toBe(false);
   });
 });

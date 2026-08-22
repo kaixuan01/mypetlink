@@ -1,5 +1,4 @@
 using MyPetLink.Api.Entities;
-using System.Text.Json.Serialization;
 
 namespace MyPetLink.Api.DTOs;
 
@@ -28,6 +27,7 @@ public sealed record PublicPetProfileResponse(
     string? LostExtraContactInstruction,
     string? OwnerDisplayName,
     string? GeneralArea,
+    bool ShowCareBadges,
     bool ShowMoments,
     bool ShowTimeline,
     bool ShowBirthdayOnTimeline,
@@ -76,11 +76,7 @@ public sealed record PublicMemorySummaryResponse(
 
 public sealed record PublicCareSummaryResponse(
     string Type,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Title,
-    DateOnly? RecordDate,
-    DateOnly? DueDate,
-    CareRecordPublicVisibility PublicVisibility,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Notes);
+    DateOnly? RecordDate);
 
 /// <summary>
 /// Deliberately tiny projection used only to build link-preview metadata for the

@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { buildBackendRecordPayload } from "./recordService";
+import {
+  fromCareRecordAudience,
+  toCareRecordAudience,
+} from "@/lib/careRecordVisibility";
+import {
+  buildBackendRecordPayload,
+  normalizeCareRecordVisibility,
+} from "./recordService";
 
 describe("care record date request mapping", () => {
   it("preserves the existing API date properties", () => {
@@ -47,5 +54,32 @@ describe("care record date request mapping", () => {
     );
 
     expect(payload).not.toHaveProperty("clearDueDate");
+  });
+
+  it("normalizes legacy public-details compatibility values to badge-only", () => {
+    expect(normalizeCareRecordVisibility("Private")).toBe("Private");
+    expect(normalizeCareRecordVisibility("Public badge only")).toBe(
+      "Public badge only"
+    );
+    expect(normalizeCareRecordVisibility("Public details")).toBe(
+      "Public badge only"
+    );
+    expect(
+      buildBackendRecordPayload({ publicVisibility: "Public details" })
+        .publicVisibility
+    ).toBe("PublicBadgeOnly");
+  });
+
+  it("maps the two owner audiences without producing PublicDetails", () => {
+    expect(toCareRecordAudience("Private")).toBe("Private");
+    expect(toCareRecordAudience("Public badge only")).toBe("Public");
+    expect(toCareRecordAudience("Public details")).toBe("Public");
+    expect(fromCareRecordAudience("Private")).toBe("Private");
+    expect(fromCareRecordAudience("Public")).toBe("Public badge only");
+    expect(
+      buildBackendRecordPayload({
+        publicVisibility: fromCareRecordAudience("Public"),
+      }).publicVisibility
+    ).toBe("PublicBadgeOnly");
   });
 });

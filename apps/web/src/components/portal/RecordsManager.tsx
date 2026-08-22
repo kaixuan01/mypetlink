@@ -29,6 +29,11 @@ import {
   isValidDateInputValue,
 } from "@/lib/careRecordTerminology";
 import {
+  fromCareRecordAudience,
+  toCareRecordAudience,
+  type CareRecordAudience,
+} from "@/lib/careRecordVisibility";
+import {
   createRecord,
   deleteRecord,
   getFriendlyRecordErrorMessage,
@@ -45,7 +50,7 @@ type FormState = {
   provider: string;
   dueDate: string;
   notes: string;
-  publicVisibility: CareRecord["publicVisibility"];
+  audience: CareRecordAudience;
 };
 
 type FormErrors = Partial<Record<keyof FormState, string>>;
@@ -62,7 +67,7 @@ const emptyForm: FormState = {
   provider: "",
   dueDate: "",
   notes: "",
-  publicVisibility: "Public badge only",
+  audience: "Public",
 };
 
 export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
@@ -183,7 +188,7 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
       provider: record.provider,
       dueDate: record.dueDate ? parseDisplayDate(record.dueDate) : "",
       notes: record.notes,
-      publicVisibility: record.publicVisibility,
+      audience: toCareRecordAudience(record.publicVisibility),
     });
     setErrors({});
     setActionError("");
@@ -242,7 +247,7 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
       provider: form.provider.trim() || "Owner recorded",
       dueDate: form.dueDate ? formatDisplayDate(form.dueDate) : undefined,
       notes: form.notes.trim() || "No notes added.",
-      publicVisibility: form.publicVisibility,
+      publicVisibility: fromCareRecordAudience(form.audience),
     };
 
     try {
@@ -496,28 +501,25 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
                   />
                 </Field>
 
-                <Field label="Public visibility" error={errors.publicVisibility}>
+                <Field label="Who can see this record?" error={errors.audience}>
                   <select
                     className="brand-input brand-select"
                     onChange={(event) =>
                       updateField(
-                        "publicVisibility",
-                        event.target.value as CareRecord["publicVisibility"]
+                        "audience",
+                        event.target.value as CareRecordAudience
                       )
                     }
-                    value={form.publicVisibility}
+                    value={form.audience}
                   >
-                    <option value="Private">Private</option>
-                    <option value="Public badge only">Public badge only</option>
-                    <option value="Public details">Public details</option>
+                    <option value="Private">Only me</option>
+                    <option value="Public">Anyone with the link</option>
                   </select>
                 </Field>
               </div>
 
               <p className="rounded-[1.25rem] bg-pet-cream p-4 text-sm leading-6 text-pet-muted">
-                Public badge only shows the record type and date. Public details
-                can show the title and notes when public care details are
-                allowed for this pet.
+                Public records show only their type and date.
               </p>
 
               <Field label="Notes" error={errors.notes}>

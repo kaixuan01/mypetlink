@@ -217,9 +217,22 @@ describe("PetProfileForm lifecycle workflow", () => {
     ).toBeTruthy();
     expect(
       screen.getByRole("checkbox", {
-        name: "Allow public health and care details",
+        name: "Show care history on Public Profile",
       })
     ).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Visitors can see the type and date of care records you choose to share."
+      )
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("checkbox", { name: "Show care badges" })
+    ).toBeNull();
+    expect(
+      screen.queryByRole("checkbox", {
+        name: "Allow public health and care details",
+      })
+    ).toBeNull();
     expect(
       screen.queryByRole("checkbox", { name: "Show owner name" })
     ).toBeNull();
@@ -245,6 +258,32 @@ describe("PetProfileForm lifecycle workflow", () => {
     expect(
       screen.getByText(/general area on this pet's Public Profile and Safety Profile/)
     ).toBeTruthy();
+  });
+
+  it("writes the Care master through showCareBadges only", async () => {
+    pet = {
+      ...pet,
+      visibility: {
+        ...pet.visibility,
+        showCareBadges: true,
+        showHealthSummary: true,
+      },
+    };
+    mocks.getPetById.mockResolvedValue({ data: pet });
+    render(<PetProfileForm initialPet={pet} mode="edit" />);
+    await openSharingPrivacy();
+
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: "Show care history on Public Profile",
+      })
+    );
+    clickSave();
+
+    await waitFor(() => expect(mocks.updatePet).toHaveBeenCalledOnce());
+    const payload = mocks.updatePet.mock.calls[0][1] as PetPayload;
+    expect(payload.visibility?.showCareBadges).toBe(false);
+    expect(payload.visibility).not.toHaveProperty("showHealthSummary");
   });
 
   it("shows neutral contact-summary values instead of a fake location", async () => {

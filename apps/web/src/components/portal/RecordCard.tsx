@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/Badge";
 import { getCareRecordDateTerminology } from "@/lib/careRecordTerminology";
 import { getCareRecordStatusLabel } from "@/lib/careRecordStatus";
+import { toCareRecordAudience } from "@/lib/careRecordVisibility";
 import type { CareRecord } from "@/types";
 
 type RecordCardProps = {
@@ -11,12 +12,12 @@ type RecordCardProps = {
 
 const visibilityTone = {
   Private: "soft",
-  "Public badge only": "mint",
-  "Public details": "teal",
+  Public: "mint",
 } as const;
 
 export function RecordCard({ record, onDelete, onEdit }: RecordCardProps) {
   const dateTerminology = getCareRecordDateTerminology(record.type);
+  const audience = toCareRecordAudience(record.publicVisibility);
 
   return (
     <article className="brand-card rounded-[1.5rem] p-5">
@@ -45,8 +46,8 @@ export function RecordCard({ record, onDelete, onEdit }: RecordCardProps) {
             {getCareRecordStatusLabel(record)}
           </Badge>
         ) : null}
-        <Badge tone={visibilityTone[record.publicVisibility]}>
-          {record.publicVisibility}
+        <Badge tone={visibilityTone[audience]}>
+          {audience === "Private" ? "Only me" : "Anyone with the link"}
         </Badge>
       </div>
       <p className="mt-4 text-sm leading-6 text-pet-muted">{record.notes}</p>

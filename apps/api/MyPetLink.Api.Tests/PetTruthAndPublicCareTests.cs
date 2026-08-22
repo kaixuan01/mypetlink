@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using MyPetLink.Api.Data;
@@ -202,40 +201,124 @@ public sealed class PetTruthAndPublicCareTests
     }
 
     [Fact]
-    public async Task PublicProfile_RemovesProviderAndRequiresBothVisibilityLevelsForDetails()
+    public void PublicCareSummaryResponse_ContainsOnlyTypeAndRecordDate()
+    {
+        Assert.Equal(
+            ["RecordDate", "Type"],
+            typeof(PublicCareSummaryResponse)
+                .GetProperties()
+                .Select(property => property.Name)
+                .OrderBy(name => name)
+                .ToArray());
+    }
+
+    [Fact]
+    public async Task PublicProfile_ShowHealthSummaryNeverChangesCareJsonShape()
     {
         using var harness = await Harness.CreateAsync(showHealthSummary: false);
 
-        var restricted = await harness.PublicProfiles.GetByPublicSlugAsync("milo-pub123");
-        var restrictedRecord = Assert.Single(restricted.CareRecords);
-        var restrictedJson = Serialize(restrictedRecord);
+        var disabled = Assert.Single(
+            (await harness.PublicProfiles.GetByPublicSlugAsync("milo-pub123")).CareRecords);
+        var disabledJson = Serialize(disabled);
 
-        Assert.Null(restrictedRecord.Title);
-        Assert.Null(restrictedRecord.Notes);
-        Assert.DoesNotContain("provider", restrictedJson, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("notes", restrictedJson, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("title", restrictedJson, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("VetVisit", disabled.Type);
+        Assert.Equal(new DateOnly(2026, 8, 1), disabled.RecordDate);
+        Assert.Equal(["recordDate", "type"], JsonPropertyNames(disabled));
+        AssertPublicCareJsonOmitsPrivateFields(disabledJson);
 
         var profile = await harness.Db.PetPublicProfiles.SingleAsync();
         profile.ShowHealthSummary = true;
         await harness.Db.SaveChangesAsync();
 
-        var allowed = await harness.PublicProfiles.GetByPublicSlugAsync("milo-pub123");
-        var allowedRecord = Assert.Single(allowed.CareRecords);
-        var allowedJson = Serialize(allowedRecord);
+        var enabled = Assert.Single(
+            (await harness.PublicProfiles.GetByPublicSlugAsync("milo-pub123")).CareRecords);
+        var enabledJson = Serialize(enabled);
 
-        Assert.Equal("Annual check-up", allowedRecord.Title);
-        Assert.Equal("Sensitive clinical note", allowedRecord.Notes);
-        Assert.DoesNotContain("provider", allowedJson, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(["recordDate", "type"], JsonPropertyNames(enabled));
+        AssertPublicCareJsonOmitsPrivateFields(enabledJson);
+        Assert.Equal(disabledJson, enabledJson);
+    }
 
-        var record = await harness.Db.CareRecords.SingleAsync();
-        record.PublicVisibility = CareRecordPublicVisibility.PublicBadgeOnly;
+    [Fact]
+    public async Task PublicProfile_ShowCareBadgesIsTheMasterGateForEffectivePublicCare()
+    {
+        using var harness = await Harness.CreateAsync();
+        harness.Db.CareRecords.AddRange(
+            new CareRecord
+            {
+                PetId = PetId,
+                Type = CareRecordType.Vaccine,
+                Title = "Private vaccine",
+                RecordDate = new DateOnly(2026, 7, 1),
+                Notes = "Must remain private",
+                PublicVisibility = CareRecordPublicVisibility.Private
+            },
+            new CareRecord
+            {
+                PetId = PetId,
+                Type = CareRecordType.Grooming,
+                Title = "Public grooming badge",
+                RecordDate = new DateOnly(2026, 7, 2),
+                Notes = "Must not be projected",
+                PublicVisibility = CareRecordPublicVisibility.PublicBadgeOnly
+            },
+            new CareRecord
+            {
+                PetId = PetId,
+                Type = CareRecordType.Deworming,
+                Title = "Archived public badge",
+                RecordDate = new DateOnly(2026, 7, 3),
+                PublicVisibility = CareRecordPublicVisibility.PublicBadgeOnly,
+                ArchivedAt = DateTimeOffset.UtcNow
+            },
+            new CareRecord
+            {
+                PetId = PetId,
+                Type = CareRecordType.Medication,
+                Title = "Deleted legacy details",
+                RecordDate = new DateOnly(2026, 7, 4),
+                PublicVisibility = CareRecordPublicVisibility.PublicDetails,
+                DeletedAt = DateTimeOffset.UtcNow
+            });
         await harness.Db.SaveChangesAsync();
 
-        var badgeOnly = Assert.Single(
-            (await harness.PublicProfiles.GetByPublicSlugAsync("milo-pub123")).CareRecords);
-        Assert.Null(badgeOnly.Title);
-        Assert.Null(badgeOnly.Notes);
+        var enabled = await harness.PublicProfiles.GetByPublicSlugAsync("milo-pub123");
+        var visible = enabled.CareRecords
+            .OrderBy(record => record.RecordDate)
+            .ToArray();
+
+        Assert.True(enabled.ShowCareBadges);
+        Assert.Equal(2, visible.Length);
+        Assert.Equal(
+            [new DateOnly(2026, 7, 2), new DateOnly(2026, 8, 1)],
+            visible.Select(record => record.RecordDate).ToArray());
+        Assert.All(visible, record => Assert.Equal(["recordDate", "type"], JsonPropertyNames(record)));
+
+        var profile = await harness.Db.PetPublicProfiles.SingleAsync();
+        profile.ShowCareBadges = false;
+        await harness.Db.SaveChangesAsync();
+
+        var disabled = await harness.PublicProfiles.GetByPublicSlugAsync("milo-pub123");
+        Assert.False(disabled.ShowCareBadges);
+        Assert.Empty(disabled.CareRecords);
+    }
+
+    [Fact]
+    public async Task PublicProfile_ShowCareBadgesTrueWithNoEligibleRecordsKeepsFlagTrue()
+    {
+        using var harness = await Harness.CreateAsync();
+        var record = await harness.Db.CareRecords.SingleAsync();
+        record.PublicVisibility = CareRecordPublicVisibility.Private;
+        await harness.Db.SaveChangesAsync();
+
+        var response = await harness.PublicProfiles.GetByPublicSlugAsync("milo-pub123");
+
+        Assert.True(response.ShowCareBadges);
+        Assert.Empty(response.CareRecords);
+        var json = JsonSerializer.Serialize(
+            response,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        Assert.Contains("\"showCareBadges\":true", json, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -271,9 +354,28 @@ public sealed class PetTruthAndPublicCareTests
 
     private static string Serialize(PublicCareSummaryResponse response)
     {
-        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
-        options.Converters.Add(new JsonStringEnumConverter());
-        return JsonSerializer.Serialize(response, options);
+        return JsonSerializer.Serialize(
+            response,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+    }
+
+    private static string[] JsonPropertyNames(PublicCareSummaryResponse response)
+    {
+        using var document = JsonDocument.Parse(Serialize(response));
+        return document.RootElement
+            .EnumerateObject()
+            .Select(property => property.Name)
+            .OrderBy(name => name)
+            .ToArray();
+    }
+
+    private static void AssertPublicCareJsonOmitsPrivateFields(string json)
+    {
+        Assert.DoesNotContain("title", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("notes", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("provider", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("dueDate", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("publicVisibility", json, StringComparison.OrdinalIgnoreCase);
     }
 
     private static CreatePetRequest CreateRequest(

@@ -11,7 +11,7 @@ import {
 } from "@/lib/seo";
 import { getPublicPetMoments } from "@/services/momentService";
 import { getPublicPetProfileByPublicCode } from "@/services/petService";
-import { getPetRecords } from "@/services/recordService";
+import { getPublicPetRecords } from "@/services/recordService";
 
 type PublicPetPageProps = {
   params: Promise<{ slug: string }>;
@@ -53,7 +53,10 @@ export default async function PublicPetPage({ params }: PublicPetPageProps) {
   }
 
   const moments = await getPublicPetMoments(profile.data.id);
-  const records = await getPetRecords(profile.data.id);
+  const records = await getPublicPetRecords(publicCode, {
+    localPetId: profile.data.id,
+    showCareBadges: profile.data.visibility.showCareBadges,
+  });
 
   return (
     <main className="min-h-screen bg-pet-cream">

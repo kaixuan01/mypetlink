@@ -106,24 +106,12 @@ public sealed class PublicProfileService : SkeletonService, IPublicProfileServic
                 .Where(record =>
                     record.DeletedAt == null
                     && record.ArchivedAt == null
-                    && record.PublicVisibility != CareRecordPublicVisibility.Private)
+                    && CareVisibilityPolicy.IsPublic(record.PublicVisibility))
                 .OrderByDescending(record => record.RecordDate)
                 .ThenBy(record => record.Title)
-                .Select(record => new
-                {
-                    Record = record,
-                    AllowDetails = profile.ShowHealthSummary
-                        && record.PublicVisibility == CareRecordPublicVisibility.PublicDetails
-                })
-                .Select(item => new PublicCareSummaryResponse(
-                    item.Record.Type.ToString(),
-                    item.AllowDetails ? item.Record.Title : null,
-                    item.Record.RecordDate,
-                    item.Record.DueDate,
-                    item.AllowDetails
-                        ? CareRecordPublicVisibility.PublicDetails
-                        : CareRecordPublicVisibility.PublicBadgeOnly,
-                    item.AllowDetails ? item.Record.Notes : null))
+                .Select(record => new PublicCareSummaryResponse(
+                    record.Type.ToString(),
+                    record.RecordDate))
                 .ToArray()
             : Array.Empty<PublicCareSummaryResponse>();
 
@@ -179,6 +167,7 @@ public sealed class PublicProfileService : SkeletonService, IPublicProfileServic
                 : null,
             profile.ShowOwnerName ? PetDtoMapper.ResolveOwnerDisplayName(pet) : null,
             profile.ShowGeneralArea ? PetDtoMapper.ResolveGeneralArea(pet) : null,
+            profile.ShowCareBadges,
             profile.ShowMoments,
             profile.ShowTimeline,
             profile.ShowBirthdayOnTimeline,

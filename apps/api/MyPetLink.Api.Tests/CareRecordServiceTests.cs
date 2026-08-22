@@ -28,6 +28,90 @@ public sealed class CareRecordServiceTests
         Assert.Equal(today, (await harness.Db.CareRecords.SingleAsync()).RecordDate);
     }
 
+    [Theory]
+    [InlineData(CareRecordPublicVisibility.Private, CareRecordPublicVisibility.Private)]
+    [InlineData(CareRecordPublicVisibility.PublicBadgeOnly, CareRecordPublicVisibility.PublicBadgeOnly)]
+    [InlineData(CareRecordPublicVisibility.PublicDetails, CareRecordPublicVisibility.PublicBadgeOnly)]
+    [InlineData((CareRecordPublicVisibility)999, CareRecordPublicVisibility.Private)]
+    public async Task CreateAsync_NormalizesVisibilityBeforePersistence(
+        CareRecordPublicVisibility requested,
+        CareRecordPublicVisibility expected)
+    {
+        using var harness = await CareRecordHarness.CreateAsync();
+
+        var response = await harness.Service.CreateAsync(
+            OwnerId,
+            PetId,
+            CreateRequest(CareRecordType.Grooming, MalaysiaToday(), requested));
+
+        Assert.Equal(expected, response.PublicVisibility);
+        Assert.Equal(expected, (await harness.Db.CareRecords.SingleAsync()).PublicVisibility);
+    }
+
+    [Theory]
+    [InlineData(CareRecordPublicVisibility.Private, CareRecordPublicVisibility.Private)]
+    [InlineData(CareRecordPublicVisibility.PublicBadgeOnly, CareRecordPublicVisibility.PublicBadgeOnly)]
+    [InlineData(CareRecordPublicVisibility.PublicDetails, CareRecordPublicVisibility.PublicBadgeOnly)]
+    [InlineData((CareRecordPublicVisibility)999, CareRecordPublicVisibility.Private)]
+    public async Task UpdateAsync_NormalizesVisibilityBeforePersistence(
+        CareRecordPublicVisibility requested,
+        CareRecordPublicVisibility expected)
+    {
+        using var harness = await CareRecordHarness.CreateAsync(withRecord: true);
+        var record = await harness.Db.CareRecords.SingleAsync();
+
+        var response = await harness.Service.UpdateAsync(
+            OwnerId,
+            record.Id,
+            new UpdateCareRecordRequest(
+                Type: null,
+                Title: null,
+                Date: null,
+                DueDate: null,
+                Provider: null,
+                Notes: null,
+                PublicVisibility: requested,
+                MediaFileIds: null));
+
+        Assert.Equal(expected, response.PublicVisibility);
+        Assert.Equal(expected, record.PublicVisibility);
+    }
+
+    [Fact]
+    public async Task OwnerReads_NormalizeLegacyPublicDetailsWithoutChangingOtherFields()
+    {
+        using var harness = await CareRecordHarness.CreateAsync();
+        var record = new CareRecord
+        {
+            PetId = PetId,
+            Type = CareRecordType.VetVisit,
+            Title = "Legacy public details",
+            RecordDate = MalaysiaToday().AddDays(-14),
+            Provider = "Private clinic",
+            Notes = "Owner-only clinical note",
+            PublicVisibility = CareRecordPublicVisibility.PublicDetails
+        };
+        harness.Db.CareRecords.Add(record);
+        await harness.Db.SaveChangesAsync();
+
+        var single = await harness.Service.GetAsync(OwnerId, record.Id);
+        var listed = await harness.Service.ListForPetAsync(
+            OwnerId,
+            PetId,
+            page: 1,
+            pageSize: 20,
+            type: null,
+            fromDate: null,
+            toDate: null,
+            includeArchived: false);
+
+        Assert.Equal(CareRecordPublicVisibility.PublicBadgeOnly, single.PublicVisibility);
+        Assert.Equal(CareRecordPublicVisibility.PublicBadgeOnly, Assert.Single(listed.Items).PublicVisibility);
+        Assert.Equal("Legacy public details", single.Title);
+        Assert.Equal("Private clinic", single.Provider);
+        Assert.Equal("Owner-only clinical note", single.Notes);
+    }
+
     [Fact]
     public async Task CreateAsync_FutureGroomingDate_IsRejected()
     {
@@ -202,7 +286,8 @@ public sealed class CareRecordServiceTests
 
     private static CreateCareRecordRequest CreateRequest(
         CareRecordType type,
-        DateOnly date)
+        DateOnly date,
+        CareRecordPublicVisibility visibility = CareRecordPublicVisibility.Private)
     {
         return new CreateCareRecordRequest(
             Type: type,
@@ -211,7 +296,7 @@ public sealed class CareRecordServiceTests
             DueDate: null,
             Provider: "Owner recorded",
             Notes: null,
-            PublicVisibility: CareRecordPublicVisibility.Private,
+            PublicVisibility: visibility,
             MediaFileIds: null);
     }
 

@@ -271,6 +271,11 @@ export type CareRecord = {
   status: "complete" | "overdue" | "due-soon" | "upcoming";
 };
 
+export type PublicCareRecord = {
+  type: RecordType;
+  recordDate: string;
+};
+
 export type MockUser = {
   id: string;
   name: string;
@@ -604,8 +609,13 @@ export type PetPayload = Partial<
     | "createdAt"
     | "updatedAt"
     | "medications"
+    | "visibility"
   >
->;
+> & {
+  visibility?: Omit<Pet["visibility"], "showHealthSummary"> & {
+    showHealthSummary?: boolean;
+  };
+};
 
 export type RecordPayload = Partial<
   Pick<

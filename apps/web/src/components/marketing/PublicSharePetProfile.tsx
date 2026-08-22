@@ -63,21 +63,18 @@ import {
   getPublicPetProfileByPublicCode,
   getPublicPetProfileBySafetyCode,
 } from "@/services/petService";
-import {
-  getPetRecords,
-  getPublicPetRecords,
-} from "@/services/recordService";
+import { getPublicPetRecords } from "@/services/recordService";
 import type {
-  CareRecord,
   Pet,
   PetMoment,
+  PublicCareRecord,
   PublicPetProfile,
 } from "@/types";
 
 type PublicSharePetProfileProps = {
   initialProfile: PublicPetProfile;
   initialMoments: PetMoment[];
-  initialRecords: CareRecord[];
+  initialRecords: PublicCareRecord[];
   initialLostMode?: boolean;
 };
 
@@ -107,7 +104,7 @@ export function PublicSharePetProfile({
   const [moments, setMoments] = useState<PetMoment[]>(() =>
     apiMode ? [] : initialMoments
   );
-  const [records, setRecords] = useState<CareRecord[]>(() =>
+  const [records, setRecords] = useState<PublicCareRecord[]>(() =>
     apiMode ? [] : initialRecords
   );
   const [loaded, setLoaded] = useState(!apiMode);
@@ -183,7 +180,9 @@ export function PublicSharePetProfile({
         if (apiMode) {
           const [momentsResponse, recordsResponse] = await Promise.all([
             getPublicPetMoments(initialProfile.publicCode),
-            getPublicPetRecords(initialProfile.publicCode),
+            getPublicPetRecords(initialProfile.publicCode, {
+              showCareBadges: nextProfile.visibility.showCareBadges,
+            }),
           ]);
 
           if (!active) {
@@ -199,7 +198,10 @@ export function PublicSharePetProfile({
         const [momentsResponse, recordsResponse] =
           await Promise.all([
             getPublicPetMoments(nextProfile.id),
-            getPetRecords(nextProfile.id),
+            getPublicPetRecords(initialProfile.publicCode, {
+              localPetId: nextProfile.id,
+              showCareBadges: nextProfile.visibility.showCareBadges,
+            }),
           ]);
 
         if (!active) {
@@ -340,7 +342,7 @@ export function PublicSharePetProfile({
     visibility.showMoments
   );
   const careRecords = visibility.showCareBadges
-    ? records.filter((record) => record.publicVisibility !== "Private").slice(0, 4)
+    ? records.slice(0, 4)
     : [];
   const timelineEvents = getPublicTimeline(
     { ...profile, visibility },
@@ -782,7 +784,7 @@ function AboutTab({
   profile: PublicPetProfile;
   theme: PetProfileTheme;
   visibility: Pet["visibility"];
-  careRecords: CareRecord[];
+  careRecords: PublicCareRecord[];
   generalArea: string;
 }) {
   const details: { label: string; value: string }[] = [
@@ -868,13 +870,13 @@ function AboutTab({
             className="text-lg font-black text-pet-ink"
             style={{ color: theme.colors.text }}
           >
-            Care badges
+            Care history
           </h2>
           <div className="mt-4 grid gap-3">
-            {careRecords.map((record) => (
+            {careRecords.map((record, index) => (
               <div
                 className="rounded-[1.25rem] bg-pet-cream p-4"
-                key={record.id}
+                key={`${record.type}-${record.recordDate}-${index}`}
                 style={{ background: theme.colors.surfaceAlt }}
               >
                 <div className="flex flex-wrap items-center gap-2">
@@ -884,18 +886,9 @@ function AboutTab({
                     style={{ color: theme.colors.mutedText }}
                   >
                     {getCareRecordDateTerminology(record.type).primaryDateLabel}:{" "}
-                    {record.date}
+                    {record.recordDate}
                   </span>
                 </div>
-                {record.publicVisibility === "Public details" &&
-                visibility.showHealthSummary ? (
-                  <p
-                    className="mt-2 font-bold text-pet-ink"
-                    style={{ color: theme.colors.text }}
-                  >
-                    {record.title}
-                  </p>
-                ) : null}
               </div>
             ))}
           </div>

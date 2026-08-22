@@ -130,6 +130,40 @@ public sealed class DeploymentScriptTests
     }
 
     [Fact]
+    public void CareVisibilityNormalizationMigrationOnlyNarrowsLegacyPublicDetails()
+    {
+        var root = Path.GetDirectoryName(ScriptPath())!;
+        var migrationPath = Path.Combine(
+            root,
+            "apps",
+            "api",
+            "MyPetLink.Api",
+            "Migrations",
+            "20260822005625_NormalizeCareVisibilitySemantics.sql");
+        Assert.True(File.Exists(migrationPath), migrationPath);
+
+        var sql = File.ReadAllText(migrationPath);
+        Assert.Contains("UPDATE [CareRecords]", sql, StringComparison.Ordinal);
+        Assert.Contains(
+            "SET [PublicVisibility] = N'PublicBadgeOnly'",
+            sql,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "WHERE [PublicVisibility] = N'PublicDetails'",
+            sql,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("N'Private'", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(
+            "SET [PublicVisibility] = N'PublicDetails'",
+            sql,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("DELETE ", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("ALTER TABLE", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("CREATE TABLE", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("DROP ", sql, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void TheScriptCoversEveryMigrationOnDisk()
     {
         var scriptPath = ScriptPath();

@@ -66,7 +66,10 @@ import {
   getPublicPetProfileByPublicCode,
   getPublicPetProfileBySafetyCode,
 } from "@/services/petService";
-import { getPetRecords } from "@/services/recordService";
+import {
+  getPetRecords,
+  getPublicPetRecords,
+} from "@/services/recordService";
 import {
   getAllTags,
   getFinderState,
@@ -82,6 +85,7 @@ import type {
   PetListItem,
   PetMoment,
   PetTag,
+  PublicCareRecord,
   PublicPetProfile,
   TagEntrySource,
   TagOrder,
@@ -115,7 +119,7 @@ type RuntimeState =
       status: "public";
       profile: PublicPetProfile;
       moments: PetMoment[];
-      records: CareRecord[];
+      records: PublicCareRecord[];
     }
   | {
       status: "qr";
@@ -244,7 +248,10 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
 
         const [momentsResponse, recordsResponse] = await Promise.all([
           getPublicPetMoments(profileResponse.data.id),
-          getPetRecords(profileResponse.data.id),
+          getPublicPetRecords(publicCode, {
+            localPetId: profileResponse.data.id,
+            showCareBadges: profileResponse.data.visibility.showCareBadges,
+          }),
         ]);
 
         if (!active) {

@@ -8,15 +8,24 @@ import {
 import { apiRequest, isApiClientError } from "@/services/apiClient";
 import { canUseApi } from "@/services/apiConfig";
 import { deriveCareRecordStatus } from "@/lib/careRecordStatus";
+import { normalizeCareRecordVisibility } from "@/lib/careRecordVisibility";
 import type {
   BackendCareRecord,
   BackendCareRecordPublicVisibility,
   BackendCareRecordType,
   BackendPublicPetProfile,
 } from "@/services/apiDtos";
-import type { ApiResponse, CareRecord, RecordPayload, RecordType } from "@/types";
+import type {
+  ApiResponse,
+  CareRecord,
+  PublicCareRecord,
+  RecordPayload,
+  RecordType,
+} from "@/types";
 
 const RECORD_STORAGE_KEY = "mypetlink_records";
+
+export { normalizeCareRecordVisibility } from "@/lib/careRecordVisibility";
 
 function getRecordCollection() {
   return readStoredCollection(RECORD_STORAGE_KEY, mockRecords).map(normalizeRecord);
@@ -25,7 +34,7 @@ function getRecordCollection() {
 function normalizeRecord(record: CareRecord): CareRecord {
   return {
     ...record,
-    publicVisibility: record.publicVisibility ?? "Public badge only",
+    publicVisibility: normalizeCareRecordVisibility(record.publicVisibility),
     status: deriveCareRecordStatus(record.dueDate),
   };
 }
@@ -78,7 +87,7 @@ export async function createRecord(petId: string, payload: RecordPayload) {
     dueDate: payload.dueDate,
     provider: payload.provider ?? "Owner recorded",
     notes: payload.notes ?? "No notes yet.",
-    publicVisibility: payload.publicVisibility ?? "Public badge only",
+    publicVisibility: normalizeCareRecordVisibility(payload.publicVisibility),
     status: deriveCareRecordStatus(payload.dueDate),
   };
 
@@ -118,8 +127,9 @@ export async function updateRecord(recordId: string, payload: RecordPayload) {
     ? {
         ...existingRecord,
         ...payload,
-        publicVisibility:
-          payload.publicVisibility ?? existingRecord.publicVisibility,
+        publicVisibility: normalizeCareRecordVisibility(
+          payload.publicVisibility ?? existingRecord.publicVisibility
+        ),
         status: deriveCareRecordStatus(
           Object.prototype.hasOwnProperty.call(payload, "dueDate")
             ? payload.dueDate
@@ -157,33 +167,40 @@ export async function deleteRecord(recordId: string) {
   return mockResponse({ deleted: records.length !== nextRecords.length });
 }
 
-export async function getPublicPetRecords(publicCode: string) {
+export async function getPublicPetRecords(
+  publicCode: string,
+  options: { localPetId?: string; showCareBadges?: boolean } = {}
+) {
   if (canUseApi()) {
+    if (options.showCareBadges === false) {
+      return apiResponse<PublicCareRecord[]>([]);
+    }
+
     try {
       const response = await apiRequest<BackendPublicPetProfile>(
         `/api/v1/public/pets/${encodeURIComponent(publicCode)}`,
         { auth: false }
       );
-      const records = (response.data?.careRecords ?? []).map((record, index) =>
-        mapBackendPublicRecord(record, publicCode, index)
+      const records = (response.data?.careRecords ?? []).map(
+        mapBackendPublicCareRecord
       );
 
       return apiResponse(records, response.meta);
     } catch (error) {
       if (isApiClientError(error) && [403, 404].includes(error.status)) {
-        return apiResponse<CareRecord[]>([]);
+        return apiResponse<PublicCareRecord[]>([]);
       }
 
       throw error;
     }
   }
 
-  const records = getRecordCollection().filter(
-    (record) =>
-      record.petId === publicCode && record.publicVisibility !== "Private"
-  );
+  const petId = options.localPetId ?? publicCode;
+  const records = getRecordCollection().filter((record) => record.petId === petId);
 
-  return mockResponse(records);
+  return mockResponse(
+    projectLocalPublicCareRecords(records, options.showCareBadges === true)
+  );
 }
 
 export function getFriendlyRecordErrorMessage(error: unknown) {
@@ -265,27 +282,29 @@ function mapBackendRecord(record: BackendCareRecord): CareRecord {
   };
 }
 
-function mapBackendPublicRecord(
-  record: BackendPublicPetProfile["careRecords"][number],
-  publicCode: string,
-  index: number
-): CareRecord {
-  const publicVisibility = fromBackendVisibility(record.publicVisibility);
-  const type = fromBackendRecordType(record.type);
-  const title = record.title?.trim() || type;
-
+export function mapBackendPublicCareRecord(
+  record: BackendPublicPetProfile["careRecords"][number]
+): PublicCareRecord {
   return {
-    id: `public_${publicCode}_${index}_${slugPart(title)}`,
-    petId: publicCode,
-    type,
-    title,
-    date: toDisplayDate(record.recordDate),
-    dueDate: record.dueDate ? toDisplayDate(record.dueDate) : undefined,
-    provider: "",
-    notes: record.notes || "",
-    publicVisibility,
-    status: deriveCareRecordStatus(record.dueDate),
+    type: fromBackendRecordType(record.type),
+    recordDate: toDisplayDate(record.recordDate),
   };
+}
+
+export function projectLocalPublicCareRecords(
+  records: CareRecord[],
+  showCareBadges: boolean
+): PublicCareRecord[] {
+  if (!showCareBadges) {
+    return [];
+  }
+
+  return records
+    .filter((record) => record.publicVisibility !== "Private")
+    .map((record) => ({
+      type: record.type,
+      recordDate: record.date,
+    }));
 }
 
 function toBackendRecordType(type: RecordType): BackendCareRecordType {
@@ -323,9 +342,8 @@ function toBackendVisibility(
 ): BackendCareRecordPublicVisibility {
   switch (visibility) {
     case "Public badge only":
-      return "PublicBadgeOnly";
     case "Public details":
-      return "PublicDetails";
+      return "PublicBadgeOnly";
     default:
       return "Private";
   }
@@ -336,9 +354,8 @@ function fromBackendVisibility(
 ): CareRecord["publicVisibility"] {
   switch (visibility) {
     case "PublicBadgeOnly":
-      return "Public badge only";
     case "PublicDetails":
-      return "Public details";
+      return "Public badge only";
     default:
       return "Private";
   }
@@ -401,11 +418,4 @@ function toIsoDate(value?: string | null) {
   }
 
   return `${year}-${String(monthIndex + 1).padStart(2, "0")}-${day.padStart(2, "0")}`;
-}
-
-function slugPart(value: string) {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
 }

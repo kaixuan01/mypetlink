@@ -101,7 +101,8 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
             DueDate = request.DueDate,
             Provider = NormalizeOptional(request.Provider),
             Notes = NormalizeOptional(request.Notes),
-            PublicVisibility = request.PublicVisibility ?? CareRecordPublicVisibility.Private
+            PublicVisibility = CareVisibilityPolicy.Normalize(
+                request.PublicVisibility ?? CareRecordPublicVisibility.Private)
         };
 
         _dbContext.CareRecords.Add(record);
@@ -171,10 +172,8 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
             record.Notes = NormalizeOptional(request.Notes);
         }
 
-        if (request.PublicVisibility.HasValue)
-        {
-            record.PublicVisibility = request.PublicVisibility.Value;
-        }
+        record.PublicVisibility = CareVisibilityPolicy.Normalize(
+            request.PublicVisibility ?? record.PublicVisibility);
 
         if (request.MediaFileIds is not null)
         {
@@ -463,7 +462,7 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
             record.DueDate,
             record.Provider,
             record.Notes,
-            record.PublicVisibility,
+            CareVisibilityPolicy.Normalize(record.PublicVisibility),
             DeriveStatus(record),
             record.CreatedAt,
             record.UpdatedAt,

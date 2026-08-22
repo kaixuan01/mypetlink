@@ -207,6 +207,7 @@ export type BackendPublicPetProfile = {
   lostExtraContactInstruction?: string | null;
   ownerDisplayName?: string | null;
   generalArea?: string | null;
+  showCareBadges?: boolean | null;
   showMoments?: boolean | null;
   showTimeline?: boolean | null;
   showBirthdayOnTimeline?: boolean | null;
@@ -304,11 +305,7 @@ export type BackendCareRecord = {
 
 export type BackendPublicCareRecord = {
   type: BackendCareRecordType | string;
-  title?: string | null;
   recordDate?: string | null;
-  dueDate?: string | null;
-  publicVisibility: BackendCareRecordPublicVisibility;
-  notes?: string | null;
 };
 
 export type BackendPublicSafetyPage = {
