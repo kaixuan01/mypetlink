@@ -6,6 +6,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { mockPets } from "@/data/mockPets";
@@ -15,15 +16,10 @@ const mocks = vi.hoisted(() => ({
   getPetMoments: vi.fn(),
   getPetRecords: vi.fn(),
   updatePetLostMode: vi.fn(),
-  writeText: vi.fn(),
 }));
 
 vi.mock("@/services/apiConfig", () => ({
   isApiConfigured: () => false,
-}));
-
-vi.mock("@/components/share/PetShareCard", () => ({
-  PetShareCard: () => <button type="button">Share Card</button>,
 }));
 
 vi.mock("@/services/petService", async (importOriginal) => {
@@ -62,11 +58,6 @@ beforeEach(() => {
       data: { ...pet, lostModeEnabled: enabled, lostMode },
     })
   );
-  mocks.writeText.mockResolvedValue(undefined);
-  Object.defineProperty(navigator, "clipboard", {
-    configurable: true,
-    value: { writeText: mocks.writeText },
-  });
 });
 
 afterEach(() => {
@@ -74,7 +65,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-it("keeps one Public Profile action set and hides unreleased owner tools", async () => {
+it("keeps one Public Profile source of truth and hides unreleased owner tools", async () => {
   const pet = structuredClone(mockPets[0]);
   render(
     <PetManagementTabs
@@ -90,20 +81,33 @@ it("keeps one Public Profile action set and hides unreleased owner tools", async
   expect(screen.queryByRole("tab", { name: "Privacy" })).toBeNull();
   expect(screen.queryByText("Public profile visibility")).toBeNull();
   expect(screen.queryByText("Safety Profile visibility")).toBeNull();
-  expect(screen.getByText("Public profile is on")).toBeTruthy();
+  const publicProfile = screen.getByRole("group", {
+    name: "Public Profile overview",
+  });
+  expect(screen.getAllByRole("heading", { name: "Public Profile" })).toHaveLength(1);
+  expect(within(publicProfile).getByText("Shared")).toBeTruthy();
   expect(
-    screen.getByRole("link", { name: /Edit sharing settings/ }).getAttribute(
+    within(publicProfile).getByText("Anyone with the link can view this page.")
+  ).toBeTruthy();
+  expect(
+    within(publicProfile).queryByText(/^(On|Off|Public|Private)$/)
+  ).toBeNull();
+  expect(screen.queryByText(/Public profile is (on|off)/i)).toBeNull();
+  expect(
+    within(publicProfile).getByRole("link", { name: "Manage sharing" }).getAttribute(
       "href"
     )
   ).toBe(`/pets/${pet.id}/edit?tab=public`);
 
-  // Sharing is reached through one entry point, not a row of competing actions.
+  expect(within(publicProfile).getAllByRole("link")).toHaveLength(2);
   expect(screen.getAllByRole("link", { name: /View profile/ })).toHaveLength(1);
+  expect(screen.queryByRole("button", { name: `Share ${pet.name}` })).toBeNull();
   expect(screen.queryByRole("link", { name: "View Safety Profile" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Copy Link" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Show Profile QR" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Share Card" })).toBeNull();
   expect(screen.queryByRole("tab", { name: "Smart Tag" })).toBeNull();
+  expect(screen.queryByRole("heading", { name: "Smart Tags" })).toBeNull();
   expect(screen.queryByText("Edit Public Profile Settings")).toBeNull();
   expect(screen.queryByText("Edit Safety Settings")).toBeNull();
 
@@ -111,15 +115,10 @@ it("keeps one Public Profile action set and hides unreleased owner tools", async
   expect(publicView.getAttribute("target")).toBe("_blank");
   expect(publicView.getAttribute("rel")).toBe("noopener noreferrer");
 
-  fireEvent.click(screen.getByRole("button", { name: `Share ${pet.name}` }));
-  expect(screen.getByRole("button", { name: "Share Card" })).toBeTruthy();
-  expect(screen.getAllByRole("button", { name: /Show Profile QR/ })).toHaveLength(1);
-
-  fireEvent.click(screen.getByRole("button", { name: /Copy Profile Link/ }));
-  await waitFor(() => expect(mocks.writeText).toHaveBeenCalledTimes(1));
-  expect(
-    await screen.findByText(`${pet.name}'s profile link copied.`)
-  ).toBeTruthy();
+  const profilesGrid = screen.getByRole("group", {
+    name: "Sharing and safety profiles",
+  });
+  expect(profilesGrid.className).not.toContain("lg:grid-cols-2");
 });
 
 it("does not expose public actions when the pet profile is private", async () => {
@@ -129,13 +128,13 @@ it("does not expose public actions when the pet profile is private", async () =>
     <PetManagementTabs moments={[]} pet={pet} records={[]} tags={[]} />
   );
 
-  await screen.findByText("Public profile is off");
-  expect(screen.getByText(/sharing actions are unavailable/i)).toBeTruthy();
-  expect(screen.getByRole("link", { name: /Manage/ }).getAttribute("href")).toBe(
-    `/pets/${pet.id}/edit?tab=public`
-  );
+  const publicProfile = await screen.findByRole("group", {
+    name: "Public Profile overview",
+  });
+  expect(within(publicProfile).getByText("Not shared")).toBeTruthy();
+  expect(within(publicProfile).getByText(/This profile is not shared/)).toBeTruthy();
   expect(
-    screen.getByRole("link", { name: /Edit sharing settings/ }).getAttribute(
+    within(publicProfile).getByRole("link", { name: "Manage sharing" }).getAttribute(
       "href"
     )
   ).toBe(`/pets/${pet.id}/edit?tab=public`);
@@ -146,16 +145,17 @@ it("does not expose public actions when the pet profile is private", async () =>
   expect(screen.queryByRole("button", { name: "Share Card" })).toBeNull();
 });
 
-it("offers the Share Card beside the other sharing choices", async () => {
+it("leaves Share Center ownership outside the Overview subcard", async () => {
   const pet = structuredClone(mockPets[0]);
   render(<PetManagementTabs moments={[]} pet={pet} records={[]} tags={[]} />);
 
-  await screen.findByText("Sharing & Safety");
-  expect(screen.getByRole("link", { name: /View profile/ })).toBeTruthy();
-
-  fireEvent.click(screen.getByRole("button", { name: `Share ${pet.name}` }));
-  expect(screen.getByRole("button", { name: "Share Card" })).toBeTruthy();
-  expect(screen.getByRole("button", { name: /Copy Profile Link/ })).toBeTruthy();
+  const publicProfile = await screen.findByRole("group", {
+    name: "Public Profile overview",
+  });
+  expect(within(publicProfile).getByRole("link", { name: "View profile" })).toBeTruthy();
+  expect(within(publicProfile).getByRole("link", { name: "Manage sharing" })).toBeTruthy();
+  expect(within(publicProfile).queryByRole("button")).toBeNull();
+  expect(screen.queryByRole("button", { name: `Share ${pet.name}` })).toBeNull();
 });
 
 it("opens the care-record create flow while View all keeps the list state", async () => {
@@ -171,7 +171,7 @@ it("opens the care-record create flow while View all keeps the list state", asyn
   expect(viewAll?.getAttribute("href")).toBe(`/pets/${pet.id}/records`);
 });
 
-it("sends memorial and profile-status actions to the Public Profile tab", async () => {
+it("keeps Memorial editing while Archived restore guidance points to the header menu", async () => {
   const memorial = {
     ...structuredClone(mockPets[0]),
     lifecycleStatus: "Memorial" as const,
@@ -199,10 +199,27 @@ it("sends memorial and profile-status actions to the Public Profile tab", async 
   );
 
   expect(
-    (await screen.findByRole("link", { name: "Open Profile Status" })).getAttribute(
-      "href"
-    )
-  ).toBe(`/pets/${archived.id}/edit?tab=public`);
+    await screen.findByText("Restore this profile from the menu at the top of this page.")
+  ).toBeTruthy();
+  expect(screen.queryByText(/Restore this profile from the pet edit page/i)).toBeNull();
+  expect(screen.queryByRole("link", { name: "Open Profile Status" })).toBeNull();
+  expect(
+    screen.queryByRole("link", { name: /Restore/i })
+  ).toBeNull();
+});
+
+it("uses current Moment semantics and recent-history Care copy", async () => {
+  const pet = structuredClone(mockPets[0]);
+  render(<PetManagementTabs moments={[]} pet={pet} records={[]} tags={[]} />);
+
+  expect(
+    await screen.findByText("Photo and video moments you choose to keep private or share.")
+  ).toBeTruthy();
+  expect(screen.queryByText(/family-only/i)).toBeNull();
+  expect(screen.getByRole("heading", { name: "Recent care records" })).toBeTruthy();
+  expect(
+    screen.getByText("The latest vaccines, deworming, grooming, and vet visits you've added.")
+  ).toBeTruthy();
 });
 
 it("round-trips the shared Lost Mode control from the pet Overview", async () => {

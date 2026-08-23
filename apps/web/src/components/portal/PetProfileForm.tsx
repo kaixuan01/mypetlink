@@ -14,7 +14,6 @@ import { useRouter } from "next/navigation";
 import { ImageUploadField } from "@/components/portal/ImageUploadField";
 import { LostModeControl } from "@/components/portal/LostModeControl";
 import { MobileFormActionBar } from "@/components/portal/MobileFormActionBar";
-import { OwnerContactSetupCard } from "@/components/portal/OwnerContactSetupCard";
 import { PetCreationSuccess } from "@/components/portal/PetCreationSuccess";
 import { ShareProfileLink } from "@/components/share/ShareProfileLink";
 import { Badge } from "@/components/ui/Badge";
@@ -37,7 +36,6 @@ import type { CoverCropMetrics } from "@/lib/coverCrop";
 import {
   defaultOwnerSettings,
   getEffectivePetContact,
-  hasUsableOwnerContact,
   readOwnerSettings,
   type OwnerSettings,
 } from "@/lib/ownerSettings";
@@ -294,6 +292,7 @@ export function PetProfileForm({
   const [savedPet, setSavedPet] = useState<Pet | null>(null);
   const [errors, setErrors] = useState<FormErrors>({});
   const [formError, setFormError] = useState("");
+  const [creationWarning, setCreationWarning] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [profilePhotoFile, setProfilePhotoFile] = useState<File | undefined>();
   const [coverPhotoFile, setCoverPhotoFile] = useState<File | undefined>();
@@ -313,6 +312,7 @@ export function PetProfileForm({
   const [bioSheetOpen, setBioSheetOpen] = useState(false);
   const contactLostModeRef = useRef<HTMLDivElement | null>(null);
   const petContactSectionRef = useRef<HTMLDivElement | null>(null);
+  const formRef = useRef<HTMLFormElement | null>(null);
   const createStartedRef = useRef(false);
 
   function trackCreateStarted() {
@@ -343,6 +343,10 @@ export function PetProfileForm({
   // working. Applied after hydration so the server-rendered markup stays
   // stable.
   useEffect(() => {
+    if (mode !== "edit") {
+      return;
+    }
+
     const requested = new URL(window.location.href).searchParams.get("tab");
 
     if (!requested) {
@@ -358,7 +362,7 @@ export function PetProfileForm({
     if (resolved) {
       queueMicrotask(() => setTab(resolved));
     }
-  }, []);
+  }, [mode]);
 
   useEffect(() => {
     if (mode !== "edit" || tab !== "contact") {
@@ -567,6 +571,24 @@ export function PetProfileForm({
 
   function collectErrors() {
     const nextErrors: FormErrors = {};
+
+    if (mode === "create") {
+      checkRequired(nextErrors, "name", form.name, "Pet name is required.");
+      checkRequired(nextErrors, "species", form.species, "Pet type is required.");
+
+      if (form.species === "Other" && !form.customSpecies.trim()) {
+        nextErrors.customSpecies = "Enter your pet type.";
+      }
+
+      enforceMax(nextErrors, "name", form.name, 60);
+      enforceMax(nextErrors, "customSpecies", form.customSpecies, 60);
+      enforceMax(nextErrors, "breed", form.breed, 80);
+
+      validatePetAgeInformation(nextErrors, form);
+
+      return nextErrors;
+    }
+
     const slug = slugifyPetSlug(form.slug);
 
     checkRequired(nextErrors, "name", form.name, "Pet name is required.");
@@ -590,32 +612,7 @@ export function PetProfileForm({
       nextErrors.phone = "Please enter a valid phone number.";
     }
 
-    if (form.ageInformationMode === "ExactBirthday") {
-      if (!form.birthdayDate) {
-        nextErrors.birthdayDate = "Choose your pet's birthday.";
-      } else if (!isValidDate(form.birthdayDate)) {
-        nextErrors.birthdayDate = "Choose a valid birthday.";
-      } else if (new Date(`${form.birthdayDate}T00:00:00`) > new Date()) {
-        nextErrors.birthdayDate = "Birthday cannot be in the future.";
-      } else if (Number(form.birthdayDate.slice(0, 4)) < MINIMUM_PET_BIRTH_YEAR) {
-        nextErrors.birthdayDate = `Birthday must be in ${MINIMUM_PET_BIRTH_YEAR} or later.`;
-      }
-    }
-
-    if (form.ageInformationMode === "EstimatedBirthYear") {
-      const estimatedBirthYear = Number(form.estimatedBirthYear);
-      const currentYear = new Date().getUTCFullYear();
-
-      if (!form.estimatedBirthYear) {
-        nextErrors.estimatedBirthYear = "Choose an estimated birth year.";
-      } else if (
-        !Number.isInteger(estimatedBirthYear) ||
-        estimatedBirthYear < MINIMUM_PET_BIRTH_YEAR ||
-        estimatedBirthYear > currentYear
-      ) {
-        nextErrors.estimatedBirthYear = `Choose a year from ${MINIMUM_PET_BIRTH_YEAR} to ${currentYear}.`;
-      }
-    }
+    validatePetAgeInformation(nextErrors, form);
 
     if (currentPet?.lifecycleStatus === "Memorial") {
       if (form.passedAwayDate) {
@@ -646,6 +643,22 @@ export function PetProfileForm({
     return nextErrors;
   }
 
+  function focusCreateField(field: keyof FormState) {
+    const fieldContainer = formRef.current?.querySelector<HTMLElement>(
+      `[data-create-field="${field}"]`
+    );
+
+    fieldContainer?.scrollIntoView?.({
+      block: "center",
+      behavior: "smooth",
+    });
+    fieldContainer
+      ?.querySelector<HTMLElement>(
+        'input:not([type="hidden"]), select, button, textarea'
+      )
+      ?.focus({ preventScroll: true });
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -657,7 +670,11 @@ export function PetProfileForm({
       | undefined;
 
     if (firstErrorKey) {
-      setTab(fieldTab[firstErrorKey]);
+      if (mode === "create") {
+        focusCreateField(firstErrorKey);
+      } else {
+        setTab(fieldTab[firstErrorKey]);
+      }
       return;
     }
 
@@ -672,9 +689,11 @@ export function PetProfileForm({
     setIsSubmitting(true);
     setSuccess("");
     setFormError("");
+    setCreationWarning("");
 
     const payload = buildPayload(form, {
       includeVisibility: mode === "edit",
+      includeAccessSwitches: mode === "edit",
     });
 
     try {
@@ -698,7 +717,10 @@ export function PetProfileForm({
             return;
           }
 
-          setFormError(getMediaUploadErrorMessage(mediaError));
+          const petName = savedPet.name.trim() || "Your pet";
+          setCreationWarning(
+            `${petName} was created, but the photo couldn't be uploaded. You can add it again from Edit Pet.`
+          );
         }
 
         setCurrentPet(savedPet);
@@ -883,17 +905,13 @@ export function PetProfileForm({
 
   if (createdPet) {
     return (
-      <div className="grid gap-5">
-        <PetCreationSuccess
-          canViewPublicProfile={
-            publicProfilesEnabled && createdPet.publicProfileEnabled
-          }
-          pet={createdPet}
-        />
-        {!hasUsableOwnerContact(ownerSettings) ? (
-          <OwnerContactSetupCard />
-        ) : null}
-      </div>
+      <PetCreationSuccess
+        canViewPublicProfile={
+          publicProfilesEnabled && createdPet.publicProfileEnabled
+        }
+        pet={createdPet}
+        warning={creationWarning}
+      />
     );
   }
 
@@ -965,6 +983,7 @@ export function PetProfileForm({
       className="mx-auto grid w-full min-w-0 max-w-[1140px] gap-5"
       onChangeCapture={trackCreateStarted}
       onSubmit={handleSubmit}
+      ref={formRef}
     >
       {success ? (
         <div className="rounded-[1.25rem] border border-pet-mint bg-[#e8f8f0] p-4 text-sm font-bold text-pet-sage">
@@ -978,14 +997,151 @@ export function PetProfileForm({
         </div>
       ) : null}
 
-      <SegmentedTabs
-        ariaLabel="Edit pet sections"
-        activeId={tab}
-        onChange={(id) => setTab(id as EditTab)}
-        tabs={editTabs}
-      />
+      {mode === "edit" ? (
+        <SegmentedTabs
+          ariaLabel="Edit pet sections"
+          activeId={tab}
+          onChange={(id) => setTab(id as EditTab)}
+          tabs={editTabs}
+        />
+      ) : null}
 
-      {tab === "basic" ? (
+      {mode === "create" ? (
+        <FormSection
+          title="Pet details"
+          description="Start with the basics. Everything else can be added after this pet is saved."
+        >
+          <div className="grid min-w-0 gap-4 md:grid-cols-2">
+            <div className="md:col-span-2" data-create-field="photoUrl">
+              <ImageUploadField
+                label="Add a photo"
+                helper="Optional. You can add or change this any time."
+                shape="square"
+                value={form.photoUrl}
+                onChange={(dataUrl) => updateField("photoUrl", dataUrl)}
+                onFileSelected={setProfilePhotoFile}
+                emptyIcon={<Icon name="paw" className="h-5 w-5" />}
+              />
+            </div>
+
+            <div data-create-field="name">
+              <Field
+                error={errors.name}
+                helper="Use the name people normally call your pet."
+                label="Pet name"
+              >
+                <input
+                  className="brand-input"
+                  maxLength={60}
+                  onChange={(event) => handleNameChange(event.target.value)}
+                  placeholder="Milo"
+                  type="text"
+                  value={form.name}
+                />
+              </Field>
+            </div>
+
+            <div data-create-field="species">
+              <Field error={errors.species} label="Pet type">
+                <PetTypeSelector onChange={updateSpecies} value={form.species} />
+              </Field>
+            </div>
+
+            {form.species === "Other" ? (
+              <div data-create-field="customSpecies">
+                <TextInput
+                  error={errors.customSpecies}
+                  label="Enter pet type"
+                  maxLength={60}
+                  onChange={(value) => updateField("customSpecies", value)}
+                  placeholder="Example: Axolotl"
+                  value={form.customSpecies}
+                />
+              </div>
+            ) : null}
+
+            <div data-create-field="breed">
+              <Field
+                error={errors.breed}
+                helper="Optional. Leave this blank if you are not sure."
+                label="Breed"
+              >
+                <BreedSelector
+                  breeds={suggestions.breeds}
+                  onChange={(value) => updateField("breed", value)}
+                  value={form.breed}
+                />
+              </Field>
+            </div>
+
+            <div data-create-field="ageInformationMode">
+              <Field label="Age information">
+                <select
+                  className="brand-input brand-select"
+                  onChange={(event) =>
+                    updateAgeInformationMode(event.target.value as PetAgeMode)
+                  }
+                  value={form.ageInformationMode}
+                >
+                  <option value="ExactBirthday">Exact birthday</option>
+                  <option value="EstimatedBirthYear">Estimated birth year</option>
+                  <option value="Unknown">Unknown</option>
+                </select>
+              </Field>
+            </div>
+
+            {form.ageInformationMode === "ExactBirthday" ? (
+              <div data-create-field="birthdayDate">
+                <Field
+                  error={errors.birthdayDate}
+                  helper="Use this when you know your pet's full birth date."
+                  label="Exact birthday"
+                >
+                  <DateInput
+                    max={new Date().toISOString().slice(0, 10)}
+                    min={`${MINIMUM_PET_BIRTH_YEAR}-01-01`}
+                    onChange={(event) => updateBirthday(event.target.value)}
+                    value={form.birthdayDate}
+                  />
+                </Field>
+              </div>
+            ) : null}
+
+            {form.ageInformationMode === "EstimatedBirthYear" ? (
+              <div data-create-field="estimatedBirthYear">
+                <Field
+                  error={errors.estimatedBirthYear}
+                  helper="Use this when you only know approximately which year your pet was born."
+                  label="Estimated birth year"
+                >
+                  <select
+                    className="brand-input brand-select"
+                    onChange={(event) =>
+                      updateField("estimatedBirthYear", event.target.value)
+                    }
+                    value={form.estimatedBirthYear}
+                  >
+                    <option value="">Choose a year</option>
+                    {getEstimatedBirthYearOptions().map((year) => (
+                      <option key={year} value={year}>
+                        {year}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
+            ) : null}
+
+            {form.ageInformationMode === "Unknown" ? (
+              <div className="rounded-[1.25rem] bg-pet-cream px-4 py-3 text-sm leading-6 text-pet-muted">
+                You can add a birthday or estimated year later.
+              </div>
+            ) : null}
+          </div>
+        </FormSection>
+      ) : null}
+
+      {mode === "edit" && tab === "basic" ? (
         <FormSection
           title="Basic Info"
           description="These details help friends, family, and finders recognize your pet quickly."
@@ -1202,7 +1358,7 @@ export function PetProfileForm({
         </FormSection>
       ) : null}
 
-      {tab === "appearance" ? (
+      {mode === "edit" && tab === "appearance" ? (
         <FormSection
           title="Appearance"
           description={`Customize the photos and theme shown on ${
@@ -1383,7 +1539,7 @@ export function PetProfileForm({
         </FormSection>
       ) : null}
 
-      {tab === "public" ? (
+      {mode === "edit" && tab === "public" ? (
         <FormSection
           title="Sharing & Privacy"
           description="Share your pet's profile, photos, memories, and life timeline with friends and family."
@@ -1537,7 +1693,7 @@ export function PetProfileForm({
         </FormSection>
       ) : null}
 
-      {tab === "contact" ? (
+      {mode === "edit" && tab === "contact" ? (
         <FormSection
           title="Contact & Safety"
           description="Help finders contact you if your pet is lost. Your full address is never shown."
@@ -1625,13 +1781,8 @@ export function PetProfileForm({
                 </p>
               ) : null}
               <div className="mt-4">
-                {mode === "edit" && currentPet && finderFullUrl ? (
+                {currentPet && finderFullUrl ? (
                   <UrlDisplay label="Safety Profile link" url={finderFullUrl} />
-                ) : mode === "create" ? (
-                  <p className="rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold text-pet-muted">
-                    The Safety Profile link will be ready after you save this
-                    pet.
-                  </p>
                 ) : null}
               </div>
             </div>
@@ -2257,7 +2408,10 @@ export function toFormState(
 
 export function buildPayload(
   form: FormState,
-  options: { includeVisibility?: boolean } = {}
+  options: {
+    includeVisibility?: boolean;
+    includeAccessSwitches?: boolean;
+  } = {}
 ): PetPayload {
   const name = form.name.trim();
   const birthday =
@@ -2315,8 +2469,12 @@ export function buildPayload(
       emergencyContact:
         normalizeStoredPhone(form.phone) || normalizeStoredPhone(form.whatsapp),
     },
-    qrSafetyEnabled: form.qrSafetyEnabled,
-    publicProfileEnabled: form.publicProfileEnabled,
+    ...(options.includeAccessSwitches !== false
+      ? {
+          qrSafetyEnabled: form.qrSafetyEnabled,
+          publicProfileEnabled: form.publicProfileEnabled,
+        }
+      : {}),
     contactOverride: form.useOwnerDefaults
       ? { useOwnerDefaults: true }
       : {
@@ -3264,6 +3422,37 @@ function enforceMax<K extends keyof FormState>(
 ) {
   if (typeof value === "string" && value.length > maxLength) {
     errors[key] = `Keep this under ${maxLength} characters.`;
+  }
+}
+
+function validatePetAgeInformation(errors: FormErrors, form: FormState) {
+  if (form.ageInformationMode === "ExactBirthday") {
+    if (!form.birthdayDate) {
+      errors.birthdayDate = "Choose your pet's birthday.";
+    } else if (!isValidDate(form.birthdayDate)) {
+      errors.birthdayDate = "Choose a valid birthday.";
+    } else if (new Date(`${form.birthdayDate}T00:00:00`) > new Date()) {
+      errors.birthdayDate = "Birthday cannot be in the future.";
+    } else if (
+      Number(form.birthdayDate.slice(0, 4)) < MINIMUM_PET_BIRTH_YEAR
+    ) {
+      errors.birthdayDate = `Birthday must be in ${MINIMUM_PET_BIRTH_YEAR} or later.`;
+    }
+  }
+
+  if (form.ageInformationMode === "EstimatedBirthYear") {
+    const estimatedBirthYear = Number(form.estimatedBirthYear);
+    const currentYear = new Date().getUTCFullYear();
+
+    if (!form.estimatedBirthYear) {
+      errors.estimatedBirthYear = "Choose an estimated birth year.";
+    } else if (
+      !Number.isInteger(estimatedBirthYear) ||
+      estimatedBirthYear < MINIMUM_PET_BIRTH_YEAR ||
+      estimatedBirthYear > currentYear
+    ) {
+      errors.estimatedBirthYear = `Choose a year from ${MINIMUM_PET_BIRTH_YEAR} to ${currentYear}.`;
+    }
   }
 }
 

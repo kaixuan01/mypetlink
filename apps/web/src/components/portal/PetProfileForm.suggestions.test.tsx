@@ -2,8 +2,10 @@
 
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { mockPets } from "@/data/mockPets";
 
 const mocks = vi.hoisted(() => ({
+  getPetById: vi.fn(),
   router: {
     refresh: vi.fn(),
     replace: vi.fn(),
@@ -19,11 +21,28 @@ vi.mock("@/services/apiConfig", () => ({
   canUseApi: () => false,
   isApiConfigured: () => false,
 }));
+vi.mock("@/services/petService", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/services/petService")>();
+  return {
+    ...actual,
+    getPetById: (...args: unknown[]) => mocks.getPetById(...args),
+  };
+});
 
 const { PetProfileForm } = await import("./PetProfileForm");
 
-function renderCreateForm() {
-  render(<PetProfileForm mode="create" />);
+const editPet = {
+  ...structuredClone(mockPets[0]),
+  breed: "",
+  gender: "",
+  personalityTags: [],
+  favoriteFoods: [],
+  favoriteToys: [],
+};
+
+async function renderEditForm() {
+  render(<PetProfileForm initialPet={editPet} mode="edit" />);
+  await screen.findByRole("tab", { name: /Basic Info/ });
 }
 
 function personalityGroup() {
@@ -37,7 +56,8 @@ function addCustom(fieldLabel: string, value: string) {
 }
 
 beforeEach(() => {
-  window.history.replaceState({}, "", "/pets/new");
+  window.history.replaceState({}, "", `/pets/${mockPets[0].id}/edit`);
+  mocks.getPetById.mockResolvedValue({ data: structuredClone(editPet) });
 });
 
 afterEach(() => {
@@ -46,8 +66,8 @@ afterEach(() => {
 });
 
 describe("personality tag picker", () => {
-  it("shows a limited suggestion row with More suggestions for the rest", () => {
-    renderCreateForm();
+  it("shows a limited suggestion row with More suggestions for the rest", async () => {
+    await renderEditForm();
 
     const group = personalityGroup();
     // Dog has 8 suggestions; 6 initial + a More button revealing the rest.
@@ -59,8 +79,8 @@ describe("personality tag picker", () => {
     expect(within(group).getAllByRole("button")).toHaveLength(8);
   });
 
-  it("selects a suggested tag and removes it on tap", () => {
-    renderCreateForm();
+  it("selects a suggested tag and removes it on tap", async () => {
+    await renderEditForm();
 
     fireEvent.click(
       within(personalityGroup()).getByRole("button", { name: "Brave" })
@@ -75,8 +95,8 @@ describe("personality tag picker", () => {
     expect(screen.queryByRole("button", { name: "Remove Brave" })).toBeNull();
   });
 
-  it("adds trimmed custom tags, prevents duplicates, and caps at five", () => {
-    renderCreateForm();
+  it("adds trimmed custom tags, prevents duplicates, and caps at five", async () => {
+    await renderEditForm();
 
     addCustom("Personality tags", "  Snuggly  ");
     addCustom("Personality tags", "snuggly");
@@ -99,8 +119,8 @@ describe("personality tag picker", () => {
     ).toBe(true);
   });
 
-  it("preserves selected tags and swaps suggestions when Pet Type changes", () => {
-    renderCreateForm();
+  it("preserves selected tags and swaps suggestions when Pet Type changes", async () => {
+    await renderEditForm();
 
     addCustom("Personality tags", "Snuggly");
     fireEvent.click(
@@ -123,8 +143,8 @@ describe("personality tag picker", () => {
 });
 
 describe("favourite foods and toys", () => {
-  it("adds suggested and custom values as removable chips with a limit of three", () => {
-    renderCreateForm();
+  it("adds suggested and custom values as removable chips with a limit of three", async () => {
+    await renderEditForm();
 
     fireEvent.click(
       within(
@@ -143,8 +163,8 @@ describe("favourite foods and toys", () => {
     expect(screen.getByText("3/3")).toBeTruthy();
   });
 
-  it("offers species toys and allows removal", () => {
-    renderCreateForm();
+  it("offers species toys and allows removal", async () => {
+    await renderEditForm();
 
     fireEvent.click(
       within(
@@ -163,8 +183,8 @@ describe("favourite foods and toys", () => {
 });
 
 describe("gender segmented control", () => {
-  it("uses a single segmented control with three options", () => {
-    renderCreateForm();
+  it("uses a single segmented control with three options", async () => {
+    await renderEditForm();
 
     const group = screen.getByRole("radiogroup", { name: "Gender" });
     const options = within(group).getAllByRole("radio");
@@ -184,8 +204,8 @@ describe("gender segmented control", () => {
 });
 
 describe("pet detail dropdown indicators", () => {
-  it("uses shared custom indicators for searchable, select, and date controls", () => {
-    renderCreateForm();
+  it("uses shared custom indicators for searchable, select, and date controls", async () => {
+    await renderEditForm();
 
     for (const name of ["Pet type", "Breed"]) {
       const trigger = screen.getByRole("button", { name });
@@ -217,8 +237,8 @@ describe("pet detail dropdown indicators", () => {
     ).toHaveLength(1);
   });
 
-  it("preserves the conditional native age controls when the age mode changes", () => {
-    renderCreateForm();
+  it("preserves the conditional native age controls when the age mode changes", async () => {
+    await renderEditForm();
 
     const ageMode = screen.getByLabelText(
       /Age information/
@@ -238,8 +258,8 @@ describe("pet detail dropdown indicators", () => {
 });
 
 describe("breed selector", () => {
-  it("is searchable and always offers Mixed breed, Unknown, and Other", () => {
-    renderCreateForm();
+  it("is searchable and always offers Mixed breed, Unknown, and Other", async () => {
+    await renderEditForm();
 
     fireEvent.click(screen.getByRole("button", { name: "Breed" }));
     for (const option of ["Mixed breed", "Unknown", "Other"]) {
@@ -253,8 +273,8 @@ describe("breed selector", () => {
     expect(screen.queryByRole("button", { name: "Corgi" })).toBeNull();
   });
 
-  it("reveals custom input when Other is selected", () => {
-    renderCreateForm();
+  it("reveals custom input when Other is selected", async () => {
+    await renderEditForm();
 
     fireEvent.click(screen.getByRole("button", { name: "Breed" }));
     fireEvent.click(screen.getByRole("button", { name: "Other" }));
@@ -266,8 +286,8 @@ describe("breed selector", () => {
 });
 
 describe("bio inspiration sheet", () => {
-  it("opens templates on request and inserts editable text", () => {
-    renderCreateForm();
+  it("opens templates on request and inserts editable text", async () => {
+    await renderEditForm();
 
     fireEvent.change(screen.getByLabelText(/Pet name/), {
       target: { value: "Topu" },

@@ -23,6 +23,9 @@ const mocks = vi.hoisted(() => ({
   getPetRecords: vi.fn(),
 }));
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
 vi.mock("@/services/apiConfig", () => ({ isApiConfigured: () => false }));
 vi.mock("@/services/petService", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/services/petService")>();
@@ -44,8 +47,8 @@ vi.mock("@/components/portal/PlanSummaryCard", () => ({
 }));
 
 const { DashboardClient } = await import("@/components/portal/DashboardClient");
-const { PetManagementTabs } = await import(
-  "@/components/portal/PetManagementTabs"
+const { PetDetailHeader } = await import(
+  "@/components/portal/PetDetailHeader"
 );
 
 /** 17 Aug — a plain day for this pet, with no birthday falling on it. */
@@ -63,6 +66,10 @@ function eligiblePet(overrides: Partial<Pet> = {}): Pet {
 
 function shareCardTrigger() {
   return screen.queryByRole("button", { name: /Share Pet Card/ });
+}
+
+function renderPetDetailHeader(pet: Pet) {
+  render(<PetDetailHeader pet={pet} petOrders={[]} tags={[]} />);
 }
 
 beforeEach(() => {
@@ -112,9 +119,7 @@ describe("Share Pet Card availability", () => {
     const pet = eligiblePet();
     mocks.getPetById.mockResolvedValue({ data: pet });
 
-    render(
-      <PetManagementTabs moments={[]} pet={pet} records={[]} tags={[]} />
-    );
+    renderPetDetailHeader(pet);
 
     fireEvent.click(
       screen.getAllByRole("button", { name: `Share ${pet.name}` })[0]
@@ -126,9 +131,7 @@ describe("Share Pet Card availability", () => {
     const pet = eligiblePet();
     mocks.getPetById.mockResolvedValue({ data: pet });
 
-    render(
-      <PetManagementTabs moments={[]} pet={pet} records={[]} tags={[]} />
-    );
+    renderPetDetailHeader(pet);
 
     fireEvent.click(
       screen.getAllByRole("button", { name: `Share ${pet.name}` })[0]
@@ -152,9 +155,7 @@ describe("Share Pet Card availability", () => {
     });
     mocks.getPetById.mockResolvedValue({ data: pet });
 
-    render(
-      <PetManagementTabs moments={[]} pet={pet} records={[]} tags={[]} />
-    );
+    renderPetDetailHeader(pet);
 
     fireEvent.click(
       screen.getAllByRole("button", { name: `Share ${pet.name}` })[0]

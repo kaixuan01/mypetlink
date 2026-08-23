@@ -192,6 +192,7 @@ describe("contextual create actions", () => {
       "Only me",
       "Anyone with the link",
     ]);
+    expect(audience.value).toBe("Private");
     expect(screen.queryByText("Public details")).toBeNull();
     expect(screen.queryByText("Public badge only")).toBeNull();
     expect(
@@ -200,28 +201,33 @@ describe("contextual create actions", () => {
   });
 
   it.each([
-    ["Only me", "Private"],
-    ["Anyone with the link", "Public badge only"],
-  ])("creates %s Care records with the normalized visibility", async (label, expected) => {
-    mocks.getPetRecords.mockResolvedValue({ data: [] });
-    mocks.createRecord.mockResolvedValue({ data: mockRecords[0] });
-    render(<RecordsManager petId={mockPets[0].id} initialRecords={[]} />);
+    ["Only me", "Private", false],
+    ["Anyone with the link", "Public badge only", true],
+  ])(
+    "creates %s Care records with the normalized visibility",
+    async (label, expected, chooseAudience) => {
+      mocks.getPetRecords.mockResolvedValue({ data: [] });
+      mocks.createRecord.mockResolvedValue({ data: mockRecords[0] });
+      render(<RecordsManager petId={mockPets[0].id} initialRecords={[]} />);
 
-    fireEvent.click(
-      await screen.findByRole("button", { name: /add first care record/i })
-    );
-    completeCareRecordForm();
-    fireEvent.change(screen.getByLabelText("Who can see this record?"), {
-      target: { value: label === "Only me" ? "Private" : "Public" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Save Record" }));
+      fireEvent.click(
+        await screen.findByRole("button", { name: /add first care record/i })
+      );
+      completeCareRecordForm();
+      if (chooseAudience) {
+        fireEvent.change(screen.getByLabelText("Who can see this record?"), {
+          target: { value: "Public" },
+        });
+      }
+      fireEvent.click(screen.getByRole("button", { name: "Save Record" }));
 
-    await waitFor(() => expect(mocks.createRecord).toHaveBeenCalledOnce());
-    expect(mocks.createRecord.mock.calls[0][1].publicVisibility).toBe(expected);
-    expect(mocks.createRecord.mock.calls[0][1].publicVisibility).not.toBe(
-      "Public details"
-    );
-  });
+      await waitFor(() => expect(mocks.createRecord).toHaveBeenCalledOnce());
+      expect(mocks.createRecord.mock.calls[0][1].publicVisibility).toBe(expected);
+      expect(mocks.createRecord.mock.calls[0][1].publicVisibility).not.toBe(
+        "Public details"
+      );
+    }
+  );
 
   it.each([
     ["Private", "Private"],

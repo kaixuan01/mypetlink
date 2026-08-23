@@ -12,8 +12,8 @@ export default function NewPetPage() {
     <AppLayout>
       <PageHeader
         eyebrow="Add pet"
-        title="Create a pet profile"
-        description="Add the key details that make your pet easier to identify and care for."
+        title="Add a pet"
+        description="Two details are enough to start. You can add the rest any time."
       />
       <NewPetForm />
     </AppLayout>

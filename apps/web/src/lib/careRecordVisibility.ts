@@ -1,15 +1,35 @@
 import type { CareRecord } from "@/types";
 
 export type CareRecordAudience = "Private" | "Public";
+type CareRecordVisibilityInput =
+  | CareRecord["publicVisibility"]
+  | "PublicBadgeOnly"
+  | "PublicDetails"
+  | null
+  | undefined;
 
 export function normalizeCareRecordVisibility(
-  visibility?: CareRecord["publicVisibility"] | null
+  visibility?: CareRecordVisibilityInput
 ): CareRecord["publicVisibility"] {
-  return visibility === "Private" ? "Private" : "Public badge only";
+  switch (visibility) {
+    case "Public badge only":
+    case "Public details":
+    case "PublicBadgeOnly":
+    case "PublicDetails":
+      return "Public badge only";
+    default:
+      return "Private";
+  }
+}
+
+export function isCareRecordPublic(
+  visibility?: CareRecordVisibilityInput
+) {
+  return normalizeCareRecordVisibility(visibility) === "Public badge only";
 }
 
 export function toCareRecordAudience(
-  visibility?: CareRecord["publicVisibility"] | null
+  visibility?: CareRecordVisibilityInput
 ): CareRecordAudience {
   return normalizeCareRecordVisibility(visibility) === "Private"
     ? "Private"

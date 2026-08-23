@@ -12,7 +12,6 @@ import { PetMomentsManager } from "@/components/portal/PetMomentsManager";
 import { ProfileCompletionCard } from "@/components/portal/ProfileCompletionCard";
 import { PublicLinkActions } from "@/components/portal/PublicLinkActions";
 import { QrCodeButton } from "@/components/qr/QrCodeButton";
-import { ShareCenter } from "@/components/share/ShareCenter";
 import { RecordsManager } from "@/components/portal/RecordsManager";
 import { TagManagementPanel } from "@/components/portal/TagManagementPanel";
 import { LostModeControl } from "@/components/portal/LostModeControl";
@@ -235,6 +234,8 @@ function OverviewTab({
     pet.publicProfileEnabled &&
     !isArchived &&
     (!isMemorial || pet.memorial.showMemorialOnPublicProfile);
+  const sharingProfileCount =
+    Number(publicProfilesEnabled) + Number(safetyProfilesOwnerUiEnabled);
   const [ownerSettings, setOwnerSettings] =
     useState<OwnerSettings>(defaultOwnerSettings);
   const effectiveContact = getEffectivePetContact(pet, ownerSettings);
@@ -270,6 +271,107 @@ function OverviewTab({
         />
       ) : null}
 
+      <div className="grid min-w-0 gap-5 lg:grid-cols-2">
+      {/* Moments / Memories */}
+      <SectionCard
+        icon="heart"
+        title="Pet Memories"
+        description="Photo and video moments you choose to keep private or share."
+      >
+        {recentMoments.length ? (
+          <div className="grid gap-2">
+            {recentMoments.map((moment) => (
+              <div
+                className="flex items-center gap-3 rounded-[1rem] bg-pet-cream p-2.5"
+                key={moment.id}
+              >
+                <MomentMediaThumbnail moment={moment} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-bold text-pet-ink">
+                    {moment.title}
+                  </p>
+                  <p className="mt-0.5 text-xs font-bold text-pet-muted">
+                    {moment.date}
+                  </p>
+                </div>
+                <Badge tone={moment.visibility === "Public" ? "mint" : "soft"}>
+                  {moment.visibility}
+                </Badge>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-pet-muted">No pet memories yet.</p>
+        )}
+        <div className="mt-auto grid gap-2 pt-1 sm:grid-cols-[1fr_auto]">
+          <CTAButton
+            disabled={!memoryLimit.canCreate}
+            href={memoryLimit.canCreate ? ownerRoutes.petMomentNew(pet.id) : undefined}
+            variant="primary"
+            icon="plus"
+            fullWidth
+          >
+            {memoryLimit.canCreate ? "Add Moment" : "Memory Limit Reached"}
+          </CTAButton>
+          <Link
+            className="inline-flex min-h-12 items-center justify-center gap-1 px-2 text-sm font-extrabold text-pet-teal transition hover:underline"
+            href={ownerRoutes.petMoments(pet.id)}
+          >
+            View all
+            <span aria-hidden="true">&rarr;</span>
+          </Link>
+        </div>
+      </SectionCard>
+
+      {/* Care Records */}
+      <SectionCard
+        icon="record"
+        title="Recent care records"
+        description="The latest vaccines, deworming, grooming, and vet visits you've added."
+      >
+        {recentRecords.length ? (
+          <div className="grid gap-2">
+            {recentRecords.map((record) => (
+              <div
+                className="flex items-center justify-between gap-2 rounded-[1rem] bg-pet-cream px-4 py-3"
+                key={record.id}
+              >
+                <div className="min-w-0">
+                  <p className="truncate font-bold text-pet-ink">
+                    {record.title}
+                  </p>
+                  <p className="mt-0.5 text-xs font-bold text-pet-muted">
+                    {getCareRecordDateTerminology(record.type).primaryDateLabel}:{" "}
+                    {record.date}
+                  </p>
+                </div>
+                <Badge tone="soft">{record.type}</Badge>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-pet-muted">No care records yet.</p>
+        )}
+        <div className="mt-auto grid gap-2 pt-1 sm:grid-cols-[1fr_auto]">
+          <CTAButton
+            href={ownerRoutes.petRecords(pet.id, { create: true })}
+            variant="primary"
+            icon="plus"
+            fullWidth
+          >
+            Add Care Record
+          </CTAButton>
+          <Link
+            className="inline-flex min-h-12 items-center justify-center gap-1 px-2 text-sm font-extrabold text-pet-teal transition hover:underline"
+            href={ownerRoutes.petRecords(pet.id)}
+          >
+            View all
+            <span aria-hidden="true">&rarr;</span>
+          </Link>
+        </div>
+      </SectionCard>
+      </div>
+
       {/* Sharing & Safety */}
       {publicProfilesEnabled || safetyProfilesOwnerUiEnabled || isActiveProfile ? (
         <SectionCard
@@ -277,71 +379,43 @@ function OverviewTab({
           title="Sharing & Safety"
           description={`Share ${pet.name}'s profile with people you know, and manage what someone sees if they find ${pet.name}.`}
         >
-          {publicProfilesEnabled ? (
-            <div
-              aria-label="Public profile sharing status"
-              className="flex min-w-0 flex-col gap-3 rounded-[1.25rem] bg-pet-cream p-4 sm:flex-row sm:items-center sm:justify-between"
-            >
-              <div className="flex min-w-0 items-center gap-3">
-                <Badge tone={publicProfileAccessible ? "mint" : "soft"}>
-                  {publicProfileAccessible ? "On" : "Off"}
-                </Badge>
-                <div className="min-w-0">
-                  <p className="text-sm font-black text-pet-ink">
-                    Public profile is {publicProfileAccessible ? "on" : "off"}
-                  </p>
-                  <p className="mt-0.5 text-xs font-semibold leading-5 text-pet-muted">
-                    Manage what people can see in Edit Pet.
-                  </p>
-                </div>
-              </div>
-              <Link
-                className="inline-flex min-h-11 shrink-0 items-center gap-1 self-start px-1 text-sm font-extrabold text-pet-teal transition hover:underline sm:self-auto"
-                href={ownerRoutes.petEdit(pet.id, { tab: "public" })}
-              >
-                Edit sharing settings
-                <span aria-hidden="true">&rarr;</span>
-              </Link>
-            </div>
-          ) : null}
-
           {/*
             The two profiles are siblings of equal weight: one is who you show
             the pet to, the other is who finds them. Neither should look like
             the more important half of the page.
           */}
-          <div className="grid min-w-0 gap-4 lg:grid-cols-2">
+          <div
+            aria-label="Sharing and safety profiles"
+            className={`grid min-w-0 gap-4 ${
+              sharingProfileCount > 1 ? "lg:grid-cols-2" : ""
+            }`}
+            role="group"
+          >
             {publicProfilesEnabled ? (
               <ProfileSubcard
                 action={
-                  publicProfileAccessible ? (
-                    <ShareCenter
-                      pet={pet}
-                      triggerClassName={subcardActionClass}
+                  <Link
+                    className={subcardActionClass}
+                    href={ownerRoutes.petEdit(pet.id, { tab: "public" })}
+                  >
+                    <Icon
+                      aria-hidden="true"
+                      className="h-4 w-4 shrink-0"
+                      name="settings"
                     />
-                  ) : (
-                    <Link
-                      className={subcardActionClass}
-                      href={ownerRoutes.petEdit(pet.id, { tab: "public" })}
-                    >
-                      <Icon
-                        aria-hidden="true"
-                        className="h-4 w-4 shrink-0"
-                        name="settings"
-                      />
-                      Manage
-                    </Link>
-                  )
+                    Manage sharing
+                  </Link>
                 }
+                ariaLabel="Public Profile overview"
                 badge={
                   <Badge tone={publicProfileAccessible ? "mint" : "soft"}>
-                    {publicProfileAccessible ? "Public" : "Private"}
+                    {publicProfileAccessible ? "Shared" : "Not shared"}
                   </Badge>
                 }
                 description={
                   publicProfileAccessible
-                    ? "The profile friends, family, and pet communities see."
-                    : "This profile is private, so sharing actions are unavailable."
+                    ? "Anyone with the link can view this page."
+                    : "This profile is not shared. Manage sharing to make it available."
                 }
                 icon="heart"
                 link={
@@ -389,6 +463,7 @@ function OverviewTab({
                     }
                   />
                 }
+                ariaLabel="Safety Profile overview"
                 badge={<Badge tone={safetyBadge.tone}>{safetyBadge.label}</Badge>}
                 description={
                   isMemorial
@@ -456,105 +531,8 @@ function OverviewTab({
           ) : null}
         </SectionCard>
       ) : null}
-      <div className="grid min-w-0 gap-5 lg:grid-cols-2">
-      {/* Moments / Memories */}
-      <SectionCard
-        icon="heart"
-        title="Pet Memories"
-        description="Photo and video moments, with public, private, and family-only control."
-      >
-        {recentMoments.length ? (
-          <div className="grid gap-2">
-            {recentMoments.map((moment) => (
-              <div
-                className="flex items-center gap-3 rounded-[1rem] bg-pet-cream p-2.5"
-                key={moment.id}
-              >
-                <MomentMediaThumbnail moment={moment} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-bold text-pet-ink">
-                    {moment.title}
-                  </p>
-                  <p className="mt-0.5 text-xs font-bold text-pet-muted">
-                    {moment.date}
-                  </p>
-                </div>
-                <Badge tone={moment.visibility === "Public" ? "mint" : "soft"}>
-                  {moment.visibility}
-                </Badge>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-pet-muted">No pet memories yet.</p>
-        )}
-        <div className="mt-auto grid gap-2 pt-1 sm:grid-cols-[1fr_auto]">
-          <CTAButton
-            disabled={!memoryLimit.canCreate}
-            href={memoryLimit.canCreate ? ownerRoutes.petMomentNew(pet.id) : undefined}
-            variant="primary"
-            icon="plus"
-            fullWidth
-          >
-            {memoryLimit.canCreate ? "Add Moment" : "Memory Limit Reached"}
-          </CTAButton>
-          <Link
-            className="inline-flex min-h-12 items-center justify-center gap-1 px-2 text-sm font-extrabold text-pet-teal transition hover:underline"
-            href={ownerRoutes.petMoments(pet.id)}
-          >
-            View all
-            <span aria-hidden="true">&rarr;</span>
-          </Link>
-        </div>
-      </SectionCard>
 
-      {/* Care Records */}
-      <SectionCard
-        icon="record"
-        title="Care Records"
-        description="Vaccines, deworming, grooming, and vet visit history."
-      >
-        {recentRecords.length ? (
-          <div className="grid gap-2">
-            {recentRecords.map((record) => (
-              <div
-                className="flex items-center justify-between gap-2 rounded-[1rem] bg-pet-cream px-4 py-3"
-                key={record.id}
-              >
-                <div className="min-w-0">
-                  <p className="truncate font-bold text-pet-ink">
-                    {record.title}
-                  </p>
-                  <p className="mt-0.5 text-xs font-bold text-pet-muted">
-                    {getCareRecordDateTerminology(record.type).primaryDateLabel}:{" "}
-                    {record.date}
-                  </p>
-                </div>
-                <Badge tone="soft">{record.type}</Badge>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-pet-muted">No care records yet.</p>
-        )}
-        <div className="mt-auto grid gap-2 pt-1 sm:grid-cols-[1fr_auto]">
-          <CTAButton
-            href={ownerRoutes.petRecords(pet.id, { create: true })}
-            variant="primary"
-            icon="plus"
-            fullWidth
-          >
-            Add Care Record
-          </CTAButton>
-          <Link
-            className="inline-flex min-h-12 items-center justify-center gap-1 px-2 text-sm font-extrabold text-pet-teal transition hover:underline"
-            href={ownerRoutes.petRecords(pet.id)}
-          >
-            View all
-            <span aria-hidden="true">&rarr;</span>
-          </Link>
-        </div>
-      </SectionCard>
+      <div className="grid min-w-0 gap-5 lg:grid-cols-2">
 
       {/* Smart Tags */}
       {smartTagsEnabled ? (
@@ -656,17 +634,8 @@ function OverviewTab({
           description="Archived profiles stay saved but emergency finder actions are hidden."
         >
           <p className="rounded-[1.25rem] bg-pet-cream p-4 text-sm font-semibold leading-6 text-pet-muted">
-            Restore this profile from the pet edit page if you want it back in
-            your main pet list and Free profile count.
+            Restore this profile from the menu at the top of this page.
           </p>
-          <CTAButton
-            href={ownerRoutes.petEdit(pet.id, { tab: "public" })}
-            variant="outline"
-            icon="settings"
-            fullWidth
-          >
-            Open Profile Status
-          </CTAButton>
         </SectionCard>
       ) : null}
       </div>
@@ -687,6 +656,7 @@ const subcardLinkClass =
  */
 function ProfileSubcard({
   action,
+  ariaLabel,
   badge,
   description,
   icon,
@@ -696,6 +666,7 @@ function ProfileSubcard({
   title,
 }: {
   action: React.ReactNode;
+  ariaLabel: string;
   badge: React.ReactNode;
   description: string;
   icon: Parameters<typeof Icon>[0]["name"];
@@ -705,7 +676,11 @@ function ProfileSubcard({
   title: string;
 }) {
   return (
-    <div className="flex min-w-0 flex-col gap-3 rounded-[1.35rem] border border-pet-border bg-white p-4">
+    <div
+      aria-label={ariaLabel}
+      className="flex min-w-0 flex-col gap-3 rounded-[1.35rem] border border-pet-border bg-white p-4"
+      role="group"
+    >
       {/* The badge wraps below on narrow cards rather than squeezing the title. */}
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <div className="flex min-w-0 items-center gap-2.5">

@@ -67,7 +67,7 @@ const emptyForm: FormState = {
   provider: "",
   dueDate: "",
   notes: "",
-  audience: "Public",
+  audience: "Private",
 };
 
 export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {

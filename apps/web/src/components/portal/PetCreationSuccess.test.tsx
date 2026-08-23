@@ -8,7 +8,7 @@ import { PetCreationSuccess } from "./PetCreationSuccess";
 afterEach(cleanup);
 
 describe("PetCreationSuccess", () => {
-  it("makes the Public Share Profile the single primary action", () => {
+  it("shows one Pet Hub primary action and a secondary public-profile link", () => {
     const pet = {
       ...structuredClone(mockPets[0]),
       id: "created-pet",
@@ -21,25 +21,30 @@ describe("PetCreationSuccess", () => {
     );
 
     expect(
-      screen.getByRole("heading", { name: "Milo's profile is ready!" })
+      screen.getByRole("heading", { name: "Milo is on MyPetLink" })
     ).toBe(document.activeElement);
 
-    const primary = screen.getByRole("link", { name: "View Milo's Profile" });
-    expect(primary.getAttribute("href")).toBe("/p/milo-public");
-    expect(primary.getAttribute("target")).toBe("_blank");
-    expect(primary.getAttribute("rel")).toBe("noopener noreferrer");
-
-    const secondary = screen.getByRole("link", {
-      name: "Add Milo's First Moment",
+    const primary = screen.getByRole("link", {
+      name: "Go to Milo's page",
     });
-    expect(secondary.getAttribute("href")).toBe(
-      "/pets/created-pet/moments/new"
-    );
+    expect(primary.getAttribute("href")).toBe("/pets/created-pet");
+    expect(primary.getAttribute("target")).toBeNull();
+
+    const publicProfile = screen.getByRole("link", {
+      name: "View public profile",
+    });
+    expect(publicProfile.getAttribute("href")).toBe("/p/milo-public");
+    expect(publicProfile.getAttribute("target")).toBe("_blank");
+    expect(publicProfile.getAttribute("rel")).toBe("noopener noreferrer");
+
     expect(container.querySelectorAll(".bg-pet-teal")).toHaveLength(1);
-    expect(screen.queryByText(/Safety Profile|Order Physical Tag|Dashboard/)).toBeNull();
+    expect(screen.queryByText(/First Moment/)).toBeNull();
+    expect(
+      screen.queryByText(/Profile Completion|Care setup|privacy setup/i)
+    ).toBeNull();
   });
 
-  it("uses Add First Moment as the primary fallback when the public profile is off", () => {
+  it("keeps the Pet Hub primary action when the public profile is unavailable", () => {
     const pet = {
       ...structuredClone(mockPets[0]),
       id: "private-pet",
@@ -51,12 +56,50 @@ describe("PetCreationSuccess", () => {
     );
 
     expect(
-      screen.getByRole("link", { name: "Add Milo's First Moment" }).getAttribute("href")
-    ).toBe("/pets/private-pet/moments/new");
-    expect(
-      screen.getByRole("link", { name: "Manage Milo" }).getAttribute("href")
+      screen.getByRole("link", { name: "Go to Milo's page" }).getAttribute("href")
     ).toBe("/pets/private-pet");
+    expect(screen.queryByRole("link", { name: "View public profile" })).toBeNull();
+    expect(screen.queryByText(/First Moment/)).toBeNull();
     expect(container.querySelectorAll(".bg-pet-teal")).toHaveLength(1);
+  });
+
+  it("shows a distinct accessible post-create warning", () => {
+    const warning =
+      "Milo was created, but the photo couldn't be uploaded. You can add it again from Edit Pet.";
+
+    render(
+      <PetCreationSuccess
+        canViewPublicProfile
+        pet={structuredClone(mockPets[0])}
+        warning={warning}
+      />
+    );
+
+    expect(screen.getByRole("status").textContent).toBe(warning);
+    expect(screen.getByRole("link", { name: "Go to Milo's page" })).toBeTruthy();
+  });
+
+  it("uses the pet photo when available and the existing avatar fallback otherwise", () => {
+    const photoPet = {
+      ...structuredClone(mockPets[0]),
+      photoUrl: "data:image/png;base64,photo",
+    };
+    const firstView = render(
+      <PetCreationSuccess canViewPublicProfile pet={photoPet} />
+    );
+
+    expect(screen.getByAltText("Pet portrait").getAttribute("src")).toBe(
+      photoPet.photoUrl
+    );
+
+    firstView.unmount();
+    render(
+      <PetCreationSuccess
+        canViewPublicProfile
+        pet={{ ...photoPet, photoUrl: "" }}
+      />
+    );
+    expect(screen.queryByAltText("Pet portrait")).toBeNull();
   });
 
   it("keeps a long pet name intact in usable escaped copy", () => {
@@ -67,11 +110,11 @@ describe("PetCreationSuccess", () => {
 
     expect(
       screen.getByRole("heading", {
-        name: `${longName}'s profile is ready!`,
+        name: `${longName} is on MyPetLink`,
       })
     ).toBeTruthy();
     expect(
-      screen.getByRole("link", { name: `View ${longName}'s Profile` })
+      screen.getByRole("link", { name: `Go to ${longName}'s page` })
     ).toBeTruthy();
   });
 });

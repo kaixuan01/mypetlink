@@ -3,6 +3,7 @@ import { mockPets } from "@/data/mockPets";
 import type { Pet } from "@/types";
 import {
   deriveProfileCompletion,
+  orderProfileCompletionItemsByWeight,
   type ProfileCompletionItemId,
 } from "./profileCompletion";
 
@@ -73,6 +74,37 @@ describe("deriveProfileCompletion", () => {
     );
     expect(result.completedWeight).toBe(5);
     expect(result.percentage).toBe(Math.round((5 / 17) * 100));
+  });
+
+  it("orders presentation by descending weight with stable declaration-order ties", () => {
+    const result = derive(minimalPet());
+    const originalItems = result.items.map((item) => ({
+      id: item.id,
+      isComplete: item.isComplete,
+      weight: item.weight,
+    }));
+
+    const ordered = orderProfileCompletionItemsByWeight(result.items);
+
+    expect(ordered.map((item) => item.id)).toEqual([
+      "photo",
+      "moment",
+      "contact",
+      "basics",
+      "personality",
+      "birthday",
+      "bio",
+      "care_record",
+    ]);
+    expect(result.items.map((item) => item.id)).toEqual(
+      originalItems.map((item) => item.id)
+    );
+    expect(
+      result.items.map(({ id, isComplete, weight }) => ({ id, isComplete, weight }))
+    ).toEqual(originalItems);
+    expect(result.percentage).toBe(0);
+    expect(result.completedWeight).toBe(0);
+    expect(result.applicableWeight).toBe(17);
   });
 
   it("returns 100% when every item is complete", () => {

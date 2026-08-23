@@ -47,7 +47,7 @@ export function RecordCard({ record, onDelete, onEdit }: RecordCardProps) {
           </Badge>
         ) : null}
         <Badge tone={visibilityTone[audience]}>
-          {audience === "Private" ? "Only me" : "Anyone with the link"}
+          {audience === "Private" ? "Only me" : "Shared"}
         </Badge>
       </div>
       <p className="mt-4 text-sm leading-6 text-pet-muted">{record.notes}</p>

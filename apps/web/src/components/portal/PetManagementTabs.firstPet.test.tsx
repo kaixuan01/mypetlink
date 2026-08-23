@@ -24,10 +24,6 @@ vi.mock("@/components/portal/OwnerHeaderActions", () => ({
   }),
 }));
 
-vi.mock("@/components/share/PetShareCard", () => ({
-  PetShareCard: () => <button type="button">Share Card</button>,
-}));
-
 vi.mock("@/services/petService", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/services/petService")>();
   return {
@@ -160,7 +156,7 @@ describe("first-pet completion heading", () => {
     expect(mocks.getPets).not.toHaveBeenCalled();
   });
 
-  it("keeps the sharing actions intact alongside the heading", async () => {
+  it("keeps the Overview sharing destinations intact alongside the heading", async () => {
     const pet = incompletePet();
     mocks.ownerPets = [pet];
 
@@ -171,7 +167,8 @@ describe("first-pet completion heading", () => {
       1
     );
     expect(
-      screen.getAllByRole("button", { name: `Share ${pet.name}` })
+      screen.getAllByRole("link", { name: "Manage sharing" })
     ).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: `Share ${pet.name}` })).toBeNull();
   });
 });

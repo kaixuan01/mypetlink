@@ -44,6 +44,23 @@ const ownerRecords: CareRecord[] = [
   },
 ];
 
+const invalidBoundaryRecords = [
+  {
+    ...ownerRecords[0],
+    id: "corrupt-record",
+    type: "Surgery",
+    date: "04 Sept 2026",
+    publicVisibility: "UnexpectedFutureValue",
+  },
+  {
+    ...ownerRecords[0],
+    id: "missing-record",
+    type: "Medication",
+    date: "05 Sept 2026",
+    publicVisibility: undefined,
+  },
+] as unknown as CareRecord[];
+
 describe("public Care mapping", () => {
   it("maps the API response to exactly type and recordDate", () => {
     const mapped = mapBackendPublicCareRecord({
@@ -63,7 +80,10 @@ describe("public Care mapping", () => {
   });
 
   it("projects only public type and record date in local mode", () => {
-    const projected = projectLocalPublicCareRecords(ownerRecords, true);
+    const projected = projectLocalPublicCareRecords(
+      [...ownerRecords, ...invalidBoundaryRecords],
+      true
+    );
 
     expect(projected).toEqual([
       { type: "Vaccine", recordDate: "02 Sept 2026" },
@@ -72,5 +92,7 @@ describe("public Care mapping", () => {
     expect(JSON.stringify(projected)).not.toMatch(
       /title|notes|provider|dueDate|publicVisibility/i
     );
+    expect(projected.map((record) => record.type)).not.toContain("Surgery");
+    expect(projected.map((record) => record.type)).not.toContain("Medication");
   });
 });

@@ -68,8 +68,30 @@ describe("RecordCard date terminology", () => {
         />
       );
 
-      expect(screen.getByText("Anyone with the link")).toBeTruthy();
+      expect(screen.getByText("Shared")).toBeTruthy();
+      expect(screen.queryByText("Anyone with the link")).toBeNull();
       expect(screen.queryByText(publicVisibility)).toBeNull();
     }
   );
+
+  it("presents a private record as Only me", () => {
+    render(
+      <RecordCard
+        record={{
+          id: "private-record",
+          petId: "pet-1",
+          type: "Vaccine",
+          title: "Private vaccination",
+          date: "15 Jul 2026",
+          provider: "Happy Paws Vet",
+          notes: "Owner notes remain private.",
+          publicVisibility: "Private",
+          status: "complete",
+        }}
+      />
+    );
+
+    expect(screen.getByText("Only me")).toBeTruthy();
+    expect(screen.queryByText("Anyone with the link")).toBeNull();
+  });
 });

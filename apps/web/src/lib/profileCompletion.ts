@@ -42,6 +42,19 @@ export type ProfileCompletionResult = {
   applicableWeight: number;
 };
 
+export function orderProfileCompletionItemsByWeight(
+  items: readonly ProfileCompletionItem[]
+) {
+  return items
+    .map((item, originalIndex) => ({ item, originalIndex }))
+    .sort(
+      (left, right) =>
+        right.item.weight - left.item.weight ||
+        left.originalIndex - right.originalIndex
+    )
+    .map(({ item }) => item);
+}
+
 function hasText(value: string | undefined) {
   const text = value?.trim() ?? "";
   return Boolean(text) && text.toLowerCase() !== "not set";

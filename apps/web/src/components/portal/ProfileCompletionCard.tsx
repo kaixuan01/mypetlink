@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnalyticsEvent, trackEvent } from "@/lib/analytics";
-import type {
-  ProfileCompletionItem,
-  ProfileCompletionItemId,
-  ProfileCompletionResult,
+import {
+  orderProfileCompletionItemsByWeight,
+  type ProfileCompletionItem,
+  type ProfileCompletionItemId,
+  type ProfileCompletionResult,
 } from "@/lib/profileCompletion";
 import { getPublicProfilePath } from "@/lib/routes";
 import type { Pet, PetListItem } from "@/types";
@@ -28,35 +29,23 @@ export function ProfileCompletionCard({
 }: ProfileCompletionCardProps) {
   const viewed = useRef(false);
   const [expanded, setExpanded] = useState(false);
-  const completedConfirmationKey = `mypetlink-profile-completion-confirmed:${pet.id}`;
-  const [showCompletedConfirmation, setShowCompletedConfirmation] = useState(
-    !completion.isComplete
+
+  const incompleteItems = useMemo(
+    () =>
+      orderProfileCompletionItemsByWeight(
+        completion.items.filter(
+          (item) =>
+            !item.isComplete && !suppressedItems.includes(item.id)
+        )
+      ),
+    [completion.items, suppressedItems]
   );
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      if (!completion.isComplete) {
-        setShowCompletedConfirmation(true);
-        return;
-      }
-
-      const wasShown = Boolean(
-        window.sessionStorage.getItem(completedConfirmationKey)
-      );
-      setShowCompletedConfirmation(!wasShown);
-      if (!wasShown) {
-        window.sessionStorage.setItem(completedConfirmationKey, "1");
-      }
-    }, 0);
-
-    return () => window.clearTimeout(timer);
-  }, [completedConfirmationKey, completion.isComplete]);
 
   useEffect(() => {
     if (
       viewed.current ||
-      completion.items.length === 0 ||
-      (completion.isComplete && !showCompletedConfirmation)
+      completion.isComplete ||
+      incompleteItems.length === 0
     ) {
       return;
     }
@@ -64,35 +53,9 @@ export function ProfileCompletionCard({
     trackEvent(AnalyticsEvent.CompletionPromptViewed, {
       surface: "owner_portal",
     });
-  }, [completion.isComplete, completion.items.length, showCompletedConfirmation]);
+  }, [completion.isComplete, incompleteItems.length]);
 
-  const incompleteItems = useMemo(
-    () =>
-      completion.items
-        .filter(
-          (item) =>
-            !item.isComplete && !suppressedItems.includes(item.id)
-        )
-        .sort((left, right) => right.weight - left.weight),
-    [completion.items, suppressedItems]
-  );
-
-  if (completion.items.length === 0) return null;
-
-  if (completion.isComplete) {
-    if (compact || !showCompletedConfirmation) return null;
-    return (
-      <section
-        aria-label={`${pet.name}'s profile progress`}
-        className="brand-soft-card min-w-0 rounded-[1.75rem] p-5 sm:p-6"
-      >
-        <p className="text-sm font-bold leading-6 text-pet-ink">
-          {pet.name}&apos;s profile has everything it needs. You can keep adding
-          moments and care details whenever you like.
-        </p>
-      </section>
-    );
-  }
+  if (completion.items.length === 0 || incompleteItems.length === 0) return null;
 
   if (compact) {
     const nextItem = incompleteItems[0];

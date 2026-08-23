@@ -8,7 +8,7 @@
  * like the important one.
  */
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockPets } from "@/data/mockPets";
 import type { Pet } from "@/types";
@@ -55,9 +55,8 @@ function renderOverview(pet: Pet) {
   render(<PetManagementTabs moments={[]} pet={pet} records={[]} tags={[]} />);
 }
 
-/** The bordered subcard a heading belongs to. */
 function subcardFor(name: string) {
-  return screen.getByRole("heading", { name }).closest("div.rounded-\\[1\\.35rem\\]");
+  return screen.getByRole("group", { name: `${name} overview` });
 }
 
 beforeEach(() => {
@@ -81,10 +80,11 @@ describe("Sharing & Safety layout", () => {
     expect(screen.queryByRole("tab", { name: "Privacy" })).toBeNull();
     expect(screen.queryByText("Public profile visibility")).toBeNull();
     expect(screen.queryByText("Safety Profile visibility")).toBeNull();
-    expect(screen.getByText("Public profile is on")).toBeTruthy();
+    expect(screen.queryByText(/Public profile is (on|off)/i)).toBeNull();
+    expect(within(subcardFor("Public Profile")).getByText("Shared")).toBeTruthy();
   });
 
-  it("gives both profiles the same shape: status, description, one action, one link", async () => {
+  it("gives both profiles a status, description, management action, and view link", async () => {
     const pet = activePet();
     renderOverview(pet);
     await screen.findByText("Sharing & Safety");
@@ -94,17 +94,13 @@ describe("Sharing & Safety layout", () => {
     expect(publicCard).toBeTruthy();
     expect(safetyCard).toBeTruthy();
 
-    for (const card of [publicCard!, safetyCard!]) {
-      // Exactly one action button and one "View profile" link per side.
-      expect(card.querySelectorAll("button")).toHaveLength(1);
-      const links = [...card.querySelectorAll("a")];
-      expect(links).toHaveLength(1);
-      expect(links[0].textContent).toContain("View profile");
-    }
+    expect(within(publicCard!).queryByRole("button")).toBeNull();
+    expect(within(publicCard!).getByRole("link", { name: "Manage sharing" })).toBeTruthy();
+    expect(within(publicCard!).getByRole("link", { name: "View profile" })).toBeTruthy();
+    expect(within(publicCard!).getByText("Shared")).toBeTruthy();
 
-    expect(
-      publicCard!.querySelector("button")?.textContent
-    ).toContain("Share");
+    expect(safetyCard!.querySelectorAll("button")).toHaveLength(1);
+    expect(within(safetyCard!).getByRole("link", { name: "View profile" })).toBeTruthy();
     expect(
       safetyCard!.querySelector("button")?.getAttribute("aria-label")
     ).toBe(`Show ${pet.name}'s Safety Profile QR code`);
@@ -116,10 +112,14 @@ describe("Sharing & Safety layout", () => {
     await screen.findByText("Sharing & Safety");
 
     expect(
-      subcardFor("Public Profile")!.querySelector("a")?.getAttribute("href")
+      within(subcardFor("Public Profile"))
+        .getByRole("link", { name: "View profile" })
+        .getAttribute("href")
     ).toContain(pet.publicProfilePath);
     expect(
-      subcardFor("Safety Profile")!.querySelector("a")?.getAttribute("href")
+      within(subcardFor("Safety Profile"))
+        .getByRole("link", { name: "View profile" })
+        .getAttribute("href")
     ).toBe(pet.qrSafetyPath);
   });
 
@@ -130,7 +130,7 @@ describe("Sharing & Safety layout", () => {
     await screen.findByText("Sharing & Safety");
 
     expect(
-      screen.getByRole("link", { name: /Edit sharing settings/ }).getAttribute(
+      screen.getByRole("link", { name: "Manage sharing" }).getAttribute(
         "href"
       )
     ).toBe(`/pets/${pet.id}/edit?tab=public`);

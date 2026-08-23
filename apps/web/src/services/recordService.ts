@@ -8,7 +8,10 @@ import {
 import { apiRequest, isApiClientError } from "@/services/apiClient";
 import { canUseApi } from "@/services/apiConfig";
 import { deriveCareRecordStatus } from "@/lib/careRecordStatus";
-import { normalizeCareRecordVisibility } from "@/lib/careRecordVisibility";
+import {
+  isCareRecordPublic,
+  normalizeCareRecordVisibility,
+} from "@/lib/careRecordVisibility";
 import type {
   BackendCareRecord,
   BackendCareRecordPublicVisibility,
@@ -300,7 +303,7 @@ export function projectLocalPublicCareRecords(
   }
 
   return records
-    .filter((record) => record.publicVisibility !== "Private")
+    .filter((record) => isCareRecordPublic(record.publicVisibility))
     .map((record) => ({
       type: record.type,
       recordDate: record.date,

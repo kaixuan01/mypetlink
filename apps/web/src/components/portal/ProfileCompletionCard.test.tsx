@@ -85,21 +85,81 @@ describe("ProfileCompletionCard", () => {
     expect(screen.getByRole("heading", { name: `Add more about ${name}` })).toBeTruthy();
   });
 
-  it("renders a calm completed state once per session without a checklist", async () => {
-    const pet = completionPet({ photoUrl: "photo.jpg" });
+  it("renders no full completion card when every applicable item is complete", () => {
+    const pet = completionPet({
+      photoUrl: "photo.jpg",
+      breed: "Poodle",
+      gender: "Female",
+      personalityTags: ["Playful"],
+      birthday: "2023-10-12",
+      bio: "Gentle and curious.",
+    });
     const result = deriveProfileCompletion({
       pet,
       momentCount: 1,
       careRecordCount: 1,
       safetyProfilesEnabled: true,
     });
-    const firstView = render(<ProfileCompletionCard completion={result} pet={pet} />);
-    expect(await screen.findByText(/has everything it needs/i)).toBeTruthy();
-    expect(screen.queryByRole("list")).toBeNull();
-    firstView.unmount();
+    expect(result.isComplete).toBe(true);
+
+    const { container } = render(
+      <ProfileCompletionCard completion={result} pet={pet} />
+    );
+
+    expect(container.querySelector('[data-profile-completion="full"]')).toBeNull();
+    expect(container.innerHTML).toBe("");
+    expect(mocks.trackEvent).not.toHaveBeenCalled();
+  });
+
+  it("keeps the compact incomplete indicator and completed hiding unchanged", () => {
+    const pet = completionPet();
+    const incompleteResult = completion(pet);
+    const incompleteView = render(
+      <ProfileCompletionCard compact completion={incompleteResult} pet={pet} />
+    );
+
+    expect(
+      incompleteView.container.querySelector('[data-profile-completion="compact"]')
+    ).toBeTruthy();
+    expect(screen.getByText(`${incompleteResult.percentage}% complete`)).toBeTruthy();
+    expect(screen.getAllByRole("link", { name: /^Add / })).toHaveLength(1);
+    incompleteView.unmount();
+
+    const completePet = completionPet({
+      photoUrl: "photo.jpg",
+      breed: "Poodle",
+      gender: "Female",
+      personalityTags: ["Playful"],
+      birthday: "2023-10-12",
+      bio: "Gentle and curious.",
+    });
+    const completeResult = completion(completePet, 1, 1);
+    const completeView = render(
+      <ProfileCompletionCard compact completion={completeResult} pet={completePet} />
+    );
+    expect(completeView.container.innerHTML).toBe("");
+  });
+
+  it("suggests a higher-weight first Moment before missing basic information", () => {
+    const pet = completionPet({
+      photoUrl: "photo.jpg",
+      breed: "Poodle",
+      gender: "",
+      personalityTags: ["Playful"],
+      birthday: "2023-10-12",
+      bio: "Gentle and curious.",
+    });
+    const result = completion(pet, 0, 1);
 
     render(<ProfileCompletionCard completion={result} pet={pet} />);
-    expect(screen.queryByText(/has everything it needs/i)).toBeNull();
+
+    expect(screen.getAllByRole("link", { name: /^Add / })).toHaveLength(1);
+    expect(
+      screen.getByRole("link", { name: "Add Milo's first Moment" })
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("link", { name: "Add Milo's basic information" })
+    ).toBeNull();
   });
 
   it("renders nothing for memorial pets", () => {
