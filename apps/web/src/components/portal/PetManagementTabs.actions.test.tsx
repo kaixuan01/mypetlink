@@ -9,6 +9,7 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { mockMoments } from "@/data/mockMoments";
 import { mockPets } from "@/data/mockPets";
 
 const mocks = vi.hoisted(() => ({
@@ -221,6 +222,66 @@ it("uses current Moment semantics and recent-history Care copy", async () => {
     screen.getByText("The latest vaccines, deworming, grooming, and vet visits you've added.")
   ).toBeTruthy();
 });
+
+it("uses Shared and Only me for Overview Moment badges", async () => {
+  const pet = structuredClone(mockPets[0]);
+  const moments = [
+    {
+      ...structuredClone(mockMoments[0]),
+      id: "public",
+      visibility: "Public" as const,
+    },
+    {
+      ...structuredClone(mockMoments[0]),
+      id: "private",
+      visibility: "Private" as const,
+    },
+    {
+      ...structuredClone(mockMoments[0]),
+      id: "legacy-family",
+      visibility: "Family Only" as const,
+    },
+  ];
+  mocks.getPetMoments.mockResolvedValue({ data: moments });
+
+  render(
+    <PetManagementTabs moments={moments} pet={pet} records={[]} tags={[]} />
+  );
+
+  const memories = (
+    await screen.findByRole("heading", { name: "Pet Memories" })
+  ).closest("section")!;
+  expect(within(memories).getAllByText("Shared")).toHaveLength(1);
+  expect(within(memories).getAllByText("Only me")).toHaveLength(2);
+  expect(within(memories).queryByText("Public")).toBeNull();
+  expect(within(memories).queryByText("Private")).toBeNull();
+  expect(within(memories).queryByText("Family Only")).toBeNull();
+});
+
+it.each([
+  ["Memorial", "Memorial Mode"],
+  ["Archived", "Archived profile"],
+] as const)(
+  "gives a lone %s lifecycle card the full trailing row",
+  async (lifecycleStatus, heading) => {
+    const pet = {
+      ...structuredClone(mockPets[0]),
+      lifecycleStatus,
+    };
+    mocks.getPetById.mockResolvedValue({ data: pet });
+
+    render(
+      <PetManagementTabs moments={[]} pet={pet} records={[]} tags={[]} />
+    );
+
+    const lifecycleCard = (
+      await screen.findByRole("heading", { name: heading })
+    ).closest("section")!;
+    const trailingGrid = lifecycleCard.parentElement!;
+    expect(trailingGrid.children).toHaveLength(1);
+    expect(trailingGrid.className).not.toContain("lg:grid-cols-2");
+  }
+);
 
 it("round-trips the shared Lost Mode control from the pet Overview", async () => {
   const pet = structuredClone(mockPets[0]);

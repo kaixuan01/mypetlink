@@ -34,6 +34,7 @@ import {
   isArchivedPet,
   isMemorialPet,
 } from "@/lib/petLifecycle";
+import { normalizeMomentVisibility } from "@/lib/momentVisibility";
 import { useOwnerPets } from "@/components/portal/OwnerHeaderActions";
 import {
   addPublicProfileShareVersion,
@@ -230,6 +231,8 @@ function OverviewTab({
   const isMemorial = isMemorialPet(pet);
   const isArchived = isArchivedPet(pet);
   const isActiveProfile = isActivePet(pet);
+  const trailingCardCount =
+    Number(smartTagsEnabled) + Number(isMemorial || isArchived);
   const publicProfileAccessible =
     pet.publicProfileEnabled &&
     !isArchived &&
@@ -280,25 +283,29 @@ function OverviewTab({
       >
         {recentMoments.length ? (
           <div className="grid gap-2">
-            {recentMoments.map((moment) => (
-              <div
-                className="flex items-center gap-3 rounded-[1rem] bg-pet-cream p-2.5"
-                key={moment.id}
-              >
-                <MomentMediaThumbnail moment={moment} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-bold text-pet-ink">
-                    {moment.title}
-                  </p>
-                  <p className="mt-0.5 text-xs font-bold text-pet-muted">
-                    {moment.date}
-                  </p>
+            {recentMoments.map((moment) => {
+              const visibility = normalizeMomentVisibility(moment.visibility);
+
+              return (
+                <div
+                  className="flex items-center gap-3 rounded-[1rem] bg-pet-cream p-2.5"
+                  key={moment.id}
+                >
+                  <MomentMediaThumbnail moment={moment} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-bold text-pet-ink">
+                      {moment.title}
+                    </p>
+                    <p className="mt-0.5 text-xs font-bold text-pet-muted">
+                      {moment.date}
+                    </p>
+                  </div>
+                  <Badge tone={visibility === "Public" ? "mint" : "soft"}>
+                    {visibility === "Public" ? "Shared" : "Only me"}
+                  </Badge>
                 </div>
-                <Badge tone={moment.visibility === "Public" ? "mint" : "soft"}>
-                  {moment.visibility}
-                </Badge>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <p className="text-sm text-pet-muted">No pet memories yet.</p>
@@ -532,7 +539,12 @@ function OverviewTab({
         </SectionCard>
       ) : null}
 
-      <div className="grid min-w-0 gap-5 lg:grid-cols-2">
+      {trailingCardCount > 0 ? (
+      <div
+        className={`grid min-w-0 gap-5 ${
+          trailingCardCount === 2 ? "lg:grid-cols-2" : ""
+        }`}
+      >
 
       {/* Smart Tags */}
       {smartTagsEnabled ? (
@@ -639,6 +651,7 @@ function OverviewTab({
         </SectionCard>
       ) : null}
       </div>
+      ) : null}
     </div>
   );
 }

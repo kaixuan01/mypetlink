@@ -1654,14 +1654,7 @@ export function PetProfileForm({
                 petName={shareProfilePet.name}
                 shareVersion={getPublicProfileShareVersion(shareProfilePet)}
               />
-            ) : (
-              <div className="brand-card min-w-0 rounded-[1.5rem] p-5">
-                <p className="text-sm font-semibold leading-6 text-pet-muted">
-                  Your public profile link will be ready right after you save
-                  this pet.
-                </p>
-              </div>
-            )}
+            ) : null}
 
             <details
               className="rounded-[1.5rem] border border-pet-border bg-white"

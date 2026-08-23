@@ -89,7 +89,7 @@ const informationGroups: {
     icon: "heart",
     items: [
       "Photos, captions, dates, and memory details",
-      "Visibility settings such as public, private, or family-only where supported",
+      "Visibility settings such as public or private where supported",
     ],
   },
   {
