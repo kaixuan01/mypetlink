@@ -139,16 +139,22 @@ describe("SettingsPanel loading behaviour", () => {
     }
   });
 
-  it("shows desktop and mobile Save actions only after a setting changes", async () => {
+  it("reserves action clearance before showing Save after a setting changes", async () => {
     mocks.getOwnerProfileSettings.mockResolvedValue({
       data: ownerData({ ownerDisplayName: "Real Owner" }),
     });
 
     render(<SettingsPanel />);
     const name = await screen.findByDisplayValue("Real Owner");
+    const mobileClearance = screen.getByTestId("mobile-form-actions-clearance");
+    const desktopClearance = screen.getByTestId("desktop-form-actions-clearance");
     expect(screen.queryByRole("button", { name: "Save settings" })).toBeNull();
 
     fireEvent.change(name, { target: { value: "Updated Owner" } });
+    expect(screen.getByTestId("mobile-form-actions-clearance")).toBe(mobileClearance);
+    expect(screen.getByTestId("desktop-form-actions-clearance")).toBe(
+      desktopClearance
+    );
     screen
       .getAllByRole("button", { name: "Save settings" })
       .forEach((button) =>

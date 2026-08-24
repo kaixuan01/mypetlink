@@ -274,7 +274,7 @@ function OverviewTab({
         />
       ) : null}
 
-      <div className="grid min-w-0 gap-5 lg:grid-cols-2">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-2">
       {/* Moments / Memories */}
       <SectionCard
         icon="heart"
@@ -282,13 +282,13 @@ function OverviewTab({
         description="Photo and video moments you choose to keep private or share."
       >
         {recentMoments.length ? (
-          <div className="grid gap-2">
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-2">
             {recentMoments.map((moment) => {
               const visibility = normalizeMomentVisibility(moment.visibility);
 
               return (
                 <div
-                  className="flex items-center gap-3 rounded-[1rem] bg-pet-cream p-2.5"
+                  className="flex min-w-0 items-center gap-3 rounded-[1rem] bg-pet-cream p-2.5"
                   key={moment.id}
                 >
                   <MomentMediaThumbnail moment={moment} />

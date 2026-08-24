@@ -171,7 +171,7 @@ type EditPetLoadState = "checking" | "ready" | "not-found" | "error";
 
 const editTabs: (SegmentedTab & { id: EditTab })[] = [
   { id: "basic", label: "Basic Info", mobileLabel: "Info" },
-  { id: "appearance", label: "Appearance" },
+  { id: "appearance", label: "Appearance", mobileLabel: "Style" },
   { id: "public", label: "Sharing & Privacy", mobileLabel: "Sharing" },
   { id: "contact", label: "Contact & Safety", mobileLabel: "Safety" },
 ];
@@ -1001,6 +1001,7 @@ export function PetProfileForm({
         <SegmentedTabs
           ariaLabel="Edit pet sections"
           activeId={tab}
+          className="[&_button]:px-3"
           onChange={(id) => setTab(id as EditTab)}
           tabs={editTabs}
         />

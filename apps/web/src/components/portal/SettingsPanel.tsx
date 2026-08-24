@@ -187,13 +187,16 @@ export function SettingsPanel() {
         </div>
       ) : null}
 
-      {dirty ? (
-        <div className="sticky top-4 z-10 hidden justify-end lg:flex">
+      <div
+        className="sticky top-4 z-10 hidden min-h-[3.125rem] justify-end lg:flex"
+        data-testid="desktop-form-actions-clearance"
+      >
+        {dirty ? (
           <CTAButton disabled={saving} type="submit" variant="coral">
             {saving ? "Saving..." : "Save settings"}
           </CTAButton>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
 
       <FormSection
         id="owner-contact"
@@ -334,13 +337,12 @@ export function SettingsPanel() {
         </div>
       </div>
 
-      {dirty ? (
-        <MobileFormActionBar
-          formId="owner-settings-form"
-          pending={saving}
-          primaryLabel="Save settings"
-        />
-      ) : null}
+      <MobileFormActionBar
+        formId="owner-settings-form"
+        pending={saving}
+        primaryLabel="Save settings"
+        visible={dirty}
+      />
     </form>
   );
 }

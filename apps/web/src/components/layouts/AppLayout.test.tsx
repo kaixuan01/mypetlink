@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 
 import React from "react";
-import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   logoutOwner: vi.fn(),
@@ -55,6 +55,8 @@ vi.mock("@/services/authService", () => ({
 
 import { AppLayout } from "./AppLayout";
 
+afterEach(cleanup);
+
 describe("AppLayout desktop navigation", () => {
   beforeEach(() => {
     mocks.logoutOwner.mockReset();
@@ -74,5 +76,19 @@ describe("AppLayout desktop navigation", () => {
     expect(screen.queryByText("Records", { exact: true })).toBeNull();
     expect(screen.queryByText("Owner Profile & Contact")).toBeNull();
     expect(screen.queryByRole("button", { name: "Logout" })).toBeNull();
+  });
+
+  it("makes main the single owner of mobile bottom-navigation clearance", () => {
+    render(
+      <AppLayout>
+        <p>Owner content</p>
+      </AppLayout>
+    );
+
+    const main = screen.getByRole("main");
+    const shell = main.parentElement?.parentElement;
+
+    expect(main.className).toContain("--owner-bottom-nav-height");
+    expect(shell?.className).not.toContain("--owner-bottom-nav-height");
   });
 });

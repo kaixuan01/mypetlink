@@ -372,6 +372,27 @@ describe("PetProfileForm lifecycle workflow", () => {
     ).toBe("false");
   });
 
+  it("uses compact labels for all four directly reachable mobile edit tabs", async () => {
+    render(<PetProfileForm initialPet={pet} mode="edit" />);
+
+    const tabList = await screen.findByRole("tablist", {
+      name: "Edit pet sections",
+    });
+    const directTabs = within(tabList).getAllByRole("tab");
+
+    expect(directTabs).toHaveLength(4);
+    expect(directTabs.map((tab) => tab.textContent)).toEqual([
+      "InfoBasic Info",
+      "StyleAppearance",
+      "SharingSharing & Privacy",
+      "SafetyContact & Safety",
+    ]);
+    expect(tabList.parentElement?.parentElement?.className).toContain(
+      "[&_button]:px-3"
+    );
+    expect(within(tabList).queryByRole("button", { name: "More" })).toBeNull();
+  });
+
   it("maps legacy photos and theme links to the Appearance tab", async () => {
     for (const legacy of ["photos", "theme"]) {
       window.history.replaceState({}, "", `/pets/${pet.id}/edit?tab=${legacy}`);

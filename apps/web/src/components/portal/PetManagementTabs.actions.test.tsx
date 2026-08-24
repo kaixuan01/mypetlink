@@ -258,6 +258,32 @@ it("uses Shared and Only me for Overview Moment badges", async () => {
   expect(within(memories).queryByText("Family Only")).toBeNull();
 });
 
+it("allows long Moment titles to shrink within the mobile overview grid", async () => {
+  const pet = structuredClone(mockPets[0]);
+  const longTitle = "A-very-long-moment-title-that-must-not-expand-the-mobile-grid";
+  const moments = [
+    {
+      ...structuredClone(mockMoments[0]),
+      id: "long-title",
+      title: longTitle,
+    },
+  ];
+  mocks.getPetMoments.mockResolvedValue({ data: moments });
+
+  render(<PetManagementTabs moments={moments} pet={pet} records={[]} tags={[]} />);
+
+  const title = await screen.findByText(longTitle);
+  const row = title.parentElement?.parentElement;
+  const list = row?.parentElement;
+  const overviewGrid = title.closest("section")?.parentElement;
+
+  expect(title.className).toContain("truncate");
+  expect(title.parentElement?.className).toContain("min-w-0");
+  expect(row?.className).toContain("min-w-0");
+  expect(list?.className).toContain("grid-cols-[minmax(0,1fr)]");
+  expect(overviewGrid?.className).toContain("grid-cols-[minmax(0,1fr)]");
+});
+
 it.each([
   ["Memorial", "Memorial Mode"],
   ["Archived", "Archived profile"],
