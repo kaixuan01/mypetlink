@@ -1,0 +1,1073 @@
+"use client";
+
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { Icon } from "@/components/ui/Icon";
+import type { CoverCropMetrics } from "@/lib/coverCrop";
+import { PET_TYPE_OPTIONS } from "@/lib/petDisplay";
+import { getBioTemplates } from "@/lib/petSuggestions";
+import type { PetProfileTheme } from "@/lib/petProfileThemes";
+import type { PetSpecies } from "@/types";
+
+export function UrlDisplay({ label, url }: { label: string; url: string }) {
+  const [copied, setCopied] = useState(false);
+
+  function handleCopy() {
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    });
+  }
+
+  return (
+    <div className="flex min-w-0 items-center gap-3">
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-bold uppercase text-pet-muted">{label}</p>
+        <p className="mt-0.5 truncate text-sm font-bold text-pet-ink">{url}</p>
+      </div>
+      <button
+        className="shrink-0 rounded-full border border-pet-border bg-white px-3 py-1.5 text-xs font-bold text-pet-muted transition hover:bg-pet-cream"
+        onClick={handleCopy}
+        type="button"
+      >
+        {copied ? "Copied!" : "Copy"}
+      </button>
+    </div>
+  );
+}
+
+export function ContactSummary({
+  ownerName,
+  whatsapp,
+  phone,
+  generalArea,
+}: {
+  ownerName: string;
+  whatsapp: string;
+  phone: string;
+  generalArea: string;
+}) {
+  const items = [
+    ["Owner display name", ownerName || "Not provided"],
+    ["WhatsApp number", whatsapp || "Not provided"],
+    ["Phone number", phone || "Not provided"],
+    ["General area", generalArea || "Not provided"],
+  ];
+
+  return (
+    <dl className="mt-4 grid gap-2 sm:grid-cols-2">
+      {items.map(([label, value]) => (
+        <div className="rounded-[1rem] bg-pet-cream p-3" key={label}>
+          <dt className="text-xs font-bold uppercase text-pet-muted">
+            {label}
+          </dt>
+          <dd className="mt-1 break-words text-sm font-black text-pet-ink">
+            {value}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+const DROPDOWN_TRIGGER_CLASS_NAME =
+  "brand-input flex min-h-12 items-center justify-between gap-4 text-left";
+const DROPDOWN_VALUE_CLASS_NAME = "min-w-0 truncate";
+const DROPDOWN_CHEVRON_CLASS_NAME =
+  "pointer-events-none h-4 w-4 shrink-0 text-pet-muted transition-transform duration-150";
+
+export function PetTypeSelector({
+  onChange,
+  value,
+}: {
+  onChange: (value: PetSpecies) => void;
+  value: PetSpecies;
+}) {
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const normalizedQuery = query.trim().toLowerCase();
+  const visibleOptions = PET_TYPE_OPTIONS.filter((option) =>
+    option.toLowerCase().includes(normalizedQuery)
+  );
+  const options = visibleOptions.length ? visibleOptions : ["Other" as PetSpecies];
+
+  useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      if (!wrapperRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
+  function selectOption(option: PetSpecies) {
+    onChange(option);
+    setQuery("");
+    setOpen(false);
+  }
+
+  return (
+    <div className="relative" ref={wrapperRef}>
+      <button
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        className={DROPDOWN_TRIGGER_CLASS_NAME}
+        onClick={() => setOpen((current) => !current)}
+        type="button"
+      >
+        <span className={DROPDOWN_VALUE_CLASS_NAME}>{value}</span>
+        <Icon
+          name="chevron"
+          className={`${DROPDOWN_CHEVRON_CLASS_NAME} ${
+            open ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+
+      {open ? (
+        <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-30 overflow-hidden rounded-[1.25rem] border border-pet-border bg-white p-2 shadow-xl shadow-[#0d1b3d]/12">
+          <input
+            aria-label="Search pet type"
+            autoFocus
+            className="brand-input min-h-11"
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search pet type"
+            type="search"
+            value={query}
+          />
+          <div className="mt-2 max-h-64 overflow-y-auto pr-1">
+            {options.map((option) => {
+              const selected = option === value;
+
+              return (
+                <button
+                  className={`flex min-h-11 w-full items-center justify-between rounded-2xl px-4 py-2 text-left text-sm font-bold transition ${
+                    selected
+                      ? "bg-[#e8f3ff] text-pet-teal"
+                      : "text-pet-ink hover:bg-pet-cream"
+                  }`}
+                  key={option}
+                  onClick={() => selectOption(option)}
+                  type="button"
+                >
+                  <span>{option}</span>
+                  {selected ? (
+                    <span className="text-xs text-pet-teal">Selected</span>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+const INITIAL_SUGGESTION_COUNT = 6;
+
+export function normalizeTagList(values: string[], max: number): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const raw of values) {
+    const value = raw.replace(/\s+/g, " ").trim();
+    const key = value.toLowerCase();
+
+    if (!value || seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    result.push(value);
+
+    if (result.length >= max) {
+      break;
+    }
+  }
+
+  return result;
+}
+
+export function TagListInput({
+  label,
+  values,
+  onChange,
+  suggestions,
+  max,
+  placeholder,
+  error,
+  helper,
+  maxLength = 80,
+  deferSuggestions = false,
+}: {
+  label: string;
+  values: string[];
+  onChange: (values: string[]) => void;
+  suggestions: string[];
+  max: number;
+  placeholder: string;
+  error?: string;
+  helper?: string;
+  maxLength?: number;
+  /**
+   * When true, suggestion chips stay hidden until the owner focuses the input
+   * or asks for them, so small screens are not flooded with chips up front.
+   */
+  deferSuggestions?: boolean;
+}) {
+  const [draft, setDraft] = useState("");
+  const [showAllSuggestions, setShowAllSuggestions] = useState(false);
+  const [suggestionsRevealed, setSuggestionsRevealed] = useState(
+    !deferSuggestions
+  );
+  const selectedKeys = new Set(values.map((value) => value.toLowerCase()));
+  const canAdd = values.length < max;
+  const remainingSuggestions = suggestions.filter(
+    (suggestion) => !selectedKeys.has(suggestion.toLowerCase())
+  );
+  const visibleSuggestions = showAllSuggestions
+    ? remainingSuggestions
+    : remainingSuggestions.slice(0, INITIAL_SUGGESTION_COUNT);
+  const hiddenCount = remainingSuggestions.length - visibleSuggestions.length;
+
+  function addValue(raw: string) {
+    const value = raw.replace(/,/g, " ").replace(/\s+/g, " ").trim();
+
+    if (!value || !canAdd || selectedKeys.has(value.toLowerCase())) {
+      return;
+    }
+
+    onChange([...values, value]);
+    setDraft("");
+  }
+
+  function removeValue(value: string) {
+    onChange(values.filter((current) => current !== value));
+  }
+
+  return (
+    <div className="grid min-w-0 content-start gap-2">
+      <span className="flex items-baseline justify-between gap-2">
+        <span className="text-sm font-bold text-pet-ink">{label}</span>
+        <span className="text-xs font-bold text-pet-muted">
+          {values.length}/{max}
+        </span>
+      </span>
+
+      {helper ? (
+        <span className="text-xs font-semibold leading-5 text-pet-muted">
+          {helper}
+        </span>
+      ) : null}
+
+      {values.length ? (
+        <div className="flex min-w-0 flex-wrap gap-2">
+          {values.map((value) => (
+            <button
+              aria-label={`Remove ${value}`}
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-pet-teal bg-[#e8f3ff] px-3 py-1.5 text-xs font-bold text-pet-teal transition hover:bg-[#d8edff]"
+              key={value}
+              onClick={() => removeValue(value)}
+              type="button"
+            >
+              {value}
+              <Icon name="plus" className="h-3 w-3 rotate-45" />
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="flex min-w-0 gap-2">
+        <input
+          aria-label={`${label}: add your own`}
+          className="brand-input min-w-0 flex-1"
+          disabled={!canAdd}
+          maxLength={maxLength}
+          onChange={(event) => setDraft(event.target.value)}
+          onFocus={() => setSuggestionsRevealed(true)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              addValue(draft);
+            }
+          }}
+          placeholder={canAdd ? placeholder : `Limit of ${max} reached`}
+          type="text"
+          value={draft}
+        />
+        <button
+          className="inline-flex min-h-12 shrink-0 items-center justify-center rounded-full border border-pet-border bg-white px-4 text-sm font-bold text-pet-ink transition hover:bg-pet-cream disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={!canAdd || !draft.trim()}
+          onClick={() => addValue(draft)}
+          type="button"
+        >
+          Add
+        </button>
+      </div>
+
+      {!suggestionsRevealed && remainingSuggestions.length ? (
+        <button
+          aria-expanded={false}
+          className="inline-flex min-h-9 items-center self-start rounded-full px-3 py-1.5 text-xs font-bold text-pet-teal transition hover:underline"
+          onClick={() => setSuggestionsRevealed(true)}
+          type="button"
+        >
+          Show suggestions ({remainingSuggestions.length})
+        </button>
+      ) : null}
+
+      {suggestionsRevealed && visibleSuggestions.length ? (
+        <div aria-label={`Suggested ${label.toLowerCase()}`} role="group">
+          <div className="flex min-w-0 flex-wrap gap-2">
+            {visibleSuggestions.map((option) => (
+              <button
+                className="inline-flex min-h-9 items-center rounded-full border border-pet-border bg-white px-3 py-1.5 text-xs font-bold text-pet-muted transition hover:border-pet-teal hover:text-pet-teal disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={!canAdd}
+                key={option}
+                onClick={() => addValue(option)}
+                type="button"
+              >
+                {option}
+              </button>
+            ))}
+            {hiddenCount > 0 ? (
+              <button
+                className="inline-flex min-h-9 items-center rounded-full px-3 py-1.5 text-xs font-bold text-pet-teal transition hover:underline"
+                onClick={() => setShowAllSuggestions(true)}
+                type="button"
+              >
+                More suggestions ({hiddenCount})
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {error ? (
+        <span className="text-xs font-bold text-[#a63c2e]">{error}</span>
+      ) : null}
+    </div>
+  );
+}
+
+// Single segmented control for gender. A legacy custom value (e.g. "Male
+// (neutered)") keeps its saved text and highlights the matching option until
+// the owner picks one.
+export function GenderSegmentedControl({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const normalized = value.trim().toLowerCase();
+
+  return (
+    <div
+      className="grid grid-cols-3 gap-1 rounded-full border border-pet-border bg-white p-1"
+      role="radiogroup"
+      aria-label="Gender"
+    >
+      {(["Male", "Female", "Unknown"] as const).map((option) => {
+        const selected =
+          normalized === option.toLowerCase() ||
+          (option !== "Unknown" && normalized.startsWith(option.toLowerCase()));
+
+        return (
+          <button
+            aria-checked={selected}
+            className={`min-h-10 rounded-full px-2 text-sm font-bold transition ${
+              selected
+                ? "bg-[#e8f3ff] text-pet-teal"
+                : "text-pet-muted hover:bg-pet-cream hover:text-pet-ink"
+            }`}
+            key={option}
+            onClick={() => onChange(option)}
+            role="radio"
+            type="button"
+          >
+            {option}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// Searchable breed dropdown (same interaction and chevron as Pet Type).
+// Always offers Mixed breed, Unknown, and Other; Other reveals custom input.
+export function BreedSelector({
+  breeds,
+  value,
+  onChange,
+}: {
+  breeds: string[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const options = useMemo(() => {
+    const seen = new Set<string>();
+    const merged: string[] = [];
+
+    for (const option of [...breeds, "Mixed breed", "Unknown", "Other"]) {
+      const key = option.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        merged.push(option);
+      }
+    }
+
+    return merged;
+  }, [breeds]);
+  // Custom mode: explicit "Other" selection, or an existing saved breed that
+  // is not one of the offered options.
+  const [customMode, setCustomMode] = useState(
+    () => Boolean(value) && !options.some((option) => option === value)
+  );
+  const normalizedQuery = query.trim().toLowerCase();
+  const visibleOptions = options.filter((option) =>
+    option.toLowerCase().includes(normalizedQuery)
+  );
+
+  useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      if (!wrapperRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
+  function selectOption(option: string) {
+    if (option === "Other") {
+      setCustomMode(true);
+      onChange("");
+    } else {
+      setCustomMode(false);
+      onChange(option);
+    }
+
+    setQuery("");
+    setOpen(false);
+  }
+
+  return (
+    <div className="grid min-w-0 gap-2">
+      <div className="relative" ref={wrapperRef}>
+        <button
+          aria-expanded={open}
+          aria-haspopup="listbox"
+          className={DROPDOWN_TRIGGER_CLASS_NAME}
+          onClick={() => setOpen((current) => !current)}
+          type="button"
+        >
+          <span
+            className={`${DROPDOWN_VALUE_CLASS_NAME} ${
+              value || customMode ? "" : "text-pet-muted"
+            }`}
+          >
+            {customMode ? "Other" : value || "Select breed"}
+          </span>
+          <Icon
+            name="chevron"
+            className={`${DROPDOWN_CHEVRON_CLASS_NAME} ${
+              open ? "rotate-180" : ""
+            }`}
+          />
+        </button>
+
+        {open ? (
+          <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-30 overflow-hidden rounded-[1.25rem] border border-pet-border bg-white p-2 shadow-xl shadow-[#0d1b3d]/12">
+            <input
+              aria-label="Search breed"
+              autoFocus
+              className="brand-input min-h-11"
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search breed"
+              type="search"
+              value={query}
+            />
+            <div className="mt-2 max-h-64 overflow-y-auto pr-1">
+              {(visibleOptions.length ? visibleOptions : ["Other"]).map(
+                (option) => {
+                  const selected = customMode
+                    ? option === "Other"
+                    : option === value;
+
+                  return (
+                    <button
+                      className={`flex min-h-11 w-full items-center justify-between rounded-2xl px-4 py-2 text-left text-sm font-bold transition ${
+                        selected
+                          ? "bg-[#e8f3ff] text-pet-teal"
+                          : "text-pet-ink hover:bg-pet-cream"
+                      }`}
+                      key={option}
+                      onClick={() => selectOption(option)}
+                      type="button"
+                    >
+                      <span>{option}</span>
+                      {selected ? (
+                        <span className="text-xs text-pet-teal">Selected</span>
+                      ) : null}
+                    </button>
+                  );
+                }
+              )}
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      {customMode ? (
+        <input
+          aria-label="Enter breed"
+          className="brand-input"
+          maxLength={80}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder="Enter breed"
+          type="text"
+          value={value}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+// Bio starter templates in a bottom sheet, opened only on request so the main
+// form stays compact. Selecting one fills the textarea with editable text.
+export function BioTemplateSheet({
+  open,
+  petName,
+  onPick,
+  onClose,
+}: {
+  open: boolean;
+  petName: string;
+  onPick: (template: string) => void;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose, open]);
+
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <div
+      aria-label="Bio starters"
+      aria-modal="true"
+      className="fixed inset-0 z-50 grid place-items-end bg-pet-ink/35 p-0 backdrop-blur-sm sm:place-items-center sm:p-4"
+      role="dialog"
+    >
+      <button
+        aria-label="Close bio starters"
+        className="absolute inset-0 cursor-default"
+        onClick={onClose}
+        type="button"
+      />
+      <div className="relative w-full max-w-lg rounded-t-[2rem] bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-2xl sm:rounded-[2rem] sm:p-6">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-black text-pet-ink">
+              Need a starting point?
+            </h2>
+            <p className="mt-1 text-sm leading-6 text-pet-muted">
+              Tap one and edit it to match your pet.
+            </p>
+          </div>
+          <button
+            aria-label="Close"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-pet-cream text-pet-muted transition hover:text-pet-ink"
+            onClick={onClose}
+            type="button"
+          >
+            <Icon name="plus" className="h-5 w-5 rotate-45" />
+          </button>
+        </div>
+        <div className="mt-4 grid gap-2">
+          {getBioTemplates(petName).map((template) => (
+            <button
+              className="rounded-[1.25rem] border border-pet-border bg-pet-cream px-4 py-3 text-left text-sm font-semibold leading-6 text-pet-ink transition hover:border-pet-teal hover:bg-white"
+              key={template}
+              onClick={() => onPick(template)}
+              type="button"
+            >
+              {template}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function TextInput({
+  label,
+  placeholder,
+  value,
+  onChange,
+  error,
+  helper,
+  maxLength,
+}: {
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (value: string) => void;
+  error?: string;
+  helper?: string;
+  maxLength?: number;
+}) {
+  return (
+    <Field error={error} helper={helper} label={label}>
+      <input
+        className="brand-input"
+        maxLength={maxLength}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        type="text"
+        value={value}
+      />
+    </Field>
+  );
+}
+
+export function CoverPositionControl({
+  axis,
+  description,
+  disabled,
+  onChange,
+  value,
+}: {
+  axis: "Horizontal" | "Vertical";
+  description?: string;
+  disabled?: boolean;
+  onChange: (value: number) => void;
+  value: number;
+}) {
+  return (
+    <label className="grid min-w-0 gap-2">
+      <span className="flex items-center justify-between gap-3 text-xs font-bold text-pet-ink">
+        {axis} position
+        <span className="text-pet-muted">{value}%</span>
+      </span>
+      <input
+        aria-label={`${axis} cover position`}
+        className="w-full accent-pet-teal disabled:cursor-not-allowed disabled:opacity-45"
+        disabled={disabled}
+        max={100}
+        min={0}
+        onChange={(event) => onChange(Number(event.target.value))}
+        type="range"
+        value={value}
+      />
+      {description ? (
+        <span className="text-xs font-semibold leading-5 text-pet-muted">
+          {description}
+        </span>
+      ) : null}
+    </label>
+  );
+}
+
+export function getCoverAxisDescription(
+  metrics: CoverCropMetrics | null,
+  axis: "Horizontal" | "Vertical"
+) {
+  if (!metrics) {
+    return "Checking how this photo fits in the cover area.";
+  }
+
+  const canMove = axis === "Horizontal" ? metrics.canMoveX : metrics.canMoveY;
+  return canMove
+    ? undefined
+    : `This photo already fits ${axis.toLowerCase()}ly in the cover area.`;
+}
+
+export function Field({
+  label,
+  error,
+  helper,
+  children,
+}: {
+  label: string;
+  error?: string;
+  helper?: string;
+  children: ReactNode;
+}) {
+  return (
+    <label className="grid min-w-0 gap-2">
+      <span className="text-sm font-bold text-pet-ink">{label}</span>
+      {children}
+      {helper ? <span className="text-xs leading-5 text-pet-muted">{helper}</span> : null}
+      {error ? (
+        <span className="text-xs font-bold text-[#a63c2e]">{error}</span>
+      ) : null}
+    </label>
+  );
+}
+
+// Accessible switch row: one full-width tappable row per setting, so the
+// mobile layout stays single-column and touch-friendly. Status is conveyed by
+// the switch state text, never by colour alone.
+export function ToggleRow({
+  checked,
+  label,
+  helper,
+  onChange,
+}: {
+  checked: boolean;
+  label: string;
+  helper?: string;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <button
+      aria-checked={checked}
+      className="flex min-h-12 w-full min-w-0 items-center justify-between gap-3 rounded-2xl bg-pet-cream p-4 text-left transition hover:bg-[#f4ecdf]"
+      onClick={() => onChange(!checked)}
+      role="switch"
+      type="button"
+    >
+      <span className="min-w-0">
+        <span className="block text-sm font-bold text-pet-ink">{label}</span>
+        {helper ? (
+          <span className="mt-0.5 block text-xs font-semibold leading-5 text-pet-muted">
+            {helper}
+          </span>
+        ) : null}
+      </span>
+      <span
+        aria-hidden="true"
+        className={`relative h-6 w-11 shrink-0 rounded-full transition ${
+          checked ? "bg-pet-teal" : "bg-[#cfd6e4]"
+        }`}
+      >
+        <span
+          className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
+            checked ? "left-[1.375rem]" : "left-0.5"
+          }`}
+        />
+      </span>
+    </button>
+  );
+}
+
+export function Checkbox({
+  checked,
+  label,
+  onChange,
+}: {
+  checked: boolean;
+  label: string;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <label className="flex min-w-0 items-center justify-between gap-3 rounded-2xl bg-pet-cream p-4 text-sm font-bold text-pet-ink">
+      <span className="min-w-0">{label}</span>
+      <input
+        checked={checked}
+        className="h-4 w-4 accent-pet-teal"
+        onChange={(event) => onChange(event.target.checked)}
+        type="checkbox"
+      />
+    </label>
+  );
+}
+
+export function PrivacyGroup({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="min-w-0 rounded-[1.5rem] border border-pet-border bg-white p-5">
+      <p className="mb-3 text-sm font-black text-pet-ink">{title}</p>
+      <div className="grid min-w-0 gap-2 sm:grid-cols-2">{children}</div>
+    </div>
+  );
+}
+
+export function ThemeOptionCard({
+  name,
+  onSelect,
+  selected,
+  theme,
+}: {
+  name: string;
+  onSelect: () => void;
+  selected: boolean;
+  theme: PetProfileTheme;
+}) {
+  return (
+    <button
+      aria-pressed={selected}
+      className={`min-h-[220px] min-w-0 rounded-[1.25rem] border p-4 text-left transition ${
+        selected
+          ? "shadow-lg shadow-[#0d1b3d]/10"
+          : "border-pet-border bg-white hover:-translate-y-0.5 hover:shadow-md"
+      }`}
+      onClick={onSelect}
+      style={
+        selected
+          ? {
+              background: theme.colors.surface,
+              borderColor: theme.colors.primary,
+              boxShadow: `0 4px 20px ${theme.colors.primary}22`,
+            }
+          : undefined
+      }
+      type="button"
+    >
+      <div className="flex min-w-0 items-center justify-between gap-2">
+        <p className="min-w-0 text-sm font-black text-pet-ink">{theme.name}</p>
+        {selected ? (
+          <span
+            className="rounded-full px-2 py-1 text-[10px] font-black uppercase"
+            style={{
+              background: theme.colors.primarySoft,
+              color: theme.colors.primary,
+            }}
+          >
+            Selected
+          </span>
+        ) : null}
+      </div>
+      <p className="mt-2 min-h-10 text-xs leading-5 text-pet-muted">
+        {theme.description}
+      </p>
+      <div className="mt-3 flex gap-1.5">
+        {theme.swatches.map((swatch) => (
+          <span
+            aria-hidden="true"
+            className="h-5 w-5 rounded-full border border-white shadow-sm"
+            key={swatch}
+            style={{ background: swatch }}
+          />
+        ))}
+      </div>
+      <div
+        className="mt-4 overflow-hidden rounded-2xl border"
+        style={{
+          background: theme.gradients.cover,
+          borderColor: theme.colors.border,
+        }}
+      >
+        <div className="p-3">
+          <div
+            className="h-8 rounded-xl"
+            style={{ background: theme.gradients.decorative }}
+          />
+          <div className="-mt-3 grid place-items-center">
+            <span
+              className="grid h-9 w-9 place-items-center rounded-xl border-2 text-xs font-black"
+              style={{
+                background: theme.colors.accentSoft,
+                borderColor: theme.colors.surface,
+                color: theme.colors.accent,
+              }}
+            >
+              {getInitial(name)}
+            </span>
+          </div>
+          <div className="mt-2 text-center">
+            <p
+              className="truncate text-xs font-black"
+              style={{ color: theme.colors.text }}
+            >
+              {name}
+            </p>
+            <span
+              className="mt-2 inline-flex rounded-full px-2 py-1 text-[10px] font-black"
+              style={{
+                background: theme.colors.badgeBackground,
+                color: theme.colors.primary,
+              }}
+            >
+              Gentle
+            </span>
+          </div>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+export function ThemePreviewPanel({
+  petName,
+  theme,
+}: {
+  petName: string;
+  theme: PetProfileTheme;
+}) {
+  return (
+    <div
+      className="min-w-0 overflow-hidden rounded-[1.5rem] border"
+      style={{
+        background: theme.colors.surface,
+        borderColor: theme.colors.border,
+      }}
+    >
+      <div
+        className="grid min-w-0 gap-5 p-5 lg:grid-cols-[0.9fr_1.1fr]"
+        style={{ background: theme.gradients.page }}
+      >
+        <div>
+          <p
+            className="text-sm font-black"
+            style={{ color: theme.colors.text }}
+          >
+            How {petName}&apos;s public profile will look
+          </p>
+          <p
+            className="mt-2 text-sm leading-6"
+            style={{ color: theme.colors.mutedText }}
+          >
+            {theme.description}
+          </p>
+        </div>
+
+        <div
+          className="min-w-0 rounded-[1.25rem] border p-3"
+          style={{
+            background: theme.colors.surface,
+            borderColor: theme.colors.border,
+          }}
+        >
+          <div
+            className="relative h-24 rounded-2xl"
+            style={{ background: theme.gradients.cover }}
+          >
+            <span
+              className="absolute bottom-3 left-3 h-3 w-3 rounded-full"
+              style={{ background: theme.colors.timelineDot }}
+            />
+            <span
+              className="absolute right-3 top-3 rounded-full px-3 py-1 text-xs font-black"
+              style={{
+                background: theme.colors.badgeBackground,
+                color: theme.colors.primary,
+              }}
+            >
+              Gentle
+            </span>
+          </div>
+          <div className="grid min-w-0 gap-3 pt-4 sm:grid-cols-[88px_1fr]">
+            <div
+              className="grid h-20 w-20 place-items-center rounded-[1.25rem] text-xl font-black"
+              style={{
+                background: theme.colors.accentSoft,
+                color: theme.colors.accent,
+              }}
+            >
+              {getInitial(petName)}
+            </div>
+            <div className="min-w-0">
+              <p
+                className="text-lg font-black"
+                style={{ color: theme.colors.text }}
+              >
+                {petName}
+              </p>
+              <div className="mt-3 flex items-center gap-3">
+                <span
+                  className="h-10 w-2 rounded-full"
+                  style={{ background: theme.colors.timelineLine }}
+                />
+                <div
+                  className="rounded-2xl p-3 text-sm"
+                  style={{
+                    background: theme.colors.surfaceAlt,
+                    color: theme.colors.mutedText,
+                  }}
+                >
+                  First day home
+                </div>
+              </div>
+            </div>
+          </div>
+          <div
+            className="mt-3 rounded-2xl p-4"
+            style={{ background: theme.colors.surfaceAlt }}
+          >
+            <p
+              className="text-xs font-black uppercase"
+              style={{ color: theme.colors.accent }}
+            >
+              Pet Memory
+            </p>
+            <p
+              className="mt-1 text-sm font-black"
+              style={{ color: theme.colors.text }}
+            >
+              Park walk after breakfast
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function getInitial(name: string) {
+  return name.trim().charAt(0).toUpperCase() || "P";
+}
