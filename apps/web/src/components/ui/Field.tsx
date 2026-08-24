@@ -11,6 +11,11 @@ import {
 
 export type FieldProps = {
   label: ReactNode;
+  /**
+   * Field clones this element to merge standard id and ARIA properties. A
+   * custom React component must forward those properties to its accessible
+   * control for the generated associations to take effect.
+   */
   children: ReactElement<Record<string, unknown>>;
   htmlFor?: string;
   id?: string;
@@ -33,15 +38,19 @@ export function Field({
   className,
 }: FieldProps) {
   const generatedId = useId();
-  const baseId = id ?? htmlFor ?? `field-${generatedId}`;
-  const labelId = `${baseId}-label`;
-  const helperId = helperText ? `${baseId}-helper` : undefined;
-  const errorId = errorText ? `${baseId}-error` : undefined;
   const control = Children.only(children);
 
   if (!isValidElement(control)) {
     throw new Error("Field requires exactly one valid control element.");
   }
+
+  const childId =
+    typeof control.props.id === "string" ? control.props.id : undefined;
+  const resolvedHtmlFor = htmlFor ? childId ?? htmlFor : undefined;
+  const baseId = id ?? childId ?? htmlFor ?? `field-${generatedId}`;
+  const labelId = `${baseId}-label`;
+  const helperId = helperText ? `${baseId}-helper` : undefined;
+  const errorId = errorText ? `${baseId}-error` : undefined;
 
   const existingDescribedBy = control.props["aria-describedby"];
   const describedBy = [
@@ -58,8 +67,7 @@ export function Field({
   };
 
   if (htmlFor) {
-    controlProps.id = htmlFor;
-    if (required) controlProps.required = control.props.required ?? true;
+    controlProps.id = resolvedHtmlFor;
   } else {
     controlProps["aria-labelledby"] = [
       typeof control.props["aria-labelledby"] === "string"
@@ -74,7 +82,11 @@ export function Field({
   return (
     <div className={`grid min-w-0 gap-2 ${className ?? ""}`}>
       {htmlFor ? (
-        <label className="text-sm font-bold text-pet-ink" htmlFor={htmlFor} id={labelId}>
+        <label
+          className="text-sm font-bold text-pet-ink"
+          htmlFor={resolvedHtmlFor}
+          id={labelId}
+        >
           <FieldLabelContent label={label} optional={optional} required={required} />
         </label>
       ) : (

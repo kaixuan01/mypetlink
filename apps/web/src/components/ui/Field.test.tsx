@@ -24,12 +24,56 @@ describe("Field", () => {
     const input = screen.getByLabelText(/Pet name/);
     const describedBy = input.getAttribute("aria-describedby")?.split(" ") ?? [];
     expect(input.id).toBe("pet-name");
-    expect(input.hasAttribute("required")).toBe(true);
+    expect(input.hasAttribute("required")).toBe(false);
     expect(input.getAttribute("aria-required")).toBe("true");
+    expect((input as HTMLInputElement).checkValidity()).toBe(true);
     expect(input.getAttribute("aria-invalid")).toBe("true");
     expect(describedBy).toHaveLength(2);
     expect(describedBy).toContain(screen.getByText("Use the name your pet knows.").id);
     expect(describedBy).toContain(screen.getByText("Add a pet name.").id);
+  });
+
+  it("preserves a caller-owned control ID and its label association", () => {
+    render(
+      <Field htmlFor="generated-name" label="Pet name">
+        <input id="caller-owned-name" />
+      </Field>
+    );
+
+    const input = screen.getByLabelText("Pet name");
+    expect(input.id).toBe("caller-owned-name");
+    expect(screen.getByText("Pet name").closest("label")?.htmlFor).toBe(
+      "caller-owned-name"
+    );
+  });
+
+  it("merges existing ARIA relationships with generated helper associations", () => {
+    render(
+      <>
+        <span id="external-description">Existing description</span>
+        <span id="external-label">Existing label</span>
+        <Field helperText="Generated helper" id="pet-kind" label="Pet type">
+          <button
+            aria-controls="pet-kind-options"
+            aria-describedby="external-description"
+            aria-expanded="false"
+            aria-labelledby="external-label"
+            role="combobox"
+            type="button"
+          />
+        </Field>
+      </>
+    );
+
+    const control = screen.getByRole("combobox");
+    expect(control.getAttribute("aria-describedby")?.split(" ")).toEqual([
+      "external-description",
+      "pet-kind-helper",
+    ]);
+    expect(control.getAttribute("aria-labelledby")?.split(" ")).toEqual([
+      "external-label",
+      "pet-kind-label",
+    ]);
   });
 
   it("supports native textareas and optional indication", () => {

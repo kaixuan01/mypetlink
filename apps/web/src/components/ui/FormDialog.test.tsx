@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { ConfirmDialog } from "./ConfirmDialog";
 import { FormDialog } from "./FormDialog";
 
 afterEach(() => {
@@ -40,6 +41,39 @@ function DialogHarness({
             ))
           : null}
       </FormDialog>
+    </div>
+  );
+}
+
+function DirtyDialogHarness() {
+  const [open, setOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  return (
+    <div>
+      <button onClick={() => setOpen(true)} type="button">
+        Open dirty editor
+      </button>
+      <FormDialog
+        onRequestClose={() => setConfirmOpen(true)}
+        open={open}
+        primaryAction={{ label: "Save changes" }}
+        title="Edit pet"
+      >
+        <input aria-label="Pet name" />
+      </FormDialog>
+      <ConfirmDialog
+        confirmLabel="Discard changes"
+        destructive
+        message="Your unsaved changes will be lost."
+        onCancel={() => setConfirmOpen(false)}
+        onConfirm={() => {
+          setConfirmOpen(false);
+          setOpen(false);
+        }}
+        open={confirmOpen}
+        title="Discard changes?"
+      />
     </div>
   );
 }
@@ -84,13 +118,44 @@ describe("FormDialog", () => {
   it("keeps a non-dismissible dialog open without focusing its text field", async () => {
     render(<DialogHarness dismissible={false} />);
     fireEvent.click(screen.getByRole("button", { name: "Open editor" }));
-    const close = screen.getByRole("button", { name: "Close dialog" });
-    await waitFor(() => expect(document.activeElement).toBe(close));
-    expect(close.getAttribute("aria-disabled")).toBe("true");
+    const title = screen.getByRole("heading", { name: "Edit pet" });
+    await waitFor(() => expect(document.activeElement).toBe(title));
+    expect(screen.queryByRole("button", { name: "Close dialog" })).toBeNull();
 
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.getByRole("dialog")).toBeTruthy();
-    expect(document.activeElement).toBe(close);
+    expect(document.activeElement).toBe(title);
+  });
+
+  it("keeps a dirty editor stacked correctly through discard confirmation", async () => {
+    render(<DirtyDialogHarness />);
+    const trigger = screen.getByRole("button", { name: "Open dirty editor" });
+    trigger.focus();
+    fireEvent.click(trigger);
+
+    const editor = screen.getByRole("dialog", { name: "Edit pet" });
+    const cancel = screen.getByRole("button", { name: "Cancel" });
+    cancel.focus();
+    fireEvent.click(cancel);
+    expect(screen.getByRole("dialog", { name: "Discard changes?" })).toBeTruthy();
+    expect(editor.hasAttribute("inert")).toBe(true);
+    expect(document.body.style.overflow).toBe("hidden");
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Discard changes?" })
+      ).toBeNull()
+    );
+    expect(screen.getByRole("dialog", { name: "Edit pet" })).toBeTruthy();
+    expect(document.activeElement).toBe(cancel);
+    expect(document.body.style.overflow).toBe("hidden");
+
+    fireEvent.click(cancel);
+    fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(document.activeElement).toBe(trigger);
+    expect(document.body.style.overflow).toBe("");
   });
 
   it("keeps header and footer pinned around a separately scrollable long body", () => {
@@ -125,6 +190,9 @@ describe("FormDialog", () => {
     expect(inline?.dataset.formDialogFooterLayout).toBe("inline");
     expect(inline?.className).toContain("grid-cols-2");
     expect(screen.getByRole("button", { name: "Cancel" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Save" }).className).toContain(
+      "break-words"
+    );
 
     rerender(
       <FormDialog
@@ -142,5 +210,25 @@ describe("FormDialog", () => {
       screen.getByRole("button", { name: "Save" }).parentElement?.dataset
         .formDialogFooterLayout
     ).toBe("stacked");
+  });
+
+  it("uses a custom footer instead of rendering default actions", () => {
+    render(
+      <FormDialog
+        footer={<button type="button">Custom action</button>}
+        onRequestClose={vi.fn()}
+        open
+        primaryAction={{ label: "Default primary" }}
+        title="Edit"
+      >
+        Short content
+      </FormDialog>
+    );
+
+    expect(screen.getByRole("button", { name: "Custom action" })).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "Default primary" })
+    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Cancel" })).toBeNull();
   });
 });

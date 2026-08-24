@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SearchableSelect, Select, type SelectOption } from "./Select";
 
 const shortOptions = [
@@ -19,7 +19,20 @@ const longOptions: SelectOption[] = Array.from({ length: 12 }, (_, index) => ({
   keywords: [`choice-${index + 1}`],
 }));
 
-afterEach(cleanup);
+const scrollIntoView = vi.fn();
+
+beforeEach(() => {
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+    configurable: true,
+    value: scrollIntoView,
+  });
+});
+
+afterEach(() => {
+  cleanup();
+  scrollIntoView.mockReset();
+  vi.useRealTimers();
+});
 
 describe("Select", () => {
   it("opens one accessible listbox without focusing its search input", () => {
@@ -77,6 +90,113 @@ describe("Select", () => {
     fireEvent.keyDown(trigger, { key: "Escape" });
     expect(screen.queryByRole("listbox")).toBeNull();
     expect(document.activeElement).toBe(trigger);
+  });
+
+  it("prevents Enter from submitting a form with or without a search match", () => {
+    const onChange = vi.fn();
+    const onSubmit = vi.fn((event: React.FormEvent) => event.preventDefault());
+    render(
+      <form onSubmit={onSubmit}>
+        <Select
+          aria-label="Country"
+          onChange={onChange}
+          options={longOptions}
+          value={null}
+        />
+      </form>
+    );
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Country" }));
+    const search = screen.getByRole("searchbox", { name: "Search options" });
+    search.focus();
+    fireEvent.change(search, { target: { value: "missing" } });
+    expect(fireEvent.keyDown(search, { key: " " })).toBe(true);
+    expect(screen.getByRole("status")).toBeTruthy();
+    expect(fireEvent.keyDown(search, { key: "Enter" })).toBe(false);
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(onChange).not.toHaveBeenCalled();
+
+    fireEvent.change(search, { target: { value: "Option 2" } });
+    expect(fireEvent.keyDown(search, { key: "Enter" })).toBe(false);
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(onChange).toHaveBeenCalledWith("option-2", longOptions[1]);
+  });
+
+  it("scrolls the selected and keyboard-active options into view", () => {
+    render(
+      <Select
+        aria-label="Long list"
+        onChange={vi.fn()}
+        options={longOptions}
+        value="option-12"
+      />
+    );
+
+    const trigger = screen.getByRole("combobox", { name: "Long list" });
+    fireEvent.click(trigger);
+    const selected = screen.getByRole("option", {
+      name: /deliberately long option label/i,
+    });
+    expect(scrollIntoView).toHaveBeenLastCalledWith({ block: "nearest" });
+    expect(scrollIntoView.mock.contexts.at(-1)).toBe(selected);
+
+    scrollIntoView.mockClear();
+    fireEvent.keyDown(trigger, { key: "ArrowUp" });
+    const activeId = trigger.getAttribute("aria-activedescendant");
+    expect(scrollIntoView).toHaveBeenLastCalledWith({ block: "nearest" });
+    expect(scrollIntoView.mock.contexts.at(-1)).toBe(
+      document.getElementById(activeId ?? "")
+    );
+  });
+
+  it("supports buffered type-ahead, skips disabled options, and never focuses search", () => {
+    vi.useFakeTimers();
+    const options = [
+      { value: "cat", label: "Cat", disabled: true },
+      { value: "canary", label: "Canary" },
+      { value: "dog", label: "Dog" },
+    ] as const;
+    render(
+      <Select
+        aria-label="Pet type"
+        onChange={vi.fn()}
+        options={options}
+        searchable
+        value={null}
+      />
+    );
+
+    const trigger = screen.getByRole("combobox", { name: "Pet type" });
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: "c" });
+    expect(trigger.getAttribute("aria-activedescendant")).toContain("option-1");
+    expect(document.activeElement).toBe(trigger);
+    expect(document.activeElement?.tagName).not.toMatch(/INPUT|TEXTAREA/);
+
+    vi.advanceTimersByTime(501);
+    fireEvent.keyDown(trigger, { key: "d" });
+    expect(trigger.getAttribute("aria-activedescendant")).toContain("option-2");
+  });
+
+  it("selects the active option with Space while the trigger owns focus", () => {
+    const onChange = vi.fn();
+    render(
+      <Select
+        aria-label="Pet type"
+        onChange={onChange}
+        options={shortOptions}
+        value={null}
+      />
+    );
+
+    const trigger = screen.getByRole("combobox", { name: "Pet type" });
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: "ArrowDown" });
+    fireEvent.keyDown(trigger, { key: "ArrowDown" });
+    expect(fireEvent.keyDown(trigger, { key: " " })).toBe(false);
+
+    expect(onChange).toHaveBeenCalledWith("dog", shortOptions[1]);
+    expect(screen.queryByRole("listbox")).toBeNull();
   });
 
   it("skips disabled options during keyboard navigation", () => {
@@ -190,7 +310,10 @@ describe("Select", () => {
 
     expect(document.activeElement).toBe(search);
     expect(screen.queryAllByRole("option")).toHaveLength(0);
-    expect(screen.getByRole("status").textContent).toBe("No result for missing");
+    const status = screen.getByRole("status");
+    expect(status.textContent).toBe("No result for missing");
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(status.closest('[role="listbox"]')).toBeNull();
   });
 
   it("renders disabled and long-option states without changing the interaction model", () => {

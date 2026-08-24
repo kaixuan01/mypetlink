@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, type ReactNode } from "react";
+import { useId, type MouseEvent, type ReactNode } from "react";
 
 export type SettingRowProps = {
   control: "switch" | "checkbox";
@@ -29,10 +29,10 @@ export function SettingRow({
   const controlId = id ?? `setting-${generatedId}`;
   const labelId = `${controlId}-label`;
   const helperId = helperText ? `${controlId}-helper` : undefined;
-  const rowClassName = `flex min-h-14 w-full min-w-0 items-start justify-between gap-4 rounded-2xl border p-4 text-left transition ${
+  const rowClassName = `flex min-h-14 w-full min-w-0 items-start justify-between gap-4 rounded-2xl bg-pet-cream p-4 text-left transition ${
     disabled
-      ? "cursor-not-allowed border-pet-border bg-white/70 text-pet-muted"
-      : "cursor-pointer border-[#cfe3ff] bg-white text-pet-ink hover:bg-[#f4f9ff]"
+      ? "cursor-not-allowed text-pet-muted opacity-70"
+      : "cursor-pointer text-pet-ink hover:bg-pet-apricot"
   } ${className ?? ""}`;
   const copy = (
     <span className="min-w-0">
@@ -50,52 +50,67 @@ export function SettingRow({
     </span>
   );
 
-  if (control === "switch") {
-    return (
-      <button
-        aria-checked={checked}
-        aria-describedby={helperId}
-        aria-labelledby={labelId}
-        className={rowClassName}
-        disabled={disabled}
-        id={controlId}
-        onClick={() => onChange(!checked)}
-        role="switch"
-        type="button"
-      >
-        {copy}
-        <span
-          aria-hidden="true"
-          className={`relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition ${
-            checked ? "bg-pet-teal" : "bg-[#cfd6e4]"
-          }`}
-        >
-          <span
-            className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
-              checked ? "left-[1.375rem]" : "left-0.5"
-            }`}
-          />
-        </span>
-      </button>
-    );
+  function handleRowClick(event: MouseEvent<HTMLDivElement>) {
+    if (
+      disabled ||
+      isInteractiveDescendant(event.target, event.currentTarget)
+    ) {
+      return;
+    }
+    onChange(!checked);
   }
 
   return (
-    <label className={rowClassName} htmlFor={controlId}>
+    <div className={rowClassName} data-setting-row onClick={handleRowClick}>
       {copy}
-      <input
-        aria-describedby={helperId}
-        aria-labelledby={labelId}
-        checked={checked}
-        className="mt-0.5 h-5 w-5 shrink-0 accent-pet-teal"
-        disabled={disabled}
-        id={controlId}
-        name={name}
-        onChange={(event) => {
-          if (!disabled) onChange(event.target.checked);
-        }}
-        type="checkbox"
-      />
-    </label>
+      {control === "switch" ? (
+        <button
+          aria-checked={checked}
+          aria-describedby={helperId}
+          aria-labelledby={labelId}
+          className="grid min-h-11 min-w-14 shrink-0 place-items-center rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pet-teal"
+          disabled={disabled}
+          id={controlId}
+          onClick={() => onChange(!checked)}
+          role="switch"
+          type="button"
+        >
+          <span
+            aria-hidden="true"
+            className={`relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition ${
+              checked ? "bg-pet-teal" : "bg-pet-border"
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
+                checked ? "left-[1.375rem]" : "left-0.5"
+              }`}
+            />
+          </span>
+        </button>
+      ) : (
+        <input
+          aria-describedby={helperId}
+          aria-labelledby={labelId}
+          checked={checked}
+          className="mt-0.5 h-5 w-5 shrink-0 accent-pet-teal"
+          disabled={disabled}
+          id={controlId}
+          name={name}
+          onChange={(event) => {
+            if (!disabled) onChange(event.target.checked);
+          }}
+          type="checkbox"
+        />
+      )}
+    </div>
   );
+}
+
+function isInteractiveDescendant(target: EventTarget, row: HTMLElement) {
+  if (!(target instanceof Element)) return false;
+  const interactive = target.closest(
+    'a[href], button, input, select, textarea, [contenteditable="true"], [role="button"], [role="link"], [role="checkbox"], [role="switch"], [role="radio"], [role="combobox"], [role="menuitem"], [role="option"], [tabindex]:not([tabindex="-1"])'
+  );
+  return interactive !== null && row.contains(interactive);
 }

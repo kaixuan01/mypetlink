@@ -11,6 +11,8 @@ import {
 } from "react";
 import { Icon } from "@/components/ui/Icon";
 
+const TYPEAHEAD_RESET_MS = 500;
+
 export type SelectOption<Value extends string = string> = {
   value: Value;
   label: string;
@@ -52,6 +54,8 @@ export function Select<Value extends string = string>(
   const listboxId = `${triggerId}-listbox`;
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const typeaheadBufferRef = useRef("");
+  const typeaheadTimeoutRef = useRef<number | null>(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [activeValue, setActiveValue] = useState<Value | null>(null);
@@ -62,15 +66,34 @@ export function Select<Value extends string = string>(
     props.searchable ?? props.options.length >= (props.searchThreshold ?? 10);
 
   const visibleOptions = useMemo(() => {
-    const term = query.trim().toLocaleLowerCase();
-    if (!term) return props.options;
-
-    return props.options.filter((option) =>
-      [option.label, ...(option.keywords ?? [])].some((candidate) =>
-        candidate.toLocaleLowerCase().includes(term)
-      )
-    );
+    return filterOptions(props.options, query);
   }, [props.options, query]);
+  const optionIds = useMemo(
+    () =>
+      new Map(
+        props.options.map((option, index) => [
+          option.value,
+          `${listboxId}-option-${index}`,
+        ])
+      ),
+    [listboxId, props.options]
+  );
+
+  useEffect(() => {
+    if (!open || activeValue === null) return;
+    const optionId = optionIds.get(activeValue);
+    if (!optionId) return;
+    document.getElementById(optionId)?.scrollIntoView({ block: "nearest" });
+  }, [activeValue, open, optionIds]);
+
+  useEffect(
+    () => () => {
+      if (typeaheadTimeoutRef.current !== null) {
+        window.clearTimeout(typeaheadTimeoutRef.current);
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -79,6 +102,12 @@ export function Select<Value extends string = string>(
       if (!wrapperRef.current?.contains(event.target as Node)) {
         setOpen(false);
         setQuery("");
+        setActiveValue(null);
+        typeaheadBufferRef.current = "";
+        if (typeaheadTimeoutRef.current !== null) {
+          window.clearTimeout(typeaheadTimeoutRef.current);
+          typeaheadTimeoutRef.current = null;
+        }
       }
     }
 
@@ -107,7 +136,40 @@ export function Select<Value extends string = string>(
     setOpen(false);
     setQuery("");
     setActiveValue(null);
+    resetTypeahead();
     if (restoreFocus) triggerRef.current?.focus();
+  }
+
+  function resetTypeahead() {
+    typeaheadBufferRef.current = "";
+    if (typeaheadTimeoutRef.current !== null) {
+      window.clearTimeout(typeaheadTimeoutRef.current);
+      typeaheadTimeoutRef.current = null;
+    }
+  }
+
+  function moveByTypeahead(character: string) {
+    if (typeaheadTimeoutRef.current !== null) {
+      window.clearTimeout(typeaheadTimeoutRef.current);
+    }
+
+    const nextBuffer = `${typeaheadBufferRef.current}${character}`.toLocaleLowerCase();
+    const bufferedMatch = findTypeaheadMatch(visibleOptions, nextBuffer);
+    const match =
+      bufferedMatch ??
+      findTypeaheadMatch(visibleOptions, character.toLocaleLowerCase());
+    typeaheadBufferRef.current = bufferedMatch
+      ? nextBuffer
+      : character.toLocaleLowerCase();
+    typeaheadTimeoutRef.current = window.setTimeout(() => {
+      typeaheadBufferRef.current = "";
+      typeaheadTimeoutRef.current = null;
+    }, TYPEAHEAD_RESET_MS);
+
+    if (match) {
+      if (!open) setOpen(true);
+      setActiveValue(match.value);
+    }
   }
 
   function selectOption(option: SelectOption<Value>) {
@@ -134,6 +196,9 @@ export function Select<Value extends string = string>(
       if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
         event.preventDefault();
         openMenu(event.key === "ArrowUp" || event.key === "End" ? -1 : 1);
+      } else if (isTypeaheadKey(event, searchHasFocus)) {
+        event.preventDefault();
+        moveByTypeahead(event.key);
       }
       return;
     }
@@ -145,6 +210,12 @@ export function Select<Value extends string = string>(
     }
     if (event.key === "Tab") {
       closeMenu(false);
+      return;
+    }
+    if (!searchHasFocus && (event.key === " " || event.key === "Spacebar")) {
+      event.preventDefault();
+      const option = visibleOptions.find((item) => item.value === activeValue);
+      if (option) selectOption(option);
       return;
     }
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
@@ -166,10 +237,15 @@ export function Select<Value extends string = string>(
     const activeIndex = visibleOptions.findIndex(
       (option) => option.value === activeValue
     );
-    if (event.key === "Enter" && activeIndex >= 0) {
+    if (event.key === "Enter") {
       event.preventDefault();
       const option = visibleOptions[activeIndex];
       if (option) selectOption(option);
+      return;
+    }
+    if (isTypeaheadKey(event, searchHasFocus)) {
+      event.preventDefault();
+      moveByTypeahead(event.key);
     }
   }
 
@@ -178,8 +254,9 @@ export function Select<Value extends string = string>(
   );
   const activeOption = activeIndex >= 0 ? visibleOptions[activeIndex] : undefined;
   const activeDescendant = activeOption
-    ? `${listboxId}-option-${props.options.indexOf(activeOption)}`
+    ? optionIds.get(activeOption.value)
     : undefined;
+  const hasVisibleOptions = visibleOptions.length > 0;
 
   return (
     <div
@@ -190,7 +267,7 @@ export function Select<Value extends string = string>(
       <button
         aria-activedescendant={open ? activeDescendant : undefined}
         aria-autocomplete="none"
-        aria-controls={open ? listboxId : undefined}
+        aria-controls={open && hasVisibleOptions ? listboxId : undefined}
         aria-describedby={props["aria-describedby"]}
         aria-expanded={open}
         aria-haspopup="listbox"
@@ -230,19 +307,12 @@ export function Select<Value extends string = string>(
             <div className="pb-2">
               <input
                 aria-activedescendant={activeDescendant}
-                aria-controls={listboxId}
+                aria-controls={hasVisibleOptions ? listboxId : undefined}
                 aria-label={props.searchLabel ?? "Search options"}
                 className="brand-input min-h-11"
                 onChange={(event) => {
                   const nextQuery = event.target.value;
-                  const term = nextQuery.trim().toLocaleLowerCase();
-                  const nextOptions = term
-                    ? props.options.filter((option) =>
-                        [option.label, ...(option.keywords ?? [])].some((candidate) =>
-                          candidate.toLocaleLowerCase().includes(term)
-                        )
-                      )
-                    : props.options;
+                  const nextOptions = filterOptions(props.options, nextQuery);
                   const nextIndex = findEnabledIndex(nextOptions, 0, 1);
                   setQuery(nextQuery);
                   setActiveValue(nextOptions[nextIndex]?.value ?? null);
@@ -254,18 +324,18 @@ export function Select<Value extends string = string>(
             </div>
           ) : null}
 
-          <div
-            aria-label={props["aria-label"]}
-            aria-labelledby={props["aria-labelledby"]}
-            className="max-h-64 overflow-y-auto overscroll-contain pr-1"
-            id={listboxId}
-            role="listbox"
-          >
-            {visibleOptions.length ? (
-              visibleOptions.map((option, index) => {
+          {hasVisibleOptions ? (
+            <div
+              aria-label={props["aria-label"]}
+              aria-labelledby={props["aria-labelledby"]}
+              className="max-h-64 overflow-y-auto overscroll-contain pr-1"
+              id={listboxId}
+              role="listbox"
+            >
+              {visibleOptions.map((option, index) => {
                 const selected = option.value === props.value;
                 const active = index === activeIndex;
-                const optionId = `${listboxId}-option-${props.options.indexOf(option)}`;
+                const optionId = optionIds.get(option.value);
 
                 return (
                   <button
@@ -300,15 +370,15 @@ export function Select<Value extends string = string>(
                     ) : null}
                   </button>
                 );
-              })
-            ) : (
-              <p className="px-4 py-3 text-sm text-pet-muted" role="status">
-                {typeof props.emptyMessage === "function"
-                  ? props.emptyMessage(query)
-                  : props.emptyMessage ?? "No matching options."}
-              </p>
-            )}
-          </div>
+              })}
+            </div>
+          ) : (
+            <p className="px-4 py-3 text-sm text-pet-muted" role="status">
+              {typeof props.emptyMessage === "function"
+                ? props.emptyMessage(query)
+                : props.emptyMessage ?? "No matching options."}
+            </p>
+          )}
         </div>
       ) : null}
     </div>
@@ -337,4 +407,45 @@ function findEnabledIndex<Value extends string>(
   }
 
   return -1;
+}
+
+function filterOptions<Value extends string>(
+  options: readonly SelectOption<Value>[],
+  query: string
+) {
+  const term = query.trim().toLocaleLowerCase();
+  if (!term) return options;
+
+  return options.filter((option) =>
+    [option.label, ...(option.keywords ?? [])].some((candidate) =>
+      candidate.toLocaleLowerCase().includes(term)
+    )
+  );
+}
+
+function findTypeaheadMatch<Value extends string>(
+  options: readonly SelectOption<Value>[],
+  buffer: string
+) {
+  return options.find(
+    (option) =>
+      !option.disabled &&
+      [option.label, ...(option.keywords ?? [])].some((candidate) =>
+        candidate.toLocaleLowerCase().startsWith(buffer)
+      )
+  );
+}
+
+function isTypeaheadKey(
+  event: KeyboardEvent<HTMLElement>,
+  searchHasFocus: boolean
+) {
+  return (
+    !searchHasFocus &&
+    event.key.length === 1 &&
+    event.key !== " " &&
+    !event.altKey &&
+    !event.ctrlKey &&
+    !event.metaKey
+  );
 }

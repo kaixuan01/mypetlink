@@ -57,11 +57,12 @@ export function FormDialog({
     : undefined;
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const closeRef = useRef<HTMLButtonElement | null>(null);
+  const titleRef = useRef<HTMLHeadingElement | null>(null);
 
   useModalDialogFocus({
     dialogRef,
     enabled: open,
-    initialFocusRef: closeRef,
+    initialFocusRef: dismissible ? closeRef : titleRef,
     onEscape: () => {
       if (dismissible) onRequestClose();
     },
@@ -121,6 +122,8 @@ export function FormDialog({
             <h2
               className={`${eyebrow ? "mt-1" : ""} text-xl font-black text-pet-ink sm:text-2xl`}
               id={titleId}
+              ref={titleRef}
+              tabIndex={dismissible ? undefined : -1}
             >
               {title}
             </h2>
@@ -133,18 +136,17 @@ export function FormDialog({
               </p>
             ) : null}
           </div>
-          <button
-            aria-disabled={!dismissible || undefined}
-            aria-label={closeLabel}
-            className="grid min-h-11 min-w-11 shrink-0 place-items-center rounded-full bg-pet-cream text-pet-muted transition hover:text-pet-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pet-teal aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
-            onClick={() => {
-              if (dismissible) onRequestClose();
-            }}
-            ref={closeRef}
-            type="button"
-          >
-            <Icon className="h-5 w-5 rotate-45" name="plus" />
-          </button>
+          {dismissible ? (
+            <button
+              aria-label={closeLabel}
+              className="grid min-h-11 min-w-11 shrink-0 place-items-center rounded-full bg-pet-cream text-pet-muted transition hover:text-pet-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pet-teal"
+              onClick={onRequestClose}
+              ref={closeRef}
+              type="button"
+            >
+              <Icon className="h-5 w-5 rotate-45" name="plus" />
+            </button>
+          ) : null}
         </header>
 
         <div
@@ -197,7 +199,7 @@ function DialogActionButton({
 }) {
   return (
     <button
-      className={`inline-flex min-h-12 min-w-0 items-center justify-center rounded-full px-5 py-3 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+      className={`inline-flex min-h-12 w-full min-w-0 items-center justify-center whitespace-normal break-words rounded-full px-3 py-3 text-center text-sm font-bold leading-5 transition sm:w-auto sm:px-5 disabled:cursor-not-allowed disabled:opacity-60 ${
         kind === "primary"
           ? "border border-pet-coral bg-pet-coral text-white shadow-lg shadow-[#ff7a6e]/20 hover:bg-[#f26155]"
           : "border border-pet-border bg-white text-pet-ink hover:bg-pet-cream"
