@@ -28,6 +28,7 @@ it("renders Home, Pets, Moments, and More at narrow mobile width", () => {
   Object.defineProperty(portal, "clientWidth", { configurable: true, value: 320 });
   fireEvent(window, new Event("resize"));
 
+  expect(portal.className).toContain("safe-area-inset-bottom");
   expect(screen.getByRole("link", { name: "Home" })).toBeTruthy();
   expect(screen.getByRole("link", { name: "Pets" })).toBeTruthy();
   expect(screen.getByRole("link", { name: "Moments" })).toBeTruthy();
@@ -40,7 +41,10 @@ it("keeps only available secondary destinations in More", () => {
 
   fireEvent.click(screen.getByRole("button", { name: "More" }));
 
-  expect(screen.getByRole("dialog")).toBeTruthy();
+  const dialog = screen.getByRole("dialog");
+  expect(dialog.querySelector("section")?.className).toContain(
+    "safe-area-inset-bottom"
+  );
   expect(screen.getByRole("link", { name: "Care Records" })).toBeTruthy();
   expect(screen.getByRole("link", { name: "Owner Settings" })).toBeTruthy();
   expect(screen.getByRole("button", { name: "Log out" })).toBeTruthy();

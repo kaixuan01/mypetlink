@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Noto_Sans, Poppins } from "next/font/google";
 import { siteConfig } from "@/config/site";
 import { ServiceWakeUpState } from "@/components/ui/ServiceWakeUpState";
@@ -57,6 +57,10 @@ export const metadata: Metadata = {
     ],
     apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
   },
+};
+
+export const viewport: Viewport = {
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

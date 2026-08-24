@@ -89,6 +89,8 @@ describe("AppLayout desktop navigation", () => {
     const shell = main.parentElement?.parentElement;
 
     expect(main.className).toContain("--owner-bottom-nav-height");
+    expect(main.className).toContain("safe-area-inset-bottom");
     expect(shell?.className).not.toContain("--owner-bottom-nav-height");
+    expect(shell?.className).not.toContain("safe-area-inset-bottom");
   });
 });

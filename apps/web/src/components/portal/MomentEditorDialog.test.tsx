@@ -61,6 +61,11 @@ describe("MomentEditorDialog", () => {
       expect(screen.getByTestId("shared-moment-media")).toBeTruthy();
       expect(screen.getByLabelText("Show in Life Timeline")).toBeTruthy();
       expect(
+        screen.getByRole("button", {
+          name: mode === "edit" ? "Save Changes" : "Add Moment",
+        }).closest("footer")?.className
+      ).toContain("safe-area-inset-bottom");
+      expect(
         screen.getByText(
           "Include this Moment in your pet's Life Timeline. Private Moments stay private."
         )
