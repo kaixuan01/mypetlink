@@ -1,0 +1,146 @@
+// @vitest-environment jsdom
+
+import { useState } from "react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { FormDialog } from "./FormDialog";
+
+afterEach(() => {
+  cleanup();
+  document.body.style.overflow = "";
+});
+
+function DialogHarness({
+  dismissible = true,
+  long = false,
+}: {
+  dismissible?: boolean;
+  long?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div>
+      <button onClick={() => setOpen(true)} type="button">
+        Open editor
+      </button>
+      <FormDialog
+        description="Update the details."
+        dismissible={dismissible}
+        eyebrow="Pet details"
+        onRequestClose={() => setOpen(false)}
+        open={open}
+        primaryAction={{ label: "Save changes", type: "submit" }}
+        title="Edit pet"
+      >
+        <input aria-label="Pet name" />
+        {long
+          ? Array.from({ length: 30 }, (_, index) => (
+              <p key={index}>Long scrolling content {index + 1}</p>
+            ))
+          : null}
+      </FormDialog>
+    </div>
+  );
+}
+
+describe("FormDialog", () => {
+  it("focuses the close button, locks and inerts the background, and never defaults to an input", async () => {
+    render(<DialogHarness />);
+    const trigger = screen.getByRole("button", { name: "Open editor" });
+    trigger.focus();
+    fireEvent.click(trigger);
+
+    const close = screen.getByRole("button", { name: "Close dialog" });
+    await waitFor(() => expect(document.activeElement).toBe(close));
+    expect(document.activeElement?.tagName).toBe("BUTTON");
+    expect(document.body.style.overflow).toBe("hidden");
+    expect(trigger.hasAttribute("inert") || trigger.parentElement?.hasAttribute("inert")).toBe(
+      true
+    );
+  });
+
+  it("traps focus, dismisses with Escape, and restores focus to the trigger", async () => {
+    render(<DialogHarness />);
+    const trigger = screen.getByRole("button", { name: "Open editor" });
+    trigger.focus();
+    fireEvent.click(trigger);
+    const close = screen.getByRole("button", { name: "Close dialog" });
+    const primary = screen.getByRole("button", { name: "Save changes" });
+    await waitFor(() => expect(document.activeElement).toBe(close));
+
+    primary.focus();
+    fireEvent.keyDown(document, { key: "Tab" });
+    expect(document.activeElement).toBe(close);
+    fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(primary);
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(document.activeElement).toBe(trigger);
+    expect(document.body.style.overflow).toBe("");
+  });
+
+  it("keeps a non-dismissible dialog open without focusing its text field", async () => {
+    render(<DialogHarness dismissible={false} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open editor" }));
+    const close = screen.getByRole("button", { name: "Close dialog" });
+    await waitFor(() => expect(document.activeElement).toBe(close));
+    expect(close.getAttribute("aria-disabled")).toBe("true");
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    expect(document.activeElement).toBe(close);
+  });
+
+  it("keeps header and footer pinned around a separately scrollable long body", () => {
+    render(<DialogHarness long />);
+    fireEvent.click(screen.getByRole("button", { name: "Open editor" }));
+
+    const body = screen.getByTestId("form-dialog-body");
+    const footer = screen.getByRole("button", { name: "Save changes" }).closest("footer");
+    const shell = body.parentElement;
+
+    expect(body.className).toContain("overflow-y-auto");
+    expect(shell?.className).toContain("h-[100dvh]");
+    expect(shell?.className).toContain("sm:max-h-[92dvh]");
+    expect(footer?.className).toContain("safe-area-inset-bottom");
+    expect(screen.getByText("Long scrolling content 30")).toBeTruthy();
+  });
+
+  it("uses side-by-side Cancel and Primary actions by default and supports explicit stacking", () => {
+    const onClose = vi.fn();
+    const { rerender } = render(
+      <FormDialog
+        onRequestClose={onClose}
+        open
+        primaryAction={{ label: "Save" }}
+        title="Edit"
+      >
+        Short content
+      </FormDialog>
+    );
+
+    const inline = screen.getByRole("button", { name: "Save" }).parentElement;
+    expect(inline?.dataset.formDialogFooterLayout).toBe("inline");
+    expect(inline?.className).toContain("grid-cols-2");
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeTruthy();
+
+    rerender(
+      <FormDialog
+        footerLayout="stacked"
+        onRequestClose={onClose}
+        open
+        primaryAction={{ label: "Save" }}
+        title="Edit"
+      >
+        <div role="alert">Resolve the validation error.</div>
+      </FormDialog>
+    );
+    expect(screen.getByRole("alert")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Save" }).parentElement?.dataset
+        .formDialogFooterLayout
+    ).toBe("stacked");
+  });
+});
