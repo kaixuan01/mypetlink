@@ -2,20 +2,22 @@
 
 import { ImageUploadField } from "@/components/portal/ImageUploadField";
 import { DateInput } from "@/components/ui/DateInput";
+import { Field } from "@/components/ui/Field";
 import { FormSection } from "@/components/ui/FormSection";
 import { Icon } from "@/components/ui/Icon";
+import { Select } from "@/components/ui/Select";
 import {
   getEstimatedBirthYearOptions,
   MINIMUM_PET_BIRTH_YEAR,
   type PetAgeMode,
 } from "@/lib/petAge";
 import type { PetSpecies } from "@/types";
+import { TextInput } from "./PetFormControls";
 import {
-  BreedSelector,
-  Field,
-  PetTypeSelector,
-  TextInput,
-} from "./PetFormControls";
+  BreedSelect,
+  petAgeModeSelectOptions,
+  petTypeSelectOptions,
+} from "./PetSelectionControls";
 import type { FormErrors, FormState, UpdateField } from "./PetFormTypes";
 
 export function CreatePetDetailsSection({
@@ -59,12 +61,15 @@ export function CreatePetDetailsSection({
 
             <div data-create-field="name">
               <Field
-                error={errors.name}
-                helper="Use the name people normally call your pet."
+                errorText={errors.name}
+                helperText="Use the name people normally call your pet."
+                htmlFor="create-pet-name"
                 label="Pet name"
+                required
               >
                 <input
                   className="brand-input"
+                  id="create-pet-name"
                   maxLength={60}
                   onChange={(event) => handleNameChange(event.target.value)}
                   placeholder="Milo"
@@ -75,8 +80,20 @@ export function CreatePetDetailsSection({
             </div>
 
             <div data-create-field="species">
-              <Field error={errors.species} label="Pet type">
-                <PetTypeSelector onChange={updateSpecies} value={form.species} />
+              <Field
+                errorText={errors.species}
+                id="create-pet-type-field"
+                label="Pet type"
+                required
+              >
+                <Select
+                  id="create-pet-type"
+                  onChange={updateSpecies}
+                  options={petTypeSelectOptions}
+                  searchLabel="Search pet type"
+                  searchPlaceholder="Search pet type"
+                  value={form.species}
+                />
               </Field>
             </div>
 
@@ -84,6 +101,7 @@ export function CreatePetDetailsSection({
               <div data-create-field="customSpecies">
                 <TextInput
                   error={errors.customSpecies}
+                  id="create-pet-custom-species"
                   label="Enter pet type"
                   maxLength={60}
                   onChange={(value) => updateField("customSpecies", value)}
@@ -95,12 +113,14 @@ export function CreatePetDetailsSection({
 
             <div data-create-field="breed">
               <Field
-                error={errors.breed}
-                helper="Optional. Leave this blank if you are not sure."
+                errorText={errors.breed}
+                helperText="Optional. Leave this blank if you are not sure."
+                id="create-pet-breed-field"
                 label="Breed"
               >
-                <BreedSelector
+                <BreedSelect
                   breeds={breeds}
+                  id="create-pet-breed"
                   onChange={(value) => updateField("breed", value)}
                   value={form.breed}
                 />
@@ -108,29 +128,26 @@ export function CreatePetDetailsSection({
             </div>
 
             <div data-create-field="ageInformationMode">
-              <Field label="Age information">
-                <select
-                  className="brand-input brand-select"
-                  onChange={(event) =>
-                    updateAgeInformationMode(event.target.value as PetAgeMode)
-                  }
+              <Field id="create-pet-age-mode-field" label="Age information">
+                <Select
+                  id="create-pet-age-mode"
+                  onChange={updateAgeInformationMode}
+                  options={petAgeModeSelectOptions}
                   value={form.ageInformationMode}
-                >
-                  <option value="ExactBirthday">Exact birthday</option>
-                  <option value="EstimatedBirthYear">Estimated birth year</option>
-                  <option value="Unknown">Unknown</option>
-                </select>
+                />
               </Field>
             </div>
 
             {form.ageInformationMode === "ExactBirthday" ? (
               <div data-create-field="birthdayDate">
                 <Field
-                  error={errors.birthdayDate}
-                  helper="Use this when you know your pet's full birth date."
+                  errorText={errors.birthdayDate}
+                  helperText="Use this when you know your pet's full birth date."
+                  htmlFor="create-pet-birthday"
                   label="Exact birthday"
                 >
                   <DateInput
+                    id="create-pet-birthday"
                     max={new Date().toISOString().slice(0, 10)}
                     min={`${MINIMUM_PET_BIRTH_YEAR}-01-01`}
                     onChange={(event) => updateBirthday(event.target.value)}
@@ -143,12 +160,14 @@ export function CreatePetDetailsSection({
             {form.ageInformationMode === "EstimatedBirthYear" ? (
               <div data-create-field="estimatedBirthYear">
                 <Field
-                  error={errors.estimatedBirthYear}
-                  helper="Use this when you only know approximately which year your pet was born."
+                  errorText={errors.estimatedBirthYear}
+                  helperText="Use this when you only know approximately which year your pet was born."
+                  htmlFor="create-pet-estimated-birth-year"
                   label="Estimated birth year"
                 >
                   <select
                     className="brand-input brand-select"
+                    id="create-pet-estimated-birth-year"
                     onChange={(event) =>
                       updateField("estimatedBirthYear", event.target.value)
                     }

@@ -842,16 +842,23 @@ describe("PetProfileForm lifecycle workflow", () => {
     expect(birthday.value).toBe("2023-10-12");
     expect(birthday.classList.contains("brand-date-input")).toBe(true);
 
-    const ageMode = screen.getByLabelText(
-      /Age information/
-    ) as HTMLSelectElement;
-    expect(ageMode.value).toBe("ExactBirthday");
-    expect(ageMode.classList.contains("brand-select")).toBe(true);
-    expect(screen.getByRole("button", { name: /^Breed/ }).textContent).toBe(
+    const ageMode = screen.getByRole("combobox", {
+      name: /Age information/,
+    });
+    expect(ageMode.textContent).toContain("Exact birthday");
+    expect(screen.getByRole("combobox", { name: /^Breed/ }).textContent).toBe(
       "Other"
     );
     expect((screen.getByLabelText("Enter breed") as HTMLInputElement).value).toBe(
       "Domestic Longhair"
+    );
+
+    clickSave();
+    await waitFor(() => expect(mocks.updatePet).toHaveBeenCalledOnce());
+    expect(mocks.updatePet).toHaveBeenCalledWith(
+      pet.id,
+      expect.objectContaining({ breed: "Domestic Longhair" }),
+      { completeProfile: true }
     );
   });
 

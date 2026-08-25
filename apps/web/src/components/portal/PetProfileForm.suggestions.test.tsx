@@ -55,9 +55,18 @@ function addCustom(fieldLabel: string, value: string) {
   fireEvent.keyDown(input, { key: "Enter" });
 }
 
+function chooseCustomSelectOption(
+  controlName: RegExp | string,
+  option: RegExp | string
+) {
+  fireEvent.click(screen.getByRole("combobox", { name: controlName }));
+  fireEvent.click(screen.getByRole("option", { name: option }));
+}
+
 beforeEach(() => {
   window.history.replaceState({}, "", `/pets/${mockPets[0].id}/edit`);
   mocks.getPetById.mockResolvedValue({ data: structuredClone(editPet) });
+  HTMLElement.prototype.scrollIntoView = vi.fn();
 });
 
 afterEach(() => {
@@ -127,9 +136,9 @@ describe("personality tag picker", () => {
       within(personalityGroup()).getByRole("button", { name: "Brave" })
     );
 
-    const trigger = screen.getByRole("button", { name: "Pet type" });
+    const trigger = screen.getByRole("combobox", { name: "Pet type" });
     fireEvent.click(trigger);
-    fireEvent.click(screen.getByRole("button", { name: /^Cat$/ }));
+    fireEvent.click(screen.getByRole("option", { name: /^Cat$/ }));
 
     expect(screen.getByRole("button", { name: "Remove Snuggly" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Remove Brave" })).toBeTruthy();
@@ -208,7 +217,7 @@ describe("pet detail dropdown indicators", () => {
     await renderEditForm();
 
     for (const name of ["Pet type", "Breed"]) {
-      const trigger = screen.getByRole("button", { name });
+      const trigger = screen.getByRole("combobox", { name });
       const icons = trigger.querySelectorAll("svg");
 
       expect(icons).toHaveLength(1);
@@ -218,13 +227,12 @@ describe("pet detail dropdown indicators", () => {
       ).toBe(true);
     }
 
-    const ageMode = screen.getByLabelText(
-      /Age information/
-    ) as HTMLSelectElement;
-    expect(ageMode.classList.contains("brand-select")).toBe(true);
-    expect(ageMode.querySelector("svg")).toBeNull();
+    const ageMode = screen.getByRole("combobox", {
+      name: /Age information/,
+    });
+    expect(ageMode.querySelector("svg")).toBeTruthy();
 
-    fireEvent.change(ageMode, { target: { value: "ExactBirthday" } });
+    chooseCustomSelectOption(/Age information/, "Exact birthday");
     const birthday = screen.getByLabelText(
       /Exact birthday/
     ) as HTMLInputElement;
@@ -232,7 +240,7 @@ describe("pet detail dropdown indicators", () => {
     expect(birthday.classList.contains("brand-date-input")).toBe(true);
     expect(
       birthday
-        .closest("label")
+        .parentElement
         ?.querySelectorAll(".brand-date-indicator svg")
     ).toHaveLength(1);
   });
@@ -240,10 +248,7 @@ describe("pet detail dropdown indicators", () => {
   it("preserves the conditional native age controls when the age mode changes", async () => {
     await renderEditForm();
 
-    const ageMode = screen.getByLabelText(
-      /Age information/
-    ) as HTMLSelectElement;
-    fireEvent.change(ageMode, { target: { value: "EstimatedBirthYear" } });
+    chooseCustomSelectOption(/Age information/, /^Estimated birth year/);
 
     expect(screen.queryByLabelText(/Exact birthday/)).toBeNull();
     const estimatedYear = screen.getByLabelText(
@@ -251,37 +256,137 @@ describe("pet detail dropdown indicators", () => {
     ) as HTMLSelectElement;
     expect(estimatedYear.classList.contains("brand-select")).toBe(true);
 
-    fireEvent.change(ageMode, { target: { value: "Unknown" } });
+    chooseCustomSelectOption(/Age information/, "Unknown");
     expect(screen.queryByLabelText(/Estimated birth year/)).toBeNull();
     expect(screen.getByText(/birth date and estimated year are not known/i)).toBeTruthy();
   });
 });
 
+describe("shared pet selection controls", () => {
+  it("opens Pet Type without focusing search, focuses it explicitly, and restores trigger focus on Escape", async () => {
+    await renderEditForm();
+
+    const trigger = screen.getByRole("combobox", { name: "Pet type" });
+    fireEvent.click(trigger);
+
+    const search = screen.getByRole("searchbox", { name: "Search pet type" });
+    expect(document.activeElement).not.toBe(search);
+    expect(["INPUT", "TEXTAREA"]).not.toContain(document.activeElement?.tagName);
+    expect(trigger.getAttribute("aria-expanded")).toBe("true");
+    expect(trigger.getAttribute("aria-controls")).toBeTruthy();
+    expect(trigger.getAttribute("aria-activedescendant")).toBeTruthy();
+    expect(screen.getByRole("listbox", { name: "Pet type" })).toBeTruthy();
+
+    search.focus();
+    expect(search).toBe(document.activeElement);
+    fireEvent.keyDown(search, { key: "Escape" });
+    expect(trigger).toBe(document.activeElement);
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("uses shared keyboard navigation to change Pet Type", async () => {
+    await renderEditForm();
+
+    const trigger = screen.getByRole("combobox", { name: "Pet type" });
+    fireEvent.keyDown(trigger, { key: "ArrowDown" });
+    fireEvent.keyDown(trigger, { key: "ArrowDown" });
+    fireEvent.keyDown(trigger, { key: "Enter" });
+
+    expect(trigger.textContent).toContain("Cat");
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("keeps Age Information as the three exact shared Select choices", async () => {
+    await renderEditForm();
+
+    const trigger = screen.getByRole("combobox", { name: "Age information" });
+    fireEvent.click(trigger);
+
+    expect(screen.queryByRole("searchbox")).toBeNull();
+    const listbox = screen.getByRole("listbox", { name: "Age information" });
+    expect(
+      within(listbox).getAllByRole("option").map((option) =>
+        option.textContent?.replace("Selected", "")
+      )
+    ).toEqual(["Exact birthday", "Estimated birth year", "Unknown"]);
+  });
+});
+
 describe("breed selector", () => {
+  it("does not focus the filter when a long Breed list opens", async () => {
+    await renderEditForm();
+
+    const trigger = screen.getByRole("combobox", { name: "Breed" });
+    fireEvent.click(trigger);
+    const search = screen.getByRole("searchbox", { name: "Search breed" });
+
+    expect(document.activeElement).not.toBe(search);
+    expect(["INPUT", "TEXTAREA"]).not.toContain(document.activeElement?.tagName);
+    search.focus();
+    expect(search).toBe(document.activeElement);
+  });
+
+  it("omits the filter for a short species Breed list", async () => {
+    await renderEditForm();
+
+    chooseCustomSelectOption("Pet type", "Rabbit");
+    fireEvent.click(screen.getByRole("combobox", { name: "Breed" }));
+
+    expect(screen.queryByRole("searchbox", { name: "Search breed" })).toBeNull();
+    expect(screen.getByRole("option", { name: "Holland Lop" })).toBeTruthy();
+  });
+
   it("is searchable and always offers Mixed breed, Unknown, and Other", async () => {
     await renderEditForm();
 
-    fireEvent.click(screen.getByRole("button", { name: "Breed" }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Breed" }));
     for (const option of ["Mixed breed", "Unknown", "Other"]) {
-      expect(screen.getByRole("button", { name: option })).toBeTruthy();
+      expect(screen.getByRole("option", { name: option })).toBeTruthy();
     }
 
     fireEvent.change(screen.getByLabelText("Search breed"), {
       target: { value: "poo" },
     });
-    expect(screen.getByRole("button", { name: "Poodle" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Corgi" })).toBeNull();
+    expect(screen.getByRole("option", { name: "Poodle" })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: "Corgi" })).toBeNull();
   });
 
   it("reveals custom input when Other is selected", async () => {
     await renderEditForm();
 
-    fireEvent.click(screen.getByRole("button", { name: "Breed" }));
-    fireEvent.click(screen.getByRole("button", { name: "Other" }));
+    chooseCustomSelectOption("Breed", "Other");
 
     const custom = screen.getByLabelText("Enter breed");
     fireEvent.change(custom, { target: { value: "Axolotl mix" } });
     expect(custom).toHaveProperty("value", "Axolotl mix");
+  });
+
+  it("keeps a custom breed while switching species and can replace it with a curated breed", async () => {
+    await renderEditForm();
+
+    chooseCustomSelectOption("Breed", "Poodle");
+    chooseCustomSelectOption("Pet type", "Rabbit");
+
+    expect(screen.getByLabelText("Enter breed")).toHaveProperty("value", "Poodle");
+    chooseCustomSelectOption("Breed", "Holland Lop");
+    expect(screen.queryByLabelText("Enter breed")).toBeNull();
+    expect(screen.getByRole("combobox", { name: "Breed" }).textContent).toContain(
+      "Holland Lop"
+    );
+  });
+
+  it("prevents no-match Enter in Breed search from submitting the form", async () => {
+    await renderEditForm();
+
+    const form = screen.getByRole("combobox", { name: "Breed" }).closest("form")!;
+    const submitted = vi.fn();
+    form.addEventListener("submit", submitted);
+    fireEvent.click(screen.getByRole("combobox", { name: "Breed" }));
+    const search = screen.getByRole("searchbox", { name: "Search breed" });
+    fireEvent.change(search, { target: { value: "no-such-breed" } });
+
+    expect(fireEvent.keyDown(search, { key: "Enter" })).toBe(false);
+    expect(submitted).not.toHaveBeenCalled();
   });
 });
 

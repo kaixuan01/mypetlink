@@ -54,6 +54,11 @@ function enterNameAndSave() {
   fireEvent.click(screen.getAllByRole("button", { name: "Save Pet" })[0]);
 }
 
+function chooseCustomSelectOption(controlName: RegExp | string, option: string) {
+  fireEvent.click(screen.getByRole("combobox", { name: controlName }));
+  fireEvent.click(screen.getByRole("option", { name: option }));
+}
+
 beforeEach(() => {
   mocks.apiEnabled = false;
   window.history.replaceState({}, "", "/pets/new");
@@ -204,12 +209,11 @@ describe("PetProfileForm creation activation", () => {
     expect(
       screen.getByRole("textbox", { name: /Pet name/ })
     ).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Pet type" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /^Breed/ })).toBeTruthy();
-    expect(screen.getByLabelText(/Age information/)).toHaveProperty(
-      "value",
-      "Unknown"
-    );
+    expect(screen.getByRole("combobox", { name: "Pet type" })).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: /^Breed/ })).toBeTruthy();
+    expect(
+      screen.getByRole("combobox", { name: /Age information/ }).textContent
+    ).toContain("Unknown");
     expect(screen.queryByRole("tab")).toBeNull();
   });
 
@@ -253,13 +257,26 @@ describe("PetProfileForm creation activation", () => {
     expect(mocks.createPet).not.toHaveBeenCalled();
   });
 
+  it("exposes application-required fields without native required validation", () => {
+    render(<PetProfileForm mode="create" />);
+
+    const name = screen.getByRole("textbox", { name: /Pet name/ });
+    const petType = screen.getByRole("combobox", { name: "Pet type" });
+    const form = name.closest("form")!;
+
+    expect(name.getAttribute("aria-required")).toBe("true");
+    expect(petType.getAttribute("aria-required")).toBe("true");
+    expect(name.hasAttribute("required")).toBe(false);
+    expect(petType.hasAttribute("required")).toBe(false);
+    expect(form.checkValidity()).toBe(true);
+  });
+
   it("validates and focuses the conditional custom pet type before saving", async () => {
     render(<PetProfileForm mode="create" />);
     fireEvent.change(screen.getByRole("textbox", { name: /Pet name/ }), {
       target: { value: "Nori" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Pet type" }));
-    fireEvent.click(screen.getByRole("button", { name: "Other" }));
+    chooseCustomSelectOption("Pet type", "Other");
 
     const customType = screen.getByRole("textbox", { name: /Enter pet type/ });
     fireEvent.click(screen.getAllByRole("button", { name: "Save Pet" })[0]);
@@ -284,7 +301,7 @@ describe("PetProfileForm creation activation", () => {
     render(<PetProfileForm mode="create" />);
 
     expect(
-      screen.getByRole("button", { name: "Pet type" }).textContent
+      screen.getByRole("combobox", { name: "Pet type" }).textContent
     ).toContain("Dog");
     expect(screen.queryByRole("textbox", { name: /Enter pet type/ })).toBeNull();
   });
@@ -294,8 +311,7 @@ describe("PetProfileForm creation activation", () => {
     fireEvent.change(screen.getByRole("textbox", { name: /Pet name/ }), {
       target: { value: "Nori" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Pet type" }));
-    fireEvent.click(screen.getByRole("button", { name: "Other" }));
+    chooseCustomSelectOption("Pet type", "Other");
 
     const customType = screen.getByRole("textbox", {
       name: /Enter pet type/,
@@ -316,8 +332,7 @@ describe("PetProfileForm creation activation", () => {
     fireEvent.change(screen.getByRole("textbox", { name: /Pet name/ }), {
       target: { value: "Nori" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Pet type" }));
-    fireEvent.click(screen.getByRole("button", { name: "Other" }));
+    chooseCustomSelectOption("Pet type", "Other");
 
     const customType = screen.getByRole("textbox", { name: /Enter pet type/ });
     fireEvent.change(customType, { target: { value: "x".repeat(61) } });
@@ -333,9 +348,7 @@ describe("PetProfileForm creation activation", () => {
     fireEvent.change(screen.getByRole("textbox", { name: /Pet name/ }), {
       target: { value: "Milo" },
     });
-    fireEvent.change(screen.getByLabelText(/Age information/), {
-      target: { value: "ExactBirthday" },
-    });
+    chooseCustomSelectOption(/Age information/, "Exact birthday");
     const birthday = screen.getByLabelText(/Exact birthday/);
     const futureYear = new Date().getFullYear() + 1;
     fireEvent.change(birthday, { target: { value: `${futureYear}-01-01` } });
@@ -352,9 +365,7 @@ describe("PetProfileForm creation activation", () => {
     fireEvent.change(screen.getByRole("textbox", { name: /Pet name/ }), {
       target: { value: "Milo" },
     });
-    fireEvent.change(screen.getByLabelText(/Age information/), {
-      target: { value: "EstimatedBirthYear" },
-    });
+    chooseCustomSelectOption(/Age information/, "Estimated birth year");
     const estimatedYear = screen.getByLabelText(
       /Estimated birth year/
     ) as HTMLSelectElement;
@@ -382,9 +393,10 @@ describe("PetProfileForm creation activation", () => {
       fireEvent.change(screen.getByRole("textbox", { name: /Pet name/ }), {
         target: { value: "Milo" },
       });
-      fireEvent.change(screen.getByLabelText(/Age information/), {
-        target: { value: ageMode },
-      });
+      chooseCustomSelectOption(
+        /Age information/,
+        ageMode === "ExactBirthday" ? "Exact birthday" : "Estimated birth year"
+      );
       const control = screen.getByLabelText(new RegExp(label));
       if (value) {
         fireEvent.change(control, { target: { value } });

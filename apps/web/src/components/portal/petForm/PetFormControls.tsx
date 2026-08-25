@@ -2,17 +2,15 @@
 
 import {
   useEffect,
-  useMemo,
-  useRef,
+  useId,
   useState,
   type ReactNode,
 } from "react";
+import { Field } from "@/components/ui/Field";
 import { Icon } from "@/components/ui/Icon";
 import type { CoverCropMetrics } from "@/lib/coverCrop";
-import { PET_TYPE_OPTIONS } from "@/lib/petDisplay";
 import { getBioTemplates } from "@/lib/petSuggestions";
 import type { PetProfileTheme } from "@/lib/petProfileThemes";
-import type { PetSpecies } from "@/types";
 
 export function UrlDisplay({ label, url }: { label: string; url: string }) {
   const [copied, setCopied] = useState(false);
@@ -72,118 +70,6 @@ export function ContactSummary({
         </div>
       ))}
     </dl>
-  );
-}
-
-const DROPDOWN_TRIGGER_CLASS_NAME =
-  "brand-input flex min-h-12 items-center justify-between gap-4 text-left";
-const DROPDOWN_VALUE_CLASS_NAME = "min-w-0 truncate";
-const DROPDOWN_CHEVRON_CLASS_NAME =
-  "pointer-events-none h-4 w-4 shrink-0 text-pet-muted transition-transform duration-150";
-
-export function PetTypeSelector({
-  onChange,
-  value,
-}: {
-  onChange: (value: PetSpecies) => void;
-  value: PetSpecies;
-}) {
-  const wrapperRef = useRef<HTMLDivElement | null>(null);
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const normalizedQuery = query.trim().toLowerCase();
-  const visibleOptions = PET_TYPE_OPTIONS.filter((option) =>
-    option.toLowerCase().includes(normalizedQuery)
-  );
-  const options = visibleOptions.length ? visibleOptions : ["Other" as PetSpecies];
-
-  useEffect(() => {
-    if (!open) {
-      return undefined;
-    }
-
-    function handlePointerDown(event: PointerEvent) {
-      if (!wrapperRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setOpen(false);
-      }
-    }
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [open]);
-
-  function selectOption(option: PetSpecies) {
-    onChange(option);
-    setQuery("");
-    setOpen(false);
-  }
-
-  return (
-    <div className="relative" ref={wrapperRef}>
-      <button
-        aria-expanded={open}
-        aria-haspopup="listbox"
-        className={DROPDOWN_TRIGGER_CLASS_NAME}
-        onClick={() => setOpen((current) => !current)}
-        type="button"
-      >
-        <span className={DROPDOWN_VALUE_CLASS_NAME}>{value}</span>
-        <Icon
-          name="chevron"
-          className={`${DROPDOWN_CHEVRON_CLASS_NAME} ${
-            open ? "rotate-180" : ""
-          }`}
-        />
-      </button>
-
-      {open ? (
-        <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-30 overflow-hidden rounded-[1.25rem] border border-pet-border bg-white p-2 shadow-xl shadow-[#0d1b3d]/12">
-          <input
-            aria-label="Search pet type"
-            autoFocus
-            className="brand-input min-h-11"
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search pet type"
-            type="search"
-            value={query}
-          />
-          <div className="mt-2 max-h-64 overflow-y-auto pr-1">
-            {options.map((option) => {
-              const selected = option === value;
-
-              return (
-                <button
-                  className={`flex min-h-11 w-full items-center justify-between rounded-2xl px-4 py-2 text-left text-sm font-bold transition ${
-                    selected
-                      ? "bg-[#e8f3ff] text-pet-teal"
-                      : "text-pet-ink hover:bg-pet-cream"
-                  }`}
-                  key={option}
-                  onClick={() => selectOption(option)}
-                  type="button"
-                >
-                  <span>{option}</span>
-                  {selected ? (
-                    <span className="text-xs text-pet-teal">Selected</span>
-                  ) : null}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      ) : null}
-    </div>
   );
 }
 
@@ -380,17 +266,34 @@ export function TagListInput({
 export function GenderSegmentedControl({
   value,
   onChange,
+  id,
+  "aria-label": ariaLabel,
+  "aria-labelledby": ariaLabelledBy,
+  "aria-describedby": ariaDescribedBy,
+  "aria-invalid": ariaInvalid,
+  "aria-required": ariaRequired,
 }: {
   value: string;
   onChange: (value: string) => void;
+  id?: string;
+  "aria-label"?: string;
+  "aria-labelledby"?: string;
+  "aria-describedby"?: string;
+  "aria-invalid"?: boolean | "false" | "true";
+  "aria-required"?: boolean | "false" | "true";
 }) {
   const normalized = value.trim().toLowerCase();
 
   return (
     <div
+      aria-describedby={ariaDescribedBy}
+      aria-invalid={ariaInvalid}
+      aria-label={ariaLabelledBy ? undefined : ariaLabel ?? "Gender"}
+      aria-labelledby={ariaLabelledBy}
+      aria-required={ariaRequired}
       className="grid grid-cols-3 gap-1 rounded-full border border-pet-border bg-white p-1"
+      id={id}
       role="radiogroup"
-      aria-label="Gender"
     >
       {(["Male", "Female", "Unknown"] as const).map((option) => {
         const selected =
@@ -414,165 +317,6 @@ export function GenderSegmentedControl({
           </button>
         );
       })}
-    </div>
-  );
-}
-
-// Searchable breed dropdown (same interaction and chevron as Pet Type).
-// Always offers Mixed breed, Unknown, and Other; Other reveals custom input.
-export function BreedSelector({
-  breeds,
-  value,
-  onChange,
-}: {
-  breeds: string[];
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  const wrapperRef = useRef<HTMLDivElement | null>(null);
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const options = useMemo(() => {
-    const seen = new Set<string>();
-    const merged: string[] = [];
-
-    for (const option of [...breeds, "Mixed breed", "Unknown", "Other"]) {
-      const key = option.toLowerCase();
-      if (!seen.has(key)) {
-        seen.add(key);
-        merged.push(option);
-      }
-    }
-
-    return merged;
-  }, [breeds]);
-  // Custom mode: explicit "Other" selection, or an existing saved breed that
-  // is not one of the offered options.
-  const [customMode, setCustomMode] = useState(
-    () => Boolean(value) && !options.some((option) => option === value)
-  );
-  const normalizedQuery = query.trim().toLowerCase();
-  const visibleOptions = options.filter((option) =>
-    option.toLowerCase().includes(normalizedQuery)
-  );
-
-  useEffect(() => {
-    if (!open) {
-      return undefined;
-    }
-
-    function handlePointerDown(event: PointerEvent) {
-      if (!wrapperRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setOpen(false);
-      }
-    }
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [open]);
-
-  function selectOption(option: string) {
-    if (option === "Other") {
-      setCustomMode(true);
-      onChange("");
-    } else {
-      setCustomMode(false);
-      onChange(option);
-    }
-
-    setQuery("");
-    setOpen(false);
-  }
-
-  return (
-    <div className="grid min-w-0 gap-2">
-      <div className="relative" ref={wrapperRef}>
-        <button
-          aria-expanded={open}
-          aria-haspopup="listbox"
-          className={DROPDOWN_TRIGGER_CLASS_NAME}
-          onClick={() => setOpen((current) => !current)}
-          type="button"
-        >
-          <span
-            className={`${DROPDOWN_VALUE_CLASS_NAME} ${
-              value || customMode ? "" : "text-pet-muted"
-            }`}
-          >
-            {customMode ? "Other" : value || "Select breed"}
-          </span>
-          <Icon
-            name="chevron"
-            className={`${DROPDOWN_CHEVRON_CLASS_NAME} ${
-              open ? "rotate-180" : ""
-            }`}
-          />
-        </button>
-
-        {open ? (
-          <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-30 overflow-hidden rounded-[1.25rem] border border-pet-border bg-white p-2 shadow-xl shadow-[#0d1b3d]/12">
-            <input
-              aria-label="Search breed"
-              autoFocus
-              className="brand-input min-h-11"
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search breed"
-              type="search"
-              value={query}
-            />
-            <div className="mt-2 max-h-64 overflow-y-auto pr-1">
-              {(visibleOptions.length ? visibleOptions : ["Other"]).map(
-                (option) => {
-                  const selected = customMode
-                    ? option === "Other"
-                    : option === value;
-
-                  return (
-                    <button
-                      className={`flex min-h-11 w-full items-center justify-between rounded-2xl px-4 py-2 text-left text-sm font-bold transition ${
-                        selected
-                          ? "bg-[#e8f3ff] text-pet-teal"
-                          : "text-pet-ink hover:bg-pet-cream"
-                      }`}
-                      key={option}
-                      onClick={() => selectOption(option)}
-                      type="button"
-                    >
-                      <span>{option}</span>
-                      {selected ? (
-                        <span className="text-xs text-pet-teal">Selected</span>
-                      ) : null}
-                    </button>
-                  );
-                }
-              )}
-            </div>
-          </div>
-        ) : null}
-      </div>
-
-      {customMode ? (
-        <input
-          aria-label="Enter breed"
-          className="brand-input"
-          maxLength={80}
-          onChange={(event) => onChange(event.target.value)}
-          placeholder="Enter breed"
-          type="text"
-          value={value}
-        />
-      ) : null}
     </div>
   );
 }
@@ -666,6 +410,7 @@ export function TextInput({
   error,
   helper,
   maxLength,
+  id,
 }: {
   label: string;
   placeholder: string;
@@ -674,11 +419,21 @@ export function TextInput({
   error?: string;
   helper?: string;
   maxLength?: number;
+  id?: string;
 }) {
+  const generatedId = useId();
+  const inputId = id ?? `pet-text-${generatedId}`;
+
   return (
-    <Field error={error} helper={helper} label={label}>
+    <Field
+      errorText={error}
+      helperText={helper}
+      htmlFor={inputId}
+      label={label}
+    >
       <input
         className="brand-input"
+        id={inputId}
         maxLength={maxLength}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
@@ -739,29 +494,6 @@ export function getCoverAxisDescription(
   return canMove
     ? undefined
     : `This photo already fits ${axis.toLowerCase()}ly in the cover area.`;
-}
-
-export function Field({
-  label,
-  error,
-  helper,
-  children,
-}: {
-  label: string;
-  error?: string;
-  helper?: string;
-  children: ReactNode;
-}) {
-  return (
-    <label className="grid min-w-0 gap-2">
-      <span className="text-sm font-bold text-pet-ink">{label}</span>
-      {children}
-      {helper ? <span className="text-xs leading-5 text-pet-muted">{helper}</span> : null}
-      {error ? (
-        <span className="text-xs font-bold text-[#a63c2e]">{error}</span>
-      ) : null}
-    </label>
-  );
 }
 
 // Accessible switch row: one full-width tappable row per setting, so the

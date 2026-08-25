@@ -2,11 +2,12 @@
 
 import { ShareProfileLink } from "@/components/share/ShareProfileLink";
 import { DateInput } from "@/components/ui/DateInput";
+import { Field } from "@/components/ui/Field";
 import { FormSection } from "@/components/ui/FormSection";
 import { getPublicProfileShareVersion } from "@/lib/publicProfileSocial";
 import { slugifyPetSlug } from "@/services/petService";
 import type { Pet } from "@/types";
-import { Checkbox, Field, PrivacyGroup, ToggleRow } from "./PetFormControls";
+import { Checkbox, PrivacyGroup, ToggleRow } from "./PetFormControls";
 import type { FormErrors, FormState, UpdateField } from "./PetFormTypes";
 
 export function SharingPrivacySection({
@@ -40,11 +41,13 @@ export function SharingPrivacySection({
                 </p>
                 <div className="mt-4 grid gap-4 lg:grid-cols-2">
                   <Field
-                    error={errors.passedAwayDate}
-                    helper="Optional. Share this only if it feels right for you."
+                    errorText={errors.passedAwayDate}
+                    helperText="Optional. Share this only if it feels right for you."
+                    htmlFor="pet-passed-away-date"
                     label="Date of passing, optional"
                   >
                     <DateInput
+                      id="pet-passed-away-date"
                       onChange={(event) =>
                         updateField("passedAwayDate", event.target.value)
                       }
@@ -52,12 +55,14 @@ export function SharingPrivacySection({
                     />
                   </Field>
                   <Field
-                    error={errors.memorialMessage}
-                    helper="A gentle note for friends and family. Maximum 240 characters."
+                    errorText={errors.memorialMessage}
+                    helperText="A gentle note for friends and family. Maximum 240 characters."
+                    htmlFor="pet-memorial-message"
                     label="Memorial message, optional"
                   >
                     <textarea
                       className="brand-input min-h-28"
+                      id="pet-memorial-message"
                       maxLength={240}
                       onChange={(event) =>
                         updateField("memorialMessage", event.target.value)
@@ -150,12 +155,15 @@ export function SharingPrivacySection({
               </summary>
               <div className="grid gap-3 px-5 pb-5">
                 <Field
-                  error={errors.slug}
-                  helper="This becomes the public page address."
+                  errorText={errors.slug}
+                  helperText="This becomes the public page address."
+                  htmlFor="pet-profile-slug"
                   label="Custom public profile link name"
+                  required
                 >
                   <input
                     className="brand-input"
+                    id="pet-profile-slug"
                     maxLength={70}
                     onChange={(event) =>
                       updateField("slug", slugifyPetSlug(event.target.value))

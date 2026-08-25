@@ -1,7 +1,9 @@
 "use client";
 
 import { DateInput } from "@/components/ui/DateInput";
+import { Field } from "@/components/ui/Field";
 import { FormSection } from "@/components/ui/FormSection";
+import { Select } from "@/components/ui/Select";
 import {
   calculatePetAge,
   getEstimatedBirthYearOptions,
@@ -12,13 +14,15 @@ import { MAX_PERSONALITY_TAGS } from "@/lib/petSuggestions";
 import type { PetSpecies } from "@/types";
 import {
   BioTemplateSheet,
-  BreedSelector,
-  Field,
   GenderSegmentedControl,
-  PetTypeSelector,
   TagListInput,
   TextInput,
 } from "./PetFormControls";
+import {
+  BreedSelect,
+  petAgeModeSelectOptions,
+  petTypeSelectOptions,
+} from "./PetSelectionControls";
 import type { FormErrors, FormState, UpdateField } from "./PetFormTypes";
 
 export function BasicInfoSection({
@@ -57,12 +61,15 @@ export function BasicInfoSection({
         >
           <div className="grid min-w-0 gap-4 md:grid-cols-2">
             <Field
-              error={errors.name}
-              helper="Use the name people normally call your pet."
+              errorText={errors.name}
+              helperText="Use the name people normally call your pet."
+              htmlFor="edit-pet-name"
               label="Pet name"
+              required
             >
               <input
                 className="brand-input"
+                id="edit-pet-name"
                 maxLength={60}
                 onChange={(event) => handleNameChange(event.target.value)}
                 placeholder="Milo"
@@ -71,9 +78,18 @@ export function BasicInfoSection({
               />
             </Field>
 
-            <Field error={errors.species} label="Pet type">
-              <PetTypeSelector
+            <Field
+              errorText={errors.species}
+              id="edit-pet-type-field"
+              label="Pet type"
+              required
+            >
+              <Select
+                id="edit-pet-type"
                 onChange={updateSpecies}
+                options={petTypeSelectOptions}
+                searchLabel="Search pet type"
+                searchPlaceholder="Search pet type"
                 value={form.species}
               />
             </Field>
@@ -82,6 +98,7 @@ export function BasicInfoSection({
               <TextInput
                 error={errors.customSpecies}
                 helper="This is what people will see on the Public Profile and Safety Profile."
+                id="edit-pet-custom-species"
                 label="Enter pet type"
                 maxLength={60}
                 onChange={(value) => updateField("customSpecies", value)}
@@ -90,15 +107,24 @@ export function BasicInfoSection({
               />
             ) : null}
 
-            <Field error={errors.breed} label="Breed">
-              <BreedSelector
+            <Field
+              errorText={errors.breed}
+              id="edit-pet-breed-field"
+              label="Breed"
+            >
+              <BreedSelect
                 breeds={breeds}
+                id="edit-pet-breed"
                 onChange={(value) => updateField("breed", value)}
                 value={form.breed}
               />
             </Field>
 
-            <Field error={errors.gender} label="Gender">
+            <Field
+              errorText={errors.gender}
+              id="edit-pet-gender-field"
+              label="Gender"
+            >
               <GenderSegmentedControl
                 onChange={(value) => updateField("gender", value)}
                 value={form.gender}
@@ -107,6 +133,7 @@ export function BasicInfoSection({
 
             <TextInput
               error={errors.color}
+              id="edit-pet-color"
               label="Color"
               maxLength={80}
               onChange={(value) => updateField("color", value)}
@@ -114,18 +141,15 @@ export function BasicInfoSection({
               value={form.color}
             />
 
-            <Field label="Age information">
-              <select
-                className="brand-input brand-select"
-                onChange={(event) =>
-                  updateAgeInformationMode(event.target.value as PetAgeMode)
-                }
-                value={form.ageInformationMode}
-              >
-                <option value="ExactBirthday">Exact birthday</option>
-                <option value="EstimatedBirthYear">Estimated birth year</option>
-                <option value="Unknown">Unknown</option>
-              </select>
+            <div className="grid min-w-0 gap-2">
+              <Field id="edit-pet-age-mode-field" label="Age information">
+                <Select
+                  id="edit-pet-age-mode"
+                  onChange={updateAgeInformationMode}
+                  options={petAgeModeSelectOptions}
+                  value={form.ageInformationMode}
+                />
+              </Field>
               {/* Compact calculated-age summary; intentionally not styled like
                   an input because it is not editable. */}
               <span className="text-xs font-semibold leading-5 text-pet-muted">
@@ -145,15 +169,17 @@ export function BasicInfoSection({
                   }
                 </span>
               </span>
-            </Field>
+            </div>
 
             {form.ageInformationMode === "ExactBirthday" ? (
               <Field
-                error={errors.birthdayDate}
-                helper="Use this when you know your pet's full birth date."
+                errorText={errors.birthdayDate}
+                helperText="Use this when you know your pet's full birth date."
+                htmlFor="edit-pet-birthday"
                 label="Exact birthday"
               >
                 <DateInput
+                  id="edit-pet-birthday"
                   max={new Date().toISOString().slice(0, 10)}
                   min={`${MINIMUM_PET_BIRTH_YEAR}-01-01`}
                   onChange={(event) => updateBirthday(event.target.value)}
@@ -164,12 +190,14 @@ export function BasicInfoSection({
 
             {form.ageInformationMode === "EstimatedBirthYear" ? (
               <Field
-                error={errors.estimatedBirthYear}
-                helper="Use this when you only know approximately which year your pet was born. Their age will update automatically."
+                errorText={errors.estimatedBirthYear}
+                helperText="Use this when you only know approximately which year your pet was born. Their age will update automatically."
+                htmlFor="edit-pet-estimated-birth-year"
                 label="Estimated birth year"
               >
                 <select
                   className="brand-input brand-select"
+                  id="edit-pet-estimated-birth-year"
                   onChange={(event) =>
                     updateField("estimatedBirthYear", event.target.value)
                   }
@@ -199,12 +227,14 @@ export function BasicInfoSection({
               About your pet
             </h3>
             <Field
-              error={errors.bio}
-              helper="A few friendly details make the page feel personal."
+              errorText={errors.bio}
+              helperText="A few friendly details make the page feel personal."
+              htmlFor="edit-pet-bio"
               label="Short bio / description"
             >
               <textarea
                 className="brand-input min-h-32"
+                id="edit-pet-bio"
                 maxLength={320}
                 onChange={(event) => updateField("bio", event.target.value)}
                 placeholder="Milo is gentle, snack-loving, and happiest after evening walks."

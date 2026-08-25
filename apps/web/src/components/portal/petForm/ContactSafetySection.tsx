@@ -4,6 +4,7 @@ import type { Dispatch, RefObject, SetStateAction } from "react";
 import { LostModeControl } from "@/components/portal/LostModeControl";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
+import { Field } from "@/components/ui/Field";
 import { FormSection } from "@/components/ui/FormSection";
 import { PhoneNumberInput } from "@/components/ui/PhoneNumberInput";
 import { safetyProfilesOwnerUiEnabled } from "@/lib/features";
@@ -13,7 +14,6 @@ import type { Pet } from "@/types";
 import {
   Checkbox,
   ContactSummary,
-  Field,
   TagListInput,
   TextInput,
   ToggleRow,
@@ -354,12 +354,14 @@ export function ContactSafetySection({
 
                 <div className="grid min-w-0 gap-4 lg:grid-cols-2">
                   <Field
-                    error={errors.safetyNote}
-                    helper="Helpful for anyone who finds your pet outside."
+                    errorText={errors.safetyNote}
+                    helperText="Helpful for anyone who finds your pet outside."
+                    htmlFor="pet-safety-note"
                     label="Safety note / handling instructions"
                   >
                     <textarea
                       className="brand-input min-h-28"
+                      id="pet-safety-note"
                       maxLength={260}
                       onChange={(event) =>
                         updateField("safetyNote", event.target.value)
@@ -370,12 +372,14 @@ export function ContactSafetySection({
                   </Field>
 
                   <Field
-                    error={errors.emergencyNote}
-                    helper="Add anything urgent a finder should know before contacting you."
+                    errorText={errors.emergencyNote}
+                    helperText="Add anything urgent a finder should know before contacting you."
+                    htmlFor="pet-emergency-note"
                     label="Emergency note"
                   >
                     <textarea
                       className="brand-input min-h-28"
+                      id="pet-emergency-note"
                       maxLength={260}
                       onChange={(event) =>
                         updateField("emergencyNote", event.target.value)
