@@ -23,10 +23,12 @@ export function UrlDisplay({ label, url }: { label: string; url: string }) {
   }
 
   return (
-    <div className="flex min-w-0 items-center gap-3">
+    <div className="flex min-w-0 items-start gap-3">
       <div className="min-w-0 flex-1">
         <p className="text-xs font-bold uppercase text-pet-muted">{label}</p>
-        <p className="mt-0.5 truncate text-sm font-bold text-pet-ink">{url}</p>
+        <p className="mt-0.5 min-w-0 text-sm font-bold text-pet-ink [overflow-wrap:anywhere]">
+          {url}
+        </p>
       </div>
       <button
         className="shrink-0 rounded-full border border-pet-border bg-white px-3 py-1.5 text-xs font-bold text-pet-muted transition hover:bg-pet-cream"
@@ -58,13 +60,13 @@ export function ContactSummary({
   ];
 
   return (
-    <dl className="mt-4 grid gap-2 sm:grid-cols-2">
+    <dl className="mt-4 grid min-w-0 gap-2 sm:grid-cols-2">
       {items.map(([label, value]) => (
-        <div className="rounded-[1rem] bg-pet-cream p-3" key={label}>
+        <div className="min-w-0 rounded-[1rem] bg-pet-cream p-3" key={label}>
           <dt className="text-xs font-bold uppercase text-pet-muted">
             {label}
           </dt>
-          <dd className="mt-1 break-words text-sm font-black text-pet-ink">
+          <dd className="mt-1 min-w-0 text-sm font-black text-pet-ink [overflow-wrap:anywhere]">
             {value}
           </dd>
         </div>

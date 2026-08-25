@@ -101,7 +101,7 @@ export function ContactSafetySection({
         >
           <div className="grid min-w-0 gap-4">
             {mode === "edit" && currentPet ? (
-              <div className="scroll-mt-24" ref={contactLostModeRef}>
+              <div className="min-w-0 scroll-mt-24" ref={contactLostModeRef}>
                 <LostModeControl
                   onPetChange={setCurrentPet}
                   pet={currentPet}
@@ -114,7 +114,7 @@ export function ContactSafetySection({
                 while the feature is unreleased; the settings below (contact,
                 finder visibility, safety information) stay available. */}
             {safetyProfilesOwnerUiEnabled ? (
-            <div className="border-t border-pet-border pt-5 sm:rounded-[1.5rem] sm:border sm:bg-white sm:p-5">
+            <div className="min-w-0 border-t border-pet-border pt-5 sm:rounded-[1.5rem] sm:border sm:bg-white sm:p-5">
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-lg font-black text-pet-ink">
                   Safety Profile
@@ -182,7 +182,7 @@ export function ContactSafetySection({
                   {safetyStatusView.description}
                 </p>
               ) : null}
-              <div className="mt-4">
+              <div className="mt-4 min-w-0">
                 {currentPet && finderFullUrl ? (
                   <UrlDisplay label="Safety Profile link" url={finderFullUrl} />
                 ) : null}
@@ -191,7 +191,7 @@ export function ContactSafetySection({
             ) : null}
 
             <div
-              className="scroll-mt-24 border-t border-pet-border pt-5 sm:rounded-[1.5rem] sm:border sm:bg-white sm:p-5"
+              className="min-w-0 scroll-mt-24 border-t border-pet-border pt-5 sm:rounded-[1.5rem] sm:border sm:bg-white sm:p-5"
               ref={petContactSectionRef}
             >
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">

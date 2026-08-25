@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockPets } from "@/data/mockPets";
 import { defaultOwnerSettings } from "@/lib/ownerSettings";
@@ -154,5 +160,44 @@ describe("Safety Profile contact warning", () => {
     expect(
       screen.getByRole("switch", { name: /Safety Profile enabled/ })
     ).toBeTruthy();
+  });
+
+  it("contains long Safety URLs and contact values inside zero-min-width grid items", async () => {
+    const longSafetyCode = "s".repeat(180);
+    const longOwnerName = "o".repeat(80);
+    const pet = structuredClone(mockPets[0]);
+    pet.qrSafetyPath = `/q/${longSafetyCode}`;
+    pet.contactOverride = {
+      useOwnerDefaults: false,
+      ownerDisplayName: longOwnerName,
+      generalArea: "a".repeat(120),
+      phoneNumber: "+60123456789",
+      whatsappNumber: "+60123456789",
+    };
+    mocks.getPetById.mockResolvedValue({ data: pet });
+    render(<PetProfileForm mode="edit" initialPet={pet} />);
+    await openContactTab();
+
+    const safetyCard = screen
+      .getByRole("heading", { name: "Safety Profile" })
+      .parentElement?.parentElement;
+    const safetyUrl = screen.getByText((content, element) =>
+      element?.tagName === "P" && content.includes(longSafetyCode)
+    );
+    expect(safetyCard?.className).toContain("min-w-0");
+    expect(safetyUrl.className).toContain("[overflow-wrap:anywhere]");
+    expect(safetyUrl.className).not.toContain("truncate");
+
+    const contactCard = screen
+      .getByRole("heading", { name: "Emergency Contact" })
+      .closest(".scroll-mt-24") as HTMLElement;
+    expect(contactCard.className).toContain("min-w-0");
+    expect(within(contactCard).getByText(longOwnerName).className).toContain(
+      "[overflow-wrap:anywhere]"
+    );
+    for (const value of contactCard.querySelectorAll("dd")) {
+      expect(value.className).toContain("min-w-0");
+      expect(value.className).toContain("[overflow-wrap:anywhere]");
+    }
   });
 });
