@@ -465,7 +465,7 @@ export function CoverPositionControl({
       </span>
       <input
         aria-label={`${axis} cover position`}
-        className="w-full accent-pet-teal disabled:cursor-not-allowed disabled:opacity-45"
+        className="min-h-11 w-full cursor-pointer accent-pet-teal disabled:cursor-not-allowed disabled:opacity-45"
         disabled={disabled}
         max={100}
         min={0}
@@ -591,9 +591,8 @@ export function ThemeOptionCard({
   theme: PetProfileTheme;
 }) {
   return (
-    <button
-      aria-pressed={selected}
-      className={`min-h-[220px] min-w-0 rounded-[1.25rem] border p-4 text-left transition ${
+    <label
+      className={`relative min-h-14 min-w-0 cursor-pointer rounded-[1.25rem] border p-3 text-left transition sm:min-h-[220px] sm:p-4 ${
         selected
           ? "shadow-lg shadow-[#0d1b3d]/10"
           : "border-pet-border bg-white hover:-translate-y-0.5 hover:shadow-md"
@@ -608,37 +607,54 @@ export function ThemeOptionCard({
             }
           : undefined
       }
-      type="button"
     >
-      <div className="flex min-w-0 items-center justify-between gap-2">
-        <p className="min-w-0 text-sm font-black text-pet-ink">{theme.name}</p>
-        {selected ? (
-          <span
-            className="rounded-full px-2 py-1 text-[10px] font-black uppercase"
-            style={{
-              background: theme.colors.primarySoft,
-              color: theme.colors.primary,
-            }}
-          >
-            Selected
+      <input
+        checked={selected}
+        className="peer sr-only"
+        name="profile-theme"
+        onChange={onSelect}
+        type="radio"
+        value={theme.id}
+      />
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 rounded-[1.25rem] peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-pet-teal"
+      />
+      <div className="flex min-w-0 items-center justify-between gap-3 sm:block">
+        <div className="flex min-w-0 items-center justify-between gap-2">
+          <span className="min-w-0 text-sm font-black text-pet-ink">
+            {theme.name}
           </span>
-        ) : null}
-      </div>
-      <p className="mt-2 min-h-10 text-xs leading-5 text-pet-muted">
-        {theme.description}
-      </p>
-      <div className="mt-3 flex gap-1.5">
-        {theme.swatches.map((swatch) => (
-          <span
-            aria-hidden="true"
-            className="h-5 w-5 rounded-full border border-white shadow-sm"
-            key={swatch}
-            style={{ background: swatch }}
-          />
-        ))}
+          {selected ? (
+            <span
+              className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[10px] font-black uppercase"
+              style={{
+                background: theme.colors.primarySoft,
+                color: theme.colors.primary,
+              }}
+            >
+              <span aria-hidden="true">✓</span>
+              Selected
+            </span>
+          ) : null}
+        </div>
+        <p className="mt-2 hidden min-h-10 text-xs leading-5 text-pet-muted sm:block">
+          {theme.description}
+        </p>
+        <div className="mt-2 flex shrink-0 gap-1.5 sm:mt-3">
+          {theme.swatches.map((swatch) => (
+            <span
+              aria-hidden="true"
+              className="h-4 w-4 rounded-full border border-white shadow-sm sm:h-5 sm:w-5"
+              key={swatch}
+              style={{ background: swatch }}
+            />
+          ))}
+        </div>
       </div>
       <div
-        className="mt-4 overflow-hidden rounded-2xl border"
+        className="mt-4 hidden overflow-hidden rounded-2xl border sm:block"
+        data-theme-miniature
         style={{
           background: theme.gradients.cover,
           borderColor: theme.colors.border,
@@ -680,7 +696,7 @@ export function ThemeOptionCard({
           </div>
         </div>
       </div>
-    </button>
+    </label>
   );
 }
 
@@ -693,14 +709,17 @@ export function ThemePreviewPanel({
 }) {
   return (
     <div
+      aria-label={`${petName} theme preview`}
       className="min-w-0 overflow-hidden rounded-[1.5rem] border"
+      data-theme-live-preview
+      role="region"
       style={{
         background: theme.colors.surface,
         borderColor: theme.colors.border,
       }}
     >
       <div
-        className="grid min-w-0 gap-5 p-5 lg:grid-cols-[0.9fr_1.1fr]"
+        className="grid min-w-0 gap-4 p-3 sm:gap-5 sm:p-5 lg:grid-cols-[0.9fr_1.1fr]"
         style={{ background: theme.gradients.page }}
       >
         <div>
@@ -743,9 +762,9 @@ export function ThemePreviewPanel({
               Gentle
             </span>
           </div>
-          <div className="grid min-w-0 gap-3 pt-4 sm:grid-cols-[88px_1fr]">
+          <div className="grid min-w-0 grid-cols-[64px_minmax(0,1fr)] gap-3 pt-4 sm:grid-cols-[88px_minmax(0,1fr)]">
             <div
-              className="grid h-20 w-20 place-items-center rounded-[1.25rem] text-xl font-black"
+              className="grid h-16 w-16 place-items-center rounded-[1.25rem] text-xl font-black sm:h-20 sm:w-20"
               style={{
                 background: theme.colors.accentSoft,
                 color: theme.colors.accent,
@@ -760,13 +779,13 @@ export function ThemePreviewPanel({
               >
                 {petName}
               </p>
-              <div className="mt-3 flex items-center gap-3">
+              <div className="mt-3 flex min-w-0 items-center gap-3">
                 <span
-                  className="h-10 w-2 rounded-full"
+                  className="h-10 w-2 shrink-0 rounded-full"
                   style={{ background: theme.colors.timelineLine }}
                 />
                 <div
-                  className="rounded-2xl p-3 text-sm"
+                  className="min-w-0 rounded-2xl p-3 text-sm"
                   style={{
                     background: theme.colors.surfaceAlt,
                     color: theme.colors.mutedText,

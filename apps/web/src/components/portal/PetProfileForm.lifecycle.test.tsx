@@ -365,11 +365,90 @@ describe("PetProfileForm lifecycle workflow", () => {
     fireEvent.click(await screen.findByRole("tab", { name: /Appearance/ }));
 
     expect(
-      screen.getByRole("button", { name: /Lavender/ }).getAttribute("aria-pressed")
-    ).toBe("true");
+      (screen.getByRole("radio", { name: /Lavender/ }) as HTMLInputElement)
+        .checked
+    ).toBe(true);
     expect(
-      screen.getByRole("button", { name: /Mint Green/ }).getAttribute("aria-pressed")
-    ).toBe("false");
+      (screen.getByRole("radio", { name: /Mint Green/ }) as HTMLInputElement)
+        .checked
+    ).toBe(false);
+    expect(
+      within(
+        screen.getByRole("radio", { name: /Lavender/ }).closest("label")!
+      ).getByText("Selected")
+    ).toBeTruthy();
+  });
+
+  it("uses one accessible theme radio group and one live preview", async () => {
+    render(<PetProfileForm initialPet={pet} mode="edit" />);
+    await openAppearance();
+
+    const group = screen.getByRole("radiogroup", { name: "Profile Theme" });
+    const radios = within(group).getAllByRole("radio") as HTMLInputElement[];
+
+    expect(radios).toHaveLength(5);
+    expect(radios.map((radio) => radio.value)).toEqual([
+      "default",
+      "mint",
+      "peach",
+      "sky",
+      "lavender",
+    ]);
+    expect(radios.every((radio) => radio.name === "profile-theme")).toBe(true);
+    expect(radios.filter((radio) => radio.checked)).toHaveLength(1);
+    expect(screen.getAllByRole("region", { name: "Milo theme preview" })).toHaveLength(1);
+  });
+
+  it("keeps every theme directly selectable and updates the single live preview", async () => {
+    render(<PetProfileForm initialPet={pet} mode="edit" />);
+    await openAppearance();
+
+    const themes = [
+      ["MyPetLink Default", "Clean, safe, and friendly."],
+      ["Mint Green", "Calm, fresh, and gentle."],
+      ["Peach Paw", "Warm, cute, and emotional."],
+      ["Sky Blue", "Bright, safe, and cheerful."],
+      ["Lavender", "Soft, sweet, and calm."],
+    ] as const;
+
+    for (const [name, description] of themes) {
+      const radio = screen.getByRole("radio", { name: new RegExp(name) });
+      fireEvent.click(radio);
+
+      expect((radio as HTMLInputElement).checked).toBe(true);
+      expect(
+        within(screen.getByRole("radiogroup", { name: "Profile Theme" }))
+          .getAllByRole("radio")
+          .filter((option) => (option as HTMLInputElement).checked)
+      ).toHaveLength(1);
+      expect(
+        within(screen.getByRole("region", { name: "Milo theme preview" }))
+          .getByText(description)
+      ).toBeTruthy();
+    }
+  });
+
+  it("supports arrow, Home, and End keyboard selection within the theme group", async () => {
+    render(<PetProfileForm initialPet={pet} mode="edit" />);
+    await openAppearance();
+
+    const mint = screen.getByRole("radio", { name: /Mint Green/ });
+    const peach = screen.getByRole("radio", { name: /Peach Paw/ });
+    const first = screen.getByRole("radio", { name: /MyPetLink Default/ });
+    const last = screen.getByRole("radio", { name: /Lavender/ });
+
+    mint.focus();
+    fireEvent.keyDown(mint, { key: "ArrowDown" });
+    expect((peach as HTMLInputElement).checked).toBe(true);
+    expect(document.activeElement).toBe(peach);
+
+    fireEvent.keyDown(peach, { key: "End" });
+    expect((last as HTMLInputElement).checked).toBe(true);
+    expect(document.activeElement).toBe(last);
+
+    fireEvent.keyDown(last, { key: "Home" });
+    expect((first as HTMLInputElement).checked).toBe(true);
+    expect(document.activeElement).toBe(first);
   });
 
   it("uses compact labels for all four directly reachable mobile edit tabs", async () => {
@@ -418,7 +497,7 @@ describe("PetProfileForm lifecycle workflow", () => {
     render(<PetProfileForm initialPet={pet} mode="edit" />);
 
     fireEvent.click(await screen.findByRole("tab", { name: /Appearance/ }));
-    fireEvent.click(screen.getByRole("button", { name: /Mint Green/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Mint Green/ }));
     expect(
       screen.getByText(/Save changes to update .*public profile and Safety Profile/)
     ).toBeTruthy();
@@ -426,14 +505,21 @@ describe("PetProfileForm lifecycle workflow", () => {
     fireEvent.click(screen.getByRole("tab", { name: /Basic Info/ }));
     fireEvent.click(screen.getByRole("tab", { name: /Appearance/ }));
     expect(
-      screen.getByRole("button", { name: /Mint Green/ }).getAttribute("aria-pressed")
-    ).toBe("true");
+      (screen.getByRole("radio", { name: /Mint Green/ }) as HTMLInputElement)
+        .checked
+    ).toBe(true);
 
     clickSave();
     await waitFor(() =>
       expect(mocks.updatePet).toHaveBeenCalledWith(
         pet.id,
-        expect.objectContaining({ profileTheme: "mint" }),
+        expect.objectContaining({
+          profileTheme: "mint",
+          photoUrl: pet.photoUrl,
+          coverUrl: pet.coverUrl,
+          coverPositionX: pet.coverPositionX,
+          coverPositionY: pet.coverPositionY,
+        }),
         { completeProfile: true }
       )
     );
@@ -444,8 +530,9 @@ describe("PetProfileForm lifecycle workflow", () => {
     render(<PetProfileForm initialPet={pet} mode="edit" />);
     fireEvent.click(await screen.findByRole("tab", { name: /Appearance/ }));
     expect(
-      screen.getByRole("button", { name: /Mint Green/ }).getAttribute("aria-pressed")
-    ).toBe("true");
+      (screen.getByRole("radio", { name: /Mint Green/ }) as HTMLInputElement)
+        .checked
+    ).toBe(true);
   });
 
   it("uses one shared two-axis cover preview while keeping source photos neutral", async () => {
