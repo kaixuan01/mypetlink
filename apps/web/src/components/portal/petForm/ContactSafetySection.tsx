@@ -1,22 +1,29 @@
 "use client";
 
-import type { Dispatch, RefObject, SetStateAction } from "react";
+import {
+  useEffect,
+  useRef,
+  type Dispatch,
+  type KeyboardEvent,
+  type RefObject,
+  type SetStateAction,
+  type TextareaHTMLAttributes,
+} from "react";
 import { LostModeControl } from "@/components/portal/LostModeControl";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Field } from "@/components/ui/Field";
 import { FormSection } from "@/components/ui/FormSection";
 import { PhoneNumberInput } from "@/components/ui/PhoneNumberInput";
+import { SettingRow } from "@/components/ui/SettingRow";
 import { safetyProfilesOwnerUiEnabled } from "@/lib/features";
 import { ownerRoutes } from "@/lib/routes";
 import { getSafetyProfileStatusView } from "@/lib/safetyProfile";
 import type { Pet } from "@/types";
 import {
-  Checkbox,
   ContactSummary,
   TagListInput,
   TextInput,
-  ToggleRow,
   UrlDisplay,
 } from "./PetFormControls";
 import type { FormErrors, FormState, UpdateField } from "./PetFormTypes";
@@ -61,6 +68,32 @@ export function ContactSafetySection({
   setUseOwnerDefaults: (useDefaults: boolean) => void;
   updateField: UpdateField;
 }) {
+  function handleContactSourceKeyDown(
+    event: KeyboardEvent<HTMLInputElement>,
+    useDefaults: boolean
+  ) {
+    const direction = ["ArrowRight", "ArrowDown"].includes(event.key)
+      ? 1
+      : ["ArrowLeft", "ArrowUp"].includes(event.key)
+        ? -1
+        : 0;
+
+    if (!direction) return;
+
+    event.preventDefault();
+    const nextUseDefaults = !useDefaults;
+    setUseOwnerDefaults(nextUseDefaults);
+    window.requestAnimationFrame(() => {
+      petContactSectionRef.current
+        ?.querySelector<HTMLInputElement>(
+          `input[name="pet-contact-source"][value="${
+            nextUseDefaults ? "owner-defaults" : "pet-specific"
+          }"]`
+        )
+        ?.focus();
+    });
+  }
+
   return (
         <FormSection
           title="Contact & Safety"
@@ -81,7 +114,7 @@ export function ContactSafetySection({
                 while the feature is unreleased; the settings below (contact,
                 finder visibility, safety information) stay available. */}
             {safetyProfilesOwnerUiEnabled ? (
-            <div className="rounded-[1.5rem] border border-pet-border bg-white p-5">
+            <div className="border-t border-pet-border pt-5 sm:rounded-[1.5rem] sm:border sm:bg-white sm:p-5">
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-lg font-black text-pet-ink">
                   Safety Profile
@@ -95,9 +128,10 @@ export function ContactSafetySection({
                 be opened through a QR code, NFC tag, or direct link.
               </p>
               <div className="mt-4">
-                <ToggleRow
+                <SettingRow
                   checked={form.qrSafetyEnabled}
-                  helper="When off, the Safety Profile stops showing your contact details to finders."
+                  control="switch"
+                  helperText="When off, the Safety Profile stops showing your contact details to finders."
                   label="Safety Profile enabled"
                   onChange={(value) => updateField("qrSafetyEnabled", value)}
                 />
@@ -157,7 +191,7 @@ export function ContactSafetySection({
             ) : null}
 
             <div
-              className="scroll-mt-24 rounded-[1.5rem] border border-pet-border bg-white p-5"
+              className="scroll-mt-24 border-t border-pet-border pt-5 sm:rounded-[1.5rem] sm:border sm:bg-white sm:p-5"
               ref={petContactSectionRef}
             >
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -207,42 +241,96 @@ export function ContactSafetySection({
               />
 
               {mode === "edit" ? (
-                <div className="mt-4 grid gap-1">
-                  <Checkbox
+                <div className="mt-4">
+                  <SettingRow
                     checked={form.showOwnerName}
+                    control="checkbox"
+                    helperText="Show the owner name to people viewing this pet's Public Profile or Safety Profile."
                     label="Show owner name"
                     onChange={(value) => updateField("showOwnerName", value)}
                   />
-                  <p className="pl-9 text-xs font-semibold leading-5 text-pet-muted">
-                    Show the owner name to people viewing this pet&apos;s Public
-                    Profile or Safety Profile.
-                  </p>
                 </div>
               ) : null}
 
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <button
-                  className={`min-h-12 rounded-2xl border px-4 py-3 text-sm font-black transition ${
+              <div
+                aria-label="Contact source"
+                className="mt-4 grid gap-3 sm:grid-cols-2"
+                role="radiogroup"
+              >
+                <label
+                  className={`flex min-h-14 cursor-pointer items-start gap-3 rounded-2xl border px-4 py-3 text-left transition focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-pet-teal ${
                     form.useOwnerDefaults
                       ? "border-pet-teal bg-[#e8f3ff] text-pet-teal"
                       : "border-pet-border bg-white text-pet-muted hover:bg-pet-cream"
                   }`}
-                  onClick={() => setUseOwnerDefaults(true)}
-                  type="button"
                 >
-                  Use account contact details
-                </button>
-                <button
-                  className={`min-h-12 rounded-2xl border px-4 py-3 text-sm font-black transition ${
+                  <input
+                    checked={form.useOwnerDefaults}
+                    className="sr-only"
+                    name="pet-contact-source"
+                    onChange={() => setUseOwnerDefaults(true)}
+                    onKeyDown={(event) =>
+                      handleContactSourceKeyDown(event, true)
+                    }
+                    type="radio"
+                    value="owner-defaults"
+                  />
+                  <span
+                    aria-hidden="true"
+                    className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full border text-xs font-black ${
+                      form.useOwnerDefaults
+                        ? "border-pet-teal bg-pet-teal text-white"
+                        : "border-pet-border bg-white"
+                    }`}
+                  >
+                    {form.useOwnerDefaults ? "✓" : ""}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-black text-pet-ink">
+                      Use account contact details
+                    </span>
+                    <span className="mt-1 block text-xs font-semibold leading-5 text-pet-muted">
+                      Keep this pet in sync with Owner Settings.
+                    </span>
+                  </span>
+                </label>
+                <label
+                  className={`flex min-h-14 cursor-pointer items-start gap-3 rounded-2xl border px-4 py-3 text-left transition focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-pet-teal ${
                     !form.useOwnerDefaults
                       ? "border-pet-teal bg-[#e8f3ff] text-pet-teal"
                       : "border-pet-border bg-white text-pet-muted hover:bg-pet-cream"
                   }`}
-                  onClick={() => setUseOwnerDefaults(false)}
-                  type="button"
                 >
-                  Use different contact details for this pet
-                </button>
+                  <input
+                    checked={!form.useOwnerDefaults}
+                    className="sr-only"
+                    name="pet-contact-source"
+                    onChange={() => setUseOwnerDefaults(false)}
+                    onKeyDown={(event) =>
+                      handleContactSourceKeyDown(event, false)
+                    }
+                    type="radio"
+                    value="pet-specific"
+                  />
+                  <span
+                    aria-hidden="true"
+                    className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full border text-xs font-black ${
+                      !form.useOwnerDefaults
+                        ? "border-pet-teal bg-pet-teal text-white"
+                        : "border-pet-border bg-white"
+                    }`}
+                  >
+                    {!form.useOwnerDefaults ? "✓" : ""}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-black text-pet-ink">
+                      Use different contact details for this pet
+                    </span>
+                    <span className="mt-1 block text-xs font-semibold leading-5 text-pet-muted">
+                      Enter contact details that only apply to this pet.
+                    </span>
+                  </span>
+                </label>
               </div>
             </div>
 
@@ -283,7 +371,7 @@ export function ContactSafetySection({
             ) : null}
 
             {mode === "edit" ? (
-              <div className="min-w-0 rounded-[1.5rem] border border-pet-border bg-white p-5">
+              <div className="min-w-0 border-t border-pet-border pt-5 sm:rounded-[1.5rem] sm:border sm:bg-white sm:p-5">
                 <p className="text-sm font-black text-pet-ink">
                   What finders can see
                 </p>
@@ -292,24 +380,28 @@ export function ContactSafetySection({
                   Profile. General area can also appear on the Public Profile.
                 </p>
                 <div className="mt-3 grid min-w-0 gap-2">
-                  <ToggleRow
+                  <SettingRow
                     checked={form.showWhatsapp}
+                    control="switch"
                     label="WhatsApp"
                     onChange={(value) => updateField("showWhatsapp", value)}
                   />
-                  <ToggleRow
+                  <SettingRow
                     checked={form.showPhone}
+                    control="switch"
                     label="Phone call"
                     onChange={(value) => updateField("showPhone", value)}
                   />
-                  <ToggleRow
+                  <SettingRow
                     checked={form.showGeneralArea}
-                    helper="Show the general area on this pet's Public Profile and Safety Profile."
+                    control="switch"
+                    helperText="Show the general area on this pet's Public Profile and Safety Profile."
                     label="General area"
                     onChange={(value) => updateField("showGeneralArea", value)}
                   />
-                  <ToggleRow
+                  <SettingRow
                     checked={form.showEmergencyNote}
+                    control="switch"
                     label="Emergency note"
                     onChange={(value) => updateField("showEmergencyNote", value)}
                   />
@@ -317,7 +409,7 @@ export function ContactSafetySection({
               </div>
             ) : null}
 
-            <div className="min-w-0 rounded-[1.5rem] border border-pet-border bg-white p-5">
+            <div className="min-w-0 border-t border-pet-border pt-5 sm:rounded-[1.5rem] sm:border sm:bg-white sm:p-5">
               <p className="text-sm font-black text-pet-ink">
                 Safety information
               </p>
@@ -329,6 +421,7 @@ export function ContactSafetySection({
                   label="Allergies"
                   max={MAX_ALLERGIES}
                   maxLength={MAX_ALLERGY_LENGTH}
+                  mobileLongValueLayout
                   onChange={(values) => updateField("allergies", values)}
                   placeholder="Add a known allergy"
                   suggestions={allergySuggestions}
@@ -336,19 +429,16 @@ export function ContactSafetySection({
                 />
 
                 {mode === "edit" ? (
-                  <div className="grid gap-1">
-                    <Checkbox
+                  <div>
+                    <SettingRow
                       checked={form.showAllergiesOnPublicProfile}
+                      control="checkbox"
+                      helperText="Allergies are always shown on the Safety Profile for pet safety. Turn this on to also show them on the Public Profile."
                       label="Show allergies on Public Profile"
                       onChange={(value) =>
                         updateField("showAllergiesOnPublicProfile", value)
                       }
                     />
-                    <p className="pl-9 text-xs font-semibold leading-5 text-pet-muted">
-                      Allergies are always shown on the Safety Profile for pet
-                      safety. Turn this on to also show them on the Public
-                      Profile.
-                    </p>
                   </div>
                 ) : null}
 
@@ -359,8 +449,7 @@ export function ContactSafetySection({
                     htmlFor="pet-safety-note"
                     label="Safety note / handling instructions"
                   >
-                    <textarea
-                      className="brand-input min-h-28"
+                    <AutoGrowTextarea
                       id="pet-safety-note"
                       maxLength={260}
                       onChange={(event) =>
@@ -377,8 +466,7 @@ export function ContactSafetySection({
                     htmlFor="pet-emergency-note"
                     label="Emergency note"
                   >
-                    <textarea
-                      className="brand-input min-h-28"
+                    <AutoGrowTextarea
                       id="pet-emergency-note"
                       maxLength={260}
                       onChange={(event) =>
@@ -394,4 +482,43 @@ export function ContactSafetySection({
           </div>
         </FormSection>
   );
+}
+
+const AUTO_GROW_MIN_HEIGHT = 96;
+const AUTO_GROW_MAX_HEIGHT = 240;
+
+function AutoGrowTextarea({
+  value,
+  onInput,
+  ...props
+}: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (ref.current) resizeAutoGrowTextarea(ref.current);
+  }, [value]);
+
+  return (
+    <textarea
+      {...props}
+      className="brand-input min-h-24 max-h-60 resize-none"
+      onInput={(event) => {
+        resizeAutoGrowTextarea(event.currentTarget);
+        onInput?.(event);
+      }}
+      ref={ref}
+      value={value}
+    />
+  );
+}
+
+function resizeAutoGrowTextarea(textarea: HTMLTextAreaElement) {
+  textarea.style.height = "auto";
+  const contentHeight = textarea.scrollHeight;
+  textarea.style.height = `${Math.min(
+    Math.max(contentHeight, AUTO_GROW_MIN_HEIGHT),
+    AUTO_GROW_MAX_HEIGHT
+  )}px`;
+  textarea.style.overflowY =
+    contentHeight > AUTO_GROW_MAX_HEIGHT ? "auto" : "hidden";
 }

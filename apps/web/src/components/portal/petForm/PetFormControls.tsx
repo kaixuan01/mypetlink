@@ -109,6 +109,7 @@ export function TagListInput({
   helper,
   maxLength = 80,
   deferSuggestions = false,
+  mobileLongValueLayout = false,
 }: {
   label: string;
   values: string[];
@@ -124,6 +125,11 @@ export function TagListInput({
    * or asks for them, so small screens are not flooded with chips up front.
    */
   deferSuggestions?: boolean;
+  /**
+   * Gives long safety values a wrapping label and mobile-sized actions without
+   * changing the denser tag fields used by Basic Info.
+   */
+  mobileLongValueLayout?: boolean;
 }) {
   const [draft, setDraft] = useState("");
   const [showAllSuggestions, setShowAllSuggestions] = useState(false);
@@ -175,13 +181,25 @@ export function TagListInput({
           {values.map((value) => (
             <button
               aria-label={`Remove ${value}`}
-              className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-pet-teal bg-[#e8f3ff] px-3 py-1.5 text-xs font-bold text-pet-teal transition hover:bg-[#d8edff]"
+              className={`inline-flex max-w-full items-center gap-1.5 rounded-full border border-pet-teal bg-[#e8f3ff] px-3 text-xs font-bold text-pet-teal transition hover:bg-[#d8edff] ${
+                mobileLongValueLayout
+                  ? "min-h-11 py-2 text-left sm:min-h-9 sm:py-1.5"
+                  : "min-h-9 py-1.5"
+              }`}
               key={value}
               onClick={() => removeValue(value)}
               type="button"
             >
-              {value}
-              <Icon name="plus" className="h-3 w-3 rotate-45" />
+              <span
+                className={
+                  mobileLongValueLayout
+                    ? "min-w-0 break-words [overflow-wrap:anywhere]"
+                    : undefined
+                }
+              >
+                {value}
+              </span>
+              <Icon name="plus" className="h-3 w-3 shrink-0 rotate-45" />
             </button>
           ))}
         </div>
@@ -218,7 +236,9 @@ export function TagListInput({
       {!suggestionsRevealed && remainingSuggestions.length ? (
         <button
           aria-expanded={false}
-          className="inline-flex min-h-9 items-center self-start rounded-full px-3 py-1.5 text-xs font-bold text-pet-teal transition hover:underline"
+          className={`inline-flex items-center self-start rounded-full px-3 py-1.5 text-xs font-bold text-pet-teal transition hover:underline ${
+            mobileLongValueLayout ? "min-h-11 sm:min-h-9" : "min-h-9"
+          }`}
           onClick={() => setSuggestionsRevealed(true)}
           type="button"
         >
@@ -231,7 +251,9 @@ export function TagListInput({
           <div className="flex min-w-0 flex-wrap gap-2">
             {visibleSuggestions.map((option) => (
               <button
-                className="inline-flex min-h-9 items-center rounded-full border border-pet-border bg-white px-3 py-1.5 text-xs font-bold text-pet-muted transition hover:border-pet-teal hover:text-pet-teal disabled:cursor-not-allowed disabled:opacity-50"
+                className={`inline-flex items-center rounded-full border border-pet-border bg-white px-3 py-1.5 text-xs font-bold text-pet-muted transition hover:border-pet-teal hover:text-pet-teal disabled:cursor-not-allowed disabled:opacity-50 ${
+                  mobileLongValueLayout ? "min-h-11 sm:min-h-9" : "min-h-9"
+                }`}
                 disabled={!canAdd}
                 key={option}
                 onClick={() => addValue(option)}
@@ -242,7 +264,9 @@ export function TagListInput({
             ))}
             {hiddenCount > 0 ? (
               <button
-                className="inline-flex min-h-9 items-center rounded-full px-3 py-1.5 text-xs font-bold text-pet-teal transition hover:underline"
+                className={`inline-flex items-center rounded-full px-3 py-1.5 text-xs font-bold text-pet-teal transition hover:underline ${
+                  mobileLongValueLayout ? "min-h-11 sm:min-h-9" : "min-h-9"
+                }`}
                 onClick={() => setShowAllSuggestions(true)}
                 type="button"
               >
@@ -496,74 +520,6 @@ export function getCoverAxisDescription(
     : `This photo already fits ${axis.toLowerCase()}ly in the cover area.`;
 }
 
-// Accessible switch row: one full-width tappable row per setting, so the
-// mobile layout stays single-column and touch-friendly. Status is conveyed by
-// the switch state text, never by colour alone.
-export function ToggleRow({
-  checked,
-  label,
-  helper,
-  onChange,
-}: {
-  checked: boolean;
-  label: string;
-  helper?: string;
-  onChange: (value: boolean) => void;
-}) {
-  return (
-    <button
-      aria-checked={checked}
-      className="flex min-h-12 w-full min-w-0 items-center justify-between gap-3 rounded-2xl bg-pet-cream p-4 text-left transition hover:bg-[#f4ecdf]"
-      onClick={() => onChange(!checked)}
-      role="switch"
-      type="button"
-    >
-      <span className="min-w-0">
-        <span className="block text-sm font-bold text-pet-ink">{label}</span>
-        {helper ? (
-          <span className="mt-0.5 block text-xs font-semibold leading-5 text-pet-muted">
-            {helper}
-          </span>
-        ) : null}
-      </span>
-      <span
-        aria-hidden="true"
-        className={`relative h-6 w-11 shrink-0 rounded-full transition ${
-          checked ? "bg-pet-teal" : "bg-[#cfd6e4]"
-        }`}
-      >
-        <span
-          className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
-            checked ? "left-[1.375rem]" : "left-0.5"
-          }`}
-        />
-      </span>
-    </button>
-  );
-}
-
-export function Checkbox({
-  checked,
-  label,
-  onChange,
-}: {
-  checked: boolean;
-  label: string;
-  onChange: (value: boolean) => void;
-}) {
-  return (
-    <label className="flex min-w-0 items-center justify-between gap-3 rounded-2xl bg-pet-cream p-4 text-sm font-bold text-pet-ink">
-      <span className="min-w-0">{label}</span>
-      <input
-        checked={checked}
-        className="h-4 w-4 accent-pet-teal"
-        onChange={(event) => onChange(event.target.checked)}
-        type="checkbox"
-      />
-    </label>
-  );
-}
-
 export function PrivacyGroup({
   title,
   children,
@@ -572,7 +528,7 @@ export function PrivacyGroup({
   children: ReactNode;
 }) {
   return (
-    <div className="min-w-0 rounded-[1.5rem] border border-pet-border bg-white p-5">
+    <div className="min-w-0 border-t border-pet-border pt-5 sm:rounded-[1.5rem] sm:border sm:bg-white sm:p-5">
       <p className="mb-3 text-sm font-black text-pet-ink">{title}</p>
       <div className="grid min-w-0 gap-2 sm:grid-cols-2">{children}</div>
     </div>
