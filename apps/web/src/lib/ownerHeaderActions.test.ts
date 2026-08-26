@@ -24,6 +24,7 @@ function pageContext(
     petId: "pet_0",
     status: "ready",
     canCreate: true,
+    onCreate: vi.fn(),
     ...overrides,
   };
 }
@@ -78,9 +79,8 @@ describe("getOwnerHeaderAction", () => {
         currentPageContext: pageContext(),
       })
     ).toMatchObject({
-      type: "link",
+      type: "button",
       label: "Add Moment",
-      href: "/pets/pet_0/moments/new",
       compactTitle: "Pet 1's memories",
     });
   });
@@ -91,7 +91,7 @@ describe("getOwnerHeaderAction", () => {
         pathname: "/pets/pet_0",
         currentPageContext: pageContext({ pathname: "/pets/pet_0" }),
       })
-    ).toMatchObject({ type: "link", label: "Add Moment" });
+    ).toMatchObject({ type: "button", label: "Add Moment" });
     expect(
       resolve({
         pathname: "/settings",
@@ -135,7 +135,7 @@ describe("getOwnerHeaderAction", () => {
         pathname: "/moments",
         currentPageContext: pageContext({ status: "ready" }),
       })
-    ).toMatchObject({ type: "link", label: "Add Moment" });
+    ).toMatchObject({ type: "button", label: "Add Moment" });
   });
 
   it("switching between pets keeps the action pointed at the current pet", () => {
@@ -147,8 +147,7 @@ describe("getOwnerHeaderAction", () => {
       currentPageContext: pageContext({ pathname: "/pets/pet_0/moments" }),
     });
     expect(first).toMatchObject({
-      type: "link",
-      href: "/pets/pet_0/moments/new",
+      type: "button",
       compactTitle: "Pet 1's memories",
     });
 
@@ -161,8 +160,7 @@ describe("getOwnerHeaderAction", () => {
       }),
     });
     expect(second).toMatchObject({
-      type: "link",
-      href: "/pets/pet_1/moments/new",
+      type: "button",
       compactTitle: "Pet 2's memories",
     });
 
@@ -172,8 +170,7 @@ describe("getOwnerHeaderAction", () => {
       currentPageContext: pageContext({ pathname: "/pets/pet_0/moments" }),
     });
     expect(backToFirst).toMatchObject({
-      type: "link",
-      href: "/pets/pet_0/moments/new",
+      type: "button",
       compactTitle: "Pet 1's memories",
     });
   });

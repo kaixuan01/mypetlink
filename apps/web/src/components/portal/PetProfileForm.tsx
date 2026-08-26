@@ -1041,7 +1041,7 @@ export function PetProfileForm({
               Manage Care Records
             </CTAButton>
             <CTAButton
-              href={ownerRoutes.petMomentNew(currentPet.id)}
+              href={ownerRoutes.petMomentCreate(currentPet.id)}
               icon="heart"
               variant="outline"
               fullWidth

@@ -8,7 +8,6 @@ import { PublicSharePetProfile } from "@/components/marketing/PublicSharePetProf
 import { QrSafetyRouteView } from "@/components/marketing/QrSafetyRouteView";
 import { PetDetailHeader } from "@/components/portal/PetDetailHeader";
 import { PetManagementTabs } from "@/components/portal/PetManagementTabs";
-import { PetMomentForm } from "@/components/portal/PetMomentForm";
 import { PetMomentsManager } from "@/components/portal/PetMomentsManager";
 import { PetProfileForm } from "@/components/portal/PetProfileForm";
 import { PetQrRedirect } from "@/components/portal/PetQrRedirect";
@@ -628,11 +627,12 @@ function OwnerRuntimeView({
     return (
       <AppLayout>
         <PageHeader
-          eyebrow="Add moment"
-          title={`Save a moment for ${pet.name}`}
-          description="Add a memory, milestone, photo moment, or short clip for your pet."
+          eyebrow="Pet moments"
+          title={`${pet.name}'s memories`}
+          description="Save photos, short videos, milestones, funny moments, and life notes for this pet."
         />
-        <PetMomentForm pet={pet} />
+        <PetSwitcher activePetId={pet.id} pets={pets} section="moments" />
+        <PetMomentsManager pet={pet} initialMoments={moments} />
       </AppLayout>
     );
   }

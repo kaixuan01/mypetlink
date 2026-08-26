@@ -24,6 +24,10 @@ type PetRecordsOptions = {
   create?: boolean;
 };
 
+type PetMomentsOptions = {
+  edit?: "new" | string;
+};
+
 export type PetEditTab = "basic" | "appearance" | "public" | "contact";
 
 type PetEditOptions = {
@@ -72,7 +76,21 @@ export const ownerRoutes = {
     `/pets/${petId}/edit${options.tab ? `?tab=${options.tab}` : ""}`,
   petRecords: (petId: string, options: PetRecordsOptions = {}) =>
     `/pets/${petId}/records${options.create ? "?create=1" : ""}`,
-  petMoments: (petId: string) => `/pets/${petId}/moments`,
+  petMoments: (petId: string, options: PetMomentsOptions = {}) => {
+    const params = new URLSearchParams();
+
+    if (options.edit) {
+      params.set("edit", options.edit);
+    }
+
+    const query = params.toString();
+    return `/pets/${petId}/moments${query ? `?${query}` : ""}`;
+  },
+  petMomentCreate: (petId: string) =>
+    ownerRoutes.petMoments(petId, { edit: "new" }),
+  // Compatibility URL for previously shared or bookmarked create links.
+  // New internal entry points use petMomentCreate so creation opens over the
+  // Moments context without a separate route transition.
   petMomentNew: (petId: string) => `/pets/${petId}/moments/new`,
   petTimeline: (petId: string) => `/pets/${petId}/timeline`,
   petTags: (petId: string) => `/pets/${petId}/tags`,

@@ -176,7 +176,7 @@ it("keeps the compact Moment actions on their existing destinations", async () =
 
   expect(
     (await screen.findByRole("link", { name: "Add Moment" })).getAttribute("href")
-  ).toBe(`/pets/${pet.id}/moments/new`);
+  ).toBe(`/pets/${pet.id}/moments?edit=new`);
   expect(
     screen
       .getByRole("link", { name: "View all pet memories" })

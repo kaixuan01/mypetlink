@@ -72,7 +72,7 @@ export function PetTimeline({ pet: initialPet, initialMoments }: PetTimelineProp
 
   const actions = (
     <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-      <CTAButton href={ownerRoutes.petMomentNew(pet.id)} icon="plus">
+      <CTAButton href={ownerRoutes.petMomentCreate(pet.id)} icon="plus">
         Add Moment
       </CTAButton>
       <CTAButton
@@ -146,7 +146,7 @@ export function PetTimeline({ pet: initialPet, initialMoments }: PetTimelineProp
             icon="heart"
             title="No timeline items yet"
             description="Add a birthday in Pet Details, or record Adoption Day, First Day Home, and other milestones as Moments with Show in Life Timeline."
-            actionHref={ownerRoutes.petMomentNew(pet.id)}
+            actionHref={ownerRoutes.petMomentCreate(pet.id)}
             actionLabel="Add Moment"
           />
         </div>

@@ -67,7 +67,7 @@ describe("ProfileCompletionCard", () => {
     expect(screen.getByText(`${result.percentage}% complete`)).toBeTruthy();
     expect(
       screen.getByRole("link", { name: "Add Milo's first Moment" }).getAttribute("href")
-    ).toBe("/pets/pet_milo/moments/new");
+    ).toBe("/pets/pet_milo/moments?edit=new");
     expect(
       screen.getByRole("link", { name: "Add Milo's first care record" }).getAttribute("href")
     ).toBe("/pets/pet_milo/records?create=1");

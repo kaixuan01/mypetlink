@@ -331,7 +331,7 @@ function OverviewTab({
         <div className="mt-auto pt-1">
           <CTAButton
             disabled={!memoryLimit.canCreate}
-            href={memoryLimit.canCreate ? ownerRoutes.petMomentNew(pet.id) : undefined}
+            href={memoryLimit.canCreate ? ownerRoutes.petMomentCreate(pet.id) : undefined}
             variant="secondary"
             icon="plus"
           >

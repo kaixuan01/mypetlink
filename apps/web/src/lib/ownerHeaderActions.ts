@@ -36,10 +36,10 @@ export type OwnerHeaderAction =
     }
   | {
       type: "button";
-      label: "Add Record";
+      label: "Add Moment" | "Add Record";
       ariaLabel: string;
       onClick: () => void;
-      compactTitle: "Care records";
+      compactTitle: string;
     };
 
 type OwnerHeaderActionContext = {
@@ -119,7 +119,7 @@ export function getOwnerHeaderAction({
   }
 
   if (pageContext.section === "moments") {
-    if (!pageContext.canCreate) {
+    if (!pageContext.canCreate || !pageContext.onCreate) {
       return null;
     }
 
@@ -130,10 +130,10 @@ export function getOwnerHeaderAction({
     }
 
     return {
-      type: "link",
+      type: "button",
       label: "Add Moment",
       ariaLabel: "Add Moment for the current pet",
-      href: ownerRoutes.petMomentNew(pageContext.petId),
+      onClick: pageContext.onCreate,
       compactTitle: `${pet.name}'s memories`,
     };
   }

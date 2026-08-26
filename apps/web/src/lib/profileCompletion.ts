@@ -141,7 +141,7 @@ export function deriveProfileCompletion({
             isComplete: Number.isFinite(momentCount) && momentCount >= 1,
             label: "First Moment",
             actionLabel: `Add ${pet.name}'s first Moment`,
-            href: ownerRoutes.petMomentNew(pet.id),
+            href: ownerRoutes.petMomentCreate(pet.id),
           },
         ]
       : []),

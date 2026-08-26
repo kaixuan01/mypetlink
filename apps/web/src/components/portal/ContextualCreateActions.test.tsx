@@ -28,6 +28,7 @@ vi.mock("@/services/recordService", () => ({
   updateRecord: (...args: unknown[]) => mocks.updateRecord(...args),
 }));
 vi.mock("@/services/momentService", () => ({
+  createPetMoment: vi.fn(),
   deletePetMoment: vi.fn(),
   getFriendlyMomentErrorMessage: () => "Please try again.",
   getPetMoments: (...args: unknown[]) => mocks.getPetMoments(...args),
@@ -585,6 +586,7 @@ describe("contextual create actions", () => {
   });
 
   it("removes the populated Moments page-level Add button", async () => {
+    window.history.replaceState({}, "", `/pets/${mockPets[0].id}/moments`);
     mocks.getPetMoments.mockResolvedValue({ data: [mockMoments[0]] });
     render(
       <PetMomentsManager
@@ -598,15 +600,16 @@ describe("contextual create actions", () => {
   });
 
   it("keeps one empty Moments onboarding CTA", async () => {
+    window.history.replaceState({}, "", `/pets/${mockPets[0].id}/moments`);
     mocks.getPetMoments.mockResolvedValue({ data: [] });
     render(<PetMomentsManager pet={mockPets[0]} initialMoments={[]} />);
 
-    const action = await screen.findByRole("link", { name: /^add moment$/i });
-    expect(action.getAttribute("href")).toBe(
-      `/pets/${mockPets[0].id}/moments/new`
-    );
-    expect(screen.getAllByRole("link", { name: /^add moment$/i })).toHaveLength(
+    const action = await screen.findByRole("button", { name: /^add moment$/i });
+    expect(screen.getAllByRole("button", { name: /^add moment$/i })).toHaveLength(
       1
     );
+    fireEvent.click(action);
+    expect(screen.getByRole("dialog", { name: /add a moment/i })).toBeTruthy();
+    expect(new URL(window.location.href).searchParams.get("edit")).toBe("new");
   });
 });

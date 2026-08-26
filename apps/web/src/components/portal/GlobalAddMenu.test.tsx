@@ -103,7 +103,7 @@ describe("GlobalAddMenu", () => {
     expect(
       screen.getByRole("menuitem", { name: /save a photo or memory/i })
         .getAttribute("href")
-    ).toBe("/pets/pet_0/moments/new");
+    ).toBe("/pets/pet_0/moments?edit=new");
   });
 
   it("disables pet-dependent actions with a visible zero-pet explanation", () => {

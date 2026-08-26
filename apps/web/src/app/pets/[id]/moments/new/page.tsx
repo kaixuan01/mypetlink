@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AppLayout } from "@/components/layouts/AppLayout";
-import { PetMomentForm } from "@/components/portal/PetMomentForm";
+import { PetMomentsManager } from "@/components/portal/PetMomentsManager";
+import { PetSwitcher } from "@/components/portal/PetSwitcher";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { staticPetIdParams } from "@/data/staticRouteParams";
 import { loadingTitle, ownerPetPageTitle } from "@/lib/pageTitles";
-import { getPetById } from "@/services/petService";
+import { getPetMoments } from "@/services/momentService";
+import { getPetById, getPets } from "@/services/petService";
 
 type NewMomentPageProps = {
   params: Promise<{ id: string }>;
@@ -38,15 +40,20 @@ export default async function NewMomentPage({ params }: NewMomentPageProps) {
     notFound();
   }
 
+  const moments = await getPetMoments(pet.data.id);
+  const pets = await getPets();
+
   return (
     <AppLayout>
       <PageHeader
-        eyebrow="Add moment"
-        title={`Save a moment for ${pet.data.name}`}
-        description="Add a memory, milestone, photo moment, or short clip for your pet."
+        eyebrow="Pet moments"
+        title={`${pet.data.name}'s memories`}
+        description="Save photos, short videos, milestones, funny moments, and life notes for this pet."
       />
 
-      <PetMomentForm pet={pet.data} />
+      <PetSwitcher activePetId={pet.data.id} pets={pets.data} section="moments" />
+
+      <PetMomentsManager pet={pet.data} initialMoments={moments.data} />
     </AppLayout>
   );
 }

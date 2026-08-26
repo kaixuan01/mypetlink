@@ -42,6 +42,7 @@ vi.mock("@/services/apiConfig", () => ({
 }));
 
 vi.mock("@/services/momentService", () => ({
+  createPetMoment: vi.fn(),
   getPetMoments: (...args: unknown[]) => mocks.getPetMoments(...args),
   deletePetMoment: vi.fn(),
   updatePetMoment: vi.fn(),
@@ -97,6 +98,7 @@ function PageContextPublisher({
 
 describe("OwnerHeaderActions", () => {
   beforeEach(() => {
+    window.history.replaceState({}, "", "/dashboard");
     mocks.pathname = "/dashboard";
     mocks.getPets.mockReset();
     mocks.push.mockReset();
@@ -193,19 +195,21 @@ describe("OwnerHeaderActions", () => {
           petId: "pet_0",
           status: "ready",
           canCreate: true,
+          onCreate: vi.fn(),
         }}
       />
     );
 
-    const action = await screen.findByRole("link", {
+    const action = await screen.findByRole("button", {
       name: /add moment for the current pet/i,
     });
-    expect(action.getAttribute("href")).toBe("/pets/pet_0/moments/new");
+    expect(action.getAttribute("href")).toBeNull();
     expect(screen.queryByRole("link", { name: "Add Pet" })).toBeNull();
   });
 
   it("shows one compact mobile action after the original passes above the viewport", async () => {
     mocks.pathname = "/pets/pet_0/moments";
+    const onCreate = vi.fn();
     const currentPets = makePets(1);
     currentPets[0].name = "A very long pet name that must stay on one line";
     mocks.getPets.mockResolvedValue({ data: currentPets });
@@ -216,11 +220,12 @@ describe("OwnerHeaderActions", () => {
           petId: "pet_0",
           status: "ready",
           canCreate: true,
+          onCreate,
         }}
       />
     );
 
-    const originalAction = await screen.findByRole("link", {
+    const originalAction = await screen.findByRole("button", {
       name: /add moment for the current pet/i,
     });
     await waitFor(() => expect(observedOrigin).toBeTruthy());
@@ -235,12 +240,11 @@ describe("OwnerHeaderActions", () => {
       expect(bar).toBeTruthy();
       return bar as HTMLElement;
     });
-    const compactAction = within(compactBar).getByRole("link", {
+    const compactAction = within(compactBar).getByRole("button", {
       name: /add moment for the current pet/i,
     });
-    expect(compactAction.getAttribute("href")).toBe(
-      originalAction.getAttribute("href")
-    );
+    fireEvent.click(compactAction);
+    expect(onCreate).toHaveBeenCalledOnce();
     expect(
       within(compactBar).getByText(currentPets[0].name + "'s memories")
         .classList
@@ -249,7 +253,7 @@ describe("OwnerHeaderActions", () => {
       "true"
     );
     expect(
-      screen.getAllByRole("link", {
+      screen.getAllByRole("button", {
         name: /add moment for the current pet/i,
       })
     ).toHaveLength(1);
@@ -262,7 +266,7 @@ describe("OwnerHeaderActions", () => {
       ).toBeNull()
     );
     expect(
-      screen.getByRole("link", { name: /add moment for the current pet/i })
+      screen.getByRole("button", { name: /add moment for the current pet/i })
     ).toBe(originalAction);
   });
 
@@ -345,12 +349,13 @@ describe("OwnerHeaderActions", () => {
           petId: "pet_0",
           status: "loading",
           canCreate: true,
+          onCreate: vi.fn(),
         }}
       />
     );
 
     await waitFor(() => expect(mocks.getPets).toHaveBeenCalledOnce());
-    expect(screen.queryByRole("link", { name: /add moment/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /add moment/i })).toBeNull();
 
     view.rerender(
       <HeaderHarness
@@ -359,11 +364,12 @@ describe("OwnerHeaderActions", () => {
           petId: "pet_0",
           status: "ready",
           canCreate: true,
+          onCreate: vi.fn(),
         }}
       />
     );
     expect(
-      await screen.findByRole("link", { name: /add moment/i })
+      await screen.findByRole("button", { name: /add moment/i })
     ).toBeTruthy();
   });
 
@@ -379,10 +385,11 @@ describe("OwnerHeaderActions", () => {
       </OwnerHeaderActionsProvider>
     );
 
-    const action = await screen.findByRole("link", {
+    const action = await screen.findByRole("button", {
       name: /add moment for the current pet/i,
     });
-    expect(action.getAttribute("href")).toBe("/pets/pet_0/moments/new");
+    fireEvent.click(action);
+    expect(screen.getByRole("dialog", { name: /add a moment/i })).toBeTruthy();
     expect(screen.getByText("No pet moments yet")).toBeTruthy();
   });
 
@@ -405,12 +412,10 @@ describe("OwnerHeaderActions", () => {
         <PetMomentsManager initialMoments={[]} pet={currentPets[0]} />
       </OwnerHeaderActionsProvider>
     );
-    const populatedAction = await screen.findByRole("link", {
+    const populatedAction = await screen.findByRole("button", {
       name: /add moment for the current pet/i,
     });
-    expect(populatedAction.getAttribute("href")).toBe(
-      "/pets/pet_0/moments/new"
-    );
+    expect(populatedAction.getAttribute("href")).toBeNull();
 
     mocks.pathname = "/pets/pet_1/moments";
     view.rerender(
@@ -422,9 +427,9 @@ describe("OwnerHeaderActions", () => {
     await waitFor(() =>
       expect(
         screen
-          .getByRole("link", { name: /add moment for the current pet/i })
+          .getByRole("button", { name: /add moment for the current pet/i })
           .getAttribute("href")
-      ).toBe("/pets/pet_1/moments/new")
+      ).toBeNull()
     );
 
     mocks.pathname = "/pets/pet_0/moments";
@@ -437,9 +442,9 @@ describe("OwnerHeaderActions", () => {
     await waitFor(() =>
       expect(
         screen
-          .getByRole("link", { name: /add moment for the current pet/i })
+          .getByRole("button", { name: /add moment for the current pet/i })
           .getAttribute("href")
-      ).toBe("/pets/pet_0/moments/new")
+      ).toBeNull()
     );
   });
 

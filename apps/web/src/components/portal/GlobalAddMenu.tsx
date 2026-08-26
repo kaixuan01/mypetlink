@@ -320,7 +320,7 @@ export function GlobalAddMenu({
                           href:
                             selectingPetFor === "record"
                               ? ownerRoutes.petRecords(pet.id, { create: true })
-                              : ownerRoutes.petMomentNew(pet.id),
+                              : ownerRoutes.petMomentCreate(pet.id),
                         }}
                         key={pet.id}
                         onSelect={() => closeMenu(false)}
@@ -457,7 +457,7 @@ function buildActions({
         href:
           action === "record"
             ? ownerRoutes.petRecords(pet.id, { create: true })
-            : ownerRoutes.petMomentNew(pet.id),
+            : ownerRoutes.petMomentCreate(pet.id),
       };
     }
 

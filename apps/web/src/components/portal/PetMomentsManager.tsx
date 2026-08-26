@@ -13,12 +13,14 @@ import { useOwnerHeaderPageContext } from "@/components/portal/OwnerHeaderAction
 import { CTAButton } from "@/components/ui/CTAButton";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { AnalyticsEvent, trackEvent } from "@/lib/analytics";
 import { getMemoryLimitState } from "@/lib/planLimits";
 import { isArchivedPet } from "@/lib/petLifecycle";
 import { normalizeMomentVisibility } from "@/lib/momentVisibility";
 import { ownerRoutes } from "@/lib/routes";
 import { isApiConfigured } from "@/services/apiConfig";
 import {
+  createPetMoment,
   deletePetMoment,
   getFriendlyMomentErrorMessage,
   getPetMoments,
@@ -35,23 +37,81 @@ type PetMomentsManagerProps = {
   initialMoments: PetMoment[];
 };
 
-function updateEditQuery(momentId?: string, mode: "push" | "replace" = "replace") {
+type MomentEditorState =
+  | { key: "new"; mode: "create" }
+  | { key: string; mode: "edit"; moment: PetMoment };
+
+const momentEditorHistoryKey = "myPetLinkMomentEditor";
+
+function getRequestedEditorKey(petId: string) {
   const url = new URL(window.location.href);
-  if (momentId) {
-    url.searchParams.set("edit", momentId);
+  const edit = url.searchParams.get("edit")?.trim();
+
+  if (edit) {
+    return edit;
+  }
+
+  return url.pathname === ownerRoutes.petMomentNew(petId) ? "new" : null;
+}
+
+function getEditorUrl(editorKey?: string) {
+  const url = new URL(window.location.href);
+  if (editorKey) {
+    url.searchParams.set("edit", editorKey);
   } else {
     url.searchParams.delete("edit");
   }
+
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
+function getCanonicalEditorUrl(petId: string, editorKey: string) {
+  return ownerRoutes.petMoments(petId, { edit: editorKey });
+}
+
+function historyStateWithoutEditor() {
+  const state = window.history.state;
+  if (!state || typeof state !== "object") {
+    return {};
+  }
+
+  const parentState = { ...state };
+  delete parentState[momentEditorHistoryKey];
+  return parentState;
+}
+
+function updateEditorHistory(
+  editorKey?: string,
+  mode: "push" | "replace" = "replace",
+  nextUrl = getEditorUrl(editorKey)
+) {
   const state = {
-    ...window.history.state,
-    myPetLinkMomentEdit: Boolean(momentId),
+    ...(editorKey ? window.history.state : historyStateWithoutEditor()),
+    ...(editorKey ? { [momentEditorHistoryKey]: editorKey } : {}),
   };
-  const nextUrl = `${url.pathname}${url.search}${url.hash}`;
   if (mode === "push") {
     window.history.pushState(state, "", nextUrl);
   } else {
     window.history.replaceState(state, "", nextUrl);
   }
+}
+
+function ensureEditorHistoryEntry(petId: string, editorKey: string) {
+  if (window.history.state?.[momentEditorHistoryKey] === editorKey) {
+    return;
+  }
+
+  const compatibilityRoute =
+    window.location.pathname === ownerRoutes.petMomentNew(petId);
+  const parentUrl = compatibilityRoute
+    ? ownerRoutes.petMoments(petId)
+    : getEditorUrl(undefined);
+  const editorUrl = compatibilityRoute
+    ? getCanonicalEditorUrl(petId, editorKey)
+    : getEditorUrl(editorKey);
+
+  updateEditorHistory(undefined, "replace", parentUrl);
+  updateEditorHistory(editorKey, "push", editorUrl);
 }
 
 export function PetMomentsManager({
@@ -63,8 +123,8 @@ export function PetMomentsManager({
   const [moments, setMoments] = useState<PetMoment[]>(
     apiMode ? [] : initialMoments
   );
-  const [editingMoment, setEditingMoment] = useState<PetMoment | null>(null);
-  const [editDirty, setEditDirty] = useState(false);
+  const [editor, setEditor] = useState<MomentEditorState | null>(null);
+  const [editorDirty, setEditorDirty] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -74,8 +134,8 @@ export function PetMomentsManager({
   const [success, setSuccess] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<PetMoment | null>(null);
   const momentsRef = useRef(moments);
-  const editingMomentRef = useRef(editingMoment);
-  const editDirtyRef = useRef(editDirty);
+  const editorRef = useRef(editor);
+  const editorDirtyRef = useRef(editorDirty);
   const memoryLimit = getMemoryLimitState(moments.length);
   const canCreateMemory = memoryLimit.canCreate && !archivedPet;
   const counts = useMemo(
@@ -93,9 +153,9 @@ export function PetMomentsManager({
 
   useEffect(() => {
     momentsRef.current = moments;
-    editingMomentRef.current = editingMoment;
-    editDirtyRef.current = editDirty;
-  }, [editDirty, editingMoment, moments]);
+    editorRef.current = editor;
+    editorDirtyRef.current = editorDirty;
+  }, [editor, editorDirty, moments]);
 
   useEffect(() => {
     let active = true;
@@ -130,37 +190,79 @@ export function PetMomentsManager({
     };
   }, [pet.id]);
 
-  useEffect(() => {
-    const editId = new URL(window.location.href).searchParams.get("edit");
-    if (!editId || editingMoment?.id === editId) {
-      return;
-    }
+  const clearEditor = useCallback(() => {
+    setEditor(null);
+    setEditorDirty(false);
+    setFormError("");
+  }, []);
 
-    const target = moments.find((moment) => moment.id === editId);
-    if (!target) {
-      return;
-    }
-
-    queueMicrotask(() => {
-      setEditingMoment(target);
-      setEditDirty(false);
-      setActionError("");
-      setFormError("");
-      setSuccess("");
-    });
-  }, [editingMoment?.id, moments]);
-
-  function openEditForm(moment: PetMoment, updateRoute = true) {
-    setEditingMoment(moment);
-    setEditDirty(false);
+  const showEditor = useCallback((nextEditor: MomentEditorState) => {
+    setEditor(nextEditor);
+    setEditorDirty(false);
+    setConfirmDiscard(false);
     setActionError("");
     setFormError("");
     setSuccess("");
-    if (updateRoute) updateEditQuery(moment.id, "push");
-  }
+  }, []);
 
-  async function handleEditSubmit(payload: PetMomentPayload) {
-    if (!editingMoment) {
+  const editorForKey = useCallback(
+    (editorKey: string): MomentEditorState | null => {
+      if (editorKey === "new") {
+        return canCreateMemory ? { key: "new", mode: "create" } : null;
+      }
+
+      const moment = momentsRef.current.find((item) => item.id === editorKey);
+      return moment ? { key: moment.id, mode: "edit", moment } : null;
+    },
+    [canCreateMemory]
+  );
+
+  const openCreateForm = useCallback(() => {
+    if (!canCreateMemory) {
+      return;
+    }
+
+    showEditor({ key: "new", mode: "create" });
+    updateEditorHistory("new", "push");
+  }, [canCreateMemory, showEditor]);
+
+  const openEditForm = useCallback(
+    (moment: PetMoment) => {
+      showEditor({ key: moment.id, mode: "edit", moment });
+      updateEditorHistory(moment.id, "push");
+    },
+    [showEditor]
+  );
+
+  const closeEditor = useCallback(() => {
+    if (window.history.state?.[momentEditorHistoryKey]) {
+      window.history.back();
+      return;
+    }
+
+    const compatibilityRoute =
+      window.location.pathname === ownerRoutes.petMomentNew(pet.id);
+    updateEditorHistory(
+      undefined,
+      "replace",
+      compatibilityRoute
+        ? ownerRoutes.petMoments(pet.id)
+        : getEditorUrl(undefined)
+    );
+    clearEditor();
+  }, [clearEditor, pet.id]);
+
+  const requestEditorClose = useCallback(() => {
+    if (editorDirty) {
+      setConfirmDiscard(true);
+      return;
+    }
+    closeEditor();
+  }, [closeEditor, editorDirty]);
+
+  async function handleEditorSubmit(payload: PetMomentPayload) {
+    const currentEditor = editorRef.current;
+    if (!currentEditor) {
       return;
     }
 
@@ -170,22 +272,35 @@ export function PetMomentsManager({
     setFormError("");
 
     try {
-      const response = await updatePetMoment(editingMoment.id, payload, pet.id);
-
-      const savedMoment = response.data;
-
-      if (savedMoment) {
-        setMoments((current) =>
-          current.map((moment) =>
-            moment.id === editingMoment.id ? savedMoment : moment
-          )
+      if (currentEditor.mode === "create") {
+        const response = await createPetMoment(pet.id, payload);
+        setMoments((current) => [
+          response.data,
+          ...current.filter((moment) => moment.id !== response.data.id),
+        ]);
+        setSuccess("Moment added.");
+        trackEvent(AnalyticsEvent.MomentCreated, { source: "owner_portal" });
+      } else {
+        const response = await updatePetMoment(
+          currentEditor.moment.id,
+          payload,
+          pet.id
         );
-        setSuccess("Moment updated.");
+        const savedMoment = response.data;
+
+        if (savedMoment) {
+          setMoments((current) =>
+            current.map((moment) =>
+              moment.id === currentEditor.moment.id ? savedMoment : moment
+            )
+          );
+          setSuccess("Moment updated.");
+        }
       }
 
-      updateEditQuery(undefined, "replace");
-      setEditDirty(false);
-      setEditingMoment(null);
+      editorDirtyRef.current = false;
+      setEditorDirty(false);
+      closeEditor();
     } catch (caught) {
       setFormError(getFriendlyMomentErrorMessage(caught));
     } finally {
@@ -193,51 +308,67 @@ export function PetMomentsManager({
     }
   }
 
-  const closeEditForm = useCallback(() => {
-    updateEditQuery(undefined, "replace");
-    setEditingMoment(null);
-    setEditDirty(false);
-    setFormError("");
-  }, []);
-
-  const requestEditClose = useCallback(() => {
-    if (editDirty) {
-      setConfirmDiscard(true);
+  useEffect(() => {
+    if (loading) {
       return;
     }
-    closeEditForm();
-  }, [closeEditForm, editDirty]);
+
+    const editorKey = getRequestedEditorKey(pet.id);
+    if (!editorKey || editorRef.current?.key === editorKey) {
+      return;
+    }
+
+    const requestedEditor = editorForKey(editorKey);
+    if (!requestedEditor) {
+      if (
+        editorKey === "new" &&
+        window.location.pathname === ownerRoutes.petMomentNew(pet.id)
+      ) {
+        updateEditorHistory(
+          undefined,
+          "replace",
+          ownerRoutes.petMoments(pet.id)
+        );
+      }
+      return;
+    }
+
+    ensureEditorHistoryEntry(pet.id, editorKey);
+    queueMicrotask(() => showEditor(requestedEditor));
+  }, [editorForKey, loading, moments, pet.id, showEditor]);
 
   useEffect(() => {
     function handlePopState() {
-      const editId = new URL(window.location.href).searchParams.get("edit");
-      const current = editingMomentRef.current;
+      const requestedKey = getRequestedEditorKey(pet.id);
+      const currentEditor = editorRef.current;
 
-      if (!editId && current) {
-        if (editDirtyRef.current) {
-          updateEditQuery(current.id, "push");
+      if (!requestedKey && currentEditor) {
+        if (editorDirtyRef.current) {
+          updateEditorHistory(currentEditor.key, "push");
           setConfirmDiscard(true);
         } else {
-          setEditingMoment(null);
+          clearEditor();
         }
         return;
       }
 
-      if (editId && current?.id !== editId) {
-        const target = momentsRef.current.find((moment) => moment.id === editId);
-        if (target) {
-          setEditingMoment(target);
-          setEditDirty(false);
-          setActionError("");
-          setFormError("");
-          setSuccess("");
+      if (requestedKey && currentEditor?.key !== requestedKey) {
+        if (currentEditor && editorDirtyRef.current) {
+          updateEditorHistory(currentEditor.key, "push");
+          setConfirmDiscard(true);
+          return;
+        }
+
+        const requestedEditor = editorForKey(requestedKey);
+        if (requestedEditor) {
+          showEditor(requestedEditor);
         }
       }
     }
 
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, []);
+  }, [clearEditor, editorForKey, pet.id, showEditor]);
 
   async function confirmDelete() {
     if (!deleteTarget) {
@@ -267,6 +398,7 @@ export function PetMomentsManager({
     petId: pet.id,
     status: loading ? "loading" : loadError ? "error" : "ready",
     canCreate: canCreateMemory,
+    onCreate: canCreateMemory ? openCreateForm : undefined,
   });
 
   return (
@@ -412,37 +544,38 @@ export function PetMomentsManager({
             icon="heart"
             title="No pet moments yet"
             description="Add your pet's first little moment and keep it safe in their profile."
-            actionHref={
-              canCreateMemory ? ownerRoutes.petMomentNew(pet.id) : undefined
-            }
+            actionOnClick={canCreateMemory ? openCreateForm : undefined}
             actionLabel="Add Moment"
           />
         )}
       </section>
 
-      {editingMoment ? (
+      {editor ? (
         <MomentEditorDialog
           error={formError}
-          initialMoment={editingMoment}
-          key={editingMoment.id}
-          mode="edit"
-          onDirtyChange={setEditDirty}
-          onRequestClose={requestEditClose}
-          onSubmit={handleEditSubmit}
+          initialMoment={editor.mode === "edit" ? editor.moment : undefined}
+          key={editor.key}
+          mode={editor.mode}
+          onDirtyChange={setEditorDirty}
+          onRequestClose={requestEditorClose}
+          onSubmit={handleEditorSubmit}
           petName={pet.name}
           submitting={isSubmitting}
         />
       ) : null}
 
       <ConfirmDialog
+        cancelLabel="Keep editing"
         confirmLabel="Discard changes"
         message="Your unsaved moment changes and media selections will be lost."
         onCancel={() => setConfirmDiscard(false)}
         onConfirm={() => {
           setConfirmDiscard(false);
+          editorDirtyRef.current = false;
+          setEditorDirty(false);
           // Let the nested dialog release its inert parent before focus returns
           // from the editor to the Moment card action that opened it.
-          window.setTimeout(closeEditForm, 0);
+          window.setTimeout(closeEditor, 0);
         }}
         open={confirmDiscard}
         title="Discard your changes?"

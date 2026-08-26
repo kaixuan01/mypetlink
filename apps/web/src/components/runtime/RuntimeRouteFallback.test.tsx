@@ -51,8 +51,12 @@ vi.mock("@/services/recordService", () => ({
 }));
 
 vi.mock("@/services/momentService", () => ({
+  createPetMoment: vi.fn(),
+  deletePetMoment: vi.fn(),
+  getFriendlyMomentErrorMessage: () => "Please try again.",
   getPetMoments: (...args: unknown[]) => mocks.getPetMoments(...args),
   getPublicPetMoments: vi.fn(),
+  updatePetMoment: vi.fn(),
 }));
 
 vi.mock("@/services/tagService", () => ({
@@ -174,6 +178,34 @@ describe("RuntimeRouteFallback owner authentication", () => {
       await screen.findByText("MyPetLink temporarily unavailable")
     ).toBeTruthy();
     expect(screen.queryByText("Pet not found")).toBeNull();
+    expect(screen.queryByText("Page not found")).toBeNull();
+  });
+
+  it("keeps the legacy Moment create URL as a Moments-context compatibility entry", async () => {
+    const pet = {
+      id: "owner-pet-id",
+      name: "Milo",
+      lifecycleStatus: "Active",
+    };
+    window.history.replaceState({}, "", "/pets/owner-pet-id/moments/new");
+    mocks.authenticated = true;
+    mocks.getCurrentOwnerSession.mockResolvedValue({});
+    mocks.getPetById.mockResolvedValue({ data: pet });
+    mocks.getPets.mockResolvedValue({ data: [pet] });
+    mocks.getPetMoments.mockResolvedValue({ data: [] });
+
+    render(
+      <RuntimeRouteFallback>
+        <p>Page not found</p>
+      </RuntimeRouteFallback>
+    );
+
+    expect(await screen.findByText("Milo's memories")).toBeTruthy();
+    expect(
+      await screen.findByRole("dialog", { name: "Add a moment for Milo" })
+    ).toBeTruthy();
+    expect(window.location.pathname).toBe("/pets/owner-pet-id/moments");
+    expect(new URL(window.location.href).searchParams.get("edit")).toBe("new");
     expect(screen.queryByText("Page not found")).toBeNull();
   });
 
