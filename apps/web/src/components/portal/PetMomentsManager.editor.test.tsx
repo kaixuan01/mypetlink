@@ -92,21 +92,66 @@ describe("PetMomentsManager shared edit flow", () => {
     expect(mocks.getPetMoments).toHaveBeenCalledOnce();
   });
 
-  it("keeps the editor open until dirty changes are explicitly discarded", async () => {
+  it("composes dirty discard confirmation with focus and scroll locking intact", async () => {
     render(
       <PetMomentsManager pet={mockPets[0]} initialMoments={[mockMoments[0]]} />
     );
     await screen.findByText(mockMoments[0].title);
-    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    const opener = screen.getByRole("button", { name: "Edit" });
+    opener.focus();
+    fireEvent.click(opener);
+    const editor = screen.getByRole("dialog", { name: "Update this memory" });
     fireEvent.change(screen.getByLabelText("Caption"), {
       target: { value: "Unsaved caption" },
     });
-    fireEvent.click(screen.getAllByRole("button", { name: "Close moment editor" })[1]);
+    const cancel = screen.getByRole("button", { name: "Cancel" });
+    cancel.focus();
+    fireEvent.click(cancel);
+
+    await screen.findByRole("dialog", {
+      name: "Discard your changes?",
+    });
+    expect(editor.hasAttribute("inert")).toBe(true);
+    expect(document.body.style.overflow).toBe("hidden");
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Discard your changes?" })
+      ).toBeNull()
+    );
+    expect(screen.getByRole("dialog", { name: "Update this memory" })).toBeTruthy();
+    expect(document.activeElement).toBe(cancel);
+    expect(document.body.style.overflow).toBe("hidden");
+  });
+
+  it("closes the dirty editor only after discard confirmation", async () => {
+    render(
+      <PetMomentsManager pet={mockPets[0]} initialMoments={[mockMoments[0]]} />
+    );
+    await screen.findByText(mockMoments[0].title);
+    const opener = screen.getByRole("button", { name: "Edit" });
+    opener.focus();
+    fireEvent.click(opener);
+    fireEvent.change(screen.getByLabelText("Caption"), {
+      target: { value: "Discard this unsaved caption" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
     const confirmation = await screen.findByRole("dialog", {
       name: "Discard your changes?",
     });
-    fireEvent.click(within(confirmation).getByRole("button", { name: "Cancel" }));
-    expect(screen.getByRole("dialog", { name: "Update this memory" })).toBeTruthy();
+    fireEvent.click(
+      within(confirmation).getByRole("button", { name: "Discard changes" })
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Update this memory" })
+      ).toBeNull()
+    );
+    expect(new URL(window.location.href).searchParams.has("edit")).toBe(false);
+    expect(document.activeElement).toBe(opener);
+    expect(document.body.style.overflow).toBe("");
   });
 });

@@ -3,15 +3,13 @@
 import {
   useEffect,
   useMemo,
-  useRef,
   useState,
   type FormEvent,
   type ReactNode,
 } from "react";
 import { MomentMediaField } from "@/components/portal/MomentMediaField";
 import { DateInput } from "@/components/ui/DateInput";
-import { Icon } from "@/components/ui/Icon";
-import { useModalDialogFocus } from "@/lib/useModalDialogFocus";
+import { FormDialog } from "@/components/ui/FormDialog";
 import type {
   MomentMedia,
   MomentType,
@@ -107,15 +105,7 @@ export function MomentEditorDialog({
   );
   const [form, setForm] = useState<MomentEditorValues>(initialValues);
   const [errors, setErrors] = useState<FormErrors>({});
-  const dialogRef = useRef<HTMLDivElement | null>(null);
-  const closeRef = useRef<HTMLButtonElement | null>(null);
   const dirty = valuesFingerprint(form) !== valuesFingerprint(initialValues);
-
-  useModalDialogFocus({
-    dialogRef,
-    initialFocusRef: closeRef,
-    onEscape: onRequestClose,
-  });
 
   useEffect(() => {
     onDirtyChange?.(dirty);
@@ -177,54 +167,33 @@ export function MomentEditorDialog({
   }
 
   const dialogTitle = mode === "create" ? `Add a moment for ${petName}` : "Update this memory";
-  const descriptionId = `moment-editor-${mode}-description`;
-  const titleId = `moment-editor-${mode}-title`;
+  const formId = `moment-editor-${mode}-form`;
+  const primaryLabel = mode === "create" ? "Add Moment" : "Save Changes";
 
   return (
-    <div
-      aria-labelledby={titleId}
-      aria-describedby={descriptionId}
-      aria-modal="true"
-      className="fixed inset-0 z-40 grid bg-pet-ink/35 backdrop-blur-sm sm:place-items-center sm:p-4"
-      data-moment-editor-mode={mode}
-      role="dialog"
+    <FormDialog
+      cancelAction={{ disabled: submitting, label: "Cancel" }}
+      closeLabel="Close moment editor"
+      description="Add the details once, then choose where this memory appears."
+      eyebrow={mode === "create" ? "Add Moment" : "Edit Moment"}
+      onRequestClose={onRequestClose}
+      open
+      primaryAction={{
+        disabled: submitting,
+        form: formId,
+        label: primaryLabel,
+        pending: submitting,
+        pendingLabel: "Saving...",
+        type: "submit",
+      }}
+      title={dialogTitle}
     >
-      <button
-        aria-label="Close moment editor"
-        className="absolute inset-0 hidden cursor-default sm:block"
-        onClick={onRequestClose}
-        type="button"
-      />
-      <div
-        className="relative flex h-[100dvh] min-h-0 w-full flex-col overflow-hidden bg-white shadow-2xl sm:h-auto sm:max-h-[92dvh] sm:max-w-4xl sm:rounded-[2rem]"
-        ref={dialogRef}
+      <form
+        className="grid gap-4"
+        data-moment-editor-mode={mode}
+        id={formId}
+        onSubmit={handleSubmit}
       >
-        <header className="flex shrink-0 items-start justify-between gap-4 border-b border-pet-border px-5 py-4 sm:px-6 sm:py-5">
-          <div className="min-w-0">
-            <p className="text-xs font-bold uppercase tracking-wide text-pet-coral">
-              {mode === "create" ? "Add Moment" : "Edit Moment"}
-            </p>
-            <h2 className="mt-1 truncate text-xl font-black text-pet-ink sm:text-2xl" id={titleId}>
-              {dialogTitle}
-            </h2>
-            <p className="mt-1 hidden text-sm leading-6 text-pet-muted sm:block" id={descriptionId}>
-              Add the details once, then choose where this memory appears.
-            </p>
-          </div>
-          <button
-            aria-label="Close moment editor"
-            className="grid min-h-11 min-w-11 shrink-0 place-items-center rounded-full bg-pet-cream text-pet-muted transition hover:text-pet-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pet-teal"
-            onClick={onRequestClose}
-            ref={closeRef}
-            type="button"
-          >
-            <Icon className="h-5 w-5 rotate-45" name="plus" />
-          </button>
-        </header>
-
-        <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSubmit}>
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6">
-            <div className="grid gap-4">
               {error ? (
                 <div className="rounded-[1.25rem] border border-[#f3b4a8] bg-[#fff1ee] p-4 text-sm font-bold text-[#a63c2e]" role="alert">
                   {error}
@@ -335,29 +304,8 @@ export function MomentEditorDialog({
                   />
                 </Field>
               ) : null}
-            </div>
-          </div>
-
-          <footer className="flex shrink-0 flex-col-reverse gap-3 border-t border-pet-border bg-white px-5 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4 sm:flex-row sm:justify-end sm:px-6 sm:pb-4">
-            <button
-              className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
-              disabled={submitting}
-              onClick={onRequestClose}
-              type="button"
-            >
-              Cancel
-            </button>
-            <button
-              className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-coral bg-pet-coral px-5 py-3 text-sm font-bold text-white shadow-lg shadow-[#ff7a6e]/20 transition hover:bg-[#f26155] disabled:cursor-wait disabled:opacity-70"
-              disabled={submitting}
-              type="submit"
-            >
-              {submitting ? "Saving..." : mode === "create" ? "Add Moment" : "Save Changes"}
-            </button>
-          </footer>
-        </form>
-      </div>
-    </div>
+      </form>
+    </FormDialog>
   );
 }
 

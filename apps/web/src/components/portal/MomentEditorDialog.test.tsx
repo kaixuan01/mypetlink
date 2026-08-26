@@ -45,6 +45,23 @@ describe("MomentEditorDialog", () => {
       );
 
       expect(document.querySelector(`[data-moment-editor-mode="${mode}"]`)).toBeTruthy();
+      const dialog = screen.getByRole("dialog", {
+        name: mode === "edit" ? "Update this memory" : "Add a moment for Topu",
+      });
+      const body = screen.getByTestId("form-dialog-body");
+      const form = document.querySelector(
+        `#moment-editor-${mode}-form`
+      ) as HTMLFormElement;
+      const primary = screen.getByRole("button", {
+        name: mode === "edit" ? "Save Changes" : "Add Moment",
+      });
+
+      expect(dialog.getAttribute("aria-modal")).toBe("true");
+      expect(body.contains(form)).toBe(true);
+      expect(body.className).toContain("overflow-y-auto");
+      expect(primary.getAttribute("form")).toBe(`moment-editor-${mode}-form`);
+      expect(primary.parentElement?.dataset.formDialogFooterLayout).toBe("inline");
+      expect(primary.parentElement?.className).toContain("grid-cols-2");
       expect(screen.getByLabelText("Title")).toBeTruthy();
       expect(screen.getByLabelText("Date")).toBeTruthy();
       expect(screen.getByLabelText("Moment category")).toBeTruthy();
@@ -78,6 +95,49 @@ describe("MomentEditorDialog", () => {
       ).toBeNull();
     }
   );
+
+  it("uses shared safe initial focus and keeps clean Cancel routed through the caller", async () => {
+    const onRequestClose = vi.fn();
+    render(
+      <MomentEditorDialog
+        mode="create"
+        onRequestClose={onRequestClose}
+        onSubmit={vi.fn()}
+        petName="Topu"
+        submitting={false}
+      />
+    );
+
+    const close = screen.getByRole("button", { name: "Close moment editor" });
+    await waitFor(() => expect(document.activeElement).toBe(close));
+    expect(document.activeElement).not.toBe(screen.getByLabelText("Title"));
+    expect(document.activeElement).not.toBe(screen.getByLabelText("Caption"));
+    expect(document.body.style.overflow).toBe("hidden");
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onRequestClose).toHaveBeenCalledOnce();
+  });
+
+  it("keeps shared footer actions disabled with the existing pending label", () => {
+    render(
+      <MomentEditorDialog
+        mode="edit"
+        onRequestClose={vi.fn()}
+        onSubmit={vi.fn()}
+        petName="Topu"
+        submitting
+      />
+    );
+
+    expect(
+      (screen.getByRole("button", { name: "Saving..." }) as HTMLButtonElement)
+        .disabled
+    ).toBe(true);
+    expect(
+      (screen.getByRole("button", { name: "Cancel" }) as HTMLButtonElement)
+        .disabled
+    ).toBe(true);
+  });
 
   it("initializes edit values and submits the shared payload mapping", async () => {
     const onSubmit = vi.fn();

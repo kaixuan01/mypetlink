@@ -440,7 +440,9 @@ export function PetMomentsManager({
         onCancel={() => setConfirmDiscard(false)}
         onConfirm={() => {
           setConfirmDiscard(false);
-          closeEditForm();
+          // Let the nested dialog release its inert parent before focus returns
+          // from the editor to the Moment card action that opened it.
+          window.setTimeout(closeEditForm, 0);
         }}
         open={confirmDiscard}
         title="Discard your changes?"
