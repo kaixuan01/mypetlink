@@ -669,9 +669,9 @@ function OverviewTab({
       ) : isArchived ? (
         <SectionCard
           icon="record"
-          title="Archived profile"
+          title="Saved profile history"
           badge={<Badge tone="soft">Archived</Badge>}
-          description="Archived profiles stay saved but emergency finder actions are hidden."
+          description="Memories and records stay saved."
         >
           <p className="rounded-[1.25rem] bg-pet-cream p-4 text-sm font-semibold leading-6 text-pet-muted">
             Restore this profile from the menu at the top of this page.

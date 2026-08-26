@@ -310,6 +310,10 @@ it("keeps Memorial editing while Archived restore guidance points to the header 
   expect(
     await screen.findByText("Restore this profile from the menu at the top of this page.")
   ).toBeTruthy();
+  expect(screen.getByText("Memories and records stay saved.")).toBeTruthy();
+  expect(
+    screen.queryByText(/Archived profiles stay saved/i)
+  ).toBeNull();
   expect(screen.queryByText(/Restore this profile from the pet edit page/i)).toBeNull();
   expect(screen.queryByRole("link", { name: "Open Profile Status" })).toBeNull();
   expect(
@@ -394,7 +398,7 @@ it("allows long Moment titles to shrink within the mobile overview grid", async 
 
 it.each([
   ["Memorial", "Memorial Mode"],
-  ["Archived", "Archived profile"],
+  ["Archived", "Saved profile history"],
 ] as const)(
   "gives a lone %s lifecycle card the full trailing row",
   async (lifecycleStatus, heading) => {

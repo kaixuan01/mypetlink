@@ -54,3 +54,17 @@ it("keeps Safety Profile status semantics when the feature returns", () => {
   );
   expect(screen.getByText("Safety Profile Off")).toBeTruthy();
 });
+
+it("does not repeat Archived as a second Safety Profile badge", () => {
+  render(
+    <PetCard
+      pet={{ ...mockPets[0], lifecycleStatus: "Archived" }}
+      tags={[]}
+      orders={[]}
+    />
+  );
+
+  expect(screen.getByText("Archived")).toBeTruthy();
+  expect(screen.queryByText("Archived Profile")).toBeNull();
+  expect(screen.getByText("Memories and records stay saved.")).toBeTruthy();
+});

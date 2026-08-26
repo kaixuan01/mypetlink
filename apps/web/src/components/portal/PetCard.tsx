@@ -89,20 +89,20 @@ export function PetCard({
   const [statusMessage, setStatusMessage] = useState("");
   const [confirmAction, setConfirmAction] =
     useState<PetLifecycleAction | null>(null);
-  const safetyBadge = safetyProfilesOwnerUiEnabled
+  const isMemorial = isMemorialPet(pet);
+  const isArchived = isArchivedPet(pet);
+  const safetyBadge = safetyProfilesOwnerUiEnabled && !isArchived
     ? getSafetyProfileBadge(pet)
     : null;
   const tagBadge = smartTagsEnabled
     ? getSmartTagStatusBadge(tags, orders, pet)
     : null;
-  const isMemorial = isMemorialPet(pet);
-  const isArchived = isArchivedPet(pet);
   const memorial = "memorial" in pet ? pet.memorial : undefined;
   const description = isMemorial
     ? memorial?.memorialMessage ||
       "Memories, records, and timeline stay saved here."
     : isArchived
-      ? "This profile is archived. Memories and records stay saved."
+      ? "Memories and records stay saved."
       : pet.bio.trim() ||
         (pet.personalityTags.length
           ? pet.personalityTags.slice(0, 3).join(" · ")
@@ -179,7 +179,7 @@ export function PetCard({
   }
 
   return (
-    <article className="brand-card flex flex-col rounded-[1.75rem] p-5">
+    <article className="brand-card flex min-w-0 flex-col rounded-[1.75rem] p-5">
       <div className="flex items-start gap-4">
         <PetAvatar pet={pet} size="md" />
         <div className="min-w-0 flex-1">
@@ -192,7 +192,7 @@ export function PetCard({
             ) : null}
             {showPrivateBadge ? <Badge tone="soft">Private</Badge> : null}
           </div>
-          <p className="mt-1 text-sm text-pet-muted">
+          <p className="mt-1 line-clamp-2 text-sm leading-5 text-pet-muted">
             {getPetSummaryLabel(pet)}
           </p>
           {tagBadge ? (
@@ -202,7 +202,11 @@ export function PetCard({
             </div>
           ) : null}
           {description ? (
-            <p className="mt-3 line-clamp-2 text-sm leading-6 text-pet-muted">
+            <p
+              className={`mt-3 text-sm leading-6 text-pet-muted ${
+                isArchived ? "" : "line-clamp-2"
+              }`}
+            >
               {description}
             </p>
           ) : null}

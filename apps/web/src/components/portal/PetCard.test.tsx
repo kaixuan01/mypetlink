@@ -3,6 +3,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, it } from "vitest";
 import { mockPets } from "@/data/mockPets";
+import { getPetSummaryLabel } from "@/lib/petDisplay";
 import { getPetLifecycleConfirmation } from "@/lib/petLifecycleActions";
 import type { Pet } from "@/types";
 import { PetCard } from "./PetCard";
@@ -48,7 +49,7 @@ it("uses real list content and never presents emergency instructions as the card
   };
   const { rerender } = render(<PetCard pet={pet} />);
 
-  expect(screen.getByText(pet.bio)).toBeTruthy();
+  expect(screen.getByText(pet.bio).classList.contains("line-clamp-2")).toBe(true);
   expect(screen.queryByText(pet.emergencyNote)).toBeNull();
 
   rerender(
@@ -67,6 +68,35 @@ it("shows management instead of public actions for a private profile", () => {
   expect(screen.getByText("Private")).toBeTruthy();
   expect(screen.getByRole("link", { name: "Enable Profile" })).toBeTruthy();
   expect(screen.queryByRole("link", { name: "Public Profile" })).toBeNull();
+});
+
+it("uses the Archived badge for state and keeps retention copy fully visible", () => {
+  const archived = pet("Archived");
+  render(<PetCard pet={archived} />);
+
+  expect(screen.getByText("Archived")).toBeTruthy();
+  const retention = screen.getByText("Memories and records stay saved.");
+  expect(retention.classList.contains("line-clamp-2")).toBe(false);
+  expect(screen.queryByText(/This profile is archived/i)).toBeNull();
+  expect(screen.queryByText("Archived Profile")).toBeNull();
+
+  // T12 is deliberately unchanged: the existing action remains available.
+  expect(screen.getByRole("link", { name: "Enable Profile" })).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+  expect(screen.getByRole("button", { name: "Restore to List" })).toBeTruthy();
+});
+
+it("allows realistic pet metadata two lines without changing its content", () => {
+  const longBreedPet = {
+    ...mockPets[0],
+    breed: "Labrador Retriever and Golden Retriever Mix",
+  };
+  render(<PetCard pet={longBreedPet} />);
+
+  const metadata = screen.getByText(getPetSummaryLabel(longBreedPet));
+  expect(metadata.textContent).toBe(getPetSummaryLabel(longBreedPet));
+  expect(metadata.classList.contains("line-clamp-2")).toBe(true);
+  expect(metadata.classList.contains("truncate")).toBe(false);
 });
 
 it.each([

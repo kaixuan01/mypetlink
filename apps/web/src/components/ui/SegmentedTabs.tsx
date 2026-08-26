@@ -17,6 +17,8 @@ type SegmentedTabsProps = {
   ariaLabel?: string;
   sticky?: boolean;
   className?: string;
+  /** Keeps mobile labels compact while preserving a 44px touch target. */
+  density?: "default" | "compact";
 };
 
 /**
@@ -30,6 +32,7 @@ export function SegmentedTabs({
   ariaLabel,
   sticky = true,
   className = "",
+  density = "default",
 }: SegmentedTabsProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const tabListRef = useRef<HTMLDivElement | null>(null);
@@ -44,7 +47,8 @@ export function SegmentedTabs({
   const visibleTabs = tabs.slice(0, visibleCountForRender);
   const hiddenTabs = tabs.slice(visibleCountForRender);
   const hasHiddenTabs = hiddenTabs.length > 0;
-  const moreActive = hiddenTabs.some((tab) => tab.id === activeId);
+  const activeHiddenTab = hiddenTabs.find((tab) => tab.id === activeId);
+  const moreActive = Boolean(activeHiddenTab);
   const moreMenuOpen = moreOpen && hasHiddenTabs;
   const tabSignature = tabs
     .map((tab) => `${tab.id}:${tab.label}:${tab.mobileLabel ?? ""}`)
@@ -82,11 +86,18 @@ export function SegmentedTabs({
       }
 
       const moreWidth = moreButton.offsetWidth;
+      const activeIndex = tabs.findIndex((tab) => tab.id === activeId);
 
       for (let count = tabs.length - 1; count >= 1; count -= 1) {
+        const selectedTabTriggerWidth =
+          activeIndex >= count ? tabWidths[activeIndex] : 0;
+        const overflowTriggerWidth = Math.max(
+          moreWidth,
+          selectedTabTriggerWidth
+        );
         const visibleWidth =
           tabWidths.slice(0, count).reduce((total, width) => total + width, 0) +
-          moreWidth +
+          overflowTriggerWidth +
           count * gap;
 
         if (visibleWidth <= availableWidth) {
@@ -124,7 +135,7 @@ export function SegmentedTabs({
       observer?.disconnect();
       window.removeEventListener("resize", computeVisibleTabs);
     };
-  }, [tabs, tabSignature]);
+  }, [activeId, tabs, tabSignature]);
 
   useEffect(() => {
     if (!moreMenuOpen) {
@@ -169,7 +180,10 @@ export function SegmentedTabs({
       <div className="relative min-w-0">
         <div
           aria-label={ariaLabel}
-          className="flex min-w-0 flex-nowrap gap-1 rounded-full border border-pet-border bg-white p-1"
+          className={`flex min-w-0 flex-nowrap rounded-full border border-pet-border bg-white p-1 ${
+            density === "compact" ? "gap-0.5 sm:gap-1" : "gap-1"
+          }`}
+          data-segmented-tabs-density={density}
           ref={tabListRef}
           role="tablist"
         >
@@ -177,8 +191,9 @@ export function SegmentedTabs({
             const active = tab.id === activeId;
             return (
               <button
+                aria-label={tab.label}
                 aria-selected={active}
-                className={getTabClassName(active)}
+                className={getTabClassName(active, density)}
                 key={tab.id}
                 onClick={() => handleSelect(tab.id)}
                 role="tab"
@@ -192,14 +207,19 @@ export function SegmentedTabs({
           {hasHiddenTabs ? (
             <div className="relative shrink-0">
               <button
+                aria-label={
+                  activeHiddenTab
+                    ? `${activeHiddenTab.label}, more filters`
+                    : "More"
+                }
                 aria-controls={moreMenuOpen ? menuId : undefined}
                 aria-expanded={moreMenuOpen}
                 aria-haspopup="menu"
-                className={getTabClassName(moreActive)}
+                className={getTabClassName(moreActive, density)}
                 onClick={() => setMoreOpen((open) => !open)}
                 type="button"
               >
-                More
+                {activeHiddenTab ? <TabLabel tab={activeHiddenTab} /> : "More"}
               </button>
 
               {moreMenuOpen ? (
@@ -212,6 +232,7 @@ export function SegmentedTabs({
                     const active = tab.id === activeId;
                     return (
                       <button
+                        aria-current={active ? "true" : undefined}
                         className={`flex min-h-11 w-full items-center justify-between rounded-2xl px-4 py-2 text-left text-sm font-bold transition ${
                           active
                             ? "bg-[#e8f3ff] text-pet-teal"
@@ -223,7 +244,11 @@ export function SegmentedTabs({
                         type="button"
                       >
                         <span>{tab.label}</span>
-                        {active ? <span className="text-xs">Active</span> : null}
+                        {active ? (
+                          <span className="text-xs" data-segmented-tab-selected-marker>
+                            Selected
+                          </span>
+                        ) : null}
                       </button>
                     );
                   })}
@@ -235,12 +260,14 @@ export function SegmentedTabs({
 
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute left-0 top-0 -z-10 flex min-w-0 flex-nowrap gap-1 rounded-full border border-transparent p-1 opacity-0"
+          className={`pointer-events-none absolute left-0 top-0 -z-10 flex min-w-0 flex-nowrap rounded-full border border-transparent p-1 opacity-0 ${
+            density === "compact" ? "gap-0.5 sm:gap-1" : "gap-1"
+          }`}
           ref={measureRowRef}
         >
           {tabs.map((tab) => (
             <button
-              className={getTabClassName(false)}
+              className={getTabClassName(false, density)}
               key={tab.id}
               ref={(node) => {
                 measureRefs.current[tab.id] = node;
@@ -252,7 +279,7 @@ export function SegmentedTabs({
             </button>
           ))}
           <button
-            className={getTabClassName(false)}
+            className={getTabClassName(false, density)}
             ref={moreMeasureRef}
             tabIndex={-1}
             type="button"
@@ -274,8 +301,13 @@ function TabLabel({ tab }: { tab: SegmentedTab }) {
   );
 }
 
-function getTabClassName(active: boolean) {
-  return `min-h-10 shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-sm font-bold transition ${
+function getTabClassName(active: boolean, density: "default" | "compact") {
+  const densityClassName =
+    density === "compact"
+      ? "min-h-11 px-2.5 py-2 text-[13px] sm:min-h-10 sm:px-4 sm:text-sm"
+      : "min-h-10 px-4 py-2 text-sm";
+
+  return `${densityClassName} shrink-0 whitespace-nowrap rounded-full font-bold transition ${
     active
       ? "bg-pet-teal text-white"
       : "text-pet-muted hover:bg-pet-cream hover:text-pet-ink"

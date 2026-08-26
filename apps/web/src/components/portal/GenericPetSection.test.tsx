@@ -3,6 +3,7 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { mockPets } from "@/data/mockPets";
+import { getPetSummaryLabel } from "@/lib/petDisplay";
 
 const mocks = vi.hoisted(() => ({
   getPets: vi.fn(),
@@ -71,4 +72,26 @@ it("opens the only pet without presenting an arbitrary choice", async () => {
   expect(await screen.findByText(`Records for ${pet.id}`)).toBeTruthy();
   await waitFor(() => expect(mocks.getPetRecords).toHaveBeenCalledWith(pet.id));
   expect(screen.queryByText("Choose a pet for Care Records")).toBeNull();
+});
+
+it("keeps long picker identity recoverable and allows metadata two lines", async () => {
+  const longPet = {
+    ...mockPets[0],
+    name: "Princess Fluffington the Third of Kuala Lumpur",
+    breed: "Labrador Retriever and Golden Retriever Mix",
+    birthday: "Not set",
+    estimatedBirthYear: 2021,
+  };
+  mocks.getPets.mockResolvedValue({ data: [longPet, mockPets[1]] });
+  render(<GenericPetSection section="records" />);
+
+  const name = await screen.findByText(longPet.name);
+  const summary = screen.getByText(getPetSummaryLabel(longPet));
+
+  expect(name.classList.contains("truncate")).toBe(true);
+  expect(name.getAttribute("title")).toBe(longPet.name);
+  expect(summary.hasAttribute("data-pet-picker-metadata")).toBe(true);
+  expect(summary.textContent).toBe(getPetSummaryLabel(longPet));
+  expect(summary.classList.contains("line-clamp-2")).toBe(true);
+  expect(summary.classList.contains("truncate")).toBe(false);
 });

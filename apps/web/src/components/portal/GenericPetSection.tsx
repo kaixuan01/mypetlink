@@ -183,10 +183,16 @@ export function GenericPetSection({ section }: { section: Section }) {
             >
               <PetAvatar pet={item} size="sm" />
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-base font-black text-pet-ink">
+                <span
+                  className="block truncate text-base font-black text-pet-ink"
+                  title={item.name}
+                >
                   {item.name}
                 </span>
-                <span className="mt-0.5 block truncate text-xs font-semibold text-pet-muted">
+                <span
+                  className="mt-0.5 line-clamp-2 text-xs font-semibold leading-4 text-pet-muted"
+                  data-pet-picker-metadata
+                >
                   {getPetSummaryLabel(item)}
                 </span>
               </span>

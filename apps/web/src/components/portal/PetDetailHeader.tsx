@@ -61,10 +61,17 @@ export function PetDetailHeader({
             <PetAvatar pet={currentPet} size="lg" />
           </span>
           <div className="min-w-0">
-            <h1 className="truncate text-2xl font-black text-pet-ink sm:text-3xl">
+            <h1
+              className="truncate text-2xl font-black text-pet-ink sm:text-3xl"
+              title={
+                isMemorial
+                  ? `Remembering ${currentPet.name}`
+                  : currentPet.name
+              }
+            >
               {isMemorial ? `Remembering ${currentPet.name}` : currentPet.name}
             </h1>
-            <p className="mt-1 text-sm text-pet-muted">
+            <p className="mt-1 line-clamp-2 text-sm leading-5 text-pet-muted">
               {getPetSummaryLabel(currentPet)}
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
@@ -154,12 +161,8 @@ export function PetDetailHeader({
         </div>
       ) : isArchived ? (
         <div className="mt-4 rounded-[1.25rem] bg-pet-cream p-4">
-          <p className="text-sm font-black text-pet-ink">
-            This pet profile is archived.
-          </p>
-          <p className="mt-1 text-sm leading-6 text-pet-muted">
-            Archived profiles are hidden from your main list but their memories
-            and records stay safe.
+          <p className="text-sm font-semibold leading-6 text-pet-muted">
+            Memories and records stay saved.
           </p>
         </div>
       ) : (

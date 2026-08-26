@@ -157,10 +157,12 @@ export function PetList({
   const empty = getPetEmptyState(filter);
 
   return (
-    <div className="grid gap-5">
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-5">
       <SegmentedTabs
         ariaLabel="Filter pet profiles"
         activeId={filter}
+        className="w-[calc(100%+2rem)] sm:w-auto"
+        density="compact"
         onChange={(id) => setFilter(id as PetLifecycleFilter)}
         tabs={petFilterTabs}
       />
