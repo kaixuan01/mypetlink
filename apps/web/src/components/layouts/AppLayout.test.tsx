@@ -93,4 +93,26 @@ describe("AppLayout desktop navigation", () => {
     expect(shell?.className).not.toContain("--owner-bottom-nav-height");
     expect(shell?.className).not.toContain("safe-area-inset-bottom");
   });
+
+  it("keeps viewport sticky content scoped without changing the default shell", () => {
+    const { rerender } = render(
+      <AppLayout>
+        <p>Owner content</p>
+      </AppLayout>
+    );
+
+    const defaultShell = screen.getByRole("main").parentElement?.parentElement;
+    expect(defaultShell?.className).toContain("overflow-x-hidden");
+    expect(defaultShell?.className).not.toContain("overflow-x-clip");
+
+    rerender(
+      <AppLayout allowViewportStickyContent>
+        <p>Owner content</p>
+      </AppLayout>
+    );
+
+    const stickyShell = screen.getByRole("main").parentElement?.parentElement;
+    expect(stickyShell?.className).toContain("overflow-x-clip");
+    expect(stickyShell?.className).not.toContain("overflow-x-hidden");
+  });
 });

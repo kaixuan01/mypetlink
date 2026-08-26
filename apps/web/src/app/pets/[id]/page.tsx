@@ -59,7 +59,7 @@ export default async function PetDetailPage({ params }: PetDetailPageProps) {
   }
 
   return (
-    <AppLayout>
+    <AppLayout allowViewportStickyContent>
       <PetDetailHeader pet={pet} petOrders={petOrders} tags={tags} />
 
       <PetManagementTabs

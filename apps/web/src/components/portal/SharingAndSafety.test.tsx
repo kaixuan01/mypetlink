@@ -95,9 +95,14 @@ describe("Sharing & Safety layout", () => {
     expect(safetyCard).toBeTruthy();
 
     expect(within(publicCard!).queryByRole("button")).toBeNull();
-    expect(within(publicCard!).getByRole("link", { name: "Manage sharing" })).toBeTruthy();
+    expect(
+      within(publicCard!).queryByRole("link", { name: "Manage sharing & safety" })
+    ).toBeNull();
     expect(within(publicCard!).getByRole("link", { name: "View profile" })).toBeTruthy();
     expect(within(publicCard!).getByText("Shared")).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: "Manage sharing & safety" })
+    ).toBeTruthy();
 
     expect(safetyCard!.querySelectorAll("button")).toHaveLength(1);
     expect(within(safetyCard!).getByRole("link", { name: "View profile" })).toBeTruthy();
@@ -130,7 +135,7 @@ describe("Sharing & Safety layout", () => {
     await screen.findByText("Sharing & Safety");
 
     expect(
-      screen.getByRole("link", { name: "Manage sharing" }).getAttribute(
+      screen.getByRole("link", { name: "Manage sharing & safety" }).getAttribute(
         "href"
       )
     ).toBe(`/pets/${pet.id}/edit?tab=public`);

@@ -30,7 +30,13 @@ import {
 } from "@/lib/sidebarState";
 import { logoutOwner } from "@/services/authService";
 
-export function AppLayout({ children }: { children: React.ReactNode }) {
+export function AppLayout({
+  children,
+  allowViewportStickyContent = false,
+}: {
+  children: React.ReactNode;
+  allowViewportStickyContent?: boolean;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const collapsed = useSyncExternalStore(
@@ -53,7 +59,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <AuthGuard>
       <OwnerHeaderActionsProvider>
-        <div className="min-h-screen overflow-x-hidden bg-pet-cream lg:flex">
+        <div
+          className={`min-h-screen bg-pet-cream lg:flex ${
+            allowViewportStickyContent ? "overflow-x-clip" : "overflow-x-hidden"
+          }`}
+        >
         <aside
           className={`hidden shrink-0 border-r border-pet-border bg-white/90 shadow-xl shadow-[#0d1b3d]/5 backdrop-blur transition-[width] duration-300 ease-in-out lg:sticky lg:top-0 lg:flex lg:h-dvh lg:flex-col lg:overflow-hidden ${
             collapsed ? "px-3 py-5 lg:w-20" : "p-5 lg:w-72"

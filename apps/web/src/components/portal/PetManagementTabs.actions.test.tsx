@@ -11,6 +11,7 @@ import {
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { mockMoments } from "@/data/mockMoments";
 import { mockPets } from "@/data/mockPets";
+import { mockRecords } from "@/data/mockRecords";
 
 const mocks = vi.hoisted(() => ({
   getPetById: vi.fn(),
@@ -95,12 +96,10 @@ it("keeps one Public Profile source of truth and hides unreleased owner tools", 
   ).toBeNull();
   expect(screen.queryByText(/Public profile is (on|off)/i)).toBeNull();
   expect(
-    within(publicProfile).getByRole("link", { name: "Manage sharing" }).getAttribute(
-      "href"
-    )
+    screen.getByRole("link", { name: "Manage sharing" }).getAttribute("href")
   ).toBe(`/pets/${pet.id}/edit?tab=public`);
 
-  expect(within(publicProfile).getAllByRole("link")).toHaveLength(2);
+  expect(within(publicProfile).getAllByRole("link")).toHaveLength(1);
   expect(screen.getAllByRole("link", { name: /View profile/ })).toHaveLength(1);
   expect(screen.queryByRole("button", { name: `Share ${pet.name}` })).toBeNull();
   expect(screen.queryByRole("link", { name: "View Safety Profile" })).toBeNull();
@@ -135,9 +134,7 @@ it("does not expose public actions when the pet profile is private", async () =>
   expect(within(publicProfile).getByText("Not shared")).toBeTruthy();
   expect(within(publicProfile).getByText(/This profile is not shared/)).toBeTruthy();
   expect(
-    within(publicProfile).getByRole("link", { name: "Manage sharing" }).getAttribute(
-      "href"
-    )
+    screen.getByRole("link", { name: "Manage sharing" }).getAttribute("href")
   ).toBe(`/pets/${pet.id}/edit?tab=public`);
   expect(screen.queryByRole("button", { name: `Share ${pet.name}` })).toBeNull();
   expect(screen.queryByRole("button", { name: "Copy Link" })).toBeNull();
@@ -154,7 +151,8 @@ it("leaves Share Center ownership outside the Overview subcard", async () => {
     name: "Public Profile overview",
   });
   expect(within(publicProfile).getByRole("link", { name: "View profile" })).toBeTruthy();
-  expect(within(publicProfile).getByRole("link", { name: "Manage sharing" })).toBeTruthy();
+  expect(within(publicProfile).queryByRole("link", { name: "Manage sharing" })).toBeNull();
+  expect(screen.getByRole("link", { name: "Manage sharing" })).toBeTruthy();
   expect(within(publicProfile).queryByRole("button")).toBeNull();
   expect(screen.queryByRole("button", { name: `Share ${pet.name}` })).toBeNull();
 });
@@ -170,6 +168,116 @@ it("opens the care-record create flow while View all keeps the list state", asyn
 
   expect(add.getAttribute("href")).toBe(`/pets/${pet.id}/records?create=1`);
   expect(viewAll?.getAttribute("href")).toBe(`/pets/${pet.id}/records`);
+});
+
+it("keeps the compact Moment actions on their existing destinations", async () => {
+  const pet = structuredClone(mockPets[0]);
+  render(<PetManagementTabs moments={[]} pet={pet} records={[]} tags={[]} />);
+
+  expect(
+    (await screen.findByRole("link", { name: "Add Moment" })).getAttribute("href")
+  ).toBe(`/pets/${pet.id}/moments/new`);
+  expect(
+    screen
+      .getByRole("link", { name: "View all pet memories" })
+      .getAttribute("href")
+  ).toBe(`/pets/${pet.id}/moments`);
+});
+
+it("preserves the pet tabs and their active-state navigation", async () => {
+  const pet = structuredClone(mockPets[0]);
+  render(<PetManagementTabs moments={[]} pet={pet} records={[]} tags={[]} />);
+
+  const tablist = await screen.findByRole("tablist", {
+    name: "Manage pet sections",
+  });
+  const [overview, records, moments] = within(tablist).getAllByRole("tab");
+
+  expect(overview.textContent).toContain("Overview");
+  expect(records.textContent).toContain("Care Records");
+  expect(moments.textContent).toContain("Moments");
+
+  expect(overview.getAttribute("aria-selected")).toBe("true");
+  fireEvent.click(records);
+  expect(records.getAttribute("aria-selected")).toBe("true");
+  expect(overview.getAttribute("aria-selected")).toBe("false");
+  fireEvent.click(moments);
+  expect(moments.getAttribute("aria-selected")).toBe("true");
+  expect(records.getAttribute("aria-selected")).toBe("false");
+});
+
+it("keeps long Care titles shrinkable and gives the status its own mobile row", async () => {
+  const pet = structuredClone(mockPets[0]);
+  const longTitle =
+    "FVRCP Vaccine — Dose 2 Settled with an unusually long follow-up description";
+  const record = {
+    ...structuredClone(mockRecords[0]),
+    id: "long-care-summary",
+    title: longTitle,
+    type: "Vet Visit" as const,
+  };
+  mocks.getPetRecords.mockResolvedValue({ data: [record] });
+
+  const { container } = render(
+    <PetManagementTabs moments={[]} pet={pet} records={[record]} tags={[]} />
+  );
+
+  const title = await screen.findByText(longTitle);
+  const row = container.querySelector("[data-care-record-summary-row]");
+  const content = container.querySelector("[data-care-record-summary-content]");
+  const status = screen.getByText("Vet Visit");
+
+  expect(row).toBeTruthy();
+  expect(row?.className).toContain("grid-cols-[minmax(0,1fr)]");
+  expect(row?.className).toContain("sm:grid-cols-[minmax(0,1fr)_auto]");
+  expect(content?.className).toContain("min-w-0");
+  expect(title.className).toContain("[overflow-wrap:anywhere]");
+  expect(title.className).not.toContain("truncate");
+  expect(status.className).toContain("shrink-0");
+  expect(status.className).toContain("sm:justify-self-end");
+});
+
+it("keeps the same three recent Care records and Moments in their existing order", async () => {
+  const pet = structuredClone(mockPets[0]);
+  const records = [0, 1, 2, 3].map((index) => ({
+    ...structuredClone(mockRecords[0]),
+    id: `recent-${index}`,
+    title: `Care record ${index + 1}`,
+  }));
+  const moments = [0, 1, 2, 3].map((index) => ({
+    ...structuredClone(mockMoments[0]),
+    id: `recent-moment-${index}`,
+    title: `Pet memory ${index + 1}`,
+  }));
+  mocks.getPetRecords.mockResolvedValue({ data: records });
+  mocks.getPetMoments.mockResolvedValue({ data: moments });
+
+  const { container } = render(
+    <PetManagementTabs moments={moments} pet={pet} records={records} tags={[]} />
+  );
+
+  await screen.findByText("Care record 1");
+  const rows = Array.from(
+    container.querySelectorAll("[data-care-record-summary-row]")
+  );
+  expect(rows).toHaveLength(3);
+  expect(rows.map((row) => row.textContent)).toEqual([
+    expect.stringContaining("Care record 1"),
+    expect.stringContaining("Care record 2"),
+    expect.stringContaining("Care record 3"),
+  ]);
+  expect(screen.queryByText("Care record 4")).toBeNull();
+
+  const momentRows = Array.from(
+    container.querySelectorAll("[data-moment-summary-row]")
+  );
+  expect(momentRows).toHaveLength(3);
+  expect(momentRows.map((row) => row.textContent)).toEqual([
+    expect.stringContaining("Pet memory 1"),
+    expect.stringContaining("Pet memory 2"),
+    expect.stringContaining("Pet memory 3"),
+  ]);
+  expect(screen.queryByText("Pet memory 4")).toBeNull();
 });
 
 it("keeps Memorial editing while Archived restore guidance points to the header menu", async () => {
