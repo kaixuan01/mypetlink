@@ -15,7 +15,6 @@ import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { PetAvatar } from "@/components/ui/PetAvatar";
 import { PetShareCard } from "@/components/share/PetShareCard";
-import { getCareRecordDateTerminology } from "@/lib/careRecordTerminology";
 import {
   getCareRecordStatusLabel,
   selectDashboardCareRecords,
@@ -525,7 +524,10 @@ function DashboardPetCard({ pet }: { pet: PetListItem }) {
         <PetAvatar pet={pet} size="sm" />
         <span className="min-w-0 flex-1">
           <span className="flex min-w-0 items-center gap-2">
-            <span className="min-w-0 flex-1 truncate text-base font-black text-pet-ink">
+            <span
+              className="min-w-0 flex-1 truncate text-base font-black text-pet-ink"
+              title={pet.name}
+            >
               {pet.name}
             </span>
             {publicProfilesEnabled ? (
@@ -534,7 +536,10 @@ function DashboardPetCard({ pet }: { pet: PetListItem }) {
               </Badge>
             ) : null}
           </span>
-          <span className="mt-0.5 block truncate text-xs font-semibold text-pet-muted">
+          <span
+            className="mt-0.5 line-clamp-2 text-xs font-semibold leading-4 text-pet-muted"
+            data-dashboard-pet-metadata
+          >
             {getPetSummaryLabel(pet)}
           </span>
         </span>
@@ -658,34 +663,46 @@ function UpcomingCareSection({
 }
 
 function ReminderItem({ record, pet }: { record: CareRecord; pet?: PetListItem }) {
-  const dateTerminology = getCareRecordDateTerminology(record.type);
-
   return (
-    <div className="flex min-w-0 items-center gap-3 rounded-[1.25rem] bg-pet-cream px-4 py-3">
+    <div
+      className="grid min-w-0 grid-cols-[2.5rem_minmax(0,1fr)] items-start gap-3 rounded-[1.25rem] bg-pet-cream px-4 py-3"
+      data-dashboard-care-item
+    >
       <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white text-pet-teal">
         <Icon name={recordIcon(record.type)} className="h-4 w-4" />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-black text-pet-ink">
-          {record.type}
+        <div className="flex min-w-0 items-start gap-2">
+          <p className="min-w-0 flex-1 text-sm font-black leading-5 text-pet-ink">
+            {record.type}
+          </p>
+          <Badge
+            tone={
+              record.status === "overdue"
+                ? "danger"
+                : record.status === "due-soon"
+                  ? "warm"
+                  : "soft"
+            }
+            className="shrink-0 whitespace-nowrap"
+          >
+            {getCareRecordStatusLabel(record)}
+          </Badge>
+        </div>
+        <p
+          className="mt-0.5 truncate text-xs font-semibold text-pet-muted"
+          data-dashboard-care-pet-name
+          title={pet?.name ?? "Pet"}
+        >
+          {pet?.name ?? "Pet"}
         </p>
-        <p className="mt-0.5 truncate text-xs font-semibold text-pet-muted">
-          {pet?.name ?? "Pet"} - {dateTerminology.nextDateLabel}:{" "}
-          {record.dueDate}
+        <p
+          className="mt-0.5 whitespace-nowrap text-xs font-bold text-pet-ink"
+          data-dashboard-care-date
+        >
+          Due {record.dueDate}
         </p>
       </div>
-      <Badge
-        tone={
-          record.status === "overdue"
-            ? "danger"
-            : record.status === "due-soon"
-              ? "warm"
-              : "soft"
-        }
-        className="shrink-0"
-      >
-        {getCareRecordStatusLabel(record)}
-      </Badge>
     </div>
   );
 }

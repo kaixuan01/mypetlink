@@ -401,10 +401,42 @@ describe("DashboardClient with pets", () => {
 
     const petName = await screen.findByText(longName);
     expect(petName.classList.contains("truncate")).toBe(true);
+    expect(petName.getAttribute("title")).toBe(longName);
     expect(screen.getByText("Public")).toBeTruthy();
     expect(
       screen.getByRole("link", { name: `Manage ${longName}` })
     ).toBeTruthy();
+  });
+
+  it("allows realistic dashboard pet metadata to use two lines", async () => {
+    mocks.getPets.mockResolvedValue({
+      data: [
+        {
+          ...mockPets[0],
+          species: "Dog",
+          breed: "Labrador Retriever and Golden Retriever Mix",
+          birthday: "Not set",
+          estimatedBirthYear: 2021,
+        },
+      ],
+    });
+    renderDashboard();
+
+    const metadata = await waitFor(() => {
+      const element = document.querySelector<HTMLElement>(
+        "[data-dashboard-pet-metadata]"
+      );
+      expect(element).toBeTruthy();
+      return element!;
+    });
+
+    expect(metadata.textContent).toContain("Dog");
+    expect(metadata.textContent).toContain(
+      "Labrador Retriever and Golden Retriever Mix"
+    );
+    expect(metadata.textContent).toContain("About");
+    expect(metadata.classList.contains("line-clamp-2")).toBe(true);
+    expect(metadata.classList.contains("truncate")).toBe(false);
   });
 
   it("shows a one-pet Lost Mode alert linking directly to that pet", async () => {
@@ -469,6 +501,86 @@ describe("DashboardClient with pets", () => {
     expect(screen.getByText("Overdue")).toBeTruthy();
     expect(screen.queryByText("Vaccine")).toBeNull();
     expect(screen.queryByText("Surgery")).toBeNull();
+  });
+
+  it.each([
+    ["Vaccine", "15 Feb 2027", "overdue", "Overdue"],
+    ["Deworming", "16 Feb 2027", "due-soon", "Due soon"],
+    ["Grooming", "17 Feb 2027", "upcoming", "Upcoming"],
+    ["Vet Visit", "18 Feb 2027", "overdue", "Overdue"],
+    ["Medication", "19 Feb 2027", "due-soon", "Due soon"],
+    ["Allergy", "20 Feb 2027", "upcoming", "Upcoming"],
+    ["Surgery", "21 Feb 2027", "overdue", "Overdue"],
+    ["Lab Test", "22 Feb 2027", "due-soon", "Due soon"],
+    ["Other", "23 Feb 2027", "upcoming", "Upcoming"],
+  ] satisfies Array<
+    [CareRecord["type"], string, CareRecord["status"], string]
+  >)(
+    "keeps the complete %s due date separate from its unchanged status",
+    async (type, dueDate, status, statusLabel) => {
+      mocks.getPetRecords.mockResolvedValue({
+        data: [dashboardRecord(type, dueDate, status)],
+      });
+
+      renderDashboard();
+
+      const date = await screen.findByText(`Due ${dueDate}`);
+      const item = date.closest<HTMLElement>("[data-dashboard-care-item]");
+
+      expect(item).toBeTruthy();
+      expect(item?.textContent).toContain(type);
+      expect(item?.textContent).toContain(statusLabel);
+      expect(date.hasAttribute("data-dashboard-care-date")).toBe(true);
+      expect(date.className).not.toMatch(/(?:truncate|line-clamp)/);
+      expect(date.textContent).toBe(`Due ${dueDate}`);
+    }
+  );
+
+  it("preserves the Due today status while keeping today's full date visible", async () => {
+    const dueDate = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Asia/Kuala_Lumpur",
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    }).format(new Date());
+    mocks.getPetRecords.mockResolvedValue({
+      data: [dashboardRecord("Vaccine", dueDate, "due-soon")],
+    });
+
+    renderDashboard();
+
+    const date = await screen.findByText(`Due ${dueDate}`);
+    const item = date.closest<HTMLElement>("[data-dashboard-care-item]");
+
+    expect(item).toBeTruthy();
+    expect(item?.textContent).toContain("Due today");
+    expect(date.textContent).toBe(`Due ${dueDate}`);
+  });
+
+  it("keeps a long pet name from displacing the care date or status", async () => {
+    const longName =
+      "Sir Theodore Marmalade Fluffington of Taman Tun Dr Ismail";
+    mocks.getPets.mockResolvedValue({
+      data: [{ ...mockPets[0], name: longName }],
+    });
+    mocks.getPetRecords.mockResolvedValue({
+      data: [dashboardRecord("Medication", "15 Feb 2027", "due-soon")],
+    });
+
+    renderDashboard();
+
+    const date = await screen.findByText("Due 15 Feb 2027");
+    const item = date.closest<HTMLElement>("[data-dashboard-care-item]");
+    const petName = item?.querySelector<HTMLElement>(
+      "[data-dashboard-care-pet-name]"
+    );
+
+    expect(item).toBeTruthy();
+    expect(item?.textContent).toContain("Due soon");
+    expect(date.textContent).toBe("Due 15 Feb 2027");
+    expect(petName?.textContent).toBe(longName);
+    expect(petName?.getAttribute("title")).toBe(longName);
+    expect(petName?.classList.contains("truncate")).toBe(true);
   });
 
   it("describes an empty care schedule without promising reminder delivery", async () => {
