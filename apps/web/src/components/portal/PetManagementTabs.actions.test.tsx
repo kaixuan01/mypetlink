@@ -370,7 +370,7 @@ it("uses Shared and Only me for Overview Moment badges", async () => {
   expect(within(memories).queryByText("Family Only")).toBeNull();
 });
 
-it("allows long Moment titles to shrink within the mobile overview grid", async () => {
+it("allows long Moment titles two lines without disturbing overview status or actions", async () => {
   const pet = structuredClone(mockPets[0]);
   const longTitle = "A-very-long-moment-title-that-must-not-expand-the-mobile-grid";
   const moments = [
@@ -389,11 +389,15 @@ it("allows long Moment titles to shrink within the mobile overview grid", async 
   const list = row?.parentElement;
   const overviewGrid = title.closest("section")?.parentElement;
 
-  expect(title.className).toContain("truncate");
+  expect(title.className).toContain("line-clamp-2");
+  expect(title.className).toContain("[overflow-wrap:anywhere]");
   expect(title.parentElement?.className).toContain("min-w-0");
   expect(row?.className).toContain("min-w-0");
   expect(list?.className).toContain("grid-cols-[minmax(0,1fr)]");
   expect(overviewGrid?.className).toContain("grid-cols-[minmax(0,1fr)]");
+  expect(within(row as HTMLElement).getByText("Shared")).toBeTruthy();
+  expect(screen.getByRole("link", { name: "View all pet memories" })).toBeTruthy();
+  expect(screen.getByRole("link", { name: "Add Moment" })).toBeTruthy();
 });
 
 it.each([

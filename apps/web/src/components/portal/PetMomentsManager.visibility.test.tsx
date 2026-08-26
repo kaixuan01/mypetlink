@@ -42,10 +42,13 @@ afterEach(() => {
 
 describe("PetMomentsManager two-state owner presentation", () => {
   it("keeps one chronological gallery with Shared and Only me classification", async () => {
-    render(<PetMomentsManager initialMoments={moments} pet={mockPets[0]} />);
+    const { container } = render(
+      <PetMomentsManager initialMoments={moments} pet={mockPets[0]} />
+    );
 
     expect(await screen.findByText("legacy-family")).toBeTruthy();
-    expect(summaryValue("Recent moments")).toBe("4");
+    expect(summaryValue("Total moments")).toBe("4");
+    expect(screen.queryByText("Recent moments")).toBeNull();
     expect(summaryValue("Shared moments")).toBe("2");
     expect(summaryValue("Life Timeline")).toBe("2");
     expect(summaryValue("Only me")).toBe("2");
@@ -54,6 +57,12 @@ describe("PetMomentsManager two-state owner presentation", () => {
     expect(screen.queryByText("Family Only")).toBeNull();
     expect(screen.queryByText("Public Profile")).toBeNull();
     expect(screen.queryByRole("heading", { name: /Family/ })).toBeNull();
+
+    const stats = container.querySelector("[data-moment-stats]");
+    expect(stats).toBeTruthy();
+    expect(stats?.querySelectorAll("[data-moment-stat]")).toHaveLength(4);
+    expect(stats?.className).toContain("grid-cols-2");
+    expect(stats?.className).toContain("md:grid-cols-4");
   });
 });
 

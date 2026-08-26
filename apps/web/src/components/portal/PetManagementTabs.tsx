@@ -305,7 +305,10 @@ function OverviewTab({
                 >
                   <MomentMediaThumbnail moment={moment} />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-bold text-pet-ink">
+                    <p
+                      className="line-clamp-2 [overflow-wrap:anywhere] font-bold leading-5 text-pet-ink"
+                      data-moment-summary-title
+                    >
                       {moment.title}
                     </p>
                     <p className="mt-0.5 text-xs font-bold text-pet-muted">

@@ -27,13 +27,20 @@ export function PetMomentCard({
   const audience = normalizeMomentVisibility(moment.visibility);
 
   return (
-    <article className="brand-card flex h-full flex-col overflow-hidden rounded-[1.75rem] p-0" style={themedStyle}>
+    <article className="brand-card flex h-full min-w-0 flex-col overflow-hidden rounded-[1.75rem] p-0" style={themedStyle}>
       <MomentMediaCarousel moment={moment} theme={theme} />
 
-      <div className="flex flex-1 flex-col p-4 sm:p-5">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h3 className="text-xl font-black text-pet-ink sm:text-2xl" style={theme ? { color: theme.colors.text } : undefined}>
+      <div className="flex min-w-0 flex-1 flex-col p-4 sm:p-5">
+        <div
+          className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
+          data-moment-heading
+        >
+          <div className="min-w-0 sm:flex-1">
+            <h3
+              className="line-clamp-2 [overflow-wrap:anywhere] text-xl font-black text-pet-ink sm:line-clamp-none sm:text-2xl"
+              data-moment-title
+              style={theme ? { color: theme.colors.text } : undefined}
+            >
               {moment.title}
             </h3>
             <p className="mt-1 text-sm font-semibold text-pet-muted" style={theme ? { color: theme.colors.mutedText } : undefined}>
@@ -44,7 +51,10 @@ export function PetMomentCard({
             </p>
           </div>
           {publicView ? null : (
-            <div className="flex flex-wrap justify-end gap-2">
+            <div
+              className="flex min-w-0 flex-wrap gap-2 sm:shrink-0 sm:justify-end"
+              data-moment-badges
+            >
               <Badge tone={audience === "Public" ? "mint" : "soft"}>
                 {audience === "Public" ? "Shared" : "Only me"}
               </Badge>

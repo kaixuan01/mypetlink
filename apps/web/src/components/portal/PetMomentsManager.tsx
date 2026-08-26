@@ -271,30 +271,49 @@ export function PetMomentsManager({
 
   return (
     <>
-      <section className="grid gap-4 md:grid-cols-4">
-        <div className="brand-card rounded-[1.5rem] p-5">
-          <p className="text-sm font-bold text-pet-muted">Recent moments</p>
-          <p className="mt-2 text-3xl font-black text-pet-ink">
+      <section
+        className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4"
+        data-moment-stats
+      >
+        <div
+          className="brand-card rounded-[1.25rem] p-4 md:rounded-[1.5rem] md:p-5"
+          data-moment-stat
+        >
+          <p className="text-xs font-bold text-pet-muted sm:text-sm">
+            Total moments
+          </p>
+          <p className="mt-1 text-2xl font-black text-pet-ink md:mt-2 md:text-3xl">
             {moments.length}
           </p>
         </div>
-        <div className="brand-card rounded-[1.5rem] p-5">
-          <p className="text-sm font-bold text-pet-muted">
+        <div
+          className="brand-card rounded-[1.25rem] p-4 md:rounded-[1.5rem] md:p-5"
+          data-moment-stat
+        >
+          <p className="text-xs font-bold text-pet-muted sm:text-sm">
             Shared moments
           </p>
-          <p className="mt-2 text-3xl font-black text-pet-ink">
+          <p className="mt-1 text-2xl font-black text-pet-ink md:mt-2 md:text-3xl">
             {counts.shared}
           </p>
         </div>
-        <div className="brand-card rounded-[1.5rem] p-5">
-          <p className="text-sm font-bold text-pet-muted">Life Timeline</p>
-          <p className="mt-2 text-3xl font-black text-pet-ink">
+        <div
+          className="brand-card rounded-[1.25rem] p-4 md:rounded-[1.5rem] md:p-5"
+          data-moment-stat
+        >
+          <p className="text-xs font-bold text-pet-muted sm:text-sm">
+            Life Timeline
+          </p>
+          <p className="mt-1 text-2xl font-black text-pet-ink md:mt-2 md:text-3xl">
             {counts.timeline}
           </p>
         </div>
-        <div className="brand-card rounded-[1.5rem] p-5">
-          <p className="text-sm font-bold text-pet-muted">Only me</p>
-          <p className="mt-2 text-3xl font-black text-pet-ink">
+        <div
+          className="brand-card rounded-[1.25rem] p-4 md:rounded-[1.5rem] md:p-5"
+          data-moment-stat
+        >
+          <p className="text-xs font-bold text-pet-muted sm:text-sm">Only me</p>
+          <p className="mt-1 text-2xl font-black text-pet-ink md:mt-2 md:text-3xl">
             {counts.onlyMe}
           </p>
         </div>
