@@ -68,6 +68,31 @@ function completeCareRecordForm() {
   });
 }
 
+const expectedNewCareRecordTypeValues = [
+  "",
+  "Vaccine",
+  "Deworming",
+  "Grooming",
+  "Vet Visit",
+  "Medication",
+  "Surgery",
+  "Lab Test",
+  "Other",
+];
+
+const expectedLegacyCareRecordTypeValues = [
+  "",
+  "Vaccine",
+  "Deworming",
+  "Grooming",
+  "Vet Visit",
+  "Medication",
+  "Allergy",
+  "Surgery",
+  "Lab Test",
+  "Other",
+];
+
 describe("contextual create actions", () => {
   beforeEach(() => {
     mocks.getPetRecords.mockReset();
@@ -108,9 +133,117 @@ describe("contextual create actions", () => {
       )
     ).toBeTruthy();
 
+    action.focus();
     fireEvent.click(action);
-    expect(screen.getByRole("dialog")).toBeTruthy();
+    const dialog = screen.getByRole("dialog", { name: "Save a care record" });
+    const body = screen.getByTestId("form-dialog-body");
+    const form = document.querySelector(
+      "#care-record-editor-form"
+    ) as HTMLFormElement;
+    const primary = screen.getByRole("button", { name: "Save Record" });
+
+    expect(dialog.getAttribute("aria-modal")).toBe("true");
+    expect(body.contains(form)).toBe(true);
+    expect(body.className).toContain("overflow-y-auto");
+    expect(primary.getAttribute("form")).toBe("care-record-editor-form");
+    expect(primary.closest("footer")).toBeTruthy();
+    expect(body.contains(primary)).toBe(false);
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("button", { name: "Close care record editor" })
+      )
+    );
+    expect(document.activeElement).not.toBe(screen.getByLabelText("Title"));
+    expect(document.activeElement).not.toBe(
+      screen.getByLabelText("Provider / Clinic")
+    );
+    expect(document.body.style.overflow).toBe("hidden");
+    expect(action.closest("[inert]")).toBeTruthy();
+    primary.focus();
+    fireEvent.keyDown(document, { key: "Tab" });
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Close care record editor" })
+    );
     expect(screen.getByText("Save a care record")).toBeTruthy();
+  });
+
+  it("preserves immediate dismissal while adding Escape and focus restoration", async () => {
+    mocks.getPetRecords.mockResolvedValue({ data: [] });
+    render(<RecordsManager petId={mockPets[0].id} initialRecords={[]} />);
+
+    const action = await screen.findByRole("button", {
+      name: /add first care record/i,
+    });
+    action.focus();
+    fireEvent.click(action);
+    const dialog = screen.getByRole("dialog", { name: "Save a care record" });
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("button", { name: "Close care record editor" })
+      )
+    );
+
+    fireEvent.click(dialog);
+    expect(screen.getByRole("dialog", { name: "Save a care record" })).toBeTruthy();
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(document.activeElement).toBe(action);
+    expect(document.body.style.overflow).toBe("");
+  });
+
+  it("keeps the existing immediate Cancel behavior for an edited form", async () => {
+    mocks.getPetRecords.mockResolvedValue({ data: [mockRecords[0]] });
+    render(
+      <RecordsManager petId={mockPets[0].id} initialRecords={[mockRecords[0]]} />
+    );
+
+    expect(await screen.findByText(mockRecords[0].title)).toBeTruthy();
+    const opener = screen.getByRole("button", { name: "Edit" });
+    opener.focus();
+    fireEvent.click(opener);
+    fireEvent.change(screen.getByLabelText("Title"), {
+      target: { value: "Unsaved care record title" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.queryByText("Discard your changes?")).toBeNull();
+    expect(document.activeElement).toBe(opener);
+  });
+
+  it("preserves the existing required-field validation and submit prevention", async () => {
+    mocks.getPetRecords.mockResolvedValue({ data: [] });
+    render(<RecordsManager petId={mockPets[0].id} initialRecords={[]} />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: /add first care record/i })
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Save Record" }));
+
+    expect(screen.getByText("Choose a record type.")).toBeTruthy();
+    expect(screen.getByText("Add a short title.")).toBeTruthy();
+    expect(screen.getByText("Choose the record date.")).toBeTruthy();
+    expect(mocks.createRecord).not.toHaveBeenCalled();
+  });
+
+  it("keeps the existing pending label and disabled Primary state", async () => {
+    mocks.getPetRecords.mockResolvedValue({ data: [] });
+    mocks.createRecord.mockReturnValue(new Promise(() => {}));
+    render(<RecordsManager petId={mockPets[0].id} initialRecords={[]} />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: /add first care record/i })
+    );
+    completeCareRecordForm();
+    fireEvent.click(screen.getByRole("button", { name: "Save Record" }));
+
+    const pending = await screen.findByRole("button", { name: "Saving..." });
+    expect((pending as HTMLButtonElement).disabled).toBe(true);
+    expect(
+      (screen.getByRole("button", { name: "Cancel" }) as HTMLButtonElement)
+        .disabled
+    ).toBe(false);
   });
 
   it("opens a requested Care Record flow once and removes the create query", async () => {
@@ -171,10 +304,25 @@ describe("contextual create actions", () => {
     );
 
     const type = screen.getByLabelText("Record Type") as HTMLSelectElement;
-    expect(Array.from(type.options).map((option) => option.value)).not.toContain(
-      "Allergy"
+    expect(Array.from(type.options).map((option) => option.value)).toEqual(
+      expectedNewCareRecordTypeValues
     );
     expect(screen.queryByRole("heading", { name: "Allergy" })).toBeNull();
+  });
+
+  it("keeps the normal Edit type list identical to Create", async () => {
+    mocks.getPetRecords.mockResolvedValue({ data: [mockRecords[0]] });
+    render(
+      <RecordsManager petId={mockPets[0].id} initialRecords={[mockRecords[0]]} />
+    );
+
+    expect(await screen.findByText(mockRecords[0].title)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+
+    const type = screen.getByLabelText("Record Type") as HTMLSelectElement;
+    expect(Array.from(type.options).map((option) => option.value)).toEqual(
+      expectedNewCareRecordTypeValues
+    );
   });
 
   it("offers exactly the two final Care audiences", async () => {
@@ -229,6 +377,41 @@ describe("contextual create actions", () => {
     }
   );
 
+  it("submits the unchanged complete Create payload through the pinned footer", async () => {
+    mocks.getPetRecords.mockResolvedValue({ data: [] });
+    mocks.createRecord.mockResolvedValue({ data: mockRecords[0] });
+    render(<RecordsManager petId={mockPets[0].id} initialRecords={[]} />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: /add first care record/i })
+    );
+    completeCareRecordForm();
+    fireEvent.change(screen.getByLabelText("Provider / Clinic"), {
+      target: { value: "  Happy Paws Grooming  " },
+    });
+    fireEvent.change(screen.getByLabelText(/Next Grooming Date/), {
+      target: { value: "2020-07-15" },
+    });
+    fireEvent.change(screen.getByLabelText("Who can see this record?"), {
+      target: { value: "Public" },
+    });
+    fireEvent.change(screen.getByLabelText("Notes"), {
+      target: { value: "  Routine coat and nail care.  " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save Record" }));
+
+    await waitFor(() => expect(mocks.createRecord).toHaveBeenCalledOnce());
+    expect(mocks.createRecord).toHaveBeenCalledWith(mockPets[0].id, {
+      type: "Grooming",
+      title: "Routine grooming",
+      date: "15 Jun 2020",
+      provider: "Happy Paws Grooming",
+      dueDate: "15 Jul 2020",
+      notes: "Routine coat and nail care.",
+      publicVisibility: "Public badge only",
+    });
+  });
+
   it.each([
     ["Private", "Private"],
     ["Public badge only", "Public"],
@@ -274,6 +457,7 @@ describe("contextual create actions", () => {
 
     await waitFor(() => expect(mocks.updateRecord).toHaveBeenCalledOnce());
     expect(mocks.updateRecord.mock.calls[0][1]).toMatchObject({
+      type: record.type,
       title: record.title,
       date: record.date,
       dueDate: record.dueDate,
@@ -297,14 +481,14 @@ describe("contextual create actions", () => {
     );
 
     expect(await screen.findByText("Legacy allergy note")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Allergy" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Edit" }));
 
     const type = screen.getByLabelText("Record Type") as HTMLSelectElement;
     expect(type.value).toBe("Allergy");
-    expect(Array.from(type.options).map((option) => option.value)).toContain(
-      "Allergy"
+    expect(Array.from(type.options).map((option) => option.value)).toEqual(
+      expectedLegacyCareRecordTypeValues
     );
-    expect(screen.getByRole("heading", { name: "Allergy" })).toBeTruthy();
   });
 
   it("rejects a future primary date with record-specific guidance", async () => {
@@ -331,9 +515,7 @@ describe("contextual create actions", () => {
     fireEvent.change(screen.getByLabelText("Grooming Date"), {
       target: { value: futureValue },
     });
-    fireEvent.submit(
-      screen.getByRole("button", { name: "Save Record" }).closest("form")!
-    );
+    fireEvent.submit(document.getElementById("care-record-editor-form")!);
 
     expect(
       screen.getByText(

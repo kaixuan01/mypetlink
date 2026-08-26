@@ -18,7 +18,7 @@ import { CTAButton } from "@/components/ui/CTAButton";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { DateInput } from "@/components/ui/DateInput";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Icon } from "@/components/ui/Icon";
+import { FormDialog } from "@/components/ui/FormDialog";
 import { AnalyticsEvent, toAnalyticsRecordType, trackEvent } from "@/lib/analytics";
 import {
   careRecordTypes,
@@ -104,6 +104,7 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
   );
   const dateTerminology = getCareRecordDateTerminology(form.type);
   const today = getLocalTodayDateInputValue();
+  const formId = "care-record-editor-form";
 
   useEffect(() => {
     let active = true;
@@ -195,6 +196,11 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
     setFormError("");
     setSuccess("");
     setIsOpen(true);
+  }
+
+  function closeEditor() {
+    setIsOpen(false);
+    setEditingRecord(null);
   }
 
   function validate() {
@@ -399,37 +405,26 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
         </div>
       )}
 
-      {isOpen ? (
-        <div
-          aria-modal="true"
-          className="fixed inset-0 z-50 grid place-items-end bg-pet-ink/35 p-0 backdrop-blur-sm sm:place-items-center sm:p-4"
-          role="dialog"
-        >
-          <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-[2rem] bg-white p-5 shadow-2xl sm:rounded-[2rem] sm:p-6">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-bold uppercase text-pet-coral">
-                  {editingRecord ? "Edit Record" : "Add Record"}
-                </p>
-                <h2 className="mt-2 text-2xl font-black text-pet-ink">
-                  {editingRecord ? "Update care record" : "Save a care record"}
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-pet-muted">
-                  Keep the details short and useful so they are easy to find
-                  later.
-                </p>
-              </div>
-              <button
-                aria-label="Cancel"
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-pet-cream text-pet-muted transition hover:text-pet-ink"
-                onClick={() => setIsOpen(false)}
-                type="button"
-              >
-                <Icon name="plus" className="h-5 w-5 rotate-45" />
-              </button>
-            </div>
-
-            <form className="mt-6 grid gap-4" onSubmit={handleSubmit}>
+      <FormDialog
+        cancelAction={{ label: "Cancel" }}
+        closeLabel="Close care record editor"
+        closeOnBackdrop={false}
+        description="Keep the details short and useful so they are easy to find later."
+        eyebrow={editingRecord ? "Edit Record" : "Add Record"}
+        maxWidthClassName="sm:max-w-2xl"
+        onRequestClose={closeEditor}
+        open={isOpen}
+        primaryAction={{
+          disabled: isSubmitting,
+          form: formId,
+          label: editingRecord ? "Save Changes" : "Save Record",
+          pending: isSubmitting,
+          pendingLabel: "Saving...",
+          type: "submit",
+        }}
+        title={editingRecord ? "Update care record" : "Save a care record"}
+      >
+        <form className="grid gap-4" id={formId} onSubmit={handleSubmit}>
               {formError ? (
                 <div className="rounded-[1.25rem] border border-[#f3b4a8] bg-[#fff1ee] p-4 text-sm font-bold text-[#a63c2e]">
                   {formError}
@@ -530,34 +525,8 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
                   value={form.notes}
                 />
               </Field>
-
-              <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
-                <button
-                  className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
-                  onClick={() => {
-                    setIsOpen(false);
-                    setEditingRecord(null);
-                  }}
-                  type="button"
-                >
-                  Cancel
-                </button>
-                <button
-                  className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-coral bg-pet-coral px-5 py-3 text-sm font-bold text-white shadow-lg shadow-[#ff7a6e]/20 transition hover:bg-[#f26155] disabled:cursor-wait disabled:opacity-70"
-                  disabled={isSubmitting}
-                  type="submit"
-                >
-                  {isSubmitting
-                    ? "Saving..."
-                    : editingRecord
-                      ? "Save Changes"
-                      : "Save Record"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      ) : null}
+        </form>
+      </FormDialog>
 
       <ConfirmDialog
         confirmLabel="Delete record"

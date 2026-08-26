@@ -127,6 +127,27 @@ describe("FormDialog", () => {
     expect(document.activeElement).toBe(title);
   });
 
+  it("can preserve a product flow that does not close from the backdrop", () => {
+    const onClose = vi.fn();
+    render(
+      <FormDialog
+        closeOnBackdrop={false}
+        onRequestClose={onClose}
+        open
+        primaryAction={{ label: "Save" }}
+        title="Edit"
+      >
+        Short content
+      </FormDialog>
+    );
+
+    const dialog = screen.getByRole("dialog", { name: "Edit" });
+    expect(dialog.querySelector('button[aria-hidden="true"]')).toBeNull();
+    fireEvent.click(dialog);
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "Edit" })).toBeTruthy();
+  });
+
   it("keeps a dirty editor stacked correctly through discard confirmation", async () => {
     render(<DirtyDialogHarness />);
     const trigger = screen.getByRole("button", { name: "Open dirty editor" });

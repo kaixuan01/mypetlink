@@ -28,6 +28,7 @@ export type FormDialogProps = {
   eyebrow?: ReactNode;
   closeLabel?: string;
   dismissible?: boolean;
+  closeOnBackdrop?: boolean;
   footer?: ReactNode;
   primaryAction?: FormDialogAction;
   cancelAction?: FormDialogAction;
@@ -44,6 +45,7 @@ export function FormDialog({
   eyebrow,
   closeLabel = "Close dialog",
   dismissible = true,
+  closeOnBackdrop = true,
   footer,
   primaryAction,
   cancelAction,
@@ -97,15 +99,15 @@ export function FormDialog({
       role="dialog"
       style={{ zIndex: "var(--owner-layer-backdrop)" }}
     >
-      <button
-        aria-hidden="true"
-        className="absolute inset-0 hidden cursor-default sm:block"
-        onClick={() => {
-          if (dismissible) onRequestClose();
-        }}
-        tabIndex={-1}
-        type="button"
-      />
+      {dismissible && closeOnBackdrop ? (
+        <button
+          aria-hidden="true"
+          className="absolute inset-0 hidden cursor-default sm:block"
+          onClick={onRequestClose}
+          tabIndex={-1}
+          type="button"
+        />
+      ) : null}
 
       <div
         className={`relative flex h-[100dvh] min-h-0 w-full flex-col overflow-hidden bg-white shadow-2xl sm:h-auto sm:max-h-[92dvh] sm:rounded-[2rem] ${maxWidthClassName}`}
