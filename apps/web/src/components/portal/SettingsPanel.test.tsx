@@ -429,7 +429,7 @@ describe("SettingsPanel loading behaviour", () => {
     ).toBe(true);
   });
 
-  it("reserves shared clearance above mobile navigation while Save is visible", async () => {
+  it("uses shared keyboard-aware clearance while Save is visible", async () => {
     mocks.getOwnerProfileSettings.mockResolvedValue({
       data: ownerData({ ownerDisplayName: "Real Owner" }),
     });
@@ -446,6 +446,6 @@ describe("SettingsPanel loading behaviour", () => {
       accountHeading.compareDocumentPosition(clearance) &
         Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
-    expect(actions.className).toContain("--owner-bottom-nav-height");
+    expect(actions.className).toContain("--owner-mobile-form-action-bottom");
   });
 });

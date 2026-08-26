@@ -15,6 +15,9 @@ vi.mock("@/components/ui/ServiceWakeUpState", () => ({
 
 const { viewport } = await import("./layout");
 
-it("enables safe-area insets through the supported Next.js viewport export", () => {
-  expect(viewport).toEqual({ viewportFit: "cover" });
+it("uses one supported viewport export for safe areas and keyboard resizing", () => {
+  expect(viewport).toEqual({
+    interactiveWidget: "resizes-content",
+    viewportFit: "cover",
+  });
 });

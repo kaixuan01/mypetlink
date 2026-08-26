@@ -110,7 +110,7 @@ export function FormDialog({
       ) : null}
 
       <div
-        className={`relative flex h-[100dvh] min-h-0 w-full flex-col overflow-hidden bg-white shadow-2xl sm:h-auto sm:max-h-[92dvh] sm:rounded-[2rem] ${maxWidthClassName}`}
+        className={`relative flex h-[calc(100dvh-var(--owner-keyboard-inset))] min-h-0 w-full flex-col overflow-hidden bg-white shadow-2xl sm:h-auto sm:max-h-[calc(92dvh-var(--owner-keyboard-inset))] sm:rounded-[2rem] ${maxWidthClassName}`}
         ref={dialogRef}
         style={{ zIndex: "var(--owner-layer-surface)" }}
       >

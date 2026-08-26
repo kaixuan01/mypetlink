@@ -108,7 +108,7 @@ export function MobileBottomNav() {
     <>
       <nav
         aria-label="Owner portal"
-        className="fixed inset-x-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-30 grid rounded-[1.75rem] border border-pet-border bg-white/95 p-2 shadow-xl shadow-[#0d1b3d]/10 backdrop-blur lg:hidden"
+        className="owner-mobile-bottom-nav fixed inset-x-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-30 grid rounded-[1.75rem] border border-pet-border bg-white/95 p-2 shadow-xl shadow-[#0d1b3d]/10 backdrop-blur lg:hidden"
         ref={navRef}
         style={{ gridTemplateColumns }}
       >

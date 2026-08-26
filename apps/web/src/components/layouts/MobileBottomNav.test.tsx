@@ -29,6 +29,7 @@ it("renders Home, Pets, Moments, and More at narrow mobile width", () => {
   fireEvent(window, new Event("resize"));
 
   expect(portal.className).toContain("safe-area-inset-bottom");
+  expect(portal.className).toContain("owner-mobile-bottom-nav");
   expect(screen.getByRole("link", { name: "Home" })).toBeTruthy();
   expect(screen.getByRole("link", { name: "Pets" })).toBeTruthy();
   expect(screen.getByRole("link", { name: "Moments" })).toBeTruthy();

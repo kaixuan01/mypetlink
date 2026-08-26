@@ -10,15 +10,37 @@
      its own bottom offset. Used to pad scrollable content so the last item is
      never hidden behind the nav. Safe-area inset is added on top in the calc. */
   --owner-bottom-nav-height: 5.25rem;
+  --owner-keyboard-inset: 0px;
+  --owner-mobile-page-bottom-clearance: calc(
+    var(--owner-bottom-nav-height) + env(safe-area-inset-bottom) + 1rem
+  );
   /* Clearance reserved by shared mobile form action bars. AppLayout already
      reserves the bottom-nav and safe-area space; forms add only this height. */
   --owner-mobile-form-action-height: 4.75rem;
+  --owner-mobile-form-action-bottom: calc(
+    var(--owner-bottom-nav-height) + env(safe-area-inset-bottom) + 0.5rem
+  );
   /* Owner Portal layering order: page 0, original header 20, compact mobile
      action bar 25, bottom nav 30, interactive backdrop 40, action surfaces 50,
      notifications 60+. */
   --owner-layer-sticky-action: 25;
   --owner-layer-backdrop: 40;
   --owner-layer-surface: 50;
+}
+
+@media (max-width: 1023px) {
+  html[data-owner-keyboard-open] {
+    --owner-mobile-page-bottom-clearance: calc(
+      env(safe-area-inset-bottom) + 1rem
+    );
+    --owner-mobile-form-action-bottom: calc(
+      var(--owner-keyboard-inset) + env(safe-area-inset-bottom) + 0.5rem
+    );
+  }
+
+  html[data-owner-keyboard-open] .owner-mobile-bottom-nav {
+    display: none;
+  }
 }
 
 @theme inline {

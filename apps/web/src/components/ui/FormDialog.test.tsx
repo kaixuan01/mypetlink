@@ -188,8 +188,9 @@ describe("FormDialog", () => {
     const shell = body.parentElement;
 
     expect(body.className).toContain("overflow-y-auto");
-    expect(shell?.className).toContain("h-[100dvh]");
-    expect(shell?.className).toContain("sm:max-h-[92dvh]");
+    expect(shell?.className).toContain("--owner-keyboard-inset");
+    expect(shell?.className).toContain("100dvh");
+    expect(shell?.className).toContain("92dvh");
     expect(footer?.className).toContain("safe-area-inset-bottom");
     expect(screen.getByText("Long scrolling content 30")).toBeTruthy();
   });

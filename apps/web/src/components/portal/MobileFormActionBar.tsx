@@ -34,7 +34,7 @@ export function MobileFormActionBar({
       {visible ? (
         <div
           aria-label="Form actions"
-          className="fixed inset-x-3 bottom-[calc(var(--owner-bottom-nav-height)+env(safe-area-inset-bottom)+0.5rem)] z-20 max-w-[calc(100vw-1.5rem)] lg:hidden"
+          className="fixed inset-x-3 bottom-[var(--owner-mobile-form-action-bottom)] z-20 max-w-[calc(100vw-1.5rem)] lg:hidden"
           data-testid="mobile-form-actions"
           role="group"
         >

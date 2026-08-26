@@ -6,6 +6,7 @@ import { useSyncExternalStore } from "react";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { MobileBottomNav } from "@/components/layouts/MobileBottomNav";
+import { OwnerKeyboardViewport } from "@/components/layouts/OwnerKeyboardViewport";
 import {
   OwnerHeaderActionsProvider,
   OwnerPortalHeader,
@@ -59,6 +60,7 @@ export function AppLayout({
   return (
     <AuthGuard>
       <OwnerHeaderActionsProvider>
+        <OwnerKeyboardViewport />
         <div
           className={`min-h-screen bg-pet-cream lg:flex ${
             allowViewportStickyContent ? "overflow-x-clip" : "overflow-x-hidden"
@@ -175,7 +177,7 @@ export function AppLayout({
 
         <div className="min-w-0 flex-1">
           <OwnerPortalHeader />
-          <main className="mx-auto min-w-0 w-full max-w-7xl px-4 pb-[calc(var(--owner-bottom-nav-height)_+_env(safe-area-inset-bottom)_+_1rem)] pt-5 sm:px-6 lg:px-8 lg:py-8">
+          <main className="mx-auto min-w-0 w-full max-w-7xl px-4 pb-[var(--owner-mobile-page-bottom-clearance)] pt-5 sm:px-6 lg:px-8 lg:py-8">
             {children}
           </main>
         </div>

@@ -26,6 +26,10 @@ vi.mock("@/components/layouts/MobileBottomNav", () => ({
   MobileBottomNav: () => null,
 }));
 
+vi.mock("@/components/layouts/OwnerKeyboardViewport", () => ({
+  OwnerKeyboardViewport: () => null,
+}));
+
 vi.mock("@/components/portal/OwnerHeaderActions", () => ({
   OwnerHeaderActionsProvider: ({
     children,
@@ -88,8 +92,9 @@ describe("AppLayout desktop navigation", () => {
     const main = screen.getByRole("main");
     const shell = main.parentElement?.parentElement;
 
-    expect(main.className).toContain("--owner-bottom-nav-height");
-    expect(main.className).toContain("safe-area-inset-bottom");
+    expect(main.className).toContain("--owner-mobile-page-bottom-clearance");
+    expect(main.className).not.toContain("--owner-bottom-nav-height");
+    expect(main.className).not.toContain("safe-area-inset-bottom");
     expect(shell?.className).not.toContain("--owner-bottom-nav-height");
     expect(shell?.className).not.toContain("safe-area-inset-bottom");
   });
