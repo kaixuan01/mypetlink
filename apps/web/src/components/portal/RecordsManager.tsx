@@ -97,9 +97,9 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
           type,
           records: records.filter((record) => record.type === type),
         }))
-        // Allergy is read-compatible for historical records, but it is not a
-        // current dated care category and should not appear as an empty group.
-        .filter((group) => group.type !== "Allergy" || group.records.length > 0),
+        // Only meaningful groups belong in the default list. Legacy Allergy
+        // records remain visible because their populated group still passes.
+        .filter((group) => group.records.length > 0),
     [records]
   );
   const dateTerminology = getCareRecordDateTerminology(form.type);
@@ -383,23 +383,25 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
         <div className="grid gap-6">
           {groupedRecords.map(({ type, records: group }) => (
             <section key={type}>
-              <h2 className="mb-3 text-xl font-black text-pet-ink">{type}</h2>
-              {group.length ? (
-                <div className="grid gap-4 lg:grid-cols-2">
-                  {group.map((record) => (
-                    <RecordCard
-                      key={record.id}
-                      onDelete={() => setDeleteTarget(record)}
-                      onEdit={() => openEditForm(record)}
-                      record={record}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-[1.25rem] border border-dashed border-pet-border bg-pet-cream p-5 text-sm text-pet-muted">
-                  No records in this category yet.
-                </div>
-              )}
+              <div className="mb-3 flex items-baseline gap-1.5">
+                <h2 className="text-xl font-black text-pet-ink">{type}</h2>
+                <span
+                  aria-label={`${group.length} ${group.length === 1 ? "record" : "records"}`}
+                  className="text-sm font-bold text-pet-muted"
+                >
+                  <span aria-hidden="true">· {group.length}</span>
+                </span>
+              </div>
+              <div className="grid gap-4 lg:grid-cols-2">
+                {group.map((record) => (
+                  <RecordCard
+                    key={record.id}
+                    onDelete={() => setDeleteTarget(record)}
+                    onEdit={() => openEditForm(record)}
+                    record={record}
+                  />
+                ))}
+              </div>
             </section>
           ))}
         </div>
