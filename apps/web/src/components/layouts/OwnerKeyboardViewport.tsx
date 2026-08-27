@@ -56,11 +56,17 @@ export function OwnerKeyboardViewport() {
       const keyboardControlFocused = isSoftwareKeyboardControl(
         document.activeElement
       );
+      // An already-open keyboard stays open across the brief moments when focus
+      // has not settled on the next text control yet. It must not survive focus
+      // landing on a control that never raises a keyboard: a native picker
+      // (file chooser, date wheel) shrinks the visual viewport the same way a
+      // keyboard does, and treating that as keyboard occlusion writes an inset
+      // large enough to collapse the owner form shells.
+      const keyboardPlausible =
+        keyboardControlFocused ||
+        (keyboardOpen && !isNonKeyboardControl(document.activeElement));
 
-      if (
-        (keyboardControlFocused || keyboardOpen) &&
-        (viewportShrank || bottomIsOccluded)
-      ) {
+      if (keyboardPlausible && (viewportShrank || bottomIsOccluded)) {
         keyboardOpen = true;
         root.setAttribute(ownerKeyboardOpenAttribute, "");
         root.style.setProperty(
@@ -75,18 +81,32 @@ export function OwnerKeyboardViewport() {
       clearKeyboardState(root);
     }
 
+    // Returning from a native picker or another app can restore the viewport
+    // while the page is hidden, so no resize arrives to re-measure with. Re-run
+    // the same measurement on restore instead of trusting the last value seen
+    // before the page was backgrounded.
+    function handlePageVisible() {
+      if (document.visibilityState === "visible") {
+        updateKeyboardState();
+      }
+    }
+
     document.addEventListener("focusin", updateKeyboardState);
     document.addEventListener("focusout", updateKeyboardState);
+    document.addEventListener("visibilitychange", handlePageVisible);
     activeViewport.addEventListener("resize", updateKeyboardState);
     activeViewport.addEventListener("scroll", updateKeyboardState);
     window.addEventListener("resize", updateKeyboardState);
+    window.addEventListener("pageshow", updateKeyboardState);
 
     return () => {
       document.removeEventListener("focusin", updateKeyboardState);
       document.removeEventListener("focusout", updateKeyboardState);
+      document.removeEventListener("visibilitychange", handlePageVisible);
       activeViewport.removeEventListener("resize", updateKeyboardState);
       activeViewport.removeEventListener("scroll", updateKeyboardState);
       window.removeEventListener("resize", updateKeyboardState);
+      window.removeEventListener("pageshow", updateKeyboardState);
       clearKeyboardState(root);
     };
   }, []);
@@ -117,6 +137,28 @@ export function isSoftwareKeyboardControl(element: Element | null) {
     typeof HTMLElement !== "undefined" &&
     element instanceof HTMLElement &&
     element.isContentEditable
+  );
+}
+
+/**
+ * Controls that open a native surface (picker, chooser, wheel) or no surface at
+ * all, rather than the software keyboard. Focus landing on one of these is
+ * positive evidence that any keyboard has gone, even while the viewport is
+ * still mid-transition.
+ */
+export function isNonKeyboardControl(element: Element | null) {
+  if (
+    typeof HTMLInputElement !== "undefined" &&
+    element instanceof HTMLInputElement
+  ) {
+    return nonKeyboardInputTypes.has(element.type);
+  }
+
+  return (
+    (typeof HTMLSelectElement !== "undefined" &&
+      element instanceof HTMLSelectElement) ||
+    (typeof HTMLButtonElement !== "undefined" &&
+      element instanceof HTMLButtonElement)
   );
 }
 

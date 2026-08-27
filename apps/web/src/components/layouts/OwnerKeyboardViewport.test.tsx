@@ -122,6 +122,104 @@ describe("OwnerKeyboardViewport", () => {
     expect(isSoftwareKeyboardControl({} as Element)).toBe(false);
   });
 
+  // CARE-R1: tapping "+ Add document" while the keyboard is still up moves
+  // focus to the file input. Android then restores the layout viewport as the
+  // keyboard leaves while the visual viewport is still small behind the chooser
+  // transition. Measuring that gap as keyboard occlusion wrote a ~500px inset
+  // and collapsed the Care editor to a single line of body.
+  it("stops treating a viewport gap as a keyboard once a native picker holds focus", () => {
+    const viewport = installViewport();
+    renderKeyboardHarness();
+
+    screen.getByLabelText("Notes").focus();
+    resizeViewport(viewport, { viewportHeight: 500, windowHeight: 500 });
+    expect(
+      document.documentElement.hasAttribute(ownerKeyboardOpenAttribute)
+    ).toBe(true);
+
+    screen.getByLabelText("Care document").focus();
+    document.dispatchEvent(new Event("focusin"));
+    resizeViewport(viewport, { viewportHeight: 300, windowHeight: 800 });
+
+    expect(
+      document.documentElement.style.getPropertyValue(
+        ownerKeyboardInsetProperty
+      )
+    ).toBe("");
+    expect(
+      document.documentElement.hasAttribute(ownerKeyboardOpenAttribute)
+    ).toBe(false);
+  });
+
+  it("keeps an open keyboard latched while focus moves between text controls", () => {
+    const viewport = installViewport();
+    renderKeyboardHarness();
+
+    screen.getByLabelText("Notes").focus();
+    resizeViewport(viewport, { viewportHeight: 500, windowHeight: 800 });
+    expect(
+      document.documentElement.style.getPropertyValue(
+        ownerKeyboardInsetProperty
+      )
+    ).toBe("300px");
+
+    // Focus is briefly unsettled between two text fields while the keyboard
+    // stays up; the measured inset must survive that gap.
+    (document.activeElement as HTMLElement).blur();
+    document.dispatchEvent(new Event("focusout"));
+
+    expect(
+      document.documentElement.style.getPropertyValue(
+        ownerKeyboardInsetProperty
+      )
+    ).toBe("300px");
+  });
+
+  it("re-measures on restore when no resize follows a hidden page", () => {
+    const viewport = installViewport();
+    renderKeyboardHarness();
+
+    screen.getByLabelText("Pet name").focus();
+    resizeViewport(viewport, { viewportHeight: 300, windowHeight: 800 });
+    expect(
+      document.documentElement.style.getPropertyValue(
+        ownerKeyboardInsetProperty
+      )
+    ).toBe("500px");
+
+    setVisibility("hidden");
+    // The picker returns the viewport while the page is hidden, so nothing
+    // dispatches resize before the owner sees the form again.
+    viewport.height = 800;
+    setVisibility("visible");
+
+    expect(
+      document.documentElement.style.getPropertyValue(
+        ownerKeyboardInsetProperty
+      )
+    ).toBe("");
+    expect(
+      document.documentElement.hasAttribute(ownerKeyboardOpenAttribute)
+    ).toBe(false);
+  });
+
+  it("keeps a still-open keyboard after an ordinary app resume", () => {
+    const viewport = installViewport();
+    renderKeyboardHarness();
+
+    screen.getByLabelText("Notes").focus();
+    resizeViewport(viewport, { viewportHeight: 500, windowHeight: 800 });
+
+    setVisibility("hidden");
+    setVisibility("visible");
+
+    expect(
+      document.documentElement.style.getPropertyValue(
+        ownerKeyboardInsetProperty
+      )
+    ).toBe("300px");
+  });
+
   it("removes listeners and transient document state on teardown", () => {
     const viewport = installViewport();
     const removeViewportListener = vi.spyOn(viewport, "removeEventListener");
@@ -160,9 +258,19 @@ function renderKeyboardHarness() {
     <div>
       <input aria-label="Pet name" />
       <input aria-label="Remember choice" type="checkbox" />
+      <input aria-label="Care document" type="file" />
+      <textarea aria-label="Notes" />
       <OwnerKeyboardViewport />
     </div>
   );
+}
+
+function setVisibility(state: "hidden" | "visible") {
+  Object.defineProperty(document, "visibilityState", {
+    configurable: true,
+    value: state,
+  });
+  document.dispatchEvent(new Event("visibilitychange"));
 }
 
 function installViewport() {

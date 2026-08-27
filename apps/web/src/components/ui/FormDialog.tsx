@@ -110,7 +110,13 @@ export function FormDialog({
       ) : null}
 
       <div
-        className={`relative flex h-[calc(100dvh-var(--owner-keyboard-inset))] min-h-0 w-full flex-col overflow-hidden bg-white shadow-2xl sm:h-auto sm:max-h-[calc(92dvh-var(--owner-keyboard-inset))] sm:rounded-[2rem] ${maxWidthClassName}`}
+        // overflow-clip rather than overflow-hidden: a hidden box is still a
+        // scroll container, so focusing a visually-hidden control inside the
+        // body (a file input behind its own label) let the browser scroll the
+        // whole shell to "reveal" it, carrying the header off-screen and
+        // lifting the pinned footer. Clipping keeps the same visual bounds
+        // without ever becoming scrollable.
+        className={`relative flex h-[calc(100dvh-var(--owner-keyboard-inset))] min-h-0 w-full flex-col overflow-clip bg-white shadow-2xl sm:h-auto sm:max-h-[calc(92dvh-var(--owner-keyboard-inset))] sm:rounded-[2rem] ${maxWidthClassName}`}
         ref={dialogRef}
         style={{ zIndex: "var(--owner-layer-surface)" }}
       >

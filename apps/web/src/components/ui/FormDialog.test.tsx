@@ -191,6 +191,15 @@ describe("FormDialog", () => {
     expect(shell?.className).toContain("--owner-keyboard-inset");
     expect(shell?.className).toContain("100dvh");
     expect(shell?.className).toContain("92dvh");
+    // CARE-R1: the shell must clip without becoming a scroll container. A
+    // scrollable shell let the browser scroll the whole dialog to reveal a
+    // visually-hidden control in the body (the document picker's file input),
+    // which carried the header off-screen and lifted the pinned footer into
+    // the middle of the viewport. Only the body may scroll.
+    expect(shell?.className).toContain("overflow-clip");
+    expect(shell?.className).not.toContain("overflow-hidden");
+    expect(shell?.className).not.toContain("overflow-auto");
+    expect(shell?.className).not.toContain("overflow-y-auto");
     expect(footer?.className).toContain("safe-area-inset-bottom");
     expect(screen.getByText("Long scrolling content 30")).toBeTruthy();
   });
