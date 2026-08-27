@@ -87,6 +87,32 @@ describe("RecordsManager list hierarchy", () => {
     expect(screen.queryByRole("heading", { name: "Other" })).toBeNull();
   });
 
+  it("updates title and notes examples when the selected Care Type changes", async () => {
+    renderRecords([]);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Add first care record" })
+    );
+
+    const title = screen.getByLabelText("Title") as HTMLInputElement;
+    const notes = screen.getByLabelText("Notes") as HTMLTextAreaElement;
+    expect(title.placeholder).toBe("e.g. Care record");
+    expect(notes.placeholder).toBe("e.g. Add any useful care details");
+
+    fireEvent.change(screen.getByLabelText("Record Type"), {
+      target: { value: "Vaccine" },
+    });
+    expect(title.placeholder).toBe("e.g. Rabies, DHPP booster");
+    expect(notes.placeholder).toBe(
+      "e.g. Booster completed; certificate saved"
+    );
+
+    fireEvent.change(screen.getByLabelText("Record Type"), {
+      target: { value: "Medication" },
+    });
+    expect(title.placeholder).toBe("e.g. Apoquel");
+    expect(notes.placeholder).toBe("e.g. Once daily with food");
+  });
+
   it("shows only a populated category with its concise count", async () => {
     const vaccine = makeRecord({
       id: "vaccine-only",

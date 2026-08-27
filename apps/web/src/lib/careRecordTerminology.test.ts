@@ -3,6 +3,9 @@ import {
   careRecordTypes,
   newCareRecordTypes,
   getCareRecordDateTerminology,
+  getCareRecordEditorExamples,
+  getCareRecordHistoryTerminology,
+  getPublicCareTypeLabel,
   getLocalTodayDateInputValue,
   isFutureCareRecordDate,
   isValidDateInputValue,
@@ -62,6 +65,48 @@ describe("care record date terminology", () => {
       primaryDateLabel: "Record Date",
       nextDateLabel: "Next Care Date",
     });
+  });
+
+  it("keeps editor instructions contextual while simplifying history labels", () => {
+    expect(getCareRecordDateTerminology("Vaccine")).toMatchObject({
+      primaryDateLabel: "Vaccination Date",
+      nextDateLabel: "Next Vaccination Due Date",
+    });
+    expect(getCareRecordHistoryTerminology("Vaccine")).toEqual({
+      primaryDateLabel: "Date",
+      nextDateLabel: "Next due",
+    });
+    expect(getCareRecordHistoryTerminology("Medication")).toEqual({
+      primaryDateLabel: "Start date",
+      nextDateLabel: "Next review",
+    });
+    expect(getCareRecordHistoryTerminology("Vet Visit")).toEqual({
+      primaryDateLabel: "Date",
+      nextDateLabel: "Next follow-up",
+    });
+  });
+
+  it("provides type-aware editor examples without treating titles as identity", () => {
+    expect(getCareRecordEditorExamples("Vaccine")).toEqual({
+      title: "e.g. Rabies, DHPP booster",
+      notes: "e.g. Booster completed; certificate saved",
+    });
+    expect(getCareRecordEditorExamples("Medication")).toEqual({
+      title: "e.g. Apoquel",
+      notes: "e.g. Once daily with food",
+    });
+    expect(getCareRecordEditorExamples("Grooming").title).toBe(
+      "e.g. Full grooming"
+    );
+    expect(getCareRecordEditorExamples("")).toEqual({
+      title: "e.g. Care record",
+      notes: "e.g. Add any useful care details",
+    });
+  });
+
+  it("uses honest category wording for the public Vaccine summary", () => {
+    expect(getPublicCareTypeLabel("Vaccine")).toBe("Vaccinations");
+    expect(getPublicCareTypeLabel("Deworming")).toBe("Deworming");
   });
 
   it("compares valid date-only values against the local calendar date", () => {

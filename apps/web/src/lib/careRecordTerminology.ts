@@ -36,6 +36,16 @@ const fallbackTerminology: CareRecordDateTerminology = {
     "Care date cannot be in the future. Use the next care date to track future care.",
 };
 
+export type CareRecordHistoryTerminology = {
+  primaryDateLabel: string;
+  nextDateLabel: string;
+};
+
+export type CareRecordEditorExamples = {
+  title: string;
+  notes: string;
+};
+
 const terminologyByType: Record<RecordType, CareRecordDateTerminology> = {
   Vaccine: {
     primaryDateLabel: "Vaccination Date",
@@ -107,6 +117,79 @@ const terminologyByType: Record<RecordType, CareRecordDateTerminology> = {
   Other: fallbackTerminology,
 };
 
+const fallbackHistoryTerminology: CareRecordHistoryTerminology = {
+  primaryDateLabel: "Date",
+  nextDateLabel: "Next care",
+};
+
+const historyTerminologyByType: Record<
+  RecordType,
+  CareRecordHistoryTerminology
+> = {
+  Vaccine: { primaryDateLabel: "Date", nextDateLabel: "Next due" },
+  Deworming: { primaryDateLabel: "Date", nextDateLabel: "Next due" },
+  Grooming: { primaryDateLabel: "Date", nextDateLabel: "Next due" },
+  "Vet Visit": {
+    primaryDateLabel: "Date",
+    nextDateLabel: "Next follow-up",
+  },
+  Medication: {
+    primaryDateLabel: "Start date",
+    nextDateLabel: "Next review",
+  },
+  Allergy: fallbackHistoryTerminology,
+  Surgery: {
+    primaryDateLabel: "Date",
+    nextDateLabel: "Next follow-up",
+  },
+  "Lab Test": {
+    primaryDateLabel: "Date",
+    nextDateLabel: "Next follow-up",
+  },
+  Other: fallbackHistoryTerminology,
+};
+
+const fallbackEditorExamples: CareRecordEditorExamples = {
+  title: "e.g. Care record",
+  notes: "e.g. Add any useful care details",
+};
+
+const editorExamplesByType: Record<RecordType, CareRecordEditorExamples> = {
+  Vaccine: {
+    title: "e.g. Rabies, DHPP booster",
+    notes: "e.g. Booster completed; certificate saved",
+  },
+  Deworming: {
+    title: "e.g. Routine deworming",
+    notes: "e.g. Treatment completed; next dose scheduled",
+  },
+  Grooming: {
+    title: "e.g. Full grooming",
+    notes: "e.g. Bath, trim, and nail care completed",
+  },
+  "Vet Visit": {
+    title: "e.g. Annual check-up",
+    notes: "e.g. Routine examination completed",
+  },
+  Medication: {
+    title: "e.g. Apoquel",
+    notes: "e.g. Once daily with food",
+  },
+  Allergy: {
+    title: "e.g. Allergy record",
+    notes: "e.g. Details saved for owner reference",
+  },
+  Surgery: {
+    title: "e.g. Spay surgery",
+    notes: "e.g. Procedure completed; recovery instructions followed",
+  },
+  "Lab Test": {
+    title: "e.g. Blood test",
+    notes: "e.g. Results reviewed with the vet",
+  },
+  Other: fallbackEditorExamples,
+};
+
 export function getCareRecordDateTerminology(
   type?: RecordType | "" | null
 ): CareRecordDateTerminology {
@@ -141,4 +224,24 @@ export function isFutureCareRecordDate(
   today = getLocalTodayDateInputValue()
 ) {
   return isValidDateInputValue(value) && value > today;
+}
+
+export function getCareRecordHistoryTerminology(
+  type?: RecordType | "" | null
+): CareRecordHistoryTerminology {
+  return type
+    ? historyTerminologyByType[type] ?? fallbackHistoryTerminology
+    : fallbackHistoryTerminology;
+}
+
+export function getCareRecordEditorExamples(
+  type?: RecordType | "" | null
+): CareRecordEditorExamples {
+  return type
+    ? editorExamplesByType[type] ?? fallbackEditorExamples
+    : fallbackEditorExamples;
+}
+
+export function getPublicCareTypeLabel(type: RecordType) {
+  return type === "Vaccine" ? "Vaccinations" : type;
 }

@@ -24,6 +24,7 @@ import {
   careRecordTypes,
   newCareRecordTypes,
   getCareRecordDateTerminology,
+  getCareRecordEditorExamples,
   getLocalTodayDateInputValue,
   isFutureCareRecordDate,
   isValidDateInputValue,
@@ -103,6 +104,7 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
     [records]
   );
   const dateTerminology = getCareRecordDateTerminology(form.type);
+  const editorExamples = getCareRecordEditorExamples(form.type);
   const today = getLocalTodayDateInputValue();
   const formId = "care-record-editor-form";
 
@@ -455,7 +457,7 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
                   <input
                     className="brand-input"
                     onChange={(event) => updateField("title", event.target.value)}
-                    placeholder="Annual vaccination"
+                    placeholder={editorExamples.title}
                     type="text"
                     value={form.title}
                   />
@@ -523,7 +525,7 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
                 <textarea
                   className="brand-input min-h-28"
                   onChange={(event) => updateField("notes", event.target.value)}
-                  placeholder="Core vaccine completed. Booster due next year."
+                  placeholder={editorExamples.notes}
                   value={form.notes}
                 />
               </Field>

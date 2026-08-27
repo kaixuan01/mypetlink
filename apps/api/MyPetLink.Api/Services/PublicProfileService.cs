@@ -106,9 +106,15 @@ public sealed class PublicProfileService : SkeletonService, IPublicProfileServic
                 .Where(record =>
                     record.DeletedAt == null
                     && record.ArchivedAt == null
+                    && record.Type != CareRecordType.Allergy
                     && CareVisibilityPolicy.IsPublic(record.PublicVisibility))
+                .GroupBy(record => record.Type)
+                .Select(group => group
+                    .OrderByDescending(record => record.RecordDate)
+                    .ThenBy(record => record.Id)
+                    .First())
                 .OrderByDescending(record => record.RecordDate)
-                .ThenBy(record => record.Title)
+                .ThenBy(record => record.Type.ToString(), StringComparer.Ordinal)
                 .Select(record => new PublicCareSummaryResponse(
                     record.Type.ToString(),
                     record.RecordDate))

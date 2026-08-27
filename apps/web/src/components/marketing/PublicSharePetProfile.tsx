@@ -24,7 +24,7 @@ import { CoverPhoto } from "@/components/ui/CoverPhoto";
 import { Icon } from "@/components/ui/Icon";
 import { PetPhotoViewer } from "@/components/ui/PetPhotoViewer";
 import { PetProfileLoading } from "@/components/ui/PetProfileLoading";
-import { getCareRecordDateTerminology } from "@/lib/careRecordTerminology";
+import { getPublicCareTypeLabel } from "@/lib/careRecordTerminology";
 import { AnalyticsEvent, trackEvent } from "@/lib/analytics";
 import {
   getPetProfileTheme,
@@ -341,9 +341,7 @@ export function PublicSharePetProfile({
     moments,
     visibility.showMoments
   );
-  const careRecords = visibility.showCareBadges
-    ? records.slice(0, 4)
-    : [];
+  const careRecords = visibility.showCareBadges ? records : [];
   const timelineEvents = getPublicTimeline(
     { ...profile, visibility },
     moments
@@ -870,23 +868,24 @@ function AboutTab({
             className="text-lg font-black text-pet-ink"
             style={{ color: theme.colors.text }}
           >
-            Care history
+            Care summary
           </h2>
           <div className="mt-4 grid gap-3">
-            {careRecords.map((record, index) => (
+            {careRecords.map((record) => (
               <div
                 className="rounded-[1.25rem] bg-pet-cream p-4"
-                key={`${record.type}-${record.recordDate}-${index}`}
+                key={record.type}
                 style={{ background: theme.colors.surfaceAlt }}
               >
                 <div className="flex flex-wrap items-center gap-2">
-                  <ThemedBadge theme={theme}>{record.type}</ThemedBadge>
+                  <ThemedBadge theme={theme}>
+                    {getPublicCareTypeLabel(record.type)}
+                  </ThemedBadge>
                   <span
                     className="text-xs font-bold text-pet-muted"
                     style={{ color: theme.colors.mutedText }}
                   >
-                    {getCareRecordDateTerminology(record.type).primaryDateLabel}:{" "}
-                    {record.recordDate}
+                    Latest recorded: {record.recordDate}
                   </span>
                 </div>
               </div>

@@ -7,7 +7,7 @@ import {
 } from "@/services/mockApi";
 import { apiRequest, isApiClientError } from "@/services/apiClient";
 import { canUseApi } from "@/services/apiConfig";
-import { deriveCareRecordStatus } from "@/lib/careRecordStatus";
+import { careDateScore, deriveCareRecordStatus } from "@/lib/careRecordStatus";
 import {
   isCareRecordPublic,
   normalizeCareRecordVisibility,
@@ -302,12 +302,46 @@ export function projectLocalPublicCareRecords(
     return [];
   }
 
-  return records
-    .filter((record) => isCareRecordPublic(record.publicVisibility))
+  const latestByType = new Map<RecordType, CareRecord>();
+
+  for (const record of records) {
+    if (
+      record.type === "Allergy" ||
+      !isCareRecordPublic(record.publicVisibility)
+    ) {
+      continue;
+    }
+
+    const current = latestByType.get(record.type);
+    if (!current || comparePublicCareRecency(record, current) < 0) {
+      latestByType.set(record.type, record);
+    }
+  }
+
+  return [...latestByType.values()]
+    .sort((left, right) => {
+      const dateDifference =
+        publicCareDateScore(right.date) - publicCareDateScore(left.date);
+      return dateDifference || compareOrdinal(left.type, right.type);
+    })
     .map((record) => ({
       type: record.type,
       recordDate: record.date,
     }));
+}
+
+function comparePublicCareRecency(left: CareRecord, right: CareRecord) {
+  const dateDifference =
+    publicCareDateScore(right.date) - publicCareDateScore(left.date);
+  return dateDifference || compareOrdinal(left.id, right.id);
+}
+
+function publicCareDateScore(value: string) {
+  return careDateScore(value) ?? Number.MIN_SAFE_INTEGER;
+}
+
+function compareOrdinal(left: string, right: string) {
+  return left < right ? -1 : left > right ? 1 : 0;
 }
 
 function toBackendRecordType(type: RecordType): BackendCareRecordType {

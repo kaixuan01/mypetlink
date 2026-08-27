@@ -8,7 +8,7 @@ import { RecordCard } from "./RecordCard";
 afterEach(() => cleanup());
 
 describe("RecordCard date terminology", () => {
-  it("uses the saved Record Type for primary and next date labels", () => {
+  it("uses concise history labels without changing type-specific meaning", () => {
     const record: CareRecord = {
       id: "record-1",
       petId: "pet-1",
@@ -24,8 +24,31 @@ describe("RecordCard date terminology", () => {
 
     render(<RecordCard record={record} />);
 
-    expect(screen.getByText("Visit Date:")).toBeTruthy();
-    expect(screen.getByText(/Next Follow-up Date: 15 Aug 2026/)).toBeTruthy();
+    expect(screen.getByText("Date:")).toBeTruthy();
+    expect(screen.getByText(/Next follow-up: 15 Aug 2026/)).toBeTruthy();
+    expect(screen.queryByText("Visit Date:")).toBeNull();
+  });
+
+  it("keeps Medication start and review wording in owner history", () => {
+    render(
+      <RecordCard
+        record={{
+          id: "record-medication",
+          petId: "pet-1",
+          type: "Medication",
+          title: "Apoquel",
+          date: "15 Jul 2026",
+          dueDate: "15 Aug 2026",
+          provider: "Happy Paws Vet",
+          notes: "Once daily with food.",
+          publicVisibility: "Private",
+          status: "upcoming",
+        }}
+      />
+    );
+
+    expect(screen.getByText("Start date:")).toBeTruthy();
+    expect(screen.getByText(/Next review: 15 Aug 2026/)).toBeTruthy();
   });
 
   it("shows an overdue next date as a distinct danger status", () => {

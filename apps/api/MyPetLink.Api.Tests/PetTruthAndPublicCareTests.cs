@@ -322,6 +322,147 @@ public sealed class PetTruthAndPublicCareTests
     }
 
     [Fact]
+    public async Task PublicProfile_CareSummaryGroupsLargeUnorderedHistoryByLatestBroadType()
+    {
+        using var harness = await Harness.CreateAsync();
+        var records = new List<CareRecord>();
+
+        records.AddRange(Enumerable.Range(1, 20).Select(day => PublicCare(
+            CareRecordType.Vaccine,
+            $"Vaccine {day}",
+            new DateOnly(2026, 12, day))));
+        records.AddRange(Enumerable.Range(1, 10).Select(day => PublicCare(
+            CareRecordType.Deworming,
+            $"Deworming {day}",
+            new DateOnly(2026, 9, day))));
+        records.AddRange(Enumerable.Range(1, 8).Select(day => PublicCare(
+            CareRecordType.VetVisit,
+            $"Vet visit {day}",
+            new DateOnly(2026, 11, day))));
+        records.AddRange(Enumerable.Range(1, 5).Select(day => PublicCare(
+            CareRecordType.Grooming,
+            $"Grooming {day}",
+            new DateOnly(2026, 8, day))));
+        records.Add(PublicCare(
+            CareRecordType.Allergy,
+            "Legacy public allergy",
+            new DateOnly(2026, 12, 31)));
+        var privateSurgery = PublicCare(
+            CareRecordType.Surgery,
+            "Private surgery",
+            new DateOnly(2026, 12, 30));
+        privateSurgery.PublicVisibility = CareRecordPublicVisibility.Private;
+        records.Add(privateSurgery);
+        var archivedLabTest = PublicCare(
+            CareRecordType.LabTest,
+            "Archived lab test",
+            new DateOnly(2026, 12, 29));
+        archivedLabTest.ArchivedAt = DateTimeOffset.UtcNow;
+        records.Add(archivedLabTest);
+        var deletedMedication = PublicCare(
+            CareRecordType.Medication,
+            "Deleted medication",
+            new DateOnly(2026, 12, 28));
+        deletedMedication.DeletedAt = DateTimeOffset.UtcNow;
+        records.Add(deletedMedication);
+
+        harness.Db.CareRecords.AddRange(records.OrderByDescending(record => record.Title));
+        await harness.Db.SaveChangesAsync();
+
+        var summary = (await harness.PublicProfiles.GetByPublicSlugAsync("milo-pub123"))
+            .CareRecords
+            .ToArray();
+
+        Assert.Equal(4, summary.Length);
+        Assert.Equal(
+            ["Vaccine", "VetVisit", "Deworming", "Grooming"],
+            summary.Select(record => record.Type).ToArray());
+        Assert.Equal(
+            [
+                new DateOnly(2026, 12, 20),
+                new DateOnly(2026, 11, 8),
+                new DateOnly(2026, 9, 10),
+                new DateOnly(2026, 8, 5)
+            ],
+            summary.Select(record => record.RecordDate).ToArray());
+        Assert.DoesNotContain(summary, record => record.Type == "Allergy");
+    }
+
+    [Fact]
+    public async Task PublicProfile_MultipleVaccinesRemainOneHonestRecencySummary()
+    {
+        using var harness = await Harness.CreateAsync();
+        harness.Db.CareRecords.AddRange(
+            PublicCare(CareRecordType.Vaccine, "DHPP", new DateOnly(2026, 10, 16)),
+            PublicCare(CareRecordType.Vaccine, "Rabies", new DateOnly(2026, 11, 20)),
+            PublicCare(CareRecordType.Vaccine, "Leptospirosis", new DateOnly(2026, 12, 5)));
+        await harness.Db.SaveChangesAsync();
+
+        var response = await harness.PublicProfiles.GetByPublicSlugAsync("milo-pub123");
+        var vaccine = Assert.Single(response.CareRecords, record => record.Type == "Vaccine");
+
+        Assert.Equal(new DateOnly(2026, 12, 5), vaccine.RecordDate);
+        var json = JsonSerializer.Serialize(
+            response.CareRecords,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        Assert.DoesNotContain("DHPP", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Rabies", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Leptospirosis", json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task PublicProfile_CareSummaryUsesDeterministicOrderingForEqualDates()
+    {
+        using var harness = await Harness.CreateAsync();
+        var date = new DateOnly(2026, 12, 5);
+        var rabies = PublicCare(CareRecordType.Vaccine, "Rabies", date);
+        rabies.Id = Guid.Parse("92222222-2222-2222-2222-222222222229");
+        var dhpp = PublicCare(CareRecordType.Vaccine, "DHPP", date);
+        dhpp.Id = Guid.Parse("92222222-2222-2222-2222-222222222228");
+        harness.Db.CareRecords.AddRange(
+            rabies,
+            dhpp,
+            PublicCare(CareRecordType.Medication, "Apoquel", date),
+            PublicCare(CareRecordType.LabTest, "Blood test", date));
+        await harness.Db.SaveChangesAsync();
+
+        var first = await harness.PublicProfiles.GetByPublicSlugAsync("milo-pub123");
+        var second = await harness.PublicProfiles.GetByPublicSlugAsync("milo-pub123");
+
+        Assert.Equal(
+            ["LabTest", "Medication", "Vaccine", "VetVisit"],
+            first.CareRecords.Select(record => record.Type).ToArray());
+        Assert.Equal(first.CareRecords, second.CareRecords);
+        Assert.Single(first.CareRecords, record => record.Type == "Vaccine");
+    }
+
+    [Fact]
+    public async Task PublicProfile_StructuredAllergySettingNeverLetsLegacyCareAllergyBypassIt()
+    {
+        using var harness = await Harness.CreateAsync();
+        var pet = await harness.Db.Pets.SingleAsync();
+        var profile = await harness.Db.PetPublicProfiles.SingleAsync();
+        pet.AllergiesJson = "[\"Chicken\",\"Penicillin\"]";
+        profile.ShowAllergiesOnPublicProfile = false;
+        harness.Db.CareRecords.Add(PublicCare(
+            CareRecordType.Allergy,
+            "Legacy allergy details",
+            new DateOnly(2026, 12, 31)));
+        await harness.Db.SaveChangesAsync();
+
+        var hidden = await harness.PublicProfiles.GetByPublicSlugAsync("milo-pub123");
+        Assert.Empty(hidden.Allergies);
+        Assert.DoesNotContain(hidden.CareRecords, record => record.Type == "Allergy");
+
+        profile.ShowAllergiesOnPublicProfile = true;
+        await harness.Db.SaveChangesAsync();
+
+        var visible = await harness.PublicProfiles.GetByPublicSlugAsync("milo-pub123");
+        Assert.Equal(["Chicken", "Penicillin"], visible.Allergies);
+        Assert.DoesNotContain(visible.CareRecords, record => record.Type == "Allergy");
+    }
+
+    [Fact]
     public async Task PublicProfile_ExposesSavedTimelineVisibilityWithoutInferringFromBirthday()
     {
         using var harness = await Harness.CreateAsync();
@@ -376,7 +517,23 @@ public sealed class PetTruthAndPublicCareTests
         Assert.DoesNotContain("provider", json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("dueDate", json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("publicVisibility", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("status", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("media", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("document", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("certificate", json, StringComparison.OrdinalIgnoreCase);
     }
+
+    private static CareRecord PublicCare(
+        CareRecordType type,
+        string title,
+        DateOnly recordDate) => new()
+        {
+            PetId = PetId,
+            Type = type,
+            Title = title,
+            RecordDate = recordDate,
+            PublicVisibility = CareRecordPublicVisibility.PublicBadgeOnly
+        };
 
     private static CreatePetRequest CreateRequest(
         PetVisibilityRequest? visibility = null) => new(

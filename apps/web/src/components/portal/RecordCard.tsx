@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/Badge";
-import { getCareRecordDateTerminology } from "@/lib/careRecordTerminology";
+import { getCareRecordHistoryTerminology } from "@/lib/careRecordTerminology";
 import { getCareRecordStatusLabel } from "@/lib/careRecordStatus";
 import { toCareRecordAudience } from "@/lib/careRecordVisibility";
 import type { CareRecord } from "@/types";
@@ -16,7 +16,7 @@ const visibilityTone = {
 } as const;
 
 export function RecordCard({ record, onDelete, onEdit }: RecordCardProps) {
-  const dateTerminology = getCareRecordDateTerminology(record.type);
+  const dateTerminology = getCareRecordHistoryTerminology(record.type);
   const audience = toCareRecordAudience(record.publicVisibility);
 
   return (

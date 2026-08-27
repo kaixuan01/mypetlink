@@ -191,7 +191,7 @@ it.each([
   }
 );
 
-it("renders enabled public Care as type and record date only", async () => {
+it("renders enabled public Care as a broad recency summary only", async () => {
   const profile = {
     ...mockPets[0],
     visibility: {
@@ -218,14 +218,54 @@ it("renders enabled public Care as type and record date only", async () => {
     />
   );
 
-  expect(await screen.findByText("Care history")).toBeTruthy();
-  expect(screen.getByText("Vaccine")).toBeTruthy();
-  expect(screen.getByText(/Vaccination Date:\s*02 Sept 2026/)).toBeTruthy();
+  expect(await screen.findByText("Care summary")).toBeTruthy();
+  expect(screen.getByText("Vaccinations")).toBeTruthy();
+  expect(screen.getByText(/Latest recorded:\s*02 Sept 2026/)).toBeTruthy();
   expect(screen.queryByText("Sensitive vaccination title")).toBeNull();
   expect(screen.queryByText("Sensitive vaccination notes")).toBeNull();
   expect(screen.queryByText("02 Sept 2027")).toBeNull();
   expect(screen.queryByText("Public details")).toBeNull();
   expect(screen.queryByText("Public badge only")).toBeNull();
+  expect(screen.queryByText(/Next due|Overdue|Due soon|Upcoming/)).toBeNull();
+});
+
+it("renders every projected broad Care category without a positional cap", async () => {
+  const profile = {
+    ...mockPets[0],
+    visibility: {
+      ...mockPets[0].visibility,
+      showCareBadges: true,
+    },
+  };
+  const records: PublicCareRecord[] = [
+    { type: "Vaccine", recordDate: "05 Dec 2026" },
+    { type: "Vet Visit", recordDate: "20 Nov 2026" },
+    { type: "Deworming", recordDate: "16 Oct 2026" },
+    { type: "Grooming", recordDate: "24 Sept 2026" },
+    { type: "Medication", recordDate: "01 Aug 2026" },
+  ];
+  publicProfileMocks.profile = profile;
+  publicProfileMocks.records = records;
+
+  render(
+    <PublicSharePetProfile
+      initialMoments={[]}
+      initialProfile={profile}
+      initialRecords={records}
+    />
+  );
+
+  expect(await screen.findByText("Care summary")).toBeTruthy();
+  for (const label of [
+    "Vaccinations",
+    "Vet Visit",
+    "Deworming",
+    "Grooming",
+    "Medication",
+  ]) {
+    expect(screen.getByText(label)).toBeTruthy();
+  }
+  expect(screen.getAllByText(/Latest recorded:/)).toHaveLength(5);
 });
 
 it("hides public Care when the saved master switch is off", async () => {
@@ -251,7 +291,7 @@ it("hides public Care when the saved master switch is off", async () => {
   );
 
   await screen.findByText(`About ${profile.name}`);
-  expect(screen.queryByText("Care history")).toBeNull();
+  expect(screen.queryByText("Care summary")).toBeNull();
   expect(screen.queryByText("Grooming")).toBeNull();
 });
 
@@ -274,7 +314,7 @@ it("does not render an empty Care section when sharing is enabled", async () => 
   );
 
   await screen.findByText(`About ${profile.name}`);
-  expect(screen.queryByText("Care history")).toBeNull();
+  expect(screen.queryByText("Care summary")).toBeNull();
 });
 
 it("fails closed when public-profile visibility is unexpectedly missing", async () => {
