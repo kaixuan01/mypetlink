@@ -12,6 +12,10 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
+import {
+  CareDocumentsField,
+  categoryForType,
+} from "@/components/portal/CareDocumentsField";
 import { RecordCard } from "@/components/portal/RecordCard";
 import { useOwnerHeaderPageContext } from "@/components/portal/OwnerHeaderActions";
 import { CTAButton } from "@/components/ui/CTAButton";
@@ -47,7 +51,8 @@ import {
   updateRecord,
 } from "@/services/recordService";
 import { isApiConfigured } from "@/services/apiConfig";
-import type { CareRecord, RecordType } from "@/types";
+import { openPrivateMediaFile } from "@/services/mediaService";
+import type { CareDocument, CareRecord, RecordType } from "@/types";
 
 type FormState = {
   type: "" | RecordType;
@@ -59,6 +64,7 @@ type FormState = {
   notes: string;
   audience: CareRecordAudience;
   fulfillsCareRecordId: string;
+  documents: CareDocument[];
 };
 
 type FormErrors = Partial<Record<keyof FormState, string>>;
@@ -78,6 +84,7 @@ const emptyForm: FormState = {
   notes: "",
   audience: "Private",
   fulfillsCareRecordId: "",
+  documents: [],
 };
 
 export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
@@ -188,15 +195,22 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
 
   function updateRecordType(type: FormState["type"]) {
     setForm((current) => {
-      if (!current.type || current.type === type) {
+      if (current.type === type) {
         return { ...current, type };
       }
 
       return {
         ...current,
         type,
-        careName: "",
-        fulfillsCareRecordId: "",
+        careName: current.type ? "" : current.careName,
+        fulfillsCareRecordId: current.type
+          ? ""
+          : current.fulfillsCareRecordId,
+        documents: current.documents.map((document) =>
+          document.sourceFile
+            ? { ...document, category: categoryForType(type) }
+            : document
+        ),
       };
     });
     setErrors((current) => ({
@@ -255,6 +269,7 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
       notes: record.notes,
       audience: toCareRecordAudience(record.publicVisibility),
       fulfillsCareRecordId: record.fulfillsCareRecordId ?? "",
+      documents: record.documents ?? [],
     });
     setErrors({});
     setActionError("");
@@ -322,20 +337,27 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
 
     const payload = {
       type: form.type || "Other",
-      careName: form.careName.trim() || undefined,
+      ...(editingRecord || form.careName.trim()
+        ? { careName: form.careName.trim() || undefined }
+        : {}),
       title: form.title.trim(),
       date: formatDisplayDate(form.date),
       provider: form.provider.trim() || "Owner recorded",
       dueDate: form.dueDate ? formatDisplayDate(form.dueDate) : undefined,
       notes: form.notes.trim() || "No notes added.",
       publicVisibility: fromCareRecordAudience(form.audience),
-      fulfillsCareRecordId: form.fulfillsCareRecordId || undefined,
+      ...(editingRecord || form.fulfillsCareRecordId
+        ? { fulfillsCareRecordId: form.fulfillsCareRecordId || undefined }
+        : {}),
+      ...(editingRecord || form.documents.length
+        ? { documents: form.documents }
+        : {}),
     };
 
     try {
       const isCreating = !editingRecord;
       const response = editingRecord
-        ? await updateRecord(editingRecord.id, payload)
+        ? await updateRecord(editingRecord.id, payload, petId)
         : await createRecord(petId, payload);
 
       const savedRecord = response.data;
@@ -365,6 +387,15 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
       setFormError(getFriendlyRecordErrorMessage(caught));
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  async function openDocument(document: CareDocument) {
+    setActionError("");
+    try {
+      await openPrivateMediaFile(document.id);
+    } catch (caught) {
+      setActionError(getFriendlyRecordErrorMessage(caught));
     }
   }
 
@@ -479,6 +510,7 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
                     }
                     onDelete={() => setDeleteTarget(record)}
                     onEdit={() => openEditForm(record)}
+                    onOpenDocument={apiMode ? openDocument : undefined}
                     record={record}
                   />
                 ))}
@@ -509,7 +541,10 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
       >
         <form className="grid gap-4" id={formId} onSubmit={handleSubmit}>
               {formError ? (
-                <div className="rounded-[1.25rem] border border-[#f3b4a8] bg-[#fff1ee] p-4 text-sm font-bold text-[#a63c2e]">
+                <div
+                  className="rounded-[1.25rem] border border-[#f3b4a8] bg-[#fff1ee] p-4 text-sm font-bold text-[#a63c2e]"
+                  role="alert"
+                >
                   {formError}
                 </div>
               ) : null}
@@ -702,6 +737,12 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
                   ) : null}
                 </fieldset>
               ) : null}
+
+              <CareDocumentsField
+                documents={form.documents}
+                onChange={(documents) => updateField("documents", documents)}
+                recordType={form.type}
+              />
 
               <p className="rounded-[1.25rem] bg-pet-cream p-4 text-sm leading-6 text-pet-muted">
                 Public records show only their type and date.

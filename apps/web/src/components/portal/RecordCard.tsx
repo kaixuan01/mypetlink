@@ -5,13 +5,14 @@ import {
   type CareRecordEffectiveStatus,
 } from "@/lib/careRecordStatus";
 import { toCareRecordAudience } from "@/lib/careRecordVisibility";
-import type { CareRecord } from "@/types";
+import type { CareDocument, CareRecord } from "@/types";
 
 type RecordCardProps = {
   record: CareRecord;
   effectiveStatus?: CareRecordEffectiveStatus;
   onDelete?: () => void;
   onEdit?: () => void;
+  onOpenDocument?: (document: CareDocument) => void;
 };
 
 const visibilityTone = {
@@ -24,6 +25,7 @@ export function RecordCard({
   effectiveStatus = record.status,
   onDelete,
   onEdit,
+  onOpenDocument,
 }: RecordCardProps) {
   const dateTerminology = getCareRecordHistoryTerminology(record.type);
   const audience = toCareRecordAudience(record.publicVisibility);
@@ -75,6 +77,42 @@ export function RecordCard({
         </Badge>
       </div>
       <p className="mt-4 text-sm leading-6 text-pet-muted">{record.notes}</p>
+      {record.documents?.length ? (
+        <details className="mt-4 rounded-2xl border border-pet-border bg-pet-cream px-4 py-3">
+          <summary className="cursor-pointer text-sm font-black text-pet-ink">
+            Documents · {record.documents.length}
+          </summary>
+          <div className="mt-3 grid min-w-0 gap-2">
+            {record.documents.map((document) => (
+              <div
+                className="flex min-w-0 flex-col gap-2 rounded-xl bg-white p-3 sm:flex-row sm:items-center sm:justify-between"
+                key={document.id}
+              >
+                <div className="min-w-0">
+                  <p className="break-words text-sm font-bold text-pet-ink">
+                    {document.fileName}
+                  </p>
+                  <p className="mt-1 text-xs font-semibold text-pet-muted">
+                    {document.contentType === "application/pdf" ? "PDF" : "Image"}
+                    {" · "}
+                    {formatFileSize(document.fileSizeBytes)}
+                  </p>
+                </div>
+                {onOpenDocument ? (
+                  <button
+                    aria-label={`Open ${document.fileName}`}
+                    className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-full border border-pet-border bg-white px-4 py-2 text-sm font-bold text-pet-ink transition hover:bg-pet-apricot"
+                    onClick={() => onOpenDocument(document)}
+                    type="button"
+                  >
+                    View
+                  </button>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </details>
+      ) : null}
       {onEdit || onDelete ? (
         <div className="mt-5 flex flex-col gap-2 sm:flex-row">
           {onEdit ? (
@@ -99,4 +137,11 @@ export function RecordCard({
       ) : null}
     </article>
   );
+}
+
+function formatFileSize(bytes: number) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "Size unavailable";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.ceil(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }

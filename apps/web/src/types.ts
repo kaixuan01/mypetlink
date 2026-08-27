@@ -271,9 +271,24 @@ export type CareRecord = {
   notes: string;
   publicVisibility: "Private" | "Public badge only" | "Public details";
   status: "complete" | "overdue" | "due-soon" | "upcoming";
+  documents?: CareDocument[];
   createdAt?: string;
   updatedAt?: string;
   archivedAt?: string;
+};
+
+export type CareDocumentCategory =
+  | "VaccinationDocument"
+  | "MedicalDocument";
+
+export type CareDocument = {
+  id: string;
+  fileName: string;
+  contentType: string;
+  fileSizeBytes: number;
+  category: CareDocumentCategory;
+  sortOrder: number;
+  sourceFile?: File;
 };
 
 export type PublicCareRecord = {
@@ -634,6 +649,7 @@ export type RecordPayload = Partial<
       | "provider"
       | "notes"
       | "publicVisibility"
+      | "documents"
   >
 >;
 

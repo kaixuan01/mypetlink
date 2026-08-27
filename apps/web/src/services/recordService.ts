@@ -7,6 +7,7 @@ import {
 } from "@/services/mockApi";
 import { apiRequest, isApiClientError } from "@/services/apiClient";
 import { canUseApi } from "@/services/apiConfig";
+import { deleteMedia, uploadMediaFile } from "@/services/mediaService";
 import { careDateScore, deriveCareRecordStatus } from "@/lib/careRecordStatus";
 import {
   isCareRecordPublic,
@@ -20,6 +21,7 @@ import type {
 } from "@/services/apiDtos";
 import type {
   ApiResponse,
+  CareDocument,
   CareRecord,
   PublicCareRecord,
   RecordPayload,
@@ -41,6 +43,7 @@ function normalizeRecord(record: CareRecord): CareRecord {
     fulfillsCareRecordId: normalizeOptionalId(record.fulfillsCareRecordId),
     publicVisibility: normalizeCareRecordVisibility(record.publicVisibility),
     status: deriveCareRecordStatus(record.dueDate),
+    documents: normalizeLocalDocuments(record.documents, record.type),
   };
 }
 
@@ -65,20 +68,29 @@ export async function getPetRecords(petId: string) {
 
 export async function createRecord(petId: string, payload: RecordPayload) {
   if (canUseApi()) {
-    const response = await apiRequest<BackendCareRecord>(
-      `/api/v1/pets/${encodeURIComponent(petId)}/care-records`,
-      {
-        method: "POST",
-        body: buildBackendRecordPayload(payload),
+    const prepared = await prepareCareDocuments(petId, payload);
+    try {
+      const response = await apiRequest<BackendCareRecord>(
+        `/api/v1/pets/${encodeURIComponent(petId)}/care-records`,
+        {
+          method: "POST",
+          body: buildBackendRecordPayload({
+            ...payload,
+            documents: prepared.documents,
+          }),
+        }
+      );
+      const record = response.data ? mapBackendRecord(response.data) : null;
+
+      if (!record) {
+        throw new Error("Care record was not returned after saving.");
       }
-    );
-    const record = response.data ? mapBackendRecord(response.data) : null;
 
-    if (!record) {
-      throw new Error("Care record was not returned after saving.");
+      return apiResponse(record, response.meta);
+    } catch (error) {
+      await cleanupUploadedDocuments(prepared.uploadedIds);
+      throw error;
     }
-
-    return apiResponse(record, response.meta);
   }
 
   await mockDelay();
@@ -97,6 +109,7 @@ export async function createRecord(petId: string, payload: RecordPayload) {
     notes: payload.notes ?? "No notes yet.",
     publicVisibility: normalizeCareRecordVisibility(payload.publicVisibility),
     status: deriveCareRecordStatus(payload.dueDate),
+    documents: normalizeLocalDocuments(payload.documents, payload.type ?? "Other"),
     createdAt: now,
     updatedAt: now,
   };
@@ -108,25 +121,41 @@ export async function createRecord(petId: string, payload: RecordPayload) {
   return mockResponse(record);
 }
 
-export async function updateRecord(recordId: string, payload: RecordPayload) {
+export async function updateRecord(
+  recordId: string,
+  payload: RecordPayload,
+  petId?: string
+) {
   if (canUseApi()) {
+    const prepared = payload.documents?.some((document) => document.sourceFile)
+      ? await prepareCareDocuments(
+          petId ?? requirePetIdForDocumentUpload(),
+          payload
+        )
+      : { documents: payload.documents, uploadedIds: [] };
     try {
       const response = await apiRequest<BackendCareRecord>(
         `/api/v1/care-records/${encodeURIComponent(recordId)}`,
         {
           method: "PUT",
-          body: buildBackendRecordPayload(payload, {
-            allowDueDateClear: true,
-            allowIdentityClears: true,
-          }),
+          body: buildBackendRecordPayload(
+            { ...payload, documents: prepared.documents },
+            {
+              allowDueDateClear: true,
+              allowIdentityClears: true,
+            }
+          ),
         }
       );
 
-      return apiResponse(
-        response.data ? mapBackendRecord(response.data) : null,
-        response.meta
-      );
+      const record = response.data ? mapBackendRecord(response.data) : null;
+      if (!record) {
+        throw new Error("Care record was not returned after saving.");
+      }
+
+      return apiResponse(record, response.meta);
     } catch (error) {
+      await cleanupUploadedDocuments(prepared.uploadedIds);
       if (isApiClientError(error) && error.status === 404) {
         return apiResponse<CareRecord | null>(null);
       }
@@ -156,6 +185,12 @@ export async function updateRecord(recordId: string, payload: RecordPayload) {
             ? payload.dueDate
             : existingRecord.dueDate
         ),
+        documents: hasOwn(payload, "documents")
+          ? normalizeLocalDocuments(
+              payload.documents,
+              payload.type ?? existingRecord.type
+            )
+          : existingRecord.documents,
         updatedAt: new Date().toISOString(),
       })
     : null;
@@ -247,6 +282,10 @@ export function getFriendlyRecordErrorMessage(error: unknown) {
     return error.message;
   }
 
+  if (error instanceof Error) {
+    return error.message;
+  }
+
   return "Something went wrong. Please try again.";
 }
 
@@ -287,6 +326,88 @@ function normalizeCareName(value?: string | null) {
 function normalizeOptionalId(value?: string | null) {
   const normalized = value?.trim();
   return normalized || undefined;
+}
+
+function normalizeLocalDocuments(
+  documents: CareDocument[] | undefined,
+  type: RecordType
+): CareDocument[] {
+  return (documents ?? [])
+    .map((document, index) => ({
+      id:
+        document.id && !document.id.startsWith("draft-care-document-")
+          ? document.id
+          : `local-care-document-${Date.now()}-${index}`,
+      fileName: document.fileName || document.sourceFile?.name || "Care document",
+      contentType:
+        document.contentType ||
+        document.sourceFile?.type ||
+        "application/octet-stream",
+      fileSizeBytes: document.fileSizeBytes || document.sourceFile?.size || 0,
+      category: document.sourceFile
+        ? getCareDocumentCategory(type)
+        : document.category ?? getCareDocumentCategory(type),
+      sortOrder: index,
+    }))
+    .sort((left, right) => left.sortOrder - right.sortOrder);
+}
+
+async function prepareCareDocuments(
+  petId: string,
+  payload: RecordPayload
+): Promise<{ documents: CareDocument[] | undefined; uploadedIds: string[] }> {
+  if (!payload.documents) {
+    return { documents: undefined, uploadedIds: [] };
+  }
+
+  const documents: CareDocument[] = [];
+  const uploadedIds: string[] = [];
+
+  for (const [index, document] of payload.documents.entries()) {
+    if (!document.sourceFile) {
+      documents.push({ ...document, sourceFile: undefined, sortOrder: index });
+      continue;
+    }
+
+    try {
+      const uploaded = await uploadMediaFile({
+        file: document.sourceFile,
+        category: getCareDocumentCategory(payload.type ?? "Other"),
+        petId,
+        cleanupOnFailure: true,
+      });
+      uploadedIds.push(uploaded.mediaId);
+      documents.push({
+        id: uploaded.mediaId,
+        fileName: uploaded.originalFileName,
+        contentType: uploaded.contentType,
+        fileSizeBytes: uploaded.fileSizeBytes,
+        category: getCareDocumentCategory(payload.type ?? "Other"),
+        sortOrder: index,
+      });
+    } catch (error) {
+      await cleanupUploadedDocuments(uploadedIds);
+      const message =
+        error instanceof Error ? error.message : "Please try this file again.";
+      throw new Error(`Could not upload “${document.fileName}”. ${message}`);
+    }
+  }
+
+  return { documents, uploadedIds };
+}
+
+async function cleanupUploadedDocuments(mediaIds: string[]) {
+  await Promise.allSettled(mediaIds.map((mediaId) => deleteMedia(mediaId)));
+}
+
+function getCareDocumentCategory(type: RecordType) {
+  return type === "Vaccine"
+    ? ("VaccinationDocument" as const)
+    : ("MedicalDocument" as const);
+}
+
+function requirePetIdForDocumentUpload(): never {
+  throw new Error("Choose a pet before adding documents.");
 }
 
 function hasOwn(object: object, property: PropertyKey) {
@@ -448,6 +569,11 @@ export function buildBackendRecordPayload(
     publicVisibility: payload.publicVisibility
       ? toBackendVisibility(payload.publicVisibility)
       : undefined,
+    mediaFileIds: payload.documents
+      ? [...payload.documents]
+          .sort((left, right) => left.sortOrder - right.sortOrder)
+          .map((document) => document.id)
+      : undefined,
   };
 }
 
@@ -468,6 +594,16 @@ export function mapBackendRecord(record: BackendCareRecord): CareRecord {
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
     archivedAt: record.archivedAt ?? undefined,
+    documents: (record.documents ?? [])
+      .map((document) => ({
+        id: document.id,
+        fileName: document.originalFileName,
+        contentType: document.contentType,
+        fileSizeBytes: document.fileSizeBytes,
+        category: document.category,
+        sortOrder: document.sortOrder,
+      }))
+      .sort((left, right) => left.sortOrder - right.sortOrder),
   };
 }
 

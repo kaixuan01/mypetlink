@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CareRecord } from "@/types";
 import { RecordCard } from "./RecordCard";
 
@@ -140,5 +140,38 @@ describe("RecordCard date terminology", () => {
 
     expect(screen.getByText("Only me")).toBeTruthy();
     expect(screen.queryByText("Anyone with the link")).toBeNull();
+  });
+
+  it("shows a compact private document list and delegates secure viewing", () => {
+    const onOpenDocument = vi.fn();
+    const document = {
+      id: "document-1",
+      fileName: "annual-vaccination-certificate-with-a-long-name.pdf",
+      contentType: "application/pdf",
+      fileSizeBytes: 2048,
+      category: "VaccinationDocument" as const,
+      sortOrder: 0,
+    };
+    render(
+      <RecordCard
+        onOpenDocument={onOpenDocument}
+        record={{
+          id: "record-documents",
+          petId: "pet-1",
+          type: "Vaccine",
+          title: "Annual vaccination",
+          date: "15 Jul 2026",
+          provider: "Happy Paws Vet",
+          notes: "Owner notes.",
+          publicVisibility: "Private",
+          status: "complete",
+          documents: [document],
+        }}
+      />
+    );
+
+    expect(screen.getByText("Documents · 1")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: `Open ${document.fileName}` }));
+    expect(onOpenDocument).toHaveBeenCalledWith(document);
   });
 });

@@ -73,7 +73,19 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
             .Take(pageSize)
             .ToListAsync(cancellationToken);
 
-        return (records.Select(ToResponse).ToArray(), total);
+        var documentsByRecord = await LoadRecordDocumentsAsync(
+            records.Select(record => record.Id).ToArray(),
+            cancellationToken);
+
+        return (
+            records
+                .Select(record => ToResponse(
+                    record,
+                    documentsByRecord.TryGetValue(record.Id, out var documents)
+                        ? documents
+                        : Array.Empty<CareRecordDocumentResponse>()))
+                .ToArray(),
+            total);
     }
 
     public async Task<CareRecordResponse> CreateAsync(
@@ -111,6 +123,7 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
 
         await ValidateFulfillmentAsync(userId, record, cancellationToken);
 
+        await ReplaceRecordMediaAsync(userId, record, request.MediaFileIds, cancellationToken);
         _dbContext.CareRecords.Add(record);
         try
         {
@@ -122,10 +135,7 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
                 "This care record has already been fulfilled by another record.");
         }
 
-        await ReplaceRecordMediaAsync(userId, record, request.MediaFileIds, cancellationToken);
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
-        return ToResponse(record);
+        return await ToResponseAsync(record, cancellationToken);
     }
 
     public async Task<CareRecordResponse> GetAsync(
@@ -134,7 +144,7 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
         CancellationToken cancellationToken = default)
     {
         var record = await LoadOwnedRecordAsync(currentUserId, recordId, trackChanges: false, cancellationToken);
-        return ToResponse(record);
+        return await ToResponseAsync(record, cancellationToken);
     }
 
     public async Task<CareRecordResponse> UpdateAsync(
@@ -238,7 +248,7 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
             throw FulfillmentValidationFailed(
                 "This care record has already been fulfilled by another record.");
         }
-        return ToResponse(record);
+        return await ToResponseAsync(record, cancellationToken);
     }
 
     public async Task ArchiveAsync(
@@ -257,8 +267,21 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
             fulfillingRecord.FulfillsCareRecordId = null;
         }
 
+        var now = _timeProvider.GetUtcNow();
         record.FulfillsCareRecordId = null;
-        record.ArchivedAt ??= _timeProvider.GetUtcNow();
+        record.ArchivedAt ??= now;
+
+        var documentLinks = await _dbContext.MediaFileLinks
+            .Where(link =>
+                link.OwnerType == MediaOwnerType.CareRecord
+                && link.OwnerId == record.Id
+                && link.ArchivedAt == null)
+            .ToListAsync(cancellationToken);
+
+        foreach (var link in documentLinks)
+        {
+            link.ArchivedAt = now;
+        }
 
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
@@ -640,7 +663,20 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
         var existingLinks = await _dbContext.MediaFileLinks
             .Where(link => link.OwnerType == MediaOwnerType.CareRecord && link.OwnerId == record.Id)
             .ToListAsync(cancellationToken);
-        var now = DateTimeOffset.UtcNow;
+        var now = _timeProvider.GetUtcNow();
+
+        var stagedPetLinks = await _dbContext.MediaFileLinks
+            .Where(link =>
+                distinctIds.Contains(link.MediaFileId)
+                && link.OwnerType == MediaOwnerType.Pet
+                && link.OwnerId == record.PetId
+                && link.ArchivedAt == null)
+            .ToListAsync(cancellationToken);
+
+        foreach (var link in stagedPetLinks)
+        {
+            link.ArchivedAt = now;
+        }
 
         foreach (var link in existingLinks.Where(link => !distinctIds.Contains(link.MediaFileId)))
         {
@@ -685,7 +721,60 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
         });
     }
 
-    private CareRecordResponse ToResponse(CareRecord record)
+    private async Task<CareRecordResponse> ToResponseAsync(
+        CareRecord record,
+        CancellationToken cancellationToken)
+    {
+        var documentsByRecord = await LoadRecordDocumentsAsync([record.Id], cancellationToken);
+        return ToResponse(
+            record,
+            documentsByRecord.TryGetValue(record.Id, out var documents)
+                ? documents
+                : Array.Empty<CareRecordDocumentResponse>());
+    }
+
+    private async Task<Dictionary<Guid, CareRecordDocumentResponse[]>> LoadRecordDocumentsAsync(
+        IReadOnlyCollection<Guid> recordIds,
+        CancellationToken cancellationToken)
+    {
+        if (recordIds.Count == 0)
+        {
+            return new Dictionary<Guid, CareRecordDocumentResponse[]>();
+        }
+
+        var links = await _dbContext.MediaFileLinks
+            .AsNoTracking()
+            .Include(link => link.MediaFile)
+            .Where(link =>
+                recordIds.Contains(link.OwnerId)
+                && link.OwnerType == MediaOwnerType.CareRecord
+                && link.ArchivedAt == null
+                && link.MediaFile.UploadStatus == MediaUploadStatus.Ready
+                && link.MediaFile.DeletedAt == null
+                && (link.MediaFile.Category == MediaUploadCategory.VaccinationDocument
+                    || link.MediaFile.Category == MediaUploadCategory.MedicalDocument))
+            .OrderBy(link => link.SortOrder)
+            .ThenBy(link => link.CreatedAt)
+            .ToListAsync(cancellationToken);
+
+        return links
+            .GroupBy(link => link.OwnerId)
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .Select(link => new CareRecordDocumentResponse(
+                        link.MediaFileId,
+                        link.MediaFile.OriginalFileName,
+                        link.MediaFile.ContentType,
+                        link.MediaFile.FileSize,
+                        link.MediaFile.Category,
+                        link.SortOrder))
+                    .ToArray());
+    }
+
+    private CareRecordResponse ToResponse(
+        CareRecord record,
+        IReadOnlyCollection<CareRecordDocumentResponse> documents)
     {
         return new CareRecordResponse(
             record.Id,
@@ -702,7 +791,8 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
             record.UpdatedAt,
             record.ArchivedAt,
             record.CareName,
-            record.FulfillsCareRecordId);
+            record.FulfillsCareRecordId,
+            documents);
     }
 
     private string DeriveStatus(CareRecord record)

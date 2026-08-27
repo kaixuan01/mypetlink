@@ -12,6 +12,25 @@ export const mockRecords: CareRecord[] = [
     notes: "Core vaccine completed. Booster due next year.",
     publicVisibility: "Public badge only",
     status: "complete",
+    documents: [
+      {
+        id: "media_vaccination_certificate_001",
+        fileName:
+          "annual-vaccination-certificate-happy-paws-veterinary-clinic.pdf",
+        contentType: "application/pdf",
+        fileSizeBytes: 284_672,
+        category: "VaccinationDocument",
+        sortOrder: 0,
+      },
+      {
+        id: "media_vaccination_card_001",
+        fileName: "vaccination-card-front.png",
+        contentType: "image/png",
+        fileSizeBytes: 196_608,
+        category: "VaccinationDocument",
+        sortOrder: 1,
+      },
+    ],
   },
   {
     id: "rec_002",

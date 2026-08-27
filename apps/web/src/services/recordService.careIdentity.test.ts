@@ -122,6 +122,16 @@ describe("offline care identity and explicit fulfilment", () => {
           careName: "Private identity",
           fulfillsCareRecordId: "older-record",
           publicVisibility: "Public badge only",
+          documents: [
+            {
+              id: "private-document",
+              fileName: "private-certificate.pdf",
+              contentType: "application/pdf",
+              fileSizeBytes: 2048,
+              category: "VaccinationDocument",
+              sortOrder: 0,
+            },
+          ],
         }),
       ],
       true
@@ -129,6 +139,43 @@ describe("offline care identity and explicit fulfilment", () => {
 
     expect(projected).toEqual([{ type: "Vaccine", recordDate: "20 Aug 2026" }]);
     expect(Object.keys(projected[0]).sort()).toEqual(["recordDate", "type"]);
+  });
+
+  it("persists document metadata offline and replaces only an explicitly edited list", async () => {
+    const original = record("with-documents", {
+      careName: "DHPP",
+      documents: [
+        {
+          id: "document-a",
+          fileName: "a.pdf",
+          contentType: "application/pdf",
+          fileSizeBytes: 1024,
+          category: "VaccinationDocument",
+          sortOrder: 0,
+        },
+        {
+          id: "document-b",
+          fileName: "b.png",
+          contentType: "image/png",
+          fileSizeBytes: 2048,
+          category: "VaccinationDocument",
+          sortOrder: 1,
+        },
+      ],
+    });
+    seed([original]);
+
+    const preserved = await updateRecord(original.id, { title: "Renamed" });
+    const replaced = await updateRecord(original.id, {
+      careName: "DHPP",
+      documents: [original.documents![0]],
+    });
+
+    expect(preserved.data?.documents).toEqual(original.documents);
+    expect(replaced.data).toMatchObject({
+      careName: "DHPP",
+      documents: [expect.objectContaining({ id: "document-a", sortOrder: 0 })],
+    });
   });
 
   it("clears incoming local relationships when their target is deleted", async () => {

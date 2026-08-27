@@ -40,6 +40,7 @@ export type MediaUploadInput = {
   durationSeconds?: number;
   signal?: AbortSignal;
   onProgress?: (progress: number) => void;
+  cleanupOnFailure?: boolean;
 };
 
 export type UploadedMediaFile = BackendCompleteMediaUploadResponse & {
@@ -116,9 +117,16 @@ export async function uploadMediaFile(
 ): Promise<UploadedMediaFile> {
   const { upload, file } = await initializeMediaUpload(input);
 
-  await putFile(upload, file, input.signal, input.onProgress);
-
-  const completed = await completeMediaUpload(upload.mediaId);
+  let completed: BackendCompleteMediaUploadResponse;
+  try {
+    await putFile(upload, file, input.signal, input.onProgress);
+    completed = await completeMediaUpload(upload.mediaId);
+  } catch (error) {
+    if (input.cleanupOnFailure) {
+      await deleteMedia(upload.mediaId).catch(() => undefined);
+    }
+    throw error;
+  }
 
   return {
     ...completed,
@@ -126,6 +134,28 @@ export async function uploadMediaFile(
     contentType: normalizeContentType(file),
     fileSizeBytes: file.size,
   };
+}
+
+export function validateCareDocumentFile(file: File) {
+  validateUploadFile("MedicalDocument", file);
+}
+
+export async function openPrivateMediaFile(mediaId: string) {
+  const fileWindow = window.open("about:blank", "_blank");
+  if (fileWindow) {
+    fileWindow.opener = null;
+  }
+
+  try {
+    const access = await createPrivateDownloadUrl(mediaId);
+    if (!fileWindow) {
+      throw new Error("Allow pop-ups to open this document, then try again.");
+    }
+    fileWindow.location.replace(access.downloadUrl);
+  } catch (error) {
+    fileWindow?.close();
+    throw error;
+  }
 }
 
 async function prepareFileForUpload(

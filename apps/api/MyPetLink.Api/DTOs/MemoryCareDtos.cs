@@ -105,4 +105,13 @@ public sealed record CareRecordResponse(
     DateTimeOffset UpdatedAt,
     DateTimeOffset? ArchivedAt,
     string? CareName,
-    Guid? FulfillsCareRecordId);
+    Guid? FulfillsCareRecordId,
+    IReadOnlyCollection<CareRecordDocumentResponse> Documents);
+
+public sealed record CareRecordDocumentResponse(
+    Guid Id,
+    string OriginalFileName,
+    string ContentType,
+    long FileSizeBytes,
+    MediaUploadCategory Category,
+    int SortOrder);

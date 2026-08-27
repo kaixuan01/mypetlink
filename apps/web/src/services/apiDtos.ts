@@ -303,6 +303,16 @@ export type BackendCareRecord = {
   createdAt: string;
   updatedAt: string;
   archivedAt?: string | null;
+  documents?: BackendCareRecordDocument[] | null;
+};
+
+export type BackendCareRecordDocument = {
+  id: string;
+  originalFileName: string;
+  contentType: string;
+  fileSizeBytes: number;
+  category: "VaccinationDocument" | "MedicalDocument";
+  sortOrder: number;
 };
 
 export type BackendPublicCareRecord = {

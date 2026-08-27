@@ -286,6 +286,227 @@ public sealed class CareRecordServiceTests
         Assert.Equal("overdue", after.DerivedStatus);
     }
 
+    [Fact]
+    public async Task GetAndList_ReturnOnlyActiveReadyCareDocumentsInTheirSavedOrder()
+    {
+        using var harness = await CareRecordHarness.CreateAsync(withRecord: true);
+        var record = await harness.Db.CareRecords.SingleAsync();
+        var first = AddDocument(harness.Db, "vaccination-card.pdf", MediaUploadCategory.VaccinationDocument);
+        var second = AddDocument(harness.Db, "clinic-result.png", MediaUploadCategory.MedicalDocument);
+        var pending = AddDocument(harness.Db, "pending.pdf", MediaUploadCategory.MedicalDocument, MediaUploadStatus.Pending);
+        var deleted = AddDocument(harness.Db, "deleted.pdf", MediaUploadCategory.MedicalDocument);
+        deleted.DeletedAt = DateTimeOffset.UtcNow;
+        var petOnly = AddDocument(harness.Db, "pet-only.pdf", MediaUploadCategory.MedicalDocument);
+        var otherRecord = new CareRecord
+        {
+            PetId = PetId,
+            Type = CareRecordType.Other,
+            Title = "Other record",
+            RecordDate = MalaysiaToday()
+        };
+        harness.Db.CareRecords.Add(otherRecord);
+        AddCareLink(harness.Db, record.Id, second.Id, 0);
+        AddCareLink(harness.Db, record.Id, first.Id, 1);
+        AddCareLink(harness.Db, record.Id, pending.Id, 2);
+        AddCareLink(harness.Db, record.Id, deleted.Id, 3);
+        AddCareLink(harness.Db, record.Id, AddDocument(harness.Db, "removed.pdf", MediaUploadCategory.MedicalDocument).Id, 3, DateTimeOffset.UtcNow);
+        AddPetLink(harness.Db, petOnly.Id);
+        AddCareLink(harness.Db, otherRecord.Id, AddDocument(harness.Db, "other-record.pdf", MediaUploadCategory.MedicalDocument).Id, 0);
+        await harness.Db.SaveChangesAsync();
+
+        var single = await harness.Service.GetAsync(OwnerId, record.Id);
+        var listed = await harness.Service.ListForPetAsync(
+            OwnerId, PetId, 1, 20, null, null, null, includeArchived: false);
+
+        Assert.Equal(["clinic-result.png", "vaccination-card.pdf"], single.Documents.Select(document => document.OriginalFileName));
+        Assert.Equal(single.Documents, listed.Items.Single(item => item.Id == record.Id).Documents);
+        Assert.All(single.Documents, document => Assert.DoesNotContain(
+            document.GetType().GetProperties(),
+            property => property.Name.Contains("Storage", StringComparison.OrdinalIgnoreCase)
+                || property.Name.Contains("ObjectKey", StringComparison.OrdinalIgnoreCase)));
+    }
+
+    [Fact]
+    public async Task CreateAsync_PromotesStagedPetDocumentsToTheCareRecord()
+    {
+        using var harness = await CareRecordHarness.CreateAsync();
+        var first = AddDocument(harness.Db, "certificate.pdf", MediaUploadCategory.VaccinationDocument);
+        var second = AddDocument(harness.Db, "card.jpg", MediaUploadCategory.VaccinationDocument);
+        AddPetLink(harness.Db, first.Id);
+        AddPetLink(harness.Db, second.Id);
+        await harness.Db.SaveChangesAsync();
+
+        var response = await harness.Service.CreateAsync(
+            OwnerId,
+            PetId,
+            CreateRequest(CareRecordType.Vaccine, MalaysiaToday()) with
+            {
+                MediaFileIds = [second.Id, first.Id]
+            });
+
+        Assert.Equal([second.Id, first.Id], response.Documents.Select(document => document.Id));
+        var staged = await harness.Db.MediaFileLinks
+            .Where(link => link.OwnerType == MediaOwnerType.Pet)
+            .ToArrayAsync();
+        Assert.All(staged, link => Assert.NotNull(link.ArchivedAt));
+        var activeCareLinks = await harness.Db.MediaFileLinks
+            .Where(link => link.OwnerType == MediaOwnerType.CareRecord && link.ArchivedAt == null)
+            .OrderBy(link => link.SortOrder)
+            .ToArrayAsync();
+        Assert.Equal([second.Id, first.Id], activeCareLinks.Select(link => link.MediaFileId));
+    }
+
+    [Fact]
+    public async Task UpdateAsync_ReplacesDocumentLinksWithoutDeletingMedia()
+    {
+        using var harness = await CareRecordHarness.CreateAsync(withRecord: true);
+        var record = await harness.Db.CareRecords.SingleAsync();
+        var target = new CareRecord
+        {
+            PetId = PetId,
+            Type = CareRecordType.Vaccine,
+            Title = "Previous vaccination",
+            RecordDate = MalaysiaToday().AddYears(-1),
+            DueDate = MalaysiaToday().AddDays(-1),
+            CreatedAt = DateTimeOffset.Parse("2020-01-01T00:00:00Z")
+        };
+        record.CreatedAt = DateTimeOffset.Parse("2021-01-01T00:00:00Z");
+        record.CareName = "DHPP";
+        record.FulfillsCareRecordId = target.Id;
+        harness.Db.CareRecords.Add(target);
+        var first = AddDocument(harness.Db, "a.pdf", MediaUploadCategory.VaccinationDocument);
+        var removed = AddDocument(harness.Db, "b.pdf", MediaUploadCategory.VaccinationDocument);
+        var added = AddDocument(harness.Db, "c.png", MediaUploadCategory.MedicalDocument);
+        AddCareLink(harness.Db, record.Id, first.Id, 0);
+        AddCareLink(harness.Db, record.Id, removed.Id, 1);
+        AddPetLink(harness.Db, added.Id);
+        await harness.Db.SaveChangesAsync();
+        target.CreatedAt = record.CreatedAt.AddDays(-1);
+        await harness.Db.SaveChangesAsync();
+
+        var response = await harness.Service.UpdateAsync(
+            OwnerId,
+            record.Id,
+            new UpdateCareRecordRequest(null, null, null, null, null, null, null, [first.Id, added.Id]));
+
+        Assert.Equal([first.Id, added.Id], response.Documents.Select(document => document.Id));
+        Assert.Equal("DHPP", response.CareName);
+        Assert.Equal(target.Id, response.FulfillsCareRecordId);
+        Assert.NotNull((await harness.Db.MediaFileLinks.SingleAsync(link =>
+            link.OwnerType == MediaOwnerType.CareRecord && link.MediaFileId == removed.Id)).ArchivedAt);
+        Assert.Null((await harness.Db.MediaFiles.SingleAsync(media => media.Id == removed.Id)).DeletedAt);
+
+        var cleared = await harness.Service.UpdateAsync(
+            OwnerId,
+            record.Id,
+            new UpdateCareRecordRequest(
+                null, null, null, null, null, null, null, null,
+                ClearFulfillsCareRecordId: true));
+        Assert.Null(cleared.FulfillsCareRecordId);
+        Assert.Equal([first.Id, added.Id], cleared.Documents.Select(document => document.Id));
+    }
+
+    [Fact]
+    public async Task CreateAsync_RejectsAnotherOwnersDocumentWithoutPersistingARecord()
+    {
+        using var harness = await CareRecordHarness.CreateAsync();
+        var foreignDocument = AddDocument(
+            harness.Db,
+            "private.pdf",
+            MediaUploadCategory.MedicalDocument,
+            ownerId: Guid.Parse("33333333-3333-3333-3333-333333333333"));
+        await harness.Db.SaveChangesAsync();
+
+        var exception = await Assert.ThrowsAsync<ApiException>(() => harness.Service.CreateAsync(
+            OwnerId,
+            PetId,
+            CreateRequest(CareRecordType.VetVisit, MalaysiaToday()) with
+            {
+                MediaFileIds = [foreignDocument.Id]
+            }));
+
+        Assert.Equal(StatusCodes.Status400BadRequest, exception.StatusCode);
+        Assert.Empty(await harness.Db.CareRecords.AsNoTracking().ToArrayAsync());
+        Assert.DoesNotContain(harness.Db.ChangeTracker.Entries<CareRecord>(), entry => entry.State == EntityState.Added);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task UpdateAsync_RejectsAnotherOwnersOrAnotherPetsDocument(bool anotherOwner)
+    {
+        using var harness = await CareRecordHarness.CreateAsync(withRecord: true);
+        var record = await harness.Db.CareRecords.SingleAsync();
+        var unavailable = AddDocument(
+            harness.Db,
+            "unavailable.pdf",
+            MediaUploadCategory.MedicalDocument,
+            ownerId: anotherOwner ? Guid.Parse("33333333-3333-3333-3333-333333333333") : OwnerId,
+            petId: anotherOwner ? PetId : Guid.Parse("44444444-4444-4444-4444-444444444444"));
+        await harness.Db.SaveChangesAsync();
+
+        var exception = await Assert.ThrowsAsync<ApiException>(() => harness.Service.UpdateAsync(
+            OwnerId,
+            record.Id,
+            new UpdateCareRecordRequest(null, null, null, null, null, null, null, [unavailable.Id])));
+
+        Assert.Equal(StatusCodes.Status400BadRequest, exception.StatusCode);
+        Assert.Empty(await harness.Db.MediaFileLinks.AsNoTracking()
+            .Where(link => link.OwnerType == MediaOwnerType.CareRecord)
+            .ToArrayAsync());
+    }
+
+    [Theory]
+    [InlineData(CareRecordType.Vaccine, MediaUploadCategory.VaccinationDocument)]
+    [InlineData(CareRecordType.Vaccine, MediaUploadCategory.MedicalDocument)]
+    [InlineData(CareRecordType.VetVisit, MediaUploadCategory.MedicalDocument)]
+    public async Task CreateAsync_AcceptsExistingCareDocumentCategories(
+        CareRecordType recordType,
+        MediaUploadCategory category)
+    {
+        using var harness = await CareRecordHarness.CreateAsync();
+        var document = AddDocument(harness.Db, "supported.pdf", category);
+        await harness.Db.SaveChangesAsync();
+
+        var response = await harness.Service.CreateAsync(
+            OwnerId,
+            PetId,
+            CreateRequest(recordType, MalaysiaToday()) with { MediaFileIds = [document.Id] });
+
+        Assert.Equal(category, Assert.Single(response.Documents).Category);
+    }
+
+    [Fact]
+    public async Task ArchiveAsync_ArchivesEveryActiveDocumentLink()
+    {
+        using var harness = await CareRecordHarness.CreateAsync(withRecord: true);
+        var record = await harness.Db.CareRecords.SingleAsync();
+        var document = AddDocument(harness.Db, "certificate.pdf", MediaUploadCategory.VaccinationDocument);
+        AddCareLink(harness.Db, record.Id, document.Id, 0);
+        await harness.Db.SaveChangesAsync();
+
+        await harness.Service.ArchiveAsync(OwnerId, record.Id);
+
+        Assert.NotNull((await harness.Db.MediaFileLinks.SingleAsync()).ArchivedAt);
+        Assert.Empty((await harness.Service.GetAsync(OwnerId, record.Id)).Documents);
+    }
+
+    [Fact]
+    public async Task GetAsync_DoesNotAllowAnotherOwnerToReadDocumentMetadata()
+    {
+        using var harness = await CareRecordHarness.CreateAsync(withRecord: true);
+        var record = await harness.Db.CareRecords.SingleAsync();
+        var document = AddDocument(harness.Db, "certificate.pdf", MediaUploadCategory.VaccinationDocument);
+        AddCareLink(harness.Db, record.Id, document.Id, 0);
+        await harness.Db.SaveChangesAsync();
+
+        var exception = await Assert.ThrowsAsync<ApiException>(() => harness.Service.GetAsync(
+            Guid.Parse("33333333-3333-3333-3333-333333333333"),
+            record.Id));
+
+        Assert.Equal(StatusCodes.Status404NotFound, exception.StatusCode);
+    }
+
     private static CreateCareRecordRequest CreateRequest(
         CareRecordType type,
         DateOnly date,
@@ -306,6 +527,63 @@ public sealed class CareRecordServiceTests
     {
         var malaysiaNow = DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(8));
         return DateOnly.FromDateTime(malaysiaNow.DateTime);
+    }
+
+    private static MediaFile AddDocument(
+        MyPetLinkDbContext db,
+        string fileName,
+        MediaUploadCategory category,
+        MediaUploadStatus status = MediaUploadStatus.Ready,
+        Guid? ownerId = null,
+        Guid? petId = null)
+    {
+        var media = new MediaFile
+        {
+            OwnerUserId = ownerId ?? OwnerId,
+            PetId = petId ?? PetId,
+            OriginalFileName = fileName,
+            StorageFileName = fileName,
+            ContentType = fileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)
+                ? "application/pdf"
+                : "image/png",
+            FileSize = 1024,
+            StoragePath = $"private/{Guid.NewGuid():N}",
+            BucketName = "private-media",
+            ObjectKey = $"private/{Guid.NewGuid():N}",
+            MediaType = MediaFileType.Document,
+            Category = category,
+            UploadStatus = status,
+            IsPublic = false
+        };
+        db.MediaFiles.Add(media);
+        return media;
+    }
+
+    private static void AddPetLink(MyPetLinkDbContext db, Guid mediaId)
+    {
+        db.MediaFileLinks.Add(new MediaFileLink
+        {
+            MediaFileId = mediaId,
+            OwnerType = MediaOwnerType.Pet,
+            OwnerId = PetId
+        });
+    }
+
+    private static void AddCareLink(
+        MyPetLinkDbContext db,
+        Guid recordId,
+        Guid mediaId,
+        int sortOrder,
+        DateTimeOffset? archivedAt = null)
+    {
+        db.MediaFileLinks.Add(new MediaFileLink
+        {
+            MediaFileId = mediaId,
+            OwnerType = MediaOwnerType.CareRecord,
+            OwnerId = recordId,
+            SortOrder = sortOrder,
+            ArchivedAt = archivedAt
+        });
     }
 
     private static void AddRecord(

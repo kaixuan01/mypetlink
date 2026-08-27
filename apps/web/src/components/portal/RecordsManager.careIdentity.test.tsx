@@ -199,7 +199,8 @@ describe("RecordsManager care identity and fulfilment", () => {
       expect.objectContaining({
         careName: undefined,
         fulfillsCareRecordId: undefined,
-      })
+      }),
+      "pet-1"
     );
   });
 
@@ -279,7 +280,8 @@ describe("RecordsManager care identity and fulfilment", () => {
         type: "Medication",
         careName: undefined,
         fulfillsCareRecordId: undefined,
-      })
+      }),
+      "pet-1"
     );
   });
 
@@ -294,6 +296,12 @@ describe("RecordsManager care identity and fulfilment", () => {
     chooseType("Vaccine");
     fireEvent.change(screen.getByLabelText("Vaccine name (Optional)"), {
       target: { value: "Rabies" },
+    });
+    const certificate = new File(["certificate"], "rabies-certificate.pdf", {
+      type: "application/pdf",
+    });
+    fireEvent.change(screen.getByLabelText("+ Add document"), {
+      target: { files: [certificate] },
     });
     completeRequiredFields("Owner-entered title");
     fireEvent.click(screen.getByRole("radio", { name: /DHPP/ }));
@@ -315,6 +323,49 @@ describe("RecordsManager care identity and fulfilment", () => {
     expect(
       (screen.getByRole("radio", { name: /DHPP/ }) as HTMLInputElement).checked
     ).toBe(true);
+    expect(screen.getByText("rabies-certificate.pdf")).toBeTruthy();
+  });
+
+  it("replaces selected documents on Edit while preserving E2B identity", async () => {
+    const current = careRecord("current-documents", {
+      careName: "DHPP",
+      documents: [
+        careDocument("document-a", "a.pdf", 0),
+        careDocument("document-b", "b.png", 1),
+      ],
+    });
+    mocks.updateRecord.mockResolvedValue({ data: current });
+    renderRecords([current]);
+
+    const card = (await screen.findByText(current.title)).closest("article")!;
+    expect(within(card).getByText("Documents · 2")).toBeTruthy();
+    fireEvent.click(within(card).getByRole("button", { name: "Edit" }));
+    const dialog = screen.getByRole("dialog", { name: "Update care record" });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Remove b.png" })
+    );
+    const added = new File(["new"], "c.pdf", { type: "application/pdf" });
+    fireEvent.change(within(dialog).getByLabelText("+ Add document"), {
+      target: { files: [added] },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save Changes" }));
+
+    await waitFor(() => expect(mocks.updateRecord).toHaveBeenCalledOnce());
+    expect(mocks.updateRecord).toHaveBeenCalledWith(
+      current.id,
+      expect.objectContaining({
+        careName: "DHPP",
+        documents: [
+          expect.objectContaining({ id: "document-a", sortOrder: 0 }),
+          expect.objectContaining({
+            fileName: "c.pdf",
+            sourceFile: added,
+            sortOrder: 1,
+          }),
+        ],
+      }),
+      "pet-1"
+    );
   });
 
   it("shows Completed only while the explicit fulfiller remains active", async () => {
@@ -392,5 +443,16 @@ function careRecord(id: string, overrides: Partial<CareRecord> = {}): CareRecord
     createdAt: "2026-08-01T00:00:00Z",
     updatedAt: "2026-08-01T00:00:00Z",
     ...overrides,
+  };
+}
+
+function careDocument(id: string, fileName: string, sortOrder: number) {
+  return {
+    id,
+    fileName,
+    contentType: fileName.endsWith(".pdf") ? "application/pdf" : "image/png",
+    fileSizeBytes: 2048,
+    category: "VaccinationDocument" as const,
+    sortOrder,
   };
 }
