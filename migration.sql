@@ -1574,6 +1574,7 @@ GO
 
 COMMIT;
 GO
+
 BEGIN TRANSACTION;
 GO
 
@@ -2011,10 +2012,9 @@ IF NOT EXISTS (
     WHERE [MigrationId] = N'20260714045218_FavoriteFoodsAndToysAsLists'
 )
 BEGIN
-    -- Deferred compilation: [FavoriteFood] is dropped further down this
-    -- script, so a direct reference fails to compile on a re-run even
-    -- though the guard above means this block never executes then.
-    EXEC(N'UPDATE Pets SET FavoriteFoodsJson = N''["'' + STRING_ESCAPE(LTRIM(RTRIM(FavoriteFood)), ''json'') + N''"]'' WHERE FavoriteFood IS NOT NULL AND LTRIM(RTRIM(FavoriteFood)) <> N'''';');
+    UPDATE Pets
+    SET FavoriteFoodsJson = N'["' + STRING_ESCAPE(LTRIM(RTRIM(FavoriteFood)), 'json') + N'"]'
+    WHERE FavoriteFood IS NOT NULL AND LTRIM(RTRIM(FavoriteFood)) <> N'';
 END;
 GO
 
@@ -2023,10 +2023,9 @@ IF NOT EXISTS (
     WHERE [MigrationId] = N'20260714045218_FavoriteFoodsAndToysAsLists'
 )
 BEGIN
-    -- Deferred compilation: [FavoriteToy] is dropped further down this
-    -- script, so a direct reference fails to compile on a re-run even
-    -- though the guard above means this block never executes then.
-    EXEC(N'UPDATE Pets SET FavoriteToysJson = N''["'' + STRING_ESCAPE(LTRIM(RTRIM(FavoriteToy)), ''json'') + N''"]'' WHERE FavoriteToy IS NOT NULL AND LTRIM(RTRIM(FavoriteToy)) <> N'''';');
+    UPDATE Pets
+    SET FavoriteToysJson = N'["' + STRING_ESCAPE(LTRIM(RTRIM(FavoriteToy)), 'json') + N'"]'
+    WHERE FavoriteToy IS NOT NULL AND LTRIM(RTRIM(FavoriteToy)) <> N'';
 END;
 GO
 
@@ -2072,6 +2071,7 @@ GO
 
 COMMIT;
 GO
+
 BEGIN TRANSACTION;
 GO
 
@@ -6165,3 +6165,4 @@ GO
 
 COMMIT;
 GO
+

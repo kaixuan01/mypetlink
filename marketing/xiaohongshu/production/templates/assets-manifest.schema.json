@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mypetlink.com.my/schemas/xhs-assets-manifest.json",
+  "title": "MyPetLink Xiaohongshu post manifest",
+  "type": "object",
+  "required": ["version", "post", "title", "format", "cover", "assets", "timeline"],
+  "properties": {
+    "version": { "const": 1 },
+    "post": { "type": "string", "pattern": "^[0-9]{3}$" },
+    "title": { "type": "string", "minLength": 1 },
+    "format": { "enum": ["video", "carousel-preview"] },
+    "cover": {
+      "type": "object",
+      "required": ["hook", "kicker", "accent"],
+      "properties": {
+        "hook": { "type": "array", "items": { "type": "string" }, "minItems": 1, "maxItems": 4 },
+        "kicker": { "type": "string" },
+        "subhead": { "type": "string" },
+        "footer": { "type": "string" },
+        "accent": { "type": "string" },
+        "prototypeBadge": { "type": "string" }
+      }
+    },
+    "assets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "type", "source", "path", "required", "description"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+          "type": { "enum": ["image", "video", "screen-recording", "audio"] },
+          "source": { "enum": ["human", "automated", "shared"] },
+          "path": { "type": "string" },
+          "required": { "type": "boolean" },
+          "description": { "type": "string" },
+          "reusableFor": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "timeline": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["asset", "duration", "text"],
+        "properties": {
+          "asset": { "type": "string" },
+          "duration": { "type": "number", "exclusiveMinimum": 0 },
+          "text": { "type": "string" },
+          "note": { "type": "string" },
+          "motion": { "enum": ["none", "slow-zoom-in"] },
+          "freezeTailSeconds": { "type": "number", "minimum": 0 }
+        }
+      }
+    },
+    "audio": {
+      "type": "object",
+      "properties": {
+        "voiceover": { "type": "string" },
+        "bgm": { "type": "string" }
+      }
+    }
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "canvas": {
+    "video": { "width": 1080, "height": 1920, "fps": 30 },
+    "cover": { "width": 1080, "height": 1440 },
+    "safeMargins": { "top": 220, "right": 100, "bottom": 300, "left": 100 }
+  },
+  "colors": {
+    "cream": "#FFF8F2",
+    "white": "#FFFFFF",
+    "ink": "#0D1B3D",
+    "muted": "#44506A",
+    "coral": "#FF7A6E",
+    "apricot": "#FFE9DE",
+    "blue": "#1570EF",
+    "sky": "#7CC6F4",
+    "mint": "#BFEAD7",
+    "sage": "#1D7B53"
+  },
+  "typography": {
+    "fontFamily": "Microsoft YaHei, Noto Sans CJK SC, Noto Sans SC, Arial, sans-serif",
+    "hookSize": 104,
+    "subtitleSize": 52,
+    "labelSize": 34,
+    "ctaSize": 58
+  },
+  "brand": {
+    "logo": "apps/web/public/logo-horizontal.svg",
+    "logoMark": "apps/web/public/logo-mark.svg",
+    "coverLogoPlacement": "bottom-left",
+    "videoLogoPlacement": "top-right",
+    "logoWidth": 300
+  },
+  "motion": {
+    "transition": "hard-cut",
+    "defaultImageMotion": "slow-zoom-in",
+    "freezeTailSeconds": 0.75
+  },
+  "audio": {
+    "sampleRate": 48000,
+    "voiceTargetLufs": -16,
+    "bgmGain": 0.18,
+    "ducking": { "threshold": 0.02, "ratio": 8, "attackMs": 20, "releaseMs": 500 }
+  }
+}

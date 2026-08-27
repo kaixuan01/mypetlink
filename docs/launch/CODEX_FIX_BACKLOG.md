@@ -343,6 +343,124 @@ Eight homepage footer links measure ~20px tall at 375px, below a comfortable 40p
 
 ---
 
+# Added from production E2E verification (2026-08-14)
+
+Found against the live deployment at `main` @ `a06ab48`. PROD-001 (Smart Tag
+commerce enabled) and PROD-002 (GA4 enabled) are **configuration**, not code, and
+are deliberately excluded from Codex work — they are owner actions recorded in
+[`PRODUCTION_SOFT_LAUNCH_CHECKLIST.md`](PRODUCTION_SOFT_LAUNCH_CHECKLIST.md).
+
+## MPL-PROD-003 — Malformed Google `idToken` returns 500 instead of 401
+
+**Problem.** `POST /api/v1/auth/google` throws an unhandled exception when the
+submitted `idToken` is not a parseable JWT, producing `500 server_error`. The
+adjacent paths behave correctly, which isolates the gap:
+
+| Payload | Actual | Correct? |
+| --- | --- | --- |
+| `{"idToken":""}` | `400 validation_failed` | Yes |
+| `{"idToken":"eyJhbGciOiJSUzI1NiI…bogussignature"}` (well-formed, bad signature) | `401 invalid_google_token` | Yes |
+| `{"idToken":"invalid.test.token"}` (not a JWT) | **`500 server_error`** | No |
+
+**Reproduction (verified 2026-08-14 against production).**
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' -X POST \
+  https://api.mypetlink.com.my/api/v1/auth/google \
+  -H 'Content-Type: application/json' \
+  -d '{"idToken":"invalid.test.token"}'
+```
+Returns `500`.
+
+**User impact.** None for real sign-ins — Google Identity Services always supplies
+a well-formed JWT. The cost is operational: unhandled exceptions and 500s in
+production logs from any bot probing the endpoint, which combined with
+`MPL-PROD-004` is unbounded.
+
+**Expected.** Treat an unparseable token exactly like an invalid one — return
+`401 invalid_google_token`.
+
+**Scope.** Backend. Catch the token-parsing failure alongside the existing
+signature-validation failure path in the Google authentication handler.
+
+**Risk.** Low.
+
+## MPL-PROD-004 — No rate limit on authentication endpoints
+
+**Problem.** Rate-limiting policies exist only for `public-tag-scan` (60/min) and
+`tag-activation` (10/min), both attached to tag routes that are inactive at launch.
+`/api/v1/auth/google` and `/api/v1/auth/refresh` have no policy in code, so no App
+Setting can add one.
+
+**Evidence.** `apps/api/MyPetLink.Api/Common/SmartTagRateLimiting.cs:7-24` defines
+only the two tag policies; `apps/api/MyPetLink.Api/Program.cs:89-106` registers
+only those. No `[EnableRateLimiting]` attribute appears on the auth controller.
+
+**User impact.** Unauthenticated callers can hit the sign-in and refresh endpoints
+without limit. Amplified by `MPL-PROD-003`, each malformed request also costs an
+exception and a 500.
+
+**Expected.** A conservative fixed-window policy on both endpoints, configurable
+under the existing `RateLimiting` section, returning the standard 429 envelope
+with `retryAfterSeconds`.
+
+**Scope.** Backend. **Risk.** Low.
+
+## MPL-PROD-005 — Runtime-created dynamic routes return HTTP 404 while rendering correctly
+
+**Problem.** The static export prerenders `/q/*`, `/t/*` and `/n/*` only for codes
+that existed at build time. A pet created after the build resolves through the
+Cloudflare custom-404 shell: the page renders the correct Safety Profile
+client-side, but the HTTP status is `404`. `/p/*` is unaffected because it is
+served by a Pages Function.
+
+**Reproduction (verified 2026-08-14).** Create a pet in production, then request
+its Safety Profile:
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' https://mypetlink.com.my/q/<new safety code>
+```
+Returns `404`, while the rendered page correctly shows the pet's Safety Profile.
+Related symptom: the Owner Dashboard logs two prefetch 404s per load
+(`/p/<slug>/__next._tree.txt` and `HEAD /pets/<id>`) for runtime-created routes.
+
+**User impact.** None visually — finders see the right page. The cost is that
+uptime and link checkers flag Safety Profile URLs as broken, some link-preview
+fetchers may skip a preview, and every dashboard load carries console errors that
+make real errors harder to spot. Safety Profiles are `noindex`, so there is no SEO
+impact.
+
+**Expected.** Serve runtime dynamic finder routes with a `200`, e.g. by extending
+the Pages Functions approach already used for `/p/*` to `/q/*`, or by routing
+unmatched finder paths through a Function that returns 200 with the app shell.
+Note `apps/web/public/_routes.json` currently includes only `/p/*` and
+`/social/pets/*`.
+
+**Scope.** Frontend / Cloudflare Pages configuration. **Risk.** Medium — touches
+edge routing for the finder path; verify the not-found case still renders the
+branded "Safety Profile not found" page.
+
+## MPL-PROD-006 — Deleted media stays publicly cached for up to 4 hours
+
+**Problem.** Deleting media removes the R2 origin object immediately, but the
+public custom domain serves `Cache-Control: max-age=14400`, so Cloudflare
+continues returning the deleted image for up to four hours.
+
+**Reproduction (verified 2026-08-14).** After `DELETE /api/v1/media/{id}` returned
+`204`, the public URL returned `200` with `cf-cache-status: HIT` and `Age: 408`,
+while the same URL with a cache-busting query returned `404` with
+`cf-cache-status: MISS` — confirming the origin object was gone and only the CDN
+copy remained.
+
+**User impact.** An owner who removes a pet photo for privacy reasons can still
+have it served publicly for hours afterwards. Low severity for typical pet photos,
+but it is a privacy expectation gap.
+
+**Expected.** Purge the cached object on delete (Cloudflare cache purge by URL),
+or lower the TTL for user-uploaded media so removal takes effect promptly.
+
+**Scope.** Backend media service plus Cloudflare configuration. **Risk.** Low.
+
+---
+
 # Retention Candidates (not yet scheduled)
 
 Recorded so they are not rediscovered later. All build on infrastructure that already exists.

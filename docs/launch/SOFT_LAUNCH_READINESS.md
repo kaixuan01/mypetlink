@@ -1,12 +1,46 @@
 # MyPetLink Soft Launch Readiness
 
-**Audit date:** 2026-08-13
-**Branch audited:** `main` (production-configuration audit refreshed 2026-08-13)
-**Method:** repository/configuration inspection plus the earlier local journey verification documented below; external production host state was not accessible
+**Audit date:** 2026-08-13 · **Production E2E verification:** 2026-08-14
+**Branch audited:** `main` @ `a06ab48` (clean, in sync with `origin/main`)
+**Method:** repository/configuration inspection (2026-08-13), then live production
+end-to-end verification against the deployed environment (2026-08-14)
 
 ---
 
-## Executive Summary
+## Production Verification Result (2026-08-14)
+
+**Verdict: NO-GO — BLOCKER FOUND.** The platform itself verified well against live
+production: origins, TLS, API readiness, database connectivity, R2 media
+(including a real signed browser upload), Google sign-in, the full new-owner
+activation journey, Public Share Profile, Safety Profile in both contact states,
+Lost Mode, Moments, Care Records, cross-account authorization, and non-admin
+denial all passed on the deployed environment.
+
+One launch-scope violation blocks the controlled soft launch:
+
+**PROD-001 — Smart Tag commerce is fully live in production.** The Owner Portal
+exposes Smart Tags navigation and a complete four-step checkout with real pricing
+(RM 19.90), and the API order gate is **not** blocking. `POST /api/v1/orders` with
+an empty payload returned `400 validation_failed` rather than the expected
+`403 feature_disabled`; because `OrderService.CreateAsync` evaluates
+`_features.SmartTagOrderingEnabled` at line 143 *before* `ValidateCreateRequest`
+at line 150, that response proves the feature flag is enabled. A real customer
+could place and pay for a physical tag order through a fulfilment chain that has
+never been production-verified. This contradicts the feature-flag matrix below.
+
+A second deviation needs an explicit owner decision rather than being a defect:
+**PROD-002 — GA4 is live** (`G-XK7KHV8GVT` baked into the bundle; script loads,
+`gtag`/`dataLayer` initialise, `page_view` fires) although this checklist says to
+leave `NEXT_PUBLIC_GA_MEASUREMENT_ID` unset until the consent decision is made.
+The implementation is privacy-limited (`allow_google_signals:false`,
+`allow_ad_personalization_signals:false`, `anonymize_ip:true`, `send_page_view:false`).
+
+Full evidence, remaining P2 items, and what could not be verified are recorded in
+[`PRODUCTION_SOFT_LAUNCH_CHECKLIST.md`](PRODUCTION_SOFT_LAUNCH_CHECKLIST.md).
+
+---
+
+## Executive Summary (pre-deployment audit, 2026-08-13)
 
 **Overall status: READY AFTER OWNER ACTIONS.** Follow
 [`PRODUCTION_SOFT_LAUNCH_CHECKLIST.md`](PRODUCTION_SOFT_LAUNCH_CHECKLIST.md),
@@ -104,7 +138,15 @@ Smart Tag ordering and fulfilment, Premium plans, GPS, FIUU payment integration,
 
 ### P0-001 — Safety Profile instructs a finder to use contact options that are not shown
 
-**Status (2026-08-13): Implemented — awaiting final launch verification.** Valid public phone and WhatsApp actions retain the normal finder instructions. When neither is available, the page shows a calm no-contact state without exposing account contact details. Automated web checks and 375 × 812 browser verification passed for the direct Safety Profile and the shared physical-tag routes.
+**Status (2026-08-14): CLOSED — verified in production.** Valid public phone and WhatsApp actions retain the normal finder instructions. When neither is available, the page shows a calm no-contact state without exposing account contact details.
+
+**Production evidence (2026-08-14).** A QA pet was created on the live site with no owner contact configured. `GET /api/v1/public/safety/se2miqexgsxlqjxzvxmfq` returned `"contact": null`, and `/q/se2miqexgsxlqjxzvxmfq` rendered:
+
+> Found QA Audit Pixel 20260814?
+> The owner has not added a public contact method yet.
+> **Contact unavailable** — Please keep QA Audit Pixel 20260814 safe and check this Safety Profile again later.
+
+DOM inspection found no `tel:`/`wa.me`/`mailto:` links, no phone or e-mail strings, and no owner name. An owner contact was then added and the same page correctly switched to the contact-available state showing only the enabled channel (WhatsApp), with **no** Call action despite a phone number being stored — confirming per-toggle gating. Lost Mode was also verified and reverted.
 
 **Evidence (live, 2026-08-13):**
 
@@ -280,12 +322,32 @@ Residual items are the P2 rate-limiting gaps above. **No authentication, authori
 
 ## Verification Limitations
 
-Stated plainly so this report is not over-trusted:
+Stated plainly so this report is not over-trusted.
 
-- **Authenticated Owner Portal pages were not verified in the browser.** Installing a session token into the browser was blocked by a permission policy, and it was not worked around. Owner journeys were instead verified against the **live API** with a minted development JWT (`/api/v1/auth/me`, `/api/v1/pets`, care-record create/validate/delete all exercised successfully), with the corresponding UI verified by code inspection.
-- **Screenshots were unavailable** in this browser pane; visual assessment used DOM measurement and extracted text instead.
-- **Admin Portal UI, the Smart Tag purchase→fulfilment→activation lifecycle, and email delivery were not exercised end-to-end** — the first for the reason above, the latter two because both are disabled by default.
-- Journeys C, D, E and F from the audit brief were therefore **not** executed as browser flows.
+**Resolved by the 2026-08-14 production run.** The Owner Portal was driven in a
+real authenticated browser session against production. The full new-owner journey
+(create pet → success screen → View Profile → share → Moment → Care Records),
+media upload through R2 signed URLs, Safety Profile setup in both contact states,
+Lost Mode, cross-account authorization, and non-admin denial were all executed as
+live browser/API flows rather than inferred from code.
+
+**Still not verified after the production run:**
+
+- **The admin-grant half of Admin authorization.** The signed-in QA account was a
+  non-admin (`roles: ["Owner"]`, `admin: null`), so denial was proven — every
+  `/api/v1/admin/*` endpoint returned `403 forbidden` and `/admin` rendered
+  "Access not available" — but a working admin session was never exercised.
+- **`/t` and `/n` with real tag data.** Production holds no physical tag
+  inventory; `GET /api/v1/public/tags/{code}` returns `state: notFound` for the
+  codes baked into the build. Runtime behaviour of both routes was verified
+  (clean branded "Tag not found" pages), but the populated-tag path was not, and
+  no tag records were manufactured to force it.
+- **Owner-vs-owner write isolation.** Cross-account *reads* were proven against a
+  genuinely different owner's pet (all `404 not_found`, control request `200`).
+  Write attempts against another owner's real data were deliberately not made.
+- **Screenshots were unavailable** in the browser pane; visual assessment used DOM
+  measurement, computed styles, and extracted text instead.
+- **Email delivery** remains unexercised because transactional email stays off.
 
 ---
 

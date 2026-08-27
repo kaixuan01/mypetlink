@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "defaults": {
+    "viewport": { "width": 540, "height": 960 },
+    "output": { "width": 1080, "height": 1920 },
+    "deviceScaleFactor": 2,
+    "locale": "en-MY",
+    "timezoneId": "Asia/Singapore",
+    "pauseMs": 900,
+    "imageTimeoutMs": 15000
+  },
+  "scenes": {
+    "sample-experience": {
+      "description": "Approved public sample experience; no login or customer data.",
+      "path": "/sample",
+      "auth": "anonymous",
+      "actions": [
+        { "type": "wait", "ms": 1200 },
+        { "type": "scroll", "y": 520, "durationMs": 900 },
+        { "type": "wait", "ms": 1000 }
+      ]
+    },
+    "public-profile": {
+      "description": "Public Share Profile for an explicitly approved sample/QA pet.",
+      "pathEnv": "XHS_PUBLIC_PROFILE_PATH",
+      "auth": "anonymous",
+      "actions": [
+        { "type": "wait", "ms": 1000 },
+        { "type": "scroll", "y": 700, "durationMs": 1200 },
+        { "type": "wait", "ms": 1000 }
+      ]
+    },
+    "safety-profile": {
+      "description": "Safety Profile for an explicitly approved sample/QA pet.",
+      "pathEnv": "XHS_SAFETY_PROFILE_PATH",
+      "auth": "anonymous",
+      "actions": [
+        { "type": "wait", "ms": 1200 }
+      ]
+    },
+    "owner-pet-profile": {
+      "description": "Authenticated owner pet page; local or staging only.",
+      "pathEnv": "XHS_OWNER_PET_PATH",
+      "auth": "storage-state",
+      "actions": [
+        { "type": "wait", "ms": 1200 },
+        { "type": "scroll", "y": 640, "durationMs": 1000 },
+        { "type": "wait", "ms": 1000 }
+      ]
+    },
+    "share-center": {
+      "description": "Authenticated Share Center; local or staging only.",
+      "pathEnv": "XHS_OWNER_PET_PATH",
+      "auth": "storage-state",
+      "actions": [
+        { "type": "click", "role": "button", "name": "Share" },
+        { "type": "wait", "ms": 1200 }
+      ]
+    }
+  }
+}

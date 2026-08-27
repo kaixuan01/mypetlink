@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "post": "003",
+  "title": "看到这三个行为，我先检查门窗",
+  "format": "video",
+  "cover": {
+    "kicker": "宠物居家安全",
+    "hook": ["这三个行为", "提醒我检查门窗"],
+    "subhead": "不是预言 · 是一个安全提醒",
+    "accent": "coral",
+    "prototypeBadge": "制作样片"
+  },
+  "assets": [
+    { "id": "cat-watching-door", "type": "video", "source": "human", "path": "assets/pet/003/cat-watching-door.mp4", "required": true, "description": "Real pet calmly watching a closed door." },
+    { "id": "cat-checking-window", "type": "video", "source": "human", "path": "assets/pet/003/cat-checking-window.mp4", "required": true, "description": "Real pet inspecting a securely closed window or grille." },
+    { "id": "cat-door-excitement", "type": "video", "source": "human", "path": "assets/pet/003/cat-door-excitement.mp4", "required": true, "description": "Real alert behavior around a safe internal door." },
+    { "id": "open-gate-empty", "type": "video", "source": "human", "path": "assets/phone/003/open-gate-empty.mp4", "required": true, "description": "Empty open-gate risk illustration with pet secured elsewhere." },
+    { "id": "secure-door-check", "type": "video", "source": "human", "path": "assets/shared/secure-door-check.mp4", "required": true, "description": "Hands checking a secure latch, grille, or reminder sign.", "reusableFor": ["007", "013", "027"] }
+  ],
+  "timeline": [
+    { "asset": "cat-watching-door", "duration": 3.0, "text": "看到这三个行为\n我先检查门窗", "note": "Real pet at a closed door", "motion": "none" },
+    { "asset": "cat-watching-door", "duration": 5.0, "text": "1. 最近常常\n守在门边", "note": "Do not stage or lure", "motion": "none" },
+    { "asset": "cat-checking-window", "duration": 5.0, "text": "2. 开始研究\n纱窗和缝隙", "note": "Secure window only", "motion": "none" },
+    { "asset": "cat-door-excitement", "duration": 5.0, "text": "3. 门一开就\n特别兴奋", "note": "Safe internal door only", "motion": "none" },
+    { "asset": "open-gate-empty", "duration": 5.0, "text": "这些不代表\n它一定会走失", "note": "Pet secured away from gate", "motion": "none" },
+    { "asset": "secure-door-check", "duration": 7.0, "text": "值得先检查门窗、纱网\n和开门习惯", "note": "Practical safety check", "motion": "none" }
+  ],
+  "audio": {}
+}

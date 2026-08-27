@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "post": "001",
+  "title": "第一次养猫的第一个晚上",
+  "format": "carousel-preview",
+  "cover": {
+    "kicker": "第一次养猫",
+    "hook": ["第一个晚上", "我该怎么办？"],
+    "subhead": "真实经历 · 不摆拍 · 不强迫宠物",
+    "accent": "coral",
+    "prototypeBadge": "制作样片"
+  },
+  "assets": [
+    { "id": "carrier-at-door", "type": "image", "source": "human", "path": "assets/pet/001/carrier-at-door.jpg", "required": true, "description": "Real carrier-at-door still from the pet's first night.", "reusableFor": ["005", "027", "029"] },
+    { "id": "pet-hiding", "type": "image", "source": "human", "path": "assets/pet/001/pet-hiding.jpg", "required": true, "description": "Real pet hiding safely without staging." },
+    { "id": "food-untouched", "type": "image", "source": "human", "path": "assets/pet/001/food-untouched.jpg", "required": true, "description": "Untouched food bowl from the documented first night." },
+    { "id": "quiet-wait", "type": "image", "source": "human", "path": "assets/pet/001/quiet-wait.jpg", "required": true, "description": "Quiet waiting moment with no private phone content." },
+    { "id": "owner-on-floor", "type": "image", "source": "human", "path": "assets/pet/001/owner-on-floor.jpg", "required": true, "description": "Owner waiting calmly at floor level." },
+    { "id": "first-step", "type": "image", "source": "human", "path": "assets/pet/001/first-step.jpg", "required": true, "description": "Pet voluntarily taking a first step out." },
+    { "id": "first-contact", "type": "image", "source": "human", "path": "assets/pet/001/first-contact.jpg", "required": true, "description": "Real first voluntary close interaction." },
+    { "id": "pet-asleep", "type": "image", "source": "human", "path": "assets/pet/001/pet-asleep.jpg", "required": true, "description": "Pet resting safely after settling in.", "reusableFor": ["027", "029"] }
+  ],
+  "timeline": [
+    { "asset": "carrier-at-door", "duration": 2.2, "text": "第一个晚上", "note": "Carrier at the doorway", "motion": "slow-zoom-in" },
+    { "asset": "pet-hiding", "duration": 2.2, "text": "它先躲起来了", "note": "Pet hiding safely" },
+    { "asset": "food-untouched", "duration": 2.2, "text": "食物也没有马上碰", "note": "Untouched food bowl" },
+    { "asset": "quiet-wait", "duration": 2.2, "text": "我一直担心它不适应", "note": "Quiet point-of-view moment" },
+    { "asset": "owner-on-floor", "duration": 2.2, "text": "后来我决定安静地等", "note": "Owner at floor level" },
+    { "asset": "first-step", "duration": 2.2, "text": "它终于愿意出来看看", "note": "First voluntary step" },
+    { "asset": "first-contact", "duration": 2.2, "text": "第一次主动靠近", "note": "First real interaction" },
+    { "asset": "pet-asleep", "duration": 2.6, "text": "原来它只是需要时间", "note": "Pet resting safely" }
+  ],
+  "audio": {}
+}

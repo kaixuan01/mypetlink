@@ -7,10 +7,35 @@ and [`../deployment/environment-variables.md`](../deployment/environment-variabl
 
 ## Verdict
 
-**READY AFTER OWNER ACTIONS.** Repository code is ready for production
-configuration, but this checkout cannot prove the values in Cloudflare Pages,
-Azure App Service, Google Cloud Console, Azure SQL, DNS, or R2. Treat every
-host-side value below as unverified until an owner checks it in that service.
+**2026-08-14 — NO-GO FOR CONTROLLED SOFT LAUNCH.** The deployment was verified
+end-to-end against live production (see
+[Production verification evidence](#production-verification-evidence-2026-08-14)).
+The platform passed; one launch-scope violation blocks the launch.
+
+**Blocker — Smart Tag commerce is live.** Owner Portal shows Smart Tags navigation
+and a full four-step checkout with real pricing, and the API ordering gate is not
+blocking. Minimum fix is configuration only, followed by a Pages rebuild:
+
+| Setting | Owner | Required value |
+| --- | --- | --- |
+| `NEXT_PUBLIC_SMART_TAGS_ENABLED` | Cloudflare Pages (Production) | `false` |
+| `NEXT_PUBLIC_TAG_ORDERS_ENABLED` | Cloudflare Pages (Production) | `false` |
+| `NEXT_PUBLIC_SMART_TAG_ORDERING_ENABLED` | Cloudflare Pages (Production) | `false` |
+| `Features__SmartTagOrderingEnabled` | Azure App Service | `false` |
+
+Re-test after the rebuild: Smart Tags/Orders must be absent from Owner Portal
+navigation, and `POST /api/v1/orders` must return `403 feature_disabled`.
+
+**Decision required — GA4 is live.** `NEXT_PUBLIC_GA_MEASUREMENT_ID` is set to
+`G-XK7KHV8GVT` in the Production build, contrary to the guidance below. Either
+confirm the consent/product decision is made and update this document, or unset
+the variable and rebuild.
+
+---
+
+**2026-08-13 (superseded) — READY AFTER OWNER ACTIONS.** Repository code is ready
+for production configuration, but this checkout cannot prove the values in
+Cloudflare Pages, Azure App Service, Google Cloud Console, Azure SQL, DNS, or R2.
 
 The repository has development-only local configuration. It is gitignored and
 is not evidence of production configuration. Never copy its values into a
@@ -192,6 +217,90 @@ Go only if login, persistence, privacy, public metadata, media, and rollback
 access all pass. Stop/roll back for any cross-account data exposure, incorrect
 production origin, LocalDB/local-file use, migration mismatch, broken login,
 public contact leak, or sustained API readiness failure.
+
+## Production verification evidence (2026-08-14)
+
+Verified against the live deployment at `main` @ `a06ab48`. QA data created during
+this run was cleaned up or archived (see [QA data](#qa-data-created-and-cleaned-2026-08-14)).
+
+### Environment and platform
+
+| Check | Result |
+| --- | --- |
+| `https://mypetlink.com.my` | 200, valid TLS |
+| `https://www.mypetlink.com.my` | 301 → apex |
+| `https://api.mypetlink.com.my` | 200, valid TLS (Azure App Service, `southeastasia`) |
+| `https://media.mypetlink.com.my` | Serving R2 objects; bucket listing and private paths 404 |
+| `/health`, `/health/live`, `/health/ready` | All healthy; readiness probes the database |
+| Production database | In use; no LocalDB fallback observed |
+| Media storage | R2 only; no local-file fallback; all media URLs on the canonical media domain |
+| Swagger, dev-login, API root | 404 in production |
+| CORS | Apex and `www` allowed; unapproved origin rejected `400` |
+| Token forgery | Invalid, `alg:none`, and forged-admin-claim JWTs all `401` |
+| Request IDs | `X-Request-ID` present; error envelopes carry `meta.requestId`, no stack traces |
+| Edge OG rewrite | Working — per-pet title/description and versioned social card |
+| Social card | `MISS` then `HIT`, `image/jpeg`, 1200×630 |
+| Robots / canonical / sitemap | Indexable, production-origin canonicals, no stray `noindex` |
+| Deployed bundle | No localhost, staging, or preview origins (only a core-js URL polyfill matches "localhost") |
+
+### Journeys
+
+| Journey | Result |
+| --- | --- |
+| Anonymous marketing (`/`, `/how-it-works`, `/pet-profile`, `/pricing`, `/sample`) | All 200, unique metadata, no console errors, no horizontal overflow at 375×812 |
+| Sample experience | Static fallback renders both profile types, one conversion CTA |
+| Google sign-in | GIS loads and renders on the production origin (proves the Authorized JavaScript origin); login, session persistence across reload, and logout all work |
+| New-owner activation | Create pet → success screen with exactly one filled primary CTA (View Profile) and one outline secondary (Add First Moment); reload created no duplicate |
+| Public Share Profile | Renders R2 photo, owner-approved fields only, no owner controls for anonymous visitors |
+| Copy Link | `https://mypetlink.com.my/p/<slug>?share=<public version hash>` — production origin, no internal IDs |
+| Moments | Create, edit (PATCH), public/timeline flags, and delete all work; public projection reflects them |
+| Care Records | Create/edit/delete work; Malaysia-calendar derivation correct — past → `overdue`, today → **Due today**, +6d → **Due soon**, +109d → **Upcoming**, no due date → `complete`. Dashboard orders Overdue → Due today → Due soon under "Care due dates" with no reminder-delivery wording |
+| Safety Profile — no contact | "Contact unavailable" fallback, no misleading "options below" copy, zero contact leakage |
+| Safety Profile — contact available | Correct instruction plus only the enabled channel; a stored phone with `showPhone` off was **not** exposed |
+| Lost Mode | Enables urgent finder state with last-seen area; reverted |
+| Finder routes | Invalid `/q`, `/t`, `/n` render branded not-found pages, not raw 404s |
+| R2 media | Signed upload URL → browser `PUT` 200 (bucket CORS OK) → complete → canonical public URL → retrievable; delete removes the origin object |
+| Cross-account (IDOR) | Another owner's pet, moments, care records, safety, and media all `404 not_found`; control request on own pet `200` |
+| Admin denial | All `/api/v1/admin/*` `403 forbidden`; `/admin` renders "Access not available"; no role leakage |
+| Mobile 375×812 | No unclipped horizontal overflow on marketing, sample, public profile, safety, dashboard, records, or pet pages |
+
+### Disabled-feature state as found
+
+| Feature | Expected | Actual |
+| --- | --- | --- |
+| Smart Tags navigation | OFF | **ON** — blocker |
+| Customer tag commerce | OFF | **ON** — blocker |
+| GA4 | OFF | **ON** — decision required |
+| Premium | Coming Soon | Coming Soon |
+| GPS | Coming Later | Coming Later |
+| Reminder delivery | OFF | OFF — no delivery promises in UI |
+| Transactional email | OFF | OFF — sign-in unaffected |
+
+### Open items after this run
+
+| ID | Priority | Surface | Problem |
+| --- | --- | --- | --- |
+| PROD-001 | P1 | Owner Portal / API | Smart Tag commerce fully live; API order gate not blocking |
+| PROD-002 | P1 | Cloudflare Pages | GA4 active despite documented OFF posture |
+| PROD-003 | P2 | API | Malformed Google `idToken` returns `500`; a well-formed bogus JWT correctly returns `401` |
+| PROD-004 | P2 | API | No rate limit on `/api/v1/auth/google` or `/api/v1/auth/refresh` |
+| PROD-005 | P2 | Cloudflare Pages | Runtime-created dynamic routes return HTTP 404 while rendering correctly; dashboard logs two prefetch 404s per load |
+| PROD-006 | P2 | R2 / Cloudflare | Deleted media stays CDN-cached up to 4h (`max-age=14400`) after the origin object is removed |
+
+### QA data created and cleaned (2026-08-14)
+
+Created on production owner `kaixuan0131@gmail.com` (a fresh Free-plan owner with
+no pre-existing pets):
+
+| Record | Identifier | Disposition |
+| --- | --- | --- |
+| Pet "QA Audit Pixel 20260814" | `d9604e15-f08d-4ed9-8dbd-21b7dc88f2dd` | **Archived** — deletion returns `405` by design; public profile now 404 and Safety Profile returns `qr_safety_not_found` |
+| Moment "QA Audit Public Moment" | `796f6a03-59d5-4e7e-bcc7-ee41c402d20d` | Deleted (`204`) |
+| 5 care records (overdue / due today / due soon / upcoming / no due date) | — | Deleted (`204` each) |
+| Profile photo uploaded to R2 | `e9bb57c5-5218-4cc7-a97a-5df6fff4671a` | Deleted; origin returns 404 on cache-bust, CDN copy expires within 4h |
+| Owner contact (`+60123456789`) | Owner profile | Reverted to null |
+
+Nothing belonging to any other user was created, modified, or deleted.
 
 ## Post-deployment-only checks
 

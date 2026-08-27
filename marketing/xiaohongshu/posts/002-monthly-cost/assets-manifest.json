@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "post": "002",
+  "title": "马来西亚养猫一个月要花多少钱",
+  "format": "carousel-preview",
+  "cover": {
+    "kicker": "马来西亚养猫",
+    "hook": ["一个月", "到底花多少？"],
+    "subhead": "只用真实账目 · 金额待确认",
+    "accent": "blue",
+    "prototypeBadge": "制作样片"
+  },
+  "assets": [
+    { "id": "litter-flatlay", "type": "image", "source": "human", "path": "assets/pet/002/litter-flatlay.jpg", "required": true, "description": "Actual litter purchase flat-lay from the measured month." },
+    { "id": "food-flatlay", "type": "image", "source": "human", "path": "assets/pet/002/food-flatlay.jpg", "required": true, "description": "Actual food and treats flat-lay from the measured month." },
+    { "id": "vet-receipt-redacted", "type": "image", "source": "human", "path": "assets/pet/002/vet-receipt-redacted.jpg", "required": true, "description": "Real vet receipt with clinic and personal data redacted.", "reusableFor": ["005", "009"] },
+    { "id": "misc-flatlay", "type": "image", "source": "human", "path": "assets/pet/002/misc-flatlay.jpg", "required": true, "description": "Actual miscellaneous purchases included in the total." },
+    { "id": "cost-evidence-redacted", "type": "image", "source": "human", "path": "assets/pet/002/cost-evidence-redacted.jpg", "required": true, "description": "Redacted worksheet or receipts supporting the final total." }
+  ],
+  "timeline": [
+    { "asset": "cost-evidence-redacted", "duration": 2.5, "text": "养猫一个月\n真实花费是多少？", "note": "Redacted real cost evidence" },
+    { "asset": "litter-flatlay", "duration": 2.5, "text": "猫砂：RM\n［实际金额］", "note": "Actual litter purchase" },
+    { "asset": "food-flatlay", "duration": 2.5, "text": "猫粮和零食：RM\n［实际金额］", "note": "Actual food purchase" },
+    { "asset": "vet-receipt-redacted", "duration": 2.5, "text": "看医生：RM\n［实际金额］", "note": "Redacted real receipt" },
+    { "asset": "misc-flatlay", "duration": 2.5, "text": "用品和其他：RM\n［实际金额］", "note": "Actual miscellaneous purchases" },
+    { "asset": "cost-evidence-redacted", "duration": 3.0, "text": "这个月总共：RM\n［实际总额］", "note": "Verified calculation before publishing" }
+  ],
+  "audio": {}
+}
