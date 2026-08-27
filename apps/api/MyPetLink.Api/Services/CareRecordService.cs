@@ -171,6 +171,11 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
         };
 
         await ValidateFulfillmentAsync(userId, candidate, cancellationToken);
+        await ValidateIncomingFulfillmentIntegrityAsync(
+            record.Id,
+            nextType,
+            nextDueDate,
+            cancellationToken);
 
         if (request.Type.HasValue)
         {
@@ -242,7 +247,18 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
         CancellationToken cancellationToken = default)
     {
         var record = await LoadOwnedRecordAsync(currentUserId, recordId, trackChanges: true, cancellationToken);
-        record.ArchivedAt ??= DateTimeOffset.UtcNow;
+        var fulfillingRecord = await _dbContext.CareRecords
+            .SingleOrDefaultAsync(
+                item => item.FulfillsCareRecordId == record.Id,
+                cancellationToken);
+
+        if (fulfillingRecord is not null)
+        {
+            fulfillingRecord.FulfillsCareRecordId = null;
+        }
+
+        record.FulfillsCareRecordId = null;
+        record.ArchivedAt ??= _timeProvider.GetUtcNow();
 
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
@@ -540,6 +556,45 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
         }
 
         return false;
+    }
+
+    private async Task ValidateIncomingFulfillmentIntegrityAsync(
+        Guid targetId,
+        CareRecordType nextType,
+        DateOnly? nextDueDate,
+        CancellationToken cancellationToken)
+    {
+        var fulfillingRecord = await _dbContext.CareRecords
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                record =>
+                    record.FulfillsCareRecordId == targetId
+                    && record.DeletedAt == null
+                    && record.ArchivedAt == null,
+                cancellationToken);
+
+        if (fulfillingRecord is null)
+        {
+            return;
+        }
+
+        var errors = new Dictionary<string, string[]>();
+        if (!nextDueDate.HasValue)
+        {
+            errors["dueDate"] =
+                ["Clear the completing record's due-item selection before removing this next due date."];
+        }
+
+        if (fulfillingRecord.Type != nextType)
+        {
+            errors["type"] =
+                ["Clear the completing record's due-item selection before changing this record type."];
+        }
+
+        if (errors.Count > 0)
+        {
+            throw ValidationFailed(errors);
+        }
     }
 
     private async Task ReplaceRecordMediaAsync(

@@ -503,6 +503,33 @@ describe("DashboardClient with pets", () => {
     expect(screen.queryByText("Surgery")).toBeNull();
   });
 
+  it("excludes a due item only while an active record explicitly fulfils it", async () => {
+    const target = {
+      ...dashboardRecord("Vaccine", "15 Oct 2026", "overdue"),
+      id: "dhpp-target",
+      careName: "DHPP",
+    };
+    const fulfiller = {
+      ...dashboardRecord("Vaccine", "", "complete"),
+      id: "dhpp-fulfiller",
+      fulfillsCareRecordId: target.id,
+    };
+    mocks.getPetRecords.mockResolvedValue({ data: [target, fulfiller] });
+
+    renderDashboard();
+
+    expect(await screen.findByText("Care due dates")).toBeTruthy();
+    expect(screen.queryByText("Due 15 Oct 2026")).toBeNull();
+
+    cleanup();
+    mocks.getPetRecords.mockResolvedValue({
+      data: [{ ...target }, { ...fulfiller, archivedAt: "2026-08-27T00:00:00Z" }],
+    });
+    renderDashboard();
+
+    expect(await screen.findByText("Due 15 Oct 2026")).toBeTruthy();
+  });
+
   it.each([
     ["Vaccine", "15 Feb 2027", "overdue", "Overdue"],
     ["Deworming", "16 Feb 2027", "due-soon", "Due soon"],

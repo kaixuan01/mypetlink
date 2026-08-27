@@ -25,10 +25,15 @@ import {
   newCareRecordTypes,
   getCareRecordDateTerminology,
   getCareRecordEditorExamples,
+  getCareRecordIdentityTerminology,
   getLocalTodayDateInputValue,
   isFutureCareRecordDate,
   isValidDateInputValue,
 } from "@/lib/careRecordTerminology";
+import {
+  getEligibleFulfillmentCandidates,
+  getExplicitlyFulfilledCareRecordIds,
+} from "@/lib/careRecordStatus";
 import {
   fromCareRecordAudience,
   toCareRecordAudience,
@@ -46,12 +51,14 @@ import type { CareRecord, RecordType } from "@/types";
 
 type FormState = {
   type: "" | RecordType;
+  careName: string;
   title: string;
   date: string;
   provider: string;
   dueDate: string;
   notes: string;
   audience: CareRecordAudience;
+  fulfillsCareRecordId: string;
 };
 
 type FormErrors = Partial<Record<keyof FormState, string>>;
@@ -63,12 +70,14 @@ type RecordsManagerProps = {
 
 const emptyForm: FormState = {
   type: "",
+  careName: "",
   title: "",
   date: "",
   provider: "",
   dueDate: "",
   notes: "",
   audience: "Private",
+  fulfillsCareRecordId: "",
 };
 
 export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
@@ -105,6 +114,36 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
   );
   const dateTerminology = getCareRecordDateTerminology(form.type);
   const editorExamples = getCareRecordEditorExamples(form.type);
+  const identityTerminology = getCareRecordIdentityTerminology(form.type);
+  const fulfilledRecordIds = useMemo(
+    () => getExplicitlyFulfilledCareRecordIds(records),
+    [records]
+  );
+  const fulfillmentCandidates = useMemo(
+    () =>
+      getEligibleFulfillmentCandidates(records, {
+        petId,
+        type: form.type,
+        recordDate: form.date,
+        currentRecordId: editingRecord?.id,
+        currentCreatedAt: editingRecord?.createdAt,
+      }),
+    [editingRecord?.createdAt, editingRecord?.id, form.date, form.type, petId, records]
+  );
+  const selectedFulfillmentTarget = form.fulfillsCareRecordId
+    ? records.find((record) => record.id === form.fulfillsCareRecordId)
+    : undefined;
+  const selectedFulfillmentIsEligible = form.fulfillsCareRecordId
+    ? fulfillmentCandidates.some(
+        (record) => record.id === form.fulfillsCareRecordId
+      )
+    : true;
+  const visibleFulfillmentCandidates =
+    selectedFulfillmentTarget && !selectedFulfillmentIsEligible
+      ? [selectedFulfillmentTarget, ...fulfillmentCandidates]
+      : fulfillmentCandidates;
+  const showFulfillmentPicker =
+    visibleFulfillmentCandidates.length > 0 || Boolean(form.fulfillsCareRecordId);
   const today = getLocalTodayDateInputValue();
   const formId = "care-record-editor-form";
 
@@ -147,6 +186,28 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
     setFormError("");
   }
 
+  function updateRecordType(type: FormState["type"]) {
+    setForm((current) => {
+      if (!current.type || current.type === type) {
+        return { ...current, type };
+      }
+
+      return {
+        ...current,
+        type,
+        careName: "",
+        fulfillsCareRecordId: "",
+      };
+    });
+    setErrors((current) => ({
+      ...current,
+      type: undefined,
+      careName: undefined,
+      fulfillsCareRecordId: undefined,
+    }));
+    setFormError("");
+  }
+
   const openAddForm = useCallback(() => {
     setEditingRecord(null);
     setForm(emptyForm);
@@ -186,12 +247,14 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
     setEditingRecord(record);
     setForm({
       type: record.type,
+      careName: record.careName ?? "",
       title: record.title,
       date: parseDisplayDate(record.date),
       provider: record.provider,
       dueDate: record.dueDate ? parseDisplayDate(record.dueDate) : "",
       notes: record.notes,
       audience: toCareRecordAudience(record.publicVisibility),
+      fulfillsCareRecordId: record.fulfillsCareRecordId ?? "",
     });
     setErrors({});
     setActionError("");
@@ -216,6 +279,10 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
       nextErrors.title = "Add a short title.";
     }
 
+    if (form.careName.trim().length > 120) {
+      nextErrors.careName = "Care name must be 120 characters or fewer.";
+    }
+
     if (!form.date) {
       nextErrors.date = "Choose the record date.";
     } else if (!isValidDateInputValue(form.date)) {
@@ -230,6 +297,11 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
       } else if (form.date && form.dueDate < form.date) {
         nextErrors.dueDate = `${dateTerminology.nextDateLabel} cannot be earlier than the ${dateTerminology.primaryDateLabel.toLowerCase()}.`;
       }
+    }
+
+    if (form.fulfillsCareRecordId && !selectedFulfillmentIsEligible) {
+      nextErrors.fulfillsCareRecordId =
+        "This due item is no longer eligible. Choose another item or None.";
     }
 
     setErrors(nextErrors);
@@ -250,12 +322,14 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
 
     const payload = {
       type: form.type || "Other",
+      careName: form.careName.trim() || undefined,
       title: form.title.trim(),
       date: formatDisplayDate(form.date),
       provider: form.provider.trim() || "Owner recorded",
       dueDate: form.dueDate ? formatDisplayDate(form.dueDate) : undefined,
       notes: form.notes.trim() || "No notes added.",
       publicVisibility: fromCareRecordAudience(form.audience),
+      fulfillsCareRecordId: form.fulfillsCareRecordId || undefined,
     };
 
     try {
@@ -398,6 +472,11 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
                 {group.map((record) => (
                   <RecordCard
                     key={record.id}
+                    effectiveStatus={
+                      fulfilledRecordIds.has(record.id)
+                        ? "fulfilled"
+                        : record.status
+                    }
                     onDelete={() => setDeleteTarget(record)}
                     onEdit={() => openEditForm(record)}
                     record={record}
@@ -440,7 +519,7 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
                   <select
                     className="brand-input brand-select"
                     onChange={(event) =>
-                      updateField("type", event.target.value as FormState["type"])
+                      updateRecordType(event.target.value as FormState["type"])
                     }
                     value={form.type}
                   >
@@ -452,6 +531,25 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
                     ))}
                   </select>
                 </Field>
+
+                {identityTerminology ? (
+                  <Field
+                    label={identityTerminology.label}
+                    helper={identityTerminology.helper}
+                    error={errors.careName}
+                  >
+                    <input
+                      className="brand-input"
+                      maxLength={120}
+                      onChange={(event) =>
+                        updateField("careName", event.target.value)
+                      }
+                      placeholder={identityTerminology.placeholder}
+                      type="text"
+                      value={form.careName}
+                    />
+                  </Field>
+                ) : null}
 
                 <Field label="Title" error={errors.title}>
                   <input
@@ -516,6 +614,94 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
                   </select>
                 </Field>
               </div>
+
+              {showFulfillmentPicker ? (
+                <fieldset
+                  aria-describedby={
+                    form.fulfillsCareRecordId && !selectedFulfillmentIsEligible
+                      ? "care-fulfillment-helper care-fulfillment-error"
+                      : "care-fulfillment-helper"
+                  }
+                  className="grid gap-3 rounded-[1.25rem] border border-pet-border bg-pet-cream p-4"
+                >
+                  <legend className="px-1 text-sm font-black text-pet-ink">
+                    Completes a previous due item? (Optional)
+                  </legend>
+                  <p
+                    className="text-xs font-medium leading-5 text-pet-muted"
+                    id="care-fulfillment-helper"
+                  >
+                    Choose only when this record completed one specific earlier
+                    scheduled item.
+                  </p>
+                  <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl bg-white px-3 py-2 text-sm font-bold text-pet-ink outline-none ring-pet-teal focus-within:ring-2">
+                    <input
+                      checked={!form.fulfillsCareRecordId}
+                      className="h-4 w-4 accent-pet-teal"
+                      name="care-fulfillment"
+                      onChange={() => updateField("fulfillsCareRecordId", "")}
+                      type="radio"
+                      value=""
+                    />
+                    None
+                  </label>
+                  {visibleFulfillmentCandidates.map((candidate) => (
+                    <label
+                      className="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl bg-white px-3 py-2 outline-none ring-pet-teal focus-within:ring-2"
+                      key={candidate.id}
+                    >
+                      <input
+                        checked={form.fulfillsCareRecordId === candidate.id}
+                        className="mt-0.5 h-4 w-4 shrink-0 accent-pet-teal"
+                        name="care-fulfillment"
+                        onChange={() =>
+                          updateField("fulfillsCareRecordId", candidate.id)
+                        }
+                        type="radio"
+                        value={candidate.id}
+                      />
+                      <span className="min-w-0">
+                        <span className="block break-words text-sm font-black text-pet-ink">
+                          {candidate.careName || candidate.title}
+                        </span>
+                        <span className="block text-xs font-semibold text-pet-muted">
+                          {getFulfillmentDueLabel(candidate.type)} {candidate.dueDate}
+                        </span>
+                      </span>
+                    </label>
+                  ))}
+                  {form.fulfillsCareRecordId && !selectedFulfillmentTarget ? (
+                    <label className="flex min-h-11 items-start gap-3 rounded-xl bg-white px-3 py-2 opacity-75">
+                      <input
+                        checked
+                        className="mt-0.5 h-4 w-4 shrink-0 accent-pet-teal"
+                        disabled
+                        name="care-fulfillment"
+                        readOnly
+                        type="radio"
+                      />
+                      <span className="text-sm font-bold text-pet-muted">
+                        Previously selected due item (unavailable)
+                      </span>
+                    </label>
+                  ) : null}
+                  {form.fulfillsCareRecordId && !selectedFulfillmentTarget ? (
+                    <p className="text-xs font-bold text-[#a63c2e]">
+                      The previously selected due item is no longer available.
+                      Choose None before saving.
+                    </p>
+                  ) : null}
+                  {form.fulfillsCareRecordId && !selectedFulfillmentIsEligible ? (
+                    <p
+                      className="text-xs font-bold text-[#a63c2e]"
+                      id="care-fulfillment-error"
+                    >
+                      {errors.fulfillsCareRecordId ??
+                        "This due item is no longer eligible. Choose another item or None."}
+                    </p>
+                  ) : null}
+                </fieldset>
+              ) : null}
 
               <p className="rounded-[1.25rem] bg-pet-cream p-4 text-sm leading-6 text-pet-muted">
                 Public records show only their type and date.
@@ -645,4 +831,16 @@ function parseDisplayDate(value: string) {
   }
 
   return `${year}-${String(monthIndex + 1).padStart(2, "0")}-${day.padStart(2, "0")}`;
+}
+
+function getFulfillmentDueLabel(type: RecordType) {
+  if (type === "Medication") {
+    return "Review due";
+  }
+
+  if (type === "Lab Test") {
+    return "Follow-up due";
+  }
+
+  return "Due";
 }

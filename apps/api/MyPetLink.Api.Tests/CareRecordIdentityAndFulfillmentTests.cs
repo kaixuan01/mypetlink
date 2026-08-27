@@ -248,6 +248,86 @@ public sealed class CareRecordIdentityAndFulfillmentTests
     }
 
     [Fact]
+    public async Task UpdateAsync_CannotInvalidateAnActiveIncomingFulfillment()
+    {
+        using var harness = await Harness.CreateAsync();
+        var target = await harness.AddRecordAsync(
+            PetId,
+            CareRecordType.Vaccine,
+            harness.Today.AddDays(30));
+        harness.Clock.Advance(TimeSpan.FromHours(1));
+        await harness.AddRecordAsync(
+            PetId,
+            CareRecordType.Vaccine,
+            harness.Today.AddDays(60),
+            fulfillsCareRecordId: target.Id);
+
+        var clearDueDate = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Service.UpdateAsync(
+                OwnerId,
+                target.Id,
+                UpdateRequest(clearDueDate: true)));
+        var changeType = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Service.UpdateAsync(
+                OwnerId,
+                target.Id,
+                UpdateRequest(type: CareRecordType.Medication)));
+
+        AssertValidation(clearDueDate, "dueDate");
+        AssertValidation(changeType, "type");
+        Assert.Equal(CareRecordType.Vaccine, target.Type);
+        Assert.NotNull(target.DueDate);
+    }
+
+    [Fact]
+    public async Task ArchiveAsync_FulfillerReopensTargetAndReleasesUniqueClaim()
+    {
+        using var harness = await Harness.CreateAsync();
+        var target = await harness.AddRecordAsync(
+            PetId,
+            CareRecordType.Vaccine,
+            harness.Today.AddDays(30));
+        harness.Clock.Advance(TimeSpan.FromHours(1));
+        var fulfiller = await harness.AddRecordAsync(
+            PetId,
+            CareRecordType.Vaccine,
+            harness.Today.AddDays(60),
+            fulfillsCareRecordId: target.Id);
+
+        await harness.Service.ArchiveAsync(OwnerId, fulfiller.Id);
+        harness.Clock.Advance(TimeSpan.FromHours(1));
+        var replacement = await harness.Service.CreateAsync(
+            OwnerId,
+            PetId,
+            CreateRequest(fulfillsCareRecordId: target.Id));
+
+        Assert.NotNull(fulfiller.ArchivedAt);
+        Assert.Null(fulfiller.FulfillsCareRecordId);
+        Assert.Equal(target.Id, replacement.FulfillsCareRecordId);
+    }
+
+    [Fact]
+    public async Task ArchiveAsync_TargetClearsTheActiveIncomingRelationship()
+    {
+        using var harness = await Harness.CreateAsync();
+        var target = await harness.AddRecordAsync(
+            PetId,
+            CareRecordType.Vaccine,
+            harness.Today.AddDays(30));
+        harness.Clock.Advance(TimeSpan.FromHours(1));
+        var fulfiller = await harness.AddRecordAsync(
+            PetId,
+            CareRecordType.Vaccine,
+            harness.Today.AddDays(60),
+            fulfillsCareRecordId: target.Id);
+
+        await harness.Service.ArchiveAsync(OwnerId, target.Id);
+
+        Assert.NotNull(target.ArchivedAt);
+        Assert.Null(fulfiller.FulfillsCareRecordId);
+    }
+
+    [Fact]
     public void PublicCareContract_RemainsTypeAndRecordDateOnly()
     {
         var properties = typeof(PublicCareSummaryResponse)
@@ -298,21 +378,25 @@ public sealed class CareRecordIdentityAndFulfillmentTests
     }
 
     private static UpdateCareRecordRequest UpdateRequest(
+        CareRecordType? type = null,
         string? title = null,
         string? careName = null,
         Guid? fulfillsCareRecordId = null,
+        DateOnly? dueDate = null,
+        bool? clearDueDate = null,
         bool? clearCareName = null,
         bool? clearFulfillsCareRecordId = null)
     {
         return new UpdateCareRecordRequest(
-            Type: null,
+            Type: type,
             Title: title,
             Date: null,
-            DueDate: null,
+            DueDate: dueDate,
             Provider: null,
             Notes: null,
             PublicVisibility: null,
             MediaFileIds: null,
+            ClearDueDate: clearDueDate,
             CareName: careName,
             FulfillsCareRecordId: fulfillsCareRecordId,
             ClearCareName: clearCareName,

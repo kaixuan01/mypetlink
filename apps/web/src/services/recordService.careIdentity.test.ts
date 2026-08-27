@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CareRecord } from "@/types";
 import {
   createRecord,
+  deleteRecord,
   getPetRecords,
   projectLocalPublicCareRecords,
   updateRecord,
@@ -128,6 +129,46 @@ describe("offline care identity and explicit fulfilment", () => {
 
     expect(projected).toEqual([{ type: "Vaccine", recordDate: "20 Aug 2026" }]);
     expect(Object.keys(projected[0]).sort()).toEqual(["recordDate", "type"]);
+  });
+
+  it("clears incoming local relationships when their target is deleted", async () => {
+    seed([
+      record("target", { dueDate: "20 Sep 2026" }),
+      record("fulfiller", {
+        fulfillsCareRecordId: "target",
+        createdAt: "2026-08-20T01:00:00Z",
+      }),
+    ]);
+
+    await deleteRecord("target");
+    const records = (await getPetRecords("pet-1")).data;
+
+    expect(records.find((item) => item.id === "target")).toBeUndefined();
+    expect(
+      records.find((item) => item.id === "fulfiller")?.fulfillsCareRecordId
+    ).toBeUndefined();
+  });
+
+  it("rejects local edits that would invalidate an active incoming relationship", async () => {
+    seed([
+      record("target", { dueDate: "20 Sep 2026" }),
+      record("fulfiller", {
+        fulfillsCareRecordId: "target",
+        createdAt: "2026-08-20T01:00:00Z",
+      }),
+    ]);
+
+    await expect(updateRecord("target", { dueDate: undefined })).rejects.toThrow(
+      "before removing this next due date"
+    );
+    await expect(
+      updateRecord("target", { type: "Medication" })
+    ).rejects.toThrow("before changing this record type");
+
+    const target = (await getPetRecords("pet-1")).data.find(
+      (item) => item.id === "target"
+    );
+    expect(target).toMatchObject({ type: "Vaccine", dueDate: "20 Sep 2026" });
   });
 });
 

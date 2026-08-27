@@ -162,6 +162,7 @@ export async function updateRecord(recordId: string, payload: RecordPayload) {
 
   if (updatedRecord) {
     validateLocalCareIdentity(updatedRecord, records);
+    validateLocalIncomingFulfillmentIntegrity(updatedRecord, records);
     writeStoredCollection(
       RECORD_STORAGE_KEY,
       records.map((record) =>
@@ -184,7 +185,13 @@ export async function deleteRecord(recordId: string) {
 
   await mockDelay();
   const records = getRecordCollection();
-  const nextRecords = records.filter((record) => record.id !== recordId);
+  const nextRecords = records
+    .filter((record) => record.id !== recordId)
+    .map((record) =>
+      record.fulfillsCareRecordId === recordId
+        ? { ...record, fulfillsCareRecordId: undefined }
+        : record
+    );
   writeStoredCollection(RECORD_STORAGE_KEY, nextRecords);
 
   return mockResponse({ deleted: records.length !== nextRecords.length });
@@ -349,6 +356,34 @@ function validateLocalCareIdentity(
 
   if (!isLocalTargetOlder(target, candidate)) {
     throw new Error("A care record can fulfil only an older care record.");
+  }
+}
+
+function validateLocalIncomingFulfillmentIntegrity(
+  target: CareRecord,
+  records: CareRecord[]
+) {
+  const fulfillingRecord = records.find(
+    (record) =>
+      record.id !== target.id &&
+      !record.archivedAt &&
+      record.fulfillsCareRecordId === target.id
+  );
+
+  if (!fulfillingRecord) {
+    return;
+  }
+
+  if (!target.dueDate) {
+    throw new Error(
+      "Clear the completing record's due-item selection before removing this next due date."
+    );
+  }
+
+  if (fulfillingRecord.type !== target.type) {
+    throw new Error(
+      "Clear the completing record's due-item selection before changing this record type."
+    );
   }
 }
 

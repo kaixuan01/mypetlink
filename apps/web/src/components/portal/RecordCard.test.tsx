@@ -72,6 +72,30 @@ describe("RecordCard date terminology", () => {
     expect(screen.queryByText("Due soon")).toBeNull();
   });
 
+  it("shows CareName separately and replaces an explicitly fulfilled due status with Completed", () => {
+    const record: CareRecord = {
+      id: "record-fulfilled",
+      petId: "pet-1",
+      type: "Vaccine",
+      careName: "DHPP",
+      title: "Annual booster",
+      date: "24 Sep 2022",
+      dueDate: "15 Oct 2022",
+      provider: "Happy Paws Vet",
+      notes: "Historical schedule remains visible.",
+      publicVisibility: "Private",
+      status: "overdue",
+    };
+
+    render(<RecordCard effectiveStatus="fulfilled" record={record} />);
+
+    expect(screen.getByText("DHPP")).toBeTruthy();
+    expect(screen.getByText("Annual booster")).toBeTruthy();
+    expect(screen.getByText(/Next due: 15 Oct 2022/)).toBeTruthy();
+    expect(screen.getByText("Completed")).toBeTruthy();
+    expect(screen.queryByText("Overdue")).toBeNull();
+  });
+
   it.each(["Public badge only", "Public details"] as const)(
     "presents %s compatibility records as the public owner audience",
     (publicVisibility) => {

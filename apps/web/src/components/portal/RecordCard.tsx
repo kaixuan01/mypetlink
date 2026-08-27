@@ -1,11 +1,15 @@
 import { Badge } from "@/components/ui/Badge";
 import { getCareRecordHistoryTerminology } from "@/lib/careRecordTerminology";
-import { getCareRecordStatusLabel } from "@/lib/careRecordStatus";
+import {
+  getEffectiveCareRecordStatusLabel,
+  type CareRecordEffectiveStatus,
+} from "@/lib/careRecordStatus";
 import { toCareRecordAudience } from "@/lib/careRecordVisibility";
 import type { CareRecord } from "@/types";
 
 type RecordCardProps = {
   record: CareRecord;
+  effectiveStatus?: CareRecordEffectiveStatus;
   onDelete?: () => void;
   onEdit?: () => void;
 };
@@ -15,18 +19,30 @@ const visibilityTone = {
   Public: "mint",
 } as const;
 
-export function RecordCard({ record, onDelete, onEdit }: RecordCardProps) {
+export function RecordCard({
+  record,
+  effectiveStatus = record.status,
+  onDelete,
+  onEdit,
+}: RecordCardProps) {
   const dateTerminology = getCareRecordHistoryTerminology(record.type);
   const audience = toCareRecordAudience(record.publicVisibility);
 
   return (
     <article className="brand-card rounded-[1.5rem] p-5">
-      <div className="flex items-start justify-between gap-4">
-        <div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
           <Badge tone={record.status === "due-soon" ? "warm" : "soft"}>
             {record.type}
           </Badge>
-          <h3 className="mt-3 text-lg font-black text-pet-ink">
+          {record.careName ? (
+            <p className="mt-2 break-words text-sm font-black text-pet-teal">
+              {record.careName}
+            </p>
+          ) : null}
+          <h3
+            className={`${record.careName ? "mt-1" : "mt-3"} break-words text-lg font-black text-pet-ink`}
+          >
             {record.title}
           </h3>
           <p className="mt-1 text-sm text-pet-muted">
@@ -35,15 +51,23 @@ export function RecordCard({ record, onDelete, onEdit }: RecordCardProps) {
           </p>
         </div>
         {record.dueDate ? (
-          <Badge tone="teal">
+          <Badge className="max-w-full whitespace-normal text-right" tone="teal">
             {dateTerminology.nextDateLabel}: {record.dueDate}
           </Badge>
         ) : null}
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {record.dueDate ? (
-          <Badge tone={record.status === "overdue" ? "danger" : "warm"}>
-            {getCareRecordStatusLabel(record)}
+          <Badge
+            tone={
+              effectiveStatus === "fulfilled"
+                ? "mint"
+                : record.status === "overdue"
+                  ? "danger"
+                  : "warm"
+            }
+          >
+            {getEffectiveCareRecordStatusLabel(record, effectiveStatus)}
           </Badge>
         ) : null}
         <Badge tone={visibilityTone[audience]}>

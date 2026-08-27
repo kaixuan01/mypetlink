@@ -1,5 +1,15 @@
 import type { CareRecord } from "@/types";
 
+export type CareRecordEffectiveStatus = CareRecord["status"] | "fulfilled";
+
+export type FulfillmentCandidateContext = {
+  petId: string;
+  type: CareRecord["type"] | "";
+  recordDate?: string;
+  currentRecordId?: string;
+  currentCreatedAt?: string;
+};
+
 export const CARE_RECORD_DUE_SOON_DAYS = 30;
 
 const MALAYSIA_TIME_ZONE = "Asia/Kuala_Lumpur";
@@ -45,13 +55,79 @@ export function getCareRecordStatusLabel(
   return "Complete";
 }
 
+export function getExplicitlyFulfilledCareRecordIds(records: CareRecord[]) {
+  return new Set(
+    records
+      .filter(isActiveCareRecord)
+      .map((record) => record.fulfillsCareRecordId)
+      .filter((recordId): recordId is string => Boolean(recordId))
+  );
+}
+
+export function getEffectiveCareRecordStatus(
+  record: CareRecord,
+  records: CareRecord[]
+): CareRecordEffectiveStatus {
+  return getExplicitlyFulfilledCareRecordIds(records).has(record.id)
+    ? "fulfilled"
+    : record.status;
+}
+
+export function getEffectiveCareRecordStatusLabel(
+  record: Pick<CareRecord, "dueDate" | "status">,
+  effectiveStatus: CareRecordEffectiveStatus,
+  now = new Date()
+) {
+  return effectiveStatus === "fulfilled"
+    ? "Completed"
+    : getCareRecordStatusLabel(record, now);
+}
+
+export function getEligibleFulfillmentCandidates(
+  records: CareRecord[],
+  context: FulfillmentCandidateContext,
+  now = new Date()
+) {
+  if (!context.type) {
+    return [];
+  }
+
+  const claimedTargetIds = new Set(
+    records
+      .filter(
+        (record) =>
+          isActiveCareRecord(record) && record.id !== context.currentRecordId
+      )
+      .map((record) => record.fulfillsCareRecordId)
+      .filter((recordId): recordId is string => Boolean(recordId))
+  );
+
+  return records
+    .filter(
+      (record) =>
+        isActiveCareRecord(record) &&
+        record.id !== context.currentRecordId &&
+        record.petId === context.petId &&
+        record.type === context.type &&
+        careDateScore(record.dueDate) !== null &&
+        !claimedTargetIds.has(record.id) &&
+        targetPrecedesFulfiller(record, context, now)
+    )
+    .sort((left, right) => dashboardDateScore(left) - dashboardDateScore(right));
+}
+
 export function selectDashboardCareRecords(
   records: CareRecord[],
   limit = 3
 ) {
   if (limit <= 0) return [];
 
-  const dueRecords = records.filter((record) => careDateScore(record.dueDate) !== null);
+  const fulfilledRecordIds = getExplicitlyFulfilledCareRecordIds(records);
+  const dueRecords = records.filter(
+    (record) =>
+      !fulfilledRecordIds.has(record.id) &&
+      careDateScore(record.dueDate) !== null
+  );
   const overdue = dueRecords
     .filter((record) => record.status === "overdue")
     .sort((a, b) => dashboardDateScore(b) - dashboardDateScore(a));
@@ -93,6 +169,37 @@ export function careDateScore(value?: string | null) {
 
 function dashboardDateScore(record: CareRecord) {
   return careDateScore(record.dueDate) ?? Number.MAX_SAFE_INTEGER;
+}
+
+function isActiveCareRecord(record: CareRecord) {
+  return !record.archivedAt;
+}
+
+function targetPrecedesFulfiller(
+  target: CareRecord,
+  context: FulfillmentCandidateContext,
+  now: Date
+) {
+  const targetCreatedAt = target.createdAt
+    ? Date.parse(target.createdAt)
+    : Number.NaN;
+  const fulfillerCreatedAt = context.currentRecordId
+    ? context.currentCreatedAt
+      ? Date.parse(context.currentCreatedAt)
+      : Number.NaN
+    : now.getTime();
+
+  if (Number.isFinite(targetCreatedAt) && Number.isFinite(fulfillerCreatedAt)) {
+    return targetCreatedAt < fulfillerCreatedAt;
+  }
+
+  const targetRecordDate = careDateScore(target.date);
+  const fulfillerRecordDate = careDateScore(context.recordDate);
+  return (
+    targetRecordDate === null ||
+    fulfillerRecordDate === null ||
+    targetRecordDate <= fulfillerRecordDate
+  );
 }
 
 function malaysiaTodayScore(now: Date) {

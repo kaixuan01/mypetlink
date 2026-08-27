@@ -46,6 +46,32 @@ export type CareRecordEditorExamples = {
   notes: string;
 };
 
+export type CareRecordIdentityTerminology = {
+  label: string;
+  helper: string;
+  placeholder: string;
+};
+
+const identityTerminologyByType: Partial<
+  Record<RecordType, CareRecordIdentityTerminology>
+> = {
+  Vaccine: {
+    label: "Vaccine name (Optional)",
+    helper: "Name the specific vaccine without changing the record title.",
+    placeholder: "e.g. Rabies, DHPP, Leptospirosis, FVRCP",
+  },
+  Medication: {
+    label: "Medication name (Optional)",
+    helper: "Name the specific medication without changing the record title.",
+    placeholder: "e.g. Apoquel, Amoxicillin",
+  },
+  "Lab Test": {
+    label: "Test name (Optional)",
+    helper: "Name the specific test without changing the record title.",
+    placeholder: "e.g. Full blood count, Heartworm test",
+  },
+};
+
 const terminologyByType: Record<RecordType, CareRecordDateTerminology> = {
   Vaccine: {
     primaryDateLabel: "Vaccination Date",
@@ -240,6 +266,12 @@ export function getCareRecordEditorExamples(
   return type
     ? editorExamplesByType[type] ?? fallbackEditorExamples
     : fallbackEditorExamples;
+}
+
+export function getCareRecordIdentityTerminology(
+  type?: RecordType | "" | null
+) {
+  return type ? identityTerminologyByType[type] : undefined;
 }
 
 export function getPublicCareTypeLabel(type: RecordType) {
