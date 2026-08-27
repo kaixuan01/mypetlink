@@ -6113,3 +6113,55 @@ GO
 
 COMMIT;
 GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260827053323_AddCareIdentityAndFulfillment'
+)
+BEGIN
+    ALTER TABLE [CareRecords] ADD [CareName] nvarchar(120) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260827053323_AddCareIdentityAndFulfillment'
+)
+BEGIN
+    ALTER TABLE [CareRecords] ADD [FulfillsCareRecordId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260827053323_AddCareIdentityAndFulfillment'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [IX_CareRecords_FulfillsCareRecordId] ON [CareRecords] ([FulfillsCareRecordId]) WHERE [FulfillsCareRecordId] IS NOT NULL');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260827053323_AddCareIdentityAndFulfillment'
+)
+BEGIN
+    ALTER TABLE [CareRecords] ADD CONSTRAINT [FK_CareRecords_CareRecords_FulfillsCareRecordId] FOREIGN KEY ([FulfillsCareRecordId]) REFERENCES [CareRecords] ([Id]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260827053323_AddCareIdentityAndFulfillment'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260827053323_AddCareIdentityAndFulfillment', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO

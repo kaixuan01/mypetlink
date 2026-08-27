@@ -68,7 +68,9 @@ public sealed record CreateCareRecordRequest(
     [MaxLength(2000)]
     string? Notes,
     CareRecordPublicVisibility? PublicVisibility,
-    IReadOnlyCollection<Guid>? MediaFileIds);
+    IReadOnlyCollection<Guid>? MediaFileIds,
+    [MaxLength(120)] string? CareName = null,
+    Guid? FulfillsCareRecordId = null);
 
 public sealed record UpdateCareRecordRequest(
     CareRecordType? Type,
@@ -82,7 +84,11 @@ public sealed record UpdateCareRecordRequest(
     string? Notes,
     CareRecordPublicVisibility? PublicVisibility,
     IReadOnlyCollection<Guid>? MediaFileIds,
-    bool? ClearDueDate = null);
+    bool? ClearDueDate = null,
+    [MaxLength(120)] string? CareName = null,
+    Guid? FulfillsCareRecordId = null,
+    bool? ClearCareName = null,
+    bool? ClearFulfillsCareRecordId = null);
 
 public sealed record CareRecordResponse(
     Guid Id,
@@ -97,4 +103,6 @@ public sealed record CareRecordResponse(
     string DerivedStatus,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
-    DateTimeOffset? ArchivedAt);
+    DateTimeOffset? ArchivedAt,
+    string? CareName,
+    Guid? FulfillsCareRecordId);

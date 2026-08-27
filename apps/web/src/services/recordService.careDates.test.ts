@@ -5,6 +5,7 @@ import {
 } from "@/lib/careRecordVisibility";
 import {
   buildBackendRecordPayload,
+  mapBackendRecord,
   normalizeCareRecordVisibility,
 } from "./recordService";
 
@@ -54,6 +55,61 @@ describe("care record date request mapping", () => {
     );
 
     expect(payload).not.toHaveProperty("clearDueDate");
+  });
+
+  it("round-trips care identity and emits explicit update clears", () => {
+    expect(
+      buildBackendRecordPayload({
+        careName: "  Annual booster  ",
+        fulfillsCareRecordId: "target-id",
+      })
+    ).toMatchObject({
+      careName: "Annual booster",
+      fulfillsCareRecordId: "target-id",
+    });
+
+    expect(
+      buildBackendRecordPayload(
+        { careName: undefined, fulfillsCareRecordId: undefined },
+        { allowIdentityClears: true }
+      )
+    ).toMatchObject({
+      careName: null,
+      clearCareName: true,
+      fulfillsCareRecordId: null,
+      clearFulfillsCareRecordId: true,
+    });
+
+    const unrelated = buildBackendRecordPayload(
+      { title: "Updated" },
+      { allowIdentityClears: true }
+    );
+    expect(unrelated).not.toHaveProperty("clearCareName");
+    expect(unrelated).not.toHaveProperty("clearFulfillsCareRecordId");
+  });
+
+  it("maps care identity from the owner API without deriving it from title", () => {
+    const mapped = mapBackendRecord({
+      id: "record-id",
+      petId: "pet-id",
+      type: "Vaccine",
+      title: "Unrelated display title",
+      careName: "Rabies booster",
+      date: "2026-08-20",
+      dueDate: null,
+      fulfillsCareRecordId: "target-id",
+      provider: null,
+      notes: null,
+      publicVisibility: "Private",
+      derivedStatus: "complete",
+      createdAt: "2026-08-20T00:00:00Z",
+      updatedAt: "2026-08-20T00:00:00Z",
+      archivedAt: null,
+    });
+
+    expect(mapped.careName).toBe("Rabies booster");
+    expect(mapped.fulfillsCareRecordId).toBe("target-id");
+    expect(mapped.careName).not.toBe(mapped.title);
   });
 
   it("normalizes legacy public-details compatibility values to badge-only", () => {

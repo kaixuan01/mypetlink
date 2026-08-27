@@ -25,6 +25,8 @@ public sealed class CareRecordServiceTests
             CreateRequest(CareRecordType.Grooming, today));
 
         Assert.Equal(today, response.Date);
+        Assert.Null(response.CareName);
+        Assert.Null(response.FulfillsCareRecordId);
         Assert.Equal(today, (await harness.Db.CareRecords.SingleAsync()).RecordDate);
     }
 

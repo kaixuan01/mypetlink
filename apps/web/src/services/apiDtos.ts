@@ -292,8 +292,10 @@ export type BackendCareRecord = {
   petId: string;
   type: BackendCareRecordType;
   title: string;
+  careName?: string | null;
   date?: string | null;
   dueDate?: string | null;
+  fulfillsCareRecordId?: string | null;
   provider?: string | null;
   notes?: string | null;
   publicVisibility: BackendCareRecordPublicVisibility;

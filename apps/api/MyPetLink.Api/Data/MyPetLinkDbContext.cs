@@ -1156,16 +1156,24 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.ToTable("CareRecords");
             entity.Property(item => item.Type).HasConversion<string>().HasMaxLength(32);
             entity.Property(item => item.Title).HasMaxLength(160);
+            entity.Property(item => item.CareName).HasMaxLength(120);
             entity.Property(item => item.Provider).HasMaxLength(160);
             entity.Property(item => item.PublicVisibility).HasConversion<string>().HasMaxLength(32);
             entity.HasIndex(item => new { item.PetId, item.RecordDate });
             entity.HasIndex(item => new { item.PetId, item.DueDate });
             entity.HasIndex(item => new { item.PetId, item.Type });
             entity.HasIndex(item => new { item.PetId, item.PublicVisibility });
+            entity.HasIndex(item => item.FulfillsCareRecordId)
+                .IsUnique()
+                .HasFilter("[FulfillsCareRecordId] IS NOT NULL");
             entity.HasOne(item => item.Pet)
                 .WithMany(pet => pet.CareRecords)
                 .HasForeignKey(item => item.PetId)
                 .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.FulfillsCareRecord)
+                .WithMany()
+                .HasForeignKey(item => item.FulfillsCareRecordId)
+                .OnDelete(DeleteBehavior.NoAction);
         });
 
         modelBuilder.Entity<MediaFile>(entity =>

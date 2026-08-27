@@ -263,12 +263,17 @@ export type CareRecord = {
   petId: string;
   type: RecordType;
   title: string;
+  careName?: string;
   date: string;
   dueDate?: string;
+  fulfillsCareRecordId?: string;
   provider: string;
   notes: string;
   publicVisibility: "Private" | "Public badge only" | "Public details";
   status: "complete" | "overdue" | "due-soon" | "upcoming";
+  createdAt?: string;
+  updatedAt?: string;
+  archivedAt?: string;
 };
 
 export type PublicCareRecord = {
@@ -620,7 +625,15 @@ export type PetPayload = Partial<
 export type RecordPayload = Partial<
   Pick<
     CareRecord,
-    "type" | "title" | "date" | "dueDate" | "provider" | "notes" | "publicVisibility"
+      | "type"
+      | "title"
+      | "careName"
+      | "date"
+      | "dueDate"
+      | "fulfillsCareRecordId"
+      | "provider"
+      | "notes"
+      | "publicVisibility"
   >
 >;
 

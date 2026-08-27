@@ -22,8 +22,10 @@ public sealed class PetMemory : AuditableEntity
 public sealed class CareRecord : AuditableEntity
 {
     public Guid PetId { get; set; }
+    public Guid? FulfillsCareRecordId { get; set; }
     public CareRecordType Type { get; set; } = CareRecordType.Other;
     public string Title { get; set; } = "";
+    public string? CareName { get; set; }
     public DateOnly? RecordDate { get; set; }
     public DateOnly? DueDate { get; set; }
     public string? Provider { get; set; }
@@ -33,6 +35,7 @@ public sealed class CareRecord : AuditableEntity
     public DateTimeOffset? DeletedAt { get; set; }
 
     public Pet Pet { get; set; } = null!;
+    public CareRecord? FulfillsCareRecord { get; set; }
 }
 
 public sealed class MediaFile : Entity

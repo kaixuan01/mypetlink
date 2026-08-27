@@ -37,6 +37,8 @@ function getRecordCollection() {
 function normalizeRecord(record: CareRecord): CareRecord {
   return {
     ...record,
+    careName: normalizeCareName(record.careName),
+    fulfillsCareRecordId: normalizeOptionalId(record.fulfillsCareRecordId),
     publicVisibility: normalizeCareRecordVisibility(record.publicVisibility),
     status: deriveCareRecordStatus(record.dueDate),
   };
@@ -81,18 +83,25 @@ export async function createRecord(petId: string, payload: RecordPayload) {
 
   await mockDelay();
   const records = getRecordCollection();
+  const now = new Date().toISOString();
   const record: CareRecord = {
     id: `rec_${Date.now()}`,
     petId,
     type: payload.type ?? "Other",
     title: payload.title ?? "New record",
+    careName: normalizeCareName(payload.careName),
     date: payload.date ?? "Today",
     dueDate: payload.dueDate,
+    fulfillsCareRecordId: normalizeOptionalId(payload.fulfillsCareRecordId),
     provider: payload.provider ?? "Owner recorded",
     notes: payload.notes ?? "No notes yet.",
     publicVisibility: normalizeCareRecordVisibility(payload.publicVisibility),
     status: deriveCareRecordStatus(payload.dueDate),
+    createdAt: now,
+    updatedAt: now,
   };
+
+  validateLocalCareIdentity(record, records);
 
   writeStoredCollection(RECORD_STORAGE_KEY, [record, ...records]);
 
@@ -106,7 +115,10 @@ export async function updateRecord(recordId: string, payload: RecordPayload) {
         `/api/v1/care-records/${encodeURIComponent(recordId)}`,
         {
           method: "PUT",
-          body: buildBackendRecordPayload(payload, { allowDueDateClear: true }),
+          body: buildBackendRecordPayload(payload, {
+            allowDueDateClear: true,
+            allowIdentityClears: true,
+          }),
         }
       );
 
@@ -126,10 +138,16 @@ export async function updateRecord(recordId: string, payload: RecordPayload) {
   await mockDelay();
   const records = getRecordCollection();
   const existingRecord = records.find((record) => record.id === recordId);
-  const updatedRecord = existingRecord
-    ? {
+  const updatedRecord: CareRecord | null = existingRecord
+    ? normalizeRecord({
         ...existingRecord,
         ...payload,
+        careName: hasOwn(payload, "careName")
+          ? normalizeCareName(payload.careName)
+          : existingRecord.careName,
+        fulfillsCareRecordId: hasOwn(payload, "fulfillsCareRecordId")
+          ? normalizeOptionalId(payload.fulfillsCareRecordId)
+          : existingRecord.fulfillsCareRecordId,
         publicVisibility: normalizeCareRecordVisibility(
           payload.publicVisibility ?? existingRecord.publicVisibility
         ),
@@ -138,10 +156,12 @@ export async function updateRecord(recordId: string, payload: RecordPayload) {
             ? payload.dueDate
             : existingRecord.dueDate
         ),
-      }
+        updatedAt: new Date().toISOString(),
+      })
     : null;
 
   if (updatedRecord) {
+    validateLocalCareIdentity(updatedRecord, records);
     writeStoredCollection(
       RECORD_STORAGE_KEY,
       records.map((record) =>
@@ -244,23 +264,149 @@ function apiResponse<T>(
   };
 }
 
+function normalizeCareName(value?: string | null) {
+  const normalized = value?.trim();
+  if (!normalized) {
+    return undefined;
+  }
+
+  if (normalized.length > 120) {
+    throw new Error("Care name must be 120 characters or fewer.");
+  }
+
+  return normalized;
+}
+
+function normalizeOptionalId(value?: string | null) {
+  const normalized = value?.trim();
+  return normalized || undefined;
+}
+
+function hasOwn(object: object, property: PropertyKey) {
+  return Object.prototype.hasOwnProperty.call(object, property);
+}
+
+function validateLocalCareIdentity(
+  candidate: CareRecord,
+  records: CareRecord[]
+) {
+  if (!candidate.fulfillsCareRecordId) {
+    return;
+  }
+
+  if (candidate.fulfillsCareRecordId === candidate.id) {
+    throw new Error("A care record cannot fulfil itself.");
+  }
+
+  const target = records.find(
+    (record) =>
+      record.id === candidate.fulfillsCareRecordId && !record.archivedAt
+  );
+
+  if (!target) {
+    throw new Error("The care record to fulfil is not available.");
+  }
+
+  if (target.petId !== candidate.petId) {
+    throw new Error("The care record to fulfil must belong to the same pet.");
+  }
+
+  if (target.type !== candidate.type) {
+    throw new Error("The care record to fulfil must have the same care type.");
+  }
+
+  if (!target.dueDate) {
+    throw new Error("Only a care record with a next due date can be fulfilled.");
+  }
+
+  if (
+    records.some(
+      (record) =>
+        record.id !== candidate.id &&
+        record.fulfillsCareRecordId === target.id
+    )
+  ) {
+    throw new Error(
+      "This care record has already been fulfilled by another record."
+    );
+  }
+
+  const byId = new Map(records.map((record) => [record.id, record]));
+  byId.set(candidate.id, candidate);
+  const visited = new Set<string>();
+  let current: CareRecord | undefined = target;
+
+  while (current) {
+    if (current.id === candidate.id || visited.has(current.id)) {
+      throw new Error("This fulfilment would create a cycle between care records.");
+    }
+
+    visited.add(current.id);
+    current = current.fulfillsCareRecordId
+      ? byId.get(current.fulfillsCareRecordId)
+      : undefined;
+  }
+
+  if (!isLocalTargetOlder(target, candidate)) {
+    throw new Error("A care record can fulfil only an older care record.");
+  }
+}
+
+function isLocalTargetOlder(target: CareRecord, candidate: CareRecord) {
+  const targetCreatedAt = target.createdAt
+    ? Date.parse(target.createdAt)
+    : Number.NaN;
+  const candidateCreatedAt = candidate.createdAt
+    ? Date.parse(candidate.createdAt)
+    : Number.NaN;
+
+  if (Number.isFinite(targetCreatedAt) && Number.isFinite(candidateCreatedAt)) {
+    return targetCreatedAt < candidateCreatedAt;
+  }
+
+  const targetDate = careDateScore(target.date);
+  const candidateDate = careDateScore(candidate.date);
+  return targetDate === null || candidateDate === null || targetDate <= candidateDate;
+}
+
 export function buildBackendRecordPayload(
   payload: RecordPayload,
-  { allowDueDateClear = false }: { allowDueDateClear?: boolean } = {}
+  {
+    allowDueDateClear = false,
+    allowIdentityClears = false,
+  }: { allowDueDateClear?: boolean; allowIdentityClears?: boolean } = {}
 ) {
   const dueDate = toIsoDate(payload.dueDate);
-  const dueDateWasProvided = Object.prototype.hasOwnProperty.call(
+  const dueDateWasProvided = hasOwn(payload, "dueDate");
+  const careNameWasProvided = hasOwn(payload, "careName");
+  const careName = careNameWasProvided
+    ? normalizeCareName(payload.careName) ?? null
+    : undefined;
+  const fulfillsCareRecordIdWasProvided = hasOwn(
     payload,
-    "dueDate"
+    "fulfillsCareRecordId"
   );
+  const fulfillsCareRecordId = fulfillsCareRecordIdWasProvided
+    ? normalizeOptionalId(payload.fulfillsCareRecordId) ?? null
+    : undefined;
 
   return {
     type: payload.type ? toBackendRecordType(payload.type) : undefined,
     title: payload.title,
+    careName,
+    ...(allowIdentityClears && careNameWasProvided && careName === null
+      ? { clearCareName: true }
+      : {}),
     date: toIsoDate(payload.date),
     dueDate,
     ...(allowDueDateClear && dueDateWasProvided && dueDate === null
       ? { clearDueDate: true }
+      : {}),
+    fulfillsCareRecordId,
+    ...(allowIdentityClears &&
+    fulfillsCareRecordIdWasProvided &&
+    fulfillsCareRecordId === null
+      ? { clearFulfillsCareRecordId: true }
       : {}),
     provider: payload.provider,
     notes: payload.notes,
@@ -270,18 +416,23 @@ export function buildBackendRecordPayload(
   };
 }
 
-function mapBackendRecord(record: BackendCareRecord): CareRecord {
+export function mapBackendRecord(record: BackendCareRecord): CareRecord {
   return {
     id: record.id,
     petId: record.petId,
     type: fromBackendRecordType(record.type),
     title: record.title,
+    careName: normalizeCareName(record.careName ?? undefined),
     date: toDisplayDate(record.date),
     dueDate: record.dueDate ? toDisplayDate(record.dueDate) : undefined,
+    fulfillsCareRecordId: record.fulfillsCareRecordId ?? undefined,
     provider: record.provider || "Owner recorded",
     notes: record.notes || "No notes added.",
     publicVisibility: fromBackendVisibility(record.publicVisibility),
     status: toFrontendStatus(record.derivedStatus),
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
+    archivedAt: record.archivedAt ?? undefined,
   };
 }
 

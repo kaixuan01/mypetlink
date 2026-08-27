@@ -8,6 +8,7 @@ namespace MyPetLink.Api.Services;
 
 public sealed class CareRecordService : SkeletonService, ICareRecordService
 {
+    private const int CareNameMaxLength = 120;
     private static readonly TimeSpan MalaysiaUtcOffset = TimeSpan.FromHours(8);
     private readonly MyPetLinkDbContext _dbContext;
     private readonly TimeProvider _timeProvider;
@@ -95,18 +96,31 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
         {
             PetId = pet.Id,
             Pet = pet,
+            CreatedAt = _timeProvider.GetUtcNow(),
             Type = request.Type!.Value,
             Title = request.Title.Trim(),
+            CareName = NormalizeOptional(request.CareName),
             RecordDate = request.Date,
             DueDate = request.DueDate,
             Provider = NormalizeOptional(request.Provider),
             Notes = NormalizeOptional(request.Notes),
             PublicVisibility = CareVisibilityPolicy.Normalize(
-                request.PublicVisibility ?? CareRecordPublicVisibility.Private)
+                request.PublicVisibility ?? CareRecordPublicVisibility.Private),
+            FulfillsCareRecordId = request.FulfillsCareRecordId
         };
 
+        await ValidateFulfillmentAsync(userId, record, cancellationToken);
+
         _dbContext.CareRecords.Add(record);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception) when (IsFulfillmentUniqueViolation(exception))
+        {
+            throw FulfillmentValidationFailed(
+                "This care record has already been fulfilled by another record.");
+        }
 
         await ReplaceRecordMediaAsync(userId, record, request.MediaFileIds, cancellationToken);
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -138,6 +152,26 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
 
         ValidateUpdateRequest(request, record, GetMalaysiaToday());
 
+        var userId = RequireUserId(currentUserId);
+        var nextType = request.Type ?? record.Type;
+        var nextDueDate = request.ClearDueDate == true
+            ? null
+            : request.DueDate ?? record.DueDate;
+        var nextFulfillsCareRecordId = request.ClearFulfillsCareRecordId == true
+            ? null
+            : request.FulfillsCareRecordId ?? record.FulfillsCareRecordId;
+        var candidate = new CareRecord
+        {
+            Id = record.Id,
+            PetId = record.PetId,
+            Type = nextType,
+            DueDate = nextDueDate,
+            CreatedAt = record.CreatedAt,
+            FulfillsCareRecordId = nextFulfillsCareRecordId
+        };
+
+        await ValidateFulfillmentAsync(userId, candidate, cancellationToken);
+
         if (request.Type.HasValue)
         {
             record.Type = request.Type.Value;
@@ -146,6 +180,15 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
         if (request.Title is not null)
         {
             record.Title = request.Title.Trim();
+        }
+
+        if (request.ClearCareName == true)
+        {
+            record.CareName = null;
+        }
+        else if (request.CareName is not null)
+        {
+            record.CareName = NormalizeOptional(request.CareName);
         }
 
         if (request.Date.HasValue)
@@ -174,14 +217,22 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
 
         record.PublicVisibility = CareVisibilityPolicy.Normalize(
             request.PublicVisibility ?? record.PublicVisibility);
+        record.FulfillsCareRecordId = nextFulfillsCareRecordId;
 
         if (request.MediaFileIds is not null)
         {
-            var userId = RequireUserId(currentUserId);
             await ReplaceRecordMediaAsync(userId, record, request.MediaFileIds, cancellationToken);
         }
 
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception) when (IsFulfillmentUniqueViolation(exception))
+        {
+            throw FulfillmentValidationFailed(
+                "This care record has already been fulfilled by another record.");
+        }
         return ToResponse(record);
     }
 
@@ -273,6 +324,12 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
 
         ValidateRecordDate(request.Type, request.Date, today, errors);
         ValidateDueDate(request.Date, request.DueDate, errors);
+        ValidateOptionalMaxLength(
+            request.CareName,
+            CareNameMaxLength,
+            "careName",
+            "Care name must be 120 characters or fewer.",
+            errors);
 
         if (errors.Count > 0)
         {
@@ -290,6 +347,24 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
         if (request.Title is not null)
         {
             ValidateRequired(request.Title, "title", "Title cannot be empty.", errors);
+        }
+
+        ValidateOptionalMaxLength(
+            request.CareName,
+            CareNameMaxLength,
+            "careName",
+            "Care name must be 120 characters or fewer.",
+            errors);
+
+        if (request.ClearCareName == true && request.CareName is not null)
+        {
+            errors["careName"] = ["Care name cannot be set and cleared in the same request."];
+        }
+
+        if (request.ClearFulfillsCareRecordId == true && request.FulfillsCareRecordId.HasValue)
+        {
+            errors["fulfillsCareRecordId"] =
+                ["Fulfilment cannot be set and cleared in the same request."];
         }
 
         var recordType = request.Type ?? current.Type;
@@ -361,6 +436,110 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
                 ["toDate"] = ["To date cannot be earlier than from date."]
             });
         }
+    }
+
+    private async Task ValidateFulfillmentAsync(
+        Guid userId,
+        CareRecord candidate,
+        CancellationToken cancellationToken)
+    {
+        if (!candidate.FulfillsCareRecordId.HasValue)
+        {
+            return;
+        }
+
+        var targetId = candidate.FulfillsCareRecordId.Value;
+        if (targetId == Guid.Empty || targetId == candidate.Id)
+        {
+            throw FulfillmentValidationFailed("A care record cannot fulfil itself.");
+        }
+
+        var target = await _dbContext.CareRecords
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                record =>
+                    record.Id == targetId
+                    && record.Pet.OwnerUserId == userId
+                    && record.Pet.DeletedAt == null
+                    && record.DeletedAt == null
+                    && record.ArchivedAt == null,
+                cancellationToken);
+
+        if (target is null)
+        {
+            throw FulfillmentValidationFailed(
+                "The care record to fulfil is not available.");
+        }
+
+        if (target.PetId != candidate.PetId)
+        {
+            throw FulfillmentValidationFailed(
+                "The care record to fulfil must belong to the same pet.");
+        }
+
+        if (target.Type != candidate.Type)
+        {
+            throw FulfillmentValidationFailed(
+                "The care record to fulfil must have the same care type.");
+        }
+
+        if (!target.DueDate.HasValue)
+        {
+            throw FulfillmentValidationFailed(
+                "Only a care record with a next due date can be fulfilled.");
+        }
+
+        var alreadyClaimed = await _dbContext.CareRecords
+            .AsNoTracking()
+            .AnyAsync(
+                record =>
+                    record.Id != candidate.Id
+                    && record.FulfillsCareRecordId == targetId,
+                cancellationToken);
+
+        if (alreadyClaimed)
+        {
+            throw FulfillmentValidationFailed(
+                "This care record has already been fulfilled by another record.");
+        }
+
+        if (await WouldCreateFulfillmentCycleAsync(candidate.Id, targetId, cancellationToken))
+        {
+            throw FulfillmentValidationFailed(
+                "This fulfilment would create a cycle between care records.");
+        }
+
+        if (target.CreatedAt >= candidate.CreatedAt)
+        {
+            throw FulfillmentValidationFailed(
+                "A care record can fulfil only an older care record.");
+        }
+    }
+
+    private async Task<bool> WouldCreateFulfillmentCycleAsync(
+        Guid candidateId,
+        Guid targetId,
+        CancellationToken cancellationToken)
+    {
+        var visited = new HashSet<Guid>();
+        Guid? currentId = targetId;
+
+        while (currentId.HasValue)
+        {
+            if (currentId.Value == candidateId || !visited.Add(currentId.Value))
+            {
+                return true;
+            }
+
+            var lookupId = currentId.Value;
+            currentId = await _dbContext.CareRecords
+                .AsNoTracking()
+                .Where(record => record.Id == lookupId)
+                .Select(record => record.FulfillsCareRecordId)
+                .SingleOrDefaultAsync(cancellationToken);
+        }
+
+        return false;
     }
 
     private async Task ReplaceRecordMediaAsync(
@@ -466,7 +645,9 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
             DeriveStatus(record),
             record.CreatedAt,
             record.UpdatedAt,
-            record.ArchivedAt);
+            record.ArchivedAt,
+            record.CareName,
+            record.FulfillsCareRecordId);
     }
 
     private string DeriveStatus(CareRecord record)
@@ -503,6 +684,19 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
         }
     }
 
+    private static void ValidateOptionalMaxLength(
+        string? value,
+        int maxLength,
+        string fieldName,
+        string message,
+        IDictionary<string, string[]> errors)
+    {
+        if (value is not null && value.Trim().Length > maxLength)
+        {
+            errors[fieldName] = [message];
+        }
+    }
+
     private static string? NormalizeOptional(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
@@ -520,6 +714,23 @@ public sealed class CareRecordService : SkeletonService, ICareRecordService
             "validation_failed",
             "Please check the submitted fields.",
             errors);
+    }
+
+    private static ApiException FulfillmentValidationFailed(string message)
+    {
+        return ValidationFailed(new Dictionary<string, string[]>
+        {
+            ["fulfillsCareRecordId"] = [message]
+        });
+    }
+
+    private static bool IsFulfillmentUniqueViolation(DbUpdateException exception)
+    {
+        return exception.InnerException is Microsoft.Data.SqlClient.SqlException sql
+            && sql.Number is 2601 or 2627
+            && sql.Message.Contains(
+                "IX_CareRecords_FulfillsCareRecordId",
+                StringComparison.Ordinal);
     }
 
     private static ApiException InvalidState(string message)
