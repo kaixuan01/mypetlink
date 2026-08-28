@@ -28,16 +28,12 @@ namespace MyPetLink.Api.Migrations
             // one-item JSON array before the old columns are dropped.
             migrationBuilder.Sql(
                 """
-                UPDATE Pets
-                SET FavoriteFoodsJson = N'["' + STRING_ESCAPE(LTRIM(RTRIM(FavoriteFood)), 'json') + N'"]'
-                WHERE FavoriteFood IS NOT NULL AND LTRIM(RTRIM(FavoriteFood)) <> N'';
+                EXEC(N'UPDATE Pets SET FavoriteFoodsJson = N''["'' + STRING_ESCAPE(LTRIM(RTRIM(FavoriteFood)), ''json'') + N''"]'' WHERE FavoriteFood IS NOT NULL AND LTRIM(RTRIM(FavoriteFood)) <> N'''';');
                 """);
 
             migrationBuilder.Sql(
                 """
-                UPDATE Pets
-                SET FavoriteToysJson = N'["' + STRING_ESCAPE(LTRIM(RTRIM(FavoriteToy)), 'json') + N'"]'
-                WHERE FavoriteToy IS NOT NULL AND LTRIM(RTRIM(FavoriteToy)) <> N'';
+                EXEC(N'UPDATE Pets SET FavoriteToysJson = N''["'' + STRING_ESCAPE(LTRIM(RTRIM(FavoriteToy)), ''json'') + N''"]'' WHERE FavoriteToy IS NOT NULL AND LTRIM(RTRIM(FavoriteToy)) <> N'''';');
                 """);
 
             migrationBuilder.DropColumn(

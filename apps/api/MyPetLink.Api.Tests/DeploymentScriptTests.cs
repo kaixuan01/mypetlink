@@ -1,17 +1,22 @@
+using System.Reflection;
 using System.Text.RegularExpressions;
+using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Migrations.Operations;
+using MyPetLink.Api.Migrations;
 
 namespace MyPetLink.Api.Tests;
 
 /// <summary>
 /// The root <c>migration.sql</c> is what actually creates and upgrades a
 /// database on deployment, and it is maintained by appending each new
-/// migration rather than regenerating the file, so a bad append is easy to
-/// miss and expensive to discover in production.
+/// migration, so a bad generation is easy to miss and expensive to discover
+/// in production.
 ///
-/// These are static checks against the shipped script. They run in
-/// milliseconds and would have caught both defects this file exists because
-/// of: an orphan COMMIT left behind by the appender, and a data migration
-/// that referenced a column later migrations drop.
+/// These checks cover both the shipped script and the migration operation
+/// that generates its deferred SQL. They run in milliseconds and would have
+/// caught both defects this file exists because of: an orphan COMMIT left
+/// behind by the appender, and a data migration that referenced a column later
+/// migrations drop.
 /// </summary>
 public sealed class DeploymentScriptTests
 {
@@ -28,6 +33,35 @@ public sealed class DeploymentScriptTests
     }
 
     private static string[] ScriptLines() => File.ReadAllLines(ScriptPath());
+
+    [Fact]
+    public void FavoriteListMigrationDefersLegacyColumnReferencesAtTheSource()
+    {
+        var migration = new FavoriteFoodsAndToysAsLists();
+        var migrationBuilder = new MigrationBuilder("Microsoft.EntityFrameworkCore.SqlServer");
+        var up = typeof(FavoriteFoodsAndToysAsLists).GetMethod(
+            "Up",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        Assert.NotNull(up);
+        up!.Invoke(migration, [migrationBuilder]);
+
+        var dataCopies = migrationBuilder.Operations
+            .OfType<SqlOperation>()
+            .Where(operation => operation.Sql.Contains("FavoriteFoodsJson", StringComparison.Ordinal)
+                || operation.Sql.Contains("FavoriteToysJson", StringComparison.Ordinal))
+            .ToArray();
+
+        Assert.Equal(2, dataCopies.Length);
+        Assert.All(dataCopies, operation =>
+        {
+            var sql = operation.Sql.Trim();
+            Assert.StartsWith("EXEC(N'", sql, StringComparison.Ordinal);
+            Assert.EndsWith("');", sql, StringComparison.Ordinal);
+            Assert.Contains("''json''", sql, StringComparison.Ordinal);
+            Assert.Contains("<> N'''';", sql, StringComparison.Ordinal);
+        });
+    }
 
     [Fact]
     public void EveryTransactionIsClosedExactlyOnce()
