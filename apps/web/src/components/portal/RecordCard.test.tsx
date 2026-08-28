@@ -171,7 +171,9 @@ describe("RecordCard date terminology", () => {
     );
 
     expect(screen.getByText("Documents · 1")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: `Open ${document.fileName}` }));
+    const openButton = screen.getByRole("button", { name: `Open ${document.fileName}` });
+    expect(openButton.textContent).toBe("Open");
+    fireEvent.click(openButton);
     expect(onOpenDocument).toHaveBeenCalledWith(document);
   });
 });

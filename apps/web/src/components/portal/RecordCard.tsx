@@ -105,7 +105,7 @@ export function RecordCard({
                     onClick={() => onOpenDocument(document)}
                     type="button"
                   >
-                    View
+                    Open
                   </button>
                 ) : null}
               </div>
