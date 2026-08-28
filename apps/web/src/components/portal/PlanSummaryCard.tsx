@@ -99,14 +99,18 @@ export function PlanSummaryCard({
 
   return (
     <section
-      className={`brand-card rounded-[1.5rem] ${compact ? "p-5" : "p-5 sm:p-6"}`}
+      className={`brand-card min-w-0 rounded-[1.5rem] ${compact ? "p-5" : "p-5 sm:p-6"}`}
+      data-plan-summary-card
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-black text-pet-ink">Plan &amp; usage</h2>
         <Badge tone="teal">Premium coming soon</Badge>
       </div>
 
-      <div className="mt-4 grid gap-3">
+      <div
+        className="mt-4 grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3"
+        data-plan-usage-grid
+      >
         <div className="flex items-center justify-between gap-3 rounded-2xl bg-pet-cream px-4 py-3">
           <span className="text-sm font-bold text-pet-muted">Current plan</span>
           <span className="text-sm font-black text-pet-ink">
@@ -154,13 +158,13 @@ function UsageRow({
   const atLimit = used >= max;
 
   return (
-    <div>
-      <div className="flex items-center justify-between gap-3">
-        <span className="min-w-0 truncate text-sm font-bold text-pet-ink">
+    <div className="min-w-0">
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <span className="min-w-0 break-words text-sm font-bold text-pet-ink">
           {label}
         </span>
         <span
-          className={`shrink-0 text-sm font-black ${
+          className={`shrink-0 whitespace-nowrap text-sm font-black ${
             atLimit ? "text-pet-coral" : "text-pet-muted"
           }`}
         >

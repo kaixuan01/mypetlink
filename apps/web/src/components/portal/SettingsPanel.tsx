@@ -168,7 +168,12 @@ export function SettingsPanel() {
   const dirty = savedSettings ? isSettingsDirty(settings, savedSettings) : false;
 
   return (
-    <form className="grid gap-5" id="owner-settings-form" onSubmit={handleSubmit}>
+    <form
+      className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-5"
+      data-testid="owner-settings-grid"
+      id="owner-settings-form"
+      onSubmit={handleSubmit}
+    >
       {error ? (
         <div
           className="rounded-[1.25rem] border border-[#ffd5cf] bg-[#fff1ee] p-4 text-sm font-bold text-[#a63c2e]"
@@ -203,7 +208,10 @@ export function SettingsPanel() {
         title="Contact details"
         description="These details help finders contact you quickly if your pet is ever lost."
       >
-        <div className="grid gap-4 md:grid-cols-2">
+        <div
+          className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-[repeat(2,minmax(0,1fr))]"
+          data-testid="owner-settings-contact-grid"
+        >
           <TextField
             label="Owner display name"
             onChange={(value) => updateField("ownerDisplayName", value)}
@@ -245,7 +253,7 @@ export function SettingsPanel() {
         title="Communication preferences"
         description="Review essential messages, future care reminders, and optional MyPetLink updates separately."
       >
-        <div className="grid gap-5">
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-5">
           <section
             aria-labelledby="essential-email-heading"
             className="rounded-[1.25rem] border border-pet-border bg-white p-4"
@@ -279,7 +287,7 @@ export function SettingsPanel() {
             <p className="mt-2 text-sm leading-6 text-pet-muted">
               Care reminders will be available with MyPetLink Premium.
             </p>
-            <div className="mt-4 grid gap-3">
+            <div className="mt-4 grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
               {premiumReminderOptions.map((option) => (
                 <PreferenceCheckbox
                   checked={false}
@@ -319,8 +327,8 @@ export function SettingsPanel() {
 
       <PlanSummaryCard />
 
-      <div className="brand-card flex flex-col gap-3 rounded-[1.5rem] p-5 sm:flex-row sm:items-center sm:justify-between">
-        <div>
+      <div className="brand-card flex min-w-0 flex-col gap-3 rounded-[1.5rem] p-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <h2 className="text-lg font-black text-pet-ink">Account actions</h2>
           <p className="mt-1 text-sm text-pet-muted">
             Sign out of the owner portal on this device.
@@ -378,7 +386,7 @@ function TextField({
   type?: "email" | "text";
 }) {
   return (
-    <label className="grid gap-2">
+    <label className="grid min-w-0 gap-2">
       <span className="text-sm font-bold text-pet-ink">{label}</span>
       <input
         className="brand-input"
@@ -396,7 +404,11 @@ function TextField({
 // deliberately contains no field values at all.
 function SettingsSkeleton() {
   return (
-    <div aria-live="polite" className="grid gap-5" role="status">
+    <div
+      aria-live="polite"
+      className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-5"
+      role="status"
+    >
       <span className="sr-only">Loading your saved details</span>
       {[0, 1, 2].map((section) => (
         <section
@@ -406,9 +418,9 @@ function SettingsSkeleton() {
         >
           <div className="h-5 w-48 animate-pulse rounded-full bg-pet-cream" />
           <div className="mt-2 h-3.5 w-72 max-w-full animate-pulse rounded-full bg-pet-cream" />
-          <div className="mt-5 grid gap-4 md:grid-cols-2">
+          <div className="mt-5 grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-[repeat(2,minmax(0,1fr))]">
             {[0, 1, 2, 3].map((field) => (
-              <div className="grid gap-2" key={field}>
+              <div className="grid min-w-0 gap-2" key={field}>
                 <div className="h-3.5 w-32 animate-pulse rounded-full bg-pet-cream" />
                 <div className="h-12 animate-pulse rounded-2xl bg-pet-cream" />
               </div>

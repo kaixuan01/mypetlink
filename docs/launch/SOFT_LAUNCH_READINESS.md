@@ -86,21 +86,21 @@ consent/product decision is complete.
 - **Email** — outbox + background dispatcher, MailKit/SMTP, templated and brand-styled.
 - **Admin Portal** — 23 admin controllers covering owners, pets, orders, payment review, products, tag inventory, shipping, configuration and audit logs.
 
-### What is implemented but disabled by default
+### Required soft-launch feature configuration
 
-This is the single most important scoping fact in the repository. In `apps/web/src/lib/features.ts` and `appsettings.json`:
+This is the single most important scoping fact in the repository. Production must use these explicit launch values; local development and tests may retain code defaults where documented:
 
-| Flag | Default |
+| Flag | Required soft-launch value |
 | --- | --- |
 | `NEXT_PUBLIC_PUBLIC_PROFILES_ENABLED` | **true** |
-| `NEXT_PUBLIC_SAFETY_PROFILES_OWNER_UI_ENABLED` | false |
+| `NEXT_PUBLIC_SAFETY_PROFILES_OWNER_UI_ENABLED` | **true** |
 | `NEXT_PUBLIC_SMART_TAGS_ENABLED` | false |
 | `NEXT_PUBLIC_TAG_ORDERS_ENABLED` | false |
 | `NEXT_PUBLIC_SMART_TAG_ORDERING_ENABLED` | false |
 | `Features:SmartTagOrderingEnabled` (API) | false |
 | `Email:Enabled` (API) | false |
 
-**The default launch posture is free pet profiles only.** The Smart Tag commerce stack that dominates recent commit history is built but switched off, and the marketing site correctly labels it "Coming Soon" throughout. Email is off by default, which means the welcome email does not send unless explicitly enabled.
+**The launch posture is free pet profiles with owner-managed Safety Profiles.** The Smart Tag commerce stack that dominates recent commit history is built but switched off, and the marketing site correctly labels it "Coming Soon" throughout. Email is off by default, which means the welcome email does not send unless explicitly enabled.
 
 ### What does not exist
 
@@ -126,7 +126,7 @@ The four-stage model fits the product well. The mismatch is that **Protect is si
 
 ## Soft Launch Scope
 
-See [`SOFT_LAUNCH_SCOPE.md`](SOFT_LAUNCH_SCOPE.md). In brief: launch **Profile + Memories + Care + Share**, keep **Smart Tag commerce** deferred behind its existing flags, and decide deliberately whether the Safety Profile owner UI ships (it is currently off, which weakens the "safety" half of the pitch).
+See [`SOFT_LAUNCH_SCOPE.md`](SOFT_LAUNCH_SCOPE.md). In brief: launch **Profile + Memories + Care + Share + Safety Profile owner UI**, with `NEXT_PUBLIC_SAFETY_PROFILES_OWNER_UI_ENABLED=true`, and keep **Smart Tag commerce** deferred behind its existing flags.
 
 ## Explicitly Deferred Scope
 

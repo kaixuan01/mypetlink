@@ -31,19 +31,21 @@ public sealed class CloudflareR2Options
 
 public sealed class CloudflareR2OptionsValidator : IValidateOptions<CloudflareR2Options>
 {
-    private readonly IConfiguration _configuration;
+    private readonly IHostEnvironment _environment;
 
-    public CloudflareR2OptionsValidator(IConfiguration configuration)
+    public CloudflareR2OptionsValidator(IHostEnvironment environment)
     {
-        _configuration = configuration;
+        _environment = environment;
     }
 
     public ValidateOptionsResult Validate(string? name, CloudflareR2Options options)
     {
-        var provider = _configuration[$"{StorageOptions.SectionName}:Provider"];
-        var r2Enabled = string.Equals(provider, "CloudflareR2", StringComparison.OrdinalIgnoreCase);
-
-        if (!r2Enabled)
+        // Program registers CloudflareR2StorageService as the effective
+        // IObjectStorageService regardless of the legacy Storage:Provider
+        // status value. Production must therefore validate R2 itself and fail
+        // during startup, while local/test hosts may intentionally run without
+        // cloud credentials until they exercise media operations.
+        if (!_environment.IsProduction())
         {
             return ValidateOptionsResult.Success;
         }
@@ -100,7 +102,7 @@ public sealed class CloudflareR2OptionsValidator : IValidateOptions<CloudflareR2
     {
         if (string.IsNullOrWhiteSpace(value))
         {
-            failures.Add($"{key} must be configured when Storage:Provider is CloudflareR2.");
+            failures.Add($"{key} must be configured for production object storage.");
         }
     }
 

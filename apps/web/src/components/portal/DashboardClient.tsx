@@ -284,7 +284,7 @@ export function DashboardClient({
 
       <UpcomingCareSection pets={pets} records={upcomingRecords} />
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(22rem,0.8fr)]">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(22rem,0.8fr)]">
         <QuickActions />
         <DashboardSection title="Plan usage">
           <PlanSummaryCard

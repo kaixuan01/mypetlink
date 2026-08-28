@@ -47,7 +47,7 @@ Owner: Operations. Changing requires redeploy or restart.
 | `GoogleAuth:ClientId` | `GoogleAuthOptions` | Non-secret public client id |
 | `Cors:AllowedOrigins` | bound inline in `Program.cs` | **Empty allows no origins** — fail-closed but total |
 | `ForwardedHeaders:ForwardLimit`, `KnownProxies`, `KnownNetworks` | bound inline | Unset ⇒ rate limiting partitions on the proxy IP |
-| `Storage:Provider`, `Storage:LocalRoot`, `Storage:PublicBaseUrl` | `StorageOptions` | `Provider=CloudflareR2` activates R2 validation/status. Current media requests always use `IObjectStorageService`; Local settings are not a working media fallback. See R3. |
+| `Storage:Provider`, `Storage:LocalRoot`, `Storage:PublicBaseUrl` | `StorageOptions` | Legacy provider/status settings. Current media requests resolve `CloudflareR2StorageService`; production R2 validation follows that effective service and does not depend on `Provider`. Local settings are not a working media fallback. |
 | `CloudflareR2:*` (non-secret members) | `CloudflareR2Options` | Bucket names, service URL, presign expiry |
 | `PublicSite:BaseUrl` | `PublicSiteOptions` | Manufacturer QR/NFC export only; intentionally empty so tag production fails loudly. Optional while physical tags are deferred, required before export. |
 | `Email:Provider`, `FromAddress`, `FromName`, `OwnerPortalBaseUrl`, `BrandLogoUrl`, `BrandAssetBaseUrl` | `EmailOptions` | Brand asset URLs validated HTTPS-only |
@@ -178,7 +178,7 @@ is financially or security authoritative** — the API re-checks everything.
 | `NEXT_PUBLIC_DEV_AUTH_ENABLED` | Local Admin login affordance | Retain; never set in Production |
 | `NEXT_PUBLIC_NOINDEX` | SEO suppression | Retain |
 | `NEXT_PUBLIC_PUBLIC_PROFILES_ENABLED` | UI gate | Retain |
-| `NEXT_PUBLIC_SAFETY_PROFILES_OWNER_UI_ENABLED` | UI gate | Retain |
+| `NEXT_PUBLIC_SAFETY_PROFILES_OWNER_UI_ENABLED` | UI gate | Retain; production soft launch requires explicit `true` |
 | `NEXT_PUBLIC_SMART_TAGS_ENABLED` | UI gate | Retain |
 | `NEXT_PUBLIC_TAG_ORDERS_ENABLED` | UI gate | Retain |
 | `NEXT_PUBLIC_SMART_TAG_ORDERING_ENABLED` | Mirrors `Features:SmartTagOrderingEnabled` | Retain; documented mirror, fail-closed |
@@ -220,7 +220,7 @@ These require an owner's approval before any implementation:
 | --- | --- | --- |
 | R1 | Delivery rates seeded inactive | Checkout returns 409 `delivery_unavailable` — fail-closed, correct, but ordering is blocked until an admin activates zones |
 | R2 | ~~`FileStorageEnabled: false` hardcoded~~ | **Fixed.** Storage status is derived from `StorageOptions`/`CloudflareR2Options`. |
-| R3 | `Storage:Provider` defaults to `Local` | R2 validation is skipped even though current `MediaService` still uses R2; the API starts and media operations fail later. Production must set `CloudflareR2`. |
+| R3 | ~~R2 validation followed stale `Storage:Provider`~~ | **Fixed.** Production startup validates the effective `CloudflareR2StorageService` configuration and fails closed even when the legacy provider value is `Local`. |
 | R4 | `Cors:AllowedOrigins` empty in Production | No origins allowed; the frontend cannot reach the API at all |
 | R5 | `SmartTagBatches.BatchNo` has no unique database index | Application-level 12-attempt check only |
 | R6 | `PublicSite:BaseUrl` empty | Manufacturer export fails loudly — correct, but blocks tag production |

@@ -229,13 +229,37 @@ public sealed class DevelopmentAdminAuthTests
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
-    private static WebApplicationFactory<Program> Factory(string environment, bool enabled)
+    [Fact]
+    public void ProductionStartup_FailsWhenEffectiveR2ConfigurationIsMissing()
+    {
+        using var factory = Factory(
+            Environments.Production,
+            enabled: false,
+            configureR2: false);
+
+        var error = Assert.Throws<OptionsValidationException>(() => factory.CreateClient());
+
+        Assert.Contains("CloudflareR2:ServiceUrl or AccountId", error.Message);
+        Assert.Contains("CloudflareR2:AccessKeyId", error.Message);
+        Assert.Contains("CloudflareR2:SecretAccessKey", error.Message);
+    }
+
+    private static WebApplicationFactory<Program> Factory(
+        string environment,
+        bool enabled,
+        bool configureR2 = true)
     {
         return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
             builder.UseEnvironment(environment);
             builder.UseSetting("Jwt:SigningKey", "development-admin-tests-signing-key-at-least-32-characters");
             builder.UseSetting("DevAuth:Enabled", enabled.ToString());
+            if (configureR2)
+            {
+                builder.UseSetting("CloudflareR2:AccountId", "test-account");
+                builder.UseSetting("CloudflareR2:AccessKeyId", "test-access-key");
+                builder.UseSetting("CloudflareR2:SecretAccessKey", "test-secret-key");
+            }
         });
     }
 

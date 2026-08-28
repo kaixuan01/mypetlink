@@ -1,7 +1,8 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
-using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MyPetLink.Api.Common;
@@ -361,9 +362,9 @@ public sealed class MediaServiceTests
     }
 
     [Fact]
-    public void CloudflareR2OptionsValidator_RequiresSecretsWhenProviderIsR2()
+    public void CloudflareR2OptionsValidator_ProductionEffectiveR2RequiresConfiguration()
     {
-        var validator = R2Validator();
+        var validator = R2Validator(Environments.Production);
 
         var result = validator.Validate(
             Options.DefaultName,
@@ -375,7 +376,7 @@ public sealed class MediaServiceTests
     [Fact]
     public void CloudflareR2OptionsValidator_RejectsNonAbsolutePublicBaseUrl()
     {
-        var validator = R2Validator();
+        var validator = R2Validator(Environments.Production);
 
         var result = validator.Validate(
             Options.DefaultName,
@@ -388,7 +389,7 @@ public sealed class MediaServiceTests
     [Fact]
     public void CloudflareR2OptionsValidator_RejectsSamePublicAndPrivateBucket()
     {
-        var validator = R2Validator();
+        var validator = R2Validator(Environments.Production);
 
         var result = validator.Validate(
             Options.DefaultName,
@@ -400,23 +401,37 @@ public sealed class MediaServiceTests
     [Fact]
     public void CloudflareR2OptionsValidator_AcceptsValidConfiguration()
     {
-        var validator = R2Validator();
+        var validator = R2Validator(Environments.Production);
 
         var result = validator.Validate(Options.DefaultName, ValidR2Options());
 
         Assert.True(result.Succeeded);
     }
 
-    private static CloudflareR2OptionsValidator R2Validator()
+    [Fact]
+    public void CloudflareR2OptionsValidator_DevelopmentWithoutCredentials_RemainsUsable()
     {
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Storage:Provider"] = "CloudflareR2"
-            })
-            .Build();
+        var validator = R2Validator(Environments.Development);
 
-        return new CloudflareR2OptionsValidator(configuration);
+        var result = validator.Validate(Options.DefaultName, new CloudflareR2Options());
+
+        Assert.True(result.Succeeded);
+    }
+
+    private static CloudflareR2OptionsValidator R2Validator(string environmentName)
+    {
+        return new CloudflareR2OptionsValidator(new TestHostEnvironment
+        {
+            EnvironmentName = environmentName
+        });
+    }
+
+    private sealed class TestHostEnvironment : IHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = Environments.Development;
+        public string ApplicationName { get; set; } = "MyPetLink.Api.Tests";
+        public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
+        public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
     }
 
     private static CloudflareR2Options ValidR2Options(

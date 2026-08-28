@@ -105,6 +105,12 @@ describe("SettingsPanel loading behaviour", () => {
     expect(await screen.findByDisplayValue("Real Owner")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /save settings/i })).toBeNull();
     expect(screen.getByRole("button", { name: "Logout" })).toBeTruthy();
+    expect(screen.getByTestId("owner-settings-grid").className).toContain(
+      "grid-cols-[minmax(0,1fr)]"
+    );
+    expect(
+      screen.getByTestId("owner-settings-contact-grid").className
+    ).toContain("md:grid-cols-[repeat(2,minmax(0,1fr))]");
   });
 
   it("removes pet privacy defaults while preserving the other settings sections", async () => {

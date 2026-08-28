@@ -17,6 +17,17 @@ export function assertProductionApiConfiguration(
   }
 }
 
+export function assertProductionSafetyProfileOwnerUiConfiguration(
+  environment = process.env.NODE_ENV,
+  configured = process.env.NEXT_PUBLIC_SAFETY_PROFILES_OWNER_UI_ENABLED
+) {
+  if (environment === "production" && configured !== "true") {
+    throw new Error(
+      "NEXT_PUBLIC_SAFETY_PROFILES_OWNER_UI_ENABLED must be explicitly set to true for production builds."
+    );
+  }
+}
+
 export function isDevelopmentAdminLoginEnabled(
   environment = process.env.NODE_ENV,
   configured = process.env.NEXT_PUBLIC_DEV_AUTH_ENABLED

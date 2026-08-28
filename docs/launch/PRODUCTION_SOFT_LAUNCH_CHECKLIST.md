@@ -90,7 +90,7 @@ No secret value belongs in this document.
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Production Google Web client ID | Yes | Google sign-in is unavailable |
 | `NEXT_PUBLIC_MEDIA_BASE_URL` | `https://media.mypetlink.com.my` | Optional | API absolute media URLs still work; bare-key fallback cannot resolve |
 | `NEXT_PUBLIC_PUBLIC_PROFILES_ENABLED` | `true` | Yes (explicit) | Defaults to `true` |
-| `NEXT_PUBLIC_SAFETY_PROFILES_OWNER_UI_ENABLED` | `true` | Yes (explicit) | Defaults to `false`; finder routes still work but owner Safety links/status/QR management are hidden |
+| `NEXT_PUBLIC_SAFETY_PROFILES_OWNER_UI_ENABLED` | `true` | Yes (explicit) | Production build fails unless explicitly `true`; finder routes remain independent of this owner-UI flag |
 | `NEXT_PUBLIC_SMART_TAGS_ENABLED` | `false` | Yes (explicit) | Defaults to `false` |
 | `NEXT_PUBLIC_TAG_ORDERS_ENABLED` | `false` | Yes (explicit) | Defaults to `false`; also requires Smart Tags on |
 | `NEXT_PUBLIC_SMART_TAG_ORDERING_ENABLED` | `false` | Yes (explicit) | Defaults to `false`; frontend-only mirror of the API gate |
@@ -123,10 +123,10 @@ compatibility only and should be unset in Production.
 | `GoogleAuth__ClientId` | Same client ID as the frontend | Yes | No | Google endpoint returns `auth_provider_not_configured` |
 | `Cors__AllowedOrigins__0` | `https://mypetlink.com.my` | Yes | No | Production permits no browser origins |
 | `Cors__AllowedOrigins__1` | `https://www.mypetlink.com.my` only if served | Conditional | No | Requests from that exact origin fail CORS |
-| `Storage__Provider` | `CloudflareR2` | Yes | No | Default `Local` skips R2 startup validation, but current media requests still use R2 and then fail; deployment must stop |
-| `CloudflareR2__AccountId` or `CloudflareR2__ServiceUrl` | R2 service location | Yes | No | Startup validation fails when R2 is selected |
-| `CloudflareR2__AccessKeyId` | R2 credential | Yes | Yes | Startup validation fails when R2 is selected |
-| `CloudflareR2__SecretAccessKey` | R2 credential | Yes | Yes | Startup validation fails when R2 is selected |
+| `Storage__Provider` | `CloudflareR2` for accurate status | No (legacy/status only) | No | Does not control the effective object store or production R2 startup validation |
+| `CloudflareR2__AccountId` or `CloudflareR2__ServiceUrl` | R2 service location | Yes | No | Production startup validation fails |
+| `CloudflareR2__AccessKeyId` | R2 credential | Yes | Yes | Production startup validation fails |
+| `CloudflareR2__SecretAccessKey` | R2 credential | Yes | Yes | Production startup validation fails |
 | `CloudflareR2__PublicBucketName` | Public media bucket | Yes | No | Startup validation fails; must differ from private bucket |
 | `CloudflareR2__PrivateBucketName` | Private files bucket | Yes | No | Startup validation fails; must differ from public bucket |
 | `CloudflareR2__PublicBaseUrl` | `https://media.mypetlink.com.my` | Yes | No | Startup validation fails for missing/non-absolute URL |

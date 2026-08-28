@@ -1,6 +1,9 @@
 import path from "node:path";
 import type { NextConfig } from "next";
-import { assertProductionApiConfiguration } from "./src/services/apiConfig";
+import {
+  assertProductionApiConfiguration,
+  assertProductionSafetyProfileOwnerUiConfiguration,
+} from "./src/services/apiConfig";
 
 // `output: "export"` enforces, even in `next dev`, that any visited dynamic
 // segment must appear in `generateStaticParams()`. Because newly-created pets
@@ -13,6 +16,7 @@ import { assertProductionApiConfiguration } from "./src/services/apiConfig";
 const isProductionBuild = process.env.NODE_ENV === "production";
 
 assertProductionApiConfiguration();
+assertProductionSafetyProfileOwnerUiConfiguration();
 
 const nextConfig: NextConfig = {
   ...(isProductionBuild ? { output: "export" as const } : {}),

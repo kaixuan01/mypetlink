@@ -45,6 +45,12 @@ it("uses dashboard-provided pets and moments without issuing duplicate requests"
   expect(screen.getByText("Free plan")).toBeTruthy();
   expect(screen.getByText(`${pet.name} moment usage`)).toBeTruthy();
   expect(screen.getByText("1 of 10 moments")).toBeTruthy();
+  expect(
+    document.querySelector("[data-plan-summary-card]")?.className
+  ).toContain("min-w-0");
+  expect(
+    document.querySelector("[data-plan-usage-grid]")?.className
+  ).toContain("grid-cols-[minmax(0,1fr)]");
   // The compact plan card no longer includes its own Add Pet button.
   expect(screen.queryByRole("link", { name: /add pet/i })).toBeNull();
   expect(screen.queryByRole("button", { name: /add pet/i })).toBeNull();
