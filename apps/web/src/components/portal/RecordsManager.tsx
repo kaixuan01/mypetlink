@@ -342,7 +342,7 @@ export function RecordsManager({ petId, initialRecords }: RecordsManagerProps) {
         : {}),
       title: form.title.trim(),
       date: formatDisplayDate(form.date),
-      provider: form.provider.trim() || "Owner recorded",
+      provider: form.provider.trim(),
       dueDate: form.dueDate ? formatDisplayDate(form.dueDate) : undefined,
       notes: form.notes.trim() || "No notes added.",
       publicVisibility: fromCareRecordAudience(form.audience),

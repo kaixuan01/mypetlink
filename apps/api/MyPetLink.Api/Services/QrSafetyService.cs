@@ -36,6 +36,8 @@ public sealed class QrSafetyService : SkeletonService, IQrSafetyService
             .Include(item => item.Pet)
                 .ThenInclude(pet => pet.Contact)
             .Include(item => item.Pet)
+                .ThenInclude(pet => pet.PublicProfile)
+            .Include(item => item.Pet)
                 .ThenInclude(pet => pet.ProfileMediaFile)
             .Include(item => item.Pet)
                 .ThenInclude(pet => pet.CoverMediaFile)
@@ -93,7 +95,9 @@ public sealed class QrSafetyService : SkeletonService, IQrSafetyService
         var contact = phone is null && whatsapp is null && emergencyContact is null
             ? null
             : new PublicSafetyContactResponse(
-                PetDtoMapper.ResolveOwnerDisplayName(pet),
+                pet.PublicProfile?.ShowOwnerName == true
+                    ? PetDtoMapper.ResolveOwnerDisplayName(pet)
+                    : null,
                 phone,
                 whatsapp,
                 emergencyContact);

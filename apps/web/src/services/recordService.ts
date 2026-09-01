@@ -41,6 +41,7 @@ function normalizeRecord(record: CareRecord): CareRecord {
     ...record,
     careName: normalizeCareName(record.careName),
     fulfillsCareRecordId: normalizeOptionalId(record.fulfillsCareRecordId),
+    provider: normalizeProvider(record.provider),
     publicVisibility: normalizeCareRecordVisibility(record.publicVisibility),
     status: deriveCareRecordStatus(record.dueDate),
     documents: normalizeLocalDocuments(record.documents, record.type),
@@ -105,7 +106,7 @@ export async function createRecord(petId: string, payload: RecordPayload) {
     date: payload.date ?? "Today",
     dueDate: payload.dueDate,
     fulfillsCareRecordId: normalizeOptionalId(payload.fulfillsCareRecordId),
-    provider: payload.provider ?? "Owner recorded",
+    provider: normalizeProvider(payload.provider),
     notes: payload.notes ?? "No notes yet.",
     publicVisibility: normalizeCareRecordVisibility(payload.publicVisibility),
     status: deriveCareRecordStatus(payload.dueDate),
@@ -177,6 +178,9 @@ export async function updateRecord(
         fulfillsCareRecordId: hasOwn(payload, "fulfillsCareRecordId")
           ? normalizeOptionalId(payload.fulfillsCareRecordId)
           : existingRecord.fulfillsCareRecordId,
+        provider: hasOwn(payload, "provider")
+          ? normalizeProvider(payload.provider)
+          : existingRecord.provider,
         publicVisibility: normalizeCareRecordVisibility(
           payload.publicVisibility ?? existingRecord.publicVisibility
         ),
@@ -326,6 +330,10 @@ function normalizeCareName(value?: string | null) {
 function normalizeOptionalId(value?: string | null) {
   const normalized = value?.trim();
   return normalized || undefined;
+}
+
+function normalizeProvider(value?: string | null) {
+  return value?.trim() ?? "";
 }
 
 function normalizeLocalDocuments(
@@ -587,7 +595,7 @@ export function mapBackendRecord(record: BackendCareRecord): CareRecord {
     date: toDisplayDate(record.date),
     dueDate: record.dueDate ? toDisplayDate(record.dueDate) : undefined,
     fulfillsCareRecordId: record.fulfillsCareRecordId ?? undefined,
-    provider: record.provider || "Owner recorded",
+    provider: normalizeProvider(record.provider),
     notes: record.notes || "No notes added.",
     publicVisibility: fromBackendVisibility(record.publicVisibility),
     status: toFrontendStatus(record.derivedStatus),

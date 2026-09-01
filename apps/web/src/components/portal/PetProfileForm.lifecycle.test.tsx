@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -16,9 +17,11 @@ import type { Pet, PetPayload } from "@/types";
 const mocks = vi.hoisted(() => ({
   refresh: vi.fn(),
   replace: vi.fn(),
+  push: vi.fn(),
   router: null as null | {
     refresh: ReturnType<typeof vi.fn>;
     replace: ReturnType<typeof vi.fn>;
+    push: ReturnType<typeof vi.fn>;
   },
   logoutOwner: vi.fn(),
   getPetById: vi.fn(),
@@ -27,7 +30,11 @@ const mocks = vi.hoisted(() => ({
   updatePetLostMode: vi.fn(),
 }));
 
-mocks.router = { refresh: mocks.refresh, replace: mocks.replace };
+mocks.router = {
+  refresh: mocks.refresh,
+  replace: mocks.replace,
+  push: mocks.push,
+};
 
 vi.mock("next/navigation", () => ({
   useRouter: () => mocks.router,
@@ -133,6 +140,7 @@ describe("PetProfileForm lifecycle workflow", () => {
       })
     );
     mocks.replace.mockReset();
+    mocks.push.mockReset();
     mocks.logoutOwner.mockReset();
   });
 
@@ -166,6 +174,91 @@ describe("PetProfileForm lifecycle workflow", () => {
       "lifecycleStatus"
     );
     expect(mocks.updatePet.mock.calls[0][1]).not.toHaveProperty("memorial");
+  });
+
+  it("exits directly when Cancel is pressed on a clean Edit Pet form", async () => {
+    render(<PetProfileForm initialPet={pet} mode="edit" />);
+    await screen.findByLabelText("Short bio / description");
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Cancel" })[0]);
+
+    expect(mocks.push).toHaveBeenCalledOnce();
+    expect(mocks.push).toHaveBeenCalledWith(`/pets/${pet.id}`);
+    expect(
+      screen.queryByRole("dialog", { name: "Discard your changes?" })
+    ).toBeNull();
+  });
+
+  it("keeps dirty Edit Pet values until discard is explicitly confirmed", async () => {
+    render(<PetProfileForm initialPet={pet} mode="edit" />);
+    const bio = await screen.findByLabelText("Short bio / description");
+    fireEvent.change(bio, { target: { value: "Unsaved trusted detail" } });
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Cancel" })[0]);
+
+    const firstConfirmation = screen.getByRole("dialog", {
+      name: "Discard your changes?",
+    });
+    expect(mocks.push).not.toHaveBeenCalled();
+    fireEvent.click(
+      within(firstConfirmation).getByRole("button", { name: "Keep editing" })
+    );
+    expect(screen.getByDisplayValue("Unsaved trusted detail")).toBeTruthy();
+    expect(mocks.push).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Cancel" })[0]);
+    const secondConfirmation = screen.getByRole("dialog", {
+      name: "Discard your changes?",
+    });
+    fireEvent.click(
+      within(secondConfirmation).getByRole("button", {
+        name: "Discard changes",
+      })
+    );
+
+    expect(mocks.push).toHaveBeenCalledOnce();
+    expect(mocks.push).toHaveBeenCalledWith(`/pets/${pet.id}`);
+    expect(mocks.updatePet).not.toHaveBeenCalled();
+  });
+
+  it("coalesces rapid submits and enables saving again after a failure", async () => {
+    let rejectSave: ((reason?: unknown) => void) | undefined;
+    mocks.updatePet.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          rejectSave = reject;
+        })
+    );
+    render(<PetProfileForm initialPet={pet} mode="edit" />);
+    const saveButton = (
+      await screen.findAllByRole("button", { name: "Save Changes" })
+    )[0];
+    const form = saveButton.closest("form")!;
+
+    act(() => {
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+
+    expect(mocks.updatePet).toHaveBeenCalledOnce();
+    expect(
+      screen.getAllByRole("button", { name: "Saving..." }).every(
+        (button) => (button as HTMLButtonElement).disabled
+      )
+    ).toBe(true);
+
+    await act(async () => {
+      rejectSave?.(new Error("Temporary save failure"));
+    });
+    await waitFor(() =>
+      expect(
+        (screen.getAllByRole("button", { name: "Save Changes" })[0] as HTMLButtonElement)
+          .disabled
+      ).toBe(false)
+    );
+
+    fireEvent.submit(form);
+    await waitFor(() => expect(mocks.updatePet).toHaveBeenCalledTimes(2));
   });
 
   it("keeps the public tab id while presenting Sharing & Privacy", async () => {

@@ -78,6 +78,34 @@ describe("offline care identity and explicit fulfilment", () => {
     ).rejects.toThrow("120 characters or fewer");
   });
 
+  it("round-trips blank and entered providers without fabricating owner data", async () => {
+    const blank = await createRecord("pet-1", {
+      title: "Home care",
+      provider: "   ",
+    });
+    const entered = await createRecord("pet-1", {
+      title: "Clinic care",
+      provider: "  Happy Paws Vet  ",
+    });
+
+    expect(blank.data.provider).toBe("");
+    expect(entered.data.provider).toBe("Happy Paws Vet");
+    expect(
+      (await getPetRecords("pet-1")).data.find(
+        (item) => item.id === blank.data.id
+      )?.provider
+    ).toBe("");
+
+    const cleared = await updateRecord(entered.data.id, { provider: "" });
+
+    expect(cleared.data?.provider).toBe("");
+    expect(
+      (await getPetRecords("pet-1")).data.find(
+        (item) => item.id === entered.data.id
+      )?.provider
+    ).toBe("");
+  });
+
   it("fails closed for duplicate, cross-pet, type, due-date, self, and cycle cases", async () => {
     seed([
       record("target", { dueDate: "20 Sep 2026" }),

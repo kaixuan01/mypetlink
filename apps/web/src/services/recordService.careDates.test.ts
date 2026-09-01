@@ -110,6 +110,7 @@ describe("care record date request mapping", () => {
     expect(mapped.careName).toBe("Rabies booster");
     expect(mapped.fulfillsCareRecordId).toBe("target-id");
     expect(mapped.careName).not.toBe(mapped.title);
+    expect(mapped.provider).toBe("");
   });
 
   it("normalizes legacy public-details compatibility values to badge-only", () => {

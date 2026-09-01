@@ -49,7 +49,7 @@ export function RecordCard({
           </h3>
           <p className="mt-1 text-sm text-pet-muted">
             <span className="font-bold">{dateTerminology.primaryDateLabel}:</span>{" "}
-            {record.date} - {record.provider}
+            {record.date} - {record.provider || "Owner recorded"}
           </p>
         </div>
         {record.dueDate ? (

@@ -1,17 +1,18 @@
 "use client";
 
-import Link from "next/link";
 import {
   useEffect,
   useRef,
   useState,
   useSyncExternalStore,
   type FormEvent,
+  type MouseEvent as ReactMouseEvent,
 } from "react";
 import { useRouter } from "next/navigation";
 import { MobileFormActionBar } from "@/components/portal/MobileFormActionBar";
 import { PetCreationSuccess } from "@/components/portal/PetCreationSuccess";
 import { CTAButton } from "@/components/ui/CTAButton";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { AppearanceSection } from "@/components/portal/petForm/AppearanceSection";
 import { BasicInfoSection } from "@/components/portal/petForm/BasicInfoSection";
 import { ContactSafetySection } from "@/components/portal/petForm/ContactSafetySection";
@@ -219,6 +220,7 @@ export function PetProfileForm({
   const [form, setForm] = useState<FormState>(() =>
     toFormState(initialPet, defaultOwnerSettings)
   );
+  const [formBaseline, setFormBaseline] = useState<FormState>(form);
   const [currentPet, setCurrentPet] = useState<Pet | null>(initialPet ?? null);
   const [createdPet, setCreatedPet] = useState<Pet | null>(null);
   const [savedPet, setSavedPet] = useState<Pet | null>(null);
@@ -231,6 +233,7 @@ export function PetProfileForm({
   const [coverCropMetrics, setCoverCropMetrics] =
     useState<CoverCropMetrics | null>(null);
   const [success, setSuccess] = useState("");
+  const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
   const [editPetLoadState, setEditPetLoadState] = useState<EditPetLoadState>(
     mode === "edit" ? "checking" : "ready"
   );
@@ -246,6 +249,7 @@ export function PetProfileForm({
   const petContactSectionRef = useRef<HTMLDivElement | null>(null);
   const formRef = useRef<HTMLFormElement | null>(null);
   const createStartedRef = useRef(false);
+  const submitInFlightRef = useRef(false);
 
   function trackCreateStarted() {
     if (mode !== "create" || createStartedRef.current) return;
@@ -333,9 +337,13 @@ export function PetProfileForm({
       setOwnerSettings(settings);
 
       if (mode === "create") {
-        setForm(toFormState(undefined, settings));
+        const nextForm = toFormState(undefined, settings);
+        setFormBaseline(nextForm);
+        setForm(nextForm);
       } else if (initialPet) {
-        setForm(toFormState(initialPet, settings));
+        const nextForm = toFormState(initialPet, settings);
+        setFormBaseline(nextForm);
+        setForm(nextForm);
       }
 
       setProfilePhotoFile(undefined);
@@ -374,7 +382,9 @@ export function PetProfileForm({
         }
 
         setCurrentPet(response.data);
-        setForm(toFormState(response.data, readOwnerSettings()));
+        const nextForm = toFormState(response.data, readOwnerSettings());
+        setFormBaseline(nextForm);
+        setForm(nextForm);
         setEditPetLoadState("ready");
       } catch (caught) {
         if (!active) {
@@ -614,10 +624,11 @@ export function PetProfileForm({
   }
 
   async function saveChanges() {
-    if (isSubmitting) {
+    if (submitInFlightRef.current) {
       return;
     }
 
+    submitInFlightRef.current = true;
     setIsSubmitting(true);
     setSuccess("");
     setFormError("");
@@ -656,7 +667,9 @@ export function PetProfileForm({
         }
 
         setCurrentPet(savedPet);
-        setForm(toFormState(savedPet, ownerSettings));
+        const nextForm = toFormState(savedPet, ownerSettings);
+        setFormBaseline(nextForm);
+        setForm(nextForm);
 
         if (returnToSmartTagOrder) {
           router.replace(ownerRoutes.tagOrder({ petId: savedPet.id }));
@@ -719,7 +732,9 @@ export function PetProfileForm({
 
           setCurrentPet(savedPet);
           setSavedPet(savedPet);
-          setForm(toFormState(savedPet, ownerSettings));
+          const nextForm = toFormState(savedPet, ownerSettings);
+          setFormBaseline(nextForm);
+          setForm(nextForm);
         } else {
           setFormError(
             "We could not find this pet profile. Please return to My Pets and try again."
@@ -737,6 +752,7 @@ export function PetProfileForm({
 
       setFormError(getFriendlyApiErrorMessage(caught));
     } finally {
+      submitInFlightRef.current = false;
       setIsSubmitting(false);
     }
   }
@@ -896,6 +912,41 @@ export function PetProfileForm({
   const saveLabel = mode === "create" ? "Save Pet" : "Save Changes";
   const cancelHref =
     mode === "edit" && currentPet ? ownerRoutes.petProfile(currentPet.id) : "/pets";
+  const hasUnsavedChanges =
+    mode === "edit" &&
+    (JSON.stringify(form) !== JSON.stringify(formBaseline) ||
+      Boolean(profilePhotoFile) ||
+      Boolean(coverPhotoFile));
+
+  function requestNavigation(href: string) {
+    if (hasUnsavedChanges) {
+      setPendingNavigation(href);
+      return;
+    }
+
+    router.push(href);
+  }
+
+  function handleFormNavigationClick(event: ReactMouseEvent<HTMLFormElement>) {
+    if (!hasUnsavedChanges) {
+      return;
+    }
+
+    const anchor = (event.target as HTMLElement).closest<HTMLAnchorElement>(
+      "a[href]"
+    );
+    if (!anchor || anchor.target === "_blank" || anchor.hasAttribute("download")) {
+      return;
+    }
+
+    const href = anchor.getAttribute("href");
+    if (!href?.startsWith("/")) {
+      return;
+    }
+
+    event.preventDefault();
+    setPendingNavigation(href);
+  }
   const hasUnsavedThemeChange =
     mode === "edit" &&
     currentPet &&
@@ -907,13 +958,15 @@ export function PetProfileForm({
       form.coverPositionY !== currentPet.coverPositionY);
 
   return (
-    // Bottom clearance on mobile comes from one place only: the action bar's
-    // reserved spacer (plus the app shell's bottom-nav padding). Stacking a
-    // third padding here previously left a large dead zone under the fixed
-    // Save bar.
-    <form
+    <>
+      {/* Bottom clearance on mobile comes from one place only: the action bar's
+          reserved spacer (plus the app shell's bottom-nav padding). Stacking a
+          third padding here previously left a large dead zone under the fixed
+          Save bar. */}
+      <form
       className="mx-auto grid w-full min-w-0 max-w-[1140px] gap-5"
       onChangeCapture={trackCreateStarted}
+      onClickCapture={handleFormNavigationClick}
       onSubmit={handleSubmit}
       ref={formRef}
     >
@@ -1091,12 +1144,13 @@ export function PetProfileForm({
             ) : null}
           </>
         ) : null}
-        <Link
+        <button
           className="inline-flex min-h-12 items-center justify-center rounded-full border border-pet-border bg-white px-5 py-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
-          href={cancelHref}
+          onClick={() => requestNavigation(cancelHref)}
+          type="button"
         >
           Cancel
-        </Link>
+        </button>
         <CTAButton disabled={isSubmitting} type="submit" variant="coral">
           {isSubmitting ? "Saving..." : saveLabel}
         </CTAButton>
@@ -1107,16 +1161,33 @@ export function PetProfileForm({
         pending={isSubmitting}
         primaryLabel={saveLabel}
         secondaryAction={
-          <Link
+          <button
             className="inline-flex min-h-11 min-w-0 flex-1 items-center justify-center rounded-full border border-pet-border bg-white px-4 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
-            href={cancelHref}
+            onClick={() => requestNavigation(cancelHref)}
+            type="button"
           >
             Cancel
-          </Link>
+          </button>
         }
       />
 
-    </form>
+      </form>
+      <ConfirmDialog
+        cancelLabel="Keep editing"
+        confirmLabel="Discard changes"
+        message="Your unsaved pet changes and media selections will be lost."
+        onCancel={() => setPendingNavigation(null)}
+        onConfirm={() => {
+          const href = pendingNavigation;
+          setPendingNavigation(null);
+          if (href) {
+            router.push(href);
+          }
+        }}
+        open={pendingNavigation !== null}
+        title="Discard your changes?"
+      />
+    </>
   );
 }
 

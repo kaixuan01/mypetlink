@@ -149,6 +149,71 @@ describe("RecordsManager care identity and fulfilment", () => {
     ).toBeNull();
   });
 
+  it("submits a blank provider as blank instead of fabricated owner data", async () => {
+    const saved = careRecord("saved-blank-provider", { provider: "" });
+    mocks.createRecord.mockResolvedValue({ data: saved });
+    openCreateOnMount([]);
+    await screen.findByRole("dialog", { name: "Save a care record" });
+    chooseType("Vaccine");
+    completeRequiredFields("Home vaccination record");
+
+    fireEvent.click(screen.getByRole("button", { name: "Save Record" }));
+
+    await waitFor(() => expect(mocks.createRecord).toHaveBeenCalledOnce());
+    expect(mocks.createRecord).toHaveBeenCalledWith(
+      "pet-1",
+      expect.objectContaining({ provider: "" })
+    );
+    expect(JSON.stringify(mocks.createRecord.mock.calls[0][1])).not.toContain(
+      "Owner recorded"
+    );
+  });
+
+  it("reopens a blank provider as blank and preserves a real provider", async () => {
+    const current = careRecord("blank-provider", { provider: "" });
+    mocks.updateRecord.mockResolvedValue({
+      data: { ...current, provider: "Happy Paws Vet" },
+    });
+    renderRecords([current]);
+
+    const card = (await screen.findByText(current.title)).closest("article")!;
+    fireEvent.click(within(card).getByRole("button", { name: "Edit" }));
+    const provider = screen.getByLabelText("Provider / Clinic") as HTMLInputElement;
+    expect(provider.value).toBe("");
+
+    fireEvent.change(provider, { target: { value: "Happy Paws Vet" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save Changes" }));
+
+    await waitFor(() => expect(mocks.updateRecord).toHaveBeenCalledOnce());
+    expect(mocks.updateRecord).toHaveBeenCalledWith(
+      current.id,
+      expect.objectContaining({ provider: "Happy Paws Vet" }),
+      "pet-1"
+    );
+  });
+
+  it("sends an explicit blank when an existing provider is cleared", async () => {
+    const current = careRecord("provider-to-clear", {
+      provider: "Happy Paws Vet",
+    });
+    mocks.updateRecord.mockResolvedValue({ data: { ...current, provider: "" } });
+    renderRecords([current]);
+
+    const card = (await screen.findByText(current.title)).closest("article")!;
+    fireEvent.click(within(card).getByRole("button", { name: "Edit" }));
+    fireEvent.change(screen.getByLabelText("Provider / Clinic"), {
+      target: { value: "" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save Changes" }));
+
+    await waitFor(() => expect(mocks.updateRecord).toHaveBeenCalledOnce());
+    expect(mocks.updateRecord).toHaveBeenCalledWith(
+      current.id,
+      expect.objectContaining({ provider: "" }),
+      "pet-1"
+    );
+  });
+
   it("loads, changes, and explicitly clears identity and fulfilment on Edit", async () => {
     const targetA = careRecord("target-a", {
       careName: "DHPP",

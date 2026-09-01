@@ -87,6 +87,28 @@ public sealed class PetSafetyProfileAccessTests
             () => harness.QrSafety.GetBySafetyCodeAsync("safe-topu"));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task OwnerNameVisibilityAppliesToBothPublicSurfacesWithoutChangingContact(
+        bool showOwnerName)
+    {
+        using var harness = await Harness.CreateAsync(
+            ownerWhatsapp: "+60123456789",
+            showOwnerName: showOwnerName);
+
+        var publicProfile = await harness.PublicProfiles.GetByPublicSlugAsync("topu-pub123");
+        var safetyProfile = await harness.QrSafety.GetBySafetyCodeAsync("safe-topu");
+
+        var expectedName = showOwnerName ? "Owner" : null;
+        Assert.Equal(expectedName, publicProfile.OwnerDisplayName);
+        Assert.NotNull(safetyProfile.Contact);
+        Assert.Equal(expectedName, safetyProfile.Contact!.OwnerDisplayName);
+        Assert.Equal("+60123456789", safetyProfile.Contact.WhatsappE164);
+        Assert.Null(safetyProfile.Contact.PhoneE164);
+        Assert.Null(safetyProfile.Contact.EmergencyContactE164);
+    }
+
     [Fact]
     public async Task CreateAsync_NewPetGetsEnabledSafetyProfileAndNoLinkedTag()
     {
@@ -187,7 +209,8 @@ public sealed class PetSafetyProfileAccessTests
             string? ownerWhatsapp = null,
             string? ownerPhone = null,
             bool showWhatsapp = true,
-            bool showPhone = false)
+            bool showPhone = false,
+            bool showOwnerName = false)
         {
             var options = new DbContextOptionsBuilder<MyPetLinkDbContext>()
                 .UseInMemoryDatabase(Guid.NewGuid().ToString("N"))
@@ -237,7 +260,8 @@ public sealed class PetSafetyProfileAccessTests
                 {
                     PublicCode = "pub123",
                     SlugSnapshot = "topu-pub123",
-                    IsPublicProfileEnabled = true
+                    IsPublicProfileEnabled = true,
+                    ShowOwnerName = showOwnerName
                 },
                 SafetySetting = new PetSafetySetting
                 {
