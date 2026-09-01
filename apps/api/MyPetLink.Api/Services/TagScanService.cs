@@ -40,6 +40,8 @@ public sealed class TagScanService : SkeletonService, ITagScanService
             .Include(item => item.Pet)
                 .ThenInclude(pet => pet!.Contact)
             .Include(item => item.Pet)
+                .ThenInclude(pet => pet!.PublicProfile)
+            .Include(item => item.Pet)
                 .ThenInclude(pet => pet!.SafetySetting)
             .Include(item => item.Pet)
                 .ThenInclude(pet => pet!.ProfileMediaFile)
@@ -277,7 +279,9 @@ public sealed class TagScanService : SkeletonService, ITagScanService
         var contact = phone is null && whatsapp is null && emergencyContact is null
             ? null
             : new PublicSafetyContactResponse(
-                PetDtoMapper.ResolveOwnerDisplayName(pet),
+                pet.PublicProfile?.ShowOwnerName == true
+                    ? PetDtoMapper.ResolveOwnerDisplayName(pet)
+                    : null,
                 phone,
                 whatsapp,
                 emergencyContact);

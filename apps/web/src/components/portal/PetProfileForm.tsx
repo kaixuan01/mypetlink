@@ -629,17 +629,17 @@ export function PetProfileForm({
     }
 
     submitInFlightRef.current = true;
-    setIsSubmitting(true);
-    setSuccess("");
-    setFormError("");
-    setCreationWarning("");
-
-    const payload = buildPayload(form, {
-      includeVisibility: mode === "edit",
-      includeAccessSwitches: mode === "edit",
-    });
-
     try {
+      setIsSubmitting(true);
+      setSuccess("");
+      setFormError("");
+      setCreationWarning("");
+
+      const payload = buildPayload(form, {
+        includeVisibility: mode === "edit",
+        includeAccessSwitches: mode === "edit",
+      });
+
       if (mode === "create") {
         const response = await createPet(payload);
         trackEvent(AnalyticsEvent.PetCreated, { source: "owner_portal" });

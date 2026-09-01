@@ -18,6 +18,8 @@ public sealed class PetSafetyProfileAccessTests
 {
     private static readonly Guid OwnerId = Guid.Parse("91111111-1111-1111-1111-111111111111");
     private static readonly Guid PetId = Guid.Parse("92222222-2222-2222-2222-222222222222");
+    private static readonly TagScanContext ScanContext =
+        new("127.0.0.1", "privacy-test", "https://example.test/");
 
     [Fact]
     public async Task UpdateAsync_DisablingSafetyProfileLeavesPublicProfileEnabled()
@@ -90,23 +92,71 @@ public sealed class PetSafetyProfileAccessTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task OwnerNameVisibilityAppliesToBothPublicSurfacesWithoutChangingContact(
+    public async Task OwnerNameVisibilityAppliesToAllFinderSurfacesWithoutChangingSafetyData(
         bool showOwnerName)
     {
         using var harness = await Harness.CreateAsync(
-            ownerWhatsapp: "+60123456789",
-            showOwnerName: showOwnerName);
+            showOwnerName: showOwnerName,
+            includePrivacySurfaceData: true);
+        harness.Db.ChangeTracker.Clear();
 
+        var qrTagScan = await harness.TagScans.ResolveAsync(
+            "MPL-PRIVACY-01", TagScanSource.Qr, ScanContext);
+        var nfcTagScan = await harness.TagScans.ResolveAsync(
+            "MPL-PRIVACY-01", TagScanSource.Nfc, ScanContext);
         var publicProfile = await harness.PublicProfiles.GetByPublicSlugAsync("topu-pub123");
         var safetyProfile = await harness.QrSafety.GetBySafetyCodeAsync("safe-topu");
 
-        var expectedName = showOwnerName ? "Owner" : null;
+        var expectedName = showOwnerName ? "Pet contact owner" : null;
         Assert.Equal(expectedName, publicProfile.OwnerDisplayName);
-        Assert.NotNull(safetyProfile.Contact);
-        Assert.Equal(expectedName, safetyProfile.Contact!.OwnerDisplayName);
-        Assert.Equal("+60123456789", safetyProfile.Contact.WhatsappE164);
-        Assert.Null(safetyProfile.Contact.PhoneE164);
-        Assert.Null(safetyProfile.Contact.EmergencyContactE164);
+        Assert.Equal("active", qrTagScan.State);
+        Assert.Equal("active", nfcTagScan.State);
+
+        foreach (var profile in new[]
+                 {
+                     safetyProfile,
+                     Assert.IsType<PublicSafetyPageResponse>(qrTagScan.Profile),
+                     Assert.IsType<PublicSafetyPageResponse>(nfcTagScan.Profile)
+                 })
+        {
+            Assert.Equal(expectedName, profile.Contact!.OwnerDisplayName);
+            Assert.Equal("+60111111111", profile.Contact.PhoneE164);
+            Assert.Equal("+60122222222", profile.Contact.WhatsappE164);
+            Assert.Equal("+60133333333", profile.Contact.EmergencyContactE164);
+            Assert.Equal("Subang Jaya", profile.GeneralArea);
+            Assert.Equal("Approach slowly.", profile.SafetyNote);
+            Assert.Equal("Needs daily medication.", profile.EmergencyNote);
+            Assert.True(profile.ShowFoundLocationAction);
+        }
+    }
+
+    [Fact]
+    public async Task FinderSurfacesHideOwnerNameWhenPublicProfileIsMissing()
+    {
+        using var harness = await Harness.CreateAsync(
+            showOwnerName: true,
+            includePrivacySurfaceData: true,
+            includePublicProfile: false);
+        harness.Db.ChangeTracker.Clear();
+
+        var qrTagScan = await harness.TagScans.ResolveAsync(
+            "MPL-PRIVACY-01", TagScanSource.Qr, ScanContext);
+        var nfcTagScan = await harness.TagScans.ResolveAsync(
+            "MPL-PRIVACY-01", TagScanSource.Nfc, ScanContext);
+        var safetyProfile = await harness.QrSafety.GetBySafetyCodeAsync("safe-topu");
+
+        foreach (var profile in new[]
+                 {
+                     safetyProfile,
+                     Assert.IsType<PublicSafetyPageResponse>(qrTagScan.Profile),
+                     Assert.IsType<PublicSafetyPageResponse>(nfcTagScan.Profile)
+                 })
+        {
+            Assert.Null(profile.Contact!.OwnerDisplayName);
+            Assert.Equal("+60111111111", profile.Contact.PhoneE164);
+            Assert.Equal("+60122222222", profile.Contact.WhatsappE164);
+            Assert.Equal("+60133333333", profile.Contact.EmergencyContactE164);
+        }
     }
 
     [Fact]
@@ -198,19 +248,23 @@ public sealed class PetSafetyProfileAccessTests
             Pets = new PetService(db, r2);
             QrSafety = new QrSafetyService(db, r2);
             PublicProfiles = new PublicProfileService(db, r2);
+            TagScans = new TagScanService(db, r2);
         }
 
         public MyPetLinkDbContext Db { get; }
         public PetService Pets { get; }
         public QrSafetyService QrSafety { get; }
         public PublicProfileService PublicProfiles { get; }
+        public TagScanService TagScans { get; }
 
         public static async Task<Harness> CreateAsync(
             string? ownerWhatsapp = null,
             string? ownerPhone = null,
             bool showWhatsapp = true,
             bool showPhone = false,
-            bool showOwnerName = false)
+            bool showOwnerName = false,
+            bool includePrivacySurfaceData = false,
+            bool includePublicProfile = true)
         {
             var options = new DbContextOptionsBuilder<MyPetLinkDbContext>()
                 .UseInMemoryDatabase(Guid.NewGuid().ToString("N"))
@@ -256,25 +310,57 @@ public sealed class PetSafetyProfileAccessTests
                 Slug = "topu-pub123",
                 Name = "Topu",
                 Species = "Cat",
-                PublicProfile = new PetPublicProfile
-                {
-                    PublicCode = "pub123",
-                    SlugSnapshot = "topu-pub123",
-                    IsPublicProfileEnabled = true,
-                    ShowOwnerName = showOwnerName
-                },
+                SafetyNote = includePrivacySurfaceData ? "Approach slowly." : null,
+                EmergencyNote = includePrivacySurfaceData ? "Needs daily medication." : null,
+                Contact = includePrivacySurfaceData
+                    ? new PetContact
+                    {
+                        UseOwnerDefaults = false,
+                        OwnerDisplayName = "Pet contact owner",
+                        PhoneE164 = "+60111111111",
+                        WhatsappE164 = "+60122222222",
+                        EmergencyContactE164 = "+60133333333",
+                        GeneralAreaOverride = "Subang Jaya"
+                    }
+                    : null,
+                PublicProfile = includePublicProfile
+                    ? new PetPublicProfile
+                    {
+                        PublicCode = "pub123",
+                        SlugSnapshot = "topu-pub123",
+                        IsPublicProfileEnabled = true,
+                        ShowOwnerName = showOwnerName
+                    }
+                    : null,
                 SafetySetting = new PetSafetySetting
                 {
                     SafetyCode = "safe-topu",
                     QrSafetyEnabled = true,
-                    ShowWhatsapp = showWhatsapp,
-                    ShowPhone = showPhone
+                    ShowWhatsapp = includePrivacySurfaceData || showWhatsapp,
+                    ShowPhone = includePrivacySurfaceData || showPhone,
+                    ShowEmergencyNote = true,
+                    ShowFoundLocationAction = true
                 }
             };
 
             db.Plans.Add(plan);
             db.Users.Add(owner);
             db.Pets.Add(pet);
+            if (includePrivacySurfaceData)
+            {
+                db.SmartTags.Add(new SmartTag
+                {
+                    TagCode = "MPL-PRIVACY-01",
+                    Status = SmartTagStatus.Active,
+                    HasNfc = true,
+                    Variant = "Standard",
+                    OwnerUser = owner,
+                    OwnerUserId = OwnerId,
+                    Pet = pet,
+                    PetId = PetId,
+                    ActivatedAt = DateTimeOffset.UtcNow
+                });
+            }
             await db.SaveChangesAsync();
             return new Harness(db);
         }

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { mockRecords } from "@/data/mockRecords";
 import type { CareRecord } from "@/types";
 import {
   createRecord,
@@ -21,6 +22,12 @@ describe("offline care identity and explicit fulfilment", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
     window.localStorage.clear();
+  });
+
+  it("keeps production mock providers blank instead of fabricating owner data", () => {
+    expect(mockRecords.some((record) => record.provider === "Owner recorded")).toBe(
+      false
+    );
   });
 
   it("persists trimmed identity, allows early fulfilment, and round-trips it", async () => {

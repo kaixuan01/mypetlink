@@ -261,6 +261,37 @@ describe("PetProfileForm lifecycle workflow", () => {
     await waitFor(() => expect(mocks.updatePet).toHaveBeenCalledTimes(2));
   });
 
+  it("releases the submit guard when payload construction throws", async () => {
+    render(<PetProfileForm initialPet={pet} mode="edit" />);
+    const saveButton = (
+      await screen.findAllByRole("button", { name: "Save Changes" })
+    )[0];
+    const form = saveButton.closest("form")!;
+    const dateFormatSpy = vi
+      .spyOn(Intl, "DateTimeFormat")
+      .mockImplementation(function DateTimeFormat() {
+        throw new Error("Payload construction failed");
+      });
+
+    try {
+      fireEvent.submit(form);
+
+      await waitFor(() =>
+        expect(
+          (screen.getAllByRole("button", {
+            name: "Save Changes",
+          })[0] as HTMLButtonElement).disabled
+        ).toBe(false)
+      );
+      expect(mocks.updatePet).not.toHaveBeenCalled();
+    } finally {
+      dateFormatSpy.mockRestore();
+    }
+
+    fireEvent.submit(form);
+    await waitFor(() => expect(mocks.updatePet).toHaveBeenCalledOnce());
+  });
+
   it("keeps the public tab id while presenting Sharing & Privacy", async () => {
     window.history.replaceState({}, "", `/pets/${pet.id}/edit?tab=public`);
     render(<PetProfileForm initialPet={pet} mode="edit" />);
