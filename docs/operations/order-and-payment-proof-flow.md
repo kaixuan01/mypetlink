@@ -181,6 +181,8 @@ Result:
 - payment `ProofSubmitted`
 - new proof `PendingReview`
 - prior pending proof metadata is marked `Superseded`
+- one `AdminPaymentProofSubmitted` operations email is queued for the new proof
+  in the same database write
 
 Owner portal shows:
 
@@ -302,6 +304,9 @@ Result:
 - payment `Rejected`
 - proof `Rejected`
 - rejection reason saved
+- customer receives a fresh payment deadline measured from the rejection
+- one `PaymentProofRejected` customer email is queued in the same database
+  transaction
 - audit log written
 
 Owner portal shows:

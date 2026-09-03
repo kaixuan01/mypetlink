@@ -181,4 +181,15 @@ describe("AdminPaymentProofsManager", () => {
       )
     );
   });
+
+  it("refreshes the queue once when focus and visibility return together", async () => {
+    render(<AdminPaymentProofsManager />);
+    await screen.findByText("aina@example.com");
+
+    fireEvent.focus(window);
+    document.dispatchEvent(new Event("visibilitychange"));
+
+    await waitFor(() => expect(mocks.list).toHaveBeenCalledTimes(2));
+    expect(mocks.count).toHaveBeenCalledTimes(2);
+  });
 });

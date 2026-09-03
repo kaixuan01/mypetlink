@@ -23,6 +23,7 @@ public sealed class OrderService : SkeletonService, IOrderService
     private readonly ITagOrderInventoryAvailabilityService? _inventoryAvailability;
     private readonly IOrderCheckoutSettingsService? _checkoutSettings;
     private readonly IAuditLogService _auditLogService;
+    private readonly IEmailOutboxService _emailOutboxService;
 
     public OrderService(
         MyPetLinkDbContext dbContext,
@@ -50,7 +51,8 @@ public sealed class OrderService : SkeletonService, IOrderService
         IShippingFulfilmentService? shippingFulfilmentService = null,
         ITagOrderInventoryAvailabilityService? inventoryAvailability = null,
         IOrderCheckoutSettingsService? checkoutSettings = null,
-        IAuditLogService? auditLogService = null)
+        IAuditLogService? auditLogService = null,
+        IEmailOutboxService? emailOutboxService = null)
     {
         _dbContext = dbContext;
         _features = features.Value;
@@ -67,6 +69,13 @@ public sealed class OrderService : SkeletonService, IOrderService
         _checkoutSettings = checkoutSettings;
         _auditLogService = auditLogService
             ?? new AuditLogService(dbContext, new HttpContextAccessor());
+        _emailOutboxService = emailOutboxService
+            ?? new EmailOutboxService(
+                dbContext,
+                _auditLogService,
+                timeProvider,
+                new EmailTemplateGate(dbContext, Options.Create(new EmailOptions())),
+                options: Options.Create(new EmailOptions()));
     }
 
     public async Task<(IReadOnlyCollection<TagOrderResponse> Items, int Total)> ListAsync(
@@ -523,6 +532,32 @@ public sealed class OrderService : SkeletonService, IOrderService
             throw InvalidState("Payment proof can only be submitted before payment is confirmed.");
         }
 
+        var pendingReplay = request.MediaFileId.HasValue
+            ? order.PaymentProofs.SingleOrDefault(proof =>
+                proof.Status == PaymentProofStatus.PendingReview
+                && proof.MediaFileId == request.MediaFileId.Value
+                && proof.SubmittedAmount == request.SubmittedAmount
+                && string.Equals(
+                    proof.PaymentMethod,
+                    NormalizeOptional(request.PaymentMethod) ?? "QR Payment",
+                    StringComparison.Ordinal)
+                && string.Equals(
+                    proof.PaymentReference,
+                    NormalizeOptional(request.PaymentReference),
+                    StringComparison.Ordinal)
+                && string.Equals(
+                    proof.OwnerNote,
+                    NormalizeOptional(request.OwnerNote),
+                    StringComparison.Ordinal))
+            : null;
+        if (pendingReplay is not null)
+        {
+            // Upload retries reuse the same private media record. Returning the
+            // existing proof keeps both the proof and its operational email
+            // exactly once, while a genuinely new upload remains a new event.
+            return TagDtoMapper.ToOrderResponse(order);
+        }
+
         // The server, not the browser countdown, decides whether the window is
         // still open. A submission that arrives after the deadline is refused
         // even if the worker has not swept the order yet.
@@ -573,6 +608,11 @@ public sealed class OrderService : SkeletonService, IOrderService
         order.Status = OrderStatus.PaymentProofSubmitted;
         order.PaymentStatus = PaymentStatus.ProofSubmitted;
         order.TrackingStatus = "Payment proof submitted. We will review it before preparing the tag.";
+
+        await _emailOutboxService.EnqueueAdminPaymentProofSubmittedAsync(
+            order,
+            proofEntity,
+            cancellationToken);
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
@@ -669,11 +709,13 @@ public sealed class OrderService : SkeletonService, IOrderService
     private static IQueryable<TagOrder> IncludeOrderResponseGraph(IQueryable<TagOrder> query)
     {
         return query
+            .Include(order => order.OwnerUser)
             .Include(order => order.Pet)
             .Include(order => order.SmartTag)
             .Include(order => order.AssignedTags)
                 .ThenInclude(tag => tag.Pet)
             .Include(order => order.PaymentProofs)
+                .ThenInclude(proof => proof.EmailOutboxMessages)
             .Include(order => order.EmailOutboxMessages)
             .Include(order => order.Items)
                 .ThenInclude(item => item.Pet)

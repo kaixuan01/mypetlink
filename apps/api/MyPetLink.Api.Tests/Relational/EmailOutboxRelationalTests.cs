@@ -308,6 +308,20 @@ public sealed class EmailOutboxRelationalTests
 
     private sealed class DuplicateEnqueueService(MyPetLinkDbContext db) : IEmailOutboxService
     {
+        public Task EnqueueAdminPaymentProofSubmittedAsync(
+            TagOrder order,
+            PaymentProof proof,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task EnqueuePaymentProofRejectedAsync(
+            TagOrder order,
+            PaymentProof proof,
+            DateTimeOffset rejectedAt,
+            DateTimeOffset? paymentDeadline,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         public Task EnqueuePaymentConfirmedAsync(
             TagOrder order,
             DateTimeOffset confirmedAt,

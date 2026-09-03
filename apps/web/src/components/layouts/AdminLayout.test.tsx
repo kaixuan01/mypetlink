@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AdminLayout } from "./AdminLayout";
 
 const navState = vi.hoisted(() => ({ pathname: "/admin/orders", search: "" }));
+const serviceMocks = vi.hoisted(() => ({ dashboard: vi.fn() }));
 
 vi.mock("next/navigation", () => ({
   usePathname: () => navState.pathname,
@@ -21,15 +22,67 @@ vi.mock("@/components/brand/BrandLogo", () => ({
 }));
 
 vi.mock("@/services/authService", () => ({ logoutAdmin: vi.fn() }));
+vi.mock("@/services/adminService", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/services/adminService")>();
+  return { ...actual, getAdminDashboardData: serviceMocks.dashboard };
+});
 
 beforeEach(() => {
   navState.pathname = "/admin/orders";
   navState.search = "";
+  serviceMocks.dashboard.mockResolvedValue({
+    summary: {
+      totalOwners: 10,
+      totalPets: 12,
+      pendingPaymentProofs: 4,
+      ordersPreparing: 3,
+      activeTags: 2,
+      lostOrDisabledTags: 0,
+      unclaimedRetailTags: 5,
+      lostModePets: 0,
+    },
+    activity: { latestOrders: [], latestPaymentProofs: [], recentTags: [] },
+  });
 });
 
 afterEach(cleanup);
 
 describe("AdminLayout navigation", () => {
+  it("shows current work badges in both desktop and mobile navigation and refreshes on return", async () => {
+    render(<AdminLayout>content</AdminLayout>);
+
+    await waitFor(() => expect(screen.getAllByTitle("3 items need attention").length).toBe(1));
+    expect(screen.getAllByTitle("4 items need attention").length).toBe(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open admin navigation" }));
+    expect(screen.getAllByTitle("3 items need attention").length).toBe(2);
+    expect(screen.getAllByTitle("4 items need attention").length).toBe(2);
+
+    fireEvent.focus(window);
+    document.dispatchEvent(new Event("visibilitychange"));
+    await waitFor(() => expect(serviceMocks.dashboard).toHaveBeenCalledTimes(2));
+  });
+
+  it("hides work badges when no current items need attention", async () => {
+    serviceMocks.dashboard.mockResolvedValueOnce({
+      summary: {
+        totalOwners: 10,
+        totalPets: 12,
+        pendingPaymentProofs: 0,
+        ordersPreparing: 0,
+        activeTags: 2,
+        lostOrDisabledTags: 0,
+        unclaimedRetailTags: 5,
+        lostModePets: 0,
+      },
+      activity: { latestOrders: [], latestPaymentProofs: [], recentTags: [] },
+    });
+    render(<AdminLayout>content</AdminLayout>);
+
+    await waitFor(() => expect(serviceMocks.dashboard).toHaveBeenCalled());
+    expect(screen.queryByTitle(/need attention/)).toBeNull();
+  });
+
   it("renders grouped navigation from the shared config in desktop and drawer alike", async () => {
     render(<AdminLayout>content</AdminLayout>);
 

@@ -5,6 +5,10 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { AdminGuard } from "@/components/auth/AdminGuard";
+import {
+  AdminOperationalProvider,
+  useAdminOperationalData,
+} from "@/components/admin/AdminOperationalContext";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { Icon } from "@/components/ui/Icon";
 import {
@@ -37,24 +41,26 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <AdminGuard>
-      <div className="min-h-screen bg-pet-cream text-pet-ink lg:flex">
-        {/* Desktop: permanent sidebar. Mobile: compact header + drawer. The
-            drawer and sidebar render from the same navigation config. */}
-        <Suspense fallback={<AdminChromeFallback />}>
-          <AdminChrome onLogout={handleLogout} />
-        </Suspense>
-        <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-          <div className="mb-6 flex items-start gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-            <Icon name="shield" className="mt-0.5 h-5 w-5 shrink-0" />
-            <p className="font-semibold">
-              Early launch operations workspace — payments are reviewed manually
-              in this phase. Changes here update order, tag, and profile status
-              for owners.
-            </p>
-          </div>
-          {children}
-        </main>
-      </div>
+      <AdminOperationalProvider>
+        <div className="min-h-screen bg-pet-cream text-pet-ink lg:flex">
+          {/* Desktop: permanent sidebar. Mobile: compact header + drawer. The
+              drawer and sidebar render from the same navigation config. */}
+          <Suspense fallback={<AdminChromeFallback />}>
+            <AdminChrome onLogout={handleLogout} />
+          </Suspense>
+          <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+            <div className="mb-6 flex items-start gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+              <Icon name="shield" className="mt-0.5 h-5 w-5 shrink-0" />
+              <p className="font-semibold">
+                Early launch operations workspace — payments are reviewed manually
+                in this phase. Changes here update order, tag, and profile status
+                for owners.
+              </p>
+            </div>
+            {children}
+          </main>
+        </div>
+      </AdminOperationalProvider>
     </AdminGuard>
   );
 }
@@ -76,6 +82,11 @@ function AdminChrome({ onLogout }: { onLogout: () => void }) {
   const search = searchParams.toString() ? `?${searchParams.toString()}` : "";
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [navScope, setNavScope] = useState(`${pathname}${search}`);
+  const { dashboard } = useAdminOperationalData();
+  const badges = {
+    "/admin/payment-proofs": dashboard?.summary.pendingPaymentProofs ?? 0,
+    "/admin/orders": dashboard?.summary.ordersPreparing ?? 0,
+  };
 
   // Any navigation closes the drawer so it never lingers over a new page
   // (render-phase adjustment, same pattern as the admin table selection reset).
@@ -96,9 +107,10 @@ function AdminChrome({ onLogout }: { onLogout: () => void }) {
           onLogout={onLogout}
           pathname={pathname}
           search={search}
+          badges={badges}
         />
       ) : null}
-      <DesktopAdminSidebar onLogout={onLogout} pathname={pathname} search={search} />
+      <DesktopAdminSidebar badges={badges} onLogout={onLogout} pathname={pathname} search={search} />
     </>
   );
 }
@@ -144,11 +156,13 @@ function MobileAdminDrawer({
   search,
   onClose,
   onLogout,
+  badges,
 }: {
   pathname: string;
   search: string;
   onClose: () => void;
   onLogout: () => void;
+  badges: Record<string, number>;
 }) {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const closeRef = useRef<HTMLButtonElement | null>(null);
@@ -196,7 +210,7 @@ function MobileAdminDrawer({
             <Icon name="close" className="h-5 w-5" />
           </button>
         </div>
-        <AdminNavSections onNavigate={onClose} pathname={pathname} search={search} />
+        <AdminNavSections badges={badges} onNavigate={onClose} pathname={pathname} search={search} />
         <LogoutButton onLogout={onLogout} />
       </div>
     </div>,
@@ -208,10 +222,12 @@ function DesktopAdminSidebar({
   pathname,
   search,
   onLogout,
+  badges,
 }: {
   pathname: string;
   search: string;
   onLogout: () => void;
+  badges: Record<string, number>;
 }) {
   const collapsed = useSyncExternalStore(
     subscribeAdminSidebarCollapsed,
@@ -242,7 +258,7 @@ function DesktopAdminSidebar({
           </span>
         )}
       </Link>
-      <AdminNavSections pathname={pathname} search={search} railed={collapsed} />
+      <AdminNavSections badges={badges} pathname={pathname} search={search} railed={collapsed} />
       <SidebarCollapseToggle
         collapsed={collapsed}
         onToggle={() => setAdminSidebarCollapsed(!collapsed)}
@@ -287,12 +303,14 @@ function AdminNavSections({
   search,
   onNavigate,
   railed = false,
+  badges,
 }: {
   pathname: string;
   search: string;
   onNavigate?: () => void;
   /** Icon-only desktop rail. The mobile drawer never uses this. */
   railed?: boolean;
+  badges: Record<string, number>;
 }) {
   const stored = useSyncExternalStore(
     subscribeAdminNavSections,
@@ -338,6 +356,7 @@ function AdminNavSections({
               <ul className="grid gap-1" id={sectionId}>
                 {group.items.map((item) => {
                   const active = isAdminNavItemActive(item, pathname, search);
+                  const badge = badges[item.href] ?? 0;
 
                   return (
                     <li key={item.href}>
@@ -368,8 +387,30 @@ function AdminNavSections({
                             </span>
                           </>
                         ) : (
-                          item.label
+                          <>
+                            <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                            {badge > 0 ? (
+                              <span
+                                aria-hidden="true"
+                                className={`inline-flex min-w-6 shrink-0 items-center justify-center rounded-full px-1.5 py-0.5 text-[0.65rem] font-black ${
+                                  active ? "bg-[#ffe2d8] text-[#9a3412]" : "bg-[#ff8b72] text-[#30120d]"
+                                }`}
+                                title={`${badge} item${badge === 1 ? "" : "s"} need attention`}
+                              >
+                                {badge > 99 ? "99+" : badge}
+                              </span>
+                            ) : null}
+                          </>
                         )}
+                        {railed && badge > 0 ? (
+                          <span
+                            aria-hidden="true"
+                            className="absolute right-1 top-1 inline-flex min-h-4 min-w-4 items-center justify-center rounded-full bg-[#ff8b72] px-1 text-[0.55rem] font-black leading-none text-[#30120d]"
+                            title={`${badge} item${badge === 1 ? "" : "s"} need attention`}
+                          >
+                            {badge > 9 ? "9+" : badge}
+                          </span>
+                        ) : null}
                       </Link>
                     </li>
                   );

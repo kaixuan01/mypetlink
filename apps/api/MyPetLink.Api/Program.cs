@@ -373,6 +373,8 @@ builder.Services.AddScoped<IEmailPreviewService, EmailPreviewService>();
 builder.Services.AddScoped<TransactionalEmailLayout>();
 builder.Services.AddScoped<PaymentConfirmedEmailTemplateRenderer>();
 builder.Services.AddScoped<OrderShippedEmailTemplateRenderer>();
+builder.Services.AddScoped<AdminPaymentProofSubmittedEmailTemplateRenderer>();
+builder.Services.AddScoped<PaymentProofRejectedEmailTemplateRenderer>();
 builder.Services.AddScoped<MerchantQuotationEmailTemplateRenderer>();
 builder.Services.AddScoped<MerchantInvoiceEmailTemplateRenderer>();
 builder.Services.AddScoped<MerchantPaymentConfirmationEmailTemplateRenderer>();

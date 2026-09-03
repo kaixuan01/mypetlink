@@ -20,6 +20,9 @@ public static class EmailSuppressionReasons
     /// belongs to a historical backlog that must never be released.
     /// </summary>
     public const string BeforeEnabledFromUtc = "BeforeEnabledFromUtc";
+
+    /// <summary>The operational mailbox is absent or is not a valid address.</summary>
+    public const string OperationsRecipientUnavailable = "OperationsRecipientUnavailable";
 }
 
 /// <summary>

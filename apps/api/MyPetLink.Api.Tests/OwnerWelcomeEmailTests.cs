@@ -246,6 +246,12 @@ public sealed class OwnerWelcomeEmailTests
                 new OrderShippedEmailTemplateRenderer(
                     disabledOptions,
                     new TransactionalEmailLayout(disabledOptions)),
+                new AdminPaymentProofSubmittedEmailTemplateRenderer(
+                    disabledOptions,
+                    new TransactionalEmailLayout(disabledOptions)),
+                new PaymentProofRejectedEmailTemplateRenderer(
+                    disabledOptions,
+                    new TransactionalEmailLayout(disabledOptions)),
                 new MerchantQuotationEmailTemplateRenderer(
                     new TransactionalEmailLayout(disabledOptions)),
                 new MerchantInvoiceEmailTemplateRenderer(
@@ -613,6 +619,8 @@ public sealed class OwnerWelcomeEmailTests
                     new PaymentConfirmedEmailTemplateRenderer(optionValue, layout),
                     WelcomeRenderer,
                     new OrderShippedEmailTemplateRenderer(optionValue, layout),
+                    new AdminPaymentProofSubmittedEmailTemplateRenderer(optionValue, layout),
+                    new PaymentProofRejectedEmailTemplateRenderer(optionValue, layout),
                     new MerchantQuotationEmailTemplateRenderer(layout),
                     new MerchantInvoiceEmailTemplateRenderer(layout),
                     new MerchantPaymentConfirmationEmailTemplateRenderer(layout),

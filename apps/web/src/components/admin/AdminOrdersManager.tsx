@@ -1,7 +1,11 @@
 "use client";
 
 import { dateOnlyOrUndefined, isGuid } from "@/lib/adminListShared";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useAdminOperationalData,
+  useRefreshWhenVisible,
+} from "@/components/admin/AdminOperationalContext";
 import { AdminOrderDetailDrawer } from "@/components/admin/AdminOrderDetailDrawer";
 import { AdminSection } from "@/components/admin/AdminPanels";
 import { TagAssignmentModal, type TagAssignmentMode } from "@/components/admin/TagAssignmentModal";
@@ -184,6 +188,7 @@ const shortcuts: { value: string; label: string; count: keyof AdminOrderCounts }
 type PendingAction = { action: Exclude<AdminOrderAction, "assign-tag" | "change-tag" | "replace-tag">; detail: AdminOrderDetail };
 
 export function AdminOrdersManager() {
+  const { refresh: refreshOperationalData } = useAdminOperationalData();
   const { query, actions, hasActiveFilters } = useAdminTableQuery({
     filterKeys,
     defaultSortBy: "createdAt",
@@ -341,9 +346,10 @@ export function AdminOrdersManager() {
   const openOrder = items.find((item) => item.id === openOrderId || item.orderNumber === openOrderId)
     ?? (detachedOrder && (detachedOrder.id === openOrderId || detachedOrder.orderNumber === openOrderId) ? detachedOrder : null);
 
-  function refresh() {
+  const refresh = useCallback(() => {
     setReloadKey((value) => value + 1);
-  }
+  }, []);
+  useRefreshWhenVisible(refresh);
 
   async function runExport(format: AdminExportFormat, scope: "filtered" | "selected") {
     setExportBusy(true);
@@ -498,6 +504,7 @@ export function AdminOrdersManager() {
       setPendingAction(null);
       setSelectedIds(new Set());
       refresh();
+      void refreshOperationalData();
     } catch (caught) {
       setDialogError(getFriendlyTagErrorMessage(caught));
     } finally {
@@ -519,6 +526,7 @@ export function AdminOrdersManager() {
       setMessage(tagModal.mode === "assign" ? "Inventory tag assigned." : tagModal.mode === "change" ? "Assigned tag changed." : "Replacement tag issued.");
       setTagModal(null);
       refresh();
+      void refreshOperationalData();
     } catch (caught) {
       setMessage(getFriendlyTagErrorMessage(caught));
     } finally {

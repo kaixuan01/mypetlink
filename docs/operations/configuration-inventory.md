@@ -50,7 +50,7 @@ Owner: Operations. Changing requires redeploy or restart.
 | `Storage:Provider`, `Storage:LocalRoot`, `Storage:PublicBaseUrl` | `StorageOptions` | Legacy provider/status settings. Current media requests resolve `CloudflareR2StorageService`; production R2 validation follows that effective service and does not depend on `Provider`. Local settings are not a working media fallback. |
 | `CloudflareR2:*` (non-secret members) | `CloudflareR2Options` | Bucket names, service URL, presign expiry |
 | `PublicSite:BaseUrl` | `PublicSiteOptions` | Manufacturer QR/NFC export only; intentionally empty so tag production fails loudly. Optional while physical tags are deferred, required before export. |
-| `Email:Provider`, `FromAddress`, `FromName`, `OwnerPortalBaseUrl`, `BrandLogoUrl`, `BrandAssetBaseUrl` | `EmailOptions` | Brand asset URLs validated HTTPS-only |
+| `Email:Provider`, `FromAddress`, `FromName`, `OwnerPortalBaseUrl`, `BrandLogoUrl`, `BrandAssetBaseUrl`, `OperationsRecipient` | `EmailOptions` | `OperationsRecipient` receives payment-proof review alerts. Missing/invalid values suppress those alerts without blocking customer submissions. Brand asset URLs are validated HTTPS-only. |
 | `Email:Smtp:Host`, `Port`, `UseStartTls`, `ConnectionTimeoutSeconds` | `SmtpEmailOptions` | `UseStartTls` must be true |
 | `Email:Dispatch:PollIntervalSeconds`, `BatchSize`, `MaxConcurrency`, `VisibilityTimeoutSeconds` | `EmailDispatchOptions` | Worker tuning — must not be exposed to business Admin |
 | `OrderReservation:ExpiryEnabled`, `PollIntervalSeconds`, `BatchSize` | `OrderReservationOptions` | Unpaid-order expiry worker tuning. Admin sees safe read-only status; the payment window itself is database-owned. |
@@ -90,7 +90,7 @@ Typed domain tables with audit and `RowVersion`. This is the correct pattern.
 | Promotions | `Promotions`, `PromotionVariants` | `/admin/tag-products` | Discounts |
 | Plans | `Plans`, `PlanLimits` | `/admin/plans` (read-only today) | `MaxPets`, `MaxMemoriesPerPet`, `MaxCareRecords`, `ScanHistoryDays`, entitlement booleans. **Editing requires product approval — see pending decisions.** |
 | Inventory | `SmartTagBatches`, `SmartTags` | `/admin/tag-inventory` | Batch generation, stock lifecycle |
-| Email templates | `EmailTemplateSettings` | `/admin/email-templates` | One row per message type. `IsEnabled` + `EnabledFromUtc`, audited, `RowVersion`. Missing row = disabled. |
+| Email templates | `EmailTemplateSettings` | `/admin/email-templates` | One row per message type. `IsEnabled` + `EnabledFromUtc`, audited, `RowVersion`. Missing row = disabled. The payment-confirmed, order-shipped, payment-proof review alert, and payment-proof rejected rows are seeded disabled by `AddPaymentProofNotifications`. |
 | Order checkout | `OrderCheckoutSettings` | `/admin/order-checkout` | Unpaid payment-reservation duration (30 minutes to 72 hours), snapshotted onto each order. Audited with `RowVersion`. |
 | Public Sample Experience | `PublicSiteSettings`, `Pets.IsSampleEligible` | `/admin/sample-experience`, `/admin/pets` | Optionally personalizes the homepage and `/sample` previews with one explicitly Admin-approved pet referenced by `PetId`; never copies pet or owner data. Both settings and eligibility changes are audited and concurrency controlled. Missing or invalid selection fails closed to intentional static sample content without selecting another database pet. |
 
@@ -103,7 +103,7 @@ Admin counts are operational, not raw status tallies:
 | **Ready to send** (`EligibleCount`) | `Pending`, template on, `CreatedAt >= EnabledFromUtc`, global delivery on. The worker will claim these next run. |
 | **Paused** (`PausedCount`) | Would be ready, but `Email:Enabled` is off. Resumes automatically. |
 | **Blocked** (`BlockedCount`) | `Pending` but permanently non-dispatchable: predates `EnabledFromUtc`, or the template is off. Never sends automatically. |
-| **Held back** (`SuppressedCount`) | Recorded while the template was off. Never sends. |
+| **Held back** (`SuppressedCount`) | Recorded while the template was off, or while an operational recipient was unavailable. Never sends. |
 | **Not delivered** (`FailedCount`) | Attempted and failed; Admin Retry available while the template can send. |
 | **Sent** (`SentCount`) | Delivered. |
 

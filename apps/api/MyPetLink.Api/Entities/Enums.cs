@@ -64,6 +64,8 @@ public enum EmailMessageType
     PaymentConfirmed,
     OwnerWelcome,
     OrderShipped,
+    AdminPaymentProofSubmitted,
+    PaymentProofRejected,
 
     // Merchant Sales. Stored as strings, so appending values cannot disturb
     // rows already written.

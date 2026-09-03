@@ -2,7 +2,7 @@
 
 Contract draft for the C# .NET 8 API.
 
-Implementation status (2026-07-04): auth, owner profile, pets, public reads, care records, memories, smart tags, orders/payment proofs, `/t` scan resolution, and the admin group are implemented in `apps/api`. Implemented admin routes differ slightly from this draft (see `apps/api/README.md` for the authoritative list): order fulfillment uses explicit `POST /admin/orders/{id}/mark-preparing|mark-shipped|mark-delivered` routes (with `POST {id}/status` kept as a compatibility dispatcher), payment proofs add `GET /admin/payment-proofs/{id}` plus `POST {id}/approve|reject` sharing the order transition logic, tag generation/export live under `/admin/tag-inventory` (`GET`, `POST /generate`, `GET /export`), tag status actions are explicit `POST /admin/tags/{id}/disable|mark-lost|replace|archive|restore` routes, and `PATCH /admin/settings` is not implemented (read-only Phase 1). Notifications and found reports remain future.
+Implementation status (2026-07-04): auth, owner profile, pets, public reads, care records, memories, smart tags, orders/payment proofs, `/t` scan resolution, transactional email, and the admin group are implemented in `apps/api`. Implemented admin routes differ slightly from this draft (see `apps/api/README.md` for the authoritative list): order fulfillment uses explicit `POST /admin/orders/{id}/mark-preparing|mark-shipped|mark-delivered` routes (with `POST {id}/status` kept as a compatibility dispatcher), payment proofs add `GET /admin/payment-proofs/{id}` plus `POST {id}/approve|reject` sharing the order transition logic, tag generation/export live under `/admin/tag-inventory` (`GET`, `POST /generate`, `GET /export`), tag status actions are explicit `POST /admin/tags/{id}/disable|mark-lost|replace|archive|restore` routes, and `PATCH /admin/settings` is not implemented (read-only Phase 1). A broader notification center and found reports remain future.
 
 Base path: `/api/v1`
 
@@ -1069,6 +1069,9 @@ Response:
 
 - order with status `PaymentProofSubmitted`
 - payment proof metadata including provider-neutral file fields
+- one `AdminPaymentProofSubmitted` outbox row for that proof is queued in the
+  same database write; invalid operations-recipient configuration records the
+  row as suppressed and does not fail the customer request
 
 Validation:
 
@@ -1076,6 +1079,8 @@ Validation:
 - order status must be `PendingPayment` or `PaymentProofSubmitted`.
 - current implementation stores metadata only; real file bytes/upload storage are not implemented yet.
 - submitting a new proof supersedes earlier pending proof metadata.
+- replaying the same proof submission is idempotent and does not create a
+  second proof or operational email.
 
 Errors:
 
@@ -1365,12 +1370,15 @@ Transition:
 - order `PaymentProofSubmitted` -> `PendingPayment`
 - payment `ProofSubmitted` -> `Rejected`
 - proof `PendingReview` -> `Rejected`
+- payment reservation deadline is refreshed
+- one `PaymentProofRejected` customer email is queued transactionally
 
 Rules:
 
 - Order is never deleted.
 - Existing proof remains in history.
 - The rejected proof keeps its `RejectionReason` and `ReviewedAt`; a later resubmission adds a new proof row and only supersedes still-pending proofs, so the rejection stays visible in `paymentProofs` and the order `timeline`.
+- Replaying an already completed review does not enqueue another email.
 
 ### POST `/api/v1/admin/orders/{orderId}/status`
 

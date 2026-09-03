@@ -345,6 +345,8 @@ public sealed class AdminEmailTemplateService : IAdminEmailTemplateService
         EmailMessageType.OwnerWelcome => "Welcome email",
         EmailMessageType.PaymentConfirmed => "Payment confirmation",
         EmailMessageType.OrderShipped => "Order shipped",
+        EmailMessageType.AdminPaymentProofSubmitted => "Payment proof review alert",
+        EmailMessageType.PaymentProofRejected => "Payment proof rejected",
         EmailMessageType.MerchantQuotation => "Business quotation",
         EmailMessageType.MerchantInvoice => "Business invoice",
         EmailMessageType.MerchantPaymentConfirmation => "Business payment confirmation",
@@ -359,6 +361,10 @@ public sealed class AdminEmailTemplateService : IAdminEmailTemplateService
             "Sent when an order payment is confirmed, with a link to the Official Receipt.",
         EmailMessageType.OrderShipped =>
             "Sent once when an order is marked shipped, with courier and tracking details.",
+        EmailMessageType.AdminPaymentProofSubmitted =>
+            "Sent to the operations mailbox when a customer submits a payment proof for review.",
+        EmailMessageType.PaymentProofRejected =>
+            "Sent to a customer when their payment proof is rejected and needs to be resubmitted.",
         EmailMessageType.MerchantQuotation =>
             "Sent to a business customer when an administrator emails their quotation, with the quotation attached.",
         EmailMessageType.MerchantInvoice =>

@@ -13,6 +13,144 @@ namespace MyPetLink.Api.Tests;
 public sealed class PaymentConfirmationEmailTests
 {
     [Fact]
+    public async Task PaymentProofSubmission_QueuesOneOperationalMessageAndReplayIsIdempotent()
+    {
+        using var harness = await Harness.CreateAsync();
+        var (order, media) = await harness.AddPendingOrderWithMediaAsync("MPL-ORD-PROOF-NOTIFY");
+        var request = new DTOs.UploadPaymentProofRequest(
+            media.Id,
+            media.OriginalFileName,
+            "DuitNow QR",
+            "PAY-REF-123",
+            "Paid this morning",
+            47m);
+
+        Assert.Empty(await harness.Db.EmailOutbox.Where(item =>
+            item.MessageType == EmailMessageType.AdminPaymentProofSubmitted).ToListAsync());
+
+        await harness.Orders.SubmitPaymentProofAsync(Harness.OwnerUserId, order.OrderNumber, request);
+        await harness.Orders.SubmitPaymentProofAsync(Harness.OwnerUserId, order.OrderNumber, request);
+
+        var message = Assert.Single(await harness.Db.EmailOutbox
+            .Where(item => item.MessageType == EmailMessageType.AdminPaymentProofSubmitted)
+            .ToListAsync());
+        Assert.Equal(EmailOutboxStatus.Pending, message.Status);
+        Assert.Equal("operations@example.com", message.RecipientEmail);
+        Assert.NotNull(message.RelatedPaymentProofId);
+        Assert.Single(await harness.Db.PaymentProofs.Where(proof => proof.OrderId == order.Id).ToListAsync());
+        var data = JsonSerializer.Deserialize<AdminPaymentProofSubmittedEmailTemplateData>(
+            message.TemplateDataJson,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        Assert.NotNull(data);
+        Assert.Equal(order.OrderNumber, data!.OrderNumber);
+        Assert.Equal("Aina", data.CustomerName);
+        Assert.Equal("owner@example.com", data.CustomerEmail);
+        Assert.Equal(47m, data.Amount);
+        Assert.Equal("PAY-REF-123", data.PaymentReference);
+        Assert.Contains(data.Items, item => item.PetName == "Topu" && item.Quantity == 1);
+        Assert.DoesNotContain(media.StoragePath, message.TemplateDataJson);
+
+        var rendered = new AdminPaymentProofSubmittedEmailTemplateRenderer(
+            Microsoft.Extensions.Options.Options.Create(Harness.Options(true)),
+            new TransactionalEmailLayout(Microsoft.Extensions.Options.Options.Create(Harness.Options(true))))
+            .Render(message);
+        Assert.Contains($"admin/payment-proofs?proof={message.RelatedPaymentProofId}", rendered.TextBody);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("not-an-email")]
+    public async Task MissingOrInvalidOperationsRecipient_DoesNotFailSubmission(string recipient)
+    {
+        using var harness = await Harness.CreateAsync(operationsRecipient: recipient);
+        var (order, media) = await harness.AddPendingOrderWithMediaAsync($"MPL-ORD-NO-OPS-{Guid.NewGuid():N}");
+
+        var result = await harness.Orders.SubmitPaymentProofAsync(
+            Harness.OwnerUserId,
+            order.OrderNumber,
+            new DTOs.UploadPaymentProofRequest(media.Id, media.OriginalFileName, "QR Payment", null, null, 47m));
+
+        Assert.Equal(PaymentStatus.ProofSubmitted, result.PaymentStatus);
+        var message = await harness.Db.EmailOutbox.SingleAsync(item =>
+            item.MessageType == EmailMessageType.AdminPaymentProofSubmitted);
+        Assert.Equal(EmailOutboxStatus.Suppressed, message.Status);
+        Assert.Equal(EmailSuppressionReasons.OperationsRecipientUnavailable, message.SuppressionReason);
+        Assert.Equal("", message.RecipientEmail);
+    }
+
+    [Fact]
+    public async Task MissingSubmissionTemplate_SuppressesEmailWithoutFailingCustomerRequest()
+    {
+        using var harness = await Harness.CreateAsync(enabled: false);
+        var (order, media) = await harness.AddPendingOrderWithMediaAsync("MPL-ORD-NO-TEMPLATE");
+
+        await harness.Orders.SubmitPaymentProofAsync(
+            Harness.OwnerUserId,
+            order.OrderNumber,
+            new DTOs.UploadPaymentProofRequest(media.Id, media.OriginalFileName, "QR Payment", null, null, 47m));
+
+        var message = await harness.Db.EmailOutbox.SingleAsync(item =>
+            item.MessageType == EmailMessageType.AdminPaymentProofSubmitted);
+        Assert.Equal(EmailOutboxStatus.Suppressed, message.Status);
+        Assert.Equal(EmailSuppressionReasons.TemplateDisabled, message.SuppressionReason);
+    }
+
+    [Fact]
+    public async Task OtherOwnerCannotSubmitProofOrLeakAnOperationalMessage()
+    {
+        using var harness = await Harness.CreateAsync();
+        var (order, media) = await harness.AddPendingOrderWithMediaAsync("MPL-ORD-PRIVATE-PROOF");
+
+        var error = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Orders.SubmitPaymentProofAsync(
+                Harness.OtherOwnerUserId,
+                order.OrderNumber,
+                new DTOs.UploadPaymentProofRequest(media.Id, media.OriginalFileName, "QR Payment", null, null, 47m)));
+
+        Assert.Equal(StatusCodes.Status404NotFound, error.StatusCode);
+        Assert.Empty(await harness.Db.EmailOutbox.Where(item =>
+            item.MessageType == EmailMessageType.AdminPaymentProofSubmitted).ToListAsync());
+    }
+
+    [Fact]
+    public async Task PaymentProofRejection_QueuesExactlyOneCustomerMessageWithNewDeadline()
+    {
+        using var harness = await Harness.CreateAsync();
+
+        var result = await harness.Admin.RejectPaymentProofAsync(
+            Harness.AdminUserId,
+            Harness.OrderId,
+            "The payment reference does not match the receipt.");
+
+        var message = Assert.Single(await harness.Db.EmailOutbox
+            .Where(item => item.MessageType == EmailMessageType.PaymentProofRejected)
+            .ToListAsync());
+        Assert.Equal("owner@example.com", message.RecipientEmail);
+        Assert.Equal(EmailOutboxStatus.Pending, message.Status);
+        var data = JsonSerializer.Deserialize<PaymentProofRejectedEmailTemplateData>(
+            message.TemplateDataJson,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        Assert.NotNull(data);
+        Assert.Equal("MPL-ORD-EMAIL", data!.OrderNumber);
+        Assert.Equal("The payment reference does not match the receipt.", data.RejectionReason);
+        Assert.Equal(result.Order.PaymentReservationExpiresAt, data.PaymentDeadline);
+
+        await Assert.ThrowsAsync<ApiException>(() => harness.Admin.RejectPaymentProofAsync(
+            Harness.AdminUserId,
+            Harness.OrderId,
+            "Replay"));
+        Assert.Single(await harness.Db.EmailOutbox.Where(item =>
+            item.MessageType == EmailMessageType.PaymentProofRejected).ToListAsync());
+
+        var options = Microsoft.Extensions.Options.Options.Create(Harness.Options(true));
+        var rendered = new PaymentProofRejectedEmailTemplateRenderer(
+            options,
+            new TransactionalEmailLayout(options)).Render(message);
+        Assert.Contains("View Order and Resubmit", rendered.TextBody);
+        Assert.Contains("The payment reference does not match the receipt.", rendered.TextBody);
+    }
+
+    [Fact]
     public async Task SuccessfulConfirmation_QueuesExactlyOneImmutableMessage()
     {
         using var harness = await Harness.CreateAsync();
@@ -317,6 +455,17 @@ public sealed class PaymentConfirmationEmailTests
         Assert.Equal(expectedValid, result.Succeeded);
     }
 
+    [Fact]
+    public void InvalidOperationsRecipient_IsHandledAtEnqueueInsteadOfBlockingStartup()
+    {
+        var options = Harness.Options(true);
+        options.OperationsRecipient = "not-an-email";
+
+        var result = new EmailOptionsValidator().Validate(null, options);
+
+        Assert.True(result.Succeeded);
+    }
+
     private sealed class Harness : IDisposable
     {
         public static readonly Guid AdminUserId = Guid.Parse("91111111-1111-1111-1111-111111111111");
@@ -333,12 +482,14 @@ public sealed class PaymentConfirmationEmailTests
         public AdminService Admin { get; }
         public OrderService Orders { get; }
 
-        private Harness(MyPetLinkDbContext db, bool enabled)
+        private Harness(MyPetLinkDbContext db, bool enabled, string operationsRecipient)
         {
             Db = db;
             Clock = new MutableTimeProvider(DateTimeOffset.Parse("2026-07-27T02:00:00Z"));
             Sender = new RecordingEmailSender();
-            var emailOptions = Microsoft.Extensions.Options.Options.Create(Options(enabled));
+            var options = Options(enabled);
+            options.OperationsRecipient = operationsRecipient;
+            var emailOptions = Microsoft.Extensions.Options.Options.Create(options);
             Renderer = new PaymentConfirmedEmailTemplateRenderer(
                 emailOptions,
                 new TransactionalEmailLayout(emailOptions));
@@ -352,7 +503,7 @@ public sealed class PaymentConfirmationEmailTests
                 NullLogger<EmailOutboxDispatcher>.Instance,
                 new EmailAttachmentResolver(new OrderDocumentService(db), new MerchantDocumentService(db)));
             var gate = new EmailTemplateGate(db, emailOptions);
-            var outbox = new EmailOutboxService(db, audit, Clock, gate);
+            var outbox = new EmailOutboxService(db, audit, Clock, gate, options: emailOptions);
             Admin = new AdminService(
                 db,
                 audit,
@@ -365,10 +516,16 @@ public sealed class PaymentConfirmationEmailTests
                     SmartTagOrderingEnabled = true
                 }),
                 new TagPricingService(db),
-                new DeliveryService(db, new TagPricingService(db), audit));
+                new DeliveryService(db, new TagPricingService(db), audit),
+                new BusinessReferenceGenerator(new CryptographicBusinessReferenceSuffixSource()),
+                Clock,
+                auditLogService: audit,
+                emailOutboxService: outbox);
         }
 
-        public static async Task<Harness> CreateAsync(bool enabled = true)
+        public static async Task<Harness> CreateAsync(
+            bool enabled = true,
+            string operationsRecipient = "operations@example.com")
         {
             var db = new MyPetLinkDbContext(
                 new DbContextOptionsBuilder<MyPetLinkDbContext>()
@@ -434,11 +591,76 @@ public sealed class PaymentConfirmationEmailTests
                     CreatedAt = DateTimeOffset.Parse("2026-07-27T00:00:00Z"),
                     UpdatedAt = DateTimeOffset.Parse("2026-07-27T00:00:00Z")
                 });
+                db.EmailTemplateSettings.AddRange(
+                    EnabledTemplate(EmailMessageType.AdminPaymentProofSubmitted),
+                    EnabledTemplate(EmailMessageType.PaymentProofRejected));
             }
 
             await db.SaveChangesAsync();
-            return new Harness(db, enabled);
+            return new Harness(db, enabled, operationsRecipient);
         }
+
+        public async Task<(TagOrder Order, MediaFile Media)> AddPendingOrderWithMediaAsync(string orderNumber)
+        {
+            var order = NewOrder(orderNumber, OrderStatus.PendingPayment, PaymentStatus.Pending);
+            order.PaymentReservationExpiresAt = Clock.GetUtcNow().AddHours(2);
+            order.Items.Add(new TagOrderItem
+            {
+                Id = Guid.NewGuid(),
+                OrderId = order.Id,
+                PetId = PetId,
+                PetNameSnapshot = "Topu",
+                ProductNameSnapshot = "MyPetLink QR + NFC Smart Tag",
+                VariantNameSnapshot = "Standard Tag",
+                SkuSnapshot = "MPL-NFC-STANDARD",
+                SupportsQrSnapshot = true,
+                SupportsNfcSnapshot = true,
+                UnitBasePrice = 39m,
+                Quantity = 1,
+                Subtotal = 39m,
+                FinalUnitPrice = 39m,
+                FinalAmount = 39m,
+                Currency = "MYR"
+            });
+            var media = new MediaFile
+            {
+                Id = Guid.NewGuid(),
+                OwnerUserId = OwnerUserId,
+                OriginalFileName = "proof.jpg",
+                StorageFileName = "proof-private.jpg",
+                ContentType = "image/jpeg",
+                FileSize = 1024,
+                StorageProvider = "Local",
+                StoragePath = "private/orders/proof-private.jpg",
+                Category = MediaUploadCategory.OrderReceipt,
+                UploadStatus = MediaUploadStatus.Ready,
+                IsPublic = false,
+                Sha256 = "proof-sha"
+            };
+            var link = new MediaFileLink
+            {
+                Id = Guid.NewGuid(),
+                MediaFileId = media.Id,
+                MediaFile = media,
+                OwnerType = MediaOwnerType.TagOrder,
+                OwnerId = order.Id
+            };
+            Db.TagOrders.Add(order);
+            Db.MediaFiles.Add(media);
+            Db.MediaFileLinks.Add(link);
+            await Db.SaveChangesAsync();
+            return (order, media);
+        }
+
+        private static EmailTemplateSetting EnabledTemplate(EmailMessageType type) => new()
+        {
+            Id = Guid.NewGuid(),
+            MessageType = type,
+            IsEnabled = true,
+            EnabledFromUtc = DateTimeOffset.Parse("2026-07-27T00:00:00Z"),
+            CreatedAt = DateTimeOffset.Parse("2026-07-27T00:00:00Z"),
+            UpdatedAt = DateTimeOffset.Parse("2026-07-27T00:00:00Z")
+        };
 
         public static TagOrder NewOrder(
             string number,

@@ -47,6 +47,7 @@ Email__FromName=MyPetLink
 Email__OwnerPortalBaseUrl=https://mypetlink.com.my
 Email__BrandLogoUrl=https://mypetlink.com.my/logo-horizontal.png
 Email__BrandAssetBaseUrl=https://mypetlink.com.my/email-assets
+Email__OperationsRecipient=operations@mypetlink.com.my
 Email__Smtp__Host=smtppro.zoho.com
 Email__Smtp__Port=587
 Email__Smtp__UseStartTls=true
@@ -59,6 +60,11 @@ Store `Email__Smtp__Password` in Azure App Service configuration or another
 approved secret store. See
 [`payment-confirmation-email.md`](./payment-confirmation-email.md) before
 enabling delivery.
+
+`Email__OperationsRecipient` is the reviewed MyPetLink-owned mailbox for new
+payment-proof alerts. If it is missing or invalid, proof submission continues
+but the alert is permanently recorded as held back; it is never redirected to
+the sender or a customer address.
 
 `Email__Enabled` is the global emergency switch and the only email switch in
 App Settings. It **pauses** delivery: queued messages stay waiting and resume

@@ -290,7 +290,7 @@ On **FIUU readiness**: the architecture would not obstruct a future gateway. Pay
 
 Infrastructure is solid — outbox table, background dispatcher with visibility timeout and retry, MailKit SMTP, shared branded layout, a two-level `EmailTemplateGate`, and dev preview endpoints.
 
-Only **three owner-facing** templates exist: `OwnerWelcome`, `PaymentConfirmed`, `OrderShipped` (plus four merchant/B2B templates). There is no acknowledgement when a payment proof is *received*, no delivered notification, no tag-activation confirmation, and no reminder of any kind. **`Email:Enabled` is `false` by default**, so even the welcome email does not send unless explicitly switched on — this must be an explicit launch-checklist decision.
+Four **owner-facing** templates exist: `OwnerWelcome`, `PaymentConfirmed`, `PaymentProofRejected`, and `OrderShipped` (plus the operational `AdminPaymentProofSubmitted` template and four merchant/B2B templates). There is no customer acknowledgement when a payment proof is *received*, no delivered notification, no tag-activation confirmation, and no reminder of any kind. **`Email:Enabled` is `false` by default**, so even the welcome email does not send unless explicitly switched on — this must be an explicit launch-checklist decision.
 
 ## Analytics Assessment
 

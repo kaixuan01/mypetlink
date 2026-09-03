@@ -9,6 +9,7 @@ public sealed class EmailOutbox : AuditableEntity
     public string TemplateDataJson { get; set; } = "";
     public Guid? RelatedOrderId { get; set; }
     public Guid? RelatedUserId { get; set; }
+    public Guid? RelatedPaymentProofId { get; set; }
 
     // Merchant Sales relations. A merchant is not a MyPetLink user and a
     // merchant order is not a TagOrder, so these documents need their own
@@ -37,6 +38,7 @@ public sealed class EmailOutbox : AuditableEntity
 
     public TagOrder? RelatedOrder { get; set; }
     public User? RelatedUser { get; set; }
+    public PaymentProof? RelatedPaymentProof { get; set; }
     public MerchantQuotation? RelatedMerchantQuotation { get; set; }
     public MerchantInvoice? RelatedMerchantInvoice { get; set; }
     public MerchantDeliveryOrder? RelatedMerchantDeliveryOrder { get; set; }

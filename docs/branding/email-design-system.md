@@ -223,7 +223,11 @@ Existing customer templates are:
 
 - `OwnerWelcomeEmailTemplateRenderer`;
 - `PaymentConfirmedEmailTemplateRenderer`;
+- `PaymentProofRejectedEmailTemplateRenderer`;
 - `OrderShippedEmailTemplateRenderer`.
+
+The `AdminPaymentProofSubmittedEmailTemplateRenderer` operational template also
+uses this shared layout.
 
 New renderers must be added to `EmailTemplateRenderer` and compose the shared
 layout rather than copying an existing renderer's HTML.

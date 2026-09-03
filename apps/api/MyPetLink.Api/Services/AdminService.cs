@@ -1257,6 +1257,7 @@ public sealed class AdminService : SkeletonService, IAdminService
             .Include(order => order.AssignedTags)
                 .ThenInclude(tag => tag.OrderItem)
             .Include(order => order.PaymentProofs)
+                .ThenInclude(proof => proof.EmailOutboxMessages)
             .Include(order => order.EmailOutboxMessages)
             .Include(order => order.Items)
                 .ThenInclude(item => item.Pet)
@@ -1463,6 +1464,12 @@ public sealed class AdminService : SkeletonService, IAdminService
                             await _checkoutSettings.GetPaymentReservationMinutesAsync(
                                 cancellationToken));
                         order.PaymentReservationExpiredAt = null;
+                        await _emailOutboxService.EnqueuePaymentProofRejectedAsync(
+                            order,
+                            proof,
+                            now,
+                            order.PaymentReservationExpiresAt,
+                            cancellationToken);
                     }
                     order.UpdatedAt = now;
 

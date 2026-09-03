@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminNotice, AdminSection } from "@/components/admin/AdminPanels";
+import {
+  useAdminOperationalData,
+  useRefreshWhenVisible,
+} from "@/components/admin/AdminOperationalContext";
 import { AdminPaymentProofDetailDrawer } from "@/components/admin/AdminPaymentProofDetailDrawer";
 import { formatAdminDateTime } from "@/components/admin/adminDisplay";
 import { AdminBulkActionBar, type AdminBulkAction } from "@/components/admin/table/AdminBulkActionBar";
@@ -79,6 +83,7 @@ const QUEUE_SORT = "queue";
 type PendingReview = { decision: "approve" | "reject"; proof: AdminPaymentProof };
 
 export function AdminPaymentProofsManager() {
+  const { refresh: refreshOperationalData } = useAdminOperationalData();
   const { query, actions, hasActiveFilters } = useAdminTableQuery({
     filterKeys,
     defaultSortBy: QUEUE_SORT,
@@ -150,6 +155,7 @@ export function AdminPaymentProofsManager() {
   const selectedIds = selection.key === paramsKey ? selection.ids : new Set<string>();
   const setSelectedIds = (ids: Set<string>) => setSelection({ key: paramsKey, ids });
   const refresh = useCallback(() => setReloadKey((value) => value + 1), []);
+  useRefreshWhenVisible(refresh);
 
   const openProofId = actions.getExtraParam("proof");
   const openProof = items.find((proof) => proof.id === openProofId)
@@ -197,6 +203,7 @@ export function AdminPaymentProofsManager() {
       setPendingReview(null);
       setDetachedProof(null);
       refresh();
+      void refreshOperationalData();
     } catch (caught) {
       setDialogError(getFriendlyTagErrorMessage(caught));
     } finally {

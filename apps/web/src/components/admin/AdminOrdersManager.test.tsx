@@ -140,4 +140,15 @@ describe("AdminOrdersManager", () => {
     fireEvent.click(screen.getByRole("button", { name: "Try Again" }));
     await waitFor(() => expect(mocks.listOrders).toHaveBeenCalledTimes(2));
   });
+
+  it("refreshes the retail queue once when focus and visibility return together", async () => {
+    render(<AdminOrdersManager />);
+    await screen.findByText("MPL-ORD-1001");
+
+    fireEvent.focus(window);
+    document.dispatchEvent(new Event("visibilitychange"));
+
+    await waitFor(() => expect(mocks.listOrders).toHaveBeenCalledTimes(2));
+    expect(mocks.countOrders).toHaveBeenCalledTimes(2);
+  });
 });

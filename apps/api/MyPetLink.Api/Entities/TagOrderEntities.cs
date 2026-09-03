@@ -161,6 +161,7 @@ public sealed class PaymentProof : AuditableEntity
     public TagOrder Order { get; set; } = null!;
     public MediaFile MediaFile { get; set; } = null!;
     public AdminUser? ReviewedByAdminUser { get; set; }
+    public ICollection<EmailOutbox> EmailOutboxMessages { get; set; } = new List<EmailOutbox>();
 }
 
 /// <summary>

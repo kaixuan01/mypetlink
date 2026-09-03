@@ -70,6 +70,24 @@ public sealed class AdminOrderServiceTests
     }
 
     [Fact]
+    public async Task DashboardCounts_RemoveReviewedProofAndExposeOrdersNeedingAction()
+    {
+        using var harness = await Harness.CreateAsync();
+        var before = await harness.Admin.GetDashboardAsync();
+        var review = await harness.Db.TagOrders.SingleAsync(order =>
+            order.Status == OrderStatus.PaymentProofSubmitted);
+
+        Assert.Equal(1, before.Summary.PendingPaymentProofs);
+        var preparingBefore = before.Summary.OrdersPreparing;
+
+        await harness.Admin.ConfirmPaymentAsync(Harness.AdminId, review.Id);
+
+        var after = await harness.Admin.GetDashboardAsync();
+        Assert.Equal(0, after.Summary.PendingPaymentProofs);
+        Assert.Equal(preparingBefore + 1, after.Summary.OrdersPreparing);
+    }
+
+    [Fact]
     public async Task List_RejectsUnsafeSortInvalidFilterAndInvertedRanges()
     {
         using var harness = await Harness.CreateAsync();

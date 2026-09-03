@@ -597,6 +597,8 @@ public sealed class EmailTemplateFlagTests
                     new PaymentConfirmedEmailTemplateRenderer(optionValue, layout),
                     new OwnerWelcomeEmailTemplateRenderer(layout),
                     new OrderShippedEmailTemplateRenderer(optionValue, layout),
+                    new AdminPaymentProofSubmittedEmailTemplateRenderer(optionValue, layout),
+                    new PaymentProofRejectedEmailTemplateRenderer(optionValue, layout),
                     new MerchantQuotationEmailTemplateRenderer(layout),
                     new MerchantInvoiceEmailTemplateRenderer(layout),
                     new MerchantPaymentConfirmationEmailTemplateRenderer(layout),

@@ -47,13 +47,14 @@ Runtime toggles bound from the `Features` configuration section.
 - The admin settings response (`GET /api/v1/admin/settings`) surfaces the current value as `features.smartTagOrderingEnabled`.
 - The frontend mirrors this with `NEXT_PUBLIC_SMART_TAG_ORDERING_ENABLED` (default off) to hide ordering CTAs.
 
-## Payment confirmation email
+## Smart Tag order email notifications
 
-Admin payment approval transactionally queues one `PaymentConfirmed` message in
-`EmailOutbox`. `EmailDispatchWorker` delivers it asynchronously with MailKit and
-authenticated STARTTLS. Email is disabled by default; messages remain Pending
-until delivery is enabled. Local development can use the non-network
-`Development` provider, and automated tests use a fake sender.
+Payment-proof submission queues an operational review message, rejection queues
+a customer action message, and approval queues `PaymentConfirmed`, all
+transactionally in `EmailOutbox`. `EmailDispatchWorker` delivers messages
+asynchronously with MailKit and authenticated STARTTLS. Email is disabled by
+default. Local development can use the non-network `Development` provider, and
+automated tests use a fake sender.
 
 Production settings, Zoho DNS checks, retry rules, and deployment order are
 documented in

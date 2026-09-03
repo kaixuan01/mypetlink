@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
+import { useAdminOperationalData } from "@/components/admin/AdminOperationalContext";
 import { AdminSection } from "@/components/admin/AdminPanels";
 import { StatCard } from "@/components/ui/StatCard";
 import {
   buildDashboardSummary,
   buildRecentActivity,
-  getAdminDashboardData,
   type AdminData,
   type AdminActivityItem,
 } from "@/services/adminService";
@@ -28,30 +28,9 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
     }),
     [initialData]
   );
-  const [dashboard, setDashboard] = useState(initial);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    let active = true;
-
-    getAdminDashboardData()
-      .then((next) => {
-        if (active) {
-          setDashboard(next);
-        }
-      })
-      .catch(() => {
-        if (active) {
-          setError(
-            "We could not load the latest operations summary. Please refresh to try again."
-          );
-        }
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
+  const operational = useAdminOperationalData();
+  const dashboard = operational.dashboard ?? initial;
+  const error = operational.error;
 
   const { summary, activity } = dashboard;
 

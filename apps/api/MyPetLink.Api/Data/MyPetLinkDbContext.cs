@@ -1472,6 +1472,7 @@ public sealed class MyPetLinkDbContext : DbContext
                     "CK_EmailOutbox_RelatedEntity",
                     "(CASE WHEN [RelatedOrderId] IS NULL THEN 0 ELSE 1 END"
                     + " + CASE WHEN [RelatedUserId] IS NULL THEN 0 ELSE 1 END"
+                    + " + CASE WHEN [RelatedPaymentProofId] IS NULL THEN 0 ELSE 1 END"
                     + " + CASE WHEN [RelatedMerchantQuotationId] IS NULL THEN 0 ELSE 1 END"
                     + " + CASE WHEN [RelatedMerchantInvoiceId] IS NULL THEN 0 ELSE 1 END"
                     + " + CASE WHEN [RelatedMerchantDeliveryOrderId] IS NULL THEN 0 ELSE 1 END)"
@@ -1491,6 +1492,9 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasIndex(item => new { item.RelatedUserId, item.MessageType })
                 .IsUnique()
                 .HasFilter("[RelatedUserId] IS NOT NULL");
+            entity.HasIndex(item => new { item.RelatedPaymentProofId, item.MessageType })
+                .IsUnique()
+                .HasFilter("[RelatedPaymentProofId] IS NOT NULL");
             // One email of each kind per merchant document. This is what makes
             // a repeated send a no-op rather than a second copy in the
             // merchant's inbox.
@@ -1516,6 +1520,10 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasOne(item => item.RelatedUser)
                 .WithMany(user => user.EmailOutboxMessages)
                 .HasForeignKey(item => item.RelatedUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.RelatedPaymentProof)
+                .WithMany(proof => proof.EmailOutboxMessages)
+                .HasForeignKey(item => item.RelatedPaymentProofId)
                 .OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(item => item.RelatedMerchantQuotation)
                 .WithMany()

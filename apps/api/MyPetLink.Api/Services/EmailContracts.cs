@@ -40,6 +40,30 @@ public sealed record OrderShippedEmailTemplateData(
     DateTimeOffset ShippedAt,
     string? TrackingUrl = null);
 
+public sealed record AdminPaymentProofSubmittedEmailTemplateData(
+    Guid PaymentProofId,
+    string OrderNumber,
+    string CustomerName,
+    string CustomerEmail,
+    decimal Amount,
+    string Currency,
+    string? PaymentReference,
+    DateTimeOffset SubmittedAt,
+    IReadOnlyCollection<AdminPaymentProofSubmittedEmailItemData> Items);
+
+public sealed record AdminPaymentProofSubmittedEmailItemData(
+    string ProductName,
+    string VariantName,
+    string PetName,
+    int Quantity);
+
+public sealed record PaymentProofRejectedEmailTemplateData(
+    string OwnerName,
+    string OrderNumber,
+    string RejectionReason,
+    DateTimeOffset RejectedAt,
+    DateTimeOffset? PaymentDeadline);
+
 // Merchant Sales templates. Every value is copied from the issued document's
 // snapshot, so the email and its attachment can never disagree, and nothing
 // internal (notes, commission, margin, identifiers) is carried here at all.
@@ -147,6 +171,18 @@ public interface IEmailPreviewService
 
 public interface IEmailOutboxService
 {
+    Task EnqueueAdminPaymentProofSubmittedAsync(
+        TagOrder order,
+        PaymentProof proof,
+        CancellationToken cancellationToken = default);
+
+    Task EnqueuePaymentProofRejectedAsync(
+        TagOrder order,
+        PaymentProof proof,
+        DateTimeOffset rejectedAt,
+        DateTimeOffset? paymentDeadline,
+        CancellationToken cancellationToken = default);
+
     Task EnqueuePaymentConfirmedAsync(
         TagOrder order,
         DateTimeOffset confirmedAt,

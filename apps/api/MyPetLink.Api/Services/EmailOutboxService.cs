@@ -1,5 +1,7 @@
 using System.Text.Json;
+using System.ComponentModel.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using MyPetLink.Api.Common;
 using MyPetLink.Api.Data;
 using MyPetLink.Api.DTOs;
@@ -15,20 +17,146 @@ public sealed class EmailOutboxService : IEmailOutboxService
     private readonly TimeProvider _timeProvider;
     private readonly IEmailTemplateGate _gate;
     private readonly IShippingFulfilmentService _shippingFulfilmentService;
+    private readonly EmailOptions _options;
 
     public EmailOutboxService(
         MyPetLinkDbContext dbContext,
         IAuditLogService auditLogService,
         TimeProvider timeProvider,
         IEmailTemplateGate gate,
-        IShippingFulfilmentService? shippingFulfilmentService = null)
+        IShippingFulfilmentService? shippingFulfilmentService = null,
+        IOptions<EmailOptions>? options = null)
     {
         _dbContext = dbContext;
         _auditLogService = auditLogService;
         _timeProvider = timeProvider;
         _gate = gate;
+        _options = options?.Value ?? new EmailOptions();
         _shippingFulfilmentService = shippingFulfilmentService
             ?? new ShippingFulfilmentService(dbContext, auditLogService, timeProvider);
+    }
+
+    public async Task EnqueueAdminPaymentProofSubmittedAsync(
+        TagOrder order,
+        PaymentProof proof,
+        CancellationToken cancellationToken = default)
+    {
+        if (proof.EmailOutboxMessages.Any(item =>
+                item.MessageType == EmailMessageType.AdminPaymentProofSubmitted))
+        {
+            return;
+        }
+
+        var orderNumber = CleanHeaderValue(order.OrderNumber, "the submitted order");
+        var customerName = CleanHeaderValue(order.OwnerUser.DisplayName, "MyPetLink customer");
+        var customerEmail = order.OwnerUser.Email.Trim();
+        var currency = string.IsNullOrWhiteSpace(order.Currency)
+            ? "MYR"
+            : order.Currency.Trim().ToUpperInvariant();
+        var items = order.Items
+            .OrderBy(item => item.CreatedAt)
+            .Select(item => new AdminPaymentProofSubmittedEmailItemData(
+                item.ProductNameSnapshot,
+                item.VariantNameSnapshot,
+                string.IsNullOrWhiteSpace(item.PetNameSnapshot)
+                    ? item.Pet?.Name ?? order.Pet.Name
+                    : item.PetNameSnapshot,
+                item.Quantity))
+            .ToArray();
+        var template = new AdminPaymentProofSubmittedEmailTemplateData(
+            proof.Id,
+            orderNumber,
+            customerName,
+            customerEmail,
+            proof.SubmittedAmount ?? order.TotalAmount ?? order.Amount + order.DeliveryFee,
+            currency,
+            proof.PaymentReference,
+            proof.UploadedAt,
+            items);
+
+        var recipient = _options.OperationsRecipient?.Trim() ?? "";
+        var recipientAvailable = IsSafeEmailAddress(recipient);
+        var suppression = recipientAvailable
+            ? await SuppressionReasonAsync(
+                EmailMessageType.AdminPaymentProofSubmitted,
+                cancellationToken)
+            : EmailSuppressionReasons.OperationsRecipientUnavailable;
+        var now = _timeProvider.GetUtcNow();
+        var message = new EmailOutbox
+        {
+            Id = Guid.NewGuid(),
+            MessageType = EmailMessageType.AdminPaymentProofSubmitted,
+            RecipientEmail = recipientAvailable ? recipient : "",
+            RecipientName = "MyPetLink operations",
+            Subject = $"Payment proof submitted for order {orderNumber}",
+            TemplateDataJson = JsonSerializer.Serialize(template, TemplateJson),
+            RelatedPaymentProofId = proof.Id,
+            RelatedPaymentProof = proof,
+            Status = suppression is null
+                ? EmailOutboxStatus.Pending
+                : EmailOutboxStatus.Suppressed,
+            SuppressionReason = suppression,
+            AttemptCount = 0,
+            MaxAttempts = 5,
+            NextAttemptAt = now,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+
+        proof.EmailOutboxMessages.Add(message);
+        _dbContext.EmailOutbox.Add(message);
+    }
+
+    public async Task EnqueuePaymentProofRejectedAsync(
+        TagOrder order,
+        PaymentProof proof,
+        DateTimeOffset rejectedAt,
+        DateTimeOffset? paymentDeadline,
+        CancellationToken cancellationToken = default)
+    {
+        if (proof.EmailOutboxMessages.Any(item =>
+                item.MessageType == EmailMessageType.PaymentProofRejected))
+        {
+            return;
+        }
+
+        var ownerName = CleanHeaderValue(order.OwnerUser.DisplayName, "MyPetLink customer");
+        var orderNumber = CleanHeaderValue(order.OrderNumber, "your order");
+        var template = new PaymentProofRejectedEmailTemplateData(
+            ownerName,
+            orderNumber,
+            string.IsNullOrWhiteSpace(proof.RejectionReason)
+                ? "Please upload a clearer payment proof."
+                : proof.RejectionReason.Trim(),
+            rejectedAt,
+            paymentDeadline);
+        var now = _timeProvider.GetUtcNow();
+        var suppression = await SuppressionReasonAsync(
+            EmailMessageType.PaymentProofRejected,
+            cancellationToken);
+        var message = new EmailOutbox
+        {
+            Id = Guid.NewGuid(),
+            MessageType = EmailMessageType.PaymentProofRejected,
+            RecipientEmail = order.OwnerUser.Email.Trim(),
+            RecipientName = ownerName,
+            Subject = $"Action needed for order {orderNumber}",
+            TemplateDataJson = JsonSerializer.Serialize(template, TemplateJson),
+            RelatedPaymentProofId = proof.Id,
+            RelatedPaymentProof = proof,
+            Status = suppression is null
+                ? EmailOutboxStatus.Pending
+                : EmailOutboxStatus.Suppressed,
+            SuppressionReason = suppression,
+            AttemptCount = 0,
+            MaxAttempts = 5,
+            NextAttemptAt = now,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+
+        proof.EmailOutboxMessages.Add(message);
+        _dbContext.EmailOutbox.Add(message);
     }
 
     public async Task EnqueuePaymentConfirmedAsync(
@@ -420,6 +548,12 @@ public sealed class EmailOutboxService : IEmailOutboxService
             .Replace("\n", " ", StringComparison.Ordinal)
             .Trim();
     }
+
+    private static bool IsSafeEmailAddress(string value) =>
+        !string.IsNullOrWhiteSpace(value)
+        && !value.Contains('\r')
+        && !value.Contains('\n')
+        && new EmailAddressAttribute().IsValid(value);
 
     private async Task<OrderShippedEmailTemplateData> BuildOrderShippedTemplateAsync(
         TagOrder order,

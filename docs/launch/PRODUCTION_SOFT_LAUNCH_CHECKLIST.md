@@ -132,15 +132,18 @@ compatibility only and should be unset in Production.
 | `CloudflareR2__PublicBaseUrl` | `https://media.mypetlink.com.my` | Yes | No | Startup validation fails for missing/non-absolute URL |
 | `Features__SmartTagOrderingEnabled` | `false` | Yes (explicit) | No | Defaults to `false`; API blocks new orders with `feature_disabled` |
 | `Email__Enabled` | `false` initially | Yes (explicit) | No | No email is delivered; queued eligible mail is paused |
+| `Email__OperationsRecipient` | Reviewed MyPetLink-owned operations mailbox before Smart Tag commerce opens | Conditional | No | Payment-proof submission succeeds, but the operations alert is permanently held back |
 | `DevAuth__Enabled` | Unset/`false` | Yes (state) | No | Startup throws if enabled outside Development |
 | `PublicSite__BaseUrl` | Unset initially; `https://mypetlink.com.my` before physical-tag production | Conditional | No | Manufacturer QR/NFC export fails closed; core profile launch is unaffected |
 | `ForwardedHeaders__*` | Exact verified proxy IPs/networks only | Host-dependent | No | Untrusted forwarding is ignored; tag-scan rate limits may share a proxy IP |
 | `RateLimiting__*`, `DatabaseResilience__*`, `OrderReservation__*` | Reviewed defaults | No | No | Bounded code defaults apply |
 
 If email is later enabled, configure `Email__Provider=Smtp`, sender/brand URLs,
-SMTP host/port/STARTTLS/username/password, and dispatch tuning. Validation fails
-at startup when enabled SMTP configuration is incomplete. Authentication does
-not use this email subsystem.
+the operations recipient, SMTP host/port/STARTTLS/username/password, and
+dispatch tuning. Validation fails at startup when enabled SMTP configuration
+is incomplete. An absent/invalid operations recipient does not block customer
+proof submission; that alert is suppressed instead. Authentication does not
+use this email subsystem.
 
 ## Feature flag matrix
 

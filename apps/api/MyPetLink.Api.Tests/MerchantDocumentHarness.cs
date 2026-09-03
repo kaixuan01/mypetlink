@@ -142,6 +142,8 @@ internal sealed class MerchantDocumentHarness : IDisposable
                 new PaymentConfirmedEmailTemplateRenderer(options, layout),
                 new OwnerWelcomeEmailTemplateRenderer(layout),
                 new OrderShippedEmailTemplateRenderer(options, layout),
+                new AdminPaymentProofSubmittedEmailTemplateRenderer(options, layout),
+                new PaymentProofRejectedEmailTemplateRenderer(options, layout),
                 new MerchantQuotationEmailTemplateRenderer(layout),
                 new MerchantInvoiceEmailTemplateRenderer(layout),
                 new MerchantPaymentConfirmationEmailTemplateRenderer(layout),

@@ -16,6 +16,10 @@ public sealed class EmailOptions
     public string OwnerPortalBaseUrl { get; set; } = "https://mypetlink.com.my";
     public string BrandLogoUrl { get; set; } = "https://mypetlink.com.my/logo-horizontal.png";
     public string BrandAssetBaseUrl { get; set; } = "https://mypetlink.com.my/email-assets";
+    // Operational recipient is optional at startup. Submission still succeeds
+    // when it is absent or invalid; the corresponding outbox row is recorded
+    // as Suppressed so customer activity can never be blocked by mail setup.
+    public string OperationsRecipient { get; set; } = "";
     public SmtpEmailOptions Smtp { get; set; } = new();
     public EmailDispatchOptions Dispatch { get; set; } = new();
 }

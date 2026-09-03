@@ -1,9 +1,9 @@
-# Payment Confirmation Email Operations
+# Smart Tag Order Email Operations
 
-MyPetLink queues one payment-confirmation email in `EmailOutbox` in the same
-database transaction that approves the payment proof. A background worker sends
-the message later. Delivery failure never rolls back a confirmed payment or
-removes the Owner Portal Official Receipt.
+MyPetLink records Smart Tag order emails in `EmailOutbox` in the same database
+transaction as the event: payment-proof submission, proof rejection, payment
+confirmation, or shipment. A background worker sends eligible messages later.
+Delivery failure never rolls back the order or payment-proof decision.
 
 ## Production configuration
 
@@ -18,6 +18,7 @@ Email__FromName=MyPetLink
 Email__OwnerPortalBaseUrl=https://mypetlink.com.my
 Email__BrandLogoUrl=https://mypetlink.com.my/logo-horizontal.png
 Email__BrandAssetBaseUrl=https://mypetlink.com.my/email-assets
+Email__OperationsRecipient=operations@mypetlink.com.my
 Email__Smtp__Host=smtppro.zoho.com
 Email__Smtp__Port=587
 Email__Smtp__UseStartTls=true
@@ -29,21 +30,22 @@ Email__Smtp__ConnectionTimeoutSeconds=30
 Use `billing@mypetlink.com.my` only after Zoho confirms it is an authorized
 alias for the authenticated mailbox.
 
-Email is disabled by default. Disabled delivery still records new messages as
-`Pending`, so operators can apply the migration, observe the queue, and enable
-delivery without losing confirmations. Development uses the non-network
-`Development` provider when explicitly enabled. CI replaces `IEmailSender`
-with a fake and must never configure Zoho credentials.
+Email is disabled by default. The global switch pauses otherwise eligible
+`Pending` rows. A disabled or missing template instead records its event as
+permanently `Suppressed`; it never enters a backlog that can be released later.
+Development uses the non-network `Development` provider when explicitly
+enabled. CI replaces `IEmailSender` with a fake and must never configure Zoho
+credentials.
 
-Delivery requires **both** `Email__Enabled=true` and the Payment confirmation
-template switched on in Admin Portal (Configuration → Email Templates). Turning
-on the global switch alone never sends payment confirmations, and enabling the
-Welcome email cannot release queued confirmations as a side effect.
+Delivery requires **both** `Email__Enabled=true` and the relevant template
+switched on in Admin Portal (Configuration → Email Templates). The Smart Tag
+order templates are Payment confirmation, Order shipped, Payment proof review
+alert, and Payment proof rejected. Turning on the global switch alone sends
+none of them.
 
-While the template is disabled, its messages are excluded from the dispatcher
-query entirely: they are never claimed, `AttemptCount` stays at zero, and they
-are never marked `Failed`. They remain `Pending` indefinitely and are delivered
-once — each exactly once — when the template is enabled.
+While a template is disabled, its messages are `Suppressed` and excluded from
+the dispatcher: they are never claimed, `AttemptCount` stays at zero, and they
+are never marked `Failed` or later released.
 
 Confirmations recorded while the template was off are stored as held-back
 records. Enabling the template stamps the moment of the decision and only
@@ -92,9 +94,10 @@ Do not change DNS automatically from the application deployment.
 
 ## Deployment order
 
-1. Deploy the additive `AddPaymentConfirmationEmailOutbox` migration.
-2. Deploy `AddOwnerWelcomeEmail`, then
-   `20260729094414_AddEmailTemplateSettings`.
+1. Deploy the migrations through `AddPaymentProofNotifications`. It seeds the
+   required Smart Tag order template rows disabled and adds proof-level outbox
+   deduplication.
+2. Configure `Email__OperationsRecipient` to a reviewed MyPetLink-owned mailbox.
 3. Deploy the API with `Email__Enabled=false`.
 4. Verify the Admin Portal can see queued delivery status and the worker is
    healthy.
@@ -103,7 +106,10 @@ Do not change DNS automatically from the application deployment.
 6. Verify SPF, DKIM, DMARC, the authorized From address, and Azure secrets.
 7. Enable `Email__Enabled=true`. No template sends yet.
 8. Review held-back records in Admin Portal → Configuration → Email Templates.
-9. Turn on the Payment confirmation template there and confirm the prompt.
+9. Enable each required Smart Tag order template deliberately. Enable the
+   Payment proof review alert only after the operations recipient has been
+   verified. Each enable action stamps `EnabledFromUtc`, so earlier records do
+   not send.
 10. Monitor the outbox failure count, application logs, and Zoho sending limits.
 
 An optional live SMTP check requires explicit authorization and must target only
