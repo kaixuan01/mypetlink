@@ -40,7 +40,7 @@ Local dev equivalents live in `apps/web/.env.local` (gitignored): `NEXT_PUBLIC_A
 Payment confirmation email is disabled by default. When rolling it out, set:
 
 ```text
-Email__Enabled=true
+Email__Enabled=false
 Email__Provider=Smtp
 Email__FromAddress=support@mypetlink.com.my
 Email__FromName=MyPetLink
@@ -63,8 +63,9 @@ enabling delivery.
 
 `Email__OperationsRecipient` is the reviewed MyPetLink-owned mailbox for new
 payment-proof alerts. If it is missing or invalid, proof submission continues
-but the alert is permanently recorded as held back; it is never redirected to
-the sender or a customer address.
+but the alert is recorded as held back; it is never redirected to the sender or
+a customer address. Operational Status shows a high-priority warning, without
+the address, when delivery or the review-alert template is intended to be on.
 
 `Email__Enabled` is the global emergency switch and the only email switch in
 App Settings. It **pauses** delivery: queued messages stay waiting and resume
@@ -80,6 +81,20 @@ recorded from that point onward. Events that happened while it was off are
 stored as held-back records and are never released retrospectively. Turning a
 template off and on again re-stamps that moment, so anything queued in between
 becomes permanently blocked and is reported separately from ready-to-send work.
+
+For rollout, deploy first with the global switch off, configure and verify the
+operations recipient, apply the migration and verify its disabled template
+rows, enable required templates while global delivery remains off, then validate
+SMTP, the worker, and Operational Status. Only then turn global delivery on and
+verify eligible paused rows drain. Smart Tag commerce may be enabled only after
+that delivery path is healthy.
+
+The Admin Email Templates page has a narrowly scoped, audited recovery action
+for payment-proof review alerts held back exactly because the operations
+recipient was unavailable. Once the current recipient is valid and that
+template is enabled, it changes the same in-boundary rows to `Pending`; repeating
+the action is a no-op. Template-disabled and pre-`EnabledFromUtc` history stays
+permanently blocked. There is no generic suppressed-message recovery.
 
 ## Legacy AppSettings table
 

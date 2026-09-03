@@ -243,6 +243,8 @@ GET /api/v1/dev/email-previews/welcome/missing-name
 GET /api/v1/dev/email-previews/welcome/images-blocked
 GET /api/v1/dev/email-previews/payment-confirmed/normal
 GET /api/v1/dev/email-previews/order-shipped/normal
+GET /api/v1/dev/email-previews/admin-payment-proof-submitted/normal
+GET /api/v1/dev/email-previews/payment-proof-rejected/normal
 ```
 
 Append `?width=375` or `?width=320` to exercise the responsive HTML in a

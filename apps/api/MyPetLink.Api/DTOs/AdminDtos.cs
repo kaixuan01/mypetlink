@@ -191,6 +191,7 @@ public sealed record AdminAuditLogResponse(
 public sealed record AdminEmailStatusResponse(
     bool GlobalDeliveryEnabled,
     bool SmtpConfigured,
+    bool OperationsRecipientConfigured,
     bool TemplateConfigurationAvailable,
     int EnabledTemplateCount,
     int OutboxPendingCount,
@@ -214,11 +215,18 @@ public sealed record AdminOrderingStatusResponse(
     int ActiveDeliveryZoneCount,
     bool CheckoutAvailable);
 
+public sealed record AdminOperationalWarningResponse(
+    string Code,
+    string Severity,
+    string Title,
+    string Message);
+
 public sealed record AdminOperationalStatusResponse(
     AdminEmailStatusResponse Email,
     AdminStorageStatusResponse Storage,
     AdminPublicRoutingStatusResponse PublicRouting,
-    AdminOrderingStatusResponse Ordering);
+    AdminOrderingStatusResponse Ordering,
+    IReadOnlyCollection<AdminOperationalWarningResponse> Warnings);
 
 public sealed record AdminOrderCheckoutSettingsResponse(
     int PaymentReservationMinutes,

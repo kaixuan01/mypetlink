@@ -19,6 +19,7 @@ import { AdminEmailTemplatesManager } from "./AdminEmailTemplatesManager";
 const mocks = vi.hoisted(() => ({
   list: vi.fn(),
   setEnabled: vi.fn(),
+  recover: vi.fn(),
 }));
 
 vi.mock("@/services/adminEmailTemplateService", async (importOriginal) => {
@@ -29,6 +30,7 @@ vi.mock("@/services/adminEmailTemplateService", async (importOriginal) => {
     ...actual,
     listEmailTemplates: mocks.list,
     setEmailTemplateEnabled: mocks.setEnabled,
+    recoverAdminPaymentProofAlerts: mocks.recover,
   };
 });
 
@@ -44,6 +46,7 @@ const welcome: AdminEmailTemplate = {
   pausedCount: 0,
   blockedCount: 0,
   suppressedCount: 0,
+  recoverableSuppressedCount: 0,
   failedCount: 0,
   sentCount: 0,
   rowVersion: "",
@@ -61,6 +64,7 @@ const initialData: AdminEmailTemplateList = {
   global: {
     globalDeliveryEnabled: true,
     smtpConfigured: true,
+    operationsRecipientConfigured: true,
     provider: "Development",
   },
 };
@@ -91,6 +95,7 @@ async function openWelcomeConfirmation() {
 beforeEach(() => {
   mocks.list.mockReset();
   mocks.setEnabled.mockReset();
+  mocks.recover.mockReset();
   mocks.list.mockResolvedValue(response(initialData));
 });
 
@@ -255,5 +260,42 @@ describe("AdminEmailTemplatesManager", () => {
         "The request is incomplete. Refresh the page and try again."
       )
     ).toBeNull();
+  });
+
+  it("recovers eligible operations-recipient suppressions without creating a new template", async () => {
+    const operationsAlert: AdminEmailTemplate = {
+      ...welcome,
+      messageType: "AdminPaymentProofSubmitted",
+      displayName: "Payment proof review alert",
+      description: "Sent when a proof needs review.",
+      isEnabled: true,
+      enabledFromUtc: "2026-09-03T00:00:00Z",
+      suppressedCount: 2,
+      recoverableSuppressedCount: 2,
+      rowVersion: "AQIDBA==",
+    };
+    const recovered = {
+      ...operationsAlert,
+      pausedCount: 2,
+      suppressedCount: 0,
+      recoverableSuppressedCount: 0,
+    };
+    const recoveryData = {
+      templates: [operationsAlert],
+      global: { ...initialData.global, globalDeliveryEnabled: false },
+    };
+    mocks.list
+      .mockResolvedValueOnce(response(recoveryData))
+      .mockResolvedValueOnce(response({ ...recoveryData, templates: [recovered] }));
+    mocks.recover.mockResolvedValueOnce({ data: { recoveredCount: 2 } });
+
+    render(<AdminEmailTemplatesManager />);
+    fireEvent.click(await screen.findByRole("button", { name: "Recover eligible alerts" }));
+    fireEvent.click(screen.getByRole("button", { name: "Recover alerts" }));
+
+    await screen.findByText("2 payment-proof alerts were returned to the delivery queue.");
+    expect(mocks.recover).toHaveBeenCalledTimes(1);
+    expect(mocks.list).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("button", { name: "Recover eligible alerts" })).toBeNull();
   });
 });

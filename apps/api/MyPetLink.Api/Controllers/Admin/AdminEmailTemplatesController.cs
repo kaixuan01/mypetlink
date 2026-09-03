@@ -53,4 +53,19 @@ public sealed class AdminEmailTemplatesController : ApiControllerBase
             cancellationToken);
         return Ok(ApiEnvelope.Ok(response, HttpContext));
     }
+
+    [HttpPost("AdminPaymentProofSubmitted/recover-operations-recipient")]
+    public async Task<IActionResult> RecoverOperationsRecipient(
+        CancellationToken cancellationToken)
+    {
+        var adminUserId = _currentUserService.Current.UserId
+            ?? throw new ApiException(
+                StatusCodes.Status401Unauthorized,
+                "unauthorized",
+                "Authentication is required.");
+        var response = await _templates.RecoverAdminPaymentProofAlertsAsync(
+            adminUserId,
+            cancellationToken);
+        return Ok(ApiEnvelope.Ok(response, HttpContext));
+    }
 }

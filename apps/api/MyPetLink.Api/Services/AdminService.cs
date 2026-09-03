@@ -1257,7 +1257,6 @@ public sealed class AdminService : SkeletonService, IAdminService
             .Include(order => order.AssignedTags)
                 .ThenInclude(tag => tag.OrderItem)
             .Include(order => order.PaymentProofs)
-                .ThenInclude(proof => proof.EmailOutboxMessages)
             .Include(order => order.EmailOutboxMessages)
             .Include(order => order.Items)
                 .ThenInclude(item => item.Pet)
@@ -1283,9 +1282,23 @@ public sealed class AdminService : SkeletonService, IAdminService
             .Include(tag => tag.OwnerUser);
     }
 
-    private async Task<TagOrder> LoadOrderAsync(Guid orderId, bool trackChanges, CancellationToken cancellationToken)
+    private async Task<TagOrder> LoadOrderAsync(
+        Guid orderId,
+        bool trackChanges,
+        CancellationToken cancellationToken,
+        bool includeProofEmailOutbox = false)
     {
         var query = IncludeOrderGraph(_dbContext.TagOrders).Where(order => order.Id == orderId);
+
+        if (includeProofEmailOutbox)
+        {
+            // Only payment-proof rejection checks proof-level email
+            // idempotency. Keep this collection out of dashboard, list,
+            // export, owner-detail, and unrelated mutation graphs.
+            query = query
+                .Include(order => order.PaymentProofs)
+                .ThenInclude(proof => proof.EmailOutboxMessages);
+        }
 
         if (!trackChanges)
         {
@@ -1394,7 +1407,11 @@ public sealed class AdminService : SkeletonService, IAdminService
                         : null;
 
                     var admin = await RequireAdminAsync(currentUserId, cancellationToken);
-                    var order = await LoadOrderAsync(orderId, trackChanges: true, cancellationToken);
+                    var order = await LoadOrderAsync(
+                        orderId,
+                        trackChanges: true,
+                        cancellationToken,
+                        includeProofEmailOutbox: !approve);
                     if (order.Status != OrderStatus.PaymentProofSubmitted || order.PaymentStatus != PaymentStatus.ProofSubmitted)
                     {
                         throw InvalidState(approve

@@ -17,6 +17,10 @@ public interface IAdminEmailTemplateService
         UpdateEmailTemplateRequest request,
         Guid adminUserId,
         CancellationToken cancellationToken = default);
+
+    Task<AdminEmailRecoveryResponse> RecoverAdminPaymentProofAlertsAsync(
+        Guid adminUserId,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -35,19 +39,22 @@ public sealed class AdminEmailTemplateService : IAdminEmailTemplateService
     private readonly EmailOptions _options;
     private readonly ILogger<AdminEmailTemplateService> _logger;
     private readonly TimeProvider _timeProvider;
+    private readonly IEmailOutboxService _emailOutboxService;
 
     public AdminEmailTemplateService(
         MyPetLinkDbContext dbContext,
         IAuditLogService auditLogService,
         IOptions<EmailOptions> options,
         ILogger<AdminEmailTemplateService> logger,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        IEmailOutboxService emailOutboxService)
     {
         _dbContext = dbContext;
         _auditLogService = auditLogService;
         _options = options.Value;
         _logger = logger;
         _timeProvider = timeProvider;
+        _emailOutboxService = emailOutboxService;
     }
 
     public async Task<AdminEmailTemplateListResponse> ListAsync(
@@ -86,6 +93,22 @@ public sealed class AdminEmailTemplateService : IAdminEmailTemplateService
         var counts = countRows.ToDictionary(
             row => (row.MessageType, row.Status),
             row => row.Count);
+        var recoverableOperationsAlerts = 0;
+        if (settings.TryGetValue(
+                EmailMessageType.AdminPaymentProofSubmitted,
+                out var operationsAlertSetting)
+            && operationsAlertSetting.IsEnabled
+            && operationsAlertSetting.EnabledFromUtc.HasValue)
+        {
+            recoverableOperationsAlerts = await _dbContext.EmailOutbox
+                .AsNoTracking()
+                .CountAsync(item =>
+                    item.MessageType == EmailMessageType.AdminPaymentProofSubmitted
+                    && item.Status == EmailOutboxStatus.Suppressed
+                    && item.SuppressionReason == EmailSuppressionReasons.OperationsRecipientUnavailable
+                    && item.CreatedAt >= operationsAlertSetting.EnabledFromUtc.Value,
+                    cancellationToken);
+        }
 
         // Pending is split by what the worker would actually do with the row,
         // so an administrator never sees permanently blocked work presented as
@@ -128,6 +151,9 @@ public sealed class AdminEmailTemplateService : IAdminEmailTemplateService
                     paused,
                     blocked,
                     Count(counts, messageType, EmailOutboxStatus.Suppressed),
+                    messageType == EmailMessageType.AdminPaymentProofSubmitted
+                        ? recoverableOperationsAlerts
+                        : 0,
                     Count(counts, messageType, EmailOutboxStatus.Failed),
                     Count(counts, messageType, EmailOutboxStatus.Sent),
                     setting is null
@@ -141,7 +167,26 @@ public sealed class AdminEmailTemplateService : IAdminEmailTemplateService
             new AdminEmailGlobalStateResponse(
                 _options.Enabled,
                 SmtpConfigured(),
+                EmailRecipientSafety.IsValid(_options.OperationsRecipient),
                 _options.Provider));
+    }
+
+    public async Task<AdminEmailRecoveryResponse> RecoverAdminPaymentProofAlertsAsync(
+        Guid actorUserId,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var adminUserId = await ResolveAdminUserIdAsync(actorUserId, cancellationToken);
+            return await _emailOutboxService.RecoverAdminPaymentProofSubmittedAsync(
+                adminUserId,
+                cancellationToken);
+        }
+        catch (Exception exception) when (EmailTemplateSchemaUnavailable.IsMatch(exception))
+        {
+            LogSchemaUnavailable(exception);
+            throw EmailTemplateSchemaUnavailable.ApiError();
+        }
     }
 
     private static int Count(

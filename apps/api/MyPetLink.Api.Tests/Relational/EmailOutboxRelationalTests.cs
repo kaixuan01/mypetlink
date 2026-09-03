@@ -308,6 +308,11 @@ public sealed class EmailOutboxRelationalTests
 
     private sealed class DuplicateEnqueueService(MyPetLinkDbContext db) : IEmailOutboxService
     {
+        public Task<AdminEmailRecoveryResponse> RecoverAdminPaymentProofSubmittedAsync(
+            Guid adminUserId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new AdminEmailRecoveryResponse(0));
+
         public Task EnqueueAdminPaymentProofSubmittedAsync(
             TagOrder order,
             PaymentProof proof,

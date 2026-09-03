@@ -69,9 +69,13 @@ Deferred because unbuilt: Premium plans, care reminder delivery, profile complet
 
 The controlled-launch recommendation is now explicit:
 
-1. Keep `Email:Enabled=false` initially. Email is not authentication-critical;
-   SMTP and the Owner Welcome template can be enabled in a separate controlled
-   step after delivery testing. Commerce templates remain off with commerce.
+1. Keep `Email:Enabled=false` initially. Email is not authentication-critical.
+   For a later controlled rollout, configure the recipient and SMTP, apply and
+   verify migrations, then enable required templates while the global switch is
+   still off. Validate sender/worker/Operational Status before enabling global
+   delivery and verifying paused rows drain. Enable commerce only after its
+   required notification path is healthy; do not enable global delivery before
+   its templates.
 2. Set `NEXT_PUBLIC_SAFETY_PROFILES_OWNER_UI_ENABLED=true`. The public marketing
    surface promises a free Safety Profile and basic QR download, the finder
    no-contact defect is fixed, and showing the existing owner controls is safer

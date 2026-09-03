@@ -59,6 +59,7 @@ public sealed class AdminOperationalStatusService : IAdminOperationalStatusServi
         // holding. Surfaced so a global pause never hides a growing backlog.
         var templateConfigurationAvailable = true;
         var enabledTemplates = 0;
+        var adminPaymentProofAlertEnabled = false;
         var enabled = Array.Empty<EnabledEmailTemplate>();
         try
         {
@@ -71,6 +72,8 @@ public sealed class AdminOperationalStatusService : IAdminOperationalStatusServi
                 .ToArrayAsync(cancellationToken);
             enabledTemplates = await _dbContext.EmailTemplateSettings
                 .CountAsync(setting => setting.IsEnabled, cancellationToken);
+            adminPaymentProofAlertEnabled = enabled.Any(template =>
+                template.MessageType == EmailMessageType.AdminPaymentProofSubmitted);
         }
         catch (Exception exception) when (EmailTemplateSchemaUnavailable.IsMatch(exception))
         {
@@ -125,11 +128,24 @@ public sealed class AdminOperationalStatusService : IAdminOperationalStatusServi
             out var publicSiteUri)
             && (publicSiteUri.Scheme == Uri.UriSchemeHttps
                 || (publicSiteUri.Scheme == Uri.UriSchemeHttp && publicSiteUri.IsLoopback));
+        var operationsRecipientConfigured = EmailRecipientSafety.IsValid(
+            _email.OperationsRecipient);
+        var warnings = new List<AdminOperationalWarningResponse>();
+        if (!operationsRecipientConfigured
+            && (_email.Enabled || adminPaymentProofAlertEnabled))
+        {
+            warnings.Add(new AdminOperationalWarningResponse(
+                "admin_payment_proof_recipient_unavailable",
+                "High",
+                "Payment-proof alerts cannot be delivered",
+                "The operations recipient is missing or invalid. Customer payment-proof submissions will continue, but Admin review alerts will be held back until this is corrected."));
+        }
 
         return new AdminOperationalStatusResponse(
             new AdminEmailStatusResponse(
                 _email.Enabled,
                 SmtpConfigured(),
+                operationsRecipientConfigured,
                 templateConfigurationAvailable,
                 enabledTemplates,
                 outboxPending,
@@ -149,7 +165,8 @@ public sealed class AdminOperationalStatusService : IAdminOperationalStatusServi
             new AdminOrderingStatusResponse(
                 _features.SmartTagOrderingEnabled,
                 activeDeliveryZones,
-                _features.SmartTagOrderingEnabled && activeDeliveryZones > 0));
+                _features.SmartTagOrderingEnabled && activeDeliveryZones > 0),
+            warnings);
     }
 
     private bool SmtpConfigured()

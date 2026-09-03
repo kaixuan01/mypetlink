@@ -81,7 +81,7 @@ public sealed class PaymentConfirmationEmailTests
     [Fact]
     public async Task MissingSubmissionTemplate_SuppressesEmailWithoutFailingCustomerRequest()
     {
-        using var harness = await Harness.CreateAsync(enabled: false);
+        using var harness = await Harness.CreateAsync(templatesEnabled: false);
         var (order, media) = await harness.AddPendingOrderWithMediaAsync("MPL-ORD-NO-TEMPLATE");
 
         await harness.Orders.SubmitPaymentProofAsync(
@@ -93,6 +93,74 @@ public sealed class PaymentConfirmationEmailTests
             item.MessageType == EmailMessageType.AdminPaymentProofSubmitted);
         Assert.Equal(EmailOutboxStatus.Suppressed, message.Status);
         Assert.Equal(EmailSuppressionReasons.TemplateDisabled, message.SuppressionReason);
+    }
+
+    [Fact]
+    public async Task AdminProofTemplateEnabled_GlobalDeliveryOff_QueuesPendingWithoutSending()
+    {
+        using var harness = await Harness.CreateAsync(globalEmailEnabled: false);
+        var (order, media) = await harness.AddPendingOrderWithMediaAsync("MPL-ORD-OPS-PAUSED");
+
+        await harness.Orders.SubmitPaymentProofAsync(
+            Harness.OwnerUserId,
+            order.OrderNumber,
+            new DTOs.UploadPaymentProofRequest(media.Id, media.OriginalFileName, "QR Payment", null, null, 47m));
+
+        var message = await harness.Db.EmailOutbox.SingleAsync(item =>
+            item.MessageType == EmailMessageType.AdminPaymentProofSubmitted);
+        Assert.Equal(EmailOutboxStatus.Pending, message.Status);
+        Assert.Null(message.SuppressionReason);
+        Assert.Empty(await harness.Dispatcher.ClaimBatchAsync(10, TimeSpan.FromMinutes(2)));
+    }
+
+    [Fact]
+    public async Task OperationsRecipientRecovery_RequeuesOnlyEligibleOriginalRowsAndIsIdempotent()
+    {
+        using var harness = await Harness.CreateAsync(
+            globalEmailEnabled: false,
+            operationsRecipient: "");
+        var (order, media) = await harness.AddPendingOrderWithMediaAsync("MPL-ORD-OPS-RECOVERY");
+        await harness.Orders.SubmitPaymentProofAsync(
+            Harness.OwnerUserId,
+            order.OrderNumber,
+            new DTOs.UploadPaymentProofRequest(media.Id, media.OriginalFileName, "QR Payment", null, null, 47m));
+        var original = await harness.Db.EmailOutbox.SingleAsync(item =>
+            item.MessageType == EmailMessageType.AdminPaymentProofSubmitted);
+        var originalId = original.Id;
+        var originalCreatedAt = original.CreatedAt;
+        var originalProofId = original.RelatedPaymentProofId;
+
+        harness.EmailOptions.OperationsRecipient = "fixed-operations@example.com";
+        var forbidden = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.AdminTemplates.RecoverAdminPaymentProofAlertsAsync(Harness.OtherOwnerUserId));
+        Assert.Equal(StatusCodes.Status403Forbidden, forbidden.StatusCode);
+
+        var recovered = await harness.AdminTemplates.RecoverAdminPaymentProofAlertsAsync(
+            Harness.AdminUserId);
+        var replay = await harness.AdminTemplates.RecoverAdminPaymentProofAlertsAsync(
+            Harness.AdminUserId);
+
+        Assert.Equal(1, recovered.RecoveredCount);
+        Assert.Equal(0, replay.RecoveredCount);
+        var message = Assert.Single(await harness.Db.EmailOutbox.ToListAsync());
+        Assert.Equal(originalId, message.Id);
+        Assert.Equal(originalCreatedAt, message.CreatedAt);
+        Assert.Equal(originalProofId, message.RelatedPaymentProofId);
+        Assert.Equal("fixed-operations@example.com", message.RecipientEmail);
+        Assert.Equal(EmailOutboxStatus.Pending, message.Status);
+        Assert.Null(message.SuppressionReason);
+        Assert.Empty(await harness.Dispatcher.ClaimBatchAsync(10, TimeSpan.FromMinutes(2)));
+
+        message.Status = EmailOutboxStatus.Suppressed;
+        message.SuppressionReason = EmailSuppressionReasons.TemplateDisabled;
+        await harness.Db.SaveChangesAsync();
+        var templateDisabledReplay = await harness.AdminTemplates
+            .RecoverAdminPaymentProofAlertsAsync(Harness.AdminUserId);
+        Assert.Equal(0, templateDisabledReplay.RecoveredCount);
+        Assert.Equal(EmailOutboxStatus.Suppressed, message.Status);
+        Assert.Equal(EmailSuppressionReasons.TemplateDisabled, message.SuppressionReason);
+        Assert.Single(await harness.Db.AuditLogs.Where(item =>
+            item.Action == "email.admin-payment-proof-submitted.recover-recipient").ToListAsync());
     }
 
     [Fact]
@@ -151,6 +219,39 @@ public sealed class PaymentConfirmationEmailTests
     }
 
     [Fact]
+    public async Task RejectionTemplateEnabled_GlobalDeliveryOff_QueuesPendingWithoutSending()
+    {
+        using var harness = await Harness.CreateAsync(globalEmailEnabled: false);
+
+        await harness.Admin.RejectPaymentProofAsync(
+            Harness.AdminUserId,
+            Harness.OrderId,
+            "Please upload a clearer proof.");
+
+        var message = await harness.Db.EmailOutbox.SingleAsync(item =>
+            item.MessageType == EmailMessageType.PaymentProofRejected);
+        Assert.Equal(EmailOutboxStatus.Pending, message.Status);
+        Assert.Null(message.SuppressionReason);
+        Assert.Empty(await harness.Dispatcher.ClaimBatchAsync(10, TimeSpan.FromMinutes(2)));
+    }
+
+    [Fact]
+    public async Task RejectionTemplateDisabled_IsSuppressed()
+    {
+        using var harness = await Harness.CreateAsync(templatesEnabled: false);
+
+        await harness.Admin.RejectPaymentProofAsync(
+            Harness.AdminUserId,
+            Harness.OrderId,
+            "Please upload a clearer proof.");
+
+        var message = await harness.Db.EmailOutbox.SingleAsync(item =>
+            item.MessageType == EmailMessageType.PaymentProofRejected);
+        Assert.Equal(EmailOutboxStatus.Suppressed, message.Status);
+        Assert.Equal(EmailSuppressionReasons.TemplateDisabled, message.SuppressionReason);
+    }
+
+    [Fact]
     public async Task SuccessfulConfirmation_QueuesExactlyOneImmutableMessage()
     {
         using var harness = await Harness.CreateAsync();
@@ -194,9 +295,9 @@ public sealed class PaymentConfirmationEmailTests
     }
 
     [Fact]
-    public async Task DisabledEmail_RecordsSuppressedMessageAndDoesNotClaimOrSend()
+    public async Task DisabledTemplate_RecordsSuppressedMessageAndDoesNotClaimOrSend()
     {
-        using var harness = await Harness.CreateAsync(enabled: false);
+        using var harness = await Harness.CreateAsync(templatesEnabled: false);
         await harness.Admin.ConfirmPaymentAsync(Harness.AdminUserId, Harness.OrderId);
 
         var claims = await harness.Dispatcher.ClaimBatchAsync(10, TimeSpan.FromMinutes(2));
@@ -211,6 +312,33 @@ public sealed class PaymentConfirmationEmailTests
         Assert.Equal(
             PaymentStatus.Confirmed,
             (await harness.Db.TagOrders.SingleAsync()).PaymentStatus);
+    }
+
+    [Fact]
+    public async Task EnabledFromBoundary_KeepsHistoricalPendingMessagesBlocked()
+    {
+        using var harness = await Harness.CreateAsync();
+        await harness.Admin.ConfirmPaymentAsync(Harness.AdminUserId, Harness.OrderId);
+        var message = await harness.Db.EmailOutbox.SingleAsync();
+        Assert.Equal(EmailMessageType.PaymentConfirmed, message.MessageType);
+        var setting = await harness.Db.EmailTemplateSettings.SingleAsync(item =>
+            item.MessageType == EmailMessageType.PaymentConfirmed);
+        setting.EnabledFromUtc = message.CreatedAt.AddMinutes(1);
+        await harness.Db.SaveChangesAsync();
+        Assert.True(message.CreatedAt < setting.EnabledFromUtc!.Value);
+        // Match the worker's scoped DbContext rather than letting the
+        // in-memory provider satisfy queries from this test's tracked graph.
+        harness.Db.ChangeTracker.Clear();
+
+        Assert.Empty(await harness.Db.EmailOutbox.AsNoTracking().Where(item =>
+            item.MessageType == EmailMessageType.PaymentConfirmed
+            && item.CreatedAt >= setting.EnabledFromUtc).ToListAsync());
+
+        Assert.Empty(await harness.Dispatcher.ClaimBatchAsync(10, TimeSpan.FromMinutes(2)));
+        var template = (await harness.AdminTemplates.ListAsync()).Templates.Single(item =>
+            item.MessageType == EmailMessageType.PaymentConfirmed.ToString());
+        Assert.Equal(1, template.BlockedCount);
+        Assert.Equal(0, template.EligibleCount);
     }
 
     [Fact]
@@ -481,14 +609,17 @@ public sealed class PaymentConfirmationEmailTests
         public EmailOutboxDispatcher Dispatcher { get; }
         public AdminService Admin { get; }
         public OrderService Orders { get; }
+        public AdminEmailTemplateService AdminTemplates { get; }
+        public EmailOptions EmailOptions { get; }
 
-        private Harness(MyPetLinkDbContext db, bool enabled, string operationsRecipient)
+        private Harness(MyPetLinkDbContext db, bool globalEmailEnabled, string operationsRecipient)
         {
             Db = db;
             Clock = new MutableTimeProvider(DateTimeOffset.Parse("2026-07-27T02:00:00Z"));
             Sender = new RecordingEmailSender();
-            var options = Options(enabled);
+            var options = Options(globalEmailEnabled);
             options.OperationsRecipient = operationsRecipient;
+            EmailOptions = options;
             var emailOptions = Microsoft.Extensions.Options.Options.Create(options);
             Renderer = new PaymentConfirmedEmailTemplateRenderer(
                 emailOptions,
@@ -504,6 +635,13 @@ public sealed class PaymentConfirmationEmailTests
                 new EmailAttachmentResolver(new OrderDocumentService(db), new MerchantDocumentService(db)));
             var gate = new EmailTemplateGate(db, emailOptions);
             var outbox = new EmailOutboxService(db, audit, Clock, gate, options: emailOptions);
+            AdminTemplates = new AdminEmailTemplateService(
+                db,
+                audit,
+                emailOptions,
+                NullLogger<AdminEmailTemplateService>.Instance,
+                Clock,
+                outbox);
             Admin = new AdminService(
                 db,
                 audit,
@@ -524,7 +662,8 @@ public sealed class PaymentConfirmationEmailTests
         }
 
         public static async Task<Harness> CreateAsync(
-            bool enabled = true,
+            bool globalEmailEnabled = true,
+            bool templatesEnabled = true,
             string operationsRecipient = "operations@example.com")
         {
             var db = new MyPetLinkDbContext(
@@ -579,7 +718,7 @@ public sealed class PaymentConfirmationEmailTests
             db.Users.AddRange(admin, owner, otherOwner);
             db.Pets.Add(pet);
             db.TagOrders.Add(order);
-            if (enabled)
+            if (templatesEnabled)
             {
                 // Per-template enablement now lives in the database.
                 db.EmailTemplateSettings.Add(new EmailTemplateSetting
@@ -597,7 +736,7 @@ public sealed class PaymentConfirmationEmailTests
             }
 
             await db.SaveChangesAsync();
-            return new Harness(db, enabled, operationsRecipient);
+            return new Harness(db, globalEmailEnabled, operationsRecipient);
         }
 
         public async Task<(TagOrder Order, MediaFile Media)> AddPendingOrderWithMediaAsync(string orderNumber)

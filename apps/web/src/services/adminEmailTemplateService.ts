@@ -15,6 +15,7 @@ export type AdminEmailTemplate = {
   pausedCount: number;
   blockedCount: number;
   suppressedCount: number;
+  recoverableSuppressedCount: number;
   failedCount: number;
   sentCount: number;
   rowVersion: string;
@@ -23,6 +24,7 @@ export type AdminEmailTemplate = {
 export type AdminEmailGlobalState = {
   globalDeliveryEnabled: boolean;
   smtpConfigured: boolean;
+  operationsRecipientConfigured: boolean;
   provider: string;
 };
 
@@ -50,6 +52,41 @@ export function setEmailTemplateEnabled(
       },
     }
   );
+}
+
+export function recoverAdminPaymentProofAlerts() {
+  return apiRequest<{ recoveredCount: number }>(
+    "/api/v1/admin/email-templates/AdminPaymentProofSubmitted/recover-operations-recipient",
+    { method: "POST" }
+  );
+}
+
+export function getEmailRecoveryErrorMessage(error: unknown) {
+  if (!isApiClientError(error)) {
+    return "We couldn’t recover the held-back alerts. Please try again.";
+  }
+
+  if (error.code === "operations_recipient_unavailable") {
+    return "Configure a valid operations recipient before recovering payment-proof alerts.";
+  }
+
+  if (error.code === "email_template_disabled") {
+    return "Turn on the payment proof review alert before recovering held-back alerts.";
+  }
+
+  if (error.status === 401) {
+    return "Your session has expired. Please sign in again.";
+  }
+
+  if (error.status === 403) {
+    return "You do not have permission to recover payment-proof alerts.";
+  }
+
+  if (error.status === 0) {
+    return "We couldn’t connect right now. Please check your connection and try again.";
+  }
+
+  return "We couldn’t recover the held-back alerts. Please try again.";
 }
 
 export function getEmailTemplateErrorMessage(error: unknown) {

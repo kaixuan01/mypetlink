@@ -146,13 +146,20 @@ public sealed class AdminEmailTemplateRelationalTests
 
     private static AdminEmailTemplateService Service(
         MyPetLinkDbContext db,
-        TimeProvider clock) =>
-        new(
+        TimeProvider clock)
+    {
+        var audit = new AuditLogService(db, new HttpContextAccessor());
+        var options = Options.Create(CreateEmailOptions());
+        var gate = new EmailTemplateGate(db, options);
+        var outbox = new EmailOutboxService(db, audit, clock, gate, options: options);
+        return new AdminEmailTemplateService(
             db,
-            new AuditLogService(db, new HttpContextAccessor()),
-            Options.Create(CreateEmailOptions()),
+            audit,
+            options,
             NullLogger<AdminEmailTemplateService>.Instance,
-            clock);
+            clock,
+            outbox);
+    }
 
     private static EmailOptions CreateEmailOptions() =>
         new()

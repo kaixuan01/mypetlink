@@ -4,6 +4,7 @@ export type AdminOperationalStatus = {
   email: {
     globalDeliveryEnabled: boolean;
     smtpConfigured: boolean;
+    operationsRecipientConfigured: boolean;
     templateConfigurationAvailable: boolean;
     enabledTemplateCount: number;
     outboxPendingCount: number;
@@ -26,6 +27,12 @@ export type AdminOperationalStatus = {
     activeDeliveryZoneCount: number;
     checkoutAvailable: boolean;
   };
+  warnings: {
+    code: string;
+    severity: "High";
+    title: string;
+    message: string;
+  }[];
 };
 
 export function getOperationalStatus() {

@@ -47,6 +47,7 @@ public sealed record AdminEmailTemplateResponse(
     int PausedCount,
     int BlockedCount,
     int SuppressedCount,
+    int RecoverableSuppressedCount,
     int FailedCount,
     int SentCount,
     string RowVersion);
@@ -58,6 +59,7 @@ public sealed record AdminEmailTemplateResponse(
 public sealed record AdminEmailGlobalStateResponse(
     bool GlobalDeliveryEnabled,
     bool SmtpConfigured,
+    bool OperationsRecipientConfigured,
     string Provider);
 
 public sealed record AdminEmailTemplateListResponse(
@@ -67,3 +69,5 @@ public sealed record AdminEmailTemplateListResponse(
 public sealed record UpdateEmailTemplateRequest(
     bool IsEnabled,
     string? RowVersion);
+
+public sealed record AdminEmailRecoveryResponse(int RecoveredCount);

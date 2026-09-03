@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.ComponentModel.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using MyPetLink.Api.Common;
@@ -75,7 +74,7 @@ public sealed class EmailOutboxService : IEmailOutboxService
             items);
 
         var recipient = _options.OperationsRecipient?.Trim() ?? "";
-        var recipientAvailable = IsSafeEmailAddress(recipient);
+        var recipientAvailable = EmailRecipientSafety.IsValid(recipient);
         var suppression = recipientAvailable
             ? await SuppressionReasonAsync(
                 EmailMessageType.AdminPaymentProofSubmitted,
@@ -437,6 +436,74 @@ public sealed class EmailOutboxService : IEmailOutboxService
         return ToAdminOwnerWelcomeResponse(message);
     }
 
+    /// <summary>
+    /// Recovers only operational alerts that were held back because the
+    /// configured recipient was unavailable. The existing row is retained and
+    /// re-addressed; template-disabled and pre-enable history stay immutable.
+    /// Global delivery may remain paused while rollout checks are completed.
+    /// </summary>
+    public async Task<AdminEmailRecoveryResponse> RecoverAdminPaymentProofSubmittedAsync(
+        Guid adminUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var recipient = _options.OperationsRecipient?.Trim() ?? "";
+        if (!EmailRecipientSafety.IsValid(recipient))
+        {
+            throw new ApiException(
+                StatusCodes.Status409Conflict,
+                "operations_recipient_unavailable",
+                "Configure a valid operations recipient before recovering payment-proof alerts.");
+        }
+
+        var enabledFromUtc = await _dbContext.EmailTemplateSettings
+            .AsNoTracking()
+            .Where(setting =>
+                setting.MessageType == EmailMessageType.AdminPaymentProofSubmitted
+                && setting.IsEnabled
+                && setting.EnabledFromUtc != null)
+            .Select(setting => setting.EnabledFromUtc)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (!enabledFromUtc.HasValue)
+        {
+            throw new ApiException(
+                StatusCodes.Status409Conflict,
+                "email_template_disabled",
+                "Turn on the payment proof review alert before recovering held-back alerts.");
+        }
+
+        var messages = await _dbContext.EmailOutbox
+            .Where(message =>
+                message.MessageType == EmailMessageType.AdminPaymentProofSubmitted
+                && message.Status == EmailOutboxStatus.Suppressed
+                && message.SuppressionReason == EmailSuppressionReasons.OperationsRecipientUnavailable
+                && message.CreatedAt >= enabledFromUtc.Value)
+            .OrderBy(message => message.CreatedAt)
+            .ToListAsync(cancellationToken);
+
+        foreach (var message in messages)
+        {
+            var oldState = Snapshot(message);
+            message.RecipientEmail = recipient;
+            message.SuppressionReason = null;
+            ResetForRetry(message);
+            _auditLogService.Append(
+                adminUserId,
+                ActorType.Admin,
+                "email.admin-payment-proof-submitted.recover-recipient",
+                "EmailOutbox",
+                message.Id,
+                oldState,
+                Snapshot(message));
+        }
+
+        if (messages.Count > 0)
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        return new AdminEmailRecoveryResponse(messages.Count);
+    }
+
     public static AdminEmailOutboxResponse ToAdminResponse(EmailOutbox message) =>
         new(
             message.Status,
@@ -485,7 +552,8 @@ public sealed class EmailOutboxService : IEmailOutboxService
         message.NextAttemptAt,
         message.LastAttemptAt,
         message.SentAt,
-        message.LastError
+        message.LastError,
+        message.SuppressionReason
     };
 
     /// <summary>
@@ -548,12 +616,6 @@ public sealed class EmailOutboxService : IEmailOutboxService
             .Replace("\n", " ", StringComparison.Ordinal)
             .Trim();
     }
-
-    private static bool IsSafeEmailAddress(string value) =>
-        !string.IsNullOrWhiteSpace(value)
-        && !value.Contains('\r')
-        && !value.Contains('\n')
-        && new EmailAddressAttribute().IsValid(value);
 
     private async Task<OrderShippedEmailTemplateData> BuildOrderShippedTemplateAsync(
         TagOrder order,

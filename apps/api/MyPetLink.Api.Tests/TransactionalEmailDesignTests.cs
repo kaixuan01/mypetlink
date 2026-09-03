@@ -12,6 +12,8 @@ public sealed class TransactionalEmailDesignTests
     [InlineData("welcome", "missing-name")]
     [InlineData("welcome", "images-blocked")]
     [InlineData("payment-confirmed", "normal")]
+    [InlineData("admin-payment-proof-submitted", "normal")]
+    [InlineData("payment-proof-rejected", "normal")]
     public void DevelopmentPreviews_RenderHtmlAndPlainTextWithoutSending(
         string template,
         string variant)
@@ -38,16 +40,18 @@ public sealed class TransactionalEmailDesignTests
     }
 
     [Fact]
-    public void ExistingTemplates_UseTheSameHeaderFooterAndPrimaryButton()
+    public void TransactionalTemplates_UseTheSameHeaderFooterAndPrimaryButton()
     {
         var previews = PreviewService();
         var welcome = previews.Render("welcome", "normal");
         var payment = previews.Render("payment-confirmed", "normal");
+        var adminProof = previews.Render("admin-payment-proof-submitted", "normal");
+        var rejectedProof = previews.Render("payment-proof-rejected", "normal");
 
         Assert.Contains("width=\"88%\"", welcome.HtmlBody);
         Assert.DoesNotContain("width=\"88%\"", payment.HtmlBody);
 
-        foreach (var rendered in new[] { welcome, payment })
+        foreach (var rendered in new[] { welcome, payment, adminProof, rejectedProof })
         {
             Assert.Contains("https://mypetlink.com.my/logo-horizontal.png", rendered.HtmlBody);
             Assert.Contains("alt=\"MyPetLink\"", rendered.HtmlBody);
@@ -201,7 +205,9 @@ public sealed class TransactionalEmailDesignTests
         return new EmailPreviewService(
             new OwnerWelcomeEmailTemplateRenderer(layout),
             new PaymentConfirmedEmailTemplateRenderer(options, layout),
-            new OrderShippedEmailTemplateRenderer(options, layout));
+            new OrderShippedEmailTemplateRenderer(options, layout),
+            new AdminPaymentProofSubmittedEmailTemplateRenderer(options, layout),
+            new PaymentProofRejectedEmailTemplateRenderer(options, layout));
     }
 
     private static EmailOptions OptionsValue() => new()

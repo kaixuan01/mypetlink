@@ -68,6 +68,20 @@ export function AdminOperationalStatusView() {
         </p>
       </div>
 
+      {data.warnings.map((warning) => (
+        <div
+          className="rounded-2xl border border-[#ef9f91] bg-[#fff2ef] p-4 shadow-sm sm:p-5"
+          key={warning.code}
+          role="alert"
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <AdminStatusBadge tone="critical">High priority</AdminStatusBadge>
+            <p className="font-black text-[#8f2d22]">{warning.title}</p>
+          </div>
+          <p className="mt-2 text-sm leading-6 text-[#8f2d22]">{warning.message}</p>
+        </div>
+      ))}
+
       <AdminStatStrip>
         <AdminStat
           label="Email delivery"
@@ -117,6 +131,12 @@ export function AdminOperationalStatusView() {
             label="Mail service configuration"
             tone={email.smtpConfigured ? "positive" : "critical"}
             value={email.smtpConfigured ? "Configured" : "Incomplete"}
+          />
+          <AdminStatusRow
+            hint="Receives new payment-proof review alerts"
+            label="Operations recipient"
+            tone={email.operationsRecipientConfigured ? "positive" : "critical"}
+            value={email.operationsRecipientConfigured ? "Configured" : "Missing or invalid"}
           />
           <AdminStatusRow
             label="Email template configuration"

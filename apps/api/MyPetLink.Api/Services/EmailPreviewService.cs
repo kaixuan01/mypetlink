@@ -17,15 +17,21 @@ public sealed class EmailPreviewService : IEmailPreviewService
     private readonly OwnerWelcomeEmailTemplateRenderer _welcome;
     private readonly PaymentConfirmedEmailTemplateRenderer _paymentConfirmed;
     private readonly OrderShippedEmailTemplateRenderer _orderShipped;
+    private readonly AdminPaymentProofSubmittedEmailTemplateRenderer _adminPaymentProofSubmitted;
+    private readonly PaymentProofRejectedEmailTemplateRenderer _paymentProofRejected;
 
     public EmailPreviewService(
         OwnerWelcomeEmailTemplateRenderer welcome,
         PaymentConfirmedEmailTemplateRenderer paymentConfirmed,
-        OrderShippedEmailTemplateRenderer orderShipped)
+        OrderShippedEmailTemplateRenderer orderShipped,
+        AdminPaymentProofSubmittedEmailTemplateRenderer adminPaymentProofSubmitted,
+        PaymentProofRejectedEmailTemplateRenderer paymentProofRejected)
     {
         _welcome = welcome;
         _paymentConfirmed = paymentConfirmed;
         _orderShipped = orderShipped;
+        _adminPaymentProofSubmitted = adminPaymentProofSubmitted;
+        _paymentProofRejected = paymentProofRejected;
     }
 
     public RenderedEmail Render(string template, string variant)
@@ -60,6 +66,36 @@ public sealed class EmailPreviewService : IEmailPreviewService
                         "Standard Delivery",
                         "MY123456789",
                         DateTimeOffset.Parse("2026-07-30T06:00:00Z")))),
+            "admin-payment-proof-submitted" when normalizedVariant == "normal" =>
+                _adminPaymentProofSubmitted.Render(Message(
+                    EmailMessageType.AdminPaymentProofSubmitted,
+                    "Payment proof submitted for order MPL-ORD-260727123029-9916",
+                    new AdminPaymentProofSubmittedEmailTemplateData(
+                        Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc"),
+                        "MPL-ORD-260727123029-9916",
+                        "Aina",
+                        "aina@example.test",
+                        67m,
+                        "MYR",
+                        "PAY-REF-123",
+                        DateTimeOffset.Parse("2026-07-27T06:14:23Z"),
+                        [
+                            new AdminPaymentProofSubmittedEmailItemData(
+                                "MyPetLink QR + NFC Pet Tag",
+                                "Standard",
+                                "Topu",
+                                1)
+                        ]))),
+            "payment-proof-rejected" when normalizedVariant == "normal" =>
+                _paymentProofRejected.Render(Message(
+                    EmailMessageType.PaymentProofRejected,
+                    "Action needed for order MPL-ORD-260727123029-9916",
+                    new PaymentProofRejectedEmailTemplateData(
+                        "Aina",
+                        "MPL-ORD-260727123029-9916",
+                        "The payment reference could not be matched.",
+                        DateTimeOffset.Parse("2026-07-27T07:00:00Z"),
+                        DateTimeOffset.Parse("2026-07-28T07:00:00Z")))),
             _ => throw new EmailDeliveryException("The requested email preview was not found.", false)
         };
     }
@@ -120,6 +156,9 @@ public sealed class EmailPreviewService : IEmailPreviewService
                 : null,
             RelatedOrderId = messageType is EmailMessageType.PaymentConfirmed or EmailMessageType.OrderShipped
                 ? Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+                : null,
+            RelatedPaymentProofId = messageType is EmailMessageType.AdminPaymentProofSubmitted or EmailMessageType.PaymentProofRejected
+                ? Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc")
                 : null,
             Status = EmailOutboxStatus.Pending,
             MaxAttempts = 5,

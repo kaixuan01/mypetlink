@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClientError } from "@/services/apiClient";
 import {
   getEmailTemplateErrorMessage,
+  getEmailRecoveryErrorMessage,
+  recoverAdminPaymentProofAlerts,
   setEmailTemplateEnabled,
 } from "@/services/adminEmailTemplateService";
 
@@ -51,6 +53,32 @@ describe("adminEmailTemplateService", () => {
         },
       }
     );
+  });
+
+  it("uses the narrowly scoped operations-recipient recovery endpoint", async () => {
+    await recoverAdminPaymentProofAlerts();
+
+    expect(mocks.apiRequest).toHaveBeenCalledWith(
+      "/api/v1/admin/email-templates/AdminPaymentProofSubmitted/recover-operations-recipient",
+      { method: "POST" }
+    );
+  });
+
+  it.each([
+    [
+      new ApiClientError(409, "operations_recipient_unavailable", "Unavailable"),
+      "Configure a valid operations recipient before recovering payment-proof alerts.",
+    ],
+    [
+      new ApiClientError(409, "email_template_disabled", "Disabled"),
+      "Turn on the payment proof review alert before recovering held-back alerts.",
+    ],
+    [
+      new ApiClientError(403, "forbidden", "Forbidden"),
+      "You do not have permission to recover payment-proof alerts.",
+    ],
+  ])("maps recovery failures to safe actionable copy", (error, expected) => {
+    expect(getEmailRecoveryErrorMessage(error)).toBe(expected);
   });
 
   it.each([

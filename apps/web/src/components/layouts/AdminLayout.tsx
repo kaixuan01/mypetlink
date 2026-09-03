@@ -370,6 +370,11 @@ function AdminNavSections({
                             : "text-[#d8e4ff] hover:bg-[#1d3166] hover:text-white"
                         }`}
                         href={item.href}
+                        aria-label={
+                          badge > 0
+                            ? `${item.label} ${badge} item${badge === 1 ? "" : "s"} need attention`
+                            : undefined
+                        }
                         onClick={onNavigate}
                         title={railed ? item.label : undefined}
                       >
@@ -402,6 +407,11 @@ function AdminNavSections({
                             ) : null}
                           </>
                         )}
+                        {badge > 0 ? (
+                          <span className="sr-only">
+                            {badge} item{badge === 1 ? "" : "s"} need attention
+                          </span>
+                        ) : null}
                         {railed && badge > 0 ? (
                           <span
                             aria-hidden="true"

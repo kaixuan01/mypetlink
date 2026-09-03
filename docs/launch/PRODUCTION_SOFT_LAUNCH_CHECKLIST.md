@@ -77,6 +77,31 @@ production build.
 - [ ] Optional: select an approved Featured Sample Pet. The generic sample
   experience is complete without one.
 
+### Smart Tag commerce email gate
+
+Complete these in order before enabling Smart Tag commerce:
+
+- [ ] Deploy the API with `Email__Enabled=false`.
+- [ ] Configure and verify the MyPetLink-owned operations recipient. Operational
+  Status must show it as configured and no high-priority recipient warning.
+- [ ] Apply migrations through `AddPaymentProofNotifications`; verify the four
+  commerce template rows exist and begin disabled.
+- [ ] While global delivery remains off, enable each required commerce template.
+  Each enable or re-enable refreshes `EnabledFromUtc`; older rows stay blocked.
+- [ ] Validate SMTP/TLS, SPF/DKIM/DMARC, sender authorization, worker health,
+  template counts, and Operational Status.
+- [ ] Turn global delivery on and verify eligible paused rows drain without a
+  growing failure count.
+- [ ] Only then enable the API ordering flag and rebuild the web app with its
+  matching Smart Tag commerce flags.
+
+The global switch pauses eligible work for later resumption. A disabled
+template suppresses events permanently, and re-enabling it does not release
+history. The only recovery exception is the audited Admin action for
+payment-proof review alerts held back specifically because the operations
+recipient was unavailable; it reuses eligible current-boundary rows and cannot
+recover template-disabled history.
+
 ## Production environment variables
 
 No secret value belongs in this document.

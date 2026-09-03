@@ -11,7 +11,7 @@ Set these values in Azure App Service configuration. Keep the SMTP password in
 App Service secrets or another approved secret store; never commit it.
 
 ```text
-Email__Enabled=true
+Email__Enabled=false
 Email__Provider=Smtp
 Email__FromAddress=support@mypetlink.com.my
 Email__FromName=MyPetLink
@@ -45,7 +45,13 @@ none of them.
 
 While a template is disabled, its messages are `Suppressed` and excluded from
 the dispatcher: they are never claimed, `AttemptCount` stays at zero, and they
-are never marked `Failed` or later released.
+are never marked `Failed` or later released. Re-enabling a template refreshes
+`EnabledFromUtc`; pending rows older than that new boundary remain permanently
+blocked. This is intentionally different from the global switch, which only
+pauses otherwise eligible work and lets it resume when delivery is restored.
+After launch, use `Email__Enabled=false` when delivery must be paused. Do not
+disable and re-enable templates casually, because doing so advances the
+eligibility boundary and can permanently strand rows queued in between.
 
 Confirmations recorded while the template was off are stored as held-back
 records. Enabling the template stamps the moment of the decision and only
@@ -94,23 +100,39 @@ Do not change DNS automatically from the application deployment.
 
 ## Deployment order
 
-1. Deploy the migrations through `AddPaymentProofNotifications`. It seeds the
-   required Smart Tag order template rows disabled and adds proof-level outbox
-   deduplication.
+Keep Smart Tag commerce disabled throughout this sequence.
+
+1. Deploy the API configuration with `Email__Enabled=false`. This is the global
+   emergency pause and prevents every template from delivering during setup.
 2. Configure `Email__OperationsRecipient` to a reviewed MyPetLink-owned mailbox.
-3. Deploy the API with `Email__Enabled=false`.
-4. Verify the Admin Portal can see queued delivery status and the worker is
-   healthy.
-5. Verify Operational Status reports Email template configuration as
-   **Available**.
-6. Verify SPF, DKIM, DMARC, the authorized From address, and Azure secrets.
-7. Enable `Email__Enabled=true`. No template sends yet.
-8. Review held-back records in Admin Portal → Configuration → Email Templates.
-9. Enable each required Smart Tag order template deliberately. Enable the
-   Payment proof review alert only after the operations recipient has been
-   verified. Each enable action stamps `EnabledFromUtc`, so earlier records do
-   not send.
-10. Monitor the outbox failure count, application logs, and Zoho sending limits.
+   Confirm Operational Status reports the recipient as configured without
+   exposing its value.
+3. Apply migrations through `AddPaymentProofNotifications`, then verify all four
+   Smart Tag order template rows exist and are disabled.
+4. With global delivery still off, enable each required template deliberately.
+   Enable Payment proof review alert only after the operations mailbox has been
+   verified. Every enable action stamps a new `EnabledFromUtc`; earlier rows do
+   not become eligible.
+5. Validate SMTP/TLS credentials, SPF, DKIM, DMARC, sender authorization, worker
+   health, Email Templates counts, and Operational Status. Resolve every high
+   priority recipient warning before proceeding.
+6. Set `Email__Enabled=true` only after those checks pass.
+7. Verify eligible paused rows drain, new test events deliver, failure counts
+   remain stable, and Zoho limits/logs are healthy.
+8. Only after delivery is proven healthy, enable Smart Tag commerce in both the
+   API and rebuilt web app.
+
+Operational Status raises a high-priority warning when delivery is globally
+enabled, or the Payment proof review alert template is enabled, but the current
+operations recipient is missing or invalid. Customer proof submission still
+succeeds; the alert is recorded as held back.
+
+Admin Portal offers one audited recovery action only for
+`AdminPaymentProofSubmitted` rows held back specifically because the operations
+recipient was unavailable. It requires a currently valid recipient and enabled
+template, updates the same outbox rows to `Pending`, respects the current
+`EnabledFromUtc`, and is safe to repeat. It does not recover template-disabled
+or historical rows, and there is no generic suppressed-message recovery.
 
 An optional live SMTP check requires explicit authorization and must target only
 an internal MyPetLink-owned mailbox. Remove or disable temporary settings after

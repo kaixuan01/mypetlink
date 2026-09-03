@@ -66,6 +66,14 @@ documented in
 Development also provides loopback-only HTML and plain-text previews under
 `/api/v1/dev/email-previews/*`; these previews do not call SMTP.
 
+Operational Status reports a high-priority warning, without exposing the
+configured address, if delivery or the payment-proof review-alert template is
+enabled without a valid operations recipient. Admin Email Templates also
+provides one authenticated, audited, idempotent recovery action for current
+`AdminPaymentProofSubmitted` rows held back specifically for that missing
+recipient. It reuses the same outbox rows and never recovers template-disabled
+or historical messages.
+
 ## Commands
 
 Run from the repository root:

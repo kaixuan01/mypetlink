@@ -171,6 +171,10 @@ public interface IEmailPreviewService
 
 public interface IEmailOutboxService
 {
+    Task<AdminEmailRecoveryResponse> RecoverAdminPaymentProofSubmittedAsync(
+        Guid adminUserId,
+        CancellationToken cancellationToken = default);
+
     Task EnqueueAdminPaymentProofSubmittedAsync(
         TagOrder order,
         PaymentProof proof,

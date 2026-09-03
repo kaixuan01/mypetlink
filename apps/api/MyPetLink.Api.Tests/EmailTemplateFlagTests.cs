@@ -613,7 +613,8 @@ public sealed class EmailTemplateFlagTests
                 audit,
                 optionValue,
                 NullLogger<AdminEmailTemplateService>.Instance,
-                clock);
+                clock,
+                Outbox);
         }
 
         public static Harness Create(bool globalEnabled, string smtpPassword = "") =>

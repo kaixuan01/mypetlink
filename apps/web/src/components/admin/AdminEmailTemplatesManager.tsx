@@ -14,7 +14,9 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { isApiClientError } from "@/services/apiClient";
 import {
   getEmailTemplateErrorMessage,
+  getEmailRecoveryErrorMessage,
   listEmailTemplates,
+  recoverAdminPaymentProofAlerts,
   setEmailTemplateEnabled,
   type AdminEmailTemplate,
   type AdminEmailTemplateList,
@@ -30,7 +32,10 @@ export function AdminEmailTemplatesManager() {
   const [message, setMessage] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<AdminEmailTemplate | null>(null);
+  const [confirmingRecovery, setConfirmingRecovery] = useState<AdminEmailTemplate | null>(null);
+  const [recoveryBusy, setRecoveryBusy] = useState(false);
   const pendingRef = useRef<string | null>(null);
+  const recoveryBusyRef = useRef(false);
 
   // The promise callback keeps state updates out of the synchronous effect
   // body, which is what the React lint rule requires.
@@ -66,7 +71,7 @@ export function AdminEmailTemplatesManager() {
   }, [data]);
 
   async function apply(template: AdminEmailTemplate, isEnabled: boolean) {
-    if (pendingRef.current) {
+    if (pendingRef.current || recoveryBusyRef.current) {
       return;
     }
 
@@ -112,6 +117,31 @@ export function AdminEmailTemplatesManager() {
       pendingRef.current = null;
       setPending(null);
       setConfirming(null);
+    }
+  }
+
+  async function recoverAlerts() {
+    if (pendingRef.current || recoveryBusyRef.current) return;
+
+    recoveryBusyRef.current = true;
+    setRecoveryBusy(true);
+    setMessage(null);
+    try {
+      const response = await recoverAdminPaymentProofAlerts();
+      const recovered = response.data?.recoveredCount ?? 0;
+      setMessage(
+        recovered === 0
+          ? "No eligible payment-proof alerts needed recovery."
+          : `${recovered} payment-proof alert${recovered === 1 ? " was" : "s were"} returned to the delivery queue.`
+      );
+      await load();
+    } catch (error) {
+      setMessage(getEmailRecoveryErrorMessage(error));
+      await load();
+    } finally {
+      recoveryBusyRef.current = false;
+      setRecoveryBusy(false);
+      setConfirmingRecovery(null);
     }
   }
 
@@ -269,6 +299,13 @@ export function AdminEmailTemplatesManager() {
                       />
                       <CountChip label="Blocked" value={template.blockedCount} />
                       <CountChip label="Held back" value={template.suppressedCount} />
+                      {template.recoverableSuppressedCount > 0 ? (
+                        <CountChip
+                          label="Can recover"
+                          tone="warning"
+                          value={template.recoverableSuppressedCount}
+                        />
+                      ) : null}
                       <CountChip
                         label="Not delivered"
                         tone="critical"
@@ -276,13 +313,39 @@ export function AdminEmailTemplatesManager() {
                       />
                       <CountChip label="Sent" value={template.sentCount} />
                     </div>
+                    {template.messageType === "AdminPaymentProofSubmitted" &&
+                    template.recoverableSuppressedCount > 0 ? (
+                      <div className="max-w-md rounded-xl border border-[#f6dfae] bg-[#fdf6e7] p-3 text-sm text-[#71490d]">
+                        <p className="font-bold">
+                          Alerts held back while the operations recipient was unavailable can be returned to the queue without creating new messages.
+                        </p>
+                        {!data.global.operationsRecipientConfigured ? (
+                          <p className="mt-2 leading-5">
+                            Configure a valid operations recipient before recovering these alerts.
+                          </p>
+                        ) : null}
+                        <button
+                          className="mt-3 inline-flex min-h-10 w-full items-center justify-center rounded-full border border-[#d8a33f] bg-white px-4 text-sm font-extrabold text-[#71490d] transition hover:bg-[#fff9ec] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+                          disabled={
+                            pending !== null ||
+                            recoveryBusy ||
+                            !data.global.operationsRecipientConfigured ||
+                            !template.isEnabled
+                          }
+                          onClick={() => setConfirmingRecovery(template)}
+                          type="button"
+                        >
+                          {recoveryBusy ? "Recovering..." : "Recover eligible alerts"}
+                        </button>
+                      </div>
+                    ) : null}
                     <button
                       className={`inline-flex min-h-10 w-full items-center justify-center rounded-full px-5 text-sm font-extrabold transition disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto ${
                         template.isEnabled
                           ? "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                           : "bg-pet-teal text-white hover:bg-[#1160d4]"
                       }`}
-                      disabled={pending !== null}
+                      disabled={pending !== null || recoveryBusy}
                       onClick={() =>
                         template.isEnabled ? apply(template, false) : setConfirming(template)
                       }
@@ -326,6 +389,19 @@ export function AdminEmailTemplatesManager() {
         }}
         open={confirming !== null}
         title={confirming ? `Turn on ${confirming.displayName}?` : ""}
+      />
+      <ConfirmDialog
+        confirmDisabled={recoveryBusy || pending !== null}
+        confirmLabel={recoveryBusy ? "Recovering..." : "Recover alerts"}
+        message={
+          confirmingRecovery
+            ? `Return ${confirmingRecovery.recoverableSuppressedCount} eligible payment-proof alert${confirmingRecovery.recoverableSuppressedCount === 1 ? "" : "s"} to the delivery queue using the currently configured operations recipient? No new messages will be created.`
+            : ""
+        }
+        onCancel={() => setConfirmingRecovery(null)}
+        onConfirm={() => void recoverAlerts()}
+        open={confirmingRecovery !== null}
+        title="Recover held-back payment-proof alerts?"
       />
     </div>
   );

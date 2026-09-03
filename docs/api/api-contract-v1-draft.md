@@ -1157,6 +1157,56 @@ Errors:
 - `401` unauthenticated
 - `403` not an active admin
 
+### GET `/api/v1/admin/operational-status`
+
+Purpose: return safe, read-only status derived from the effective deployment
+configuration and database state.
+
+The email section reports global delivery, SMTP configuration completeness,
+template availability, outbox counts, and whether the operations recipient is
+configured. If global delivery or the `AdminPaymentProofSubmitted` template is
+enabled without a valid recipient, `warnings` contains the high-severity
+`admin_payment_proof_recipient_unavailable` warning. It never returns the
+recipient, credentials, host, or provider error detail. Customer proof
+submission remains available.
+
+### GET `/api/v1/admin/email-templates`
+
+Purpose: list the audited per-template gates and their operational outbox
+counts. `recoverableSuppressedCount` is non-zero only for current-boundary
+`AdminPaymentProofSubmitted` rows held back exactly because the operations
+recipient was unavailable. The global response reports only whether the current
+recipient passes safety validation, never its value.
+
+### POST `/api/v1/admin/email-templates/AdminPaymentProofSubmitted/recover-operations-recipient`
+
+Purpose: recover payment-proof review alerts after the deployment-owned
+operations recipient has been corrected.
+
+Rules:
+
+- active Admin authorization is required;
+- the current operations recipient must be valid;
+- the `AdminPaymentProofSubmitted` template must currently be enabled;
+- only `Suppressed` rows whose reason is exactly
+  `OperationsRecipientUnavailable` and whose `CreatedAt` is at or after the
+  current `EnabledFromUtc` are changed;
+- the same outbox row is reset to `Pending`, preserving its identity and
+  payment-proof relationship;
+- every changed row is audited and repeating the request returns zero changes;
+- global email may remain off, in which case recovered rows remain paused;
+- template-disabled, historical, and other suppressed messages are never
+  recovered by this endpoint.
+
+Response: `{ recoveredCount }` in the normal success envelope.
+
+Errors:
+
+- `401` unauthenticated
+- `403` not an active admin
+- `409 operations_recipient_unavailable`
+- `409 email_template_disabled`
+
 ### GET `/api/v1/admin/dashboard/summary`
 
 Purpose: dashboard counts and recent activity.

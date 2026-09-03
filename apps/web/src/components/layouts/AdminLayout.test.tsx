@@ -53,10 +53,25 @@ describe("AdminLayout navigation", () => {
 
     await waitFor(() => expect(screen.getAllByTitle("3 items need attention").length).toBe(1));
     expect(screen.getAllByTitle("4 items need attention").length).toBe(1);
+    expect(
+      screen.getAllByRole("link", {
+        name: "Payment Proofs 4 items need attention",
+      }).length
+    ).toBe(1);
+    expect(
+      screen.getAllByRole("link", {
+        name: "Retail Orders 3 items need attention",
+      }).length
+    ).toBe(1);
 
     fireEvent.click(screen.getByRole("button", { name: "Open admin navigation" }));
     expect(screen.getAllByTitle("3 items need attention").length).toBe(2);
     expect(screen.getAllByTitle("4 items need attention").length).toBe(2);
+    expect(
+      screen.getAllByRole("link", {
+        name: "Payment Proofs 4 items need attention",
+      }).length
+    ).toBe(1);
 
     fireEvent.focus(window);
     document.dispatchEvent(new Event("visibilitychange"));
@@ -214,7 +229,7 @@ describe("collapsible sidebar sections", () => {
     expect(
       screen.getAllByRole("button", { name: /Commerce/ })[0].getAttribute("aria-expanded")
     ).toBe("true");
-    expect(screen.getAllByRole("link", { name: "Retail Orders" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("link", { name: /Retail Orders/ }).length).toBeGreaterThan(0);
   });
 
   it("ignores unusable stored values instead of breaking the sidebar", () => {
@@ -222,13 +237,13 @@ describe("collapsible sidebar sections", () => {
     navState.pathname = "/admin/orders";
 
     expect(() => render(<AdminLayout>content</AdminLayout>)).not.toThrow();
-    expect(screen.getAllByRole("link", { name: "Retail Orders" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("link", { name: /Retail Orders/ }).length).toBeGreaterThan(0);
   });
 
   it("labels the owner-order module Retail Orders in Admin only", () => {
     render(<AdminLayout>content</AdminLayout>);
 
-    expect(screen.getAllByRole("link", { name: "Retail Orders" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("link", { name: /Retail Orders/ }).length).toBeGreaterThan(0);
     expect(screen.queryByRole("link", { name: "Orders" })).toBeNull();
   });
 });
@@ -248,7 +263,7 @@ describe("whole-sidebar collapse", () => {
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
     // The rail drops headings, so every item is listed regardless of section.
     expect(screen.getAllByRole("link", { name: "Promotions" }).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("link", { name: "Retail Orders" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("link", { name: /Retail Orders/ }).length).toBeGreaterThan(0);
     // Section headings make no sense without labels.
     expect(screen.queryByRole("button", { name: /Commerce/ })).toBeNull();
   });
@@ -276,7 +291,7 @@ describe("whole-sidebar collapse", () => {
     render(<AdminLayout>content</AdminLayout>);
 
     const active = screen
-      .getAllByRole("link", { name: "Retail Orders" })
+      .getAllByRole("link", { name: /Retail Orders/ })
       .filter((node) => node.getAttribute("aria-current") === "page");
     expect(active.length).toBeGreaterThan(0);
   });

@@ -715,7 +715,6 @@ public sealed class OrderService : SkeletonService, IOrderService
             .Include(order => order.AssignedTags)
                 .ThenInclude(tag => tag.Pet)
             .Include(order => order.PaymentProofs)
-                .ThenInclude(proof => proof.EmailOutboxMessages)
             .Include(order => order.EmailOutboxMessages)
             .Include(order => order.Items)
                 .ThenInclude(item => item.Pet)

@@ -30,7 +30,7 @@ The welcome template is disabled by default and is independently controlled
 from payment-confirmation messages:
 
 ```text
-Email__Enabled=true
+Email__Enabled=false
 Email__OwnerPortalBaseUrl=https://mypetlink.com.my
 Email__BrandLogoUrl=https://mypetlink.com.my/logo-horizontal.png
 Email__BrandAssetBaseUrl=https://mypetlink.com.my/email-assets
@@ -48,10 +48,12 @@ The welcome CTA uses the normal authenticated `/pets/new` Owner Portal route.
 All visual and copy rules are defined in
 [`../branding/email-design-system.md`](../branding/email-design-system.md).
 
-When either the overall email system or the welcome template is disabled,
-portal entry succeeds without creating a welcome outbox row. Enabling the
-template later makes the next eligible portal entry the first welcome event for
-an owner who does not already have an `OwnerWelcome` row.
+When the welcome template is disabled, portal entry succeeds without creating a
+welcome outbox row. When the template is enabled while global delivery is off,
+the row is created as `Pending` and remains paused until the global switch is
+enabled. Enabling the template later makes the next eligible portal entry the
+first welcome event for an owner who does not already have an `OwnerWelcome`
+row.
 
 ## Admin operations
 
@@ -65,12 +67,15 @@ schedules the same row immediately, and records an audit entry.
 1. Apply `AddPaymentConfirmationEmailOutbox`.
 2. Apply `AddOwnerWelcomeEmail`.
 3. Apply `20260729094414_AddEmailTemplateSettings`.
-4. Deploy with the Welcome template switched off in Admin Portal.
-5. Verify Operational Status reports Email template configuration as
+4. Deploy with `Email__Enabled=false` and the Welcome template switched off in
+   Admin Portal.
+5. Enable the Welcome template while global delivery remains off.
+6. Verify Operational Status reports Email template configuration as
    **Available**.
-6. Verify SMTP, SPF, DKIM, DMARC, sender authorization, and the public logo and
+7. Verify SMTP, SPF, DKIM, DMARC, sender authorization, worker health, and the public logo and
    email-asset URLs.
-7. Enable the welcome template and monitor Failed outbox rows.
+8. Set `Email__Enabled=true`, verify paused welcome rows drain, and monitor
+   Failed outbox rows.
 
 No live SMTP test is part of automated or local integration verification.
 Use the loopback-only Development preview at
