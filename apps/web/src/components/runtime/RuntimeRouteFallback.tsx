@@ -703,13 +703,9 @@ function OwnerRuntimeView({
         <PageHeader
           eyebrow="Order physical tag"
           title={`Order a tag for ${pet.name}`}
-          description="Choose a MyPetLink QR Pet Tag or MyPetLink QR + NFC Smart Tag after creating your pet profile."
+          description="Order the MyPetLink QR + NFC Smart Tag for this pet profile."
         />
-        <TagOrderFlow
-          initialTagType="MyPetLink QR Pet Tag"
-          pets={orderPets}
-          preselectedPetId={pet.id}
-        />
+        <TagOrderFlow pets={orderPets} preselectedPetId={pet.id} />
       </AppLayout>
     );
   }

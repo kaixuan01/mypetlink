@@ -67,11 +67,7 @@ export default async function PetTagOrderPage({ params }: PetTagOrderPageProps) 
         description="New physical tags can only be ordered for active pet profiles. Memorial and archived profiles keep existing tag history."
       />
 
-      <TagOrderFlow
-        initialTagType="MyPetLink QR Pet Tag"
-        pets={orderPets}
-        preselectedPetId={selectedPet.id}
-      />
+      <TagOrderFlow pets={orderPets} preselectedPetId={selectedPet.id} />
     </AppLayout>
   );
 }

@@ -35,7 +35,7 @@ export default async function OrdersPage() {
       <PageHeader
         eyebrow="Orders"
         title="Smart tag orders"
-        description="Track QR tag and QR + NFC smart tag requests for your pets."
+        description="Track QR + NFC Smart Tag requests for your pets."
       />
 
       <OrdersList

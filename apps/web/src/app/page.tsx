@@ -10,6 +10,7 @@ import {
   freePlanLimits,
   phase1Positioning,
   premiumPlan,
+  smartTagAddOn,
   smartTagAddOnsStatus,
 } from "@/lib/planLimits";
 import { marketingRoutes } from "@/lib/routes";
@@ -87,19 +88,21 @@ const pillars: {
   },
 ];
 
-const smartTags: {
-  name: string;
-  tagline: string;
-  highlighted?: boolean;
+// The two ways a finder opens the Safety Profile from our one physical tag.
+const smartTagAccessMethods: {
+  description: string;
+  icon: "qr" | "tag";
+  title: string;
 }[] = [
   {
-    name: "QR Pet Tag",
-    tagline: "Best for everyday use",
+    title: "Scan the QR code",
+    description: "Works with any modern phone camera, with no app to install.",
+    icon: "qr",
   },
   {
-    name: "QR + NFC Smart Tag",
-    tagline: "QR scan plus NFC tap support",
-    highlighted: true,
+    title: "Tap using NFC",
+    description: "Hold an NFC-capable phone against the tag to open the page.",
+    icon: "tag",
   },
 ];
 
@@ -110,9 +113,9 @@ const faqs = [
       "No. A MyPetLink QR or NFC tag opens your pet's Safety Profile when someone scans or taps it; it does not provide live location tracking. GPS Safety is a separate feature planned for later.",
   },
   {
-    question: "Do I need the NFC tag?",
+    question: "What if a finder's phone does not support NFC?",
     answer:
-      "No. The QR Pet Tag works with a phone camera. The QR + NFC Smart Tag adds tap support, while both options open the same owner-approved Safety Profile.",
+      "They can still scan the QR code with the phone camera. Scanning and tapping open the same owner-approved Safety Profile.",
   },
   {
     question: "Will my full address be public?",
@@ -127,7 +130,7 @@ const faqs = [
   {
     question: "Can I create a pet profile without buying a tag?",
     answer:
-      "Yes. Every owner can start with a free Public Share Profile and Safety Profile. Physical QR and QR + NFC tags are optional one-time add-ons.",
+      "Yes. Every owner can start with a free Public Share Profile and Safety Profile. The physical QR + NFC Smart Tag is an optional one-time add-on.",
   },
   {
     question: "Is MyPetLink available for pets in Malaysia?",
@@ -177,8 +180,9 @@ export default function Home() {
               </CTAButton>
             </div>
               <p className="mt-6 text-sm font-bold text-pet-muted">
-              Free covers basic pet safety and sharing. Physical QR and QR + NFC
-              tags are one-time add-ons. Premium care features are coming soon.
+              Free covers basic pet safety and sharing. The physical QR + NFC
+              Smart Tag is a one-time add-on. Premium care features are coming
+              soon.
             </p>
           </div>
 
@@ -359,40 +363,43 @@ export default function Home() {
           <PageHeader
             eyebrow="Smart tag add-on"
             title="Start free. Add a physical tag when you want one."
-            description="Smart tags are optional one-time add-ons that connect to your pet's Safety Profile. Coming soon."
+            description="The MyPetLink QR + NFC Smart Tag is an optional one-time add-on that connects to your pet's Safety Profile. Coming soon."
             action={
               <CTAButton href={marketingRoutes.smartPetTags} variant="secondary">
-                Compare Smart Tags
+                About the Smart Tag
               </CTAButton>
             }
           />
-          <div className="grid gap-4 md:grid-cols-2">
-            {smartTags.map((tag) => (
-              <article
-                className={`brand-card flex items-center gap-4 rounded-[1.75rem] p-6 ${
-                  tag.highlighted ? "ring-2 ring-pet-teal" : ""
-                }`}
-                key={tag.name}
-              >
-                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-[#e8f3ff] text-pet-teal">
-                  <Icon name="tag" className="h-6 w-6" />
-                </span>
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-lg font-black text-pet-ink">
-                      {tag.name}
-                    </h3>
-                    <Badge tone="teal">Coming Soon</Badge>
-                    {tag.highlighted ? (
-                      <Badge tone="mint">QR + NFC</Badge>
-                    ) : null}
+          <div className="brand-card rounded-[1.75rem] p-6 sm:p-8">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-lg font-black text-pet-ink">
+                {smartTagAddOn.name}
+              </h3>
+              <Badge tone="teal">{smartTagAddOnsStatus.status}</Badge>
+            </div>
+            <p className="mt-2 text-sm font-semibold text-pet-muted">
+              Both methods open the same owner-approved Safety Profile.
+            </p>
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              {smartTagAccessMethods.map((method) => (
+                <div
+                  className="flex items-center gap-4 rounded-[1.5rem] bg-pet-cream p-5"
+                  key={method.title}
+                >
+                  <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-pet-teal">
+                    <Icon name={method.icon} className="h-6 w-6" />
+                  </span>
+                  <div className="min-w-0">
+                    <h4 className="text-base font-black text-pet-ink">
+                      {method.title}
+                    </h4>
+                    <p className="mt-1 text-sm font-semibold text-pet-muted">
+                      {method.description}
+                    </p>
                   </div>
-                  <p className="mt-1 text-sm font-semibold text-pet-muted">
-                    {tag.tagline}
-                  </p>
                 </div>
-              </article>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
       </section>
@@ -421,8 +428,8 @@ export default function Home() {
             />
             <PricingPreviewCard
               badge={smartTagAddOnsStatus.status}
-              title="Smart Tag Add-ons"
-              price={`From ${smartTagAddOnsStatus.startingPrice}`}
+              title="Smart Tag Add-on"
+              price={smartTagAddOnsStatus.price}
               note={smartTagAddOnsStatus.shortDescription}
             />
             <PricingPreviewCard

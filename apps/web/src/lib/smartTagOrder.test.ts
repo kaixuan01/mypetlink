@@ -51,9 +51,9 @@ describe("Smart Tag order routing", () => {
     expect(ownerRoutes.tagOrder({ petId: "pet newly created" })).toBe(
       "/tags/order?petId=pet+newly+created"
     );
-    expect(ownerRoutes.petTagOrder("pet_milo", { type: "nfc" })).toBe(
-      "/tags/order?petId=pet_milo&type=nfc"
-    );
+    expect(
+      ownerRoutes.petTagOrder("pet_milo", { replacementFor: "tag_1" })
+    ).toBe("/tags/order?petId=pet_milo&replacementFor=tag_1");
     expect(ownerRoutes.petNewForTagOrder()).toBe(
       "/pets/new?returnTo=%2Ftags%2Forder"
     );

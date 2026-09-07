@@ -193,7 +193,7 @@ export function OrdersList({
       <EmptyState
         icon="record"
         title="No tag orders yet"
-        description="Orders for MyPetLink QR Tags and QR + NFC Smart Tags will appear here with payment status, delivery updates, and receipt actions."
+        description="Orders for MyPetLink QR + NFC Smart Tags will appear here with payment status, delivery updates, and receipt actions."
         actionHref={ownerRoutes.tagOrder()}
         actionLabel="Order Physical Tag"
       />
@@ -231,7 +231,6 @@ export function OrdersList({
         const replacementHref =
           orderDisclosedTag && order.petId
             ? ownerRoutes.petTagOrder(order.petId, {
-                type: order.tagType.includes("NFC") ? "nfc" : "qr",
                 replacementFor: orderDisclosedTag.id,
               })
             : "";

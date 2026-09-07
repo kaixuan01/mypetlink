@@ -445,7 +445,7 @@ public class MerchantBillingServiceTests
             var variant = new TagProductVariant
             {
                 TagProduct = product, PublicKey = "WSQR0000000000001", Sku = "WS-QR-1",
-                DisplayName = "Lightweight", SupportsQr = true, TagVariant = "Lightweight",
+                DisplayName = "Lightweight", SupportsQr = true, SupportsNfc = true, TagVariant = "Lightweight",
                 BasePrice = 19.90m, Currency = "MYR", IsActive = true, IsPurchasable = true,
                 WeightGrams = 4.5m,
             };

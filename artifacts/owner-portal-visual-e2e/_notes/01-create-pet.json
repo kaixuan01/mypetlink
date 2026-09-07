@@ -1,0 +1,110 @@
+{
+  "journey": "01-create-pet",
+  "viewport": "mobile 390x844",
+  "steps": [
+    "Landing page loaded as a signed-in owner.",
+    "Dashboard empty state (zero pets).",
+    "Add Pet form initial state.",
+    "Submitted empty form to observe validation.",
+    "Typed pet name \"Mochi\".",
+    "Selected pet type: Cat.",
+    "Opened breed picker and chose a breed.",
+    "Saved the pet and captured the post-create screen.",
+    "Followed the post-create CTA to the pet page."
+  ],
+  "probes": [
+    {
+      "label": "dashboard-empty",
+      "route": "/dashboard",
+      "viewportWidth": 390,
+      "viewportMatchesVisual": true,
+      "pannedX": 0,
+      "clippedCount": 0,
+      "clipped": []
+    },
+    {
+      "label": "add-pet-initial",
+      "route": "/pets/new",
+      "viewportWidth": 390,
+      "viewportMatchesVisual": true,
+      "pannedX": 0,
+      "clippedCount": 0,
+      "clipped": []
+    },
+    {
+      "label": "add-pet-filled",
+      "route": "/pets/new",
+      "viewportWidth": 390,
+      "viewportMatchesVisual": true,
+      "pannedX": 0,
+      "clippedCount": 0,
+      "clipped": []
+    },
+    {
+      "label": "post-create",
+      "route": "/pets/new",
+      "viewportWidth": 390,
+      "viewportMatchesVisual": true,
+      "pannedX": 0,
+      "clippedCount": 0,
+      "clipped": []
+    },
+    {
+      "label": "pet-page",
+      "route": "/pets/5e3b24db-2295-4b58-a022-a5279e188f40",
+      "viewportWidth": 390,
+      "viewportMatchesVisual": true,
+      "pannedX": 0,
+      "clippedCount": 0,
+      "clipped": []
+    }
+  ],
+  "findings": [],
+  "dashboardEmptyText": "Add your contact details\n\nHelp finders contact you if your pet is lost.\n\nAdd contact details\nWelcome to MyPetLink\n\nCreate your first pet profile to start adding photos, memories, and care records you can share.\n\nAdd your first pet",
+  "petsEmptyText": "MY PETS\n\nYour pets at a glance\n\nA quick overview of every pet. Tap Manage to open a pet's records, moments, smart tags, and settings.\n\nNo pets yet\n\nCreate your first pet profile to start adding photos, memories, and care records.\n\nAdd your first pet",
+  "addPetInitialText": "ADD PET\n\nAdd a pet\n\nTwo details are enough to start. You can add the rest any time.\n\nPet details\n\nStart with the basics. Everything else can be added after this pet is saved.\n\nAdd a photo\nClick to upload a photo\nJPG, PNG, or WebP, up to 10MB\nOptional. You can add or change this any time.\nPet name *\nUse the name people normally call your pet.\nPet type *\nDog\nBreed\nSelect breed\nOptional. Leave this blank if you are not sure.\nAge information\nUnknown\nYou can add a birthday or estimated year later.\nCancel\nSave Pet",
+  "addPetTouchTargets": [],
+  "validationText": "ADD PET\n\nAdd a pet\n\nTwo details are enough to start. You can add the rest any time.\n\nPet details\n\nStart with the basics. Everything else can be added after this pet is saved.\n\nAdd a photo\nClick to upload a photo\nJPG, PNG, or WebP, up to 10MB\nOptional. You can add or change this any time.\nPet name *\nUse the name people normally call your pet.\nPet name is required.\nPet type *\nDog\nBreed\nSelect breed\nOptional. Leave this blank if you are not sure.\nAge information\nUnknown\nYou can add a birthday or estimated year later.\nCancel\nSave Pet",
+  "petTypeOptions": [
+    "DogSelected",
+    "Cat",
+    "Rabbit",
+    "Bird",
+    "Hamster",
+    "Guinea Pig",
+    "Fish",
+    "Turtle",
+    "Tortoise",
+    "Reptile",
+    "Snake",
+    "Lizard",
+    "Ferret",
+    "Hedgehog"
+  ],
+  "breedFocusOnOpen": {
+    "tag": "BUTTON",
+    "type": "button",
+    "role": "combobox",
+    "aria": null
+  },
+  "breedOptionsSample": [
+    "Domestic Shorthair",
+    "Mixed breed",
+    "British Shorthair",
+    "Persian",
+    "Ragdoll",
+    "Maine Coon",
+    "Siamese",
+    "Munchkin",
+    "Unknown",
+    "Other"
+  ],
+  "postCreateText": "ADD PET\n\nAdd a pet\n\nTwo details are enough to start. You can add the rest any time.\n\nPET ADDED\n\nMochi is on MyPetLink\nGo to Mochi's page\nView public profile",
+  "petPageText": "Getting this pet’s profile ready…\n\nJust a moment — almost there.\n\nLoading",
+  "url": "http://localhost:3000/pets/5e3b24db-2295-4b58-a022-a5279e188f40",
+  "video": "artifacts\\owner-portal-visual-e2e\\videos\\01-create-pet.webm",
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ]
+}

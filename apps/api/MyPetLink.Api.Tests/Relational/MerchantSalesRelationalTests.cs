@@ -125,6 +125,7 @@ public sealed class MerchantSalesRelationalTests
             Sku = $"WS-{Guid.NewGuid():N}"[..16],
             DisplayName = "Lightweight",
             SupportsQr = true,
+            SupportsNfc = true,
             TagVariant = "Lightweight",
             BasePrice = 19.90m,
             Currency = "MYR",

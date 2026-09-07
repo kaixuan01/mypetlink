@@ -1,0 +1,104 @@
+{
+  "journey": "06-sharing-privacy-public-profile",
+  "viewport": "mobile 390x844",
+  "steps": [
+    "Entered a Malaysian phone number in Owner Settings.",
+    "Saved owner contact details.",
+    "Sharing selections: [{\"label\":\"Public Profile enabled\",\"checked\":\"true\"},{\"label\":\"Show care history on Public Profile\",\"checked\":true},{\"label\":\"Show care history on Public Profile\",\"checked\":true},{\"label\":\"Show care history on Public Profile\",\"checked\":true},{\"label\":\"Show care history on Public Profile\",\"checked\":false}]",
+    "Safety selections: [{\"label\":\"Safety Profile enabled\",\"checked\":\"true\"},{\"label\":\"Show owner name\",\"checked\":false},{\"label\":\"WhatsApp\",\"checked\":\"true\"},{\"label\":\"WhatsApp\",\"checked\":\"false\"},{\"label\":\"WhatsApp\",\"checked\":\"true\"},{\"label\":\"WhatsApp\",\"checked\":\"true\"},{\"label\":\"Show allergies on Public Profile\",\"checked\":false}]",
+    "Viewed the public profile while signed in as the owner.",
+    "Viewed the Safety Profile while signed in as the owner."
+  ],
+  "probes": [
+    {
+      "label": "settings",
+      "route": "/settings",
+      "viewportWidth": 390,
+      "viewportMatchesVisual": true,
+      "pannedX": 0,
+      "clippedCount": 0,
+      "clipped": []
+    },
+    {
+      "label": "public-profile-owner-view",
+      "route": "/p/mochi-pesxzxpkngvhlvdki",
+      "viewportWidth": 390,
+      "viewportMatchesVisual": true,
+      "pannedX": 0,
+      "clippedCount": 0,
+      "clipped": []
+    },
+    {
+      "label": "safety-profile-owner-view",
+      "route": "/q/st66zq76q2qm6gbx4n7pq",
+      "viewportWidth": 390,
+      "viewportMatchesVisual": true,
+      "pannedX": 0,
+      "clippedCount": 0,
+      "clipped": []
+    }
+  ],
+  "ownerSelections": {
+    "sharing": [
+      {
+        "label": "Public Profile enabled",
+        "checked": "true"
+      },
+      {
+        "label": "Show care history on Public Profile",
+        "checked": true
+      },
+      {
+        "label": "Show care history on Public Profile",
+        "checked": true
+      },
+      {
+        "label": "Show care history on Public Profile",
+        "checked": true
+      },
+      {
+        "label": "Show care history on Public Profile",
+        "checked": false
+      }
+    ],
+    "safety": [
+      {
+        "label": "Safety Profile enabled",
+        "checked": "true"
+      },
+      {
+        "label": "Show owner name",
+        "checked": false
+      },
+      {
+        "label": "WhatsApp",
+        "checked": "true"
+      },
+      {
+        "label": "WhatsApp",
+        "checked": "false"
+      },
+      {
+        "label": "WhatsApp",
+        "checked": "true"
+      },
+      {
+        "label": "WhatsApp",
+        "checked": "true"
+      },
+      {
+        "label": "Show allergies on Public Profile",
+        "checked": false
+      }
+    ]
+  },
+  "settingsBefore": "OWNER ACCOUNT\n\nOwner settings\n\nManage your contact details, privacy, communication preferences, and account settings.\n\nContact details\n\nThese details help finders contact you quickly if your pet is ever lost.\n\nOwner display name\nEmail\nWhatsApp number\n🇲🇾\n+60\n▼\nMalaysia +60. Change country code\nPhone number\n🇲🇾\n+60\n▼\nMalaysia +60. Change country code\nDefault general area\n\nYour full address is not shown on public profiles. Use a general area so finders know where your pet is usually from.\n\nCommunication preferences\n\nReview essential messages, future care reminders, and optional MyPetLink updates separately.\n\nEssential account and order emails\n\nImportant account and order emails are sent when required.\n\nPremium care reminders\nCOMING SOON\n\nCare reminders will be available with MyPetLink Premium.\n\nWhatsApp care reminders\nReceive vaccine, grooming, deworming, medication, and appointment reminders through WhatsApp.\nEmail care reminders\nReceive upcoming care reminders by email.\nMonthly care digest\nReceive a monthly summary of upcoming and recently completed care activities.\nOptional updates\nMyPetLink news and offers\nReceive occasional product updates, promotions, new features, and special offers.\n\nYou can change this preference at any time.\n\nPlan & usage\nPremium coming soon\nCurrent plan\nFree plan\nPet-profile usage\n1 of 3 pet profiles\nMochi moment usage\n2 of 10 moments\nAccount actions\n\nSign out of the owner portal on this device.\n\nLogout",
+  "settingsAfter": "OWNER ACCOUNT\n\nOwner settings\n\nManage your contact details, privacy, communication preferences, and account settings.\n\nContact details\n\nThese details help finders contact you quickly if your pet is ever lost.\n\nOwner display name\nEmail\nWhatsApp number\n🇲🇾\n+60\n▼\nMalaysia +60. Change country code\nPhone number\n🇲🇾\n+60\n▼\nMalaysia +60. Change country code\nDefault general area\n\nYour full address is not shown on public profiles. Use a general area so finders know where your pet is usually from.\n\nCommunication preferences\n\nReview essential messages, future care reminders, and optional MyPetLink updates separately.\n\nEssential account and order emails\n\nImportant account and order emails are sent when required.\n\nPremium care reminders\nCOMING SOON\n\nCare reminders will be available with MyPetLink Premium.\n\nWhatsApp care reminders\nReceive vaccine, grooming, deworming, medication, and appointment reminders through WhatsApp.\nEmail care reminders\nReceive upcoming care reminders by email.\nMonthly care digest\nReceive a monthly summary of upcoming and recently completed care activities.\nOptional updates\nMyPetLink news and offers\nReceive occasional product updates, promotions, new features, and special offers.\n\nYou can change this preference at any time.\n\nPlan & usage\nPremium coming soon\nCurrent plan\nFree plan\nPet-profile usage\n1 of 3 pet profiles\nMochi moment usage\n2 of 10 moments\nAccount actions\n\nSign out of the owner portal on this device.\n\nLogout",
+  "safetyTabText": "EDIT PET\n\nEdit Mochi\n\nUpdate profile, photos, privacy, and safety settings.\n\nInfo\nStyle\nSharing\nSafety\nInfo\nStyle\nSharing\nSafety\nMore\nContact & Safety\n\nHelp finders contact you if your pet is lost. Your full address is never shown.\n\nLost Mode\nOff\n\nOnly turn this on if Mochi is missing.\n\nTurn on Lost Mode\n→\nSafety Profile\nSafety Profile Active\n\nHelp finders contact you if your pet is lost. This profile can be opened through a QR code, NFC tag, or direct link.\n\nSafety Profile enabled\nWhen off, the Safety Profile stops showing your contact details to finders.\n\nSAFETY PROFILE LINK\n\nhttp://localhost:3000/q/st66zq76q2qm6gbx4n7pq\n\nCopy\nEmergency Contact\nOwner defaults\n\nUsing your contact details from Owner Settings.\n\nThese settings only apply to Mochi. Owner defaults are managed in Owner Profile & Contact.\n\nEdit contact details\nOWNER DISPLAY NAME\nPlain Owner\nWHATSAPP NUMBER\n+60123456789\nPHONE NUMBER\nNot provided\nGENERAL AREA\nNot provided\nShow owner name\nShow the owner name to people viewing this pet's Public Profile or Safety Profile.\n✓\nUse account contact details\nKeep this pet in sync with Owner Settings.\nUse different contact details for this pet\nEnter contact details that only apply to this pet.\n\nWhat finders can see\n\nWhatsApp, phone, and emergency notes appear on the Safety Profile. General area can also appear on the Public Profile.\n\nWhatsApp\nPhone call\nGeneral area\nShow the general area on this pet's Public Profile and Safety Profile.\nEmergency note\n\nSafety information\n\nAllergies\n0/8\nAdd anything finders, carers, or vets should avoid.\nAdd\nShow suggestions (8)\nShow allergies on Public Profile\nAllergies are always shown on the Safety Profile for pet safety. Turn this on to also show them on the Public Profile.\nSafety note / handling instructions\nHelpful for anyone who finds your pet outside.\nEmergency note\nAdd anything urgent a finder should know before contacting you.\nCancel\nSave Changes",
+  "ownerViewOfPublic": "PET PROFILE\nMochi\n\nCat - British Shorthair - Age unknown\n\nMochi is a shy indoor cat who loves the window.\n\nVIEWING AS PUBLIC\nShare\nBack to Edit\nAbout\nMoments\nTimeline\nAbout Mochi\n\nPET TYPE\n\nCat\n\nBREED\n\nBritish Shorthair\n\nAGE\n\nAge unknown\n\nPowered by MyPetLink. This profile only shows owner-approved public information.",
+  "ownerViewOfSafety": "MyPetLink Safety Profile\n\nMYPETLINK SAFETY PROFILE\n\nFound Mochi?\n\nPlease contact the owner directly using one of the options below.\n\nCat - Age unknown\n\nOwner: Plain Owner\n\nWhatsApp Owner\nSend Found Location\n\nFor safety, this profile only shows selected public information. The owner's full address is not shared.\n\nWhat is MyPetLink?",
+  "video": "artifacts\\owner-portal-visual-e2e\\videos\\06-sharing-privacy-public-profile.webm",
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ]
+}

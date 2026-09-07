@@ -1210,6 +1210,9 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
     {
         var missing = new List<string>();
         if (!variant.SupportsQr) missing.Add("QR capability");
+        // Only the QR + NFC Smart Tag is produced now. Tags manufactured before
+        // that decision keep working; no new scan-only stock is created.
+        if (!variant.SupportsNfc) missing.Add("NFC capability");
         if (!variant.WidthMm.HasValue) missing.Add("width");
         if (!variant.HeightMm.HasValue) missing.Add("height");
         if (!variant.WeightGrams.HasValue) missing.Add("weight");

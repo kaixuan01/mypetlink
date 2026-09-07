@@ -57,7 +57,7 @@ const filters: AdminFilterDef[] = [
     { value: "archived", label: "Archived" },
   ] },
   { type: "select", key: "type", label: "Type", options: [
-    { value: "QR", label: "QR Pet Tag" }, { value: "QR_NFC", label: "QR + NFC Smart Tag" },
+    { value: "QR", label: "QR only (no longer sold)" }, { value: "QR_NFC", label: "QR + NFC Smart Tag" },
   ] },
   { type: "select", key: "claimed", label: "Claimed", options: [
     { value: "true", label: "Claimed" }, { value: "false", label: "Unclaimed" },

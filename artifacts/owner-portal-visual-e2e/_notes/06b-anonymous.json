@@ -1,0 +1,71 @@
+{
+  "journey": "06b-anonymous-public-and-finder-view",
+  "viewport": "mobile 390x844",
+  "steps": [
+    "Captured the anonymous Public Share Profile (About tab).",
+    "Opened anonymous public tab: Moments",
+    "Opened anonymous public tab: Timeline",
+    "Opened anonymous public tab: About",
+    "Captured the anonymous Safety Profile (finder view).",
+    "Leak checks: {\"privateMomentTitleLeaked\":false,\"privateMomentCaptionLeaked\":false,\"privateCareNameLeaked\":false,\"careDueDateLeaked\":false,\"providerLeaked\":false,\"ownerEmailLeaked\":false,\"publicMomentShown\":true}"
+  ],
+  "probes": [
+    {
+      "label": "anon-public-profile",
+      "route": "/p/mochi-pesxzxpkngvhlvdki",
+      "viewportWidth": 390,
+      "viewportMatchesVisual": true,
+      "pannedX": 0,
+      "clippedCount": 0,
+      "clipped": []
+    },
+    {
+      "label": "anon-safety-profile",
+      "route": "/q/st66zq76q2qm6gbx4n7pq",
+      "viewportWidth": 390,
+      "viewportMatchesVisual": true,
+      "pannedX": 0,
+      "clippedCount": 0,
+      "clipped": []
+    }
+  ],
+  "auth": "NONE - clean context",
+  "publicProfileText": "PET PROFILE\nMochi\n\nCat - British Shorthair - Age unknown\n\nMochi is a shy indoor cat who loves the window.\n\nShare profile\nCopy Link\nAbout\nMoments\nTimeline\nAbout Mochi\n\nPET TYPE\n\nCat\n\nBREED\n\nBritish Shorthair\n\nAGE\n\nAge unknown\n\nCreate a profile for your pet\n\nKeep their profile, moments and care details together with MyPetLink.\n\nCreate your pet's profile\n\nPowered by MyPetLink. This profile only shows owner-approved public information.",
+  "publicTabs": {
+    "Moments": "PET PROFILE\nMochi\n\nCat - British Shorthair - Age unknown\n\nMochi is a shy indoor cat who loves the window.\n\nShare profile\nCopy Link\nAbout\nMoments\nTimeline\n♡\n\nMemory note\n\nFirst night at home (edited)\n\n20 Aug 2026\n\nFirst Day Home\n\nCreate a profile for your pet\n\nKeep their profile, moments and care details together with MyPetLink.\n\nCreate your pet's profile\n\nPowered by MyPetLink. This profile only shows owner-approved public information.",
+    "Timeline": "PET PROFILE\nMochi\n\nCat - British Shorthair - Age unknown\n\nMochi is a shy indoor cat who loves the window.\n\nShare profile\nCopy Link\nAbout\nMoments\nTimeline\nLife Timeline\n\nMilestones and special dates from Mochi's life.\n\n20 AUG 2026\n\nFirst night at home (edited)\n\nCreate a profile for your pet\n\nKeep their profile, moments and care details together with MyPetLink.\n\nCreate your pet's profile\n\nPowered by MyPetLink. This profile only shows owner-approved public information.",
+    "About": "PET PROFILE\nMochi\n\nCat - British Shorthair - Age unknown\n\nMochi is a shy indoor cat who loves the window.\n\nShare profile\nCopy Link\nAbout\nMoments\nTimeline\nAbout Mochi\n\nPET TYPE\n\nCat\n\nBREED\n\nBritish Shorthair\n\nAGE\n\nAge unknown\n\nCreate a profile for your pet\n\nKeep their profile, moments and care details together with MyPetLink.\n\nCreate your pet's profile\n\nPowered by MyPetLink. This profile only shows owner-approved public information."
+  },
+  "safetyProfileText": "MyPetLink Safety Profile\n\nMYPETLINK SAFETY PROFILE\n\nFound Mochi?\n\nPlease contact the owner directly using one of the options below.\n\nCat - Age unknown\n\nOwner: Plain Owner\n\nWhatsApp Owner\nSend Found Location\n\nFor safety, this profile only shows selected public information. The owner's full address is not shared.\n\nWhat is MyPetLink?",
+  "finderActions": [
+    {
+      "text": "MyPetLink Safety Profile",
+      "href": "/"
+    },
+    {
+      "text": "WhatsApp Owner",
+      "href": "https://wa.me/60123456789?text=Hi%2C%20I%20found%20Mochi%20from%20the%20MyPetLink%20safety%20profile."
+    },
+    {
+      "text": "Send Found Location",
+      "href": null
+    },
+    {
+      "text": "What is MyPetLink?",
+      "href": "/"
+    }
+  ],
+  "leakChecks": {
+    "privateMomentTitleLeaked": false,
+    "privateMomentCaptionLeaked": false,
+    "privateCareNameLeaked": false,
+    "careDueDateLeaked": false,
+    "providerLeaked": false,
+    "ownerEmailLeaked": false,
+    "publicMomentShown": true
+  },
+  "video": "artifacts\\owner-portal-visual-e2e\\videos\\06b-anonymous-view.webm",
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ]
+}

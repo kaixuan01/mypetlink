@@ -1,6 +1,6 @@
 # MyPetLink
 
-MyPetLink is a Malaysia-focused platform for safe and shareable pet profiles. Pet owners create a free pet profile first, then add optional one-time MyPetLink QR or QR + NFC smart tags for extra collar safety.
+MyPetLink is a Malaysia-focused platform for safe and shareable pet profiles. Pet owners create a free pet profile first, then add the optional one-time MyPetLink QR + NFC Smart Tag for extra collar safety.
 
 This repository is a monorepo. The current product surface is the frontend app in `apps/web`.
 

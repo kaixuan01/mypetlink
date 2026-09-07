@@ -1,0 +1,141 @@
+{
+  "journey": "04b-care-date-states",
+  "viewport": "mobile 390x844",
+  "today": "2026-08-29",
+  "steps": [
+    "Rendered 7 care cards.",
+    "Captured dashboard upcoming-care surface."
+  ],
+  "probes": [
+    {
+      "label": "care-all-states",
+      "route": "/pets/5e3b24db-2295-4b58-a022-a5279e188f40/records",
+      "viewportWidth": 390,
+      "viewportMatchesVisual": true,
+      "pannedX": 0,
+      "clippedCount": 0,
+      "clipped": []
+    },
+    {
+      "label": "dashboard-upcoming-care",
+      "route": "/dashboard",
+      "viewportWidth": 390,
+      "viewportMatchesVisual": true,
+      "pannedX": 0,
+      "clippedCount": 0,
+      "clipped": []
+    }
+  ],
+  "careListText": "CARE RECORDS\n\nMochi's health and care history\n\nKeep vaccines, deworming, grooming, vet visits, medication, and allergy notes in one place.\n\nCare records\n\nAdd vaccines, deworming, grooming, vet visits, medication, surgery, and lab tests as your pet's care changes.\n\nVaccine\n· 1\nVaccine\n\nRabies\n\nRabies annual booster\n\nDate: 15 Aug 2026 - Owner recorded\n\nNext due: 03 Sept 2026\nDue soon\nOnly me\n\nNo notes added.\n\nEdit\nDelete\nDeworming\n· 1\nDeworming\n\nOverdue probe\n\nDeworming overdue\n\nDate: 01 Jun 2026 - Owner recorded\n\nNext due: 15 Jul 2026\nOverdue\nOnly me\n\nNo notes added.\n\nEdit\nDelete\nGrooming\n· 1\nGrooming\nMonthly groom\n\nDate: 29 Aug 2026 - Full groom and nail trim\n\nNext due: 29 Aug 2026\nDue today\nOnly me\n\nNo notes added.\n\nEdit\nDelete\nVet Visit\n· 1\nVet Visit\n\nNo due probe\n\nVet visit no due date\n\nDate: 12 Aug 2026 - Owner recorded\n\nOnly me\n\nNo notes added.\n\nEdit\nDelete\nMedication\n· 1\nMedication\n\nDue today probe\n\nMedication due today\n\nStart date: 01 Aug 2026 - Owner recorded\n\nNext review: 29 Aug 2026\nDue today\nOnly me\n\nNo notes added.\n\nEdit\nDelete\nSurgery\n· 1\nSurgery\n\nUpcoming probe\n\nSurgery upcoming\n\nDate: 05 Aug 2026 - Owner recorded\n\nNext follow-up: 01 Dec 2026\nUpcoming\nOnly me\n\nNo notes added.\n\nEdit\nDelete\nLab Test\n· 1\nLab Test\n\nSeptember probe\n\nLab test September\n\nDate: 10 Aug 2026 - Owner recorded\n\nNext follow-up: 01 Sept 2026\nDue soon\nOnly me\n\nNo notes added.\n\nEdit\nDelete",
+  "renderedStates": [
+    {
+      "lines": [
+        "Vaccine",
+        "Rabies",
+        "Rabies annual booster",
+        "Date: 15 Aug 2026 - Owner recorded",
+        "Next due: 03 Sept 2026",
+        "Due soon",
+        "Only me",
+        "No notes added.",
+        "Edit"
+      ],
+      "statusChip": "Due soon",
+      "dueLine": "Next due: 03 Sept 2026"
+    },
+    {
+      "lines": [
+        "Deworming",
+        "Overdue probe",
+        "Deworming overdue",
+        "Date: 01 Jun 2026 - Owner recorded",
+        "Next due: 15 Jul 2026",
+        "Overdue",
+        "Only me",
+        "No notes added.",
+        "Edit"
+      ],
+      "statusChip": "Overdue",
+      "dueLine": "Next due: 15 Jul 2026"
+    },
+    {
+      "lines": [
+        "Grooming",
+        "Monthly groom",
+        "Date: 29 Aug 2026 - Full groom and nail trim",
+        "Next due: 29 Aug 2026",
+        "Due today",
+        "Only me",
+        "No notes added.",
+        "Edit",
+        "Delete"
+      ],
+      "statusChip": "Due today",
+      "dueLine": "Next due: 29 Aug 2026"
+    },
+    {
+      "lines": [
+        "Vet Visit",
+        "No due probe",
+        "Vet visit no due date",
+        "Date: 12 Aug 2026 - Owner recorded",
+        "Only me",
+        "No notes added.",
+        "Edit",
+        "Delete"
+      ],
+      "statusChip": null,
+      "dueLine": null
+    },
+    {
+      "lines": [
+        "Medication",
+        "Due today probe",
+        "Medication due today",
+        "Start date: 01 Aug 2026 - Owner recorded",
+        "Next review: 29 Aug 2026",
+        "Due today",
+        "Only me",
+        "No notes added.",
+        "Edit"
+      ],
+      "statusChip": "Due today",
+      "dueLine": "Next review: 29 Aug 2026"
+    },
+    {
+      "lines": [
+        "Surgery",
+        "Upcoming probe",
+        "Surgery upcoming",
+        "Date: 05 Aug 2026 - Owner recorded",
+        "Next follow-up: 01 Dec 2026",
+        "Upcoming",
+        "Only me",
+        "No notes added.",
+        "Edit"
+      ],
+      "statusChip": "Upcoming",
+      "dueLine": null
+    },
+    {
+      "lines": [
+        "Lab Test",
+        "September probe",
+        "Lab test September",
+        "Date: 10 Aug 2026 - Owner recorded",
+        "Next follow-up: 01 Sept 2026",
+        "Due soon",
+        "Only me",
+        "No notes added.",
+        "Edit"
+      ],
+      "statusChip": "Due soon",
+      "dueLine": null
+    }
+  ],
+  "dashboardText": "Add your contact details\n\nHelp finders contact you if your pet is lost.\n\nAdd contact details\n\nOWNER PORTAL\n\nWelcome back\n\nManage your pet profiles, care records, and moments in one place.\n\n1\nPets\n1\nPublic profiles\n1\nMemories\nYour pets\n\nManage and share your pet profiles.\n\nManage pets\nMochi\nPublic\nCat - British Shorthair - Age unknown\nShare\nView\nAdd more about Mochi\n\n29% complete\n\nAdd\nCare due dates\nView all\n\nDeworming\n\nOverdue\n\nMochi\n\nDue 15 Jul 2026\n\nGrooming\n\nDue today\n\nMochi\n\nDue 29 Aug 2026\n\nMedication\n\nDue today\n\nMochi\n\nDue 29 Aug 2026\n\nQuick actions\nCare Records\nMoments\nOwner Settings\nPlan usage\nPlan & usage\nPremium coming soon\nCurrent plan\nFree plan\nPet-profile usage\n1 of 3 pet profiles\nMochi moment usage\n1 of 10 moments",
+  "video": "artifacts\\owner-portal-visual-e2e\\videos\\04b-care-date-states.webm",
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ]
+}

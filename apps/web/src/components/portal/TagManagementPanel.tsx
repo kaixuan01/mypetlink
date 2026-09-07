@@ -329,7 +329,7 @@ export function TagManagementPanel({
       <EmptyState
         icon="tag"
         title="No physical tags yet"
-        description="Order a MyPetLink QR Tag or MyPetLink QR + NFC Smart Tag so your pet's Safety Profile is easy to open if they are found."
+        description="Order a MyPetLink QR + NFC Smart Tag so your pet's Safety Profile is easy to scan or tap open if they are found."
         actionHref={showOrderButton ? orderHref : undefined}
         actionLabel={showOrderButton ? "Order Physical Tag" : undefined}
       />
@@ -379,7 +379,7 @@ export function TagManagementPanel({
           ) : null}
           <p className="text-xs font-semibold leading-5 text-pet-muted">
             {selectedPet
-              ? `Physical QR and QR + NFC tags linked to ${selectedPet.name}.`
+              ? `Physical tags linked to ${selectedPet.name}.`
               : "Showing physical tags across all pets."}
           </p>
         </div>
@@ -523,10 +523,7 @@ function TagCard({
   const isArchived = Boolean(tag.isArchived);
   const orderHref = order ? ownerRoutes.orderDetail(formatOrderNumber(order)) : "";
   const replacementHref = tag.petId
-    ? ownerRoutes.petTagOrder(tag.petId, {
-        type: tag.hasNfc ? "nfc" : "qr",
-        replacementFor: tag.id,
-      })
+    ? ownerRoutes.petTagOrder(tag.petId, { replacementFor: tag.id })
     : "";
   const scanPath = tagQrPath(tag.tagCode);
   const nfcPath = tagNfcPath(tag.tagCode);

@@ -178,9 +178,10 @@ These are static-export dynamic routes: each exports `dynamicParams = false` and
 (in `localStorage`) is reflected through client re-fetching, not new static
 routes.
 
-`ownerRoutes.petTagOrder(petId, { type?, replacementFor? })` builds the order
-URL with an optional `type=qr|nfc` and `replacementFor={tagId}` query string â€”
-use it instead of hand-writing the query.
+`ownerRoutes.petTagOrder(petId, { replacementFor? })` builds the order URL with
+an optional `replacementFor={tagId}` query string â€” use it instead of
+hand-writing the query. Product selection is catalog-driven; there is no
+QR-only product query parameter.
 
 ---
 

@@ -14,6 +14,10 @@
 >
 > One factual correction: the Phase 1 text below names Supabase. The delivered
 > backend is **ASP.NET Core + EF Core + SQL Server** in `apps/api`.
+>
+> A second product correction: the QR + NFC Smart Tag is now the only physical
+> tag sold. References below to separate QR-only products or supplier tracks are
+> historical planning context, not current commercial direction.
 
 ## Purpose
 
@@ -57,8 +61,7 @@ Current Phase 1 commercial positioning:
 
 ```txt
 Free Profile is available now
-Optional QR Pet Tag is a one-time RM19.90 add-on
-Optional QR + NFC Smart Tag is a one-time RM39.90 add-on
+The optional QR + NFC Smart Tag is a one-time RM39.90 add-on
 Premium Plan is Coming Soon
 GPS Safety is Coming Later
 ```

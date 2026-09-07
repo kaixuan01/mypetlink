@@ -1,0 +1,193 @@
+{
+  "journey": "07-mobile-owner-portal",
+  "viewport": "mobile",
+  "steps": [
+    "mobile: /dashboard",
+    "mobile: /pets",
+    "mobile: /pets/5e3b24db-2295-4b58-a022-a5279e188f40",
+    "mobile: /pets/5e3b24db-2295-4b58-a022-a5279e188f40/edit",
+    "mobile: /pets/5e3b24db-2295-4b58-a022-a5279e188f40/moments",
+    "mobile: /pets/5e3b24db-2295-4b58-a022-a5279e188f40/records",
+    "mobile: /pets/5e3b24db-2295-4b58-a022-a5279e188f40/timeline",
+    "mobile: /settings",
+    "mobile: edit tab Appearance",
+    "mobile: edit tab Sharing & Privacy",
+    "mobile: edit tab Contact & Safety",
+    "mobile: share sheet",
+    "Care delete confirmation shown: true",
+    "Deleted a care record.",
+    "Moment delete confirmation shown: true",
+    "Deleted a moment."
+  ],
+  "probes": [
+    {
+      "label": "dashboard",
+      "route": "/dashboard",
+      "viewportWidth": 390,
+      "viewportMatchesVisual": true,
+      "pannedX": 0,
+      "clippedCount": 0,
+      "clipped": []
+    },
+    {
+      "label": "pets",
+      "route": "/pets",
+      "viewportWidth": 390,
+      "viewportMatchesVisual": true,
+      "pannedX": 0,
+      "clippedCount": 0,
+      "clipped": []
+    },
+    {
+      "label": "pet-profile",
+      "route": "/pets/5e3b24db-2295-4b58-a022-a5279e188f40",
+      "viewportWidth": 390,
+      "viewportMatchesVisual": true,
+      "pannedX": 0,
+      "clippedCount": 0,
+      "clipped": []
+    },
+    {
+      "label": "edit-pet",
+      "route": "/pets/5e3b24db-2295-4b58-a022-a5279e188f40/edit",
+      "viewportWidth": 390,
+      "viewportMatchesVisual": true,
+      "pannedX": 0,
+      "clippedCount": 0,
+      "clipped": []
+    },
+    {
+      "label": "moments",
+      "route": "/pets/5e3b24db-2295-4b58-a022-a5279e188f40/moments",
+      "viewportWidth": 390,
+      "viewportMatchesVisual": true,
+      "pannedX": 0,
+      "clippedCount": 0,
+      "clipped": []
+    },
+    {
+      "label": "care-records",
+      "route": "/pets/5e3b24db-2295-4b58-a022-a5279e188f40/records",
+      "viewportWidth": 390,
+      "viewportMatchesVisual": true,
+      "pannedX": 0,
+      "clippedCount": 0,
+      "clipped": []
+    },
+    {
+      "label": "life-timeline",
+      "route": "/pets/5e3b24db-2295-4b58-a022-a5279e188f40/timeline",
+      "viewportWidth": 390,
+      "viewportMatchesVisual": true,
+      "pannedX": 0,
+      "clippedCount": 0,
+      "clipped": []
+    },
+    {
+      "label": "settings",
+      "route": "/settings",
+      "viewportWidth": 390,
+      "viewportMatchesVisual": true,
+      "pannedX": 0,
+      "clippedCount": 0,
+      "clipped": []
+    },
+    {
+      "label": "edit-Appearance",
+      "route": "/pets/5e3b24db-2295-4b58-a022-a5279e188f40/edit",
+      "viewportWidth": 390,
+      "viewportMatchesVisual": true,
+      "pannedX": 0,
+      "clippedCount": 0,
+      "clipped": []
+    },
+    {
+      "label": "edit-Sharing & Privacy",
+      "route": "/pets/5e3b24db-2295-4b58-a022-a5279e188f40/edit",
+      "viewportWidth": 390,
+      "viewportMatchesVisual": true,
+      "pannedX": 0,
+      "clippedCount": 0,
+      "clipped": []
+    },
+    {
+      "label": "edit-Contact & Safety",
+      "route": "/pets/5e3b24db-2295-4b58-a022-a5279e188f40/edit",
+      "viewportWidth": 390,
+      "viewportMatchesVisual": true,
+      "pannedX": 0,
+      "clippedCount": 0,
+      "clipped": []
+    },
+    {
+      "label": "share-sheet",
+      "route": "/pets/5e3b24db-2295-4b58-a022-a5279e188f40",
+      "viewportWidth": 390,
+      "viewportMatchesVisual": true,
+      "pannedX": 0,
+      "clippedCount": 0,
+      "clipped": []
+    }
+  ],
+  "touch": {
+    "dashboard": [
+      {
+        "tag": "A",
+        "text": "View all",
+        "w": 54,
+        "h": 19
+      }
+    ],
+    "pets": [],
+    "pet-profile": [],
+    "edit-pet": [],
+    "moments": [],
+    "care-records": [],
+    "life-timeline": [],
+    "settings": [
+      {
+        "tag": "INPUT",
+        "text": "",
+        "w": 20,
+        "h": 20
+      },
+      {
+        "tag": "INPUT",
+        "text": "",
+        "w": 20,
+        "h": 20
+      },
+      {
+        "tag": "INPUT",
+        "text": "",
+        "w": 20,
+        "h": 20
+      },
+      {
+        "tag": "INPUT",
+        "text": "",
+        "w": 20,
+        "h": 20
+      }
+    ]
+  },
+  "text_dashboard": "OWNER PORTAL\n\nWelcome back\n\nManage your pet profiles, care records, and moments in one place.\n\n1\nPets\n1\nPublic profiles\n2\nMemories\nYour pets\n\nManage and share your pet profiles.\n\nManage pets\nMochi\nPublic\nCat - British Shorthair - Age unknown\nShare\nView\nAdd more about Mochi\n\n47% complete\n\nAdd\nCare due dates\nView all\n\nDeworming\n\nOverdue\n\nMochi\n\nDue 15 Jul 2026\n\nGrooming\n\nDue today\n\nMochi\n\nDue 29 Aug 2026\n\nMedication\n\nDue today\n\nMochi\n\nDue 29 Aug 2026\n\nQuick actions\nCare Records\nMoments\nOwner Settings\nPlan usage\nPlan & usage\nPremium coming soon\nCurrent plan\nFree plan\nPet-profile usage\n1 of 3 pet profiles\nMochi moment usage\n2 of 10 moments",
+  "text_pets": "MY PETS\n\nYour pets at a glance\n\nA quick overview of every pet. Tap Manage to open a pet's records, moments, smart tags, and settings.\n\nActive\nMemorial\nArchived\nAll\nActive\nMemorial\nArchived\nAll\nMore\nMochi\nSafety Profile Active\n\nCat - British Shorthair - Age unknown\n\nMochi is a shy indoor cat who loves the window.\n\nManage\nPublic Profile",
+  "text_pet-profile": "Mochi\n\nCat - British Shorthair - Age unknown\n\nShare\nEdit\nMore\nSafety Profile Active\nOverview\nRecords\nMoments\nOverview\nRecords\nMoments\nMore\nFinish Mochi's profile\n\n47% complete\n\n4 THINGS LEFT\nAdd Mochi's profile photo\nAdd\nView all profile steps\nPet Memories\nView all\n→\n\nPhoto and video moments you choose to keep private or share.\n\nVet worry - private note\n\n25 Aug 2026\n\nOnly me\n\nFirst night at home (edited)\n\n20 Aug 2026\n\nShared\nAdd Moment\nRecent care records\nView all\n→\n\nThe latest vaccines, deworming, grooming, and vet visits you've added.\n\nMonthly groom\n\nGrooming Date: 29 Aug 2026\n\nGrooming\n\nRabies annual booster\n\nVaccination Date: 15 Aug 2026\n\nVaccine\n\nVet visit no due date\n\nVisit Date: 12 Aug 2026\n\nVet Visit\nAdd Care Record\nSharing & Safety\n\nSee what people can view and what finders can use if they find Mochi.\n\nPublic Profile\nShared\n\nAnyone with the link can view this page.\n\nView profile\n→\nSafety Profile\nSafety Profile Active\n\nThe page someone sees if they find Mochi.\n\nShow Safety QR\nView profile\n→\nManage sharing & safety\n→\nLost Mode\nOff\n\nOnly turn this on if Mochi is missing.\n\nTurn on Lost Mode\n→",
+  "text_edit-pet": "EDIT PET\n\nEdit Mochi\n\nUpdate profile, photos, privacy, and safety settings.\n\nInfo\nStyle\nSharing\nSafety\nInfo\nStyle\nSharing\nSafety\nMore\nBasic Info\n\nThese details help friends, family, and finders recognize your pet quickly.\n\nPet name *\nUse the name people normally call your pet.\nPet type *\nCat\nBreed\nBritish Shorthair\nGender\nMale\nFemale\nUnknown\nColor\nAge information\nUnknown\nAge shown on profiles: Age unknown\nChoose this when the birth date and estimated year are not known.\nAbout your pet\nShort bio / description\nA few friendly details make the page feel personal.\nNeed inspiration?\nPersonality tags\n0/5\nAdd\nCalm\nSweet\nShy\nPlayful\nCurious\nCuddly\nMore suggestions (2)\nFavourite foods\n0/3\nAdd\nWet food\nTuna\nChicken\nKibble\nFavourite toys\n0/3\nAdd\nFeather wand\nCatnip mouse\nLaser pointer\nCardboard box\n\nManage Mochi's content\n\nRecords and memories are managed on their own pages. Add life events such as Adoption Day as a Moment.\n\nManage Care Records\nAdd Moment\nCancel\nSave Changes",
+  "text_moments": "PET MOMENTS\n\nMochi's memories\n\nSave photos, short videos, milestones, funny moments, and life notes for this pet.\n\nTotal moments\n\n2\n\nShared moments\n\n1\n\nLife Timeline\n\n1\n\nOnly me\n\n1\n\nMoments and Life Timeline\n\nKeep every Moment in one chronological gallery. Audience and Life Timeline placement stay separate.\n\nView Life Timeline\n♡\n\nMemory note\n\nVet worry - private note\n\n25 Aug 2026\n\nMemory\n\nOnly me\n\nPRIVATE: Mochi had a bad reaction, do not share publicly.\n\nEdit\nDelete\n♡\n\nMemory note\n\nFirst night at home (edited)\n\n20 Aug 2026\n\nFirst Day Home\n\nShared\nIn Life Timeline\nEdit\nDelete",
+  "text_care-records": "CARE RECORDS\n\nMochi's health and care history\n\nKeep vaccines, deworming, grooming, vet visits, medication, and allergy notes in one place.\n\nCare records\n\nAdd vaccines, deworming, grooming, vet visits, medication, surgery, and lab tests as your pet's care changes.\n\nVaccine\n· 1\nVaccine\n\nRabies\n\nRabies annual booster\n\nDate: 15 Aug 2026 - Owner recorded\n\nNext due: 03 Sept 2026\nDue soon\nOnly me\n\nNo notes added.\n\nEdit\nDelete\nDeworming\n· 1\nDeworming\n\nOverdue probe\n\nDeworming overdue\n\nDate: 01 Jun 2026 - Owner recorded\n\nNext due: 15 Jul 2026\nOverdue\nOnly me\n\nNo notes added.\n\nEdit\nDelete\nGrooming\n· 1\nGrooming\nMonthly groom\n\nDate: 29 Aug 2026 - Full groom and nail trim\n\nNext due: 29 Aug 2026\nDue today\nOnly me\n\nNo notes added.\n\nEdit\nDelete\nVet Visit\n· 1\nVet Visit\n\nNo due probe\n\nVet visit no due date\n\nDate: 12 Aug 2026 - Owner recorded\n\nOnly me\n\nNo notes added.\n\nEdit\nDelete\nMedication\n· 1\nMedication\n\nDue today probe\n\nMedication due today\n\nStart date: 01 Aug 2026 - Owner recorded\n\nNext review: 29 Aug 2026\nDue today\nOnly me\n\nNo notes added.\n\nEdit\nDelete\nSurgery\n· 1\nSurgery\n\nUpcoming probe\n\nSurgery upcoming\n\nDate: 05 Aug 2026 - Owner recorded\n\nNext follow-up: 01 Dec 2026\nUpcoming\nOnly me\n\nNo notes added.\n\nEdit\nDelete\nLab Test\n· 1\nLab Test\n\nSeptember probe\n\nLab test September\n\nDate: 10 Aug 2026 - Owner recorded\n\nNext follow-up: 01 Sept 2026\nDue soon\nOnly me\n\nNo notes added.\n\nEdit\nDelete",
+  "text_life-timeline": "LIFE TIMELINE\n\nMochi's story\n\nA gentle timeline of milestones, memories, care days, and everyday notes.\n\nMochi's life timeline\n\nBirthday milestones come from Pet Details. Adoption, First Day Home, and other milestones come from Moments marked as Show in Life Timeline.\n\nAdd Moment\nManage Moments\nEdit Pet Details\nView Public Profile\nFirst Day Home\nShared\nShown on public profile\n\n20 AUG 2026\n\nFirst night at home (edited)\nEdit in Moments",
+  "text_settings": "OWNER ACCOUNT\n\nOwner settings\n\nManage your contact details, privacy, communication preferences, and account settings.\n\nContact details\n\nThese details help finders contact you quickly if your pet is ever lost.\n\nOwner display name\nEmail\nWhatsApp number\n🇲🇾\n+60\n▼\nMalaysia +60. Change country code\nPhone number\n🇲🇾\n+60\n▼\nMalaysia +60. Change country code\nDefault general area\n\nYour full address is not shown on public profiles. Use a general area so finders know where your pet is usually from.\n\nCommunication preferences\n\nReview essential messages, future care reminders, and optional MyPetLink updates separately.\n\nEssential account and order emails\n\nImportant account and order emails are sent when required.\n\nPremium care reminders\nCOMING SOON\n\nCare reminders will be available with MyPetLink Premium.\n\nWhatsApp care reminders\nReceive vaccine, grooming, deworming, medication, and appointment reminders through WhatsApp.\nEmail care reminders\nReceive upcoming care reminders by email.\nMonthly care digest\nReceive a monthly summary of upcoming and recently completed care activities.\nOptional updates\nMyPetLink news and offers\nReceive occasional product updates, promotions, new features, and special offers.\n\nYou can change this preference at any time.\n\nPlan & usage\nPremium coming soon\nCurrent plan\nFree plan\nPet-profile usage\n1 of 3 pet profiles\nMochi moment usage\n2 of 10 moments\nAccount actions\n\nSign out of the owner portal on this device.\n\nLogout",
+  "shareSheet": "Share Mochi\n\nShare Mochi with friends, family, or anyone who'd love to meet them.\n\nShare Pet Card\nA beautiful card with Mochi's photo and profile QR.\nCopy Profile Link\nPaste it anywhere.\nShow Profile QR\nScan to view Mochi's profile.\nMore sharing options\nDownloads and safety sharing.",
+  "careDeleteConfirm": "MyPetLink\nAdd Record\n\nCARE RECORDS\n\nMochi's health and care history\n\nKeep vaccines, deworming, grooming, vet visits, medication, and allergy notes in one place.\n\nCare records\n\nAdd vaccines, deworming, grooming, vet visits, medication, surgery, and lab tests as your pet's care changes.\n\nVaccine\n· 1\nVaccine\n\nRabies\n\nRabies annual booster\n\nDate: 15 Aug 2026 - Owner recorded\n\nNext due: 03 Sept 2026\nDue soon\nOnly me\n\nNo notes added.\n\nEdit\nDelete\nDeworming\n· 1\nDeworming\n\nOverdue probe\n\nDeworming overdue\n\nDate: 01 Jun 2026 - Owner recorded\n\nNext due: 15 Jul 2026\nOverdue\nOnly me\n\nNo notes added.\n\nEdit\nDelete\nGrooming\n· 1\nGrooming\nMonthly groom\n\nDate: 29 Aug 2026 - Full groom and nail trim\n\nNext due: 29 Aug 2026\nDue today\nOnly me\n\nNo notes added.\n\nEdit\nDelete\nVet Visit\n· 1\nVet Visit\n\nNo due probe\n\nVet visit no due date\n\nDate: 12 Aug 2026 - Owner recorded\n\nOnly me\n\nNo notes added.\n\nEdit\nDelete\nMedication\n· 1\nMedication\n\nDue today probe\n\nMedication due today\n\nStart date: 01 Aug 2026 - Owner recorded\n\nNext review: 29 Aug 2026\nDue today\nOnly me\n\nNo notes added.\n\nEdit\nDelete\nSurgery\n· 1\nSurgery\n\nUpcoming probe\n\nSurgery upcoming\n\nDate: 05 Aug 2026 - Owner recorded\n\nNext follow-up: 01 Dec 2026\nUpcoming\nOnly me\n\nNo notes added.\n\nEdit\nDelete\nLab Test\n· 1\nLab Test\n\nSeptember probe\n\nLab test September\n\nDate: 10 Aug 2026 - Owner recorded\n\nNext follow-up: 01 Sept 2026\nDue soon\nOnly me\n\nNo notes added.\n\nEdit\nDelete\nDelete care record?\n\nDelete \"Rabies annual booster\" from this pet's care records? This action cannot be undone.\n\nCancel\nDelete record\nHome\nPets\nMoments\nMore",
+  "careDeleteHasConfirm": true,
+  "careAfterDelete": "CARE RECORDS\n\nMochi's health and care history\n\nKeep vaccines, deworming, grooming, vet visits, medication, and allergy notes in one place.\n\nCare records\n\nAdd vaccines, deworming, grooming, vet visits, medication, surgery, and lab tests as your pet's care changes.\n\nRecord deleted.\nDeworming\n· 1\nDeworming\n\nOverdue probe\n\nDeworming overdue\n\nDate: 01 Jun 2026 - Owner recorded\n\nNext due: 15 Jul 2026\nOverdue\nOnly me\n\nNo notes added.\n\nEdit\nDelete\nGrooming\n· 1\nGrooming\nMonthly groom\n\nDate: 29 Aug 2026 - Full groom and nail trim\n\nNext due: 29 Aug 2026\nDue today\nOnly me\n\nNo notes added.\n\nEdit\nDelete\nVet Visit\n· 1\nVet Visit\n\nNo due probe\n\nVet visit no due date\n\nDate: 12 Aug 2026 - Owner recorded\n\nOnly me\n\nNo notes added.\n\nEdit\nDelete\nMedication\n· 1\nMedication\n\nDue today probe\n\nMedication due today\n\nStart date: 01 Aug 2026 - Owner recorded\n\nNext review: 29 Aug 2026\nDue today\nOnly me\n\nNo notes added.\n\nEdit\nDelete\nSurgery\n· 1\nSurgery\n\nUpcoming probe\n\nSurgery upcoming\n\nDate: 05 Aug 2026 - Owner recorded\n\nNext follow-up: 01 Dec 2026\nUpcoming\nOnly me\n\nNo notes added.\n\nEdit\nDelete\nLab Test\n· 1\nLab Test\n\nSeptember probe\n\nLab test September\n\nDate: 10 Aug 2026 - Owner recorded\n\nNext follow-up: 01 Sept 2026\nDue soon\nOnly me\n\nNo notes added.\n\nEdit\nDelete",
+  "momentDeleteConfirm": "MyPetLink\nAdd Moment\n\nPET MOMENTS\n\nMochi's memories\n\nSave photos, short videos, milestones, funny moments, and life notes for this pet.\n\nTotal moments\n\n2\n\nShared moments\n\n1\n\nLife Timeline\n\n1\n\nOnly me\n\n1\n\nMoments and Life Timeline\n\nKeep every Moment in one chronological gallery. Audience and Life Timeline placement stay separate.\n\nView Life Timeline\n♡\n\nMemory note\n\nVet worry - private note\n\n25 Aug 2026\n\nMemory\n\nOnly me\n\nPRIVATE: Mochi had a bad reaction, do not share publicly.\n\nEdit\nDelete\n♡\n\nMemory note\n\nFirst night at home (edited)\n\n20 Aug 2026\n\nFirst Day Home\n\nShared\nIn Life Timeline\nEdit\nDelete\nDelete memory?\n\nDelete this memory from Mochi's profile? This action cannot be undone.\n\nCancel\nDelete memory\nHome\nPets\nMoments\nMore\n\nMochi's memories\n\nAdd Moment",
+  "momentDeleteHasConfirm": true,
+  "momentAfterDelete": "PET MOMENTS\n\nMochi's memories\n\nSave photos, short videos, milestones, funny moments, and life notes for this pet.\n\nTotal moments\n\n2\n\nShared moments\n\n1\n\nLife Timeline\n\n1\n\nOnly me\n\n1\n\nMoments and Life Timeline\n\nKeep every Moment in one chronological gallery. Audience and Life Timeline placement stay separate.\n\nView Life Timeline\n♡\n\nMemory note\n\nVet worry - private note\n\n25 Aug 2026\n\nMemory\n\nOnly me\n\nPRIVATE: Mochi had a bad reaction, do not share publicly.\n\nEdit\nDelete\n♡\n\nMemory note\n\nFirst night at home (edited)\n\n20 Aug 2026\n\nFirst Day Home\n\nShared\nIn Life Timeline\nEdit\nDelete\nDelete memory?\n\nDelete this memory from Mochi's profile? This action cannot be undone.\n\nCancel\nDelete memory",
+  "video": "artifacts\\owner-portal-visual-e2e\\videos\\07-mobile-owner-portal.webm",
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ]
+}

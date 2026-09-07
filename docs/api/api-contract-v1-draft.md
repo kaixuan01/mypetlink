@@ -861,7 +861,7 @@ Query:
 - `page`, `pageSize`
 - `status`
 - `petId`
-- `type`: `QrPetTag`, `QrNfcSmartTag`, `QR`, or `QR_NFC`
+- `type`: `QrPetTag`, `QrNfcSmartTag`, `QR`, or `QR_NFC` (the `QrPetTag`/`QR` values filter discontinued QR-only history)
 
 Response:
 
@@ -1018,7 +1018,7 @@ Auth: owner.
 Request:
 
 - `petId`: required
-- `tagType`: `QrPetTag` or `QrNfcSmartTag`
+- `tagType`: derived by the server from the ordered SKU. Only `QrNfcSmartTag` can result: `QrPetTag` is the discontinued QR-only product and is read-only history.
 - `variant`: `Lightweight` or `Standard`
 - delivery: `recipientName`, `phoneE164`, `addressLine1`, `addressLine2`, `postcode`, `city`, `state`, `notes`
 - `replacementForTagId` optional
@@ -1032,9 +1032,8 @@ Validation:
 - pet belongs to owner and is Active.
 - Memorial and Archived pets cannot receive new tag orders.
 - portal order must have `petId`.
-- tag price is server-calculated and not trusted from the client:
-  - `QrPetTag`: RM19.90
-  - `QrNfcSmartTag`: RM39.90
+- tag price is server-calculated from the SKU and not trusted from the client (`QrNfcSmartTag`: RM39.90).
+- the SKU must support both QR and NFC. A QR-only SKU is refused with `409 product_unavailable`, whatever its stored `isPurchasable` flag says.
 - replacement tag must belong to owner.
 
 Initial state:

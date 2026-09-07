@@ -113,7 +113,7 @@ const filterDefs: AdminFilterDef[] = [
     key: "type",
     label: "Tag type",
     options: [
-      { value: "QR", label: "QR Pet Tag" },
+      { value: "QR", label: "QR only (no longer sold)" },
       { value: "QR_NFC", label: "QR + NFC Smart Tag" },
     ],
   },

@@ -16,7 +16,6 @@ export function SmartTagOrderEntry() {
 
   return (
     <TagOrderFlow
-      initialTagType="MyPetLink QR Pet Tag"
       pets={noInitialPets}
       preselectedPetId={preferredPetId || undefined}
     />

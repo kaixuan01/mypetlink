@@ -1,0 +1,102 @@
+{
+  "journey": "03-create-edit-moments",
+  "viewport": "mobile 390x844",
+  "petId": "5e3b24db-2295-4b58-a022-a5279e188f40",
+  "steps": [
+    "Moments empty state.",
+    "Add Moment dialog opened.",
+    "Attempted to save an empty moment.",
+    "Selected moment category: First Day Home (native select).",
+    "Selected audience: Anyone with the link.",
+    "Saved the moment.",
+    "Edit dialog prefilled: {\"title\":\"First night at home\",\"date\":\"2026-08-20\"}",
+    "Dirty Back prompt shown: true",
+    "Saved the edited moment.",
+    "Reloaded moments list to confirm persistence."
+  ],
+  "probes": [
+    {
+      "label": "moments-empty",
+      "route": "/pets/5e3b24db-2295-4b58-a022-a5279e188f40/moments",
+      "viewportWidth": 390,
+      "viewportMatchesVisual": true,
+      "pannedX": 0,
+      "clippedCount": 0,
+      "clipped": []
+    },
+    {
+      "label": "moment-dialog",
+      "route": "/pets/5e3b24db-2295-4b58-a022-a5279e188f40/moments?edit=new",
+      "viewportWidth": 390,
+      "viewportMatchesVisual": true,
+      "pannedX": 0,
+      "clippedCount": 0,
+      "clipped": []
+    },
+    {
+      "label": "moments-after-save",
+      "route": "/pets/5e3b24db-2295-4b58-a022-a5279e188f40/moments",
+      "viewportWidth": 390,
+      "viewportMatchesVisual": true,
+      "pannedX": 0,
+      "clippedCount": 0,
+      "clipped": []
+    }
+  ],
+  "emptyText": "PET MOMENTS\n\nMochi's memories\n\nSave photos, short videos, milestones, funny moments, and life notes for this pet.\n\nTotal moments\n\n0\n\nShared moments\n\n0\n\nLife Timeline\n\n0\n\nOnly me\n\n0\n\nMoments and Life Timeline\n\nKeep every Moment in one chronological gallery. Audience and Life Timeline placement stay separate.\n\nView Life Timeline\nNo pet moments yet\n\nAdd your pet's first little moment and keep it safe in their profile.\n\nAdd Moment",
+  "dialogUrl": "http://localhost:3000/pets/5e3b24db-2295-4b58-a022-a5279e188f40/moments?edit=new",
+  "dialogText": "ADD MOMENT\n\nAdd a moment for Mochi\n\nAdd the details once, then choose where this memory appears.\n\nTitle\nDate\nMoment category\nSelect category\nBirthday\nAdoption Day\nFirst Day Home\nGrooming Day\nVet Visit\nVaccination\nAchievement\nFunny Moment\nTraining\nOutdoor / Trip\nMemory\nOther\nWho can see this Moment?\nOnly me\nKeep this Moment private to your owner account.\nAnyone with the link\nAllow this Moment to appear on your pet's shared profile.\nCaption\nMedia\n0/5 media added\n\nAdd photos or videos that tell this memory. The first item will be used as the cover.\n\nAdd photo\nAdd video\nShow in Life Timeline\nInclude this Moment in your pet's Life Timeline. Private Moments stay private.\nCancel\nAdd Moment",
+  "focusOnOpen": {
+    "tag": "BUTTON",
+    "type": "button",
+    "aria": "Close moment editor"
+  },
+  "validationText": "ADD MOMENT\n\nAdd a moment for Mochi\n\nAdd the details once, then choose where this memory appears.\n\nTitle\nAdd a moment title.\nDate\nChoose a moment date.\nMoment category\nSelect category\nBirthday\nAdoption Day\nFirst Day Home\nGrooming Day\nVet Visit\nVaccination\nAchievement\nFunny Moment\nTraining\nOutdoor / Trip\nMemory\nOther\nChoose a moment category.\nWho can see this Moment?\nOnly me\nKeep this Moment private to your owner account.\nAnyone with the link\nAllow this Moment to appear on your pet's shared profile.\nCaption\nMedia\n0/5 media added\n\nAdd photos or videos that tell this memory. The first item will be used as the cover.\n\nAdd photo\nAdd video\nShow in Life Timeline\nInclude this Moment in your pet's Life Timeline. Private Moments stay private.\nCancel\nAdd Moment",
+  "categoryControlType": "native <select>",
+  "mediaAffordance": [
+    "Add photo",
+    "Add video"
+  ],
+  "audienceControls": [
+    {
+      "type": "radio",
+      "checked": true,
+      "label": "Only me / Keep this Moment private to your owner account."
+    },
+    {
+      "type": "radio",
+      "checked": false,
+      "label": "Anyone with the link / Allow this Moment to appear on your pet's share"
+    },
+    {
+      "type": "checkbox",
+      "checked": false,
+      "label": "Show in Life Timeline / Include this Moment in your pet's Life Timelin"
+    }
+  ],
+  "timelineToggled": {
+    "before": null,
+    "after": null
+  },
+  "filledDialogText": "ADD MOMENT\n\nAdd a moment for Mochi\n\nAdd the details once, then choose where this memory appears.\n\nTitle\nDate\nMoment category\nSelect category\nBirthday\nAdoption Day\nFirst Day Home\nGrooming Day\nVet Visit\nVaccination\nAchievement\nFunny Moment\nTraining\nOutdoor / Trip\nMemory\nOther\nWho can see this Moment?\nOnly me\nKeep this Moment private to your owner account.\nAnyone with the link\nAllow this Moment to appear on your pet's shared profile.\nCaption\nMedia\n0/5 media added\n\nAdd photos or videos that tell this memory. The first item will be used as the cover.\n\nAdd photo\nAdd video\nShow in Life Timeline\nInclude this Moment in your pet's Life Timeline. Private Moments stay private.\nTimeline note (optional)\nCancel\nAdd Moment",
+  "afterSaveText": "PET MOMENTS\n\nMochi's memories\n\nSave photos, short videos, milestones, funny moments, and life notes for this pet.\n\nTotal moments\n\n1\n\nShared moments\n\n1\n\nLife Timeline\n\n1\n\nOnly me\n\n0\n\nMoments and Life Timeline\n\nKeep every Moment in one chronological gallery. Audience and Life Timeline placement stay separate.\n\nView Life Timeline\nMoment added.\n♡\n\nMemory note\n\nFirst night at home\n\n20 Aug 2026\n\nFirst Day Home\n\nShared\nIn Life Timeline\nEdit\nDelete",
+  "afterSaveUrl": "http://localhost:3000/pets/5e3b24db-2295-4b58-a022-a5279e188f40/moments",
+  "editDialogUrl": "http://localhost:3000/pets/5e3b24db-2295-4b58-a022-a5279e188f40/moments?edit=2373affa-529d-40ea-bf2b-edf4eaa54c8e",
+  "editPrefill": {
+    "title": "First night at home",
+    "date": "2026-08-20"
+  },
+  "dirtyBackPrompt": true,
+  "dirtyBackText": [
+    "Discard your changes?",
+    "Your unsaved moment changes and media selections will be lost.",
+    "Keep editing",
+    "Discard changes"
+  ],
+  "afterEditText": "PET MOMENTS\n\nMochi's memories\n\nSave photos, short videos, milestones, funny moments, and life notes for this pet.\n\nTotal moments\n\n1\n\nShared moments\n\n1\n\nLife Timeline\n\n1\n\nOnly me\n\n0\n\nMoments and Life Timeline\n\nKeep every Moment in one chronological gallery. Audience and Life Timeline placement stay separate.\n\nView Life Timeline\nMoment updated.\n♡\n\nMemory note\n\nFirst night at home (edited)\n\n20 Aug 2026\n\nFirst Day Home\n\nShared\nIn Life Timeline\nEdit\nDelete",
+  "persistedText": "PET MOMENTS\n\nMochi's memories\n\nSave photos, short videos, milestones, funny moments, and life notes for this pet.\n\nTotal moments\n\n1\n\nShared moments\n\n1\n\nLife Timeline\n\n1\n\nOnly me\n\n0\n\nMoments and Life Timeline\n\nKeep every Moment in one chronological gallery. Audience and Life Timeline placement stay separate.\n\nView Life Timeline\n♡\n\nMemory note\n\nFirst night at home (edited)\n\n20 Aug 2026\n\nFirst Day Home\n\nShared\nIn Life Timeline\nEdit\nDelete",
+  "video": "artifacts\\owner-portal-visual-e2e\\videos\\03-create-edit-moments.webm",
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ]
+}

@@ -90,6 +90,7 @@ public sealed class DeliveryServiceTests
             Sku = "DELIVERY-2",
             DisplayName = "Lightweight",
             SupportsQr = true,
+            SupportsNfc = true,
             TagVariant = "Lightweight",
             BasePrice = 20m,
             Currency = "MYR",
@@ -194,7 +195,7 @@ public sealed class DeliveryServiceTests
             var variant = new TagProductVariant
             {
                 TagProduct = product, PublicKey = "DELIVERYQUOTE001", Sku = "DELIVERY-1",
-                DisplayName = "Tag", SupportsQr = true, TagVariant = "Standard",
+                DisplayName = "Tag", SupportsQr = true, SupportsNfc = true, TagVariant = "Standard",
                 BasePrice = 49.90m, Currency = "MYR", IsActive = true, IsPurchasable = true
             };
             var promotion = new Promotion

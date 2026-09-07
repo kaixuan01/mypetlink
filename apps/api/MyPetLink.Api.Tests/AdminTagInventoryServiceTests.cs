@@ -779,13 +779,31 @@ public sealed class AdminTagInventoryServiceTests
     // --- Generation -----------------------------------------------------------------
 
     [Fact]
+    public async Task Generate_RejectsAScanOnlySku_SoNoMoreDiscontinuedStockIsMade()
+    {
+        using var harness = await InventoryHarness.CreateAsync();
+
+        var failure = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Service.GenerateAsync(
+                AdminUserId,
+                new AdminGenerateTagsRequest(3, QrLightweightVariantId)));
+
+        Assert.Contains(
+            "NFC capability",
+            string.Join(" ", failure.Details?.SelectMany(entry => entry.Value) ?? []));
+        Assert.Empty(await harness.Db.SmartTagBatches
+            .Where(batch => batch.ProductVariantId == QrLightweightVariantId)
+            .ToListAsync());
+    }
+
+    [Fact]
     public async Task Generate_CreatesUnclaimedGeneratedStock()
     {
         using var harness = await InventoryHarness.CreateAsync();
 
         var response = await harness.Service.GenerateAsync(
             AdminUserId,
-            new AdminGenerateTagsRequest(3, QrLightweightVariantId));
+            new AdminGenerateTagsRequest(3, NfcLightweightVariantId));
 
         Assert.Equal(3, response.Quantity);
         Assert.Matches("^MPL-BAT-\\d{12}-\\d{4}$", response.BatchNo);
@@ -798,8 +816,8 @@ public sealed class AdminTagInventoryServiceTests
         {
             Assert.Equal(SmartTagStatus.Unclaimed, tag.Status);
             Assert.Equal(TagFulfilmentStatus.Generated, tag.FulfilmentStatus);
-            Assert.Equal(QrLightweightVariantId, tag.ProductVariantId);
-            Assert.False(tag.HasNfc);
+            Assert.Equal(NfcLightweightVariantId, tag.ProductVariantId);
+            Assert.True(tag.HasNfc);
             Assert.Equal("Lightweight", tag.Variant);
             Assert.Matches("^MPL-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$", tag.TagCode);
         });
@@ -816,7 +834,7 @@ public sealed class AdminTagInventoryServiceTests
 
         var response = await harness.Service.GenerateAsync(
             AdminUserId,
-            new AdminGenerateTagsRequest(3, QrLightweightVariantId));
+            new AdminGenerateTagsRequest(3, NfcLightweightVariantId));
 
         Assert.Equal("MPL-BAT-260728000506-1234", response.BatchNo);
         var batches = await harness.Db.SmartTagBatches
@@ -848,7 +866,7 @@ public sealed class AdminTagInventoryServiceTests
 
         var generated = await harness.Service.GenerateAsync(
             AdminUserId,
-            new AdminGenerateTagsRequest(1, QrLightweightVariantId));
+            new AdminGenerateTagsRequest(1, NfcLightweightVariantId));
         Assert.Equal("MPL-BAT-260727150809-2222", generated.BatchNo);
 
     }
@@ -874,7 +892,7 @@ public sealed class AdminTagInventoryServiceTests
         var error = await Assert.ThrowsAsync<ApiException>(() =>
             harness.Service.GenerateAsync(
                 AdminUserId,
-                new AdminGenerateTagsRequest(1, QrLightweightVariantId)));
+                new AdminGenerateTagsRequest(1, NfcLightweightVariantId)));
 
         Assert.Equal("batch_number_generation_failed", error.Code);
         Assert.Equal(before, await harness.Db.SmartTags.CountAsync());

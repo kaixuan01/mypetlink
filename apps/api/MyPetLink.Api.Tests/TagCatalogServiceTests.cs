@@ -285,6 +285,103 @@ public sealed class TagCatalogServiceTests
         Assert.Equal("MPL-PUBLIC-V1", publicProduct.Variants.Single().Sku);
     }
 
+    // The QR + NFC Smart Tag is the only physical tag on sale. These three
+    // tests pin the whole rule: no new scan-only SKU, no scan-only SKU for
+    // sale, and nothing scan-only offered to a customer.
+    [Fact]
+    public async Task Catalog_RefusesToCreateAScanOnlySku()
+    {
+        await using var harness = await Harness.CreateAsync();
+
+        var error = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Service.CreateVariantAsync(
+                AdminId,
+                harness.Product.Id,
+                harness.ValidVariant("MPL-SCANONLY-V1") with { SupportsNfc = false }));
+
+        Assert.Equal("validation_failed", error.Code);
+        Assert.Contains("NFC", error.Details!["supportsNfc"].Single());
+    }
+
+    [Fact]
+    public async Task Catalog_KeepsAScanOnlySkuEditableButNeverPurchasable()
+    {
+        await using var harness = await Harness.CreateAsync();
+        // A row as it would exist from before the QR + NFC decision.
+        var legacy = await harness.Service.CreateVariantAsync(
+            AdminId, harness.Product.Id, harness.ValidVariant("MPL-LEGACY-QR-V1"));
+        var legacyRow = await harness.Db.TagProductVariants.SingleAsync(item => item.Id == legacy.Id);
+        legacyRow.SupportsNfc = false;
+        legacyRow.IsPurchasable = false;
+        legacyRow.RowVersion = [2];
+        await harness.Db.SaveChangesAsync();
+        var token = Convert.ToBase64String(legacyRow.RowVersion);
+
+        // Correcting its details still works, so history stays accurate.
+        var edited = await harness.Service.UpdateVariantAsync(
+            AdminId,
+            legacy.Id,
+            harness.ValidVariant("MPL-LEGACY-QR-V1") with
+            {
+                DisplayName = "Legacy scan-only tag (2026)",
+                SupportsNfc = false,
+                IsPurchasable = false,
+                ConcurrencyToken = token
+            });
+        Assert.Equal("Legacy scan-only tag (2026)", edited.DisplayName);
+
+        // Putting it back on sale is refused.
+        var error = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Service.UpdateVariantAsync(
+                AdminId,
+                legacy.Id,
+                harness.ValidVariant("MPL-LEGACY-QR-V1") with
+                {
+                    SupportsNfc = false,
+                    IsPurchasable = true,
+                    ConcurrencyToken = edited.ConcurrencyToken
+                }));
+        Assert.Equal("validation_failed", error.Code);
+        Assert.Contains("no longer sold", error.Details!["supportsNfc"].Single());
+    }
+
+    [Fact]
+    public async Task Catalog_HidesAScanOnlySkuFromTheCustomerCatalog()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await harness.Service.CreateVariantAsync(
+            AdminId, harness.Product.Id, harness.ValidVariant("MPL-SELLABLE-V1"));
+        var legacy = new TagProductVariant
+        {
+            TagProduct = harness.Product,
+            PublicKey = "LEGACYONSALE0001",
+            Sku = "MPL-LEGACY-ONSALE-V1",
+            DisplayName = "Legacy scan-only tag",
+            SupportsQr = true,
+            SupportsNfc = false,
+            TagVariantPresetId = harness.StandardPreset.Id,
+            TagVariant = "Standard",
+            BasePrice = 19.90m,
+            Currency = "MYR",
+            // Left purchasable in data, as an older row could be.
+            IsActive = true,
+            IsPurchasable = true
+        };
+        harness.Db.TagProductVariants.Add(legacy);
+        await harness.Db.SaveChangesAsync();
+
+        var publicProduct = Assert.Single(await harness.Service.ListPublicAsync());
+        Assert.Equal(
+            new[] { "MPL-SELLABLE-V1" },
+            publicProduct.Variants.Select(variant => variant.Sku).ToArray());
+
+        // Nor can it be ordered by asking for it directly.
+        var pricing = new TagPricingService(harness.Db);
+        var refused = await Assert.ThrowsAsync<ApiException>(() =>
+            pricing.GetPurchasableVariantAsync(legacy.PublicKey));
+        Assert.Equal("product_unavailable", refused.Code);
+    }
+
     [Fact]
     public async Task Catalog_MarksFullyReservedSkuOutOfStockUntilReservationIsReleased()
     {
@@ -384,7 +481,7 @@ public sealed class TagCatalogServiceTests
         var activeOption = product.Variants.Single(variant => variant.Sku == "MPL-OPT-ACTIVE");
         Assert.Equal("Standard tag", activeOption.DisplayName);
         Assert.Equal(29.90m, activeOption.BasePrice);
-        Assert.False(activeOption.SupportsNfc);
+        Assert.True(activeOption.SupportsNfc);
     }
 
     [Fact]
@@ -708,7 +805,7 @@ public sealed class TagCatalogServiceTests
         public TagCatalogService Service { get; }
 
         public UpsertTagProductVariantRequest ValidVariant(string sku) => new(
-            sku, "Standard tag", true, false, StandardPreset.Id, 32m, 32m, 2m, 8m,
+            sku, "Standard tag", true, true, StandardPreset.Id, 32m, 32m, 2m, 8m,
             "Stainless steel", "Round", "Silver", "Retail sleeve", 29.90m, "MYR", null,
             "TPL-QR-STANDARD", "Print both sides", true, true, 0, null);
 

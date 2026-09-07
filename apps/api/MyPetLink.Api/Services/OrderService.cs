@@ -284,7 +284,11 @@ public sealed class OrderService : SkeletonService, IOrderService
         }
 
         var firstVariant = pricedItems[0].Variant;
-        var tagType = firstVariant.SupportsNfc ? TagType.QrNfcSmartTag : TagType.QrPetTag;
+        // Every purchasable SKU is a QR + NFC Smart Tag (TagCatalogSellability
+        // rejects anything else above), so the legacy single-value summary on
+        // the order is always QrNfcSmartTag. Per-item capabilities are still
+        // snapshotted on TagOrderItem from the exact SKU that was sold.
+        var tagType = TagType.QrNfcSmartTag;
         var now = _timeProvider.GetUtcNow();
         var delivery = request.Delivery!;
         var merchandiseSubtotal = pricedItems.Sum(item =>

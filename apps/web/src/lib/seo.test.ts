@@ -258,15 +258,15 @@ describe("pricing social metadata", () => {
     };
     const image = openGraph.images?.[0];
     const description =
-      "Create your pet profile for free. Add a QR tag from RM19.90 or QR + NFC tag from RM39.90 — one-time purchase.";
+      "Create your pet profile for free. Add the QR + NFC Smart Tag for RM39.90 — a one-time purchase.";
     const imageAlt =
-      "MyPetLink pricing: free profile and one-time QR and QR plus NFC smart tags";
+      "MyPetLink pricing: free profile and the one-time QR plus NFC smart tag";
 
     expect(pricingMetadata.title).toEqual({
-      absolute: "MyPetLink Pricing | Free Profile & Smart Tags",
+      absolute: "MyPetLink Pricing | Free Profile & Smart Tag",
     });
     expect(pricingMetadata.description).toBe(description);
-    expect(openGraph.title).toBe("MyPetLink Pricing | Free Profile & Smart Tags");
+    expect(openGraph.title).toBe("MyPetLink Pricing | Free Profile & Smart Tag");
     expect(openGraph.description).toBe(description);
     expect(image).toEqual({
       url: "https://mypetlink.com.my/pricing-og.png",
@@ -276,7 +276,7 @@ describe("pricing social metadata", () => {
       height: 630,
       alt: imageAlt,
     });
-    expect(twitter.title).toBe("MyPetLink Pricing | Free Profile & Smart Tags");
+    expect(twitter.title).toBe("MyPetLink Pricing | Free Profile & Smart Tag");
     expect(twitter.description).toBe(description);
     expect(twitter.images?.[0]).toEqual({
       url: "https://mypetlink.com.my/pricing-og.png",

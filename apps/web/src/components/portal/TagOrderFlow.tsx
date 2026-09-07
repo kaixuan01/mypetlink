@@ -24,12 +24,11 @@ import { getDeliveryQuoteErrorMessage, getOwnerOrderFieldErrors, isDeliveryUnava
 import { getPets } from "@/services/petService";
 import { formatCatalogPrice, listTagProducts, type TagProduct, type TagProductVariant } from "@/services/tagCatalogService";
 import { createTagOrder, getFriendlyTagErrorMessage } from "@/services/tagService";
-import type { DeliveryDetails, PetListItem, TagOrder, TagType } from "@/types";
+import type { DeliveryDetails, PetListItem, TagOrder } from "@/types";
 
 type TagOrderFlowProps = {
   pets: PetListItem[];
   preselectedPetId?: string;
-  initialTagType?: TagType;
   replacementForTagId?: string;
 };
 
@@ -50,7 +49,7 @@ const MAX_UNITS = 20;
 const emptyDelivery: DeliveryDetails = { recipientName: "", phone: "", addressLine1: "", addressLine2: "", postcode: "", city: "", state: "", stateCode: "", notes: "" };
 const requiredDeliveryFields: DeliveryField[] = ["recipientName", "phone", "addressLine1", "postcode", "city", "stateCode"];
 
-export function TagOrderFlow({ pets, preselectedPetId, initialTagType = "MyPetLink QR Pet Tag", replacementForTagId }: TagOrderFlowProps) {
+export function TagOrderFlow({ pets, preselectedPetId, replacementForTagId }: TagOrderFlowProps) {
   const router = useRouter();
   const apiMode = isApiConfigured();
   const [availablePets, setAvailablePets] = useState<PetListItem[]>(apiMode ? [] : pets);
@@ -77,16 +76,18 @@ export function TagOrderFlow({ pets, preselectedPetId, initialTagType = "MyPetLi
   useEffect(() => {
     if (orderStartedRef.current) return;
     orderStartedRef.current = true;
+    // The QR + NFC Smart Tag is the only tag on sale, so an order always
+    // starts on it. What was actually bought is reported from the cart when
+    // the order is submitted.
     trackEvent(AnalyticsEvent.OrderStarted, {
       source: "owner_portal",
-      tag_type: initialTagType.includes("NFC") ? "qr_nfc" : "qr",
+      tag_type: "qr_nfc",
     });
-  }, [initialTagType]);
+  }, []);
 
   const orderPrefsKey = useSyncExternalStore(subscribeNoop, getBrowserOrderPrefsKey, getDefaultOrderPrefsKey);
   const orderPrefs = useMemo(() => parseOrderPrefs(orderPrefsKey), [orderPrefsKey]);
   const replacementFor = orderPrefs.replacementForTagId ?? replacementForTagId;
-  const preferredNfc = (orderPrefs.tagType ?? initialTagType).includes("NFC");
   const orderablePets = useMemo(() => getActivePets(availablePets), [availablePets]);
   const choices = useMemo(() => products.flatMap((product) => product.variants.map((variant) => ({ product, variant }))), [products]);
   const sellableChoices = choices.filter((choice) => choice.variant.inStock);
@@ -110,7 +111,7 @@ export function TagOrderFlow({ pets, preselectedPetId, initialTagType = "MyPetLi
         const nextPets = petResponse.data;
         const nextOrderable = getActivePets(nextPets);
         const nextChoices = catalog.flatMap((product) => product.variants.map((variant) => ({ product, variant })));
-        const preferred = nextChoices.find((choice) => choice.variant.inStock && choice.variant.supportsNfc === preferredNfc) ?? nextChoices.find((choice) => choice.variant.inStock);
+        const preferred = nextChoices.find((choice) => choice.variant.inStock);
         const initialPetId = preselectedPetId && nextOrderable.some((pet) => pet.id === preselectedPetId)
           ? preselectedPetId
           : nextOrderable.length === 1 ? nextOrderable[0].id : "";
@@ -126,7 +127,7 @@ export function TagOrderFlow({ pets, preselectedPetId, initialTagType = "MyPetLi
     }
     void load();
     return () => { active = false; };
-  }, [loadAttempt, pets, preselectedPetId, preferredNfc]);
+  }, [loadAttempt, pets, preselectedPetId]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -394,5 +395,5 @@ function createLineId() { return createIdempotencyKey(); }
 function createIdempotencyKey() { if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID(); return `${Date.now()}-${Math.random().toString(36).slice(2)}`; }
 function subscribeNoop() { return () => {}; }
 function getDefaultOrderPrefsKey() { return ""; }
-function getBrowserOrderPrefsKey() { const params = new URLSearchParams(window.location.search); return `${params.get("type") ?? ""}|${params.get("replacementFor") ?? ""}`; }
-function parseOrderPrefs(value: string): { tagType?: TagType; replacementForTagId?: string } { const [type, replacementForTagId] = value.split("|"); return { tagType: type === "nfc" ? "MyPetLink QR + NFC Smart Tag" : type === "qr" ? "MyPetLink QR Pet Tag" : undefined, replacementForTagId: replacementForTagId || undefined }; }
+function getBrowserOrderPrefsKey() { const params = new URLSearchParams(window.location.search); return params.get("replacementFor") ?? ""; }
+function parseOrderPrefs(value: string): { replacementForTagId?: string } { return { replacementForTagId: value || undefined }; }

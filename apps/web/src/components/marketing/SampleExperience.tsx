@@ -3,8 +3,13 @@
 import { useEffect, useState } from "react";
 import { CreateProfileCTA } from "@/components/marketing/CreateProfileCTA";
 import { SamplePetPhoto } from "@/components/marketing/SamplePetPhoto";
+import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon } from "@/components/ui/Icon";
-import { staticSampleExperiencePet } from "@/data/publicSample";
+import {
+  staticSampleExperienceDestinations,
+  staticSampleExperiencePet,
+} from "@/data/publicSample";
+import { publicProfilePath, qrSafetyPath } from "@/lib/routes";
 import {
   getPublicSampleExperience,
   type PublicSampleExperience as SampleState,
@@ -28,12 +33,21 @@ export function SampleExperience() {
   const petSpecies = pet?.species ?? staticSampleExperiencePet.species;
   const petPhoto = pet?.profilePhotoUrl ?? staticSampleExperiencePet.profilePhotoUrl;
   const petBio = pet?.bio ?? staticSampleExperiencePet.bio;
+  // Both cards always open a live sample. When a sample pet is configured its
+  // own published links are used; otherwise the site's own published sample
+  // pages keep the journey working.
+  const publicPath = pet
+    ? publicProfilePath(pet.publicSlug, pet.publicCode)
+    : staticSampleExperienceDestinations.publicProfilePath;
+  const safetyPath = pet
+    ? qrSafetyPath(pet.safetyCode)
+    : staticSampleExperienceDestinations.safetyProfilePath;
 
   return (
     <div>
       <div className="grid gap-5 lg:grid-cols-2">
         <article
-          className="brand-card min-w-0 scroll-mt-28 overflow-hidden rounded-[2rem]"
+          className="brand-card flex min-w-0 scroll-mt-28 flex-col overflow-hidden rounded-[2rem]"
           id="public-share-profile"
         >
           <div className="brand-paw-dots bg-pet-apricot p-6">
@@ -82,11 +96,21 @@ export function SampleExperience() {
               "Only owner-approved details are shown",
             ]}
             tone="text-pet-coral"
-          />
+          >
+            <CTAButton
+              ariaLabel={`View ${petName}'s sample Public Profile`}
+              className="mt-2"
+              fullWidth
+              href={publicPath}
+              icon="heart"
+            >
+              View Public Profile
+            </CTAButton>
+          </CardBody>
         </article>
 
         <article
-          className="brand-card min-w-0 scroll-mt-28 overflow-hidden rounded-[2rem]"
+          className="brand-card flex min-w-0 scroll-mt-28 flex-col overflow-hidden rounded-[2rem]"
           id="safety-profile"
         >
           <div className="brand-paw-dots bg-[#e8f3ff] p-6">
@@ -116,7 +140,18 @@ export function SampleExperience() {
               "No full owner address shown",
             ]}
             tone="text-pet-teal"
-          />
+          >
+            <CTAButton
+              ariaLabel={`View ${petName}'s sample Safety Profile`}
+              className="mt-2"
+              fullWidth
+              href={safetyPath}
+              icon="shield"
+              variant="coral"
+            >
+              View Safety Profile
+            </CTAButton>
+          </CardBody>
         </article>
       </div>
 
@@ -135,16 +170,18 @@ export function SampleExperience() {
 }
 
 function CardBody({
+  children,
   icon,
   items,
   tone,
 }: {
+  children?: React.ReactNode;
   icon: "heart" | "shield";
   items: string[];
   tone: string;
 }) {
   return (
-    <div className="grid gap-3 p-6">
+    <div className="mt-auto grid gap-3 p-6">
       {items.map((item) => (
         <div
           className="flex items-center gap-3 rounded-2xl bg-pet-cream px-4 py-3 text-sm font-bold text-pet-ink"
@@ -154,6 +191,7 @@ function CardBody({
           {item}
         </div>
       ))}
+      {children}
     </div>
   );
 }

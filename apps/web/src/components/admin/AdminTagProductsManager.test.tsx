@@ -135,9 +135,9 @@ const productDetail: AdminTagProduct = {
     productId: listProduct.id,
     publicKey: "PUBLICKEY1234567",
     sku: "MPL-QR-STANDARD-V1",
-    displayName: "Standard QR Tag",
+    displayName: "Standard Smart Tag",
     supportsQr: true,
-    supportsNfc: false,
+    supportsNfc: true,
     tagVariantPresetId: standardPreset.id,
     tagVariant: "Standard",
     widthMm: 32,
@@ -151,7 +151,7 @@ const productDetail: AdminTagProduct = {
     basePrice: 29.9,
     currency: "MYR",
     compareAtPrice: null,
-    printTemplateCode: "TPL-QR",
+    printTemplateCode: "TPL-QR-NFC",
     productionNotes: null,
     isActive: true,
     isPurchasable: true,
@@ -207,15 +207,15 @@ const catalogOption = {
   variants: [{
     id: productDetail.variants[0].id,
     sku: "MPL-QR-STANDARD-V1",
-    displayName: "Standard QR Tag",
+    displayName: "Standard Smart Tag",
     supportsQr: true,
-    supportsNfc: false,
+    supportsNfc: true,
     tagVariant: "Standard",
     widthMm: 32,
     heightMm: 32,
     thicknessMm: 2,
     material: "Steel",
-    printTemplateCode: "TPL-QR",
+    printTemplateCode: "TPL-QR-NFC",
     basePrice: 29.9,
     currency: "MYR",
     isActive: true,
@@ -538,6 +538,35 @@ describe("AdminTagProductsManager terminology and status", () => {
     expect(screen.getAllByText("Draft").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Inactive").length).toBeGreaterThan(0);
     expect(screen.getByText("Configuration is complete but remains hidden until it is marked purchasable.")).toBeDefined();
+  });
+
+  it("shows a scan-only SKU as no longer sold and blocks new inventory", async () => {
+    mocks.getProduct.mockResolvedValue({
+      ...productDetail,
+      variants: [
+        {
+          ...productDetail.variants[0],
+          supportsNfc: false,
+          isPurchasable: false,
+        },
+      ],
+    });
+    await openExistingProduct();
+
+    expect(
+      screen.getByText(/Missing: NFC capability.*Inventory cannot be generated yet./)
+    ).toBeDefined();
+  });
+
+  it("fixes new SKUs to scan and tap, with no way to create a scan-only tag", async () => {
+    await openExistingProduct();
+    fireEvent.click(screen.getByRole("button", { name: "New SKU" }));
+
+    const capability = await screen.findByLabelText("How this tag opens");
+    expect((capability as HTMLInputElement).value).toBe("QR scan and NFC tap");
+    expect((capability as HTMLInputElement).disabled).toBe(true);
+    expect(screen.queryByLabelText("NFC tapping")).toBeNull();
+    expect(screen.queryByLabelText("QR scanning")).toBeNull();
   });
 
   it("opens a confirmation dialog before archiving a product, explaining the impact", async () => {

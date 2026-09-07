@@ -37,7 +37,7 @@ const steps: { icon: IconName; title: string; description: string }[] = [
     icon: "qr",
     title: "Add a tag when you want one",
     description:
-      "A QR Pet Tag works with a phone camera. The QR + NFC Smart Tag also supports a tap. Both open the same Safety Profile.",
+      "The QR + NFC Smart Tag works with a phone camera or an NFC tap. Both open the same Safety Profile.",
   },
   {
     icon: "phone",
@@ -86,7 +86,7 @@ export default function HowItWorksPage() {
               View Sample Profile
             </CTAButton>
             <CTAButton href={marketingRoutes.smartPetTags} variant="outline">
-              Compare QR and NFC Tags
+              About the Smart Tag
             </CTAButton>
           </div>
         </div>

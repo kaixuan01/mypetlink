@@ -17,7 +17,7 @@ not a pattern to copy.
 
 1. **This file** â€” product structure, rules, and the route map.
 2. [`SMART_TAG_PRODUCT_STRATEGY.md`](../../../docs/product/SMART_TAG_PRODUCT_STRATEGY.md) — the
-   full product/business strategy for the physical Smart Tag (TagCode, QR or QR + NFC,
+   full product/business strategy for the physical QR + NFC Smart Tag (TagCode,
    activation, admin batches, retail, packaging, security). This is the source
    of truth for *what* the tag product should be.
 3. [`OWNER_PORTAL_FLOW.md`](./OWNER_PORTAL_FLOW.md) â€” how the signed-in owner
@@ -43,8 +43,8 @@ Core promise: **A safer way home for your pet.**
 **Positioning:** MyPetLink is a pet **safety and care** profile — *not* a QR/NFC
 gadget. Create a **Free Profile** first; it includes the Public Share Profile,
 pet-level Safety Profile, basic finder contact, basic care records, and up to 3
-pets with up to 10 memories per pet. Physical **QR** and **QR + NFC** smart tags
-are optional one-time add-ons that open the same safety content. **Premium is
+pets with up to 10 memories per pet. The physical **QR + NFC Smart Tag** is an
+optional one-time add-on; scanning or tapping it opens the same safety content. **Premium is
 Coming Soon** and must not be presented as a live subscription or checkout flow.
 Never imply finder contact costs money (it's free on the Free plan). The public
 marketing pages (Home, Pricing, Privacy) are separate from the public/finder app

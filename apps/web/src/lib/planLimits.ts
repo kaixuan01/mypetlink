@@ -4,7 +4,7 @@ import {
 } from "@/lib/petLifecycle";
 
 export const phase1Positioning =
-  "Create a free pet profile first. Add a physical QR or QR + NFC smart tag when you want extra safety. Premium care features are coming soon.";
+  "Create a free pet profile first. Add the QR + NFC Smart Tag when you want extra safety. Premium care features are coming soon.";
 
 // Baseline Free-plan values used when the app runs on local data only. When
 // the MyPetLink service is connected, the owner's real plan limits (the same
@@ -79,43 +79,38 @@ export const premiumPlan = {
   ],
 } as const;
 
-export const smartTagAddOns = [
-  {
-    name: "MyPetLink QR Pet Tag",
-    shortName: "Physical QR tag",
-    price: "RM19.90",
-    billingNote: "one-time",
-    type: "qr",
-    description:
-      "A physical QR tag that connects to your pet's Safety Profile.",
-  },
-  {
-    name: "MyPetLink QR + NFC Smart Tag",
-    shortName: "QR + NFC smart tag",
-    price: "RM39.90",
-    billingNote: "one-time",
-    type: "nfc",
-    description:
-      "A QR + NFC smart tag where scan and tap open the same Safety Profile.",
-  },
-] as const;
+// The QR + NFC Smart Tag is the only physical tag MyPetLink offers. Every
+// public page describes this one product, so there is nothing to compare and
+// no second price to keep in step.
+export const smartTagAddOn = {
+  name: "MyPetLink QR + NFC Smart Tag",
+  shortName: "QR + NFC smart tag",
+  price: "RM39.90",
+  billingNote: "one-time",
+  description:
+    "A QR + NFC smart tag where scan and tap open the same Safety Profile.",
+  accessMethods: [
+    "Scan the QR code with any phone camera",
+    "Tap it with an NFC-capable phone",
+  ],
+} as const;
 
-// Marketing status for the physical Smart Tag add-ons. The tags are not yet
-// available to purchase, so public pages present them as "Coming Soon". This is
+// Marketing status for the physical Smart Tag add-on. The tag is not yet
+// available to purchase, so public pages present it as "Coming Soon". This is
 // the single source of truth for the landing and pricing pages so they never
 // disagree on status, price, or copy.
 export const smartTagAddOnsStatus = {
   status: "Coming Soon",
-  startingPrice: smartTagAddOns[0].price,
+  price: smartTagAddOn.price,
   shortDescription:
-    "One-time QR and QR + NFC smart pet tag add-ons, coming soon.",
+    "A one-time QR + NFC smart pet tag add-on, coming soon.",
 } as const;
 
 export const gpsSafety = {
   name: "GPS Safety",
   status: "Coming Later",
   description:
-    "GPS tracking is planned for a later phase and is not part of the current smart tag add-ons.",
+    "GPS tracking is planned for a later phase and is not part of the current smart tag add-on.",
 } as const;
 
 export function getPetLimitState(petCount: number) {

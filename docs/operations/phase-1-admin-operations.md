@@ -239,10 +239,11 @@ Rules:
 - Generated retail tags are `Unclaimed`, with no `OwnerUserId` and no `PetId`.
 - TagCode uses the single public `MPL-XXXX-XXXX` identifier.
 - TagCode must be secure random and unique.
-- New manufacturer exports use `/q/:tagCode` for QR Content. QR + NFC variants
-  use the distinct `/n/:tagCode` NFC Content; QR-only variants leave NFC
-  Content empty. Existing printed `/t/:tagCode` content remains valid and is
-  not rewritten.
+- New manufacturer exports use `/q/:tagCode` for QR Content and the distinct
+  `/n/:tagCode` for NFC Content. Only QR + NFC Smart Tags are produced now, so
+  every new export carries both; exports for discontinued QR-only stock leave
+  NFC Content empty. Existing printed `/t/:tagCode` content remains valid and
+  is not rewritten.
 
 ## Admin Owners
 

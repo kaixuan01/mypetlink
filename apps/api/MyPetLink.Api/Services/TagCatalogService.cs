@@ -228,7 +228,7 @@ public sealed partial class TagCatalogService : ITagCatalogService
             ?? throw NotFound("Tag product was not found.");
         if (product.IsArchived) throw InvalidState("Archived products cannot receive new variants.");
         var preset = await ResolveVariantPresetAsync(request.TagVariantPresetId, existing: null, cancellationToken);
-        var values = ValidateVariant(request, product, preset.DisplayName);
+        var values = ValidateVariant(request, product, preset.DisplayName, existing: null);
         await EnsureUniqueSkuAsync(values.Sku, null, cancellationToken);
         var variant = new TagProductVariant { TagProductId = product.Id, PublicKey = await GeneratePublicKeyAsync(cancellationToken) };
         ApplyVariant(variant, request, values);
@@ -254,7 +254,7 @@ public sealed partial class TagCatalogService : ITagCatalogService
         // (or block a locked one from saving unrelated changes).
         var preset = await ResolveVariantPresetAsync(request.TagVariantPresetId, variant, cancellationToken);
         var snapshotName = variant.TagVariantPresetId == preset.Id ? variant.TagVariant : preset.DisplayName;
-        var values = ValidateVariant(request, variant.TagProduct, snapshotName);
+        var values = ValidateVariant(request, variant.TagProduct, snapshotName, variant);
         await EnsureUniqueSkuAsync(values.Sku, variant.Id, cancellationToken);
         var locked = await ProductionFieldsLockedAsync(variant.Id, cancellationToken);
         if (locked && ProductionFieldsChanged(variant, request, values))
@@ -318,7 +318,8 @@ public sealed partial class TagCatalogService : ITagCatalogService
     {
         var products = await PublicGraph()
             .Where(product => product.IsPublished && !product.IsArchived
-                && product.Variants.Any(variant => variant.ArchivedAt == null && variant.IsActive && variant.IsPurchasable))
+                && product.Variants.Any(variant => variant.ArchivedAt == null && variant.IsActive && variant.IsPurchasable
+                    && variant.SupportsQr && variant.SupportsNfc))
             .OrderBy(product => product.SortOrder).ThenBy(product => product.Name)
             .ToListAsync(cancellationToken);
         return await ToPublicProductsAsync(products, cancellationToken);
@@ -328,7 +329,8 @@ public sealed partial class TagCatalogService : ITagCatalogService
     {
         var normalizedSlug = NormalizeSlug(slug);
         var product = await PublicGraph().SingleOrDefaultAsync(item => item.Slug == normalizedSlug && item.IsPublished && !item.IsArchived
-            && item.Variants.Any(variant => variant.ArchivedAt == null && variant.IsActive && variant.IsPurchasable), cancellationToken)
+            && item.Variants.Any(variant => variant.ArchivedAt == null && variant.IsActive && variant.IsPurchasable
+                && variant.SupportsQr && variant.SupportsNfc), cancellationToken)
             ?? throw NotFound("Tag product was not found.");
         return (await ToPublicProductsAsync([product], cancellationToken)).Single();
     }
@@ -383,7 +385,7 @@ public sealed partial class TagCatalogService : ITagCatalogService
     private async Task<IReadOnlyCollection<PublicTagProductResponse>> ToPublicProductsAsync(IReadOnlyCollection<TagProduct> products, CancellationToken cancellationToken)
     {
         var variantIds = products.SelectMany(item => item.Variants)
-            .Where(item => item.ArchivedAt == null && item.IsActive && item.IsPurchasable).Select(item => item.Id).ToArray();
+            .Where(IsPubliclyOfferable).Select(item => item.Id).ToArray();
         // One shared reservation-aware calculation: physical unclaimed stock
         // minus outstanding order reservations. A fully reserved SKU must not
         // advertise itself as available and then fail at checkout.
@@ -400,7 +402,7 @@ public sealed partial class TagCatalogService : ITagCatalogService
         {
             var productMedia = PublicMedia(product.Media.Where(item => item.TagProductVariantId == null));
             var variants = product.Variants
-                .Where(item => item.ArchivedAt == null && item.IsActive && item.IsPurchasable)
+                .Where(IsPubliclyOfferable)
                 .OrderBy(item => item.SortOrder).ThenBy(item => item.DisplayName)
                 .Select(variant => new PublicTagProductVariantResponse(
                     variant.PublicKey, variant.Sku, variant.DisplayName, variant.SupportsQr, variant.SupportsNfc, variant.TagVariant,
@@ -412,6 +414,15 @@ public sealed partial class TagCatalogService : ITagCatalogService
             return new PublicTagProductResponse(product.Slug, product.Name, product.ShortDescription, product.Description, productMedia, variants);
         }).ToArray();
     }
+
+    // What a pet owner may be offered: an orderable SKU whose capabilities are
+    // still sold. TagCatalogSellability owns the capability rule; the product's
+    // published and archived state is already checked by the caller's query.
+    private static bool IsPubliclyOfferable(TagProductVariant variant) =>
+        variant.ArchivedAt == null
+        && variant.IsActive
+        && variant.IsPurchasable
+        && TagCatalogSellability.HasSellableCapabilities(variant);
 
     private IReadOnlyCollection<PublicTagProductMediaResponse> PublicMedia(IEnumerable<TagProductMedia> media) => media
         .Where(item => item.ArchivedAt == null && item.MediaFile.IsPublic && item.MediaFile.UploadStatus == MediaUploadStatus.Ready && item.MediaFile.DeletedAt == null)
@@ -523,7 +534,8 @@ public sealed partial class TagCatalogService : ITagCatalogService
     private static (string Sku, string Currency, string TagVariant) ValidateVariant(
         UpsertTagProductVariantRequest request,
         TagProduct product,
-        string tagVariantSnapshot)
+        string tagVariantSnapshot,
+        TagProductVariant? existing)
     {
         var sku = request.Sku?.Trim().ToUpperInvariant() ?? string.Empty;
         var currency = request.Currency?.Trim().ToUpperInvariant() ?? string.Empty;
@@ -531,6 +543,14 @@ public sealed partial class TagCatalogService : ITagCatalogService
         if (!SkuPattern().IsMatch(sku)) throw ValidationFailed("sku", "Use 3-80 uppercase letters, numbers, dots, dashes, or underscores.");
         if (string.IsNullOrWhiteSpace(request.DisplayName)) throw ValidationFailed("displayName", "Enter a variant name.");
         if (!request.SupportsQr) throw ValidationFailed("supportsQr", "Current physical tags must support QR scanning.");
+        // The QR + NFC Smart Tag is the only physical tag MyPetLink sells. A new
+        // SKU must carry both capabilities, and a SKU that does not carry both
+        // can never be offered for sale again. Existing scan-only SKUs stay
+        // editable so their inventory and order history remain correct.
+        if (!request.SupportsNfc && existing is null)
+            throw ValidationFailed("supportsNfc", "New tags must support NFC tapping as well as QR scanning.");
+        if (!request.SupportsNfc && request.IsPurchasable)
+            throw ValidationFailed("supportsNfc", "A tag without NFC tapping is no longer sold and cannot be offered for sale.");
         if (request.BasePrice < 0) throw ValidationFailed("basePrice", "Base price cannot be negative.");
         if (currency != "MYR") throw ValidationFailed("currency", "MYR is the supported currency for this catalog.");
         if (request.CompareAtPrice.HasValue && request.CompareAtPrice < request.BasePrice) throw ValidationFailed("compareAtPrice", "Compare-at price must be at least the base price.");

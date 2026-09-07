@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "MyPetLink Malaysia | Smart Pet Profiles, QR & NFC Pet Tags",
     description:
-      "Create a free shareable pet profile and add an optional QR or QR + NFC pet tag for extra safety in Malaysia.",
+      "Create a free shareable pet profile and add the optional QR + NFC Smart Tag for extra safety in Malaysia.",
     siteName: siteConfig.productName,
     url: siteConfig.url,
     locale: "en_MY",
@@ -46,7 +46,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "MyPetLink Malaysia | Smart Pet Profiles, QR & NFC Pet Tags",
     description:
-      "Create a free shareable pet profile and add an optional QR or QR + NFC pet tag for extra safety in Malaysia.",
+      "Create a free shareable pet profile and add the optional QR + NFC Smart Tag for extra safety in Malaysia.",
     images: ["/og-image.png"],
   },
   icons: {

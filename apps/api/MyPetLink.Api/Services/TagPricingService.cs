@@ -78,11 +78,10 @@ public sealed class TagPricingService : ITagPricingService
             .SingleOrDefaultAsync(item => item.PublicKey == normalizedKey, cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "not_found", "This tag option is no longer available.");
 
-        if (!variant.TagProduct.IsPublished
-            || variant.TagProduct.IsArchived
-            || !variant.IsActive
-            || !variant.IsPurchasable
-            || variant.ArchivedAt.HasValue)
+        // One rule for every purchase path, so a SKU that is no longer sold
+        // (including a discontinued QR-only tag left purchasable in data)
+        // cannot be ordered through this or any other endpoint.
+        if (!TagCatalogSellability.IsSellable(variant))
         {
             throw new ApiException(StatusCodes.Status409Conflict, "product_unavailable", "This tag option is not available to order.");
         }

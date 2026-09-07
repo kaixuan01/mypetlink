@@ -104,7 +104,7 @@ otherwise traffic may share the last proxy address and one quota.
 
 New production exports compute URLs from the configured `PublicSite:BaseUrl`:
 
-- QR-only SKU: QR Content is `/q/{tagCode}`; NFC Content is empty.
+- Discontinued QR-only SKU (no new stock is produced): QR Content is `/q/{tagCode}`; NFC Content is empty.
 - QR + NFC SKU: QR Content is `/q/{tagCode}`; NFC Content is `/n/{tagCode}`.
 
 NFC capability comes only from the stored product variant capability. These

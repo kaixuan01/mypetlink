@@ -2,6 +2,7 @@ import { mockPets } from "@/data/mockPets";
 import {
   indexableSamplePublicCode,
   indexableSamplePublicSlug,
+  indexableSampleSafetyCode,
   staticSampleExperiencePet,
 } from "@/data/publicSample";
 import type { Pet } from "@/types";
@@ -37,9 +38,9 @@ export const samplePet: Pet = {
   coverPositionY: 0,
   profileTheme: "default",
   publicCode: indexableSamplePublicCode,
-  safetyCode: "sl3j2b2q3e2oqhe4iamqa",
-  qrSafetyPath: "/q/sl3j2b2q3e2oqhe4iamqa",
-  finderProfileUrl: "/q/sl3j2b2q3e2oqhe4iamqa",
+  safetyCode: indexableSampleSafetyCode,
+  qrSafetyPath: `/q/${indexableSampleSafetyCode}`,
+  finderProfileUrl: `/q/${indexableSampleSafetyCode}`,
   publicProfilePath: `/p/${indexableSamplePublicSlug}`,
   bio: staticSampleExperiencePet.bio,
   personalityTags: ["Curious", "Friendly", "Treat lover"],

@@ -177,7 +177,7 @@ continue to use frontend `NEXT_PUBLIC_SITE_URL`.
 
 ### AppSettings values
 
-The five operational `AppSettings` rows (tag prices `RM19.90` / `RM39.90`, `premium.status = Coming Soon`, `gps.status = Coming Later`, `payment.mode = Manual QR Payment`) are seeded by the `InitialCreate` migration and read from the database — they are **not** environment variables and need no config entries.
+The five operational `AppSettings` rows (tag prices `RM19.90` / `RM39.90`, `premium.status = Coming Soon`, `gps.status = Coming Later`, `payment.mode = Manual QR Payment`) are seeded by the `InitialCreate` migration — they are **not** environment variables and need no config entries. Nothing in the API or Admin Portal reads these rows; live tag pricing comes from the catalog SKU. `tag.qr.price` describes the discontinued QR-only product and is kept only so the seeded table still matches the `InitialCreate` migration.
 
 ## Where each secret goes
 

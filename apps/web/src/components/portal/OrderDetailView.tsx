@@ -272,7 +272,6 @@ export function OrderDetailView({
   const replacementHref =
     orderDisclosedTag && order.petId
       ? ownerRoutes.petTagOrder(order.petId, {
-          type: order.tagType.includes("NFC") ? "nfc" : "qr",
           replacementFor: orderDisclosedTag.id,
         })
       : "";

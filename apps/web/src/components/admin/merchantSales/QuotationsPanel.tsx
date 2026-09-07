@@ -17,6 +17,7 @@ import {
 } from "@/components/admin/table/AdminRowActionMenu";
 import { useAdminTableQuery } from "@/components/admin/table/useAdminTableQuery";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { isSellableTagCapability } from "@/lib/tagCapabilities";
 import { isAbortError } from "@/services/apiClient";
 import {
   getMerchantEmailStatuses,
@@ -873,7 +874,10 @@ function QuotationEditor({
         product.variants.map((variant) => ({
           id: variant.id,
           label: `${product.name} — ${variant.sku} (${variant.displayName})`,
-          isActive: variant.isActive,
+          // A tag we no longer sell cannot start a new quotation. An option
+          // already saved on a line stays visible so the quotation reads
+          // correctly; the service rejects it if the line is kept.
+          isSelectable: variant.isActive && isSellableTagCapability(variant),
           retailPrice: variant.basePrice,
           currency: variant.currency,
         }))
@@ -1088,7 +1092,7 @@ function QuotationEditor({
                   >
                     <option value="">Choose a product option</option>
                     {variants
-                      .filter((item) => item.isActive || item.id === line.productVariantId)
+                      .filter((item) => item.isSelectable || item.id === line.productVariantId)
                       .map((item) => (
                         <option key={item.id} value={item.id}>
                           {item.label}

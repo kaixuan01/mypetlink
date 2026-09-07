@@ -11,6 +11,7 @@ import { AdminSearchInput } from "@/components/admin/table/AdminSearchInput";
 import { useAdminTableQuery } from "@/components/admin/table/useAdminTableQuery";
 import { Badge } from "@/components/ui/Badge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { isSellableTagCapability, tagCapabilityLabel } from "@/lib/tagCapabilities";
 import { isAbortError, isApiClientError } from "@/services/apiClient";
 import { uploadMediaFile } from "@/services/mediaService";
 import {
@@ -88,7 +89,7 @@ const CATALOG_FILTER_KEYS = [
 const CATALOG_FILTER_VALUES: Record<string, readonly string[]> = {
   publication: ["published", "draft"],
   archive: ["archived", "all"],
-  capability: ["qr", "nfc"],
+  capability: ["nfc", "scan-only"],
   purchasable: ["yes", "no"],
   promoStatus: ["enabled", "disabled"],
 };
@@ -157,7 +158,7 @@ const blankVariant: AdminVariantInput = {
   sku: "",
   displayName: "",
   supportsQr: true,
-  supportsNfc: false,
+  supportsNfc: true,
   tagVariantPresetId: null,
   widthMm: null,
   heightMm: null,
@@ -360,8 +361,12 @@ export function AdminTagProductsManager() {
         filters.publication === undefined ? undefined : filters.publication === "published",
       archived:
         filters.archive === "all" ? undefined : filters.archive === "archived",
-      supportsQr: filters.capability === "qr" ? true : undefined,
-      supportsNfc: filters.capability === "nfc" ? true : undefined,
+      // "scan-only" finds the discontinued tags that never had NFC, so their
+      // inventory and order history stay reachable.
+      supportsNfc:
+        filters.capability === undefined
+          ? undefined
+          : filters.capability === "nfc",
       purchasable:
         filters.purchasable === undefined ? undefined : filters.purchasable === "yes",
       page: query.page,
@@ -934,7 +939,7 @@ export function AdminTagProductsManager() {
                     label="Capability"
                     value={query.filters.capability ?? "all"}
                     onChange={(value) => actions.setFilter("capability", value === "all" ? null : value)}
-                    options={[["all", "All"], ["qr", "QR"], ["nfc", "NFC"]]}
+                    options={[["all", "All"], ["nfc", "QR + NFC"], ["scan-only", "Scan only (no longer sold)"]]}
                   />
                   <FilterSelect
                     label="Purchasable"
@@ -1334,7 +1339,7 @@ function ProductEditor({ product, form, isNew, busy, imageUploading, errors, for
                         aria-label={`Alt text for ${fileName}`}
                         className={fieldClass}
                         maxLength={300}
-                        placeholder="Black MyPetLink paw-shaped QR pet tag"
+                        placeholder="Black MyPetLink paw-shaped QR + NFC Smart Tag"
                         value={media.altText}
                         onChange={(event) => changeMedia(form.media.map((item, itemIndex) => itemIndex === index ? { ...item, altText: event.target.value } : item))}
                       />
@@ -1438,9 +1443,11 @@ function skuStatusExplanation(variant: AdminTagProductVariant) {
   return "Inactive SKUs cannot be purchased or used for new inventory.";
 }
 
-function missingSkuFields(variant: Pick<AdminTagProductVariant, "supportsQr" | "widthMm" | "heightMm" | "weightGrams" | "material" | "shape" | "colour" | "packagingType" | "printTemplateCode">) {
+function missingSkuFields(variant: Pick<AdminTagProductVariant, "supportsQr" | "supportsNfc" | "widthMm" | "heightMm" | "weightGrams" | "material" | "shape" | "colour" | "packagingType" | "printTemplateCode">) {
   return [
     !variant.supportsQr ? "QR capability" : null,
+    // Only a tag that scans and taps can be produced or sold now.
+    !isSellableTagCapability(variant) && variant.supportsQr ? "NFC capability" : null,
     variant.widthMm == null ? "width" : null,
     variant.heightMm == null ? "height" : null,
     variant.weightGrams == null ? "weight" : null,
@@ -1481,7 +1488,7 @@ function VariantEditor({ product, editing, form, isNew, busy, formError, presets
         {locked ? <AdminNotice>Production specifications are locked because this SKU has inventory or order history. Create a new versioned SKU to change them.</AdminNotice> : null}
 
         <CollapsibleFormGroup title="General" defaultOpen>
-          <Field label="SKU code"><input className={fieldClass} disabled={locked} value={form.sku} onChange={(event) => onChange({ ...form, sku: event.target.value.toUpperCase() })} placeholder="PAW-LW-QR" /></Field>
+          <Field label="SKU code"><input className={fieldClass} disabled={locked} value={form.sku} onChange={(event) => onChange({ ...form, sku: event.target.value.toUpperCase() })} placeholder="PAW-LW-NFC" /></Field>
           <Field label="Display name"><input className={fieldClass} value={form.displayName} onChange={(event) => onChange({ ...form, displayName: event.target.value })} /></Field>
           <Field
             helper="A reusable classification only (for example Lightweight, Standard, Collar Slide). It never sets this SKU's price, capabilities, specifications, or inventory."
@@ -1513,8 +1520,17 @@ function VariantEditor({ product, editing, form, isNew, busy, formError, presets
             )}
           </Field>
           <Field label="Display order"><input className={fieldClass} min={0} type="number" value={form.sortOrder} onChange={(event) => onChange({ ...form, sortOrder: numberValue(event.target.value) })} /></Field>
-          <Toggle checked={form.supportsQr} disabled={locked} label="QR scanning" onChange={(checked) => onChange({ ...form, supportsQr: checked })} />
-          <Toggle checked={form.supportsNfc} disabled={locked} label="NFC tapping" onChange={(checked) => onChange({ ...form, supportsNfc: checked })} />
+          <Field
+            helper={
+              form.supportsQr && form.supportsNfc
+                ? "Every tag we sell can be scanned and tapped, so this is fixed for new SKUs."
+                : "This tag was made before NFC tapping became standard. It stays here so its inventory and past orders read correctly, and it cannot be offered for sale again."
+            }
+            label="How this tag opens"
+            wide
+          >
+            <input className={fieldClass} disabled value={tagCapabilityLabel(form)} />
+          </Field>
           {!isNew && editing && editing.tagVariant ? (
             <Field helper="What this SKU is currently labelled as. Renaming a Tag Type never changes saved SKUs." label="Saved Tag Type" wide>
               <input className={fieldClass} disabled value={editing.tagVariant} />

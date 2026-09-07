@@ -51,7 +51,7 @@ Owner accounts with live pet/order counts, phone/WhatsApp, joined date, status, 
 Filters: Active, Lost Mode, Memorial, Archived, All (Lost Mode is a flag on active pets, not a lifecycle status; Memorial is never treated as Active). Columns: pet, owner, type/breed, QR Safety status, smart tag status (active/pending/none via `getPetSmartTagStatus`), lifecycle badge, Lost Mode badge, created date. Actions: Public Profile and Safety Profile (new tab), View Tags (scoped), View Owner.
 
 ### `/admin/settings` — Operations settings (read-only)
-Order settings, payment proof instructions, tag pricing (RM19.90 / RM39.90 one-time), feature availability (Free available, Premium Coming Soon, GPS Coming Later), support contact, and company/legal info — all sourced from `src/config/site.ts`, `src/config/payment.ts`, and `src/lib/planLimits.ts`. Editing arrives with a later update.
+Order settings, payment proof instructions, tag pricing (RM39.90 one-time), feature availability (Free available, Premium Coming Soon, GPS Coming Later), support contact, and company/legal info — all sourced from `src/config/site.ts`, `src/config/payment.ts`, and `src/lib/planLimits.ts`. Editing arrives with a later update.
 
 ### Kept earlier pages
 `/admin/qr-profiles` and `/admin/plans` remain from the earlier admin skeleton.

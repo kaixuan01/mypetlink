@@ -553,7 +553,7 @@ public sealed class ConcurrencyRelationalTests
             Sku = "MPL-REL-V1",
             DisplayName = "Standard",
             SupportsQr = true,
-            SupportsNfc = false,
+            SupportsNfc = true,
             TagVariant = "Standard",
             BasePrice = 29.90m,
             Currency = "MYR",

@@ -97,7 +97,7 @@ const filters: AdminFilterDef[] = [
     { value: "true", label: "Available" }, { value: "false", label: "Missing" },
   ], advanced: true },
   { type: "select", key: "tagType", label: "Tag Type", options: [
-    { value: "QR", label: "QR Pet Tag" }, { value: "QR_NFC", label: "QR + NFC Smart Tag" },
+    { value: "QR", label: "QR only (no longer sold)" }, { value: "QR_NFC", label: "QR + NFC Smart Tag" },
   ], advanced: true },
   { type: "date-range", key: "created", label: "Created", advanced: true },
   { type: "date-range", key: "updated", label: "Updated", advanced: true },

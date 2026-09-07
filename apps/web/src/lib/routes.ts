@@ -6,13 +6,12 @@ import type { Pet, PetTag } from "@/types";
 // Route rules:
 // - Owner portal: /pets/{petId}/...        (always the petId, never the slug)
 // - Safety Profile: /q/{safetyCode}        (pet-level direct safety link)
-// - Physical QR:  /q/{tagCode}             (new printed QR entry)
-// - Physical NFC: /n/{tagCode}             (new NFC entry)
+// - Physical QR:  /q/{tagCode}             (printed QR entry on a Smart Tag)
+// - Physical NFC: /n/{tagCode}             (NFC entry on a Smart Tag)
 // - Legacy tag:   /t/{tagCode}             (already-manufactured compatibility)
 // - Public share: /p/{petSlug}-{publicCode} (looked up by publicCode)
 
 type TagOrderOptions = {
-  type?: "qr" | "nfc";
   replacementFor?: string;
 };
 
@@ -46,10 +45,6 @@ export const ownerRoutes = {
 
     if (options.petId) {
       params.set("petId", options.petId);
-    }
-
-    if (options.type) {
-      params.set("type", options.type);
     }
 
     if (options.replacementFor) {

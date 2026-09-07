@@ -134,18 +134,17 @@ public sealed class TagOrderCatalogIntegrationTests
     }
 
     [Fact]
-    public async Task Create_SnapshotsQrOnlyCapabilities_WithoutInferringNfc()
+    public async Task Create_RefusesAScanOnlySku_BecauseItIsNoLongerSold()
     {
         await using var harness = await Harness.CreateAsync();
         harness.Variant.SupportsNfc = false;
         await harness.Db.SaveChangesAsync();
 
-        var created = await harness.Service.CreateAsync(OwnerId, Request(harness.Pet.Id, harness.Variant.PublicKey));
-        var item = Assert.IsType<TagOrderItemResponse>(created.Order.Item);
+        var refused = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Service.CreateAsync(OwnerId, Request(harness.Pet.Id, harness.Variant.PublicKey)));
 
-        Assert.True(item.SupportsQr);
-        Assert.False(item.SupportsNfc);
-        Assert.Equal(TagType.QrPetTag, created.Order.TagType);
+        Assert.Equal("product_unavailable", refused.Code);
+        Assert.Empty(await harness.Db.TagOrders.ToListAsync());
     }
 
     [Fact]
@@ -459,11 +458,11 @@ public sealed class TagOrderCatalogIntegrationTests
         var otherVariant = new TagProductVariant
         {
             TagProduct = harness.Product,
-            PublicKey = "QRLIGHTWEIGHT001",
-            Sku = "MPL-QR-LIGHTWEIGHT-V1",
-            DisplayName = "Lightweight QR",
+            PublicKey = "NFCLIGHTWEIGHT01",
+            Sku = "MPL-NFC-LIGHTWEIGHT-V1",
+            DisplayName = "Lightweight NFC",
             SupportsQr = true,
-            SupportsNfc = false,
+            SupportsNfc = true,
             TagVariant = "Lightweight",
             BasePrice = 29.90m,
             Currency = "MYR",
@@ -514,11 +513,11 @@ public sealed class TagOrderCatalogIntegrationTests
         var qrVariant = new TagProductVariant
         {
             TagProduct = harness.Product,
-            PublicKey = "QRLIGHTWEIGHT002",
-            Sku = "MPL-QR-LIGHTWEIGHT-V2",
-            DisplayName = "Lightweight QR",
+            PublicKey = "NFCLIGHTWEIGHT02",
+            Sku = "MPL-NFC-LIGHTWEIGHT-V2",
+            DisplayName = "Lightweight NFC",
             SupportsQr = true,
-            SupportsNfc = false,
+            SupportsNfc = true,
             TagVariant = "Lightweight",
             BasePrice = 29.90m,
             Currency = "MYR",

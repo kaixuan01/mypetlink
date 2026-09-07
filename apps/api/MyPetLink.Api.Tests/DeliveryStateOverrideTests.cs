@@ -375,6 +375,7 @@ public sealed class DeliveryStateOverrideTests
                 Sku = "OVERRIDE-1",
                 DisplayName = "Tag",
                 SupportsQr = true,
+                SupportsNfc = true,
                 TagVariant = "Standard",
                 BasePrice = 40m,
                 Currency = "MYR",

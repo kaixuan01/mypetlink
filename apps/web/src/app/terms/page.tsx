@@ -69,7 +69,7 @@ export default function TermsPage() {
             <LegalBulletList
               items={[
                 "MyPetLink helps pet owners create shareable pet profiles and Safety Profiles.",
-                "MyPetLink can support optional physical QR Pet Tags and QR + NFC Smart Tags.",
+                "MyPetLink can support the optional physical QR + NFC Smart Tag.",
                 "The service is intended to make it easier for someone who finds a pet to contact the owner.",
                 "MyPetLink does not guarantee that a lost pet will be found, contacted about, or returned.",
               ]}
@@ -115,7 +115,7 @@ export default function TermsPage() {
           >
             <LegalBulletList
               items={[
-                "QR Pet Tags and QR + NFC Smart Tags are optional one-time add-ons.",
+                "QR + NFC Smart Tags are optional one-time add-ons.",
                 "Smart tags connect to the pet's Safety Profile or activation flow.",
                 "Tag availability, pricing, design, packaging, and delivery timelines may vary during our early launch and as we improve fulfilment.",
                 "A physical tag does not provide GPS tracking.",

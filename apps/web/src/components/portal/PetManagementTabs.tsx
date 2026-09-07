@@ -588,7 +588,7 @@ function OverviewTab({
             ? "Physical tags linked to this memorial are kept as history and show an inactive scan page."
             : isArchived
               ? "Restore this profile before using physical tags again."
-              : "Physical QR or QR + NFC tags. Linked tags open this pet's Safety Profile."
+              : "Physical tags for this pet. A linked tag opens this pet's Safety Profile."
         }
       >
         {activeTag ? (

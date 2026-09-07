@@ -8,9 +8,9 @@ Status (2026-07-04): this flow is implemented end to end. Owner submission uses 
 
 ## Product Rules
 
-- Smart tags are optional one-time add-ons.
-- QR Pet Tag: RM19.90 one-time.
-- QR + NFC Smart Tag: RM39.90 one-time.
+- The Smart Tag is an optional one-time add-on.
+- QR + NFC Smart Tag: RM39.90 one-time — the only physical tag sold.
+- The QR-only QR Pet Tag (RM19.90) is discontinued. Orders placed while it was sold keep their own product, price, and capability snapshots.
 - Delivery fee is Free in the current frontend.
 - Premium is Coming Soon only.
 - GPS Safety is Coming Later only.
@@ -20,9 +20,7 @@ Status (2026-07-04): this flow is implemented end to end. Owner submission uses 
 ## Owner Portal Order Flow
 
 1. Owner chooses an active pet.
-2. Owner chooses tag type:
-   - QR Pet Tag
-   - QR + NFC Smart Tag
+2. Owner chooses the QR + NFC Smart Tag (the only tag offered).
 3. Owner chooses tag variant:
    - Lightweight Tag (recommended for cats/small pets)
    - Standard Tag (recommended for dogs/medium-large pets)

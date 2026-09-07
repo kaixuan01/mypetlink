@@ -1,0 +1,128 @@
+{
+  "journey": "04-care-records",
+  "viewport": "mobile 390x844",
+  "petId": "5e3b24db-2295-4b58-a022-a5279e188f40",
+  "today": "2026-08-29",
+  "steps": [
+    "Care records empty state.",
+    "Care types exposed to owners: [\"Select type\",\"Vaccine\",\"Deworming\",\"Grooming\",\"Vet Visit\",\"Medication\",\"Surgery\",\"Lab Test\",\"Other\"]",
+    "Attempted an empty save to observe validation.",
+    "Filled a Vaccine record with a 3 September 2026 due date.",
+    "Saved the Vaccine record.",
+    "Added a Grooming record due today.",
+    "Care edit prefilled: {\"texts\":[\"Rabies\",\"Rabies annual booster\",\"Owner recorded\"],\"dates\":[\"2026-08-15\",\"2026-09-03\"],\"select\":\"Vaccine\"}",
+    "Checked the dashboard for upcoming-care impact."
+  ],
+  "probes": [
+    {
+      "label": "care-empty",
+      "route": "/pets/5e3b24db-2295-4b58-a022-a5279e188f40/records",
+      "viewportWidth": 390,
+      "viewportMatchesVisual": true,
+      "pannedX": 0,
+      "clippedCount": 0,
+      "clipped": []
+    },
+    {
+      "label": "care-after-save",
+      "route": "/pets/5e3b24db-2295-4b58-a022-a5279e188f40/records",
+      "viewportWidth": 390,
+      "viewportMatchesVisual": true,
+      "pannedX": 0,
+      "clippedCount": 0,
+      "clipped": []
+    },
+    {
+      "label": "dashboard-with-care",
+      "route": "/dashboard",
+      "viewportWidth": 390,
+      "viewportMatchesVisual": true,
+      "pannedX": 0,
+      "clippedCount": 0,
+      "clipped": []
+    }
+  ],
+  "emptyText": "CARE RECORDS\n\nMochi's health and care history\n\nKeep vaccines, deworming, grooming, vet visits, medication, and allergy notes in one place.\n\nCare records\n\nAdd vaccines, deworming, grooming, vet visits, medication, surgery, and lab tests as your pet's care changes.\n\nNo care records yet\n\nAdd your pet's first record so important health details are easy to find later.\n\nAdd first care record",
+  "dialogText": "ADD RECORD\n\nSave a care record\n\nKeep the details short and useful so they are easy to find later.\n\nRecord Type\nSelect type\nVaccine\nDeworming\nGrooming\nVet Visit\nMedication\nSurgery\nLab Test\nOther\nTitle\nRecord Date\nRecord when this care happened. Use the next date below to track future care.\nProvider / Clinic\nNext Care Date (Optional)\nSet the date for your pet’s next follow-up or routine care.\nWho can see this record?\nOnly me\nAnyone with the link\nDocuments\n\nAdd a supporting medical document. PDF, JPG, or PNG up to 10 MB each.\n\n+ Add document\n\nPublic records show only their type and date.\n\nNotes\nCancel\nSave Record",
+  "formControls": {
+    "selects": [
+      {
+        "options": [
+          "Select type",
+          "Vaccine",
+          "Deworming",
+          "Grooming",
+          "Vet Visit",
+          "Medication",
+          "Surgery",
+          "Lab Test",
+          "Other"
+        ]
+      },
+      {
+        "options": [
+          "Only me",
+          "Anyone with the link"
+        ]
+      }
+    ],
+    "inputs": [
+      {
+        "type": "text",
+        "placeholder": "e.g. Care record"
+      },
+      {
+        "type": "date",
+        "placeholder": ""
+      },
+      {
+        "type": "text",
+        "placeholder": "Happy Paws Vet"
+      },
+      {
+        "type": "date",
+        "placeholder": ""
+      },
+      {
+        "type": "file",
+        "placeholder": ""
+      }
+    ],
+    "buttons": [
+      "Cancel",
+      "Save Record"
+    ]
+  },
+  "careTypeOptions": [
+    "Select type",
+    "Vaccine",
+    "Deworming",
+    "Grooming",
+    "Vet Visit",
+    "Medication",
+    "Surgery",
+    "Lab Test",
+    "Other"
+  ],
+  "validationText": "ADD RECORD\n\nSave a care record\n\nKeep the details short and useful so they are easy to find later.\n\nRecord Type\nSelect type\nVaccine\nDeworming\nGrooming\nVet Visit\nMedication\nSurgery\nLab Test\nOther\nChoose a record type.\nTitle\nAdd a short title.\nRecord Date\nRecord when this care happened. Use the next date below to track future care.\nChoose the record date.\nProvider / Clinic\nNext Care Date (Optional)\nSet the date for your pet’s next follow-up or routine care.\nWho can see this record?\nOnly me\nAnyone with the link\nDocuments\n\nAdd a supporting medical document. PDF, JPG, or PNG up to 10 MB each.\n\n+ Add document\n\nPublic records show only their type and date.\n\nNotes\nCancel\nSave Record",
+  "beforeSaveDialog": "ADD RECORD\n\nSave a care record\n\nKeep the details short and useful so they are easy to find later.\n\nRecord Type\nSelect type\nVaccine\nDeworming\nGrooming\nVet Visit\nMedication\nSurgery\nLab Test\nOther\nVaccine name (Optional)\nName the specific vaccine without changing the record title.\nTitle\nVaccination Date\nRecord when this vaccination was given. Use the next vaccination date below to track future care.\nProvider / Clinic\nNext Vaccination Due Date (Optional)\nSet the date when your pet’s next vaccination is due.\nWho can see this record?\nOnly me\nAnyone with the link\nDocuments\n\nAdd a vaccination certificate or card. PDF, JPG, or PNG up to 10 MB each.\n\n+ Add document\n\nPublic records show only their type and date.\n\nNotes\nCancel\nSave Record",
+  "afterSaveText": "CARE RECORDS\n\nMochi's health and care history\n\nKeep vaccines, deworming, grooming, vet visits, medication, and allergy notes in one place.\n\nCare records\n\nAdd vaccines, deworming, grooming, vet visits, medication, surgery, and lab tests as your pet's care changes.\n\nRecord saved. Your care history has been updated.\nVaccine\n· 1\nVaccine\n\nRabies\n\nRabies annual booster\n\nDate: 15 Aug 2026 - Owner recorded\n\nNext due: 03 Sept 2026\nDue soon\nOnly me\n\nNo notes added.\n\nEdit\nDelete",
+  "twoRecordsText": "CARE RECORDS\n\nMochi's health and care history\n\nKeep vaccines, deworming, grooming, vet visits, medication, and allergy notes in one place.\n\nCare records\n\nAdd vaccines, deworming, grooming, vet visits, medication, surgery, and lab tests as your pet's care changes.\n\nRecord saved. Your care history has been updated.\nVaccine\n· 1\nVaccine\n\nRabies\n\nRabies annual booster\n\nDate: 15 Aug 2026 - Owner recorded\n\nNext due: 03 Sept 2026\nDue soon\nOnly me\n\nNo notes added.\n\nEdit\nDelete\nGrooming\n· 1\nGrooming\nMonthly groom\n\nDate: 29 Aug 2026 - Full groom and nail trim\n\nNext due: 29 Aug 2026\nDue today\nOnly me\n\nNo notes added.\n\nEdit\nDelete",
+  "editPrefill": {
+    "texts": [
+      "Rabies",
+      "Rabies annual booster",
+      "Owner recorded"
+    ],
+    "dates": [
+      "2026-08-15",
+      "2026-09-03"
+    ],
+    "select": "Vaccine"
+  },
+  "dashboardText": "Add your contact details\n\nHelp finders contact you if your pet is lost.\n\nAdd contact details\n\nOWNER PORTAL\n\nWelcome back\n\nManage your pet profiles, care records, and moments in one place.\n\n1\nPets\n1\nPublic profiles\n1\nMemories\nYour pets\n\nManage and share your pet profiles.\n\nManage pets\nMochi\nPublic\nCat - British Shorthair - Age unknown\nShare\nView\nAdd more about Mochi\n\n29% complete\n\nAdd\nCare due dates\nView all\n\nGrooming\n\nDue today\n\nMochi\n\nDue 29 Aug 2026\n\nVaccine\n\nDue soon\n\nMochi\n\nDue 03 Sept 2026\n\nQuick actions\nCare Records\nMoments\nOwner Settings\nPlan usage\nPlan & usage\nPremium coming soon\nCurrent plan\nFree plan\nPet-profile usage\n1 of 3 pet profiles\nMochi moment usage\n1 of 10 moments",
+  "video": "artifacts\\owner-portal-visual-e2e\\videos\\04-care-records.webm",
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ]
+}

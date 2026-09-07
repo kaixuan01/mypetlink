@@ -157,7 +157,8 @@ public sealed class DevelopmentAdminSeeder : IDevelopmentAdminSeeder
     }
 
     // Development-only demo catalog so the Product Catalog screens open with a
-    // realistic example: one customer-facing product that owns two exact SKUs.
+    // realistic example: one customer-facing product that owns two exact SKUs
+    // of the only physical tag we sell, the QR + NFC Smart Tag.
     // The Tag Types (Lightweight / Standard) are reused purely as
     // classifications — every price, capability, and specification lives on the
     // SKU, never on the Tag Type. Idempotent: keyed off the product's stable
@@ -174,8 +175,8 @@ public sealed class DevelopmentAdminSeeder : IDevelopmentAdminSeeder
         {
             Name = "MyPetLink Paw Pet Tag",
             Slug = demoSlug,
-            ShortDescription = "Durable QR pet tag that links to your pet's Safety Profile.",
-            Description = "Our everyday QR pet tag. A finder scans it to open the pet's Safety Profile and reach the owner through the contact options they have chosen to share.",
+            ShortDescription = "Durable QR + NFC smart tag that links to your pet's Safety Profile.",
+            Description = "Our everyday QR + NFC smart tag. A finder scans the QR code or taps it with an NFC-capable phone to open the pet's Safety Profile and reach the owner through the contact options they have chosen to share.",
             IsPublished = true,
             IsArchived = false,
             SortOrder = 0
@@ -183,11 +184,11 @@ public sealed class DevelopmentAdminSeeder : IDevelopmentAdminSeeder
 
         product.Variants.Add(new TagProductVariant
         {
-            PublicKey = "PAWLWQRDEMO00001",
-            Sku = "PAW-LW-QR",
-            DisplayName = "Paw Pet Tag — Lightweight, QR",
+            PublicKey = "PAWLWNFCDEMO0001",
+            Sku = "PAW-LW-NFC",
+            DisplayName = "Paw Pet Tag — Lightweight, QR + NFC",
             SupportsQr = true,
-            SupportsNfc = false,
+            SupportsNfc = true,
             TagVariantPresetId = MyPetLinkDbContext.LightweightVariantPresetId,
             TagVariant = "Lightweight",
             BasePrice = 39m,

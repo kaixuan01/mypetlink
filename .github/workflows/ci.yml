@@ -50,6 +50,7 @@ jobs:
           NEXT_PUBLIC_APP_URL: http://localhost:3000
           NEXT_PUBLIC_API_BASE_URL: http://localhost:5281
           NEXT_PUBLIC_GOOGLE_CLIENT_ID: ci-placeholder.apps.googleusercontent.com
+          NEXT_PUBLIC_SAFETY_PROFILES_OWNER_UI_ENABLED: "true"
         run: npm run build:web
 
       - name: Compile Cloudflare Pages Functions

@@ -2,6 +2,8 @@
 
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { staticSampleExperienceDestinations } from "@/data/publicSample";
+import { publicProfilePath, qrSafetyPath } from "@/lib/routes";
 
 const mocks = vi.hoisted(() => ({
   authenticated: vi.fn(() => false),
@@ -111,5 +113,91 @@ describe("SampleExperience", () => {
     expect(
       screen.getAllByRole("button", { name: "Create Your Pet's Profile" })
     ).toHaveLength(1);
+  });
+});
+
+describe("SampleExperience sample destinations", () => {
+  it("opens the configured pet's own published sample pages", async () => {
+    mocks.load.mockResolvedValue(configuredPet);
+
+    render(<SampleExperience />);
+
+    const publicLink = await screen.findByRole("link", {
+      name: "View Princess Buttercup the Third's sample Public Profile",
+    });
+    const safetyLink = screen.getByRole("link", {
+      name: "View Princess Buttercup the Third's sample Safety Profile",
+    });
+
+    expect(publicLink.textContent).toContain("View Public Profile");
+    expect(safetyLink.textContent).toContain("View Safety Profile");
+    expect(publicLink.getAttribute("href")).toBe(
+      publicProfilePath(configuredPet.pet.publicSlug, configuredPet.pet.publicCode)
+    );
+    expect(safetyLink.getAttribute("href")).toBe(
+      qrSafetyPath(configuredPet.pet.safetyCode)
+    );
+  });
+
+  it("keeps both samples openable when no sample pet is configured", async () => {
+    mocks.load.mockResolvedValue({ available: false, pet: null });
+
+    render(<SampleExperience />);
+
+    expect(
+      (
+        await screen.findByRole("link", {
+          name: "View Topu's sample Public Profile",
+        })
+      ).getAttribute("href")
+    ).toBe(staticSampleExperienceDestinations.publicProfilePath);
+    expect(
+      screen
+        .getByRole("link", { name: "View Topu's sample Safety Profile" })
+        .getAttribute("href")
+    ).toBe(staticSampleExperienceDestinations.safetyProfilePath);
+  });
+
+  it("still offers both samples after a failed sample lookup", async () => {
+    mocks.load.mockRejectedValue(new Error("invalid selection"));
+
+    render(<SampleExperience />);
+
+    expect(
+      (
+        await screen.findByRole("link", {
+          name: "View Topu's sample Public Profile",
+        })
+      ).getAttribute("href")
+    ).toBe(staticSampleExperienceDestinations.publicProfilePath);
+    expect(
+      screen.getByRole("link", { name: "View Topu's sample Safety Profile" })
+    ).toBeTruthy();
+  });
+
+  it("lets a signed-out visitor open both samples without signing in", async () => {
+    mocks.authenticated.mockReturnValue(false);
+    mocks.load.mockResolvedValue(configuredPet);
+
+    render(<SampleExperience />);
+
+    const links = [
+      await screen.findByRole("link", {
+        name: "View Princess Buttercup the Third's sample Public Profile",
+      }),
+      screen.getByRole("link", {
+        name: "View Princess Buttercup the Third's sample Safety Profile",
+      }),
+    ];
+
+    for (const link of links) {
+      fireEvent.click(link);
+      const href = link.getAttribute("href") ?? "";
+      expect(href.startsWith("/p/") || href.startsWith("/q/")).toBe(true);
+      expect(href).not.toContain("/login");
+    }
+
+    // Opening a sample is public: nothing was redirected to sign-in.
+    expect(mocks.push).not.toHaveBeenCalled();
   });
 });

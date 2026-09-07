@@ -11,8 +11,8 @@
 
 **A safer way home for your pet.** Every pet can start with a free public
 profile and pet-level QR Safety Page so a finder can contact the owner quickly.
-Physical QR and QR + NFC smart tags are optional one-time add-ons for owners who
-want extra safety on a collar.
+The QR + NFC Smart Tag is an optional one-time add-on for owners who want extra
+safety on a collar.
 
 ---
 
@@ -90,9 +90,9 @@ MyPetLink is a pet **safety and care** profile product, **not** a QR/NFC gadget.
 - **Supporting line:** *"Create a public pet profile, save important care
   details, and let finders contact you quickly through a QR smart tag."*
 - **Free Profile is the Phase 1 product.** A pet does not need a physical tag to
-  have a QR Safety Page. Physical QR and QR + NFC smart tags are optional
-  one-time add-ons, never a subscription prerequisite. Do not over-emphasize NFC,
-  especially not on the first screen.
+  have a Safety Profile. The QR + NFC Smart Tag is an optional one-time add-on,
+  never a subscription prerequisite. Present QR scanning and NFC tapping as two
+  access methods for the same product, especially on the first screen.
 - The marketing surfaces (Home, Pricing, Privacy) are **distinct from** the
   public/finder app pages — keep them warm, calm, and trustworthy, and never let
   a marketing page look like the finder safety page.
@@ -116,13 +116,14 @@ cards per section. One purpose per section, fewer cards, generous whitespace.
    (see §2) with their real routes.
 5. **Core features** — grouped into exactly **3 pillars**: Safety, Care,
    Memories (see §9). Never a flat 7-item feature list.
-6. **Smart Tag add-on** — optional one-time add-ons: QR Pet Tag (RM19.90) and
-   QR + NFC Smart Tag (RM39.90). NFC must not look required. Anchor
-   `#smart-tags`.
+6. **Smart Tag add-on** — one optional one-time add-on: the QR + NFC Smart Tag
+   (RM39.90). Present scanning and tapping as two ways into the same Safety
+   Profile, never as two products. Anchor `#smart-tags`.
 7. **Pricing preview** — short: Free Profile / Smart Tag Add-ons / Premium
    Coming Soon / GPS Coming Later + a **View Pricing** CTA. Do not duplicate the
    full pricing page here.
-8. **FAQ** — a few short answers, including that NFC is optional.
+8. **FAQ** — a few short answers, including that a finder without NFC can still
+   scan the QR code.
 9. **Final CTA** — *"A safer way home for your pet."* + Create Free Pet Profile.
 
 ---
@@ -149,9 +150,10 @@ Coming Soon, and GPS Safety Coming Later.
   Mode, Basic QR download, profile photo, shareable pet URL, basic care records,
   and up to 10 pet memories per pet. Basic finder contact is **on the Free
   plan** — never imply finder contact is locked behind Premium.
-- **Smart Tag Add-ons:** QR Pet Tag **RM19.90** one-time; QR + NFC Smart Tag
-  **RM39.90** one-time. They work with the free pet profile and open the same QR
-  Safety Page.
+- **Smart Tag Add-on:** QR + NFC Smart Tag **RM39.90** one-time — the only
+  physical tag. It works with the free pet profile, and scanning its QR code or
+  tapping it with NFC opens the same Safety Profile. The QR-only QR Pet Tag is
+  discontinued and must not appear in any campaign.
 - **Premium Plan:** clearly **Coming Soon**. Do not show a monthly Premium
   price, paid-plan CTA, checkout, or payment copy in Phase 1.
 - **GPS Safety:** clearly future ("Coming Later"), kept smaller.

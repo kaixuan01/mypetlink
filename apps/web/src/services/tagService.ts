@@ -471,10 +471,6 @@ function formatToday() {
   }).format(new Date());
 }
 
-export function getEstimatedTagPrice(tagType: TagType) {
-  return tagType === "MyPetLink QR + NFC Smart Tag" ? "RM39.90" : "RM19.90";
-}
-
 export async function getPetTags(petId: string) {
   if (canUseOwnerTagApi()) {
     const response = await apiRequest<BackendSmartTag[]>(

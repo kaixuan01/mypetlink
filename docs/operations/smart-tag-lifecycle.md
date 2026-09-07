@@ -24,7 +24,7 @@ QR rules:
 
 A Smart Tag order and its physical tag are described by two independent options:
 
-- **Tag type** — `QrPetTag` (QR Pet Tag, RM19.90) or `QrNfcSmartTag` (QR + NFC Smart Tag, RM39.90). Controls whether the tag has NFC.
+- **Tag type** — `QrNfcSmartTag` (QR + NFC Smart Tag, RM39.90) for everything sold today. `QrPetTag` is a discontinued QR-only product; the value is retained so tags, orders, and documents created before the change still read correctly, and no new record can use it.
 - **Tag variant** — `Lightweight` or `Standard` (stored in the `Variant` column; renamed from the deprecated shape/`Shape` option). Recommended: Lightweight for cats/small pets, Standard for dogs/medium-large pets. Pricing is the same across variants.
 
 Rules:

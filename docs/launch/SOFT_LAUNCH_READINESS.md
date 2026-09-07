@@ -5,6 +5,11 @@
 **Method:** repository/configuration inspection (2026-08-13), then live production
 end-to-end verification against the deployed environment (2026-08-14)
 
+> **Current product note (2026-09-07):** the RM19.90 QR-only checkout evidence
+> below is preserved as an historical audit finding. That product is now
+> discontinued; the QR + NFC Smart Tag at RM39.90 is the only physical tag, and
+> legacy QR-only records remain available for history rather than new sales.
+
 ---
 
 ## Production Verification Result (2026-08-14)

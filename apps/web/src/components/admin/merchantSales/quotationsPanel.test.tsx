@@ -84,6 +84,8 @@ beforeEach(() => {
           id: "variant-1",
           sku: "WS-QR-0001",
           displayName: "Lightweight",
+          supportsQr: true,
+          supportsNfc: true,
           isActive: true,
           basePrice: 39.9,
           currency: "MYR",
@@ -167,6 +169,34 @@ describe("Quotation editor lines", () => {
     expect(
       within(second).getByText("Choose a product option for this line, or remove it.")
     ).toBeTruthy();
+  });
+
+  it("does not offer a scan-only tag for a new quotation", async () => {
+    listAdminTagCatalogOptions.mockResolvedValue([
+      {
+        id: "product-1",
+        name: "Wholesale Smart Tag",
+        variants: [
+          {
+            id: "variant-1",
+            sku: "WS-QR-0001",
+            displayName: "Lightweight",
+            supportsQr: true,
+            supportsNfc: false,
+            isActive: true,
+            basePrice: 39.9,
+            currency: "MYR",
+          },
+        ],
+      },
+    ]);
+    const editor = await openEditor();
+    const line = editor.querySelector('[data-testid="quotation-line-0"]') as HTMLElement;
+
+    const options = Array.from(
+      (line.querySelector("select") as HTMLSelectElement).options
+    ).map((option) => option.value);
+    expect(options).toEqual([""]);
   });
 
   it("refuses a quantity that is not a whole number of at least one", async () => {

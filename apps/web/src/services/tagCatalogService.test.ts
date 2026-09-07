@@ -74,8 +74,8 @@ describe("tagCatalogService", () => {
 
   it("sends the product create DTO to the matching Admin route", async () => {
     const input = {
-      name: "QR Pet Tag",
-      slug: "qr-pet-tag",
+      name: "QR + NFC Smart Tag",
+      slug: "qr-nfc-smart-tag",
       shortDescription: null,
       description: null,
       isPublished: false,
@@ -97,8 +97,8 @@ describe("tagCatalogService", () => {
     apiRequest.mockResolvedValue({ data: { id: "product-1" } });
 
     await saveAdminTagProduct({
-      name: "QR Pet Tag",
-      slug: "qr-pet-tag",
+      name: "QR + NFC Smart Tag",
+      slug: "qr-nfc-smart-tag",
       shortDescription: null,
       description: null,
       isPublished: false,
@@ -116,8 +116,8 @@ describe("tagCatalogService", () => {
     expect(apiRequest).toHaveBeenCalledWith("/api/v1/admin/tag-products/product-1", {
       method: "PUT",
       body: {
-        name: "QR Pet Tag",
-        slug: "qr-pet-tag",
+        name: "QR + NFC Smart Tag",
+        slug: "qr-nfc-smart-tag",
         shortDescription: null,
         description: null,
         isPublished: false,

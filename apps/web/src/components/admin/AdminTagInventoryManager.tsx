@@ -30,6 +30,7 @@ import {
 import { useAdminTableQuery } from "@/components/admin/table/useAdminTableQuery";
 import { Badge } from "@/components/ui/Badge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { isSellableTagCapability } from "@/lib/tagCapabilities";
 import {
   bulkActionRules,
   bulkUpdateTagInventory,
@@ -107,7 +108,7 @@ const buildFilterDefs = (variantOptions: TagVariant[]): AdminFilterDef[] => [
     key: "type",
     label: "Type",
     options: [
-      { value: "QR", label: "QR Pet Tag" },
+      { value: "QR", label: "QR only (no longer sold)" },
       { value: "QR_NFC", label: "QR + NFC Smart Tag" },
     ],
   },
@@ -777,6 +778,9 @@ function formatSize(variant: AdminCatalogOptionProduct["variants"][number]) {
 function missingProductionFields(variant: AdminCatalogOptionVariant) {
   return [
     !variant.supportsQr ? "QR capability" : null,
+    // Only a tag that scans and taps is produced now. Scan-only SKUs stay
+    // listed so their existing stock keeps its history, but make no more.
+    !isSellableTagCapability(variant) && variant.supportsQr ? "NFC capability" : null,
     variant.widthMm == null ? "width" : null,
     variant.heightMm == null ? "height" : null,
     variant.weightGrams == null ? "weight" : null,

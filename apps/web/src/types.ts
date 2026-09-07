@@ -368,10 +368,13 @@ export type PetMoment = {
   timelineNote?: string;
 };
 
+// Product name shown on an order. "MyPetLink QR Pet Tag" is retained for
+// reading orders and tags sold before the QR + NFC Smart Tag became the only
+// physical product; it is never offered for a new order.
 export type TagType = "MyPetLink QR Pet Tag" | "MyPetLink QR + NFC Smart Tag";
 
 // Tag variant (formerly the physical shape option): Lightweight for cats/small
-// pets, Standard for dogs/medium-large pets. Applies to both QR and QR + NFC.
+// pets, Standard for dogs/medium-large pets.
 // Variant classification label. Lightweight and Standard are the built-in
 // values; Admins can configure additional presets in the Admin Portal's
 // Catalog Settings, so this is an open string rather than a fixed union.

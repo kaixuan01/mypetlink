@@ -31,7 +31,7 @@ How MyPetLink operations run in the early launch phase, using the Admin Portal (
 ## Support and settings
 
 - Support contact: support@mypetlink.com.my (shown on receipts and in `/admin/settings`).
-- Pricing: QR Pet Tag RM19.90, QR + NFC Smart Tag RM39.90 — one-time. Premium is Coming Soon; GPS Safety is Coming Later.
+- Pricing: QR + NFC Smart Tag RM39.90 — one-time, and the only physical tag sold. Premium is Coming Soon; GPS Safety is Coming Later.
 - Company: GBB Software Solutions, Business Registration No. 202603141718 (AS0515813-P), Malaysia.
 
 ## Phase 1 constraints

@@ -9,7 +9,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { mockPlans } from "@/data/mockPlans";
 import {
   gpsSafety,
-  smartTagAddOns,
+  smartTagAddOn,
   smartTagAddOnsStatus,
 } from "@/lib/planLimits";
 import { marketingRoutes, ownerRoutes } from "@/lib/routes";
@@ -17,32 +17,21 @@ import { createMarketingMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = createMarketingMetadata({
   path: marketingRoutes.pricing,
-  title: "MyPetLink Pricing | Free Profile & Smart Tags",
+  title: "MyPetLink Pricing | Free Profile & Smart Tag",
   description:
-    "Create your pet profile for free. Add a QR tag from RM19.90 or QR + NFC tag from RM39.90 — one-time purchase.",
+    `Create your pet profile for free. Add the QR + NFC Smart Tag for ${smartTagAddOn.price} — a one-time purchase.`,
   socialImage: {
     path: "/pricing-og.png",
-    alt: "MyPetLink pricing: free profile and one-time QR and QR plus NFC smart tags",
+    alt: "MyPetLink pricing: free profile and the one-time QR plus NFC smart tag",
   },
 });
 
 const freePlan = mockPlans.find((plan) => plan.id === "plan_free") ?? mockPlans[0];
 const premium = mockPlans.find((plan) => plan.id === "plan_premium") ?? mockPlans[1];
-const qrTag = smartTagAddOns.find((tag) => tag.type === "qr") ?? smartTagAddOns[0];
-const nfcTag = smartTagAddOns.find((tag) => tag.type === "nfc") ?? smartTagAddOns[1];
-
-const qrTagFeatures = [
-  "QR scan",
-  "Opens the pet's MyPetLink profile",
-  "Finder-friendly contact page",
-  "Works with a Free profile",
-  "No subscription required",
-];
-
-const nfcTagFeatures = [
+const smartTagFeatures = [
   "QR scan",
   "NFC tap",
-  "Opens the same MyPetLink profile",
+  "Both open the same MyPetLink profile",
   "Finder-friendly contact page",
   "Works with a Free profile",
   "No subscription required",
@@ -58,7 +47,7 @@ export default function PricingPage() {
           <PageHeader
             eyebrow="Pricing"
             title="Start free. Add only what your pet needs."
-            description="A MyPetLink profile is free. Premium profile features are coming soon, and physical Smart Tags are separate one-time purchases."
+            description="A MyPetLink profile is free. Premium profile features are coming soon, and the physical Smart Tag is a separate one-time purchase."
           />
 
           <div className="mt-12 space-y-14 lg:space-y-16">
@@ -91,29 +80,10 @@ export default function PricingPage() {
             </PricingSection>
 
             <PricingSection
-              description="Optional physical tags that connect directly to your pet's MyPetLink profile."
-              title="Smart Tags"
+              description="Our optional physical tag, connecting directly to your pet's MyPetLink profile."
+              title="Smart Tag"
             >
-              <div className="grid gap-5 lg:grid-cols-2">
-                <PricingCard
-                  badge={smartTagAddOnsStatus.status}
-                  title={qrTag.name}
-                  price={qrTag.price}
-                  billingLabel="One-time purchase"
-                  note="Simple QR access for anyone with a smartphone camera."
-                  features={qrTagFeatures}
-                  action={<SmartTagAction status={smartTagAddOnsStatus.status} />}
-                />
-                <PricingCard
-                  badge={smartTagAddOnsStatus.status}
-                  title={nfcTag.name}
-                  price={nfcTag.price}
-                  billingLabel="One-time purchase"
-                  note="Two easy ways to open the same profile: scan the QR code or tap with NFC."
-                  features={nfcTagFeatures}
-                  action={<SmartTagAction status={smartTagAddOnsStatus.status} />}
-                />
-              </div>
+              <SmartTagCard />
             </PricingSection>
 
             <PricingSection
@@ -137,6 +107,30 @@ export default function PricingPage() {
         </div>
       </section>
     </PublicLayout>
+  );
+}
+
+// The Smart Tag is a single product, so it gets a full-width card rather than
+// one half of a comparison grid.
+function SmartTagCard() {
+  return (
+    <article className="brand-card flex min-w-0 flex-col gap-6 rounded-[2rem] p-6 sm:p-7 lg:flex-row lg:items-start lg:justify-between lg:gap-10">
+      <div className="min-w-0 max-w-2xl">
+        <Badge tone="teal">{smartTagAddOnsStatus.status}</Badge>
+        <h3 className="mt-4 text-2xl font-black text-pet-ink">{smartTagAddOn.name}</h3>
+        <p className="mt-4 text-3xl font-black text-pet-teal">{smartTagAddOn.price}</p>
+        <p className="mt-1 text-xs font-black uppercase tracking-wide text-pet-coral">
+          One-time purchase
+        </p>
+        <p className="mt-4 text-sm leading-6 text-pet-muted">
+          Two easy ways to open the same profile: scan the QR code or tap with NFC.
+        </p>
+        <div className="mt-6 max-w-xs">
+          <SmartTagAction status={smartTagAddOnsStatus.status} />
+        </div>
+      </div>
+      <FeatureList className="lg:min-w-72" features={smartTagFeatures} />
+    </article>
   );
 }
 

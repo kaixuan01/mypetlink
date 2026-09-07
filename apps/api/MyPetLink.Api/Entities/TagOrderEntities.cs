@@ -69,7 +69,10 @@ public sealed class TagOrder : AuditableEntity
     public Guid PetId { get; set; }
     public Guid? SmartTagId { get; set; }
     public Guid? ReplacementForTagId { get; set; }
-    public TagType TagType { get; set; } = TagType.QrPetTag;
+    // Legacy single-value summary of what the order is for. Orders always set
+    // it from the SKU they sold; the default names the only tag still sold so a
+    // new order can never fall back to the discontinued QR-only product.
+    public TagType TagType { get; set; } = TagType.QrNfcSmartTag;
     // Tag variant: "Lightweight" or "Standard" (formerly the physical shape).
     public string Variant { get; set; } = "Standard";
     public decimal Amount { get; set; }

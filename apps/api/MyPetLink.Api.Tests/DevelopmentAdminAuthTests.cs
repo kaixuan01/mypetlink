@@ -60,11 +60,11 @@ public sealed class DevelopmentAdminAuthTests
         Assert.True(product.IsPublished);
         Assert.Equal(2, product.Variants.Count);
 
-        var lightweight = Assert.Single(product.Variants.Where(item => item.Sku == "PAW-LW-QR"));
+        var lightweight = Assert.Single(product.Variants.Where(item => item.Sku == "PAW-LW-NFC"));
         Assert.Equal(MyPetLinkDbContext.LightweightVariantPresetId, lightweight.TagVariantPresetId);
         Assert.Equal("Lightweight", lightweight.TagVariant);
         Assert.True(lightweight.SupportsQr);
-        Assert.False(lightweight.SupportsNfc);
+        Assert.True(lightweight.SupportsNfc);
         Assert.True(lightweight.IsActive);
         Assert.True(lightweight.IsPurchasable);
 

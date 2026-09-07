@@ -6,9 +6,9 @@ The non-negotiable product rules for the current phase. Frontend copy, Admin Por
 
 1. **Free Profile is RM0 and available now** — up to 3 pets and up to 10 memories per pet (archived pets don't count toward the limit). Early-access users above the limit keep their existing profiles.
 2. Every pet gets a **Public Share Profile** (`/p/`) and a **pet-level QR Safety Page** (`/q/`) without buying a physical tag.
-3. **Smart Tags are optional one-time add-ons**, not subscriptions:
-   - MyPetLink QR Pet Tag — **RM19.90**, one-time
-   - MyPetLink QR + NFC Smart Tag — **RM39.90**, one-time
+3. **The Smart Tag is an optional one-time add-on**, not a subscription:
+   - MyPetLink QR + NFC Smart Tag — **RM39.90**, one-time — the only physical tag sold
+   - The QR-only MyPetLink QR Pet Tag (RM19.90) is **discontinued**. It is never offered, priced, or orderable; records created while it was sold stay readable.
 4. **Premium is Coming Soon only.** No subscription, upgrade, or checkout flow may be presented as live.
 5. **GPS Safety is Coming Later.** It is not part of the current smart tag add-ons.
 6. Never imply finder contact costs money — it's free on the Free plan.

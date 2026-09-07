@@ -6,6 +6,12 @@
 > describe the compatible legacy flow. The current source of truth is
 > [`../operations/smart-tag-scan-sources.md`](../operations/smart-tag-scan-sources.md).
 
+> **Current product note (September 2026):** the QR + NFC Smart Tag is the only
+> physical tag sold. Earlier sections that discuss QR-only products, optional
+> NFC, or QR-only production are retained as historical design context and are
+> superseded by this decision. Legacy QR-only tags and commercial records stay
+> readable; no new QR-only SKU, inventory, quotation, or order is allowed.
+
 ## 1. Purpose
 
 MyPetLink should support a physical **Smart Pet Tag** product that can be sold through pet shops, online stores, and direct customers.
@@ -940,9 +946,10 @@ Encrypted identifier
 
 Technical names are allowed only in code, database, and internal admin pages.
 
-Phase 1 public positioning: create a Free Profile first. The QR Pet Tag and
-QR + NFC Smart Tag are optional one-time add-ons, not Premium prerequisites.
-Premium is Coming Soon, and GPS Safety is Coming Later.
+Phase 1 public positioning: create a Free Profile first. The QR + NFC Smart Tag
+is the only physical tag, an optional one-time add-on and not a Premium
+prerequisite. The separate QR-only QR Pet Tag is discontinued. Premium is
+Coming Soon, and GPS Safety is Coming Later.
 
 ---
 
@@ -1095,7 +1102,7 @@ The system should eventually track:
 * Scans after activation
 * Batch performance
 * Shape performance
-* QR-only vs QR+NFC performance
+* Scan versus tap performance on the QR + NFC Smart Tag
 * Pet shop / retail batch performance
 
 This is important for validating pet shop partnerships.
