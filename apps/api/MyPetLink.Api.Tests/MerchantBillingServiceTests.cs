@@ -395,6 +395,209 @@ public class MerchantBillingServiceTests
         Assert.Equal(first.PaidAt, second.PaidAt);
     }
 
+    [Fact]
+    public async Task CancellingAndReissuingAnInvoiceCreatesExactlyOneCommission()
+    {
+        using var h = await Harness.CreateAsync();
+        var order = await h.AwaitingPaymentOrderAsync(withSalesperson: true);
+        var original = await h.IssueAsync(order.Id);
+
+        await h.Billing.CancelInvoiceAsync(null, original.Id, original.ConcurrencyToken, default);
+        var replacement = await h.IssueAsync(order.Id);
+        var result = await h.PayAsync(replacement);
+
+        Assert.NotEqual(original.Id, replacement.Id);
+        Assert.NotNull(result.Commission);
+        Assert.Equal(order.Id, result.Commission!.MerchantOrderId);
+        Assert.Equal(2, await h.Db.MerchantInvoices.CountAsync());
+        Assert.Equal(1, await h.Db.MerchantInvoices.CountAsync(
+            item => item.Status == MerchantInvoiceStatus.Cancelled));
+        Assert.Equal(1, await h.Db.MerchantInvoices.CountAsync(
+            item => item.Status == MerchantInvoiceStatus.Paid));
+        Assert.Equal(1, await h.Db.MerchantPayments.CountAsync());
+        Assert.Equal(1, await h.Db.MerchantReceipts.CountAsync());
+        Assert.Equal(1, await h.Db.SalesCommissions.CountAsync());
+    }
+
+    [Fact]
+    public async Task ExistingValidOrderCommissionBlocksAReplacementPayment()
+    {
+        using var h = await Harness.CreateAsync();
+        var order = await h.AwaitingPaymentOrderAsync(withSalesperson: true);
+        var original = await h.IssueAsync(order.Id);
+        await h.PayAsync(original);
+
+        // Reproduce the legacy inconsistent state that made reissue risky:
+        // the document/order are reopened while the first commission survives.
+        var storedInvoice = await h.Db.MerchantInvoices.SingleAsync(item => item.Id == original.Id);
+        storedInvoice.Status = MerchantInvoiceStatus.Cancelled;
+        var storedOrder = await h.Db.MerchantOrders.SingleAsync(item => item.Id == order.Id);
+        storedOrder.PaymentStatus = MerchantOrderPaymentStatus.AwaitingPayment;
+        await h.Db.SaveChangesAsync();
+
+        var replacement = await h.IssueAsync(order.Id);
+        var error = await Assert.ThrowsAsync<ApiException>(() => h.PayAsync(replacement));
+
+        Assert.Equal("merchant_order_commission_exists", error.Code);
+        Assert.Equal(1, await h.Db.SalesCommissions.CountAsync());
+        Assert.Equal(1, await h.Db.MerchantPayments.CountAsync());
+    }
+
+    [Fact]
+    public async Task APayableCommissionCanBeReversedWithItsReasonPreserved()
+    {
+        using var h = await Harness.CreateAsync();
+        var invoice = await h.IssueAsync((await h.AwaitingPaymentOrderAsync()).Id);
+        var commission = (await h.PayAsync(invoice)).Commission!;
+
+        var reversed = await h.Billing.ReverseCommissionAsync(null, commission.Id,
+            new ReverseSalesCommissionRequest("Merchant payment was refunded.", commission.ConcurrencyToken),
+            default);
+
+        Assert.Equal("Reversed", reversed.Status);
+        Assert.NotNull(reversed.ReversedAt);
+        Assert.Equal("Merchant payment was refunded.", reversed.ReversalReason);
+        Assert.Null(reversed.PaidAt);
+        Assert.Contains("merchant-commission.reversed",
+            await h.Db.AuditLogs.Select(item => item.Action).ToListAsync());
+    }
+
+    [Fact]
+    public async Task ReversingAPaidCommissionKeepsItsPayoutHistory()
+    {
+        using var h = await Harness.CreateAsync();
+        var invoice = await h.IssueAsync((await h.AwaitingPaymentOrderAsync()).Id);
+        var commission = (await h.PayAsync(invoice)).Commission!;
+        var paid = await h.Billing.MarkCommissionPaidAsync(
+            null, commission.Id, commission.ConcurrencyToken, default);
+
+        var reversed = await h.Billing.ReverseCommissionAsync(null, commission.Id,
+            new ReverseSalesCommissionRequest("Settlement was later invalidated.", paid.ConcurrencyToken),
+            default);
+
+        Assert.Equal("Reversed", reversed.Status);
+        Assert.Equal(paid.PaidAt, reversed.PaidAt);
+        Assert.NotNull(reversed.ReversedAt);
+    }
+
+    [Fact]
+    public async Task AReversedCommissionCannotBePaid()
+    {
+        using var h = await Harness.CreateAsync();
+        var invoice = await h.IssueAsync((await h.AwaitingPaymentOrderAsync()).Id);
+        var commission = (await h.PayAsync(invoice)).Commission!;
+        var reversed = await h.Billing.ReverseCommissionAsync(null, commission.Id,
+            new ReverseSalesCommissionRequest("Payment invalidated.", commission.ConcurrencyToken), default);
+
+        var error = await Assert.ThrowsAsync<ApiException>(() =>
+            h.Billing.MarkCommissionPaidAsync(null, commission.Id, reversed.ConcurrencyToken, default));
+
+        Assert.Equal("commission_reversed", error.Code);
+    }
+
+    [Fact]
+    public async Task PayoutAndReversalActorsAreStoredWithoutErasingPayoutTime()
+    {
+        using var h = await Harness.CreateAsync();
+        var user = new User
+        {
+            Email = "finance-admin@example.com",
+            NormalizedEmail = "FINANCE-ADMIN@EXAMPLE.COM",
+            DisplayName = "Finance Admin",
+        };
+        var admin = new AdminUser { User = user, UserId = user.Id };
+        h.Db.AddRange(user, admin);
+        await h.Db.SaveChangesAsync();
+        var invoice = await h.IssueAsync((await h.AwaitingPaymentOrderAsync()).Id);
+        var commission = (await h.PayAsync(invoice)).Commission!;
+
+        var paid = await h.Billing.MarkCommissionPaidAsync(
+            user.Id, commission.Id, commission.ConcurrencyToken, default);
+        var reversed = await h.Billing.ReverseCommissionAsync(user.Id, commission.Id,
+            new ReverseSalesCommissionRequest("Charge was invalidated.", paid.ConcurrencyToken), default);
+
+        Assert.Equal(admin.Id, paid.PaidByAdminUserId);
+        Assert.Equal(admin.Id, reversed.ReversedByAdminUserId);
+        Assert.Equal(paid.PaidAt, reversed.PaidAt);
+        var payoutAudit = await h.Db.AuditLogs.SingleAsync(
+            item => item.Action == "merchant-commission.paid");
+        var reversalAudit = await h.Db.AuditLogs.SingleAsync(
+            item => item.Action == "merchant-commission.reversed");
+        Assert.Equal(user.Id, payoutAudit.ActorId);
+        Assert.Equal(user.Id, reversalAudit.ActorId);
+    }
+
+    [Fact]
+    public async Task HistoricalOrderUsesItsPercentageSnapshotAfterSalespersonChanges()
+    {
+        using var h = await Harness.CreateAsync();
+        var order = await h.AwaitingPaymentOrderAsync(withSalesperson: true);
+        var salesperson = await h.Db.Salespersons.SingleAsync(item => item.Id == order.SalespersonId);
+        salesperson.DefaultCommissionPercentage = 40m;
+        await h.Db.SaveChangesAsync();
+
+        var result = await h.PayAsync(await h.IssueAsync(order.Id));
+
+        Assert.Equal(5m, result.Commission!.CommissionPercentage);
+        Assert.Equal(62.50m, result.Commission.CommissionAmount);
+    }
+
+    [Fact]
+    public async Task AttributionCanBeCorrectedBeforePaymentAndIsAudited()
+    {
+        using var h = await Harness.CreateAsync();
+        var order = await h.AwaitingPaymentOrderAsync(withSalesperson: false);
+        var replacement = await h.Sales.CreateSalespersonAsync(null,
+            new UpsertSalespersonRequest("Correct Rep", "correct@example.com", "+60123456701", 7.5m, null),
+            default);
+        var storedOrder = await h.Db.MerchantOrders.SingleAsync(item => item.Id == order.Id);
+        storedOrder.RowVersion = [1, 2, 3];
+        await h.Db.SaveChangesAsync();
+
+        var corrected = await h.Sales.CorrectMerchantOrderCommissionAttributionAsync(null, order.Id,
+            new CorrectMerchantOrderCommissionAttributionRequest(
+                replacement.Id, Convert.ToBase64String([1, 2, 3])),
+            default);
+        var result = await h.PayAsync(await h.IssueAsync(order.Id));
+
+        Assert.Equal(replacement.Id, corrected.SalespersonId);
+        Assert.Equal("Correct Rep", corrected.SalespersonName);
+        Assert.Equal(7.5m, corrected.CommissionPercentage);
+        Assert.Equal(replacement.Id, result.Commission!.SalespersonId);
+        var audit = await h.Db.AuditLogs.SingleAsync(
+            item => item.Action == "merchant-order.commission-attribution-corrected");
+        Assert.Contains(replacement.Id.ToString(), audit.NewValue);
+    }
+
+    [Fact]
+    public async Task AttributionCannotBeRewrittenAfterCommissionExists()
+    {
+        using var h = await Harness.CreateAsync();
+        var order = await h.AwaitingPaymentOrderAsync(withSalesperson: true);
+        await h.PayAsync(await h.IssueAsync(order.Id));
+
+        var error = await Assert.ThrowsAsync<ApiException>(() =>
+            h.Sales.CorrectMerchantOrderCommissionAttributionAsync(null, order.Id,
+                new CorrectMerchantOrderCommissionAttributionRequest(
+                    null, Convert.ToBase64String([1])), default));
+
+        Assert.Equal("merchant_order_attribution_finalized", error.Code);
+    }
+
+    [Fact]
+    public async Task AttributionCorrectionRejectsAStaleRowVersion()
+    {
+        using var h = await Harness.CreateAsync();
+        var order = await h.AwaitingPaymentOrderAsync(withSalesperson: false);
+
+        var error = await Assert.ThrowsAsync<ApiException>(() =>
+            h.Sales.CorrectMerchantOrderCommissionAttributionAsync(null, order.Id,
+                new CorrectMerchantOrderCommissionAttributionRequest(
+                    null, Convert.ToBase64String([9, 9, 9])), default));
+
+        Assert.Equal("concurrency_conflict", error.Code);
+    }
+
     // ===================== Privacy =====================
 
     [Fact]

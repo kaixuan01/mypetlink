@@ -680,7 +680,11 @@ public sealed class MyPetLinkDbContext : DbContext
             // a salesperson twice.
             entity.HasIndex(item => item.MerchantPaymentId).IsUnique();
             entity.HasIndex(item => new { item.SalespersonId, item.Status });
-            entity.HasIndex(item => item.MerchantOrderId);
+            // An order may retain reversed history, but it can have only one
+            // commission that is still financially effective.
+            entity.HasIndex(item => item.MerchantOrderId)
+                .IsUnique()
+                .HasFilter("[Status] <> 'Reversed'");
             entity.Property(item => item.Status).HasConversion<string>().HasMaxLength(32);
             entity.Property(item => item.Currency).HasMaxLength(3).IsRequired();
             entity.Property(item => item.CommissionPercentageSnapshot).HasPrecision(5, 2);
@@ -689,6 +693,7 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.Property(item => item.SalespersonCodeSnapshot).HasMaxLength(32).IsRequired();
             entity.Property(item => item.SalespersonNameSnapshot).HasMaxLength(160).IsRequired();
             entity.Property(item => item.InternalNote).HasMaxLength(2000);
+            entity.Property(item => item.ReversalReason).HasMaxLength(1000);
             entity.HasOne(item => item.MerchantOrder)
                 .WithMany()
                 .HasForeignKey(item => item.MerchantOrderId)
@@ -700,6 +705,14 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasOne(item => item.Salesperson)
                 .WithMany()
                 .HasForeignKey(item => item.SalespersonId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.PaidByAdminUser)
+                .WithMany()
+                .HasForeignKey(item => item.PaidByAdminUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.ReversedByAdminUser)
+                .WithMany()
+                .HasForeignKey(item => item.ReversedByAdminUserId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

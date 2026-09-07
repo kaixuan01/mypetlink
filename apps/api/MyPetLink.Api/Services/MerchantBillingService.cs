@@ -41,6 +41,10 @@ public interface IMerchantBillingService
 
     Task<SalesCommissionResponse> MarkCommissionPaidAsync(
         Guid? actorId, Guid commissionId, string? concurrencyToken, CancellationToken cancellationToken);
+
+    Task<SalesCommissionResponse> ReverseCommissionAsync(
+        Guid? actorId, Guid commissionId, ReverseSalesCommissionRequest request,
+        CancellationToken cancellationToken);
 }
 
 public sealed class MerchantBillingService : IMerchantBillingService
@@ -265,7 +269,7 @@ public sealed class MerchantBillingService : IMerchantBillingService
             return await ToResponseAsync(invoice, cancellationToken);
         }
 
-        ApplyConcurrency(invoice.RowVersion, concurrencyToken);
+        ApplyConcurrency(invoice, invoice.RowVersion, concurrencyToken);
 
         var before = InvoiceAuditSnapshot(invoice);
         var now = _timeProvider.GetUtcNow();
@@ -308,12 +312,27 @@ public sealed class MerchantBillingService : IMerchantBillingService
                 "This invoice has not been issued yet.");
         }
 
-        ApplyConcurrency(invoice.RowVersion, request.ConcurrencyToken);
+        ApplyConcurrency(invoice, invoice.RowVersion, request.ConcurrencyToken);
         ValidatePayment(request, invoice);
 
         var order = await _dbContext.MerchantOrders
             .SingleOrDefaultAsync(item => item.Id == invoice.MerchantOrderId, cancellationToken)
             ?? throw new ApiException(404, "merchant_order_not_found", "That order no longer exists.");
+
+        if (order.PaymentStatus != MerchantOrderPaymentStatus.AwaitingPayment)
+        {
+            throw Conflict("merchant_order_not_payable",
+                "This order is no longer awaiting payment.");
+        }
+
+        if (order.SalespersonId.HasValue && await _dbContext.SalesCommissions.AnyAsync(
+                item => item.MerchantOrderId == order.Id
+                    && item.Status != SalesCommissionStatus.Reversed,
+                cancellationToken))
+        {
+            throw Conflict("merchant_order_commission_exists",
+                "This order already has a valid commission. Review that commission before recording another payment.");
+        }
 
         if (request.PaymentProofMediaFileId.HasValue)
         {
@@ -404,8 +423,19 @@ public sealed class MerchantBillingService : IMerchantBillingService
             // duplicate impossible rather than unlikely.
             _dbContext.ChangeTracker.Clear();
             var settled = await RequireInvoiceAsync(invoiceId, tracked: false, cancellationToken);
-            if (settled.Status != MerchantInvoiceStatus.Paid) throw;
-            return await AlreadyRecordedAsync(settled, cancellationToken);
+            if (settled.Status == MerchantInvoiceStatus.Paid)
+                return await AlreadyRecordedAsync(settled, cancellationToken);
+
+            if (await _dbContext.SalesCommissions.AsNoTracking().AnyAsync(
+                    item => item.MerchantOrderId == invoice.MerchantOrderId
+                        && item.Status != SalesCommissionStatus.Reversed,
+                    cancellationToken))
+            {
+                throw Conflict("merchant_order_commission_exists",
+                    "This order already has a valid commission. Review that commission before recording another payment.");
+            }
+
+            throw;
         }
 
         var stored = await RequireInvoiceAsync(invoice.Id, tracked: false, cancellationToken);
@@ -469,15 +499,54 @@ public sealed class MerchantBillingService : IMerchantBillingService
                 "This commission was reversed and cannot be marked paid.");
         }
 
-        ApplyConcurrency(commission.RowVersion, concurrencyToken);
+        ApplyConcurrency(commission, commission.RowVersion, concurrencyToken);
 
         var before = CommissionAuditSnapshot(commission);
+        var admin = await FindAdminAsync(actorId, cancellationToken);
         var now = _timeProvider.GetUtcNow();
         commission.Status = SalesCommissionStatus.Paid;
         commission.PaidAt = now;
+        commission.PaidByAdminUserId = admin?.Id;
         commission.UpdatedAt = now;
 
         _auditLogService.Append(actorId, ActorType.Admin, "merchant-commission.paid",
+            "SalesCommission", commission.Id, before, CommissionAuditSnapshot(commission));
+
+        await SaveAsync(cancellationToken);
+        return ToResponse(commission, commission.MerchantOrder?.MerchantOrderNumber ?? "");
+    }
+
+    public async Task<SalesCommissionResponse> ReverseCommissionAsync(
+        Guid? actorId, Guid commissionId, ReverseSalesCommissionRequest request,
+        CancellationToken cancellationToken)
+    {
+        var reason = Trimmed(request.Reason);
+        if (reason is null)
+            throw Validation("reason", "Enter why this commission is being reversed.");
+        if (reason.Length > 1000)
+            throw Validation("reason", "Keep the reversal reason to 1,000 characters or fewer.");
+
+        var commission = await _dbContext.SalesCommissions
+            .Include(item => item.MerchantOrder)
+            .SingleOrDefaultAsync(item => item.Id == commissionId, cancellationToken)
+            ?? throw new ApiException(404, "commission_not_found",
+                "That commission record no longer exists.");
+
+        if (commission.Status == SalesCommissionStatus.Reversed)
+            return ToResponse(commission, commission.MerchantOrder?.MerchantOrderNumber ?? "");
+
+        ApplyConcurrency(commission, commission.RowVersion, request.ConcurrencyToken);
+
+        var before = CommissionAuditSnapshot(commission);
+        var admin = await FindAdminAsync(actorId, cancellationToken);
+        var now = _timeProvider.GetUtcNow();
+        commission.Status = SalesCommissionStatus.Reversed;
+        commission.ReversedAt = now;
+        commission.ReversedByAdminUserId = admin?.Id;
+        commission.ReversalReason = reason;
+        commission.UpdatedAt = now;
+
+        _auditLogService.Append(actorId, ActorType.Admin, "merchant-commission.reversed",
             "SalesCommission", commission.Id, before, CommissionAuditSnapshot(commission));
 
         await SaveAsync(cancellationToken);
@@ -556,8 +625,8 @@ public sealed class MerchantBillingService : IMerchantBillingService
         if (order.SalespersonId is null) return null;
 
         var percentage = order.SalespersonCommissionPercentageSnapshot ?? 0m;
-        var baseAmount = MerchantSalesTotals.Round(
-            invoice.MerchandiseSubtotal - invoice.DiscountTotal);
+        var calculation = MerchantCommissionCalculator.Calculate(
+            invoice.MerchandiseSubtotal, invoice.DiscountTotal, percentage);
 
         return new SalesCommission
         {
@@ -567,8 +636,8 @@ public sealed class MerchantBillingService : IMerchantBillingService
             SalespersonCodeSnapshot = order.SalespersonCodeSnapshot ?? "",
             SalespersonNameSnapshot = order.SalespersonNameSnapshot ?? "",
             CommissionPercentageSnapshot = percentage,
-            CommissionBaseAmount = baseAmount,
-            CommissionAmount = MerchantSalesTotals.Round(baseAmount * percentage / 100m),
+            CommissionBaseAmount = calculation.BaseAmount,
+            CommissionAmount = calculation.Amount,
             Currency = invoice.Currency,
             Status = SalesCommissionStatus.Payable,
             CalculatedAt = now,
@@ -737,7 +806,7 @@ public sealed class MerchantBillingService : IMerchantBillingService
         }
     }
 
-    private void ApplyConcurrency(byte[] current, string? token)
+    private void ApplyConcurrency(object entity, byte[] current, string? token)
     {
         if (string.IsNullOrWhiteSpace(token)) return;
 
@@ -756,6 +825,8 @@ public sealed class MerchantBillingService : IMerchantBillingService
             throw Conflict("concurrency_conflict",
                 "Someone else changed this record. Reload and try again.");
         }
+
+        _dbContext.Entry(entity).Property("RowVersion").OriginalValue = expected;
     }
 
     // --- Mapping -----------------------------------------------------------
@@ -858,7 +929,10 @@ public sealed class MerchantBillingService : IMerchantBillingService
             commission.Status.ToString(),
             commission.CalculatedAt,
             commission.PaidAt,
+            commission.PaidByAdminUserId,
             commission.ReversedAt,
+            commission.ReversedByAdminUserId,
+            commission.ReversalReason,
             commission.InternalNote,
             Convert.ToBase64String(commission.RowVersion));
 
@@ -894,6 +968,11 @@ public sealed class MerchantBillingService : IMerchantBillingService
         commission.CommissionBaseAmount,
         commission.CommissionAmount,
         Status = commission.Status.ToString(),
+        commission.PaidAt,
+        commission.PaidByAdminUserId,
+        commission.ReversedAt,
+        commission.ReversedByAdminUserId,
+        commission.ReversalReason,
     };
 
     private static string? Trimmed(string? value)

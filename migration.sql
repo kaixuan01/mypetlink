@@ -6604,3 +6604,118 @@ GO
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907085637_HardenMerchantCommissionCorrectness'
+)
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM [SalesCommissions]
+        WHERE [Status] <> N'Reversed'
+        GROUP BY [MerchantOrderId]
+        HAVING COUNT_BIG(*) > 1
+    )
+    BEGIN
+        THROW 51020, 'Duplicate non-reversed commissions exist for a merchant order. Run the commission diagnostic and resolve the financial history before applying this migration.', 1;
+    END;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907085637_HardenMerchantCommissionCorrectness'
+)
+BEGIN
+    DROP INDEX [IX_SalesCommissions_MerchantOrderId] ON [SalesCommissions];
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907085637_HardenMerchantCommissionCorrectness'
+)
+BEGIN
+    ALTER TABLE [SalesCommissions] ADD [PaidByAdminUserId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907085637_HardenMerchantCommissionCorrectness'
+)
+BEGIN
+    ALTER TABLE [SalesCommissions] ADD [ReversalReason] nvarchar(1000) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907085637_HardenMerchantCommissionCorrectness'
+)
+BEGIN
+    ALTER TABLE [SalesCommissions] ADD [ReversedByAdminUserId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907085637_HardenMerchantCommissionCorrectness'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [IX_SalesCommissions_MerchantOrderId] ON [SalesCommissions] ([MerchantOrderId]) WHERE [Status] <> ''Reversed''');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907085637_HardenMerchantCommissionCorrectness'
+)
+BEGIN
+    CREATE INDEX [IX_SalesCommissions_PaidByAdminUserId] ON [SalesCommissions] ([PaidByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907085637_HardenMerchantCommissionCorrectness'
+)
+BEGIN
+    CREATE INDEX [IX_SalesCommissions_ReversedByAdminUserId] ON [SalesCommissions] ([ReversedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907085637_HardenMerchantCommissionCorrectness'
+)
+BEGIN
+    ALTER TABLE [SalesCommissions] ADD CONSTRAINT [FK_SalesCommissions_AdminUsers_PaidByAdminUserId] FOREIGN KEY ([PaidByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907085637_HardenMerchantCommissionCorrectness'
+)
+BEGIN
+    ALTER TABLE [SalesCommissions] ADD CONSTRAINT [FK_SalesCommissions_AdminUsers_ReversedByAdminUserId] FOREIGN KEY ([ReversedByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907085637_HardenMerchantCommissionCorrectness'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260907085637_HardenMerchantCommissionCorrectness', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+

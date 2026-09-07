@@ -154,6 +154,15 @@ public sealed class AdminSalesCommissionsController : ApiControllerBase
                 _currentUser.Current.UserId, id, request?.ConcurrencyToken, cancellationToken),
             HttpContext));
 
+    [HttpPost("{id:guid}/reverse")]
+    public async Task<IActionResult> Reverse(
+        Guid id, [FromBody] ReverseSalesCommissionRequest request,
+        CancellationToken cancellationToken) =>
+        Ok(ApiEnvelope.Ok(
+            await _service.ReverseCommissionAsync(
+                _currentUser.Current.UserId, id, request, cancellationToken),
+            HttpContext));
+
     private static SalesCommissionStatus? ParseStatus(string? value)
     {
         if (string.IsNullOrWhiteSpace(value)) return null;

@@ -68,7 +68,7 @@ public sealed class Salesperson : AuditableEntity
     public string? Email { get; set; }
     public string? Phone { get; set; }
 
-    /// <summary>Whole percent, 0–100. Commission itself arrives in a later phase.</summary>
+    /// <summary>Whole percent, 0–100, snapshotted onto each quotation and order.</summary>
     public decimal DefaultCommissionPercentage { get; set; }
 
     public string? InternalNotes { get; set; }

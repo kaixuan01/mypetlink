@@ -105,9 +105,16 @@ public sealed record SalesCommissionResponse(
     string Status,
     DateTimeOffset CalculatedAt,
     DateTimeOffset? PaidAt,
+    Guid? PaidByAdminUserId,
     DateTimeOffset? ReversedAt,
+    Guid? ReversedByAdminUserId,
+    string? ReversalReason,
     string? InternalNote,
     string ConcurrencyToken);
+
+public sealed record ReverseSalesCommissionRequest(
+    string Reason,
+    string? ConcurrencyToken = null);
 
 /// <summary>
 /// What recording a payment produced. Returned as one result so the Admin UI

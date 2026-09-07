@@ -266,6 +266,16 @@ public sealed class AdminMerchantOrdersController : ApiControllerBase
     public async Task<IActionResult> Get(Guid id, CancellationToken cancellationToken) =>
         Ok(ApiEnvelope.Ok(await _service.GetMerchantOrderAsync(id, cancellationToken), HttpContext));
 
+    [HttpPut("{id:guid}/commission-attribution")]
+    public async Task<IActionResult> CorrectCommissionAttribution(
+        Guid id,
+        [FromBody] CorrectMerchantOrderCommissionAttributionRequest request,
+        CancellationToken cancellationToken) =>
+        Ok(ApiEnvelope.Ok(
+            await _service.CorrectMerchantOrderCommissionAttributionAsync(
+                _currentUser.Current.UserId, id, request, cancellationToken),
+            HttpContext));
+
     /// <summary>
     /// Rendered fulfilment history. The server turns audit rows into sentences,
     /// so no action code or stored payload reaches the browser.

@@ -22,6 +22,7 @@ automatically.
 - [`smoke-test-script.md`](smoke-test-script.md) — step-by-step manual smoke test (backend, owner, admin, public states)
 - [`sql/first-admin-template.sql`](sql/first-admin-template.sql) — placeholder SQL to promote the first admin
 - [`sql/disable-legacy-qr-only-tag-product-variants.sql`](sql/disable-legacy-qr-only-tag-product-variants.sql) — report-first, idempotent correction that prevents legacy QR-only SKUs from remaining purchasable without deleting history
+- [`sql/diagnose-merchant-commission-correctness.sql`](sql/diagnose-merchant-commission-correctness.sql) — read-only pre-deployment check for multiple non-reversed commissions on one merchant order before applying the commission uniqueness migration
 
 Release tooling: CI runs on every PR via [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) (web lint, typecheck, tests, build and Functions compile; API Release build and tests; no database or secrets). Env templates: [`apps/web/.env.example`](../../apps/web/.env.example) and [`apps/api/MyPetLink.Api/appsettings.Example.json`](../../apps/api/MyPetLink.Api/appsettings.Example.json).
 

@@ -254,3 +254,19 @@ public sealed record ConvertQuotationResult(
     bool AlreadyConverted);
 
 public sealed record ConcurrencyTokenRequest(string? ConcurrencyToken = null);
+
+/// <summary>
+/// An explicit correction to an unpaid order's commission attribution. A null
+/// salesperson removes attribution; the server owns all snapshot values.
+/// </summary>
+public sealed record CorrectMerchantOrderCommissionAttributionRequest(
+    Guid? SalespersonId,
+    string ConcurrencyToken);
+
+public sealed record MerchantOrderCommissionAttributionResponse(
+    Guid MerchantOrderId,
+    Guid? SalespersonId,
+    string? SalespersonCode,
+    string? SalespersonName,
+    decimal? CommissionPercentage,
+    string ConcurrencyToken);

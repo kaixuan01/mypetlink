@@ -46,6 +46,9 @@ public interface IMerchantSalesService
         string? courierProviderCode,
         CancellationToken cancellationToken);
     Task<MerchantOrderResponse> GetMerchantOrderAsync(Guid id, CancellationToken cancellationToken);
+    Task<MerchantOrderCommissionAttributionResponse> CorrectMerchantOrderCommissionAttributionAsync(
+        Guid? actorId, Guid id, CorrectMerchantOrderCommissionAttributionRequest request,
+        CancellationToken cancellationToken);
     Task<IReadOnlyCollection<MerchantOrderTimelineEntry>> GetMerchantOrderTimelineAsync(
         Guid id, CancellationToken cancellationToken);
     Task<MerchantOrderResponse> CancelMerchantOrderAsync(Guid? actorId, Guid id, string? concurrencyToken, CancellationToken cancellationToken);
@@ -808,6 +811,50 @@ public sealed class MerchantSalesService : IMerchantSalesService
         return ToResponse(await RequireMerchantOrderAsync(id, cancellationToken));
     }
 
+    public async Task<MerchantOrderCommissionAttributionResponse> CorrectMerchantOrderCommissionAttributionAsync(
+        Guid? actorId, Guid id, CorrectMerchantOrderCommissionAttributionRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.ConcurrencyToken))
+            throw Validation("concurrencyToken", "Reload this order before correcting its attribution.");
+
+        var order = await RequireMerchantOrderAsync(id, cancellationToken, tracked: true);
+        if (order.PaymentStatus != MerchantOrderPaymentStatus.AwaitingPayment)
+        {
+            throw Conflict("merchant_order_attribution_finalized",
+                "Salesperson attribution cannot be changed after an order is paid or cancelled.");
+        }
+
+        // Any commission row, including a reversal, is financial history. It
+        // must keep the attribution it was calculated and potentially paid on.
+        if (await _dbContext.SalesCommissions.AnyAsync(
+                item => item.MerchantOrderId == order.Id, cancellationToken)
+            || await _dbContext.MerchantPayments.AnyAsync(
+                item => item.MerchantOrderId == order.Id, cancellationToken))
+        {
+            throw Conflict("merchant_order_attribution_finalized",
+                "This order already has payment or commission history, so its attribution cannot be rewritten.");
+        }
+
+        ApplyConcurrency(order, request.ConcurrencyToken);
+        var salesperson = await ResolveAssignableSalespersonAsync(
+            request.SalespersonId, cancellationToken, order.SalespersonId);
+
+        var before = CommissionAttributionAuditSnapshot(order);
+        order.SalespersonId = salesperson?.Id;
+        order.SalespersonCodeSnapshot = salesperson?.SalespersonCode;
+        order.SalespersonNameSnapshot = salesperson?.Name;
+        order.SalespersonCommissionPercentageSnapshot = salesperson?.DefaultCommissionPercentage;
+        order.UpdatedAt = _timeProvider.GetUtcNow();
+
+        _auditLogService.Append(actorId, ActorType.Admin,
+            "merchant-order.commission-attribution-corrected", "MerchantOrder",
+            order.Id, before, CommissionAttributionAuditSnapshot(order));
+        await SaveWithConcurrencyAsync(cancellationToken);
+
+        return ToCommissionAttributionResponse(order);
+    }
+
     // ================= Internals =================
 
     private static bool IsTransitionAllowed(MerchantQuotationStatus from, MerchantQuotationStatus to) =>
@@ -1504,6 +1551,23 @@ public sealed class MerchantSalesService : IMerchantSalesService
         order.GrandTotal,
         ItemCount = order.Items.Count,
     };
+
+    private static object CommissionAttributionAuditSnapshot(MerchantOrder order) => new
+    {
+        order.SalespersonId,
+        order.SalespersonCodeSnapshot,
+        order.SalespersonNameSnapshot,
+        order.SalespersonCommissionPercentageSnapshot,
+    };
+
+    private static MerchantOrderCommissionAttributionResponse ToCommissionAttributionResponse(
+        MerchantOrder order) => new(
+            order.Id,
+            order.SalespersonId,
+            order.SalespersonCodeSnapshot,
+            order.SalespersonNameSnapshot,
+            order.SalespersonCommissionPercentageSnapshot,
+            Convert.ToBase64String(order.RowVersion));
 
     private static ApiException Validation(string field, string message) =>
         new(400, "validation_failed", "Please check the submitted fields.",

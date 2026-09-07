@@ -241,7 +241,17 @@ public sealed class SalesCommission : AuditableEntity
 
     public DateTimeOffset CalculatedAt { get; set; }
     public DateTimeOffset? PaidAt { get; set; }
+    public Guid? PaidByAdminUserId { get; set; }
+    public AdminUser? PaidByAdminUser { get; set; }
     public DateTimeOffset? ReversedAt { get; set; }
+    public Guid? ReversedByAdminUserId { get; set; }
+    public AdminUser? ReversedByAdminUser { get; set; }
+
+    /// <summary>
+    /// Required when a payable or paid commission is invalidated. PaidAt is
+    /// deliberately retained so a later reversal never erases payout history.
+    /// </summary>
+    public string? ReversalReason { get; set; }
 
     public string? InternalNote { get; set; }
 
