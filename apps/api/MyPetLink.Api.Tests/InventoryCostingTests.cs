@@ -240,6 +240,8 @@ public sealed class InventoryCostingTests
             allocations.Select(allocation => allocation.InventoryReceiptNumberSnapshot).ToArray());
     }
 
+    // The costed portion must still produce a real, reconciling figure even
+    // though an uncosted order shares the same period.
     [Fact]
     public async Task Profitability_ReconcilesStoredCogs_AndWithholdsIncompleteProfit()
     {
@@ -272,13 +274,28 @@ public sealed class InventoryCostingTests
         Assert.Equal(30m, report.ProductRevenue);
         Assert.Equal(2m, report.Discounts);
         Assert.Equal(28m, report.NetProductRevenue);
-        Assert.Equal(6m, report.KnownCostOfGoods);
         Assert.Equal(1, report.UncostedUnits);
         Assert.False(report.IsCostOfGoodsComplete);
-        Assert.Null(report.GrossProfit);
-        Assert.Null(report.ContributionProfit);
-        Assert.Contains(report.Orders, row => row.OrderNumber == "ORD-COSTED" && row.GrossProfit == 12m);
-        Assert.Contains(report.Orders, row => row.OrderNumber == "ORD-UNCOSTED" && row.GrossProfit is null);
+
+        // The costed order still reports a complete, usable result.
+        Assert.Equal(18m, report.CostedNetRevenue);
+        Assert.Equal(2, report.CostedUnits);
+        Assert.Equal(6m, report.CostedCostOfGoods);
+        Assert.Equal(12m, report.CostedGrossProfit);
+        Assert.Equal(66.67m, report.CostedGrossMarginPercentage);
+        // Contribution covers the costed order only: 12 - 4 courier - 0 commission.
+        Assert.Equal(8m, report.ContributionProfit);
+        Assert.Equal(4m, report.CostedCourierCost);
+
+        // The uncosted order contributes revenue and nothing else. No estimate.
+        Assert.Equal(10m, report.UncostedNetRevenue);
+        Assert.Equal(28m, report.CostedNetRevenue + report.UncostedNetRevenue);
+
+        Assert.Contains(report.Orders, row =>
+            row.OrderNumber == "ORD-COSTED" && row.GrossProfit == 12m && row.IsFullyCosted);
+        Assert.Contains(report.Orders, row =>
+            row.OrderNumber == "ORD-UNCOSTED" && row.GrossProfit is null && !row.IsFullyCosted);
+        Assert.Contains(report.ExcludedCosts, note => note.Contains("no recorded stock cost"));
     }
 
     [Fact]
@@ -299,9 +316,366 @@ public sealed class InventoryCostingTests
         Assert.Equal(19.90m, report.NetProductRevenue);
         Assert.Equal(1, report.UnitsSold);
         Assert.Equal(1, report.UncostedUnits);
-        Assert.Null(report.GrossProfit);
+        Assert.Equal(19.90m, report.UncostedNetRevenue);
+        // Legacy stock is uncosted, never RM0: no cost and no margin is claimed.
+        Assert.Equal(0m, report.CostedNetRevenue);
+        Assert.Equal(0m, report.CostedCostOfGoods);
+        Assert.Null(report.CostedGrossMarginPercentage);
         Assert.Equal("ORD-LEGACY", Assert.Single(report.Orders).OrderNumber);
     }
+
+    // --- Correction guards -------------------------------------------------
+    // A correction hands its units to the replacement receipt. Correcting the
+    // same receipt a second time would leave a receipt claiming stock it does
+    // not own, so the original is stamped superseded and refuses further edits.
+    [Fact]
+    public async Task Correction_SupersedesTheOriginal_AndMovesEveryUnitToTheReplacement()
+    {
+        await using var db = NewDb();
+        var seeded = await SeedInventoryAsync(db, 2);
+
+        var original = await ReceiptServiceAt(db, Now).CreateAsync(
+            AdminUserId, ReceiptRequest(seeded, 2, 3.04m));
+        var token = await StampRowVersionAsync(db, original.Id);
+        var correction = await ReceiptServiceAt(db, Now.AddMinutes(1)).CreateAsync(
+            AdminUserId,
+            ReceiptRequest(seeded, 2, 2.72m) with
+            {
+                CorrectsReceiptId = original.Id,
+                CorrectionReason = "Freight invoice restated",
+                CorrectsReceiptRowVersion = token,
+            });
+
+        Assert.Equal(2, await db.SmartTags.CountAsync(tag => tag.InventoryReceiptId == correction.Id));
+        Assert.Equal(0, await db.SmartTags.CountAsync(tag => tag.InventoryReceiptId == original.Id));
+
+        var stored = await db.InventoryReceipts.SingleAsync(row => row.Id == original.Id);
+        Assert.NotNull(stored.SupersededAt);
+        Assert.Equal(correction.Id, stored.SupersededByReceiptId);
+        // The original keeps its own figures for audit; it is not rewritten.
+        Assert.Equal(3.04m, stored.UnitLandedCostMyr);
+        Assert.Contains(
+            await db.AuditLogs.ToListAsync(),
+            row => row.Action == "inventory-receipt.superseded" && row.EntityId == original.Id);
+    }
+
+    [Fact]
+    public async Task Correction_OfAnAlreadyCorrectedReceipt_IsRejected_AndLeavesQuantitiesIntact()
+    {
+        await using var db = NewDb();
+        var seeded = await SeedInventoryAsync(db, 2);
+
+        var original = await ReceiptServiceAt(db, Now).CreateAsync(
+            AdminUserId, ReceiptRequest(seeded, 2, 3.04m));
+        var token = await StampRowVersionAsync(db, original.Id);
+        await ReceiptServiceAt(db, Now.AddMinutes(1)).CreateAsync(
+            AdminUserId,
+            ReceiptRequest(seeded, 2, 2.72m) with
+            {
+                CorrectsReceiptId = original.Id,
+                CorrectionReason = "Freight invoice restated",
+                CorrectsReceiptRowVersion = token,
+            });
+
+        var refused = await Assert.ThrowsAsync<ApiException>(() =>
+            ReceiptServiceAt(db, Now.AddMinutes(2)).CreateAsync(
+                AdminUserId,
+                ReceiptRequest(seeded, 2, 9.99m) with
+                {
+                    CorrectsReceiptId = original.Id,
+                    CorrectionReason = "Again",
+                    CorrectsReceiptRowVersion = token,
+                }));
+
+        Assert.Equal("receipt_already_superseded", refused.Code);
+        // Two receipts for two physical tags. Recorded quantity never inflates.
+        Assert.Equal(2, await db.InventoryReceipts.CountAsync());
+        Assert.Equal(2, await db.SmartTags.CountAsync());
+        Assert.Equal(
+            await db.SmartTags.CountAsync(),
+            await db.InventoryReceipts.Where(row => row.SupersededAt == null)
+                .SumAsync(row => row.QuantityReceived));
+    }
+
+    [Fact]
+    public async Task Correction_WithoutAConcurrencyToken_IsRejected()
+    {
+        await using var db = NewDb();
+        var seeded = await SeedInventoryAsync(db, 1);
+        var original = await ReceiptServiceAt(db, Now).CreateAsync(
+            AdminUserId, ReceiptRequest(seeded, 1, 3.04m));
+
+        var refused = await Assert.ThrowsAsync<ApiException>(() =>
+            ReceiptServiceAt(db, Now.AddMinutes(1)).CreateAsync(
+                AdminUserId,
+                ReceiptRequest(seeded, 1, 2.72m) with
+                {
+                    CorrectsReceiptId = original.Id,
+                    CorrectionReason = "No token supplied",
+                }));
+
+        Assert.Equal("validation_failed", refused.Code);
+        Assert.True(refused.Details!.ContainsKey("correctsReceiptRowVersion"));
+        Assert.Null((await db.InventoryReceipts.SingleAsync(row => row.Id == original.Id)).SupersededAt);
+    }
+
+    [Fact]
+    public async Task SupersededReceipts_AreHiddenFromListings_ButStayQueryableForAudit()
+    {
+        await using var db = NewDb();
+        var seeded = await SeedInventoryAsync(db, 1);
+        var original = await ReceiptServiceAt(db, Now).CreateAsync(
+            AdminUserId, ReceiptRequest(seeded, 1, 3.04m));
+        await ReceiptServiceAt(db, Now.AddMinutes(1)).CreateAsync(
+            AdminUserId,
+            ReceiptRequest(seeded, 1, 2.72m) with
+            {
+                CorrectsReceiptId = original.Id,
+                CorrectionReason = "Restated",
+                CorrectsReceiptRowVersion = await StampRowVersionAsync(db, original.Id),
+            });
+
+        var service = ReceiptService(db);
+        var active = await service.ListAsync(new InventoryReceiptQuery());
+        Assert.Equal(1, active.Total);
+        Assert.DoesNotContain(active.Items, row => row.Id == original.Id);
+
+        var withHistory = await service.ListAsync(new InventoryReceiptQuery { IncludeSuperseded = true });
+        Assert.Equal(2, withHistory.Total);
+        var historical = Assert.Single(withHistory.Items, row => row.Id == original.Id);
+        Assert.NotNull(historical.SupersededAt);
+        Assert.Equal(3.04m, historical.UnitLandedCostMyr);
+    }
+
+    [Fact]
+    public async Task Receipt_WithFewerEligibleTagsThanClaimed_IsRejected()
+    {
+        await using var db = NewDb();
+        var seeded = await SeedInventoryAsync(db, 2);
+
+        var refused = await Assert.ThrowsAsync<ApiException>(() =>
+            ReceiptService(db).CreateAsync(AdminUserId, ReceiptRequest(seeded, 5, 3.04m)));
+
+        Assert.Equal("receipt_inventory_shortfall", refused.Code);
+        Assert.Equal(0, await db.InventoryReceipts.CountAsync());
+        Assert.Equal(0, await db.SmartTags.CountAsync(tag => tag.InventoryReceiptId != null));
+    }
+
+    // --- Merchant COGS -----------------------------------------------------
+    [Fact]
+    public async Task MerchantSnapshot_MixedReceiptCosts_SumExactlyAcrossAMultiUnitLine()
+    {
+        await using var db = NewDb();
+        var harness = SeedMerchantOrder(db, [3.04m, 2.72m, 3.04m]);
+        await db.SaveChangesAsync();
+
+        await new InventoryCostingService(db).SnapshotMerchantShipmentAsync(
+            harness.Order, harness.Allocations, Now);
+        await db.SaveChangesAsync();
+
+        Assert.Equal(8.80m, harness.Item.CostOfGoodsSnapshot);
+        Assert.Equal(InventoryCostBasis.SpecificIdentification, harness.Item.CostBasis);
+    }
+
+    // Releasing an allocation after dispatch is an auditable correction. The
+    // COGS frozen at dispatch is history and must survive it, and the report
+    // must keep treating those units as costed.
+    [Fact]
+    public async Task MerchantAllocation_ReleasedAfterDispatch_KeepsFrozenCogsAndStaysCosted()
+    {
+        await using var db = NewDb();
+        var harness = SeedMerchantOrder(db, [3.04m, 2.72m, 3.04m]);
+        await db.SaveChangesAsync();
+        await new InventoryCostingService(db).SnapshotMerchantShipmentAsync(
+            harness.Order, harness.Allocations, Now);
+        await db.SaveChangesAsync();
+
+        harness.Allocations[0].ReleasedAt = Now.AddHours(1);
+        harness.Allocations[0].ReleasedReason = "Damaged in transit";
+        await db.SaveChangesAsync();
+
+        Assert.Equal(8.80m, harness.Item.CostOfGoodsSnapshot);
+        var report = await ReceiptService(db).GetProfitabilityAsync(
+            new ProfitabilityReportQuery(Now.AddDays(-1), Now.AddDays(1)));
+        Assert.Equal(0, report.UncostedUnits);
+        Assert.True(report.IsCostOfGoodsComplete);
+        Assert.Equal(8.80m, report.CostedCostOfGoods);
+    }
+
+    // A line dispatched with fewer costed units than it sold stays uncosted:
+    // the missing cost is reported, never estimated.
+    [Fact]
+    public async Task MerchantLine_WithAPartiallyCostedAllocation_ReportsUncostedAndWithholdsItsCost()
+    {
+        await using var db = NewDb();
+        var harness = SeedMerchantOrder(db, [3.04m, null]);
+        await db.SaveChangesAsync();
+
+        await new InventoryCostingService(db).SnapshotMerchantShipmentAsync(
+            harness.Order, harness.Allocations, Now);
+        await db.SaveChangesAsync();
+
+        Assert.Null(harness.Item.CostOfGoodsSnapshot);
+        Assert.Equal(InventoryCostBasis.Unavailable, harness.Item.CostBasis);
+        // The uncosted allocation still records that we looked and found none.
+        Assert.Equal(
+            InventoryCostBasis.Unavailable,
+            harness.Allocations[1].CostBasis);
+        Assert.NotNull(harness.Allocations[1].CostSnapshotAt);
+
+        var report = await ReceiptService(db).GetProfitabilityAsync(
+            new ProfitabilityReportQuery(Now.AddDays(-1), Now.AddDays(1)));
+        Assert.Equal(1, report.UncostedUnits);
+        Assert.Equal(0m, report.CostedCostOfGoods);
+        Assert.Equal(0m, report.CostedNetRevenue);
+    }
+
+    // --- Report honesty ----------------------------------------------------
+    [Fact]
+    public async Task Profitability_ExcludesRefundedOrdersFromRevenue_AndListsThemInstead()
+    {
+        await using var db = NewDb();
+        var product = Product();
+        var variant = Variant(product);
+        var receipt = Receipt(variant, "STK-REFUND", 3m);
+        var refunded = RetailOrder(1, variant, "ORD-REFUNDED", 29.90m);
+        refunded.Status = OrderStatus.Shipped;
+        refunded.ShippedAt = Now;
+        refunded.PaymentStatus = PaymentStatus.Refunded;
+        var tag = RetailTag("MPL-REFUND-1", refunded, refunded.Items.Single(), variant, receipt);
+        db.AddRange(product, receipt, refunded);
+        db.SmartTags.Add(tag);
+        await db.SaveChangesAsync();
+        await new InventoryCostingService(db).SnapshotRetailShipmentAsync(refunded, [tag], Now);
+        await db.SaveChangesAsync();
+
+        var report = await ReceiptService(db).GetProfitabilityAsync(
+            new ProfitabilityReportQuery(Now.AddDays(-1), Now.AddDays(1)));
+
+        Assert.Equal(0m, report.NetProductRevenue);
+        Assert.Equal(0m, report.CostedNetRevenue);
+        Assert.Empty(report.Orders);
+        var excluded = Assert.Single(report.ExcludedOrders);
+        Assert.Equal("ORD-REFUNDED", excluded.OrderNumber);
+        Assert.Equal("Refunded", excluded.Reason);
+        Assert.Equal(29.90m, excluded.OriginalSellingAmount);
+        Assert.Contains(report.ExcludedCosts, note => note.Contains("refunded or cancelled"));
+    }
+
+    // Six-decimal costing is kept in the stored snapshot, but every figure the
+    // report presents as money is rounded, so no 2000.000001 can reach a page.
+    [Fact]
+    public async Task Profitability_KeepsSixDecimalCostInternally_ButRoundsReportedMoney()
+    {
+        await using var db = NewDb();
+        var product = Product();
+        var variant = Variant(product);
+        var receipt = new InventoryReceipt
+        {
+            ReceiptNumber = "STK-THIRDS", TagProductVariant = variant, QuantityReceived = 3,
+            ReceivedAt = Now, PurchaseCurrency = "MYR", ExchangeRateToMyr = 1m,
+            CostMode = InventoryReceiptCostMode.Detailed, TotalLandedCostMyr = 1000m,
+            UnitLandedCostMyr = decimal.Round(1000m / 3m, 6, MidpointRounding.AwayFromZero),
+            CreatedByAdminUserId = AdminId,
+        };
+        var order = RetailOrder(3, variant, "ORD-THIRDS", 3000m);
+        order.Status = OrderStatus.Shipped;
+        order.ShippedAt = Now;
+        order.ActualCourierCost = 0m;
+        var tags = Enumerable.Range(0, 3)
+            .Select(index => RetailTag($"MPL-THIRD-{index}", order, order.Items.Single(), variant, receipt))
+            .ToArray();
+        db.AddRange(product, receipt, order);
+        db.SmartTags.AddRange(tags);
+        await db.SaveChangesAsync();
+        await new InventoryCostingService(db).SnapshotRetailShipmentAsync(order, tags, Now);
+        await db.SaveChangesAsync();
+
+        // Stored provenance keeps the full precision it was costed at.
+        Assert.Equal(999.999999m, order.Items.Single().CostOfGoodsSnapshot);
+
+        var report = await ReceiptService(db).GetProfitabilityAsync(
+            new ProfitabilityReportQuery(Now.AddDays(-1), Now.AddDays(1)));
+
+        Assert.Equal(1000m, report.CostedCostOfGoods);
+        Assert.Equal(2000m, report.CostedGrossProfit);
+        Assert.Equal(2000m, Assert.Single(report.Orders).GrossProfit);
+        Assert.Equal(2000m, report.ContributionProfit);
+    }
+
+    // The InMemory provider does not maintain rowversion values, so tests give
+    // the row a token the way the repo's other concurrency tests do. Real
+    // token mismatch is proven against SQL Server in the relational suite.
+    private static async Task<string> StampRowVersionAsync(MyPetLinkDbContext db, Guid receiptId)
+    {
+        var receipt = await db.InventoryReceipts.SingleAsync(row => row.Id == receiptId);
+        receipt.RowVersion = [7];
+        await db.SaveChangesAsync();
+        return Convert.ToBase64String(receipt.RowVersion);
+    }
+
+    private static CreateInventoryReceiptRequest ReceiptRequest(
+        (TagProductVariant Variant, SmartTagBatch Batch) seeded, int quantity, decimal unitCost) =>
+        new(seeded.Variant.Id, seeded.Batch.Id, quantity, Now, null, null, null, "MYR", 1m,
+            InventoryReceiptCostMode.Simple, unitCost, null, null, null, null, null, null);
+
+    private sealed record MerchantHarness(
+        MerchantOrder Order, MerchantOrderItem Item, MerchantOrderAllocatedTag[] Allocations);
+
+    // A merchant order whose units come from the given receipt costs. A null
+    // cost seeds an uncosted (legacy) tag.
+    private static MerchantHarness SeedMerchantOrder(MyPetLinkDbContext db, decimal?[] unitCosts)
+    {
+        var product = Product();
+        var variant = Variant(product);
+        db.TagProducts.Add(product);
+        var receipts = unitCosts
+            .Select((cost, index) => cost is null
+                ? null
+                : Receipt(variant, $"STK-M{index}", cost.Value))
+            .ToArray();
+        db.InventoryReceipts.AddRange(receipts.Where(row => row is not null)!);
+
+        var order = new MerchantOrder
+        {
+            MerchantOrderNumber = "MO-COST", MerchantId = Guid.NewGuid(),
+            ShippedAt = Now, Currency = "MYR",
+        };
+        var item = new MerchantOrderItem
+        {
+            MerchantOrder = order, ProductId = product.Id, ProductVariantId = variant.Id,
+            Quantity = unitCosts.Length, WholesaleUnitPrice = 10m,
+            LineSubtotal = 10m * unitCosts.Length,
+        };
+        order.Items.Add(item);
+
+        var allocations = receipts.Select((receipt, index) =>
+        {
+            var tag = new SmartTag
+            {
+                TagCode = $"MPL-MERCH-{index}", ProductVariant = variant,
+                InventoryReceipt = receipt, HasNfc = true, Variant = "Standard",
+            };
+            db.SmartTags.Add(tag);
+            return new MerchantOrderAllocatedTag
+            {
+                MerchantOrder = order, MerchantOrderItem = item, MerchantId = order.MerchantId,
+                SmartTag = tag, TagCodeSnapshot = tag.TagCode, ProductVariantId = variant.Id,
+                AllocatedAt = Now, AllocatedByAdminUserId = AdminId,
+            };
+        }).ToArray();
+
+        db.MerchantOrders.Add(order);
+        db.MerchantOrderAllocatedTags.AddRange(allocations);
+        return new MerchantHarness(order, item, allocations);
+    }
+
+    private static InventoryReceiptService ReceiptServiceAt(
+        MyPetLinkDbContext db, DateTimeOffset at) => new(
+        db,
+        new AuditLogService(db, new HttpContextAccessor()),
+        new BusinessReferenceGenerator(new CryptographicBusinessReferenceSuffixSource()),
+        new FixedTimeProvider(at));
 
     private static MyPetLinkDbContext NewDb()
     {

@@ -145,14 +145,29 @@ export function AdminInventoryCostingPanel() {
       </div>
     </AdminSection>
 
-    <AdminSection title="Profitability" description="Shipment-time product margin from immutable tag costs. Missing costs are shown as unavailable, never as zero.">
+    <AdminSection title="Profitability" description="Shipment-time product margin from immutable tag costs. Stock with no recorded cost is reported separately, never as zero.">
       <div className="flex flex-wrap items-end gap-3 p-4"><Field label="From"><input className={fieldClass} type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></Field><Field label="To"><input className={fieldClass} type="date" value={to} onChange={(e) => setTo(e.target.value)} /></Field><AdminActionButton disabled={busy} onClick={() => void runReport()} tone="primary">Run Report</AdminActionButton></div>
       {report ? <div className="grid gap-3 p-4 pt-0">
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{[
           ["Product revenue", money(report.productRevenue)], ["Discounts", money(report.discounts)], ["Net product revenue", money(report.netProductRevenue)], ["Units sold", String(report.unitsSold)],
-          [report.isCostOfGoodsComplete ? "COGS" : "Known COGS", money(report.knownCostOfGoods)], ["Gross profit", report.grossProfit == null ? "Unavailable" : money(report.grossProfit)], ["Gross margin", report.grossMarginPercentage == null ? "Unavailable" : `${report.grossMarginPercentage}%`], ["Uncosted units", String(report.uncostedUnits)],
           ["Recorded courier cost", money(report.recordedCourierCost)], ["Recorded sales commission", money(report.recordedSalesCommission)], ["Contribution profit", report.contributionProfit == null ? "Unavailable" : money(report.contributionProfit)], ["Missing courier costs", String(report.ordersMissingCourierCost)],
         ].map(([label, value]) => <div className="rounded-xl bg-slate-50 p-3" key={label}><p className="text-xs font-extrabold uppercase text-slate-400">{label}</p><p className="mt-1 text-lg font-black text-slate-900">{value}</p></div>)}</div>
+
+        <p className="text-xs font-extrabold uppercase text-slate-400">Stock with a recorded cost</p>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">{[
+          ["Net revenue", money(report.costedNetRevenue)], ["Units", String(report.costedUnits)], ["COGS", money(report.costedCostOfGoods)], ["Gross profit", money(report.costedGrossProfit)], ["Gross margin", report.costedGrossMarginPercentage == null ? "Unavailable" : `${report.costedGrossMarginPercentage}%`],
+        ].map(([label, value]) => <div className="rounded-xl bg-emerald-50 p-3" key={label}><p className="text-xs font-extrabold uppercase text-slate-400">{label}</p><p className="mt-1 text-lg font-black text-slate-900">{value}</p></div>)}</div>
+
+        {report.uncostedUnits > 0 ? <>
+          <p className="text-xs font-extrabold uppercase text-slate-400">Stock with no recorded cost — no margin is calculated</p>
+          <div className="grid gap-2 sm:grid-cols-2"><div className="rounded-xl bg-amber-50 p-3"><p className="text-xs font-extrabold uppercase text-slate-400">Net revenue</p><p className="mt-1 text-lg font-black text-slate-900">{money(report.uncostedNetRevenue)}</p></div><div className="rounded-xl bg-amber-50 p-3"><p className="text-xs font-extrabold uppercase text-slate-400">Uncosted units</p><p className="mt-1 text-lg font-black text-slate-900">{report.uncostedUnits}</p></div></div>
+        </> : null}
+
+        {report.excludedOrders.length ? <>
+          <p className="text-xs font-extrabold uppercase text-slate-400">Excluded from revenue</p>
+          <div className="overflow-x-auto"><table className="min-w-full text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="p-3">Order</th><th className="p-3">Reason</th><th className="p-3">Original amount</th></tr></thead><tbody>{report.excludedOrders.map((order) => <tr className="border-t border-slate-100" key={`${order.channel}-${order.orderId}`}><td className="p-3 font-bold">{order.orderNumber}<br/><span className="text-xs text-slate-500">{order.channel}</span></td><td className="p-3">{order.reason}</td><td className="p-3">{money(order.originalSellingAmount)}</td></tr>)}</tbody></table></div>
+        </> : null}
+
         <ul className="text-xs font-semibold text-slate-500">{report.excludedCosts.map((item) => <li key={item}>{item}</li>)}</ul>
         <div className="overflow-x-auto"><table className="min-w-full text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="p-3">Order</th><th className="p-3">Selling amount</th><th className="p-3">COGS</th><th className="p-3">Gross profit</th><th className="p-3">Units</th></tr></thead><tbody>{report.orders.map((order) => <tr className="border-t border-slate-100" key={`${order.channel}-${order.orderId}`}><td className="p-3 font-bold">{order.orderNumber}<br/><span className="text-xs text-slate-500">{order.channel}</span></td><td className="p-3">{money(order.sellingAmount)}</td><td className="p-3">{order.costOfGoods == null ? "Uncosted" : money(order.costOfGoods)}</td><td className="p-3">{order.grossProfit == null ? "Unavailable" : money(order.grossProfit)}</td><td className="p-3">{order.units}{order.uncostedUnits ? ` · ${order.uncostedUnits} uncosted` : ""}</td></tr>)}</tbody></table></div>
       </div> : null}

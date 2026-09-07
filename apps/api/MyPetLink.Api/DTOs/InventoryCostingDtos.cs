@@ -10,6 +10,12 @@ public sealed class InventoryReceiptQuery : PagedQuery
     public Guid? BatchId { get; init; }
     public DateTimeOffset? ReceivedFrom { get; init; }
     public DateTimeOffset? ReceivedTo { get; init; }
+
+    /// <summary>
+    /// Corrected receipts are hidden by default so a listing shows the stock
+    /// that actually counts. Set this to review correction history.
+    /// </summary>
+    public bool IncludeSuperseded { get; init; }
 }
 
 public sealed record CreateInventoryReceiptRequest(
@@ -29,7 +35,13 @@ public sealed record CreateInventoryReceiptRequest(
     decimal? CustomsTaxCost,
     decimal? OtherLandedCost,
     Guid? CorrectsReceiptId,
-    [property: MaxLength(1000)] string? CorrectionReason);
+    [property: MaxLength(1000)] string? CorrectionReason,
+    /// <summary>
+    /// The corrected receipt's concurrency token. Required whenever
+    /// <see cref="CorrectsReceiptId"/> is set, so two administrators cannot
+    /// correct the same receipt from the same stale view.
+    /// </summary>
+    string? CorrectsReceiptRowVersion = null);
 
 public sealed record InventoryReceiptResponse(
     Guid Id,
@@ -57,6 +69,8 @@ public sealed record InventoryReceiptResponse(
     DateTimeOffset CreatedAt,
     Guid? CorrectsReceiptId,
     string? CorrectionReason,
+    DateTimeOffset? SupersededAt,
+    Guid? SupersededByReceiptId,
     string RowVersion);
 
 public sealed record InventoryReceiptBatchOption(
@@ -85,8 +99,30 @@ public sealed record ProfitabilityOrderDetail(
     decimal? CostOfGoods,
     decimal? GrossProfit,
     int Units,
-    int UncostedUnits);
+    int UncostedUnits,
+    bool IsFullyCosted);
 
+/// <summary>
+/// One order whose revenue is no longer realised. It is listed rather than
+/// summed into the period, because an original selling price is not current
+/// revenue once the money went back.
+/// </summary>
+public sealed record ProfitabilityExcludedOrder(
+    string Channel,
+    Guid OrderId,
+    string OrderNumber,
+    string Reason,
+    decimal OriginalSellingAmount);
+
+/// <summary>
+/// A period's trading result, split so that incomplete history can never be
+/// mistaken for a margin.
+///
+/// The Costed* figures cover only orders where every unit carries a real cost
+/// snapshot, so they reconcile on their own and are the numbers to act on. The
+/// Uncosted* figures carry the rest: revenue is reported, cost is not estimated
+/// and no margin is offered for them. Totals span both.
+/// </summary>
 public sealed record ProfitabilityReportResponse(
     DateTimeOffset From,
     DateTimeOffset To,
@@ -94,14 +130,20 @@ public sealed record ProfitabilityReportResponse(
     decimal Discounts,
     decimal NetProductRevenue,
     int UnitsSold,
-    decimal KnownCostOfGoods,
-    bool IsCostOfGoodsComplete,
-    decimal? GrossProfit,
-    decimal? GrossMarginPercentage,
+    decimal CostedNetRevenue,
+    int CostedUnits,
+    decimal CostedCostOfGoods,
+    decimal CostedGrossProfit,
+    decimal? CostedGrossMarginPercentage,
+    decimal UncostedNetRevenue,
     int UncostedUnits,
+    bool IsCostOfGoodsComplete,
     decimal RecordedCourierCost,
     int OrdersMissingCourierCost,
     decimal RecordedSalesCommission,
+    decimal CostedCourierCost,
+    decimal CostedSalesCommission,
     decimal? ContributionProfit,
+    IReadOnlyCollection<ProfitabilityExcludedOrder> ExcludedOrders,
     IReadOnlyCollection<string> ExcludedCosts,
     IReadOnlyCollection<ProfitabilityOrderDetail> Orders);

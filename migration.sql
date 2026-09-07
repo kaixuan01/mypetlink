@@ -6525,3 +6525,82 @@ GO
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907082441_AddInventoryReceiptSupersession'
+)
+BEGIN
+    DROP INDEX [IX_InventoryReceipts_CorrectsReceiptId] ON [InventoryReceipts];
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907082441_AddInventoryReceiptSupersession'
+)
+BEGIN
+    ALTER TABLE [InventoryReceipts] ADD [SupersededAt] datetimeoffset NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907082441_AddInventoryReceiptSupersession'
+)
+BEGIN
+    ALTER TABLE [InventoryReceipts] ADD [SupersededByReceiptId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907082441_AddInventoryReceiptSupersession'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [IX_InventoryReceipts_CorrectsReceiptId] ON [InventoryReceipts] ([CorrectsReceiptId]) WHERE [CorrectsReceiptId] IS NOT NULL');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907082441_AddInventoryReceiptSupersession'
+)
+BEGIN
+    CREATE INDEX [IX_InventoryReceipts_SupersededAt_TagProductVariantId] ON [InventoryReceipts] ([SupersededAt], [TagProductVariantId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907082441_AddInventoryReceiptSupersession'
+)
+BEGIN
+    CREATE INDEX [IX_InventoryReceipts_SupersededByReceiptId] ON [InventoryReceipts] ([SupersededByReceiptId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907082441_AddInventoryReceiptSupersession'
+)
+BEGIN
+    ALTER TABLE [InventoryReceipts] ADD CONSTRAINT [FK_InventoryReceipts_InventoryReceipts_SupersededByReceiptId] FOREIGN KEY ([SupersededByReceiptId]) REFERENCES [InventoryReceipts] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907082441_AddInventoryReceiptSupersession'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260907082441_AddInventoryReceiptSupersession', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+

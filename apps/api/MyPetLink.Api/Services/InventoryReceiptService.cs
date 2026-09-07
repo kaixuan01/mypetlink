@@ -79,6 +79,10 @@ public sealed class InventoryReceiptService : IInventoryReceiptService
         InventoryReceiptQuery query, CancellationToken cancellationToken = default)
     {
         var rows = _dbContext.InventoryReceipts.AsNoTracking().AsQueryable();
+        // A corrected receipt no longer owns any stock, so it is not part of
+        // the working list unless the caller is reviewing correction history.
+        if (!query.IncludeSuperseded)
+            rows = rows.Where(InventoryReceiptRules.IsActive);
         if (query.ProductVariantId.HasValue)
             rows = rows.Where(row => row.TagProductVariantId == query.ProductVariantId);
         if (query.BatchId.HasValue)
@@ -112,12 +116,17 @@ public sealed class InventoryReceiptService : IInventoryReceiptService
         var strategy = _dbContext.Database.CreateExecutionStrategy();
         return await strategy.ExecuteAsync(async () =>
         {
-            await using var transaction = _dbContext.Database.IsRelational()
-                ? await _dbContext.Database.BeginTransactionAsync(cancellationToken)
-                : null;
+            // The SKU lock is taken before the transaction opens and released
+            // after it closes, the same order order creation uses. A session
+            // application lock acquired inside a transaction does not survive
+            // the commit, so releasing it afterwards would fail and turn a
+            // saved receipt into a 500 the operator would retry.
             await using var inventoryLock = _dbContext.Database.IsSqlServer()
                 ? await SqlServerInventoryReservationLock.AcquireAsync(
                     _dbContext, [request.ProductVariantId], cancellationToken)
+                : null;
+            await using var transaction = _dbContext.Database.IsRelational()
+                ? await _dbContext.Database.BeginTransactionAsync(cancellationToken)
                 : null;
 
             var variant = await _dbContext.TagProductVariants
@@ -164,9 +173,11 @@ public sealed class InventoryReceiptService : IInventoryReceiptService
             };
 
             SmartTag[] tags;
+            InventoryReceipt? corrected = null;
             if (request.CorrectsReceiptId.HasValue)
             {
-                tags = await LoadCorrectionTagsAsync(request, cancellationToken);
+                corrected = await LoadCorrectableReceiptAsync(request, cancellationToken);
+                tags = corrected.SmartTags.OrderBy(tag => tag.TagCode).ToArray();
             }
             else
             {
@@ -189,18 +200,31 @@ public sealed class InventoryReceiptService : IInventoryReceiptService
                     .ThenBy(tag => tag.TagCode)
                     .Take(request.QuantityReceived)
                     .ToArrayAsync(cancellationToken);
-                if (tags.Length != request.QuantityReceived)
-                    throw new ApiException(
-                        StatusCodes.Status409Conflict,
-                        "receipt_inventory_shortfall",
-                        $"Only {tags.Length} eligible unreceived tag(s) are available for this receipt.");
             }
+
+            // One guard for every path. A receipt must own exactly as many
+            // serialized tags as it claims to have received, or the recorded
+            // quantity and landed cost would describe stock that is not there.
+            if (tags.Length != request.QuantityReceived)
+                throw new ApiException(
+                    StatusCodes.Status409Conflict,
+                    "receipt_inventory_shortfall",
+                    $"Only {tags.Length} eligible unreceived tag(s) are available for this receipt.");
 
             _dbContext.InventoryReceipts.Add(receipt);
             foreach (var tag in tags)
             {
                 tag.InventoryReceipt = receipt;
                 tag.UpdatedAt = now;
+            }
+
+            // The correction takes ownership of the units; the original keeps
+            // its figures and stays readable, but stops counting anywhere.
+            if (corrected is not null)
+            {
+                corrected.SupersededAt = now;
+                corrected.SupersededByReceiptId = receipt.Id;
+                corrected.UpdatedAt = now;
             }
             for (var attempt = 0; ; attempt++)
             {
@@ -229,7 +253,28 @@ public sealed class InventoryReceiptService : IInventoryReceiptService
                     receipt.TotalLandedCostMyr,
                     receipt.UnitLandedCostMyr,
                     receipt.CorrectsReceiptId,
+                    linkedTagCount = tags.Length,
                 });
+            if (corrected is not null)
+            {
+                _auditLogService.Append(
+                    admin.Id, ActorType.Admin, "inventory-receipt.superseded",
+                    "InventoryReceipt", corrected.Id,
+                    new
+                    {
+                        corrected.ReceiptNumber,
+                        corrected.TotalLandedCostMyr,
+                        corrected.UnitLandedCostMyr,
+                    },
+                    new
+                    {
+                        corrected.SupersededAt,
+                        corrected.SupersededByReceiptId,
+                        supersededByReceiptNumber = receipt.ReceiptNumber,
+                        reason = receipt.CorrectionReason,
+                    });
+            }
+
             await _dbContext.SaveChangesAsync(cancellationToken);
             if (transaction is not null)
                 await transaction.CommitAsync(cancellationToken);
@@ -253,7 +298,8 @@ public sealed class InventoryReceiptService : IInventoryReceiptService
                 item.Subtotal, item.DiscountAmount, item.FinalAmount,
                 item.Quantity, item.CostOfGoodsSnapshot,
                 item.Quantity - item.CostAllocations.Count(allocation =>
-                    allocation.UnitLandedCostMyrSnapshot != null)))
+                    allocation.UnitLandedCostMyrSnapshot != null),
+                RetailExclusion(item.Order.Status, item.Order.PaymentStatus)))
             .ToListAsync(cancellationToken);
 
         var legacyRetail = await _dbContext.TagOrders.AsNoTracking()
@@ -261,7 +307,8 @@ public sealed class InventoryReceiptService : IInventoryReceiptService
                 && !order.Items.Any())
             .Select(order => new ProfitLine(
                 "Retail", order.Id, order.OrderNumber, order.ShippedAt!.Value,
-                order.Amount, 0m, order.Amount, 1, null, 1))
+                order.Amount, 0m, order.Amount, 1, null, 1,
+                RetailExclusion(order.Status, order.PaymentStatus)))
             .ToListAsync(cancellationToken);
         retail.AddRange(legacyRetail);
 
@@ -276,97 +323,208 @@ public sealed class InventoryReceiptService : IInventoryReceiptService
                 item.LineDiscount,
                 item.LineSubtotal,
                 item.Quantity, item.CostOfGoodsSnapshot,
+                // Costed-ness is a property of the frozen snapshot, never of the
+                // allocation's current release state: releasing an allocation
+                // after dispatch is an auditable correction that must not make
+                // an already-costed unit look uncosted.
                 item.Quantity - item.MerchantOrder.AllocatedTags.Count(allocation =>
                     allocation.MerchantOrderItemId == item.Id
-                    && allocation.ReleasedAt == null
-                    && allocation.UnitLandedCostMyrSnapshot != null)))
+                    && allocation.CostSnapshotAt != null
+                    && allocation.UnitLandedCostMyrSnapshot != null),
+                item.MerchantOrder.PaymentStatus == MerchantOrderPaymentStatus.Cancelled
+                    ? "Cancelled"
+                    : null))
             .ToListAsync(cancellationToken);
 
-        // Order-level merchant discounts are applied once below. Line-level
-        // discounts are already represented by each line's LineDiscount.
-        var merchantOrderIds = merchant.Select(line => line.OrderId).Distinct().ToArray();
-        var merchantDiscountRows = await _dbContext.MerchantOrders.AsNoTracking()
+        var allLines = retail.Concat(merchant).ToArray();
+
+        // Revenue that went back to the customer is not this period's revenue.
+        // Those orders are listed rather than summed, so the omission is
+        // visible instead of silently changing the totals.
+        var excludedOrders = allLines
+            .Where(line => line.ExclusionReason is not null)
+            .GroupBy(line => new { line.Channel, line.OrderId, line.OrderNumber, line.ExclusionReason })
+            .Select(group => new ProfitabilityExcludedOrder(
+                group.Key.Channel, group.Key.OrderId, group.Key.OrderNumber,
+                group.Key.ExclusionReason!,
+                RoundMoney(group.Sum(line => line.NetRevenue))))
+            .OrderBy(row => row.OrderNumber)
+            .ToArray();
+
+        var lines = allLines.Where(line => line.ExclusionReason is null).ToArray();
+        var merchantOrderIds = lines
+            .Where(line => line.Channel == "Merchant")
+            .Select(line => line.OrderId).Distinct().ToArray();
+        var retailOrderIds = lines
+            .Where(line => line.Channel == "Retail")
+            .Select(line => line.OrderId).Distinct().ToArray();
+
+        // Order-level merchant discounts are applied once per order below.
+        // Line-level discounts are already represented by each line's
+        // LineDiscount, so neither is subtracted twice.
+        var merchantDiscountByOrder = await _dbContext.MerchantOrders.AsNoTracking()
             .Where(order => merchantOrderIds.Contains(order.Id))
             .Select(order => new { order.Id, order.DiscountTotal })
-            .ToListAsync(cancellationToken);
-        var merchantOrderDiscount = merchantDiscountRows.Sum(row => row.DiscountTotal);
-        var merchantDiscountByOrder = merchantDiscountRows.ToDictionary(
-            row => row.Id, row => row.DiscountTotal);
-        var lines = retail.Concat(merchant).ToArray();
-        var retailOrderIds = retail.Select(line => line.OrderId).Distinct().ToArray();
-        var retailCouriers = await _dbContext.TagOrders.AsNoTracking()
+            .ToDictionaryAsync(row => row.Id, row => row.DiscountTotal, cancellationToken);
+        var retailCourierByOrder = await _dbContext.TagOrders.AsNoTracking()
             .Where(order => retailOrderIds.Contains(order.Id))
-            .Select(order => new { order.Id, Cost = order.ActualCourierCost })
-            .ToListAsync(cancellationToken);
-        var merchantCouriers = await _dbContext.MerchantOrders.AsNoTracking()
+            .Select(order => new { order.Id, order.ActualCourierCost })
+            .ToDictionaryAsync(row => row.Id, row => row.ActualCourierCost, cancellationToken);
+        var merchantCourierByOrder = await _dbContext.MerchantOrders.AsNoTracking()
             .Where(order => merchantOrderIds.Contains(order.Id))
-            .Select(order => new { order.Id, Cost = order.InternalCourierCost })
-            .ToListAsync(cancellationToken);
-        var commissions = await _dbContext.SalesCommissions.AsNoTracking()
+            .Select(order => new { order.Id, order.InternalCourierCost })
+            .ToDictionaryAsync(row => row.Id, row => row.InternalCourierCost, cancellationToken);
+        var commissionByOrder = await _dbContext.SalesCommissions.AsNoTracking()
             .Where(row => merchantOrderIds.Contains(row.MerchantOrderId)
                 && row.Status != SalesCommissionStatus.Reversed)
-            .SumAsync(row => (decimal?)row.CommissionAmount, cancellationToken) ?? 0m;
+            .GroupBy(row => row.MerchantOrderId)
+            .Select(group => new { OrderId = group.Key, Amount = group.Sum(row => row.CommissionAmount) })
+            .ToDictionaryAsync(row => row.OrderId, row => row.Amount, cancellationToken);
 
-        var productRevenue = lines.Sum(line => line.GrossRevenue);
-        var discounts = lines.Sum(line => line.LineDiscount) + merchantOrderDiscount;
-        var netRevenue = lines.Sum(line => line.NetRevenue) - merchantOrderDiscount;
-        var knownCogs = lines.Sum(line => line.CostOfGoods ?? 0m);
-        var uncosted = lines.Sum(line => line.UncostedUnits);
-        var cogsComplete = uncosted == 0;
-        var courierCost = retailCouriers.Sum(row => row.Cost ?? 0m)
-            + merchantCouriers.Sum(row => row.Cost ?? 0m);
-        var missingCourier = retailCouriers.Count(row => row.Cost is null)
-            + merchantCouriers.Count(row => row.Cost is null);
-        decimal? grossProfit = cogsComplete ? netRevenue - knownCogs : null;
-        decimal? margin = grossProfit.HasValue && netRevenue != 0m
-            ? decimal.Round(grossProfit.Value / netRevenue * 100m, 2, MidpointRounding.AwayFromZero)
-            : null;
-        decimal? contribution = grossProfit.HasValue && missingCourier == 0
-            ? grossProfit.Value - courierCost - commissions
-            : null;
-
-        var details = lines.GroupBy(line => new { line.Channel, line.OrderId, line.OrderNumber })
+        // One row per order, classified by whether every unit on it carries a
+        // real cost. Cost is never estimated for the rest.
+        var details = lines
+            .GroupBy(line => new { line.Channel, line.OrderId, line.OrderNumber })
             .Select(group =>
             {
-                var selling = group.Sum(line => line.NetRevenue)
-                    - (group.Key.Channel == "Merchant"
+                var isMerchant = group.Key.Channel == "Merchant";
+                var selling = RoundMoney(
+                    group.Sum(line => line.NetRevenue)
+                    - (isMerchant
                         ? merchantDiscountByOrder.GetValueOrDefault(group.Key.OrderId)
-                        : 0m);
-                var lineUncosted = group.Sum(line => line.UncostedUnits);
-                var cost = lineUncosted == 0
-                    ? group.Sum(line => line.CostOfGoods!.Value)
-                    : (decimal?)null;
+                        : 0m));
+                var uncostedUnits = group.Sum(line => line.UncostedUnits);
+                var fullyCosted = uncostedUnits == 0;
+                decimal? cost = fullyCosted
+                    ? RoundMoney(group.Sum(line => line.CostOfGoods ?? 0m))
+                    : null;
                 return new ProfitabilityOrderDetail(
                     group.Key.Channel, group.Key.OrderId, group.Key.OrderNumber,
                     group.Min(line => line.SnapshotAt), selling, cost,
                     cost.HasValue ? selling - cost.Value : null,
-                    group.Sum(line => line.Units), lineUncosted);
+                    group.Sum(line => line.Units), uncostedUnits, fullyCosted);
             })
             .OrderByDescending(row => row.CostSnapshotAt)
             .ToArray();
 
+        var costedOrders = details.Where(row => row.IsFullyCosted).ToArray();
+        var uncostedOrders = details.Where(row => !row.IsFullyCosted).ToArray();
+
+        var merchantOrderDiscount = merchantDiscountByOrder.Values.Sum();
+        var productRevenue = RoundMoney(lines.Sum(line => line.GrossRevenue));
+        var discounts = RoundMoney(lines.Sum(line => line.LineDiscount) + merchantOrderDiscount);
+        var netRevenue = RoundMoney(details.Sum(row => row.SellingAmount));
+
+        var costedNetRevenue = RoundMoney(costedOrders.Sum(row => row.SellingAmount));
+        var costedCogs = RoundMoney(costedOrders.Sum(row => row.CostOfGoods ?? 0m));
+        var costedGrossProfit = RoundMoney(costedNetRevenue - costedCogs);
+        decimal? costedMargin = costedNetRevenue != 0m
+            ? decimal.Round(costedGrossProfit / costedNetRevenue * 100m, 2, MidpointRounding.AwayFromZero)
+            : null;
+        var uncostedNetRevenue = RoundMoney(uncostedOrders.Sum(row => row.SellingAmount));
+        var uncostedUnitsTotal = lines.Sum(line => line.UncostedUnits);
+
+        decimal CourierFor(ProfitabilityOrderDetail row) =>
+            (row.Channel == "Merchant"
+                ? merchantCourierByOrder.GetValueOrDefault(row.OrderId)
+                : retailCourierByOrder.GetValueOrDefault(row.OrderId)) ?? 0m;
+        bool MissingCourier(ProfitabilityOrderDetail row) =>
+            (row.Channel == "Merchant"
+                ? merchantCourierByOrder.GetValueOrDefault(row.OrderId)
+                : retailCourierByOrder.GetValueOrDefault(row.OrderId)) is null;
+        decimal CommissionFor(ProfitabilityOrderDetail row) =>
+            row.Channel == "Merchant" ? commissionByOrder.GetValueOrDefault(row.OrderId) : 0m;
+
+        var courierCost = RoundMoney(details.Sum(CourierFor));
+        var missingCourier = details.Count(MissingCourier);
+        var commissions = RoundMoney(details.Sum(CommissionFor));
+        var costedCourierCost = RoundMoney(costedOrders.Sum(CourierFor));
+        var costedCommissions = RoundMoney(costedOrders.Sum(CommissionFor));
+
+        // Contribution is scoped to the costed orders so it reconciles with the
+        // costed gross profit above, and is withheld entirely when any of those
+        // orders has no recorded courier cost rather than treating it as free.
+        decimal? contribution = costedOrders.Any(MissingCourier)
+            ? null
+            : RoundMoney(costedGrossProfit - costedCourierCost - costedCommissions);
+
+        var notes = new List<string>
+        {
+            "Payment gateway fees are not recorded.",
+            "Advertising and other operating expenses are not recorded.",
+            "Replacement/warranty unit costs are not included in Phase 1 contribution profit.",
+        };
+        if (uncostedUnitsTotal > 0)
+        {
+            notes.Add(
+                $"{uncostedUnitsTotal} unit(s) have no recorded stock cost. Their revenue is reported separately and no cost is estimated for them.");
+        }
+
+        if (excludedOrders.Length > 0)
+        {
+            notes.Add(
+                $"{excludedOrders.Length} refunded or cancelled order(s) are excluded from revenue and listed separately. MyPetLink does not yet record refund accounting.");
+        }
+
         return new ProfitabilityReportResponse(
-            query.From, query.To, productRevenue, discounts, netRevenue,
-            lines.Sum(line => line.Units), knownCogs, cogsComplete, grossProfit, margin,
-            uncosted, courierCost, missingCourier, commissions, contribution,
-            ["Payment gateway fees are not recorded.", "Advertising and other operating expenses are not recorded.",
-             "Replacement/warranty unit costs are not included in Phase 1 contribution profit."],
-            details);
+            query.From, query.To,
+            productRevenue, discounts, netRevenue, lines.Sum(line => line.Units),
+            costedNetRevenue, costedOrders.Sum(row => row.Units), costedCogs,
+            costedGrossProfit, costedMargin,
+            uncostedNetRevenue, uncostedUnitsTotal, uncostedUnitsTotal == 0,
+            courierCost, missingCourier, commissions,
+            costedCourierCost, costedCommissions, contribution,
+            excludedOrders, notes, details);
     }
 
-    private async Task<SmartTag[]> LoadCorrectionTagsAsync(
+    /// <summary>
+    /// Why a retail order's revenue should not count towards the period. A
+    /// refunded or cancelled order keeps its historical figures, but the money
+    /// is not ours any more.
+    /// </summary>
+    private static string? RetailExclusion(OrderStatus status, PaymentStatus paymentStatus) =>
+        paymentStatus == PaymentStatus.Refunded ? "Refunded"
+        : status == OrderStatus.Cancelled ? "Cancelled"
+        : null;
+
+    /// <summary>
+    /// Loads the receipt a correction is restating, tracked so the caller can
+    /// stamp it superseded, and refuses every case where correcting it would
+    /// misstate stock: no reason given, a stale view of the receipt, one that
+    /// has already been corrected, a different SKU/batch/quantity, or one whose
+    /// units have already been costed into a shipment.
+    /// </summary>
+    private async Task<InventoryReceipt> LoadCorrectableReceiptAsync(
         CreateInventoryReceiptRequest request, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.CorrectionReason))
             throw Validation("correctionReason", "Explain why this receipt corrects the earlier record.");
+        if (string.IsNullOrWhiteSpace(request.CorrectsReceiptRowVersion))
+            throw Validation("correctsReceiptRowVersion", "Reload the receipt before correcting it.");
+
         var prior = await _dbContext.InventoryReceipts
             .Include(row => row.SmartTags)
             .SingleOrDefaultAsync(row => row.Id == request.CorrectsReceiptId, cancellationToken)
             ?? throw Validation("correctsReceiptId", "Choose an existing receipt to correct.");
+
+        // Correcting from a stale view would silently overwrite whatever the
+        // other administrator just did, so the token is checked before any of
+        // the state below is trusted.
+        ApplyConcurrency(prior, request.CorrectsReceiptRowVersion);
+
+        if (prior.SupersededAt is not null)
+        {
+            throw new ApiException(
+                StatusCodes.Status409Conflict,
+                "receipt_already_superseded",
+                "This receipt was already corrected. Correct the receipt that replaced it instead.");
+        }
+
         if (prior.TagProductVariantId != request.ProductVariantId
             || prior.SmartTagBatchId != request.SmartTagBatchId
             || prior.QuantityReceived != request.QuantityReceived)
             throw Validation("correctsReceiptId", "A correction must keep the original SKU, batch, and quantity.");
+
         var tagIds = prior.SmartTags.Select(tag => tag.Id).ToArray();
         var used = await _dbContext.TagOrderItemCostAllocations.AnyAsync(
                 row => tagIds.Contains(row.SmartTagId), cancellationToken)
@@ -378,7 +536,22 @@ public sealed class InventoryReceiptService : IInventoryReceiptService
                 StatusCodes.Status409Conflict,
                 "receipt_already_costed",
                 "This receipt has contributed to shipped inventory and cannot be corrected. Record a separate financial adjustment in a later accounting period.");
-        return prior.SmartTags.OrderBy(tag => tag.TagCode).ToArray();
+        return prior;
+    }
+
+    private void ApplyConcurrency(InventoryReceipt receipt, string token)
+    {
+        byte[] original;
+        try
+        {
+            original = Convert.FromBase64String(token);
+        }
+        catch (FormatException)
+        {
+            throw Validation("correctsReceiptRowVersion", "Reload the receipt before correcting it.");
+        }
+
+        _dbContext.Entry(receipt).Property(row => row.RowVersion).OriginalValue = original;
     }
 
     private static (decimal ExchangeRate, decimal Goods, decimal Freight, decimal CustomsTax,
@@ -474,6 +647,7 @@ public sealed class InventoryReceiptService : IInventoryReceiptService
             row.CustomsTaxCost, row.OtherLandedCost, row.TotalLandedCostMyr,
             row.UnitLandedCostMyr, row.CreatedByAdminUserId, row.CreatedAt,
             row.CorrectsReceiptId, row.CorrectionReason,
+            row.SupersededAt, row.SupersededByReceiptId,
             Convert.ToBase64String(row.RowVersion));
 
     private static decimal Round6(decimal value) =>
@@ -489,5 +663,5 @@ public sealed class InventoryReceiptService : IInventoryReceiptService
     private sealed record ProfitLine(
         string Channel, Guid OrderId, string OrderNumber, DateTimeOffset SnapshotAt,
         decimal GrossRevenue, decimal LineDiscount, decimal NetRevenue,
-        int Units, decimal? CostOfGoods, int UncostedUnits);
+        int Units, decimal? CostOfGoods, int UncostedUnits, string? ExclusionReason);
 }

@@ -1473,6 +1473,14 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasIndex(item => item.ReceiptNumber).IsUnique();
             entity.HasIndex(item => new { item.TagProductVariantId, item.ReceivedAt });
             entity.HasIndex(item => item.SmartTagBatchId);
+            // Active receipts are what listings, valuations and reports read,
+            // so the supersession stamp is part of the covering filter.
+            entity.HasIndex(item => new { item.SupersededAt, item.TagProductVariantId });
+            // A receipt can be corrected once. The filtered unique index is
+            // what makes a second correction impossible rather than unlikely.
+            entity.HasIndex(item => item.CorrectsReceiptId)
+                .IsUnique()
+                .HasFilter("[CorrectsReceiptId] IS NOT NULL");
             entity.HasOne(item => item.TagProductVariant)
                 .WithMany(variant => variant.InventoryReceipts)
                 .HasForeignKey(item => item.TagProductVariantId)
@@ -1488,6 +1496,10 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasOne(item => item.CorrectsReceipt)
                 .WithMany()
                 .HasForeignKey(item => item.CorrectsReceiptId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.SupersededByReceipt)
+                .WithMany()
+                .HasForeignKey(item => item.SupersededByReceiptId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

@@ -34,6 +34,12 @@ export type InventoryReceipt = {
   costMode: ReceiptCostMode;
   totalLandedCostMyr: number;
   unitLandedCostMyr: number;
+  correctsReceiptId?: string | null;
+  correctionReason?: string | null;
+  /** Set once a later receipt corrected this one. History only; not live stock. */
+  supersededAt?: string | null;
+  supersededByReceiptId?: string | null;
+  rowVersion: string;
 };
 
 export type CreateInventoryReceiptInput = {
@@ -52,6 +58,10 @@ export type CreateInventoryReceiptInput = {
   freightCost?: number;
   customsTaxCost?: number;
   otherLandedCost?: number;
+  correctsReceiptId?: string;
+  correctionReason?: string;
+  /** Required when correcting: the corrected receipt's concurrency token. */
+  correctsReceiptRowVersion?: string;
 };
 
 export type ProfitabilityOrder = {
@@ -64,8 +74,22 @@ export type ProfitabilityOrder = {
   grossProfit?: number | null;
   units: number;
   uncostedUnits: number;
+  isFullyCosted: boolean;
 };
 
+export type ProfitabilityExcludedOrder = {
+  channel: string;
+  orderId: string;
+  orderNumber: string;
+  reason: string;
+  originalSellingAmount: number;
+};
+
+/**
+ * The costed figures cover only orders where every unit carries a real stock
+ * cost, so they stand on their own. The uncosted figures carry the rest:
+ * revenue is reported, cost is never estimated, and no margin is offered.
+ */
 export type ProfitabilityReport = {
   from: string;
   to: string;
@@ -73,15 +97,21 @@ export type ProfitabilityReport = {
   discounts: number;
   netProductRevenue: number;
   unitsSold: number;
-  knownCostOfGoods: number;
-  isCostOfGoodsComplete: boolean;
-  grossProfit?: number | null;
-  grossMarginPercentage?: number | null;
+  costedNetRevenue: number;
+  costedUnits: number;
+  costedCostOfGoods: number;
+  costedGrossProfit: number;
+  costedGrossMarginPercentage?: number | null;
+  uncostedNetRevenue: number;
   uncostedUnits: number;
+  isCostOfGoodsComplete: boolean;
   recordedCourierCost: number;
   ordersMissingCourierCost: number;
   recordedSalesCommission: number;
+  costedCourierCost: number;
+  costedSalesCommission: number;
   contributionProfit?: number | null;
+  excludedOrders: ProfitabilityExcludedOrder[];
   excludedCosts: string[];
   orders: ProfitabilityOrder[];
 };
