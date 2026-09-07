@@ -6246,3 +6246,282 @@ GO
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907070426_AddInventoryReceiptsAndProfitabilitySnapshots'
+)
+BEGIN
+    ALTER TABLE [TagOrderItems] ADD [CostBasis] nvarchar(32) NOT NULL DEFAULT N'Unavailable';
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907070426_AddInventoryReceiptsAndProfitabilitySnapshots'
+)
+BEGIN
+    ALTER TABLE [TagOrderItems] ADD [CostOfGoodsSnapshot] decimal(18,6) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907070426_AddInventoryReceiptsAndProfitabilitySnapshots'
+)
+BEGIN
+    ALTER TABLE [TagOrderItems] ADD [CostSnapshotAt] datetimeoffset NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907070426_AddInventoryReceiptsAndProfitabilitySnapshots'
+)
+BEGIN
+    ALTER TABLE [SmartTags] ADD [InventoryReceiptId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907070426_AddInventoryReceiptsAndProfitabilitySnapshots'
+)
+BEGIN
+    ALTER TABLE [MerchantOrderItems] ADD [CostBasis] nvarchar(32) NOT NULL DEFAULT N'Unavailable';
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907070426_AddInventoryReceiptsAndProfitabilitySnapshots'
+)
+BEGIN
+    ALTER TABLE [MerchantOrderItems] ADD [CostOfGoodsSnapshot] decimal(18,6) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907070426_AddInventoryReceiptsAndProfitabilitySnapshots'
+)
+BEGIN
+    ALTER TABLE [MerchantOrderItems] ADD [CostSnapshotAt] datetimeoffset NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907070426_AddInventoryReceiptsAndProfitabilitySnapshots'
+)
+BEGIN
+    ALTER TABLE [MerchantOrderAllocatedTags] ADD [CostBasis] nvarchar(32) NOT NULL DEFAULT N'Unavailable';
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907070426_AddInventoryReceiptsAndProfitabilitySnapshots'
+)
+BEGIN
+    ALTER TABLE [MerchantOrderAllocatedTags] ADD [CostSnapshotAt] datetimeoffset NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907070426_AddInventoryReceiptsAndProfitabilitySnapshots'
+)
+BEGIN
+    ALTER TABLE [MerchantOrderAllocatedTags] ADD [InventoryReceiptIdSnapshot] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907070426_AddInventoryReceiptsAndProfitabilitySnapshots'
+)
+BEGIN
+    ALTER TABLE [MerchantOrderAllocatedTags] ADD [InventoryReceiptNumberSnapshot] nvarchar(80) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907070426_AddInventoryReceiptsAndProfitabilitySnapshots'
+)
+BEGIN
+    ALTER TABLE [MerchantOrderAllocatedTags] ADD [UnitLandedCostMyrSnapshot] decimal(18,6) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907070426_AddInventoryReceiptsAndProfitabilitySnapshots'
+)
+BEGIN
+    CREATE TABLE [InventoryReceipts] (
+        [Id] uniqueidentifier NOT NULL,
+        [ReceiptNumber] nvarchar(80) NOT NULL,
+        [TagProductVariantId] uniqueidentifier NOT NULL,
+        [SmartTagBatchId] uniqueidentifier NULL,
+        [QuantityReceived] int NOT NULL,
+        [ReceivedAt] datetimeoffset NOT NULL,
+        [SupplierName] nvarchar(200) NULL,
+        [SupplierReference] nvarchar(120) NULL,
+        [Notes] nvarchar(2000) NULL,
+        [PurchaseCurrency] nvarchar(3) NOT NULL,
+        [ExchangeRateToMyr] decimal(18,6) NOT NULL,
+        [CostMode] nvarchar(24) NOT NULL,
+        [GoodsCost] decimal(18,2) NOT NULL,
+        [FreightCost] decimal(18,2) NOT NULL,
+        [CustomsTaxCost] decimal(18,2) NOT NULL,
+        [OtherLandedCost] decimal(18,2) NOT NULL,
+        [TotalLandedCostMyr] decimal(18,2) NOT NULL,
+        [UnitLandedCostMyr] decimal(18,6) NOT NULL,
+        [CreatedByAdminUserId] uniqueidentifier NOT NULL,
+        [CorrectsReceiptId] uniqueidentifier NULL,
+        [CorrectionReason] nvarchar(1000) NULL,
+        [RowVersion] rowversion NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_InventoryReceipts] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_InventoryReceipts_Costs] CHECK ([GoodsCost] >= 0 AND [FreightCost] >= 0 AND [CustomsTaxCost] >= 0 AND [OtherLandedCost] >= 0 AND [TotalLandedCostMyr] > 0 AND [UnitLandedCostMyr] > 0),
+        CONSTRAINT [CK_InventoryReceipts_ExchangeRate] CHECK ([ExchangeRateToMyr] > 0),
+        CONSTRAINT [CK_InventoryReceipts_QuantityReceived] CHECK ([QuantityReceived] > 0),
+        CONSTRAINT [FK_InventoryReceipts_AdminUsers_CreatedByAdminUserId] FOREIGN KEY ([CreatedByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_InventoryReceipts_InventoryReceipts_CorrectsReceiptId] FOREIGN KEY ([CorrectsReceiptId]) REFERENCES [InventoryReceipts] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_InventoryReceipts_SmartTagBatches_SmartTagBatchId] FOREIGN KEY ([SmartTagBatchId]) REFERENCES [SmartTagBatches] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_InventoryReceipts_TagProductVariants_TagProductVariantId] FOREIGN KEY ([TagProductVariantId]) REFERENCES [TagProductVariants] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907070426_AddInventoryReceiptsAndProfitabilitySnapshots'
+)
+BEGIN
+    CREATE TABLE [TagOrderItemCostAllocations] (
+        [Id] uniqueidentifier NOT NULL,
+        [TagOrderItemId] uniqueidentifier NOT NULL,
+        [SmartTagId] uniqueidentifier NOT NULL,
+        [InventoryReceiptId] uniqueidentifier NULL,
+        [TagCodeSnapshot] nvarchar(32) NOT NULL,
+        [InventoryReceiptNumberSnapshot] nvarchar(80) NULL,
+        [UnitLandedCostMyrSnapshot] decimal(18,6) NULL,
+        [CostBasis] nvarchar(32) NOT NULL DEFAULT N'Unavailable',
+        [CostSnapshotAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_TagOrderItemCostAllocations] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_TagOrderItemCostAllocations_InventoryReceipts_InventoryReceiptId] FOREIGN KEY ([InventoryReceiptId]) REFERENCES [InventoryReceipts] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_TagOrderItemCostAllocations_SmartTags_SmartTagId] FOREIGN KEY ([SmartTagId]) REFERENCES [SmartTags] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_TagOrderItemCostAllocations_TagOrderItems_TagOrderItemId] FOREIGN KEY ([TagOrderItemId]) REFERENCES [TagOrderItems] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907070426_AddInventoryReceiptsAndProfitabilitySnapshots'
+)
+BEGIN
+    CREATE INDEX [IX_SmartTags_InventoryReceiptId] ON [SmartTags] ([InventoryReceiptId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907070426_AddInventoryReceiptsAndProfitabilitySnapshots'
+)
+BEGIN
+    CREATE INDEX [IX_InventoryReceipts_CorrectsReceiptId] ON [InventoryReceipts] ([CorrectsReceiptId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907070426_AddInventoryReceiptsAndProfitabilitySnapshots'
+)
+BEGIN
+    CREATE INDEX [IX_InventoryReceipts_CreatedByAdminUserId] ON [InventoryReceipts] ([CreatedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907070426_AddInventoryReceiptsAndProfitabilitySnapshots'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_InventoryReceipts_ReceiptNumber] ON [InventoryReceipts] ([ReceiptNumber]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907070426_AddInventoryReceiptsAndProfitabilitySnapshots'
+)
+BEGIN
+    CREATE INDEX [IX_InventoryReceipts_SmartTagBatchId] ON [InventoryReceipts] ([SmartTagBatchId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907070426_AddInventoryReceiptsAndProfitabilitySnapshots'
+)
+BEGIN
+    CREATE INDEX [IX_InventoryReceipts_TagProductVariantId_ReceivedAt] ON [InventoryReceipts] ([TagProductVariantId], [ReceivedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907070426_AddInventoryReceiptsAndProfitabilitySnapshots'
+)
+BEGIN
+    CREATE INDEX [IX_TagOrderItemCostAllocations_InventoryReceiptId] ON [TagOrderItemCostAllocations] ([InventoryReceiptId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907070426_AddInventoryReceiptsAndProfitabilitySnapshots'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_TagOrderItemCostAllocations_SmartTagId] ON [TagOrderItemCostAllocations] ([SmartTagId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907070426_AddInventoryReceiptsAndProfitabilitySnapshots'
+)
+BEGIN
+    CREATE INDEX [IX_TagOrderItemCostAllocations_TagOrderItemId] ON [TagOrderItemCostAllocations] ([TagOrderItemId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907070426_AddInventoryReceiptsAndProfitabilitySnapshots'
+)
+BEGIN
+    ALTER TABLE [SmartTags] ADD CONSTRAINT [FK_SmartTags_InventoryReceipts_InventoryReceiptId] FOREIGN KEY ([InventoryReceiptId]) REFERENCES [InventoryReceipts] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907070426_AddInventoryReceiptsAndProfitabilitySnapshots'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260907070426_AddInventoryReceiptsAndProfitabilitySnapshots', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+

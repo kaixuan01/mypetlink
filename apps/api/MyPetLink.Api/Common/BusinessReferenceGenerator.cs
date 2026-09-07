@@ -7,6 +7,7 @@ public interface IBusinessReferenceGenerator
     string CreateOrderNumber(DateTimeOffset createdAtUtc);
     string CreateReceiptNumber(DateTimeOffset paymentConfirmedAtUtc);
     string CreateBatchNumber(DateTimeOffset generatedAtUtc);
+    string CreateInventoryReceiptNumber(DateTimeOffset receivedAtUtc);
 }
 
 public interface IBusinessReferenceSuffixSource
@@ -37,6 +38,9 @@ public sealed class BusinessReferenceGenerator : IBusinessReferenceGenerator
 
     public string CreateBatchNumber(DateTimeOffset generatedAtUtc) =>
         Create("BAT", generatedAtUtc, nameof(generatedAtUtc));
+
+    public string CreateInventoryReceiptNumber(DateTimeOffset receivedAtUtc) =>
+        Create("STK", receivedAtUtc, nameof(receivedAtUtc));
 
     private string Create(string type, DateTimeOffset eventAtUtc, string parameterName)
     {

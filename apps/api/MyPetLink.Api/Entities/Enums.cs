@@ -123,6 +123,18 @@ public enum TagFulfilmentStatus
     SentToOwner
 }
 
+public enum InventoryReceiptCostMode
+{
+    Simple,
+    Detailed
+}
+
+public enum InventoryCostBasis
+{
+    Unavailable,
+    SpecificIdentification
+}
+
 public enum MemoryVisibility
 {
     Public,

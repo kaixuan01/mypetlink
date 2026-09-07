@@ -31,6 +31,7 @@ public sealed class SmartTag : AuditableEntity
     public Guid? OrderItemId { get; set; }
     public Guid? BatchId { get; set; }
     public Guid? ProductVariantId { get; set; }
+    public Guid? InventoryReceiptId { get; set; }
     public bool HasNfc { get; set; }
     // Tag variant: "Lightweight" or "Standard" (formerly the physical shape).
     public string Variant { get; set; } = "Standard";
@@ -56,6 +57,7 @@ public sealed class SmartTag : AuditableEntity
     public TagOrderItem? OrderItem { get; set; }
     public SmartTagBatch? Batch { get; set; }
     public TagProductVariant? ProductVariant { get; set; }
+    public InventoryReceipt? InventoryReceipt { get; set; }
     public SmartTag? ReplacementForTag { get; set; }
 }
 
@@ -135,6 +137,27 @@ public sealed class TagOrder : AuditableEntity
     public ICollection<TagOrderItem> Items { get; set; } = new List<TagOrderItem>();
     public ICollection<SmartTag> AssignedTags { get; set; } = new List<SmartTag>();
     public ICollection<EmailOutbox> EmailOutboxMessages { get; set; } = new List<EmailOutbox>();
+}
+
+/// <summary>
+/// Immutable per-unit cost provenance captured when a retail order ships.
+/// A row is also written for legacy uncosted tags, with a null unit cost, so
+/// missing cost can never be mistaken for zero.
+/// </summary>
+public sealed class TagOrderItemCostAllocation : Entity
+{
+    public Guid TagOrderItemId { get; set; }
+    public Guid SmartTagId { get; set; }
+    public Guid? InventoryReceiptId { get; set; }
+    public string TagCodeSnapshot { get; set; } = "";
+    public string? InventoryReceiptNumberSnapshot { get; set; }
+    public decimal? UnitLandedCostMyrSnapshot { get; set; }
+    public InventoryCostBasis CostBasis { get; set; } = InventoryCostBasis.Unavailable;
+    public DateTimeOffset CostSnapshotAt { get; set; }
+
+    public TagOrderItem TagOrderItem { get; set; } = null!;
+    public SmartTag SmartTag { get; set; } = null!;
+    public InventoryReceipt? InventoryReceipt { get; set; }
 }
 
 public sealed class PaymentProof : AuditableEntity

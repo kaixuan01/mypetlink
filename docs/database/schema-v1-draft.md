@@ -574,6 +574,32 @@ Rules:
 
 - Phase 1 supports code generation and CSV export.
 - Printed/reseller tracking can stay documented/planned until backend fields are used by UI.
+- A production batch groups generated codes; it is not a costing record.
+
+### InventoryReceipts
+
+Purpose: immutable receipt of physical serialized stock and authoritative landed cost.
+
+Key fields:
+
+- `ReceiptNumber` unique
+- `TagProductVariantId` FK `TagProductVariants`
+- `SmartTagBatchId` nullable FK `SmartTagBatches`
+- `QuantityReceived`, `ReceivedAt`
+- supplier name/reference and notes
+- purchase currency and `ExchangeRateToMyr`
+- goods, freight, customs/tax and other landed-cost components
+- `TotalLandedCostMyr` decimal(18,2)
+- `UnitLandedCostMyr` decimal(18,6)
+- `CreatedByAdminUserId`, audit timestamps and `RowVersion`
+- optional `CorrectsReceiptId` and correction reason
+
+Rules:
+
+- Receipts are appended, never edited or deleted.
+- A correction can move unsold tag links to a new receipt but cannot rewrite
+  cost already snapshotted on a shipment.
+- Receipt linkage does not yet determine sellability for legacy inventory.
 
 ### SmartTags
 
@@ -587,6 +613,7 @@ Key fields:
 - `PetId` nullable FK `Pets`
 - `OrderId` nullable FK `TagOrders`
 - `BatchId` nullable FK `SmartTagBatches`
+- `InventoryReceiptId` nullable FK `InventoryReceipts`
 - `HasNfc`
 - `Variant` (`Lightweight` or `Standard`; renamed from legacy `Shape`)
 - `Status`
@@ -614,6 +641,17 @@ Rules:
 - One physical tag can be linked to one active pet at a time.
 - A pet can have multiple tags.
 - Lost/disabled/replaced/archived tags must not expose owner contact from `/t/:tagCode`.
+
+### TagOrderItemCostAllocations
+
+Purpose: immutable retail shipment COGS provenance, one row per serialized tag.
+
+The row snapshots tag code, optional inventory receipt id/number, exact
+six-decimal unit landed cost, cost basis, and snapshot time. `TagOrderItems`
+also carry authoritative total `CostOfGoodsSnapshot`, `CostSnapshotAt`, and
+`CostBasis`. Merchant lines carry the same totals; their existing
+`MerchantOrderAllocatedTags` rows hold equivalent per-unit receipt/cost
+snapshots when dispatched.
 
 ### TagOrders
 

@@ -72,6 +72,7 @@ public sealed class TagProductVariant : AuditableEntity
     public ICollection<SmartTagBatch> SmartTagBatches { get; set; } = new List<SmartTagBatch>();
     public ICollection<SmartTag> SmartTags { get; set; } = new List<SmartTag>();
     public ICollection<TagOrderItem> OrderItems { get; set; } = new List<TagOrderItem>();
+    public ICollection<InventoryReceipt> InventoryReceipts { get; set; } = new List<InventoryReceipt>();
 }
 
 // Product media reuses MediaFiles for storage and lifecycle. This table only
@@ -148,10 +149,14 @@ public sealed class TagOrderItem : AuditableEntity
     public decimal FinalAmount { get; set; }
     public decimal? UnitWeightGramsSnapshot { get; set; }
     public string Currency { get; set; } = "MYR";
+    public decimal? CostOfGoodsSnapshot { get; set; }
+    public DateTimeOffset? CostSnapshotAt { get; set; }
+    public InventoryCostBasis CostBasis { get; set; } = InventoryCostBasis.Unavailable;
 
     public TagOrder Order { get; set; } = null!;
     public Pet? Pet { get; set; }
     public TagProductVariant? ProductVariant { get; set; }
     public Promotion? Promotion { get; set; }
     public ICollection<SmartTag> AssignedTags { get; set; } = new List<SmartTag>();
+    public ICollection<TagOrderItemCostAllocation> CostAllocations { get; set; } = new List<TagOrderItemCostAllocation>();
 }

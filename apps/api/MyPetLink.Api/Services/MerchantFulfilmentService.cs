@@ -93,6 +93,7 @@ public sealed class MerchantFulfilmentService : IMerchantFulfilmentService
     private readonly IDocumentNumberService _documentNumbers;
     private readonly IShippingFulfilmentService? _shipping;
     private readonly IMerchantEmailService? _merchantEmails;
+    private readonly IInventoryCostingService _inventoryCosting;
     private readonly TimeProvider _timeProvider;
 
     public MerchantFulfilmentService(
@@ -101,7 +102,8 @@ public sealed class MerchantFulfilmentService : IMerchantFulfilmentService
         IDocumentNumberService documentNumbers,
         TimeProvider timeProvider,
         IShippingFulfilmentService? shipping = null,
-        IMerchantEmailService? merchantEmails = null)
+        IMerchantEmailService? merchantEmails = null,
+        IInventoryCostingService? inventoryCosting = null)
     {
         _dbContext = dbContext;
         _auditLogService = auditLogService;
@@ -109,6 +111,7 @@ public sealed class MerchantFulfilmentService : IMerchantFulfilmentService
         _timeProvider = timeProvider;
         _shipping = shipping;
         _merchantEmails = merchantEmails;
+        _inventoryCosting = inventoryCosting ?? new InventoryCostingService(dbContext);
     }
 
     // =====================================================================
@@ -607,6 +610,9 @@ public sealed class MerchantFulfilmentService : IMerchantFulfilmentService
                 allocation.MerchantOrderId == order.Id && allocation.ReleasedAt == null)
             .Include(allocation => allocation.SmartTag)
             .ToListAsync(cancellationToken);
+
+        await _inventoryCosting.SnapshotMerchantShipmentAsync(
+            order, allocations, now, cancellationToken);
 
         foreach (var allocation in allocations)
         {

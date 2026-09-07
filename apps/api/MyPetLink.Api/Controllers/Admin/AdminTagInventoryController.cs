@@ -15,14 +15,52 @@ public sealed class AdminTagInventoryController : ApiControllerBase
     private const int MaxSelectedIds = 500;
 
     private readonly IAdminTagInventoryService _inventoryService;
+    private readonly IInventoryReceiptService _receiptService;
     private readonly ICurrentUserService _currentUserService;
 
     public AdminTagInventoryController(
         IAdminTagInventoryService inventoryService,
+        IInventoryReceiptService receiptService,
         ICurrentUserService currentUserService)
     {
         _inventoryService = inventoryService;
+        _receiptService = receiptService;
         _currentUserService = currentUserService;
+    }
+
+    [HttpGet("receipts")]
+    public async Task<IActionResult> ListReceipts(
+        [FromQuery] InventoryReceiptQuery query,
+        CancellationToken cancellationToken)
+    {
+        var (items, total) = await _receiptService.ListAsync(query, cancellationToken);
+        return Ok(ApiEnvelope.Ok(items, HttpContext, query.Page, query.PageSize, total));
+    }
+
+    [HttpGet("receipt-options")]
+    public async Task<IActionResult> ReceiptOptions(CancellationToken cancellationToken)
+    {
+        var response = await _receiptService.GetOptionsAsync(cancellationToken);
+        return Ok(ApiEnvelope.Ok(response, HttpContext));
+    }
+
+    [HttpPost("receipts")]
+    public async Task<IActionResult> CreateReceipt(
+        [FromBody] CreateInventoryReceiptRequest request,
+        CancellationToken cancellationToken)
+    {
+        var response = await _receiptService.CreateAsync(
+            _currentUserService.Current.UserId, request, cancellationToken);
+        return StatusCode(StatusCodes.Status201Created, ApiEnvelope.Ok(response, HttpContext));
+    }
+
+    [HttpGet("profitability")]
+    public async Task<IActionResult> Profitability(
+        [FromQuery] ProfitabilityReportQuery query,
+        CancellationToken cancellationToken)
+    {
+        var response = await _receiptService.GetProfitabilityAsync(query, cancellationToken);
+        return Ok(ApiEnvelope.Ok(response, HttpContext));
     }
 
     [HttpGet]

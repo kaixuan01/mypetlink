@@ -3,6 +3,7 @@
 import { dateOnlyOrUndefined } from "@/lib/adminListShared";
 import { useEffect, useMemo, useState } from "react";
 import { AdminTagInventoryDetailDrawer } from "@/components/admin/AdminTagInventoryDetailDrawer";
+import { AdminInventoryCostingPanel } from "@/components/admin/AdminInventoryCostingPanel";
 import {
   AdminActionButton,
   AdminNotice,
@@ -640,6 +641,8 @@ export function AdminTagInventoryManager() {
           <p className="px-4 pb-4 text-sm font-bold text-[#1b4f9c]">{generateMessage}</p>
         ) : null}
       </AdminSection>
+
+      <AdminInventoryCostingPanel />
 
       <AdminSection
         title="Tag inventory"

@@ -347,6 +347,8 @@ builder.Services.AddScoped<IMerchantSalesOverviewService, MerchantSalesOverviewS
 builder.Services.AddScoped<IShippingFulfilmentService, ShippingFulfilmentService>();
 builder.Services.AddScoped<ITagPricingService, TagPricingService>();
 builder.Services.AddScoped<ITagOrderInventoryAvailabilityService, TagOrderInventoryAvailabilityService>();
+builder.Services.AddScoped<IInventoryCostingService, InventoryCostingService>();
+builder.Services.AddScoped<IInventoryReceiptService, InventoryReceiptService>();
 builder.Services.AddScoped<ITagCatalogService, TagCatalogService>();
 builder.Services.AddScoped<IOrderDocumentService, OrderDocumentService>();
 builder.Services.AddScoped<IMerchantDocumentService, MerchantDocumentService>();

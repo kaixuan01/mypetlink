@@ -304,6 +304,11 @@ public sealed class MerchantOrderAllocatedTag : Entity
     public Guid? BatchId { get; set; }
     public SmartTagBatch? Batch { get; set; }
     public string? BatchNoSnapshot { get; set; }
+    public Guid? InventoryReceiptIdSnapshot { get; set; }
+    public string? InventoryReceiptNumberSnapshot { get; set; }
+    public decimal? UnitLandedCostMyrSnapshot { get; set; }
+    public InventoryCostBasis CostBasis { get; set; } = InventoryCostBasis.Unavailable;
+    public DateTimeOffset? CostSnapshotAt { get; set; }
 
     public MerchantAllocationStatus Status { get; set; } = MerchantAllocationStatus.Allocated;
 
@@ -425,6 +430,9 @@ public sealed class MerchantOrderItem : Entity
     public decimal LineDiscount { get; set; }
     public decimal LineSubtotal { get; set; }
     public int SortOrder { get; set; }
+    public decimal? CostOfGoodsSnapshot { get; set; }
+    public DateTimeOffset? CostSnapshotAt { get; set; }
+    public InventoryCostBasis CostBasis { get; set; } = InventoryCostBasis.Unavailable;
 }
 
 /// <summary>

@@ -57,8 +57,11 @@ public sealed class MyPetLinkDbContext : DbContext
     public DbSet<PromotionVariant> PromotionVariants => Set<PromotionVariant>();
     public DbSet<SmartTagBatch> SmartTagBatches => Set<SmartTagBatch>();
     public DbSet<SmartTag> SmartTags => Set<SmartTag>();
+    public DbSet<InventoryReceipt> InventoryReceipts => Set<InventoryReceipt>();
     public DbSet<TagOrder> TagOrders => Set<TagOrder>();
     public DbSet<TagOrderItem> TagOrderItems => Set<TagOrderItem>();
+    public DbSet<TagOrderItemCostAllocation> TagOrderItemCostAllocations =>
+        Set<TagOrderItemCostAllocation>();
     public DbSet<DeliveryRate> DeliveryRates => Set<DeliveryRate>();
     public DbSet<DeliveryStateRateOverride> DeliveryStateRateOverrides =>
         Set<DeliveryStateRateOverride>();
@@ -388,6 +391,9 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.Property(item => item.LineDiscount).HasPrecision(18, 2);
             entity.Property(item => item.LineSubtotal).HasPrecision(18, 2);
             entity.Property(item => item.UnitWeightGramsSnapshot).HasPrecision(10, 2);
+            entity.Property(item => item.CostOfGoodsSnapshot).HasPrecision(18, 6);
+            entity.Property(item => item.CostBasis).HasConversion<string>().HasMaxLength(32)
+                .HasDefaultValue(InventoryCostBasis.Unavailable);
             entity.HasIndex(item => item.MerchantOrderId);
         });
 
@@ -398,6 +404,10 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.Property(item => item.Status).HasConversion<string>().HasMaxLength(32);
             entity.Property(item => item.TagCodeSnapshot).HasMaxLength(64).IsRequired();
             entity.Property(item => item.BatchNoSnapshot).HasMaxLength(64);
+            entity.Property(item => item.InventoryReceiptNumberSnapshot).HasMaxLength(80);
+            entity.Property(item => item.UnitLandedCostMyrSnapshot).HasPrecision(18, 6);
+            entity.Property(item => item.CostBasis).HasConversion<string>().HasMaxLength(32)
+                .HasDefaultValue(InventoryCostBasis.Unavailable);
             entity.Property(item => item.ReleasedReason).HasMaxLength(500);
 
             // One physical tag can be held by one merchant order at a time. The
@@ -1276,6 +1286,7 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasIndex(item => item.OrderId);
             entity.HasIndex(item => item.BatchId);
             entity.HasIndex(item => item.ProductVariantId);
+            entity.HasIndex(item => item.InventoryReceiptId);
             entity.HasIndex(item => item.OrderItemId);
             entity.HasIndex(item => item.Status);
             entity.HasIndex(item => new { item.Status, item.PetId });
@@ -1308,6 +1319,10 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasOne(item => item.ProductVariant)
                 .WithMany(variant => variant.SmartTags)
                 .HasForeignKey(item => item.ProductVariantId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.InventoryReceipt)
+                .WithMany(receipt => receipt.SmartTags)
+                .HasForeignKey(item => item.InventoryReceiptId)
                 .OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(item => item.ReplacementForTag)
                 .WithMany()
@@ -1407,6 +1422,9 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.Property(item => item.FinalAmount).HasPrecision(18, 2);
             entity.Property(item => item.UnitWeightGramsSnapshot).HasPrecision(10, 2);
             entity.Property(item => item.Currency).HasMaxLength(3);
+            entity.Property(item => item.CostOfGoodsSnapshot).HasPrecision(18, 6);
+            entity.Property(item => item.CostBasis).HasConversion<string>().HasMaxLength(32)
+                .HasDefaultValue(InventoryCostBasis.Unavailable);
             entity.HasIndex(item => item.OrderId);
             entity.HasIndex(item => item.ProductVariantId);
             entity.HasIndex(item => item.PetId);
@@ -1426,6 +1444,75 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasOne(item => item.Promotion)
                 .WithMany(promotion => promotion.OrderItems)
                 .HasForeignKey(item => item.PromotionId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<InventoryReceipt>(entity =>
+        {
+            entity.ToTable("InventoryReceipts", table =>
+            {
+                table.HasCheckConstraint("CK_InventoryReceipts_QuantityReceived", "[QuantityReceived] > 0");
+                table.HasCheckConstraint("CK_InventoryReceipts_ExchangeRate", "[ExchangeRateToMyr] > 0");
+                table.HasCheckConstraint("CK_InventoryReceipts_Costs", "[GoodsCost] >= 0 AND [FreightCost] >= 0 AND [CustomsTaxCost] >= 0 AND [OtherLandedCost] >= 0 AND [TotalLandedCostMyr] > 0 AND [UnitLandedCostMyr] > 0");
+            });
+            entity.Property(item => item.ReceiptNumber).HasMaxLength(80).IsRequired();
+            entity.Property(item => item.SupplierName).HasMaxLength(200);
+            entity.Property(item => item.SupplierReference).HasMaxLength(120);
+            entity.Property(item => item.Notes).HasMaxLength(2000);
+            entity.Property(item => item.PurchaseCurrency).HasMaxLength(3).IsRequired();
+            entity.Property(item => item.ExchangeRateToMyr).HasPrecision(18, 6);
+            entity.Property(item => item.CostMode).HasConversion<string>().HasMaxLength(24);
+            entity.Property(item => item.GoodsCost).HasPrecision(18, 2);
+            entity.Property(item => item.FreightCost).HasPrecision(18, 2);
+            entity.Property(item => item.CustomsTaxCost).HasPrecision(18, 2);
+            entity.Property(item => item.OtherLandedCost).HasPrecision(18, 2);
+            entity.Property(item => item.TotalLandedCostMyr).HasPrecision(18, 2);
+            entity.Property(item => item.UnitLandedCostMyr).HasPrecision(18, 6);
+            entity.Property(item => item.CorrectionReason).HasMaxLength(1000);
+            entity.Property(item => item.RowVersion).IsRowVersion();
+            entity.HasIndex(item => item.ReceiptNumber).IsUnique();
+            entity.HasIndex(item => new { item.TagProductVariantId, item.ReceivedAt });
+            entity.HasIndex(item => item.SmartTagBatchId);
+            entity.HasOne(item => item.TagProductVariant)
+                .WithMany(variant => variant.InventoryReceipts)
+                .HasForeignKey(item => item.TagProductVariantId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.SmartTagBatch)
+                .WithMany()
+                .HasForeignKey(item => item.SmartTagBatchId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.CreatedByAdminUser)
+                .WithMany()
+                .HasForeignKey(item => item.CreatedByAdminUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.CorrectsReceipt)
+                .WithMany()
+                .HasForeignKey(item => item.CorrectsReceiptId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<TagOrderItemCostAllocation>(entity =>
+        {
+            entity.ToTable("TagOrderItemCostAllocations");
+            entity.Property(item => item.TagCodeSnapshot).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.InventoryReceiptNumberSnapshot).HasMaxLength(80);
+            entity.Property(item => item.UnitLandedCostMyrSnapshot).HasPrecision(18, 6);
+            entity.Property(item => item.CostBasis).HasConversion<string>().HasMaxLength(32)
+                .HasDefaultValue(InventoryCostBasis.Unavailable);
+            entity.HasIndex(item => item.SmartTagId).IsUnique();
+            entity.HasIndex(item => item.TagOrderItemId);
+            entity.HasIndex(item => item.InventoryReceiptId);
+            entity.HasOne(item => item.TagOrderItem)
+                .WithMany(item => item.CostAllocations)
+                .HasForeignKey(item => item.TagOrderItemId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.SmartTag)
+                .WithMany()
+                .HasForeignKey(item => item.SmartTagId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.InventoryReceipt)
+                .WithMany()
+                .HasForeignKey(item => item.InventoryReceiptId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

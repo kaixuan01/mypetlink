@@ -19,6 +19,7 @@ public sealed class AdminService : SkeletonService, IAdminService
     private readonly IEmailOutboxService _emailOutboxService;
     private readonly IShippingFulfilmentService _shippingFulfilmentService;
     private readonly IOrderCheckoutSettingsService _checkoutSettings;
+    private readonly IInventoryCostingService _inventoryCosting;
     private readonly FeatureOptions _features;
     private readonly IBusinessReferenceGenerator _businessReferences;
     private readonly TimeProvider _timeProvider;
@@ -66,7 +67,8 @@ public sealed class AdminService : SkeletonService, IAdminService
         IBusinessReferenceGenerator businessReferences,
         TimeProvider timeProvider,
         IShippingFulfilmentService? shippingFulfilmentService = null,
-        IOrderCheckoutSettingsService? checkoutSettings = null)
+        IOrderCheckoutSettingsService? checkoutSettings = null,
+        IInventoryCostingService? inventoryCosting = null)
     {
         _dbContext = dbContext;
         _auditLogService = auditLogService;
@@ -78,6 +80,7 @@ public sealed class AdminService : SkeletonService, IAdminService
             ?? new ShippingFulfilmentService(dbContext, auditLogService, timeProvider);
         _checkoutSettings = checkoutSettings
             ?? new OrderCheckoutSettingsService(dbContext, auditLogService, timeProvider);
+        _inventoryCosting = inventoryCosting ?? new InventoryCostingService(dbContext);
     }
 
     // --- Dashboard ------------------------------------------------------------
@@ -709,6 +712,8 @@ public sealed class AdminService : SkeletonService, IAdminService
         {
             AdminTagInventoryService.MarkSentToOwner(shippedTag, now);
         }
+        await _inventoryCosting.SnapshotRetailShipmentAsync(
+            order, shippedTags, now, cancellationToken);
 
         _auditLogService.Append(
             admin.Id, ActorType.Admin, "order.mark-shipped", "TagOrder", order.Id,
