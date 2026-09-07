@@ -31,11 +31,12 @@ describe("Merchant Sales navigation", () => {
     ).toBe(adminRoutes.merchantSales);
   });
 
-  it("offers the six workspace sections", () => {
+  it("offers the seven workspace sections", () => {
     expect(merchantSalesTabs.map((tab) => tab.id)).toEqual([
       "overview",
       "merchants",
       "salespersons",
+      "referrals",
       "quotations",
       "orders",
       "invoices",

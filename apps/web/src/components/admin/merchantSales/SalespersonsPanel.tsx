@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import { siteConfig } from "@/config/site";
+import { referralUrl } from "@/lib/referralAttribution";
 import { AdminSection } from "@/components/admin/AdminPanels";
 import {
   AdminDataTable,
@@ -153,6 +155,15 @@ export function SalespersonsPanel({
       ),
     },
     {
+      id: "referral",
+      header: "Public referral code",
+      cell: (row) => (
+        <span className="whitespace-nowrap font-mono text-xs font-bold text-slate-700">
+          {orNotProvided(row.referralCode)}
+        </span>
+      ),
+    },
+    {
       id: "contact",
       header: "Contact",
       cell: (row) => (
@@ -233,6 +244,13 @@ export function SalespersonsPanel({
         >
           <div className="grid gap-4 p-5">
             <DetailGrid>
+              <DetailRow label="Internal code">{open.salespersonCode}</DetailRow>
+              <DetailRow label="Public referral code">
+                {orNotProvided(open.referralCode)}
+              </DetailRow>
+              <DetailRow label="Referral URL">
+                {open.referralCode ? referralUrl(siteConfig.url, open.referralCode) : "Not provided"}
+              </DetailRow>
               <DetailRow label="Email">{orNotProvided(open.email)}</DetailRow>
               <DetailRow label="Phone">{orNotProvided(open.phone)}</DetailRow>
               <DetailRow label="Default commission">
@@ -241,6 +259,20 @@ export function SalespersonsPanel({
               <DetailRow label="Status">{open.isActive ? "Active" : "Inactive"}</DetailRow>
               <DetailRow label="Added">{shortDate(open.createdAt)}</DetailRow>
             </DetailGrid>
+            {open.referralCode ? (
+              <button
+                className={`${secondaryButton} w-fit`}
+                onClick={() => {
+                  void navigator.clipboard
+                    .writeText(referralUrl(siteConfig.url, open.referralCode!))
+                    .then(() => setMessage("Referral URL copied."))
+                    .catch(() => setActionError("We couldn’t copy the referral URL."));
+                }}
+                type="button"
+              >
+                Copy referral URL
+              </button>
+            ) : null}
             <p className="text-sm font-semibold text-slate-500">{commissionHelp}</p>
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
               <p className="text-[0.68rem] font-extrabold uppercase text-slate-400">
@@ -359,6 +391,7 @@ function SalespersonEditor({
     String(salesperson?.defaultCommissionPercentage ?? 0)
   );
   const [notes, setNotes] = useState(salesperson?.internalNotes ?? "");
+  const [referralCode, setReferralCode] = useState(salesperson?.referralCode ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -383,6 +416,7 @@ function SalespersonEditor({
       phone: phone.trim() || null,
       defaultCommissionPercentage: parsed,
       internalNotes: notes.trim() || null,
+      referralCode: referralCode.trim() || null,
       concurrencyToken: salesperson?.concurrencyToken ?? null,
     };
 
@@ -418,6 +452,13 @@ function SalespersonEditor({
         />
         <Field error={fieldErrors.email} label="Email" onChange={setEmail} type="email" value={email} />
         <Field error={fieldErrors.phone} label="Phone" onChange={setPhone} value={phone} />
+        <Field
+          error={fieldErrors.referralCode}
+          hint="3–24 letters or numbers. Saved in uppercase and used in the public referral URL."
+          label="Public referral code"
+          onChange={setReferralCode}
+          value={referralCode}
+        />
         <Field
           error={fieldErrors.defaultCommissionPercentage}
           hint="Between 0 and 100."

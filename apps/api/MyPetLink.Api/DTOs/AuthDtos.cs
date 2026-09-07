@@ -2,7 +2,10 @@ using System.ComponentModel.DataAnnotations;
 
 namespace MyPetLink.Api.DTOs;
 
-public sealed record GoogleLoginRequest([Required] string IdToken);
+public sealed record GoogleLoginRequest(
+    [Required] string IdToken,
+    [MaxLength(24)] string? ReferralCode = null,
+    DateTimeOffset? ReferralCapturedAt = null);
 
 public sealed record RefreshTokenRequest([Required] string RefreshToken);
 

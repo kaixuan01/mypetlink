@@ -37,6 +37,8 @@ public sealed class MyPetLinkDbContext : DbContext
     public DbSet<ExternalLogin> ExternalLogins => Set<ExternalLogin>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<OwnerProfile> OwnerProfiles => Set<OwnerProfile>();
+    public DbSet<OwnerReferralAttribution> OwnerReferralAttributions =>
+        Set<OwnerReferralAttribution>();
     public DbSet<AdminUser> AdminUsers => Set<AdminUser>();
     public DbSet<Plan> Plans => Set<Plan>();
     public DbSet<PlanLimit> PlanLimits => Set<PlanLimit>();
@@ -220,10 +222,18 @@ public sealed class MyPetLinkDbContext : DbContext
 
         modelBuilder.Entity<Salesperson>(entity =>
         {
-            entity.ToTable("Salespersons");
+            entity.ToTable("Salespersons", table => table.HasCheckConstraint(
+                "CK_Salespersons_ReferralCode",
+                "[ReferralCode] IS NULL OR ([ReferralCode] NOT IN ('ADMIN','API','LOGIN','WWW','AUTH') AND [ReferralCode] NOT LIKE '%[^A-Z0-9]%' AND LEN([ReferralCode]) BETWEEN 3 AND 24)"));
             entity.Property(item => item.RowVersion).IsRowVersion();
             entity.Property(item => item.SalespersonCode).HasMaxLength(32).IsRequired();
             entity.HasIndex(item => item.SalespersonCode).IsUnique();
+            entity.Property(item => item.ReferralCode)
+                .HasMaxLength(ReferralCodes.MaxLength)
+                .UseCollation("Latin1_General_100_CI_AS");
+            entity.HasIndex(item => item.ReferralCode)
+                .IsUnique()
+                .HasFilter("[ReferralCode] IS NOT NULL");
             entity.Property(item => item.Name).HasMaxLength(160).IsRequired();
             entity.Property(item => item.Email).HasMaxLength(254);
             entity.Property(item => item.Phone).HasMaxLength(32);
@@ -1000,6 +1010,31 @@ public sealed class MyPetLinkDbContext : DbContext
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        modelBuilder.Entity<OwnerReferralAttribution>(entity =>
+        {
+            entity.ToTable("OwnerReferralAttributions");
+            entity.Property(item => item.ReferralCodeSnapshot)
+                .HasMaxLength(ReferralCodes.MaxLength)
+                .IsRequired();
+            entity.Property(item => item.SalespersonCodeSnapshot).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.SalespersonNameSnapshot).HasMaxLength(160).IsRequired();
+            entity.Property(item => item.AttributionSource)
+                .HasConversion<string>()
+                .HasMaxLength(32);
+            entity.Property(item => item.RowVersion).IsRowVersion();
+            entity.HasIndex(item => item.UserId).IsUnique();
+            entity.HasIndex(item => item.SalespersonId);
+            entity.HasIndex(item => item.AttributedAt);
+            entity.HasOne(item => item.User)
+                .WithOne(user => user.ReferralAttribution)
+                .HasForeignKey<OwnerReferralAttribution>(item => item.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.Salesperson)
+                .WithMany()
+                .HasForeignKey(item => item.SalespersonId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
         modelBuilder.Entity<AdminUser>(entity =>
         {
             entity.ToTable("AdminUsers");
@@ -1378,6 +1413,9 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.Property(item => item.ShippingNotes).HasMaxLength(1000);
             entity.Property(item => item.IdempotencyKey).HasMaxLength(80);
             entity.Property(item => item.RequestFingerprint).HasMaxLength(128);
+            entity.Property(item => item.SalespersonCodeSnapshot).HasMaxLength(32);
+            entity.Property(item => item.SalespersonNameSnapshot).HasMaxLength(160);
+            entity.Property(item => item.AttributionSource).HasConversion<string>().HasMaxLength(32);
             entity.HasIndex(item => item.OrderNumber).IsUnique();
             entity.HasIndex(item => item.ReceiptNumber)
                 .IsUnique()
@@ -1388,6 +1426,7 @@ public sealed class MyPetLinkDbContext : DbContext
                 .IsUnique()
                 .HasFilter("[IdempotencyKey] IS NOT NULL");
             entity.HasIndex(item => item.OwnerUserId);
+            entity.HasIndex(item => item.SalespersonId);
             entity.HasIndex(item => item.PetId);
             entity.HasIndex(item => item.SmartTagId);
             entity.HasIndex(item => item.Status);
@@ -1405,6 +1444,10 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasOne(item => item.OwnerUser)
                 .WithMany()
                 .HasForeignKey(item => item.OwnerUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.Salesperson)
+                .WithMany()
+                .HasForeignKey(item => item.SalespersonId)
                 .OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(item => item.Pet)
                 .WithMany()

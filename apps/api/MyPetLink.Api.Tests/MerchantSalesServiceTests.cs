@@ -197,6 +197,37 @@ public class MerchantSalesServiceTests
         Assert.Equal("MPL-SALES-002", second.SalespersonCode);
     }
 
+    [Fact]
+    public async Task SalespersonReferralCodeIsNormalizedAndCannotBeReused()
+    {
+        using var h = Harness.Create();
+        var first = await h.Service.CreateSalespersonAsync(null,
+            new UpsertSalespersonRequest(
+                "First", null, null, 5m, null, ReferralCode: " amanda "),
+            default);
+
+        Assert.Equal("AMANDA", first.ReferralCode);
+        var error = await Assert.ThrowsAsync<ApiException>(() =>
+            h.Service.CreateSalespersonAsync(null,
+                new UpsertSalespersonRequest(
+                    "Second", null, null, 5m, null, ReferralCode: "Amanda"),
+                default));
+        Assert.Equal("validation_failed", error.Code);
+        Assert.Contains("referralCode", error.Details!.Keys);
+    }
+
+    [Fact]
+    public async Task ReservedReferralCodeIsRejected()
+    {
+        using var h = Harness.Create();
+        var error = await Assert.ThrowsAsync<ApiException>(() =>
+            h.Service.CreateSalespersonAsync(null,
+                new UpsertSalespersonRequest(
+                    "First", null, null, 5m, null, ReferralCode: "ADMIN"),
+                default));
+        Assert.Equal("validation_failed", error.Code);
+    }
+
     [Theory]
     [InlineData(-0.01)]
     [InlineData(100.01)]

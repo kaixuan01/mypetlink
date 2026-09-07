@@ -16,6 +16,48 @@ public sealed class TagOrderCatalogIntegrationTests
     private static readonly Guid AdminId = Guid.Parse("94444444-4444-4444-4444-444444444444");
 
     [Fact]
+    public async Task Create_SnapshotsServerOwnedOwnerReferralAttribution()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var salesperson = new Salesperson
+        {
+            SalespersonCode = "MPL-SP-3001",
+            ReferralCode = "AMANDA",
+            Name = "Amanda Tan",
+            IsActive = true
+        };
+        harness.Db.Salespersons.Add(salesperson);
+        harness.Db.OwnerReferralAttributions.Add(new OwnerReferralAttribution
+        {
+            UserId = OwnerId,
+            Salesperson = salesperson,
+            ReferralCodeSnapshot = "AMANDA",
+            SalespersonCodeSnapshot = "MPL-SP-3001",
+            SalespersonNameSnapshot = "Amanda Tan",
+            AttributionSource = ReferralAttributionSource.ReferralLink,
+            CapturedAt = DateTimeOffset.Parse("2026-09-01T00:00:00Z"),
+            AttributedAt = DateTimeOffset.Parse("2026-09-02T00:00:00Z")
+        });
+        await harness.Db.SaveChangesAsync();
+
+        var created = await harness.Service.CreateAsync(
+            OwnerId,
+            Request(harness.Pet.Id, harness.Variant.PublicKey));
+        var order = await harness.Db.TagOrders.SingleAsync(item => item.Id == created.Order.Id);
+
+        Assert.Equal(salesperson.Id, order.SalespersonId);
+        Assert.Equal("MPL-SP-3001", order.SalespersonCodeSnapshot);
+        Assert.Equal("Amanda Tan", order.SalespersonNameSnapshot);
+        Assert.Equal(ReferralAttributionSource.ReferralLink, order.AttributionSource);
+
+        salesperson.Name = "Renamed later";
+        var attribution = await harness.Db.OwnerReferralAttributions.SingleAsync();
+        attribution.SalespersonNameSnapshot = "Corrected later";
+        await harness.Db.SaveChangesAsync();
+        Assert.Equal("Amanda Tan", order.SalespersonNameSnapshot);
+    }
+
+    [Fact]
     public async Task Create_AssignsMalaysiaTimestampedOrderNumberFromCreatedAt()
     {
         var now = DateTimeOffset.Parse("2026-07-27T16:05:06Z");

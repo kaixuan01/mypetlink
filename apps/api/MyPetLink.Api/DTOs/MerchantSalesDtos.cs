@@ -65,11 +65,13 @@ public sealed record UpsertSalespersonRequest(
         ErrorMessage = "Commission must be between 0 and 100 percent.")]
     decimal DefaultCommissionPercentage,
     [MaxLength(2000)] string? InternalNotes,
-    string? ConcurrencyToken = null);
+    string? ConcurrencyToken = null,
+    [MaxLength(24)] string? ReferralCode = null);
 
 public sealed record SalespersonResponse(
     Guid Id,
     string SalespersonCode,
+    string? ReferralCode,
     string Name,
     string? Email,
     string? Phone,

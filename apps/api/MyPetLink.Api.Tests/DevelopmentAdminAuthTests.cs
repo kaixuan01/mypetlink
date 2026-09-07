@@ -282,8 +282,11 @@ public sealed class DevelopmentAdminAuthTests
             }),
             Microsoft.Extensions.Options.Options.Create(new AdminSeedOptions()),
             Microsoft.Extensions.Options.Options.Create(options),
+            Microsoft.Extensions.Options.Options.Create(new ReferralAttributionOptions()),
             seeder,
-            environment);
+            environment,
+            new AuditLogService(db, new HttpContextAccessor()),
+            TimeProvider.System);
     }
 
     private static DevelopmentAdminSeeder CreateSeeder(

@@ -62,6 +62,7 @@ export function salesperson(overrides: Partial<AdminSalesperson> = {}): AdminSal
   return {
     id: "rep-1",
     salespersonCode: "MPL-SALES-001",
+    referralCode: "AISYAH",
     name: "Nur Aisyah",
     email: "aisyah@mypetlink.example",
     phone: "+60123456700",

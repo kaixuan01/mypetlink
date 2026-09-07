@@ -4,6 +4,7 @@ import { apiRequest, isApiClientError } from "@/services/apiClient";
 // by the server; nothing here recalculates money or infers a lifecycle state.
 
 const base = "/api/v1/admin/merchant-sales";
+const referralBase = "/api/v1/admin/referral-attributions";
 
 export type MerchantAddress = {
   addressLine1: string;
@@ -41,6 +42,7 @@ export type AdminMerchant = {
 export type AdminSalesperson = {
   id: string;
   salespersonCode: string;
+  referralCode: string | null;
   name: string;
   email: string | null;
   phone: string | null;
@@ -167,6 +169,43 @@ export type AdminMerchantOrderTimelineEntry = {
 
 export type AdminPagedResult<T> = { items: T[]; total: number };
 
+export type AdminOwnerReferralAttribution = {
+  userId: string;
+  ownerName: string;
+  ownerEmail: string;
+  salespersonId: string;
+  salespersonCode: string;
+  salespersonName: string;
+  referralCode: string;
+  attributionSource: "ReferralLink" | "ManualAdmin";
+  capturedAt: string;
+  attributedAt: string;
+  updatedAt: string;
+  concurrencyToken: string;
+};
+
+export function listOwnerReferralAttributions(
+  params: { page: number; pageSize: number; search?: string },
+  signal?: AbortSignal
+) {
+  return paged<AdminOwnerReferralAttribution>(
+    `${referralBase}${query({ ...params })}`,
+    signal
+  );
+}
+
+export async function correctOwnerReferralAttribution(
+  userId: string,
+  salespersonId: string,
+  concurrencyToken: string
+) {
+  const response = await apiRequest<AdminOwnerReferralAttribution>(
+    `${referralBase}/${userId}`,
+    { method: "PUT", body: { salespersonId, concurrencyToken } }
+  );
+  return must(response.data, "referral attribution");
+}
+
 async function paged<T>(path: string, signal?: AbortSignal): Promise<AdminPagedResult<T>> {
   const response = await apiRequest<T[]>(path, { signal });
   return { items: response.data ?? [], total: response.meta?.total ?? 0 };
@@ -257,6 +296,7 @@ export type UpsertSalespersonInput = {
   phone: string | null;
   defaultCommissionPercentage: number;
   internalNotes: string | null;
+  referralCode: string | null;
   concurrencyToken?: string | null;
 };
 

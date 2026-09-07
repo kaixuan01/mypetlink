@@ -64,6 +64,8 @@ public sealed class Salesperson : AuditableEntity
     public const decimal MaxCommissionPercentage = 100m;
 
     public string SalespersonCode { get; set; } = "";
+    /// <summary>Public, case-insensitive referral code. Null until assigned by Admin.</summary>
+    public string? ReferralCode { get; set; }
     public string Name { get; set; } = "";
     public string? Email { get; set; }
     public string? Phone { get; set; }

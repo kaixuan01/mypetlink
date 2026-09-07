@@ -207,7 +207,9 @@ public sealed class MerchantSalesService : IMerchantSalesService
         if (!string.IsNullOrWhiteSpace(search))
         {
             var term = search.Trim();
-            query = query.Where(s => s.SalespersonCode.Contains(term) || s.Name.Contains(term));
+            query = query.Where(s => s.SalespersonCode.Contains(term)
+                || (s.ReferralCode != null && s.ReferralCode.Contains(term))
+                || s.Name.Contains(term));
         }
 
         var total = await query.CountAsync(cancellationToken);
@@ -227,11 +229,14 @@ public sealed class MerchantSalesService : IMerchantSalesService
         Guid? actorId, UpsertSalespersonRequest request, CancellationToken cancellationToken)
     {
         ValidateSalesperson(request);
+        var referralCode = await ValidateAvailableReferralCodeAsync(
+            request.ReferralCode, null, cancellationToken);
 
         var now = _timeProvider.GetUtcNow();
         var salesperson = new Salesperson
         {
             SalespersonCode = await _numbers.NextSalespersonCodeAsync(cancellationToken),
+            ReferralCode = referralCode,
             Name = request.Name.Trim(),
             Email = Trimmed(request.Email),
             Phone = Trimmed(request.Phone),
@@ -243,7 +248,7 @@ public sealed class MerchantSalesService : IMerchantSalesService
         };
 
         _dbContext.Salespersons.Add(salesperson);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        await SaveSalespersonAsync(cancellationToken);
 
         _auditLogService.Append(actorId, ActorType.Admin, "salesperson.create", "Salesperson",
             salesperson.Id, null, SalespersonAuditSnapshot(salesperson));
@@ -258,9 +263,12 @@ public sealed class MerchantSalesService : IMerchantSalesService
         ValidateSalesperson(request);
         var salesperson = await RequireSalespersonAsync(id, cancellationToken, tracked: true);
         ApplyConcurrency(salesperson, request.ConcurrencyToken);
+        var referralCode = await ValidateAvailableReferralCodeAsync(
+            request.ReferralCode, id, cancellationToken);
 
         var before = SalespersonAuditSnapshot(salesperson);
         salesperson.Name = request.Name.Trim();
+        salesperson.ReferralCode = referralCode;
         salesperson.Email = Trimmed(request.Email);
         salesperson.Phone = Trimmed(request.Phone);
         salesperson.DefaultCommissionPercentage = request.DefaultCommissionPercentage;
@@ -1267,6 +1275,30 @@ public sealed class MerchantSalesService : IMerchantSalesService
             throw Validation("email", "Enter a valid email address.");
         if (!string.IsNullOrWhiteSpace(request.Phone) && !PhonePattern.IsMatch(request.Phone.Trim()))
             throw Validation("phone", "Enter a valid phone number.");
+
+        if (!string.IsNullOrWhiteSpace(request.ReferralCode)
+            && !ReferralCodes.TryNormalize(request.ReferralCode, out _))
+        {
+            throw Validation("referralCode",
+                "Use 3 to 24 letters or numbers. This referral code is not available.");
+        }
+    }
+
+    private async Task<string?> ValidateAvailableReferralCodeAsync(
+        string? value, Guid? currentSalespersonId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+
+        ReferralCodes.TryNormalize(value, out var normalized);
+        var inUse = await _dbContext.Salespersons.AnyAsync(
+            item => item.Id != currentSalespersonId && item.ReferralCode == normalized,
+            cancellationToken);
+        if (inUse)
+        {
+            throw Validation("referralCode", "Another salesperson already uses this referral code.");
+        }
+
+        return normalized;
     }
 
     private static void ApplyMerchant(Merchant merchant, UpsertMerchantRequest request, Salesperson? salesperson)
@@ -1419,6 +1451,24 @@ public sealed class MerchantSalesService : IMerchantSalesService
             throw new ApiException(409, "concurrency_conflict",
                 "Someone else changed this record. Reload and try again.");
         }
+        catch (DbUpdateException exception) when (
+            UniqueConstraintViolation.IsFor(exception, "IX_Salespersons_ReferralCode"))
+        {
+            throw Validation("referralCode", "Another salesperson already uses this referral code.");
+        }
+    }
+
+    private async Task SaveSalespersonAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception) when (
+            UniqueConstraintViolation.IsFor(exception, "IX_Salespersons_ReferralCode"))
+        {
+            throw Validation("referralCode", "Another salesperson already uses this referral code.");
+        }
     }
 
     private static string? Trimmed(string? value)
@@ -1445,7 +1495,8 @@ public sealed class MerchantSalesService : IMerchantSalesService
         merchant.UpdatedAt, Convert.ToBase64String(merchant.RowVersion));
 
     private static SalespersonResponse ToResponse(Salesperson salesperson) => new(
-        salesperson.Id, salesperson.SalespersonCode, salesperson.Name, salesperson.Email,
+        salesperson.Id, salesperson.SalespersonCode, salesperson.ReferralCode,
+        salesperson.Name, salesperson.Email,
         salesperson.Phone, salesperson.DefaultCommissionPercentage, salesperson.InternalNotes,
         salesperson.IsActive, salesperson.CreatedAt, salesperson.UpdatedAt,
         Convert.ToBase64String(salesperson.RowVersion));
@@ -1522,6 +1573,7 @@ public sealed class MerchantSalesService : IMerchantSalesService
     private static object SalespersonAuditSnapshot(Salesperson salesperson) => new
     {
         salesperson.SalespersonCode,
+        salesperson.ReferralCode,
         salesperson.Name,
         salesperson.DefaultCommissionPercentage,
         salesperson.IsActive,

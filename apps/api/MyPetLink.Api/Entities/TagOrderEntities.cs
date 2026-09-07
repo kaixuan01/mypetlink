@@ -127,12 +127,20 @@ public sealed class TagOrder : AuditableEntity
     // fingerprint detects the same key being reused with a different payload.
     public string? IdempotencyKey { get; set; }
     public string? RequestFingerprint { get; set; }
+    // Immutable owner-attribution snapshot. It is server-derived and therefore
+    // deliberately absent from checkout requests and idempotency fingerprints.
+    public Guid? SalespersonId { get; set; }
+    public string? SalespersonCodeSnapshot { get; set; }
+    public string? SalespersonNameSnapshot { get; set; }
+    public ReferralAttributionSource? AttributionSource { get; set; }
+    public DateTimeOffset? AttributedAt { get; set; }
     public byte[] RowVersion { get; set; } = [];
 
     public User OwnerUser { get; set; } = null!;
     public Pet Pet { get; set; } = null!;
     public SmartTag? SmartTag { get; set; }
     public SmartTag? ReplacementForTag { get; set; }
+    public Salesperson? Salesperson { get; set; }
     public ICollection<PaymentProof> PaymentProofs { get; set; } = new List<PaymentProof>();
     public ICollection<TagOrderItem> Items { get; set; } = new List<TagOrderItem>();
     public ICollection<SmartTag> AssignedTags { get; set; } = new List<SmartTag>();

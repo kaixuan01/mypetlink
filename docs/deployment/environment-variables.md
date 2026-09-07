@@ -144,6 +144,7 @@ Retry is refused for a template that cannot currently send.
 | `CloudflareR2__PresignedUploadExpiryMinutes` | `CloudflareR2:PresignedUploadExpiryMinutes` | No | Signed PUT URL lifetime. Default: `5`. |
 | `CloudflareR2__PresignedDownloadExpiryMinutes` | `CloudflareR2:PresignedDownloadExpiryMinutes` | No | Signed private GET URL lifetime. Default: `5`. |
 | `Features__SmartTagOrderingEnabled` | `Features:SmartTagOrderingEnabled` | No | Backend feature flag for creating new Smart Tag orders. Keep `false` for the free-profiles launch; set `true` only when physical tags are ready. |
+| `ReferralAttribution__WindowDays` | `ReferralAttribution:WindowDays` | No | Maximum age of a browser-captured first-touch referral accepted when a new owner account is created. Default `90`; valid range `1`–`3650`. The server clock is authoritative. |
 | `RateLimiting__PublicTagScan__PermitLimit` | `RateLimiting:PublicTagScan:PermitLimit` | No | Public QR/NFC/legacy requests allowed per resolved client IP in one window. Default `60`. |
 | `RateLimiting__PublicTagScan__WindowSeconds` | `RateLimiting:PublicTagScan:WindowSeconds` | No | Public scan window in seconds. Default `60`. |
 | `RateLimiting__TagActivation__PermitLimit` | `RateLimiting:TagActivation:PermitLimit` | No | Activation attempts allowed per authenticated user, falling back to client IP. Default `10`. |

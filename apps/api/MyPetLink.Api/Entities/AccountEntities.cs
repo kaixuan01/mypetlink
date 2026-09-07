@@ -12,11 +12,32 @@ public sealed class User : AuditableEntity
     public DateTimeOffset? DeletedAt { get; set; }
 
     public OwnerProfile? OwnerProfile { get; set; }
+    public OwnerReferralAttribution? ReferralAttribution { get; set; }
     public AdminUser? AdminUser { get; set; }
     public ICollection<ExternalLogin> ExternalLogins { get; set; } = new List<ExternalLogin>();
     public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
     public ICollection<Pet> Pets { get; set; } = new List<Pet>();
     public ICollection<EmailOutbox> EmailOutboxMessages { get; set; } = new List<EmailOutbox>();
+}
+
+/// <summary>
+/// The owner's single first-touch salesperson attribution. Historical orders
+/// copy this row; changing it never rewrites an order already placed.
+/// </summary>
+public sealed class OwnerReferralAttribution : AuditableEntity
+{
+    public Guid UserId { get; set; }
+    public Guid SalespersonId { get; set; }
+    public string ReferralCodeSnapshot { get; set; } = "";
+    public string SalespersonCodeSnapshot { get; set; } = "";
+    public string SalespersonNameSnapshot { get; set; } = "";
+    public ReferralAttributionSource AttributionSource { get; set; }
+    public DateTimeOffset CapturedAt { get; set; }
+    public DateTimeOffset AttributedAt { get; set; }
+    public byte[] RowVersion { get; set; } = [];
+
+    public User User { get; set; } = null!;
+    public Salesperson Salesperson { get; set; } = null!;
 }
 
 public sealed class ExternalLogin : AuditableEntity

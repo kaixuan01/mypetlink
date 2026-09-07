@@ -290,6 +290,11 @@ public sealed class OrderService : SkeletonService, IOrderService
         // snapshotted on TagOrderItem from the exact SKU that was sold.
         var tagType = TagType.QrNfcSmartTag;
         var now = _timeProvider.GetUtcNow();
+        // Attribution is server-owned. The checkout payload cannot nominate or
+        // alter a salesperson, and retries keep the already-created order.
+        var ownerAttribution = await _dbContext.OwnerReferralAttributions
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
         var delivery = request.Delivery!;
         var merchandiseSubtotal = pricedItems.Sum(item =>
             decimal.Round(item.Quote.BasePrice * item.Request.Quantity, 2, MidpointRounding.AwayFromZero));
@@ -340,6 +345,11 @@ public sealed class OrderService : SkeletonService, IOrderService
             PaymentReservationExpiresAt = now.AddMinutes(reservationMinutes),
             IdempotencyKey = idempotencyKey,
             RequestFingerprint = fingerprint,
+            SalespersonId = ownerAttribution?.SalespersonId,
+            SalespersonCodeSnapshot = ownerAttribution?.SalespersonCodeSnapshot,
+            SalespersonNameSnapshot = ownerAttribution?.SalespersonNameSnapshot,
+            AttributionSource = ownerAttribution?.AttributionSource,
+            AttributedAt = ownerAttribution?.AttributedAt,
             CreatedAt = now,
             UpdatedAt = now
         };

@@ -45,6 +45,11 @@ builder.Services.AddOptions<OrderReservationOptions>()
     .ValidateOnStart();
 builder.Services.AddSingleton<IValidateOptions<OrderReservationOptions>,
     OrderReservationOptionsValidator>();
+builder.Services.AddOptions<ReferralAttributionOptions>()
+    .Bind(builder.Configuration.GetSection(ReferralAttributionOptions.SectionName))
+    .ValidateOnStart();
+builder.Services.AddSingleton<IValidateOptions<ReferralAttributionOptions>,
+    ReferralAttributionOptionsValidator>();
 builder.Services.Configure<DevAuthOptions>(builder.Configuration.GetSection(DevAuthOptions.SectionName));
 builder.Services.Configure<DatabaseResilienceOptions>(
     builder.Configuration.GetSection(DatabaseResilienceOptions.SectionName));
@@ -340,6 +345,7 @@ builder.Services.AddScoped<IDeliveryService, DeliveryService>();
 builder.Services.AddScoped<IBusinessIdentityService, BusinessIdentityService>();
 builder.Services.AddScoped<IDocumentNumberService, DocumentNumberService>();
 builder.Services.AddScoped<IMerchantSalesService, MerchantSalesService>();
+builder.Services.AddScoped<IOwnerReferralAttributionService, OwnerReferralAttributionService>();
 builder.Services.AddScoped<IMerchantBillingService, MerchantBillingService>();
 builder.Services.AddScoped<IMerchantFulfilmentService, MerchantFulfilmentService>();
 builder.Services.AddScoped<IMerchantEmailService, MerchantEmailService>();

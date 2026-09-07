@@ -6719,3 +6719,161 @@ GO
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907150516_AddOwnerReferralAttribution'
+)
+BEGIN
+    ALTER TABLE [TagOrders] ADD [AttributedAt] datetimeoffset NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907150516_AddOwnerReferralAttribution'
+)
+BEGIN
+    ALTER TABLE [TagOrders] ADD [AttributionSource] nvarchar(32) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907150516_AddOwnerReferralAttribution'
+)
+BEGIN
+    ALTER TABLE [TagOrders] ADD [SalespersonCodeSnapshot] nvarchar(32) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907150516_AddOwnerReferralAttribution'
+)
+BEGIN
+    ALTER TABLE [TagOrders] ADD [SalespersonId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907150516_AddOwnerReferralAttribution'
+)
+BEGIN
+    ALTER TABLE [TagOrders] ADD [SalespersonNameSnapshot] nvarchar(160) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907150516_AddOwnerReferralAttribution'
+)
+BEGIN
+    ALTER TABLE [Salespersons] ADD [ReferralCode] nvarchar(24) COLLATE Latin1_General_100_CI_AS NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907150516_AddOwnerReferralAttribution'
+)
+BEGIN
+    CREATE TABLE [OwnerReferralAttributions] (
+        [Id] uniqueidentifier NOT NULL,
+        [UserId] uniqueidentifier NOT NULL,
+        [SalespersonId] uniqueidentifier NOT NULL,
+        [ReferralCodeSnapshot] nvarchar(24) NOT NULL,
+        [SalespersonCodeSnapshot] nvarchar(32) NOT NULL,
+        [SalespersonNameSnapshot] nvarchar(160) NOT NULL,
+        [AttributionSource] nvarchar(32) NOT NULL,
+        [CapturedAt] datetimeoffset NOT NULL,
+        [AttributedAt] datetimeoffset NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_OwnerReferralAttributions] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_OwnerReferralAttributions_Salespersons_SalespersonId] FOREIGN KEY ([SalespersonId]) REFERENCES [Salespersons] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_OwnerReferralAttributions_Users_UserId] FOREIGN KEY ([UserId]) REFERENCES [Users] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907150516_AddOwnerReferralAttribution'
+)
+BEGIN
+    CREATE INDEX [IX_TagOrders_SalespersonId] ON [TagOrders] ([SalespersonId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907150516_AddOwnerReferralAttribution'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [IX_Salespersons_ReferralCode] ON [Salespersons] ([ReferralCode]) WHERE [ReferralCode] IS NOT NULL');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907150516_AddOwnerReferralAttribution'
+)
+BEGIN
+    EXEC(N'ALTER TABLE [Salespersons] ADD CONSTRAINT [CK_Salespersons_ReferralCode] CHECK ([ReferralCode] IS NULL OR ([ReferralCode] NOT IN (''ADMIN'',''API'',''LOGIN'',''WWW'',''AUTH'') AND [ReferralCode] NOT LIKE ''%[^A-Z0-9]%'' AND LEN([ReferralCode]) BETWEEN 3 AND 24))');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907150516_AddOwnerReferralAttribution'
+)
+BEGIN
+    CREATE INDEX [IX_OwnerReferralAttributions_AttributedAt] ON [OwnerReferralAttributions] ([AttributedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907150516_AddOwnerReferralAttribution'
+)
+BEGIN
+    CREATE INDEX [IX_OwnerReferralAttributions_SalespersonId] ON [OwnerReferralAttributions] ([SalespersonId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907150516_AddOwnerReferralAttribution'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_OwnerReferralAttributions_UserId] ON [OwnerReferralAttributions] ([UserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907150516_AddOwnerReferralAttribution'
+)
+BEGIN
+    ALTER TABLE [TagOrders] ADD CONSTRAINT [FK_TagOrders_Salespersons_SalespersonId] FOREIGN KEY ([SalespersonId]) REFERENCES [Salespersons] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260907150516_AddOwnerReferralAttribution'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260907150516_AddOwnerReferralAttribution', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+

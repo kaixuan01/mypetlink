@@ -5,6 +5,7 @@ export const merchantSalesTabs = [
   { id: "overview", label: "Overview" },
   { id: "merchants", label: "Merchants" },
   { id: "salespersons", label: "Salespersons" },
+  { id: "referrals", label: "Owner referrals" },
   { id: "quotations", label: "Quotations" },
   { id: "orders", label: "Orders" },
   { id: "invoices", label: "Invoices & Receipts" },

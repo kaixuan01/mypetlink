@@ -9,6 +9,7 @@ import { MerchantSalesOverview } from "./MerchantSalesOverview";
 import { OrdersPanel } from "./OrdersPanel";
 import { QuotationsPanel } from "./QuotationsPanel";
 import { SalespersonsPanel } from "./SalespersonsPanel";
+import { ReferralAttributionsPanel } from "./ReferralAttributionsPanel";
 import {
   MERCHANT_SALES_LIST_KEYS,
   isMerchantSalesTab,
@@ -141,6 +142,8 @@ export function AdminMerchantSalesWorkspace() {
           openId={editParam === "new" ? "new" : openId}
         />
       ) : null}
+
+      {tab === "referrals" ? <ReferralAttributionsPanel /> : null}
 
       {tab === "quotations" ? (
         <QuotationsPanel

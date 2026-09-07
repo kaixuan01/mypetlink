@@ -62,6 +62,7 @@ describe("Salespersons list", () => {
     const code = await screen.findByText("MPL-SALES-001");
     const row = code.closest("tr") as HTMLElement;
     expect(within(row).getByText("Nur Aisyah")).toBeTruthy();
+    expect(within(row).getByText("AISYAH")).toBeTruthy();
     expect(within(row).getByText("aisyah@mypetlink.example")).toBeTruthy();
     expect(within(row).getByText("5%")).toBeTruthy();
     expect(within(row).getByText("Active")).toBeTruthy();
@@ -148,6 +149,21 @@ describe("Salesperson editor", () => {
     fireEvent.click(within(editor).getByTestId("save-salesperson"));
 
     expect(await screen.findByText(/saved/i)).toBeTruthy();
+  });
+
+  it("sends the separate public referral code when creating a salesperson", async () => {
+    createSalesperson.mockResolvedValue(salesperson({ referralCode: "PATLEE" }));
+    const editor = await openEditor();
+
+    fireEvent.change(within(editor).getByLabelText(/Name/), { target: { value: "Pat Lee" } });
+    fireEvent.change(within(editor).getByLabelText(/Public referral code/), {
+      target: { value: "patlee" },
+    });
+    fireEvent.click(within(editor).getByTestId("save-salesperson"));
+
+    expect(createSalesperson).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "Pat Lee", referralCode: "patlee" })
+    );
   });
 
   it("asks for the name in plain words when the server rejects it", async () => {

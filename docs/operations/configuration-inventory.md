@@ -54,6 +54,7 @@ Owner: Operations. Changing requires redeploy or restart.
 | `Email:Smtp:Host`, `Port`, `UseStartTls`, `ConnectionTimeoutSeconds` | `SmtpEmailOptions` | `UseStartTls` must be true |
 | `Email:Dispatch:PollIntervalSeconds`, `BatchSize`, `MaxConcurrency`, `VisibilityTimeoutSeconds` | `EmailDispatchOptions` | Worker tuning — must not be exposed to business Admin |
 | `OrderReservation:ExpiryEnabled`, `PollIntervalSeconds`, `BatchSize` | `OrderReservationOptions` | Unpaid-order expiry worker tuning. Admin sees safe read-only status; the payment window itself is database-owned. |
+| `ReferralAttribution:WindowDays` | `ReferralAttributionOptions` | Phase 3A launch policy for accepting a browser-captured first touch. Default `90`; server-authoritative and startup-validated. Deployment-owned because this phase intentionally adds no business-policy editor; any change requires a reviewed release/config update. |
 | `DatabaseResilience:*` | `DatabaseResilienceOptions` | Retry tuning |
 | `RateLimiting:PublicTagScan`, `RateLimiting:TagActivation` | `SmartTagRateLimitingOptions` | Abuse protection — security-adjacent, keep in App Settings |
 | `Logging:LogLevel:*`, `AllowedHosts` | ASP.NET built-ins | Standard |

@@ -27,6 +27,9 @@ public sealed class AuthService : SkeletonService, IAuthService
     private readonly IHostEnvironment _environment;
     private readonly IDevelopmentAdminSeeder _developmentAdminSeeder;
     private readonly DevAuthOptions _devAuthOptions;
+    private readonly ReferralAttributionOptions _referralOptions;
+    private readonly IAuditLogService _auditLogService;
+    private readonly TimeProvider _timeProvider;
     private readonly HashSet<string> _devAdminEmails;
 
     public AuthService(
@@ -35,8 +38,11 @@ public sealed class AuthService : SkeletonService, IAuthService
         IOptions<JwtOptions> jwtOptions,
         IOptions<AdminSeedOptions> adminSeedOptions,
         IOptions<DevAuthOptions> devAuthOptions,
+        IOptions<ReferralAttributionOptions> referralOptions,
         IDevelopmentAdminSeeder developmentAdminSeeder,
-        IHostEnvironment environment)
+        IHostEnvironment environment,
+        IAuditLogService auditLogService,
+        TimeProvider timeProvider)
     {
         _dbContext = dbContext;
         _externalAuthService = externalAuthService;
@@ -44,6 +50,9 @@ public sealed class AuthService : SkeletonService, IAuthService
         _environment = environment;
         _developmentAdminSeeder = developmentAdminSeeder;
         _devAuthOptions = devAuthOptions.Value;
+        _referralOptions = referralOptions.Value;
+        _auditLogService = auditLogService;
+        _timeProvider = timeProvider;
         _devAdminEmails = (adminSeedOptions.Value.Emails ?? [])
             .Where(email => !string.IsNullOrWhiteSpace(email))
             .Select(NormalizeEmail)
@@ -60,7 +69,12 @@ public sealed class AuthService : SkeletonService, IAuthService
             request.IdToken,
             cancellationToken);
 
-        return await SignInWithExternalUserAsync(externalUser, clientContext, cancellationToken);
+        return await SignInWithExternalUserAsync(
+            externalUser,
+            clientContext,
+            cancellationToken,
+            referralCode: request.ReferralCode,
+            referralCapturedAt: request.ReferralCapturedAt);
     }
 
     public async Task<TokenRefreshResponse> RefreshAsync(
@@ -73,7 +87,7 @@ public sealed class AuthService : SkeletonService, IAuthService
             throw ValidationFailed("refreshToken", "Refresh token is required.");
         }
 
-        var now = DateTimeOffset.UtcNow;
+        var now = _timeProvider.GetUtcNow();
         var tokenHash = HashRefreshToken(request.RefreshToken);
 
         var storedToken = await _dbContext.RefreshTokens
@@ -142,7 +156,7 @@ public sealed class AuthService : SkeletonService, IAuthService
             return;
         }
 
-        storedToken.RevokedAt = DateTimeOffset.UtcNow;
+        storedToken.RevokedAt = _timeProvider.GetUtcNow();
         storedToken.RevokedByIp = clientContext.IpAddress;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -208,9 +222,12 @@ public sealed class AuthService : SkeletonService, IAuthService
         ExternalTokenUser externalUser,
         AuthClientContext clientContext,
         CancellationToken cancellationToken,
-        bool replaceExistingRefreshTokens = false)
+        bool replaceExistingRefreshTokens = false,
+        string? referralCode = null,
+        DateTimeOffset? referralCapturedAt = null,
+        bool allowRaceRetry = true)
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = _timeProvider.GetUtcNow();
         var normalizedEmail = NormalizeEmail(externalUser.Email);
 
         var externalLogin = await _dbContext.ExternalLogins
@@ -224,6 +241,8 @@ public sealed class AuthService : SkeletonService, IAuthService
                 cancellationToken);
 
         User user;
+        var createdUser = false;
+        var createdExternalLogin = false;
 
         if (externalLogin is not null)
         {
@@ -241,6 +260,7 @@ public sealed class AuthService : SkeletonService, IAuthService
             {
                 user = CreateUser(externalUser, normalizedEmail);
                 _dbContext.Users.Add(user);
+                createdUser = true;
             }
             else
             {
@@ -255,6 +275,7 @@ public sealed class AuthService : SkeletonService, IAuthService
             };
 
             _dbContext.ExternalLogins.Add(externalLogin);
+            createdExternalLogin = true;
         }
 
         await EnsureEmailCanBeAssignedAsync(user, normalizedEmail, cancellationToken);
@@ -264,6 +285,12 @@ public sealed class AuthService : SkeletonService, IAuthService
 
         await EnsureOwnerProfileAsync(user, externalUser.DisplayName, cancellationToken);
         await EnsureDevAdminAsync(user, normalizedEmail, cancellationToken);
+
+        if (createdUser)
+        {
+            await TryCaptureReferralAttributionAsync(
+                user, referralCode, referralCapturedAt, now, cancellationToken);
+        }
 
         if (replaceExistingRefreshTokens)
         {
@@ -275,7 +302,36 @@ public sealed class AuthService : SkeletonService, IAuthService
 
         var accessToken = CreateAccessToken(user, now);
 
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException) when (allowRaceRetry && createdExternalLogin)
+        {
+            // A concurrent first login may have inserted the same external
+            // identity/email. Discard this losing graph and load the winner;
+            // the unique User, ExternalLogin and attribution indexes remain
+            // the final authority. Referral is deliberately not re-applied to
+            // what is now an existing account.
+            _dbContext.ChangeTracker.Clear();
+            var winnerExists = await _dbContext.ExternalLogins.AnyAsync(login =>
+                    login.Provider == externalUser.Provider
+                    && login.ProviderSubjectId == externalUser.SubjectId,
+                cancellationToken)
+                || await _dbContext.Users.AnyAsync(
+                    item => item.NormalizedEmail == normalizedEmail,
+                    cancellationToken);
+            if (!winnerExists) throw;
+
+            return await SignInWithExternalUserAsync(
+                externalUser,
+                clientContext,
+                cancellationToken,
+                replaceExistingRefreshTokens,
+                referralCode: null,
+                referralCapturedAt: null,
+                allowRaceRetry: false);
+        }
 
         return new AuthTokenResponse(
             accessToken.Token,
@@ -283,6 +339,61 @@ public sealed class AuthService : SkeletonService, IAuthService
             accessToken.ExpiresIn,
             BuildUserSummary(user),
             BuildOwnerProfileSummary(user.OwnerProfile));
+    }
+
+    private async Task TryCaptureReferralAttributionAsync(
+        User user,
+        string? referralCode,
+        DateTimeOffset? capturedAt,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        if (!capturedAt.HasValue
+            || !ReferralCodes.TryNormalize(referralCode, out var normalized)
+            || capturedAt.Value > now
+            || capturedAt.Value < now.AddDays(-_referralOptions.WindowDays))
+        {
+            return;
+        }
+
+        var salesperson = await _dbContext.Salespersons
+            .SingleOrDefaultAsync(item => item.ReferralCode == normalized && item.IsActive,
+                cancellationToken);
+        if (salesperson is null) return;
+
+        var attribution = new OwnerReferralAttribution
+        {
+            UserId = user.Id,
+            User = user,
+            SalespersonId = salesperson.Id,
+            Salesperson = salesperson,
+            ReferralCodeSnapshot = normalized,
+            SalespersonCodeSnapshot = salesperson.SalespersonCode,
+            SalespersonNameSnapshot = salesperson.Name,
+            AttributionSource = ReferralAttributionSource.ReferralLink,
+            CapturedAt = capturedAt.Value,
+            AttributedAt = now,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+        user.ReferralAttribution = attribution;
+        _dbContext.OwnerReferralAttributions.Add(attribution);
+        _auditLogService.Append(
+            user.Id,
+            ActorType.Owner,
+            "owner-referral-attribution.capture",
+            "OwnerReferralAttribution",
+            attribution.Id,
+            null,
+            new
+            {
+                attribution.UserId,
+                attribution.SalespersonId,
+                attribution.ReferralCodeSnapshot,
+                attribution.AttributionSource,
+                attribution.CapturedAt,
+                attribution.AttributedAt
+            });
     }
 
     private async Task EnsureEmailCanBeAssignedAsync(

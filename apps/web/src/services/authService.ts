@@ -12,6 +12,10 @@ import type {
   BackendAuthTokenResponse,
   BackendCurrentUser,
 } from "@/services/apiDtos";
+import {
+  clearStoredReferral,
+  readStoredReferral,
+} from "@/lib/referralAttribution";
 
 const OWNER_KEY = "mypetlink_mock_owner";
 const ADMIN_KEY = "mypetlink_mock_admin";
@@ -56,6 +60,7 @@ export function loginMockOwner() {
   }
 
   writeSession(OWNER_KEY, ownerSession);
+  clearStoredReferral(window.localStorage);
   return ownerSession;
 }
 
@@ -171,11 +176,16 @@ export async function checkAdminAccess() {
 }
 
 export async function loginWithGoogleIdToken(idToken: string) {
+  const referral = readStoredReferral(window.localStorage);
   const response = await apiRequest<BackendAuthTokenResponse>(
     "/api/v1/auth/google",
     {
       method: "POST",
-      body: { idToken },
+      body: {
+        idToken,
+        referralCode: referral?.code ?? null,
+        referralCapturedAt: referral?.capturedAt ?? null,
+      },
       auth: false,
     }
   );
@@ -185,6 +195,9 @@ export async function loginWithGoogleIdToken(idToken: string) {
   }
 
   storeBackendSession(response.data);
+  // A successful sign-in consumes the browser's first-touch candidate whether
+  // the server attributed a new owner or correctly ignored an existing one.
+  clearStoredReferral(window.localStorage);
   return getOwnerSession();
 }
 

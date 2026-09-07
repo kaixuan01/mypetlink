@@ -169,6 +169,12 @@ public enum ActorType
     System
 }
 
+public enum ReferralAttributionSource
+{
+    ReferralLink,
+    ManualAdmin
+}
+
 public enum AdminActionType
 {
     ConfirmPayment,
