@@ -9,6 +9,7 @@ export const merchantSalesTabs = [
   { id: "quotations", label: "Quotations" },
   { id: "orders", label: "Orders" },
   { id: "invoices", label: "Invoices & Receipts" },
+  { id: "commissions", label: "Commissions" },
 ] as const;
 
 export type MerchantSalesTab = (typeof merchantSalesTabs)[number]["id"];

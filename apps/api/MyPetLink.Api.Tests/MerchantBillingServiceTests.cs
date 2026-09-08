@@ -396,6 +396,72 @@ public class MerchantBillingServiceTests
     }
 
     [Fact]
+    public async Task DirectRetailCommissionUsesTheExistingPayoutAndReversalLifecycle()
+    {
+        using var h = await Harness.CreateAsync();
+        var salesperson = new Salesperson
+        {
+            SalespersonCode = "SP-DIRECT",
+            Name = "Direct Seller"
+        };
+        var order = new TagOrder
+        {
+            OrderNumber = "MPL-ORD-DIRECT",
+            OwnerUserId = Guid.NewGuid(),
+            PetId = Guid.NewGuid(),
+            Amount = 29.90m,
+            TotalAmount = 37.90m,
+            Currency = "MYR",
+            DeliveryFee = 8m,
+            RecipientName = "Retail Owner",
+            DeliveryPhoneE164 = "+60123456789",
+            AddressLine1 = "1 Jalan Test",
+            Postcode = "50000",
+            City = "Kuala Lumpur",
+            State = "Kuala Lumpur"
+        };
+        var commission = new SalesCommission
+        {
+            SourceType = SalesCommissionSourceType.TagOrder,
+            CommissionType = SalesCommissionType.DirectRetailPercentage,
+            TagOrder = order,
+            TagOrderId = order.Id,
+            Salesperson = salesperson,
+            SalespersonId = salesperson.Id,
+            SalespersonCodeSnapshot = salesperson.SalespersonCode,
+            SalespersonNameSnapshot = salesperson.Name,
+            CommissionPercentageSnapshot = 15m,
+            CommissionBaseAmount = 29.90m,
+            CommissionAmount = 4.49m,
+            Currency = "MYR",
+            Status = SalesCommissionStatus.Payable,
+            CalculatedAt = Now
+        };
+        h.Db.AddRange(salesperson, order, commission);
+        await h.Db.SaveChangesAsync();
+
+        var paid = await h.Billing.MarkCommissionPaidAsync(
+            null, commission.Id, Convert.ToBase64String(commission.RowVersion), default);
+        var repeated = await h.Billing.MarkCommissionPaidAsync(
+            null, commission.Id, paid.ConcurrencyToken, default);
+        var reversed = await h.Billing.ReverseCommissionAsync(
+            null,
+            commission.Id,
+            new ReverseSalesCommissionRequest("Retail sale invalidated.", repeated.ConcurrencyToken),
+            default);
+
+        Assert.Equal("TagOrder", paid.SourceType);
+        Assert.Equal("DirectRetailPercentage", paid.CommissionType);
+        Assert.Equal(order.Id, paid.TagOrderId);
+        Assert.Equal(order.OrderNumber, paid.SourceOrderNumber);
+        Assert.Equal(paid.PaidAt, repeated.PaidAt);
+        Assert.Equal("Reversed", reversed.Status);
+        Assert.Equal(paid.PaidAt, reversed.PaidAt);
+        await Assert.ThrowsAsync<ApiException>(() => h.Billing.MarkCommissionPaidAsync(
+            null, commission.Id, reversed.ConcurrencyToken, default));
+    }
+
+    [Fact]
     public async Task CancellingAndReissuingAnInvoiceCreatesExactlyOneCommission()
     {
         using var h = await Harness.CreateAsync();

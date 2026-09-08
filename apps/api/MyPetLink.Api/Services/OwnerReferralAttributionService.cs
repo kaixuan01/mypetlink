@@ -77,6 +77,11 @@ public sealed class OwnerReferralAttributionService : IOwnerReferralAttributionS
             throw Validation("salespersonId",
                 "Choose an active salesperson with a public referral code.");
         }
+        if (salesperson.UserId == userId)
+        {
+            throw Validation("salespersonId",
+                "A salesperson cannot be assigned to their own MyPetLink account.");
+        }
 
         var before = Snapshot(attribution);
         var now = _timeProvider.GetUtcNow();

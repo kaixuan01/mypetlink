@@ -294,7 +294,9 @@ public sealed class OrderService : SkeletonService, IOrderService
         // alter a salesperson, and retries keep the already-created order.
         var ownerAttribution = await _dbContext.OwnerReferralAttributions
             .AsNoTracking()
+            .Include(item => item.Salesperson)
             .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
+        var selfReferralExcluded = ownerAttribution?.Salesperson.UserId == userId;
         var delivery = request.Delivery!;
         var merchandiseSubtotal = pricedItems.Sum(item =>
             decimal.Round(item.Quote.BasePrice * item.Request.Quantity, 2, MidpointRounding.AwayFromZero));
@@ -345,11 +347,11 @@ public sealed class OrderService : SkeletonService, IOrderService
             PaymentReservationExpiresAt = now.AddMinutes(reservationMinutes),
             IdempotencyKey = idempotencyKey,
             RequestFingerprint = fingerprint,
-            SalespersonId = ownerAttribution?.SalespersonId,
-            SalespersonCodeSnapshot = ownerAttribution?.SalespersonCodeSnapshot,
-            SalespersonNameSnapshot = ownerAttribution?.SalespersonNameSnapshot,
-            AttributionSource = ownerAttribution?.AttributionSource,
-            AttributedAt = ownerAttribution?.AttributedAt,
+            SalespersonId = selfReferralExcluded ? null : ownerAttribution?.SalespersonId,
+            SalespersonCodeSnapshot = selfReferralExcluded ? null : ownerAttribution?.SalespersonCodeSnapshot,
+            SalespersonNameSnapshot = selfReferralExcluded ? null : ownerAttribution?.SalespersonNameSnapshot,
+            AttributionSource = selfReferralExcluded ? null : ownerAttribution?.AttributionSource,
+            AttributedAt = selfReferralExcluded ? null : ownerAttribution?.AttributedAt,
             CreatedAt = now,
             UpdatedAt = now
         };
@@ -392,6 +394,22 @@ public sealed class OrderService : SkeletonService, IOrderService
         }
 
         _dbContext.TagOrders.Add(order);
+        if (selfReferralExcluded)
+        {
+            _auditLogService.Append(
+                userId,
+                ActorType.Owner,
+                "order.self-referral-excluded",
+                "TagOrder",
+                order.Id,
+                null,
+                new
+                {
+                    order.OrderNumber,
+                    order.OwnerUserId,
+                    salespersonId = ownerAttribution!.SalespersonId
+                });
+        }
 
         for (var attempt = 0; ; attempt++)
         {

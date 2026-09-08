@@ -469,7 +469,7 @@ public sealed class AdminService : SkeletonService, IAdminService
         var oldOrderState = OrderStateSnapshot(order);
         var oldTagState = TagStateSnapshot(oldTag);
         var newTagOldState = TagStateSnapshot(newTag);
-        var now = DateTimeOffset.UtcNow;
+        var now = _timeProvider.GetUtcNow();
         var normalizedNote = NormalizeOptional(note);
 
         // Retire the old tag but keep its owner/pet/order history for the record.
@@ -785,7 +785,7 @@ public sealed class AdminService : SkeletonService, IAdminService
         var normalizedReason = NormalizeOptional(reason)
             ?? throw ValidationFailed("reason", "Enter a reason for cancelling this order.");
         var oldState = OrderStateSnapshot(order);
-        var now = DateTimeOffset.UtcNow;
+        var now = _timeProvider.GetUtcNow();
         var assignedTags = CurrentAssignedTags(order).ToArray();
         order.Status = OrderStatus.Cancelled;
         order.CancelledAt ??= now;
@@ -811,6 +811,13 @@ public sealed class AdminService : SkeletonService, IAdminService
         order.SmartTagId = null;
         order.SmartTag = null;
 
+        await ReverseDirectRetailCommissionAsync(
+            admin.Id,
+            order.Id,
+            $"Order cancelled: {normalizedReason}",
+            now,
+            cancellationToken);
+
         _auditLogService.Append(
             admin.Id, ActorType.Admin, "order.cancel", "TagOrder", order.Id,
             oldState, new { state = OrderStateSnapshot(order), reason = normalizedReason });
@@ -818,6 +825,171 @@ public sealed class AdminService : SkeletonService, IAdminService
         await _dbContext.SaveChangesAsync(cancellationToken);
         return ToAdminOrderResponse(order);
     }
+
+    private async Task CreateDirectRetailCommissionAsync(
+        Guid adminId,
+        TagOrder order,
+        DateTimeOffset triggerAt,
+        CancellationToken cancellationToken)
+    {
+        if (!order.SalespersonId.HasValue) return;
+
+        var salesperson = await _dbContext.Salespersons
+            .AsNoTracking()
+            .SingleAsync(item => item.Id == order.SalespersonId.Value, cancellationToken);
+        if (salesperson.UserId == order.OwnerUserId)
+        {
+            _auditLogService.Append(
+                adminId,
+                ActorType.Admin,
+                "sales-commission.self-referral-excluded",
+                "TagOrder",
+                order.Id,
+                null,
+                new
+                {
+                    order.OrderNumber,
+                    order.OwnerUserId,
+                    order.SalespersonId,
+                    CommissionType = SalesCommissionType.DirectRetailPercentage.ToString(),
+                    TriggeredAt = triggerAt
+                });
+            return;
+        }
+
+        var alreadyExists = await _dbContext.SalesCommissions.AnyAsync(
+            item => item.TagOrderId == order.Id
+                && item.CommissionType == SalesCommissionType.DirectRetailPercentage
+                && item.Status != SalesCommissionStatus.Reversed,
+            cancellationToken);
+        if (alreadyExists) return;
+
+        if (order.Items.Count == 0)
+        {
+            throw new ApiException(
+                StatusCodes.Status409Conflict,
+                "commission_base_unavailable",
+                "This order has no item-level product total, so its commission cannot be calculated safely.");
+        }
+
+        var quantity = order.Items.Sum(item => item.Quantity);
+        var eligibleRules = _dbContext.CommissionRules
+            .AsNoTracking()
+            .Where(item => item.CommissionType == SalesCommissionType.DirectRetailPercentage
+                && item.IsActive
+                && item.Currency == order.Currency
+                && item.EffectiveFrom <= triggerAt
+                && (item.EffectiveTo == null || item.EffectiveTo > triggerAt)
+                && (item.MinQuantity == null || item.MinQuantity <= quantity)
+                && (item.MaxQuantity == null || item.MaxQuantity >= quantity));
+
+        var rule = await eligibleRules
+            .Where(item => item.SalespersonId == order.SalespersonId)
+            .OrderByDescending(item => item.EffectiveFrom)
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? await eligibleRules
+                .Where(item => item.SalespersonId == null)
+                .OrderByDescending(item => item.EffectiveFrom)
+                .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new ApiException(
+                StatusCodes.Status409Conflict,
+                "commission_rule_missing",
+                "No active direct retail commission rule covers this payment date and quantity.");
+
+        if (!rule.Percentage.HasValue || rule.FixedAmount.HasValue)
+        {
+            throw new ApiException(
+                StatusCodes.Status409Conflict,
+                "commission_rule_invalid",
+                "The matching direct retail commission rule is incomplete.");
+        }
+
+        var calculation = DirectRetailCommissionCalculator.Calculate(
+            order.Items.Select(item => item.FinalAmount),
+            rule.Percentage.Value);
+        var commission = new SalesCommission
+        {
+            SourceType = SalesCommissionSourceType.TagOrder,
+            CommissionType = SalesCommissionType.DirectRetailPercentage,
+            TagOrderId = order.Id,
+            TagOrder = order,
+            SalespersonId = order.SalespersonId.Value,
+            SalespersonCodeSnapshot = order.SalespersonCodeSnapshot ?? "",
+            SalespersonNameSnapshot = order.SalespersonNameSnapshot ?? "",
+            CommissionPercentageSnapshot = rule.Percentage,
+            CommissionRuleId = rule.Id,
+            CommissionRuleEffectiveFromSnapshot = rule.EffectiveFrom,
+            CommissionBaseAmount = calculation.BaseAmount,
+            CommissionAmount = calculation.Amount,
+            Currency = order.Currency,
+            Status = SalesCommissionStatus.Payable,
+            CalculatedAt = triggerAt,
+            CreatedAt = triggerAt,
+            UpdatedAt = triggerAt
+        };
+        _dbContext.SalesCommissions.Add(commission);
+        _auditLogService.Append(
+            adminId,
+            ActorType.Admin,
+            "sales-commission.created",
+            "SalesCommission",
+            commission.Id,
+            null,
+            SalesCommissionAuditSnapshot(commission));
+    }
+
+    private async Task ReverseDirectRetailCommissionAsync(
+        Guid adminId,
+        Guid orderId,
+        string reason,
+        DateTimeOffset reversedAt,
+        CancellationToken cancellationToken)
+    {
+        var commission = await _dbContext.SalesCommissions.SingleOrDefaultAsync(
+            item => item.TagOrderId == orderId
+                && item.CommissionType == SalesCommissionType.DirectRetailPercentage
+                && item.Status != SalesCommissionStatus.Reversed,
+            cancellationToken);
+        if (commission is null) return;
+
+        var before = SalesCommissionAuditSnapshot(commission);
+        commission.Status = SalesCommissionStatus.Reversed;
+        commission.ReversedAt = reversedAt;
+        commission.ReversedByAdminUserId = adminId;
+        commission.ReversalReason = reason;
+        commission.UpdatedAt = reversedAt;
+        _auditLogService.Append(
+            adminId,
+            ActorType.Admin,
+            "sales-commission.reversed",
+            "SalesCommission",
+            commission.Id,
+            before,
+            SalesCommissionAuditSnapshot(commission));
+    }
+
+    private static object SalesCommissionAuditSnapshot(SalesCommission commission) => new
+    {
+        SourceType = commission.SourceType.ToString(),
+        CommissionType = commission.CommissionType.ToString(),
+        commission.MerchantOrderId,
+        commission.TagOrderId,
+        commission.SalespersonId,
+        commission.SalespersonCodeSnapshot,
+        commission.CommissionPercentageSnapshot,
+        commission.CommissionFixedAmountSnapshot,
+        commission.CommissionBaseAmount,
+        commission.CommissionAmount,
+        commission.CommissionRuleId,
+        commission.CommissionRuleEffectiveFromSnapshot,
+        Status = commission.Status.ToString(),
+        commission.CalculatedAt,
+        commission.PaidAt,
+        commission.PaidByAdminUserId,
+        commission.ReversedAt,
+        commission.ReversedByAdminUserId,
+        commission.ReversalReason
+    };
 
     // --- Payment proofs ---------------------------------------------------------
 
@@ -1471,6 +1643,8 @@ public sealed class AdminService : SkeletonService, IAdminService
                             order,
                             order.PaymentConfirmedAt.Value,
                             cancellationToken);
+                        await CreateDirectRetailCommissionAsync(
+                            admin.Id, order, order.PaymentConfirmedAt.Value, cancellationToken);
                     }
                     else
                     {

@@ -24,7 +24,15 @@ consumer commission, bonus, repeat-purchase window, tier, or payout.
   is never accepted in the checkout request and is not part of its idempotency
   fingerprint. Existing orders remain unchanged after an Admin correction.
 - Salesperson deactivation prevents new referral redemption. It does not erase
-  owner attribution or order history.
+  owner attribution or order history, and an already-snapshotted eligible order
+  can still produce its direct retail commission when payment is approved.
+- `Salesperson.UserId` optionally links one salesperson to one authenticated
+  account. The restrictive foreign key and filtered unique index make this the
+  authoritative same-account identity; email matching is never used.
+- Known same-account referral capture and Admin correction are refused. New
+  orders omit known same-account attribution. Historical attributed orders are
+  not rewritten, but payment confirmation excludes and audits a direct retail
+  commission when the linked salesperson and purchaser are the same account.
 
 ## Admin correction
 
@@ -33,10 +41,9 @@ has a public referral code. The request requires the current `RowVersion` and
 the audit log records old and new values. The change applies only to retail
 orders created afterward; no historical order snapshot is rewritten.
 
-## Deferred identity decision
+## Direct retail commission boundary
 
-Phase 3A cannot enforce self-referral rules authoritatively because a
-`Salesperson` is not linked to an authenticated `User`. Email matching would be
-an unreliable identity substitute and is intentionally not used. Phase 3B/3C
-must define the salesperson-to-user identity relationship before adding B2C
-commission eligibility or self-referral enforcement.
+Phase 3B generates `DirectRetailPercentage` commission from the immutable order
+snapshot only after Admin payment-proof approval. Rule resolution, calculation,
+uniqueness, payout, reversal, and the remaining retail refund limitation are
+documented in [Sales commission lifecycle](merchant-commission-lifecycle.md).

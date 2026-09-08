@@ -46,6 +46,9 @@ export type AdminSalesperson = {
   name: string;
   email: string | null;
   phone: string | null;
+  userId: string | null;
+  userDisplayName: string | null;
+  userEmail: string | null;
   defaultCommissionPercentage: number;
   internalNotes: string | null;
   isActive: boolean;
@@ -297,6 +300,7 @@ export type UpsertSalespersonInput = {
   defaultCommissionPercentage: number;
   internalNotes: string | null;
   referralCode: string | null;
+  userId: string | null;
   concurrencyToken?: string | null;
 };
 

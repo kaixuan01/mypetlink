@@ -153,7 +153,9 @@ export function InvoicesPanel({
         setEmailStatuses(byInvoice);
         setCommissions(
           Object.fromEntries(
-            commissionResult.items.map((item) => [item.merchantOrderId, item])
+            commissionResult.items.flatMap((item) =>
+              item.merchantOrderId ? [[item.merchantOrderId, item] as const] : []
+            )
           )
         );
       })
@@ -565,7 +567,11 @@ function InvoiceDetail({
             </p>
             <DetailGrid>
               <DetailRow label="Salesperson">{commission.salespersonName}</DetailRow>
-              <DetailRow label="Percentage">{commission.commissionPercentage}%</DetailRow>
+              <DetailRow label="Percentage">
+                {commission.commissionPercentage == null
+                  ? "Not applicable"
+                  : `${commission.commissionPercentage}%`}
+              </DetailRow>
               <DetailRow label="Base (delivery excluded)">
                 {money(commission.currency, commission.commissionBaseAmount)}
               </DetailRow>

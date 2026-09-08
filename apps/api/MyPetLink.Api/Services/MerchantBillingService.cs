@@ -327,6 +327,7 @@ public sealed class MerchantBillingService : IMerchantBillingService
 
         if (order.SalespersonId.HasValue && await _dbContext.SalesCommissions.AnyAsync(
                 item => item.MerchantOrderId == order.Id
+                    && item.CommissionType == SalesCommissionType.MerchantOrderPercentage
                     && item.Status != SalesCommissionStatus.Reversed,
                 cancellationToken))
         {
@@ -428,6 +429,7 @@ public sealed class MerchantBillingService : IMerchantBillingService
 
             if (await _dbContext.SalesCommissions.AsNoTracking().AnyAsync(
                     item => item.MerchantOrderId == invoice.MerchantOrderId
+                        && item.CommissionType == SalesCommissionType.MerchantOrderPercentage
                         && item.Status != SalesCommissionStatus.Reversed,
                     cancellationToken))
             {
@@ -443,7 +445,7 @@ public sealed class MerchantBillingService : IMerchantBillingService
             await ToResponseAsync(stored, cancellationToken),
             ToResponse(payment, admin?.User?.DisplayName),
             ToSummary(receipt),
-            commission is null ? null : ToResponse(commission, order.MerchantOrderNumber),
+            commission is null ? null : ToResponse(commission),
             AlreadyRecorded: false);
     }
 
@@ -456,6 +458,7 @@ public sealed class MerchantBillingService : IMerchantBillingService
         var query = _dbContext.SalesCommissions
             .AsNoTracking()
             .Include(item => item.MerchantOrder)
+            .Include(item => item.TagOrder)
             .AsQueryable();
 
         if (salespersonId.HasValue)
@@ -472,7 +475,7 @@ public sealed class MerchantBillingService : IMerchantBillingService
 
         return (
             items
-                .Select(item => ToResponse(item, item.MerchantOrder?.MerchantOrderNumber ?? ""))
+                .Select(ToResponse)
                 .ToList(),
             total);
     }
@@ -483,6 +486,7 @@ public sealed class MerchantBillingService : IMerchantBillingService
     {
         var commission = await _dbContext.SalesCommissions
             .Include(item => item.MerchantOrder)
+            .Include(item => item.TagOrder)
             .SingleOrDefaultAsync(item => item.Id == commissionId, cancellationToken)
             ?? throw new ApiException(404, "commission_not_found",
                 "That commission record no longer exists.");
@@ -490,7 +494,7 @@ public sealed class MerchantBillingService : IMerchantBillingService
         // Marking a commission paid twice is a double-click, not a second payout.
         if (commission.Status == SalesCommissionStatus.Paid)
         {
-            return ToResponse(commission, commission.MerchantOrder?.MerchantOrderNumber ?? "");
+            return ToResponse(commission);
         }
 
         if (commission.Status == SalesCommissionStatus.Reversed)
@@ -509,11 +513,14 @@ public sealed class MerchantBillingService : IMerchantBillingService
         commission.PaidByAdminUserId = admin?.Id;
         commission.UpdatedAt = now;
 
-        _auditLogService.Append(actorId, ActorType.Admin, "merchant-commission.paid",
+        _auditLogService.Append(actorId, ActorType.Admin,
+            commission.SourceType == SalesCommissionSourceType.MerchantOrder
+                ? "merchant-commission.paid"
+                : "sales-commission.paid",
             "SalesCommission", commission.Id, before, CommissionAuditSnapshot(commission));
 
         await SaveAsync(cancellationToken);
-        return ToResponse(commission, commission.MerchantOrder?.MerchantOrderNumber ?? "");
+        return ToResponse(commission);
     }
 
     public async Task<SalesCommissionResponse> ReverseCommissionAsync(
@@ -528,12 +535,13 @@ public sealed class MerchantBillingService : IMerchantBillingService
 
         var commission = await _dbContext.SalesCommissions
             .Include(item => item.MerchantOrder)
+            .Include(item => item.TagOrder)
             .SingleOrDefaultAsync(item => item.Id == commissionId, cancellationToken)
             ?? throw new ApiException(404, "commission_not_found",
                 "That commission record no longer exists.");
 
         if (commission.Status == SalesCommissionStatus.Reversed)
-            return ToResponse(commission, commission.MerchantOrder?.MerchantOrderNumber ?? "");
+            return ToResponse(commission);
 
         ApplyConcurrency(commission, commission.RowVersion, request.ConcurrencyToken);
 
@@ -546,11 +554,14 @@ public sealed class MerchantBillingService : IMerchantBillingService
         commission.ReversalReason = reason;
         commission.UpdatedAt = now;
 
-        _auditLogService.Append(actorId, ActorType.Admin, "merchant-commission.reversed",
+        _auditLogService.Append(actorId, ActorType.Admin,
+            commission.SourceType == SalesCommissionSourceType.MerchantOrder
+                ? "merchant-commission.reversed"
+                : "sales-commission.reversed",
             "SalesCommission", commission.Id, before, CommissionAuditSnapshot(commission));
 
         await SaveAsync(cancellationToken);
-        return ToResponse(commission, commission.MerchantOrder?.MerchantOrderNumber ?? "");
+        return ToResponse(commission);
     }
 
     // --- Building ----------------------------------------------------------
@@ -630,6 +641,8 @@ public sealed class MerchantBillingService : IMerchantBillingService
 
         return new SalesCommission
         {
+            SourceType = SalesCommissionSourceType.MerchantOrder,
+            CommissionType = SalesCommissionType.MerchantOrderPercentage,
             MerchantOrderId = order.Id,
             MerchantPaymentId = payment.Id,
             SalespersonId = order.SalespersonId.Value,
@@ -772,7 +785,9 @@ public sealed class MerchantBillingService : IMerchantBillingService
         var commission = await _dbContext.SalesCommissions
             .AsNoTracking()
             .Include(item => item.MerchantOrder)
-            .SingleOrDefaultAsync(item => item.MerchantPaymentId == payment.Id, cancellationToken);
+            .SingleOrDefaultAsync(item => item.MerchantPaymentId == payment.Id
+                && item.CommissionType == SalesCommissionType.MerchantOrderPercentage,
+                cancellationToken);
 
         return new RecordMerchantPaymentResult(
             await ToResponseAsync(invoice, cancellationToken),
@@ -780,7 +795,7 @@ public sealed class MerchantBillingService : IMerchantBillingService
             ToSummary(receipt),
             commission is null
                 ? null
-                : ToResponse(commission, commission.MerchantOrder?.MerchantOrderNumber ?? ""),
+                : ToResponse(commission),
             AlreadyRecorded: true);
     }
 
@@ -913,19 +928,27 @@ public sealed class MerchantBillingService : IMerchantBillingService
             receipt.Currency,
             receipt.IssuedAt);
 
-    private static SalesCommissionResponse ToResponse(
-        SalesCommission commission, string merchantOrderNumber) =>
+    private static SalesCommissionResponse ToResponse(SalesCommission commission) =>
         new(
             commission.Id,
+            commission.SourceType.ToString(),
+            commission.CommissionType.ToString(),
             commission.MerchantOrderId,
-            merchantOrderNumber,
+            commission.MerchantPaymentId,
+            commission.TagOrderId,
+            commission.SourceType == SalesCommissionSourceType.MerchantOrder
+                ? commission.MerchantOrder?.MerchantOrderNumber ?? ""
+                : commission.TagOrder?.OrderNumber ?? "",
             commission.SalespersonId,
             commission.SalespersonCodeSnapshot,
             commission.SalespersonNameSnapshot,
             commission.CommissionPercentageSnapshot,
+            commission.CommissionFixedAmountSnapshot,
             commission.CommissionBaseAmount,
             commission.CommissionAmount,
             commission.Currency,
+            commission.CommissionRuleId,
+            commission.CommissionRuleEffectiveFromSnapshot,
             commission.Status.ToString(),
             commission.CalculatedAt,
             commission.PaidAt,
@@ -963,10 +986,18 @@ public sealed class MerchantBillingService : IMerchantBillingService
 
     private static object CommissionAuditSnapshot(SalesCommission commission) => new
     {
+        SourceType = commission.SourceType.ToString(),
+        CommissionType = commission.CommissionType.ToString(),
+        commission.MerchantOrderId,
+        commission.MerchantPaymentId,
+        commission.TagOrderId,
         commission.SalespersonCodeSnapshot,
         commission.CommissionPercentageSnapshot,
+        commission.CommissionFixedAmountSnapshot,
         commission.CommissionBaseAmount,
         commission.CommissionAmount,
+        commission.CommissionRuleId,
+        commission.CommissionRuleEffectiveFromSnapshot,
         Status = commission.Status.ToString(),
         commission.PaidAt,
         commission.PaidByAdminUserId,

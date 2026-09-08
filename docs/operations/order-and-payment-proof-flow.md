@@ -207,6 +207,14 @@ Result:
 - `PaymentConfirmedAt` recorded
 - audit log written
 - one `PaymentConfirmed` email queued in the same database transaction
+- for an eligible attributed order, one rule-driven direct retail commission
+  created in the same transaction; product line `FinalAmount` values form the
+  base and delivery is excluded
+
+An organic order creates no commission. A known same-account salesperson link
+also creates no commission, but the proof and purchase are still approved and
+the exclusion is audited. See
+[Sales commission lifecycle](merchant-commission-lifecycle.md).
 
 Owner portal shows:
 

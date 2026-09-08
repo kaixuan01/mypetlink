@@ -234,6 +234,122 @@ public sealed class MerchantBillingRelationalTests
         await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => second.SaveChangesAsync());
     }
 
+    [RelationalFact]
+    public async Task RetailCommissionUniqueIndexIsScopedByOrderAndCommissionType()
+    {
+        await using var scope = await RelationalDatabase.CreateAsync();
+        await using var db = scope.NewContext();
+        var seeded = await SeedRetailOrderAsync(db);
+
+        db.SalesCommissions.Add(NewRetailCommission(
+            seeded.OrderId, seeded.SalespersonId,
+            SalesCommissionType.DirectRetailPercentage,
+            SalesCommissionStatus.Payable));
+        db.SalesCommissions.Add(NewRetailCommission(
+            seeded.OrderId, seeded.SalespersonId,
+            SalesCommissionType.ResellerRepeatPercentage,
+            SalesCommissionStatus.Payable));
+        await db.SaveChangesAsync();
+
+        db.SalesCommissions.Add(NewRetailCommission(
+            seeded.OrderId, seeded.SalespersonId,
+            SalesCommissionType.DirectRetailPercentage,
+            SalesCommissionStatus.Paid));
+        await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+        db.ChangeTracker.Clear();
+
+        Assert.Equal(2, await db.SalesCommissions.CountAsync());
+    }
+
+    [RelationalFact]
+    public async Task RetailCommissionUniqueIndexAllowsReversedHistory()
+    {
+        await using var scope = await RelationalDatabase.CreateAsync();
+        await using var db = scope.NewContext();
+        var seeded = await SeedRetailOrderAsync(db);
+
+        db.SalesCommissions.Add(NewRetailCommission(
+            seeded.OrderId, seeded.SalespersonId,
+            SalesCommissionType.DirectRetailPercentage,
+            SalesCommissionStatus.Reversed));
+        db.SalesCommissions.Add(NewRetailCommission(
+            seeded.OrderId, seeded.SalespersonId,
+            SalesCommissionType.DirectRetailPercentage,
+            SalesCommissionStatus.Payable));
+        await db.SaveChangesAsync();
+
+        Assert.Equal(2, await db.SalesCommissions.CountAsync());
+        Assert.Single(await db.SalesCommissions.Where(item =>
+            item.Status != SalesCommissionStatus.Reversed).ToListAsync());
+    }
+
+    [RelationalFact]
+    public async Task CommissionSourceDiscriminatorCannotContradictItsForeignKeyShape()
+    {
+        await using var scope = await RelationalDatabase.CreateAsync();
+        await using var db = scope.NewContext();
+        var seeded = await SeedRetailOrderAsync(db);
+        var contradictory = NewRetailCommission(
+            seeded.OrderId,
+            seeded.SalespersonId,
+            SalesCommissionType.DirectRetailPercentage,
+            SalesCommissionStatus.Payable);
+        contradictory.SourceType = SalesCommissionSourceType.MerchantOrder;
+        db.SalesCommissions.Add(contradictory);
+
+        await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+        Assert.False(await db.SalesCommissions.AnyAsync(item => item.Id == contradictory.Id));
+    }
+
+    [RelationalFact]
+    public async Task SalespersonUserLinkAndGlobalRuleBusinessKeysAreDatabaseUnique()
+    {
+        await using var scope = await RelationalDatabase.CreateAsync();
+        await using var db = scope.NewContext();
+        var user = new User
+        {
+            Email = "linked@example.com",
+            NormalizedEmail = "LINKED@EXAMPLE.COM",
+            DisplayName = "Linked User"
+        };
+        db.Users.Add(user);
+        db.Salespersons.Add(new Salesperson
+        {
+            SalespersonCode = "SP-LINK-1",
+            Name = "First",
+            UserId = user.Id
+        });
+        await db.SaveChangesAsync();
+
+        db.Salespersons.Add(new Salesperson
+        {
+            SalespersonCode = "SP-LINK-2",
+            Name = "Second",
+            UserId = user.Id
+        });
+        await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+        db.ChangeTracker.Clear();
+
+        db.CommissionRules.Add(new CommissionRule
+        {
+            CommissionType = SalesCommissionType.DirectRetailPercentage,
+            Percentage = 12m,
+            Currency = "MYR",
+            EffectiveFrom = new DateTimeOffset(2030, 1, 1, 0, 0, 0, TimeSpan.Zero),
+            IsActive = false
+        });
+        await db.SaveChangesAsync();
+        db.CommissionRules.Add(new CommissionRule
+        {
+            CommissionType = SalesCommissionType.DirectRetailPercentage,
+            Percentage = 13m,
+            Currency = "MYR",
+            EffectiveFrom = new DateTimeOffset(2030, 1, 1, 0, 0, 0, TimeSpan.Zero),
+            IsActive = true
+        });
+        await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+    }
+
     private static SalesCommission NewCommission(
         Guid orderId, Guid paymentId, Guid salespersonId, SalesCommissionStatus status) => new()
     {
@@ -250,6 +366,67 @@ public sealed class MerchantBillingRelationalTests
         ReversedAt = status == SalesCommissionStatus.Reversed ? DateTimeOffset.UtcNow : null,
         ReversalReason = status == SalesCommissionStatus.Reversed ? "Historical reversal" : null,
     };
+
+    private static SalesCommission NewRetailCommission(
+        Guid orderId,
+        Guid salespersonId,
+        SalesCommissionType type,
+        SalesCommissionStatus status) => new()
+    {
+        SourceType = SalesCommissionSourceType.TagOrder,
+        CommissionType = type,
+        TagOrderId = orderId,
+        SalespersonId = salespersonId,
+        SalespersonCodeSnapshot = "SP-RETAIL",
+        SalespersonNameSnapshot = "Retail Seller",
+        CommissionPercentageSnapshot = 15m,
+        CommissionBaseAmount = 100m,
+        CommissionAmount = 15m,
+        Status = status,
+        CalculatedAt = DateTimeOffset.UtcNow,
+        ReversedAt = status == SalesCommissionStatus.Reversed ? DateTimeOffset.UtcNow : null,
+        ReversalReason = status == SalesCommissionStatus.Reversed ? "Historical reversal" : null,
+    };
+
+    private static async Task<(Guid OrderId, Guid SalespersonId)> SeedRetailOrderAsync(
+        MyPetLinkDbContext db)
+    {
+        var owner = new User
+        {
+            Email = "retail-owner@example.com",
+            NormalizedEmail = "RETAIL-OWNER@EXAMPLE.COM",
+            DisplayName = "Retail Owner"
+        };
+        var pet = new Pet
+        {
+            OwnerUserId = owner.Id,
+            Name = "Milo",
+            Slug = $"milo-{Guid.NewGuid():N}",
+            Species = "Cat"
+        };
+        var salesperson = new Salesperson
+        {
+            SalespersonCode = $"SP-{Guid.NewGuid():N}"[..12],
+            Name = "Retail Seller"
+        };
+        var order = new TagOrder
+        {
+            OrderNumber = $"MPL-ORD-{Guid.NewGuid():N}",
+            OwnerUserId = owner.Id,
+            PetId = pet.Id,
+            Amount = 100m,
+            TotalAmount = 100m,
+            RecipientName = owner.DisplayName,
+            DeliveryPhoneE164 = "+60123456789",
+            AddressLine1 = "1 Jalan Test",
+            Postcode = "50000",
+            City = "Kuala Lumpur",
+            State = "Kuala Lumpur"
+        };
+        db.AddRange(owner, pet, salesperson, order);
+        await db.SaveChangesAsync();
+        return (order.Id, salesperson.Id);
+    }
 
     private static async Task<SeedResult> SeedTwoPaymentsForOneOrderAsync(
         MyPetLinkDbContext db)

@@ -70,6 +70,13 @@ public sealed class Salesperson : AuditableEntity
     public string? Email { get; set; }
     public string? Phone { get; set; }
 
+    /// <summary>
+    /// Optional authoritative link to the authenticated account owned by this
+    /// salesperson. Email is deliberately not used as an identity substitute.
+    /// </summary>
+    public Guid? UserId { get; set; }
+    public User? User { get; set; }
+
     /// <summary>Whole percent, 0–100, snapshotted onto each quotation and order.</summary>
     public decimal DefaultCommissionPercentage { get; set; }
 

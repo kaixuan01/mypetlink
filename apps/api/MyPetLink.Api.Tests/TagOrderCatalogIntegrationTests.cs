@@ -58,6 +58,43 @@ public sealed class TagOrderCatalogIntegrationTests
     }
 
     [Fact]
+    public async Task Create_ExcludesKnownSameAccountSelfReferralWithoutBlockingTheOrder()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var salesperson = new Salesperson
+        {
+            SalespersonCode = "MPL-SP-SELF",
+            ReferralCode = "SELF",
+            Name = "Linked Owner",
+            UserId = OwnerId,
+            IsActive = true
+        };
+        harness.Db.Salespersons.Add(salesperson);
+        harness.Db.OwnerReferralAttributions.Add(new OwnerReferralAttribution
+        {
+            UserId = OwnerId,
+            Salesperson = salesperson,
+            ReferralCodeSnapshot = "SELF",
+            SalespersonCodeSnapshot = salesperson.SalespersonCode,
+            SalespersonNameSnapshot = salesperson.Name,
+            AttributionSource = ReferralAttributionSource.ReferralLink,
+            CapturedAt = DateTimeOffset.Parse("2026-09-01T00:00:00Z"),
+            AttributedAt = DateTimeOffset.Parse("2026-09-02T00:00:00Z")
+        });
+        await harness.Db.SaveChangesAsync();
+
+        var created = await harness.Service.CreateAsync(
+            OwnerId,
+            Request(harness.Pet.Id, harness.Variant.PublicKey));
+        var order = await harness.Db.TagOrders.SingleAsync(item => item.Id == created.Order.Id);
+
+        Assert.Null(order.SalespersonId);
+        Assert.Null(order.SalespersonCodeSnapshot);
+        Assert.Contains(await harness.Db.AuditLogs.ToListAsync(), item =>
+            item.Action == "order.self-referral-excluded" && item.EntityId == order.Id);
+    }
+
+    [Fact]
     public async Task Create_AssignsMalaysiaTimestampedOrderNumberFromCreatedAt()
     {
         var now = DateTimeOffset.Parse("2026-07-27T16:05:06Z");

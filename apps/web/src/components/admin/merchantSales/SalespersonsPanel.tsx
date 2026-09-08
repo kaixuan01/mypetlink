@@ -21,6 +21,7 @@ import { useAdminTableQuery } from "@/components/admin/table/useAdminTableQuery"
 import { Badge } from "@/components/ui/Badge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { isAbortError } from "@/services/apiClient";
+import { listAdminOwners, type AdminOwner } from "@/services/adminOwnerService";
 import {
   createSalesperson,
   getMerchantSalesError,
@@ -253,6 +254,11 @@ export function SalespersonsPanel({
               </DetailRow>
               <DetailRow label="Email">{orNotProvided(open.email)}</DetailRow>
               <DetailRow label="Phone">{orNotProvided(open.phone)}</DetailRow>
+              <DetailRow label="Linked MyPetLink account">
+                {open.userId
+                  ? `${open.userDisplayName ?? "Account"} · ${open.userEmail ?? open.userId}`
+                  : "Not linked"}
+              </DetailRow>
               <DetailRow label="Default commission">
                 {open.defaultCommissionPercentage}%
               </DetailRow>
@@ -392,9 +398,26 @@ function SalespersonEditor({
   );
   const [notes, setNotes] = useState(salesperson?.internalNotes ?? "");
   const [referralCode, setReferralCode] = useState(salesperson?.referralCode ?? "");
+  const [userId, setUserId] = useState(salesperson?.userId ?? "");
+  const [owners, setOwners] = useState<AdminOwner[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    const controller = new AbortController();
+    listAdminOwners(
+      { page: 1, pageSize: 100, status: "Active", sortBy: "name", sortDir: "asc" },
+      controller.signal
+    )
+      .then((result) => {
+        if (!controller.signal.aborted) setOwners(result.items);
+      })
+      .catch(() => {
+        // The account link remains optional if the owner directory is temporarily unavailable.
+      });
+    return () => controller.abort();
+  }, []);
 
   async function save() {
     if (saving) return;
@@ -417,6 +440,7 @@ function SalespersonEditor({
       defaultCommissionPercentage: parsed,
       internalNotes: notes.trim() || null,
       referralCode: referralCode.trim() || null,
+      userId: userId || null,
       concurrencyToken: salesperson?.concurrencyToken ?? null,
     };
 
@@ -459,6 +483,34 @@ function SalespersonEditor({
           onChange={setReferralCode}
           value={referralCode}
         />
+        <label className="grid gap-1 text-sm font-bold text-pet-ink sm:col-span-2">
+          Linked MyPetLink account
+          <select
+            aria-invalid={fieldErrors.userId ? true : undefined}
+            className={fieldClass}
+            onChange={(event) => setUserId(event.target.value)}
+            value={userId}
+          >
+            <option value="">Not linked</option>
+            {salesperson?.userId && !owners.some((owner) => owner.ownerUserId === salesperson.userId) ? (
+              <option value={salesperson.userId}>
+                {salesperson.userDisplayName ?? "Linked account"} · {salesperson.userEmail ?? salesperson.userId}
+              </option>
+            ) : null}
+            {owners.map((owner) => (
+              <option key={owner.ownerUserId} value={owner.ownerUserId}>
+                {owner.displayName} · {owner.email}
+              </option>
+            ))}
+          </select>
+          {fieldErrors.userId ? (
+            <span className="text-sm font-bold text-[#a63c2e]">{fieldErrors.userId}</span>
+          ) : (
+            <span className="text-sm font-semibold text-pet-muted">
+              Used only for authoritative same-account self-referral protection.
+            </span>
+          )}
+        </label>
         <Field
           error={fieldErrors.defaultCommissionPercentage}
           hint="Between 0 and 100."

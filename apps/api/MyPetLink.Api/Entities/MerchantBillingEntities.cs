@@ -220,18 +220,35 @@ public sealed class MerchantReceiptItem : Entity
 /// </summary>
 public sealed class SalesCommission : AuditableEntity
 {
-    public Guid MerchantOrderId { get; set; }
+    public SalesCommissionSourceType SourceType { get; set; } =
+        SalesCommissionSourceType.MerchantOrder;
+    public SalesCommissionType CommissionType { get; set; } =
+        SalesCommissionType.MerchantOrderPercentage;
+
+    public Guid? MerchantOrderId { get; set; }
     public MerchantOrder? MerchantOrder { get; set; }
 
-    public Guid MerchantPaymentId { get; set; }
+    public Guid? MerchantPaymentId { get; set; }
     public MerchantPayment? MerchantPayment { get; set; }
+
+    public Guid? TagOrderId { get; set; }
+    public TagOrder? TagOrder { get; set; }
 
     public Guid SalespersonId { get; set; }
     public Salesperson? Salesperson { get; set; }
 
     public string SalespersonCodeSnapshot { get; set; } = "";
     public string SalespersonNameSnapshot { get; set; } = "";
-    public decimal CommissionPercentageSnapshot { get; set; }
+    public decimal? CommissionPercentageSnapshot { get; set; }
+    public decimal? CommissionFixedAmountSnapshot { get; set; }
+
+    /// <summary>
+    /// Null for legacy merchant commissions, whose percentage was snapshotted
+    /// on the merchant order before CommissionRule existed.
+    /// </summary>
+    public Guid? CommissionRuleId { get; set; }
+    public CommissionRule? CommissionRule { get; set; }
+    public DateTimeOffset? CommissionRuleEffectiveFromSnapshot { get; set; }
 
     public decimal CommissionBaseAmount { get; set; }
     public decimal CommissionAmount { get; set; }
@@ -255,5 +272,33 @@ public sealed class SalesCommission : AuditableEntity
 
     public string? InternalNote { get; set; }
 
+    public byte[] RowVersion { get; set; } = [];
+}
+
+/// <summary>
+/// Effective-dated, Admin-managed commission policy. A rule is either a
+/// percentage or a fixed amount, never both. Phase 3B evaluates only
+/// DirectRetailPercentage rules.
+/// </summary>
+public sealed class CommissionRule : AuditableEntity
+{
+    public static readonly Guid DefaultDirectRetailRuleId =
+        Guid.Parse("a971d6d5-86a8-4f85-a5e4-9cb85a1f3b01");
+
+    public SalesCommissionType CommissionType { get; set; }
+    public Guid? SalespersonId { get; set; }
+    public Salesperson? Salesperson { get; set; }
+    public decimal? Percentage { get; set; }
+    public decimal? FixedAmount { get; set; }
+    public int? MinQuantity { get; set; }
+    public int? MaxQuantity { get; set; }
+    public int? EligibilityMonths { get; set; }
+    public string Currency { get; set; } = MerchantSalesConstants.Currency;
+    public DateTimeOffset EffectiveFrom { get; set; }
+    public DateTimeOffset? EffectiveTo { get; set; }
+    public bool IsActive { get; set; } = true;
+    public string? Notes { get; set; }
+    public Guid? UpdatedByAdminUserId { get; set; }
+    public AdminUser? UpdatedByAdminUser { get; set; }
     public byte[] RowVersion { get; set; } = [];
 }

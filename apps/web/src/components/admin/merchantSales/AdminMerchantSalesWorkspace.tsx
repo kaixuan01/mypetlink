@@ -10,6 +10,7 @@ import { OrdersPanel } from "./OrdersPanel";
 import { QuotationsPanel } from "./QuotationsPanel";
 import { SalespersonsPanel } from "./SalespersonsPanel";
 import { ReferralAttributionsPanel } from "./ReferralAttributionsPanel";
+import { CommissionsPanel } from "./CommissionsPanel";
 import {
   MERCHANT_SALES_LIST_KEYS,
   isMerchantSalesTab,
@@ -175,6 +176,8 @@ export function AdminMerchantSalesWorkspace() {
           status={searchParams.get("status")}
         />
       ) : null}
+
+      {tab === "commissions" ? <CommissionsPanel /> : null}
     </div>
   );
 }

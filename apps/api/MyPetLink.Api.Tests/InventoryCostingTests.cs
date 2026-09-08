@@ -299,6 +299,70 @@ public sealed class InventoryCostingTests
     }
 
     [Fact]
+    public async Task Profitability_SubtractsOnlyNonReversedCommissionForEachRetailOrder()
+    {
+        await using var db = NewDb();
+        var product = Product();
+        var variant = Variant(product);
+        var order = RetailOrder(2, variant, "ORD-RETAIL-COMMISSION", 20m, 2m);
+        order.ActualCourierCost = 4m;
+        var receipt = Receipt(variant, "STK-COMMISSION", 3m);
+        var tags = new[]
+        {
+            RetailTag("MPL-COMMISSION-1", order, order.Items.Single(), variant, receipt),
+            RetailTag("MPL-COMMISSION-2", order, order.Items.Single(), variant, receipt),
+        };
+        var salesperson = new Salesperson
+        {
+            SalespersonCode = "SP-PROFIT",
+            Name = "Profit Seller"
+        };
+        db.AddRange(product, receipt, order, salesperson);
+        db.SmartTags.AddRange(tags);
+        await db.SaveChangesAsync();
+        await new InventoryCostingService(db).SnapshotRetailShipmentAsync(order, tags, Now);
+        db.SalesCommissions.AddRange(
+            new SalesCommission
+            {
+                SourceType = SalesCommissionSourceType.TagOrder,
+                CommissionType = SalesCommissionType.DirectRetailPercentage,
+                TagOrderId = order.Id,
+                SalespersonId = salesperson.Id,
+                SalespersonCodeSnapshot = salesperson.SalespersonCode,
+                SalespersonNameSnapshot = salesperson.Name,
+                CommissionPercentageSnapshot = 15m,
+                CommissionBaseAmount = 18m,
+                CommissionAmount = 2.70m,
+                Status = SalesCommissionStatus.Payable,
+                CalculatedAt = Now
+            },
+            new SalesCommission
+            {
+                SourceType = SalesCommissionSourceType.TagOrder,
+                CommissionType = SalesCommissionType.ResellerRepeatPercentage,
+                TagOrderId = order.Id,
+                SalespersonId = salesperson.Id,
+                SalespersonCodeSnapshot = salesperson.SalespersonCode,
+                SalespersonNameSnapshot = salesperson.Name,
+                CommissionPercentageSnapshot = 3m,
+                CommissionBaseAmount = 18m,
+                CommissionAmount = 0.54m,
+                Status = SalesCommissionStatus.Reversed,
+                CalculatedAt = Now,
+                ReversedAt = Now,
+                ReversalReason = "Not eligible"
+            });
+        await db.SaveChangesAsync();
+
+        var report = await ReceiptService(db).GetProfitabilityAsync(
+            new ProfitabilityReportQuery(Now.AddDays(-1), Now.AddDays(1)));
+
+        Assert.Equal(2.70m, report.RecordedSalesCommission);
+        Assert.Equal(2.70m, report.CostedSalesCommission);
+        Assert.Equal(5.30m, report.ContributionProfit); // 18 - 6 COGS - 4 courier - 2.70.
+    }
+
+    [Fact]
     public async Task Profitability_IncludesLegacyShippedOrderAsUncosted()
     {
         await using var db = NewDb();

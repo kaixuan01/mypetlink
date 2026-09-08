@@ -313,6 +313,29 @@ public enum SalesCommissionStatus
 }
 
 /// <summary>
+/// The commercial event that produced a commission. Stored as text so future
+/// source channels can be appended without renumbering historical rows.
+/// </summary>
+public enum SalesCommissionSourceType
+{
+    MerchantOrder,
+    TagOrder
+}
+
+/// <summary>
+/// The business rule represented by a ledger row. Only merchant-order and
+/// direct-retail percentages are operational in Phase 3B; the reseller values
+/// reserve stable persisted names for later phases.
+/// </summary>
+public enum SalesCommissionType
+{
+    MerchantOrderPercentage,
+    DirectRetailPercentage,
+    ResellerAcquisitionBonus,
+    ResellerRepeatPercentage
+}
+
+/// <summary>
 /// Operational progress, kept separate from payment status and from inventory
 /// allocation progress so none of the three can be read from the other two.
 /// An order stays NotStarted until payment is confirmed and preparation opens.

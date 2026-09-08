@@ -130,6 +130,7 @@ public sealed class AdminOrderServiceTests
             (await harness.Db.TagOrders.AsNoTracking().SingleAsync(order => order.Id == review.Id)).ReceiptNumber);
         await Assert.ThrowsAsync<ApiException>(() =>
             harness.Admin.ConfirmPaymentAsync(Harness.AdminId, review.Id));
+        Assert.Empty(await harness.Db.SalesCommissions.ToListAsync());
         Assert.Equal(
             "MPL-RCP-260717140000-4000",
             (await harness.Db.TagOrders.AsNoTracking().SingleAsync(order => order.Id == review.Id)).ReceiptNumber);
@@ -149,6 +150,274 @@ public sealed class AdminOrderServiceTests
             Harness.Now.AddMinutes(120),
             (await harness.Db.TagOrders.AsNoTracking().SingleAsync(order => order.Id == second.Id))
                 .PaymentReservationExpiresAt);
+    }
+
+    [Fact]
+    public async Task ConfirmPayment_CreatesOneRuleDrivenDirectRetailCommissionFromTotalNetProducts()
+    {
+        using var harness = await Harness.CreateAsync();
+        var order = await harness.Db.TagOrders
+            .Include(item => item.Items)
+            .SingleAsync(item => item.OrderNumber == "MPL-ORD-REVIEW");
+        var salesperson = new Salesperson
+        {
+            SalespersonCode = "SP-RETAIL",
+            ReferralCode = "RETAIL",
+            Name = "Retail Seller",
+            Email = "aina@example.com",
+            IsActive = false,
+            DefaultCommissionPercentage = 99m
+        };
+        order.SalespersonId = salesperson.Id;
+        order.SalespersonCodeSnapshot = salesperson.SalespersonCode;
+        order.SalespersonNameSnapshot = salesperson.Name;
+        order.Items.Add(new TagOrderItem
+        {
+            SkuSnapshot = "TAG-NFC",
+            ProductNameSnapshot = "QR + NFC Smart Tag",
+            VariantNameSnapshot = "Standard",
+            UnitBasePrice = 29.90m,
+            Quantity = 3,
+            Subtotal = 89.70m,
+            FinalUnitPrice = 29.90m,
+            FinalAmount = 89.70m,
+            Currency = "MYR"
+        });
+        var expiredRule = new CommissionRule
+        {
+            CommissionType = SalesCommissionType.DirectRetailPercentage,
+            Percentage = 99m,
+            Currency = "MYR",
+            EffectiveFrom = Harness.Now.AddYears(-1),
+            EffectiveTo = Harness.Now,
+            IsActive = true
+        };
+        var rule = new CommissionRule
+        {
+            CommissionType = SalesCommissionType.DirectRetailPercentage,
+            Percentage = 15m,
+            Currency = "MYR",
+            EffectiveFrom = Harness.Now,
+            IsActive = true
+        };
+        harness.Db.TagOrderItems.Add(order.Items.Single());
+        harness.Db.AddRange(salesperson, expiredRule, rule);
+        await harness.Db.SaveChangesAsync();
+
+        await harness.Admin.ConfirmPaymentAsync(Harness.AdminId, order.Id);
+
+        var commission = Assert.Single(await harness.Db.SalesCommissions.ToListAsync());
+        Assert.Equal(SalesCommissionSourceType.TagOrder, commission.SourceType);
+        Assert.Equal(SalesCommissionType.DirectRetailPercentage, commission.CommissionType);
+        Assert.Equal(order.Id, commission.TagOrderId);
+        Assert.Null(commission.MerchantOrderId);
+        Assert.Null(commission.MerchantPaymentId);
+        Assert.Equal(rule.Id, commission.CommissionRuleId);
+        Assert.Equal(rule.EffectiveFrom, commission.CommissionRuleEffectiveFromSnapshot);
+        Assert.Equal(89.70m, commission.CommissionBaseAmount);
+        Assert.Equal(15m, commission.CommissionPercentageSnapshot);
+        Assert.Equal(13.46m, commission.CommissionAmount);
+        Assert.Equal(SalesCommissionStatus.Payable, commission.Status);
+        Assert.Equal(Harness.Now, commission.CalculatedAt);
+        Assert.Equal("Retail Seller", commission.SalespersonNameSnapshot);
+        Assert.Null(salesperson.UserId); // Matching contact email is never an identity rule.
+    }
+
+    [Fact]
+    public async Task ConfirmPayment_UsesSalespersonRuleBeforeGlobalRule_AndSnapshotsIt()
+    {
+        using var harness = await Harness.CreateAsync();
+        var order = await harness.Db.TagOrders
+            .Include(item => item.Items)
+            .SingleAsync(item => item.OrderNumber == "MPL-ORD-REVIEW");
+        var salesperson = new Salesperson
+        {
+            SalespersonCode = "SP-OVERRIDE",
+            Name = "Override Seller",
+            DefaultCommissionPercentage = 1m
+        };
+        order.SalespersonId = salesperson.Id;
+        order.SalespersonCodeSnapshot = salesperson.SalespersonCode;
+        order.SalespersonNameSnapshot = salesperson.Name;
+        order.Items.Add(new TagOrderItem
+        {
+            SkuSnapshot = "TAG-NFC",
+            ProductNameSnapshot = "QR + NFC Smart Tag",
+            VariantNameSnapshot = "Standard",
+            UnitBasePrice = 100m,
+            Quantity = 1,
+            Subtotal = 100m,
+            DiscountAmount = 10m,
+            FinalUnitPrice = 90m,
+            FinalAmount = 90m,
+            Currency = "MYR"
+        });
+        var global = new CommissionRule
+        {
+            CommissionType = SalesCommissionType.DirectRetailPercentage,
+            Percentage = 15m,
+            Currency = "MYR",
+            EffectiveFrom = Harness.Now.AddYears(-1),
+            IsActive = true
+        };
+        var sellerRule = new CommissionRule
+        {
+            CommissionType = SalesCommissionType.DirectRetailPercentage,
+            SalespersonId = salesperson.Id,
+            Percentage = 20m,
+            Currency = "MYR",
+            EffectiveFrom = Harness.Now.AddMonths(-1),
+            IsActive = true
+        };
+        var replacement = new Salesperson
+        {
+            SalespersonCode = "SP-CURRENT",
+            ReferralCode = "CURRENT",
+            Name = "Current Owner Attribution"
+        };
+        var currentAttribution = new OwnerReferralAttribution
+        {
+            UserId = Harness.OwnerId,
+            Salesperson = replacement,
+            ReferralCodeSnapshot = replacement.ReferralCode,
+            SalespersonCodeSnapshot = replacement.SalespersonCode,
+            SalespersonNameSnapshot = replacement.Name,
+            AttributionSource = ReferralAttributionSource.ManualAdmin,
+            CapturedAt = Harness.Now,
+            AttributedAt = Harness.Now
+        };
+        harness.Db.TagOrderItems.Add(order.Items.Single());
+        harness.Db.AddRange(salesperson, replacement, currentAttribution, global, sellerRule);
+        await harness.Db.SaveChangesAsync();
+
+        await harness.Admin.ConfirmPaymentAsync(Harness.AdminId, order.Id);
+        sellerRule.Percentage = 25m;
+        salesperson.Name = "Changed Later";
+        await harness.Db.SaveChangesAsync();
+
+        var commission = await harness.Db.SalesCommissions.SingleAsync();
+        Assert.Equal(sellerRule.Id, commission.CommissionRuleId);
+        Assert.Equal(20m, commission.CommissionPercentageSnapshot);
+        Assert.Equal(18m, commission.CommissionAmount);
+        Assert.Equal(salesperson.Id, commission.SalespersonId);
+        Assert.NotEqual(currentAttribution.SalespersonId, commission.SalespersonId);
+        Assert.Equal("Override Seller", commission.SalespersonNameSnapshot);
+    }
+
+    [Fact]
+    public async Task ConfirmPayment_ExcludesAuthoritativeSelfReferralButStillConfirmsPayment()
+    {
+        using var harness = await Harness.CreateAsync();
+        var order = await harness.Db.TagOrders
+            .Include(item => item.Items)
+            .SingleAsync(item => item.OrderNumber == "MPL-ORD-REVIEW");
+        var salesperson = new Salesperson
+        {
+            SalespersonCode = "SP-SELF",
+            Name = "Owner Seller",
+            UserId = Harness.OwnerId,
+            DefaultCommissionPercentage = 15m
+        };
+        order.SalespersonId = salesperson.Id;
+        order.SalespersonCodeSnapshot = salesperson.SalespersonCode;
+        order.SalespersonNameSnapshot = salesperson.Name;
+        order.Items.Add(new TagOrderItem
+        {
+            SkuSnapshot = "TAG-NFC",
+            ProductNameSnapshot = "QR + NFC Smart Tag",
+            VariantNameSnapshot = "Standard",
+            UnitBasePrice = 29.90m,
+            Quantity = 1,
+            Subtotal = 29.90m,
+            FinalUnitPrice = 29.90m,
+            FinalAmount = 29.90m,
+            Currency = "MYR"
+        });
+        harness.Db.TagOrderItems.Add(order.Items.Single());
+        harness.Db.Salespersons.Add(salesperson);
+        await harness.Db.SaveChangesAsync();
+
+        var result = await harness.Admin.ConfirmPaymentAsync(Harness.AdminId, order.Id);
+
+        Assert.Equal(PaymentStatus.Confirmed, result.Order.PaymentStatus);
+        Assert.Empty(await harness.Db.SalesCommissions.ToListAsync());
+        Assert.Contains(await harness.Db.AuditLogs.ToListAsync(), item =>
+            item.Action == "sales-commission.self-referral-excluded"
+            && item.EntityId == order.Id);
+    }
+
+    [Fact]
+    public async Task RejectPaymentProof_NeverGeneratesAnAttributedRetailCommission()
+    {
+        using var harness = await Harness.CreateAsync();
+        var order = await harness.Db.TagOrders
+            .SingleAsync(item => item.OrderNumber == "MPL-ORD-REVIEW");
+        var salesperson = new Salesperson
+        {
+            SalespersonCode = "SP-REJECTED",
+            Name = "Rejected Proof Seller"
+        };
+        order.SalespersonId = salesperson.Id;
+        order.SalespersonCodeSnapshot = salesperson.SalespersonCode;
+        order.SalespersonNameSnapshot = salesperson.Name;
+        harness.Db.Salespersons.Add(salesperson);
+        harness.Db.CommissionRules.Add(new CommissionRule
+        {
+            CommissionType = SalesCommissionType.DirectRetailPercentage,
+            Percentage = 15m,
+            Currency = "MYR",
+            EffectiveFrom = Harness.Now.AddYears(-1),
+            IsActive = true
+        });
+        await harness.Db.SaveChangesAsync();
+
+        var result = await harness.Admin.RejectPaymentProofAsync(
+            Harness.AdminId, order.Id, "Payment reference did not match");
+
+        Assert.Equal(PaymentStatus.Rejected, result.Order.PaymentStatus);
+        Assert.Empty(await harness.Db.SalesCommissions.ToListAsync());
+    }
+
+    [Fact]
+    public async Task CancellingPaidRetailOrder_ReversesCommissionAndPreservesPayoutHistory()
+    {
+        using var harness = await Harness.CreateAsync();
+        var order = await harness.Db.TagOrders
+            .SingleAsync(item => item.OrderNumber == "MPL-ORD-PAID");
+        var salesperson = new Salesperson
+        {
+            SalespersonCode = "SP-PAID",
+            Name = "Paid Seller",
+            DefaultCommissionPercentage = 15m
+        };
+        var paidAt = Harness.Now.AddDays(-1);
+        var commission = new SalesCommission
+        {
+            SourceType = SalesCommissionSourceType.TagOrder,
+            CommissionType = SalesCommissionType.DirectRetailPercentage,
+            TagOrderId = order.Id,
+            SalespersonId = salesperson.Id,
+            SalespersonCodeSnapshot = salesperson.SalespersonCode,
+            SalespersonNameSnapshot = salesperson.Name,
+            CommissionPercentageSnapshot = 15m,
+            CommissionBaseAmount = 100m,
+            CommissionAmount = 15m,
+            Status = SalesCommissionStatus.Paid,
+            CalculatedAt = Harness.Now.AddDays(-2),
+            PaidAt = paidAt,
+            PaidByAdminUserId = (await harness.Db.AdminUsers.SingleAsync()).Id
+        };
+        harness.Db.AddRange(salesperson, commission);
+        await harness.Db.SaveChangesAsync();
+
+        await harness.Admin.CancelOrderAsync(Harness.AdminId, order.Id, "Approved customer cancellation");
+
+        var stored = await harness.Db.SalesCommissions.SingleAsync();
+        Assert.Equal(SalesCommissionStatus.Reversed, stored.Status);
+        Assert.Equal(paidAt, stored.PaidAt);
+        Assert.NotNull(stored.PaidByAdminUserId);
+        Assert.Equal(Harness.Now, stored.ReversedAt);
+        Assert.Contains("Approved customer cancellation", stored.ReversalReason);
     }
 
     [Fact]

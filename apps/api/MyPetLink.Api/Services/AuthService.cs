@@ -360,6 +360,18 @@ public sealed class AuthService : SkeletonService, IAuthService
             .SingleOrDefaultAsync(item => item.ReferralCode == normalized && item.IsActive,
                 cancellationToken);
         if (salesperson is null) return;
+        if (salesperson.UserId == user.Id)
+        {
+            _auditLogService.Append(
+                user.Id,
+                ActorType.Owner,
+                "owner-referral-attribution.self-referral-ignored",
+                "User",
+                user.Id,
+                null,
+                new { userId = user.Id, salespersonId = salesperson.Id, capturedAt });
+            return;
+        }
 
         var attribution = new OwnerReferralAttribution
         {

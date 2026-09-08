@@ -66,7 +66,8 @@ public sealed record UpsertSalespersonRequest(
     decimal DefaultCommissionPercentage,
     [MaxLength(2000)] string? InternalNotes,
     string? ConcurrencyToken = null,
-    [MaxLength(24)] string? ReferralCode = null);
+    [MaxLength(24)] string? ReferralCode = null,
+    Guid? UserId = null);
 
 public sealed record SalespersonResponse(
     Guid Id,
@@ -75,6 +76,9 @@ public sealed record SalespersonResponse(
     string Name,
     string? Email,
     string? Phone,
+    Guid? UserId,
+    string? UserDisplayName,
+    string? UserEmail,
     decimal DefaultCommissionPercentage,
     string? InternalNotes,
     bool IsActive,

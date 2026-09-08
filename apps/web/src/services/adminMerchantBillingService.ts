@@ -84,19 +84,33 @@ export type AdminMerchantInvoice = {
 
 export type AdminSalesCommission = {
   id: string;
-  merchantOrderId: string;
-  merchantOrderNumber: string;
+  sourceType: "MerchantOrder" | "TagOrder";
+  commissionType:
+    | "MerchantOrderPercentage"
+    | "DirectRetailPercentage"
+    | "ResellerAcquisitionBonus"
+    | "ResellerRepeatPercentage";
+  merchantOrderId: string | null;
+  merchantPaymentId: string | null;
+  tagOrderId: string | null;
+  sourceOrderNumber: string;
   salespersonId: string;
   salespersonCode: string;
   salespersonName: string;
-  commissionPercentage: number;
+  commissionPercentage: number | null;
+  commissionFixedAmount: number | null;
   commissionBaseAmount: number;
   commissionAmount: number;
   currency: string;
+  commissionRuleId: string | null;
+  commissionRuleEffectiveFrom: string | null;
   status: "Payable" | "Paid" | "Reversed";
   calculatedAt: string;
   paidAt: string | null;
+  paidByAdminUserId: string | null;
   reversedAt: string | null;
+  reversedByAdminUserId: string | null;
+  reversalReason: string | null;
   internalNote: string | null;
   concurrencyToken: string;
 };
@@ -275,6 +289,85 @@ export async function markCommissionPaid(id: string, concurrencyToken: string) {
     { method: "POST", body: { concurrencyToken } }
   );
   return must(response.data, "commission");
+}
+
+export async function reverseCommission(
+  id: string,
+  reason: string,
+  concurrencyToken: string
+) {
+  const response = await apiRequest<AdminSalesCommission>(
+    `${base}/commissions/${id}/reverse`,
+    { method: "POST", body: { reason, concurrencyToken } }
+  );
+  return must(response.data, "commission");
+}
+
+// --- Commission rules -----------------------------------------------------
+
+export type AdminCommissionRule = {
+  id: string;
+  commissionType: "DirectRetailPercentage";
+  salespersonId: string | null;
+  salespersonCode: string | null;
+  salespersonName: string | null;
+  percentage: number | null;
+  fixedAmount: number | null;
+  minQuantity: number | null;
+  maxQuantity: number | null;
+  eligibilityMonths: number | null;
+  currency: string;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+  isActive: boolean;
+  notes: string | null;
+  updatedByAdminUserId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  concurrencyToken: string;
+};
+
+export type UpsertCommissionRuleInput = {
+  commissionType: "DirectRetailPercentage";
+  salespersonId: string | null;
+  percentage: number;
+  fixedAmount: null;
+  minQuantity: number | null;
+  maxQuantity: number | null;
+  eligibilityMonths: null;
+  currency: "MYR";
+  effectiveFrom: string;
+  effectiveTo: string | null;
+  isActive: boolean;
+  notes: string | null;
+  concurrencyToken?: string | null;
+};
+
+export async function listCommissionRules(
+  params: { page: number; pageSize: number; salespersonId?: string; isActive?: boolean },
+  signal?: AbortSignal
+): Promise<AdminPagedResult<AdminCommissionRule>> {
+  const response = await apiRequest<AdminCommissionRule[]>(
+    `/api/v1/admin/commission-rules${query({ ...params })}`,
+    { signal }
+  );
+  return { items: response.data ?? [], total: response.meta?.total ?? 0 };
+}
+
+export async function createCommissionRule(input: UpsertCommissionRuleInput) {
+  const response = await apiRequest<AdminCommissionRule>("/api/v1/admin/commission-rules", {
+    method: "POST",
+    body: input,
+  });
+  return must(response.data, "commission rule");
+}
+
+export async function updateCommissionRule(id: string, input: UpsertCommissionRuleInput) {
+  const response = await apiRequest<AdminCommissionRule>(
+    `/api/v1/admin/commission-rules/${id}`,
+    { method: "PUT", body: input }
+  );
+  return must(response.data, "commission rule");
 }
 
 // --- Emails ----------------------------------------------------------------

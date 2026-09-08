@@ -75,7 +75,8 @@ public sealed class MerchantSalesOverviewService : IMerchantSalesOverviewService
 
         var payableCommission = await _dbContext.SalesCommissions
             .AsNoTracking()
-            .Where(item => item.Status == SalesCommissionStatus.Payable)
+            .Where(item => item.SourceType == SalesCommissionSourceType.MerchantOrder
+                && item.Status == SalesCommissionStatus.Payable)
             .Select(item => item.CommissionAmount)
             .ToListAsync(cancellationToken);
 

@@ -66,6 +66,11 @@ The Admin date range selects order lines by their first shipment cost snapshot.
   non-reversed sales commission, only when all included units and courier costs
   are present.
 
+Commission is joined by its explicit source. Merchant rows subtract only
+non-reversed `MerchantOrder` commission for that merchant order; retail rows
+subtract only non-reversed `TagOrder` commission for that retail order. A
+commission from one channel can never reduce the other channel's contribution.
+
 Payment gateway fees, advertising, general operating expenses and replacement
 unit expense are not recorded and are therefore clearly excluded rather than
 estimated.

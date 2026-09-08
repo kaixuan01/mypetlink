@@ -374,10 +374,20 @@ public sealed class InventoryReceiptService : IInventoryReceiptService
             .Where(order => merchantOrderIds.Contains(order.Id))
             .Select(order => new { order.Id, order.InternalCourierCost })
             .ToDictionaryAsync(row => row.Id, row => row.InternalCourierCost, cancellationToken);
-        var commissionByOrder = await _dbContext.SalesCommissions.AsNoTracking()
-            .Where(row => merchantOrderIds.Contains(row.MerchantOrderId)
+        var merchantCommissionByOrder = await _dbContext.SalesCommissions.AsNoTracking()
+            .Where(row => row.SourceType == SalesCommissionSourceType.MerchantOrder
+                && row.MerchantOrderId.HasValue
+                && merchantOrderIds.Contains(row.MerchantOrderId.Value)
                 && row.Status != SalesCommissionStatus.Reversed)
-            .GroupBy(row => row.MerchantOrderId)
+            .GroupBy(row => row.MerchantOrderId!.Value)
+            .Select(group => new { OrderId = group.Key, Amount = group.Sum(row => row.CommissionAmount) })
+            .ToDictionaryAsync(row => row.OrderId, row => row.Amount, cancellationToken);
+        var retailCommissionByOrder = await _dbContext.SalesCommissions.AsNoTracking()
+            .Where(row => row.SourceType == SalesCommissionSourceType.TagOrder
+                && row.TagOrderId.HasValue
+                && retailOrderIds.Contains(row.TagOrderId.Value)
+                && row.Status != SalesCommissionStatus.Reversed)
+            .GroupBy(row => row.TagOrderId!.Value)
             .Select(group => new { OrderId = group.Key, Amount = group.Sum(row => row.CommissionAmount) })
             .ToDictionaryAsync(row => row.OrderId, row => row.Amount, cancellationToken);
 
@@ -433,7 +443,9 @@ public sealed class InventoryReceiptService : IInventoryReceiptService
                 ? merchantCourierByOrder.GetValueOrDefault(row.OrderId)
                 : retailCourierByOrder.GetValueOrDefault(row.OrderId)) is null;
         decimal CommissionFor(ProfitabilityOrderDetail row) =>
-            row.Channel == "Merchant" ? commissionByOrder.GetValueOrDefault(row.OrderId) : 0m;
+            row.Channel == "Merchant"
+                ? merchantCommissionByOrder.GetValueOrDefault(row.OrderId)
+                : retailCommissionByOrder.GetValueOrDefault(row.OrderId);
 
         var courierCost = RoundMoney(details.Sum(CourierFor));
         var missingCourier = details.Count(MissingCourier);

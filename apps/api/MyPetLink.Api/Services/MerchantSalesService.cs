@@ -201,7 +201,10 @@ public sealed class MerchantSalesService : IMerchantSalesService
     public async Task<(IReadOnlyCollection<SalespersonResponse> Items, int Total)> ListSalespersonsAsync(
         int page, int pageSize, string? search, bool? isActive, CancellationToken cancellationToken)
     {
-        var query = _dbContext.Salespersons.AsNoTracking().AsQueryable();
+        var query = _dbContext.Salespersons
+            .AsNoTracking()
+            .Include(item => item.User)
+            .AsQueryable();
 
         if (isActive.HasValue) query = query.Where(s => s.IsActive == isActive.Value);
         if (!string.IsNullOrWhiteSpace(search))
@@ -231,6 +234,7 @@ public sealed class MerchantSalesService : IMerchantSalesService
         ValidateSalesperson(request);
         var referralCode = await ValidateAvailableReferralCodeAsync(
             request.ReferralCode, null, cancellationToken);
+        var user = await ResolveSalespersonUserAsync(request.UserId, null, cancellationToken);
 
         var now = _timeProvider.GetUtcNow();
         var salesperson = new Salesperson
@@ -240,6 +244,8 @@ public sealed class MerchantSalesService : IMerchantSalesService
             Name = request.Name.Trim(),
             Email = Trimmed(request.Email),
             Phone = Trimmed(request.Phone),
+            UserId = user?.Id,
+            User = user,
             DefaultCommissionPercentage = request.DefaultCommissionPercentage,
             InternalNotes = Trimmed(request.InternalNotes),
             IsActive = true,
@@ -265,12 +271,15 @@ public sealed class MerchantSalesService : IMerchantSalesService
         ApplyConcurrency(salesperson, request.ConcurrencyToken);
         var referralCode = await ValidateAvailableReferralCodeAsync(
             request.ReferralCode, id, cancellationToken);
+        var user = await ResolveSalespersonUserAsync(request.UserId, id, cancellationToken);
 
         var before = SalespersonAuditSnapshot(salesperson);
         salesperson.Name = request.Name.Trim();
         salesperson.ReferralCode = referralCode;
         salesperson.Email = Trimmed(request.Email);
         salesperson.Phone = Trimmed(request.Phone);
+        salesperson.UserId = user?.Id;
+        salesperson.User = user;
         salesperson.DefaultCommissionPercentage = request.DefaultCommissionPercentage;
         salesperson.InternalNotes = Trimmed(request.InternalNotes);
         salesperson.UpdatedAt = _timeProvider.GetUtcNow();
@@ -1104,7 +1113,7 @@ public sealed class MerchantSalesService : IMerchantSalesService
     private async Task<Salesperson> RequireSalespersonAsync(
         Guid id, CancellationToken cancellationToken, bool tracked = false)
     {
-        var query = _dbContext.Salespersons.AsQueryable();
+        var query = _dbContext.Salespersons.Include(item => item.User).AsQueryable();
         if (!tracked) query = query.AsNoTracking();
 
         return await query.SingleOrDefaultAsync(s => s.Id == id, cancellationToken)
@@ -1301,6 +1310,27 @@ public sealed class MerchantSalesService : IMerchantSalesService
         return normalized;
     }
 
+    private async Task<User?> ResolveSalespersonUserAsync(
+        Guid? userId,
+        Guid? currentSalespersonId,
+        CancellationToken cancellationToken)
+    {
+        if (!userId.HasValue) return null;
+
+        var user = await _dbContext.Users.SingleOrDefaultAsync(
+            item => item.Id == userId.Value
+                && item.Status != UserStatus.Deleted
+                && item.DeletedAt == null,
+            cancellationToken)
+            ?? throw Validation("userId", "Choose an active MyPetLink account.");
+        var assigned = await _dbContext.Salespersons.AnyAsync(
+            item => item.Id != currentSalespersonId && item.UserId == userId.Value,
+            cancellationToken);
+        if (assigned)
+            throw Validation("userId", "That account is already linked to another salesperson.");
+        return user;
+    }
+
     private static void ApplyMerchant(Merchant merchant, UpsertMerchantRequest request, Salesperson? salesperson)
     {
         merchant.LegalBusinessName = request.LegalBusinessName.Trim();
@@ -1456,6 +1486,11 @@ public sealed class MerchantSalesService : IMerchantSalesService
         {
             throw Validation("referralCode", "Another salesperson already uses this referral code.");
         }
+        catch (DbUpdateException exception) when (
+            UniqueConstraintViolation.IsFor(exception, "IX_Salespersons_UserId"))
+        {
+            throw Validation("userId", "That account is already linked to another salesperson.");
+        }
     }
 
     private async Task SaveSalespersonAsync(CancellationToken cancellationToken)
@@ -1468,6 +1503,11 @@ public sealed class MerchantSalesService : IMerchantSalesService
             UniqueConstraintViolation.IsFor(exception, "IX_Salespersons_ReferralCode"))
         {
             throw Validation("referralCode", "Another salesperson already uses this referral code.");
+        }
+        catch (DbUpdateException exception) when (
+            UniqueConstraintViolation.IsFor(exception, "IX_Salespersons_UserId"))
+        {
+            throw Validation("userId", "That account is already linked to another salesperson.");
         }
     }
 
@@ -1497,7 +1537,8 @@ public sealed class MerchantSalesService : IMerchantSalesService
     private static SalespersonResponse ToResponse(Salesperson salesperson) => new(
         salesperson.Id, salesperson.SalespersonCode, salesperson.ReferralCode,
         salesperson.Name, salesperson.Email,
-        salesperson.Phone, salesperson.DefaultCommissionPercentage, salesperson.InternalNotes,
+        salesperson.Phone, salesperson.UserId, salesperson.User?.DisplayName,
+        salesperson.User?.Email, salesperson.DefaultCommissionPercentage, salesperson.InternalNotes,
         salesperson.IsActive, salesperson.CreatedAt, salesperson.UpdatedAt,
         Convert.ToBase64String(salesperson.RowVersion));
 
@@ -1575,6 +1616,7 @@ public sealed class MerchantSalesService : IMerchantSalesService
         salesperson.SalespersonCode,
         salesperson.ReferralCode,
         salesperson.Name,
+        salesperson.UserId,
         salesperson.DefaultCommissionPercentage,
         salesperson.IsActive,
     };

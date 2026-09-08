@@ -257,6 +257,59 @@ public class MerchantSalesServiceTests
     }
 
     [Fact]
+    public async Task AdminCanLinkOneAuthenticatedAccountWithConcurrencyAndAuditHistory()
+    {
+        using var h = Harness.Create();
+        var user = new User
+        {
+            Email = "linked-owner@example.com",
+            NormalizedEmail = "LINKED-OWNER@EXAMPLE.COM",
+            DisplayName = "Linked Owner",
+            Status = UserStatus.Active
+        };
+        h.Db.Users.Add(user);
+        await h.Db.SaveChangesAsync();
+
+        var created = await h.Service.CreateSalespersonAsync(null,
+            new UpsertSalespersonRequest(
+                "Linked Rep", null, null, 5m, null, UserId: user.Id),
+            default);
+
+        Assert.Equal(user.Id, created.UserId);
+        Assert.Equal(user.Email, created.UserEmail);
+        Assert.Contains(await h.Db.AuditLogs.ToListAsync(), item =>
+            item.Action == "salesperson.create" && item.NewValue!.Contains(user.Id.ToString()));
+
+        var duplicate = await Assert.ThrowsAsync<ApiException>(() =>
+            h.Service.CreateSalespersonAsync(null,
+                new UpsertSalespersonRequest(
+                    "Duplicate Link", null, null, 5m, null, UserId: user.Id),
+                default));
+        Assert.Equal("validation_failed", duplicate.Code);
+        Assert.Contains("userId", duplicate.Details!.Keys);
+
+        var updated = await h.Service.UpdateSalespersonAsync(
+            null,
+            created.Id,
+            new UpsertSalespersonRequest(
+                created.Name,
+                created.Email,
+                created.Phone,
+                created.DefaultCommissionPercentage,
+                created.InternalNotes,
+                created.ConcurrencyToken,
+                created.ReferralCode,
+                UserId: null),
+            default);
+
+        Assert.Null(updated.UserId);
+        Assert.Contains(await h.Db.AuditLogs.ToListAsync(), item =>
+            item.Action == "salesperson.update"
+            && item.OldValue!.Contains(user.Id.ToString())
+            && item.NewValue!.Contains("\"userId\":null"));
+    }
+
+    [Fact]
     public async Task AnInactiveSalespersonCannotBeAttachedToANewMerchant()
     {
         using var h = Harness.Create();

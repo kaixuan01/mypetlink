@@ -92,6 +92,7 @@ public sealed class MyPetLinkDbContext : DbContext
     public DbSet<MerchantReceipt> MerchantReceipts => Set<MerchantReceipt>();
     public DbSet<MerchantReceiptItem> MerchantReceiptItems => Set<MerchantReceiptItem>();
     public DbSet<SalesCommission> SalesCommissions => Set<SalesCommission>();
+    public DbSet<CommissionRule> CommissionRules => Set<CommissionRule>();
     public DbSet<BusinessIdentitySetting> BusinessIdentitySettings =>
         Set<BusinessIdentitySetting>();
     public DbSet<EmailOutbox> EmailOutbox => Set<EmailOutbox>();
@@ -240,6 +241,13 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.Property(item => item.DefaultCommissionPercentage).HasPrecision(5, 2);
             entity.Property(item => item.InternalNotes).HasMaxLength(2000);
             entity.HasIndex(item => item.IsActive);
+            entity.HasIndex(item => item.UserId)
+                .IsUnique()
+                .HasFilter("[UserId] IS NOT NULL");
+            entity.HasOne(item => item.User)
+                .WithMany()
+                .HasForeignKey(item => item.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<MerchantQuotation>(entity =>
@@ -684,20 +692,43 @@ public sealed class MyPetLinkDbContext : DbContext
 
         modelBuilder.Entity<SalesCommission>(entity =>
         {
-            entity.ToTable("SalesCommissions");
+            entity.ToTable("SalesCommissions", table =>
+            {
+                table.HasCheckConstraint(
+                    "CK_SalesCommissions_SourceShape",
+                    "([SourceType] = 'MerchantOrder' AND [MerchantOrderId] IS NOT NULL AND [MerchantPaymentId] IS NOT NULL AND [TagOrderId] IS NULL) OR "
+                    + "([SourceType] = 'TagOrder' AND [TagOrderId] IS NOT NULL AND [MerchantOrderId] IS NULL AND [MerchantPaymentId] IS NULL)");
+                table.HasCheckConstraint(
+                    "CK_SalesCommissions_ValueShape",
+                    "([CommissionPercentageSnapshot] IS NOT NULL AND [CommissionFixedAmountSnapshot] IS NULL) OR "
+                    + "([CommissionPercentageSnapshot] IS NULL AND [CommissionFixedAmountSnapshot] IS NOT NULL)");
+                table.HasCheckConstraint(
+                    "CK_SalesCommissions_SourceCommissionType",
+                    "([CommissionType] = 'MerchantOrderPercentage' AND [SourceType] = 'MerchantOrder') OR "
+                    + "([CommissionType] = 'DirectRetailPercentage' AND [SourceType] = 'TagOrder') OR "
+                    + "[CommissionType] IN ('ResellerAcquisitionBonus','ResellerRepeatPercentage')");
+            });
             entity.Property(item => item.RowVersion).IsRowVersion();
-            // One commission per payment: a repeated confirmation must not pay
-            // a salesperson twice.
-            entity.HasIndex(item => item.MerchantPaymentId).IsUnique();
-            entity.HasIndex(item => new { item.SalespersonId, item.Status });
-            // An order may retain reversed history, but it can have only one
-            // commission that is still financially effective.
-            entity.HasIndex(item => item.MerchantOrderId)
+            entity.Property(item => item.SourceType).HasConversion<string>().HasMaxLength(32);
+            entity.Property(item => item.CommissionType).HasConversion<string>().HasMaxLength(48);
+            // A payment can participate in more commission types in a later
+            // phase, but never twice for the same type.
+            entity.HasIndex(item => new { item.MerchantPaymentId, item.CommissionType })
                 .IsUnique()
-                .HasFilter("[Status] <> 'Reversed'");
+                .HasFilter("[MerchantPaymentId] IS NOT NULL");
+            entity.HasIndex(item => new { item.SalespersonId, item.Status });
+            // Reversed rows remain as history. Each source can have only one
+            // financially effective row for a given commission type.
+            entity.HasIndex(item => new { item.MerchantOrderId, item.CommissionType })
+                .IsUnique()
+                .HasFilter("[MerchantOrderId] IS NOT NULL AND [Status] <> 'Reversed'");
+            entity.HasIndex(item => new { item.TagOrderId, item.CommissionType })
+                .IsUnique()
+                .HasFilter("[TagOrderId] IS NOT NULL AND [Status] <> 'Reversed'");
             entity.Property(item => item.Status).HasConversion<string>().HasMaxLength(32);
             entity.Property(item => item.Currency).HasMaxLength(3).IsRequired();
             entity.Property(item => item.CommissionPercentageSnapshot).HasPrecision(5, 2);
+            entity.Property(item => item.CommissionFixedAmountSnapshot).HasPrecision(18, 2);
             entity.Property(item => item.CommissionBaseAmount).HasPrecision(18, 2);
             entity.Property(item => item.CommissionAmount).HasPrecision(18, 2);
             entity.Property(item => item.SalespersonCodeSnapshot).HasMaxLength(32).IsRequired();
@@ -712,6 +743,10 @@ public sealed class MyPetLinkDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(item => item.MerchantPaymentId)
                 .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.TagOrder)
+                .WithMany()
+                .HasForeignKey(item => item.TagOrderId)
+                .OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(item => item.Salesperson)
                 .WithMany()
                 .HasForeignKey(item => item.SalespersonId)
@@ -723,6 +758,49 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasOne(item => item.ReversedByAdminUser)
                 .WithMany()
                 .HasForeignKey(item => item.ReversedByAdminUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.CommissionRule)
+                .WithMany()
+                .HasForeignKey(item => item.CommissionRuleId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<CommissionRule>(entity =>
+        {
+            entity.ToTable("CommissionRules", table =>
+            {
+                table.HasCheckConstraint(
+                    "CK_CommissionRules_ValueShape",
+                    "([Percentage] IS NOT NULL AND [FixedAmount] IS NULL AND [Percentage] BETWEEN 0 AND 100) OR "
+                    + "([Percentage] IS NULL AND [FixedAmount] IS NOT NULL AND [FixedAmount] >= 0)");
+                table.HasCheckConstraint(
+                    "CK_CommissionRules_QuantityRange",
+                    "([MinQuantity] IS NULL OR [MinQuantity] > 0) AND ([MaxQuantity] IS NULL OR [MaxQuantity] > 0) AND "
+                    + "([MinQuantity] IS NULL OR [MaxQuantity] IS NULL OR [MinQuantity] <= [MaxQuantity])");
+                table.HasCheckConstraint(
+                    "CK_CommissionRules_EffectiveRange",
+                    "[EffectiveTo] IS NULL OR [EffectiveTo] > [EffectiveFrom]");
+            });
+            entity.Property(item => item.RowVersion).IsRowVersion();
+            entity.Property(item => item.CommissionType).HasConversion<string>().HasMaxLength(48);
+            entity.Property(item => item.Percentage).HasPrecision(5, 2);
+            entity.Property(item => item.FixedAmount).HasPrecision(18, 2);
+            entity.Property(item => item.Currency).HasMaxLength(3).IsRequired();
+            entity.Property(item => item.Notes).HasMaxLength(2000);
+            entity.HasIndex(item => new { item.CommissionType, item.SalespersonId, item.EffectiveFrom })
+                .IsUnique()
+                // SQL Server's EF convention filters nullable columns out of
+                // unique indexes. Global rules use a null salesperson, so the
+                // unfiltered index is required to protect their business key.
+                .HasFilter(null);
+            entity.HasIndex(item => new { item.CommissionType, item.IsActive, item.EffectiveFrom });
+            entity.HasOne(item => item.Salesperson)
+                .WithMany()
+                .HasForeignKey(item => item.SalespersonId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.UpdatedByAdminUser)
+                .WithMany()
+                .HasForeignKey(item => item.UpdatedByAdminUserId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -1835,6 +1913,20 @@ public sealed class MyPetLinkDbContext : DbContext
     private static void SeedDefaults(ModelBuilder modelBuilder)
     {
         SeedLegacyAppSettings(modelBuilder);
+
+        modelBuilder.Entity<CommissionRule>().HasData(
+            new CommissionRule
+            {
+                Id = CommissionRule.DefaultDirectRetailRuleId,
+                CommissionType = SalesCommissionType.DirectRetailPercentage,
+                Percentage = 15m,
+                Currency = MerchantSalesConstants.Currency,
+                EffectiveFrom = SeededAt,
+                IsActive = true,
+                Notes = "Default direct retail commission",
+                CreatedAt = SeededAt,
+                UpdatedAt = SeededAt
+            });
 
         // Checkout payment-window policy. Seeded at the approved two-hour
         // default so a fresh deployment never leaves reservations unbounded.

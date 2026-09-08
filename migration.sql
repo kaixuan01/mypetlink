@@ -6877,3 +6877,396 @@ GO
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908001234_GeneralizeSalesCommissionAndDirectRetail'
+)
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM [SalesCommissions]
+        WHERE [Status] <> N'Reversed'
+        GROUP BY [MerchantOrderId]
+        HAVING COUNT_BIG(*) > 1
+    )
+    BEGIN
+        THROW 51030, 'Duplicate non-reversed merchant commissions exist. Run diagnose-phase3b-sales-commissions.sql and resolve the financial history before applying this migration.', 1;
+    END;
+
+    IF EXISTS (
+        SELECT 1
+        FROM [SalesCommissions]
+        GROUP BY [MerchantPaymentId]
+        HAVING COUNT_BIG(*) > 1
+    )
+    BEGIN
+        THROW 51031, 'Duplicate merchant-payment commission history exists. Run diagnose-phase3b-sales-commissions.sql before applying this migration.', 1;
+    END;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908001234_GeneralizeSalesCommissionAndDirectRetail'
+)
+BEGIN
+    DROP INDEX [IX_SalesCommissions_MerchantOrderId] ON [SalesCommissions];
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908001234_GeneralizeSalesCommissionAndDirectRetail'
+)
+BEGIN
+    DROP INDEX [IX_SalesCommissions_MerchantPaymentId] ON [SalesCommissions];
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908001234_GeneralizeSalesCommissionAndDirectRetail'
+)
+BEGIN
+    ALTER TABLE [Salespersons] ADD [UserId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908001234_GeneralizeSalesCommissionAndDirectRetail'
+)
+BEGIN
+    DECLARE @var3 sysname;
+    SELECT @var3 = [d].[name]
+    FROM [sys].[default_constraints] [d]
+    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[SalesCommissions]') AND [c].[name] = N'MerchantPaymentId');
+    IF @var3 IS NOT NULL EXEC(N'ALTER TABLE [SalesCommissions] DROP CONSTRAINT [' + @var3 + '];');
+    ALTER TABLE [SalesCommissions] ALTER COLUMN [MerchantPaymentId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908001234_GeneralizeSalesCommissionAndDirectRetail'
+)
+BEGIN
+    DECLARE @var4 sysname;
+    SELECT @var4 = [d].[name]
+    FROM [sys].[default_constraints] [d]
+    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[SalesCommissions]') AND [c].[name] = N'MerchantOrderId');
+    IF @var4 IS NOT NULL EXEC(N'ALTER TABLE [SalesCommissions] DROP CONSTRAINT [' + @var4 + '];');
+    ALTER TABLE [SalesCommissions] ALTER COLUMN [MerchantOrderId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908001234_GeneralizeSalesCommissionAndDirectRetail'
+)
+BEGIN
+    DECLARE @var5 sysname;
+    SELECT @var5 = [d].[name]
+    FROM [sys].[default_constraints] [d]
+    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[SalesCommissions]') AND [c].[name] = N'CommissionPercentageSnapshot');
+    IF @var5 IS NOT NULL EXEC(N'ALTER TABLE [SalesCommissions] DROP CONSTRAINT [' + @var5 + '];');
+    ALTER TABLE [SalesCommissions] ALTER COLUMN [CommissionPercentageSnapshot] decimal(5,2) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908001234_GeneralizeSalesCommissionAndDirectRetail'
+)
+BEGIN
+    ALTER TABLE [SalesCommissions] ADD [CommissionFixedAmountSnapshot] decimal(18,2) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908001234_GeneralizeSalesCommissionAndDirectRetail'
+)
+BEGIN
+    ALTER TABLE [SalesCommissions] ADD [CommissionRuleEffectiveFromSnapshot] datetimeoffset NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908001234_GeneralizeSalesCommissionAndDirectRetail'
+)
+BEGIN
+    ALTER TABLE [SalesCommissions] ADD [CommissionRuleId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908001234_GeneralizeSalesCommissionAndDirectRetail'
+)
+BEGIN
+    ALTER TABLE [SalesCommissions] ADD [CommissionType] nvarchar(48) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908001234_GeneralizeSalesCommissionAndDirectRetail'
+)
+BEGIN
+    ALTER TABLE [SalesCommissions] ADD [SourceType] nvarchar(32) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908001234_GeneralizeSalesCommissionAndDirectRetail'
+)
+BEGIN
+    ALTER TABLE [SalesCommissions] ADD [TagOrderId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908001234_GeneralizeSalesCommissionAndDirectRetail'
+)
+BEGIN
+    UPDATE [SalesCommissions]
+    SET [SourceType] = N'MerchantOrder',
+        [CommissionType] = N'MerchantOrderPercentage';
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908001234_GeneralizeSalesCommissionAndDirectRetail'
+)
+BEGIN
+    DECLARE @var6 sysname;
+    SELECT @var6 = [d].[name]
+    FROM [sys].[default_constraints] [d]
+    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[SalesCommissions]') AND [c].[name] = N'CommissionType');
+    IF @var6 IS NOT NULL EXEC(N'ALTER TABLE [SalesCommissions] DROP CONSTRAINT [' + @var6 + '];');
+    ALTER TABLE [SalesCommissions] ALTER COLUMN [CommissionType] nvarchar(48) NOT NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908001234_GeneralizeSalesCommissionAndDirectRetail'
+)
+BEGIN
+    DECLARE @var7 sysname;
+    SELECT @var7 = [d].[name]
+    FROM [sys].[default_constraints] [d]
+    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[SalesCommissions]') AND [c].[name] = N'SourceType');
+    IF @var7 IS NOT NULL EXEC(N'ALTER TABLE [SalesCommissions] DROP CONSTRAINT [' + @var7 + '];');
+    ALTER TABLE [SalesCommissions] ALTER COLUMN [SourceType] nvarchar(32) NOT NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908001234_GeneralizeSalesCommissionAndDirectRetail'
+)
+BEGIN
+    CREATE TABLE [CommissionRules] (
+        [Id] uniqueidentifier NOT NULL,
+        [CommissionType] nvarchar(48) NOT NULL,
+        [SalespersonId] uniqueidentifier NULL,
+        [Percentage] decimal(5,2) NULL,
+        [FixedAmount] decimal(18,2) NULL,
+        [MinQuantity] int NULL,
+        [MaxQuantity] int NULL,
+        [EligibilityMonths] int NULL,
+        [Currency] nvarchar(3) NOT NULL,
+        [EffectiveFrom] datetimeoffset NOT NULL,
+        [EffectiveTo] datetimeoffset NULL,
+        [IsActive] bit NOT NULL,
+        [Notes] nvarchar(2000) NULL,
+        [UpdatedByAdminUserId] uniqueidentifier NULL,
+        [RowVersion] rowversion NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_CommissionRules] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_CommissionRules_EffectiveRange] CHECK ([EffectiveTo] IS NULL OR [EffectiveTo] > [EffectiveFrom]),
+        CONSTRAINT [CK_CommissionRules_QuantityRange] CHECK (([MinQuantity] IS NULL OR [MinQuantity] > 0) AND ([MaxQuantity] IS NULL OR [MaxQuantity] > 0) AND ([MinQuantity] IS NULL OR [MaxQuantity] IS NULL OR [MinQuantity] <= [MaxQuantity])),
+        CONSTRAINT [CK_CommissionRules_ValueShape] CHECK (([Percentage] IS NOT NULL AND [FixedAmount] IS NULL AND [Percentage] BETWEEN 0 AND 100) OR ([Percentage] IS NULL AND [FixedAmount] IS NOT NULL AND [FixedAmount] >= 0)),
+        CONSTRAINT [FK_CommissionRules_AdminUsers_UpdatedByAdminUserId] FOREIGN KEY ([UpdatedByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_CommissionRules_Salespersons_SalespersonId] FOREIGN KEY ([SalespersonId]) REFERENCES [Salespersons] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908001234_GeneralizeSalesCommissionAndDirectRetail'
+)
+BEGIN
+    IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Id', N'CommissionType', N'CreatedAt', N'Currency', N'EffectiveFrom', N'EffectiveTo', N'EligibilityMonths', N'FixedAmount', N'IsActive', N'MaxQuantity', N'MinQuantity', N'Notes', N'Percentage', N'SalespersonId', N'UpdatedAt', N'UpdatedByAdminUserId') AND [object_id] = OBJECT_ID(N'[CommissionRules]'))
+        SET IDENTITY_INSERT [CommissionRules] ON;
+    EXEC(N'INSERT INTO [CommissionRules] ([Id], [CommissionType], [CreatedAt], [Currency], [EffectiveFrom], [EffectiveTo], [EligibilityMonths], [FixedAmount], [IsActive], [MaxQuantity], [MinQuantity], [Notes], [Percentage], [SalespersonId], [UpdatedAt], [UpdatedByAdminUserId])
+    VALUES (''a971d6d5-86a8-4f85-a5e4-9cb85a1f3b01'', N''DirectRetailPercentage'', ''2026-01-01T00:00:00.0000000+00:00'', N''MYR'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, NULL, NULL, CAST(1 AS bit), NULL, NULL, N''Default direct retail commission'', 15.0, NULL, ''2026-01-01T00:00:00.0000000+00:00'', NULL)');
+    IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Id', N'CommissionType', N'CreatedAt', N'Currency', N'EffectiveFrom', N'EffectiveTo', N'EligibilityMonths', N'FixedAmount', N'IsActive', N'MaxQuantity', N'MinQuantity', N'Notes', N'Percentage', N'SalespersonId', N'UpdatedAt', N'UpdatedByAdminUserId') AND [object_id] = OBJECT_ID(N'[CommissionRules]'))
+        SET IDENTITY_INSERT [CommissionRules] OFF;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908001234_GeneralizeSalesCommissionAndDirectRetail'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [IX_Salespersons_UserId] ON [Salespersons] ([UserId]) WHERE [UserId] IS NOT NULL');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908001234_GeneralizeSalesCommissionAndDirectRetail'
+)
+BEGIN
+    CREATE INDEX [IX_SalesCommissions_CommissionRuleId] ON [SalesCommissions] ([CommissionRuleId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908001234_GeneralizeSalesCommissionAndDirectRetail'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [IX_SalesCommissions_MerchantOrderId_CommissionType] ON [SalesCommissions] ([MerchantOrderId], [CommissionType]) WHERE [MerchantOrderId] IS NOT NULL AND [Status] <> ''Reversed''');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908001234_GeneralizeSalesCommissionAndDirectRetail'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [IX_SalesCommissions_MerchantPaymentId_CommissionType] ON [SalesCommissions] ([MerchantPaymentId], [CommissionType]) WHERE [MerchantPaymentId] IS NOT NULL');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908001234_GeneralizeSalesCommissionAndDirectRetail'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [IX_SalesCommissions_TagOrderId_CommissionType] ON [SalesCommissions] ([TagOrderId], [CommissionType]) WHERE [TagOrderId] IS NOT NULL AND [Status] <> ''Reversed''');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908001234_GeneralizeSalesCommissionAndDirectRetail'
+)
+BEGIN
+    EXEC(N'ALTER TABLE [SalesCommissions] ADD CONSTRAINT [CK_SalesCommissions_SourceCommissionType] CHECK (([CommissionType] = ''MerchantOrderPercentage'' AND [SourceType] = ''MerchantOrder'') OR ([CommissionType] = ''DirectRetailPercentage'' AND [SourceType] = ''TagOrder'') OR [CommissionType] IN (''ResellerAcquisitionBonus'',''ResellerRepeatPercentage''))');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908001234_GeneralizeSalesCommissionAndDirectRetail'
+)
+BEGIN
+    EXEC(N'ALTER TABLE [SalesCommissions] ADD CONSTRAINT [CK_SalesCommissions_SourceShape] CHECK (([SourceType] = ''MerchantOrder'' AND [MerchantOrderId] IS NOT NULL AND [MerchantPaymentId] IS NOT NULL AND [TagOrderId] IS NULL) OR ([SourceType] = ''TagOrder'' AND [TagOrderId] IS NOT NULL AND [MerchantOrderId] IS NULL AND [MerchantPaymentId] IS NULL))');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908001234_GeneralizeSalesCommissionAndDirectRetail'
+)
+BEGIN
+    EXEC(N'ALTER TABLE [SalesCommissions] ADD CONSTRAINT [CK_SalesCommissions_ValueShape] CHECK (([CommissionPercentageSnapshot] IS NOT NULL AND [CommissionFixedAmountSnapshot] IS NULL) OR ([CommissionPercentageSnapshot] IS NULL AND [CommissionFixedAmountSnapshot] IS NOT NULL))');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908001234_GeneralizeSalesCommissionAndDirectRetail'
+)
+BEGIN
+    CREATE INDEX [IX_CommissionRules_CommissionType_IsActive_EffectiveFrom] ON [CommissionRules] ([CommissionType], [IsActive], [EffectiveFrom]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908001234_GeneralizeSalesCommissionAndDirectRetail'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_CommissionRules_CommissionType_SalespersonId_EffectiveFrom] ON [CommissionRules] ([CommissionType], [SalespersonId], [EffectiveFrom]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908001234_GeneralizeSalesCommissionAndDirectRetail'
+)
+BEGIN
+    CREATE INDEX [IX_CommissionRules_SalespersonId] ON [CommissionRules] ([SalespersonId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908001234_GeneralizeSalesCommissionAndDirectRetail'
+)
+BEGIN
+    CREATE INDEX [IX_CommissionRules_UpdatedByAdminUserId] ON [CommissionRules] ([UpdatedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908001234_GeneralizeSalesCommissionAndDirectRetail'
+)
+BEGIN
+    ALTER TABLE [SalesCommissions] ADD CONSTRAINT [FK_SalesCommissions_CommissionRules_CommissionRuleId] FOREIGN KEY ([CommissionRuleId]) REFERENCES [CommissionRules] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908001234_GeneralizeSalesCommissionAndDirectRetail'
+)
+BEGIN
+    ALTER TABLE [SalesCommissions] ADD CONSTRAINT [FK_SalesCommissions_TagOrders_TagOrderId] FOREIGN KEY ([TagOrderId]) REFERENCES [TagOrders] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908001234_GeneralizeSalesCommissionAndDirectRetail'
+)
+BEGIN
+    ALTER TABLE [Salespersons] ADD CONSTRAINT [FK_Salespersons_Users_UserId] FOREIGN KEY ([UserId]) REFERENCES [Users] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908001234_GeneralizeSalesCommissionAndDirectRetail'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260908001234_GeneralizeSalesCommissionAndDirectRetail', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
