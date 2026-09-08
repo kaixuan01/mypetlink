@@ -9,6 +9,7 @@ const listSalespersons = vi.fn();
 const createSalesperson = vi.fn();
 const updateSalesperson = vi.fn();
 const setSalespersonActive = vi.fn();
+const getSalespersonCommissionSummary = vi.fn();
 
 vi.mock("@/services/adminMerchantSalesService", async () => {
   const actual = await vi.importActual<
@@ -20,6 +21,8 @@ vi.mock("@/services/adminMerchantSalesService", async () => {
     createSalesperson: (...args: unknown[]) => createSalesperson(...args),
     updateSalesperson: (...args: unknown[]) => updateSalesperson(...args),
     setSalespersonActive: (...args: unknown[]) => setSalespersonActive(...args),
+    getSalespersonCommissionSummary: (...args: unknown[]) =>
+      getSalespersonCommissionSummary(...args),
   };
 });
 
@@ -52,6 +55,16 @@ beforeEach(() => {
       salesperson({ id: "rep-2", salespersonCode: "MPL-SALES-002", name: "Retired Rep", isActive: false }),
     ])
   );
+  getSalespersonCommissionSummary.mockResolvedValue({
+    resellerAcquisitions: 2,
+    activeRepeatRelationships: 1,
+    acquisitionBonusCommissions: 2,
+    repeatCommissions: 3,
+    payableTotal: 56,
+    paidTotal: 80,
+    reversedTotal: 10,
+    currency: "MYR",
+  });
 });
 afterEach(cleanup);
 
@@ -98,6 +111,16 @@ describe("Salespersons list", () => {
 
     expect(await screen.findByText(/couldn’t load salespersons/i)).toBeTruthy();
     expect(document.body.textContent).not.toContain("server_error");
+  });
+
+  it("shows reseller relationships and commission totals in the detail", async () => {
+    renderPanel({ openId: "rep-1" });
+
+    expect(await screen.findByText("Commission and reseller summary")).toBeTruthy();
+    expect(screen.getByText("Reseller acquisitions").parentElement?.textContent).toContain("2");
+    expect(screen.getByText("Active repeat relationships").parentElement?.textContent).toContain("1");
+    expect(screen.getByText("Payable").parentElement?.textContent).toContain("MYR 56.00");
+    expect(screen.getByText("Reversed").parentElement?.textContent).toContain("MYR 10.00");
   });
 });
 

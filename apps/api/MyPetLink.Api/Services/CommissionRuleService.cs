@@ -143,7 +143,7 @@ public sealed class CommissionRuleService : ICommissionRuleService
             catch (DbUpdateException exception) when (
                 UniqueConstraintViolation.IsFor(
                     exception,
-                    "IX_CommissionRules_CommissionType_SalespersonId_EffectiveFrom"))
+                    "IX_CommissionRules_CommissionType_SalespersonId_EffectiveFrom_MinQuantity"))
             {
                 throw new ApiException(409, "commission_rule_overlap",
                     "An active commission rule already covers part of that period and quantity range.");
@@ -157,23 +157,36 @@ public sealed class CommissionRuleService : ICommissionRuleService
     private static SalesCommissionType ParseAndValidate(UpsertCommissionRuleRequest request)
     {
         if (!Enum.TryParse<SalesCommissionType>(request.CommissionType, true, out var type)
-            || type != SalesCommissionType.DirectRetailPercentage)
+            || type == SalesCommissionType.MerchantOrderPercentage)
         {
             throw Validation("commissionType",
-                "Direct retail percentage is the only commission rule available in this release.");
+                "Choose direct retail, reseller acquisition or reseller repeat commission.");
         }
-        if (!request.Percentage.HasValue || request.Percentage < 0m || request.Percentage > 100m)
+        var usesPercentage = type is SalesCommissionType.DirectRetailPercentage
+            or SalesCommissionType.ResellerRepeatPercentage;
+        if (usesPercentage
+            && (!request.Percentage.HasValue || request.Percentage < 0m || request.Percentage > 100m))
             throw Validation("percentage", "Enter a percentage between 0 and 100.");
-        if (decimal.Round(request.Percentage.Value, 2, MidpointRounding.AwayFromZero)
-            != request.Percentage.Value)
+        if (request.Percentage.HasValue
+            && decimal.Round(request.Percentage.Value, 2, MidpointRounding.AwayFromZero)
+                != request.Percentage.Value)
         {
             throw Validation("percentage", "Use no more than two decimal places.");
         }
-        if (request.FixedAmount.HasValue)
-            throw Validation("fixedAmount", "Direct retail commission uses a percentage, not a fixed amount.");
+        if (usesPercentage && request.FixedAmount.HasValue)
+            throw Validation("fixedAmount", "Percentage commission rules cannot also have a fixed amount.");
+        if (!usesPercentage && request.Percentage.HasValue)
+            throw Validation("percentage", "An acquisition bonus uses a fixed amount, not a percentage.");
+        if (!usesPercentage
+            && (!request.FixedAmount.HasValue || request.FixedAmount < 0m))
+            throw Validation("fixedAmount", "Enter a fixed acquisition bonus of zero or more.");
+        if (request.FixedAmount.HasValue
+            && decimal.Round(request.FixedAmount.Value, 2, MidpointRounding.AwayFromZero)
+                != request.FixedAmount.Value)
+            throw Validation("fixedAmount", "Use no more than two decimal places.");
         if (!string.Equals(request.Currency?.Trim(), MerchantSalesConstants.Currency,
                 StringComparison.OrdinalIgnoreCase))
-            throw Validation("currency", "Direct retail commission rules must use MYR.");
+            throw Validation("currency", "Commission rules must use MYR.");
         if (request.EffectiveFrom == default)
             throw Validation("effectiveFrom", "Choose when this rule takes effect.");
         if (request.EffectiveTo.HasValue && request.EffectiveTo <= request.EffectiveFrom)
@@ -184,9 +197,18 @@ public sealed class CommissionRuleService : ICommissionRuleService
             throw Validation("maxQuantity", "Maximum quantity must be at least 1.");
         if (request.MinQuantity.HasValue && request.MaxQuantity < request.MinQuantity)
             throw Validation("maxQuantity", "Maximum quantity cannot be below the minimum.");
-        if (request.EligibilityMonths.HasValue)
+        if (type == SalesCommissionType.ResellerAcquisitionBonus && !request.MinQuantity.HasValue)
+            throw Validation("minQuantity", "Enter the first eligible quantity for this acquisition tier.");
+        if (type == SalesCommissionType.ResellerRepeatPercentage
+            && (request.MinQuantity.HasValue || request.MaxQuantity.HasValue))
+            throw Validation("minQuantity", "Reseller repeat commission does not use quantity tiers.");
+        if (type == SalesCommissionType.ResellerRepeatPercentage
+            && request.EligibilityMonths is not (> 0 and <= 120))
+            throw Validation("eligibilityMonths", "Enter an eligibility period from 1 to 120 months.");
+        if (type != SalesCommissionType.ResellerRepeatPercentage
+            && request.EligibilityMonths.HasValue)
             throw Validation("eligibilityMonths",
-                "Eligibility months are reserved for a later reseller commission phase.");
+                "Only reseller repeat commission uses an eligibility period.");
         return type;
     }
 
@@ -237,11 +259,18 @@ public sealed class CommissionRuleService : ICommissionRuleService
         rule.CommissionType = type;
         rule.SalespersonId = salesperson?.Id;
         rule.Salesperson = salesperson;
-        rule.Percentage = request.Percentage;
-        rule.FixedAmount = null;
+        rule.Percentage = type is SalesCommissionType.DirectRetailPercentage
+            or SalesCommissionType.ResellerRepeatPercentage
+                ? request.Percentage
+                : null;
+        rule.FixedAmount = type == SalesCommissionType.ResellerAcquisitionBonus
+            ? request.FixedAmount
+            : null;
         rule.MinQuantity = request.MinQuantity;
         rule.MaxQuantity = request.MaxQuantity;
-        rule.EligibilityMonths = null;
+        rule.EligibilityMonths = type == SalesCommissionType.ResellerRepeatPercentage
+            ? request.EligibilityMonths
+            : null;
         rule.Currency = MerchantSalesConstants.Currency;
         rule.EffectiveFrom = request.EffectiveFrom.ToUniversalTime();
         rule.EffectiveTo = request.EffectiveTo?.ToUniversalTime();

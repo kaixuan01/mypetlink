@@ -45,6 +45,30 @@ public sealed class Merchant : AuditableEntity
     public Guid? AssignedSalespersonId { get; set; }
     public Salesperson? AssignedSalesperson { get; set; }
 
+    /// <summary>Persisted commercial model. Never inferred from creation dates.</summary>
+    public MerchantCommissionPlan CommissionPlan { get; set; } =
+        MerchantCommissionPlan.LegacyPercentage;
+
+    /// <summary>
+    /// Historical owner of the reseller acquisition. This is deliberately
+    /// separate from the salesperson currently servicing the account.
+    /// </summary>
+    public Guid? AcquiredBySalespersonId { get; set; }
+    public Salesperson? AcquiredBySalesperson { get; set; }
+    public DateTimeOffset? AcquisitionAttributedAt { get; set; }
+    public string? AcquiredBySalespersonCodeSnapshot { get; set; }
+    public string? AcquiredBySalespersonNameSnapshot { get; set; }
+
+    public DateTimeOffset? FirstQualifyingPaidOrderAt { get; set; }
+    public Guid? FirstQualifyingMerchantOrderId { get; set; }
+    public MerchantOrder? FirstQualifyingMerchantOrder { get; set; }
+    public decimal? RepeatCommissionPercentageSnapshot { get; set; }
+    public int? RepeatCommissionEligibilityMonthsSnapshot { get; set; }
+    public DateTimeOffset? RepeatCommissionEligibleUntil { get; set; }
+    public Guid? RepeatCommissionRuleIdSnapshot { get; set; }
+    public CommissionRule? RepeatCommissionRuleSnapshot { get; set; }
+    public DateTimeOffset? RepeatCommissionRuleEffectiveFromSnapshot { get; set; }
+
     public MerchantPaymentTerm PaymentTerm { get; set; } = MerchantPaymentTerm.Prepaid;
 
     /// <summary>Operations-only. Never leaves an Admin DTO.</summary>

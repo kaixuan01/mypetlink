@@ -13,6 +13,7 @@ import {
   updateCommissionRule,
   type AdminCommissionRule,
   type AdminSalesCommission,
+  type CommissionRuleType,
 } from "@/services/adminMerchantBillingService";
 import {
   getMerchantSalesError,
@@ -274,7 +275,7 @@ export function CommissionsPanel() {
           onError={(value) => setError(value)}
           onSaved={(saved) => {
             setEditingRule(null);
-            setMessage(`${saved.salespersonName ?? "Global"} direct retail rule saved.`);
+            setMessage(`${saved.salespersonName ?? "Global"} ${ruleTypeLabel(saved.commissionType).toLowerCase()} rule saved.`);
             refresh();
           }}
         />
@@ -282,7 +283,7 @@ export function CommissionsPanel() {
 
       <AdminSection
         action={<button className={primaryButton} onClick={() => setEditingRule("new")} type="button">New rule</button>}
-        description="Effective-dated direct retail policy. A salesperson-specific rule takes precedence over the global rule."
+        description="Effective-dated retail and reseller policies. A salesperson-specific rule takes precedence over the global rule."
         title="Commission rules"
       >
         <div className="grid gap-3 p-5">
@@ -290,7 +291,7 @@ export function CommissionsPanel() {
             <div className="flex flex-col gap-3 rounded-xl border border-slate-200 p-4 sm:flex-row sm:items-center sm:justify-between" key={rule.id}>
               <div>
                 <p className="font-black text-slate-900">
-                  {rule.salespersonName ?? "All salespersons"} · {rule.percentage}%
+                  {rule.salespersonName ?? "All salespersons"} · {ruleTypeLabel(rule.commissionType)} · {ruleValueLabel(rule)}
                 </p>
                 <p className="text-sm font-semibold text-slate-500">
                   {dateTime(rule.effectiveFrom)} to {rule.effectiveTo ? dateTime(rule.effectiveTo) : "no set end"}
@@ -324,8 +325,13 @@ function CommissionRuleEditor({
   onSaved: (saved: AdminCommissionRule) => void;
   onError: (message: string) => void;
 }) {
+  const [commissionType, setCommissionType] = useState<CommissionRuleType>(
+    rule?.commissionType ?? "DirectRetailPercentage"
+  );
   const [salespersonId, setSalespersonId] = useState(rule?.salespersonId ?? "");
   const [percentage, setPercentage] = useState(String(rule?.percentage ?? 15));
+  const [fixedAmount, setFixedAmount] = useState(String(rule?.fixedAmount ?? 50));
+  const [eligibilityMonths, setEligibilityMonths] = useState(String(rule?.eligibilityMonths ?? 3));
   const [minQuantity, setMinQuantity] = useState(rule?.minQuantity?.toString() ?? "");
   const [maxQuantity, setMaxQuantity] = useState(rule?.maxQuantity?.toString() ?? "");
   const [effectiveFrom, setEffectiveFrom] = useState(toInputDate(rule?.effectiveFrom ?? new Date().toISOString()));
@@ -335,20 +341,20 @@ function CommissionRuleEditor({
   const [saving, setSaving] = useState(false);
 
   const input = useMemo(() => ({
-    commissionType: "DirectRetailPercentage" as const,
+    commissionType,
     salespersonId: salespersonId || null,
-    percentage: Number(percentage),
-    fixedAmount: null,
-    minQuantity: minQuantity ? Number(minQuantity) : null,
-    maxQuantity: maxQuantity ? Number(maxQuantity) : null,
-    eligibilityMonths: null,
+    percentage: commissionType === "ResellerAcquisitionBonus" ? null : Number(percentage),
+    fixedAmount: commissionType === "ResellerAcquisitionBonus" ? Number(fixedAmount) : null,
+    minQuantity: commissionType === "ResellerRepeatPercentage" ? null : minQuantity ? Number(minQuantity) : null,
+    maxQuantity: commissionType === "ResellerRepeatPercentage" ? null : maxQuantity ? Number(maxQuantity) : null,
+    eligibilityMonths: commissionType === "ResellerRepeatPercentage" ? Number(eligibilityMonths) : null,
     currency: "MYR" as const,
     effectiveFrom: toIso(effectiveFrom),
     effectiveTo: effectiveTo ? toIso(effectiveTo) : null,
     isActive,
     notes: notes.trim() || null,
     concurrencyToken: rule?.concurrencyToken ?? null,
-  }), [effectiveFrom, effectiveTo, isActive, maxQuantity, minQuantity, notes, percentage, rule?.concurrencyToken, salespersonId]);
+  }), [commissionType, effectiveFrom, effectiveTo, eligibilityMonths, fixedAmount, isActive, maxQuantity, minQuantity, notes, percentage, rule?.concurrencyToken, salespersonId]);
 
   return (
     <AdminSection description="Overlapping active rules for the same salesperson and quantity range are refused." title={rule ? "Edit commission rule" : "New commission rule"}>
@@ -367,15 +373,33 @@ function CommissionRuleEditor({
         }}
       >
         <label className="grid gap-1 text-sm font-bold text-pet-ink">
+          Commission type
+          <select className={fieldClass} disabled={Boolean(rule)} onChange={(event) => setCommissionType(event.target.value as CommissionRuleType)} value={commissionType}>
+            <option value="DirectRetailPercentage">Direct retail percentage</option>
+            <option value="ResellerAcquisitionBonus">Reseller acquisition bonus</option>
+            <option value="ResellerRepeatPercentage">Reseller repeat percentage</option>
+          </select>
+        </label>
+        <label className="grid gap-1 text-sm font-bold text-pet-ink">
           Applies to
           <select className={fieldClass} onChange={(event) => setSalespersonId(event.target.value)} value={salespersonId}>
             <option value="">All salespersons</option>
             {salespersons.map((salesperson) => <option key={salesperson.id} value={salesperson.id}>{salesperson.name} · {salesperson.salespersonCode}</option>)}
           </select>
         </label>
-        <Field label="Percentage" min="0" max="100" required step="0.01" value={percentage} onChange={setPercentage} />
-        <Field label="Minimum quantity" min="1" step="1" value={minQuantity} onChange={setMinQuantity} />
-        <Field label="Maximum quantity" min="1" step="1" value={maxQuantity} onChange={setMaxQuantity} />
+        {commissionType === "ResellerAcquisitionBonus" ? (
+          <Field label="Fixed bonus (RM)" min="0" required step="0.01" value={fixedAmount} onChange={setFixedAmount} />
+        ) : (
+          <Field label="Percentage" min="0" max="100" required step="0.01" value={percentage} onChange={setPercentage} />
+        )}
+        {commissionType !== "ResellerRepeatPercentage" ? (
+          <>
+            <Field label="Minimum quantity" min="1" required={commissionType === "ResellerAcquisitionBonus"} step="1" value={minQuantity} onChange={setMinQuantity} />
+            <Field label="Maximum quantity" min="1" step="1" value={maxQuantity} onChange={setMaxQuantity} />
+          </>
+        ) : (
+          <Field label="Eligibility months" min="1" max="120" required step="1" value={eligibilityMonths} onChange={setEligibilityMonths} />
+        )}
         <Field label="Effective from" required type="datetime-local" value={effectiveFrom} onChange={setEffectiveFrom} />
         <Field label="Effective to" type="datetime-local" value={effectiveTo} onChange={setEffectiveTo} />
         <label className="flex min-h-11 items-center gap-2 text-sm font-bold text-pet-ink">
@@ -407,6 +431,18 @@ function typeLabel(type: AdminSalesCommission["commissionType"]) {
   if (type === "DirectRetailPercentage") return "Direct retail percentage";
   if (type === "ResellerAcquisitionBonus") return "Reseller acquisition bonus";
   return "Reseller repeat percentage";
+}
+
+function ruleTypeLabel(type: CommissionRuleType) {
+  if (type === "DirectRetailPercentage") return "Direct retail percentage";
+  if (type === "ResellerAcquisitionBonus") return "Reseller acquisition bonus";
+  return "Reseller repeat percentage";
+}
+
+function ruleValueLabel(rule: AdminCommissionRule) {
+  if (rule.fixedAmount != null) return `RM ${rule.fixedAmount.toFixed(2)}`;
+  const duration = rule.eligibilityMonths ? ` for ${rule.eligibilityMonths} months` : "";
+  return `${rule.percentage ?? 0}%${duration}`;
 }
 
 function statusTone(status: AdminSalesCommission["status"]): "mint" | "danger" | "teal" {

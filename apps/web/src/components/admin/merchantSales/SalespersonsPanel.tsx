@@ -24,6 +24,7 @@ import { isAbortError } from "@/services/apiClient";
 import { listAdminOwners, type AdminOwner } from "@/services/adminOwnerService";
 import {
   createSalesperson,
+  getSalespersonCommissionSummary,
   getMerchantSalesError,
   getMerchantSalesFieldErrors,
   isConcurrencyConflict,
@@ -31,6 +32,7 @@ import {
   setSalespersonActive,
   updateSalesperson,
   type AdminSalesperson,
+  type SalespersonCommissionSummary,
 } from "@/services/adminMerchantSalesService";
 import {
   DetailGrid,
@@ -42,12 +44,13 @@ import {
   primaryButton,
   secondaryButton,
   shortDate,
+  money,
 } from "./shared";
 
 const filterKeys = ["active"] as const;
 
 const commissionHelp =
-  "The default commission percentage is used for new merchant sales and is snapshotted when the order is created.";
+  "The default percentage remains the authority for legacy merchant orders. Reseller acquisition and repeat earnings use their effective-dated rules and locked relationship terms.";
 
 export function SalespersonsPanel({
   openId,
@@ -94,6 +97,11 @@ export function SalespersonsPanel({
   const [message, setMessage] = useState("");
   const [actionError, setActionError] = useState("");
   const [pendingActivation, setPendingActivation] = useState<AdminSalesperson | null>(null);
+  const [commissionSummaryState, setCommissionSummaryState] = useState<{
+    salespersonId: string;
+    value: SalespersonCommissionSummary | null;
+    error: string;
+  } | null>(null);
 
   const refresh = useCallback(() => setReloadKey((value) => value + 1), []);
 
@@ -120,11 +128,41 @@ export function SalespersonsPanel({
     return () => controller.abort();
   }, [paramsKey, reloadKey]);
 
+  useEffect(() => {
+    if (!openId || openId === "new" || editing) {
+      return;
+    }
+    const controller = new AbortController();
+    getSalespersonCommissionSummary(openId, controller.signal)
+      .then((result) => {
+        if (!controller.signal.aborted) {
+          setCommissionSummaryState({ salespersonId: openId, value: result, error: "" });
+        }
+      })
+      .catch((caught) => {
+        if (controller.signal.aborted || isAbortError(caught)) return;
+        setCommissionSummaryState({
+          salespersonId: openId,
+          value: null,
+          error: getMerchantSalesError(
+            caught,
+            "We couldn’t load this salesperson’s commission summary."
+          ),
+        });
+      });
+    return () => controller.abort();
+  }, [editing, openId, reloadKey]);
+
   const loading = listState?.key !== fetchKey;
   const items = listState?.key === fetchKey ? listState.items : [];
   const total = listState?.key === fetchKey ? listState.total : 0;
   const listError = listState?.key === fetchKey ? listState.error : "";
   const open = items.find((item) => item.id === openId) ?? null;
+  const currentCommissionSummary = open
+    && commissionSummaryState?.salespersonId === open.id
+      ? commissionSummaryState
+      : null;
+  const commissionSummary = currentCommissionSummary?.value ?? null;
 
   const filterDefs: AdminFilterDef[] = [
     {
@@ -265,6 +303,24 @@ export function SalespersonsPanel({
               <DetailRow label="Status">{open.isActive ? "Active" : "Inactive"}</DetailRow>
               <DetailRow label="Added">{shortDate(open.createdAt)}</DetailRow>
             </DetailGrid>
+            {!currentCommissionSummary ? (
+              <p className="text-sm font-semibold text-slate-500">Loading commission summary…</p>
+            ) : currentCommissionSummary.error ? (
+              <InlineError message={currentCommissionSummary.error} />
+            ) : commissionSummary ? (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-sm font-black text-slate-900">Commission and reseller summary</p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <SummaryValue label="Reseller acquisitions" value={String(commissionSummary.resellerAcquisitions)} />
+                  <SummaryValue label="Active repeat relationships" value={String(commissionSummary.activeRepeatRelationships)} />
+                  <SummaryValue label="Acquisition bonuses" value={String(commissionSummary.acquisitionBonusCommissions)} />
+                  <SummaryValue label="Repeat commissions" value={String(commissionSummary.repeatCommissions)} />
+                  <SummaryValue label="Payable" value={money(commissionSummary.currency, commissionSummary.payableTotal)} />
+                  <SummaryValue label="Paid" value={money(commissionSummary.currency, commissionSummary.paidTotal)} />
+                  <SummaryValue label="Reversed" value={money(commissionSummary.currency, commissionSummary.reversedTotal)} />
+                </div>
+              </div>
+            ) : null}
             {open.referralCode ? (
               <button
                 className={`${secondaryButton} w-fit`}
@@ -377,6 +433,15 @@ export function SalespersonsPanel({
         open={pendingActivation !== null}
         title={pendingActivation?.isActive ? "Deactivate salesperson?" : "Activate salesperson?"}
       />
+    </div>
+  );
+}
+
+function SummaryValue({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-[0.68rem] font-extrabold uppercase text-slate-400">{label}</p>
+      <p className="mt-1 text-sm font-black text-slate-900">{value}</p>
     </div>
   );
 }

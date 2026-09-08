@@ -17,11 +17,16 @@ public interface IMerchantSalesService
     Task<MerchantResponse> CreateMerchantAsync(Guid? actorId, UpsertMerchantRequest request, CancellationToken cancellationToken);
     Task<MerchantResponse> UpdateMerchantAsync(Guid? actorId, Guid id, UpsertMerchantRequest request, CancellationToken cancellationToken);
     Task<MerchantResponse> SetMerchantActiveAsync(Guid? actorId, Guid id, bool isActive, string? concurrencyToken, CancellationToken cancellationToken);
+    Task<MerchantResponse> CorrectMerchantAcquisitionAttributionAsync(
+        Guid? actorId, Guid id, CorrectMerchantAcquisitionAttributionRequest request,
+        CancellationToken cancellationToken);
 
     // Salespersons
     Task<(IReadOnlyCollection<SalespersonResponse> Items, int Total)> ListSalespersonsAsync(
         int page, int pageSize, string? search, bool? isActive, CancellationToken cancellationToken);
     Task<SalespersonResponse> GetSalespersonAsync(Guid id, CancellationToken cancellationToken);
+    Task<SalespersonCommissionSummaryResponse> GetSalespersonCommissionSummaryAsync(
+        Guid id, CancellationToken cancellationToken);
     Task<SalespersonResponse> CreateSalespersonAsync(Guid? actorId, UpsertSalespersonRequest request, CancellationToken cancellationToken);
     Task<SalespersonResponse> UpdateSalespersonAsync(Guid? actorId, Guid id, UpsertSalespersonRequest request, CancellationToken cancellationToken);
     Task<SalespersonResponse> SetSalespersonActiveAsync(Guid? actorId, Guid id, bool isActive, string? concurrencyToken, CancellationToken cancellationToken);
@@ -93,6 +98,8 @@ public sealed class MerchantSalesService : IMerchantSalesService
         var query = _dbContext.Merchants
             .AsNoTracking()
             .Include(merchant => merchant.AssignedSalesperson)
+            .Include(merchant => merchant.AcquiredBySalesperson)
+            .Include(merchant => merchant.FirstQualifyingMerchantOrder)
             .AsQueryable();
 
         if (isActive.HasValue) query = query.Where(m => m.IsActive == isActive.Value);
@@ -134,6 +141,9 @@ public sealed class MerchantSalesService : IMerchantSalesService
         {
             MerchantCode = await _numbers.NextMerchantCodeAsync(cancellationToken),
             PaymentTerm = MerchantPaymentTerm.Prepaid,
+            CommissionPlan = MerchantCommissionPlan.AcquisitionAndRepeat,
+            AcquiredBySalespersonId = salesperson?.Id,
+            AcquisitionAttributedAt = salesperson is null ? null : now,
             CreatedAt = now,
             UpdatedAt = now,
         };
@@ -169,6 +179,75 @@ public sealed class MerchantSalesService : IMerchantSalesService
         await SaveWithConcurrencyAsync(cancellationToken);
 
         return ToResponse(await RequireMerchantAsync(id, cancellationToken));
+    }
+
+    public async Task<MerchantResponse> CorrectMerchantAcquisitionAttributionAsync(
+        Guid? actorId,
+        Guid id,
+        CorrectMerchantAcquisitionAttributionRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.ConcurrencyToken))
+            throw Validation("concurrencyToken", "Reload this merchant before changing acquisition ownership.");
+
+        var merchant = await RequireMerchantAsync(id, cancellationToken, tracked: true);
+        if (merchant.CommissionPlan != MerchantCommissionPlan.AcquisitionAndRepeat)
+        {
+            throw Conflict("merchant_acquisition_not_applicable",
+                "This merchant uses the legacy commission plan and has no acquisition owner.");
+        }
+        if (merchant.FirstQualifyingMerchantOrderId.HasValue)
+        {
+            throw Conflict("merchant_acquisition_locked",
+                "Acquisition ownership is locked because this reseller has activated commission terms.");
+        }
+
+        ApplyConcurrency(merchant, request.ConcurrencyToken);
+        var salesperson = await ResolveAssignableSalespersonAsync(
+            request.SalespersonId, cancellationToken, merchant.AcquiredBySalespersonId);
+        var before = MerchantAcquisitionAuditSnapshot(merchant);
+        merchant.AcquiredBySalespersonId = salesperson?.Id;
+        merchant.AcquiredBySalesperson = salesperson;
+        merchant.AcquisitionAttributedAt = salesperson is null ? null : _timeProvider.GetUtcNow();
+        merchant.UpdatedAt = _timeProvider.GetUtcNow();
+
+        _auditLogService.Append(actorId, ActorType.Admin,
+            "merchant.acquisition-attribution-corrected", "Merchant", merchant.Id,
+            before, MerchantAcquisitionAuditSnapshot(merchant));
+        await SaveWithConcurrencyAsync(cancellationToken);
+        return ToResponse(await RequireMerchantAsync(id, cancellationToken));
+    }
+
+    public async Task<SalespersonCommissionSummaryResponse> GetSalespersonCommissionSummaryAsync(
+        Guid id, CancellationToken cancellationToken)
+    {
+        _ = await RequireSalespersonAsync(id, cancellationToken);
+        var now = _timeProvider.GetUtcNow();
+        var resellerAcquisitions = await _dbContext.Merchants.AsNoTracking().CountAsync(
+            item => item.AcquiredBySalespersonId == id
+                && item.FirstQualifyingMerchantOrderId != null,
+            cancellationToken);
+        var activeRelationships = await _dbContext.Merchants.AsNoTracking().CountAsync(
+            item => item.AcquiredBySalespersonId == id
+                && item.RepeatCommissionEligibleUntil > now,
+            cancellationToken);
+        var rows = await _dbContext.SalesCommissions.AsNoTracking()
+            .Where(item => item.SalespersonId == id)
+            .Select(item => new { item.CommissionType, item.Status, item.CommissionAmount })
+            .ToListAsync(cancellationToken);
+
+        return new SalespersonCommissionSummaryResponse(
+            resellerAcquisitions,
+            activeRelationships,
+            rows.Count(item => item.CommissionType == SalesCommissionType.ResellerAcquisitionBonus),
+            rows.Count(item => item.CommissionType == SalesCommissionType.ResellerRepeatPercentage),
+            MerchantSalesTotals.Round(rows.Where(item => item.Status == SalesCommissionStatus.Payable)
+                .Sum(item => item.CommissionAmount)),
+            MerchantSalesTotals.Round(rows.Where(item => item.Status == SalesCommissionStatus.Paid)
+                .Sum(item => item.CommissionAmount)),
+            MerchantSalesTotals.Round(rows.Where(item => item.Status == SalesCommissionStatus.Reversed)
+                .Sum(item => item.CommissionAmount)),
+            MerchantSalesConstants.Currency);
     }
 
     public async Task<MerchantResponse> SetMerchantActiveAsync(
@@ -1103,7 +1182,11 @@ public sealed class MerchantSalesService : IMerchantSalesService
     private async Task<Merchant> RequireMerchantAsync(
         Guid id, CancellationToken cancellationToken, bool tracked = false)
     {
-        var query = _dbContext.Merchants.Include(m => m.AssignedSalesperson).AsQueryable();
+        var query = _dbContext.Merchants
+            .Include(m => m.AssignedSalesperson)
+            .Include(m => m.AcquiredBySalesperson)
+            .Include(m => m.FirstQualifyingMerchantOrder)
+            .AsQueryable();
         if (!tracked) query = query.AsNoTracking();
 
         return await query.SingleOrDefaultAsync(m => m.Id == id, cancellationToken)
@@ -1531,6 +1614,14 @@ public sealed class MerchantSalesService : IMerchantSalesService
         merchant.SstRegistrationNumber, merchant.ContactPerson, merchant.ContactEmail,
         merchant.ContactPhone, BillingOf(merchant), merchant.DeliveryAddressSameAsBilling,
         DeliveryOf(merchant), merchant.AssignedSalespersonId, merchant.AssignedSalesperson?.Name,
+        merchant.CommissionPlan.ToString(), merchant.AcquiredBySalespersonId,
+        merchant.AcquiredBySalespersonNameSnapshot ?? merchant.AcquiredBySalesperson?.Name,
+        merchant.AcquisitionAttributedAt, merchant.FirstQualifyingPaidOrderAt,
+        merchant.FirstQualifyingMerchantOrderId,
+        merchant.FirstQualifyingMerchantOrder?.MerchantOrderNumber,
+        merchant.RepeatCommissionPercentageSnapshot,
+        merchant.RepeatCommissionEligibilityMonthsSnapshot,
+        merchant.RepeatCommissionEligibleUntil,
         merchant.PaymentTerm, merchant.InternalNotes, merchant.IsActive, merchant.CreatedAt,
         merchant.UpdatedAt, Convert.ToBase64String(merchant.RowVersion));
 
@@ -1607,6 +1698,14 @@ public sealed class MerchantSalesService : IMerchantSalesService
         merchant.MerchantCode,
         merchant.LegalBusinessName,
         merchant.AssignedSalespersonId,
+        CommissionPlan = merchant.CommissionPlan.ToString(),
+        merchant.AcquiredBySalespersonId,
+        merchant.AcquisitionAttributedAt,
+        merchant.FirstQualifyingMerchantOrderId,
+        merchant.FirstQualifyingPaidOrderAt,
+        merchant.RepeatCommissionPercentageSnapshot,
+        merchant.RepeatCommissionEligibilityMonthsSnapshot,
+        merchant.RepeatCommissionEligibleUntil,
         merchant.PaymentTerm,
         merchant.IsActive,
     };
@@ -1644,6 +1743,15 @@ public sealed class MerchantSalesService : IMerchantSalesService
         order.FulfilmentStatus,
         order.GrandTotal,
         ItemCount = order.Items.Count,
+    };
+
+    private static object MerchantAcquisitionAuditSnapshot(Merchant merchant) => new
+    {
+        CommissionPlan = merchant.CommissionPlan.ToString(),
+        merchant.AcquiredBySalespersonId,
+        merchant.AcquisitionAttributedAt,
+        merchant.FirstQualifyingMerchantOrderId,
+        merchant.FirstQualifyingPaidOrderAt,
     };
 
     private static object CommissionAttributionAuditSnapshot(MerchantOrder order) => new

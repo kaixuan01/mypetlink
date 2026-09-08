@@ -31,6 +31,16 @@ export type AdminMerchant = {
   deliveryAddress: MerchantAddress;
   assignedSalespersonId: string | null;
   assignedSalespersonName: string | null;
+  commissionPlan: "LegacyPercentage" | "AcquisitionAndRepeat";
+  acquiredBySalespersonId: string | null;
+  acquiredBySalespersonName: string | null;
+  acquisitionAttributedAt: string | null;
+  firstQualifyingPaidOrderAt: string | null;
+  firstQualifyingMerchantOrderId: string | null;
+  firstQualifyingMerchantOrderNumber: string | null;
+  repeatCommissionPercentage: number | null;
+  repeatCommissionEligibilityMonths: number | null;
+  repeatCommissionEligibleUntil: string | null;
   paymentTerm: string;
   internalNotes: string | null;
   isActive: boolean;
@@ -284,6 +294,18 @@ export async function setMerchantActive(
   return must(response.data, "merchant");
 }
 
+export async function correctMerchantAcquisitionAttribution(
+  id: string,
+  salespersonId: string | null,
+  concurrencyToken: string
+) {
+  const response = await apiRequest<AdminMerchant>(
+    `${base}/merchants/${id}/acquisition-attribution`,
+    { method: "PUT", body: { salespersonId, concurrencyToken } }
+  );
+  return must(response.data, "merchant");
+}
+
 // --- Salespersons ----------------------------------------------------------
 
 export function listSalespersons(
@@ -291,6 +313,25 @@ export function listSalespersons(
   signal?: AbortSignal
 ) {
   return paged<AdminSalesperson>(`${base}/salespersons${query({ ...params })}`, signal);
+}
+
+export type SalespersonCommissionSummary = {
+  resellerAcquisitions: number;
+  activeRepeatRelationships: number;
+  acquisitionBonusCommissions: number;
+  repeatCommissions: number;
+  payableTotal: number;
+  paidTotal: number;
+  reversedTotal: number;
+  currency: string;
+};
+
+export async function getSalespersonCommissionSummary(id: string, signal?: AbortSignal) {
+  const response = await apiRequest<SalespersonCommissionSummary>(
+    `${base}/salespersons/${id}/commission-summary`,
+    { signal }
+  );
+  return must(response.data, "salesperson commission summary");
 }
 
 export type UpsertSalespersonInput = {

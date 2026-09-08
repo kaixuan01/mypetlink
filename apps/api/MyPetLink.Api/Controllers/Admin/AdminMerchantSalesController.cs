@@ -73,6 +73,16 @@ public sealed class AdminMerchantsController : ApiControllerBase
             await _service.SetMerchantActiveAsync(
                 _currentUser.Current.UserId, id, false, request?.ConcurrencyToken, cancellationToken),
             HttpContext));
+
+    [HttpPut("{id:guid}/acquisition-attribution")]
+    public async Task<IActionResult> CorrectAcquisitionAttribution(
+        Guid id,
+        [FromBody] CorrectMerchantAcquisitionAttributionRequest request,
+        CancellationToken cancellationToken) =>
+        Ok(ApiEnvelope.Ok(
+            await _service.CorrectMerchantAcquisitionAttributionAsync(
+                _currentUser.Current.UserId, id, request, cancellationToken),
+            HttpContext));
 }
 
 [Authorize(Policy = AuthorizationPolicies.Admin)]
@@ -104,6 +114,11 @@ public sealed class AdminSalespersonsController : ApiControllerBase
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> Get(Guid id, CancellationToken cancellationToken) =>
         Ok(ApiEnvelope.Ok(await _service.GetSalespersonAsync(id, cancellationToken), HttpContext));
+
+    [HttpGet("{id:guid}/commission-summary")]
+    public async Task<IActionResult> CommissionSummary(Guid id, CancellationToken cancellationToken) =>
+        Ok(ApiEnvelope.Ok(
+            await _service.GetSalespersonCommissionSummaryAsync(id, cancellationToken), HttpContext));
 
     [HttpPost]
     public async Task<IActionResult> Create(

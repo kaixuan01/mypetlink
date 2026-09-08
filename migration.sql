@@ -7270,3 +7270,365 @@ GO
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908060518_AddResellerAcquisitionAndRepeatCommission'
+)
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM [SalesCommissions]
+        WHERE [CommissionType] IN ('ResellerAcquisitionBonus', 'ResellerRepeatPercentage'))
+        THROW 51040, 'Phase 3C cannot continue: reseller commission history already exists. Run the Phase 3C diagnostic and review it manually.', 1;
+
+    IF EXISTS (
+        SELECT 1
+        FROM [CommissionRules]
+        WHERE [CommissionType] <> 'DirectRetailPercentage')
+        THROW 51041, 'Phase 3C cannot continue: non-Phase-3B commission rules already exist. Run the Phase 3C diagnostic and reconcile them manually.', 1;
+
+    IF EXISTS (
+        SELECT 1
+        FROM [SalesCommissions] commission
+        LEFT JOIN [MerchantOrders] merchantOrder ON merchantOrder.[Id] = commission.[MerchantOrderId]
+        LEFT JOIN [MerchantPayments] payment ON payment.[Id] = commission.[MerchantPaymentId]
+        WHERE commission.[SourceType] = 'MerchantOrder'
+          AND (merchantOrder.[Id] IS NULL
+               OR payment.[Id] IS NULL
+               OR payment.[MerchantOrderId] <> commission.[MerchantOrderId]))
+        THROW 51042, 'Phase 3C cannot continue: a merchant commission cannot be linked safely to its merchant.', 1;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908060518_AddResellerAcquisitionAndRepeatCommission'
+)
+BEGIN
+    ALTER TABLE [SalesCommissions] DROP CONSTRAINT [CK_SalesCommissions_SourceCommissionType];
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908060518_AddResellerAcquisitionAndRepeatCommission'
+)
+BEGIN
+    ALTER TABLE [SalesCommissions] DROP CONSTRAINT [CK_SalesCommissions_SourceShape];
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908060518_AddResellerAcquisitionAndRepeatCommission'
+)
+BEGIN
+    DROP INDEX [IX_CommissionRules_CommissionType_SalespersonId_EffectiveFrom] ON [CommissionRules];
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908060518_AddResellerAcquisitionAndRepeatCommission'
+)
+BEGIN
+    ALTER TABLE [SalesCommissions] ADD [MerchantId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908060518_AddResellerAcquisitionAndRepeatCommission'
+)
+BEGIN
+    ALTER TABLE [Merchants] ADD [AcquiredBySalespersonCodeSnapshot] nvarchar(32) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908060518_AddResellerAcquisitionAndRepeatCommission'
+)
+BEGIN
+    ALTER TABLE [Merchants] ADD [AcquiredBySalespersonId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908060518_AddResellerAcquisitionAndRepeatCommission'
+)
+BEGIN
+    ALTER TABLE [Merchants] ADD [AcquiredBySalespersonNameSnapshot] nvarchar(160) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908060518_AddResellerAcquisitionAndRepeatCommission'
+)
+BEGIN
+    ALTER TABLE [Merchants] ADD [AcquisitionAttributedAt] datetimeoffset NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908060518_AddResellerAcquisitionAndRepeatCommission'
+)
+BEGIN
+    ALTER TABLE [Merchants] ADD [CommissionPlan] nvarchar(32) NOT NULL DEFAULT N'LegacyPercentage';
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908060518_AddResellerAcquisitionAndRepeatCommission'
+)
+BEGIN
+    ALTER TABLE [Merchants] ADD [FirstQualifyingMerchantOrderId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908060518_AddResellerAcquisitionAndRepeatCommission'
+)
+BEGIN
+    ALTER TABLE [Merchants] ADD [FirstQualifyingPaidOrderAt] datetimeoffset NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908060518_AddResellerAcquisitionAndRepeatCommission'
+)
+BEGIN
+    ALTER TABLE [Merchants] ADD [RepeatCommissionEligibilityMonthsSnapshot] int NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908060518_AddResellerAcquisitionAndRepeatCommission'
+)
+BEGIN
+    ALTER TABLE [Merchants] ADD [RepeatCommissionEligibleUntil] datetimeoffset NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908060518_AddResellerAcquisitionAndRepeatCommission'
+)
+BEGIN
+    ALTER TABLE [Merchants] ADD [RepeatCommissionPercentageSnapshot] decimal(5,2) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908060518_AddResellerAcquisitionAndRepeatCommission'
+)
+BEGIN
+    ALTER TABLE [Merchants] ADD [RepeatCommissionRuleEffectiveFromSnapshot] datetimeoffset NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908060518_AddResellerAcquisitionAndRepeatCommission'
+)
+BEGIN
+    ALTER TABLE [Merchants] ADD [RepeatCommissionRuleIdSnapshot] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908060518_AddResellerAcquisitionAndRepeatCommission'
+)
+BEGIN
+    UPDATE commission
+    SET commission.[MerchantId] = merchantOrder.[MerchantId]
+    FROM [SalesCommissions] commission
+    INNER JOIN [MerchantOrders] merchantOrder
+        ON merchantOrder.[Id] = commission.[MerchantOrderId]
+    WHERE commission.[SourceType] = 'MerchantOrder';
+
+    IF EXISTS (
+        SELECT 1 FROM [SalesCommissions]
+        WHERE [SourceType] = 'MerchantOrder' AND [MerchantId] IS NULL)
+        THROW 51043, 'Phase 3C cannot continue: not every merchant commission was backfilled with a merchant.', 1;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908060518_AddResellerAcquisitionAndRepeatCommission'
+)
+BEGIN
+    IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Id', N'CommissionType', N'CreatedAt', N'Currency', N'EffectiveFrom', N'EffectiveTo', N'EligibilityMonths', N'FixedAmount', N'IsActive', N'MaxQuantity', N'MinQuantity', N'Notes', N'Percentage', N'SalespersonId', N'UpdatedAt', N'UpdatedByAdminUserId') AND [object_id] = OBJECT_ID(N'[CommissionRules]'))
+        SET IDENTITY_INSERT [CommissionRules] ON;
+    EXEC(N'INSERT INTO [CommissionRules] ([Id], [CommissionType], [CreatedAt], [Currency], [EffectiveFrom], [EffectiveTo], [EligibilityMonths], [FixedAmount], [IsActive], [MaxQuantity], [MinQuantity], [Notes], [Percentage], [SalespersonId], [UpdatedAt], [UpdatedByAdminUserId])
+    VALUES (''a971d6d5-86a8-4f85-a5e4-9cb85a1f3b11'', N''ResellerAcquisitionBonus'', ''2026-01-01T00:00:00.0000000+00:00'', N''MYR'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, NULL, 50.0, CAST(1 AS bit), 19, 10, N''Default reseller acquisition tier: 10–19 units'', NULL, NULL, ''2026-01-01T00:00:00.0000000+00:00'', NULL),
+    (''a971d6d5-86a8-4f85-a5e4-9cb85a1f3b12'', N''ResellerAcquisitionBonus'', ''2026-01-01T00:00:00.0000000+00:00'', N''MYR'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, NULL, 80.0, CAST(1 AS bit), 49, 20, N''Default reseller acquisition tier: 20–49 units'', NULL, NULL, ''2026-01-01T00:00:00.0000000+00:00'', NULL),
+    (''a971d6d5-86a8-4f85-a5e4-9cb85a1f3b13'', N''ResellerAcquisitionBonus'', ''2026-01-01T00:00:00.0000000+00:00'', N''MYR'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, NULL, 150.0, CAST(1 AS bit), 99, 50, N''Default reseller acquisition tier: 50–99 units'', NULL, NULL, ''2026-01-01T00:00:00.0000000+00:00'', NULL),
+    (''a971d6d5-86a8-4f85-a5e4-9cb85a1f3b14'', N''ResellerAcquisitionBonus'', ''2026-01-01T00:00:00.0000000+00:00'', N''MYR'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, NULL, 250.0, CAST(1 AS bit), NULL, 100, N''Default reseller acquisition tier: 100+ units'', NULL, NULL, ''2026-01-01T00:00:00.0000000+00:00'', NULL),
+    (''a971d6d5-86a8-4f85-a5e4-9cb85a1f3b20'', N''ResellerRepeatPercentage'', ''2026-01-01T00:00:00.0000000+00:00'', N''MYR'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, 3, NULL, CAST(1 AS bit), NULL, NULL, N''Default reseller repeat commission'', 3.0, NULL, ''2026-01-01T00:00:00.0000000+00:00'', NULL)');
+    IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Id', N'CommissionType', N'CreatedAt', N'Currency', N'EffectiveFrom', N'EffectiveTo', N'EligibilityMonths', N'FixedAmount', N'IsActive', N'MaxQuantity', N'MinQuantity', N'Notes', N'Percentage', N'SalespersonId', N'UpdatedAt', N'UpdatedByAdminUserId') AND [object_id] = OBJECT_ID(N'[CommissionRules]'))
+        SET IDENTITY_INSERT [CommissionRules] OFF;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908060518_AddResellerAcquisitionAndRepeatCommission'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [IX_SalesCommissions_MerchantId_CommissionType] ON [SalesCommissions] ([MerchantId], [CommissionType]) WHERE [MerchantId] IS NOT NULL AND [CommissionType] = ''ResellerAcquisitionBonus''');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908060518_AddResellerAcquisitionAndRepeatCommission'
+)
+BEGIN
+    EXEC(N'ALTER TABLE [SalesCommissions] ADD CONSTRAINT [CK_SalesCommissions_SourceCommissionType] CHECK (([CommissionType] = ''MerchantOrderPercentage'' AND [SourceType] = ''MerchantOrder'') OR ([CommissionType] = ''DirectRetailPercentage'' AND [SourceType] = ''TagOrder'') OR ([CommissionType] IN (''ResellerAcquisitionBonus'',''ResellerRepeatPercentage'') AND [SourceType] = ''MerchantOrder''))');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908060518_AddResellerAcquisitionAndRepeatCommission'
+)
+BEGIN
+    EXEC(N'ALTER TABLE [SalesCommissions] ADD CONSTRAINT [CK_SalesCommissions_SourceShape] CHECK (([SourceType] = ''MerchantOrder'' AND [MerchantId] IS NOT NULL AND [MerchantOrderId] IS NOT NULL AND [MerchantPaymentId] IS NOT NULL AND [TagOrderId] IS NULL) OR ([SourceType] = ''TagOrder'' AND [MerchantId] IS NULL AND [TagOrderId] IS NOT NULL AND [MerchantOrderId] IS NULL AND [MerchantPaymentId] IS NULL))');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908060518_AddResellerAcquisitionAndRepeatCommission'
+)
+BEGIN
+    CREATE INDEX [IX_Merchants_AcquiredBySalespersonId] ON [Merchants] ([AcquiredBySalespersonId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908060518_AddResellerAcquisitionAndRepeatCommission'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [IX_Merchants_FirstQualifyingMerchantOrderId] ON [Merchants] ([FirstQualifyingMerchantOrderId]) WHERE [FirstQualifyingMerchantOrderId] IS NOT NULL');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908060518_AddResellerAcquisitionAndRepeatCommission'
+)
+BEGIN
+    CREATE INDEX [IX_Merchants_RepeatCommissionRuleIdSnapshot] ON [Merchants] ([RepeatCommissionRuleIdSnapshot]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908060518_AddResellerAcquisitionAndRepeatCommission'
+)
+BEGIN
+    EXEC(N'ALTER TABLE [Merchants] ADD CONSTRAINT [CK_Merchants_AcquisitionActivationShape] CHECK (([FirstQualifyingMerchantOrderId] IS NULL AND [FirstQualifyingPaidOrderAt] IS NULL AND [RepeatCommissionPercentageSnapshot] IS NULL AND [RepeatCommissionEligibilityMonthsSnapshot] IS NULL AND [RepeatCommissionEligibleUntil] IS NULL AND [RepeatCommissionRuleIdSnapshot] IS NULL AND [RepeatCommissionRuleEffectiveFromSnapshot] IS NULL AND [AcquiredBySalespersonCodeSnapshot] IS NULL AND [AcquiredBySalespersonNameSnapshot] IS NULL) OR ([FirstQualifyingMerchantOrderId] IS NOT NULL AND [FirstQualifyingPaidOrderAt] IS NOT NULL AND [AcquiredBySalespersonId] IS NOT NULL AND [RepeatCommissionPercentageSnapshot] IS NOT NULL AND [RepeatCommissionEligibilityMonthsSnapshot] > 0 AND [RepeatCommissionEligibleUntil] > [FirstQualifyingPaidOrderAt] AND [RepeatCommissionRuleIdSnapshot] IS NOT NULL AND [RepeatCommissionRuleEffectiveFromSnapshot] IS NOT NULL AND [AcquiredBySalespersonCodeSnapshot] IS NOT NULL AND [AcquiredBySalespersonNameSnapshot] IS NOT NULL))');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908060518_AddResellerAcquisitionAndRepeatCommission'
+)
+BEGIN
+    EXEC(N'ALTER TABLE [Merchants] ADD CONSTRAINT [CK_Merchants_AcquisitionAttribution] CHECK (([AcquiredBySalespersonId] IS NULL AND [AcquisitionAttributedAt] IS NULL) OR ([AcquiredBySalespersonId] IS NOT NULL AND [AcquisitionAttributedAt] IS NOT NULL))');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908060518_AddResellerAcquisitionAndRepeatCommission'
+)
+BEGIN
+    EXEC(N'ALTER TABLE [Merchants] ADD CONSTRAINT [CK_Merchants_CommissionPlanShape] CHECK (([CommissionPlan] = ''LegacyPercentage'' AND [AcquiredBySalespersonId] IS NULL AND [FirstQualifyingMerchantOrderId] IS NULL) OR ([CommissionPlan] = ''AcquisitionAndRepeat''))');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908060518_AddResellerAcquisitionAndRepeatCommission'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_CommissionRules_CommissionType_SalespersonId_EffectiveFrom_MinQuantity] ON [CommissionRules] ([CommissionType], [SalespersonId], [EffectiveFrom], [MinQuantity]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908060518_AddResellerAcquisitionAndRepeatCommission'
+)
+BEGIN
+    EXEC(N'ALTER TABLE [CommissionRules] ADD CONSTRAINT [CK_CommissionRules_CommissionTypeShape] CHECK (([CommissionType] = ''DirectRetailPercentage'' AND [Percentage] IS NOT NULL AND [FixedAmount] IS NULL AND [EligibilityMonths] IS NULL) OR ([CommissionType] = ''ResellerAcquisitionBonus'' AND [Percentage] IS NULL AND [FixedAmount] IS NOT NULL AND [MinQuantity] IS NOT NULL AND [EligibilityMonths] IS NULL) OR ([CommissionType] = ''ResellerRepeatPercentage'' AND [Percentage] IS NOT NULL AND [FixedAmount] IS NULL AND [MinQuantity] IS NULL AND [MaxQuantity] IS NULL AND [EligibilityMonths] > 0))');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908060518_AddResellerAcquisitionAndRepeatCommission'
+)
+BEGIN
+    ALTER TABLE [Merchants] ADD CONSTRAINT [FK_Merchants_CommissionRules_RepeatCommissionRuleIdSnapshot] FOREIGN KEY ([RepeatCommissionRuleIdSnapshot]) REFERENCES [CommissionRules] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908060518_AddResellerAcquisitionAndRepeatCommission'
+)
+BEGIN
+    ALTER TABLE [Merchants] ADD CONSTRAINT [FK_Merchants_MerchantOrders_FirstQualifyingMerchantOrderId] FOREIGN KEY ([FirstQualifyingMerchantOrderId]) REFERENCES [MerchantOrders] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908060518_AddResellerAcquisitionAndRepeatCommission'
+)
+BEGIN
+    ALTER TABLE [Merchants] ADD CONSTRAINT [FK_Merchants_Salespersons_AcquiredBySalespersonId] FOREIGN KEY ([AcquiredBySalespersonId]) REFERENCES [Salespersons] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908060518_AddResellerAcquisitionAndRepeatCommission'
+)
+BEGIN
+    ALTER TABLE [SalesCommissions] ADD CONSTRAINT [FK_SalesCommissions_Merchants_MerchantId] FOREIGN KEY ([MerchantId]) REFERENCES [Merchants] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908060518_AddResellerAcquisitionAndRepeatCommission'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260908060518_AddResellerAcquisitionAndRepeatCommission', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+

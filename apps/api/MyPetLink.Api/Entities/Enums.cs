@@ -323,9 +323,7 @@ public enum SalesCommissionSourceType
 }
 
 /// <summary>
-/// The business rule represented by a ledger row. Only merchant-order and
-/// direct-retail percentages are operational in Phase 3B; the reseller values
-/// reserve stable persisted names for later phases.
+/// The business rule represented by a ledger row.
 /// </summary>
 public enum SalesCommissionType
 {
@@ -333,6 +331,17 @@ public enum SalesCommissionType
     DirectRetailPercentage,
     ResellerAcquisitionBonus,
     ResellerRepeatPercentage
+}
+
+/// <summary>
+/// The explicitly selected commercial compensation model for a merchant.
+/// Existing merchants remain on LegacyPercentage; new merchants are enrolled
+/// in AcquisitionAndRepeat by application logic.
+/// </summary>
+public enum MerchantCommissionPlan
+{
+    LegacyPercentage,
+    AcquisitionAndRepeat
 }
 
 /// <summary>

@@ -94,9 +94,9 @@ public sealed class MerchantBillingRelationalTests
         await using var db = scope.NewContext();
         var seeded = await SeedTwoPaymentsForOneOrderAsync(db);
 
-        db.SalesCommissions.Add(NewCommission(seeded.OrderId, seeded.FirstPaymentId,
+        db.SalesCommissions.Add(NewCommission(seeded.MerchantId, seeded.OrderId, seeded.FirstPaymentId,
             seeded.SalespersonId, SalesCommissionStatus.Reversed));
-        db.SalesCommissions.Add(NewCommission(seeded.OrderId, seeded.SecondPaymentId,
+        db.SalesCommissions.Add(NewCommission(seeded.MerchantId, seeded.OrderId, seeded.SecondPaymentId,
             seeded.SalespersonId, SalesCommissionStatus.Payable));
         await db.SaveChangesAsync();
 
@@ -111,7 +111,7 @@ public sealed class MerchantBillingRelationalTests
         };
         db.MerchantPayments.Add(thirdPayment);
         await db.SaveChangesAsync();
-        db.SalesCommissions.Add(NewCommission(seeded.OrderId, thirdPayment.Id,
+        db.SalesCommissions.Add(NewCommission(seeded.MerchantId, seeded.OrderId, thirdPayment.Id,
             seeded.SalespersonId, SalesCommissionStatus.Paid));
 
         await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
@@ -119,6 +119,67 @@ public sealed class MerchantBillingRelationalTests
         Assert.Equal(2, await db.SalesCommissions.CountAsync());
         Assert.Equal(1, await db.SalesCommissions.CountAsync(
             item => item.Status != SalesCommissionStatus.Reversed));
+    }
+
+    [RelationalFact]
+    public async Task AcquisitionBonusIsUniquePerMerchantEvenAfterReversal()
+    {
+        await using var scope = await RelationalDatabase.CreateAsync();
+        await using var db = scope.NewContext();
+        var seeded = await SeedTwoPaymentsForOneOrderAsync(db);
+
+        db.SalesCommissions.Add(NewResellerCommission(
+            seeded.MerchantId, seeded.OrderId, seeded.FirstPaymentId,
+            seeded.SalespersonId, SalesCommissionType.ResellerAcquisitionBonus,
+            SalesCommissionStatus.Reversed));
+        await db.SaveChangesAsync();
+        db.SalesCommissions.Add(NewResellerCommission(
+            seeded.MerchantId, seeded.OrderId, seeded.SecondPaymentId,
+            seeded.SalespersonId, SalesCommissionType.ResellerAcquisitionBonus,
+            SalesCommissionStatus.Payable));
+
+        await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+        db.ChangeTracker.Clear();
+        Assert.Single(await db.SalesCommissions.Where(item =>
+            item.CommissionType == SalesCommissionType.ResellerAcquisitionBonus).ToListAsync());
+    }
+
+    [RelationalFact]
+    public async Task ConcurrentAcquisitionBonusCreationHasExactlyOneWinner()
+    {
+        await using var scope = await RelationalDatabase.CreateAsync();
+        SeedResult seeded;
+        await using (var seed = scope.NewContext())
+            seeded = await SeedTwoPaymentsForOneOrderAsync(seed);
+
+        using var gate = new SemaphoreSlim(0, 2);
+        async Task<bool> TryCreateAsync(Guid paymentId)
+        {
+            await using var db = scope.NewContext();
+            db.SalesCommissions.Add(NewResellerCommission(
+                seeded.MerchantId, seeded.OrderId, paymentId, seeded.SalespersonId,
+                SalesCommissionType.ResellerAcquisitionBonus, SalesCommissionStatus.Payable));
+            await gate.WaitAsync();
+            try
+            {
+                await db.SaveChangesAsync();
+                return true;
+            }
+            catch (DbUpdateException)
+            {
+                return false;
+            }
+        }
+
+        var first = TryCreateAsync(seeded.FirstPaymentId);
+        var second = TryCreateAsync(seeded.SecondPaymentId);
+        gate.Release(2);
+        var outcomes = await Task.WhenAll(first, second);
+
+        Assert.Single(outcomes, item => item);
+        await using var verify = scope.NewContext();
+        Assert.Single(await verify.SalesCommissions.Where(item =>
+            item.CommissionType == SalesCommissionType.ResellerAcquisitionBonus).ToListAsync());
     }
 
     [RelationalFact]
@@ -136,7 +197,7 @@ public sealed class MerchantBillingRelationalTests
         {
             await using var db = scope.NewContext();
             db.SalesCommissions.Add(NewCommission(
-                seeded.OrderId, paymentId, seeded.SalespersonId, SalesCommissionStatus.Payable));
+                seeded.MerchantId, seeded.OrderId, paymentId, seeded.SalespersonId, SalesCommissionStatus.Payable));
             await gate.WaitAsync();
             try
             {
@@ -214,7 +275,7 @@ public sealed class MerchantBillingRelationalTests
         await using (var seed = scope.NewContext())
         {
             var graph = await SeedTwoPaymentsForOneOrderAsync(seed);
-            var commission = NewCommission(graph.OrderId, graph.FirstPaymentId,
+            var commission = NewCommission(graph.MerchantId, graph.OrderId, graph.FirstPaymentId,
                 graph.SalespersonId, SalesCommissionStatus.Payable);
             seed.SalesCommissions.Add(commission);
             await seed.SaveChangesAsync();
@@ -235,7 +296,7 @@ public sealed class MerchantBillingRelationalTests
     }
 
     [RelationalFact]
-    public async Task RetailCommissionUniqueIndexIsScopedByOrderAndCommissionType()
+    public async Task RetailCommissionUniqueIndexRejectsDuplicateDirectCommission()
     {
         await using var scope = await RelationalDatabase.CreateAsync();
         await using var db = scope.NewContext();
@@ -244,10 +305,6 @@ public sealed class MerchantBillingRelationalTests
         db.SalesCommissions.Add(NewRetailCommission(
             seeded.OrderId, seeded.SalespersonId,
             SalesCommissionType.DirectRetailPercentage,
-            SalesCommissionStatus.Payable));
-        db.SalesCommissions.Add(NewRetailCommission(
-            seeded.OrderId, seeded.SalespersonId,
-            SalesCommissionType.ResellerRepeatPercentage,
             SalesCommissionStatus.Payable));
         await db.SaveChangesAsync();
 
@@ -258,7 +315,7 @@ public sealed class MerchantBillingRelationalTests
         await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
         db.ChangeTracker.Clear();
 
-        Assert.Equal(2, await db.SalesCommissions.CountAsync());
+        Assert.Single(await db.SalesCommissions.ToListAsync());
     }
 
     [RelationalFact]
@@ -351,8 +408,9 @@ public sealed class MerchantBillingRelationalTests
     }
 
     private static SalesCommission NewCommission(
-        Guid orderId, Guid paymentId, Guid salespersonId, SalesCommissionStatus status) => new()
+        Guid merchantId, Guid orderId, Guid paymentId, Guid salespersonId, SalesCommissionStatus status) => new()
     {
+        MerchantId = merchantId,
         MerchantOrderId = orderId,
         MerchantPaymentId = paymentId,
         SalespersonId = salespersonId,
@@ -382,6 +440,32 @@ public sealed class MerchantBillingRelationalTests
         CommissionPercentageSnapshot = 15m,
         CommissionBaseAmount = 100m,
         CommissionAmount = 15m,
+        Status = status,
+        CalculatedAt = DateTimeOffset.UtcNow,
+        ReversedAt = status == SalesCommissionStatus.Reversed ? DateTimeOffset.UtcNow : null,
+        ReversalReason = status == SalesCommissionStatus.Reversed ? "Historical reversal" : null,
+    };
+
+    private static SalesCommission NewResellerCommission(
+        Guid merchantId,
+        Guid orderId,
+        Guid paymentId,
+        Guid salespersonId,
+        SalesCommissionType type,
+        SalesCommissionStatus status) => new()
+    {
+        SourceType = SalesCommissionSourceType.MerchantOrder,
+        CommissionType = type,
+        MerchantId = merchantId,
+        MerchantOrderId = orderId,
+        MerchantPaymentId = paymentId,
+        SalespersonId = salespersonId,
+        SalespersonCodeSnapshot = "SP-RESELLER",
+        SalespersonNameSnapshot = "Reseller Rep",
+        CommissionPercentageSnapshot = type == SalesCommissionType.ResellerRepeatPercentage ? 3m : null,
+        CommissionFixedAmountSnapshot = type == SalesCommissionType.ResellerAcquisitionBonus ? 50m : null,
+        CommissionBaseAmount = 100m,
+        CommissionAmount = type == SalesCommissionType.ResellerAcquisitionBonus ? 50m : 3m,
         Status = status,
         CalculatedAt = DateTimeOffset.UtcNow,
         ReversedAt = status == SalesCommissionStatus.Reversed ? DateTimeOffset.UtcNow : null,
@@ -500,10 +584,11 @@ public sealed class MerchantBillingRelationalTests
         await db.SaveChangesAsync();
 
         return new SeedResult(
-            order.Id, salesperson.Id, firstPayment.Id, secondPayment.Id, thirdInvoice.Id);
+            merchant.Id, order.Id, salesperson.Id, firstPayment.Id, secondPayment.Id, thirdInvoice.Id);
     }
 
     private sealed record SeedResult(
+        Guid MerchantId,
         Guid OrderId,
         Guid SalespersonId,
         Guid FirstPaymentId,

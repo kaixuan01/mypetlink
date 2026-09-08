@@ -362,6 +362,73 @@ public sealed class InventoryCostingTests
         Assert.Equal(5.30m, report.ContributionProfit); // 18 - 6 COGS - 4 courier - 2.70.
     }
 
+    [Theory]
+    [InlineData(SalesCommissionType.MerchantOrderPercentage)]
+    [InlineData(SalesCommissionType.ResellerAcquisitionBonus)]
+    [InlineData(SalesCommissionType.ResellerRepeatPercentage)]
+    public async Task Profitability_UsesEveryActualMerchantCommissionLedgerType(
+        SalesCommissionType commissionType)
+    {
+        await using var db = NewDb();
+        var harness = SeedMerchantOrder(db, [3m, 3m]);
+        harness.Order.InternalCourierCost = 2m;
+        var salesperson = new Salesperson
+        {
+            SalespersonCode = $"SP-PROFIT-{(int)commissionType}",
+            Name = "Merchant Profit Seller",
+        };
+        db.Salespersons.Add(salesperson);
+        await db.SaveChangesAsync();
+        await new InventoryCostingService(db).SnapshotMerchantShipmentAsync(
+            harness.Order, harness.Allocations, Now);
+        db.SalesCommissions.AddRange(
+            new SalesCommission
+            {
+                SourceType = SalesCommissionSourceType.MerchantOrder,
+                CommissionType = commissionType,
+                MerchantId = harness.Order.MerchantId,
+                MerchantOrderId = harness.Order.Id,
+                SalespersonId = salesperson.Id,
+                SalespersonCodeSnapshot = salesperson.SalespersonCode,
+                SalespersonNameSnapshot = salesperson.Name,
+                CommissionPercentageSnapshot = commissionType ==
+                    SalesCommissionType.ResellerAcquisitionBonus ? null : 25m,
+                CommissionFixedAmountSnapshot = commissionType ==
+                    SalesCommissionType.ResellerAcquisitionBonus ? 5m : null,
+                CommissionBaseAmount = 20m,
+                CommissionAmount = 5m,
+                Status = SalesCommissionStatus.Payable,
+                CalculatedAt = Now,
+            },
+            new SalesCommission
+            {
+                SourceType = SalesCommissionSourceType.MerchantOrder,
+                CommissionType = commissionType == SalesCommissionType.ResellerRepeatPercentage
+                    ? SalesCommissionType.ResellerAcquisitionBonus
+                    : SalesCommissionType.ResellerRepeatPercentage,
+                MerchantId = harness.Order.MerchantId,
+                MerchantOrderId = harness.Order.Id,
+                SalespersonId = salesperson.Id,
+                SalespersonCodeSnapshot = salesperson.SalespersonCode,
+                SalespersonNameSnapshot = salesperson.Name,
+                CommissionPercentageSnapshot = 99m,
+                CommissionBaseAmount = 20m,
+                CommissionAmount = 19.80m,
+                Status = SalesCommissionStatus.Reversed,
+                CalculatedAt = Now,
+                ReversedAt = Now,
+                ReversalReason = "Invalid payment",
+            });
+        await db.SaveChangesAsync();
+
+        var report = await ReceiptService(db).GetProfitabilityAsync(
+            new ProfitabilityReportQuery(Now.AddDays(-1), Now.AddDays(1)));
+
+        Assert.Equal(5m, report.RecordedSalesCommission);
+        Assert.Equal(5m, report.CostedSalesCommission);
+        Assert.Equal(7m, report.ContributionProfit); // 20 - 6 COGS - 2 courier - 5 commission.
+    }
+
     [Fact]
     public async Task Profitability_IncludesLegacyShippedOrderAsUncosted()
     {

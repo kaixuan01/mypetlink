@@ -120,7 +120,7 @@ describe("Commission ledger", () => {
     render(<CommissionsPanel />);
 
     expect(await screen.findByText(/salesperson-specific rule takes precedence/i)).toBeTruthy();
-    expect(screen.getByText(/All salespersons · 15%/)).toBeTruthy();
+    expect(screen.getByText(/All salespersons · Direct retail percentage · 15%/)).toBeTruthy();
     expect(screen.getByText("Default direct retail commission")).toBeTruthy();
   });
 

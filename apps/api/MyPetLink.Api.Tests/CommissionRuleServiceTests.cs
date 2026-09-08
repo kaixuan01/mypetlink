@@ -95,22 +95,56 @@ public sealed class CommissionRuleServiceTests
     }
 
     [Fact]
-    public async Task RejectsFuturePhaseAndFixedAmountRules()
+    public async Task AcceptsOperationalResellerRuleShapesAndRejectsLegacyRules()
     {
         await using var db = Db();
         var service = Service(db);
 
-        var futureType = await Assert.ThrowsAsync<ApiException>(() => service.CreateAsync(
-            null,
-            Request() with { CommissionType = "ResellerRepeatPercentage" },
-            default));
-        var fixedAmount = await Assert.ThrowsAsync<ApiException>(() => service.CreateAsync(
-            null,
-            Request() with { FixedAmount = 10m },
-            default));
+        var acquisition = await service.CreateAsync(null, Request() with
+        {
+            CommissionType = "ResellerAcquisitionBonus",
+            Percentage = null,
+            FixedAmount = 50m,
+            MinQuantity = 10,
+            MaxQuantity = 19,
+        }, default);
+        var repeat = await service.CreateAsync(null, Request(effectiveFrom: Now.AddDays(1)) with
+        {
+            CommissionType = "ResellerRepeatPercentage",
+            Percentage = 3m,
+            EligibilityMonths = 3,
+        }, default);
+        var legacy = await Assert.ThrowsAsync<ApiException>(() => service.CreateAsync(
+            null, Request() with { CommissionType = "MerchantOrderPercentage" }, default));
 
-        Assert.Equal("validation_failed", futureType.Code);
-        Assert.Equal("validation_failed", fixedAmount.Code);
+        Assert.Equal(50m, acquisition.FixedAmount);
+        Assert.Equal(10, acquisition.MinQuantity);
+        Assert.Equal(3m, repeat.Percentage);
+        Assert.Equal(3, repeat.EligibilityMonths);
+        Assert.Equal("validation_failed", legacy.Code);
+    }
+
+    [Fact]
+    public async Task AcquisitionTiersMayShareAnEffectiveDateButCannotOverlap()
+    {
+        await using var db = Db();
+        var service = Service(db);
+        UpsertCommissionRuleRequest Tier(int min, int? max, decimal amount) => Request() with
+        {
+            CommissionType = "ResellerAcquisitionBonus",
+            Percentage = null,
+            FixedAmount = amount,
+            MinQuantity = min,
+            MaxQuantity = max,
+        };
+
+        await service.CreateAsync(null, Tier(10, 19, 50m), default);
+        await service.CreateAsync(null, Tier(20, 49, 80m), default);
+        var overlap = await Assert.ThrowsAsync<ApiException>(() =>
+            service.CreateAsync(null, Tier(19, 25, 60m), default));
+
+        Assert.Equal("commission_rule_overlap", overlap.Code);
+        Assert.Equal(2, await db.CommissionRules.CountAsync());
     }
 
     [Fact]

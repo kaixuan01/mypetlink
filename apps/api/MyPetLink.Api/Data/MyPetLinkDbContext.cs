@@ -184,7 +184,29 @@ public sealed class MyPetLinkDbContext : DbContext
         // mean a column set where half is always null.
         modelBuilder.Entity<Merchant>(entity =>
         {
-            entity.ToTable("Merchants");
+            entity.ToTable("Merchants", table =>
+            {
+                table.HasCheckConstraint(
+                    "CK_Merchants_AcquisitionAttribution",
+                    "([AcquiredBySalespersonId] IS NULL AND [AcquisitionAttributedAt] IS NULL) OR "
+                    + "([AcquiredBySalespersonId] IS NOT NULL AND [AcquisitionAttributedAt] IS NOT NULL)");
+                table.HasCheckConstraint(
+                    "CK_Merchants_CommissionPlanShape",
+                    "([CommissionPlan] = 'LegacyPercentage' AND [AcquiredBySalespersonId] IS NULL AND [FirstQualifyingMerchantOrderId] IS NULL) OR "
+                    + "([CommissionPlan] = 'AcquisitionAndRepeat')");
+                table.HasCheckConstraint(
+                    "CK_Merchants_AcquisitionActivationShape",
+                    "([FirstQualifyingMerchantOrderId] IS NULL AND [FirstQualifyingPaidOrderAt] IS NULL "
+                    + "AND [RepeatCommissionPercentageSnapshot] IS NULL AND [RepeatCommissionEligibilityMonthsSnapshot] IS NULL "
+                    + "AND [RepeatCommissionEligibleUntil] IS NULL AND [RepeatCommissionRuleIdSnapshot] IS NULL "
+                    + "AND [RepeatCommissionRuleEffectiveFromSnapshot] IS NULL AND [AcquiredBySalespersonCodeSnapshot] IS NULL "
+                    + "AND [AcquiredBySalespersonNameSnapshot] IS NULL) OR "
+                    + "([FirstQualifyingMerchantOrderId] IS NOT NULL AND [FirstQualifyingPaidOrderAt] IS NOT NULL "
+                    + "AND [AcquiredBySalespersonId] IS NOT NULL AND [RepeatCommissionPercentageSnapshot] IS NOT NULL "
+                    + "AND [RepeatCommissionEligibilityMonthsSnapshot] > 0 AND [RepeatCommissionEligibleUntil] > [FirstQualifyingPaidOrderAt] "
+                    + "AND [RepeatCommissionRuleIdSnapshot] IS NOT NULL AND [RepeatCommissionRuleEffectiveFromSnapshot] IS NOT NULL "
+                    + "AND [AcquiredBySalespersonCodeSnapshot] IS NOT NULL AND [AcquiredBySalespersonNameSnapshot] IS NOT NULL)");
+            });
             entity.Property(item => item.RowVersion).IsRowVersion();
             entity.Property(item => item.MerchantCode).HasMaxLength(32).IsRequired();
             entity.HasIndex(item => item.MerchantCode).IsUnique();
@@ -213,12 +235,34 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.Property(item => item.DeliveryState).HasMaxLength(120).IsRequired();
             entity.Property(item => item.DeliveryCountry).HasMaxLength(80).IsRequired();
             entity.Property(item => item.PaymentTerm).HasConversion<string>().HasMaxLength(32);
+            entity.Property(item => item.CommissionPlan)
+                .HasConversion<string>()
+                .HasMaxLength(32)
+                .HasDefaultValue(MerchantCommissionPlan.LegacyPercentage);
+            entity.Property(item => item.AcquiredBySalespersonCodeSnapshot).HasMaxLength(32);
+            entity.Property(item => item.AcquiredBySalespersonNameSnapshot).HasMaxLength(160);
+            entity.Property(item => item.RepeatCommissionPercentageSnapshot).HasPrecision(5, 2);
             entity.Property(item => item.InternalNotes).HasMaxLength(2000);
             entity.HasIndex(item => item.IsActive);
             entity.HasOne(item => item.AssignedSalesperson)
                 .WithMany()
                 .HasForeignKey(item => item.AssignedSalespersonId)
                 .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.AcquiredBySalesperson)
+                .WithMany()
+                .HasForeignKey(item => item.AcquiredBySalespersonId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.FirstQualifyingMerchantOrder)
+                .WithMany()
+                .HasForeignKey(item => item.FirstQualifyingMerchantOrderId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.RepeatCommissionRuleSnapshot)
+                .WithMany()
+                .HasForeignKey(item => item.RepeatCommissionRuleIdSnapshot)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(item => item.AcquiredBySalespersonId);
+            entity.HasIndex(item => item.FirstQualifyingMerchantOrderId).IsUnique()
+                .HasFilter("[FirstQualifyingMerchantOrderId] IS NOT NULL");
         });
 
         modelBuilder.Entity<Salesperson>(entity =>
@@ -696,8 +740,8 @@ public sealed class MyPetLinkDbContext : DbContext
             {
                 table.HasCheckConstraint(
                     "CK_SalesCommissions_SourceShape",
-                    "([SourceType] = 'MerchantOrder' AND [MerchantOrderId] IS NOT NULL AND [MerchantPaymentId] IS NOT NULL AND [TagOrderId] IS NULL) OR "
-                    + "([SourceType] = 'TagOrder' AND [TagOrderId] IS NOT NULL AND [MerchantOrderId] IS NULL AND [MerchantPaymentId] IS NULL)");
+                    "([SourceType] = 'MerchantOrder' AND [MerchantId] IS NOT NULL AND [MerchantOrderId] IS NOT NULL AND [MerchantPaymentId] IS NOT NULL AND [TagOrderId] IS NULL) OR "
+                    + "([SourceType] = 'TagOrder' AND [MerchantId] IS NULL AND [TagOrderId] IS NOT NULL AND [MerchantOrderId] IS NULL AND [MerchantPaymentId] IS NULL)");
                 table.HasCheckConstraint(
                     "CK_SalesCommissions_ValueShape",
                     "([CommissionPercentageSnapshot] IS NOT NULL AND [CommissionFixedAmountSnapshot] IS NULL) OR "
@@ -706,7 +750,7 @@ public sealed class MyPetLinkDbContext : DbContext
                     "CK_SalesCommissions_SourceCommissionType",
                     "([CommissionType] = 'MerchantOrderPercentage' AND [SourceType] = 'MerchantOrder') OR "
                     + "([CommissionType] = 'DirectRetailPercentage' AND [SourceType] = 'TagOrder') OR "
-                    + "[CommissionType] IN ('ResellerAcquisitionBonus','ResellerRepeatPercentage')");
+                    + "([CommissionType] IN ('ResellerAcquisitionBonus','ResellerRepeatPercentage') AND [SourceType] = 'MerchantOrder')");
             });
             entity.Property(item => item.RowVersion).IsRowVersion();
             entity.Property(item => item.SourceType).HasConversion<string>().HasMaxLength(32);
@@ -725,6 +769,11 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasIndex(item => new { item.TagOrderId, item.CommissionType })
                 .IsUnique()
                 .HasFilter("[TagOrderId] IS NOT NULL AND [Status] <> 'Reversed'");
+            // Reversing the bonus is a ledger event, never permission to earn
+            // a second acquisition bonus for the same merchant.
+            entity.HasIndex(item => new { item.MerchantId, item.CommissionType })
+                .IsUnique()
+                .HasFilter("[MerchantId] IS NOT NULL AND [CommissionType] = 'ResellerAcquisitionBonus'");
             entity.Property(item => item.Status).HasConversion<string>().HasMaxLength(32);
             entity.Property(item => item.Currency).HasMaxLength(3).IsRequired();
             entity.Property(item => item.CommissionPercentageSnapshot).HasPrecision(5, 2);
@@ -746,6 +795,10 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasOne(item => item.TagOrder)
                 .WithMany()
                 .HasForeignKey(item => item.TagOrderId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.Merchant)
+                .WithMany()
+                .HasForeignKey(item => item.MerchantId)
                 .OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(item => item.Salesperson)
                 .WithMany()
@@ -780,6 +833,11 @@ public sealed class MyPetLinkDbContext : DbContext
                 table.HasCheckConstraint(
                     "CK_CommissionRules_EffectiveRange",
                     "[EffectiveTo] IS NULL OR [EffectiveTo] > [EffectiveFrom]");
+                table.HasCheckConstraint(
+                    "CK_CommissionRules_CommissionTypeShape",
+                    "([CommissionType] = 'DirectRetailPercentage' AND [Percentage] IS NOT NULL AND [FixedAmount] IS NULL AND [EligibilityMonths] IS NULL) OR "
+                    + "([CommissionType] = 'ResellerAcquisitionBonus' AND [Percentage] IS NULL AND [FixedAmount] IS NOT NULL AND [MinQuantity] IS NOT NULL AND [EligibilityMonths] IS NULL) OR "
+                    + "([CommissionType] = 'ResellerRepeatPercentage' AND [Percentage] IS NOT NULL AND [FixedAmount] IS NULL AND [MinQuantity] IS NULL AND [MaxQuantity] IS NULL AND [EligibilityMonths] > 0)");
             });
             entity.Property(item => item.RowVersion).IsRowVersion();
             entity.Property(item => item.CommissionType).HasConversion<string>().HasMaxLength(48);
@@ -787,7 +845,7 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.Property(item => item.FixedAmount).HasPrecision(18, 2);
             entity.Property(item => item.Currency).HasMaxLength(3).IsRequired();
             entity.Property(item => item.Notes).HasMaxLength(2000);
-            entity.HasIndex(item => new { item.CommissionType, item.SalespersonId, item.EffectiveFrom })
+            entity.HasIndex(item => new { item.CommissionType, item.SalespersonId, item.EffectiveFrom, item.MinQuantity })
                 .IsUnique()
                 // SQL Server's EF convention filters nullable columns out of
                 // unique indexes. Global rules use a null salesperson, so the
@@ -1924,6 +1982,74 @@ public sealed class MyPetLinkDbContext : DbContext
                 EffectiveFrom = SeededAt,
                 IsActive = true,
                 Notes = "Default direct retail commission",
+                CreatedAt = SeededAt,
+                UpdatedAt = SeededAt
+            },
+            new CommissionRule
+            {
+                Id = CommissionRule.DefaultResellerAcquisition10To19RuleId,
+                CommissionType = SalesCommissionType.ResellerAcquisitionBonus,
+                FixedAmount = 50m,
+                MinQuantity = 10,
+                MaxQuantity = 19,
+                Currency = MerchantSalesConstants.Currency,
+                EffectiveFrom = SeededAt,
+                IsActive = true,
+                Notes = "Default reseller acquisition tier: 10–19 units",
+                CreatedAt = SeededAt,
+                UpdatedAt = SeededAt
+            },
+            new CommissionRule
+            {
+                Id = CommissionRule.DefaultResellerAcquisition20To49RuleId,
+                CommissionType = SalesCommissionType.ResellerAcquisitionBonus,
+                FixedAmount = 80m,
+                MinQuantity = 20,
+                MaxQuantity = 49,
+                Currency = MerchantSalesConstants.Currency,
+                EffectiveFrom = SeededAt,
+                IsActive = true,
+                Notes = "Default reseller acquisition tier: 20–49 units",
+                CreatedAt = SeededAt,
+                UpdatedAt = SeededAt
+            },
+            new CommissionRule
+            {
+                Id = CommissionRule.DefaultResellerAcquisition50To99RuleId,
+                CommissionType = SalesCommissionType.ResellerAcquisitionBonus,
+                FixedAmount = 150m,
+                MinQuantity = 50,
+                MaxQuantity = 99,
+                Currency = MerchantSalesConstants.Currency,
+                EffectiveFrom = SeededAt,
+                IsActive = true,
+                Notes = "Default reseller acquisition tier: 50–99 units",
+                CreatedAt = SeededAt,
+                UpdatedAt = SeededAt
+            },
+            new CommissionRule
+            {
+                Id = CommissionRule.DefaultResellerAcquisition100PlusRuleId,
+                CommissionType = SalesCommissionType.ResellerAcquisitionBonus,
+                FixedAmount = 250m,
+                MinQuantity = 100,
+                Currency = MerchantSalesConstants.Currency,
+                EffectiveFrom = SeededAt,
+                IsActive = true,
+                Notes = "Default reseller acquisition tier: 100+ units",
+                CreatedAt = SeededAt,
+                UpdatedAt = SeededAt
+            },
+            new CommissionRule
+            {
+                Id = CommissionRule.DefaultResellerRepeatRuleId,
+                CommissionType = SalesCommissionType.ResellerRepeatPercentage,
+                Percentage = 3m,
+                EligibilityMonths = 3,
+                Currency = MerchantSalesConstants.Currency,
+                EffectiveFrom = SeededAt,
+                IsActive = true,
+                Notes = "Default reseller repeat commission",
                 CreatedAt = SeededAt,
                 UpdatedAt = SeededAt
             });

@@ -21,6 +21,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { isAbortError } from "@/services/apiClient";
 import {
   createMerchant,
+  correctMerchantAcquisitionAttribution,
   getMerchantSalesError,
   getMerchantSalesFieldErrors,
   isConcurrencyConflict,
@@ -307,8 +308,10 @@ export function MerchantsPanel({
       {open && !editing ? (
         <MerchantDetail
           merchant={open}
+          salespersons={salespersons}
           onClose={() => onOpen(null)}
           onEdit={() => onEdit(open.id)}
+          onSaved={refresh}
         />
       ) : null}
 
@@ -405,12 +408,16 @@ export function MerchantsPanel({
 
 function MerchantDetail({
   merchant,
+  salespersons,
   onClose,
   onEdit,
+  onSaved,
 }: {
   merchant: AdminMerchant;
+  salespersons: AdminSalesperson[];
   onClose: () => void;
   onEdit: () => void;
+  onSaved: () => void;
 }) {
   return (
     <AdminSection
@@ -442,13 +449,46 @@ function MerchantDetail({
           <DetailRow label="Contact person">{merchant.contactPerson}</DetailRow>
           <DetailRow label="Email">{merchant.contactEmail}</DetailRow>
           <DetailRow label="Phone">{merchant.contactPhone}</DetailRow>
-          <DetailRow label="Salesperson">
+          <DetailRow label="Assigned salesperson">
             {orNotProvided(merchant.assignedSalespersonName)}
+          </DetailRow>
+          <DetailRow label="Commission plan">
+            {merchant.commissionPlan === "LegacyPercentage"
+              ? "Legacy percentage"
+              : "Acquisition and repeat"}
+          </DetailRow>
+          <DetailRow label="Acquired by">
+            {merchant.commissionPlan === "LegacyPercentage"
+              ? "Not applicable"
+              : orNotProvided(merchant.acquiredBySalespersonName)}
+          </DetailRow>
+          <DetailRow label="Commission activation">
+            {merchant.firstQualifyingPaidOrderAt
+              ? shortDate(merchant.firstQualifyingPaidOrderAt)
+              : merchant.commissionPlan === "AcquisitionAndRepeat"
+                ? "Not activated yet"
+                : "Not applicable"}
+          </DetailRow>
+          <DetailRow label="Activation order">
+            {orNotProvided(merchant.firstQualifyingMerchantOrderNumber)}
+          </DetailRow>
+          <DetailRow label="Repeat entitlement">
+            {merchant.repeatCommissionPercentage != null && merchant.repeatCommissionEligibleUntil
+              ? `${merchant.repeatCommissionPercentage}% until ${shortDate(merchant.repeatCommissionEligibleUntil)}`
+              : "Not activated yet"}
           </DetailRow>
           <DetailRow label="Payment term">{paymentTermLabel(merchant.paymentTerm)}</DetailRow>
           <DetailRow label="Status">{merchant.isActive ? "Active" : "Inactive"}</DetailRow>
           <DetailRow label="Added">{shortDate(merchant.createdAt)}</DetailRow>
         </DetailGrid>
+
+        {merchant.commissionPlan === "AcquisitionAndRepeat" ? (
+          <AcquisitionOwnership
+            merchant={merchant}
+            onSaved={onSaved}
+            salespersons={salespersons}
+          />
+        ) : null}
 
         <div className="grid gap-3 sm:grid-cols-2">
           <AddressCard heading="Billing address" lines={addressLines(merchant.billingAddress)} />
@@ -472,6 +512,75 @@ function MerchantDetail({
         </div>
       </div>
     </AdminSection>
+  );
+}
+
+function AcquisitionOwnership({
+  merchant,
+  salespersons,
+  onSaved,
+}: {
+  merchant: AdminMerchant;
+  salespersons: AdminSalesperson[];
+  onSaved: () => void;
+}) {
+  const [salespersonId, setSalespersonId] = useState(merchant.acquiredBySalespersonId ?? "");
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const locked = Boolean(merchant.firstQualifyingMerchantOrderId);
+  const selectable = salespersons.filter(
+    (person) => person.isActive || person.id === merchant.acquiredBySalespersonId
+  );
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+      <p className="text-sm font-black text-slate-900">Reseller acquisition ownership</p>
+      <p className="mt-1 text-sm text-slate-600">
+        {locked
+          ? "Ownership is locked because the reseller commission relationship is active. Assigned salesperson changes do not move it."
+          : "This may be corrected until the first qualifying paid order activates the relationship."}
+      </p>
+      {!locked ? (
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
+          <label className="grid flex-1 gap-1 text-sm font-bold text-pet-ink">
+            Acquired by
+            <select className={fieldClass} onChange={(event) => setSalespersonId(event.target.value)} value={salespersonId}>
+              <option value="">Not assigned</option>
+              {selectable.map((person) => (
+                <option key={person.id} value={person.id}>{person.name} · {person.salespersonCode}</option>
+              ))}
+            </select>
+          </label>
+          <button
+            className={primaryButton}
+            disabled={saving}
+            onClick={() => {
+              if (saving) return;
+              setSaving(true);
+              setError("");
+              setMessage("");
+              void correctMerchantAcquisitionAttribution(
+                merchant.id,
+                salespersonId || null,
+                merchant.concurrencyToken
+              )
+                .then(() => {
+                  setMessage("Acquisition ownership updated.");
+                  onSaved();
+                })
+                .catch((caught) => setError(getMerchantSalesError(caught, "We couldn’t update acquisition ownership.")))
+                .finally(() => setSaving(false));
+            }}
+            type="button"
+          >
+            {saving ? "Saving…" : "Save ownership"}
+          </button>
+        </div>
+      ) : null}
+      {message ? <p className="mt-2 text-sm font-semibold text-emerald-700">{message}</p> : null}
+      <InlineError message={error} />
+    </div>
   );
 }
 

@@ -234,6 +234,10 @@ public sealed class SalesCommission : AuditableEntity
     public Guid? TagOrderId { get; set; }
     public TagOrder? TagOrder { get; set; }
 
+    /// <summary>Set for every merchant-sourced commission; null for retail.</summary>
+    public Guid? MerchantId { get; set; }
+    public Merchant? Merchant { get; set; }
+
     public Guid SalespersonId { get; set; }
     public Salesperson? Salesperson { get; set; }
 
@@ -277,13 +281,23 @@ public sealed class SalesCommission : AuditableEntity
 
 /// <summary>
 /// Effective-dated, Admin-managed commission policy. A rule is either a
-/// percentage or a fixed amount, never both. Phase 3B evaluates only
-/// DirectRetailPercentage rules.
+/// percentage or a fixed amount, never both. Direct retail resolves per paid
+/// order; reseller acquisition and repeat terms are resolved at activation.
 /// </summary>
 public sealed class CommissionRule : AuditableEntity
 {
     public static readonly Guid DefaultDirectRetailRuleId =
         Guid.Parse("a971d6d5-86a8-4f85-a5e4-9cb85a1f3b01");
+    public static readonly Guid DefaultResellerAcquisition10To19RuleId =
+        Guid.Parse("a971d6d5-86a8-4f85-a5e4-9cb85a1f3b11");
+    public static readonly Guid DefaultResellerAcquisition20To49RuleId =
+        Guid.Parse("a971d6d5-86a8-4f85-a5e4-9cb85a1f3b12");
+    public static readonly Guid DefaultResellerAcquisition50To99RuleId =
+        Guid.Parse("a971d6d5-86a8-4f85-a5e4-9cb85a1f3b13");
+    public static readonly Guid DefaultResellerAcquisition100PlusRuleId =
+        Guid.Parse("a971d6d5-86a8-4f85-a5e4-9cb85a1f3b14");
+    public static readonly Guid DefaultResellerRepeatRuleId =
+        Guid.Parse("a971d6d5-86a8-4f85-a5e4-9cb85a1f3b20");
 
     public SalesCommissionType CommissionType { get; set; }
     public Guid? SalespersonId { get; set; }

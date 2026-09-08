@@ -50,6 +50,16 @@ public sealed record MerchantResponse(
     MerchantAddressDto DeliveryAddress,
     Guid? AssignedSalespersonId,
     string? AssignedSalespersonName,
+    string CommissionPlan,
+    Guid? AcquiredBySalespersonId,
+    string? AcquiredBySalespersonName,
+    DateTimeOffset? AcquisitionAttributedAt,
+    DateTimeOffset? FirstQualifyingPaidOrderAt,
+    Guid? FirstQualifyingMerchantOrderId,
+    string? FirstQualifyingMerchantOrderNumber,
+    decimal? RepeatCommissionPercentage,
+    int? RepeatCommissionEligibilityMonths,
+    DateTimeOffset? RepeatCommissionEligibleUntil,
     MerchantPaymentTerm PaymentTerm,
     string? InternalNotes,
     bool IsActive,
@@ -269,10 +279,28 @@ public sealed record CorrectMerchantOrderCommissionAttributionRequest(
     Guid? SalespersonId,
     string ConcurrencyToken);
 
+public sealed record SalespersonCommissionSummaryResponse(
+    int ResellerAcquisitions,
+    int ActiveRepeatRelationships,
+    int AcquisitionBonusCommissions,
+    int RepeatCommissions,
+    decimal PayableTotal,
+    decimal PaidTotal,
+    decimal ReversedTotal,
+    string Currency);
+
 public sealed record MerchantOrderCommissionAttributionResponse(
     Guid MerchantOrderId,
     Guid? SalespersonId,
     string? SalespersonCode,
     string? SalespersonName,
     decimal? CommissionPercentage,
+    string ConcurrencyToken);
+
+/// <summary>
+/// Explicit pre-activation correction of reseller acquisition ownership.
+/// Normal merchant edits cannot mutate this historical relationship.
+/// </summary>
+public sealed record CorrectMerchantAcquisitionAttributionRequest(
+    Guid? SalespersonId,
     string ConcurrencyToken);

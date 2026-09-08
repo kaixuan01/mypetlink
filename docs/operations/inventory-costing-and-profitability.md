@@ -70,6 +70,10 @@ Commission is joined by its explicit source. Merchant rows subtract only
 non-reversed `MerchantOrder` commission for that merchant order; retail rows
 subtract only non-reversed `TagOrder` commission for that retail order. A
 commission from one channel can never reduce the other channel's contribution.
+For merchant orders this may be a legacy percentage, an acquisition bonus, a
+repeat percentage, or no commission after the reseller window. The report sums
+the actual non-reversed ledger rows and never assumes every merchant order has
+one or subtracts a configured rate independently.
 
 Payment gateway fees, advertising, general operating expenses and replacement
 unit expense are not recorded and are therefore clearly excluded rather than

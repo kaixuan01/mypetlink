@@ -1,22 +1,24 @@
 # Sales commission lifecycle
 
 `SalesCommissions` is the single internal, append-only financial ledger for
-legacy merchant-order commission and direct retail commission. It does not
+legacy merchant-order, reseller, and direct retail commission. It does not
 change an invoice, payment, receipt, or order amount.
 
 ## Sources and historical classification
 
-- Existing and new legacy merchant commissions are `MerchantOrder` /
+- Existing legacy merchant commissions are `MerchantOrder` /
   `MerchantOrderPercentage`. The Phase 3B migration sets those two
   classifications without changing historical amounts, statuses, attribution,
   payout timestamps, or reversal history. These commissions continue using the
-  merchant order's perpetual percentage snapshot until a later phase explicitly
-  introduces a different reseller model.
+  merchant order's perpetual percentage snapshot. Existing merchants are
+  explicitly backfilled to `MerchantCommissionPlan.LegacyPercentage`; neither
+  historical nor future behavior is inferred from a creation date.
+- Merchants created by the Phase 3C application explicitly use
+  `AcquisitionAndRepeat`. They never generate `MerchantOrderPercentage`.
 - Direct attributed Smart Tag sales are `TagOrder` /
   `DirectRetailPercentage`.
-- `ResellerAcquisitionBonus` and `ResellerRepeatPercentage` are schema
-  placeholders only. Phase 3B contains no generation or rule-management path
-  for either type.
+- Reseller activation orders are `MerchantOrder` / `ResellerAcquisitionBonus`;
+  eligible later orders are `MerchantOrder` / `ResellerRepeatPercentage`.
 - Database checks keep the source discriminator and nullable source foreign keys
   consistent. Filtered, type-scoped unique indexes permit reversed history but
   prevent more than one financially effective commission of a type per source.
@@ -29,6 +31,38 @@ change an invoice, payment, receipt, or order amount.
   snapshots. Later salesperson changes do not affect it.
 - The base is invoice merchandise subtotal less invoice discount. Delivery is
   excluded. The current model has no tax or payment-fee commission inputs.
+
+## Reseller acquisition and repeat entitlement
+
+- `AssignedSalespersonId` is current account servicing. Acquisition ownership is
+  stored separately in `AcquiredBySalespersonId`; changing servicing never moves
+  the acquisition, restarts a window, or creates another bonus.
+- A new merchant initially copies its active assigned salesperson into the
+  acquisition owner. Admin may correct that owner with `RowVersion` and an
+  old/new audit entry until activation. Activation permanently locks it.
+- An inactive salesperson cannot receive a new acquisition. Deactivation after
+  activation does not cancel or transfer the already established entitlement.
+- Activation uses the paid invoice item quantity, not allocation or fulfilment
+  quantity. The first order matching an active acquisition tier gets only its
+  fixed bonus. A below-tier paid order is valid but does not set an activation
+  date or start the repeat window.
+- Seeded global acquisition tiers are 10–19 units / RM50, 20–49 / RM80,
+  50–99 / RM150, and 100+ / RM250. These are effective-dated `CommissionRule`
+  rows, not billing-service constants.
+- At activation the applicable repeat rule is resolved and its rule id,
+  effective date, percentage, eligibility months, salesperson identity, start,
+  and end are snapshotted on the merchant. The seeded global terms are 3% for
+  three months. Later rule edits affect only later activations.
+- The repeat window is half-open UTC:
+  `[FirstQualifyingPaidOrderAt, RepeatCommissionEligibleUntil)`. The activation
+  order is explicitly excluded. A different order paid immediately before the
+  end qualifies; payment at the exact end does not.
+- Repeat base uses the same merchandise-minus-discount calculator and two-decimal
+  midpoint-away-from-zero rounding as legacy merchant commission. Shipping and
+  non-product fees are excluded.
+- The payment transaction takes a serializable merchant relationship lock.
+  Application guards plus filtered indexes enforce one acquisition bonus per
+  merchant and one effective commission of a type per merchant order/payment.
 
 ## Direct retail eligibility and calculation
 
@@ -90,3 +124,10 @@ and has no payment or commission history. Owner referral attribution can be
 corrected only for future retail orders. Both changes require `RowVersion`, are
 Admin-only, and audit old/new values. Neither flow rewrites a historical order or
 commission.
+
+Reseller acquisition attribution is a separate Admin-only correction. It is
+available only to `AcquisitionAndRepeat` merchants before activation, uses the
+merchant `RowVersion`, and does not run through the normal merchant edit model.
+After activation, neither servicing edits nor commission reversal clear or
+rewrite the acquisition relationship. Resetting a truly invalid activation
+would require a future explicit audited recovery workflow.

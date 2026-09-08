@@ -93,6 +93,7 @@ export type AdminSalesCommission = {
   merchantOrderId: string | null;
   merchantPaymentId: string | null;
   tagOrderId: string | null;
+  merchantId: string | null;
   sourceOrderNumber: string;
   salespersonId: string;
   salespersonCode: string;
@@ -305,9 +306,14 @@ export async function reverseCommission(
 
 // --- Commission rules -----------------------------------------------------
 
+export type CommissionRuleType =
+  | "DirectRetailPercentage"
+  | "ResellerAcquisitionBonus"
+  | "ResellerRepeatPercentage";
+
 export type AdminCommissionRule = {
   id: string;
-  commissionType: "DirectRetailPercentage";
+  commissionType: CommissionRuleType;
   salespersonId: string | null;
   salespersonCode: string | null;
   salespersonName: string | null;
@@ -328,13 +334,13 @@ export type AdminCommissionRule = {
 };
 
 export type UpsertCommissionRuleInput = {
-  commissionType: "DirectRetailPercentage";
+  commissionType: CommissionRuleType;
   salespersonId: string | null;
-  percentage: number;
-  fixedAmount: null;
+  percentage: number | null;
+  fixedAmount: number | null;
   minQuantity: number | null;
   maxQuantity: number | null;
-  eligibilityMonths: null;
+  eligibilityMonths: number | null;
   currency: "MYR";
   effectiveFrom: string;
   effectiveTo: string | null;

@@ -10,6 +10,7 @@ const listSalespersons = vi.fn();
 const createMerchant = vi.fn();
 const updateMerchant = vi.fn();
 const setMerchantActive = vi.fn();
+const correctMerchantAcquisitionAttribution = vi.fn();
 
 vi.mock("@/services/adminMerchantSalesService", async () => {
   const actual = await vi.importActual<
@@ -22,6 +23,8 @@ vi.mock("@/services/adminMerchantSalesService", async () => {
     createMerchant: (...args: unknown[]) => createMerchant(...args),
     updateMerchant: (...args: unknown[]) => updateMerchant(...args),
     setMerchantActive: (...args: unknown[]) => setMerchantActive(...args),
+    correctMerchantAcquisitionAttribution: (...args: unknown[]) =>
+      correctMerchantAcquisitionAttribution(...args),
   };
 });
 
@@ -120,6 +123,27 @@ describe("Merchants list", () => {
 
     expect(await screen.findByText(/Margin is thin/)).toBeTruthy();
     expect(screen.getByText(/Admin only/i)).toBeTruthy();
+  });
+
+  it("shows the reseller plan, acquisition owner and frozen repeat terms", async () => {
+    listMerchants.mockResolvedValue(paged([merchant({
+      commissionPlan: "AcquisitionAndRepeat",
+      acquiredBySalespersonId: "rep-1",
+      acquiredBySalespersonName: "Nur Aisyah",
+      firstQualifyingPaidOrderAt: "2026-10-01T10:00:00Z",
+      firstQualifyingMerchantOrderId: "order-activation",
+      firstQualifyingMerchantOrderNumber: "MPL-MO-260001",
+      repeatCommissionPercentage: 3,
+      repeatCommissionEligibilityMonths: 3,
+      repeatCommissionEligibleUntil: "2027-01-01T10:00:00Z",
+    })]));
+    renderPanel({ openId: "merchant-1" });
+
+    expect(await screen.findByText("Acquisition and repeat")).toBeTruthy();
+    expect(screen.getByText("MPL-MO-260001")).toBeTruthy();
+    expect(screen.getByText(/3% until/)).toBeTruthy();
+    expect(screen.getByText(/Ownership is locked/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Save ownership" })).toBeNull();
   });
 });
 

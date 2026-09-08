@@ -664,6 +664,277 @@ public class MerchantBillingServiceTests
         Assert.Equal("concurrency_conflict", error.Code);
     }
 
+    // ===================== Reseller acquisition and repeat =====================
+
+    [Theory]
+    [InlineData(9, null)]
+    [InlineData(10, 50)]
+    [InlineData(19, 50)]
+    [InlineData(20, 80)]
+    [InlineData(49, 80)]
+    [InlineData(50, 150)]
+    [InlineData(99, 150)]
+    [InlineData(100, 250)]
+    public async Task FirstQualifyingQuantityUsesTheEffectiveAcquisitionTier(
+        int quantity, int? expectedBonus)
+    {
+        using var h = await Harness.CreateAsync();
+        await h.SeedResellerRulesAsync();
+        var order = await h.AwaitingPaymentOrderAsync(
+            acquisitionAndRepeat: true, quantity: quantity);
+
+        var result = await h.PayAsync(await h.IssueAsync(order.Id));
+        var merchant = await h.Db.Merchants.SingleAsync(item => item.Id == order.MerchantId);
+
+        if (expectedBonus.HasValue)
+        {
+            Assert.NotNull(result.Commission);
+            Assert.Equal("ResellerAcquisitionBonus", result.Commission!.CommissionType);
+            Assert.Equal(expectedBonus.Value, result.Commission.CommissionAmount);
+            Assert.Equal(order.Id, merchant.FirstQualifyingMerchantOrderId);
+            Assert.Equal(3m, merchant.RepeatCommissionPercentageSnapshot);
+            Assert.Equal(Now.AddMonths(3), merchant.RepeatCommissionEligibleUntil);
+        }
+        else
+        {
+            Assert.Null(result.Commission);
+            Assert.Null(merchant.FirstQualifyingMerchantOrderId);
+            Assert.Null(merchant.FirstQualifyingPaidOrderAt);
+        }
+        Assert.DoesNotContain(await h.Db.SalesCommissions.ToListAsync(),
+            item => item.CommissionType == SalesCommissionType.MerchantOrderPercentage);
+    }
+
+    [Fact]
+    public async Task ASubTierOrderDoesNotActivateAndALaterQualifyingOrderDoes()
+    {
+        using var h = await Harness.CreateAsync();
+        await h.SeedResellerRulesAsync();
+        var first = await h.AwaitingPaymentOrderAsync(
+            acquisitionAndRepeat: true, quantity: 5);
+        await h.PayAsync(await h.IssueAsync(first.Id));
+        var second = await h.AwaitingPaymentOrderForMerchantAsync(
+            first.MerchantId, first.SalespersonId, 15);
+
+        var result = await h.PayAsync(await h.IssueAsync(second.Id));
+
+        Assert.Equal("ResellerAcquisitionBonus", result.Commission!.CommissionType);
+        Assert.Equal(50m, result.Commission.CommissionAmount);
+        var merchant = await h.Db.Merchants.SingleAsync(item => item.Id == first.MerchantId);
+        Assert.Equal(second.Id, merchant.FirstQualifyingMerchantOrderId);
+        Assert.Equal(1, await h.Db.SalesCommissions.CountAsync());
+    }
+
+    [Fact]
+    public async Task NewMerchantUsesAcquisitionPlanAndLocksCorrectedOwnerAtActivation()
+    {
+        using var h = await Harness.CreateAsync();
+        await h.SeedResellerRulesAsync();
+        var order = await h.AwaitingPaymentOrderAsync(
+            acquisitionAndRepeat: true, quantity: 10);
+        var replacement = await h.Sales.CreateSalespersonAsync(null,
+            new UpsertSalespersonRequest("Acquisition Owner", null, null, 9m, null), default);
+        var merchant = await h.Db.Merchants.SingleAsync(item => item.Id == order.MerchantId);
+        Assert.Equal(MerchantCommissionPlan.AcquisitionAndRepeat, merchant.CommissionPlan);
+        Assert.Equal(order.SalespersonId, merchant.AcquiredBySalespersonId);
+        merchant.RowVersion = [7, 8, 9];
+        await h.Db.SaveChangesAsync();
+
+        await h.Sales.CorrectMerchantAcquisitionAttributionAsync(null, merchant.Id,
+            new CorrectMerchantAcquisitionAttributionRequest(
+                replacement.Id, Convert.ToBase64String([7, 8, 9])), default);
+        var result = await h.PayAsync(await h.IssueAsync(order.Id));
+        var activated = await h.Db.Merchants.SingleAsync(item => item.Id == merchant.Id);
+
+        Assert.Equal(replacement.Id, result.Commission!.SalespersonId);
+        Assert.Equal(replacement.Id, activated.AcquiredBySalespersonId);
+        Assert.Equal("Acquisition Owner", activated.AcquiredBySalespersonNameSnapshot);
+        Assert.Contains("merchant.acquisition-attribution-corrected",
+            await h.Db.AuditLogs.Select(item => item.Action).ToListAsync());
+        Assert.Contains("merchant.acquisition-activated",
+            await h.Db.AuditLogs.Select(item => item.Action).ToListAsync());
+
+        var error = await Assert.ThrowsAsync<ApiException>(() =>
+            h.Sales.CorrectMerchantAcquisitionAttributionAsync(null, merchant.Id,
+                new CorrectMerchantAcquisitionAttributionRequest(
+                    null, Convert.ToBase64String(activated.RowVersion)), default));
+        Assert.Equal("merchant_acquisition_locked", error.Code);
+    }
+
+    [Fact]
+    public async Task RepeatCommissionUsesFrozenTermsAndNetMerchandiseOnly()
+    {
+        using var h = await Harness.CreateAsync();
+        await h.SeedResellerRulesAsync();
+        var activation = await h.AwaitingPaymentOrderAsync(
+            acquisitionAndRepeat: true, quantity: 10);
+        var acquisition = await h.PayAsync(await h.IssueAsync(activation.Id));
+        Assert.Equal("ResellerAcquisitionBonus", acquisition.Commission!.CommissionType);
+
+        h.Time.UtcNow = Now.AddMonths(1);
+        var repeat = await h.AwaitingPaymentOrderForMerchantAsync(
+            activation.MerchantId, activation.SalespersonId, 10,
+            unitPrice: 100m, orderDiscount: 100m, deliveryFee: 75m);
+        var result = await h.PayAsync(await h.IssueAsync(repeat.Id));
+
+        Assert.Equal("ResellerRepeatPercentage", result.Commission!.CommissionType);
+        Assert.Equal(900m, result.Commission.CommissionBaseAmount);
+        Assert.Equal(27m, result.Commission.CommissionAmount);
+        Assert.Equal(3m, result.Commission.CommissionPercentage);
+        Assert.Equal(2, await h.Db.SalesCommissions.CountAsync());
+    }
+
+    [Theory]
+    [InlineData(-1, true)]
+    [InlineData(0, false)]
+    [InlineData(1, false)]
+    public async Task RepeatWindowUsesAHalfOpenEndBoundary(int ticksFromEnd, bool expected)
+    {
+        using var h = await Harness.CreateAsync();
+        await h.SeedResellerRulesAsync();
+        var activation = await h.AwaitingPaymentOrderAsync(
+            acquisitionAndRepeat: true, quantity: 10);
+        await h.PayAsync(await h.IssueAsync(activation.Id));
+
+        var paymentAt = Now.AddMonths(3).AddTicks(ticksFromEnd);
+        h.Time.UtcNow = paymentAt;
+        var repeat = await h.AwaitingPaymentOrderForMerchantAsync(
+            activation.MerchantId, activation.SalespersonId, 10);
+        var result = await h.PayAsync(await h.IssueAsync(repeat.Id), paymentDate: paymentAt);
+
+        Assert.Equal(expected, result.Commission is not null);
+        if (expected) Assert.Equal("ResellerRepeatPercentage", result.Commission!.CommissionType);
+    }
+
+    [Fact]
+    public async Task RuleChangesDoNotRewriteAnActivatedResellersTerms()
+    {
+        using var h = await Harness.CreateAsync();
+        await h.SeedResellerRulesAsync();
+        var activation = await h.AwaitingPaymentOrderAsync(
+            acquisitionAndRepeat: true, quantity: 10);
+        await h.PayAsync(await h.IssueAsync(activation.Id));
+
+        var oldRepeat = await h.Db.CommissionRules.SingleAsync(
+            item => item.CommissionType == SalesCommissionType.ResellerRepeatPercentage);
+        oldRepeat.EffectiveTo = Now.AddDays(1);
+        h.Db.CommissionRules.Add(new CommissionRule
+        {
+            CommissionType = SalesCommissionType.ResellerRepeatPercentage,
+            Percentage = 5m,
+            EligibilityMonths = 6,
+            Currency = "MYR",
+            EffectiveFrom = Now.AddDays(1),
+            IsActive = true,
+        });
+        await h.Db.SaveChangesAsync();
+
+        h.Time.UtcNow = Now.AddMonths(1);
+        var repeat = await h.AwaitingPaymentOrderForMerchantAsync(
+            activation.MerchantId, activation.SalespersonId, 10, unitPrice: 100m);
+        var result = await h.PayAsync(await h.IssueAsync(repeat.Id));
+        var merchant = await h.Db.Merchants.SingleAsync(item => item.Id == activation.MerchantId);
+
+        Assert.Equal(3m, result.Commission!.CommissionPercentage);
+        Assert.Equal(30m, result.Commission.CommissionAmount);
+        Assert.Equal(3, merchant.RepeatCommissionEligibilityMonthsSnapshot);
+        Assert.Equal(Now.AddMonths(3), merchant.RepeatCommissionEligibleUntil);
+
+        var newActivation = await h.AwaitingPaymentOrderAsync(
+            merchantName: "New Rule Reseller Sdn Bhd",
+            registration: "NEW-RULE-REG",
+            acquisitionAndRepeat: true,
+            quantity: 10);
+        await h.PayAsync(await h.IssueAsync(newActivation.Id));
+        var newMerchant = await h.Db.Merchants.SingleAsync(
+            item => item.Id == newActivation.MerchantId);
+        Assert.Equal(5m, newMerchant.RepeatCommissionPercentageSnapshot);
+        Assert.Equal(6, newMerchant.RepeatCommissionEligibilityMonthsSnapshot);
+        Assert.Equal(h.Time.UtcNow.AddMonths(6), newMerchant.RepeatCommissionEligibleUntil);
+    }
+
+    [Fact]
+    public async Task RepeatCommissionUsesTheNormalReversalLifecycle()
+    {
+        using var h = await Harness.CreateAsync();
+        await h.SeedResellerRulesAsync();
+        var activation = await h.AwaitingPaymentOrderAsync(
+            acquisitionAndRepeat: true, quantity: 10);
+        await h.PayAsync(await h.IssueAsync(activation.Id));
+        h.Time.UtcNow = Now.AddMonths(1);
+        var repeat = await h.AwaitingPaymentOrderForMerchantAsync(
+            activation.MerchantId, activation.SalespersonId, 10);
+        var earned = await h.PayAsync(await h.IssueAsync(repeat.Id));
+
+        var reversed = await h.Billing.ReverseCommissionAsync(null, earned.Commission!.Id,
+            new ReverseSalesCommissionRequest(
+                "Repeat payment invalidated.", earned.Commission.ConcurrencyToken), default);
+
+        Assert.Equal("Reversed", reversed.Status);
+        Assert.Equal("Repeat payment invalidated.", reversed.ReversalReason);
+        Assert.NotNull(reversed.ReversedAt);
+        Assert.Null(reversed.PaidAt);
+    }
+
+    [Fact]
+    public async Task InactiveSalespersonBlocksActivationButNotAnEstablishedRepeatEntitlement()
+    {
+        using var h = await Harness.CreateAsync();
+        await h.SeedResellerRulesAsync();
+        var activation = await h.AwaitingPaymentOrderAsync(
+            acquisitionAndRepeat: true, quantity: 10);
+        var salesperson = await h.Db.Salespersons.SingleAsync(item => item.Id == activation.SalespersonId);
+        salesperson.IsActive = false;
+        await h.Db.SaveChangesAsync();
+
+        var blocked = await h.PayAsync(await h.IssueAsync(activation.Id));
+        Assert.Null(blocked.Commission);
+        Assert.Null((await h.Db.Merchants.SingleAsync(item => item.Id == activation.MerchantId))
+            .FirstQualifyingMerchantOrderId);
+
+        salesperson.IsActive = true;
+        await h.Db.SaveChangesAsync();
+        h.Time.UtcNow = Now.AddHours(1);
+        var qualifying = await h.AwaitingPaymentOrderForMerchantAsync(
+            activation.MerchantId, activation.SalespersonId, 10);
+        await h.PayAsync(await h.IssueAsync(qualifying.Id));
+        salesperson.IsActive = false;
+        var merchant = await h.Db.Merchants.SingleAsync(item => item.Id == activation.MerchantId);
+        merchant.AssignedSalespersonId = null;
+        await h.Db.SaveChangesAsync();
+        h.Time.UtcNow = Now.AddMonths(1);
+        var repeat = await h.AwaitingPaymentOrderForMerchantAsync(
+            activation.MerchantId, null, 10);
+
+        var result = await h.PayAsync(await h.IssueAsync(repeat.Id));
+        Assert.Equal("ResellerRepeatPercentage", result.Commission!.CommissionType);
+        Assert.Equal(salesperson.Id, result.Commission.SalespersonId);
+    }
+
+    [Fact]
+    public async Task ReversingAcquisitionDoesNotClearOrRestartTheRelationship()
+    {
+        using var h = await Harness.CreateAsync();
+        await h.SeedResellerRulesAsync();
+        var activation = await h.AwaitingPaymentOrderAsync(
+            acquisitionAndRepeat: true, quantity: 10);
+        var acquisition = await h.PayAsync(await h.IssueAsync(activation.Id));
+        await h.Billing.ReverseCommissionAsync(null, acquisition.Commission!.Id,
+            new ReverseSalesCommissionRequest("Payment invalidated.", acquisition.Commission.ConcurrencyToken),
+            default);
+
+        h.Time.UtcNow = Now.AddMonths(1);
+        var repeat = await h.AwaitingPaymentOrderForMerchantAsync(
+            activation.MerchantId, activation.SalespersonId, 10);
+        var result = await h.PayAsync(await h.IssueAsync(repeat.Id));
+        var merchant = await h.Db.Merchants.SingleAsync(item => item.Id == activation.MerchantId);
+
+        Assert.Equal(activation.Id, merchant.FirstQualifyingMerchantOrderId);
+        Assert.Equal("ResellerRepeatPercentage", result.Commission!.CommissionType);
+        Assert.Single(await h.Db.SalesCommissions.Where(item =>
+            item.CommissionType == SalesCommissionType.ResellerAcquisitionBonus).ToListAsync());
+    }
+
     // ===================== Privacy =====================
 
     [Fact]
@@ -690,21 +961,24 @@ public class MerchantBillingServiceTests
         private Harness(
             MyPetLinkDbContext db,
             MerchantSalesService sales,
-            MerchantBillingService billing)
+            MerchantBillingService billing,
+            MutableTime time)
         {
             Db = db;
             Sales = sales;
             Billing = billing;
+            Time = time;
         }
 
         public MyPetLinkDbContext Db { get; }
         public MerchantSalesService Sales { get; }
         public MerchantBillingService Billing { get; }
+        public MutableTime Time { get; }
         public Guid VariantId { get; private set; }
 
         public static async Task<Harness> CreateAsync(bool completeIdentity = true)
         {
-            var time = new FixedTime(Now);
+            var time = new MutableTime(Now);
             var db = new MyPetLinkDbContext(
                 new DbContextOptionsBuilder<MyPetLinkDbContext>()
                     .UseInMemoryDatabase(Guid.NewGuid().ToString("N")).Options,
@@ -756,7 +1030,8 @@ public class MerchantBillingServiceTests
                 new MerchantBillingService(
                     db, numbers, identity,
                     new MerchantEmailService(db, gate, audit, time),
-                    audit, time))
+                    audit, time),
+                time)
             {
                 VariantId = variant.Id,
             };
@@ -768,7 +1043,10 @@ public class MerchantBillingServiceTests
             string registration = "AS0515813-P",
             bool withSalesperson = true,
             decimal orderDiscount = 0m,
-            decimal deliveryFee = 0m)
+            decimal deliveryFee = 0m,
+            bool acquisitionAndRepeat = false,
+            int quantity = 100,
+            decimal unitPrice = 12.50m)
         {
             Guid? salespersonId = null;
             if (withSalesperson)
@@ -788,9 +1066,20 @@ public class MerchantBillingServiceTests
                 DeliveryAddressSameAsBilling: true, DeliveryAddress: null,
                 AssignedSalespersonId: salespersonId, InternalNotes: "Pays on time."), default);
 
+            // Most tests in this fixture protect the frozen Phase 2 legacy
+            // path. Phase 3C cases opt into the new plan explicitly.
+            if (!acquisitionAndRepeat)
+            {
+                var storedMerchant = await Db.Merchants.SingleAsync(item => item.Id == merchant.Id);
+                storedMerchant.CommissionPlan = MerchantCommissionPlan.LegacyPercentage;
+                storedMerchant.AcquiredBySalespersonId = null;
+                storedMerchant.AcquisitionAttributedAt = null;
+                await Db.SaveChangesAsync();
+            }
+
             var quotation = await Sales.CreateQuotationAsync(null, new UpsertQuotationRequest(
                 merchant.Id, salespersonId, null, orderDiscount, deliveryFee, null, null,
-                [new UpsertQuotationItemRequest(VariantId, 100, 12.50m)]), default);
+                [new UpsertQuotationItemRequest(VariantId, quantity, unitPrice)]), default);
 
             await Sales.TransitionQuotationAsync(null, quotation.Id, MerchantQuotationStatus.Sent, null, default);
             await Sales.TransitionQuotationAsync(null, quotation.Id, MerchantQuotationStatus.Accepted, null, default);
@@ -810,7 +1099,7 @@ public class MerchantBillingServiceTests
             DateTimeOffset? paymentDate = null,
             string? concurrencyToken = null) =>
             Billing.RecordPaymentAsync(null, invoice.Id, new RecordMerchantPaymentRequest(
-                paymentDate ?? Now,
+                paymentDate ?? Time.GetUtcNow(),
                 amount ?? invoice.GrandTotal,
                 "BankTransfer",
                 reference,
@@ -818,11 +1107,67 @@ public class MerchantBillingServiceTests
                 null,
                 concurrencyToken), default);
 
+        public async Task SeedResellerRulesAsync(
+            decimal repeatPercentage = 3m,
+            int eligibilityMonths = 3,
+            DateTimeOffset? effectiveFrom = null)
+        {
+            var from = effectiveFrom ?? DateTimeOffset.Parse("2026-01-01T00:00:00Z");
+            Db.CommissionRules.AddRange(
+                AcquisitionRule(10, 19, 50m, from),
+                AcquisitionRule(20, 49, 80m, from),
+                AcquisitionRule(50, 99, 150m, from),
+                AcquisitionRule(100, null, 250m, from),
+                new CommissionRule
+                {
+                    CommissionType = SalesCommissionType.ResellerRepeatPercentage,
+                    Percentage = repeatPercentage,
+                    EligibilityMonths = eligibilityMonths,
+                    Currency = "MYR",
+                    EffectiveFrom = from,
+                    IsActive = true,
+                    CreatedAt = from,
+                    UpdatedAt = from,
+                });
+            await Db.SaveChangesAsync();
+        }
+
+        public async Task<MerchantOrderResponse> AwaitingPaymentOrderForMerchantAsync(
+            Guid merchantId,
+            Guid? salespersonId,
+            int quantity,
+            decimal unitPrice = 12.50m,
+            decimal orderDiscount = 0m,
+            decimal deliveryFee = 0m)
+        {
+            var quotation = await Sales.CreateQuotationAsync(null, new UpsertQuotationRequest(
+                merchantId, salespersonId, null, orderDiscount, deliveryFee, null, null,
+                [new UpsertQuotationItemRequest(VariantId, quantity, unitPrice)]), default);
+            await Sales.TransitionQuotationAsync(null, quotation.Id, MerchantQuotationStatus.Sent, null, default);
+            await Sales.TransitionQuotationAsync(null, quotation.Id, MerchantQuotationStatus.Accepted, null, default);
+            return (await Sales.ConvertQuotationAsync(null, quotation.Id, null, default)).Order;
+        }
+
+        private static CommissionRule AcquisitionRule(
+            int min, int? max, decimal amount, DateTimeOffset effectiveFrom) => new()
+        {
+            CommissionType = SalesCommissionType.ResellerAcquisitionBonus,
+            FixedAmount = amount,
+            MinQuantity = min,
+            MaxQuantity = max,
+            Currency = "MYR",
+            EffectiveFrom = effectiveFrom,
+            IsActive = true,
+            CreatedAt = effectiveFrom,
+            UpdatedAt = effectiveFrom,
+        };
+
         public void Dispose() => Db.Dispose();
     }
 
-    private sealed class FixedTime(DateTimeOffset now) : TimeProvider
+    private sealed class MutableTime(DateTimeOffset now) : TimeProvider
     {
-        public override DateTimeOffset GetUtcNow() => now;
+        public DateTimeOffset UtcNow { get; set; } = now;
+        public override DateTimeOffset GetUtcNow() => UtcNow;
     }
 }

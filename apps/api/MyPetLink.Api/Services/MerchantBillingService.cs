@@ -1,3 +1,4 @@
+using System.Data;
 using Microsoft.EntityFrameworkCore;
 using MyPetLink.Api.Common;
 using MyPetLink.Api.Data;
@@ -290,6 +291,54 @@ public sealed class MerchantBillingService : IMerchantBillingService
         Guid? actorId, Guid invoiceId, RecordMerchantPaymentRequest request,
         CancellationToken cancellationToken)
     {
+        // Resolve the immutable relationship key before opening the transaction.
+        // Every payment for one merchant can then take the same lock first. If
+        // invoice/order rows are read first, two transactions can retain locks
+        // on different documents and deadlock while converging on the merchant
+        // acquisition row.
+        var merchantId = await _dbContext.MerchantInvoices
+            .AsNoTracking()
+            .Where(item => item.Id == invoiceId)
+            .Select(item => (Guid?)item.MerchantId)
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? throw new ApiException(404, "merchant_invoice_not_found",
+                "That invoice no longer exists.");
+
+        var strategy = _dbContext.Database.CreateExecutionStrategy();
+        try
+        {
+            return await strategy.ExecuteAsync(async () =>
+            {
+                await using var transaction = _dbContext.Database.IsRelational()
+                    ? await _dbContext.Database.BeginTransactionAsync(
+                        IsolationLevel.Serializable, cancellationToken)
+                    : null;
+                if (_dbContext.Database.IsSqlServer())
+                {
+                    await _dbContext.Database.ExecuteSqlInterpolatedAsync(
+                        $"SELECT 1 FROM [Merchants] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {merchantId}",
+                        cancellationToken);
+                }
+                var result = await RecordPaymentCoreAsync(
+                    actorId, invoiceId, request, cancellationToken);
+                if (transaction is not null) await transaction.CommitAsync(cancellationToken);
+                return result;
+            });
+        }
+        catch (DbUpdateConcurrencyException exception)
+        {
+            return await ResolveConcurrentPaymentAsync(invoiceId, exception, cancellationToken);
+        }
+        catch (DbUpdateException exception)
+        {
+            return await ResolveConcurrentPaymentAsync(invoiceId, exception, cancellationToken);
+        }
+    }
+
+    private async Task<RecordMerchantPaymentResult> RecordPaymentCoreAsync(
+        Guid? actorId, Guid invoiceId, RecordMerchantPaymentRequest request,
+        CancellationToken cancellationToken)
+    {
         var method = MerchantBillingParsing.ParsePaymentMethod(request.Method);
         var invoice = await RequireInvoiceAsync(invoiceId, tracked: true, cancellationToken);
 
@@ -319,15 +368,27 @@ public sealed class MerchantBillingService : IMerchantBillingService
             .SingleOrDefaultAsync(item => item.Id == invoice.MerchantOrderId, cancellationToken)
             ?? throw new ApiException(404, "merchant_order_not_found", "That order no longer exists.");
 
+        var merchant = await _dbContext.Merchants
+            .Include(item => item.AcquiredBySalesperson)
+            .SingleOrDefaultAsync(item => item.Id == order.MerchantId, cancellationToken)
+            ?? throw new ApiException(404, "merchant_not_found", "That merchant no longer exists.");
+
         if (order.PaymentStatus != MerchantOrderPaymentStatus.AwaitingPayment)
         {
             throw Conflict("merchant_order_not_payable",
                 "This order is no longer awaiting payment.");
         }
 
-        if (order.SalespersonId.HasValue && await _dbContext.SalesCommissions.AnyAsync(
+        var expectedTypes = merchant.CommissionPlan == MerchantCommissionPlan.LegacyPercentage
+            ? new[] { SalesCommissionType.MerchantOrderPercentage }
+            : new[]
+            {
+                SalesCommissionType.ResellerAcquisitionBonus,
+                SalesCommissionType.ResellerRepeatPercentage,
+            };
+        if (await _dbContext.SalesCommissions.AnyAsync(
                 item => item.MerchantOrderId == order.Id
-                    && item.CommissionType == SalesCommissionType.MerchantOrderPercentage
+                    && expectedTypes.Contains(item.CommissionType)
                     && item.Status != SalesCommissionStatus.Reversed,
                 cancellationToken))
         {
@@ -353,7 +414,7 @@ public sealed class MerchantBillingService : IMerchantBillingService
         {
             MerchantInvoiceId = invoice.Id,
             MerchantOrderId = invoice.MerchantOrderId,
-            PaymentDate = request.PaymentDate,
+            PaymentDate = request.PaymentDate.ToUniversalTime(),
             AmountReceived = MerchantSalesTotals.Round(request.AmountReceived),
             Currency = invoice.Currency,
             Method = method,
@@ -369,7 +430,11 @@ public sealed class MerchantBillingService : IMerchantBillingService
         var receipt = BuildReceipt(invoice, payment, order,
             await _numbers.NextMerchantReceiptNumberAsync(now, cancellationToken), now);
 
-        var commission = BuildCommission(invoice, order, payment, now);
+        var acquisitionBefore = MerchantAcquisitionAuditSnapshot(merchant);
+        var commission = await BuildCommissionAsync(
+            invoice, order, payment, merchant, now, cancellationToken);
+        var activated = merchant.FirstQualifyingMerchantOrderId == order.Id
+            && acquisitionBefore.FirstQualifyingMerchantOrderId is null;
 
         var invoiceBefore = InvoiceAuditSnapshot(invoice);
         invoice.Status = MerchantInvoiceStatus.Paid;
@@ -400,45 +465,21 @@ public sealed class MerchantBillingService : IMerchantBillingService
             _auditLogService.Append(actorId, ActorType.Admin, "merchant-commission.created",
                 "SalesCommission", commission.Id, null, CommissionAuditSnapshot(commission));
         }
+        if (activated)
+        {
+            _auditLogService.Append(actorId, ActorType.Admin,
+                "merchant.acquisition-activated", "Merchant", merchant.Id,
+                acquisitionBefore, MerchantAcquisitionAuditSnapshot(merchant));
+        }
 
         // Queued inside the same unit of work, so a merchant is never told
         // their payment arrived by an email that outlived a rolled-back save.
         await _merchantEmail.EnqueuePaymentConfirmationAsync(
             invoice, receipt, payment, cancellationToken);
 
-        try
-        {
-            // Payment, receipt, commission, the email and both status changes
-            // land together: a merchant must never hold a receipt for an
-            // invoice the system still thinks is unpaid.
-            await _dbContext.SaveChangesAsync(cancellationToken);
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            throw Conflict("concurrency_conflict",
-                "This invoice changed while you were recording the payment. Reload and try again.");
-        }
-        catch (DbUpdateException)
-        {
-            // The unique index on the payment's invoice is what makes a
-            // duplicate impossible rather than unlikely.
-            _dbContext.ChangeTracker.Clear();
-            var settled = await RequireInvoiceAsync(invoiceId, tracked: false, cancellationToken);
-            if (settled.Status == MerchantInvoiceStatus.Paid)
-                return await AlreadyRecordedAsync(settled, cancellationToken);
-
-            if (await _dbContext.SalesCommissions.AsNoTracking().AnyAsync(
-                    item => item.MerchantOrderId == invoice.MerchantOrderId
-                        && item.CommissionType == SalesCommissionType.MerchantOrderPercentage
-                        && item.Status != SalesCommissionStatus.Reversed,
-                    cancellationToken))
-            {
-                throw Conflict("merchant_order_commission_exists",
-                    "This order already has a valid commission. Review that commission before recording another payment.");
-            }
-
-            throw;
-        }
+        // Payment, receipt, commission, acquisition terms, email and both
+        // status changes land together.
+        await _dbContext.SaveChangesAsync(cancellationToken);
 
         var stored = await RequireInvoiceAsync(invoice.Id, tracked: false, cancellationToken);
         return new RecordMerchantPaymentResult(
@@ -630,8 +671,91 @@ public sealed class MerchantBillingService : IMerchantBillingService
     /// subtotal less the order discount. Delivery is excluded: passing a
     /// courier charge through is not selling.
     /// </summary>
-    private static SalesCommission? BuildCommission(
-        MerchantInvoice invoice, MerchantOrder order, MerchantPayment payment, DateTimeOffset now)
+    private async Task<SalesCommission?> BuildCommissionAsync(
+        MerchantInvoice invoice,
+        MerchantOrder order,
+        MerchantPayment payment,
+        Merchant merchant,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        if (merchant.CommissionPlan == MerchantCommissionPlan.LegacyPercentage)
+            return BuildLegacyCommission(invoice, order, payment, merchant.Id, now);
+
+        if (merchant.FirstQualifyingMerchantOrderId.HasValue)
+            return BuildRepeatCommission(invoice, order, payment, merchant, now);
+
+        var acquiredBy = merchant.AcquiredBySalesperson;
+        if (acquiredBy is null || !acquiredBy.IsActive) return null;
+
+        var quantity = invoice.Items.Sum(item => item.Quantity);
+        var acquisitionRule = await ResolveRuleAsync(
+            SalesCommissionType.ResellerAcquisitionBonus,
+            acquiredBy.Id,
+            payment.PaymentDate,
+            invoice.Currency,
+            quantity,
+            cancellationToken);
+        // A below-tier order is valid, but it neither earns a bonus nor starts
+        // the repeat window.
+        if (acquisitionRule is null) return null;
+
+        var repeatRule = await ResolveRuleAsync(
+            SalesCommissionType.ResellerRepeatPercentage,
+            acquiredBy.Id,
+            payment.PaymentDate,
+            invoice.Currency,
+            null,
+            cancellationToken)
+            ?? throw Conflict("reseller_repeat_rule_missing",
+                "Payment cannot be confirmed because the reseller repeat commission terms are not configured for this date.");
+        if (!acquisitionRule.FixedAmount.HasValue
+            || !repeatRule.Percentage.HasValue
+            || repeatRule.EligibilityMonths is not (> 0))
+        {
+            throw Conflict("reseller_commission_rule_invalid",
+                "Payment cannot be confirmed because the reseller commission terms are incomplete.");
+        }
+
+        merchant.FirstQualifyingPaidOrderAt = payment.PaymentDate;
+        merchant.FirstQualifyingMerchantOrderId = order.Id;
+        merchant.AcquiredBySalespersonCodeSnapshot = acquiredBy.SalespersonCode;
+        merchant.AcquiredBySalespersonNameSnapshot = acquiredBy.Name;
+        merchant.RepeatCommissionPercentageSnapshot = repeatRule.Percentage.Value;
+        merchant.RepeatCommissionEligibilityMonthsSnapshot = repeatRule.EligibilityMonths.Value;
+        merchant.RepeatCommissionEligibleUntil =
+            payment.PaymentDate.AddMonths(repeatRule.EligibilityMonths.Value);
+        merchant.RepeatCommissionRuleIdSnapshot = repeatRule.Id;
+        merchant.RepeatCommissionRuleEffectiveFromSnapshot = repeatRule.EffectiveFrom;
+        merchant.UpdatedAt = now;
+
+        var calculation = MerchantCommissionCalculator.CalculateFixed(
+            invoice.MerchandiseSubtotal,
+            invoice.DiscountTotal,
+            acquisitionRule.FixedAmount.Value);
+        return NewMerchantCommission(
+            merchant.Id,
+            order,
+            payment,
+            acquiredBy.Id,
+            acquiredBy.SalespersonCode,
+            acquiredBy.Name,
+            SalesCommissionType.ResellerAcquisitionBonus,
+            calculation,
+            null,
+            acquisitionRule.FixedAmount.Value,
+            acquisitionRule.Id,
+            acquisitionRule.EffectiveFrom,
+            invoice.Currency,
+            now);
+    }
+
+    private static SalesCommission? BuildLegacyCommission(
+        MerchantInvoice invoice,
+        MerchantOrder order,
+        MerchantPayment payment,
+        Guid merchantId,
+        DateTimeOffset now)
     {
         if (order.SalespersonId is null) return null;
 
@@ -639,24 +763,140 @@ public sealed class MerchantBillingService : IMerchantBillingService
         var calculation = MerchantCommissionCalculator.Calculate(
             invoice.MerchandiseSubtotal, invoice.DiscountTotal, percentage);
 
+        return NewMerchantCommission(
+            merchantId,
+            order,
+            payment,
+            order.SalespersonId.Value,
+            order.SalespersonCodeSnapshot ?? "",
+            order.SalespersonNameSnapshot ?? "",
+            SalesCommissionType.MerchantOrderPercentage,
+            calculation,
+            percentage,
+            null,
+            null,
+            null,
+            invoice.Currency,
+            now);
+    }
+
+    private static SalesCommission? BuildRepeatCommission(
+        MerchantInvoice invoice,
+        MerchantOrder order,
+        MerchantPayment payment,
+        Merchant merchant,
+        DateTimeOffset now)
+    {
+        if (merchant.FirstQualifyingMerchantOrderId == order.Id
+            || !merchant.FirstQualifyingPaidOrderAt.HasValue
+            || !merchant.RepeatCommissionEligibleUntil.HasValue
+            || payment.PaymentDate < merchant.FirstQualifyingPaidOrderAt.Value
+            || payment.PaymentDate >= merchant.RepeatCommissionEligibleUntil.Value)
+        {
+            return null;
+        }
+
+        if (!merchant.AcquiredBySalespersonId.HasValue
+            || !merchant.RepeatCommissionPercentageSnapshot.HasValue)
+        {
+            throw Conflict("reseller_acquisition_history_invalid",
+                "Payment cannot be confirmed because this reseller's acquisition history is incomplete.");
+        }
+
+        var calculation = MerchantCommissionCalculator.Calculate(
+            invoice.MerchandiseSubtotal,
+            invoice.DiscountTotal,
+            merchant.RepeatCommissionPercentageSnapshot.Value);
+
+        return NewMerchantCommission(
+            merchant.Id,
+            order,
+            payment,
+            merchant.AcquiredBySalespersonId.Value,
+            merchant.AcquiredBySalespersonCodeSnapshot ?? "",
+            merchant.AcquiredBySalespersonNameSnapshot ?? "",
+            SalesCommissionType.ResellerRepeatPercentage,
+            calculation,
+            merchant.RepeatCommissionPercentageSnapshot,
+            null,
+            merchant.RepeatCommissionRuleIdSnapshot,
+            merchant.RepeatCommissionRuleEffectiveFromSnapshot,
+            invoice.Currency,
+            now);
+    }
+
+    private static SalesCommission NewMerchantCommission(
+        Guid merchantId,
+        MerchantOrder order,
+        MerchantPayment payment,
+        Guid salespersonId,
+        string salespersonCode,
+        string salespersonName,
+        SalesCommissionType type,
+        MerchantCommissionCalculation calculation,
+        decimal? percentage,
+        decimal? fixedAmount,
+        Guid? ruleId,
+        DateTimeOffset? ruleEffectiveFrom,
+        string currency,
+        DateTimeOffset now)
+    {
+
         return new SalesCommission
         {
             SourceType = SalesCommissionSourceType.MerchantOrder,
-            CommissionType = SalesCommissionType.MerchantOrderPercentage,
+            CommissionType = type,
+            MerchantId = merchantId,
             MerchantOrderId = order.Id,
             MerchantPaymentId = payment.Id,
-            SalespersonId = order.SalespersonId.Value,
-            SalespersonCodeSnapshot = order.SalespersonCodeSnapshot ?? "",
-            SalespersonNameSnapshot = order.SalespersonNameSnapshot ?? "",
+            SalespersonId = salespersonId,
+            SalespersonCodeSnapshot = salespersonCode,
+            SalespersonNameSnapshot = salespersonName,
             CommissionPercentageSnapshot = percentage,
+            CommissionFixedAmountSnapshot = fixedAmount,
+            CommissionRuleId = ruleId,
+            CommissionRuleEffectiveFromSnapshot = ruleEffectiveFrom,
             CommissionBaseAmount = calculation.BaseAmount,
             CommissionAmount = calculation.Amount,
-            Currency = invoice.Currency,
+            Currency = currency,
             Status = SalesCommissionStatus.Payable,
             CalculatedAt = now,
             CreatedAt = now,
             UpdatedAt = now,
         };
+    }
+
+    private async Task<CommissionRule?> ResolveRuleAsync(
+        SalesCommissionType type,
+        Guid salespersonId,
+        DateTimeOffset effectiveAt,
+        string currency,
+        int? quantity,
+        CancellationToken cancellationToken)
+    {
+        var query = _dbContext.CommissionRules
+            .AsNoTracking()
+            .Where(rule => rule.CommissionType == type
+                && rule.IsActive
+                && (rule.SalespersonId == null || rule.SalespersonId == salespersonId)
+                && rule.Currency == currency
+                && rule.EffectiveFrom <= effectiveAt
+                && (rule.EffectiveTo == null || effectiveAt < rule.EffectiveTo));
+        if (quantity.HasValue)
+        {
+            query = query.Where(rule =>
+                (rule.MinQuantity == null || rule.MinQuantity <= quantity.Value)
+                && (rule.MaxQuantity == null || quantity.Value <= rule.MaxQuantity));
+        }
+        else
+        {
+            query = query.Where(rule => rule.MinQuantity == null && rule.MaxQuantity == null);
+        }
+
+        return await query
+            .OrderByDescending(rule => rule.SalespersonId.HasValue)
+            .ThenByDescending(rule => rule.EffectiveFrom)
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
     private static void CopyMerchantSnapshot(MerchantOrder order, MerchantInvoice invoice)
@@ -782,12 +1022,15 @@ public sealed class MerchantBillingService : IMerchantBillingService
             ?? throw Conflict("merchant_receipt_missing",
                 "This invoice is already paid, but its receipt is missing.");
 
-        var commission = await _dbContext.SalesCommissions
+        var commissions = await _dbContext.SalesCommissions
             .AsNoTracking()
             .Include(item => item.MerchantOrder)
-            .SingleOrDefaultAsync(item => item.MerchantPaymentId == payment.Id
-                && item.CommissionType == SalesCommissionType.MerchantOrderPercentage,
-                cancellationToken);
+            .Where(item => item.MerchantPaymentId == payment.Id)
+            .ToListAsync(cancellationToken);
+        if (commissions.Count > 1)
+            throw Conflict("merchant_payment_commission_conflict",
+                "This payment has conflicting commission records and needs review.");
+        var commission = commissions.SingleOrDefault();
 
         return new RecordMerchantPaymentResult(
             await ToResponseAsync(invoice, cancellationToken),
@@ -797,6 +1040,20 @@ public sealed class MerchantBillingService : IMerchantBillingService
                 ? null
                 : ToResponse(commission),
             AlreadyRecorded: true);
+    }
+
+    private async Task<RecordMerchantPaymentResult> ResolveConcurrentPaymentAsync(
+        Guid invoiceId,
+        Exception original,
+        CancellationToken cancellationToken)
+    {
+        _dbContext.ChangeTracker.Clear();
+        var settled = await RequireInvoiceAsync(invoiceId, tracked: false, cancellationToken);
+        if (settled.Status == MerchantInvoiceStatus.Paid)
+            return await AlreadyRecordedAsync(settled, cancellationToken);
+
+        System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(original).Throw();
+        throw new InvalidOperationException("Unreachable.");
     }
 
     private Task<AdminUser?> FindAdminAsync(Guid? actorId, CancellationToken cancellationToken)
@@ -840,7 +1097,6 @@ public sealed class MerchantBillingService : IMerchantBillingService
             throw Conflict("concurrency_conflict",
                 "Someone else changed this record. Reload and try again.");
         }
-
         _dbContext.Entry(entity).Property("RowVersion").OriginalValue = expected;
     }
 
@@ -936,6 +1192,7 @@ public sealed class MerchantBillingService : IMerchantBillingService
             commission.MerchantOrderId,
             commission.MerchantPaymentId,
             commission.TagOrderId,
+            commission.MerchantId,
             commission.SourceType == SalesCommissionSourceType.MerchantOrder
                 ? commission.MerchantOrder?.MerchantOrderNumber ?? ""
                 : commission.TagOrder?.OrderNumber ?? "",
@@ -1005,6 +1262,24 @@ public sealed class MerchantBillingService : IMerchantBillingService
         commission.ReversedByAdminUserId,
         commission.ReversalReason,
     };
+
+    private static MerchantAcquisitionSnapshot MerchantAcquisitionAuditSnapshot(Merchant merchant) => new(
+        merchant.AcquiredBySalespersonId,
+        merchant.FirstQualifyingMerchantOrderId,
+        merchant.FirstQualifyingPaidOrderAt,
+        merchant.RepeatCommissionPercentageSnapshot,
+        merchant.RepeatCommissionEligibilityMonthsSnapshot,
+        merchant.RepeatCommissionEligibleUntil,
+        merchant.RepeatCommissionRuleIdSnapshot);
+
+    private sealed record MerchantAcquisitionSnapshot(
+        Guid? AcquiredBySalespersonId,
+        Guid? FirstQualifyingMerchantOrderId,
+        DateTimeOffset? FirstQualifyingPaidOrderAt,
+        decimal? RepeatCommissionPercentageSnapshot,
+        int? RepeatCommissionEligibilityMonthsSnapshot,
+        DateTimeOffset? RepeatCommissionEligibleUntil,
+        Guid? RepeatCommissionRuleIdSnapshot);
 
     private static string? Trimmed(string? value)
     {
