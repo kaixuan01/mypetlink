@@ -158,10 +158,41 @@ export type AdminAccessCheck = {
 // every protected Admin endpoint is still enforced server-side on each call.
 export type AdminAccessSnapshot = { access: AdminAccessCheck | null };
 
+export type AdminOperationalRole = "OwnerSupport" | "Operations" | "Admin" | "SuperAdmin";
+
+export type AdminCapabilities = {
+  role: AdminOperationalRole;
+  canViewSalesPerformance: boolean;
+  canManageSales: boolean;
+  canViewCommissionFinancials: boolean;
+  canPreparePayout: boolean;
+  canMarkCommissionPaid: boolean;
+  canReverseCommission: boolean;
+  canManageCommissionRules: boolean;
+};
+
 let cachedAdminAccess: AdminAccessSnapshot | null = null;
 
 export function getCachedAdminAccess() {
   return cachedAdminAccess;
+}
+
+export function getAdminCapabilities(): AdminCapabilities {
+  const value = canUseApi() ? cachedAdminAccess?.access?.admin.role : "SuperAdmin";
+  const role: AdminOperationalRole =
+    value === "OwnerSupport" || value === "Operations" || value === "Admin" || value === "SuperAdmin"
+      ? value
+      : "OwnerSupport";
+  return {
+    role,
+    canViewSalesPerformance: role !== "OwnerSupport",
+    canManageSales: role === "Admin" || role === "SuperAdmin",
+    canViewCommissionFinancials: role === "Admin" || role === "SuperAdmin",
+    canPreparePayout: role === "Admin" || role === "SuperAdmin",
+    canMarkCommissionPaid: role === "SuperAdmin",
+    canReverseCommission: role === "SuperAdmin",
+    canManageCommissionRules: role === "SuperAdmin",
+  };
 }
 
 export function clearCachedAdminAccess() {

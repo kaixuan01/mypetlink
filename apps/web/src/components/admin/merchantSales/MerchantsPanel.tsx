@@ -100,12 +100,14 @@ export function MerchantsPanel({
   onOpen,
   onEdit,
   onCloseEditor,
+  canManage = true,
 }: {
   openId: string | null;
   editing: boolean;
   onOpen: (id: string | null) => void;
   onEdit: (id: string | "new" | null) => void;
   onCloseEditor: () => void;
+  canManage?: boolean;
 }) {
   const { query, actions, hasActiveFilters } = useAdminTableQuery({
     filterKeys,
@@ -272,14 +274,14 @@ export function MerchantsPanel({
       id: "actions",
       header: "",
       cell: (row) => {
-        const rowActions: AdminRowAction[] = [
-          { label: "View", onSelect: () => onOpen(row.id) },
+        const rowActions: AdminRowAction[] = [{ label: "View", onSelect: () => onOpen(row.id) }];
+        if (canManage) rowActions.push(
           { label: "Edit", onSelect: () => onEdit(row.id) },
           {
             label: row.isActive ? "Deactivate" : "Activate",
             onSelect: () => setPendingActivation(row),
-          },
-        ];
+          }
+        );
         return <AdminRowActionMenu actions={rowActions} label={`Actions for ${row.merchantCode}`} />;
       },
     },
@@ -312,15 +314,16 @@ export function MerchantsPanel({
           onClose={() => onOpen(null)}
           onEdit={() => onEdit(open.id)}
           onSaved={refresh}
+          canManage={canManage}
         />
       ) : null}
 
       <AdminSection
-        action={
+        action={canManage ?
           <button className={primaryButton} onClick={() => onEdit("new")} type="button">
             New merchant
           </button>
-        }
+        : undefined}
         description="Business customers who buy Smart Tags in bulk."
         title="Merchants"
       >
@@ -412,12 +415,14 @@ function MerchantDetail({
   onClose,
   onEdit,
   onSaved,
+  canManage,
 }: {
   merchant: AdminMerchant;
   salespersons: AdminSalesperson[];
   onClose: () => void;
   onEdit: () => void;
   onSaved: () => void;
+  canManage: boolean;
 }) {
   return (
     <AdminSection
@@ -426,9 +431,9 @@ function MerchantDetail({
           <button className={secondaryButton} onClick={onClose} type="button">
             Close
           </button>
-          <button className={primaryButton} onClick={onEdit} type="button">
+          {canManage ? <button className={primaryButton} onClick={onEdit} type="button">
             Edit
-          </button>
+          </button> : null}
         </div>
       }
       description={merchant.merchantCode}
@@ -482,7 +487,7 @@ function MerchantDetail({
           <DetailRow label="Added">{shortDate(merchant.createdAt)}</DetailRow>
         </DetailGrid>
 
-        {merchant.commissionPlan === "AcquisitionAndRepeat" ? (
+        {canManage && merchant.commissionPlan === "AcquisitionAndRepeat" ? (
           <AcquisitionOwnership
             merchant={merchant}
             onSaved={onSaved}

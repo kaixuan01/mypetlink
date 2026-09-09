@@ -8,6 +8,7 @@ import { commission, paged, salesperson } from "./merchantSalesFixtures";
 const listCommissions = vi.fn();
 const listCommissionRules = vi.fn();
 const listSalespersons = vi.fn();
+const listMerchants = vi.fn();
 const markCommissionPaid = vi.fn();
 const reverseCommission = vi.fn();
 
@@ -20,6 +21,7 @@ vi.mock("@/services/adminMerchantBillingService", async () => {
     listCommissions: (...args: unknown[]) => listCommissions(...args),
     listCommissionRules: (...args: unknown[]) => listCommissionRules(...args),
     listSalespersons: (...args: unknown[]) => listSalespersons(...args),
+    listMerchants: (...args: unknown[]) => listMerchants(...args),
     markCommissionPaid: (...args: unknown[]) => markCommissionPaid(...args),
     reverseCommission: (...args: unknown[]) => reverseCommission(...args),
   };
@@ -32,6 +34,7 @@ vi.mock("@/services/adminMerchantSalesService", async () => {
   return {
     ...actual,
     listSalespersons: (...args: unknown[]) => listSalespersons(...args),
+    listMerchants: (...args: unknown[]) => listMerchants(...args),
   };
 });
 
@@ -82,6 +85,7 @@ beforeEach(() => {
   );
   listCommissionRules.mockResolvedValue(paged([rule]));
   listSalespersons.mockResolvedValue(paged([salesperson()]));
+  listMerchants.mockResolvedValue(paged([]));
   markCommissionPaid.mockResolvedValue(
     commission({ status: "Paid", paidAt: "2026-09-08T01:00:00Z" })
   );
@@ -133,10 +137,20 @@ describe("Commission ledger", () => {
 
     await waitFor(() =>
       expect(listCommissions).toHaveBeenCalledWith(
-        { page: 2, pageSize: 50 },
+        expect.objectContaining({ page: 2, pageSize: 50 }),
         expect.any(AbortSignal)
       )
     );
     expect(await screen.findByText("Showing 51–75 of 75")).toBeTruthy();
+  });
+
+  it("hides payout, reversal and rule controls for a financial read-only admin", async () => {
+    render(<CommissionsPanel canManageRules={false} canMarkPaid={false} canReverse={false} />);
+
+    await screen.findByText("Merchant order percentage");
+    expect(screen.queryByRole("button", { name: "Mark paid" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Reverse" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "New rule" })).toBeNull();
+    expect(listCommissionRules).not.toHaveBeenCalled();
   });
 });

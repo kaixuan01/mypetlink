@@ -71,11 +71,17 @@ export function InvoicesPanel({
   onOpen,
   onOpenOrder,
   status,
+  canViewFinancial = true,
+  canRecordPayment = true,
+  canMarkCommissionPaid = true,
 }: {
   openId: string | null;
   onOpen: (id: string | null) => void;
   onOpenOrder: (orderId: string) => void;
   status: string | null;
+  canViewFinancial?: boolean;
+  canRecordPayment?: boolean;
+  canMarkCommissionPaid?: boolean;
 }) {
   const { query, actions, hasActiveFilters } = useAdminTableQuery({
     filterKeys,
@@ -134,7 +140,12 @@ export function InvoicesPanel({
             result.items.map((item) => item.id),
             controller.signal
           ).catch(() => []),
-          listCommissions({ page: 1, pageSize: OPTION_PAGE_SIZE }, controller.signal).catch(() => ({
+          (canViewFinancial ? listCommissions({
+            page: 1,
+            pageSize: OPTION_PAGE_SIZE,
+            from: `${new Date().getUTCFullYear() - 4}-01-01T00:00:00Z`,
+            toExclusive: `${new Date().getUTCFullYear() + 1}-01-01T00:00:00Z`,
+          }, controller.signal) : Promise.resolve({ items: [], total: 0 })).catch(() => ({
             items: [] as AdminSalesCommission[],
             total: 0,
           })),
@@ -170,7 +181,7 @@ export function InvoicesPanel({
       });
 
     return () => controller.abort();
-  }, [paramsKey, reloadKey]);
+  }, [canViewFinancial, paramsKey, reloadKey]);
 
   useEffect(() => {
     let active = true;
@@ -281,7 +292,7 @@ export function InvoicesPanel({
         }
 
         // Payment only belongs on an invoice that can still be paid.
-        if (row.status === "Issued") {
+        if (canRecordPayment && row.status === "Issued") {
           rowActions.push({ label: "Record payment", onSelect: () => setPaying(row) });
         }
 
@@ -302,7 +313,7 @@ export function InvoicesPanel({
 
       {open ? (
         <InvoiceDetail
-          commission={commissions[open.merchantOrderId]}
+          commission={canViewFinancial ? commissions[open.merchantOrderId] : undefined}
           emails={emailStatuses[open.id] ?? {}}
           invoice={open}
           onClose={() => onOpen(null)}
@@ -311,6 +322,8 @@ export function InvoicesPanel({
           onOpenOrder={onOpenOrder}
           onRecordPayment={() => setPaying(open)}
           onSendEmail={() => setPendingEmail(open)}
+          canMarkCommissionPaid={canMarkCommissionPaid}
+          canRecordPayment={canRecordPayment}
         />
       ) : null}
 
@@ -361,7 +374,7 @@ export function InvoicesPanel({
         />
       </AdminSection>
 
-      {paying ? (
+      {canRecordPayment && paying ? (
         <RecordPaymentDialog
           invoice={paying}
           onCancel={() => setPaying(null)}
@@ -411,7 +424,7 @@ export function InvoicesPanel({
         title="Send this invoice by email?"
       />
 
-      <ConfirmDialog
+      {canMarkCommissionPaid ? <ConfirmDialog
         confirmDisabled={busy}
         confirmLabel="Mark as paid"
         message={
@@ -444,7 +457,7 @@ export function InvoicesPanel({
         }}
         open={pendingCommission !== null}
         title="Mark this commission as paid?"
-      />
+      /> : null}
     </div>
   );
 }
@@ -461,6 +474,8 @@ function InvoiceDetail({
   onRecordPayment,
   onMarkCommissionPaid,
   onOpenOrder,
+  canRecordPayment,
+  canMarkCommissionPaid,
 }: {
   invoice: AdminMerchantInvoice;
   emails: Record<string, MerchantDocumentEmailStatus>;
@@ -471,6 +486,8 @@ function InvoiceDetail({
   onRecordPayment: () => void;
   onMarkCommissionPaid: (commission: AdminSalesCommission) => void;
   onOpenOrder: (orderId: string) => void;
+  canRecordPayment: boolean;
+  canMarkCommissionPaid: boolean;
 }) {
   return (
     <AdminSection
@@ -584,7 +601,7 @@ function InvoiceDetail({
                 <DetailRow label="Paid">{shortDate(commission.paidAt)}</DetailRow>
               ) : null}
             </DetailGrid>
-            {commission.status === "Payable" ? (
+            {canMarkCommissionPaid && commission.status === "Payable" ? (
               <button
                 className={`${secondaryButton} mt-3`}
                 data-testid="mark-commission-paid"
@@ -605,7 +622,7 @@ function InvoiceDetail({
           <button className={secondaryButton} onClick={onSendEmail} type="button">
             {emails.MerchantInvoice ? "Resend invoice email" : "Send invoice email"}
           </button>
-          {invoice.status === "Issued" ? (
+          {canRecordPayment && invoice.status === "Issued" ? (
             <button
               className={primaryButton}
               data-testid="open-record-payment"

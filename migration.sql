@@ -7632,3 +7632,73 @@ GO
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908152551_AddSalesReportingIndexes'
+)
+BEGIN
+    EXEC(N'CREATE INDEX [IX_TagOrders_SalespersonId_PaymentConfirmedAt] ON [TagOrders] ([SalespersonId], [PaymentConfirmedAt]) WHERE [SalespersonId] IS NOT NULL AND [PaymentConfirmedAt] IS NOT NULL');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908152551_AddSalesReportingIndexes'
+)
+BEGIN
+    EXEC(N'CREATE INDEX [IX_SalesCommissions_PaidAt] ON [SalesCommissions] ([PaidAt]) WHERE [PaidAt] IS NOT NULL');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908152551_AddSalesReportingIndexes'
+)
+BEGIN
+    EXEC(N'CREATE INDEX [IX_SalesCommissions_ReversedAt] ON [SalesCommissions] ([ReversedAt]) WHERE [ReversedAt] IS NOT NULL');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908152551_AddSalesReportingIndexes'
+)
+BEGIN
+    CREATE INDEX [IX_SalesCommissions_SalespersonId_CalculatedAt] ON [SalesCommissions] ([SalespersonId], [CalculatedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908152551_AddSalesReportingIndexes'
+)
+BEGIN
+    CREATE INDEX [IX_Merchants_AcquiredBySalespersonId_RepeatCommissionEligibleUntil] ON [Merchants] ([AcquiredBySalespersonId], [RepeatCommissionEligibleUntil]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908152551_AddSalesReportingIndexes'
+)
+BEGIN
+    CREATE INDEX [IX_MerchantPayments_PaymentDate_MerchantOrderId] ON [MerchantPayments] ([PaymentDate], [MerchantOrderId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260908152551_AddSalesReportingIndexes'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260908152551_AddSalesReportingIndexes', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+

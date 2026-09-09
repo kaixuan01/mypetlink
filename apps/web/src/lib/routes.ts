@@ -175,6 +175,7 @@ export const adminRoutes = {
   paymentProofs: "/admin/payment-proofs",
   paymentProofsForOwner: (ownerId: string) => `/admin/payment-proofs?ownerId=${encodeURIComponent(ownerId)}`,
   smartTags: "/admin/tags",
+  tagInventory: "/admin/tag-inventory",
   smartTag: (tagId: string) => `/admin/tags?tag=${encodeURIComponent(tagId)}`,
   smartTagsForPet: (petId: string) => `/admin/tags?pet=${encodeURIComponent(petId)}`,
   smartTagsForOwner: (ownerId: string) => `/admin/tags?ownerId=${encodeURIComponent(ownerId)}`,

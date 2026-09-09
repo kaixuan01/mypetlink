@@ -58,6 +58,7 @@ public sealed class AdminMerchantInvoicesController : ApiControllerBase
             HttpContext));
 
     [HttpPost("{id:guid}/payments")]
+    [Authorize(Policy = AuthorizationPolicies.CommissionFinancial)]
     public async Task<IActionResult> RecordPayment(
         Guid id, [FromBody] RecordMerchantPaymentRequest request, CancellationToken cancellationToken) =>
         Ok(ApiEnvelope.Ok(
@@ -119,34 +120,46 @@ public sealed class AdminMerchantOrderInvoiceController : ApiControllerBase
             HttpContext));
 }
 
-[Authorize(Policy = AuthorizationPolicies.Admin)]
+[Authorize(Policy = AuthorizationPolicies.CommissionFinancial)]
 [Route("api/v1/admin/merchant-sales/commissions")]
 public sealed class AdminSalesCommissionsController : ApiControllerBase
 {
     private readonly IMerchantBillingService _service;
+    private readonly ISalesReportingService _reporting;
     private readonly ICurrentUserService _currentUser;
 
     public AdminSalesCommissionsController(
-        IMerchantBillingService service, ICurrentUserService currentUser)
+        IMerchantBillingService service,
+        ISalesReportingService reporting,
+        ICurrentUserService currentUser)
     {
         _service = service;
+        _reporting = reporting;
         _currentUser = currentUser;
     }
 
     [HttpGet]
     public async Task<IActionResult> List(
-        [FromQuery] PagedQuery query,
-        [FromQuery] Guid? salespersonId,
-        [FromQuery] string? status,
+        [FromQuery] CommissionLedgerQuery query,
         CancellationToken cancellationToken)
     {
-        var (items, total) = await _service.ListCommissionsAsync(
-            query.Page, query.PageSize, salespersonId, ParseStatus(status), cancellationToken);
+        var (items, total) = await _reporting.ListCommissionsAsync(query, cancellationToken);
 
         return Ok(ApiEnvelope.Ok(items, HttpContext, query.Page, query.PageSize, total));
     }
 
+    [HttpGet("export")]
+    public async Task<IActionResult> Export(
+        [FromQuery] CommissionLedgerQuery query,
+        CancellationToken cancellationToken)
+    {
+        var export = await _reporting.ExportCommissionLedgerAsync(
+            _currentUser.Current.UserId, query, cancellationToken);
+        return File(export.Content, export.ContentType, export.FileName);
+    }
+
     [HttpPost("{id:guid}/mark-paid")]
+    [Authorize(Policy = AuthorizationPolicies.MarkCommissionPaid)]
     public async Task<IActionResult> MarkPaid(
         Guid id, [FromBody] ConcurrencyTokenRequest? request, CancellationToken cancellationToken) =>
         Ok(ApiEnvelope.Ok(
@@ -155,6 +168,7 @@ public sealed class AdminSalesCommissionsController : ApiControllerBase
             HttpContext));
 
     [HttpPost("{id:guid}/reverse")]
+    [Authorize(Policy = AuthorizationPolicies.ReverseCommission)]
     public async Task<IActionResult> Reverse(
         Guid id, [FromBody] ReverseSalesCommissionRequest request,
         CancellationToken cancellationToken) =>
@@ -163,14 +177,62 @@ public sealed class AdminSalesCommissionsController : ApiControllerBase
                 _currentUser.Current.UserId, id, request, cancellationToken),
             HttpContext));
 
-    private static SalesCommissionStatus? ParseStatus(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value)) return null;
+}
 
-        return Enum.TryParse<SalesCommissionStatus>(value, ignoreCase: true, out var parsed)
-            ? parsed
-            : throw new ApiException(400, "validation_failed", "Please check the submitted fields.",
-                new Dictionary<string, string[]> { ["status"] = ["That commission status is not valid."] });
+[Route("api/v1/admin/merchant-sales/reports")]
+public sealed class AdminSalesReportingController : ApiControllerBase
+{
+    private readonly ISalesReportingService _service;
+    private readonly ICurrentUserService _currentUser;
+
+    public AdminSalesReportingController(ISalesReportingService service, ICurrentUserService currentUser)
+    {
+        _service = service;
+        _currentUser = currentUser;
+    }
+
+    [HttpGet("performance")]
+    [Authorize(Policy = AuthorizationPolicies.SalesPerformance)]
+    public async Task<IActionResult> Performance([FromQuery] SalesReportQuery query, CancellationToken token) =>
+        Ok(ApiEnvelope.Ok(await _service.GetPerformanceAsync(query, token), HttpContext));
+
+    [HttpGet("financial")]
+    [Authorize(Policy = AuthorizationPolicies.CommissionFinancial)]
+    public async Task<IActionResult> Financial([FromQuery] SalesReportQuery query, CancellationToken token) =>
+        Ok(ApiEnvelope.Ok(await _service.GetFinancialAsync(query, token), HttpContext));
+
+    [HttpGet("salespersons/{salespersonId:guid}/performance")]
+    [Authorize(Policy = AuthorizationPolicies.SalesPerformance)]
+    public async Task<IActionResult> SalespersonPerformance(Guid salespersonId, [FromQuery] SalesReportQuery query, CancellationToken token) =>
+        Ok(ApiEnvelope.Ok(await _service.GetSalespersonPerformanceAsync(salespersonId, query, token), HttpContext));
+
+    [HttpGet("salespersons/{salespersonId:guid}/financial")]
+    [Authorize(Policy = AuthorizationPolicies.CommissionFinancial)]
+    public async Task<IActionResult> SalespersonFinancial(Guid salespersonId, [FromQuery] SalesReportQuery query, CancellationToken token) =>
+        Ok(ApiEnvelope.Ok(await _service.GetSalespersonFinancialAsync(salespersonId, query, token), HttpContext));
+
+    [HttpGet("salespersons/{salespersonId:guid}/reseller-portfolio")]
+    [Authorize(Policy = AuthorizationPolicies.SalesPerformance)]
+    public async Task<IActionResult> Portfolio(Guid salespersonId, [FromQuery] ResellerPortfolioQuery query, CancellationToken token)
+    {
+        var (items, total) = await _service.ListPortfolioAsync(salespersonId, query, token);
+        return Ok(ApiEnvelope.Ok(items, HttpContext, query.Page, query.PageSize, total));
+    }
+
+    [HttpGet("salespersons/{salespersonId:guid}/reseller-portfolio-financial")]
+    [Authorize(Policy = AuthorizationPolicies.CommissionFinancial)]
+    public async Task<IActionResult> PortfolioFinancial(Guid salespersonId, [FromQuery] ResellerPortfolioQuery query, CancellationToken token)
+    {
+        var (items, total) = await _service.ListPortfolioFinancialAsync(salespersonId, query, token);
+        return Ok(ApiEnvelope.Ok(items, HttpContext, query.Page, query.PageSize, total));
+    }
+
+    [HttpGet("salespersons/{salespersonId:guid}/reseller-portfolio/export")]
+    [Authorize(Policy = AuthorizationPolicies.CommissionFinancial)]
+    public async Task<IActionResult> PortfolioExport(Guid salespersonId, [FromQuery] ResellerPortfolioQuery query, CancellationToken token)
+    {
+        var export = await _service.ExportPortfolioAsync(_currentUser.Current.UserId, salespersonId, query, token);
+        return File(export.Content, export.ContentType, export.FileName);
     }
 }
 
@@ -190,6 +252,7 @@ public sealed class AdminMerchantSalesOverviewController : ApiControllerBase
     }
 
     [HttpGet("overview")]
+    [Authorize(Policy = AuthorizationPolicies.CommissionFinancial)]
     public async Task<IActionResult> Overview(CancellationToken cancellationToken) =>
         Ok(ApiEnvelope.Ok(await _service.GetOverviewAsync(cancellationToken), HttpContext));
 

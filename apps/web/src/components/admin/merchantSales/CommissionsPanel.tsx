@@ -17,9 +17,12 @@ import {
 } from "@/services/adminMerchantBillingService";
 import {
   getMerchantSalesError,
+  listMerchants,
   listSalespersons,
+  type AdminMerchant,
   type AdminSalesperson,
 } from "@/services/adminMerchantSalesService";
+import { downloadCommissionLedger } from "@/services/adminSalesReportingService";
 import {
   dateTime,
   fieldClass,
@@ -32,13 +35,22 @@ import {
 
 const commissionPageSize = 50;
 
-export function CommissionsPanel() {
+export function CommissionsPanel({
+  canManageRules = true,
+  canMarkPaid = true,
+  canReverse = true,
+}: {
+  canManageRules?: boolean;
+  canMarkPaid?: boolean;
+  canReverse?: boolean;
+}) {
   const [reloadKey, setReloadKey] = useState(0);
   const [commissionPage, setCommissionPage] = useState(1);
   const [commissionTotal, setCommissionTotal] = useState(0);
   const [commissions, setCommissions] = useState<AdminSalesCommission[]>([]);
   const [rules, setRules] = useState<AdminCommissionRule[]>([]);
   const [salespersons, setSalespersons] = useState<AdminSalesperson[]>([]);
+  const [merchants, setMerchants] = useState<AdminMerchant[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -46,6 +58,14 @@ export function CommissionsPanel() {
   const [reversing, setReversing] = useState<AdminSalesCommission | null>(null);
   const [reversalReason, setReversalReason] = useState("");
   const [busy, setBusy] = useState(false);
+  const [from, setFrom] = useState(() => `${new Date().getUTCFullYear()}-01-01`);
+  const [through, setThrough] = useState(() => new Date().toISOString().slice(0, 10));
+  const [status, setStatus] = useState("");
+  const [channel, setChannel] = useState("");
+  const [commissionType, setCommissionType] = useState("");
+  const [salespersonId, setSalespersonId] = useState("");
+  const [merchantId, setMerchantId] = useState("");
+  const [search, setSearch] = useState("");
   const refresh = useCallback(() => {
     setLoading(true);
     setReloadKey((value) => value + 1);
@@ -55,18 +75,33 @@ export function CommissionsPanel() {
     const controller = new AbortController();
     Promise.all([
       listCommissions(
-        { page: commissionPage, pageSize: commissionPageSize },
+        {
+          page: commissionPage,
+          pageSize: commissionPageSize,
+          from: utcStart(from),
+          toExclusive: nextDay(through),
+          status: status || undefined,
+          channel: channel || undefined,
+          commissionType: commissionType || undefined,
+          salespersonId: salespersonId || undefined,
+          merchantId: merchantId || undefined,
+          search: search.trim() || undefined,
+        },
         controller.signal
       ),
-      listCommissionRules({ page: 1, pageSize: 100 }, controller.signal),
+      canManageRules
+        ? listCommissionRules({ page: 1, pageSize: 100 }, controller.signal)
+        : Promise.resolve({ items: [], total: 0 }),
       listSalespersons({ page: 1, pageSize: 100 }, controller.signal),
+      listMerchants({ page: 1, pageSize: 100 }, controller.signal),
     ])
-      .then(([commissionResult, ruleResult, salespersonResult]) => {
+      .then(([commissionResult, ruleResult, salespersonResult, merchantResult]) => {
         if (controller.signal.aborted) return;
         setCommissions(commissionResult.items);
         setCommissionTotal(commissionResult.total);
         setRules(ruleResult.items);
         setSalespersons(salespersonResult.items);
+        setMerchants(merchantResult.items);
         setError("");
       })
       .catch((caught) => {
@@ -77,7 +112,7 @@ export function CommissionsPanel() {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [commissionPage, reloadKey]);
+  }, [canManageRules, channel, commissionPage, commissionType, from, merchantId, reloadKey, salespersonId, search, status, through]);
 
   function changeCommissionPage(nextPage: number) {
     setLoading(true);
@@ -124,9 +159,29 @@ export function CommissionsPanel() {
       <InlineError message={error} />
 
       <AdminSection
+        action={<button className={secondaryButton} disabled={busy} onClick={() => {
+          setBusy(true);
+          void downloadCommissionLedger({
+            page: 1, pageSize: 100, from: utcStart(from), toExclusive: nextDay(through),
+            status: status || undefined, channel: channel || undefined,
+            commissionType: commissionType || undefined, salespersonId: salespersonId || undefined,
+            merchantId: merchantId || undefined,
+            search: search.trim() || undefined,
+          }).catch((caught) => setError(getMerchantSalesError(caught, "We couldn’t export the commission ledger."))).finally(() => setBusy(false));
+        }} type="button">Export CSV</button>}
         description="One auditable ledger for merchant and direct retail sales. Reversed entries remain visible and are excluded from contribution profit."
         title="Sales commissions"
       >
+        <div className="grid gap-3 border-b border-slate-200 p-4 sm:grid-cols-2 lg:grid-cols-4">
+          <label className="grid gap-1 text-sm font-bold">From<input className={fieldClass} type="date" value={from} onChange={(event) => { setFrom(event.target.value); setCommissionPage(1); }} /></label>
+          <label className="grid gap-1 text-sm font-bold">Through<input className={fieldClass} type="date" value={through} onChange={(event) => { setThrough(event.target.value); setCommissionPage(1); }} /></label>
+          <label className="grid gap-1 text-sm font-bold">Seller<select className={fieldClass} value={salespersonId} onChange={(event) => { setSalespersonId(event.target.value); setCommissionPage(1); }}><option value="">All sellers</option>{salespersons.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+          <label className="grid gap-1 text-sm font-bold">Channel<select className={fieldClass} value={channel} onChange={(event) => { setChannel(event.target.value); setCommissionPage(1); }}><option value="">All channels</option><option value="retail">Direct retail</option><option value="merchant">Merchant</option></select></label>
+          <label className="grid gap-1 text-sm font-bold">Type<select className={fieldClass} value={commissionType} onChange={(event) => { setCommissionType(event.target.value); setCommissionPage(1); }}><option value="">All types</option><option value="DirectRetailPercentage">Direct retail</option><option value="MerchantOrderPercentage">Legacy merchant</option><option value="ResellerAcquisitionBonus">Acquisition bonus</option><option value="ResellerRepeatPercentage">Repeat reseller</option></select></label>
+          <label className="grid gap-1 text-sm font-bold">Status<select className={fieldClass} value={status} onChange={(event) => { setStatus(event.target.value); setCommissionPage(1); }}><option value="">All statuses</option><option value="Payable">Payable</option><option value="Paid">Paid</option><option value="Reversed">Reversed</option></select></label>
+          <label className="grid gap-1 text-sm font-bold">Merchant<select className={fieldClass} value={merchantId} onChange={(event) => { setMerchantId(event.target.value); setCommissionPage(1); }}><option value="">All merchants</option>{merchants.map((item) => <option key={item.id} value={item.id}>{item.tradingName ?? item.legalBusinessName}</option>)}</select></label>
+          <label className="grid gap-1 text-sm font-bold">Order number<input className={fieldClass} value={search} onChange={(event) => { setSearch(event.target.value); setCommissionPage(1); }} /></label>
+        </div>
         <div className="overflow-x-auto">
           <table className="min-w-[1050px] w-full text-left text-sm">
             <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
@@ -151,6 +206,7 @@ export function CommissionsPanel() {
                   </td>
                   <td className="px-4 py-3 align-top font-mono text-xs font-bold">
                     {commission.sourceOrderNumber}
+                    {commission.merchantName ? <p className="mt-1 font-sans font-semibold text-slate-500">{commission.merchantName}</p> : null}
                   </td>
                   <td className="px-4 py-3 align-top">
                     <p className="font-bold">{commission.salespersonName}</p>
@@ -186,12 +242,12 @@ export function CommissionsPanel() {
                   </td>
                   <td className="px-4 py-3 align-top">
                     <div className="flex flex-wrap gap-2">
-                      {commission.status === "Payable" ? (
+                      {canMarkPaid && commission.status === "Payable" ? (
                         <button className={secondaryButton} disabled={busy} onClick={() => void pay(commission)} type="button">
                           Mark paid
                         </button>
                       ) : null}
-                      {commission.status !== "Reversed" ? (
+                      {canReverse && commission.status !== "Reversed" ? (
                         <button
                           className={secondaryButton}
                           disabled={busy}
@@ -242,7 +298,7 @@ export function CommissionsPanel() {
         ) : null}
       </AdminSection>
 
-      {reversing ? (
+      {canReverse && reversing ? (
         <AdminSection
           description={`The original amount and any payout history for ${reversing.sourceOrderNumber} will remain visible.`}
           title="Reverse commission"
@@ -267,7 +323,7 @@ export function CommissionsPanel() {
         </AdminSection>
       ) : null}
 
-      {editingRule ? (
+      {canManageRules && editingRule ? (
         <CommissionRuleEditor
           rule={editingRule === "new" ? undefined : editingRule}
           salespersons={salespersons}
@@ -281,7 +337,7 @@ export function CommissionsPanel() {
         />
       ) : null}
 
-      <AdminSection
+      {canManageRules ? <AdminSection
         action={<button className={primaryButton} onClick={() => setEditingRule("new")} type="button">New rule</button>}
         description="Effective-dated retail and reseller policies. A salesperson-specific rule takes precedence over the global rule."
         title="Commission rules"
@@ -307,7 +363,7 @@ export function CommissionsPanel() {
           ))}
           {!loading && rules.length === 0 ? <p className="text-sm font-semibold text-slate-500">No commission rules found.</p> : null}
         </div>
-      </AdminSection>
+      </AdminSection> : null}
     </div>
   );
 }
@@ -467,4 +523,15 @@ function quantityLabel(rule: AdminCommissionRule) {
   if (rule.minQuantity != null && rule.maxQuantity != null) return ` · quantities ${rule.minQuantity}–${rule.maxQuantity}`;
   if (rule.minQuantity != null) return ` · quantity ${rule.minQuantity}+`;
   return ` · up to ${rule.maxQuantity}`;
+}
+
+function nextDay(value: string) {
+  if (!value) return "";
+  const date = new Date(`${value}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + 1);
+  return date.toISOString();
+}
+
+function utcStart(value: string) {
+  return value ? `${value}T00:00:00Z` : "";
 }

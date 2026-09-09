@@ -35,7 +35,7 @@ Notes on which email to use:
    DECLARE @AdminEmail NVARCHAR(320) = N'admin@mypetlink.com.my';
    SELECT Id, Email, DisplayName FROM Users WHERE Email = @AdminEmail;
    ```
-3. **Insert an active `AdminUsers` row** for that user (idempotent guard so re-running is safe):
+3. **Insert an active `AdminUsers` row** for that user (idempotent guard so re-running is safe). The first production operator must be `SuperAdmin`; Phase 3D-A reserves payout completion, commission reversal, and commission-rule management for that role:
    ```sql
    INSERT INTO AdminUsers (Id, UserId, Role, IsActive, CreatedAt, UpdatedAt)
    SELECT NEWID(), u.Id, 'SuperAdmin', 1, SYSDATETIMEOFFSET(), SYSDATETIMEOFFSET()
@@ -43,7 +43,7 @@ Notes on which email to use:
    WHERE u.Email = @AdminEmail
      AND NOT EXISTS (SELECT 1 FROM AdminUsers a WHERE a.UserId = u.Id);
    ```
-   `Role` may be `Admin` or `SuperAdmin` — Phase 1 treats them equivalently in policy (`OwnerSupport`/`Operations` are reserved for later).
+   Do not downgrade or disable the last active `SuperAdmin`. Run `docs/deployment/sql/diagnose-phase3d-financial-authorization.sql` before deployment and confirm its first result set contains at least one active account.
 4. **Verify admin access.** With that account's bearer token:
    ```txt
    GET https://api.mypetlink.com.my/api/v1/admin/auth/check   → 200, returns { admin: { role, isActive: true } }

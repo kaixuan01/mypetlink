@@ -26,7 +26,7 @@ import {
   shortDate,
 } from "./shared";
 
-export function ReferralAttributionsPanel() {
+export function ReferralAttributionsPanel({ canManage = true }: { canManage?: boolean }) {
   const { query, actions } = useAdminTableQuery({ filterKeys: [] as const, defaultSortBy: "attributedAt" });
   const params = useMemo(() => ({ page: query.page, pageSize: query.pageSize, search: query.search || undefined }), [query.page, query.pageSize, query.search]);
   const key = JSON.stringify(params);
@@ -53,12 +53,13 @@ export function ReferralAttributionsPanel() {
   }, [key, params, reload]);
 
   useEffect(() => {
+    if (!canManage) return;
     const controller = new AbortController();
     listSalespersons({ page: 1, pageSize: 100, isActive: true }, controller.signal)
       .then((result) => setSalespersons(result.items.filter((item) => item.referralCode)))
       .catch(() => undefined);
     return () => controller.abort();
-  }, []);
+  }, [canManage]);
 
   const requestKey = `${key}#${reload}`;
   const columns: AdminColumn<AdminOwnerReferralAttribution>[] = [
@@ -84,7 +85,7 @@ export function ReferralAttributionsPanel() {
           <DetailRow label="Attributed">{shortDate(open.attributedAt)}</DetailRow>
           <DetailRow label="Source">{open.attributionSource === "ReferralLink" ? "Referral link" : "Admin correction"}</DetailRow>
         </DetailGrid>
-        <div className="grid gap-2 sm:max-w-lg">
+        {canManage ? <div className="grid gap-2 sm:max-w-lg">
           <label className="text-sm font-bold" htmlFor="correct-referral-salesperson">Correct salesperson for future orders</label>
           <select id="correct-referral-salesperson" className={fieldClass} onChange={(event) => setSelected(event.target.value)} value={selected}>
             <option value="">Choose a salesperson</option>
@@ -97,7 +98,7 @@ export function ReferralAttributionsPanel() {
               .then((saved) => { setOpen(saved); setSelected(""); setActionError(""); setMessage("Owner referral attribution updated for future orders."); refresh(); })
               .catch((error) => setActionError(getMerchantSalesError(error, "We couldn’t update this attribution.")));
           }} type="button">Save correction</button>
-        </div>
+        </div> : null}
       </div>
     </AdminSection> : null}
     <AdminSection title="Owner referrals" description="The salesperson credited when each referred owner account was created.">

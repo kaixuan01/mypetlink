@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useCallback } from "react";
 import { InvoicesPanel } from "./InvoicesPanel";
 import { MerchantsPanel } from "./MerchantsPanel";
 import { MerchantSalesOverview } from "./MerchantSalesOverview";
@@ -11,11 +10,13 @@ import { QuotationsPanel } from "./QuotationsPanel";
 import { SalespersonsPanel } from "./SalespersonsPanel";
 import { ReferralAttributionsPanel } from "./ReferralAttributionsPanel";
 import { CommissionsPanel } from "./CommissionsPanel";
+import { SalesReportsPanel } from "./SalesReportsPanel";
+import { getAdminCapabilities } from "@/services/authService";
 import {
   MERCHANT_SALES_LIST_KEYS,
   isMerchantSalesTab,
   merchantSalesTabHref,
-  merchantSalesTabs,
+  merchantSalesTabsForRole,
   type MerchantSalesTab,
 } from "./tabs";
 
@@ -29,61 +30,54 @@ import {
 export function AdminMerchantSalesWorkspace() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const capabilities = getAdminCapabilities();
+  const availableTabs = merchantSalesTabsForRole(capabilities.role);
 
   const tabParam = searchParams.get("tab");
-  const tab: MerchantSalesTab = isMerchantSalesTab(tabParam) ? tabParam : "overview";
+  const requestedTab = isMerchantSalesTab(tabParam) ? tabParam : null;
+  const tab: MerchantSalesTab = requestedTab && availableTabs.some((item) => item.id === requestedTab)
+    ? requestedTab
+    : availableTabs[0].id;
   const openId = searchParams.get("open");
   const editParam = searchParams.get("edit");
 
-  const push = useCallback((href: string) => {
+  const push = (href: string) => {
     if (`${window.location.pathname}${window.location.search}` === href) return;
     window.history.pushState(null, "", href);
     // Next's router listens for popstate, not pushState, so nudge it.
     window.dispatchEvent(new PopStateEvent("popstate"));
-  }, []);
+  };
 
-  const goToTab = useCallback(
-    (next: MerchantSalesTab, filters?: Record<string, string>) => {
-      push(merchantSalesTabHref(pathname, next, filters));
-    },
-    [pathname, push]
-  );
+  const goToTab = (next: MerchantSalesTab, filters?: Record<string, string>) => {
+    push(merchantSalesTabHref(pathname, next, filters));
+  };
 
   // Record-level navigation keeps the current section and list state.
-  const setParam = useCallback(
-    (patch: Record<string, string | null>) => {
-      const params = new URLSearchParams(searchParams.toString());
-      for (const [key, value] of Object.entries(patch)) {
-        if (value === null) params.delete(key);
-        else params.set(key, value);
-      }
-      push(`${pathname}?${params.toString()}`);
-    },
-    [pathname, push, searchParams]
-  );
+  const setParam = (patch: Record<string, string | null>) => {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const [key, value] of Object.entries(patch)) {
+      if (value === null) params.delete(key);
+      else params.set(key, value);
+    }
+    push(`${pathname}?${params.toString()}`);
+  };
 
-  const openRecord = useCallback(
-    (id: string | null) => setParam({ open: id, edit: null }),
-    [setParam]
-  );
+  const openRecord = (id: string | null) => setParam({ open: id, edit: null });
 
-  const editRecord = useCallback(
-    (id: string | "new" | null) =>
-      id === null
-        ? setParam({ edit: null })
-        : id === "new"
-          ? setParam({ open: null, edit: "new" })
-          : setParam({ open: id, edit: id }),
-    [setParam]
-  );
+  const editRecord = (id: string | "new" | null) =>
+    id === null
+      ? setParam({ edit: null })
+      : id === "new"
+        ? setParam({ open: null, edit: "new" })
+        : setParam({ open: id, edit: id });
 
-  const closeEditor = useCallback(() => setParam({ edit: null }), [setParam]);
+  const closeEditor = () => setParam({ edit: null });
 
   return (
     <div className="grid gap-4">
       <nav aria-label="Merchant Sales sections" className="-mx-1 overflow-x-auto px-1 pb-1">
         <ul className="flex min-w-max gap-2">
-          {merchantSalesTabs.map((item) => (
+          {availableTabs.map((item) => (
             <li key={item.id}>
               <Link
                 aria-current={tab === item.id ? "page" : undefined}
@@ -126,7 +120,8 @@ export function AdminMerchantSalesWorkspace() {
 
       {tab === "merchants" ? (
         <MerchantsPanel
-          editing={editParam !== null}
+          canManage={capabilities.canManageSales}
+          editing={capabilities.canManageSales && editParam !== null}
           onCloseEditor={closeEditor}
           onEdit={editRecord}
           onOpen={openRecord}
@@ -136,7 +131,9 @@ export function AdminMerchantSalesWorkspace() {
 
       {tab === "salespersons" ? (
         <SalespersonsPanel
-          editing={editParam !== null}
+          canManage={capabilities.canManageSales}
+          canViewFinancial={capabilities.canViewCommissionFinancials}
+          editing={capabilities.canManageSales && editParam !== null}
           onCloseEditor={closeEditor}
           onEdit={editRecord}
           onOpen={openRecord}
@@ -144,7 +141,11 @@ export function AdminMerchantSalesWorkspace() {
         />
       ) : null}
 
-      {tab === "referrals" ? <ReferralAttributionsPanel /> : null}
+      {tab === "reports" ? (
+        <SalesReportsPanel canViewFinancial={capabilities.canViewCommissionFinancials} />
+      ) : null}
+
+      {tab === "referrals" ? <ReferralAttributionsPanel canManage={capabilities.canManageSales} /> : null}
 
       {tab === "quotations" ? (
         <QuotationsPanel
@@ -170,6 +171,9 @@ export function AdminMerchantSalesWorkspace() {
 
       {tab === "invoices" ? (
         <InvoicesPanel
+          canMarkCommissionPaid={capabilities.canMarkCommissionPaid}
+          canRecordPayment={capabilities.canViewCommissionFinancials}
+          canViewFinancial={capabilities.canViewCommissionFinancials}
           onOpen={openRecord}
           onOpenOrder={(orderId) => goToTab("orders", { open: orderId })}
           openId={openId}
@@ -177,7 +181,13 @@ export function AdminMerchantSalesWorkspace() {
         />
       ) : null}
 
-      {tab === "commissions" ? <CommissionsPanel /> : null}
+      {tab === "commissions" ? (
+        <CommissionsPanel
+          canManageRules={capabilities.canManageCommissionRules}
+          canMarkPaid={capabilities.canMarkCommissionPaid}
+          canReverse={capabilities.canReverseCommission}
+        />
+      ) : null}
     </div>
   );
 }

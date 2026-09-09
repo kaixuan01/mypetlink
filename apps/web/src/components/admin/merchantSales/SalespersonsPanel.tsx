@@ -58,12 +58,16 @@ export function SalespersonsPanel({
   onOpen,
   onEdit,
   onCloseEditor,
+  canViewFinancial = true,
+  canManage = true,
 }: {
   openId: string | null;
   editing: boolean;
   onOpen: (id: string | null) => void;
   onEdit: (id: string | "new" | null) => void;
   onCloseEditor: () => void;
+  canViewFinancial?: boolean;
+  canManage?: boolean;
 }) {
   const { query, actions, hasActiveFilters } = useAdminTableQuery({
     filterKeys,
@@ -129,7 +133,7 @@ export function SalespersonsPanel({
   }, [paramsKey, reloadKey]);
 
   useEffect(() => {
-    if (!openId || openId === "new" || editing) {
+    if (!canViewFinancial || !openId || openId === "new" || editing) {
       return;
     }
     const controller = new AbortController();
@@ -151,7 +155,7 @@ export function SalespersonsPanel({
         });
       });
     return () => controller.abort();
-  }, [editing, openId, reloadKey]);
+  }, [canViewFinancial, editing, openId, reloadKey]);
 
   const loading = listState?.key !== fetchKey;
   const items = listState?.key === fetchKey ? listState.items : [];
@@ -232,14 +236,14 @@ export function SalespersonsPanel({
       id: "actions",
       header: "",
       cell: (row) => {
-        const rowActions: AdminRowAction[] = [
-          { label: "View", onSelect: () => onOpen(row.id) },
+        const rowActions: AdminRowAction[] = [{ label: "View", onSelect: () => onOpen(row.id) }];
+        if (canManage) rowActions.push(
           { label: "Edit", onSelect: () => onEdit(row.id) },
           {
             label: row.isActive ? "Deactivate" : "Activate",
             onSelect: () => setPendingActivation(row),
-          },
-        ];
+          }
+        );
         return (
           <AdminRowActionMenu actions={rowActions} label={`Actions for ${row.salespersonCode}`} />
         );
@@ -273,9 +277,9 @@ export function SalespersonsPanel({
               <button className={secondaryButton} onClick={() => onOpen(null)} type="button">
                 Close
               </button>
-              <button className={primaryButton} onClick={() => onEdit(open.id)} type="button">
+              {canManage ? <button className={primaryButton} onClick={() => onEdit(open.id)} type="button">
                 Edit
-              </button>
+              </button> : null}
             </div>
           }
           description={open.salespersonCode}
@@ -303,11 +307,11 @@ export function SalespersonsPanel({
               <DetailRow label="Status">{open.isActive ? "Active" : "Inactive"}</DetailRow>
               <DetailRow label="Added">{shortDate(open.createdAt)}</DetailRow>
             </DetailGrid>
-            {!currentCommissionSummary ? (
+            {canViewFinancial && !currentCommissionSummary ? (
               <p className="text-sm font-semibold text-slate-500">Loading commission summary…</p>
-            ) : currentCommissionSummary.error ? (
+            ) : canViewFinancial && currentCommissionSummary?.error ? (
               <InlineError message={currentCommissionSummary.error} />
-            ) : commissionSummary ? (
+            ) : canViewFinancial && commissionSummary ? (
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                 <p className="text-sm font-black text-slate-900">Commission and reseller summary</p>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -349,11 +353,11 @@ export function SalespersonsPanel({
       ) : null}
 
       <AdminSection
-        action={
+        action={canManage ?
           <button className={primaryButton} onClick={() => onEdit("new")} type="button">
             New salesperson
           </button>
-        }
+        : undefined}
         description="Who sells to merchants, and what they earn on a paid order."
         title="Salespersons"
       >

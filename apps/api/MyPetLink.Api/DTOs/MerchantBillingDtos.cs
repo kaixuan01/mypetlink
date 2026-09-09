@@ -99,6 +99,7 @@ public sealed record SalesCommissionResponse(
     Guid? MerchantPaymentId,
     Guid? TagOrderId,
     Guid? MerchantId,
+    string? MerchantName,
     string SourceOrderNumber,
     Guid SalespersonId,
     string SalespersonCode,

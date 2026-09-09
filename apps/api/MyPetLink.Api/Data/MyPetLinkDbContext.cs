@@ -261,6 +261,7 @@ public sealed class MyPetLinkDbContext : DbContext
                 .HasForeignKey(item => item.RepeatCommissionRuleIdSnapshot)
                 .OnDelete(DeleteBehavior.Restrict);
             entity.HasIndex(item => item.AcquiredBySalespersonId);
+            entity.HasIndex(item => new { item.AcquiredBySalespersonId, item.RepeatCommissionEligibleUntil });
             entity.HasIndex(item => item.FirstQualifyingMerchantOrderId).IsUnique()
                 .HasFilter("[FirstQualifyingMerchantOrderId] IS NOT NULL");
         });
@@ -653,6 +654,7 @@ public sealed class MyPetLinkDbContext : DbContext
             // Full payment only, so an invoice can have at most one payment.
             entity.HasIndex(item => item.MerchantInvoiceId).IsUnique();
             entity.HasIndex(item => item.MerchantOrderId);
+            entity.HasIndex(item => new { item.PaymentDate, item.MerchantOrderId });
             entity.HasOne(item => item.MerchantOrder)
                 .WithMany()
                 .HasForeignKey(item => item.MerchantOrderId)
@@ -761,6 +763,9 @@ public sealed class MyPetLinkDbContext : DbContext
                 .IsUnique()
                 .HasFilter("[MerchantPaymentId] IS NOT NULL");
             entity.HasIndex(item => new { item.SalespersonId, item.Status });
+            entity.HasIndex(item => new { item.SalespersonId, item.CalculatedAt });
+            entity.HasIndex(item => item.PaidAt).HasFilter("[PaidAt] IS NOT NULL");
+            entity.HasIndex(item => item.ReversedAt).HasFilter("[ReversedAt] IS NOT NULL");
             // Reversed rows remain as history. Each source can have only one
             // financially effective row for a given commission type.
             entity.HasIndex(item => new { item.MerchantOrderId, item.CommissionType })
@@ -1570,6 +1575,8 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasIndex(item => item.CreatedAt);
             entity.HasIndex(item => item.UpdatedAt);
             entity.HasIndex(item => item.PaymentConfirmedAt);
+            entity.HasIndex(item => new { item.SalespersonId, item.PaymentConfirmedAt })
+                .HasFilter("[SalespersonId] IS NOT NULL AND [PaymentConfirmedAt] IS NOT NULL");
             entity.HasIndex(item => item.ReadyToShipAt);
             entity.HasIndex(item => item.ShippedAt);
             entity.HasIndex(item => item.DeliveredAt);

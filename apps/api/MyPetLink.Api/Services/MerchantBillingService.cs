@@ -36,10 +36,6 @@ public interface IMerchantBillingService
         Guid? actorId, Guid invoiceId, RecordMerchantPaymentRequest request,
         CancellationToken cancellationToken);
 
-    Task<(IReadOnlyCollection<SalesCommissionResponse> Items, int Total)> ListCommissionsAsync(
-        int page, int pageSize, Guid? salespersonId, SalesCommissionStatus? status,
-        CancellationToken cancellationToken);
-
     Task<SalesCommissionResponse> MarkCommissionPaidAsync(
         Guid? actorId, Guid commissionId, string? concurrencyToken, CancellationToken cancellationToken);
 
@@ -492,35 +488,6 @@ public sealed class MerchantBillingService : IMerchantBillingService
 
     // --- Commission --------------------------------------------------------
 
-    public async Task<(IReadOnlyCollection<SalesCommissionResponse> Items, int Total)> ListCommissionsAsync(
-        int page, int pageSize, Guid? salespersonId, SalesCommissionStatus? status,
-        CancellationToken cancellationToken)
-    {
-        var query = _dbContext.SalesCommissions
-            .AsNoTracking()
-            .Include(item => item.MerchantOrder)
-            .Include(item => item.TagOrder)
-            .AsQueryable();
-
-        if (salespersonId.HasValue)
-            query = query.Where(item => item.SalespersonId == salespersonId.Value);
-        if (status.HasValue)
-            query = query.Where(item => item.Status == status.Value);
-
-        var total = await query.CountAsync(cancellationToken);
-        var items = await query
-            .OrderByDescending(item => item.CalculatedAt)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync(cancellationToken);
-
-        return (
-            items
-                .Select(ToResponse)
-                .ToList(),
-            total);
-    }
-
     public async Task<SalesCommissionResponse> MarkCommissionPaidAsync(
         Guid? actorId, Guid commissionId, string? concurrencyToken,
         CancellationToken cancellationToken)
@@ -528,6 +495,7 @@ public sealed class MerchantBillingService : IMerchantBillingService
         var commission = await _dbContext.SalesCommissions
             .Include(item => item.MerchantOrder)
             .Include(item => item.TagOrder)
+            .Include(item => item.Merchant)
             .SingleOrDefaultAsync(item => item.Id == commissionId, cancellationToken)
             ?? throw new ApiException(404, "commission_not_found",
                 "That commission record no longer exists.");
@@ -577,6 +545,7 @@ public sealed class MerchantBillingService : IMerchantBillingService
         var commission = await _dbContext.SalesCommissions
             .Include(item => item.MerchantOrder)
             .Include(item => item.TagOrder)
+            .Include(item => item.Merchant)
             .SingleOrDefaultAsync(item => item.Id == commissionId, cancellationToken)
             ?? throw new ApiException(404, "commission_not_found",
                 "That commission record no longer exists.");
@@ -1193,6 +1162,7 @@ public sealed class MerchantBillingService : IMerchantBillingService
             commission.MerchantPaymentId,
             commission.TagOrderId,
             commission.MerchantId,
+            commission.Merchant?.TradingName ?? commission.Merchant?.LegalBusinessName,
             commission.SourceType == SalesCommissionSourceType.MerchantOrder
                 ? commission.MerchantOrder?.MerchantOrderNumber ?? ""
                 : commission.TagOrder?.OrderNumber ?? "",

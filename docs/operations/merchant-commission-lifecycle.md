@@ -105,6 +105,11 @@ known historical same-account cases for Admin review.
 
 ## Payout and reversal
 
+Phase 3D-A keeps the existing individual `Mark Paid` operation as a temporary
+SuperAdmin-only transition. It is not a bank transfer and does not create a
+payout batch. Phase 3D-B will replace that workflow with append-only payout
+batches and payout items while retaining these historical timestamps.
+
 - Only a **Payable** commission transitions to **Paid**. Retrying the same paid
   action is a no-op and does not alter the original payout time or actor.
 - A **Payable** or **Paid** commission may transition to **Reversed**. Reversal

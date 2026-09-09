@@ -94,6 +94,7 @@ export type AdminSalesCommission = {
   merchantPaymentId: string | null;
   tagOrderId: string | null;
   merchantId: string | null;
+  merchantName: string | null;
   sourceOrderNumber: string;
   salespersonId: string;
   salespersonCode: string;
@@ -274,7 +275,18 @@ export async function recordPayment(invoiceId: string, input: RecordPaymentInput
 // --- Commissions -----------------------------------------------------------
 
 export async function listCommissions(
-  params: { page: number; pageSize: number; salespersonId?: string; status?: string },
+  params: {
+    page: number;
+    pageSize: number;
+    from: string;
+    toExclusive: string;
+    salespersonId?: string;
+    channel?: string;
+    commissionType?: string;
+    status?: string;
+    merchantId?: string;
+    search?: string;
+  },
   signal?: AbortSignal
 ): Promise<AdminPagedResult<AdminSalesCommission>> {
   const response = await apiRequest<AdminSalesCommission[]>(

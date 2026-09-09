@@ -15,6 +15,7 @@ using Microsoft.OpenApi.Models;
 using MyPetLink.Api.Auth;
 using MyPetLink.Api.Common;
 using MyPetLink.Api.Data;
+using MyPetLink.Api.Entities;
 using MyPetLink.Api.Middleware;
 using MyPetLink.Api.Services;
 using MyPetLink.Api.Storage;
@@ -319,6 +320,21 @@ builder.Services.AddAuthorization(options =>
         policy.RequireAuthenticatedUser();
         policy.Requirements.Add(new ActiveAdminRequirement());
     });
+
+    AddAdminRolePolicy(options, AuthorizationPolicies.SalesPerformance,
+        AdminRole.Operations, AdminRole.Admin, AdminRole.SuperAdmin);
+    AddAdminRolePolicy(options, AuthorizationPolicies.SalesAdministration,
+        AdminRole.Admin, AdminRole.SuperAdmin);
+    AddAdminRolePolicy(options, AuthorizationPolicies.CommissionFinancial,
+        AdminRole.Admin, AdminRole.SuperAdmin);
+    AddAdminRolePolicy(options, AuthorizationPolicies.PrepareCommissionPayout,
+        AdminRole.Admin, AdminRole.SuperAdmin);
+    AddAdminRolePolicy(options, AuthorizationPolicies.MarkCommissionPaid,
+        AdminRole.SuperAdmin);
+    AddAdminRolePolicy(options, AuthorizationPolicies.ReverseCommission,
+        AdminRole.SuperAdmin);
+    AddAdminRolePolicy(options, AuthorizationPolicies.ManageCommissionRules,
+        AdminRole.SuperAdmin);
 });
 
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
@@ -329,6 +345,7 @@ builder.Services.AddScoped<IOwnerProfileService, OwnerProfileService>();
 builder.Services.AddScoped<IExternalAuthService, ExternalAuthService>();
 builder.Services.AddScoped<IExternalTokenValidator, GoogleTokenValidator>();
 builder.Services.AddScoped<IAuthorizationHandler, ActiveAdminRequirementHandler>();
+builder.Services.AddScoped<IAuthorizationHandler, ActiveAdminRoleRequirementHandler>();
 builder.Services.AddScoped<IPetService, PetService>();
 builder.Services.AddScoped<IPublicProfileService, PublicProfileService>();
 builder.Services.AddScoped<IPublicSampleExperienceService, PublicSampleExperienceService>();
@@ -348,6 +365,7 @@ builder.Services.AddScoped<IMerchantSalesService, MerchantSalesService>();
 builder.Services.AddScoped<IOwnerReferralAttributionService, OwnerReferralAttributionService>();
 builder.Services.AddScoped<ICommissionRuleService, CommissionRuleService>();
 builder.Services.AddScoped<IMerchantBillingService, MerchantBillingService>();
+builder.Services.AddScoped<ISalesReportingService, SalesReportingService>();
 builder.Services.AddScoped<IMerchantFulfilmentService, MerchantFulfilmentService>();
 builder.Services.AddScoped<IMerchantEmailService, MerchantEmailService>();
 builder.Services.AddScoped<IMerchantSalesOverviewService, MerchantSalesOverviewService>();
@@ -677,6 +695,18 @@ static RateLimitPartition<string> FixedWindowPartition(
             QueueLimit = queueLimit,
             QueueProcessingOrder = QueueProcessingOrder.OldestFirst
         });
+}
+
+static void AddAdminRolePolicy(
+    AuthorizationOptions options,
+    string name,
+    params AdminRole[] roles)
+{
+    options.AddPolicy(name, policy =>
+    {
+        policy.RequireAuthenticatedUser();
+        policy.Requirements.Add(new ActiveAdminRoleRequirement(roles));
+    });
 }
 
 public partial class Program;

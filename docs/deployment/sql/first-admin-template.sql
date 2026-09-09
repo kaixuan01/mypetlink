@@ -42,7 +42,9 @@ FROM Users
 WHERE Email = @AdminEmail;
 
 -- Step 2 — activate admin for that user (idempotent: safe to re-run).
--- Role may be 'Admin' or 'SuperAdmin'; Phase 1 treats them equivalently.
+-- The first production operator must be SuperAdmin. Phase 3D-A reserves
+-- payout completion, commission reversal and commission-rule management for
+-- that role; never downgrade or disable the last active SuperAdmin.
 INSERT INTO AdminUsers (Id, UserId, Role, IsActive, CreatedAt, UpdatedAt)
 SELECT NEWID(), u.Id, 'SuperAdmin', 1, SYSDATETIMEOFFSET(), SYSDATETIMEOFFSET()
 FROM Users u
