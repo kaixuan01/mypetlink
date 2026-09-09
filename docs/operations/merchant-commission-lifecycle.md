@@ -143,6 +143,23 @@ item per commission.
   complete retail refund-accounting workflow yet, so every other refund or
   financial correction must use the existing explicit audited reversal action.
 
+Phase 3D-C exposes this lifecycle through the Admin Portal's **Payouts** section.
+Admin and SuperAdmin may inspect, filter, prepare, cancel, and download payout
+statements; only SuperAdmin sees the action that records a completed external
+payment. The preparation screen submits only the explicitly selected
+`PayableAndUnclaimed` commission IDs and keeps the same idempotency key for the
+life of that preparation attempt. The normal invoice and commission screens no
+longer offer individual payment actions; the compatibility endpoint remains for
+historical and integration safety.
+
+The server generates each Commission Payout Statement on demand from the
+immutable payout header and item snapshots. Every item, including items released
+after cancellation, must reconcile exactly to `PreparedAmount` and the payout
+currency before a PDF is rendered. Prepared statements say that they are not
+proof of transfer, cancelled statements preserve the released item history, and
+paid statements show payment details. Reversals after payment appear in a
+separate recovery-required section and never rewrite the original paid total.
+
 ## Attribution correction
 
 Merchant-order attribution can be corrected only while the order awaits payment

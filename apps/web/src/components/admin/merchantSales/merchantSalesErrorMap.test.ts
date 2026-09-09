@@ -76,6 +76,30 @@ describe("Merchant Sales error mapping", () => {
     expect(message(new ApiClientError(404, "not_found", "x"))).toMatch(/no longer exists/i);
   });
 
+  it("explains payout idempotency, stale selection and reconciliation failures", () => {
+    expect(message(new ApiClientError(409, "idempotency_key_conflict", "x"))).toMatch(
+      /already used with different details/i
+    );
+    expect(message(new ApiClientError(409, "commission_selection_changed", "x"))).toMatch(
+      /no longer eligible/i
+    );
+    expect(message(new ApiClientError(409, "commission_already_claimed", "x"))).toMatch(
+      /reload the payable list/i
+    );
+    expect(message(new ApiClientError(409, "payout_salesperson_mismatch", "x"))).toMatch(
+      /chosen salesperson/i
+    );
+    expect(message(new ApiClientError(409, "commission_outside_payout_period", "x"))).toMatch(
+      /outside this earning period/i
+    );
+    expect(message(new ApiClientError(409, "payout_total_changed", "x"))).toMatch(
+      /selected total changed/i
+    );
+    expect(
+      message(new ApiClientError(409, "payout_statement_reconciliation_failed", "x"))
+    ).toMatch(/does not reconcile/i);
+  });
+
   it("explains a lost connection without technical wording", () => {
     const text = message(new ApiClientError(0, "network_error", "x"));
 

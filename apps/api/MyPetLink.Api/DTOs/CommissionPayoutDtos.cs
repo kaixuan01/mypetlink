@@ -47,6 +47,8 @@ public sealed record CommissionPayoutItemResponse(
     string Currency,
     DateTimeOffset CalculatedAt,
     string CurrentCommissionStatus,
+    DateTimeOffset? ReversedAt,
+    string? ReversalReason,
     DateTimeOffset? ReleasedAt,
     string? ReleaseReason,
     bool RequiresRecovery);
@@ -67,16 +69,21 @@ public sealed record CommissionPayoutSummaryResponse(
     DateTimeOffset PreparedAt,
     DateTimeOffset? PaidAt,
     DateTimeOffset? CancelledAt,
+    string? PaymentMethod,
+    string? PaymentReference,
     string ConcurrencyToken);
 
 public sealed record CommissionPayoutResponse(
     CommissionPayoutSummaryResponse Summary,
     SellerIdentitySnapshot Seller,
     Guid PreparedByAdminUserId,
+    string PreparedBy,
     Guid? PaidByAdminUserId,
+    string? PaidBy,
     string? PaymentMethod,
     string? PaymentReference,
     string? Notes,
     Guid? CancelledByAdminUserId,
+    string? CancelledBy,
     string? CancellationReason,
     IReadOnlyCollection<CommissionPayoutItemResponse> Items);

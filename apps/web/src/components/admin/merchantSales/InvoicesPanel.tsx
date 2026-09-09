@@ -22,7 +22,6 @@ import {
   getMerchantEmailStatuses,
   listCommissions,
   listInvoices,
-  markCommissionPaid,
   recordPayment,
   sendInvoiceEmail,
   type AdminMerchantInvoice,
@@ -32,7 +31,6 @@ import {
 import {
   getMerchantSalesError,
   getMerchantSalesFieldErrors,
-  isConcurrencyConflict,
   listMerchants,
   type AdminMerchant,
 } from "@/services/adminMerchantSalesService";
@@ -73,7 +71,6 @@ export function InvoicesPanel({
   status,
   canViewFinancial = true,
   canRecordPayment = true,
-  canMarkCommissionPaid = true,
 }: {
   openId: string | null;
   onOpen: (id: string | null) => void;
@@ -81,7 +78,6 @@ export function InvoicesPanel({
   status: string | null;
   canViewFinancial?: boolean;
   canRecordPayment?: boolean;
-  canMarkCommissionPaid?: boolean;
 }) {
   const { query, actions, hasActiveFilters } = useAdminTableQuery({
     filterKeys,
@@ -119,7 +115,6 @@ export function InvoicesPanel({
   const [actionError, setActionError] = useState("");
   const [paying, setPaying] = useState<AdminMerchantInvoice | null>(null);
   const [pendingEmail, setPendingEmail] = useState<AdminMerchantInvoice | null>(null);
-  const [pendingCommission, setPendingCommission] = useState<AdminSalesCommission | null>(null);
   const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(() => setReloadKey((value) => value + 1), []);
@@ -318,11 +313,9 @@ export function InvoicesPanel({
           invoice={open}
           onClose={() => onOpen(null)}
           onError={setActionError}
-          onMarkCommissionPaid={setPendingCommission}
           onOpenOrder={onOpenOrder}
           onRecordPayment={() => setPaying(open)}
           onSendEmail={() => setPendingEmail(open)}
-          canMarkCommissionPaid={canMarkCommissionPaid}
           canRecordPayment={canRecordPayment}
         />
       ) : null}
@@ -424,40 +417,6 @@ export function InvoicesPanel({
         title="Send this invoice by email?"
       />
 
-      {canMarkCommissionPaid ? <ConfirmDialog
-        confirmDisabled={busy}
-        confirmLabel="Mark as paid"
-        message={
-          pendingCommission
-            ? `${pendingCommission.salespersonName} · ${money(
-                pendingCommission.currency,
-                pendingCommission.commissionAmount
-              )}. This records that the commission has been settled internally; it does not transfer any money.`
-            : ""
-        }
-        onCancel={() => setPendingCommission(null)}
-        onConfirm={() => {
-          const target = pendingCommission;
-          setPendingCommission(null);
-          if (!target) return;
-
-          setBusy(true);
-          void markCommissionPaid(target.id, target.concurrencyToken)
-            .then(() => {
-              setActionError("");
-              setMessage(`Commission for ${target.salespersonName} marked paid.`);
-              refresh();
-            })
-            .catch((caught) => {
-              setMessage("");
-              setActionError(getMerchantSalesError(caught, "We couldn’t update that commission."));
-              if (isConcurrencyConflict(caught)) refresh();
-            })
-            .finally(() => setBusy(false));
-        }}
-        open={pendingCommission !== null}
-        title="Mark this commission as paid?"
-      /> : null}
     </div>
   );
 }
@@ -472,10 +431,8 @@ function InvoiceDetail({
   onError,
   onSendEmail,
   onRecordPayment,
-  onMarkCommissionPaid,
   onOpenOrder,
   canRecordPayment,
-  canMarkCommissionPaid,
 }: {
   invoice: AdminMerchantInvoice;
   emails: Record<string, MerchantDocumentEmailStatus>;
@@ -484,10 +441,8 @@ function InvoiceDetail({
   onError: (message: string) => void;
   onSendEmail: () => void;
   onRecordPayment: () => void;
-  onMarkCommissionPaid: (commission: AdminSalesCommission) => void;
   onOpenOrder: (orderId: string) => void;
   canRecordPayment: boolean;
-  canMarkCommissionPaid: boolean;
 }) {
   return (
     <AdminSection
@@ -601,16 +556,6 @@ function InvoiceDetail({
                 <DetailRow label="Paid">{shortDate(commission.paidAt)}</DetailRow>
               ) : null}
             </DetailGrid>
-            {canMarkCommissionPaid && commission.status === "Payable" ? (
-              <button
-                className={`${secondaryButton} mt-3`}
-                data-testid="mark-commission-paid"
-                onClick={() => onMarkCommissionPaid(commission)}
-                type="button"
-              >
-                Mark commission as paid
-              </button>
-            ) : null}
           </div>
         ) : null}
 

@@ -12,12 +12,16 @@ namespace MyPetLink.Api.Controllers.Admin;
 public sealed class AdminCommissionPayoutsController : ApiControllerBase
 {
     private readonly ICommissionPayoutService _service;
+    private readonly ICommissionPayoutStatementService _statements;
     private readonly ICurrentUserService _currentUser;
 
     public AdminCommissionPayoutsController(
-        ICommissionPayoutService service, ICurrentUserService currentUser)
+        ICommissionPayoutService service,
+        ICommissionPayoutStatementService statements,
+        ICurrentUserService currentUser)
     {
         _service = service;
+        _statements = statements;
         _currentUser = currentUser;
     }
 
@@ -32,6 +36,14 @@ public sealed class AdminCommissionPayoutsController : ApiControllerBase
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> Get(Guid id, CancellationToken cancellationToken) =>
         Ok(ApiEnvelope.Ok(await _service.GetAsync(id, cancellationToken), HttpContext));
+
+    [HttpGet("{id:guid}/statement")]
+    [Authorize(Policy = AuthorizationPolicies.CommissionFinancial)]
+    public async Task<IActionResult> Statement(Guid id, CancellationToken cancellationToken)
+    {
+        var document = await _statements.GetStatementAsync(id, cancellationToken);
+        return File(document.Content, document.ContentType, document.FileName);
+    }
 
     [HttpPost]
     [Authorize(Policy = AuthorizationPolicies.PrepareCommissionPayout)]

@@ -540,6 +540,30 @@ export function getMerchantSalesError(error: unknown, fallback: string): string 
       return "This invoice was cancelled.";
     case "merchant_invoice_paid":
       return "This invoice has already been paid.";
+    case "idempotency_key_conflict":
+      return "This preparation request was already used with different details. Close this form and start a new payout after checking the latest ledger.";
+    case "commission_selection_changed":
+    case "commission_already_claimed":
+    case "commission_not_payable":
+      return "One or more selected commissions are no longer eligible. Reload the payable list and review your selection.";
+    case "payout_salesperson_mismatch":
+      return "One or more selected commissions do not belong to the chosen salesperson. Reload the payable list and review your selection.";
+    case "commission_outside_payout_period":
+      return "One or more selected commissions fall outside this earning period. Reload the payable list and review your selection.";
+    case "unsupported_payout_currency":
+      return "This payout contains a currency that is not supported. No payout was prepared.";
+    case "salesperson_not_found":
+      return "That salesperson no longer exists. Choose an active salesperson and reload the payable list.";
+    case "payout_total_changed":
+      return "The selected total changed on the server. Reload the payable list and confirm the new amount.";
+    case "payout_reconciliation_failed":
+    case "payout_statement_reconciliation_failed":
+      return "This payout does not reconcile to its recorded items. No financial document or status change was produced.";
+    case "payout_already_paid":
+      return "This payout is already paid and cannot be changed by this action.";
+    case "payout_cancelled":
+    case "payout_already_cancelled":
+      return "This payout is cancelled and cannot be paid.";
     case "validation_failed":
       return "Please check the highlighted fields and try again.";
     default:

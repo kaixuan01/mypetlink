@@ -114,6 +114,14 @@ export type AdminSalesCommission = {
   reversedByAdminUserId: string | null;
   reversalReason: string | null;
   internalNote: string | null;
+  payoutClaimState:
+    | "Unclaimed"
+    | "ReservedInPreparedPayout"
+    | "IncludedInPaidPayout"
+    | "LegacyIndividualPaid";
+  payoutId: string | null;
+  payoutNumber: string | null;
+  requiresRecovery: boolean;
   concurrencyToken: string;
 };
 
@@ -286,6 +294,7 @@ export async function listCommissions(
     status?: string;
     merchantId?: string;
     search?: string;
+    payableAndUnclaimed?: boolean;
   },
   signal?: AbortSignal
 ): Promise<AdminPagedResult<AdminSalesCommission>> {

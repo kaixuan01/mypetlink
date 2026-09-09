@@ -11,6 +11,7 @@ export const merchantSalesTabs = [
   { id: "orders", label: "Orders" },
   { id: "invoices", label: "Invoices & Receipts" },
   { id: "commissions", label: "Commissions" },
+  { id: "payouts", label: "Payouts" },
 ] as const;
 
 export type MerchantSalesTab = (typeof merchantSalesTabs)[number]["id"];
@@ -18,7 +19,9 @@ export type MerchantSalesTab = (typeof merchantSalesTabs)[number]["id"];
 export function merchantSalesTabsForRole(role: string) {
   if (role === "SuperAdmin" || role === "Admin") return merchantSalesTabs;
   if (role === "Operations") {
-    return merchantSalesTabs.filter((tab) => tab.id !== "overview" && tab.id !== "commissions");
+    return merchantSalesTabs.filter((tab) =>
+      tab.id !== "overview" && tab.id !== "commissions" && tab.id !== "payouts"
+    );
   }
   return merchantSalesTabs.filter((tab) =>
     tab.id === "quotations" || tab.id === "orders" || tab.id === "invoices"

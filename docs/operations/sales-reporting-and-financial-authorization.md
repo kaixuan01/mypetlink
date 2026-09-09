@@ -9,6 +9,7 @@ request; role claims and the Admin Portal's display cache are never sufficient.
 | Sales performance and reseller relationships | No | Yes | Yes | Yes |
 | Commission reports, ledger and CSV exports | No | No | Yes | Yes |
 | Prepare a future payout | No | No | Yes | Yes |
+| View payouts and download payout statements | No | No | Yes | Yes |
 | Mark commission paid | No | No | No | Yes |
 | Reverse commission | No | No | No | Yes |
 | Manage commission rules | No | No | No | Yes |
@@ -52,6 +53,13 @@ legacy marker remains `Yes` if such a row is later reversed, because reversal
 must not erase the historical cash-payment event. Paid-payout reversals expose
 recovery-required state and the original payout number without changing the
 historical Paid payout.
+
+The Admin Portal hides the Payouts section from OwnerSupport and Operations.
+Admin and SuperAdmin can prepare or cancel a batch and download its server-made
+statement; only SuperAdmin can record it as paid. The API policies remain the
+authority if a client attempts to bypass those controls. Payout statements are
+generated from immutable payout snapshots and fail closed when the complete item
+set, currency, and prepared total do not reconcile.
 
 Run `docs/deployment/sql/diagnose-phase3d-financial-authorization.sql` before
 deployment. At least one active SuperAdmin is a release blocker because payout,

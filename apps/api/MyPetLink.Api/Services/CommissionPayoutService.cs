@@ -320,6 +320,9 @@ public sealed class CommissionPayoutService : ICommissionPayoutService
     {
         var query = _db.CommissionPayouts
             .Include(item => item.Items).ThenInclude(item => item.SalesCommission)
+            .Include(item => item.PreparedByAdminUser).ThenInclude(item => item!.User)
+            .Include(item => item.PaidByAdminUser).ThenInclude(item => item!.User)
+            .Include(item => item.CancelledByAdminUser).ThenInclude(item => item!.User)
             .AsQueryable();
         if (!tracked) query = query.AsNoTracking();
         return await query.SingleOrDefaultAsync(item => item.Id == id, token)
@@ -426,13 +429,16 @@ public sealed class CommissionPayoutService : ICommissionPayoutService
             payout.SalespersonCodeSnapshot, payout.SalespersonNameSnapshot,
             payout.PeriodFrom, payout.PeriodToExclusive, payout.Currency, payout.PreparedAmount,
             payout.Status.ToString(), payout.Items.Count, recovery, payout.PreparedAt,
-            payout.PaidAt, payout.CancelledAt, Convert.ToBase64String(payout.RowVersion));
+            payout.PaidAt, payout.CancelledAt, payout.PaymentMethod?.ToString(),
+            payout.PaymentReference, Convert.ToBase64String(payout.RowVersion));
     }
 
     private static CommissionPayoutResponse ToResponse(CommissionPayout payout) => new(
-        ToSummary(payout), payout.Seller, payout.PreparedByAdminUserId, payout.PaidByAdminUserId,
-        payout.PaymentMethod?.ToString(), payout.PaymentReference, payout.Notes,
-        payout.CancelledByAdminUserId, payout.CancellationReason,
+        ToSummary(payout), payout.Seller, payout.PreparedByAdminUserId,
+        AdminName(payout.PreparedByAdminUser) ?? "Administrator", payout.PaidByAdminUserId,
+        AdminName(payout.PaidByAdminUser), payout.PaymentMethod?.ToString(),
+        payout.PaymentReference, payout.Notes, payout.CancelledByAdminUserId,
+        AdminName(payout.CancelledByAdminUser), payout.CancellationReason,
         payout.Items.OrderBy(item => item.CalculatedAtSnapshot).ThenBy(item => item.Id).Select(item =>
             new CommissionPayoutItemResponse(item.Id, item.SalesCommissionId,
                 item.SourceTypeSnapshot.ToString(), item.CommissionTypeSnapshot.ToString(),
@@ -440,9 +446,14 @@ public sealed class CommissionPayoutService : ICommissionPayoutService
                 item.CommissionBaseAmountSnapshot, item.CommissionAmountSnapshot,
                 item.CommissionPercentageSnapshot, item.CommissionFixedAmountSnapshot,
                 item.CurrencySnapshot, item.CalculatedAtSnapshot,
-                item.SalesCommission?.Status.ToString() ?? "Missing", item.ReleasedAt, item.ReleaseReason,
+                item.SalesCommission?.Status.ToString() ?? "Missing",
+                item.SalesCommission?.ReversedAt, item.SalesCommission?.ReversalReason,
+                item.ReleasedAt, item.ReleaseReason,
                 payout.Status == CommissionPayoutStatus.Paid
                     && item.SalesCommission?.Status == SalesCommissionStatus.Reversed)).ToArray());
+
+    private static string? AdminName(AdminUser? admin) =>
+        admin?.User?.DisplayName?.Trim() is { Length: > 0 } name ? name : null;
 
     private static object AuditSnapshot(CommissionPayout payout) => new
     {

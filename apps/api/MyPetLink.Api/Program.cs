@@ -367,6 +367,7 @@ builder.Services.AddScoped<ICommissionRuleService, CommissionRuleService>();
 builder.Services.AddScoped<IMerchantBillingService, MerchantBillingService>();
 builder.Services.AddScoped<ISalesReportingService, SalesReportingService>();
 builder.Services.AddScoped<ICommissionPayoutService, CommissionPayoutService>();
+builder.Services.AddScoped<ICommissionPayoutStatementService, CommissionPayoutStatementService>();
 builder.Services.AddScoped<IMerchantFulfilmentService, MerchantFulfilmentService>();
 builder.Services.AddScoped<IMerchantEmailService, MerchantEmailService>();
 builder.Services.AddScoped<IMerchantSalesOverviewService, MerchantSalesOverviewService>();

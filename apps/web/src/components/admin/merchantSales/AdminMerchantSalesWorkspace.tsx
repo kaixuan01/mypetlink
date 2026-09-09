@@ -11,6 +11,7 @@ import { SalespersonsPanel } from "./SalespersonsPanel";
 import { ReferralAttributionsPanel } from "./ReferralAttributionsPanel";
 import { CommissionsPanel } from "./CommissionsPanel";
 import { SalesReportsPanel } from "./SalesReportsPanel";
+import { PayoutsPanel } from "./PayoutsPanel";
 import { getAdminCapabilities } from "@/services/authService";
 import {
   MERCHANT_SALES_LIST_KEYS,
@@ -171,7 +172,6 @@ export function AdminMerchantSalesWorkspace() {
 
       {tab === "invoices" ? (
         <InvoicesPanel
-          canMarkCommissionPaid={capabilities.canMarkCommissionPaid}
           canRecordPayment={capabilities.canViewCommissionFinancials}
           canViewFinancial={capabilities.canViewCommissionFinancials}
           onOpen={openRecord}
@@ -184,8 +184,17 @@ export function AdminMerchantSalesWorkspace() {
       {tab === "commissions" ? (
         <CommissionsPanel
           canManageRules={capabilities.canManageCommissionRules}
-          canMarkPaid={capabilities.canMarkCommissionPaid}
           canReverse={capabilities.canReverseCommission}
+          onOpenPayout={(payoutId) => goToTab("payouts", { open: payoutId })}
+        />
+      ) : null}
+
+      {tab === "payouts" ? (
+        <PayoutsPanel
+          canMarkPaid={capabilities.canMarkCommissionPaid}
+          canPrepare={capabilities.canPreparePayout}
+          onOpen={openRecord}
+          openId={openId}
         />
       ) : null}
     </div>

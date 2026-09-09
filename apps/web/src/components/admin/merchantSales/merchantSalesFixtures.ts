@@ -231,6 +231,10 @@ export function commission(
     reversedByAdminUserId: null,
     reversalReason: null,
     internalNote: null,
+    payoutClaimState: "Unclaimed",
+    payoutId: null,
+    payoutNumber: null,
+    requiresRecovery: false,
     concurrencyToken: "token-commission-1",
     ...overrides,
   } as AdminSalesCommission;

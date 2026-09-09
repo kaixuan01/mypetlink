@@ -9,7 +9,6 @@ const listCommissions = vi.fn();
 const listCommissionRules = vi.fn();
 const listSalespersons = vi.fn();
 const listMerchants = vi.fn();
-const markCommissionPaid = vi.fn();
 const reverseCommission = vi.fn();
 
 vi.mock("@/services/adminMerchantBillingService", async () => {
@@ -22,7 +21,6 @@ vi.mock("@/services/adminMerchantBillingService", async () => {
     listCommissionRules: (...args: unknown[]) => listCommissionRules(...args),
     listSalespersons: (...args: unknown[]) => listSalespersons(...args),
     listMerchants: (...args: unknown[]) => listMerchants(...args),
-    markCommissionPaid: (...args: unknown[]) => markCommissionPaid(...args),
     reverseCommission: (...args: unknown[]) => reverseCommission(...args),
   };
 });
@@ -86,9 +84,6 @@ beforeEach(() => {
   listCommissionRules.mockResolvedValue(paged([rule]));
   listSalespersons.mockResolvedValue(paged([salesperson()]));
   listMerchants.mockResolvedValue(paged([]));
-  markCommissionPaid.mockResolvedValue(
-    commission({ status: "Paid", paidAt: "2026-09-08T01:00:00Z" })
-  );
 });
 
 afterEach(cleanup);
@@ -106,18 +101,26 @@ describe("Commission ledger", () => {
     expect(within(retailRow).getByText(/Rule rule-1/)).toBeTruthy();
   });
 
-  it("pays only the selected payable ledger row with its concurrency token", async () => {
+  it("directs payable rows into payout batching and removes individual payment", async () => {
     render(<CommissionsPanel />);
-    await screen.findByText("Merchant order percentage");
+    expect((await screen.findAllByText("Payable / Unclaimed")).length).toBeGreaterThan(0);
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Mark paid" })[0]);
+    expect(screen.queryByRole("button", { name: /mark paid/i })).toBeNull();
+    expect(screen.getByText(/settled through payout batches/i)).toBeTruthy();
+  });
 
-    await waitFor(() =>
-      expect(markCommissionPaid).toHaveBeenCalledWith(
-        "commission-1",
-        "token-commission-1"
-      )
-    );
+  it("labels and links payout claims from the server projection", async () => {
+    const onOpenPayout = vi.fn();
+    listCommissions.mockResolvedValue(paged([commission({
+      payoutClaimState: "ReservedInPreparedPayout",
+      payoutId: "payout-1",
+      payoutNumber: "MPL-PAYOUT-260909-0001",
+    })]));
+    render(<CommissionsPanel onOpenPayout={onOpenPayout} />);
+
+    expect(await screen.findByText("Reserved in Prepared payout")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "View MPL-PAYOUT-260909-0001" }));
+    expect(onOpenPayout).toHaveBeenCalledWith("payout-1");
   });
 
   it("states rule precedence and keeps the seeded global rule visible", async () => {
@@ -145,7 +148,7 @@ describe("Commission ledger", () => {
   });
 
   it("hides payout, reversal and rule controls for a financial read-only admin", async () => {
-    render(<CommissionsPanel canManageRules={false} canMarkPaid={false} canReverse={false} />);
+    render(<CommissionsPanel canManageRules={false} canReverse={false} />);
 
     await screen.findByText("Merchant order percentage");
     expect(screen.queryByRole("button", { name: "Mark paid" })).toBeNull();

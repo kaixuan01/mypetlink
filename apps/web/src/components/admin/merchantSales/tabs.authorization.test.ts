@@ -14,6 +14,7 @@ describe("Merchant Sales role-sensitive tabs", () => {
     expect(ids).toContain("merchants");
     expect(ids).not.toContain("overview");
     expect(ids).not.toContain("commissions");
+    expect(ids).not.toContain("payouts");
   });
 
   it("allows Admin and SuperAdmin to see the financial tabs", () => {
@@ -21,6 +22,7 @@ describe("Merchant Sales role-sensitive tabs", () => {
       const ids = merchantSalesTabsForRole(role).map((tab) => tab.id);
       expect(ids).toContain("reports");
       expect(ids).toContain("commissions");
+      expect(ids).toContain("payouts");
     }
   });
 });

@@ -8,7 +8,6 @@ import {
   createCommissionRule,
   listCommissionRules,
   listCommissions,
-  markCommissionPaid,
   reverseCommission,
   updateCommissionRule,
   type AdminCommissionRule,
@@ -37,12 +36,12 @@ const commissionPageSize = 50;
 
 export function CommissionsPanel({
   canManageRules = true,
-  canMarkPaid = true,
   canReverse = true,
+  onOpenPayout = () => undefined,
 }: {
   canManageRules?: boolean;
-  canMarkPaid?: boolean;
   canReverse?: boolean;
+  onOpenPayout?: (payoutId: string) => void;
 }) {
   const [reloadKey, setReloadKey] = useState(0);
   const [commissionPage, setCommissionPage] = useState(1);
@@ -119,22 +118,6 @@ export function CommissionsPanel({
     setCommissionPage(nextPage);
   }
 
-  async function pay(commission: AdminSalesCommission) {
-    if (busy) return;
-    setBusy(true);
-    try {
-      await markCommissionPaid(commission.id, commission.concurrencyToken);
-      setMessage(`Commission for ${commission.salespersonName} marked paid.`);
-      setError("");
-      refresh();
-    } catch (caught) {
-      setMessage("");
-      setError(getMerchantSalesError(caught, "We couldn’t mark this commission paid."));
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function reverse() {
     if (!reversing || !reversalReason.trim() || busy) return;
     setBusy(true);
@@ -169,7 +152,7 @@ export function CommissionsPanel({
             search: search.trim() || undefined,
           }).catch((caught) => setError(getMerchantSalesError(caught, "We couldn’t export the commission ledger."))).finally(() => setBusy(false));
         }} type="button">Export CSV</button>}
-        description="One auditable ledger for merchant and direct retail sales. Reversed entries remain visible and are excluded from contribution profit."
+        description="One auditable ledger for merchant and direct retail sales. Payable rows are settled through payout batches; reversed entries remain visible."
         title="Sales commissions"
       >
         <div className="grid gap-3 border-b border-slate-200 p-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -232,6 +215,18 @@ export function CommissionsPanel({
                   </td>
                   <td className="px-4 py-3 align-top">
                     <Badge tone={statusTone(commission.status)}>{commission.status}</Badge>
+                    <p className="mt-1 text-xs font-bold text-slate-600">
+                      {claimStateLabel(commission)}
+                    </p>
+                    {commission.payoutId && commission.payoutNumber ? (
+                      <button
+                        className="mt-1 text-xs font-bold text-[#1570ef] underline underline-offset-2"
+                        onClick={() => onOpenPayout(commission.payoutId!)}
+                        type="button"
+                      >
+                        View {commission.payoutNumber}
+                      </button>
+                    ) : null}
                     <p className="mt-1 text-xs text-slate-500">Calculated {dateTime(commission.calculatedAt)}</p>
                     {commission.paidAt ? <p className="text-xs text-slate-500">Paid {dateTime(commission.paidAt)}{commission.paidByAdminUserId ? ` · Admin ${commission.paidByAdminUserId.slice(0, 8)}` : ""}</p> : null}
                     {commission.reversedAt ? (
@@ -242,11 +237,6 @@ export function CommissionsPanel({
                   </td>
                   <td className="px-4 py-3 align-top">
                     <div className="flex flex-wrap gap-2">
-                      {canMarkPaid && commission.status === "Payable" ? (
-                        <button className={secondaryButton} disabled={busy} onClick={() => void pay(commission)} type="button">
-                          Mark paid
-                        </button>
-                      ) : null}
                       {canReverse && commission.status !== "Reversed" ? (
                         <button
                           className={secondaryButton}
@@ -503,6 +493,19 @@ function ruleValueLabel(rule: AdminCommissionRule) {
 
 function statusTone(status: AdminSalesCommission["status"]): "mint" | "danger" | "teal" {
   return status === "Reversed" ? "danger" : status === "Paid" ? "mint" : "teal";
+}
+
+function claimStateLabel(commission: AdminSalesCommission) {
+  if (commission.payoutClaimState === "ReservedInPreparedPayout") {
+    return "Reserved in Prepared payout";
+  }
+  if (commission.payoutClaimState === "IncludedInPaidPayout") {
+    return commission.requiresRecovery ? "Paid through payout · Recovery required" : "Paid through payout";
+  }
+  if (commission.payoutClaimState === "LegacyIndividualPaid") {
+    return "Legacy individual payout";
+  }
+  return commission.status === "Payable" ? "Payable / Unclaimed" : commission.status;
 }
 
 function toInputDate(value: string | null | undefined) {

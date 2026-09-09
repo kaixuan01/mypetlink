@@ -10,7 +10,6 @@ const getInvoice = vi.fn();
 const recordPayment = vi.fn();
 const cancelInvoice = vi.fn();
 const listCommissions = vi.fn();
-const markCommissionPaid = vi.fn();
 const getMerchantEmailStatuses = vi.fn();
 const sendInvoiceEmail = vi.fn();
 const listMerchants = vi.fn();
@@ -26,7 +25,6 @@ vi.mock("@/services/adminMerchantBillingService", async () => {
     recordPayment: (...a: unknown[]) => recordPayment(...a),
     cancelInvoice: (...a: unknown[]) => cancelInvoice(...a),
     listCommissions: (...a: unknown[]) => listCommissions(...a),
-    markCommissionPaid: (...a: unknown[]) => markCommissionPaid(...a),
     getMerchantEmailStatuses: (...a: unknown[]) => getMerchantEmailStatuses(...a),
     sendInvoiceEmail: (...a: unknown[]) => sendInvoiceEmail(...a),
   };
@@ -285,8 +283,8 @@ describe("Commission", () => {
     expect(block.textContent).toMatch(/never on a merchant document or email/i);
   });
 
-  it("offers Mark paid only while the commission is payable", async () => {
-    listCommissions.mockResolvedValue(paged([commission({ status: "Paid", paidAt: "2026-08-06T04:00:00Z" })]));
+  it("does not offer individual commission payment from invoice detail", async () => {
+    listCommissions.mockResolvedValue(paged([commission()]));
     listInvoices.mockResolvedValue(paged([paid()]));
     getInvoice.mockResolvedValue(paid());
     renderPanel({ openId: "invoice-1" });
