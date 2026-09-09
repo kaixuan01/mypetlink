@@ -22,6 +22,8 @@ automatically.
 - [`smoke-test-script.md`](smoke-test-script.md) — step-by-step manual smoke test (backend, owner, admin, public states)
 - [`sql/first-admin-template.sql`](sql/first-admin-template.sql) — placeholder SQL to promote the first admin
 - [`sql/disable-legacy-qr-only-tag-product-variants.sql`](sql/disable-legacy-qr-only-tag-product-variants.sql) — report-first, idempotent correction that prevents legacy QR-only SKUs from remaining purchasable without deleting history
+- [`../../migration-session-settings.sql`](../../migration-session-settings.sql) — required ANSI, arithmetic, quoting, and transaction settings loaded in the same `sqlcmd` session immediately before the authoritative migration
+- [`sql/diagnose-inventory-receipt-correctness.sql`](sql/diagnose-inventory-receipt-correctness.sql) — read-only pre-migration receipt-correction, linked-quantity, and legacy/un-costed inventory check
 - [`sql/diagnose-merchant-commission-correctness.sql`](sql/diagnose-merchant-commission-correctness.sql) — read-only pre-deployment check for multiple non-reversed commissions on one merchant order before applying the commission uniqueness migration
 - [`sql/diagnose-phase3d-b-commission-payouts.sql`](sql/diagnose-phase3d-b-commission-payouts.sql) — read-only post-migration/pre-enable payout integrity and active-SuperAdmin checks
 

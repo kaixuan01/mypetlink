@@ -55,9 +55,10 @@ production build.
   frontend and API client IDs must be identical. This GIS ID-token flow needs
   an Authorized JavaScript origin, not an OAuth redirect URI.
 - [ ] Provision Azure SQL, take/confirm the backup posture, review and apply the
-  authoritative root `migration.sql` with `sqlcmd -I`, and compare
-  `__EFMigrationsHistory` with `dotnet ef migrations list`. The API does not
-  migrate or seed users at startup.
+  authoritative root `migration.sql` using the same-session settings and exact
+  sequence in [`../deployment/release-checklist.md`](../deployment/release-checklist.md#database-rollout),
+  then compare `__EFMigrationsHistory` with `dotnet ef migrations list`. The API
+  does not migrate or seed users at startup.
 - [ ] Configure R2 public/private buckets, credentials, public custom domain,
   and bucket CORS for browser PUTs from the production web origin.
 - [ ] Log in once with the intended Google account, create the first production
