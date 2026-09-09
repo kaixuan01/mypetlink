@@ -48,6 +48,7 @@ import {
   mergeConservativePetVisibility,
   newPetVisibilityDefaults,
 } from "@/lib/petVisibility";
+import { isKnownBreedForSpecies } from "@/data/breeds";
 import { getPetSuggestions } from "@/lib/petSuggestions";
 import { getSafetyProfileStatusView } from "@/lib/safetyProfile";
 import {
@@ -524,7 +525,7 @@ export function PetProfileForm({
 
       enforceMax(nextErrors, "name", form.name, 60);
       enforceMax(nextErrors, "customSpecies", form.customSpecies, 60);
-      enforceMax(nextErrors, "breed", form.breed, 80);
+      enforceMax(nextErrors, "breed", form.breed, 160);
 
       validatePetAgeInformation(nextErrors, form);
 
@@ -570,7 +571,7 @@ export function PetProfileForm({
     }
 
     enforceMax(nextErrors, "name", form.name, 60);
-    enforceMax(nextErrors, "breed", form.breed, 80);
+    enforceMax(nextErrors, "breed", form.breed, 160);
     enforceMax(nextErrors, "customSpecies", form.customSpecies, 60);
     enforceMax(nextErrors, "gender", form.gender, 40);
     enforceMax(nextErrors, "color", form.color, 80);
@@ -907,6 +908,16 @@ export function PetProfileForm({
     },
   });
   const selectedTheme = getPetProfileTheme(form.profileTheme);
+  /**
+   * Changing pet type never clears a breed the owner typed or chose. When the
+   * kept breed is not one this type suggests, the field explains that instead
+   * of the value silently disappearing — the owner decides whether to keep it.
+   */
+  const breedHint =
+    form.breed && !isKnownBreedForSpecies(form.species, form.breed)
+      ? `${form.breed} is not a listed ${form.species} breed. You can keep it or choose another.`
+      : undefined;
+
   // Species-aware field suggestions (personality, foods, toys, breeds).
   const suggestions = getPetSuggestions(form.species);
   const saveLabel = mode === "create" ? "Save Pet" : "Save Changes";
@@ -994,6 +1005,7 @@ export function PetProfileForm({
 
       {mode === "create" ? (
         <CreatePetDetailsSection
+          breedHint={breedHint}
           breeds={suggestions.breeds}
           errors={errors}
           form={form}
@@ -1009,6 +1021,7 @@ export function PetProfileForm({
       {mode === "edit" && tab === "basic" ? (
         <BasicInfoSection
           bioSheetOpen={bioSheetOpen}
+          breedHint={breedHint}
           breeds={suggestions.breeds}
           errors={errors}
           foodSuggestions={suggestions.foods}

@@ -30,6 +30,9 @@ export type PetSpecies =
   | "Hedgehog"
   | "Sugar Glider"
   | "Chinchilla"
+  | "Rat"
+  | "Mouse"
+  | "Gerbil"
   | "Horse"
   | "Other";
 

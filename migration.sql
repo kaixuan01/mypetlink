@@ -7910,3 +7910,47 @@ GO
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260909162926_NarrowPetBreedLength'
+)
+BEGIN
+
+    IF EXISTS (SELECT 1 FROM [Pets] WHERE LEN([Breed]) > 160)
+    BEGIN
+        THROW 51070, 'Pet breeds longer than 160 characters exist. Shorten them through an audited correction before narrowing the column.', 1;
+    END;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260909162926_NarrowPetBreedLength'
+)
+BEGIN
+    DECLARE @var8 sysname;
+    SELECT @var8 = [d].[name]
+    FROM [sys].[default_constraints] [d]
+    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[Pets]') AND [c].[name] = N'Breed');
+    IF @var8 IS NOT NULL EXEC(N'ALTER TABLE [Pets] DROP CONSTRAINT [' + @var8 + '];');
+    ALTER TABLE [Pets] ALTER COLUMN [Breed] nvarchar(160) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260909162926_NarrowPetBreedLength'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260909162926_NarrowPetBreedLength', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+

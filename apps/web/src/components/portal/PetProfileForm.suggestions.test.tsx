@@ -296,6 +296,32 @@ describe("shared pet selection controls", () => {
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
   });
 
+  it("offers the newly supported small rodents", async () => {
+    await renderEditForm();
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Pet type" }));
+    for (const species of ["Rat", "Mouse", "Gerbil"]) {
+      expect(screen.getByRole("option", { name: species })).toBeTruthy();
+    }
+  });
+
+  it("narrows the pet type list by its group name", async () => {
+    await renderEditForm();
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Pet type" }));
+    fireEvent.change(screen.getByLabelText("Search pet type"), {
+      target: { value: "reptile" },
+    });
+
+    // The grouping is expressed as search keywords rather than heading rows,
+    // which the shared flat listbox cannot carry without breaking its
+    // keyboard navigation.
+    for (const species of ["Snake", "Lizard", "Turtle", "Tortoise"]) {
+      expect(screen.getByRole("option", { name: species }), species).toBeTruthy();
+    }
+    expect(screen.queryByRole("option", { name: "Dog" })).toBeNull();
+  });
+
   it("keeps Age Information as the three exact shared Select choices", async () => {
     await renderEditForm();
 
@@ -329,11 +355,119 @@ describe("breed selector", () => {
   it("omits the filter for a short species Breed list", async () => {
     await renderEditForm();
 
-    chooseCustomSelectOption("Pet type", "Rabbit");
+    // Hamsters have five entries plus the three shared fallbacks, which stays
+    // under the shared Select's search threshold.
+    chooseCustomSelectOption("Pet type", "Hamster");
     fireEvent.click(screen.getByRole("combobox", { name: "Breed" }));
 
     expect(screen.queryByRole("searchbox", { name: "Search breed" })).toBeNull();
+    expect(screen.getByRole("option", { name: "Syrian" })).toBeTruthy();
+  });
+
+  it("searches the expanded Rabbit list", async () => {
+    await renderEditForm();
+
+    chooseCustomSelectOption("Pet type", "Rabbit");
+    fireEvent.click(screen.getByRole("combobox", { name: "Breed" }));
+
+    fireEvent.change(screen.getByLabelText("Search breed"), {
+      target: { value: "lop" },
+    });
     expect(screen.getByRole("option", { name: "Holland Lop" })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: "Flemish Giant" })).toBeNull();
+  });
+
+  it("leads with Mixed breed and Unknown so a long list never buries them", async () => {
+    await renderEditForm();
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Breed" }));
+    const options = within(screen.getByRole("listbox", { name: "Breed" }))
+      .getAllByRole("option")
+      .map((option) => option.textContent);
+
+    expect(options[0]).toContain("Mixed breed");
+    expect(options[1]).toContain("Unknown");
+    expect(options.at(-1)).toContain("Other");
+  });
+
+  it("offers Kampung dog with an explanatory label for dogs", async () => {
+    await renderEditForm();
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Breed" }));
+    fireEvent.change(screen.getByLabelText("Search breed"), {
+      target: { value: "kampung" },
+    });
+
+    expect(
+      screen.getByRole("option", { name: "Kampung dog (Local mixed breed)" })
+    ).toBeTruthy();
+  });
+
+  it("offers Kucing kampung with an explanatory label for cats", async () => {
+    await renderEditForm();
+
+    chooseCustomSelectOption("Pet type", "Cat");
+    fireEvent.click(screen.getByRole("combobox", { name: "Breed" }));
+    fireEvent.change(screen.getByLabelText("Search breed"), {
+      target: { value: "kucing" },
+    });
+
+    expect(
+      screen.getByRole("option", { name: "Kucing kampung (Domestic mixed cat)" })
+    ).toBeTruthy();
+  });
+
+  it("finds a breed by a formal name that is not itself an option", async () => {
+    await renderEditForm();
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Breed" }));
+    fireEvent.change(screen.getByLabelText("Search breed"), {
+      target: { value: "siberian" },
+    });
+
+    expect(screen.getByRole("option", { name: "Husky" })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: "Siberian Husky" })).toBeNull();
+  });
+
+  it("keeps a listed breed and explains it when the species changes", async () => {
+    await renderEditForm();
+
+    chooseCustomSelectOption("Breed", "Golden Retriever");
+    expect(
+      screen.queryByText(/is not a listed .* breed/)
+    ).toBeNull();
+
+    chooseCustomSelectOption("Pet type", "Cat");
+
+    // Kept, not cleared — and the field says why it looks unfamiliar.
+    expect(
+      screen.getByText(
+        "Golden Retriever is not a listed Cat breed. You can keep it or choose another."
+      )
+    ).toBeTruthy();
+    expect(screen.getByLabelText("Enter breed")).toHaveProperty(
+      "value",
+      "Golden Retriever"
+    );
+  });
+
+  it("drops the hint once a breed valid for the new species is chosen", async () => {
+    await renderEditForm();
+
+    chooseCustomSelectOption("Breed", "Golden Retriever");
+    chooseCustomSelectOption("Pet type", "Cat");
+    expect(screen.getByText(/is not a listed Cat breed/)).toBeTruthy();
+
+    chooseCustomSelectOption("Breed", "Ragdoll");
+    expect(screen.queryByText(/is not a listed Cat breed/)).toBeNull();
+  });
+
+  it("does not warn about Mixed breed or Unknown for any species", async () => {
+    await renderEditForm();
+
+    chooseCustomSelectOption("Breed", "Mixed breed");
+    chooseCustomSelectOption("Pet type", "Rabbit");
+    expect(screen.queryByText(/is not a listed/)).toBeNull();
   });
 
   it("is searchable and always offers Mixed breed, Unknown, and Other", async () => {

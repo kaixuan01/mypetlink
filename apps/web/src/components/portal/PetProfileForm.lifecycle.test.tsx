@@ -1037,7 +1037,7 @@ describe("PetProfileForm lifecycle workflow", () => {
     pet = {
       ...pet,
       species: "Cat",
-      breed: "Domestic Longhair",
+      breed: "Grandma's long-haired rescue mix",
       ageInformationMode: "ExactBirthday",
       ageSource: "ExactBirthday",
       birthday: "12 Oct 2023",
@@ -1061,16 +1061,47 @@ describe("PetProfileForm lifecycle workflow", () => {
       "Other"
     );
     expect((screen.getByLabelText("Enter breed") as HTMLInputElement).value).toBe(
-      "Domestic Longhair"
+      "Grandma's long-haired rescue mix"
     );
 
     clickSave();
     await waitFor(() => expect(mocks.updatePet).toHaveBeenCalledOnce());
     expect(mocks.updatePet).toHaveBeenCalledWith(
       pet.id,
-      expect.objectContaining({ breed: "Domestic Longhair" }),
+      expect.objectContaining({ breed: "Grandma's long-haired rescue mix" }),
       { completeProfile: true }
     );
+  });
+
+  it("loads a now-listed cat breed as an ordinary choice, not a custom value", async () => {
+    // Domestic Longhair used to fall through to the custom text field because
+    // the cat list was short. It is a listed breed now, so it must load as a
+    // normal selection with no custom input in sight.
+    pet = { ...pet, species: "Cat", breed: "Domestic Longhair" };
+    mocks.getPetById.mockResolvedValue({ data: pet });
+
+    render(<PetProfileForm initialPet={pet} mode="edit" />);
+    await screen.findByRole("tab", { name: /Basic Info/ });
+
+    expect(
+      screen.getByRole("combobox", { name: /^Breed/ }).textContent
+    ).toBe("Domestic Longhair");
+    expect(screen.queryByLabelText("Enter breed")).toBeNull();
+  });
+
+  it("keeps an existing dog profile's stored breed selectable", async () => {
+    pet = { ...pet, species: "Dog", breed: "Golden Retriever" };
+    mocks.getPetById.mockResolvedValue({ data: pet });
+
+    render(<PetProfileForm initialPet={pet} mode="edit" />);
+    await screen.findByRole("tab", { name: /Basic Info/ });
+
+    expect(
+      screen.getByRole("combobox", { name: /^Breed/ }).textContent
+    ).toBe("Golden Retriever");
+    expect(screen.queryByLabelText("Enter breed")).toBeNull();
+    // No mismatch hint: the breed belongs to the selected pet type.
+    expect(screen.queryByText(/is not a listed/)).toBeNull();
   });
 
   it("initializes, saves, and reloads favourite food and toy lists", async () => {

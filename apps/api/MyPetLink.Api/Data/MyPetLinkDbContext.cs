@@ -1310,6 +1310,9 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.Property(item => item.Name).HasMaxLength(120);
             entity.Property(item => item.Species).HasMaxLength(80);
             entity.Property(item => item.CustomSpecies).HasMaxLength(120);
+            // Bounded to match the DTO and the form. Breed stays free text so
+            // an unlisted pet is never blocked, but free text is not unbounded.
+            entity.Property(item => item.Breed).HasMaxLength(160);
             entity.Property(item => item.EstimatedBirthYear).HasColumnType("smallint");
             entity.Property(item => item.GeneralArea).HasMaxLength(200);
             entity.Property(item => item.ProfileTheme).HasMaxLength(64);

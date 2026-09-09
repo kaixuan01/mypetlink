@@ -11,6 +11,7 @@ import {
   MINIMUM_PET_BIRTH_YEAR,
   type PetAgeMode,
 } from "@/lib/petAge";
+import type { BreedEntry } from "@/data/breeds";
 import type { PetSpecies } from "@/types";
 import { TextInput } from "./PetFormControls";
 import {
@@ -21,6 +22,7 @@ import {
 import type { FormErrors, FormState, UpdateField } from "./PetFormTypes";
 
 export function CreatePetDetailsSection({
+  breedHint,
   breeds,
   errors,
   form,
@@ -31,7 +33,8 @@ export function CreatePetDetailsSection({
   updateField,
   updateSpecies,
 }: {
-  breeds: string[];
+  breeds: readonly BreedEntry[];
+  breedHint?: string;
   errors: FormErrors;
   form: FormState;
   handleNameChange: (value: string) => void;
@@ -114,7 +117,9 @@ export function CreatePetDetailsSection({
             <div data-create-field="breed">
               <Field
                 errorText={errors.breed}
-                helperText="Optional. Leave this blank if you are not sure."
+                helperText={
+                  breedHint ?? "Optional. Leave this blank if you are not sure."
+                }
                 id="create-pet-breed-field"
                 label="Breed"
               >

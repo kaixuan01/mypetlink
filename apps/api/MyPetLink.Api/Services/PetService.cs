@@ -79,8 +79,10 @@ public sealed class PetService : SkeletonService, IPetService
             Slug = publicSlug,
             Name = request.Name.Trim(),
             Species = request.Species.Trim(),
-            CustomSpecies = PetDtoMapper.NormalizeOptional(request.CustomSpecies),
-            Breed = PetDtoMapper.NormalizeOptional(request.Breed),
+            CustomSpecies = PetSpeciesCatalog.IsOther(request.Species)
+                ? PetSpeciesCatalog.NormalizeFreeText(request.CustomSpecies)
+                : null,
+            Breed = PetSpeciesCatalog.NormalizeFreeText(request.Breed),
             Gender = PetDtoMapper.NormalizeOptional(request.Gender),
             Color = PetDtoMapper.NormalizeOptional(request.Color),
             Birthday = age.Birthday,
@@ -154,7 +156,7 @@ public sealed class PetService : SkeletonService, IPetService
         CancellationToken cancellationToken = default)
     {
         var pet = await LoadOwnedPetAsync(currentUserId, petId, trackChanges: true, cancellationToken);
-        var ageUpdate = ValidateUpdateRequest(request);
+        var ageUpdate = ValidateUpdateRequest(request, pet);
         ValidateContact(request.Contact);
         ValidateCoverPosition(request.CoverPositionX, request.CoverPositionY);
         await EnsurePetPublicArtifactsAsync(pet, cancellationToken);
@@ -171,6 +173,10 @@ public sealed class PetService : SkeletonService, IPetService
             pet.PublicProfile.SlugSnapshot = pet.Slug;
         }
 
+        var previousSpecies = pet.Species;
+        var speciesChanged = request.Species is not null
+            && !string.Equals(request.Species.Trim(), previousSpecies, StringComparison.Ordinal);
+
         if (request.Species is not null)
         {
             pet.Species = request.Species.Trim();
@@ -178,12 +184,24 @@ public sealed class PetService : SkeletonService, IPetService
 
         if (isFullProfileUpdate || request.CustomSpecies is not null)
         {
-            pet.CustomSpecies = PetDtoMapper.NormalizeOptional(request.CustomSpecies);
+            pet.CustomSpecies = PetSpeciesCatalog.NormalizeFreeText(request.CustomSpecies);
+        }
+
+        // Moving a pet onto a standard type drops the custom type that came
+        // with the old one. This runs only on a real change: a pet stored long
+        // ago with both a standard type and a custom type keeps that pairing
+        // through unrelated edits rather than having its record quietly
+        // rewritten by a save the owner made for another reason.
+        if (speciesChanged
+            && PetSpeciesCatalog.IsSupported(pet.Species)
+            && !PetSpeciesCatalog.IsOther(pet.Species))
+        {
+            pet.CustomSpecies = null;
         }
 
         if (isFullProfileUpdate || request.Breed is not null)
         {
-            pet.Breed = PetDtoMapper.NormalizeOptional(request.Breed);
+            pet.Breed = PetSpeciesCatalog.NormalizeFreeText(request.Breed);
         }
 
         if (isFullProfileUpdate || request.Gender is not null)
@@ -681,6 +699,10 @@ public sealed class PetService : SkeletonService, IPetService
         var errors = new Dictionary<string, string[]>();
         ValidateRequired(request.Name, "name", "Pet name is required.", errors);
         ValidateRequired(request.Species, "species", "Species is required.", errors);
+        // A new pet always comes from a current client, so it must choose a
+        // supported type or use Other with its own description.
+        ValidateSpeciesChoice(request.Species, request.CustomSpecies, errors);
+        ValidateBreed(request.Breed, errors);
         ValidateAgeRanges(request.Birthday, request.EstimatedBirthYear, errors);
         ValidateDates(null, request.AdoptionDay, errors);
         var age = NormalizeAgeInput(
@@ -697,7 +719,7 @@ public sealed class PetService : SkeletonService, IPetService
         return age;
     }
 
-    private static NormalizedPetAge? ValidateUpdateRequest(UpdatePetRequest request)
+    private static NormalizedPetAge? ValidateUpdateRequest(UpdatePetRequest request, Pet pet)
     {
         var errors = new Dictionary<string, string[]>();
 
@@ -709,7 +731,25 @@ public sealed class PetService : SkeletonService, IPetService
         if (request.Species is not null)
         {
             ValidateRequired(request.Species, "species", "Species cannot be empty.", errors);
+
+            // Only a genuine change is held to the current list. Re-sending the
+            // pet's existing type — which is what a full profile save does —
+            // stays valid even when that value predates the list, so an owner
+            // is never blocked from editing an unrelated field.
+            var isSpeciesChange = !string.Equals(
+                request.Species.Trim(), pet.Species, StringComparison.Ordinal);
+            if (isSpeciesChange)
+            {
+                ValidateSpeciesChoice(request.Species, request.CustomSpecies, errors);
+            }
+            else if (PetSpeciesCatalog.IsOther(pet.Species))
+            {
+                ValidateCustomSpeciesPresent(
+                    request.CustomSpecies ?? pet.CustomSpecies, errors);
+            }
         }
+
+        ValidateBreed(request.Breed, errors);
 
         ValidateAgeRanges(request.Birthday, request.EstimatedBirthYear, errors);
         ValidateDates(null, request.AdoptionDay, errors);
@@ -855,6 +895,64 @@ public sealed class PetService : SkeletonService, IPetService
         if (errors.Count > 0)
         {
             throw ValidationFailed(errors);
+        }
+    }
+
+    /// <summary>
+    /// A newly chosen pet type must be one the apps offer, and "Other" must
+    /// come with the owner's own description.
+    /// </summary>
+    private static void ValidateSpeciesChoice(
+        string? species,
+        string? customSpecies,
+        IDictionary<string, string[]> errors)
+    {
+        if (string.IsNullOrWhiteSpace(species))
+        {
+            return;
+        }
+
+        if (!PetSpeciesCatalog.IsSupported(species))
+        {
+            errors["species"] = ["Choose a pet type from the list, or pick Other."];
+            return;
+        }
+
+        if (PetSpeciesCatalog.IsOther(species))
+        {
+            ValidateCustomSpeciesPresent(customSpecies, errors);
+        }
+    }
+
+    private static void ValidateCustomSpeciesPresent(
+        string? customSpecies,
+        IDictionary<string, string[]> errors)
+    {
+        var normalized = PetSpeciesCatalog.NormalizeFreeText(customSpecies);
+        if (normalized is null)
+        {
+            errors["customSpecies"] = ["Enter your pet type."];
+            return;
+        }
+
+        if (normalized.Length > PetSpeciesCatalog.CustomSpeciesMaxLength)
+        {
+            errors["customSpecies"] =
+                [$"Pet type must be {PetSpeciesCatalog.CustomSpeciesMaxLength} characters or fewer."];
+        }
+    }
+
+    /// <summary>
+    /// Breed stays free text so no owner is blocked by a missing entry, but it
+    /// is bounded and cleaned before it reaches the column.
+    /// </summary>
+    private static void ValidateBreed(string? breed, IDictionary<string, string[]> errors)
+    {
+        var normalized = PetSpeciesCatalog.NormalizeFreeText(breed);
+        if (normalized is not null && normalized.Length > PetSpeciesCatalog.BreedMaxLength)
+        {
+            errors["breed"] =
+                [$"Breed must be {PetSpeciesCatalog.BreedMaxLength} characters or fewer."];
         }
     }
 

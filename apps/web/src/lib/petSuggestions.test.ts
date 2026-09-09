@@ -41,19 +41,46 @@ describe("getPetSuggestions", () => {
         suggestions.personality,
         suggestions.foods,
         suggestions.toys,
-        suggestions.breeds,
       ]) {
         const keys = list.map((item) => item.trim().toLowerCase());
         expect(new Set(keys).size, `${species}: ${list.join(",")}`).toBe(
           list.length
         );
       }
+
+      // Breeds come from the registry, which has its own data-quality suite.
+      const breedKeys = suggestions.breeds.map((entry) =>
+        entry.value.trim().toLowerCase()
+      );
+      expect(new Set(breedKeys).size, species).toBe(breedKeys.length);
     }
   });
 
-  it("keeps breed autocomplete lists for common companion species", () => {
-    expect(getPetSuggestions("Dog").breeds).toContain("Mixed breed");
-    expect(getPetSuggestions("Cat").breeds).toContain("Domestic Shorthair");
+  it("keeps breed suggestion lists for common companion species", () => {
+    const dogBreeds = getPetSuggestions("Dog").breeds.map((entry) => entry.value);
+    const catBreeds = getPetSuggestions("Cat").breeds.map((entry) => entry.value);
+
+    expect(dogBreeds).toContain("Golden Retriever");
+    expect(dogBreeds).toContain("Kampung dog");
+    expect(catBreeds).toContain("Domestic Shorthair");
+    expect(catBreeds).toContain("Kucing kampung");
+  });
+
+  it("serves the newly supported small rodents", () => {
+    for (const species of ["Rat", "Mouse", "Gerbil"] as const) {
+      const suggestions = getPetSuggestions(species);
+
+      expect(suggestions.personality.length, species).toBeGreaterThan(0);
+      expect(suggestions.foods.length, species).toBeGreaterThan(0);
+      expect(suggestions.toys.length, species).toBeGreaterThan(0);
+      // No reliable breed data exists for these, and none is invented.
+      expect(suggestions.breeds, species).toEqual([]);
+    }
+  });
+
+  it("falls back to an empty breed list rather than another species' breeds", () => {
+    expect(getPetSuggestions("Ferret").breeds).toEqual([]);
+    expect(getPetSuggestions("Other").breeds).toEqual([]);
   });
 });
 

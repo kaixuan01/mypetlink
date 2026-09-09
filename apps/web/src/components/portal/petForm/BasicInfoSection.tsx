@@ -11,6 +11,7 @@ import {
   type PetAgeMode,
 } from "@/lib/petAge";
 import { MAX_PERSONALITY_TAGS } from "@/lib/petSuggestions";
+import type { BreedEntry } from "@/data/breeds";
 import type { PetSpecies } from "@/types";
 import {
   BioTemplateSheet,
@@ -27,6 +28,7 @@ import type { FormErrors, FormState, UpdateField } from "./PetFormTypes";
 
 export function BasicInfoSection({
   bioSheetOpen,
+  breedHint,
   breeds,
   errors,
   foodSuggestions,
@@ -41,7 +43,8 @@ export function BasicInfoSection({
   updateSpecies,
 }: {
   bioSheetOpen: boolean;
-  breeds: string[];
+  breeds: readonly BreedEntry[];
+  breedHint?: string;
   errors: FormErrors;
   foodSuggestions: string[];
   form: FormState;
@@ -109,6 +112,7 @@ export function BasicInfoSection({
 
             <Field
               errorText={errors.breed}
+              helperText={breedHint}
               id="edit-pet-breed-field"
               label="Breed"
             >

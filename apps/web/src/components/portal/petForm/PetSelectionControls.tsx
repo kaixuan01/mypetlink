@@ -6,12 +6,30 @@ import {
   type SelectOption,
   type SelectProps,
 } from "@/components/ui/Select";
-import { PET_TYPE_OPTIONS } from "@/lib/petDisplay";
+import {
+  CUSTOM_BREED_OPTION,
+  FALLBACK_BREEDS,
+  type BreedEntry,
+} from "@/data/breeds";
+import { getPetTypeGroupLabel, PET_TYPE_OPTIONS } from "@/lib/petDisplay";
 import type { PetAgeMode } from "@/lib/petAge";
 import type { PetSpecies } from "@/types";
 
+/**
+ * Pet types in group order, with the group name searchable.
+ *
+ * The shared Select renders one flat listbox, and inserting heading rows into
+ * it would break the option indexing its keyboard navigation depends on. So
+ * grouping is expressed the two ways that cost no accessibility: the options
+ * are ordered group by group, and each carries its group as a search keyword,
+ * so typing "reptile" or "small" narrows to that cluster.
+ */
 export const petTypeSelectOptions: readonly SelectOption<PetSpecies>[] =
-  PET_TYPE_OPTIONS.map((value) => ({ label: value, value }));
+  PET_TYPE_OPTIONS.map((value) => ({
+    label: value,
+    value,
+    keywords: [getPetTypeGroupLabel(value)],
+  }));
 
 export const petAgeModeSelectOptions: readonly SelectOption<PetAgeMode>[] = [
   { label: "Exact birthday", value: "ExactBirthday" },
@@ -31,7 +49,7 @@ type BreedSelectAccessibilityProps = Pick<
 >;
 
 type BreedSelectProps = BreedSelectAccessibilityProps & {
-  breeds: string[];
+  breeds: readonly BreedEntry[];
   value: string;
   onChange: (value: string) => void;
 };
@@ -48,12 +66,25 @@ export function BreedSelect({
     const seen = new Set<string>();
     const merged: SelectOption<string>[] = [];
 
-    for (const option of [...breeds, "Mixed breed", "Unknown", "Other"]) {
-      const key = option.toLowerCase();
-      if (!seen.has(key)) {
-        seen.add(key);
-        merged.push({ label: option, value: option });
-      }
+    // Mixed breed and Unknown lead because they are the commonest answers and
+    // a long species list would otherwise bury them. Other closes the list as
+    // the escape hatch.
+    const entries: BreedEntry[] = [
+      ...FALLBACK_BREEDS,
+      ...breeds,
+      { value: CUSTOM_BREED_OPTION },
+    ];
+
+    for (const entry of entries) {
+      const key = entry.value.toLocaleLowerCase();
+      if (seen.has(key)) continue;
+
+      seen.add(key);
+      merged.push({
+        label: entry.label ?? entry.value,
+        value: entry.value,
+        keywords: entry.keywords,
+      });
     }
 
     return merged;
@@ -64,7 +95,7 @@ export function BreedSelect({
   const customMode = otherSelected || savedValueIsCustom;
 
   function selectBreed(nextValue: string) {
-    if (nextValue === "Other") {
+    if (nextValue === CUSTOM_BREED_OPTION) {
       setOtherSelected(true);
       onChange("");
       return;
@@ -84,7 +115,7 @@ export function BreedSelect({
         placeholder="Select breed"
         searchLabel="Search breed"
         searchPlaceholder="Search breed"
-        value={customMode ? "Other" : value || null}
+        value={customMode ? CUSTOM_BREED_OPTION : value || null}
       />
 
       {customMode ? (
@@ -93,7 +124,7 @@ export function BreedSelect({
           aria-invalid={accessibilityProps["aria-invalid"]}
           aria-label="Enter breed"
           className="brand-input"
-          maxLength={80}
+          maxLength={160}
           onChange={(event) => onChange(event.target.value)}
           placeholder="Enter breed"
           type="text"
