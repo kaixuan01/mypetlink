@@ -2,7 +2,6 @@
 
 import {
   useCallback,
-  useEffect,
   useMemo,
   useRef,
   useState,
@@ -16,20 +15,25 @@ import {
   type AnalyticsCardAction,
 } from "@/lib/analytics";
 import {
+  canShareFiles,
+  getNativeShareAvailability,
+  getServerNativeShareAvailability,
+  requestNativeShare as requestBrowserShare,
+  subscribeToNativeShareAvailability,
+} from "@/lib/nativeShare";
+import {
   addPublicProfileShareVersion,
   getPetShareCardFileName,
   getPetShareCardMessage,
   getPublicProfileSocialTitle,
   publicProfileShareCardImageSize,
+  type PetShareCardOption,
 } from "@/lib/publicProfileSocial";
 import { getServerFallbackBaseUrl, toAbsoluteUrl } from "@/lib/siteUrl";
+import { useModalDialogFocus } from "@/lib/useModalDialogFocus";
 import type { PetShareCardVariant } from "@/lib/petOccasions";
 
-export type PetShareCardOption = {
-  variant: PetShareCardVariant;
-  label: string;
-  imagePath: string;
-};
+export type { PetShareCardOption };
 
 type PetShareCardProps = {
   imagePath: string;
@@ -63,11 +67,12 @@ export function PetShareCard({
     getServerOrigin
   );
   const nativeShareAvailable = useSyncExternalStore(
-    subscribeToOrigin,
-    getBrowserShareAvailability,
-    getServerShareAvailability
+    subscribeToNativeShareAvailability,
+    getNativeShareAvailability,
+    getServerNativeShareAvailability
   );
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const viewTrackedRef = useRef(new Set<PetShareCardVariant>());
   const options = useMemo<PetShareCardOption[]>(
@@ -109,26 +114,14 @@ export function PetShareCard({
     window.setTimeout(() => triggerRef.current?.focus(), 0);
   }, []);
 
-  useEffect(() => {
-    if (!open) return;
-
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    closeRef.current?.focus();
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        closeDialog();
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.body.style.overflow = originalOverflow;
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [closeDialog, open]);
+  // The shared hook, not a private Escape listener: the Share Card opens from
+  // inside the Share Center, and only the dialog on top may answer Escape.
+  useModalDialogFocus({
+    dialogRef,
+    initialFocusRef: closeRef,
+    onEscape: closeDialog,
+    enabled: open,
+  });
 
   function openDialog() {
     viewTrackedRef.current.clear();
@@ -185,9 +178,9 @@ export function PetShareCard({
   async function handleShare() {
     setStatus("");
 
-    if (typeof navigator.share !== "function") {
+    if (!getNativeShareAvailability()) {
       await copyProfileLink(
-        "Native sharing is unavailable here, so the profile link was copied."
+        "Sharing options are unavailable here, so the profile link was copied."
       );
       return;
     }
@@ -228,18 +221,18 @@ export function PetShareCard({
   }
 
   async function requestNativeShare(data: ShareData) {
-    try {
-      await navigator.share(data);
-      trackEvent(AnalyticsEvent.ShareCardShared, { card_variant: selectedOption.variant });
+    const outcome = await requestBrowserShare(data);
+
+    if (outcome === "completed") {
+      trackEvent(AnalyticsEvent.ShareCardShared, {
+        card_variant: selectedOption.variant,
+      });
       setStatus("Share options opened.");
-      return "completed" as const;
-    } catch (error) {
-      if (isShareCancellation(error)) {
-        setStatus("");
-        return "cancelled" as const;
-      }
-      return "failed" as const;
+    } else if (outcome === "cancelled") {
+      setStatus("");
     }
+
+    return outcome;
   }
 
   async function handleSave() {
@@ -295,7 +288,10 @@ export function PetShareCard({
           }}
           role="dialog"
         >
-          <section className="max-h-[calc(100dvh-1rem)] w-full max-w-md overflow-y-auto rounded-t-[2rem] border border-pet-border bg-pet-cream p-4 pb-6 shadow-2xl sm:max-h-[calc(100dvh-3rem)] sm:rounded-[2rem] sm:p-5">
+          <section
+            className="max-h-[calc(100dvh-1rem)] w-full max-w-md overflow-y-auto rounded-t-[2rem] border border-pet-border bg-pet-cream p-4 pb-6 shadow-2xl sm:max-h-[calc(100dvh-3rem)] sm:rounded-[2rem] sm:p-5"
+            ref={dialogRef}
+          >
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-black uppercase tracking-wide text-pet-coral">
@@ -463,32 +459,6 @@ function getBrowserOrigin() {
 
 function getServerOrigin() {
   return getServerFallbackBaseUrl();
-}
-
-function getBrowserShareAvailability() {
-  return typeof navigator.share === "function";
-}
-
-function getServerShareAvailability() {
-  return false;
-}
-
-function canShareFiles(file: File) {
-  if (typeof navigator.canShare !== "function") return false;
-  try {
-    return navigator.canShare({ files: [file] });
-  } catch {
-    return false;
-  }
-}
-
-function isShareCancellation(error: unknown) {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "name" in error &&
-    error.name === "AbortError"
-  );
 }
 
 async function fetchShareCardBlob(url: string) {

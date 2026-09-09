@@ -6,6 +6,7 @@ import { OwnerContactSetupCard } from "@/components/portal/OwnerContactSetupCard
 import { ProfileCompletionCard } from "@/components/portal/ProfileCompletionCard";
 import { PlanSummaryCard } from "@/components/portal/PlanSummaryCard";
 import { ShareCenter } from "@/components/share/ShareCenter";
+import { toOwnerPetShareTarget } from "@/lib/petShareTarget";
 import {
   publicProfilesEnabled,
   safetyProfilesOwnerUiEnabled,
@@ -598,7 +599,7 @@ function ShareProfileActions({
       data-dashboard-pet-actions
     >
       <ShareCenter
-        pet={pet}
+        target={toOwnerPetShareTarget(pet)}
         triggerClassName="inline-flex min-h-11 min-w-0 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-pet-teal bg-pet-teal px-5 text-sm font-extrabold text-white shadow-sm transition hover:bg-[#0f5fd0] sm:px-4"
       />
       <Link

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { PetLifecycleActions } from "@/components/portal/PetLifecycleActions";
 import { ShareCenter } from "@/components/share/ShareCenter";
+import { toOwnerPetShareTarget } from "@/lib/petShareTarget";
 import { ProfileAccessBadges } from "@/components/portal/ProfileAccessStatus";
 import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
@@ -84,7 +85,7 @@ export function PetDetailHeader({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
           {!isArchived ? (
             <ShareCenter
-              pet={currentPet}
+              target={toOwnerPetShareTarget(currentPet)}
               triggerClassName="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-pet-teal bg-pet-teal px-5 text-sm font-extrabold text-white shadow-sm transition hover:bg-[#0f5fd0] sm:w-auto"
               triggerLabel={
                 <>

@@ -145,7 +145,6 @@ export function SharingPrivacySection({
               <ShareProfileLink
                 copyButtonFullWidth
                 path={shareProfilePet.publicProfilePath}
-                petName={shareProfilePet.name}
                 shareVersion={getPublicProfileShareVersion(shareProfilePet)}
               />
             ) : null}

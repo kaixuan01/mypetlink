@@ -146,10 +146,17 @@ export function getPublicProfileShareCardImagePath(
   return `${getPublicProfileSocialImagePath(profile)}&variant=${queryVariant}`;
 }
 
+/** One selectable style of Share Card, e.g. the everyday profile or a birthday card. */
+export type PetShareCardOption = {
+  variant: PetShareCardVariant;
+  label: string;
+  imagePath: string;
+};
+
 export function getAvailablePetShareCardOptions(
   profile: OccasionSocialProfileFields,
   now: Date = new Date()
-) {
+): PetShareCardOption[] {
   return [
     {
       variant: "profile" as const,

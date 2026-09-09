@@ -2,21 +2,21 @@
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { Icon } from "@/components/ui/Icon";
-import {
-  addPublicProfileShareVersion,
-  getPublicProfileSocialDescription,
-  getPublicProfileSocialTitle,
-} from "@/lib/publicProfileSocial";
+import { addPublicProfileShareVersion } from "@/lib/publicProfileSocial";
 import { getServerFallbackBaseUrl } from "@/lib/siteUrl";
 import { AnalyticsEvent, trackEvent, type AnalyticsSurface } from "@/lib/analytics";
 import type { PetProfileTheme } from "@/lib/petProfileThemes";
 
 type ShareProfileLinkProps = {
   path: string;
-  petName?: string;
   className?: string;
   label?: string;
-  showShareButton?: boolean;
+  /**
+   * The Share button that sits beside Copy Link. Supplied by the caller — the
+   * Share Center owns every way of sharing a profile, so this component only
+   * shows the address and copies it.
+   */
+  shareAction?: React.ReactNode;
   compact?: boolean;
   copyLabel?: string;
   copyButtonFullWidth?: boolean;
@@ -25,12 +25,17 @@ type ShareProfileLinkProps = {
   analyticsSurface?: Extract<AnalyticsSurface, "public_profile" | "owner_portal">;
 };
 
+/**
+ * Shows one pet's public profile address and copies it.
+ *
+ * Sharing itself lives in the Share Center; pass its trigger as `shareAction`
+ * when a surface wants a Share button beside Copy Link.
+ */
 export function ShareProfileLink({
   path,
-  petName = "this pet",
   className = "",
   label = "Share profile link",
-  showShareButton = false,
+  shareAction,
   compact = false,
   copyLabel = "Copy Link",
   copyButtonFullWidth = false,
@@ -83,29 +88,6 @@ export function ShareProfileLink({
     return false;
   }
 
-  async function shareProfile() {
-    setStatus(null);
-    trackEvent(AnalyticsEvent.ShareClicked, { surface: analyticsSurface });
-
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: getPublicProfileSocialTitle(petName),
-          text: getPublicProfileSocialDescription(petName),
-          url: fullUrl,
-        });
-        setStatus({ message: "Profile shared.", url: fullUrl });
-        return;
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") {
-          return;
-        }
-      }
-    }
-
-    await copyLink();
-  }
-
   if (compact) {
     return (
       <div
@@ -114,25 +96,7 @@ export function ShareProfileLink({
           .join(" ")}
       >
         <div className="flex flex-wrap items-center justify-center gap-2">
-          {showShareButton ? (
-            <button
-              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-pet-teal bg-pet-teal px-4 py-2 text-sm font-extrabold text-white shadow-sm transition hover:bg-[#0f5fd0]"
-              style={
-                theme
-                  ? {
-                      background: theme.colors.buttonBackground,
-                      borderColor: theme.colors.buttonBackground,
-                      color: theme.colors.buttonText,
-                    }
-                  : undefined
-              }
-              onClick={shareProfile}
-              type="button"
-            >
-              <Icon name="heart" className="h-4 w-4" />
-              Share profile
-            </button>
-          ) : null}
+          {shareAction}
           <button
             className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-pet-border bg-white px-4 py-2 text-sm font-extrabold text-pet-ink transition hover:bg-pet-cream"
             style={
@@ -230,25 +194,7 @@ export function ShareProfileLink({
             <Icon name="qr" className="h-4 w-4" />
             Copy Link
           </button>
-          {showShareButton ? (
-            <button
-              className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-pet-coral bg-pet-coral px-5 py-3 text-sm font-extrabold text-white shadow-lg shadow-[#ff7a6e]/20 transition hover:bg-[#f26155] sm:w-auto"
-              style={
-                theme
-                  ? {
-                      background: theme.colors.accent,
-                      borderColor: theme.colors.accent,
-                      color: theme.colors.buttonText,
-                    }
-                  : undefined
-              }
-              onClick={shareProfile}
-              type="button"
-            >
-              <Icon name="heart" className="h-4 w-4" />
-              Share Profile
-            </button>
-          ) : null}
+          {shareAction}
         </div>
       </div>
       {visibleStatus ? (

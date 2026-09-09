@@ -9,6 +9,15 @@ const mocks = vi.hoisted(() => ({
   publicProfilesEnabled: true,
   safetyProfilesOwnerUiEnabled: true,
   writeText: vi.fn(),
+  trackEvent: vi.fn(),
+}));
+
+vi.mock("@/lib/analytics", () => ({
+  AnalyticsEvent: {
+    ShareClicked: "share_clicked",
+    ShareLinkCopied: "share_link_copied",
+  },
+  trackEvent: (...args: unknown[]) => mocks.trackEvent(...args),
 }));
 
 vi.mock("@/lib/features", () => ({
@@ -43,9 +52,17 @@ vi.mock("@/components/qr/QrCodeCard", () => ({
 }));
 
 const { ShareCenter } = await import("./ShareCenter");
+const { toOwnerPetShareTarget } = await import("@/lib/petShareTarget");
 
 function petFixture(overrides: Partial<Pet> = {}): Pet {
   return { ...structuredClone(mockPets[0]), ...overrides };
+}
+
+function stubNativeShare(share: unknown) {
+  Object.defineProperty(navigator, "share", {
+    configurable: true,
+    value: share,
+  });
 }
 
 function shareCardVariants() {
@@ -56,7 +73,7 @@ function shareCardVariants() {
 }
 
 function openCenter(pet: Pet) {
-  render(<ShareCenter pet={pet} />);
+  render(<ShareCenter target={toOwnerPetShareTarget(pet)} />);
   fireEvent.click(screen.getByRole("button", { name: `Share ${pet.name}` }));
 }
 
@@ -68,11 +85,15 @@ beforeEach(() => {
     configurable: true,
     value: { writeText: mocks.writeText },
   });
+  // Most browsers a test stands in for have no share sheet; the tests that
+  // need one opt in.
+  stubNativeShare(undefined);
 });
 
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  stubNativeShare(undefined);
 });
 
 describe("ShareCenter", () => {
@@ -103,7 +124,7 @@ describe("ShareCenter", () => {
 
     try {
       const noOccasions = petFixture({ birthday: "2021-04-02", adoptionDay: "" });
-      render(<ShareCenter pet={noOccasions} />);
+      render(<ShareCenter target={toOwnerPetShareTarget(noOccasions)} />);
       fireEvent.click(
         screen.getByRole("button", { name: `Share ${noOccasions.name}` })
       );
@@ -115,7 +136,7 @@ describe("ShareCenter", () => {
         birthday: "2021-08-17",
         adoptionDay: "2022-08-17",
       });
-      render(<ShareCenter pet={withOccasions} />);
+      render(<ShareCenter target={toOwnerPetShareTarget(withOccasions)} />);
       fireEvent.click(
         screen.getByRole("button", { name: `Share ${withOccasions.name}` })
       );
@@ -190,6 +211,158 @@ describe("ShareCenter", () => {
       )
     ).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Copy Profile Link/ })).toBeNull();
+  });
+
+  it("never opens the device share sheet straight from the Share button", () => {
+    const share = vi.fn(async () => undefined);
+    stubNativeShare(share);
+    const pet = petFixture();
+    openCenter(pet);
+
+    // The dialog is the whole point: nothing may reach the phone's share
+    // sheet before the visitor has chosen how they want to share.
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    expect(share).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("button", { name: /Share with another app/ })
+    ).toBeNull();
+  });
+
+  it("hands the device share sheet the canonical profile link", async () => {
+    const share = vi.fn(async () => undefined);
+    stubNativeShare(share);
+    const pet = petFixture();
+    openCenter(pet);
+
+    fireEvent.click(screen.getByRole("button", { name: /More sharing options/ }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /Share with another app/ })
+    );
+
+    await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+    expect(share).toHaveBeenCalledWith({
+      title: `Meet ${pet.name} | MyPetLink`,
+      text: `View ${pet.name}'s public profile, memories, and important safety information.`,
+      url: expect.stringContaining(pet.publicProfilePath),
+    });
+    // The shareable profile address, never the social preview image.
+    expect(JSON.stringify(share.mock.calls)).not.toContain("/social/pets/");
+    expect(await screen.findByText("Sharing options opened.")).toBeTruthy();
+  });
+
+  it("says nothing when the share sheet is dismissed", async () => {
+    const share = vi.fn(async () => {
+      throw new DOMException("cancelled", "AbortError");
+    });
+    stubNativeShare(share);
+    const pet = petFixture();
+    openCenter(pet);
+
+    fireEvent.click(screen.getByRole("button", { name: /More sharing options/ }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /Share with another app/ })
+    );
+
+    await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+    expect(mocks.writeText).not.toHaveBeenCalled();
+    expect(screen.queryByText("Sharing options opened.")).toBeNull();
+  });
+
+  it("copies the link instead when the share sheet refuses to open", async () => {
+    const share = vi.fn(async () => {
+      throw new Error("no share target");
+    });
+    stubNativeShare(share);
+    const pet = petFixture();
+    openCenter(pet);
+
+    fireEvent.click(screen.getByRole("button", { name: /More sharing options/ }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /Share with another app/ })
+    );
+
+    await waitFor(() => expect(mocks.writeText).toHaveBeenCalledTimes(1));
+    expect(
+      await screen.findByText(
+        "Sharing options could not open, so the profile link was copied instead."
+      )
+    ).toBeTruthy();
+  });
+
+  it("stays fully usable on a browser with no share sheet", async () => {
+    const pet = petFixture();
+    openCenter(pet);
+
+    fireEvent.click(screen.getByRole("button", { name: /More sharing options/ }));
+    expect(
+      screen.queryByRole("button", { name: /Share with another app/ })
+    ).toBeNull();
+    expect(screen.getByText("Download Public Profile QR")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    fireEvent.click(screen.getByRole("button", { name: /Copy Profile Link/ }));
+
+    await waitFor(() => expect(mocks.writeText).toHaveBeenCalledTimes(1));
+    expect(
+      await screen.findByText(`${pet.name}'s profile link copied.`)
+    ).toBeTruthy();
+  });
+
+  it("reports sharing at its outcome, not when the dialog opens", async () => {
+    const share = vi.fn(async () => undefined);
+    stubNativeShare(share);
+    const pet = petFixture();
+    openCenter(pet);
+
+    // Opening the dialog is choosing how to share, not sharing.
+    expect(mocks.trackEvent).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: /More sharing options/ }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /Share with another app/ })
+    );
+
+    await waitFor(() =>
+      expect(mocks.trackEvent).toHaveBeenCalledWith("share_clicked", {
+        surface: "owner_portal",
+      })
+    );
+    expect(mocks.trackEvent).toHaveBeenCalledTimes(1);
+  });
+
+  it("records nothing when the share sheet is dismissed", async () => {
+    const share = vi.fn(async () => {
+      throw new DOMException("cancelled", "AbortError");
+    });
+    stubNativeShare(share);
+    openCenter(petFixture());
+
+    fireEvent.click(screen.getByRole("button", { name: /More sharing options/ }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /Share with another app/ })
+    );
+
+    await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+    expect(mocks.trackEvent).not.toHaveBeenCalled();
+  });
+
+  it("records a copied link, on its own and as the share fallback", async () => {
+    const pet = petFixture();
+    openCenter(pet);
+
+    fireEvent.click(screen.getByRole("button", { name: /Copy Profile Link/ }));
+
+    await waitFor(() =>
+      expect(mocks.trackEvent).toHaveBeenCalledWith("share_link_copied", {
+        surface: "owner_portal",
+      })
+    );
+    // A browser with no share sheet still reports distribution through the
+    // clipboard, exactly as it did before the Share Center existed.
+    expect(mocks.trackEvent).not.toHaveBeenCalledWith(
+      "share_clicked",
+      expect.anything()
+    );
   });
 
   it("closes on Escape and returns focus to the control that opened it", async () => {

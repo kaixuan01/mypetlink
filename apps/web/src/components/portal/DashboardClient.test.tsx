@@ -353,8 +353,13 @@ describe("DashboardClient with pets", () => {
     fireEvent.click(screen.getByRole("button", { name: /Copy Profile Link/ }));
 
     await waitFor(() => expect(mocks.writeText).toHaveBeenCalledOnce());
-    expect(mocks.writeText.mock.calls[0]?.[0]).toMatch(/\/p\/[^?]+$/);
+    // The one share address MyPetLink hands out: the Public Profile carrying
+    // its share version, matching every other copy and share action.
+    expect(mocks.writeText.mock.calls[0]?.[0]).toMatch(
+      /\/p\/[^?]+\?share=[a-z0-9]+$/
+    );
     expect(mocks.writeText.mock.calls[0]?.[0]).not.toContain("/q/");
+    expect(mocks.writeText.mock.calls[0]?.[0]).not.toContain("/social/pets/");
     expect((await screen.findByRole("status")).textContent).toContain(
       "Milo's profile link copied."
     );

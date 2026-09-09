@@ -28,7 +28,7 @@ navigation, without autocapture.
 | `pet_created` | Pet create request succeeds | `source=owner_portal` |
 | `public_profile_viewed` | A valid Public Share Profile finishes loading | `surface=public_profile` |
 | `moment_created` | Moment create request succeeds | `source=owner_portal` |
-| `share_clicked` | Explicit Share Profile action | `surface=public_profile|owner_portal` |
+| `share_clicked` | A profile share request reaches the system share sheet and the sheet accepts it | `surface=public_profile|owner_portal` |
 | `share_link_copied` | Clipboard write succeeds | `surface=public_profile|owner_portal` |
 | `share_card_viewed` | The generated owner Share Card preview loads successfully | `card_variant=profile|birthday|adoption` |
 | `share_card_shared` | A native Share Card share request resolves without cancellation or rejection | `card_variant=profile|birthday|adoption` |
@@ -48,6 +48,14 @@ JPEG has been fetched and the download has started, `copy_link` only once the
 clipboard write succeeds, and `open_image` when the owner opens the image in a
 new tab. A failed fetch, a rejected file type, or a failed clipboard write
 records nothing, so the funnel never reports work that did not happen.
+
+`share_clicked` keeps its success boundary now that Share opens the Share
+Center first. Opening that dialog records nothing: it is the owner or visitor
+choosing *how* to share, and counting it on every Share button would report
+intent as distribution. The event fires where it always did in effect — the
+moment the profile is handed to the share sheet — and a cancelled sheet records
+nothing. Where a browser has no share sheet the flow copies instead, and
+`share_link_copied` covers it, so no route through the dialog is silent.
 
 `copy_link` is also recorded when the Share button falls back to copying —
 on a browser without Web Share, or when the share sheet cannot open. The owner

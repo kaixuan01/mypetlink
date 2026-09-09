@@ -2,6 +2,8 @@
 
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useRef, useState } from "react";
+import { useModalDialogFocus } from "@/lib/useModalDialogFocus";
 
 const mocks = vi.hoisted(() => ({
   copyTextToClipboard: vi.fn(),
@@ -503,4 +505,48 @@ describe("PetShareCard", () => {
     fireEvent.click(close);
     await waitFor(() => expect(document.activeElement).toBe(trigger));
   });
+
+  it("closes only itself on Escape when opened from another dialog", async () => {
+    // The Share Card opens from inside the Share Center. Escape must take the
+    // owner back to the sharing choices, not out of sharing altogether.
+    render(<HostDialog />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Share Card" }));
+    await screen.findByRole("button", { name: "Close Share Card" });
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Close Share Card" })).toBeNull()
+    );
+    expect(screen.getByTestId("host-dialog")).toBeTruthy();
+
+    // A second Escape, now that the Share Card is gone, does close the host.
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByTestId("host-dialog")).toBeNull());
+  });
 });
+
+/** Stands in for the Share Center: a modal dialog the Share Card opens from. */
+function HostDialog() {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(true);
+
+  useModalDialogFocus({
+    dialogRef,
+    onEscape: () => setOpen(false),
+    enabled: open,
+  });
+
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <div aria-modal="true" role="dialog">
+      <div data-testid="host-dialog" ref={dialogRef}>
+        <PetShareCard {...defaultProps} />
+      </div>
+    </div>
+  );
+}

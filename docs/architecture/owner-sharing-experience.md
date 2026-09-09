@@ -1,26 +1,49 @@
 # Owner Sharing Experience
 
-How an owner shares a pet, and where each sharing control lives.
+How a pet gets shared, and where each sharing control lives.
 
-This document is the reference for the owner-facing sharing surfaces only. It
-does not change any route, destination, or backend behaviour — the three public
-pages keep the meanings defined in `AGENTS.md`.
+This document is the reference for the sharing surfaces only. It does not
+change any route, destination, or backend behaviour — the three public pages
+keep the meanings defined in `AGENTS.md`.
+
+Owners are the main audience, but a visitor looking at a Public Share Profile
+shares the pet through the same dialog. Where the two differ, it is said so
+below.
 
 ## The one entry point
 
 `apps/web/src/components/share/ShareCenter.tsx` is the single sharing entry
-point. Every owner surface opens the same dialog, so an owner learns sharing
-once:
+point. Every surface opens the same dialog, so sharing is learned once:
 
 | Surface | Where it appears |
 | --- | --- |
 | Dashboard pet card | `DashboardClient.tsx` — the primary **Share** action, beside **View** |
 | Pet detail hero | `PetDetailHeader.tsx` — the primary **Share** action, beside **Edit** |
-| Pet Overview | `PetManagementTabs.tsx` — inside the **Sharing & Safety** section |
 | Public Share Profile, viewed by its owner | `PublicProfileOwnerControls.tsx` |
+| Public Share Profile, viewed by anyone else | `PublicProfileOwnerControls.tsx` — **Share profile**, beside **Copy Link** |
 
-Do not add a second, competing share control to any of these surfaces. If a new
-surface needs sharing, render `ShareCenter` there.
+Do not add a second, competing share control to any of these surfaces, and do
+not open the device share sheet straight from a Share button. If a new surface
+needs sharing, render `ShareCenter` there.
+
+The **Sharing & Safety** section of the Pet Overview is not a share entry
+point. It reports on each profile and offers link management — copy, QR, open —
+through `PublicLinkActions`, and deliberately has no Share button of its own.
+
+### Who may share what
+
+`apps/web/src/lib/petShareTarget.ts` describes the pet being shared, and it is
+the only place that decides what a given audience may reach:
+
+- `toOwnerPetShareTarget(pet)` — for a signed-in owner. Offers the finder-facing
+  Safety Profile when that experience is on for an active pet with safety on.
+- `toPublicProfileShareTarget(profile)` — for anyone looking at a public
+  profile, signed in or not. Offers only the profile already on screen; the
+  Safety Profile is for someone who has *found* the pet and never appears in
+  an ordinary visitor's sharing choices.
+
+`ShareCenter` renders a target and nothing else. It never reads owner state, so
+a new surface cannot leak owner-only actions by rendering it.
 
 ## What the dialog offers
 
@@ -34,8 +57,8 @@ The first level answers "I want to share my pet" and stops at four choices:
 3. **Show Profile QR** — the Public Share Profile QR. Named "Profile" because
    MyPetLink also has a Safety QR; the two must never read as the same thing.
 4. **More sharing options** — its supporting line depends on what is actually
-   available: "Downloads and safety sharing." when the Safety Profile can be
-   shared, "More profile options." when it cannot.
+   available: "Other apps, downloads and safety sharing." when the Safety
+   Profile can be shared, "Other apps and downloads." when it cannot.
 
 The tile is a static preview. The real 1080x1350 image is only requested once
 an owner chooses Share Pet Card.
@@ -47,6 +70,9 @@ decides whether the card exists. `ShareCardAvailability.test.tsx` pins this.
 
 Everything rarer sits one level down, under **More sharing options**:
 
+- **Share with another app** — the phone or browser's own sharing options. This
+  is the only route to them, and it is hidden where the browser has none, so
+  that panel degrades to the copy and download choices rather than breaking.
 - Download Public Profile QR, Open Public Profile.
 - A separate **Safety Profile** block — copy link, show QR, open page — labelled
   "For someone who finds {Pet}." This keeps the finder-facing page distinct from
@@ -175,9 +201,27 @@ These are two different things and should stay that way.
 Do not replace platform OG previews with the portrait card, and do not expect a
 messaging app to show both.
 
+## Reaching the device share sheet
+
+`apps/web/src/lib/nativeShare.ts` is the only module that calls
+`navigator.share` or `navigator.canShare`. Availability checks, cancellation
+handling, and the `completed | cancelled | unsupported | failed` outcomes live
+there so every share path behaves the same way. Do not call the browser API
+from a component.
+
+There are exactly two things a page can hand it, and they are built centrally:
+
+- A **pet profile** — `getPetProfileSharePayload` over
+  `getPetProfileShareUrl`, from `petShareTarget.ts`. The title and text match
+  the preview a pasted link already unfurls to, and the URL is the Public Share
+  Profile carrying its share version. That same URL is what every Copy Profile
+  Link action copies, so an owner and a visitor always hand out one address.
+- A **Share Card** — the 1080x1350 image with its own warm caption, described
+  below.
+
 ## One share, one native call
 
-`Share` inside the Share Card makes **exactly one** `navigator.share` call.
+`Share` inside the Share Card makes **exactly one** native share call.
 Where the target accepts files it receives `{ files: [card], text, title }`,
 with the profile URL inside `text`; the URL is not also passed as `url`,
 because targets that take files commonly drop it, and those that keep both
@@ -197,3 +241,8 @@ profile link, and an image is never downloaded on the owner's behalf.
 `ShareCenter` reports through the existing provider-neutral events with a
 `surface` of `owner_portal` or `public_profile`. It adds no new event names and
 no new keys, so the runtime allowlist is unchanged.
+
+Opening the dialog records **nothing**. Each outcome reports itself at its own
+success boundary instead — a share sheet that accepts the profile, a clipboard
+write that succeeds, a Share Card that is shared or saved — so the funnel never
+counts a dialog that was opened and closed again.

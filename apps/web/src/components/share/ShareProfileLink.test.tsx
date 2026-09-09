@@ -22,7 +22,7 @@ afterEach(() => {
 });
 
 describe("ShareProfileLink", () => {
-  it("shares the versioned public profile URL rather than the social-card URL", async () => {
+  it("never reaches the device share sheet itself", async () => {
     const share = vi.fn(async () => undefined);
     Object.defineProperty(navigator, "share", {
       configurable: true,
@@ -32,24 +32,15 @@ describe("ShareProfileLink", () => {
     render(
       <ShareProfileLink
         path="https://mypetlink.com.my/p/nori-futurepet1234"
-        petName="Nori"
         shareVersion="0123456789abcdef"
-        showShareButton
+        shareAction={<button type="button">Share profile</button>}
       />
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Share Profile" }));
-
-    await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
-    expect(share).toHaveBeenCalledWith({
-      title: "Meet Nori | MyPetLink",
-      text: "View Nori's public profile, memories, and important safety information.",
-      url: "https://mypetlink.com.my/p/nori-futurepet1234?share=0123456789abcdef",
-    });
-    expect(JSON.stringify(share.mock.calls)).not.toContain("/social/pets/");
-    expect(analytics.trackEvent).toHaveBeenCalledWith("share_clicked", {
-      surface: "owner_portal",
-    });
+    // Sharing belongs to the Share Center; this component only shows and
+    // copies the address, whatever button the surface puts beside it.
+    fireEvent.click(screen.getByRole("button", { name: "Share profile" }));
+    await waitFor(() => expect(share).not.toHaveBeenCalled());
   });
 
   it("displays and copies one complete, safely wrapped versioned URL", async () => {
@@ -63,7 +54,6 @@ describe("ShareProfileLink", () => {
       <ShareProfileLink
         copyButtonFullWidth
         path="https://mypetlink.com.my/p/topu-pnpr4ipnr6ppelnsn"
-        petName="Topu"
         shareVersion="sharetoken123"
       />
     );

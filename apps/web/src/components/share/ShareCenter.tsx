@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { copyTextToClipboard } from "@/components/portal/PublicLinkActions";
 import { PetShareCard } from "@/components/share/PetShareCard";
 import { QrCodeCard } from "@/components/qr/QrCodeCard";
@@ -12,24 +18,26 @@ import {
   type AnalyticsSurface,
 } from "@/lib/analytics";
 import {
-  publicProfilesEnabled,
-  safetyProfilesOwnerUiEnabled,
-} from "@/lib/features";
-import { isActivePet } from "@/lib/petLifecycle";
+  getNativeShareAvailability,
+  getServerNativeShareAvailability,
+  requestNativeShare,
+  subscribeToNativeShareAvailability,
+} from "@/lib/nativeShare";
 import {
-  getAvailablePetShareCardOptions,
-  getPublicProfileShareCardImagePath,
-  getPublicProfileShareVersion,
-} from "@/lib/publicProfileSocial";
+  getPetProfileSharePayload,
+  getPetProfileShareUrl,
+  type PetShareTarget,
+} from "@/lib/petShareTarget";
 import { toAbsoluteUrl } from "@/lib/siteUrl";
 import { useModalDialogFocus } from "@/lib/useModalDialogFocus";
-import type { Pet, PetListItem } from "@/types";
 
 type ShareCenterProps = {
-  pet: Pet | PetListItem;
+  /** Built with toOwnerPetShareTarget or toPublicProfileShareTarget. */
+  target: PetShareTarget;
   /** Rendered inside the trigger button. Defaults to a "Share" label. */
   triggerLabel?: React.ReactNode;
   triggerClassName?: string;
+  triggerStyle?: React.CSSProperties;
   triggerAriaLabel?: string;
   analyticsSurface?: Extract<
     AnalyticsSurface,
@@ -44,17 +52,21 @@ const primaryTriggerClass =
   "inline-flex min-h-11 min-w-0 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-pet-teal bg-pet-teal px-4 text-sm font-extrabold text-white shadow-sm transition hover:bg-[#0f5fd0]";
 
 /**
- * One share entry point for a pet, used by the Dashboard, the pet detail page
- * and the owner controls on a Public Profile.
+ * The one share experience for a pet. Every Share button in MyPetLink opens
+ * this: the Dashboard, the pet detail page, and both the owner and visitor
+ * views of a Public Profile.
  *
- * Owners think "I want to share my pet", so the first level offers only four
- * choices and everything rarer — downloads, opening pages, and the separate
- * finder-facing Safety Profile — sits behind "More sharing options".
+ * People think "I want to share this pet", so the first level offers only four
+ * choices and everything rarer — the phone's own sharing options, downloads,
+ * opening pages, and the separate finder-facing Safety Profile — sits behind
+ * "More sharing options". What a visitor is allowed to reach is decided by the
+ * share target, not here.
  */
 export function ShareCenter({
-  pet,
+  target,
   triggerLabel,
   triggerClassName = primaryTriggerClass,
+  triggerStyle,
   triggerAriaLabel,
   analyticsSurface = "owner_portal",
 }: ShareCenterProps) {
@@ -71,7 +83,16 @@ export function ShareCenter({
     window.setTimeout(() => triggerRef.current?.focus(), 0);
   }, []);
 
+  const nativeShareAvailable = useSyncExternalStore(
+    subscribeToNativeShareAvailability,
+    getNativeShareAvailability,
+    getServerNativeShareAvailability,
+  );
+
   function openShareCenter() {
+    // Deliberately unreported: opening the dialog is choosing how to share,
+    // not sharing. Every outcome below records itself at its own success
+    // boundary, so the funnel never counts work that did not happen.
     // Always start at the first level, whatever the last visit ended on.
     setView("home");
     setStatus("");
@@ -91,18 +112,14 @@ export function ShareCenter({
     return () => window.clearTimeout(timer);
   }, [status]);
 
-  const publicShareable = publicProfilesEnabled && pet.publicProfileEnabled;
-  const safetyShareable =
-    safetyProfilesOwnerUiEnabled && pet.qrSafetyEnabled && isActivePet(pet);
-  const profileUrl = toAbsoluteUrl(pet.publicProfilePath);
-  const safetyUrl = toAbsoluteUrl(pet.qrSafetyPath);
+  const publicShareable = target.publicProfileShareable;
+  const safetyProfilePath = target.safetyProfilePath;
+  const profileUrl = getPetProfileShareUrl(target);
 
-  async function copy(url: string, message: string, surface: AnalyticsSurface) {
+  async function copy(url: string, message: string) {
     const copied = await copyTextToClipboard(url);
     if (copied) {
-      trackEvent(AnalyticsEvent.ShareLinkCopied, {
-        surface: surface as "owner_portal" | "public_profile",
-      });
+      trackEvent(AnalyticsEvent.ShareLinkCopied, { surface: analyticsSurface });
     }
     setStatus(
       copied
@@ -111,15 +128,46 @@ export function ShareCenter({
     );
   }
 
+  /**
+   * The only route to the phone or browser's own sharing options. Keeping it
+   * here means every Share button reaches it the same way, and a device
+   * without it simply falls back to the profile link.
+   */
+  async function shareWithAnotherApp() {
+    setStatus("");
+    const outcome = await requestNativeShare(
+      getPetProfileSharePayload(target, profileUrl),
+    );
+
+    if (outcome === "completed") {
+      // The profile reached the share sheet and the sheet accepted it — the
+      // same moment the public profile's Share button used to record. A
+      // cancelled sheet records nothing.
+      trackEvent(AnalyticsEvent.ShareClicked, { surface: analyticsSurface });
+      setStatus("Sharing options opened.");
+      return;
+    }
+
+    if (outcome === "cancelled") {
+      return;
+    }
+
+    await copy(
+      profileUrl,
+      "Sharing options could not open, so the profile link was copied instead.",
+    );
+  }
+
   return (
     <>
       <button
         aria-expanded={open}
         aria-haspopup="dialog"
-        aria-label={triggerAriaLabel ?? `Share ${pet.name}`}
+        aria-label={triggerAriaLabel ?? `Share ${target.name}`}
         className={triggerClassName}
         onClick={openShareCenter}
         ref={triggerRef}
+        style={triggerStyle}
         type="button"
       >
         {triggerLabel ?? (
@@ -154,17 +202,17 @@ export function ShareCenter({
                       className="break-words text-xl font-black leading-7 text-pet-ink"
                       id="share-center-title"
                     >
-                      Share {pet.name}
+                      Share {target.name}
                     </h2>
                     <p className="mt-1 text-sm leading-6 text-pet-muted">
-                      {`Share ${pet.name} with friends, family, or anyone who'd love to meet them.`}
+                      {`Share ${target.name} with friends, family, or anyone who'd love to meet them.`}
                     </p>
                   </>
                 ) : (
                   <>
                     {/* Keeps the dialog named on every panel, not just the first. */}
                     <h2 className="sr-only" id="share-center-title">
-                      Share {pet.name}
+                      Share {target.name}
                     </h2>
                     <button
                       className="inline-flex min-h-11 items-center gap-2 text-sm font-extrabold text-pet-teal"
@@ -203,10 +251,10 @@ export function ShareCenter({
                 */}
                 {publicShareable ? (
                   <PetShareCard
-                    imagePath={getPublicProfileShareCardImagePath(pet)}
-                    petName={pet.name}
-                    profilePath={pet.publicProfilePath}
-                    shareVersion={getPublicProfileShareVersion(pet)}
+                    imagePath={target.shareCardImagePath}
+                    petName={target.name}
+                    profilePath={target.publicProfilePath}
+                    shareVersion={target.shareVersion}
                     triggerClassName="relative flex w-full min-w-0 items-center gap-4 overflow-hidden rounded-[1.5rem] bg-gradient-to-br from-pet-teal to-[#0b4fae] p-4 text-left text-white shadow-lg shadow-[#1570ef]/25 transition hover:from-[#0f5fd0] hover:to-[#0a4599]"
                     triggerLabel={
                       <>
@@ -215,14 +263,14 @@ export function ShareCenter({
                           className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-white/10"
                         />
                         <span className="relative shrink-0 rounded-[1.15rem] bg-white/20 p-1">
-                          <PetAvatar pet={pet} size="sm" />
+                          <PetAvatar pet={target.avatar} size="sm" />
                         </span>
                         <span className="relative min-w-0 flex-1">
                           <span className="block text-lg font-black leading-7">
                             Share Pet Card
                           </span>
                           <span className="mt-1 block text-sm font-semibold leading-5 text-white/90">
-                            {`A beautiful card with ${pet.name}'s photo and profile QR.`}
+                            {`A beautiful card with ${target.name}'s photo and profile QR.`}
                           </span>
                         </span>
                         <Icon
@@ -232,7 +280,7 @@ export function ShareCenter({
                         />
                       </>
                     }
-                    variants={getAvailablePetShareCardOptions(pet)}
+                    variants={target.shareCardOptions}
                   />
                 ) : null}
 
@@ -245,14 +293,13 @@ export function ShareCenter({
                       onClick={() =>
                         void copy(
                           profileUrl,
-                          `${pet.name}'s profile link copied.`,
-                          analyticsSurface,
+                          `${target.name}'s profile link copied.`,
                         )
                       }
                       tone="quiet"
                     />
                     <ShareRow
-                      description={`Scan to view ${pet.name}'s profile.`}
+                      description={`Scan to view ${target.name}'s profile.`}
                       icon="qr"
                       label="Show Profile QR"
                       onClick={() => setView("public-qr")}
@@ -261,16 +308,16 @@ export function ShareCenter({
                   </>
                 ) : (
                   <p className="rounded-[1.25rem] border border-pet-border bg-white px-4 py-3.5 text-sm font-semibold leading-6 text-pet-muted">
-                    {pet.name}&apos;s public profile is switched off, so there
-                    is nothing to share yet.
+                    {target.name}&apos;s public profile is switched off, so
+                    there is nothing to share yet.
                   </p>
                 )}
 
                 <ShareRow
                   description={
-                    safetyShareable
-                      ? "Downloads and safety sharing."
-                      : "More profile options."
+                    safetyProfilePath
+                      ? "Other apps, downloads and safety sharing."
+                      : "Other apps and downloads."
                   }
                   icon="settings"
                   label="More sharing options"
@@ -283,10 +330,10 @@ export function ShareCenter({
             {view === "public-qr" ? (
               <div className="mt-5">
                 <QrCodeCard
-                  fileNameBase={`${pet.slug}-public-profile-qr`}
-                  helperText={`Scan to view ${pet.name}'s profile`}
-                  targetPath={pet.publicProfilePath}
-                  title={`${pet.name}'s Public Profile`}
+                  fileNameBase={`${target.slug}-public-profile-qr`}
+                  helperText={`Scan to view ${target.name}'s profile`}
+                  targetPath={target.publicProfilePath}
+                  title={`${target.name}'s Public Profile`}
                   viewLabel="Open Public Profile"
                 />
               </div>
@@ -297,13 +344,27 @@ export function ShareCenter({
                 <div className="grid gap-2.5">
                   {publicShareable ? (
                     <>
+                      {/*
+                        The one place MyPetLink hands a profile to the phone's
+                        own sharing options, so every Share button reaches
+                        them the same way. Hidden where the browser has none,
+                        leaving the copy and download choices.
+                      */}
+                      {nativeShareAvailable ? (
+                        <ShareRow
+                          description="Send it through your usual apps."
+                          icon="heart"
+                          label="Share with another app"
+                          onClick={() => void shareWithAnotherApp()}
+                        />
+                      ) : null}
                       <ShareRow
                         icon="qr"
                         label="Download Public Profile QR"
                         onClick={() => setView("public-qr")}
                       />
                       <ShareRow
-                        href={pet.publicProfilePath}
+                        href={target.publicProfilePath}
                         icon="paw"
                         label="Open Public Profile"
                       />
@@ -311,13 +372,13 @@ export function ShareCenter({
                   ) : null}
                 </div>
 
-                {safetyShareable ? (
+                {safetyProfilePath ? (
                   <div className="rounded-[1.35rem] border border-pet-border bg-white p-4">
                     <h3 className="text-sm font-black text-pet-ink">
                       Safety Profile
                     </h3>
                     <p className="mt-1 text-xs font-semibold leading-5 text-pet-muted">
-                      For someone who finds {pet.name}.
+                      For someone who finds {target.name}.
                     </p>
                     <div className="mt-3 grid gap-2.5">
                       <ShareRow
@@ -325,9 +386,8 @@ export function ShareCenter({
                         label="Copy Safety Profile Link"
                         onClick={() =>
                           void copy(
-                            safetyUrl,
+                            toAbsoluteUrl(safetyProfilePath),
                             "Safety Profile link copied.",
-                            analyticsSurface,
                           )
                         }
                         tone="plain"
@@ -339,7 +399,7 @@ export function ShareCenter({
                         tone="plain"
                       />
                       <ShareRow
-                        href={pet.qrSafetyPath}
+                        href={safetyProfilePath}
                         icon="shield"
                         label="Open Safety Profile"
                         tone="plain"
@@ -350,13 +410,13 @@ export function ShareCenter({
               </div>
             ) : null}
 
-            {view === "safety-qr" ? (
+            {view === "safety-qr" && safetyProfilePath ? (
               <div className="mt-5">
                 <QrCodeCard
-                  fileNameBase={`${pet.slug}-safety-profile-qr`}
-                  helperText={`Scan if you have found ${pet.name}`}
-                  targetPath={pet.qrSafetyPath}
-                  title={`${pet.name}'s Safety Profile`}
+                  fileNameBase={`${target.slug}-safety-profile-qr`}
+                  helperText={`Scan if you have found ${target.name}`}
+                  targetPath={safetyProfilePath}
+                  title={`${target.name}'s Safety Profile`}
                   viewLabel="Open Safety Profile"
                 />
               </div>
