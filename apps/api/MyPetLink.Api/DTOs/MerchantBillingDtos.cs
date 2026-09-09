@@ -119,6 +119,10 @@ public sealed record SalesCommissionResponse(
     Guid? ReversedByAdminUserId,
     string? ReversalReason,
     string? InternalNote,
+    string PayoutClaimState,
+    Guid? PayoutId,
+    string? PayoutNumber,
+    bool RequiresRecovery,
     string ConcurrencyToken);
 
 public sealed record ReverseSalesCommissionRequest(

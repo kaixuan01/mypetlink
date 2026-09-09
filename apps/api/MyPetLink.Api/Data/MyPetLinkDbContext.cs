@@ -92,6 +92,8 @@ public sealed class MyPetLinkDbContext : DbContext
     public DbSet<MerchantReceipt> MerchantReceipts => Set<MerchantReceipt>();
     public DbSet<MerchantReceiptItem> MerchantReceiptItems => Set<MerchantReceiptItem>();
     public DbSet<SalesCommission> SalesCommissions => Set<SalesCommission>();
+    public DbSet<CommissionPayout> CommissionPayouts => Set<CommissionPayout>();
+    public DbSet<CommissionPayoutItem> CommissionPayoutItems => Set<CommissionPayoutItem>();
     public DbSet<CommissionRule> CommissionRules => Set<CommissionRule>();
     public DbSet<BusinessIdentitySetting> BusinessIdentitySettings =>
         Set<BusinessIdentitySetting>();
@@ -821,6 +823,86 @@ public sealed class MyPetLinkDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(item => item.CommissionRuleId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<CommissionPayout>(entity =>
+        {
+            entity.ToTable("CommissionPayouts", table =>
+            {
+                table.HasCheckConstraint("CK_CommissionPayouts_Period",
+                    "[PeriodToExclusive] > [PeriodFrom]");
+                table.HasCheckConstraint("CK_CommissionPayouts_Amount",
+                    "[PreparedAmount] >= 0");
+                table.HasCheckConstraint("CK_CommissionPayouts_Currency",
+                    "[Currency] = 'MYR'");
+                table.HasCheckConstraint("CK_CommissionPayouts_StatusShape",
+                    "([Status] = 'Prepared' AND [PaidAt] IS NULL AND [PaidByAdminUserId] IS NULL AND [PaymentMethod] IS NULL AND [PaymentReference] IS NULL AND [CancelledAt] IS NULL AND [CancelledByAdminUserId] IS NULL AND [CancellationReason] IS NULL) OR "
+                    + "([Status] = 'Paid' AND [PaidAt] IS NOT NULL AND [PaidByAdminUserId] IS NOT NULL AND [PaymentMethod] IN ('BankTransfer','DuitNow','Cheque','Cash','Other') AND [PaymentReference] IS NOT NULL AND [CancelledAt] IS NULL AND [CancelledByAdminUserId] IS NULL AND [CancellationReason] IS NULL) OR "
+                    + "([Status] = 'Cancelled' AND [PaidAt] IS NULL AND [PaidByAdminUserId] IS NULL AND [PaymentMethod] IS NULL AND [PaymentReference] IS NULL AND [CancelledAt] IS NOT NULL AND [CancelledByAdminUserId] IS NOT NULL AND [CancellationReason] IS NOT NULL)");
+            });
+            entity.Property(item => item.RowVersion).IsRowVersion();
+            entity.Property(item => item.PayoutNumber).HasMaxLength(40).IsRequired();
+            entity.Property(item => item.SalespersonCodeSnapshot).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.SalespersonNameSnapshot).HasMaxLength(160).IsRequired();
+            entity.Property(item => item.Currency).HasMaxLength(3).IsRequired();
+            entity.Property(item => item.PreparedAmount).HasPrecision(18, 2);
+            entity.Property(item => item.Status).HasConversion<string>().HasMaxLength(16);
+            entity.Property(item => item.PaymentMethod).HasConversion<string>().HasMaxLength(32);
+            entity.Property(item => item.PaymentReference).HasMaxLength(200);
+            entity.Property(item => item.Notes).HasMaxLength(2000);
+            entity.Property(item => item.CancellationReason).HasMaxLength(1000);
+            entity.Property(item => item.IdempotencyKey).HasMaxLength(80).IsRequired();
+            entity.Property(item => item.RequestFingerprint).HasMaxLength(128).IsRequired();
+            ConfigureSellerSnapshot(entity.OwnsOne(item => item.Seller));
+            entity.HasIndex(item => item.PayoutNumber).IsUnique();
+            entity.HasIndex(item => item.IdempotencyKey).IsUnique();
+            entity.HasIndex(item => new { item.SalespersonId, item.Status, item.PreparedAt });
+            entity.HasIndex(item => new { item.PeriodFrom, item.PeriodToExclusive });
+            entity.HasOne(item => item.Salesperson).WithMany()
+                .HasForeignKey(item => item.SalespersonId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.PreparedByAdminUser).WithMany()
+                .HasForeignKey(item => item.PreparedByAdminUserId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.PaidByAdminUser).WithMany()
+                .HasForeignKey(item => item.PaidByAdminUserId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.CancelledByAdminUser).WithMany()
+                .HasForeignKey(item => item.CancelledByAdminUserId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<CommissionPayoutItem>(entity =>
+        {
+            entity.ToTable("CommissionPayoutItems", table =>
+            {
+                table.HasCheckConstraint("CK_CommissionPayoutItems_Amounts",
+                    "[CommissionBaseAmountSnapshot] >= 0 AND [CommissionAmountSnapshot] >= 0");
+                table.HasCheckConstraint("CK_CommissionPayoutItems_ValueShape",
+                    "([CommissionPercentageSnapshot] BETWEEN 0 AND 100 AND [CommissionFixedAmountSnapshot] IS NULL) OR ([CommissionPercentageSnapshot] IS NULL AND [CommissionFixedAmountSnapshot] >= 0)");
+                table.HasCheckConstraint("CK_CommissionPayoutItems_SourceShape",
+                    "([SourceTypeSnapshot] = 'MerchantOrder' AND [MerchantOrderIdSnapshot] IS NOT NULL AND [TagOrderIdSnapshot] IS NULL) OR ([SourceTypeSnapshot] = 'TagOrder' AND [TagOrderIdSnapshot] IS NOT NULL AND [MerchantOrderIdSnapshot] IS NULL)");
+                table.HasCheckConstraint("CK_CommissionPayoutItems_SourceCommissionType",
+                    "([CommissionTypeSnapshot] = 'MerchantOrderPercentage' AND [SourceTypeSnapshot] = 'MerchantOrder') OR ([CommissionTypeSnapshot] = 'DirectRetailPercentage' AND [SourceTypeSnapshot] = 'TagOrder') OR ([CommissionTypeSnapshot] IN ('ResellerAcquisitionBonus','ResellerRepeatPercentage') AND [SourceTypeSnapshot] = 'MerchantOrder')");
+                table.HasCheckConstraint("CK_CommissionPayoutItems_Currency",
+                    "[CurrencySnapshot] = 'MYR'");
+                table.HasCheckConstraint("CK_CommissionPayoutItems_ReleaseShape",
+                    "([ReleasedAt] IS NULL AND [ReleasedByAdminUserId] IS NULL AND [ReleaseReason] IS NULL) OR ([ReleasedAt] IS NOT NULL AND [ReleasedByAdminUserId] IS NOT NULL AND [ReleaseReason] IS NOT NULL)");
+            });
+            entity.Property(item => item.SourceTypeSnapshot).HasConversion<string>().HasMaxLength(32);
+            entity.Property(item => item.CommissionTypeSnapshot).HasConversion<string>().HasMaxLength(48);
+            entity.Property(item => item.SourceOrderNumberSnapshot).HasMaxLength(64).IsRequired();
+            entity.Property(item => item.CommissionBaseAmountSnapshot).HasPrecision(18, 2);
+            entity.Property(item => item.CommissionAmountSnapshot).HasPrecision(18, 2);
+            entity.Property(item => item.CommissionPercentageSnapshot).HasPrecision(5, 2);
+            entity.Property(item => item.CommissionFixedAmountSnapshot).HasPrecision(18, 2);
+            entity.Property(item => item.CurrencySnapshot).HasMaxLength(3).IsRequired();
+            entity.Property(item => item.ReleaseReason).HasMaxLength(1000);
+            entity.HasIndex(item => new { item.CommissionPayoutId, item.SalesCommissionId }).IsUnique();
+            entity.HasIndex(item => item.SalesCommissionId).IsUnique()
+                .HasFilter("[ReleasedAt] IS NULL");
+            entity.HasOne(item => item.CommissionPayout).WithMany(item => item.Items)
+                .HasForeignKey(item => item.CommissionPayoutId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.SalesCommission).WithMany(item => item.PayoutItems)
+                .HasForeignKey(item => item.SalesCommissionId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.ReleasedByAdminUser).WithMany()
+                .HasForeignKey(item => item.ReleasedByAdminUserId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<CommissionRule>(entity =>

@@ -7702,3 +7702,211 @@ GO
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260909013700_AddCommissionPayoutBatches'
+)
+BEGIN
+    CREATE TABLE [CommissionPayouts] (
+        [Id] uniqueidentifier NOT NULL,
+        [PayoutNumber] nvarchar(40) NOT NULL,
+        [SalespersonId] uniqueidentifier NOT NULL,
+        [SalespersonCodeSnapshot] nvarchar(32) NOT NULL,
+        [SalespersonNameSnapshot] nvarchar(160) NOT NULL,
+        [Seller_BrandName] nvarchar(120) NOT NULL,
+        [Seller_LegalBusinessName] nvarchar(200) NOT NULL,
+        [Seller_BusinessRegistrationNumber] nvarchar(64) NOT NULL,
+        [Seller_TaxIdentificationNumber] nvarchar(64) NULL,
+        [Seller_SstRegistrationNumber] nvarchar(64) NULL,
+        [Seller_AddressLine1] nvarchar(240) NOT NULL,
+        [Seller_AddressLine2] nvarchar(240) NULL,
+        [Seller_Postcode] nvarchar(16) NOT NULL,
+        [Seller_City] nvarchar(120) NOT NULL,
+        [Seller_State] nvarchar(120) NOT NULL,
+        [Seller_Country] nvarchar(80) NOT NULL,
+        [Seller_SupportEmail] nvarchar(254) NOT NULL,
+        [Seller_BusinessPhone] nvarchar(32) NULL,
+        [Seller_BusinessWebsite] nvarchar(200) NULL,
+        [Seller_PaymentInstructions] nvarchar(2000) NULL,
+        [Seller_BankAccountName] nvarchar(200) NULL,
+        [Seller_BankName] nvarchar(120) NULL,
+        [Seller_BankAccountNumber] nvarchar(64) NULL,
+        [Seller_DuitNowDisplayName] nvarchar(120) NULL,
+        [PeriodFrom] datetimeoffset NOT NULL,
+        [PeriodToExclusive] datetimeoffset NOT NULL,
+        [Currency] nvarchar(3) NOT NULL,
+        [PreparedAmount] decimal(18,2) NOT NULL,
+        [Status] nvarchar(16) NOT NULL,
+        [PreparedAt] datetimeoffset NOT NULL,
+        [PreparedByAdminUserId] uniqueidentifier NOT NULL,
+        [PaidAt] datetimeoffset NULL,
+        [PaidByAdminUserId] uniqueidentifier NULL,
+        [PaymentMethod] nvarchar(32) NULL,
+        [PaymentReference] nvarchar(200) NULL,
+        [Notes] nvarchar(2000) NULL,
+        [CancelledAt] datetimeoffset NULL,
+        [CancelledByAdminUserId] uniqueidentifier NULL,
+        [CancellationReason] nvarchar(1000) NULL,
+        [IdempotencyKey] nvarchar(80) NOT NULL,
+        [RequestFingerprint] nvarchar(128) NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_CommissionPayouts] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_CommissionPayouts_Amount] CHECK ([PreparedAmount] >= 0),
+        CONSTRAINT [CK_CommissionPayouts_Currency] CHECK ([Currency] = 'MYR'),
+        CONSTRAINT [CK_CommissionPayouts_Period] CHECK ([PeriodToExclusive] > [PeriodFrom]),
+        CONSTRAINT [CK_CommissionPayouts_StatusShape] CHECK (([Status] = 'Prepared' AND [PaidAt] IS NULL AND [PaidByAdminUserId] IS NULL AND [PaymentMethod] IS NULL AND [PaymentReference] IS NULL AND [CancelledAt] IS NULL AND [CancelledByAdminUserId] IS NULL AND [CancellationReason] IS NULL) OR ([Status] = 'Paid' AND [PaidAt] IS NOT NULL AND [PaidByAdminUserId] IS NOT NULL AND [PaymentMethod] IN ('BankTransfer','DuitNow','Cheque','Cash','Other') AND [PaymentReference] IS NOT NULL AND [CancelledAt] IS NULL AND [CancelledByAdminUserId] IS NULL AND [CancellationReason] IS NULL) OR ([Status] = 'Cancelled' AND [PaidAt] IS NULL AND [PaidByAdminUserId] IS NULL AND [PaymentMethod] IS NULL AND [PaymentReference] IS NULL AND [CancelledAt] IS NOT NULL AND [CancelledByAdminUserId] IS NOT NULL AND [CancellationReason] IS NOT NULL)),
+        CONSTRAINT [FK_CommissionPayouts_AdminUsers_CancelledByAdminUserId] FOREIGN KEY ([CancelledByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_CommissionPayouts_AdminUsers_PaidByAdminUserId] FOREIGN KEY ([PaidByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_CommissionPayouts_AdminUsers_PreparedByAdminUserId] FOREIGN KEY ([PreparedByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_CommissionPayouts_Salespersons_SalespersonId] FOREIGN KEY ([SalespersonId]) REFERENCES [Salespersons] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260909013700_AddCommissionPayoutBatches'
+)
+BEGIN
+    CREATE TABLE [CommissionPayoutItems] (
+        [Id] uniqueidentifier NOT NULL,
+        [CommissionPayoutId] uniqueidentifier NOT NULL,
+        [SalesCommissionId] uniqueidentifier NOT NULL,
+        [SourceTypeSnapshot] nvarchar(32) NOT NULL,
+        [CommissionTypeSnapshot] nvarchar(48) NOT NULL,
+        [MerchantOrderIdSnapshot] uniqueidentifier NULL,
+        [TagOrderIdSnapshot] uniqueidentifier NULL,
+        [SourceOrderNumberSnapshot] nvarchar(64) NOT NULL,
+        [CommissionBaseAmountSnapshot] decimal(18,2) NOT NULL,
+        [CommissionAmountSnapshot] decimal(18,2) NOT NULL,
+        [CommissionPercentageSnapshot] decimal(5,2) NULL,
+        [CommissionFixedAmountSnapshot] decimal(18,2) NULL,
+        [CurrencySnapshot] nvarchar(3) NOT NULL,
+        [CalculatedAtSnapshot] datetimeoffset NOT NULL,
+        [ReleasedAt] datetimeoffset NULL,
+        [ReleasedByAdminUserId] uniqueidentifier NULL,
+        [ReleaseReason] nvarchar(1000) NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_CommissionPayoutItems] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_CommissionPayoutItems_Amounts] CHECK ([CommissionBaseAmountSnapshot] >= 0 AND [CommissionAmountSnapshot] >= 0),
+        CONSTRAINT [CK_CommissionPayoutItems_Currency] CHECK ([CurrencySnapshot] = 'MYR'),
+        CONSTRAINT [CK_CommissionPayoutItems_ReleaseShape] CHECK (([ReleasedAt] IS NULL AND [ReleasedByAdminUserId] IS NULL AND [ReleaseReason] IS NULL) OR ([ReleasedAt] IS NOT NULL AND [ReleasedByAdminUserId] IS NOT NULL AND [ReleaseReason] IS NOT NULL)),
+        CONSTRAINT [CK_CommissionPayoutItems_SourceCommissionType] CHECK (([CommissionTypeSnapshot] = 'MerchantOrderPercentage' AND [SourceTypeSnapshot] = 'MerchantOrder') OR ([CommissionTypeSnapshot] = 'DirectRetailPercentage' AND [SourceTypeSnapshot] = 'TagOrder') OR ([CommissionTypeSnapshot] IN ('ResellerAcquisitionBonus','ResellerRepeatPercentage') AND [SourceTypeSnapshot] = 'MerchantOrder')),
+        CONSTRAINT [CK_CommissionPayoutItems_SourceShape] CHECK (([SourceTypeSnapshot] = 'MerchantOrder' AND [MerchantOrderIdSnapshot] IS NOT NULL AND [TagOrderIdSnapshot] IS NULL) OR ([SourceTypeSnapshot] = 'TagOrder' AND [TagOrderIdSnapshot] IS NOT NULL AND [MerchantOrderIdSnapshot] IS NULL)),
+        CONSTRAINT [CK_CommissionPayoutItems_ValueShape] CHECK (([CommissionPercentageSnapshot] BETWEEN 0 AND 100 AND [CommissionFixedAmountSnapshot] IS NULL) OR ([CommissionPercentageSnapshot] IS NULL AND [CommissionFixedAmountSnapshot] >= 0)),
+        CONSTRAINT [FK_CommissionPayoutItems_AdminUsers_ReleasedByAdminUserId] FOREIGN KEY ([ReleasedByAdminUserId]) REFERENCES [AdminUsers] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_CommissionPayoutItems_CommissionPayouts_CommissionPayoutId] FOREIGN KEY ([CommissionPayoutId]) REFERENCES [CommissionPayouts] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_CommissionPayoutItems_SalesCommissions_SalesCommissionId] FOREIGN KEY ([SalesCommissionId]) REFERENCES [SalesCommissions] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260909013700_AddCommissionPayoutBatches'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_CommissionPayoutItems_CommissionPayoutId_SalesCommissionId] ON [CommissionPayoutItems] ([CommissionPayoutId], [SalesCommissionId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260909013700_AddCommissionPayoutBatches'
+)
+BEGIN
+    CREATE INDEX [IX_CommissionPayoutItems_ReleasedByAdminUserId] ON [CommissionPayoutItems] ([ReleasedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260909013700_AddCommissionPayoutBatches'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [IX_CommissionPayoutItems_SalesCommissionId] ON [CommissionPayoutItems] ([SalesCommissionId]) WHERE [ReleasedAt] IS NULL');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260909013700_AddCommissionPayoutBatches'
+)
+BEGIN
+    CREATE INDEX [IX_CommissionPayouts_CancelledByAdminUserId] ON [CommissionPayouts] ([CancelledByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260909013700_AddCommissionPayoutBatches'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_CommissionPayouts_IdempotencyKey] ON [CommissionPayouts] ([IdempotencyKey]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260909013700_AddCommissionPayoutBatches'
+)
+BEGIN
+    CREATE INDEX [IX_CommissionPayouts_PaidByAdminUserId] ON [CommissionPayouts] ([PaidByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260909013700_AddCommissionPayoutBatches'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_CommissionPayouts_PayoutNumber] ON [CommissionPayouts] ([PayoutNumber]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260909013700_AddCommissionPayoutBatches'
+)
+BEGIN
+    CREATE INDEX [IX_CommissionPayouts_PeriodFrom_PeriodToExclusive] ON [CommissionPayouts] ([PeriodFrom], [PeriodToExclusive]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260909013700_AddCommissionPayoutBatches'
+)
+BEGIN
+    CREATE INDEX [IX_CommissionPayouts_PreparedByAdminUserId] ON [CommissionPayouts] ([PreparedByAdminUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260909013700_AddCommissionPayoutBatches'
+)
+BEGIN
+    CREATE INDEX [IX_CommissionPayouts_SalespersonId_Status_PreparedAt] ON [CommissionPayouts] ([SalespersonId], [Status], [PreparedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260909013700_AddCommissionPayoutBatches'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260909013700_AddCommissionPayoutBatches', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+

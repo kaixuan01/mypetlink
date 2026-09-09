@@ -277,6 +277,72 @@ public sealed class SalesCommission : AuditableEntity
     public string? InternalNote { get; set; }
 
     public byte[] RowVersion { get; set; } = [];
+
+    public ICollection<CommissionPayoutItem> PayoutItems { get; set; } = [];
+}
+
+/// <summary>
+/// One authorised payout instruction for exactly one salesperson and one
+/// half-open earning period. Prepared is already a financial reservation;
+/// there is deliberately no editable draft state.
+/// </summary>
+public sealed class CommissionPayout : AuditableEntity
+{
+    public string PayoutNumber { get; set; } = "";
+    public Guid SalespersonId { get; set; }
+    public Salesperson? Salesperson { get; set; }
+    public string SalespersonCodeSnapshot { get; set; } = "";
+    public string SalespersonNameSnapshot { get; set; } = "";
+    public SellerIdentitySnapshot Seller { get; set; } = new();
+    public DateTimeOffset PeriodFrom { get; set; }
+    public DateTimeOffset PeriodToExclusive { get; set; }
+    public string Currency { get; set; } = MerchantSalesConstants.Currency;
+    public decimal PreparedAmount { get; set; }
+    public CommissionPayoutStatus Status { get; set; } = CommissionPayoutStatus.Prepared;
+    public DateTimeOffset PreparedAt { get; set; }
+    public Guid PreparedByAdminUserId { get; set; }
+    public AdminUser? PreparedByAdminUser { get; set; }
+    public DateTimeOffset? PaidAt { get; set; }
+    public Guid? PaidByAdminUserId { get; set; }
+    public AdminUser? PaidByAdminUser { get; set; }
+    public CommissionPayoutPaymentMethod? PaymentMethod { get; set; }
+    public string? PaymentReference { get; set; }
+    public string? Notes { get; set; }
+    public DateTimeOffset? CancelledAt { get; set; }
+    public Guid? CancelledByAdminUserId { get; set; }
+    public AdminUser? CancelledByAdminUser { get; set; }
+    public string? CancellationReason { get; set; }
+    public string IdempotencyKey { get; set; } = "";
+    public string RequestFingerprint { get; set; } = "";
+    public byte[] RowVersion { get; set; } = [];
+    public ICollection<CommissionPayoutItem> Items { get; set; } = [];
+}
+
+/// <summary>
+/// Immutable financial values selected into a payout. Cancellation releases
+/// the claim without deleting this row, preserving exactly what was prepared.
+/// </summary>
+public sealed class CommissionPayoutItem : AuditableEntity
+{
+    public Guid CommissionPayoutId { get; set; }
+    public CommissionPayout? CommissionPayout { get; set; }
+    public Guid SalesCommissionId { get; set; }
+    public SalesCommission? SalesCommission { get; set; }
+    public SalesCommissionSourceType SourceTypeSnapshot { get; set; }
+    public SalesCommissionType CommissionTypeSnapshot { get; set; }
+    public Guid? MerchantOrderIdSnapshot { get; set; }
+    public Guid? TagOrderIdSnapshot { get; set; }
+    public string SourceOrderNumberSnapshot { get; set; } = "";
+    public decimal CommissionBaseAmountSnapshot { get; set; }
+    public decimal CommissionAmountSnapshot { get; set; }
+    public decimal? CommissionPercentageSnapshot { get; set; }
+    public decimal? CommissionFixedAmountSnapshot { get; set; }
+    public string CurrencySnapshot { get; set; } = MerchantSalesConstants.Currency;
+    public DateTimeOffset CalculatedAtSnapshot { get; set; }
+    public DateTimeOffset? ReleasedAt { get; set; }
+    public Guid? ReleasedByAdminUserId { get; set; }
+    public AdminUser? ReleasedByAdminUser { get; set; }
+    public string? ReleaseReason { get; set; }
 }
 
 /// <summary>

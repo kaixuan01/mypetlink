@@ -45,10 +45,18 @@ server, capped at 10,000 rows, UTF-8 with a BOM, RFC-style quoted, and passed
 through the shared spreadsheet-formula sanitizer cell by cell. Each export is
 audited with its filters and returned row count.
 
-Until payout batches exist, a ledger row with `PaidAt` is exported as a legacy
-individual payment. That marker remains `Yes` if the paid row is later reversed,
-because reversal must not erase the historical cash-payment event.
+The commission ledger distinguishes unclaimed Payable rows, rows reserved in a
+Prepared payout, rows included in a Paid payout, and legacy individual payment.
+It also offers a `PayableAndUnclaimed` filter for exact payout selection. The
+legacy marker remains `Yes` if such a row is later reversed, because reversal
+must not erase the historical cash-payment event. Paid-payout reversals expose
+recovery-required state and the original payout number without changing the
+historical Paid payout.
 
 Run `docs/deployment/sql/diagnose-phase3d-financial-authorization.sql` before
 deployment. At least one active SuperAdmin is a release blocker because payout,
 reversal and rule-management actions are SuperAdmin-only.
+
+After applying the Phase 3D-B migration and before enabling payout endpoints,
+run `docs/deployment/sql/diagnose-phase3d-b-commission-payouts.sql`. All anomaly
+sets must be empty and the active-SuperAdmin set must contain at least one row.

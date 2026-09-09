@@ -312,6 +312,22 @@ public enum SalesCommissionStatus
     Reversed
 }
 
+public enum CommissionPayoutStatus
+{
+    Prepared,
+    Paid,
+    Cancelled
+}
+
+public enum CommissionPayoutPaymentMethod
+{
+    BankTransfer,
+    DuitNow,
+    Cheque,
+    Cash,
+    Other
+}
+
 /// <summary>
 /// The commercial event that produced a commission. Stored as text so future
 /// source channels can be appended without renumbering historical rows.

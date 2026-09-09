@@ -492,44 +492,36 @@ public sealed class MerchantBillingService : IMerchantBillingService
         Guid? actorId, Guid commissionId, string? concurrencyToken,
         CancellationToken cancellationToken)
     {
-        var commission = await _dbContext.SalesCommissions
-            .Include(item => item.MerchantOrder)
-            .Include(item => item.TagOrder)
-            .Include(item => item.Merchant)
-            .SingleOrDefaultAsync(item => item.Id == commissionId, cancellationToken)
-            ?? throw new ApiException(404, "commission_not_found",
-                "That commission record no longer exists.");
-
-        // Marking a commission paid twice is a double-click, not a second payout.
-        if (commission.Status == SalesCommissionStatus.Paid)
+        var strategy = _dbContext.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(async () =>
         {
+            await using var transaction = _dbContext.Database.IsRelational()
+                ? await _dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken)
+                : null;
+            await LockCommissionAsync(commissionId, cancellationToken);
+            var commission = await RequireCommissionForTransitionAsync(commissionId, cancellationToken);
+            if (commission.PayoutItems.Any(item => item.ReleasedAt == null
+                    && item.CommissionPayout?.Status == CommissionPayoutStatus.Prepared))
+                throw Conflict("commission_reserved_for_payout",
+                    "This commission is reserved in a prepared payout. Pay or cancel that payout first.");
+            // Marking a legacy commission paid twice is a double-click, not a second payout.
+            if (commission.Status == SalesCommissionStatus.Paid)
+                return ToResponse(commission);
+            if (commission.Status == SalesCommissionStatus.Reversed)
+                throw Conflict("commission_reversed", "This commission was reversed and cannot be marked paid.");
+            ApplyConcurrency(commission, commission.RowVersion, concurrencyToken);
+            var before = CommissionAuditSnapshot(commission);
+            var admin = await FindAdminAsync(actorId, cancellationToken);
+            var now = _timeProvider.GetUtcNow();
+            SalesCommissionTransitions.MarkPaid(commission, admin?.Id, now);
+            _auditLogService.Append(actorId, ActorType.Admin,
+                commission.SourceType == SalesCommissionSourceType.MerchantOrder
+                    ? "merchant-commission.paid" : "sales-commission.paid",
+                "SalesCommission", commission.Id, before, CommissionAuditSnapshot(commission));
+            await SaveAsync(cancellationToken);
+            if (transaction is not null) await transaction.CommitAsync(cancellationToken);
             return ToResponse(commission);
-        }
-
-        if (commission.Status == SalesCommissionStatus.Reversed)
-        {
-            throw Conflict("commission_reversed",
-                "This commission was reversed and cannot be marked paid.");
-        }
-
-        ApplyConcurrency(commission, commission.RowVersion, concurrencyToken);
-
-        var before = CommissionAuditSnapshot(commission);
-        var admin = await FindAdminAsync(actorId, cancellationToken);
-        var now = _timeProvider.GetUtcNow();
-        commission.Status = SalesCommissionStatus.Paid;
-        commission.PaidAt = now;
-        commission.PaidByAdminUserId = admin?.Id;
-        commission.UpdatedAt = now;
-
-        _auditLogService.Append(actorId, ActorType.Admin,
-            commission.SourceType == SalesCommissionSourceType.MerchantOrder
-                ? "merchant-commission.paid"
-                : "sales-commission.paid",
-            "SalesCommission", commission.Id, before, CommissionAuditSnapshot(commission));
-
-        await SaveAsync(cancellationToken);
-        return ToResponse(commission);
+        });
     }
 
     public async Task<SalesCommissionResponse> ReverseCommissionAsync(
@@ -542,37 +534,54 @@ public sealed class MerchantBillingService : IMerchantBillingService
         if (reason.Length > 1000)
             throw Validation("reason", "Keep the reversal reason to 1,000 characters or fewer.");
 
-        var commission = await _dbContext.SalesCommissions
-            .Include(item => item.MerchantOrder)
-            .Include(item => item.TagOrder)
-            .Include(item => item.Merchant)
-            .SingleOrDefaultAsync(item => item.Id == commissionId, cancellationToken)
-            ?? throw new ApiException(404, "commission_not_found",
-                "That commission record no longer exists.");
-
-        if (commission.Status == SalesCommissionStatus.Reversed)
+        var strategy = _dbContext.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(async () =>
+        {
+            await using var transaction = _dbContext.Database.IsRelational()
+                ? await _dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken)
+                : null;
+            await LockCommissionAsync(commissionId, cancellationToken);
+            var commission = await RequireCommissionForTransitionAsync(commissionId, cancellationToken);
+            if (commission.PayoutItems.Any(item => item.ReleasedAt == null
+                    && item.CommissionPayout?.Status == CommissionPayoutStatus.Prepared))
+                throw Conflict("commission_reserved_for_payout",
+                    "This commission is reserved in a prepared payout. Cancel that payout before reversing it.");
+            if (commission.Status == SalesCommissionStatus.Reversed)
+                return ToResponse(commission);
+            ApplyConcurrency(commission, commission.RowVersion, request.ConcurrencyToken);
+            var before = CommissionAuditSnapshot(commission);
+            var admin = await FindAdminAsync(actorId, cancellationToken);
+            var now = _timeProvider.GetUtcNow();
+            commission.Status = SalesCommissionStatus.Reversed;
+            commission.ReversedAt = now;
+            commission.ReversedByAdminUserId = admin?.Id;
+            commission.ReversalReason = reason;
+            commission.UpdatedAt = now;
+            _auditLogService.Append(actorId, ActorType.Admin,
+                commission.SourceType == SalesCommissionSourceType.MerchantOrder
+                    ? "merchant-commission.reversed" : "sales-commission.reversed",
+                "SalesCommission", commission.Id, before, CommissionAuditSnapshot(commission));
+            await SaveAsync(cancellationToken);
+            if (transaction is not null) await transaction.CommitAsync(cancellationToken);
             return ToResponse(commission);
-
-        ApplyConcurrency(commission, commission.RowVersion, request.ConcurrencyToken);
-
-        var before = CommissionAuditSnapshot(commission);
-        var admin = await FindAdminAsync(actorId, cancellationToken);
-        var now = _timeProvider.GetUtcNow();
-        commission.Status = SalesCommissionStatus.Reversed;
-        commission.ReversedAt = now;
-        commission.ReversedByAdminUserId = admin?.Id;
-        commission.ReversalReason = reason;
-        commission.UpdatedAt = now;
-
-        _auditLogService.Append(actorId, ActorType.Admin,
-            commission.SourceType == SalesCommissionSourceType.MerchantOrder
-                ? "merchant-commission.reversed"
-                : "sales-commission.reversed",
-            "SalesCommission", commission.Id, before, CommissionAuditSnapshot(commission));
-
-        await SaveAsync(cancellationToken);
-        return ToResponse(commission);
+        });
     }
+
+    private async Task LockCommissionAsync(Guid commissionId, CancellationToken cancellationToken)
+    {
+        if (_dbContext.Database.IsSqlServer())
+            await _dbContext.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT 1 FROM [SalesCommissions] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {commissionId}",
+                cancellationToken);
+    }
+
+    private async Task<SalesCommission> RequireCommissionForTransitionAsync(
+        Guid commissionId, CancellationToken cancellationToken) =>
+        await _dbContext.SalesCommissions
+            .Include(item => item.MerchantOrder).Include(item => item.TagOrder).Include(item => item.Merchant)
+            .Include(item => item.PayoutItems).ThenInclude(item => item.CommissionPayout)
+            .SingleOrDefaultAsync(item => item.Id == commissionId, cancellationToken)
+        ?? throw new ApiException(404, "commission_not_found", "That commission record no longer exists.");
 
     // --- Building ----------------------------------------------------------
 
@@ -994,6 +1003,10 @@ public sealed class MerchantBillingService : IMerchantBillingService
         var commissions = await _dbContext.SalesCommissions
             .AsNoTracking()
             .Include(item => item.MerchantOrder)
+            .Include(item => item.TagOrder)
+            .Include(item => item.Merchant)
+            .Include(item => item.PayoutItems)
+                .ThenInclude(item => item.CommissionPayout)
             .Where(item => item.MerchantPaymentId == payment.Id)
             .ToListAsync(cancellationToken);
         if (commissions.Count > 1)
@@ -1153,8 +1166,18 @@ public sealed class MerchantBillingService : IMerchantBillingService
             receipt.Currency,
             receipt.IssuedAt);
 
-    private static SalesCommissionResponse ToResponse(SalesCommission commission) =>
-        new(
+    private static SalesCommissionResponse ToResponse(SalesCommission commission)
+    {
+        var claim = commission.PayoutItems.Where(item => item.ReleasedAt == null)
+            .OrderByDescending(item => item.CreatedAt).FirstOrDefault();
+        var claimState = claim?.CommissionPayout?.Status switch
+        {
+            CommissionPayoutStatus.Prepared => "ReservedInPreparedPayout",
+            CommissionPayoutStatus.Paid => "IncludedInPaidPayout",
+            _ when commission.Status == SalesCommissionStatus.Paid => "LegacyIndividualPaid",
+            _ => "Unclaimed",
+        };
+        return new(
             commission.Id,
             commission.SourceType.ToString(),
             commission.CommissionType.ToString(),
@@ -1184,7 +1207,13 @@ public sealed class MerchantBillingService : IMerchantBillingService
             commission.ReversedByAdminUserId,
             commission.ReversalReason,
             commission.InternalNote,
+            claimState,
+            claim?.CommissionPayoutId,
+            claim?.CommissionPayout?.PayoutNumber,
+            claim?.CommissionPayout?.Status == CommissionPayoutStatus.Paid
+                && commission.Status == SalesCommissionStatus.Reversed,
             Convert.ToBase64String(commission.RowVersion));
+    }
 
     // --- Auditing ----------------------------------------------------------
     //

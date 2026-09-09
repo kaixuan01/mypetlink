@@ -249,6 +249,7 @@ public sealed class SalesReportingService : ISalesReportingService
         var filtered = CommissionLedger(query);
         var total = await filtered.CountAsync(cancellationToken);
         var entities = await filtered.Include(item => item.Merchant).Include(item => item.MerchantOrder).Include(item => item.TagOrder)
+            .Include(item => item.PayoutItems).ThenInclude(item => item.CommissionPayout)
             .OrderByDescending(item => item.CalculatedAt).ThenByDescending(item => item.Id)
             .Skip((query.Page - 1) * query.PageSize).Take(query.PageSize).ToListAsync(cancellationToken);
         var rows = entities.Select(CommissionResponse).ToArray();
@@ -263,9 +264,10 @@ public sealed class SalesReportingService : ISalesReportingService
         var count = await filtered.CountAsync(cancellationToken);
         if (count > MaxExportRows) throw ExportLimit();
         var entities = await filtered.Include(item => item.Merchant).Include(item => item.MerchantOrder).Include(item => item.TagOrder)
+            .Include(item => item.PayoutItems).ThenInclude(item => item.CommissionPayout)
             .OrderBy(item => item.CalculatedAt).ThenBy(item => item.Id).ToListAsync(cancellationToken);
         var rows = entities.Select(CommissionResponse).ToArray();
-        var headers = new[] { "Earned At (UTC)", "Seller Code", "Seller", "Channel", "Commission Type", "Status", "Source Number", "Merchant", "Eligible Base", "Percentage Snapshot", "Fixed Amount Snapshot", "Commission", "Currency", "Paid At (UTC)", "Reversed At (UTC)", "Reversal Reason", "Legacy Individual Payment" };
+        var headers = new[] { "Earned At (UTC)", "Seller Code", "Seller", "Channel", "Commission Type", "Status", "Source Number", "Merchant", "Eligible Base", "Percentage Snapshot", "Fixed Amount Snapshot", "Commission", "Currency", "Paid At (UTC)", "Reversed At (UTC)", "Reversal Reason", "Payout Claim State", "Payout Number", "Recovery Required", "Legacy Individual Payment" };
         var csvRows = rows.Select(item => new[]
         {
             ExportDate(item.CalculatedAt), item.SalespersonCode, item.SalespersonName, item.SourceType,
@@ -275,7 +277,8 @@ public sealed class SalesReportingService : ISalesReportingService
             item.CommissionFixedAmount?.ToString("0.00", CultureInfo.InvariantCulture) ?? "",
             item.CommissionAmount.ToString("0.00", CultureInfo.InvariantCulture), item.Currency,
             ExportDate(item.PaidAt), ExportDate(item.ReversedAt), item.ReversalReason ?? "",
-            item.PaidAt.HasValue ? "Yes" : "No"
+            item.PayoutClaimState, item.PayoutNumber ?? "", item.RequiresRecovery ? "Yes" : "No",
+            item.PayoutClaimState == "LegacyIndividualPaid" ? "Yes" : "No"
         });
         await AuditExportAsync(admin, "sales-commissions.export", "SalesCommission", count,
             new { query.From, query.ToExclusive, query.SalespersonId, query.Channel, query.CommissionType, query.Status, query.MerchantId, query.Search }, cancellationToken);
@@ -337,6 +340,9 @@ public sealed class SalesReportingService : ISalesReportingService
         var status = ParseStatus(query.Status);
         if (status.HasValue) result = result.Where(item => item.Status == status.Value);
         if (query.MerchantId.HasValue) result = result.Where(item => item.MerchantId == query.MerchantId.Value);
+        if (query.PayableAndUnclaimed == true)
+            result = result.Where(item => item.Status == SalesCommissionStatus.Payable
+                && !item.PayoutItems.Any(claim => claim.ReleasedAt == null));
         var search = query.Search?.Trim();
         if (!string.IsNullOrEmpty(search))
             result = result.Where(item =>
@@ -491,16 +497,36 @@ public sealed class SalesReportingService : ISalesReportingService
         return merchant.RepeatCommissionEligibleUntil <= now + EndingSoonWindow ? "EndingSoon" : "Active";
     }
 
-    private static SalesCommissionResponse CommissionResponse(SalesCommission item) => new(
+    private static SalesCommissionResponse CommissionResponse(SalesCommission item)
+    {
+        var claim = item.PayoutItems
+            .Where(entry => entry.ReleasedAt == null)
+            .OrderByDescending(entry => entry.CreatedAt)
+            .FirstOrDefault();
+        var claimState = claim?.CommissionPayout?.Status switch
+        {
+            CommissionPayoutStatus.Prepared => "ReservedInPreparedPayout",
+            CommissionPayoutStatus.Paid => "IncludedInPaidPayout",
+            _ when item.Status == SalesCommissionStatus.Paid => "LegacyIndividualPaid",
+            _ => "Unclaimed",
+        };
+        var requiresRecovery = claim?.CommissionPayout?.Status == CommissionPayoutStatus.Paid
+            && item.Status == SalesCommissionStatus.Reversed;
+        return new(
         item.Id, item.SourceType.ToString(), item.CommissionType.ToString(), item.MerchantOrderId,
         item.MerchantPaymentId, item.TagOrderId, item.MerchantId,
         item.Merchant != null ? item.Merchant.TradingName ?? item.Merchant.LegalBusinessName : null,
-        item.SourceType == SalesCommissionSourceType.MerchantOrder ? item.MerchantOrder!.MerchantOrderNumber : item.TagOrder!.OrderNumber,
+        item.SourceType == SalesCommissionSourceType.MerchantOrder
+            ? item.MerchantOrder?.MerchantOrderNumber ?? ""
+            : item.TagOrder?.OrderNumber ?? "",
         item.SalespersonId, item.SalespersonCodeSnapshot, item.SalespersonNameSnapshot,
         item.CommissionPercentageSnapshot, item.CommissionFixedAmountSnapshot, item.CommissionBaseAmount,
         item.CommissionAmount, item.Currency, item.CommissionRuleId, item.CommissionRuleEffectiveFromSnapshot,
         item.Status.ToString(), item.CalculatedAt, item.PaidAt, item.PaidByAdminUserId, item.ReversedAt,
-        item.ReversedByAdminUserId, item.ReversalReason, item.InternalNote, Convert.ToBase64String(item.RowVersion));
+        item.ReversedByAdminUserId, item.ReversalReason, item.InternalNote, claimState,
+        claim?.CommissionPayoutId, claim?.CommissionPayout?.PayoutNumber, requiresRecovery,
+        Convert.ToBase64String(item.RowVersion));
+    }
 
     private static SalesReportRange ValidateRange(SalesReportQuery query)
     {

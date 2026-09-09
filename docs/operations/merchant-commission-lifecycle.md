@@ -105,17 +105,38 @@ known historical same-account cases for Admin review.
 
 ## Payout and reversal
 
-Phase 3D-A keeps the existing individual `Mark Paid` operation as a temporary
-SuperAdmin-only transition. It is not a bank transfer and does not create a
-payout batch. Phase 3D-B will replace that workflow with append-only payout
-batches and payout items while retaining these historical timestamps.
+Phase 3D-B pays commissions through append-only payout batches. Preparing a
+batch is already a financial reservation: it snapshots an exact set of payable
+MYR ledger rows for one salesperson and one half-open earning period. There is
+no editable draft. A filtered unique index permits only one unreleased payout
+item per commission.
+
+- Admin or SuperAdmin may prepare or cancel a payout. Only SuperAdmin may mark
+  it paid. All transitions use `RowVersion`, a serializable transaction and
+  deterministic commission-row locks.
+- Preparation validates the exact selected count, salesperson, period,
+  currency, payable status, unclaimed state and authoritative total. Its
+  idempotency key is bound to a fingerprint of the canonical sorted request.
+- Payment revalidates every active item and reconciles the item snapshots to
+  the header total, then marks the payout and every commission paid at one UTC
+  timestamp and by one administrator. It cannot partially succeed.
+- Cancellation retains the header and items, records a reason on each released
+  item, and leaves the underlying commissions Payable so a new payout can claim
+  them.
+- The legacy individual `Mark Paid` endpoint remains for compatibility, but it
+  rejects a commission reserved in a Prepared payout. Such historical direct
+  payments are reported as `LegacyIndividualPaid`.
 
 - Only a **Payable** commission transitions to **Paid**. Retrying the same paid
   action is a no-op and does not alter the original payout time or actor.
 - A **Payable** or **Paid** commission may transition to **Reversed**. Reversal
   requires an operational reason and records its time and administrator.
 - Reversing a paid commission preserves `PaidAt` and `PaidByAdminUserId`; it does
-  not silently erase the payout that must be recovered.
+  not silently erase the payout that must be recovered. If the commission was
+  part of a Paid payout, that payout remains Paid and its detail reports the
+  amount as explicit recovery exposure. No automatic offset is created.
+- A commission reserved in a Prepared payout cannot be reversed directly; the
+  batch must be cancelled first.
 - A **Reversed** commission cannot be paid. Repeating its reversal is a no-op.
 - Admin cancellation of a paid, unshipped retail order is an authoritative
   invalidation and reverses its direct retail commission atomically. There is no

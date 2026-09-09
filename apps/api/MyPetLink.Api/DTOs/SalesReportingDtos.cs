@@ -18,6 +18,7 @@ public sealed class CommissionLedgerQuery : SalesReportQuery
     public string? Status { get; set; }
     public Guid? MerchantId { get; set; }
     public string? Search { get; set; }
+    public bool? PayableAndUnclaimed { get; set; }
 }
 
 public sealed class ResellerPortfolioQuery

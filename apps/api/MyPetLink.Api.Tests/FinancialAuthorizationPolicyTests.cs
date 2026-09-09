@@ -20,6 +20,10 @@ public sealed class FinancialAuthorizationPolicyTests
         AssertPolicy(typeof(AdminSalesReportingController).GetMethod("Performance")!, AuthorizationPolicies.SalesPerformance);
         AssertPolicy(typeof(AdminSalesReportingController).GetMethod("Financial")!, AuthorizationPolicies.CommissionFinancial);
         AssertPolicy(typeof(AdminMerchantInvoicesController).GetMethod("RecordPayment")!, AuthorizationPolicies.CommissionFinancial);
+        AssertPolicy(typeof(AdminCommissionPayoutsController), AuthorizationPolicies.CommissionFinancial);
+        AssertPolicy(typeof(AdminCommissionPayoutsController).GetMethod("Prepare")!, AuthorizationPolicies.PrepareCommissionPayout);
+        AssertPolicy(typeof(AdminCommissionPayoutsController).GetMethod("MarkPaid")!, AuthorizationPolicies.MarkCommissionPaid);
+        AssertPolicy(typeof(AdminCommissionPayoutsController).GetMethod("Cancel")!, AuthorizationPolicies.PrepareCommissionPayout);
     }
 
     [Theory]
