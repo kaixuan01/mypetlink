@@ -33,8 +33,16 @@ public static class RelationalDatabase
 
     // Creates a fresh, uniquely-named database and returns a factory for new
     // DbContexts plus a disposer that drops it.
+    // <param name="enableRetryOnFailure">
+    // Mirrors the production DbContext registration in Program.cs, which calls
+    // EnableRetryOnFailure. A retrying execution strategy refuses to run while
+    // a user-initiated transaction is open, so code paths that call
+    // BeginTransaction must be exercised with this on or the failure only ever
+    // appears in a deployed environment.
+    // </param>
     public static async Task<RelationalScope> CreateAsync(
-        IInterceptor? interceptor = null)
+        IInterceptor? interceptor = null,
+        bool enableRetryOnFailure = false)
     {
         var databaseName = $"MyPetLinkTest_{Guid.NewGuid():N}";
         var builder = new SqlConnectionStringBuilder(BaseConnectionString) { InitialCatalog = "master" };
@@ -54,7 +62,16 @@ public static class RelationalDatabase
         MyPetLinkDbContext CreateContext()
         {
             var options = new DbContextOptionsBuilder<MyPetLinkDbContext>()
-                .UseSqlServer(connectionString);
+                .UseSqlServer(connectionString, sqlOptions =>
+                {
+                    if (enableRetryOnFailure)
+                    {
+                        sqlOptions.EnableRetryOnFailure(
+                            maxRetryCount: 6,
+                            maxRetryDelay: TimeSpan.FromSeconds(1),
+                            errorNumbersToAdd: null);
+                    }
+                });
             if (interceptor is not null)
             {
                 options.AddInterceptors(interceptor);

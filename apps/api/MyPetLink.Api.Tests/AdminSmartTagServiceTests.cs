@@ -164,6 +164,56 @@ public sealed class AdminSmartTagServiceTests
     }
 
     [Fact]
+    public async Task Claim_RequiresAnAuthenticatedAdmin_AndLeavesTheTagUntouched()
+    {
+        using var harness = await Harness.CreateAsync();
+        var tag = await harness.Db.SmartTags.SingleAsync(item => item.Status == SmartTagStatus.Unclaimed);
+        var pet = await harness.Db.Pets.SingleAsync(item => item.Name == "Topu");
+        AdminSmartTagClaimRequest Request() => new()
+        {
+            OwnerUserId = pet.OwnerUserId, PetId = pet.Id, ExpectedUpdatedAt = tag.UpdatedAt
+        };
+
+        var anonymous = await Assert.ThrowsAsync<ApiException>(
+            () => harness.Service.ClaimAsync(null, tag.Id, Request()));
+        Assert.Equal(StatusCodes.Status401Unauthorized, anonymous.StatusCode);
+
+        var nonAdmin = await Assert.ThrowsAsync<ApiException>(
+            () => harness.Service.ClaimAsync(pet.OwnerUserId, tag.Id, Request()));
+        Assert.Equal(StatusCodes.Status403Forbidden, nonAdmin.StatusCode);
+
+        var untouched = await harness.Db.SmartTags.AsNoTracking().SingleAsync(item => item.Id == tag.Id);
+        Assert.Null(untouched.OwnerUserId);
+        Assert.Null(untouched.PetId);
+        Assert.Equal(SmartTagStatus.Unclaimed, untouched.Status);
+        Assert.DoesNotContain(
+            await harness.Db.AuditLogs.ToListAsync(),
+            log => log.EntityId == tag.Id);
+    }
+
+    [Fact]
+    public async Task Claim_WithoutAReason_SucceedsAndRecordsAuditWithoutOne()
+    {
+        using var harness = await Harness.CreateAsync();
+        var tag = await harness.Db.SmartTags.SingleAsync(item => item.Status == SmartTagStatus.Unclaimed);
+        var pet = await harness.Db.Pets.SingleAsync(item => item.Name == "Topu");
+
+        // The Admin dialog marks the reason optional, so an omitted one must be
+        // accepted rather than turned into a validation failure or filler text.
+        var updated = await harness.Service.ClaimAsync(Harness.AdminId, tag.Id, new AdminSmartTagClaimRequest
+        {
+            OwnerUserId = pet.OwnerUserId, PetId = pet.Id, ExpectedUpdatedAt = tag.UpdatedAt
+        });
+
+        Assert.Equal(SmartTagStatus.Pending, updated.Status);
+        Assert.Null(updated.ActivatedAt);
+        var entry = Assert.Single(
+            await harness.Db.AuditLogs.Where(log => log.EntityId == tag.Id).ToListAsync());
+        Assert.Equal("smart-tags.owner-and-pet-assigned", entry.Action);
+        Assert.Contains("\"reason\":null", entry.NewValue);
+    }
+
+    [Fact]
     public async Task Claim_AssignsOwnerAndPetWithoutActivatingOrChangingTagCode()
     {
         using var harness = await Harness.CreateAsync();

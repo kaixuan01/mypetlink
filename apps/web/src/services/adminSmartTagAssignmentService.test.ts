@@ -39,6 +39,40 @@ describe("Smart Tag assignment API mapping", () => {
     expect(updated.petId).toBe("pet-2");
   });
 
+  it("claims an unclaimed tag through the claim command with owner, pet and version", async () => {
+    const unclaimed: AdminSmartTag = {
+      ...tag, status: "Unassigned", ownerId: undefined, ownerName: undefined,
+      petId: undefined, petName: undefined, activatedAt: undefined,
+    };
+
+    await updateAdminSmartTagAssignment(unclaimed, "claim", {
+      ownerId: "owner-1", petId: "pet-1", reason: "Counter replacement",
+    });
+
+    expect(mocks.apiRequest).toHaveBeenCalledWith("/api/v1/admin/tags/tag-1/assignment/claim", {
+      method: "POST",
+      body: {
+        ownerUserId: "owner-1",
+        petId: "pet-1",
+        expectedUpdatedAt: unclaimed.updatedAt,
+        reason: "Counter replacement",
+      },
+    });
+  });
+
+  it("sends an omitted reason as null rather than an empty string", async () => {
+    const unclaimed: AdminSmartTag = {
+      ...tag, status: "Unassigned", ownerId: undefined, ownerName: undefined,
+      petId: undefined, petName: undefined, activatedAt: undefined,
+    };
+
+    // The dialog marks the reason optional, so a blank one has to reach the
+    // API as an absent value the backend accepts.
+    await updateAdminSmartTagAssignment(unclaimed, "claim", { ownerId: "owner-1", petId: "pet-1" });
+
+    expect(mocks.apiRequest.mock.calls[0][1].body.reason).toBeNull();
+  });
+
   it("uses a separate transfer command and preserves a server conflict", async () => {
     await updateAdminSmartTagAssignment(tag, "transfer", { ownerId: "owner-2", petId: "pet-3", reason: "Verified" });
     expect(mocks.apiRequest).toHaveBeenCalledWith("/api/v1/admin/tags/tag-1/assignment/transfer", {
