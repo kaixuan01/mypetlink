@@ -11,6 +11,7 @@ export default function AdminTagInventoryPage() {
   return (
     <>
       <PageHeader
+        compactOnMobile
         eyebrow="Admin"
         title="Tag inventory"
         description="Generate tag codes and manage retail stock from printing through reseller delivery."

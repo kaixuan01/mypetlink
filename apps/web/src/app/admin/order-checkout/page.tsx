@@ -8,6 +8,7 @@ export default function AdminOrderCheckoutPage() {
   return (
     <>
       <PageHeader
+        compactOnMobile
         eyebrow="Configuration"
         title="Order checkout"
         description="Manage the unpaid payment window and review the automatic reservation-expiry status."

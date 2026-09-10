@@ -188,11 +188,14 @@ export function AdminStatusRow({
   value,
   tone,
   hint,
+  isZero = false,
 }: {
   label: string;
   value: ReactNode;
   tone?: AdminStatusTone;
   hint?: string;
+  /** Use for reference metrics whose semantic value is zero. */
+  isZero?: boolean;
 }) {
   return (
     <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-slate-100 py-2.5 last:border-b-0">
@@ -204,7 +207,7 @@ export function AdminStatusRow({
       </div>
       <span
         className={`shrink-0 text-sm font-bold ${
-          tone ? statAccents[tone] : "text-slate-900"
+          isZero ? "text-slate-400" : tone ? statAccents[tone] : "text-slate-900"
         }`}
       >
         {value}

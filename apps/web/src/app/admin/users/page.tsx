@@ -10,6 +10,7 @@ export default function AdminUsersPage() {
   return (
     <>
       <PageHeader
+        compactOnMobile
         eyebrow="Admin"
         title="Owners"
         description="Review pet owner accounts, their profiles, and their tag orders."

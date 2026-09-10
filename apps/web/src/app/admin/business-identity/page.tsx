@@ -8,6 +8,7 @@ export default function AdminBusinessIdentityPage() {
   return (
     <>
       <PageHeader
+        compactOnMobile
         eyebrow="Configuration"
         title="Business identity"
         description="The business name, registration, address and payment details printed on customer receipts and business documents."

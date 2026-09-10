@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminSection } from "@/components/admin/AdminPanels";
+import { AdminEmptyPanel } from "@/components/admin/AdminStatus";
 import { Badge } from "@/components/ui/Badge";
 import { isAbortError } from "@/services/apiClient";
 import {
@@ -257,7 +258,7 @@ export function CommissionsPanel({
             </tbody>
           </table>
           {!loading && commissions.length === 0 ? (
-            <p className="p-5 text-sm font-semibold text-slate-500">No commission history yet.</p>
+            <AdminEmptyPanel compact icon="record" title="No commission history yet." />
           ) : null}
           {loading ? <p className="p-5 text-sm font-semibold text-slate-500">Loading commissions…</p> : null}
         </div>

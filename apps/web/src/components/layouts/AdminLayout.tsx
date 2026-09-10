@@ -9,6 +9,7 @@ import {
   AdminOperationalProvider,
   useAdminOperationalData,
 } from "@/components/admin/AdminOperationalContext";
+import { AdminLaunchBanner } from "@/components/admin/AdminLaunchBanner";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { Icon } from "@/components/ui/Icon";
 import {
@@ -52,15 +53,8 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
           <Suspense fallback={<AdminChromeFallback />}>
             <AdminChrome onLogout={handleLogout} />
           </Suspense>
-          <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-            <div className="mb-6 flex items-start gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-              <Icon name="shield" className="mt-0.5 h-5 w-5 shrink-0" />
-              <p className="font-semibold">
-                Early launch operations workspace — payments are reviewed manually
-                in this phase. Changes here update order, tag, and profile status
-                for owners.
-              </p>
-            </div>
+          <main className="min-w-0 flex-1 px-4 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8">
+            <AdminLaunchBanner />
             {children}
           </main>
         </div>

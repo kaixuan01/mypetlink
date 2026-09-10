@@ -11,6 +11,7 @@ export default function AdminTagsPage() {
   return (
     <>
       <PageHeader
+        compactOnMobile
         eyebrow="Admin"
         title="Smart tags"
         description="Manage physical tags, their pet bindings, and their scan behavior."

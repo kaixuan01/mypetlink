@@ -2,7 +2,7 @@
 
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { AdminStat } from "./AdminStatus";
+import { AdminStat, AdminStatusRow } from "./AdminStatus";
 
 afterEach(cleanup);
 
@@ -43,5 +43,19 @@ describe("AdminStat semantic zero state", () => {
     );
 
     expect(screen.getByText("MYR 75.00").className).toContain("text-[#1b4f9c]");
+  });
+});
+
+describe("AdminStatusRow semantic zero state", () => {
+  it("mutes an explicitly zero reference metric", () => {
+    render(<AdminStatusRow isZero label="Lost Mode pets" tone="warning" value={0} />);
+
+    expect(screen.getByText("0").className).toContain("text-slate-400");
+  });
+
+  it("retains the requested tone for a non-zero reference metric", () => {
+    render(<AdminStatusRow label="Lost Mode pets" tone="warning" value={2} />);
+
+    expect(screen.getByText("2").className).toContain("text-[#8a5a10]");
   });
 });

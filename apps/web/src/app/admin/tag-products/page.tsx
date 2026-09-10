@@ -9,6 +9,7 @@ export default function AdminTagProductsPage() {
   return (
     <>
       <PageHeader
+        compactOnMobile
         eyebrow="Catalog"
         title="Tag catalog"
         description="Manage customer-facing products, production SKUs, prices, automatic promotions, and catalog settings."

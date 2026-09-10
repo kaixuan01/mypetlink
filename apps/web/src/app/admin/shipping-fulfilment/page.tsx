@@ -8,6 +8,7 @@ export default function AdminShippingFulfilmentPage() {
   return (
     <>
       <PageHeader
+        compactOnMobile
         eyebrow="Configuration"
         title="Shipping and fulfilment"
         description="Manage parcel sender details, packing defaults and the couriers available during manual fulfilment."

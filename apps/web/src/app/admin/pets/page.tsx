@@ -10,6 +10,7 @@ export default function AdminPetsPage() {
   return (
     <>
       <PageHeader
+        compactOnMobile
         eyebrow="Admin"
         title="Pet profiles"
         description="Review pet profiles, lifecycle status, Lost Mode, and linked smart tags."

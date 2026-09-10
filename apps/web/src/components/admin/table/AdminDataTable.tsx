@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { AdminEmptyPanel } from "@/components/admin/AdminStatus";
 import { Icon } from "@/components/ui/Icon";
 import { ADMIN_PAGE_SIZES, type SortDir } from "./useAdminTableQuery";
 
@@ -254,16 +255,18 @@ export function AdminDataTable<T>({
           {/* Announced, so changing a filter into an empty result is not
               silent for anyone relying on a screen reader. */}
           <td
-            className="px-4 py-10 text-center"
+            className="px-4 py-2"
             colSpan={visibleColumns.length + (selectable ? 1 : 0) + (onRowOpen ? 1 : 0)}
             role="status"
           >
-            <p className="text-sm font-black text-slate-900">{emptyTitle}</p>
-            {emptyDescription ? (
-              <p className="mt-1 text-sm font-semibold text-slate-500">
-                {emptyDescription}
-              </p>
-            ) : null}
+            <div className="mx-auto max-w-xl">
+              <AdminEmptyPanel
+                compact
+                description={emptyDescription}
+                icon="record"
+                title={emptyTitle}
+              />
+            </div>
           </td>
         </tr>
       </tbody>

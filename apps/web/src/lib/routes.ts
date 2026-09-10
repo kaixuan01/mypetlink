@@ -173,6 +173,7 @@ export const adminRoutes = {
   orders: "/admin/orders",
   ordersForOwner: (ownerId: string) => `/admin/orders?ownerId=${encodeURIComponent(ownerId)}`,
   paymentProofs: "/admin/payment-proofs",
+  paymentProofsAwaitingReview: "/admin/payment-proofs?status=PendingReview",
   paymentProofsForOwner: (ownerId: string) => `/admin/payment-proofs?ownerId=${encodeURIComponent(ownerId)}`,
   smartTags: "/admin/tags",
   tagInventory: "/admin/tag-inventory",

@@ -43,31 +43,6 @@ export function AdminSection({
   );
 }
 
-export function AdminTable({
-  headers,
-  children,
-}: {
-  headers: string[];
-  children: ReactNode;
-}) {
-  return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full text-left text-sm">
-        <thead className="bg-slate-50 text-xs uppercase text-slate-500">
-          <tr>
-            {headers.map((header) => (
-              <th className="whitespace-nowrap px-4 py-3" key={header}>
-                {header}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-100">{children}</tbody>
-      </table>
-    </div>
-  );
-}
-
 export function AdminDetailItem({
   label,
   value,

@@ -10,6 +10,7 @@ export default function AdminOperationalStatusPage() {
   return (
     <>
       <PageHeader
+        compactOnMobile
         eyebrow="System"
         title="Operational status"
         description="A read-only view of how MyPetLink is currently set up and running."

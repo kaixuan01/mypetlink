@@ -10,6 +10,7 @@ export default function AdminEmailTemplatesPage() {
   return (
     <>
       <PageHeader
+        compactOnMobile
         eyebrow="Configuration"
         title="Email templates"
         description="Choose which customer emails MyPetLink sends. Turning one on only affects new events."

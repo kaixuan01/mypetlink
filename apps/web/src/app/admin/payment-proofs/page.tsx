@@ -11,6 +11,7 @@ export default function AdminPaymentProofsPage() {
   return (
     <>
       <PageHeader
+        compactOnMobile
         eyebrow="Admin"
         title="Payment proof review"
         description="Review uploaded receipts and confirm payments manually."

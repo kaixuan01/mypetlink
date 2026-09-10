@@ -11,6 +11,7 @@ export default function AdminOrdersPage() {
   return (
     <>
       <PageHeader
+        compactOnMobile
         eyebrow="Admin"
         title="Tag orders"
         description="Confirm manual payments and move orders through preparation, shipping, and delivery."

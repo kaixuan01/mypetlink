@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { AdminSection } from "@/components/admin/AdminPanels";
+import { AdminEmptyPanel } from "@/components/admin/AdminStatus";
 import { isAbortError } from "@/services/apiClient";
 import {
   getAllocationSummary,
@@ -184,9 +185,11 @@ export function OrderInventorySection({ order }: { order: AdminMerchantOrder }) 
               </div>
             </>
           ) : timeline.length === 0 ? (
-            <p className="text-sm font-semibold text-slate-500">
-              Nothing has happened to this order&apos;s inventory yet.
-            </p>
+            <AdminEmptyPanel
+              compact
+              icon="tag"
+              title="Nothing has happened to this order's inventory yet."
+            />
           ) : (
             <ol className="grid gap-2" data-testid="allocation-timeline">
               {timeline.map((entry, index) => (

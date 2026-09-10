@@ -11,6 +11,7 @@ export default function AdminPlansPage() {
   return (
     <>
       <PageHeader
+        compactOnMobile
         eyebrow="Admin"
         title="Plans"
         description="Review plan packages, their limits, and how each owner's usage compares."

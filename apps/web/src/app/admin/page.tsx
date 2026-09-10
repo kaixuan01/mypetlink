@@ -11,6 +11,7 @@ export default function AdminPage() {
   return (
     <>
       <PageHeader
+        compactOnMobile
         eyebrow="Admin"
         title="Operations overview"
         description="Track owners, pets, payment proofs, orders, and smart tags from one workspace."

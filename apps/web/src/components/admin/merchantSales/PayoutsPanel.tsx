@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { AdminSection } from "@/components/admin/AdminPanels";
+import { AdminEmptyPanel } from "@/components/admin/AdminStatus";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Badge } from "@/components/ui/Badge";
 import { isAbortError } from "@/services/apiClient";
@@ -328,7 +329,7 @@ function PreparePayout({ salespersons, onCancel, onPrepared }: {
             <tbody className="divide-y divide-slate-100">{eligibleRows.map((row) => <tr key={row.id}><td className="px-4 py-3"><input aria-label={`Select ${row.sourceOrderNumber}`} checked={selected.has(row.id)} onChange={() => toggle(row.id)} type="checkbox" /></td><td className="px-4 py-3"><p className="font-bold">{groupLabel(row.commissionType)}</p><p className="text-xs text-slate-500">{row.sourceType === "TagOrder" ? "Direct retail" : "Merchant"}</p></td><td className="px-4 py-3 font-mono text-xs font-bold">{row.sourceOrderNumber}</td><td className="px-4 py-3">{row.merchantName ?? "—"}</td><td className="px-4 py-3">{dateTime(row.calculatedAt)}</td><td className="px-4 py-3 text-right">{money(row.currency, row.commissionBaseAmount)}</td><td className="px-4 py-3">{rateLabel(row)}</td><td className="px-4 py-3 text-right font-black">{money(row.currency, row.commissionAmount)}</td></tr>)}</tbody>
           </table>
           {loading && hasScope ? <p className="p-4 text-sm font-semibold text-slate-500">Loading eligible commissions…</p> : null}
-          {!loading && hasScope && eligibleRows.length === 0 ? <p className="p-4 text-sm font-semibold text-slate-500">No payable, unclaimed commissions are available for this period.</p> : null}
+          {!loading && hasScope && eligibleRows.length === 0 ? <AdminEmptyPanel compact icon="record" title="No payable, unclaimed commissions are available for this period." /> : null}
           {!salespersonId ? <p className="p-4 text-sm font-semibold text-slate-500">Choose a salesperson to load eligible commissions.</p> : null}
           {salespersonId && !hasScope ? <p className="p-4 text-sm font-semibold text-slate-500">Choose a complete earned period to load eligible commissions.</p> : null}
         </div>
