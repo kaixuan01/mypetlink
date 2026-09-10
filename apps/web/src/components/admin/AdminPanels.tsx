@@ -9,21 +9,31 @@ export function AdminSection({
   description,
   action,
   children,
+  compact = false,
 }: {
   title: string;
   description?: string;
   action?: ReactNode;
   children: ReactNode;
+  compact?: boolean;
 }) {
   return (
     // min-w-0 lets the section shrink inside grid/flex parents so wide tables
     // scroll within their own container instead of stretching the page.
     <section className="min-w-0 rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex flex-col gap-3 border-b border-slate-200 p-5 sm:flex-row sm:items-end sm:justify-between">
+      <div
+        className={`flex flex-col border-b border-slate-200 sm:flex-row sm:items-end sm:justify-between ${
+          compact ? "gap-2 p-4 sm:gap-3 sm:p-5" : "gap-3 p-5"
+        }`}
+      >
         <div>
-          <h2 className="text-lg font-black text-slate-950">{title}</h2>
+          <h2 className={`${compact ? "text-base sm:text-lg" : "text-lg"} font-black text-slate-950`}>
+            {title}
+          </h2>
           {description ? (
-            <p className="mt-1 text-sm text-slate-500">{description}</p>
+            <p className={`${compact ? "mt-0.5 text-xs sm:mt-1 sm:text-sm" : "mt-1 text-sm"} text-slate-500`}>
+              {description}
+            </p>
           ) : null}
         </div>
         {action ? <div className="shrink-0">{action}</div> : null}

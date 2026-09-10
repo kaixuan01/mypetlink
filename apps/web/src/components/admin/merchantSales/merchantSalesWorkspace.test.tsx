@@ -122,6 +122,17 @@ describe("Overview", () => {
     expect(screen.getByText("MYR 75.00")).toBeTruthy();
   });
 
+  it("renders formatted zero financial totals with muted emphasis", async () => {
+    getMerchantSalesOverview.mockResolvedValue(
+      overview({ outstandingInvoiceTotal: 0, payableCommissionTotal: 0 })
+    );
+    renderOverview();
+
+    const values = await screen.findAllByText("MYR 0.00");
+    expect(values).toHaveLength(2);
+    expect(values.every((value) => value.className.includes("text-slate-300"))).toBe(true);
+  });
+
   it("marks the commission figure as internal", async () => {
     renderOverview();
     const label = await screen.findByText(/Payable commission/i);
@@ -161,6 +172,7 @@ describe("Overview", () => {
     expect(screen.queryByRole("button", { name: /New merchant/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /New salesperson/i })).toBeNull();
     expect(screen.queryByText(/Quick actions/i)).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Sales overview" })).toBeNull();
   });
 
   it("makes the two financial KPIs primary and partner totals reference-only", async () => {

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   WorkspaceNav,
@@ -68,15 +68,45 @@ describe("WorkspaceNav", () => {
     expect(screen.getByTestId("workspace-nav-item-overview").getAttribute("aria-current")).toBe("page");
   });
 
-  it("uses a mobile selector with the same destinations", () => {
+  it("uses a grouped mobile navigation sheet with the same destinations", async () => {
     const onNavigate = vi.fn();
     render(
       <WorkspaceNav activeId="overview" groups={groups} label="Workspace" onNavigate={onNavigate} />
     );
 
-    const select = within(screen.getByTestId("workspace-nav-mobile")).getByRole("combobox");
-    expect(within(select).getAllByRole("option")).toHaveLength(5);
-    fireEvent.change(select, { target: { value: "invoices" } });
+    const mobile = screen.getByTestId("workspace-nav-mobile");
+    const trigger = within(mobile).getByRole("button", {
+      name: "Browse Workspace. Current section: Overview",
+    });
+    trigger.focus();
+    fireEvent.click(trigger);
+
+    const dialog = screen.getByRole("dialog", { name: "Choose a workspace section" });
+    expect(within(dialog).getByText("Sales")).toBeTruthy();
+    expect(within(dialog).getAllByRole("link")).toHaveLength(5);
+    expect(within(dialog).getByRole("link", { name: /OverviewCurrent/i }).getAttribute("aria-current")).toBe("page");
+    await waitFor(() => expect(document.body.style.overflow).toBe("hidden"));
+
+    fireEvent.click(within(dialog).getByRole("link", { name: "Invoices & Receipts" }));
     expect(onNavigate).toHaveBeenCalledWith("invoices");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(document.body.style.overflow).toBe("");
+  });
+
+  it("traps focus, closes on Escape and returns focus to its trigger", async () => {
+    render(
+      <WorkspaceNav activeId="overview" groups={groups} label="Workspace" onNavigate={vi.fn()} />
+    );
+    const trigger = within(screen.getByTestId("workspace-nav-mobile")).getByRole("button");
+    trigger.focus();
+    fireEvent.click(trigger);
+
+    await waitFor(() => {
+      expect(document.activeElement?.getAttribute("aria-label")).toBe("Close workspace navigation");
+    });
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(document.activeElement).toBe(trigger);
   });
 });

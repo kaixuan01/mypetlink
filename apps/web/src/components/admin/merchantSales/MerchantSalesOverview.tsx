@@ -147,12 +147,8 @@ export function MerchantSalesOverview({
   ];
 
   return (
-    <div className="grid gap-4" data-testid="merchant-sales-overview">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h2 className="text-xl font-black text-slate-950">Sales overview</h2>
-          <p className="mt-1 text-sm text-slate-500">Financial position, work requiring attention, and sales progress.</p>
-        </div>
+    <div className="grid gap-3 sm:gap-4" data-testid="merchant-sales-overview">
+      <div className="flex justify-end">
         <button className={primaryButton} onClick={onNewQuotation} type="button">
           New quotation
         </button>
@@ -160,12 +156,14 @@ export function MerchantSalesOverview({
 
       <AdminStatStrip columns="two">
         <AdminStat
+          isZero={data.outstandingInvoiceTotal === 0}
           label="Outstanding invoice total"
           tone="warning"
           value={money(data.currency, data.outstandingInvoiceTotal)}
         />
         <AdminStat
           hint="Internal only. Never shown to a merchant."
+          isZero={data.payableCommissionTotal === 0}
           label="Payable commission"
           tone="info"
           value={money(data.currency, data.payableCommissionTotal)}
@@ -173,6 +171,7 @@ export function MerchantSalesOverview({
       </AdminStatStrip>
 
       <AdminSection
+        compact
         description="Only current non-zero work appears here."
         title="Attention queue"
       >

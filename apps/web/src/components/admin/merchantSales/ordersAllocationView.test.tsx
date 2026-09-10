@@ -341,6 +341,25 @@ describe("Merchant Sales overview counters", () => {
   it("keeps the complete ordered lifecycle visible", async () => {
     renderOverview();
     const pipeline = await screen.findByRole("list", { name: "Merchant sales lifecycle" });
-    expect(within(pipeline).getAllByRole("button")).toHaveLength(11);
+    const stages = within(pipeline).getAllByRole("button");
+
+    expect(stages.map((stage) => stage.querySelector("span:last-child")?.textContent)).toEqual([
+      "Draft",
+      "Sent",
+      "Awaiting conversion",
+      "Awaiting invoice",
+      "Awaiting payment",
+      "Awaiting allocation",
+      "Partially allocated",
+      "Fully allocated",
+      "Ready to ship",
+      "Shipped",
+      "Delivered",
+    ]);
+    expect(pipeline.className).toContain("flex");
+    expect(pipeline.className).not.toContain("grid");
+    expect(pipeline.querySelectorAll('li > span[aria-hidden="true"]')).toHaveLength(10);
+    expect(screen.getByRole("region", { name: "Scrollable merchant sales lifecycle" }).className)
+      .toContain("overflow-x-auto");
   });
 });

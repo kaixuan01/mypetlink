@@ -132,13 +132,16 @@ export function AdminStat({
   value,
   tone = "neutral",
   hint,
+  isZero: explicitIsZero,
 }: {
   label: string;
   value: number | string;
   tone?: AdminStatusTone;
   hint?: string;
+  /** Use when the rendered value is formatted and its semantic value is zero. */
+  isZero?: boolean;
 }) {
-  const isZero = value === 0 || value === "0";
+  const isZero = explicitIsZero ?? (value === 0 || value === "0");
   return (
     <div className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 sm:px-4 sm:py-3">
       <p
@@ -215,22 +218,34 @@ export function AdminEmptyPanel({
   title,
   description,
   icon = "settings",
+  compact = false,
 }: {
   title: string;
   description?: string;
   icon?: IconName;
+  compact?: boolean;
 }) {
   return (
-    <div className="flex flex-col items-center px-6 py-10 text-center">
-      <span className="rounded-2xl bg-slate-100 p-3 text-slate-400">
+    <div
+      className={compact
+        ? "flex items-center gap-3 px-4 py-4 text-left"
+        : "flex flex-col items-center px-6 py-10 text-center"}
+    >
+      <span
+        className={`${compact ? "rounded-xl p-2" : "rounded-2xl p-3"} shrink-0 bg-slate-100 text-slate-400`}
+      >
         <Icon name={icon} className="h-5 w-5" />
       </span>
-      <p className="mt-3 text-sm font-black text-slate-700">{title}</p>
-      {description ? (
-        <p className="mt-1 max-w-sm text-sm leading-6 text-slate-500">
-          {description}
-        </p>
-      ) : null}
+      <div>
+        <p className={`${compact ? "" : "mt-3"} text-sm font-black text-slate-700`}>{title}</p>
+        {description ? (
+          <p
+            className={`${compact ? "mt-0.5 text-xs leading-5" : "mt-1 max-w-sm text-sm leading-6"} text-slate-500`}
+          >
+            {description}
+          </p>
+        ) : null}
+      </div>
     </div>
   );
 }

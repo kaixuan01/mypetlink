@@ -9,6 +9,7 @@ export default function AdminMerchantSalesPage() {
   return (
     <>
       <PageHeader
+        compactOnMobile
         eyebrow="Commerce"
         title="Merchant sales"
         description="Business customers, quotations, orders, invoices and receipts for bulk Smart Tag sales."

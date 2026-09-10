@@ -14,6 +14,7 @@ export function AttentionQueue({ items }: { items: AttentionQueueItem[] }) {
   if (actionable.length === 0) {
     return (
       <AdminEmptyPanel
+        compact
         description="Merchant sales work is clear based on the current summary."
         icon="shield"
         title="Nothing needs attention right now."
@@ -25,13 +26,13 @@ export function AttentionQueue({ items }: { items: AttentionQueueItem[] }) {
     <div className="divide-y divide-slate-100">
       {actionable.map((item) => (
         <button
-          className="flex w-full items-center gap-3 px-5 py-3 text-left transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#1570ef]"
+          className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#1570ef] sm:px-5 sm:py-3"
           data-testid={`attention-item-${item.id}`}
           key={item.id}
           onClick={item.onSelect}
           type="button"
         >
-          <AdminStatusBadge className="min-w-9 justify-center" tone="warning">
+          <AdminStatusBadge className="min-w-10 justify-center tabular-nums !px-3 !py-1.5 !text-sm !font-black" tone="warning">
             {item.count}
           </AdminStatusBadge>
           <span className="min-w-0 flex-1">

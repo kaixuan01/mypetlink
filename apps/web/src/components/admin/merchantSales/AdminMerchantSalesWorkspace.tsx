@@ -97,7 +97,7 @@ export function AdminMerchantSalesWorkspace() {
       <WorkspaceNav
         activeId={tab}
         groups={workspaceGroups}
-        label="Merchant Sales sections"
+        label="Merchant Sales"
         onNavigate={goToTab}
       />
 
