@@ -81,12 +81,51 @@ describe("AdminSmartTagAssignmentDialog", () => {
 
     const submit = screen.getByRole("button", { name: "Transfer ownership" });
     expect((submit as HTMLButtonElement).disabled).toBe(true);
-    fireEvent.change(screen.getByRole("textbox", { name: "Reason" }), { target: { value: "Verified owner request" } });
+    fireEvent.change(screen.getByRole("textbox", { name: /^Reason/ }), { target: { value: "Verified owner request" } });
     fireEvent.click(screen.getByRole("checkbox"));
     expect((submit as HTMLButtonElement).disabled).toBe(false);
     expect(screen.getByRole("alert").textContent).toContain("tag changed");
     fireEvent.click(submit);
     expect(onSubmit).toHaveBeenCalledWith({ ownerId: "owner-2", petId: "pet-3", reason: "Verified owner request" });
+  });
+
+  it("names the outstanding step instead of leaving a transfer button silently dead", async () => {
+    // The reported failure: owner, pet and acknowledgement all supplied, but the
+    // button stays disabled because a transfer reason is mandatory and nothing
+    // in the dialog said so.
+    render(<AdminSmartTagAssignmentDialog action="transfer" busy={false} onCancel={vi.fn()} onSubmit={vi.fn()} tag={tag} />);
+
+    const ownerSelect = await screen.findByRole("combobox", { name: "New owner" });
+    await waitFor(() => expect(screen.getByRole("option", { name: "Bala Owner · bala@example.com" })).toBeTruthy());
+    fireEvent.change(ownerSelect, { target: { value: "owner-2" } });
+    const petSelect = await screen.findByRole("combobox", { name: "New owner's pet" });
+    await waitFor(() => expect(screen.getByRole("option", { name: "Pepper · Dog · Poodle" })).toBeTruthy());
+    fireEvent.change(petSelect, { target: { value: "pet-3" } });
+    fireEvent.click(screen.getByRole("checkbox"));
+
+    const submit = screen.getByRole("button", { name: "Transfer ownership" }) as HTMLButtonElement;
+    expect(submit.disabled).toBe(true);
+    expect(screen.getByText(/still needed: add a reason\./i)).toBeTruthy();
+    expect(submit.getAttribute("aria-describedby")).toBe("smart-tag-assignment-missing");
+
+    // The mandatory field is announced as mandatory, not inferred from the
+    // absence of an "(optional)" suffix.
+    const reasonField = screen.getByRole("textbox", { name: /^Reason/ });
+    expect(reasonField.getAttribute("aria-required")).toBe("true");
+    expect(reasonField.getAttribute("aria-label") ?? reasonField.closest("label")?.textContent).toContain("required");
+
+    fireEvent.change(reasonField, { target: { value: "Verified owner request" } });
+    expect(submit.disabled).toBe(false);
+    expect(screen.queryByText(/still needed/i)).toBeNull();
+    expect(submit.getAttribute("aria-describedby")).toBeNull();
+  });
+
+  it("marks an optional reason as optional", async () => {
+    render(<AdminSmartTagAssignmentDialog action="change-pet" busy={false} onCancel={vi.fn()} onSubmit={vi.fn()} tag={tag} />);
+
+    const reasonField = await screen.findByRole("textbox", { name: /^Reason/ });
+    expect(reasonField.closest("label")?.textContent).toContain("optional");
+    expect(reasonField.getAttribute("aria-required")).toBe("false");
   });
 
   it("explains unassignment and requires a reason for an active tag", () => {
@@ -96,7 +135,7 @@ describe("AdminSmartTagAssignmentDialog", () => {
     expect(screen.getByText(/owner keeps this tag/i)).toBeTruthy();
     const submit = screen.getByRole("button", { name: "Unassign pet" });
     expect((submit as HTMLButtonElement).disabled).toBe(true);
-    fireEvent.change(screen.getByRole("textbox", { name: "Reason" }), { target: { value: "Owner selecting another pet" } });
+    fireEvent.change(screen.getByRole("textbox", { name: /^Reason/ }), { target: { value: "Owner selecting another pet" } });
     fireEvent.click(submit);
     expect(onSubmit).toHaveBeenCalledWith({ ownerId: undefined, petId: undefined, reason: "Owner selecting another pet" });
   });

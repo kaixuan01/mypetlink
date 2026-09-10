@@ -76,10 +76,17 @@ export function AdminSmartTagAssignmentDialog({ action, busy, error, onCancel, o
   const selectedOwner = owners.find((owner) => owner.ownerUserId === ownerId);
   const selectedPet = pets.find((pet) => pet.id === petId);
   const requiresReason = action === "transfer" || (action === "unassign-pet" && tag.status === "Active");
-  const valid = (!needsOwner || Boolean(ownerId))
-    && (!needsPet || Boolean(petId))
-    && (!requiresReason || reason.trim().length > 0)
-    && (action !== "transfer" || acknowledged);
+  // Each entry is a requirement the backend also enforces, phrased as the step
+  // the admin still has to take. Transfer is the case that matters: it is the
+  // only action where a reason is mandatory, and an admin arriving from Assign
+  // (where it is optional) has no other way to tell.
+  const missing = [
+    needsOwner && !ownerId ? (action === "transfer" ? "select a new owner" : "select an owner") : null,
+    needsPet && !petId ? "select a pet" : null,
+    requiresReason && reason.trim().length === 0 ? "add a reason" : null,
+    action === "transfer" && !acknowledged ? "confirm you understand the impact" : null,
+  ].filter((item): item is string => item !== null);
+  const valid = missing.length === 0;
 
   const impact = useMemo(() => {
     if (action === "unassign-pet") return "The owner keeps this tag, but its Physical Tag Scan Page will not open the previous pet's Safety Profile until another pet is assigned.";
@@ -131,8 +138,8 @@ export function AdminSmartTagAssignmentDialog({ action, busy, error, onCancel, o
           ) : null}
 
           {(requiresReason || action === "claim" || action === "change-pet") ? (
-            <label className="grid gap-1.5 text-sm font-bold text-slate-800">Reason {requiresReason ? "" : "(optional)"}
-              <textarea className="min-h-24 rounded-xl border border-slate-300 px-3 py-2 font-medium outline-none focus:border-pet-teal" maxLength={600} onChange={(event) => setReason(event.target.value)} placeholder="Add support context for the audit history" value={reason} />
+            <label className="grid gap-1.5 text-sm font-bold text-slate-800">Reason {requiresReason ? "(required)" : "(optional)"}
+              <textarea aria-required={requiresReason} className="min-h-24 rounded-xl border border-slate-300 px-3 py-2 font-medium outline-none focus:border-pet-teal" maxLength={600} onChange={(event) => setReason(event.target.value)} placeholder="Add support context for the audit history" required={requiresReason} value={reason} />
             </label>
           ) : null}
 
@@ -143,9 +150,15 @@ export function AdminSmartTagAssignmentDialog({ action, busy, error, onCancel, o
           {error ? <p className="rounded-xl bg-red-50 p-3 text-sm font-bold text-red-700" role="alert">{error}</p> : null}
         </div>
 
+        {!valid && !busy ? (
+          <p className="mt-5 text-sm font-semibold text-slate-600" id="smart-tag-assignment-missing">
+            Still needed: {missing.join(", ")}.
+          </p>
+        ) : null}
+
         <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <button className="min-h-11 rounded-full border border-slate-200 px-5 text-sm font-extrabold" disabled={busy} onClick={onCancel} type="button">Cancel</button>
-          <button className={`min-h-11 rounded-full px-5 text-sm font-extrabold text-white disabled:opacity-50 ${action === "transfer" || action === "unassign-pet" ? "bg-red-700" : "bg-slate-950"}`} disabled={!valid || busy} onClick={() => onSubmit({ ownerId: needsOwner ? ownerId : undefined, petId: needsPet ? petId : undefined, reason: reason.trim() || undefined })} type="button">{busy ? "Saving…" : actionCopy[action].submit}</button>
+          <button className={`min-h-11 rounded-full px-5 text-sm font-extrabold text-white disabled:opacity-50 ${action === "transfer" || action === "unassign-pet" ? "bg-red-700" : "bg-slate-950"}`} aria-describedby={valid ? undefined : "smart-tag-assignment-missing"} disabled={!valid || busy} onClick={() => onSubmit({ ownerId: needsOwner ? ownerId : undefined, petId: needsPet ? petId : undefined, reason: reason.trim() || undefined })} type="button">{busy ? "Saving…" : actionCopy[action].submit}</button>
         </div>
       </div>
     </div>
