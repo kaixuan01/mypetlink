@@ -2,6 +2,7 @@
 
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { PRIMARY_CTA_LABEL } from "@/components/layouts/PublicNav";
 import { smartTagOrderingEnabled } from "@/lib/features";
 import {
   freePlanLimits,
@@ -214,7 +215,7 @@ describe("landing page structure", () => {
     // Scoped to the page's own content: the shared header keeps its own
     // navigation controls, which are not part of this convention.
     const primary = within(screen.getByRole("main")).getAllByRole("button", {
-      name: /create your pet's free profile/i,
+      name: new RegExp(PRIMARY_CTA_LABEL, "i"),
     });
 
     expect(primary).toHaveLength(2);

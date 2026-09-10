@@ -1,5 +1,6 @@
 import { BrandDecoration } from "@/components/brand/BrandDecoration";
 import { LinkoMascot } from "@/components/brand/LinkoMascot";
+import { PRIMARY_CTA_LABEL } from "@/components/layouts/PublicNav";
 import { CreateProfileCTA } from "@/components/marketing/CreateProfileCTA";
 import { HomepageSamplePetPreview } from "@/components/marketing/HomepageSamplePetPreview";
 import { Badge } from "@/components/ui/Badge";
@@ -54,7 +55,7 @@ export function LandingHero() {
 
           <div className="mt-7 flex flex-col items-start gap-3 sm:flex-row sm:items-center">
             <CreateProfileCTA className="w-full sm:w-auto" variant="primary">
-              Create your pet&apos;s free profile
+              {PRIMARY_CTA_LABEL}
             </CreateProfileCTA>
             <a
               className="inline-flex min-h-11 items-center gap-1.5 text-sm font-extrabold text-pet-teal underline-offset-4 transition hover:underline"

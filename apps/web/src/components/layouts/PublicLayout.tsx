@@ -3,20 +3,14 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { BrandLogo } from "@/components/brand/BrandLogo";
-import { CreateProfileCTA } from "@/components/marketing/CreateProfileCTA";
-import { CTAButton } from "@/components/ui/CTAButton";
+import {
+  DesktopPublicNav,
+  MobilePublicNav,
+  primaryPublicNav,
+} from "@/components/layouts/PublicNav";
 import { siteConfig } from "@/config/site";
 import { marketingRoutes } from "@/lib/routes";
 import { isOwnerAuthenticated } from "@/services/authService";
-
-const publicNav = [
-  { href: marketingRoutes.home, label: "Home" },
-  { href: marketingRoutes.howItWorks, label: "How It Works" },
-  { href: marketingRoutes.petProfile, label: "Pet Profiles" },
-  { href: marketingRoutes.smartPetTags, label: "Smart Tags" },
-  { href: marketingRoutes.pricing, label: "Pricing" },
-  { href: marketingRoutes.sample, label: "Sample Profile" },
-];
 
 export function PublicLayout({
   children,
@@ -37,21 +31,6 @@ export function PublicLayout({
     );
     return () => window.clearTimeout(timer);
   }, []);
-
-  const actions = loggedIn ? (
-    <CTAButton href="/dashboard" icon="home" variant="primary">
-      Open Dashboard
-    </CTAButton>
-  ) : (
-    <div className="flex flex-col gap-2 sm:flex-row">
-      <CTAButton href="/login" variant="secondary">
-        Log in
-      </CTAButton>
-      <CreateProfileCTA>
-        Create Pet Profile
-      </CreateProfileCTA>
-    </div>
-  );
 
   return (
     <div
@@ -79,27 +58,14 @@ export function PublicLayout({
               />
             </Link>
 
-            {/* Desktop nav */}
-            <div className="hidden lg:flex lg:items-center lg:gap-6">
-              <nav className="flex flex-wrap gap-x-5 gap-y-2 text-sm font-bold text-pet-muted">
-                {publicNav.map((item) => (
-                  <Link
-                    className="transition hover:text-pet-teal"
-                    href={item.href}
-                    key={item.href}
-                  >
-                    {item.label}
-                  </Link>
-                ))}
-              </nav>
-              {actions}
-            </div>
+            <DesktopPublicNav loggedIn={loggedIn} />
 
             {/* Mobile menu toggle */}
             <button
               type="button"
-              aria-label="Toggle menu"
+              aria-controls="public-mobile-nav"
               aria-expanded={menuOpen}
+              aria-label={menuOpen ? "Close menu" : "Open menu"}
               onClick={() => setMenuOpen((open) => !open)}
               className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-pet-border bg-white text-pet-ink lg:hidden"
             >
@@ -123,29 +89,17 @@ export function PublicLayout({
             </button>
           </div>
 
-          {/* Mobile nav panel */}
           {menuOpen ? (
-            <div className="mt-4 flex flex-col gap-4 lg:hidden">
-              <nav className="grid gap-1 text-sm font-bold text-pet-muted">
-                {publicNav.map((item) => (
-                  <Link
-                    className="rounded-xl px-3 py-2 transition hover:bg-white hover:text-pet-teal"
-                    href={item.href}
-                    key={item.href}
-                    onClick={() => setMenuOpen(false)}
-                  >
-                    {item.label}
-                  </Link>
-                ))}
-              </nav>
-              {actions}
-            </div>
+            <MobilePublicNav
+              loggedIn={loggedIn}
+              onNavigate={() => setMenuOpen(false)}
+            />
           ) : null}
         </div>
       </header>
       <main>{children}</main>
       <footer className="border-t border-pet-border bg-white">
-        <div className="mx-auto grid w-full min-w-0 max-w-7xl gap-8 px-3 py-10 min-[361px]:px-4 sm:px-6 md:grid-cols-[1.2fr_0.8fr] lg:px-8">
+        <div className="mx-auto grid w-full min-w-0 max-w-7xl gap-8 px-3 py-10 min-[361px]:px-4 sm:px-6 md:grid-cols-[1fr_1.15fr] lg:px-8">
           <div className="min-w-0">
             <BrandLogo className="h-16 w-auto max-w-[260px]" />
             <p className="mt-4 max-w-xl text-sm leading-6 text-pet-muted">
@@ -172,31 +126,64 @@ export function PublicLayout({
               </p>
             </div>
           </div>
-          <nav className="flex flex-wrap items-start gap-4 text-sm font-bold text-pet-muted md:justify-end">
-            <Link href={marketingRoutes.howItWorks} className="hover:text-pet-teal transition">
-              How It Works
-            </Link>
-            <Link href={marketingRoutes.petProfile} className="hover:text-pet-teal transition">
-              Pet Profile Guide
-            </Link>
-            <Link href={marketingRoutes.smartPetTags} className="hover:text-pet-teal transition">
-              Smart Pet Tags
-            </Link>
-            <Link href={marketingRoutes.pricing} className="hover:text-pet-teal transition">
-              Pricing
-            </Link>
-            <Link href={marketingRoutes.sample} className="hover:text-pet-teal transition">
-              Sample Profile
-            </Link>
-            <Link href={marketingRoutes.privacy} className="hover:text-pet-teal transition">
-              Privacy Notice
-            </Link>
-            <Link href={marketingRoutes.terms} className="hover:text-pet-teal transition">
-              Terms of Use
-            </Link>
-          </nav>
+          {/*
+            Grouped so the footer carries the quieter destinations the header
+            no longer needs to. Every link points at a route that exists.
+          */}
+          <div className="grid gap-8 sm:grid-cols-3 md:justify-items-end">
+            <FooterColumn
+              links={[
+                ...primaryPublicNav,
+                { href: marketingRoutes.sample, label: "Sample Profile" },
+              ]}
+              title="Product"
+            />
+            <FooterColumn
+              links={[
+                { href: `${marketingRoutes.home}#faq`, label: "FAQ" },
+                { href: `mailto:${siteConfig.supportEmail}`, label: "Contact support" },
+              ]}
+              title="Support"
+            />
+            <FooterColumn
+              links={[
+                { href: "/login", label: "Log in" },
+                { href: marketingRoutes.privacy, label: "Privacy Notice" },
+                { href: marketingRoutes.terms, label: "Terms of Use" },
+              ]}
+              title="Account & legal"
+            />
+          </div>
         </div>
       </footer>
     </div>
+  );
+}
+
+function FooterColumn({
+  title,
+  links,
+}: {
+  title: string;
+  links: { href: string; label: string }[];
+}) {
+  return (
+    <nav aria-label={title} className="min-w-0">
+      <p className="text-xs font-extrabold uppercase tracking-wide text-pet-ink">
+        {title}
+      </p>
+      <ul className="mt-3 grid gap-2">
+        {links.map((link) => (
+          <li key={link.href}>
+            <Link
+              className="text-sm font-bold text-pet-muted transition hover:text-pet-teal"
+              href={link.href}
+            >
+              {link.label}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </nav>
   );
 }

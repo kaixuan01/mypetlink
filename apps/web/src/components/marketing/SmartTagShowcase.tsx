@@ -6,11 +6,11 @@ import { smartTagAddOn, smartTagAddOnsStatus } from "@/lib/planLimits";
 import { marketingRoutes, ownerRoutes } from "@/lib/routes";
 
 /**
- * The physical Smart Tag, and the two profiles it relates to.
+ * The physical Smart Tag.
  *
  * Order matters here: the product, then how it opens, then what it costs and
- * whether it can be bought, and only then the profile comparison. An owner
- * decides about a physical object by looking at it first.
+ * whether it can be bought. An owner decides about a physical object by
+ * looking at it first, so the outcome leads and the technology supports.
  *
  * Availability follows the existing flag rather than inventing a new flow.
  * While ordering is off this section states the status and price and offers no
@@ -116,7 +116,6 @@ export function SmartTagShowcase() {
           </div>
         </div>
 
-        <ProfileComparison />
       </div>
     </section>
   );
@@ -138,85 +137,6 @@ function SmartTagProductSlot() {
         src={smartTagPhoto.src}
         width={800}
       />
-    </div>
-  );
-}
-
-const profiles: {
-  icon: IconName;
-  title: string;
-  audience: string;
-  description: string;
-  tone: "coral" | "teal";
-}[] = [
-  {
-    icon: "heart",
-    title: "Public Share Profile",
-    audience: "Share with friends & family",
-    description:
-      "A friendly page for family, friends, and pet communities. Your pet's story, moments, and life timeline in one place.",
-    tone: "coral",
-  },
-  {
-    icon: "qr",
-    title: "Safety Profile",
-    audience: "Help finders contact you",
-    description:
-      "The finder-first page a scan or tap opens. It shows contact options and safety notes based on your privacy settings.",
-    tone: "teal",
-  },
-];
-
-/**
- * The one genuine either/or on the page, so the one place a pair of cards
- * earns its borders: an owner has to be able to tell these two pages apart.
- */
-function ProfileComparison() {
-  return (
-    <div className="mt-12 border-t border-pet-border pt-10 lg:mt-16">
-      <h3 className="text-lg font-black text-pet-ink sm:text-xl">
-        Two profiles, two different jobs
-      </h3>
-      <p className="mt-2 max-w-2xl text-sm leading-6 text-pet-muted">
-        MyPetLink keeps the page you share with people you know separate from
-        the page a stranger sees.
-      </p>
-
-      <div className="mt-6 grid gap-4 md:grid-cols-2">
-        {profiles.map((profile) => (
-          <article
-            className="brand-card flex flex-col rounded-[1.5rem] p-5 sm:p-6"
-            key={profile.title}
-          >
-            <div className="flex items-center gap-3">
-              <span
-                className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${
-                  profile.tone === "coral"
-                    ? "bg-[#fdeada] text-pet-coral"
-                    : "bg-[#e8f3ff] text-pet-teal"
-                }`}
-              >
-                <Icon aria-hidden="true" className="h-5 w-5" name={profile.icon} />
-              </span>
-              <div className="min-w-0">
-                <h4 className="text-base font-black text-pet-ink">
-                  {profile.title}
-                </h4>
-                <p
-                  className={`text-xs font-black ${
-                    profile.tone === "coral" ? "text-pet-coral" : "text-pet-teal"
-                  }`}
-                >
-                  {profile.audience}
-                </p>
-              </div>
-            </div>
-            <p className="mt-4 text-sm leading-6 text-pet-muted">
-              {profile.description}
-            </p>
-          </article>
-        ))}
-      </div>
     </div>
   );
 }

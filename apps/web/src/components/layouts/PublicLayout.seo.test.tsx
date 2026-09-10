@@ -52,7 +52,10 @@ describe("PublicLayout crawlable navigation", () => {
         /^(?:http:|https:\/\/www\.|https:\/\/(?:api|media)\.)/.test(href)
       )
     ).toBe(false);
-    expect(screen.getAllByRole("link", { name: "Sample Profile" }).length).toBeGreaterThanOrEqual(2);
+    // Sample Profile moved out of the header and into the footer plus a
+    // contextual action on the landing page, so one crawlable link here is
+    // the expected shape rather than two.
+    expect(screen.getAllByRole("link", { name: "Sample Profile" }).length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByRole("link", { name: /Topu Sample|Sample Experience/i })).toBeNull();
   });
 });

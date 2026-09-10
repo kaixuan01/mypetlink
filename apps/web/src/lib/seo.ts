@@ -223,6 +223,9 @@ export const indexableSitemapEntries = [
   { path: marketingRoutes.smartPetTags, lastModified: "2026-07-18" },
   { path: marketingRoutes.petProfile, lastModified: "2026-07-18" },
   { path: marketingRoutes.sample, lastModified: "2026-07-23" },
+  // Listed even though the header entry is still hidden: the page is public
+  // and indexable, so leaving it out would make it an orphan.
+  { path: marketingRoutes.whereToBuy, lastModified: "2026-09-10" },
   { path: marketingRoutes.privacy, lastModified: "2026-07-18" },
   { path: marketingRoutes.terms, lastModified: "2026-07-18" },
   { path: samplePet.publicProfilePath, lastModified: "2026-07-23" },

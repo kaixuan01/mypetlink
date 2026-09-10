@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import { LinkoMascot } from "@/components/brand/LinkoMascot";
+import { PRIMARY_CTA_LABEL } from "@/components/layouts/PublicNav";
 import { PublicLayout } from "@/components/layouts/PublicLayout";
 import { CreateProfileCTA } from "@/components/marketing/CreateProfileCTA";
 import { FinderJourney } from "@/components/marketing/FinderJourney";
 import { LandingHero } from "@/components/marketing/LandingHero";
+import { PetProfilesSection } from "@/components/marketing/PetProfilesSection";
 import { SmartTagShowcase } from "@/components/marketing/SmartTagShowcase";
+import { WhereToBuyTeaser } from "@/components/marketing/WhereToBuyTeaser";
 import { Badge } from "@/components/ui/Badge";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -125,10 +128,13 @@ export default function Home() {
              "how it works", which both explained a process. */}
       <FinderJourney />
 
-      {/* 3. The physical tag, then the two profiles it relates to. */}
+      {/* 3. The two pages a pet gets, and what a finder may see. */}
+      <PetProfilesSection />
+
+      {/* 4. The physical tag that makes the Safety Profile wearable. */}
       <SmartTagShowcase />
 
-      {/* 4. What the profile does beyond safety. */}
+      {/* 5. What the profile does beyond safety. */}
       <section className="bg-white">
         <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8 lg:py-16">
           <PageHeader
@@ -166,7 +172,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 5. Pricing — what is actually available, then the roadmap in one line. */}
+      {/* 6. Pricing — what is actually available, then the roadmap in one line. */}
       <section className="bg-pet-cream">
         <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8 lg:py-16">
           {/*
@@ -230,11 +236,16 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 6. FAQ — hairlines instead of six card borders. */}
-      <section className="bg-white">
-        <div className="mx-auto max-w-3xl px-4 py-14 sm:px-6 lg:px-8 lg:py-16">
+      {/* 7. Where to buy — renders only once a tag can actually be bought. */}
+      <WhereToBuyTeaser />
+
+      {/* 8. FAQ — hairlines instead of six card borders. */}
+      <section className="bg-white" id="faq">
+        <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8 lg:py-16">
           <PageHeader as="h2" eyebrow="FAQ" title="Quick answers." />
-          <div className="border-t border-pet-border">
+          {/* Questions stay at a readable measure, but on the same left gutter
+              every other section starts from. */}
+          <div className="max-w-3xl border-t border-pet-border">
             {faqs.map((faq) => (
               <details
                 className="group border-b border-pet-border py-4"
@@ -257,7 +268,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 7. The close — the same action as the hero, worded identically. */}
+      {/* 9. The close — the same action as the hero, worded identically. */}
       <section className="bg-pet-ink text-white">
         <div className="mx-auto flex max-w-6xl flex-col items-start gap-6 px-4 py-12 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8 lg:py-14">
           <div className="flex items-center gap-4">
@@ -280,7 +291,7 @@ export default function Home() {
             </div>
           </div>
           <CreateProfileCTA className="w-full sm:w-auto" variant="light">
-            Create your pet&apos;s free profile
+            {PRIMARY_CTA_LABEL}
           </CreateProfileCTA>
         </div>
       </section>
