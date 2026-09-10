@@ -1,11 +1,23 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AdminLayout } from "./AdminLayout";
 
 const navState = vi.hoisted(() => ({ pathname: "/admin/orders", search: "" }));
 const serviceMocks = vi.hoisted(() => ({ dashboard: vi.fn() }));
+const authState = vi.hoisted(() => ({
+  capabilities: {
+    role: "SuperAdmin" as "OwnerSupport" | "Operations" | "Admin" | "SuperAdmin",
+    canViewSalesPerformance: true,
+    canManageSales: true,
+    canViewCommissionFinancials: true,
+    canPreparePayout: true,
+    canMarkCommissionPaid: true,
+    canReverseCommission: true,
+    canManageCommissionRules: true,
+  },
+}));
 
 vi.mock("next/navigation", () => ({
   usePathname: () => navState.pathname,
@@ -21,7 +33,10 @@ vi.mock("@/components/brand/BrandLogo", () => ({
   BrandLogo: () => <span>Logo</span>,
 }));
 
-vi.mock("@/services/authService", () => ({ logoutAdmin: vi.fn() }));
+vi.mock("@/services/authService", () => ({
+  getAdminCapabilities: () => authState.capabilities,
+  logoutAdmin: vi.fn(),
+}));
 vi.mock("@/services/adminService", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/services/adminService")>();
   return { ...actual, getAdminDashboardData: serviceMocks.dashboard };
@@ -30,6 +45,16 @@ vi.mock("@/services/adminService", async (importOriginal) => {
 beforeEach(() => {
   navState.pathname = "/admin/orders";
   navState.search = "";
+  Object.assign(authState.capabilities, {
+    role: "SuperAdmin",
+    canViewSalesPerformance: true,
+    canManageSales: true,
+    canViewCommissionFinancials: true,
+    canPreparePayout: true,
+    canMarkCommissionPaid: true,
+    canReverseCommission: true,
+    canManageCommissionRules: true,
+  });
   serviceMocks.dashboard.mockResolvedValue({
     summary: {
       totalOwners: 10,
@@ -108,11 +133,14 @@ describe("AdminLayout navigation", () => {
     expect(screen.getByText("Customers")).toBeDefined();
     expect(screen.getByText("Configuration")).toBeDefined();
 
-    // Catalog deep links carry their tab query. Sections now start collapsed
-    // unless they hold the active route, so open Catalog before reading it.
+    // Catalog is one sidebar destination. Its tab deep links live inside the
+    // workspace rather than duplicating this global navigation.
     fireEvent.click(screen.getAllByRole("button", { name: /Catalog/ })[0]);
-    const promotions = screen.getAllByRole("link", { name: "Promotions" })[0];
-    expect(promotions.getAttribute("href")).toBe("/admin/tag-products?tab=promotions");
+    const catalog = screen.getAllByRole("link", { name: "Tag Catalog" })[0];
+    expect(catalog.getAttribute("href")).toBe("/admin/tag-products");
+    expect(screen.queryByRole("link", { name: "Tag Products" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Promotions" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Catalog Settings" })).toBeNull();
   });
 
   it("marks the active route with aria-current, including query-driven tabs", () => {
@@ -120,8 +148,7 @@ describe("AdminLayout navigation", () => {
     navState.search = "tab=promotions";
     render(<AdminLayout>content</AdminLayout>);
 
-    expect(screen.getByRole("link", { name: "Promotions" }).getAttribute("aria-current")).toBe("page");
-    expect(screen.getByRole("link", { name: "Tag Products" }).getAttribute("aria-current")).toBeNull();
+    expect(screen.getByRole("link", { name: "Tag Catalog" }).getAttribute("aria-current")).toBe("page");
   });
 
   it("keeps the mobile drawer out of the document until opened, then focus-manages and restores", () => {
@@ -150,6 +177,32 @@ describe("AdminLayout navigation", () => {
     expect(document.body.style.overflow).toBe("");
   });
 
+  it("renders the capability-filtered Owner Support navigation in the mobile drawer", () => {
+    window.localStorage.clear();
+    Object.assign(authState.capabilities, {
+      role: "OwnerSupport",
+      canViewSalesPerformance: false,
+      canManageSales: false,
+      canViewCommissionFinancials: false,
+      canPreparePayout: false,
+      canMarkCommissionPaid: false,
+      canReverseCommission: false,
+      canManageCommissionRules: false,
+    });
+    render(<AdminLayout>content</AdminLayout>);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open admin navigation" }));
+    const drawer = screen.getByRole("dialog", { name: "Admin navigation" });
+
+    // Merchant Sales remains meaningful for support (its own workspace hides
+    // restricted tabs), while Catalog is represented exactly once.
+    expect(within(drawer).getByRole("link", { name: "Merchant Sales" })).toBeDefined();
+    fireEvent.click(within(drawer).getByRole("button", { name: /Catalog/ }));
+    expect(within(drawer).getAllByRole("link", { name: "Tag Catalog" })).toHaveLength(1);
+    expect(within(drawer).queryByRole("link", { name: "Promotions" })).toBeNull();
+    expect(drawer.querySelectorAll("ul:empty")).toHaveLength(0);
+  });
+
   it("shows the current page title in the compact mobile header", () => {
     navState.pathname = "/admin/tag-inventory";
     render(<AdminLayout>content</AdminLayout>);
@@ -175,7 +228,7 @@ describe("collapsible sidebar sections", () => {
     const catalog = screen.getAllByRole("button", { name: /Catalog/ })[0];
     expect(catalog.getAttribute("aria-expanded")).toBe("false");
     // A collapsed section's links are removed, not merely hidden.
-    expect(screen.queryByRole("link", { name: "Promotions" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Tag Catalog" })).toBeNull();
   });
 
   it("expands and collapses a section on click and records aria-expanded", () => {
@@ -188,7 +241,7 @@ describe("collapsible sidebar sections", () => {
     expect(
       screen.getAllByRole("button", { name: /Catalog/ })[0].getAttribute("aria-expanded")
     ).toBe("true");
-    expect(screen.getAllByRole("link", { name: "Promotions" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("link", { name: "Tag Catalog" }).length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getAllByRole("button", { name: /Catalog/ })[0]);
     expect(
@@ -262,7 +315,7 @@ describe("whole-sidebar collapse", () => {
     const toggle = screen.getByRole("button", { name: "Expand sidebar" });
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
     // The rail drops headings, so every item is listed regardless of section.
-    expect(screen.getAllByRole("link", { name: "Promotions" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("link", { name: "Tag Catalog" }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("link", { name: /Retail Orders/ }).length).toBeGreaterThan(0);
     // Section headings make no sense without labels.
     expect(screen.queryByRole("button", { name: /Commerce/ })).toBeNull();

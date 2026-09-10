@@ -6,6 +6,10 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AdminImagePreviewDialog } from "@/components/admin/AdminImagePreviewDialog";
 import { AdminActionButton, AdminNotice, AdminOperationNotice, AdminSection } from "@/components/admin/AdminPanels";
+import {
+  WorkspaceNav,
+  type WorkspaceNavGroup,
+} from "@/components/admin/WorkspaceNav";
 import { AdminListPagination } from "@/components/admin/table/AdminListPagination";
 import { AdminSearchInput } from "@/components/admin/table/AdminSearchInput";
 import { useAdminTableQuery } from "@/components/admin/table/useAdminTableQuery";
@@ -69,9 +73,9 @@ function catalogEditorMode(
 }
 
 const catalogTabs: { id: CatalogTab; label: string }[] = [
-  { id: "products", label: "Products & SKUs" },
+  { id: "products", label: "Products" },
   { id: "promotions", label: "Promotions" },
-  { id: "settings", label: "Catalog Settings" },
+  { id: "settings", label: "Settings" },
 ];
 
 // URL-backed list filters shared by the Products and Promotions tabs. Absent
@@ -858,35 +862,32 @@ export function AdminTagProductsManager() {
     return () => window.clearTimeout(timer);
   }, [skuMissing, navigate]);
 
+  const catalogWorkspaceGroups: WorkspaceNavGroup<CatalogTab>[] = [
+    {
+      id: "catalog",
+      label: null,
+      items: catalogTabs.map((item) => ({
+        ...item,
+        href: catalogTabHref(pathname, searchParams, item.id),
+      })),
+    },
+  ];
+
   return (
     <div className="grid gap-4">
-      <nav aria-label="Tag product sections" className="flex flex-wrap gap-2">
-        {catalogTabs.map((item) => (
-          <Link
-            aria-current={tab === item.id ? "page" : undefined}
-            className={`inline-flex min-h-10 items-center rounded-full border px-4 text-sm font-extrabold ${
-              tab === item.id
-                ? "border-slate-950 bg-slate-950 text-white"
-                : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-            }`}
-            href={catalogTabHref(pathname, searchParams, item.id)}
-            key={item.id}
-            onClick={(event) => {
-              if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-              event.preventDefault();
-              const href = event.currentTarget.getAttribute("href");
-              if (!href) return;
-              requestNavigation(() => {
-                if (`${window.location.pathname}${window.location.search}` !== href) {
-                  window.history.pushState(null, "", href);
-                }
-              });
-            }}
-          >
-            {item.label}
-          </Link>
-        ))}
-      </nav>
+      <WorkspaceNav
+        activeId={tab}
+        groups={catalogWorkspaceGroups}
+        label="Tag Catalog sections"
+        onNavigate={(nextTab) => {
+          const href = catalogTabHref(pathname, searchParams, nextTab);
+          requestNavigation(() => {
+            if (`${window.location.pathname}${window.location.search}` !== href) {
+              window.history.pushState(null, "", href);
+            }
+          });
+        }}
+      />
 
       {operationFeedback ? (
         <AdminOperationNotice
@@ -1513,7 +1514,7 @@ function VariantEditor({ product, editing, form, isNew, busy, formError, presets
               <span className="block rounded-xl border border-dashed border-slate-300 p-3 text-xs font-semibold normal-case text-slate-600">
                 No active Tag Types exist yet.{" "}
                 <Link className="font-extrabold text-slate-900 underline" href={settingsHref}>
-                  Add one in Catalog Settings
+                  Add one in Settings
                 </Link>{" "}
                 before creating this SKU.
               </span>

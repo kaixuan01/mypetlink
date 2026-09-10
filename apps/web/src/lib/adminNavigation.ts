@@ -1,5 +1,6 @@
 import type { IconName } from "@/components/ui/Icon";
 import { adminRoutes } from "@/lib/routes";
+import type { AdminCapabilities } from "@/services/authService";
 
 // Single source of truth for Admin Portal navigation. The desktop sidebar and
 // the mobile navigation drawer both render from this structure — never
@@ -9,6 +10,11 @@ export type AdminNavItem = {
   href: string;
   label: string;
   icon: IconName;
+  /**
+   * Optional API-aligned capability gate. This only controls discovery; every
+   * destination remains protected by its controller policy.
+   */
+  requiredAnyCapabilities?: AdminCapabilityName[];
 };
 
 export type AdminNavGroup = {
@@ -18,7 +24,10 @@ export type AdminNavGroup = {
   // null = ungrouped items rendered without a section heading (Overview).
   label: string | null;
   items: AdminNavItem[];
+  requiredAnyCapabilities?: AdminCapabilityName[];
 };
+
+export type AdminCapabilityName = Exclude<keyof AdminCapabilities, "role">;
 
 export const adminNavGroups: AdminNavGroup[] = [
   {
@@ -43,9 +52,7 @@ export const adminNavGroups: AdminNavGroup[] = [
     id: "catalog",
     label: "Catalog",
     items: [
-      { href: `${adminRoutes.productCatalog}?tab=products`, label: "Tag Products", icon: "plans" },
-      { href: `${adminRoutes.productCatalog}?tab=promotions`, label: "Promotions", icon: "record" },
-      { href: `${adminRoutes.productCatalog}?tab=settings`, label: "Catalog Settings", icon: "settings" },
+      { href: adminRoutes.productCatalog, label: "Tag Catalog", icon: "plans" },
     ],
   },
   {
@@ -86,9 +93,9 @@ export const adminNavGroups: AdminNavGroup[] = [
   },
 ];
 
-// Active-state matching that also understands query-driven tabs (the Catalog
-// items share /admin/tag-products and differ only by ?tab=). `search` is the
-// current location's query string ("?tab=promotions" or "").
+// Active-state matching supports query-driven destinations when a future
+// top-level item needs one. Tag Catalog itself is one destination; its tabs
+// are handled by the workspace navigation inside the page.
 export function isAdminNavItemActive(
   item: AdminNavItem,
   pathname: string,
@@ -124,10 +131,31 @@ export function isAdminNavItemActive(
   return true;
 }
 
-// Groups with no visible items must not render; today all items are always
-// visible, but the filter keeps that invariant if items become conditional.
-export function visibleAdminNavGroups(): AdminNavGroup[] {
-  return adminNavGroups.filter((group) => group.items.length > 0);
+function hasRequiredCapability(
+  required: AdminCapabilityName[] | undefined,
+  capabilities: AdminCapabilities
+): boolean {
+  return !required?.length || required.some((capability) => capabilities[capability]);
+}
+
+// All current non-financial sidebar destinations use the API's shared active-
+// admin policy. Merchant Sales remains visible to every role because even
+// Owner Support has meaningful access to its quotations/orders/invoices tabs;
+// narrower tabs are filtered inside that workspace. The optional gates keep
+// future policy-backed destinations from appearing to unauthorised roles.
+export function visibleAdminNavGroups(
+  capabilities: AdminCapabilities,
+  groups: AdminNavGroup[] = adminNavGroups
+): AdminNavGroup[] {
+  return groups
+    .filter((group) => hasRequiredCapability(group.requiredAnyCapabilities, capabilities))
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) =>
+        hasRequiredCapability(item.requiredAnyCapabilities, capabilities)
+      ),
+    }))
+    .filter((group) => group.items.length > 0);
 }
 
 /**
@@ -138,9 +166,10 @@ export function visibleAdminNavGroups(): AdminNavGroup[] {
  */
 export function activeAdminNavGroupId(
   pathname: string,
-  search: string
+  search: string,
+  groups: AdminNavGroup[] = adminNavGroups
 ): string | null {
-  for (const group of adminNavGroups) {
+  for (const group of groups) {
     for (const item of group.items) {
       if (isAdminNavItemActive(item, pathname, search)) {
         return group.id;
@@ -177,8 +206,12 @@ export function isAdminNavGroupOpen(
 }
 
 // Page title shown in the compact mobile Admin header.
-export function activeAdminNavLabel(pathname: string, search: string): string {
-  for (const group of adminNavGroups) {
+export function activeAdminNavLabel(
+  pathname: string,
+  search: string,
+  groups: AdminNavGroup[] = adminNavGroups
+): string {
+  for (const group of groups) {
     for (const item of group.items) {
       if (isAdminNavItemActive(item, pathname, search)) {
         return item.label;

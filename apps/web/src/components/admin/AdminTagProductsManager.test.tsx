@@ -303,9 +303,9 @@ describe("AdminTagProductsManager navigation and mobile flow", () => {
     render(<AdminTagProductsManager />);
     await waitForProductLoad();
 
-    const products = screen.getByRole("link", { name: "Products & SKUs" });
+    const products = screen.getByRole("link", { name: "Products" });
     const promotions = screen.getByRole("link", { name: "Promotions" });
-    const settings = screen.getByRole("link", { name: "Catalog Settings" });
+    const settings = screen.getByRole("link", { name: "Settings" });
     expect(products.getAttribute("href")).toBe("/admin/tag-products?tab=products");
     expect(promotions.getAttribute("href")).toBe("/admin/tag-products?tab=promotions");
     expect(settings.getAttribute("href")).toBe("/admin/tag-products?tab=settings");
@@ -323,6 +323,29 @@ describe("AdminTagProductsManager navigation and mobile flow", () => {
     expect(screen.queryByRole("tablist")).toBeNull();
   });
 
+  it("uses the shared responsive workspace navigation", async () => {
+    render(<AdminTagProductsManager />);
+    await waitForProductLoad();
+
+    expect(screen.getByTestId("workspace-nav-desktop")).toBeDefined();
+    const trigger = screen.getByRole("button", {
+      name: "Browse Tag Catalog sections. Current section: Products",
+    });
+    trigger.focus();
+    fireEvent.click(trigger);
+
+    const dialog = screen.getByRole("dialog", { name: "Choose a workspace section" });
+    expect(dialog).toBeDefined();
+    expect(document.body.style.overflow).toBe("hidden");
+    expect(within(dialog).getByRole("link", { name: /Products/ })).toBeDefined();
+    expect(within(dialog).getByRole("link", { name: "Promotions" })).toBeDefined();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: "Choose a workspace section" })).toBeNull();
+    expect(document.body.style.overflow).toBe("");
+    expect(document.activeElement).toBe(trigger);
+  });
+
   it("opens the Promotions tab from the URL used by the sidebar", async () => {
     navState.search = "tab=promotions";
     mocks.listProducts.mockResolvedValue({ items: [listProduct], total: 1 });
@@ -332,7 +355,7 @@ describe("AdminTagProductsManager navigation and mobile flow", () => {
     expect(screen.getByRole("link", { name: "Promotions" }).getAttribute("aria-current")).toBe("page");
   });
 
-  it("opens Catalog Settings from the URL and lists Tag Types", async () => {
+  it("opens Settings from the URL and lists Tag Types", async () => {
     navState.search = "tab=settings";
     render(<AdminTagProductsManager />);
 
@@ -666,18 +689,18 @@ describe("AdminTagProductsManager Tag Types", () => {
     expect(options).toContain("Retired Shape (inactive)");
   });
 
-  it("points to Catalog Settings instead of falling back to hardcoded values when no Tag Types exist", async () => {
+  it("points to Settings instead of falling back to hardcoded values when no Tag Types exist", async () => {
     mocks.listPresets.mockResolvedValue([]);
     await openExistingProduct();
     fireEvent.click(screen.getByRole("button", { name: "New SKU" }));
 
     await screen.findByText(/No active Tag Types exist yet/);
-    const settingsLink = screen.getByRole("link", { name: "Add one in Catalog Settings" });
+    const settingsLink = screen.getByRole("link", { name: "Add one in Settings" });
     expect(settingsLink.getAttribute("href")).toBe("/admin/tag-products?tab=settings");
     expect(screen.queryByRole("combobox", { name: "Tag Type" })).toBeNull();
   });
 
-  it("creates a Tag Type from Catalog Settings", async () => {
+  it("creates a Tag Type from Settings", async () => {
     navState.search = "tab=settings";
     render(<AdminTagProductsManager />);
     await screen.findByText("Tag Types");

@@ -29,7 +29,11 @@ import {
   subscribeAdminSidebarCollapsed,
 } from "@/lib/adminNavState";
 import { useModalDialogFocus } from "@/lib/useModalDialogFocus";
-import { logoutAdmin } from "@/services/authService";
+import {
+  getAdminCapabilities,
+  logoutAdmin,
+  type AdminCapabilities,
+} from "@/services/authService";
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -83,6 +87,8 @@ function AdminChrome({ onLogout }: { onLogout: () => void }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [navScope, setNavScope] = useState(`${pathname}${search}`);
   const { dashboard } = useAdminOperationalData();
+  const capabilities = getAdminCapabilities();
+  const navGroups = visibleAdminNavGroups(capabilities);
   const badges = {
     "/admin/payment-proofs": dashboard?.summary.pendingPaymentProofs ?? 0,
     "/admin/orders": dashboard?.summary.ordersPreparing ?? 0,
@@ -98,7 +104,7 @@ function AdminChrome({ onLogout }: { onLogout: () => void }) {
   return (
     <>
       <MobileAdminHeader
-        currentLabel={activeAdminNavLabel(pathname, search)}
+        currentLabel={activeAdminNavLabel(pathname, search, navGroups)}
         onOpenNavigation={() => setDrawerOpen(true)}
       />
       {drawerOpen ? (
@@ -108,9 +114,16 @@ function AdminChrome({ onLogout }: { onLogout: () => void }) {
           pathname={pathname}
           search={search}
           badges={badges}
+          capabilities={capabilities}
         />
       ) : null}
-      <DesktopAdminSidebar badges={badges} onLogout={onLogout} pathname={pathname} search={search} />
+      <DesktopAdminSidebar
+        badges={badges}
+        capabilities={capabilities}
+        onLogout={onLogout}
+        pathname={pathname}
+        search={search}
+      />
     </>
   );
 }
@@ -157,12 +170,14 @@ function MobileAdminDrawer({
   onClose,
   onLogout,
   badges,
+  capabilities,
 }: {
   pathname: string;
   search: string;
   onClose: () => void;
   onLogout: () => void;
   badges: Record<string, number>;
+  capabilities: AdminCapabilities;
 }) {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const closeRef = useRef<HTMLButtonElement | null>(null);
@@ -210,7 +225,13 @@ function MobileAdminDrawer({
             <Icon name="close" className="h-5 w-5" />
           </button>
         </div>
-        <AdminNavSections badges={badges} onNavigate={onClose} pathname={pathname} search={search} />
+        <AdminNavSections
+          badges={badges}
+          capabilities={capabilities}
+          onNavigate={onClose}
+          pathname={pathname}
+          search={search}
+        />
         <LogoutButton onLogout={onLogout} />
       </div>
     </div>,
@@ -223,11 +244,13 @@ function DesktopAdminSidebar({
   search,
   onLogout,
   badges,
+  capabilities,
 }: {
   pathname: string;
   search: string;
   onLogout: () => void;
   badges: Record<string, number>;
+  capabilities: AdminCapabilities;
 }) {
   const collapsed = useSyncExternalStore(
     subscribeAdminSidebarCollapsed,
@@ -258,7 +281,13 @@ function DesktopAdminSidebar({
           </span>
         )}
       </Link>
-      <AdminNavSections badges={badges} pathname={pathname} search={search} railed={collapsed} />
+      <AdminNavSections
+        badges={badges}
+        capabilities={capabilities}
+        pathname={pathname}
+        search={search}
+        railed={collapsed}
+      />
       <SidebarCollapseToggle
         collapsed={collapsed}
         onToggle={() => setAdminSidebarCollapsed(!collapsed)}
@@ -304,6 +333,7 @@ function AdminNavSections({
   onNavigate,
   railed = false,
   badges,
+  capabilities,
 }: {
   pathname: string;
   search: string;
@@ -311,20 +341,22 @@ function AdminNavSections({
   /** Icon-only desktop rail. The mobile drawer never uses this. */
   railed?: boolean;
   badges: Record<string, number>;
+  capabilities: AdminCapabilities;
 }) {
   const stored = useSyncExternalStore(
     subscribeAdminNavSections,
     getAdminNavSections,
     getServerAdminNavSections
   );
-  const activeGroupId = activeAdminNavGroupId(pathname, search);
+  const groups = visibleAdminNavGroups(capabilities);
+  const activeGroupId = activeAdminNavGroupId(pathname, search, groups);
 
   return (
     <nav
       aria-label="Admin sections"
       className={`mt-6 grid flex-1 content-start ${railed ? "gap-3" : "gap-5"}`}
     >
-      {visibleAdminNavGroups().map((group) => {
+      {groups.map((group) => {
         // A rail has no room for headings, so every item stays reachable.
         const open = railed || isAdminNavGroupOpen(group, activeGroupId, stored);
         const sectionId = `admin-nav-section-${group.id}`;
