@@ -159,9 +159,18 @@ export function AdminStat({
 }
 
 /** Responsive KPI row. Wraps to two columns on the narrowest screens. */
-export function AdminStatStrip({ children }: { children: ReactNode }) {
+export function AdminStatStrip({
+  children,
+  columns = "default",
+}: {
+  children: ReactNode;
+  columns?: "default" | "two";
+}) {
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-6">
+    <div className={columns === "two"
+      ? "grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3"
+      : "grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-6"}
+    >
       {children}
     </div>
   );

@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { AdminSection } from "@/components/admin/AdminPanels";
+import { AdminStat, AdminStatStrip, AdminStatusRow } from "@/components/admin/AdminStatus";
+import { AttentionQueue } from "@/components/admin/AttentionQueue";
+import { PipelineStrip } from "@/components/admin/PipelineStrip";
 import { isAbortError } from "@/services/apiClient";
 import {
   getMerchantSalesOverview,
@@ -16,13 +19,9 @@ import type { MerchantSalesTab } from "./tabs";
 
 export function MerchantSalesOverview({
   onGoTo,
-  onNewMerchant,
-  onNewSalesperson,
   onNewQuotation,
 }: {
   onGoTo: (tab: MerchantSalesTab, filters?: Record<string, string>) => void;
-  onNewMerchant: () => void;
-  onNewSalesperson: () => void;
   onNewQuotation: () => void;
 }) {
   const [state, setState] = useState<
@@ -82,160 +81,122 @@ export function MerchantSalesOverview({
   }
 
   const data = state.data;
-  const nothingYet =
-    data.activeMerchants === 0 &&
-    data.activeSalespersons === 0 &&
-    data.draftQuotations === 0 &&
-    data.sentQuotations === 0;
+  const attention = [
+    {
+      id: "invoices-awaiting-payment",
+      label: "Invoices awaiting payment",
+      count: data.invoicesAwaitingPayment,
+      detail: "Issued invoices that have not been paid.",
+      onSelect: () => onGoTo("invoices", { status: "Issued" }),
+    },
+    {
+      id: "awaiting-conversion",
+      label: "Awaiting conversion",
+      count: data.acceptedQuotationsAwaitingConversion,
+      detail: "Accepted quotations ready to become orders.",
+      onSelect: () => onGoTo("quotations", { status: "Accepted" }),
+    },
+    {
+      id: "awaiting-invoice",
+      label: "Awaiting invoice",
+      count: data.ordersAwaitingInvoice,
+      detail: "Unpaid orders without a current invoice.",
+      onSelect: () => onGoTo("orders", { paymentStatus: "AwaitingPayment" }),
+    },
+    {
+      id: "awaiting-allocation",
+      label: "Awaiting allocation",
+      count: data.paidOrdersAwaitingAllocation,
+      detail: "Paid orders with no inventory allocated yet.",
+      onSelect: () => onGoTo("orders", {
+        paymentStatus: "PaymentConfirmed",
+        allocationState: "none",
+      }),
+    },
+    {
+      id: "partially-allocated",
+      label: "Partially allocated",
+      count: data.partiallyAllocatedOrders,
+      detail: "Paid orders that still need inventory.",
+      onSelect: () => onGoTo("orders", {
+        paymentStatus: "PaymentConfirmed",
+        allocationState: "incomplete",
+      }),
+    },
+    {
+      id: "ready-to-ship",
+      label: "Ready to ship",
+      count: data.ordersReadyToShip,
+      detail: "Orders ready for dispatch.",
+      onSelect: () => onGoTo("orders", { fulfilmentStatus: "ReadyToShip" }),
+    },
+  ];
+
+  const pipeline = [
+    { id: "draft", label: "Draft", value: data.draftQuotations, onSelect: () => onGoTo("quotations", { status: "Draft" }) },
+    { id: "sent", label: "Sent", value: data.sentQuotations, onSelect: () => onGoTo("quotations", { status: "Sent" }) },
+    { id: "awaiting-conversion", label: "Awaiting conversion", value: data.acceptedQuotationsAwaitingConversion, onSelect: () => onGoTo("quotations", { status: "Accepted" }) },
+    { id: "awaiting-invoice", label: "Awaiting invoice", value: data.ordersAwaitingInvoice, onSelect: () => onGoTo("orders", { paymentStatus: "AwaitingPayment" }) },
+    { id: "awaiting-payment", label: "Awaiting payment", value: data.invoicesAwaitingPayment, onSelect: () => onGoTo("invoices", { status: "Issued" }) },
+    { id: "awaiting-allocation", label: "Awaiting allocation", value: data.paidOrdersAwaitingAllocation, onSelect: () => onGoTo("orders", { paymentStatus: "PaymentConfirmed", allocationState: "none" }) },
+    { id: "partially-allocated", label: "Partially allocated", value: data.partiallyAllocatedOrders, onSelect: () => onGoTo("orders", { paymentStatus: "PaymentConfirmed", allocationState: "incomplete" }) },
+    { id: "fully-allocated", label: "Fully allocated", value: data.fullyAllocatedOrders, onSelect: () => onGoTo("orders", { paymentStatus: "PaymentConfirmed", allocationState: "complete" }) },
+    { id: "ready-to-ship", label: "Ready to ship", value: data.ordersReadyToShip, onSelect: () => onGoTo("orders", { fulfilmentStatus: "ReadyToShip" }) },
+    { id: "shipped", label: "Shipped", value: data.ordersShipped, onSelect: () => onGoTo("orders", { fulfilmentStatus: "Shipped" }) },
+    { id: "delivered", label: "Delivered", value: data.ordersDelivered, onSelect: () => onGoTo("orders", { fulfilmentStatus: "Delivered" }) },
+  ];
 
   return (
     <div className="grid gap-4" data-testid="merchant-sales-overview">
-      {nothingYet ? (
-        <AdminSection
-          description="Add a salesperson and a merchant, then raise their first quotation."
-          title="No merchant sales yet"
-        >
-          <div className="flex flex-wrap gap-2 p-5">
-            <button className={primaryButton} onClick={onNewSalesperson} type="button">
-              New salesperson
-            </button>
-            <button className={secondaryButton} onClick={onNewMerchant} type="button">
-              New merchant
-            </button>
-          </div>
-        </AdminSection>
-      ) : null}
-
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat label="Active merchants" value={String(data.activeMerchants)} />
-        <Stat label="Active salespersons" value={String(data.activeSalespersons)} />
-        <Stat label="Draft quotations" value={String(data.draftQuotations)} />
-        <Stat label="Sent quotations" value={String(data.sentQuotations)} />
-        <Stat
-          hint="Accepted and waiting to become an order."
-          label="Awaiting conversion"
-          value={String(data.acceptedQuotationsAwaitingConversion)}
-        />
-        <Stat
-          hint="Orders with no live invoice yet."
-          label="Awaiting invoice"
-          value={String(data.ordersAwaitingInvoice)}
-        />
-        <Stat label="Invoices awaiting payment" value={String(data.invoicesAwaitingPayment)} />
-        <Stat
-          hint="Paid, with no tags allocated yet."
-          label="Awaiting allocation"
-          value={String(data.paidOrdersAwaitingAllocation)}
-        />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="text-xl font-black text-slate-950">Sales overview</h2>
+          <p className="mt-1 text-sm text-slate-500">Financial position, work requiring attention, and sales progress.</p>
+        </div>
+        <button className={primaryButton} onClick={onNewQuotation} type="button">
+          New quotation
+        </button>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <Stat
-          hint="Some tags allocated, more still needed."
-          label="Partially allocated"
-          value={String(data.partiallyAllocatedOrders)}
-        />
-        <Stat
-          hint="Every ordered unit is held. Not the same as ready to ship."
-          label="Fully allocated"
-          value={String(data.fullyAllocatedOrders)}
-        />
-        <Stat label="Ready to ship" value={String(data.ordersReadyToShip)} />
-        <Stat label="Shipped" value={String(data.ordersShipped)} />
-        <Stat label="Delivered" value={String(data.ordersDelivered)} />
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Stat
+      <AdminStatStrip columns="two">
+        <AdminStat
           label="Outstanding invoice total"
+          tone="warning"
           value={money(data.currency, data.outstandingInvoiceTotal)}
         />
-        <Stat
+        <AdminStat
           hint="Internal only. Never shown to a merchant."
           label="Payable commission"
+          tone="info"
           value={money(data.currency, data.payableCommissionTotal)}
         />
-      </div>
+      </AdminStatStrip>
 
-      <AdminSection description="Jump straight to the work." title="Quick actions">
-        <div className="flex flex-wrap gap-2 p-5">
-          <button className={primaryButton} onClick={onNewQuotation} type="button">
-            New quotation
-          </button>
-          <button className={secondaryButton} onClick={onNewMerchant} type="button">
-            New merchant
-          </button>
-          <button className={secondaryButton} onClick={onNewSalesperson} type="button">
-            New salesperson
-          </button>
-          <button
-            className={secondaryButton}
-            onClick={() => onGoTo("invoices", { status: "Issued" })}
-            type="button"
-          >
-            View awaiting payment
-          </button>
-          <button
-            className={secondaryButton}
-            onClick={() =>
-              onGoTo("orders", { paymentStatus: "PaymentConfirmed", allocationState: "none" })
-            }
-            type="button"
-          >
-            View awaiting allocation
-          </button>
-          <button
-            className={secondaryButton}
-            onClick={() =>
-              onGoTo("orders", { paymentStatus: "PaymentConfirmed", allocationState: "incomplete" })
-            }
-            type="button"
-          >
-            View partially allocated
-          </button>
-          <button
-            className={secondaryButton}
-            onClick={() =>
-              onGoTo("orders", { paymentStatus: "PaymentConfirmed", allocationState: "complete" })
-            }
-            type="button"
-          >
-            View fully allocated
-          </button>
-          <button
-            className={secondaryButton}
-            onClick={() => onGoTo("orders", { fulfilmentStatus: "ReadyToShip" })}
-            type="button"
-          >
-            View Ready to Ship
-          </button>
-          <button
-            className={secondaryButton}
-            onClick={() => onGoTo("orders", { fulfilmentStatus: "Shipped" })}
-            type="button"
-          >
-            View Shipped
-          </button>
+      <AdminSection
+        description="Only current non-zero work appears here."
+        title="Attention queue"
+      >
+        <AttentionQueue items={attention} />
+      </AdminSection>
+
+      <AdminSection
+        description="Counts follow the existing quotation, payment, allocation, and fulfilment states."
+        title="Lifecycle pipeline"
+      >
+        <div className="px-4 py-4">
+          <PipelineStrip stages={pipeline} />
         </div>
       </AdminSection>
-    </div>
-  );
-}
 
-function Stat({
-  label,
-  value,
-  hint,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-}) {
-  return (
-    <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4">
-      <p className="text-[0.68rem] font-extrabold uppercase text-slate-400">{label}</p>
-      <p className="mt-1 break-words text-2xl font-black text-slate-950">{value}</p>
-      {hint ? <p className="mt-1 text-xs font-semibold text-slate-500">{hint}</p> : null}
+      <section aria-labelledby="merchant-sales-reference" className="px-1 py-2">
+        <h2 className="text-sm font-black text-slate-700" id="merchant-sales-reference">
+          Reference
+        </h2>
+        <div className="mt-1 grid gap-x-8 sm:grid-cols-2">
+          <AdminStatusRow label="Active merchants" value={data.activeMerchants} />
+          <AdminStatusRow label="Active salespersons" value={data.activeSalespersons} />
+        </div>
+      </section>
     </div>
   );
 }

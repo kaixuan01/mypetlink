@@ -3,18 +3,29 @@
 
 export const merchantSalesTabs = [
   { id: "overview", label: "Overview" },
-  { id: "reports", label: "Sales Reports" },
-  { id: "merchants", label: "Merchants" },
-  { id: "salespersons", label: "Salespersons" },
-  { id: "referrals", label: "Owner referrals" },
+  { id: "reports", label: "Reports" },
   { id: "quotations", label: "Quotations" },
   { id: "orders", label: "Orders" },
   { id: "invoices", label: "Invoices & Receipts" },
+  { id: "merchants", label: "Merchants" },
+  { id: "salespersons", label: "Salespersons" },
+  { id: "referrals", label: "Owner Referrals" },
   { id: "commissions", label: "Commissions" },
   { id: "payouts", label: "Payouts" },
 ] as const;
 
 export type MerchantSalesTab = (typeof merchantSalesTabs)[number]["id"];
+
+export const merchantSalesWorkspaceGroups: {
+  id: string;
+  label: string | null;
+  tabIds: MerchantSalesTab[];
+}[] = [
+  { id: "primary", label: null, tabIds: ["overview", "reports"] },
+  { id: "sales", label: "Sales", tabIds: ["quotations", "orders", "invoices"] },
+  { id: "partners", label: "Partners", tabIds: ["merchants", "salespersons", "referrals"] },
+  { id: "finance", label: "Finance", tabIds: ["commissions", "payouts"] },
+];
 
 export function merchantSalesTabsForRole(role: string) {
   if (role === "SuperAdmin" || role === "Admin") return merchantSalesTabs;

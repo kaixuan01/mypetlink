@@ -35,12 +35,12 @@ describe("Merchant Sales navigation", () => {
     expect(merchantSalesTabs.map((tab) => tab.id)).toEqual([
       "overview",
       "reports",
-      "merchants",
-      "salespersons",
-      "referrals",
       "quotations",
       "orders",
       "invoices",
+      "merchants",
+      "salespersons",
+      "referrals",
       "commissions",
       "payouts",
     ]);

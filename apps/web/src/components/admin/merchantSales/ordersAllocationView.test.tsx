@@ -249,9 +249,7 @@ describe("Merchant Sales overview counters", () => {
     render(
       <MerchantSalesOverview
         onGoTo={noop}
-        onNewMerchant={noop}
         onNewQuotation={noop}
-        onNewSalesperson={noop}
         {...props}
       />
     );
@@ -266,28 +264,18 @@ describe("Merchant Sales overview counters", () => {
     );
     renderOverview();
 
-    const awaiting = await screen.findByText("Awaiting allocation");
-    expect(within(awaiting.closest("div") as HTMLElement).getByText("7")).toBeTruthy();
-    const partial = screen.getByText("Partially allocated");
-    expect(within(partial.closest("div") as HTMLElement).getByText("3")).toBeTruthy();
-    const full = screen.getByText("Fully allocated");
-    expect(within(full.closest("div") as HTMLElement).getByText("2")).toBeTruthy();
+    expect((await screen.findByTestId("pipeline-stage-awaiting-allocation")).textContent).toContain("7");
+    expect(screen.getByTestId("pipeline-stage-partially-allocated").textContent).toContain("3");
+    expect(screen.getByTestId("pipeline-stage-fully-allocated").textContent).toContain("2");
   });
 
   it("shows each fulfilment stage on its own", async () => {
     renderOverview();
-    await screen.findByText("Awaiting allocation");
+    await screen.findByTestId("pipeline-stage-awaiting-allocation");
 
-    expect(screen.getByText("Ready to ship")).toBeTruthy();
-    expect(screen.getByText("Shipped")).toBeTruthy();
-    expect(screen.getByText("Delivered")).toBeTruthy();
-  });
-
-  it("says a fully allocated order is not the same as ready to ship", async () => {
-    renderOverview();
-    const full = await screen.findByText("Fully allocated");
-
-    expect(full.closest("div")?.textContent).toMatch(/Not the same as ready to ship/i);
+    expect(screen.getByTestId("pipeline-stage-ready-to-ship")).toBeTruthy();
+    expect(screen.getByTestId("pipeline-stage-shipped")).toBeTruthy();
+    expect(screen.getByTestId("pipeline-stage-delivered")).toBeTruthy();
   });
 
   it("shows zero counts once loaded rather than hiding them", async () => {
@@ -303,8 +291,7 @@ describe("Merchant Sales overview counters", () => {
     );
     renderOverview();
 
-    const awaiting = await screen.findByText("Awaiting allocation");
-    expect(within(awaiting.closest("div") as HTMLElement).getByText("0")).toBeTruthy();
+    expect((await screen.findByTestId("pipeline-stage-awaiting-allocation")).textContent).toContain("0");
   });
 
   it("shows no counter at all until the numbers arrive", () => {
@@ -318,21 +305,21 @@ describe("Merchant Sales overview counters", () => {
   it("links each allocation shortcut to the matching orders filter", async () => {
     const onGoTo = vi.fn();
     renderOverview({ onGoTo });
-    await screen.findByText("Awaiting allocation");
+    await screen.findByTestId("pipeline-stage-awaiting-allocation");
 
-    fireEvent.click(screen.getByRole("button", { name: "View awaiting allocation" }));
+    fireEvent.click(screen.getByTestId("pipeline-stage-awaiting-allocation"));
     expect(onGoTo).toHaveBeenLastCalledWith("orders", {
       paymentStatus: "PaymentConfirmed",
       allocationState: "none",
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "View partially allocated" }));
+    fireEvent.click(screen.getByTestId("pipeline-stage-partially-allocated"));
     expect(onGoTo).toHaveBeenLastCalledWith("orders", {
       paymentStatus: "PaymentConfirmed",
       allocationState: "incomplete",
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "View fully allocated" }));
+    fireEvent.click(screen.getByTestId("pipeline-stage-fully-allocated"));
     expect(onGoTo).toHaveBeenLastCalledWith("orders", {
       paymentStatus: "PaymentConfirmed",
       allocationState: "complete",
@@ -342,22 +329,18 @@ describe("Merchant Sales overview counters", () => {
   it("sends the fulfilment shortcuts to the matching order filter", async () => {
     const onGoTo = vi.fn();
     renderOverview({ onGoTo });
-    await screen.findByText("Awaiting allocation");
+    await screen.findByTestId("pipeline-stage-awaiting-allocation");
 
-    fireEvent.click(screen.getByRole("button", { name: "View Ready to Ship" }));
+    fireEvent.click(screen.getByTestId("pipeline-stage-ready-to-ship"));
     expect(onGoTo).toHaveBeenCalledWith("orders", { fulfilmentStatus: "ReadyToShip" });
 
-    fireEvent.click(screen.getByRole("button", { name: "View Shipped" }));
+    fireEvent.click(screen.getByTestId("pipeline-stage-shipped"));
     expect(onGoTo).toHaveBeenCalledWith("orders", { fulfilmentStatus: "Shipped" });
   });
 
-  it("keeps the overview to two fulfilment shortcuts", async () => {
+  it("keeps the complete ordered lifecycle visible", async () => {
     renderOverview();
-    await screen.findByText("Awaiting allocation");
-
-    const shipping = screen.getAllByRole("button")
-      .map((el) => el.textContent ?? "")
-      .filter((label) => /ship|courier|tracking|deliver/i.test(label));
-    expect(shipping).toEqual(["View Ready to Ship", "View Shipped"]);
+    const pipeline = await screen.findByRole("list", { name: "Merchant sales lifecycle" });
+    expect(within(pipeline).getAllByRole("button")).toHaveLength(11);
   });
 });

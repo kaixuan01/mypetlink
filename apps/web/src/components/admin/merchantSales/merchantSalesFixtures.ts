@@ -245,9 +245,13 @@ export function overview(
 ): MerchantSalesOverview {
   return {
     activeMerchants: 3,
+    activeSalespersons: 2,
     draftQuotations: 2,
     sentQuotations: 1,
+    acceptedQuotationsAwaitingConversion: 1,
     ordersAwaitingInvoice: 0,
+    invoicesAwaitingPayment: 2,
+    paidOrdersAwaitingAllocation: 1,
     partiallyAllocatedOrders: 1,
     fullyAllocatedOrders: 2,
     ordersReadyToShip: 1,

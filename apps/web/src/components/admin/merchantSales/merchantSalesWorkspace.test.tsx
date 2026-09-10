@@ -98,9 +98,7 @@ const renderOverview = (props: Record<string, unknown> = {}) =>
   render(
     <MerchantSalesOverview
       onGoTo={noop}
-      onNewMerchant={noop}
       onNewQuotation={noop}
-      onNewSalesperson={noop}
       {...props}
     />
   );
@@ -153,31 +151,52 @@ describe("Overview", () => {
     expect(await screen.findByText("MYR 1,035.00")).toBeTruthy();
   });
 
-  it("offers a quick way to start each kind of record", async () => {
-    const onNewMerchant = vi.fn();
+  it("keeps New quotation as the sole primary action", async () => {
     const onNewQuotation = vi.fn();
-    renderOverview({ onNewMerchant, onNewQuotation });
+    renderOverview({ onNewQuotation });
     await screen.findByText("MYR 1,035.00");
-
-    fireEvent.click(screen.getByRole("button", { name: /New merchant/i }));
-    expect(onNewMerchant).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByRole("button", { name: /New quotation/i }));
     expect(onNewQuotation).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button", { name: /New merchant/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /New salesperson/i })).toBeNull();
+    expect(screen.queryByText(/Quick actions/i)).toBeNull();
   });
 
-  it("lets a counter lead straight to the list it counts", async () => {
-    const onGoTo = vi.fn();
-    renderOverview({ onGoTo });
+  it("makes the two financial KPIs primary and partner totals reference-only", async () => {
+    renderOverview();
     await screen.findByText("MYR 1,035.00");
 
-    const shortcut = screen
-      .getAllByRole("button")
-      .find((el) => /outstanding|awaiting|view/i.test(el.textContent ?? ""));
-    if (shortcut) {
-      fireEvent.click(shortcut);
-      expect(onGoTo).toHaveBeenCalled();
-    }
+    expect(screen.getByText("Outstanding invoice total")).toBeTruthy();
+    expect(screen.getByText("Payable commission")).toBeTruthy();
+    expect(screen.getByText("Active merchants")).toBeTruthy();
+    expect(screen.getByText("Active salespersons")).toBeTruthy();
+  });
+
+  it("links an attention item to the exact existing list filter", async () => {
+    const onGoTo = vi.fn();
+    renderOverview({ onGoTo });
+    const item = await screen.findByTestId("attention-item-invoices-awaiting-payment");
+
+    fireEvent.click(item);
+    expect(onGoTo).toHaveBeenCalledWith("invoices", { status: "Issued" });
+  });
+
+  it("hides zero attention items and shows a positive all-clear state", async () => {
+    getMerchantSalesOverview.mockResolvedValue(
+      overview({
+        invoicesAwaitingPayment: 0,
+        acceptedQuotationsAwaitingConversion: 0,
+        ordersAwaitingInvoice: 0,
+        paidOrdersAwaitingAllocation: 0,
+        partiallyAllocatedOrders: 0,
+        ordersReadyToShip: 0,
+      })
+    );
+    renderOverview();
+
+    expect(await screen.findByText("Nothing needs attention right now.")).toBeTruthy();
+    expect(screen.queryByTestId("attention-item-awaiting-invoice")).toBeNull();
   });
 });
 

@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
+import { WorkspaceNav, type WorkspaceNavGroup } from "@/components/admin/WorkspaceNav";
 import { InvoicesPanel } from "./InvoicesPanel";
 import { MerchantsPanel } from "./MerchantsPanel";
 import { MerchantSalesOverview } from "./MerchantSalesOverview";
@@ -17,7 +17,9 @@ import {
   MERCHANT_SALES_LIST_KEYS,
   isMerchantSalesTab,
   merchantSalesTabHref,
+  merchantSalesTabs,
   merchantSalesTabsForRole,
+  merchantSalesWorkspaceGroups,
   type MerchantSalesTab,
 } from "./tabs";
 
@@ -33,6 +35,7 @@ export function AdminMerchantSalesWorkspace() {
   const searchParams = useSearchParams();
   const capabilities = getAdminCapabilities();
   const availableTabs = merchantSalesTabsForRole(capabilities.role);
+  const availableIds = new Set(availableTabs.map((item) => item.id));
 
   const tabParam = searchParams.get("tab");
   const requestedTab = isMerchantSalesTab(tabParam) ? tabParam : null;
@@ -74,48 +77,34 @@ export function AdminMerchantSalesWorkspace() {
 
   const closeEditor = () => setParam({ edit: null });
 
+  const workspaceGroups: WorkspaceNavGroup<MerchantSalesTab>[] =
+    merchantSalesWorkspaceGroups.map((group) => ({
+      id: group.id,
+      label: group.label,
+      items: group.tabIds.map((id) => {
+        const item = merchantSalesTabs.find((candidate) => candidate.id === id)!;
+        return {
+          id,
+          label: item.label,
+          href: merchantSalesTabHref(pathname, id),
+          visible: availableIds.has(id),
+        };
+      }),
+    }));
+
   return (
     <div className="grid gap-4">
-      <nav aria-label="Merchant Sales sections" className="-mx-1 overflow-x-auto px-1 pb-1">
-        <ul className="flex min-w-max gap-2">
-          {availableTabs.map((item) => (
-            <li key={item.id}>
-              <Link
-                aria-current={tab === item.id ? "page" : undefined}
-                className={`inline-flex min-h-10 items-center whitespace-nowrap rounded-full border px-4 text-sm font-extrabold ${
-                  tab === item.id
-                    ? "border-slate-950 bg-slate-950 text-white"
-                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                }`}
-                data-testid={`merchant-sales-tab-${item.id}`}
-                href={merchantSalesTabHref(pathname, item.id)}
-                onClick={(event) => {
-                  if (
-                    event.button !== 0 ||
-                    event.metaKey ||
-                    event.ctrlKey ||
-                    event.shiftKey ||
-                    event.altKey
-                  ) {
-                    return;
-                  }
-                  event.preventDefault();
-                  goToTab(item.id);
-                }}
-              >
-                {item.label}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </nav>
+      <WorkspaceNav
+        activeId={tab}
+        groups={workspaceGroups}
+        label="Merchant Sales sections"
+        onNavigate={goToTab}
+      />
 
       {tab === "overview" ? (
         <MerchantSalesOverview
           onGoTo={goToTab}
-          onNewMerchant={() => goToTab("merchants", { edit: "new" })}
           onNewQuotation={() => goToTab("quotations", { edit: "new" })}
-          onNewSalesperson={() => goToTab("salespersons", { edit: "new" })}
         />
       ) : null}
 
