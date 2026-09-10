@@ -6,6 +6,13 @@ type PageHeaderProps = {
   description?: string;
   action?: ReactNode;
   compactOnMobile?: boolean;
+  /**
+   * Heading level for the title. Defaults to the page title, which is correct
+   * when a route renders one of these at the top. A page that uses this to
+   * introduce several sections must pass "h2" so the document keeps a single
+   * H1 and a readable outline.
+   */
+  as?: "h1" | "h2";
 };
 
 export function PageHeader({
@@ -14,6 +21,7 @@ export function PageHeader({
   description,
   action,
   compactOnMobile = false,
+  as: Heading = "h1",
 }: PageHeaderProps) {
   return (
     <div
@@ -29,11 +37,11 @@ export function PageHeader({
             {eyebrow}
           </p>
         ) : null}
-        <h1
+        <Heading
           className={`${compactOnMobile ? "mt-0.5" : "mt-1"} text-2xl font-black leading-tight text-pet-ink sm:mt-2 sm:text-4xl`}
         >
           {title}
-        </h1>
+        </Heading>
         {description ? (
           <p
             className={`${compactOnMobile ? "mt-1.5 leading-5" : "mt-2 leading-6"} text-sm text-pet-muted sm:mt-3 sm:text-base sm:leading-7`}

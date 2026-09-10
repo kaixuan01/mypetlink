@@ -1,14 +1,16 @@
 import type { Metadata } from "next";
+import { LinkoMascot } from "@/components/brand/LinkoMascot";
 import { PublicLayout } from "@/components/layouts/PublicLayout";
 import { CreateProfileCTA } from "@/components/marketing/CreateProfileCTA";
-import { HomepageSamplePetPreview } from "@/components/marketing/HomepageSamplePetPreview";
+import { FinderJourney } from "@/components/marketing/FinderJourney";
+import { LandingHero } from "@/components/marketing/LandingHero";
+import { SmartTagShowcase } from "@/components/marketing/SmartTagShowcase";
 import { Badge } from "@/components/ui/Badge";
-import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { PageHeader } from "@/components/ui/PageHeader";
 import {
   freePlanLimits,
-  phase1Positioning,
+  gpsSafety,
   premiumPlan,
   smartTagAddOn,
   smartTagAddOnsStatus,
@@ -26,44 +28,29 @@ export const metadata: Metadata = createMarketingMetadata({
     "Create a free shareable pet profile, keep important pet details together, and help lost pets get home faster with MyPetLink QR and NFC pet tags in Malaysia.",
 });
 
-const whyItMatters: { icon: IconName; title: string; description: string }[] = [
-  {
-    icon: "search",
-    title: "Pets can get lost",
-    description: "A panicked moment is easier when your pet is easy to identify.",
-  },
-  {
-    icon: "phone",
-    title: "Finders need quick contact",
-    description: "A kind stranger should reach you in one tap, not a social post.",
-  },
-  {
-    icon: "shield",
-    title: "Your details stay protected",
-    description: "Show a general area and safe notes, never your full address.",
-  },
-];
+/**
+ * The MyPetLink landing page.
+ *
+ * The page tells one story in order: what you get, what happens when a pet is
+ * lost, the tag that makes it wearable, what else the profile does, what it
+ * costs, and the questions people ask before signing up.
+ *
+ * Two conventions hold it together. Exactly one H1 lives in the hero, and
+ * every section below is an H2, so the document has a readable outline. And
+ * the only two buttons on the page are the same signup action, at the top and
+ * at the close; everything else that navigates is a text link, because a page
+ * with seven buttons has no primary action at all.
+ */
 
-const howItWorks = [
-  "Create your pet profile",
-  "Choose what is public",
-  "Share your profile or order a smart tag",
-  "Finder scans and contacts you",
-];
-
-const pillars: {
-  icon: IconName;
-  title: string;
-  points: string[];
-}[] = [
+const pillars: { icon: IconName; title: string; points: string[] }[] = [
   {
     icon: "shield",
     title: "Safety",
     points: [
-      "Safety Profile",
-      "Basic QR download",
-      "WhatsApp / call contact",
-      "Emergency note",
+      "Safety Profile for finders",
+      "Downloadable QR code",
+      "WhatsApp or call contact",
+      "Emergency and safety notes",
     ],
   },
   {
@@ -71,9 +58,9 @@ const pillars: {
     title: "Care",
     points: [
       "Basic care records",
-      "Reminders coming soon",
-      "Medication & allergy notes",
+      "Medication and allergy notes",
       "Vet visit history",
+      "Reminders coming soon",
     ],
   },
   {
@@ -81,28 +68,10 @@ const pillars: {
     title: "Memories",
     points: [
       "Pet moments",
-      "Public / private memories",
+      "Public or private memories",
       "Life timeline",
       "Shareable profile",
     ],
-  },
-];
-
-// The two ways a finder opens the Safety Profile from our one physical tag.
-const smartTagAccessMethods: {
-  description: string;
-  icon: "qr" | "tag";
-  title: string;
-}[] = [
-  {
-    title: "Scan the QR code",
-    description: "Works with any modern phone camera, with no app to install.",
-    icon: "qr",
-  },
-  {
-    title: "Tap using NFC",
-    description: "Hold an NFC-capable phone against the tag to open the page.",
-    icon: "tag",
   },
 ];
 
@@ -148,204 +117,44 @@ export default function Home() {
         }}
         type="application/ld+json"
       />
-      {/* 1. Hero */}
-      <section className="brand-peach-section overflow-hidden">
-        <div className="mx-auto grid max-w-7xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:px-8 lg:py-24">
-          <div>
-            <Badge tone="warm">Made for Malaysian pet families</Badge>
-            <h1 className="mt-5 max-w-3xl text-5xl font-black leading-[1.04] text-pet-ink sm:text-6xl">
-              A safer profile for your pet.
-            </h1>
-            <p className="mt-6 max-w-xl text-lg leading-8 text-pet-muted">
-              Create a shareable pet profile and Safety Profile for free. Add a
-              physical smart tag when you want extra safety.
-            </p>
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <CreateProfileCTA>
-                Create Free Pet Profile
-              </CreateProfileCTA>
-              <CTAButton
-                href={marketingRoutes.samplePublicProfile}
-                icon="heart"
-                variant="secondary"
-              >
-                Explore Sample Profile
-              </CTAButton>
-              <CTAButton
-                href={marketingRoutes.sampleSafetyProfile}
-                icon="qr"
-                variant="outline"
-              >
-                View Sample Safety Profile
-              </CTAButton>
-            </div>
-              <p className="mt-6 text-sm font-bold text-pet-muted">
-              Free covers basic pet safety and sharing. The physical QR + NFC
-              Smart Tag is a one-time add-on. Premium care features are coming
-              soon.
-            </p>
-          </div>
 
-          <div className="relative mx-auto w-full max-w-md">
-            <div className="pointer-events-none absolute right-6 top-2 z-10 hidden rounded-full bg-pet-ink px-4 py-2 text-xs font-extrabold text-white shadow-xl shadow-[#0d1b3d]/15 sm:flex sm:items-center sm:gap-2">
-              <Icon name="shield" className="h-4 w-4 text-pet-sky" />
-              QR Active
-            </div>
-            <HomepageSamplePetPreview />
-          </div>
-        </div>
-      </section>
+      {/* 1. Hero — the page's only H1, and its only trust strip. */}
+      <LandingHero />
 
-      {/* 2. Why it matters */}
+      {/* 2. The finder journey — replaces the old "why it matters" and
+             "how it works", which both explained a process. */}
+      <FinderJourney />
+
+      {/* 3. The physical tag, then the two profiles it relates to. */}
+      <SmartTagShowcase />
+
+      {/* 4. What the profile does beyond safety. */}
       <section className="bg-white">
-        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8 lg:py-16">
           <PageHeader
-            eyebrow="Why it matters"
-            title="Peace of mind when it counts."
-          />
-          <div className="grid gap-4 md:grid-cols-3">
-            {whyItMatters.map((item) => (
-              <article
-                className="brand-soft-card rounded-[1.75rem] p-6"
-                key={item.title}
-              >
-                <span className="grid h-12 w-12 place-items-center rounded-2xl bg-[#e8f3ff] text-pet-teal">
-                  <Icon name={item.icon} className="h-5 w-5" />
-                </span>
-                <h3 className="mt-5 text-lg font-black text-pet-ink">
-                  {item.title}
-                </h3>
-                <p className="mt-2 text-sm leading-6 text-pet-muted">
-                  {item.description}
-                </p>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* 3. How it works */}
-      <section id="how-it-works" className="brand-blue-section scroll-mt-24">
-        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-          <PageHeader
-            eyebrow="How it works"
-            title="Four simple steps."
-          />
-          <div className="grid gap-4 md:grid-cols-4">
-            {howItWorks.map((step, index) => (
-              <article className="brand-card rounded-[1.75rem] p-6" key={step}>
-                <div className="grid h-12 w-12 place-items-center rounded-2xl bg-[#e8f3ff] text-lg font-black text-pet-teal">
-                  {index + 1}
-                </div>
-                <h3 className="mt-5 text-base font-black text-pet-ink">
-                  {step}
-                </h3>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* 4. Public Share Profile vs Safety Profile */}
-      <section className="bg-pet-cream">
-        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-          <PageHeader
-            eyebrow="Two profiles, two jobs"
-            title="Share with loved ones. Get found by strangers."
-            description="MyPetLink keeps the friendly page you share separate from the emergency page a finder sees."
-          />
-          <div className="grid gap-4 md:grid-cols-2">
-            <article className="brand-card flex flex-col rounded-[1.75rem] p-6">
-              <div className="flex items-center gap-3">
-                <span className="grid h-11 w-11 place-items-center rounded-2xl bg-[#fdeada] text-pet-coral">
-                  <Icon name="heart" className="h-5 w-5" />
-                </span>
-                <h3 className="text-xl font-black text-pet-ink">
-                  Public Share Profile
-                </h3>
-              </div>
-              <span className="mt-4 inline-flex w-fit rounded-full bg-[#fdeada] px-3 py-1 text-xs font-black text-pet-coral">
-                Share with friends &amp; family
-              </span>
-              <p className="mt-4 text-sm leading-6 text-pet-muted">
-                A friendly, shareable page for family, friends, social media, and
-                pet communities. Show your pet&apos;s story, moments, and
-                timeline in one beautiful profile.
-              </p>
-              <p className="mt-3 max-w-xl text-sm leading-6 text-pet-muted">
-                MyPetLink works for cats, dogs, and other pets across Malaysia.
-                A finder scans the QR code or taps an NFC tag, opens the
-                owner-approved lost-pet contact page, then uses WhatsApp or Call
-                Owner when those options are enabled.
-              </p>
-              <div className="mt-auto pt-5">
-                <CTAButton
-                  href={marketingRoutes.petProfile}
-                  icon="heart"
-                  variant="secondary"
-                >
-                  Learn About Pet Profiles
-                </CTAButton>
-              </div>
-            </article>
-
-            <article className="brand-card flex flex-col rounded-[1.75rem] p-6">
-              <div className="flex items-center gap-3">
-                <span className="grid h-11 w-11 place-items-center rounded-2xl bg-[#e8f3ff] text-pet-teal">
-                  <Icon name="qr" className="h-5 w-5" />
-                </span>
-                <h3 className="text-xl font-black text-pet-ink">
-                  Safety Profile
-                </h3>
-              </div>
-              <span className="mt-4 inline-flex w-fit rounded-full bg-[#e8f3ff] px-3 py-1 text-xs font-black text-pet-teal">
-                Help finders contact you
-              </span>
-              <p className="mt-4 text-sm leading-6 text-pet-muted">
-                A finder-first Safety Profile that helps someone contact you quickly
-                when your pet is found. It can show WhatsApp, call, safety notes,
-                and found-location actions based on the owner&apos;s privacy
-                settings.
-              </p>
-              <div className="mt-auto pt-5">
-                <CTAButton
-                  href={marketingRoutes.howItWorks}
-                  icon="qr"
-                  variant="outline"
-                >
-                  See How Finder Contact Works
-                </CTAButton>
-              </div>
-            </article>
-          </div>
-        </div>
-      </section>
-
-      {/* 5. Core features — three pillars */}
-      <section className="bg-white">
-        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-          <PageHeader
+            as="h2"
             eyebrow="What you get"
             title="Safety, care, and memories."
           />
           <div className="grid gap-4 md:grid-cols-3">
             {pillars.map((pillar) => (
               <article
-                className="brand-card rounded-[1.75rem] p-6"
+                className="brand-card rounded-[1.5rem] p-5 sm:p-6"
                 key={pillar.title}
               >
-                <span className="grid h-12 w-12 place-items-center rounded-2xl bg-[#e8f3ff] text-pet-teal">
-                  <Icon name={pillar.icon} className="h-6 w-6" />
+                <span className="grid h-11 w-11 place-items-center rounded-xl bg-[#e8f3ff] text-pet-teal">
+                  <Icon aria-hidden="true" className="h-5 w-5" name={pillar.icon} />
                 </span>
-                <h3 className="mt-5 text-xl font-black text-pet-ink">
+                <h3 className="mt-4 text-lg font-black text-pet-ink">
                   {pillar.title}
                 </h3>
-                <ul className="mt-4 space-y-3 text-sm text-pet-muted">
+                <ul className="mt-3 space-y-2 text-sm text-pet-muted">
                   {pillar.points.map((point) => (
                     <li className="flex gap-2" key={point}>
                       <Icon
-                        name="paw"
+                        aria-hidden="true"
                         className="mt-0.5 h-4 w-4 shrink-0 text-pet-coral"
+                        name="paw"
                       />
                       {point}
                     </li>
@@ -357,106 +166,87 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 6. Smart Tag add-on */}
-      <section id="smart-tags" className="brand-peach-section scroll-mt-24">
-        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+      {/* 5. Pricing — what is actually available, then the roadmap in one line. */}
+      <section className="bg-pet-cream">
+        <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8 lg:py-16">
+          {/*
+            The headline must not read as an invitation to buy: the tag is not
+            on sale yet, so its status comes straight from configuration rather
+            than from a hand-written promise.
+          */}
           <PageHeader
-            eyebrow="Smart tag add-on"
-            title="Start free. Add a physical tag when you want one."
-            description="The MyPetLink QR + NFC Smart Tag is an optional one-time add-on that connects to your pet's Safety Profile. Coming soon."
-            action={
-              <CTAButton href={marketingRoutes.smartPetTags} variant="secondary">
-                About the Smart Tag
-              </CTAButton>
-            }
-          />
-          <div className="brand-card rounded-[1.75rem] p-6 sm:p-8">
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-lg font-black text-pet-ink">
-                {smartTagAddOn.name}
-              </h3>
-              <Badge tone="teal">{smartTagAddOnsStatus.status}</Badge>
-            </div>
-            <p className="mt-2 text-sm font-semibold text-pet-muted">
-              Both methods open the same owner-approved Safety Profile.
-            </p>
-            <div className="mt-5 grid gap-4 md:grid-cols-2">
-              {smartTagAccessMethods.map((method) => (
-                <div
-                  className="flex items-center gap-4 rounded-[1.5rem] bg-pet-cream p-5"
-                  key={method.title}
-                >
-                  <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-pet-teal">
-                    <Icon name={method.icon} className="h-6 w-6" />
-                  </span>
-                  <div className="min-w-0">
-                    <h4 className="text-base font-black text-pet-ink">
-                      {method.title}
-                    </h4>
-                    <p className="mt-1 text-sm font-semibold text-pet-muted">
-                      {method.description}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 7. Pricing preview */}
-      <section className="bg-white">
-        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-          <PageHeader
+            as="h2"
             eyebrow="Pricing"
-            title="Free profile now. Premium coming soon. Smart tags are optional add-ons."
-            action={
-              <CTAButton href={marketingRoutes.pricing} variant="secondary">
-                View Pricing
-              </CTAButton>
-            }
+            title={`Start free today. Smart Tags are ${smartTagAddOnsStatus.status.toLowerCase()}.`}
           />
-          <p className="mb-6 max-w-3xl text-sm font-semibold leading-6 text-pet-muted">
-            {phase1Positioning}
-          </p>
-          <div className="grid gap-4 md:grid-cols-4">
-            <PricingPreviewCard
-              badge="Available now"
-              title="Free Profile"
-              price="RM0"
-              note={`Up to ${freePlanLimits.maxPets} pet profiles and ${freePlanLimits.maxMemoriesPerPet} pet memories per pet.`}
-            />
-            <PricingPreviewCard
-              badge={smartTagAddOnsStatus.status}
-              title="Smart Tag Add-on"
-              price={smartTagAddOnsStatus.price}
-              note={smartTagAddOnsStatus.shortDescription}
-            />
-            <PricingPreviewCard
-              badge="Coming Soon"
-              title={premiumPlan.name}
-              price="Coming Soon"
-              note={premiumPlan.description}
-            />
-            <PricingPreviewCard
-              badge="Coming Later"
-              title="GPS Safety"
-              price="Coming Later"
-              note="GPS tracking is planned for a future release."
-            />
+          <div className="grid gap-4 md:grid-cols-2">
+            <article className="brand-card rounded-[1.5rem] p-5 sm:p-6">
+              <Badge tone="mint">Available now</Badge>
+              <h3 className="mt-3 text-xl font-black text-pet-ink">
+                Free Profile
+              </h3>
+              <p className="mt-1 text-2xl font-black text-pet-ink">RM0</p>
+              <p className="mt-3 text-sm leading-6 text-pet-muted">
+                Up to {freePlanLimits.maxPets} pet profiles, each with{" "}
+                {freePlanLimits.maxMemoriesPerPet} pet memories, a Safety
+                Profile, and a downloadable QR code.
+              </p>
+            </article>
+
+            <article className="brand-card rounded-[1.5rem] p-5 sm:p-6">
+              <Badge tone="teal">{smartTagAddOnsStatus.status}</Badge>
+              <h3 className="mt-3 text-xl font-black text-pet-ink">
+                {smartTagAddOn.shortName
+                  .replace(/^./, (letter) => letter.toUpperCase())}
+              </h3>
+              <p className="mt-1 text-2xl font-black text-pet-ink">
+                {smartTagAddOn.price}
+                <span className="ml-2 text-sm font-bold text-pet-muted">
+                  {smartTagAddOn.billingNote}
+                </span>
+              </p>
+              <p className="mt-3 text-sm leading-6 text-pet-muted">
+                {smartTagAddOn.description}
+              </p>
+            </article>
           </div>
+
+          {/*
+            Premium and GPS are real plans, but neither can be bought. One
+            muted line keeps them honest without giving them the weight of a
+            purchasable option.
+          */}
+          <p className="mt-5 text-sm font-semibold leading-6 text-pet-muted">
+            {premiumPlan.name} ({premiumPlan.status.toLowerCase()}) and{" "}
+            {gpsSafety.name} ({gpsSafety.status.toLowerCase()}) are planned for
+            later releases.{" "}
+            <a
+              className="font-extrabold text-pet-teal underline-offset-4 hover:underline"
+              href={marketingRoutes.pricing}
+            >
+              See full pricing
+            </a>
+          </p>
         </div>
       </section>
 
-      {/* 8. FAQ */}
-      <section className="brand-blue-section">
-        <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6 lg:px-8">
-          <PageHeader eyebrow="FAQ" title="Quick answers." />
-          <div className="grid gap-3">
+      {/* 6. FAQ — hairlines instead of six card borders. */}
+      <section className="bg-white">
+        <div className="mx-auto max-w-3xl px-4 py-14 sm:px-6 lg:px-8 lg:py-16">
+          <PageHeader as="h2" eyebrow="FAQ" title="Quick answers." />
+          <div className="border-t border-pet-border">
             {faqs.map((faq) => (
-              <details className="brand-card rounded-[1.25rem] p-5" key={faq.question}>
-                <summary className="cursor-pointer text-base font-black text-pet-ink">
+              <details
+                className="group border-b border-pet-border py-4"
+                key={faq.question}
+              >
+                <summary className="flex cursor-pointer items-start justify-between gap-4 text-base font-black text-pet-ink">
                   {faq.question}
+                  <Icon
+                    aria-hidden="true"
+                    className="mt-1 h-4 w-4 shrink-0 text-pet-teal transition-transform group-open:rotate-180"
+                    name="chevron"
+                  />
                 </summary>
                 <p className="mt-3 text-sm leading-6 text-pet-muted">
                   {faq.answer}
@@ -467,41 +257,33 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 9. Final CTA */}
+      {/* 7. The close — the same action as the hero, worded identically. */}
       <section className="bg-pet-ink text-white">
-        <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-12 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
-          <div>
-            <p className="text-sm font-bold uppercase text-pet-sky">MyPetLink</p>
-            <h2 className="mt-2 text-3xl font-black">
-              A safer way home for your pet.
-            </h2>
+        <div className="mx-auto flex max-w-6xl flex-col items-start gap-6 px-4 py-12 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8 lg:py-14">
+          <div className="flex items-center gap-4">
+            <LinkoMascot
+              alt=""
+              className="hidden shrink-0 sm:block"
+              pose="celebrate"
+              size={110}
+            />
+            <div className="min-w-0">
+              <p className="text-sm font-bold uppercase text-pet-sky">
+                MyPetLink
+              </p>
+              <h2 className="mt-1.5 text-2xl font-black leading-tight sm:text-3xl">
+                A safer way home for your pet.
+              </h2>
+              <p className="mt-2 max-w-md text-sm leading-6 text-[#c3d1ee]">
+                Free for up to {freePlanLimits.maxPets} pets. No card needed.
+              </p>
+            </div>
           </div>
-          <CreateProfileCTA variant="light">
-            Create Free Pet Profile
+          <CreateProfileCTA className="w-full sm:w-auto" variant="light">
+            Create your pet&apos;s free profile
           </CreateProfileCTA>
         </div>
       </section>
     </PublicLayout>
-  );
-}
-
-function PricingPreviewCard({
-  badge,
-  title,
-  price,
-  note,
-}: {
-  badge: string;
-  title: string;
-  price: string;
-  note: string;
-}) {
-  return (
-    <article className="brand-card rounded-[1.75rem] p-6">
-      <Badge tone={badge.includes("Coming") ? "teal" : "mint"}>{badge}</Badge>
-      <h3 className="mt-3 text-xl font-black text-pet-ink">{title}</h3>
-      <p className="mt-2 text-2xl font-black text-pet-coral">{price}</p>
-      <p className="mt-3 text-sm leading-6 text-pet-muted">{note}</p>
-    </article>
   );
 }
