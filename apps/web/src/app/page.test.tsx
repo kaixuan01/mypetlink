@@ -50,7 +50,12 @@ describe("homepage pet finder preview", () => {
     expect(preview).toBeTruthy();
 
     const finderOptions = within(preview!).getByLabelText("Finder contact options");
-    expect(within(preview!).getByRole("img", { name: "Milo's profile" }).getAttribute("src")).toBe("/pets/milo.jpg");
+    const photo = within(preview!).getByRole("img", { name: "Milo's profile" });
+    expect(new URL(photo.getAttribute("src")!).pathname).toBe("/pets/milo.jpg");
+    expect(photo.getAttribute("width")).toBe("144");
+    expect(photo.getAttribute("height")).toBe("144");
+    expect(photo.getAttribute("loading")).toBe("lazy");
+    expect(preview!.classList.contains("h-[31rem]")).toBe(true);
     expect(within(preview!).getByText("Dog - Golden Retriever - About 3 years old")).toBeTruthy();
     expect(within(preview!).getByText("Gentle, playful, and happiest near the garden.")).toBeTruthy();
     expect(within(preview!).getByText("If someone finds Milo")).toBeTruthy();
@@ -95,7 +100,11 @@ describe("homepage pet finder preview", () => {
 
     mocks.load.mockResolvedValueOnce({ available: false, pet: null });
     render(<HomePage />);
-    expect(await screen.findByRole("heading", { name: "Your pet's shareable profile" })).toBeTruthy();
+    const genericHeading = await screen.findByRole("heading", {
+      name: "Your pet's shareable profile",
+    });
+    expect(genericHeading).toBeTruthy();
+    expect(genericHeading.closest("article")?.classList.contains("h-[31rem]")).toBe(true);
     expect(screen.queryByText("Milo")).toBeNull();
     expect(screen.queryByText("Topu")).toBeNull();
   });
@@ -170,6 +179,9 @@ describe("landing page commercial claims", () => {
     expect(
       main().getAllByText(smartTagAddOnsStatus.status).length
     ).toBeGreaterThan(0);
+    expect(
+      main().queryByRole("heading", { name: /find mypetlink near you/i })
+    ).toBeNull();
   });
 
   it("does not present Premium or GPS Safety as purchasable", () => {

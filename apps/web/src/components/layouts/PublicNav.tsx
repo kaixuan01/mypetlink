@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { CreateProfileCTA } from "@/components/marketing/CreateProfileCTA";
 import { CTAButton } from "@/components/ui/CTAButton";
-import { smartTagOrderingEnabled } from "@/lib/features";
+import { publicCommerceAvailability } from "@/lib/publicCommerceAvailability";
 import { marketingRoutes } from "@/lib/routes";
 
 /**
@@ -14,9 +14,10 @@ import { marketingRoutes } from "@/lib/routes";
  * demonstrates rather than beside four product pages — it now lives as a
  * contextual action on the landing page and in the drawer's secondary tier.
  *
- * Where to Buy appears only once a tag can actually be bought. Linking to a
- * buying guide while ordering is closed would send visitors to a dead end, so
- * the entry follows the same flag the ordering flow uses.
+ * Where to Buy appears only once the shared public-commerce model reports a
+ * supported purchase channel. Today that means online ordering; a future
+ * public partner projection can satisfy the same rule without changing this
+ * navigation.
  */
 
 export type PublicNavItem = { href: string; label: string };
@@ -26,7 +27,7 @@ export const primaryPublicNav: PublicNavItem[] = [
   { href: marketingRoutes.petProfile, label: "Pet Profiles" },
   { href: marketingRoutes.smartPetTags, label: "Smart Tags" },
   { href: marketingRoutes.pricing, label: "Pricing" },
-  ...(smartTagOrderingEnabled
+  ...(publicCommerceAvailability.showWhereToBuy
     ? [{ href: marketingRoutes.whereToBuy, label: "Where to Buy" }]
     : []),
 ];

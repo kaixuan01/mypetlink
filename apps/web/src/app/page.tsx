@@ -82,7 +82,7 @@ const faqs = [
   {
     question: "Is this a GPS tracker?",
     answer:
-      "No. A MyPetLink QR or NFC tag opens your pet's Safety Profile when someone scans or taps it; it does not provide live location tracking. GPS Safety is a separate feature planned for later.",
+      "No. The MyPetLink QR + NFC Smart Tag opens your pet's Safety Profile when someone scans or taps it; it does not provide live location tracking. GPS Safety is a separate feature planned for later.",
   },
   {
     question: "What if a finder's phone does not support NFC?",

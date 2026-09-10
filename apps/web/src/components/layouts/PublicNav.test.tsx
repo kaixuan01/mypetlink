@@ -2,7 +2,7 @@
 
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { smartTagOrderingEnabled } from "@/lib/features";
+import { publicCommerceAvailability } from "@/lib/publicCommerceAvailability";
 import { marketingRoutes } from "@/lib/routes";
 
 const mocks = vi.hoisted(() => ({ authed: false }));
@@ -75,10 +75,10 @@ describe("public navigation structure", () => {
     ]);
   });
 
-  it("hides Where to Buy while a tag cannot be bought", () => {
-    // There is no purchase path and no partner directory yet, so linking to a
-    // buying guide would be a dead end.
-    expect(smartTagOrderingEnabled).toBe(false);
+  it("hides Where to Buy while no public purchase channel exists", () => {
+    // There is no purchase path and no public partner projection yet, so
+    // linking to a buying guide would be a dead end.
+    expect(publicCommerceAvailability.showWhereToBuy).toBe(false);
     expect(primaryPublicNav.some((item) => item.label === "Where to Buy")).toBe(
       false
     );
@@ -138,6 +138,21 @@ describe("mobile drawer", () => {
     ).toBe("true");
   });
 
+  it("closes on Escape and returns focus to the menu toggle", async () => {
+    renderLayout();
+    await settle();
+
+    const toggle = screen.getByRole("button", { name: /open menu/i });
+    fireEvent.click(toggle);
+    expect(document.querySelector("#public-mobile-nav")).toBeTruthy();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(document.querySelector("#public-mobile-nav")).toBeNull();
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(document.activeElement).toBe(toggle);
+  });
+
   it("separates primary links from secondary actions and one CTA", async () => {
     renderLayout();
     await settle();
@@ -159,6 +174,7 @@ describe("mobile drawer", () => {
     expect(
       scope.getAllByRole("button", { name: new RegExp(PRIMARY_CTA_LABEL, "i") })
     ).toHaveLength(1);
+    expect(scope.queryByRole("link", { name: "Where to Buy" })).toBeNull();
   });
 
   it("sends the drawer sample action to the Public Share Profile", async () => {

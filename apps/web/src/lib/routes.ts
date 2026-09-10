@@ -204,8 +204,8 @@ export const marketingRoutes = {
   smartPetTags: "/smart-pet-tags",
   petProfile: "/pet-profile",
   sample: "/sample",
-  // Public buying guide. Reachable by URL today; the header only links to it
-  // once there is something to buy (see smartTagOrderingEnabled).
+  // Public buying guide. Reachable by URL today; public discovery is governed
+  // by publicCommerceAvailability so every surface follows the same channels.
   whereToBuy: "/where-to-buy",
   samplePublicProfile: "/sample#public-share-profile",
   sampleSafetyProfile: "/sample#safety-profile",

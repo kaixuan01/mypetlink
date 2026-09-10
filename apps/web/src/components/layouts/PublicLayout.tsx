@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import {
   DesktopPublicNav,
@@ -23,6 +23,7 @@ export function PublicLayout({
 }) {
   const [loggedIn, setLoggedIn] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuToggleRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(
@@ -31,6 +32,25 @@ export function PublicLayout({
     );
     return () => window.clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    if (!menuOpen) {
+      return;
+    }
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      event.preventDefault();
+      setMenuOpen(false);
+      menuToggleRef.current?.focus();
+    };
+
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [menuOpen]);
 
   return (
     <div
@@ -62,6 +82,7 @@ export function PublicLayout({
 
             {/* Mobile menu toggle */}
             <button
+              ref={menuToggleRef}
               type="button"
               aria-controls="public-mobile-nav"
               aria-expanded={menuOpen}

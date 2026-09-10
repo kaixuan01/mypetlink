@@ -11,6 +11,8 @@ import {
 } from "@/services/sampleExperienceService";
 
 const unavailable: PublicSampleExperience = { available: false, pet: null };
+const stablePreviewClass =
+  "brand-card h-[31rem] overflow-hidden rounded-[2rem]";
 
 export function HomepageSamplePetPreview() {
   const [state, setState] = useState<PublicSampleExperience | null>(null);
@@ -35,7 +37,7 @@ export function HomepageSamplePetPreview() {
   });
 
   return (
-    <article className="brand-card overflow-hidden rounded-[2rem]">
+    <article className={stablePreviewClass}>
       <div className="brand-paw-dots min-h-32 bg-[#e8f3ff] p-6">
         <Badge tone="mint">Shareable pet profile</Badge>
       </div>
@@ -48,11 +50,11 @@ export function HomepageSamplePetPreview() {
             size="xl"
           />
           <div className="min-w-0 rounded-[1.5rem] bg-white/95 p-4 shadow-sm">
-            <h2 className="break-words text-2xl font-black text-pet-ink">
+            <h2 className="line-clamp-2 break-words text-2xl font-black text-pet-ink">
               {pet.name}
             </h2>
             {summary ? (
-              <p className="mt-1 text-sm font-bold text-pet-muted">{summary}</p>
+              <p className="mt-1 line-clamp-2 text-sm font-bold text-pet-muted">{summary}</p>
             ) : null}
           </div>
         </div>
@@ -89,11 +91,11 @@ function ContactOption({ children, icon, tone = "text-pet-teal" }: { children: R
 
 function GenericPreview() {
   return (
-    <article className="brand-card overflow-hidden rounded-[2rem]">
+    <article className={stablePreviewClass}>
       <div className="brand-paw-dots min-h-32 bg-[#e8f3ff] p-6">
         <Badge tone="mint">Shareable pet profile</Badge>
       </div>
-      <div className="px-6 pb-6 text-center">
+      <div className="flex min-h-[23rem] flex-col justify-center px-6 pb-6 text-center">
         <span className="mx-auto -mt-12 grid h-24 w-24 place-items-center rounded-[2rem] border-4 border-white bg-white text-pet-teal shadow-lg">
           <Icon name="pets" className="h-10 w-10" />
         </span>

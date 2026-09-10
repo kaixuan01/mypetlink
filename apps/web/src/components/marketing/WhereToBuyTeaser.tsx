@@ -1,18 +1,18 @@
 import { BrandDecoration } from "@/components/brand/BrandDecoration";
 import { CTAButton } from "@/components/ui/CTAButton";
-import { smartTagOrderingEnabled } from "@/lib/features";
+import { publicCommerceAvailability } from "@/lib/publicCommerceAvailability";
 import { marketingRoutes } from "@/lib/routes";
 
 /**
  * A short pointer to the buying guide.
  *
- * It renders nothing while Smart Tag ordering is closed. Sending a visitor to
- * a "where to buy" page when nothing can be bought anywhere is a dead end, and
- * the landing page already says the tag is coming soon in the section above.
- * When ordering opens, this appears on its own — as does the header entry.
+ * It renders only while at least one supported public purchase channel exists.
+ * The shared availability decision keeps this teaser, navigation, page robots,
+ * and sitemap in step without coupling future retail partners to online
+ * ordering.
  */
 export function WhereToBuyTeaser() {
-  if (!smartTagOrderingEnabled) {
+  if (!publicCommerceAvailability.showWhereToBuy) {
     return null;
   }
 

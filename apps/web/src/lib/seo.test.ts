@@ -7,6 +7,7 @@ import { metadata as privacyMetadata } from "@/app/privacy/page";
 import { metadata as sampleMetadata } from "@/app/sample/page";
 import { metadata as smartTagsMetadata } from "@/app/smart-pet-tags/page";
 import { metadata as termsMetadata } from "@/app/terms/page";
+import { metadata as whereToBuyMetadata } from "@/app/where-to-buy/page";
 import { metadata as loginMetadata } from "@/app/login/page";
 import { metadata as dashboardMetadata } from "@/app/dashboard/layout";
 import { metadata as petsMetadata } from "@/app/pets/layout";
@@ -91,6 +92,11 @@ describe("SEO route policy", () => {
       expect(robotsPolicy(metadata).index).toBe(false);
       expect(robotsPolicy(metadata).follow).toBe(false);
     }
+  });
+
+  it("keeps an unavailable Where to Buy page out of search discovery", () => {
+    expect(robotsPolicy(whereToBuyMetadata).index).toBe(false);
+    expect(robotsPolicy(whereToBuyMetadata).follow).toBe(true);
   });
 
   it("keeps QR Safety routes noindex while allowing their links to be followed", async () => {
@@ -322,6 +328,7 @@ describe("robots and sitemap", () => {
     expect(urls).toEqual(expected);
     expect(urls).toContain(canonicalUrl(marketingRoutes.home));
     expect(urls).toContain(canonicalUrl(samplePet.publicProfilePath));
+    expect(urls).not.toContain(canonicalUrl(marketingRoutes.whereToBuy));
     expect(urls.some((url) => /\/(admin|dashboard|pets|q|orders|settings)(\/|$)/.test(url))).toBe(false);
     expect(urls.some((url) => url.includes("pages.dev"))).toBe(false);
     expect(urls.some((url) => url.startsWith("http://"))).toBe(false);

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import { PetAvatar } from "@/components/ui/PetAvatar";
 
@@ -20,12 +21,16 @@ export function SamplePetPhoto({
   if (usableSrc) {
     const sizeClass = size === "xl" ? "h-36 w-36" : "h-24 w-24";
     return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
+      <Image
         alt={`${name}'s profile`}
         className={`${sizeClass} shrink-0 rounded-[2rem] border-4 border-white object-cover shadow-lg shadow-[#0d1b3d]/10`}
+        height={size === "xl" ? 144 : 96}
+        loading="lazy"
         onError={() => setFailedSrc(usableSrc)}
+        sizes={size === "xl" ? "144px" : "96px"}
         src={usableSrc}
+        unoptimized
+        width={size === "xl" ? 144 : 96}
       />
     );
   }

@@ -6,17 +6,21 @@ import { Badge } from "@/components/ui/Badge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { smartTagOrderingEnabled } from "@/lib/features";
 import { smartTagAddOn, smartTagAddOnsStatus } from "@/lib/planLimits";
+import { publicCommerceAvailability } from "@/lib/publicCommerceAvailability";
 import { marketingRoutes, ownerRoutes } from "@/lib/routes";
-import { createMarketingMetadata } from "@/lib/seo";
+import { createMarketingMetadata, directAccessRobots } from "@/lib/seo";
 
-export const metadata: Metadata = createMarketingMetadata({
+const marketingMetadata = createMarketingMetadata({
   path: marketingRoutes.whereToBuy,
   title: "Where to Buy | MyPetLink Smart Tags Malaysia",
   description:
     "How to get a MyPetLink QR + NFC Smart Tag in Malaysia, and where the tag is available.",
 });
+
+export const metadata: Metadata = publicCommerceAvailability.showWhereToBuy
+  ? marketingMetadata
+  : { ...marketingMetadata, robots: directAccessRobots };
 
 /**
  * Where to Buy.
@@ -26,25 +30,11 @@ export const metadata: Metadata = createMarketingMetadata({
  * and it is not open yet — so this page states availability honestly instead
  * of listing places that do not exist.
  *
- * The retail section renders only when there are partners to show. There is
- * no partner data in the product yet, so it stays empty by construction; when
- * a partner directory exists, it fills `retailPartners` and this page starts
- * showing it without any other change.
+ * The retail section renders only when the shared public-commerce model has
+ * partners to show. There is no supported partner projection yet, so it stays
+ * empty by construction; a future projection can supply that collection
+ * without changing this page's visibility rule.
  */
-
-type RetailPartner = {
-  name: string;
-  state: string;
-  area: string;
-  branch?: string;
-  authorised: boolean;
-};
-
-/**
- * Deliberately empty. Populating this by hand would put shops on a public
- * page that no one has agreed to list.
- */
-const retailPartners: RetailPartner[] = [];
 
 const onlineBenefits: { icon: IconName; label: string }[] = [
   { icon: "shield", label: "Linked to your pet's Safety Profile before it ships" },
@@ -53,6 +43,9 @@ const onlineBenefits: { icon: IconName; label: string }[] = [
 ];
 
 export default function WhereToBuyPage() {
+  const { onlineOrderingAvailable, publicRetailPartners } =
+    publicCommerceAvailability;
+
   return (
     <PublicLayout>
       <section className="bg-pet-cream">
@@ -72,7 +65,7 @@ export default function WhereToBuyPage() {
                 <h2 className="text-lg font-black text-pet-ink">
                   Buy online from MyPetLink
                 </h2>
-                {smartTagOrderingEnabled ? null : (
+                {onlineOrderingAvailable ? null : (
                   <Badge tone="teal">{smartTagAddOnsStatus.status}</Badge>
                 )}
               </div>
@@ -98,7 +91,7 @@ export default function WhereToBuyPage() {
               </ul>
 
               <div className="mt-6">
-                {smartTagOrderingEnabled ? (
+                {onlineOrderingAvailable ? (
                   <CTAButton href={ownerRoutes.tagOrder()} icon="tag" variant="primary">
                     Get a Smart Tag
                   </CTAButton>
@@ -121,9 +114,9 @@ export default function WhereToBuyPage() {
                 </h2>
               </div>
 
-              {retailPartners.length > 0 ? (
+              {publicRetailPartners.length > 0 ? (
                 <ul className="mt-4 grid gap-3">
-                  {retailPartners.map((partner) => (
+                  {publicRetailPartners.map((partner) => (
                     <li
                       className="border-b border-pet-border pb-3 last:border-b-0 last:pb-0"
                       key={`${partner.name}-${partner.area}`}
