@@ -102,13 +102,21 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
         AdminGenerateTagsRequest request,
         CancellationToken cancellationToken = default)
     {
+        if (request.Quantity is < AdminGenerateTagsLimits.MinimumQuantity
+            or > AdminGenerateTagsLimits.MaximumQuantity)
+        {
+            throw ValidationFailed(
+                "quantity",
+                $"Quantity must be a whole number from {AdminGenerateTagsLimits.MinimumQuantity} to {AdminGenerateTagsLimits.MaximumQuantity}.");
+        }
+
         if (!request.ProductVariantId.HasValue)
         {
             throw ValidationFailed("productVariantId", "Choose a product SKU.");
         }
 
         var strategy = _dbContext.Database.CreateExecutionStrategy();
-        for (var referenceAttempt = 0; referenceAttempt < 12; referenceAttempt++)
+        for (var persistenceAttempt = 0; persistenceAttempt < 12; persistenceAttempt++)
         {
             try
             {
@@ -146,13 +154,16 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
                     };
 
                     _dbContext.SmartTagBatches.Add(batch);
+                    var tagCodes = await GenerateUniqueTagCodesAsync(
+                        request.Quantity,
+                        cancellationToken);
                     var tags = new List<SmartTag>(request.Quantity);
 
-                    for (var index = 0; index < request.Quantity; index++)
+                    foreach (var tagCode in tagCodes)
                     {
                         tags.Add(new SmartTag
                         {
-                            TagCode = await GenerateUniqueTagCodeAsync(tags, cancellationToken),
+                            TagCode = tagCode,
                             Batch = batch,
                             ProductVariantId = productVariant.Id,
                             HasNfc = hasNfc,
@@ -176,6 +187,17 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
                         });
 
                     await _dbContext.SaveChangesAsync(cancellationToken);
+                    var generatedQuantity = await _dbContext.SmartTags.CountAsync(
+                        tag => tag.BatchId == batch.Id,
+                        cancellationToken);
+                    if (generatedQuantity != request.Quantity)
+                    {
+                        throw new ApiException(
+                            StatusCodes.Status500InternalServerError,
+                            "tag_generation_incomplete",
+                            "Tag generation did not complete. No inventory was created; please try again.");
+                    }
+
                     var currentInventoryCount = await _dbContext.SmartTags.CountAsync(
                         tag => tag.ProductVariantId == productVariant.Id && tag.DeletedAt == null,
                         cancellationToken);
@@ -186,7 +208,9 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
 
                     return new AdminGenerateTagsResponse(
                         batchNo,
-                        tags.Count,
+                        generatedQuantity,
+                        request.Quantity,
+                        generatedQuantity,
                         productVariant.Id,
                         productVariant.Sku,
                         productVariant.TagProduct.Name,
@@ -197,7 +221,7 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
             }
             catch (DbUpdateException exception) when (
                 UniqueConstraintViolation.IsFor(exception, "IX_SmartTagBatches_BatchNo")
-                && referenceAttempt < 11)
+                && persistenceAttempt < 11)
             {
                 // The transaction has rolled back. Reload the operation and
                 // select a new suffix without reusing any partial tag rows.
@@ -209,6 +233,22 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
                     StatusCodes.Status500InternalServerError,
                     "batch_number_generation_failed",
                     "Could not generate a batch number. Please try again.");
+            }
+            catch (DbUpdateException exception) when (
+                UniqueConstraintViolation.IsFor(exception, "IX_SmartTags_TagCode")
+                && persistenceAttempt < 11)
+            {
+                // A concurrent request selected the same random code after our
+                // collision check. The transaction rolled back, so retry the
+                // complete request with a fresh batch and fresh tag codes.
+            }
+            catch (DbUpdateException exception) when (
+                UniqueConstraintViolation.IsFor(exception, "IX_SmartTags_TagCode"))
+            {
+                throw new ApiException(
+                    StatusCodes.Status500InternalServerError,
+                    "tag_code_generation_failed",
+                    "Could not generate unique tag codes. Please try again.");
             }
         }
 
@@ -1134,25 +1174,31 @@ public sealed class AdminTagInventoryService : SkeletonService, IAdminTagInvento
             "Could not generate a batch number. Please try again.");
     }
 
-    private async Task<string> GenerateUniqueTagCodeAsync(
-        IReadOnlyCollection<SmartTag> pendingTags,
+    private async Task<IReadOnlyList<string>> GenerateUniqueTagCodesAsync(
+        int quantity,
         CancellationToken cancellationToken)
     {
+        var candidates = new HashSet<string>(StringComparer.Ordinal);
+
         for (var attempt = 0; attempt < 12; attempt++)
         {
-            var code = $"MPL-{RandomToken(4)}-{RandomToken(4)}";
-
-            if (pendingTags.Any(tag => tag.TagCode == code))
+            while (candidates.Count < quantity)
             {
-                continue;
+                candidates.Add($"MPL-{RandomToken(4)}-{RandomToken(4)}");
             }
 
-            var exists = await _dbContext.SmartTags.AnyAsync(tag => tag.TagCode == code, cancellationToken);
+            var candidateCodes = candidates.ToArray();
+            var existingCodes = await _dbContext.SmartTags
+                .Where(tag => candidateCodes.Contains(tag.TagCode))
+                .Select(tag => tag.TagCode)
+                .ToArrayAsync(cancellationToken);
 
-            if (!exists)
+            if (existingCodes.Length == 0)
             {
-                return code;
+                return candidateCodes;
             }
+
+            candidates.ExceptWith(existingCodes);
         }
 
         throw new ApiException(

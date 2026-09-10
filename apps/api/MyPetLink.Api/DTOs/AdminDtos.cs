@@ -123,13 +123,27 @@ public sealed record AdminSmartTagResponse(
     AdminOwnerRefResponse? Owner,
     PetLifecycleStatus? PetLifecycleStatus);
 
+public static class AdminGenerateTagsLimits
+{
+    public const int MinimumQuantity = 1;
+    public const int MaximumQuantity = 500;
+}
+
 public sealed record AdminGenerateTagsRequest(
-    [Required, Range(1, 50)] int Quantity,
+    [Required, Range(
+        AdminGenerateTagsLimits.MinimumQuantity,
+        AdminGenerateTagsLimits.MaximumQuantity,
+        ErrorMessage = "Quantity must be a whole number from 1 to 500.")]
+    int Quantity,
     [Required] Guid? ProductVariantId);
 
 public sealed record AdminGenerateTagsResponse(
     string BatchNo,
+    // Quantity is retained for compatibility with existing clients. The two
+    // explicit fields make a partial result impossible to mistake for success.
     int Quantity,
+    int RequestedQuantity,
+    int GeneratedQuantity,
     Guid ProductVariantId,
     string Sku,
     string ProductName,

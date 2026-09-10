@@ -1,7 +1,7 @@
 "use client";
 
 import { dateOnlyOrUndefined } from "@/lib/adminListShared";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AdminTagInventoryDetailDrawer } from "@/components/admin/AdminTagInventoryDetailDrawer";
 import { AdminInventoryCostingPanel } from "@/components/admin/AdminInventoryCostingPanel";
 import {
@@ -47,8 +47,10 @@ import {
   type AdminInventoryListParams,
   type AdminInventoryTag,
 } from "@/services/adminTagInventoryService";
-import { isAbortError } from "@/services/apiClient";
+import { isAbortError, isApiClientError } from "@/services/apiClient";
 import {
+  ADMIN_TAG_GENERATION_MAX_QUANTITY,
+  ADMIN_TAG_GENERATION_MIN_QUANTITY,
   adminGenerateRetailTags,
   getFriendlyTagErrorMessage,
 } from "@/services/tagService";
@@ -220,7 +222,9 @@ export function AdminTagInventoryManager() {
   const [exportBusy, setExportBusy] = useState(false);
 
   // Generation form state.
-  const [count, setCount] = useState(5);
+  const [count, setCount] = useState("5");
+  const [generateBusy, setGenerateBusy] = useState(false);
+  const generationInFlight = useRef(false);
   const [catalogProducts, setCatalogProducts] = useState<AdminCatalogOptionProduct[]>([]);
   const [productId, setProductId] = useState("");
   const [productVariantId, setProductVariantId] = useState("");
@@ -313,6 +317,23 @@ export function AdminTagInventoryManager() {
     : null;
 
   async function generate() {
+    if (generationInFlight.current) {
+      return;
+    }
+
+    const requestedQuantity = Number(count);
+    if (
+      count.trim() === "" ||
+      !Number.isInteger(requestedQuantity) ||
+      requestedQuantity < ADMIN_TAG_GENERATION_MIN_QUANTITY ||
+      requestedQuantity > ADMIN_TAG_GENERATION_MAX_QUANTITY
+    ) {
+      setGenerateMessage(
+        `Enter a whole-number quantity from ${ADMIN_TAG_GENERATION_MIN_QUANTITY} to ${ADMIN_TAG_GENERATION_MAX_QUANTITY}.`
+      );
+      return;
+    }
+
     if (!productVariantId) {
       setGenerateMessage("Choose a product SKU before generating inventory.");
       return;
@@ -323,17 +344,32 @@ export function AdminTagInventoryManager() {
       setGenerateMessage(`Complete these SKU requirements before generating inventory: ${missing.join(", ")}.`);
       return;
     }
+    generationInFlight.current = true;
+    setGenerateBusy(true);
+    setGenerateMessage("");
     try {
-      const result = await adminGenerateRetailTags(count, productVariantId);
-      const selected = catalogProducts.flatMap((product) => product.variants.map((variant) => ({ product, variant }))).find((item) => item.variant.id === productVariantId);
+      const result = await adminGenerateRetailTags(requestedQuantity, productVariantId);
+      setCatalogProducts((products) =>
+        products.map((product) => ({
+          ...product,
+          variants: product.variants.map((variant) =>
+            variant.id === result.data.productVariantId
+              ? { ...variant, inventoryCount: result.data.currentInventoryCount }
+              : variant
+          ),
+        }))
+      );
       setGenerateMessage(
-        `${result.data.length} new ${selected?.variant.sku ?? "SKU"} tag code${
-          result.data.length === 1 ? "" : "s"
-        } generated as unclaimed stock.`
+        `${result.data.generatedQuantity} new ${result.data.sku} tag code${
+          result.data.generatedQuantity === 1 ? "" : "s"
+        } generated as unclaimed stock in batch ${result.data.batchNo}.`
       );
       refresh();
     } catch (caught) {
-      setGenerateMessage(getFriendlyTagErrorMessage(caught));
+      setGenerateMessage(getTagGenerationErrorMessage(caught));
+    } finally {
+      generationInFlight.current = false;
+      setGenerateBusy(false);
     }
   }
 
@@ -606,18 +642,20 @@ export function AdminTagInventoryManager() {
             Quantity
             <input
               className="min-h-10 w-24 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none focus:border-slate-400"
-              max={50}
-              min={1}
-              onChange={(event) => setCount(Number(event.target.value) || 1)}
+              aria-describedby="tag-generation-quantity-help"
+              max={ADMIN_TAG_GENERATION_MAX_QUANTITY}
+              min={ADMIN_TAG_GENERATION_MIN_QUANTITY}
+              onChange={(event) => setCount(event.target.value)}
+              step={1}
               type="number"
               value={count}
             />
           </label>
-          <AdminActionButton disabled={!selectedCatalogVariant || missingProductionFields(selectedCatalogVariant).length > 0} onClick={() => void generate()} tone="primary">
-            Generate Tag Codes
+          <AdminActionButton disabled={generateBusy || !selectedCatalogVariant || missingProductionFields(selectedCatalogVariant).length > 0} onClick={() => void generate()} tone="primary">
+            {generateBusy ? "Generating…" : "Generate Tag Codes"}
           </AdminActionButton>
-          <p className="max-w-56 text-xs font-semibold leading-5 text-slate-500">
-            A batch reference is assigned automatically.
+          <p className="max-w-56 text-xs font-semibold leading-5 text-slate-500" id="tag-generation-quantity-help">
+            Generate 1–{ADMIN_TAG_GENERATION_MAX_QUANTITY} tags in one batch. A batch reference is assigned automatically.
           </p>
         </div>
         {selectedCatalogVariant ? (
@@ -793,4 +831,27 @@ function missingProductionFields(variant: AdminCatalogOptionVariant) {
     !variant.packagingType?.trim() ? "packaging type" : null,
     !variant.printTemplateCode?.trim() ? "print template" : null,
   ].filter((value): value is string => value !== null);
+}
+
+function getTagGenerationErrorMessage(error: unknown) {
+  if (isApiClientError(error)) {
+    const quantityMessage = error.details?.quantity?.[0];
+    if (quantityMessage) return quantityMessage;
+    if (
+      error.code === "tag_generation_incomplete" ||
+      error.code === "tag_code_generation_failed" ||
+      error.code === "batch_number_generation_failed"
+    ) {
+      return error.message;
+    }
+  }
+
+  if (
+    error instanceof Error &&
+    error.message === "Inventory generation is unavailable right now. Please try again shortly."
+  ) {
+    return error.message;
+  }
+
+  return getFriendlyTagErrorMessage(error);
 }

@@ -125,6 +125,21 @@ function apiNullResponse<T>(): ApiResponse<T | null> {
 // tag screens already import this name.
 export { getOwnerOrderErrorMessage as getFriendlyTagErrorMessage } from "@/services/ownerOrderErrors";
 
+export const ADMIN_TAG_GENERATION_MIN_QUANTITY = 1;
+export const ADMIN_TAG_GENERATION_MAX_QUANTITY = 500;
+
+export type AdminGenerateRetailTagsResult = {
+  batchNo: string;
+  requestedQuantity: number;
+  generatedQuantity: number;
+  productVariantId: string;
+  sku: string;
+  productName: string;
+  variantName: string;
+  currentInventoryCount: number;
+  tags: PetTag[];
+};
+
 export function mapBackendTag(tag: BackendSmartTag): PetTag {
   return normalizeTag({
     id: tag.id,
@@ -1659,10 +1674,29 @@ export async function adminGenerateRetailTags(
   count: number,
   productVariantId: string
 ) {
+  if (
+    !Number.isInteger(count) ||
+    count < ADMIN_TAG_GENERATION_MIN_QUANTITY ||
+    count > ADMIN_TAG_GENERATION_MAX_QUANTITY
+  ) {
+    throw new ApiClientError(
+      400,
+      "validation_failed",
+      `Quantity must be a whole number from ${ADMIN_TAG_GENERATION_MIN_QUANTITY} to ${ADMIN_TAG_GENERATION_MAX_QUANTITY}.`,
+      {
+        quantity: [
+          `Quantity must be a whole number from ${ADMIN_TAG_GENERATION_MIN_QUANTITY} to ${ADMIN_TAG_GENERATION_MAX_QUANTITY}.`,
+        ],
+      }
+    );
+  }
+
   if (canUseOwnerTagApi()) {
     const response = await apiRequest<{
       batchNo: string;
-        quantity: number;
+      quantity: number;
+      requestedQuantity?: number;
+      generatedQuantity?: number;
       productVariantId: string;
       sku: string;
       productName: string;
@@ -1672,18 +1706,47 @@ export async function adminGenerateRetailTags(
     }>("/api/v1/admin/tag-inventory/generate", {
       method: "POST",
       body: {
-        quantity: Math.max(1, Math.min(50, Math.floor(count))),
+        quantity: count,
         productVariantId,
       },
     });
 
-    return apiResponse(
-      {
-        data: (response.data?.tags ?? []).map(mapBackendTag),
-        meta: response.meta,
-      },
-      []
-    );
+    if (!response.data) {
+      throw new ApiClientError(
+        502,
+        "tag_generation_incomplete",
+        "Tag generation returned no result. Refresh inventory before trying again."
+      );
+    }
+
+    const requestedQuantity = response.data.requestedQuantity ?? count;
+    const generatedQuantity = response.data.generatedQuantity ?? response.data.quantity;
+    const tags = response.data.tags ?? [];
+    if (
+      requestedQuantity !== count ||
+      generatedQuantity !== count ||
+      tags.length !== generatedQuantity
+    ) {
+      throw new ApiClientError(
+        502,
+        "tag_generation_incomplete",
+        "The generated inventory count did not match the request. Refresh inventory and review the batch before trying again."
+      );
+    }
+
+    const result: AdminGenerateRetailTagsResult = {
+      batchNo: response.data.batchNo,
+      requestedQuantity,
+      generatedQuantity,
+      productVariantId: response.data.productVariantId,
+      sku: response.data.sku,
+      productName: response.data.productName,
+      variantName: response.data.variantName,
+      currentInventoryCount: response.data.currentInventoryCount,
+      tags: tags.map(mapBackendTag),
+    };
+
+    return apiResponse({ data: result, meta: response.meta }, result);
   }
 
   throw new Error("Inventory generation is unavailable right now. Please try again shortly.");

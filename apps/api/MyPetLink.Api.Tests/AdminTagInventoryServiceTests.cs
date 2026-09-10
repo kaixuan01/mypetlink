@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using System.ComponentModel.DataAnnotations;
+using System.Reflection;
 using MyPetLink.Api.Common;
 using MyPetLink.Api.Data;
 using MyPetLink.Api.DTOs;
@@ -796,31 +798,115 @@ public sealed class AdminTagInventoryServiceTests
             .ToListAsync());
     }
 
-    [Fact]
-    public async Task Generate_CreatesUnclaimedGeneratedStock()
+    [Theory]
+    [InlineData(1)]
+    [InlineData(50)]
+    [InlineData(51)]
+    [InlineData(300)]
+    public async Task Generate_CreatesExactlyTheRequestedUnclaimedGeneratedStock(int quantity)
     {
         using var harness = await InventoryHarness.CreateAsync();
 
         var response = await harness.Service.GenerateAsync(
             AdminUserId,
-            new AdminGenerateTagsRequest(3, NfcLightweightVariantId));
+            new AdminGenerateTagsRequest(quantity, NfcLightweightVariantId));
 
-        Assert.Equal(3, response.Quantity);
+        Assert.Equal(quantity, response.Quantity);
+        Assert.Equal(quantity, response.RequestedQuantity);
+        Assert.Equal(quantity, response.GeneratedQuantity);
+        Assert.Equal(quantity, response.Tags.Count);
         Assert.Matches("^MPL-BAT-\\d{12}-\\d{4}$", response.BatchNo);
 
-        var created = await harness.Db.SmartTags
-            .Where(tag => tag.Batch!.BatchNo == response.BatchNo)
-            .ToListAsync();
-        Assert.Equal(3, created.Count);
-        Assert.All(created, tag =>
+        var batch = await harness.Db.SmartTagBatches
+            .Where(item => item.BatchNo == response.BatchNo)
+            .Include(item => item.ProductVariant)
+            .ThenInclude(variant => variant!.TagProduct)
+            .Include(item => item.SmartTags)
+            .SingleAsync();
+        Assert.Equal(quantity, batch.Quantity);
+        Assert.Equal(quantity, batch.SmartTags.Count);
+        Assert.Equal(NfcLightweightVariantId, batch.ProductVariantId);
+        Assert.Equal("TPL-NFC-LIGHTWEIGHT", batch.ProductVariant!.PrintTemplateCode);
+        Assert.Equal("Stainless steel", batch.ProductVariant.Material);
+        Assert.Equal("Retail card", batch.ProductVariant.PackagingType);
+        Assert.Equal(quantity, batch.SmartTags.Select(tag => tag.TagCode).Distinct().Count());
+        Assert.All(batch.SmartTags, tag =>
         {
             Assert.Equal(SmartTagStatus.Unclaimed, tag.Status);
             Assert.Equal(TagFulfilmentStatus.Generated, tag.FulfilmentStatus);
             Assert.Equal(NfcLightweightVariantId, tag.ProductVariantId);
             Assert.True(tag.HasNfc);
             Assert.Equal("Lightweight", tag.Variant);
+            Assert.Null(tag.OwnerUserId);
+            Assert.Null(tag.PetId);
+            Assert.Null(tag.OrderId);
+            Assert.Null(tag.OrderItemId);
+            Assert.Null(tag.InventoryReceiptId);
+            Assert.Null(tag.ActivatedAt);
             Assert.Matches("^MPL-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$", tag.TagCode);
         });
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(501)]
+    public async Task Generate_RejectsInvalidQuantitiesWithoutCreatingABatch(int quantity)
+    {
+        using var harness = await InventoryHarness.CreateAsync();
+        var batchesBefore = await harness.Db.SmartTagBatches.CountAsync();
+        var tagsBefore = await harness.Db.SmartTags.CountAsync();
+
+        var failure = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Service.GenerateAsync(
+                AdminUserId,
+                new AdminGenerateTagsRequest(quantity, NfcLightweightVariantId)));
+
+        Assert.Equal("validation_failed", failure.Code);
+        Assert.Contains("quantity", failure.Details!.Keys);
+        Assert.Equal(batchesBefore, await harness.Db.SmartTagBatches.CountAsync());
+        Assert.Equal(tagsBefore, await harness.Db.SmartTags.CountAsync());
+    }
+
+    [Theory]
+    [InlineData(1, true)]
+    [InlineData(50, true)]
+    [InlineData(51, true)]
+    [InlineData(300, true)]
+    [InlineData(500, true)]
+    [InlineData(0, false)]
+    [InlineData(-1, false)]
+    [InlineData(501, false)]
+    public void GenerateRequest_DeclaresTheSameExplicitQuantityBoundary(int quantity, bool expectedValid)
+    {
+        var quantityParameter = typeof(AdminGenerateTagsRequest)
+            .GetConstructors()
+            .Single()
+            .GetParameters()
+            .Single(parameter => parameter.Name == "Quantity");
+        var range = quantityParameter.GetCustomAttribute<RangeAttribute>();
+
+        Assert.NotNull(range);
+        Assert.Equal(expectedValid, range.IsValid(quantity));
+        Assert.Equal("Quantity must be a whole number from 1 to 500.", range.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task Generate_RepeatedIntentionalRequestsCreateTwoCompleteDistinctBatches()
+    {
+        using var harness = await InventoryHarness.CreateAsync();
+
+        var first = await harness.Service.GenerateAsync(
+            AdminUserId,
+            new AdminGenerateTagsRequest(51, NfcLightweightVariantId));
+        var second = await harness.Service.GenerateAsync(
+            AdminUserId,
+            new AdminGenerateTagsRequest(51, NfcLightweightVariantId));
+
+        Assert.NotEqual(first.BatchNo, second.BatchNo);
+        Assert.Empty(first.Tags.Select(tag => tag.TagCode).Intersect(second.Tags.Select(tag => tag.TagCode)));
+        Assert.Equal(102, await harness.Db.SmartTags.CountAsync(
+            tag => tag.Batch != null && (tag.Batch.BatchNo == first.BatchNo || tag.Batch.BatchNo == second.BatchNo)));
     }
 
     [Fact]
