@@ -30,7 +30,7 @@ const tag: AdminSmartTag = {
   lastScannedAt: "2026-07-10T02:00:00Z",
   scanCount: 3,
   createdAt: "2026-06-01T02:00:00Z",
-  updatedAt: "2026-07-10T02:00:00Z",
+  updatedAt: "2026-07-10T02:00:00Z", assignmentVersion: 7,
 };
 
 afterEach(() => cleanup());

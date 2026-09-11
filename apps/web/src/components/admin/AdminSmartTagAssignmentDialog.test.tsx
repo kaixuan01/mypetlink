@@ -27,7 +27,7 @@ const tag: AdminSmartTag = {
   id: "tag-1", tagCode: "MPL-TEST-0001", hasNfc: true, variant: "Standard", status: "Active",
   isArchived: false, ownerId: owner.ownerUserId, ownerName: owner.displayName, ownerEmail: owner.email,
   petId: "pet-1", petName: "Topu", qrSafetyEnabled: true, scanCount: 2,
-  activatedAt: "2026-07-01T00:00:00Z", createdAt: "2026-06-01T00:00:00Z", updatedAt: "2026-07-18T00:00:00Z",
+  activatedAt: "2026-07-01T00:00:00Z", createdAt: "2026-06-01T00:00:00Z", updatedAt: "2026-07-18T00:00:00Z", assignmentVersion: 7,
 };
 
 beforeEach(() => {
@@ -126,6 +126,57 @@ describe("AdminSmartTagAssignmentDialog", () => {
     const reasonField = await screen.findByRole("textbox", { name: /^Reason/ });
     expect(reasonField.closest("label")?.textContent).toContain("optional");
     expect(reasonField.getAttribute("aria-required")).toBe("false");
+  });
+
+  it("reports an owner load failure instead of an empty owner list", async () => {
+    mocks.listOwners.mockRejectedValue(new Error("network"));
+    render(<AdminSmartTagAssignmentDialog action="transfer" busy={false} onCancel={vi.fn()} onSubmit={vi.fn()} tag={tag} />);
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("Failed to load owners.");
+    // The select must not imply the account simply has no owners.
+    expect(screen.getByRole("option", { name: "Owners could not be loaded" })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: "Select an owner" })).toBeNull();
+  });
+
+  it("retries an owner load failure and recovers", async () => {
+    mocks.listOwners.mockRejectedValueOnce(new Error("network"));
+    render(<AdminSmartTagAssignmentDialog action="transfer" busy={false} onCancel={vi.fn()} onSubmit={vi.fn()} tag={tag} />);
+
+    await screen.findByRole("alert");
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+
+    await waitFor(() => expect(screen.getByRole("option", { name: "Bala Owner · bala@example.com" })).toBeTruthy());
+    expect(screen.queryByText(/failed to load owners/i)).toBeNull();
+  });
+
+  it("reports a pet load failure for the chosen owner", async () => {
+    mocks.listPets.mockRejectedValue(new Error("timeout"));
+    render(<AdminSmartTagAssignmentDialog action="transfer" busy={false} onCancel={vi.fn()} onSubmit={vi.fn()} tag={tag} />);
+
+    const ownerSelect = await screen.findByRole("combobox", { name: "New owner" });
+    await waitFor(() => expect(screen.getByRole("option", { name: "Bala Owner · bala@example.com" })).toBeTruthy());
+    fireEvent.change(ownerSelect, { target: { value: "owner-2" } });
+
+    await waitFor(() =>
+      expect(screen.getByText(/failed to load pets for this owner\./i)).toBeTruthy()
+    );
+    expect(screen.getByRole("option", { name: "Pets could not be loaded" })).toBeTruthy();
+    // A failure must never read as "this owner has no pets".
+    expect(screen.queryByText(/no active pets/i)).toBeNull();
+  });
+
+  it("distinguishes an owner who genuinely has no active pets", async () => {
+    mocks.listPets.mockResolvedValue({ items: [], total: 0 });
+    render(<AdminSmartTagAssignmentDialog action="transfer" busy={false} onCancel={vi.fn()} onSubmit={vi.fn()} tag={tag} />);
+
+    const ownerSelect = await screen.findByRole("combobox", { name: "New owner" });
+    await waitFor(() => expect(screen.getByRole("option", { name: "Bala Owner · bala@example.com" })).toBeTruthy());
+    fireEvent.change(ownerSelect, { target: { value: "owner-2" } });
+
+    await waitFor(() => expect(screen.getByText("This owner has no active pets.")).toBeTruthy());
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByRole("option", { name: "No active pets" })).toBeTruthy();
   });
 
   it("explains unassignment and requires a reason for an active tag", () => {

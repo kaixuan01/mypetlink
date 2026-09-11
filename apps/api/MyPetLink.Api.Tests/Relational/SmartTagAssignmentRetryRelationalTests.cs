@@ -29,7 +29,7 @@ public sealed class SmartTagAssignmentRetryRelationalTests
     public async Task Claim_WithRetryingExecutionStrategy_AssignsOwnerAndPetWithoutActivating()
     {
         await using var scope = await RelationalDatabase.CreateAsync(enableRetryOnFailure: true);
-        var (tagId, updatedAt) = await SeedUnclaimedTagAsync(scope);
+        var (tagId, assignmentVersion) = await SeedUnclaimedTagAsync(scope);
 
         await using (var act = scope.NewContext())
         {
@@ -38,7 +38,7 @@ public sealed class SmartTagAssignmentRetryRelationalTests
             {
                 OwnerUserId = OwnerId,
                 PetId = PetId,
-                ExpectedUpdatedAt = updatedAt,
+                ExpectedAssignmentVersion = assignmentVersion,
             });
 
             Assert.Equal(OwnerId, result.OwnerUserId);
@@ -60,7 +60,7 @@ public sealed class SmartTagAssignmentRetryRelationalTests
     public async Task Claim_WithRetryingExecutionStrategy_RecordsAuditWithSuppliedReason()
     {
         await using var scope = await RelationalDatabase.CreateAsync(enableRetryOnFailure: true);
-        var (tagId, updatedAt) = await SeedUnclaimedTagAsync(scope);
+        var (tagId, assignmentVersion) = await SeedUnclaimedTagAsync(scope);
 
         await using (var act = scope.NewContext())
         {
@@ -68,7 +68,7 @@ public sealed class SmartTagAssignmentRetryRelationalTests
             {
                 OwnerUserId = OwnerId,
                 PetId = PetId,
-                ExpectedUpdatedAt = updatedAt,
+                ExpectedAssignmentVersion = assignmentVersion,
                 Reason = "Replacement issued at the counter.",
             });
         }
@@ -96,7 +96,7 @@ public sealed class SmartTagAssignmentRetryRelationalTests
     public async Task Claim_WithRetryingExecutionStrategy_RejectsPetBelongingToAnotherOwner()
     {
         await using var scope = await RelationalDatabase.CreateAsync(enableRetryOnFailure: true);
-        var (tagId, updatedAt) = await SeedUnclaimedTagAsync(scope);
+        var (tagId, assignmentVersion) = await SeedUnclaimedTagAsync(scope);
 
         await using (var act = scope.NewContext())
         {
@@ -105,7 +105,7 @@ public sealed class SmartTagAssignmentRetryRelationalTests
                 {
                     OwnerUserId = OwnerId,
                     PetId = OtherPetId,
-                    ExpectedUpdatedAt = updatedAt,
+                    ExpectedAssignmentVersion = assignmentVersion,
                 }));
             Assert.Equal(StatusCodes.Status400BadRequest, failure.StatusCode);
         }
@@ -125,7 +125,7 @@ public sealed class SmartTagAssignmentRetryRelationalTests
     public async Task Claim_WithRetryingExecutionStrategy_RejectsAlreadyClaimedTag()
     {
         await using var scope = await RelationalDatabase.CreateAsync(enableRetryOnFailure: true);
-        var (tagId, updatedAt) = await SeedUnclaimedTagAsync(scope);
+        var (tagId, assignmentVersion) = await SeedUnclaimedTagAsync(scope);
 
         await using (var first = scope.NewContext())
         {
@@ -133,7 +133,7 @@ public sealed class SmartTagAssignmentRetryRelationalTests
             {
                 OwnerUserId = OwnerId,
                 PetId = PetId,
-                ExpectedUpdatedAt = updatedAt,
+                ExpectedAssignmentVersion = assignmentVersion,
             });
         }
 
@@ -145,7 +145,7 @@ public sealed class SmartTagAssignmentRetryRelationalTests
                 {
                     OwnerUserId = OtherOwnerId,
                     PetId = OtherPetId,
-                    ExpectedUpdatedAt = updatedAt,
+                    ExpectedAssignmentVersion = assignmentVersion,
                 }));
             Assert.Equal(StatusCodes.Status409Conflict, failure.StatusCode);
         }
@@ -162,7 +162,7 @@ public sealed class SmartTagAssignmentRetryRelationalTests
     public async Task AssignmentOperations_WithRetryingExecutionStrategy_RemainUsableAfterClaim()
     {
         await using var scope = await RelationalDatabase.CreateAsync(enableRetryOnFailure: true);
-        var (tagId, updatedAt) = await SeedUnclaimedTagAsync(scope);
+        var (tagId, assignmentVersion) = await SeedUnclaimedTagAsync(scope);
         var secondPetId = Guid.Parse("b6666666-6666-6666-6666-666666666666");
 
         await using (var seed = scope.NewContext())
@@ -185,9 +185,9 @@ public sealed class SmartTagAssignmentRetryRelationalTests
             {
                 OwnerUserId = OwnerId,
                 PetId = PetId,
-                ExpectedUpdatedAt = updatedAt,
+                ExpectedAssignmentVersion = assignmentVersion,
             });
-            updatedAt = claimed.UpdatedAt;
+            assignmentVersion = claimed.AssignmentVersion;
         }
 
         // The sibling assignment operations share the same transaction path, so
@@ -197,17 +197,17 @@ public sealed class SmartTagAssignmentRetryRelationalTests
             var changed = await SmartTagService(changePet).AssignPetAsync(AdminId, tagId, new AdminSmartTagAssignPetRequest
             {
                 PetId = secondPetId,
-                ExpectedUpdatedAt = updatedAt,
+                ExpectedAssignmentVersion = assignmentVersion,
             });
             Assert.Equal(secondPetId, changed.PetId);
-            updatedAt = changed.UpdatedAt;
+            assignmentVersion = changed.AssignmentVersion;
         }
 
         await using (var unassign = scope.NewContext())
         {
             var cleared = await SmartTagService(unassign).UnassignPetAsync(AdminId, tagId, new AdminSmartTagUnassignPetRequest
             {
-                ExpectedUpdatedAt = updatedAt,
+                ExpectedAssignmentVersion = assignmentVersion,
             });
             Assert.Null(cleared.PetId);
             Assert.Equal(OwnerId, cleared.OwnerUserId);
@@ -218,7 +218,7 @@ public sealed class SmartTagAssignmentRetryRelationalTests
     public async Task OwnerActivation_StillCompletesAfterAnAdministrativeClaim()
     {
         await using var scope = await RelationalDatabase.CreateAsync(enableRetryOnFailure: true);
-        var (tagId, updatedAt) = await SeedUnclaimedTagAsync(scope);
+        var (tagId, assignmentVersion) = await SeedUnclaimedTagAsync(scope);
 
         await using (var claim = scope.NewContext())
         {
@@ -226,7 +226,7 @@ public sealed class SmartTagAssignmentRetryRelationalTests
             {
                 OwnerUserId = OwnerId,
                 PetId = PetId,
-                ExpectedUpdatedAt = updatedAt,
+                ExpectedAssignmentVersion = assignmentVersion,
             });
         }
 
@@ -273,7 +273,45 @@ public sealed class SmartTagAssignmentRetryRelationalTests
         }
     }
 
-    private static async Task<(Guid TagId, DateTimeOffset UpdatedAt)> SeedUnclaimedTagAsync(RelationalScope scope)
+    [RelationalFact]
+    public async Task NonAssignmentWrite_DoesNotBreakTheExecuteUpdateConcurrencyGuard()
+    {
+        await using var scope = await RelationalDatabase.CreateAsync(enableRetryOnFailure: true);
+        var (tagId, assignmentVersion) = await SeedUnclaimedTagAsync(scope);
+
+        // A scan-shaped write: LastScannedAt changes, which stamps UpdatedAt.
+        // The relational path guards with a WHERE on AssignmentVersion, so this
+        // must not make the admin's captured token stale.
+        DateTimeOffset updatedAtBefore;
+        await using (var scan = scope.NewContext())
+        {
+            var tag = await scan.SmartTags.SingleAsync(item => item.Id == tagId);
+            updatedAtBefore = tag.UpdatedAt;
+            tag.LastScannedAt = DateTimeOffset.UtcNow;
+            await scan.SaveChangesAsync();
+        }
+
+        await using (var verify = scope.NewContext())
+        {
+            var tag = await verify.SmartTags.AsNoTracking().SingleAsync(item => item.Id == tagId);
+            Assert.NotEqual(updatedAtBefore, tag.UpdatedAt);
+            Assert.Equal(assignmentVersion, tag.AssignmentVersion);
+        }
+
+        await using (var act = scope.NewContext())
+        {
+            var claimed = await SmartTagService(act).ClaimAsync(AdminId, tagId, new AdminSmartTagClaimRequest
+            {
+                OwnerUserId = OwnerId,
+                PetId = PetId,
+                ExpectedAssignmentVersion = assignmentVersion,
+            });
+            Assert.Equal(OwnerId, claimed.OwnerUserId);
+            Assert.Equal(assignmentVersion + 1, claimed.AssignmentVersion);
+        }
+    }
+
+    private static async Task<(Guid TagId, int AssignmentVersion)> SeedUnclaimedTagAsync(RelationalScope scope)
     {
         await using var seed = scope.NewContext();
         seed.Users.Add(new User
@@ -352,7 +390,7 @@ public sealed class SmartTagAssignmentRetryRelationalTests
         };
         seed.AddRange(product, variant, tag);
         await seed.SaveChangesAsync();
-        return (tag.Id, tag.UpdatedAt);
+        return (tag.Id, tag.AssignmentVersion);
     }
 
     private static AdminSmartTagService SmartTagService(MyPetLinkDbContext db) => new(

@@ -49,6 +49,13 @@ public sealed class SmartTag : AuditableEntity
     public Guid? ReplacementForTagId { get; set; }
     public DateTimeOffset? ArchivedAt { get; set; }
     public DateTimeOffset? DeletedAt { get; set; }
+    // Optimistic concurrency for the Admin assignment/ownership dialog only.
+    // UpdatedAt cannot serve that purpose: a public QR or NFC scan writes
+    // LastScannedAt, which stamps UpdatedAt, so a finder scanning the tag would
+    // invalidate an open dialog that is not actually stale. This counter is
+    // advanced by MyPetLinkDbContext whenever a field the dialog protects
+    // changes, and by nothing else — see AssignmentStateProperties.
+    public int AssignmentVersion { get; set; }
     public byte[] RowVersion { get; set; } = [];
 
     public User? OwnerUser { get; set; }

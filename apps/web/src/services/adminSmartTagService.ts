@@ -57,6 +57,12 @@ export type AdminSmartTag = {
   legacyOrUnknownScanCount?: number;
   createdAt: string;
   updatedAt: string;
+  /**
+   * Concurrency token for the assignment dialog. Deliberately not updatedAt:
+   * a finder scanning the tag moves updatedAt, and that must not invalidate an
+   * assignment the admin is part-way through.
+   */
+  assignmentVersion: number;
   replacementForTagId?: string;
   replacementForTagCode?: string;
   replacedByTagCode?: string;
@@ -173,7 +179,8 @@ type BackendItem = {
   activatedAt?: string | null; lastScannedAt?: string | null;
   latestScanSource?: TagScanSource | null; scanCount: number;
   qrScanCount: number; nfcScanCount: number; legacyOrUnknownScanCount: number;
-  createdAt: string; updatedAt: string; replacementForTagId?: string | null;
+  createdAt: string; updatedAt: string; assignmentVersion?: number | null;
+  replacementForTagId?: string | null;
   replacementForTagCode?: string | null; replacedByTagCode?: string | null;
 };
 
@@ -204,6 +211,7 @@ function mapBackend(item: BackendItem): AdminSmartTag {
     legacyOrUnknownScanCount: item.legacyOrUnknownScanCount,
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
+    assignmentVersion: item.assignmentVersion ?? 0,
     replacementForTagId: item.replacementForTagId ?? undefined,
     replacementForTagCode: item.replacementForTagCode ?? undefined,
     replacedByTagCode: item.replacedByTagCode ?? undefined,
@@ -361,12 +369,12 @@ export async function updateAdminSmartTagAssignment(
   if (canUseAdminApi()) {
     const pathAction = action === "change-pet" || action === "assign-pet" ? "pet" : action;
     const body = action === "claim"
-      ? { ownerUserId: input.ownerId, petId: input.petId, expectedUpdatedAt: tag.updatedAt, reason: input.reason || null }
+      ? { ownerUserId: input.ownerId, petId: input.petId, expectedAssignmentVersion: tag.assignmentVersion, reason: input.reason || null }
       : action === "transfer"
-        ? { newOwnerUserId: input.ownerId, newPetId: input.petId, expectedUpdatedAt: tag.updatedAt, reason: input.reason }
+        ? { newOwnerUserId: input.ownerId, newPetId: input.petId, expectedAssignmentVersion: tag.assignmentVersion, reason: input.reason }
         : action === "unassign-pet"
-          ? { expectedUpdatedAt: tag.updatedAt, reason: input.reason || null }
-          : { petId: input.petId, expectedUpdatedAt: tag.updatedAt, reason: input.reason || null };
+          ? { expectedAssignmentVersion: tag.assignmentVersion, reason: input.reason || null }
+          : { petId: input.petId, expectedAssignmentVersion: tag.assignmentVersion, reason: input.reason || null };
     const response = await apiRequest<BackendItem>(
       `/api/v1/admin/tags/${encodeURIComponent(tag.id)}/assignment/${pathAction}`,
       { method: "POST", body }
@@ -465,7 +473,11 @@ function localRow(tag: PetTag, pet?: Pet, order?: TagOrder): AdminSmartTag {
     latestScanSource: tag.lastScannedAt ? "Legacy" : undefined,
     scanCount: tag.lastScannedAt ? 1 : 0, qrScanCount: 0, nfcScanCount: 0,
     legacyOrUnknownScanCount: tag.lastScannedAt ? 1 : 0,
-    createdAt, updatedAt: tag.lastScannedAt ?? tag.activatedAt ?? createdAt, replacementForTagId: tag.replacementForTagId };
+    createdAt, updatedAt: tag.lastScannedAt ?? tag.activatedAt ?? createdAt,
+    // The local fallback has no concurrency store; the mock assignment path
+    // checks eligibility directly rather than comparing tokens.
+    assignmentVersion: 0,
+    replacementForTagId: tag.replacementForTagId };
 }
 
 function filterLocal(rows: AdminSmartTag[], params: AdminSmartTagListParams) {

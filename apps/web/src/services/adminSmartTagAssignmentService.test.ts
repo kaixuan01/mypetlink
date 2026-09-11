@@ -17,7 +17,7 @@ const tag: AdminSmartTag = {
   id: "tag-1", tagCode: "MPL-TEST-0001", hasNfc: false, variant: "Standard", status: "Active",
   isArchived: false, ownerId: "owner-1", ownerName: "Aina", petId: "pet-1", petName: "Topu",
   qrSafetyEnabled: true, scanCount: 0, activatedAt: "2026-07-01T00:00:00Z",
-  createdAt: "2026-06-01T00:00:00Z", updatedAt: "2026-07-18T02:03:04Z",
+  createdAt: "2026-06-01T00:00:00Z", updatedAt: "2026-07-18T02:03:04Z", assignmentVersion: 7,
 };
 
 const backend = {
@@ -34,7 +34,7 @@ describe("Smart Tag assignment API mapping", () => {
 
     expect(mocks.apiRequest).toHaveBeenCalledWith("/api/v1/admin/tags/tag-1/assignment/pet", {
       method: "POST",
-      body: { petId: "pet-2", expectedUpdatedAt: tag.updatedAt, reason: "Correction" },
+      body: { petId: "pet-2", expectedAssignmentVersion: tag.assignmentVersion, reason: "Correction" },
     });
     expect(updated.petId).toBe("pet-2");
   });
@@ -54,7 +54,7 @@ describe("Smart Tag assignment API mapping", () => {
       body: {
         ownerUserId: "owner-1",
         petId: "pet-1",
-        expectedUpdatedAt: unclaimed.updatedAt,
+        expectedAssignmentVersion: unclaimed.assignmentVersion,
         reason: "Counter replacement",
       },
     });
@@ -77,7 +77,7 @@ describe("Smart Tag assignment API mapping", () => {
     await updateAdminSmartTagAssignment(tag, "transfer", { ownerId: "owner-2", petId: "pet-3", reason: "Verified" });
     expect(mocks.apiRequest).toHaveBeenCalledWith("/api/v1/admin/tags/tag-1/assignment/transfer", {
       method: "POST",
-      body: { newOwnerUserId: "owner-2", newPetId: "pet-3", expectedUpdatedAt: tag.updatedAt, reason: "Verified" },
+      body: { newOwnerUserId: "owner-2", newPetId: "pet-3", expectedAssignmentVersion: tag.assignmentVersion, reason: "Verified" },
     });
 
     mocks.apiRequest.mockRejectedValueOnce(new Error("This tag changed after the details were opened."));

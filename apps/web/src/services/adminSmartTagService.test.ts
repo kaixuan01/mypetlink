@@ -60,7 +60,7 @@ describe("Smart Tags local query parity", () => {
 describe("Smart Tags lifecycle actions", () => {
   const active: AdminSmartTag = {
     id: "x", tagCode: "MPL-X", hasNfc: false, variant: "Standard", status: "Active",
-    isArchived: false, qrSafetyEnabled: false, scanCount: 0, createdAt: "2026-07-01", updatedAt: "2026-07-01",
+    isArchived: false, qrSafetyEnabled: false, scanCount: 0, createdAt: "2026-07-01", updatedAt: "2026-07-01", assignmentVersion: 7,
   };
 
   it("uses exact lifecycle labels and state guards", () => {

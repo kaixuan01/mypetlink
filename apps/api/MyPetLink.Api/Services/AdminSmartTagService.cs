@@ -183,7 +183,7 @@ public sealed class AdminSmartTagService : SkeletonService, IAdminSmartTagServic
         AdminSmartTagClaimRequest request,
         CancellationToken cancellationToken = default)
         => UpdateAssignmentAsync(currentUserId, tagId, "claim", request.OwnerUserId, request.PetId,
-            request.ExpectedUpdatedAt, request.Reason, cancellationToken);
+            request.ExpectedAssignmentVersion, request.Reason, cancellationToken);
 
     public Task<AdminSmartTagItemResponse> AssignPetAsync(
         Guid? currentUserId,
@@ -191,7 +191,7 @@ public sealed class AdminSmartTagService : SkeletonService, IAdminSmartTagServic
         AdminSmartTagAssignPetRequest request,
         CancellationToken cancellationToken = default)
         => UpdateAssignmentAsync(currentUserId, tagId, "assign-pet", null, request.PetId,
-            request.ExpectedUpdatedAt, request.Reason, cancellationToken);
+            request.ExpectedAssignmentVersion, request.Reason, cancellationToken);
 
     public Task<AdminSmartTagItemResponse> UnassignPetAsync(
         Guid? currentUserId,
@@ -199,7 +199,7 @@ public sealed class AdminSmartTagService : SkeletonService, IAdminSmartTagServic
         AdminSmartTagUnassignPetRequest request,
         CancellationToken cancellationToken = default)
         => UpdateAssignmentAsync(currentUserId, tagId, "unassign-pet", null, null,
-            request.ExpectedUpdatedAt, request.Reason, cancellationToken);
+            request.ExpectedAssignmentVersion, request.Reason, cancellationToken);
 
     public Task<AdminSmartTagItemResponse> TransferOwnershipAsync(
         Guid? currentUserId,
@@ -207,7 +207,7 @@ public sealed class AdminSmartTagService : SkeletonService, IAdminSmartTagServic
         AdminSmartTagTransferRequest request,
         CancellationToken cancellationToken = default)
         => UpdateAssignmentAsync(currentUserId, tagId, "transfer", request.NewOwnerUserId, request.NewPetId,
-            request.ExpectedUpdatedAt, request.Reason, cancellationToken);
+            request.ExpectedAssignmentVersion, request.Reason, cancellationToken);
 
     private async Task<AdminSmartTagItemResponse> UpdateAssignmentAsync(
         Guid? currentUserId,
@@ -215,7 +215,7 @@ public sealed class AdminSmartTagService : SkeletonService, IAdminSmartTagServic
         string operation,
         Guid? requestedOwnerId,
         Guid? requestedPetId,
-        DateTimeOffset expectedUpdatedAt,
+        int expectedAssignmentVersion,
         string? reason,
         CancellationToken cancellationToken)
     {
@@ -244,7 +244,10 @@ public sealed class AdminSmartTagService : SkeletonService, IAdminSmartTagServic
                     : await tagQuery.SingleOrDefaultAsync(cancellationToken))
                 ?? throw NotFound();
 
-            if (tag.UpdatedAt.ToUniversalTime() != expectedUpdatedAt.ToUniversalTime())
+            // Only assignment state is guarded. A public scan moves UpdatedAt
+            // but not AssignmentVersion, so a finder cannot invalidate a dialog
+            // that is still showing the truth.
+            if (tag.AssignmentVersion != expectedAssignmentVersion)
             {
                 throw Conflict();
             }
@@ -340,12 +343,16 @@ public sealed class AdminSmartTagService : SkeletonService, IAdminSmartTagServic
                 // makes the relationship update atomic without adding a schema
                 // column or allowing a stale Admin dialog to overwrite newer work.
                 var affected = await _dbContext.SmartTags
-                    .Where(item => item.Id == tag.Id && item.DeletedAt == null && item.UpdatedAt == expectedUpdatedAt)
+                    .Where(item => item.Id == tag.Id && item.DeletedAt == null
+                        && item.AssignmentVersion == expectedAssignmentVersion)
                     .ExecuteUpdateAsync(setters => setters
                         .SetProperty(item => item.OwnerUserId, tag.OwnerUserId)
                         .SetProperty(item => item.PetId, tag.PetId)
                         .SetProperty(item => item.Status, tag.Status)
                         .SetProperty(item => item.ActivatedAt, tag.ActivatedAt)
+                        // ExecuteUpdate bypasses the change tracker, so this
+                        // path advances the token itself.
+                        .SetProperty(item => item.AssignmentVersion, expectedAssignmentVersion + 1)
                         .SetProperty(item => item.UpdatedAt, tag.UpdatedAt), cancellationToken);
                 if (affected != 1) throw Conflict();
             }
@@ -586,7 +593,7 @@ public sealed class AdminSmartTagService : SkeletonService, IAdminSmartTagServic
                 scan.SmartTagId == tag.Id
                 && scan.Source != TagScanSource.Qr
                 && scan.Source != TagScanSource.Nfc),
-            tag.CreatedAt, tag.UpdatedAt, tag.ReplacementForTagId,
+            tag.CreatedAt, tag.UpdatedAt, tag.AssignmentVersion, tag.ReplacementForTagId,
             tag.ReplacementForTag == null ? null : tag.ReplacementForTag.TagCode,
             _dbContext.SmartTags.Where(candidate => candidate.ReplacementForTagId == tag.Id && candidate.DeletedAt == null)
                 .Select(candidate => candidate.TagCode).FirstOrDefault()));

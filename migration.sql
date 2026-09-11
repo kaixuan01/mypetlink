@@ -7954,3 +7954,28 @@ GO
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260911010449_AddSmartTagAssignmentVersion'
+)
+BEGIN
+    ALTER TABLE [SmartTags] ADD [AssignmentVersion] int NOT NULL DEFAULT 0;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260911010449_AddSmartTagAssignmentVersion'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260911010449_AddSmartTagAssignmentVersion', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+

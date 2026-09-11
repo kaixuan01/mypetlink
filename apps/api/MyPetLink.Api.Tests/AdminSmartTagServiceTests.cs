@@ -171,7 +171,7 @@ public sealed class AdminSmartTagServiceTests
         var pet = await harness.Db.Pets.SingleAsync(item => item.Name == "Topu");
         AdminSmartTagClaimRequest Request() => new()
         {
-            OwnerUserId = pet.OwnerUserId, PetId = pet.Id, ExpectedUpdatedAt = tag.UpdatedAt
+            OwnerUserId = pet.OwnerUserId, PetId = pet.Id, ExpectedAssignmentVersion = tag.AssignmentVersion
         };
 
         var anonymous = await Assert.ThrowsAsync<ApiException>(
@@ -202,7 +202,7 @@ public sealed class AdminSmartTagServiceTests
         // accepted rather than turned into a validation failure or filler text.
         var updated = await harness.Service.ClaimAsync(Harness.AdminId, tag.Id, new AdminSmartTagClaimRequest
         {
-            OwnerUserId = pet.OwnerUserId, PetId = pet.Id, ExpectedUpdatedAt = tag.UpdatedAt
+            OwnerUserId = pet.OwnerUserId, PetId = pet.Id, ExpectedAssignmentVersion = tag.AssignmentVersion
         });
 
         Assert.Equal(SmartTagStatus.Pending, updated.Status);
@@ -223,7 +223,7 @@ public sealed class AdminSmartTagServiceTests
 
         var updated = await harness.Service.ClaimAsync(Harness.AdminId, tag.Id, new AdminSmartTagClaimRequest
         {
-            OwnerUserId = pet.OwnerUserId, PetId = pet.Id, ExpectedUpdatedAt = tag.UpdatedAt, Reason = "Support claim"
+            OwnerUserId = pet.OwnerUserId, PetId = pet.Id, ExpectedAssignmentVersion = tag.AssignmentVersion, Reason = "Support claim"
         });
 
         Assert.Equal(code, updated.TagCode);
@@ -244,7 +244,7 @@ public sealed class AdminSmartTagServiceTests
 
         var updated = await harness.Service.AssignPetAsync(Harness.AdminId, tag.Id, new AdminSmartTagAssignPetRequest
         {
-            PetId = pet.Id, ExpectedUpdatedAt = tag.UpdatedAt, Reason = "Correct pet"
+            PetId = pet.Id, ExpectedAssignmentVersion = tag.AssignmentVersion, Reason = "Correct pet"
         });
 
         Assert.Equal(pet.Id, updated.PetId);
@@ -262,11 +262,11 @@ public sealed class AdminSmartTagServiceTests
         var archivedPet = await harness.Db.Pets.SingleAsync(item => item.Name == "Archived pet");
 
         var wrongOwner = await Assert.ThrowsAsync<ApiException>(() => harness.Service.AssignPetAsync(Harness.AdminId, tag.Id,
-            new AdminSmartTagAssignPetRequest { PetId = otherOwnerPet.Id, ExpectedUpdatedAt = tag.UpdatedAt }));
+            new AdminSmartTagAssignPetRequest { PetId = otherOwnerPet.Id, ExpectedAssignmentVersion = tag.AssignmentVersion }));
         Assert.Equal(StatusCodes.Status400BadRequest, wrongOwner.StatusCode);
 
         var archived = await Assert.ThrowsAsync<ApiException>(() => harness.Service.AssignPetAsync(Harness.AdminId, tag.Id,
-            new AdminSmartTagAssignPetRequest { PetId = archivedPet.Id, ExpectedUpdatedAt = tag.UpdatedAt }));
+            new AdminSmartTagAssignPetRequest { PetId = archivedPet.Id, ExpectedAssignmentVersion = tag.AssignmentVersion }));
         Assert.Equal(StatusCodes.Status400BadRequest, archived.StatusCode);
     }
 
@@ -280,7 +280,7 @@ public sealed class AdminSmartTagServiceTests
 
         var updated = await harness.Service.UnassignPetAsync(Harness.AdminId, tag.Id, new AdminSmartTagUnassignPetRequest
         {
-            ExpectedUpdatedAt = tag.UpdatedAt, Reason = "Owner is choosing a new pet"
+            ExpectedAssignmentVersion = tag.AssignmentVersion, Reason = "Owner is choosing a new pet"
         });
 
         Assert.Equal(ownerId, updated.OwnerUserId);
@@ -298,10 +298,10 @@ public sealed class AdminSmartTagServiceTests
         var luna = await harness.Db.Pets.SingleAsync(item => item.Name == "Luna");
         var ownerId = tag.OwnerUserId;
         var unassigned = await harness.Service.UnassignPetAsync(Harness.AdminId, tag.Id,
-            new AdminSmartTagUnassignPetRequest { ExpectedUpdatedAt = tag.UpdatedAt });
+            new AdminSmartTagUnassignPetRequest { ExpectedAssignmentVersion = tag.AssignmentVersion });
 
         var reassigned = await harness.Service.AssignPetAsync(Harness.AdminId, tag.Id,
-            new AdminSmartTagAssignPetRequest { PetId = luna.Id, ExpectedUpdatedAt = unassigned.UpdatedAt });
+            new AdminSmartTagAssignPetRequest { PetId = luna.Id, ExpectedAssignmentVersion = unassigned.AssignmentVersion });
 
         Assert.Equal(ownerId, reassigned.OwnerUserId);
         Assert.Equal(luna.Id, reassigned.PetId);
@@ -319,7 +319,7 @@ public sealed class AdminSmartTagServiceTests
         var updated = await harness.Service.TransferOwnershipAsync(Harness.AdminId, tag.Id, new AdminSmartTagTransferRequest
         {
             NewOwnerUserId = pet.OwnerUserId, NewPetId = pet.Id,
-            ExpectedUpdatedAt = tag.UpdatedAt, Reason = "Verified ownership transfer"
+            ExpectedAssignmentVersion = tag.AssignmentVersion, Reason = "Verified ownership transfer"
         });
 
         Assert.NotEqual(oldOwner, updated.OwnerUserId);
@@ -344,15 +344,15 @@ public sealed class AdminSmartTagServiceTests
         var lost = await harness.Db.SmartTags.SingleAsync(item => item.Status == SmartTagStatus.Lost);
 
         var readOnly = await Assert.ThrowsAsync<ApiException>(() => harness.Service.AssignPetAsync(Harness.AdminId, replaced.Id,
-            new AdminSmartTagAssignPetRequest { PetId = pet.Id, ExpectedUpdatedAt = replaced.UpdatedAt }));
+            new AdminSmartTagAssignPetRequest { PetId = pet.Id, ExpectedAssignmentVersion = replaced.AssignmentVersion }));
         Assert.Equal(StatusCodes.Status422UnprocessableEntity, readOnly.StatusCode);
 
         var unresolved = await Assert.ThrowsAsync<ApiException>(() => harness.Service.AssignPetAsync(Harness.AdminId, lost.Id,
-            new AdminSmartTagAssignPetRequest { PetId = pet.Id, ExpectedUpdatedAt = lost.UpdatedAt }));
+            new AdminSmartTagAssignPetRequest { PetId = pet.Id, ExpectedAssignmentVersion = lost.AssignmentVersion }));
         Assert.Equal(StatusCodes.Status422UnprocessableEntity, unresolved.StatusCode);
 
         var conflict = await Assert.ThrowsAsync<ApiException>(() => harness.Service.AssignPetAsync(Harness.AdminId, active.Id,
-            new AdminSmartTagAssignPetRequest { PetId = pet.Id, ExpectedUpdatedAt = active.UpdatedAt.AddSeconds(-1) }));
+            new AdminSmartTagAssignPetRequest { PetId = pet.Id, ExpectedAssignmentVersion = active.AssignmentVersion - 1 }));
         Assert.Equal(StatusCodes.Status409Conflict, conflict.StatusCode);
         Assert.Equal("tag_changed", conflict.Code);
     }

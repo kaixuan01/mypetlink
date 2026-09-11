@@ -363,7 +363,7 @@ public sealed class ConcurrencyRelationalTests
     {
         await using var scope = await RelationalDatabase.CreateAsync();
         Guid tagId;
-        DateTimeOffset staleTimestamp;
+        int staleVersion;
 
         await using (var seed = scope.NewContext())
         {
@@ -391,7 +391,7 @@ public sealed class ConcurrencyRelationalTests
             });
             await seed.SaveChangesAsync();
             tagId = tag.Id;
-            staleTimestamp = tag.UpdatedAt;
+            staleVersion = tag.AssignmentVersion;
         }
 
         // A first claim advances UpdatedAt, invalidating the captured timestamp.
@@ -401,7 +401,7 @@ public sealed class ConcurrencyRelationalTests
             {
                 OwnerUserId = OwnerId,
                 PetId = PetId,
-                ExpectedUpdatedAt = staleTimestamp,
+                ExpectedAssignmentVersion = staleVersion,
             });
         }
 
@@ -412,7 +412,7 @@ public sealed class ConcurrencyRelationalTests
                 SmartTagService(second).AssignPetAsync(AdminId, tagId, new AdminSmartTagAssignPetRequest
                 {
                     PetId = PetId,
-                    ExpectedUpdatedAt = staleTimestamp,
+                    ExpectedAssignmentVersion = staleVersion,
                 }));
             Assert.Equal(StatusCodes.Status409Conflict, conflict.StatusCode);
         }

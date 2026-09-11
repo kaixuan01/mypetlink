@@ -56,6 +56,9 @@ public sealed record AdminSmartTagItemResponse(
     int LegacyOrUnknownScanCount,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
+    // Concurrency token for the assignment dialog. Distinct from UpdatedAt,
+    // which also moves when a finder scans the tag.
+    int AssignmentVersion,
     Guid? ReplacementForTagId,
     string? ReplacementForTagCode,
     string? ReplacedByTagCode);
@@ -85,20 +88,20 @@ public sealed class AdminSmartTagClaimRequest
 {
     [Required] public Guid OwnerUserId { get; init; }
     [Required] public Guid PetId { get; init; }
-    [Required] public DateTimeOffset ExpectedUpdatedAt { get; init; }
+    [Required] public int ExpectedAssignmentVersion { get; init; }
     [MaxLength(600)] public string? Reason { get; init; }
 }
 
 public sealed class AdminSmartTagAssignPetRequest
 {
     [Required] public Guid PetId { get; init; }
-    [Required] public DateTimeOffset ExpectedUpdatedAt { get; init; }
+    [Required] public int ExpectedAssignmentVersion { get; init; }
     [MaxLength(600)] public string? Reason { get; init; }
 }
 
 public sealed class AdminSmartTagUnassignPetRequest
 {
-    [Required] public DateTimeOffset ExpectedUpdatedAt { get; init; }
+    [Required] public int ExpectedAssignmentVersion { get; init; }
     [MaxLength(600)] public string? Reason { get; init; }
 }
 
@@ -106,8 +109,14 @@ public sealed class AdminSmartTagTransferRequest
 {
     [Required] public Guid NewOwnerUserId { get; init; }
     [Required] public Guid NewPetId { get; init; }
-    [Required] public DateTimeOffset ExpectedUpdatedAt { get; init; }
-    [Required, MaxLength(600)] public string Reason { get; init; } = "";
+    [Required] public int ExpectedAssignmentVersion { get; init; }
+    // A transfer reason IS mandatory, but the rule lives in the service with
+    // the other assignment rules rather than being stated twice. [Required]
+    // here would answer a blank reason with a framework message naming
+    // "Reason", while every other assignment failure names "reason" and
+    // explains what to do. The service check is also the stricter of the two:
+    // it rejects a whitespace-only reason, which [Required] accepts.
+    [MaxLength(600)] public string? Reason { get; init; }
 }
 
 public sealed record AdminSmartTagBulkActionRequest(

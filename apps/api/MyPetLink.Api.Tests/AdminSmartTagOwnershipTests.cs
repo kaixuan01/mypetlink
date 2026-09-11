@@ -32,7 +32,7 @@ public sealed class AdminSmartTagOwnershipTests
             {
                 NewOwnerUserId = OwnershipHarness.OwnerBId,
                 NewPetId = OwnershipHarness.PetBId,
-                ExpectedUpdatedAt = tag.UpdatedAt,
+                ExpectedAssignmentVersion = tag.AssignmentVersion,
             }));
         Assert.Equal(StatusCodes.Status400BadRequest, noReason.StatusCode);
 
@@ -41,7 +41,7 @@ public sealed class AdminSmartTagOwnershipTests
             {
                 NewOwnerUserId = OwnershipHarness.OwnerAId,
                 NewPetId = OwnershipHarness.PetA2Id,
-                ExpectedUpdatedAt = tag.UpdatedAt,
+                ExpectedAssignmentVersion = tag.AssignmentVersion,
                 Reason = "Wrong action",
             }));
         Assert.Equal(StatusCodes.Status400BadRequest, sameOwner.StatusCode);
@@ -49,6 +49,30 @@ public sealed class AdminSmartTagOwnershipTests
         var untouched = await harness.Db.SmartTags.AsNoTracking().SingleAsync(item => item.Id == tag.Id);
         Assert.Equal(OwnershipHarness.OwnerAId, untouched.OwnerUserId);
         Assert.Equal(OwnershipHarness.PetAId, untouched.PetId);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task Transfer_AnswersEveryBlankReasonWithTheSameDomainMessage(string? reason)
+    {
+        using var harness = await OwnershipHarness.CreateAsync();
+
+        var failure = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Admin.TransferOwnershipAsync(OwnershipHarness.AdminId, harness.Tag.Id, new AdminSmartTagTransferRequest
+            {
+                NewOwnerUserId = OwnershipHarness.OwnerBId,
+                NewPetId = OwnershipHarness.PetBId,
+                ExpectedAssignmentVersion = harness.Tag.AssignmentVersion,
+                Reason = reason,
+            }));
+
+        Assert.Equal(StatusCodes.Status400BadRequest, failure.StatusCode);
+        Assert.Equal("validation_failed", failure.Code);
+        var field = Assert.Single(failure.Details!);
+        Assert.Equal("reason", field.Key);
+        Assert.Equal("Add a reason for the ownership transfer.", Assert.Single(field.Value));
     }
 
     [Fact]
@@ -64,7 +88,7 @@ public sealed class AdminSmartTagOwnershipTests
             {
                 NewOwnerUserId = OwnershipHarness.OwnerBId,
                 NewPetId = OwnershipHarness.PetAId,
-                ExpectedUpdatedAt = tag.UpdatedAt,
+                ExpectedAssignmentVersion = tag.AssignmentVersion,
                 Reason = "Cross-owner attempt",
             }));
         Assert.Equal(StatusCodes.Status400BadRequest, failure.StatusCode);
@@ -83,7 +107,7 @@ public sealed class AdminSmartTagOwnershipTests
         {
             NewOwnerUserId = OwnershipHarness.OwnerBId,
             NewPetId = OwnershipHarness.PetBId,
-            ExpectedUpdatedAt = harness.Tag.UpdatedAt,
+            ExpectedAssignmentVersion = harness.Tag.AssignmentVersion,
             Reason = "Verified request",
         };
 
@@ -175,6 +199,84 @@ public sealed class AdminSmartTagOwnershipTests
         // The only rows an ownership change writes are the tag and its audit.
         var audits = await harness.Db.AuditLogs.ToListAsync();
         Assert.All(audits, entry => Assert.Equal("SmartTag", entry.Entity));
+    }
+
+    [Fact]
+    public async Task Scans_DoNotInvalidateAnOpenAssignmentDialog_ButStillRecord()
+    {
+        using var harness = await OwnershipHarness.CreateAsync();
+        // An active, in-use tag: the case the bug actually hurt, and the only
+        // lifecycle where a scan writes LastScannedAt.
+        await harness.ActivateAsOwnerAAsync();
+
+        // What the Admin dialog captured when it opened.
+        var openedWith = harness.Tag.AssignmentVersion;
+        var updatedAtWhenOpened = harness.Tag.UpdatedAt;
+
+        for (var i = 0; i < 3; i++)
+        {
+            await harness.Scan.ResolveAsync(OwnershipHarness.TagCode, TagScanSource.Qr, ScanContext());
+            await harness.Scan.ResolveAsync(OwnershipHarness.TagCode, TagScanSource.Nfc, ScanContext());
+        }
+
+        var scanned = await harness.Db.SmartTags.AsNoTracking()
+            .SingleAsync(item => item.Id == harness.Tag.Id);
+        // Scans are still recorded, and still move the audit timestamp.
+        Assert.NotNull(scanned.LastScannedAt);
+        Assert.NotEqual(updatedAtWhenOpened, scanned.UpdatedAt);
+        Assert.Equal(6, await harness.Db.TagScans.CountAsync(scan => scan.SmartTagId == harness.Tag.Id));
+        // But the assignment token is untouched, because nothing the dialog
+        // acts on changed.
+        Assert.Equal(openedWith, scanned.AssignmentVersion);
+
+        // The admin submits with the token captured before any of those scans.
+        var changed = await harness.Admin.AssignPetAsync(OwnershipHarness.AdminId, harness.Tag.Id,
+            new AdminSmartTagAssignPetRequest
+            {
+                PetId = OwnershipHarness.PetA2Id,
+                ExpectedAssignmentVersion = openedWith,
+            });
+        Assert.Equal(OwnershipHarness.PetA2Id, changed.PetId);
+        Assert.Equal(openedWith + 1, changed.AssignmentVersion);
+    }
+
+    [Fact]
+    public async Task GenuineAssignmentChange_StillInvalidatesAStaleAdminRequest()
+    {
+        using var harness = await OwnershipHarness.CreateAsync();
+        var adminAOpenedWith = harness.Tag.AssignmentVersion;
+
+        // Admin B changes the assignment while Admin A's dialog is open.
+        await harness.TransferToOwnerBAsync();
+        Assert.NotEqual(adminAOpenedWith, harness.Tag.AssignmentVersion);
+
+        var conflict = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Admin.AssignPetAsync(OwnershipHarness.AdminId, harness.Tag.Id,
+                new AdminSmartTagAssignPetRequest
+                {
+                    PetId = OwnershipHarness.PetBId,
+                    ExpectedAssignmentVersion = adminAOpenedWith,
+                }));
+        Assert.Equal(StatusCodes.Status409Conflict, conflict.StatusCode);
+        Assert.Equal("tag_changed", conflict.Code);
+    }
+
+    [Fact]
+    public async Task OwnerActivationAndLifecycleChanges_AdvanceTheAssignmentToken()
+    {
+        using var harness = await OwnershipHarness.CreateAsync();
+        var beforeActivation = harness.Tag.AssignmentVersion;
+
+        // Activation changes Status and stamps ActivatedAt: an open dialog
+        // showing "Pending activation" is genuinely stale afterwards.
+        await harness.ActivateAsOwnerAAsync();
+        var afterActivation = harness.Tag.AssignmentVersion;
+        Assert.True(afterActivation > beforeActivation);
+
+        await harness.Admin.UpdateStatusAsync(OwnershipHarness.AdminId, harness.Tag.Id, "disable", "Support request");
+        var afterDisable = await harness.Db.SmartTags.AsNoTracking()
+            .SingleAsync(item => item.Id == harness.Tag.Id);
+        Assert.True(afterDisable.AssignmentVersion > afterActivation);
     }
 
     private static TagScanContext ScanContext() => new(null, null, null);
@@ -270,14 +372,13 @@ public sealed class AdminSmartTagOwnershipTests
 
         public async Task TransferToOwnerBAsync()
         {
-            // Re-read first: any write to the tag stamps UpdatedAt, and that is
-            // the token the assignment guard compares against.
-            await ReloadTagAsync();
+            // Deliberately no re-read. The token captured when the tag was last
+            // loaded must survive the scans these tests perform in between.
             await Admin.TransferOwnershipAsync(AdminId, Tag.Id, new AdminSmartTagTransferRequest
             {
                 NewOwnerUserId = OwnerBId,
                 NewPetId = PetBId,
-                ExpectedUpdatedAt = Tag.UpdatedAt,
+                ExpectedAssignmentVersion = Tag.AssignmentVersion,
                 Reason = "Verified ownership transfer",
             });
             await ReloadTagAsync();

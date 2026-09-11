@@ -19,6 +19,8 @@ type Props = {
   tag: AdminSmartTag;
 };
 
+type LoadState = "idle" | "loading" | "loaded" | "failed";
+
 const actionCopy: Record<AdminSmartTagAssignmentAction, { title: string; submit: string }> = {
   claim: { title: "Assign owner and pet", submit: "Confirm assignment" },
   "assign-pet": { title: "Assign pet", submit: "Assign pet" },
@@ -39,8 +41,21 @@ export function AdminSmartTagAssignmentDialog({ action, busy, error, onCancel, o
   const [petId, setPetId] = useState("");
   const [reason, setReason] = useState("");
   const [acknowledged, setAcknowledged] = useState(false);
-  const [loadingOwners, setLoadingOwners] = useState(false);
-  const [loadingPets, setLoadingPets] = useState(needsPet && !needsOwner && Boolean(tag.ownerId));
+  // A failed load and an empty result are different answers to the admin's
+  // question, so they are different states rather than both being an empty
+  // array. "idle" means there is nothing to load yet (no owner chosen).
+  const [ownersState, setOwnersState] = useState<LoadState>("idle");
+  const [petsState, setPetsState] = useState<LoadState>(
+    needsPet && !needsOwner && Boolean(tag.ownerId) ? "loading" : "idle"
+  );
+  const [reloadKey, setReloadKey] = useState(0);
+  const retry = () => {
+    // Move straight back to "loading" so the retry is visible rather than the
+    // failure text lingering until the request resolves.
+    if (ownersState === "failed") setOwnersState("loading");
+    if (petsState === "failed") setPetsState("loading");
+    setReloadKey((key) => key + 1);
+  };
 
   useModalDialogFocus({ dialogRef, initialFocusRef: cancelRef, onEscape: () => { if (!busy) onCancel(); } });
 
@@ -48,30 +63,38 @@ export function AdminSmartTagAssignmentDialog({ action, busy, error, onCancel, o
     if (!needsOwner) return;
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
-      setLoadingOwners(true);
+      setOwnersState("loading");
       listAdminOwners({ page: 1, pageSize: 20, search: ownerSearch || undefined, status: "Active", sortBy: "name", sortDir: "asc" }, controller.signal)
-        .then((result) => { if (!controller.signal.aborted) setOwners(result.items); })
-        .catch(() => { if (!controller.signal.aborted) setOwners([]); })
-        .finally(() => { if (!controller.signal.aborted) setLoadingOwners(false); });
+        .then((result) => {
+          if (controller.signal.aborted) return;
+          setOwners(result.items);
+          setOwnersState("loaded");
+        })
+        .catch(() => {
+          if (controller.signal.aborted) return;
+          setOwners([]);
+          setOwnersState("failed");
+        });
     }, 200);
     return () => { window.clearTimeout(timer); controller.abort(); };
-  }, [needsOwner, ownerSearch]);
+  }, [needsOwner, ownerSearch, reloadKey]);
 
   useEffect(() => {
-    if (!needsPet || !ownerId) {
-      return;
-    }
+    if (!needsPet || !ownerId) return;
     const controller = new AbortController();
     listAdminPetProfiles({ page: 1, pageSize: 100, ownerId, lifecycle: "Active", sortBy: "name", sortDir: "asc" }, controller.signal)
       .then((result) => {
-        if (!controller.signal.aborted) {
-          setPets(action === "change-pet" ? result.items.filter((pet) => pet.id !== tag.petId) : result.items);
-        }
+        if (controller.signal.aborted) return;
+        setPets(action === "change-pet" ? result.items.filter((pet) => pet.id !== tag.petId) : result.items);
+        setPetsState("loaded");
       })
-      .catch(() => { if (!controller.signal.aborted) setPets([]); })
-      .finally(() => { if (!controller.signal.aborted) setLoadingPets(false); });
+      .catch(() => {
+        if (controller.signal.aborted) return;
+        setPets([]);
+        setPetsState("failed");
+      });
     return () => controller.abort();
-  }, [action, needsPet, ownerId, tag.petId]);
+  }, [action, needsPet, ownerId, tag.petId, reloadKey]);
 
   const selectedOwner = owners.find((owner) => owner.ownerUserId === ownerId);
   const selectedPet = pets.find((pet) => pet.id === petId);
@@ -87,6 +110,15 @@ export function AdminSmartTagAssignmentDialog({ action, busy, error, onCancel, o
     action === "transfer" && !acknowledged ? "confirm you understand the impact" : null,
   ].filter((item): item is string => item !== null);
   const valid = missing.length === 0;
+
+  const ownerPlaceholder = ownersState === "loading"
+    ? "Loading owners…"
+    : ownersState === "failed" ? "Owners could not be loaded" : "Select an owner";
+  const petPlaceholder = !ownerId
+    ? "Select an owner first"
+    : petsState === "loading" ? "Loading pets…"
+      : petsState === "failed" ? "Pets could not be loaded"
+        : pets.length === 0 ? "No active pets" : "Select a pet";
 
   const impact = useMemo(() => {
     if (action === "unassign-pet") return "The owner keeps this tag, but its Physical Tag Scan Page will not open the previous pet's Safety Profile until another pet is assigned.";
@@ -120,21 +152,32 @@ export function AdminSmartTagAssignmentDialog({ action, busy, error, onCancel, o
                 <input className="min-h-11 rounded-xl border border-slate-300 px-3 font-medium outline-none focus:border-pet-teal" onChange={(event) => setOwnerSearch(event.target.value)} placeholder="Search name or email" value={ownerSearch} />
               </label>
               <label className="grid gap-1.5 text-sm font-bold text-slate-800">New owner
-                <select className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 font-medium outline-none focus:border-pet-teal" disabled={loadingOwners} onChange={(event) => { const nextOwnerId = event.target.value; setPetId(""); setPets([]); setLoadingPets(Boolean(nextOwnerId)); setOwnerId(nextOwnerId); }} value={ownerId}>
-                  <option value="">{loadingOwners ? "Loading owners…" : "Select an owner"}</option>
+                <select aria-describedby={ownersState === "failed" ? "smart-tag-owners-error" : undefined} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 font-medium outline-none focus:border-pet-teal" disabled={ownersState === "loading"} onChange={(event) => { const nextOwnerId = event.target.value; setPetId(""); setPets([]); setPetsState(nextOwnerId ? "loading" : "idle"); setOwnerId(nextOwnerId); }} value={ownerId}>
+                  <option value="">{ownerPlaceholder}</option>
                   {owners.filter((owner) => action !== "transfer" || owner.ownerUserId !== tag.ownerId).map((owner) => <option key={owner.ownerUserId} value={owner.ownerUserId}>{owner.displayName} · {owner.email}</option>)}
                 </select>
               </label>
+              {ownersState === "failed" ? (
+                <LoadFailure id="smart-tag-owners-error" message="Failed to load owners." onRetry={retry} />
+              ) : null}
             </>
           ) : null}
 
           {needsPet ? (
+            <>
             <label className="grid gap-1.5 text-sm font-bold text-slate-800">{action === "transfer" ? "New owner's pet" : "Pet"}
-              <select className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 font-medium outline-none focus:border-pet-teal" disabled={!ownerId || loadingPets} onChange={(event) => setPetId(event.target.value)} value={petId}>
-                <option value="">{loadingPets ? "Loading pets…" : ownerId ? "Select a pet" : "Select an owner first"}</option>
+              <select aria-describedby={petsState === "failed" ? "smart-tag-pets-error" : undefined} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 font-medium outline-none focus:border-pet-teal" disabled={!ownerId || petsState === "loading"} onChange={(event) => setPetId(event.target.value)} value={petId}>
+                <option value="">{petPlaceholder}</option>
                 {pets.map((pet) => <option key={pet.id} value={pet.id}>{pet.name} · {pet.species}{pet.breed ? ` · ${pet.breed}` : ""}</option>)}
               </select>
             </label>
+            {petsState === "failed" ? (
+              <LoadFailure id="smart-tag-pets-error" message="Failed to load pets for this owner." onRetry={retry} />
+            ) : null}
+            {petsState === "loaded" && pets.length === 0 ? (
+              <p className="text-sm font-semibold text-slate-600">This owner has no active pets.</p>
+            ) : null}
+            </>
           ) : null}
 
           {(requiresReason || action === "claim" || action === "change-pet") ? (
@@ -162,6 +205,18 @@ export function AdminSmartTagAssignmentDialog({ action, busy, error, onCancel, o
         </div>
       </div>
     </div>
+  );
+}
+
+/** Load failures are stated and recoverable, never shown as an empty list. */
+function LoadFailure({ id, message, onRetry }: { id: string; message: string; onRetry: () => void }) {
+  return (
+    <p className="flex flex-wrap items-center gap-2 rounded-xl bg-red-50 p-3 text-sm font-bold text-red-700" id={id} role="alert">
+      {message}
+      <button className="min-h-11 rounded-full border border-red-200 px-3 font-extrabold underline-offset-2 hover:underline" onClick={onRetry} type="button">
+        Try again
+      </button>
+    </p>
   );
 }
 

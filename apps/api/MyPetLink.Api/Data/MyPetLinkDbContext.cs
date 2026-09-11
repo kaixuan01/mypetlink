@@ -109,12 +109,14 @@ public sealed class MyPetLinkDbContext : DbContext
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         StampAuditableEntities();
+        AdvanceSmartTagAssignmentVersions();
         return base.SaveChangesAsync(cancellationToken);
     }
 
     public override int SaveChanges()
     {
         StampAuditableEntities();
+        AdvanceSmartTagAssignmentVersions();
         return base.SaveChanges();
     }
 
@@ -1145,6 +1147,69 @@ public sealed class MyPetLinkDbContext : DbContext
         });
     }
 
+    /// <summary>
+    /// The SmartTag fields the Admin assignment dialog shows and acts on. A
+    /// change to any of them makes an open dialog stale; a change to anything
+    /// else — a scan writing LastScannedAt, a fulfilment timestamp — does not.
+    /// </summary>
+    private static readonly string[] AssignmentStateProperties =
+    [
+        nameof(SmartTag.OwnerUserId),
+        nameof(SmartTag.PetId),
+        nameof(SmartTag.Status),
+        nameof(SmartTag.ActivatedAt),
+        nameof(SmartTag.ArchivedAt),
+        nameof(SmartTag.DeletedAt),
+    ];
+
+    /// <summary>
+    /// Advances SmartTag.AssignmentVersion when, and only when, assignment
+    /// state actually changes.
+    ///
+    /// This lives here rather than in the services because six of them write
+    /// these fields (Admin assignment and lifecycle, owner activation, order
+    /// fulfilment, reservation expiry, merchant shipping). A per-call-site
+    /// increment would drift the first time a new path is added; deriving it
+    /// from the property set cannot.
+    ///
+    /// Writes that bypass the change tracker — ExecuteUpdate in
+    /// AdminSmartTagService — set the column themselves, and are not tracked
+    /// here, so there is no double increment.
+    /// </summary>
+    private void AdvanceSmartTagAssignmentVersions()
+    {
+        foreach (var entry in ChangeTracker.Entries<SmartTag>())
+        {
+            if (entry.State != EntityState.Modified)
+            {
+                continue;
+            }
+
+            var changed = false;
+            foreach (var name in AssignmentStateProperties)
+            {
+                var property = entry.Property(name);
+                if (!property.IsModified)
+                {
+                    continue;
+                }
+
+                // IsModified alone is not enough: assigning the same value
+                // still marks a property modified, and that must not count.
+                if (!Equals(property.OriginalValue, property.CurrentValue))
+                {
+                    changed = true;
+                    break;
+                }
+            }
+
+            if (changed)
+            {
+                entry.Entity.AssignmentVersion++;
+            }
+        }
+    }
+
     private void StampAuditableEntities()
     {
         var now = _timeProvider.GetUtcNow();
@@ -1553,6 +1618,9 @@ public sealed class MyPetLinkDbContext : DbContext
                 .HasConversion<string>()
                 .HasMaxLength(32)
                 .HasDefaultValue(TagFulfilmentStatus.Generated);
+            // Existing rows start at 0, which is what any dialog opened before
+            // the column existed would have read anyway.
+            entity.Property(item => item.AssignmentVersion).HasDefaultValue(0);
             entity.Property(item => item.RowVersion).IsRowVersion();
             entity.HasIndex(item => item.TagCode).IsUnique();
             entity.HasIndex(item => item.OwnerUserId);
