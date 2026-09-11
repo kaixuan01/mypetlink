@@ -464,7 +464,7 @@ async function loadLocalRows(): Promise<AdminSmartTag[]> {
 }
 
 function localRow(tag: PetTag, pet?: Pet, order?: TagOrder): AdminSmartTag {
-  const createdAt = tag.orderedDate ?? tag.activatedAt ?? new Date(0).toISOString();
+  const createdAt = tag.generatedDate ?? tag.activatedAt ?? new Date(0).toISOString();
   return { id: tag.id, tagCode: tag.tagCode, hasNfc: tag.hasNfc, variant: tag.variant === "Lightweight" ? "Lightweight" : "Standard", status: tag.status,
     isArchived: Boolean(tag.isArchived), petId: tag.petId, petName: pet?.name, safetyCode: pet?.safetyCode,
     qrSafetyEnabled: pet?.qrSafetyEnabled ?? false, ownerId: tag.ownerUserId ?? pet?.ownerUserId, ownerName: pet?.owner.name,

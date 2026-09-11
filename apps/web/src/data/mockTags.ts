@@ -10,7 +10,7 @@ export const mockTags: PetTag[] = [
     variant: "Standard",
     status: "Active",
     batchNo: "BATCH-2026-04",
-    orderedDate: "02 May 2026",
+    generatedDate: "02 May 2026",
     deliveredDate: "06 May 2026",
     activatedAt: "07 May 2026",
     lastScannedAt: "21 Jun 2026",
@@ -24,7 +24,7 @@ export const mockTags: PetTag[] = [
     variant: "Lightweight",
     status: "Delivered",
     batchNo: "BATCH-2026-06",
-    orderedDate: "12 Jun 2026",
+    generatedDate: "12 Jun 2026",
     deliveredDate: "18 Jun 2026",
   },
   {
@@ -36,7 +36,7 @@ export const mockTags: PetTag[] = [
     variant: "Standard",
     status: "Preparing",
     batchNo: "BATCH-2026-06",
-    orderedDate: "20 Jun 2026",
+    generatedDate: "20 Jun 2026",
   },
   {
     id: "tag_004",
@@ -47,7 +47,7 @@ export const mockTags: PetTag[] = [
     variant: "Standard",
     status: "Replaced",
     batchNo: "BATCH-2025-01",
-    orderedDate: "04 Jan 2025",
+    generatedDate: "04 Jan 2025",
     deliveredDate: "09 Jan 2025",
     activatedAt: "10 Jan 2025",
     lastScannedAt: "14 Mar 2026",
@@ -70,7 +70,7 @@ export const mockTags: PetTag[] = [
     variant: "Standard",
     status: "Pending",
     batchNo: "BATCH-2026-07",
-    orderedDate: "24 Jun 2026",
+    generatedDate: "24 Jun 2026",
   },
   {
     id: "tag_007",
@@ -81,7 +81,7 @@ export const mockTags: PetTag[] = [
     variant: "Standard",
     status: "Pending",
     batchNo: "BATCH-2026-07",
-    orderedDate: "25 Jun 2026",
+    generatedDate: "25 Jun 2026",
   },
   {
     id: "tag_008",
@@ -92,6 +92,6 @@ export const mockTags: PetTag[] = [
     variant: "Standard",
     status: "Pending",
     batchNo: "BATCH-2026-07",
-    orderedDate: "26 Jun 2026",
+    generatedDate: "26 Jun 2026",
   },
 ];

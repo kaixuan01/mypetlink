@@ -29,6 +29,30 @@ internal static class TagDtoMapper
             tag.ArchivedAt);
     }
 
+    /// <summary>
+    /// Owner-facing projection of a Smart Tag.
+    ///
+    /// A tag keeps its OrderId through an ownership transfer, so the order it
+    /// points at can belong to a previous owner. Admins still need that history,
+    /// but the new owner must not be handed a reference to a stranger's order,
+    /// so the order is surfaced only when it belongs to this tag's own owner.
+    /// </summary>
+    public static SmartTagResponse ToOwnerSmartTagResponse(SmartTag tag)
+    {
+        // An ordered tag can still be unclaimed, in which case the pet it is
+        // reserved for carries the ownership.
+        var tagOwnerId = tag.OwnerUserId ?? tag.Pet?.OwnerUserId;
+        var ownOrder = tag.Order is not null
+            && tagOwnerId is not null
+            && tag.Order.OwnerUserId == tagOwnerId;
+
+        return ToSmartTagResponse(tag) with
+        {
+            OrderId = ownOrder ? tag.OrderId : null,
+            OrderNumber = ownOrder ? tag.Order!.OrderNumber : null,
+        };
+    }
+
     public static TagOrderResponse ToOrderResponse(
         TagOrder order,
         string? trackingUrl = null,

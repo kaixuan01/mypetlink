@@ -151,7 +151,7 @@ export function mapBackendTag(tag: BackendSmartTag): PetTag {
     variant: toTagVariant(tag.variant),
     status: fromBackendTagStatus(tag.status),
     batchNo: tag.batchNo ?? undefined,
-    orderedDate: formatDisplayDate(tag.createdAt),
+    generatedDate: formatDisplayDate(tag.createdAt),
     deliveredDate: formatDisplayDate(tag.deliveredAt),
     lastScannedAt: formatDisplayDateTime(tag.lastScannedAt),
     activatedAt: formatDisplayDate(tag.activatedAt),

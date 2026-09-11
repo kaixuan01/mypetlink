@@ -419,7 +419,14 @@ export type PetTag = {
   status: TagStatus;
   fulfilmentStatus?: TagFulfilmentStatus;
   batchNo?: string;
-  orderedDate?: string;
+  /**
+   * When the physical tag was produced into inventory — NOT when a customer
+   * ordered it. A tag reaches an owner through a direct order, a reseller, an
+   * admin assignment or a replacement, and only the first of those has a
+   * customer order date; that lives on TagOrder.orderedDate.
+   */
+  generatedDate?: string;
+  /** Set only when the owner's own MyPetLink order was marked delivered. */
   deliveredDate?: string;
   lastScannedAt?: string;
   activatedAt?: string;

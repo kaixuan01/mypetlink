@@ -509,13 +509,13 @@ export function buildRecentActivity(data: AdminData): {
   const recentTags = [...data.tags]
     .sort(
       (a, b) =>
-        parseDisplayDate(b.activatedAt ?? b.deliveredDate ?? b.orderedDate) -
-        parseDisplayDate(a.activatedAt ?? a.deliveredDate ?? a.orderedDate)
+        parseDisplayDate(b.activatedAt ?? b.deliveredDate ?? b.generatedDate) -
+        parseDisplayDate(a.activatedAt ?? a.deliveredDate ?? a.generatedDate)
     )
     .slice(0, 4)
     .map((tag) => ({
       id: `tag-${tag.id}`,
-      date: tag.activatedAt ?? tag.deliveredDate ?? tag.orderedDate ?? "",
+      date: tag.activatedAt ?? tag.deliveredDate ?? tag.generatedDate ?? "",
       title: tag.tagCode,
       detail: `${tag.petId ? petName(tag.petId) : "Unclaimed retail stock"} - ${
         tag.isArchived ? "Archived" : tag.status

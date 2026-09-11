@@ -391,7 +391,7 @@ export function AdminOrdersManager() {
           variant: tag.variant,
           status: "Unassigned",
           batchNo: tag.batchNo,
-          orderedDate: formatAdminDate(tag.generatedAt),
+          generatedDate: formatAdminDate(tag.generatedAt),
           }));
         setTagModal({ mode: action === "assign-tag" ? "assign" : action === "change-tag" ? "change" : "replace", detail, tags });
       } catch (caught) {

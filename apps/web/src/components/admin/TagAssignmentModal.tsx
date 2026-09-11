@@ -155,9 +155,9 @@ export function TagAssignmentModal({
                   Batch {currentTag.batchNo}
                 </span>
               ) : null}
-              {currentTag.orderedDate ? (
+              {currentTag.generatedDate ? (
                 <span className="text-xs font-semibold text-slate-500">
-                  Created {currentTag.orderedDate}
+                  Created {currentTag.generatedDate}
                 </span>
               ) : null}
             </div>
@@ -242,7 +242,7 @@ export function TagAssignmentModal({
                           <span className="mt-0.5 block text-xs font-semibold text-slate-500">
                             {getTagTypeLabel(tag.hasNfc)} · {tag.variant}
                             {tag.batchNo ? ` · Batch ${tag.batchNo}` : ""}
-                            {tag.orderedDate ? ` · ${tag.orderedDate}` : ""}
+                            {tag.generatedDate ? ` · ${tag.generatedDate}` : ""}
                           </span>
                         </span>
                         {selected ? <Badge tone="mint">Selected</Badge> : null}

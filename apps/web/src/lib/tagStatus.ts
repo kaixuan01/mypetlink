@@ -485,8 +485,8 @@ export function compareTagsForDisplay(
     return rankDiff;
   }
 
-  const dateA = a.activatedAt ?? a.deliveredDate ?? a.orderedDate ?? "";
-  const dateB = b.activatedAt ?? b.deliveredDate ?? b.orderedDate ?? "";
+  const dateA = a.activatedAt ?? a.deliveredDate ?? a.generatedDate ?? "";
+  const dateB = b.activatedAt ?? b.deliveredDate ?? b.generatedDate ?? "";
 
   return dateB.localeCompare(dateA) || a.tagCode.localeCompare(b.tagCode);
 }

@@ -49,7 +49,7 @@ public sealed class SmartTagService : SkeletonService, ISmartTagService
             .Take(pageSize)
             .ToListAsync(cancellationToken);
 
-        return (tags.Select(TagDtoMapper.ToSmartTagResponse).ToArray(), total);
+        return (tags.Select(TagDtoMapper.ToOwnerSmartTagResponse).ToArray(), total);
     }
 
     public async Task<(IReadOnlyCollection<SmartTagResponse> Items, int Total)> ListForPetAsync(
@@ -77,7 +77,7 @@ public sealed class SmartTagService : SkeletonService, ISmartTagService
         CancellationToken cancellationToken = default)
     {
         var tag = await LoadOwnedTagAsync(currentUserId, tagId, trackChanges: false, cancellationToken);
-        return TagDtoMapper.ToSmartTagResponse(tag);
+        return TagDtoMapper.ToOwnerSmartTagResponse(tag);
     }
 
     public async Task<SmartTagScanHistoryResponse> ListScansAsync(
@@ -194,7 +194,7 @@ public sealed class SmartTagService : SkeletonService, ISmartTagService
                 null, TagStateSnapshot(tag, "Retail activation"));
 
             await _dbContext.SaveChangesAsync(cancellationToken);
-            return TagDtoMapper.ToSmartTagResponse(tag);
+            return TagDtoMapper.ToOwnerSmartTagResponse(tag);
         }
 
         if (tag.OwnerUserId != userId)
@@ -220,7 +220,7 @@ public sealed class SmartTagService : SkeletonService, ISmartTagService
 
         if (tag.Status == SmartTagStatus.Active)
         {
-            return TagDtoMapper.ToSmartTagResponse(tag);
+            return TagDtoMapper.ToOwnerSmartTagResponse(tag);
         }
 
         if (tag.Status is not (SmartTagStatus.Pending or SmartTagStatus.Preparing or SmartTagStatus.Delivered))
@@ -243,7 +243,7 @@ public sealed class SmartTagService : SkeletonService, ISmartTagService
             null, TagStateSnapshot(tag, "Assigned portal tag activation"));
 
         await _dbContext.SaveChangesAsync(cancellationToken);
-        return TagDtoMapper.ToSmartTagResponse(tag);
+        return TagDtoMapper.ToOwnerSmartTagResponse(tag);
     }
 
     public async Task<SmartTagResponse> MarkLostAsync(
@@ -261,7 +261,7 @@ public sealed class SmartTagService : SkeletonService, ISmartTagService
         tag.Status = SmartTagStatus.Lost;
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        return TagDtoMapper.ToSmartTagResponse(tag);
+        return TagDtoMapper.ToOwnerSmartTagResponse(tag);
     }
 
     public async Task<SmartTagResponse> DisableAsync(
@@ -279,7 +279,7 @@ public sealed class SmartTagService : SkeletonService, ISmartTagService
         tag.Status = SmartTagStatus.Disabled;
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        return TagDtoMapper.ToSmartTagResponse(tag);
+        return TagDtoMapper.ToOwnerSmartTagResponse(tag);
     }
 
     public async Task<SmartTagResponse> ArchiveAsync(
@@ -297,7 +297,7 @@ public sealed class SmartTagService : SkeletonService, ISmartTagService
         tag.ArchivedAt ??= DateTimeOffset.UtcNow;
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        return TagDtoMapper.ToSmartTagResponse(tag);
+        return TagDtoMapper.ToOwnerSmartTagResponse(tag);
     }
 
     public async Task<SmartTagResponse> RestoreAsync(
@@ -315,7 +315,7 @@ public sealed class SmartTagService : SkeletonService, ISmartTagService
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        return TagDtoMapper.ToSmartTagResponse(tag);
+        return TagDtoMapper.ToOwnerSmartTagResponse(tag);
     }
 
     private IQueryable<SmartTag> OwnedTagsQuery(Guid userId)

@@ -43,7 +43,7 @@ function order(overrides: Partial<TagOrder> = {}): TagOrder {
     },
     estimatedPrice: "RM29.90",
     status: "Shipped",
-    orderedDate: "2026-07-20",
+    generatedDate: "2026-07-20",
     ...overrides,
   } as TagOrder;
 }

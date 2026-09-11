@@ -279,6 +279,52 @@ public sealed class AdminSmartTagOwnershipTests
         Assert.True(afterDisable.AssignmentVersion > afterActivation);
     }
 
+    [Fact]
+    public async Task TransferredTag_DoesNotCarryThePreviousOwnersOrderToTheNewOwner()
+    {
+        using var harness = await OwnershipHarness.CreateAsync();
+
+        // Owner A bought this tag through a MyPetLink order.
+        var order = new TagOrder
+        {
+            OrderNumber = "MPL-ORD-2026-0777",
+            OwnerUserId = OwnershipHarness.OwnerAId,
+            PetId = OwnershipHarness.PetAId,
+            TagType = TagType.QrNfcSmartTag,
+            Variant = "Standard",
+            Amount = 39.90m,
+            Currency = "MYR",
+            Status = OrderStatus.Delivered,
+            PaymentStatus = PaymentStatus.Confirmed,
+            RecipientName = "Owner A",
+            DeliveryPhoneE164 = "+60123456789",
+            AddressLine1 = "1 Jalan Pet",
+            Postcode = "50000",
+            City = "Kuala Lumpur",
+            State = "WP",
+        };
+        harness.Db.TagOrders.Add(order);
+        var tag = await harness.Db.SmartTags.SingleAsync(item => item.Id == harness.Tag.Id);
+        tag.OrderId = order.Id;
+        await harness.Db.SaveChangesAsync();
+
+        var beforeTransfer = await harness.Owner.GetAsync(OwnershipHarness.OwnerAId, harness.Tag.Id);
+        Assert.Equal(order.Id, beforeTransfer.OrderId);
+        Assert.Equal("MPL-ORD-2026-0777", beforeTransfer.OrderNumber);
+
+        await harness.TransferToOwnerBAsync();
+
+        // The tag row still points at Owner A's order — that history is real and
+        // admins keep it — but Owner B must not be told about it.
+        var stored = await harness.Db.SmartTags.AsNoTracking()
+            .SingleAsync(item => item.Id == harness.Tag.Id);
+        Assert.Equal(order.Id, stored.OrderId);
+
+        var afterTransfer = await harness.Owner.GetAsync(OwnershipHarness.OwnerBId, harness.Tag.Id);
+        Assert.Null(afterTransfer.OrderId);
+        Assert.Null(afterTransfer.OrderNumber);
+    }
+
     private static TagScanContext ScanContext() => new(null, null, null);
 
     private sealed class OwnershipHarness : IDisposable

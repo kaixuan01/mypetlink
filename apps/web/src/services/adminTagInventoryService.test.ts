@@ -28,7 +28,7 @@ function seedTags(): PetTag[] {
       status: "Unassigned",
       fulfilmentStatus: "Generated",
       batchNo: "BATCH-TEST-1",
-      orderedDate: "01 Jul 2026",
+      generatedDate: "01 Jul 2026",
     },
     {
       id: "inv_b",
@@ -38,7 +38,7 @@ function seedTags(): PetTag[] {
       status: "Unassigned",
       fulfilmentStatus: "Printed",
       batchNo: "BATCH-TEST-1",
-      orderedDate: "02 Jul 2026",
+      generatedDate: "02 Jul 2026",
     },
     {
       id: "inv_c",
@@ -48,7 +48,7 @@ function seedTags(): PetTag[] {
       status: "Unassigned",
       fulfilmentStatus: "Generated",
       batchNo: "BATCH-TEST-2",
-      orderedDate: "03 Jul 2026",
+      generatedDate: "03 Jul 2026",
       isArchived: true,
     },
     {
@@ -59,7 +59,7 @@ function seedTags(): PetTag[] {
       status: "Active",
       fulfilmentStatus: "Received",
       batchNo: "BATCH-TEST-2",
-      orderedDate: "04 Jul 2026",
+      generatedDate: "04 Jul 2026",
       petId: "pet_milo",
     },
   ];

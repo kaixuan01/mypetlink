@@ -530,11 +530,19 @@ function TagCard({
   const scanUrl = toAbsoluteUrl(scanPath, base);
   const codeLabel =
     isPending || tag.status === "Unassigned" ? "Reserved tag code" : "Tag code";
+  // Commerce rows belong to the owner's own MyPetLink order and nothing else.
+  // `order` is matched against the orders this owner can see, so it is present
+  // only for a tag they actually bought here. A tag that arrived through a
+  // reseller, an admin assignment or an operational replacement has no such
+  // order, and showing it a generation date as "Ordered date" or an empty
+  // delivery as "Not delivered yet" would describe events that never happened
+  // to this owner.
   const detailItems = [
     ["Linked pet", linkedPet?.name ?? "Not linked yet"],
     order ? ["Order", formatOrderNumber(order)] : null,
-    ["Ordered date", tag.orderedDate ?? "Not ordered yet"],
-    ["Delivered date", tag.deliveredDate ?? "Not delivered yet"],
+    order ? ["Ordered date", order.orderedDate] : null,
+    order ? ["Delivered date", tag.deliveredDate ?? "Not delivered yet"] : null,
+    tag.activatedAt ? ["Activated date", tag.activatedAt] : null,
     [scanDisplay.label, scanDisplay.value],
   ].filter((item): item is [string, string] => Boolean(item));
 
