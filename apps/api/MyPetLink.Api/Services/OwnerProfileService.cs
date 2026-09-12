@@ -201,7 +201,8 @@ public sealed class OwnerProfileService : SkeletonService, IOwnerProfileService
                 ownerProfile.Plan.Limit?.MaxPets ?? 0,
                 ownerProfile.Plan.Limit?.MaxMemoriesPerPet ?? 0,
                 ownerProfile.Plan.Limit?.MaxMediaPerMemory ?? 0,
-                ownerProfile.Plan.Limit?.MaxCareRecords ?? 0),
+                ownerProfile.Plan.Limit?.MaxCareRecords ?? 0,
+                ownerProfile.Plan.Limit?.ScanHistoryDays ?? 0),
             ownerProfile.CreatedAt,
             ownerProfile.UpdatedAt);
     }

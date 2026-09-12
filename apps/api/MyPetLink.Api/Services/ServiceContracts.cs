@@ -313,6 +313,8 @@ public interface ISmartTagService : ISkeletonService
         Guid? currentUserId,
         Guid tagId,
         string? source,
+        int page = 1,
+        int pageSize = 20,
         CancellationToken cancellationToken = default);
 
     Task<SmartTagResponse> ActivateAsync(

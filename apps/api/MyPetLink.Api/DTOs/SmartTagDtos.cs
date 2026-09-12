@@ -22,7 +22,10 @@ public sealed record SmartTagResponse(
     DateTimeOffset? DeliveredAt,
     DateTimeOffset? LastScannedAt,
     Guid? ReplacementForTagId,
-    DateTimeOffset? ArchivedAt);
+    DateTimeOffset? ArchivedAt,
+    TagScanSource? LastScanSource = null,
+    int QrScansLast30Days = 0,
+    int NfcTapsLast30Days = 0);
 
 public sealed record SmartTagScanResponse(
     Guid Id,
@@ -38,4 +41,7 @@ public sealed record SmartTagScanHistoryResponse(
     int Total,
     int QrScans,
     int NfcTaps,
-    int LegacyOrUnknown);
+    int LegacyOrUnknown,
+    int Page,
+    int PageSize,
+    bool HasMore);

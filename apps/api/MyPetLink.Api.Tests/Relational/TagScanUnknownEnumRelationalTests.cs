@@ -30,6 +30,17 @@ public sealed class TagScanUnknownEnumRelationalTests
         await using (var arrange = scope.NewContext())
         {
             var owner = User("future-owner@example.com", "Future Owner");
+            var premiumPlan = await arrange.Plans
+                .Include(plan => plan.Limit)
+                .SingleAsync(plan => plan.Code == "Premium");
+            owner.OwnerProfile = new OwnerProfile
+            {
+                User = owner,
+                UserId = owner.Id,
+                Plan = premiumPlan,
+                PlanId = premiumPlan.Id,
+                OwnerDisplayName = owner.DisplayName
+            };
             var admin = User("future-admin@example.com", "Future Admin");
             admin.AdminUser = new AdminUser
             {
@@ -96,6 +107,13 @@ public sealed class TagScanUnknownEnumRelationalTests
                 ownerId,
                 tagId,
                 "unknown");
+            var (ownerTags, _) = await ownerService.ListAsync(
+                ownerId,
+                1,
+                20,
+                null,
+                null,
+                null);
             var adminHistory = await adminService.ListScansAsync(
                 adminId,
                 tagId,
@@ -116,6 +134,10 @@ public sealed class TagScanUnknownEnumRelationalTests
                     Assert.Equal(TagScanResolvedState.Unknown, item.ResolvedState);
                 });
             Assert.Equal(2, ownerUnknownFilter.Items.Count);
+            var ownerTag = Assert.Single(ownerTags);
+            Assert.Null(ownerTag.LastScanSource);
+            Assert.Equal(0, ownerTag.QrScansLast30Days);
+            Assert.Equal(0, ownerTag.NfcTapsLast30Days);
             Assert.All(
                 adminHistory,
                 item =>

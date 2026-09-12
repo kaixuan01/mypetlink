@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
 import { SegmentedTabs, type SegmentedTab } from "@/components/ui/SegmentedTabs";
 import { SmartTagsComingSoon } from "@/components/portal/SmartTagsComingSoon";
+import { TagScanHistoryDialog } from "@/components/portal/TagScanHistoryDialog";
 import { smartTagOrderingEnabled } from "@/lib/features";
 import { AnalyticsEvent, trackEvent } from "@/lib/analytics";
 import { formatOrderNumber } from "@/lib/orders";
@@ -21,11 +22,6 @@ import {
 } from "@/lib/petLifecycle";
 import { ownerRoutes, tagNfcPath, tagQrPath } from "@/lib/routes";
 import { getEnvBaseUrl, getSiteBaseUrl, toAbsoluteUrl } from "@/lib/siteUrl";
-import {
-  formatTagScanDateTime,
-  tagScanSourceLabel,
-  tagScanSourceOptions,
-} from "@/lib/tagScanSource";
 import {
   compareTagsForDisplay,
   getTagAvailableActions,
@@ -41,6 +37,7 @@ import {
   type TagFilter,
 } from "@/lib/tagStatus";
 import { getPets } from "@/services/petService";
+import { getOwnerPlanSummary } from "@/services/ownerProfileService";
 import {
   archiveTag,
   disableTag,
@@ -48,7 +45,6 @@ import {
   getAllTags,
   getOrders,
   getPetTags,
-  getTagScanHistory,
   reportTagLost,
   restoreTag,
 } from "@/services/tagService";
@@ -57,8 +53,6 @@ import type {
   PetListItem,
   PetTag,
   TagOrder,
-  TagScanHistory,
-  TagScanSource,
   TagStatus,
 } from "@/types";
 
@@ -108,6 +102,7 @@ export function TagManagementPanel({
   const [filter, setFilter] = useState<TagFilter>("active");
   const [loading, setLoading] = useState(apiMode);
   const [loadError, setLoadError] = useState("");
+  const [scanHistoryDays, setScanHistoryDays] = useState(0);
   const [actionError, setActionError] = useState("");
   // "" means "All pets". On a pet-scoped route (petId set) we default to that
   // pet; changing the selector there navigates instead of cross-filtering.
@@ -190,16 +185,20 @@ export function TagManagementPanel({
 
       try {
         const tagRequest = petId ? getPetTags(petId) : getAllTags();
-        const [tagResponse, orderResponse, petsResponse] = await Promise.all([
-          tagRequest,
-          getOrders(),
-          getPets(),
-        ]);
+        const planRequest = apiMode ? getOwnerPlanSummary() : Promise.resolve(null);
+        const [tagResponse, orderResponse, petsResponse, planSummary] =
+          await Promise.all([
+            tagRequest,
+            getOrders(),
+            getPets(),
+            planRequest,
+          ]);
 
         if (active) {
           setTags(tagResponse.data);
           setOrders(orderResponse.data);
           setPets(petsResponse.data);
+          setScanHistoryDays(planSummary?.scanHistoryDays ?? 0);
         }
       } catch (caught) {
         if (active) {
@@ -217,7 +216,7 @@ export function TagManagementPanel({
     return () => {
       active = false;
     };
-  }, [petId]);
+  }, [apiMode, petId]);
 
   async function handleDisable() {
     if (!disableTagTarget) {
@@ -296,7 +295,16 @@ export function TagManagementPanel({
 
   function replaceTag(updatedTag: PetTag) {
     setTags((current) =>
-      current.map((tag) => (tag.id === updatedTag.id ? updatedTag : tag))
+      current.map((tag) =>
+        tag.id === updatedTag.id
+          ? {
+              ...updatedTag,
+              lastScanSource: tag.lastScanSource,
+              qrScansLast30Days: tag.qrScansLast30Days,
+              nfcTapsLast30Days: tag.nfcTapsLast30Days,
+            }
+          : tag
+      )
     );
   }
 
@@ -420,6 +428,7 @@ export function TagManagementPanel({
               onReportLost={() => setLostTag(tag)}
               onRestore={() => handleRestore(tag)}
               order={getTagOrder(tag, orders)}
+              scanHistoryDays={scanHistoryDays}
               tag={tag}
             />
           ))}
@@ -493,6 +502,7 @@ function TagCard({
   onReportLost,
   onRestore,
   order,
+  scanHistoryDays,
   tag,
 }: {
   linkedPet?: PetListItem;
@@ -501,15 +511,12 @@ function TagCard({
   onReportLost: () => void;
   onRestore: () => void;
   order?: TagOrder;
+  scanHistoryDays: number;
   tag: PetTag;
 }) {
   const base = useSyncExternalStore(subscribeNoop, getSiteBaseUrl, getEnvBaseUrl);
   const [copyStatus, setCopyStatus] = useState("");
   const [showScanHistory, setShowScanHistory] = useState(false);
-  const [scanSource, setScanSource] = useState<TagScanSource | "">("");
-  const [scanHistory, setScanHistory] = useState<TagScanHistory | null>(null);
-  const [scanHistoryError, setScanHistoryError] = useState("");
-  const [scanHistoryLoading, setScanHistoryLoading] = useState(false);
   const productName = tag.hasNfc
     ? "MyPetLink QR + NFC Smart Tag"
     : "MyPetLink QR Pet Tag";
@@ -543,32 +550,10 @@ function TagCard({
     order ? ["Ordered date", order.orderedDate] : null,
     order ? ["Delivered date", tag.deliveredDate ?? "Not delivered yet"] : null,
     tag.activatedAt ? ["Activated date", tag.activatedAt] : null,
-    [scanDisplay.label, scanDisplay.value],
   ].filter((item): item is [string, string] => Boolean(item));
-
-  useEffect(() => {
-    if (!showScanHistory) return;
-
-    let active = true;
-
-    getTagScanHistory(tag.id, scanSource || undefined)
-      .then((history) => {
-        if (active) setScanHistory(history);
-      })
-      .catch((caught) => {
-        if (active) {
-          setScanHistoryError(getFriendlyTagErrorMessage(caught));
-          setScanHistory(null);
-        }
-      })
-      .finally(() => {
-        if (active) setScanHistoryLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [scanSource, showScanHistory, tag.id]);
+  const hasFullScanHistory = scanHistoryDays > 0;
+  const recentQrScans = tag.qrScansLast30Days ?? 0;
+  const recentNfcTaps = tag.nfcTapsLast30Days ?? 0;
 
   return (
     <article className="brand-card rounded-[1.75rem] p-5" key={tag.id}>
@@ -663,112 +648,83 @@ function TagCard({
         </div>
       ) : null}
 
-      <section className="mt-4 rounded-[1.25rem] border border-pet-border bg-white p-4">
+      <section
+        aria-labelledby={`tag-activity-${tag.id}`}
+        className="mt-4 rounded-[1.25rem] border border-pet-border bg-white p-4"
+      >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 className="font-black text-pet-ink">Scan history</h3>
+            <h3
+              className="font-black text-pet-ink"
+              id={`tag-activity-${tag.id}`}
+            >
+              Tag activity
+            </h3>
             <p className="text-xs font-semibold text-pet-muted">
-              {tag.hasNfc
-                ? "See whether this tag was opened by QR, NFC, or a legacy link."
-                : "See whether this tag was opened by QR or a legacy link."}
+              Basic scan status stays available on every plan.
             </p>
           </div>
+        </div>
+        <dl className="mt-4 grid grid-cols-2 gap-3">
+          <div className="rounded-[1rem] bg-pet-cream px-4 py-3">
+            <dt className="text-xs font-bold uppercase text-pet-muted">
+              Last scanned
+            </dt>
+            <dd className="mt-1 text-sm font-black text-pet-ink">
+              {scanDisplay.value}
+              {tag.lastScanSource === "Qr"
+                ? " · QR"
+                : tag.lastScanSource === "Nfc"
+                  ? " · NFC"
+                  : ""}
+            </dd>
+          </div>
+          <div className="rounded-[1rem] bg-pet-cream px-4 py-3">
+            <dt className="text-xs font-bold uppercase text-pet-muted">
+              30-day activity
+            </dt>
+            <dd className="mt-1 text-sm font-black text-pet-ink">
+              {tag.hasNfc
+                ? `${recentQrScans} QR · ${recentNfcTaps} NFC`
+                : `${recentQrScans} QR`}
+            </dd>
+          </div>
+        </dl>
+        {hasFullScanHistory ? (
           <button
-            className="min-h-11 rounded-full border border-pet-border px-4 text-sm font-bold text-pet-ink"
-            onClick={() => {
-              const nextVisible = !showScanHistory;
-              if (nextVisible) {
-                setScanHistoryLoading(true);
-                setScanHistoryError("");
-              }
-              setShowScanHistory(nextVisible);
-            }}
+            className="mt-4 min-h-11 rounded-full border border-pet-border px-4 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
+            onClick={() => setShowScanHistory(true)}
             type="button"
           >
-            {showScanHistory ? "Hide history" : "View history"}
+            View Scan History
           </button>
-        </div>
-        {showScanHistory ? (
-          <div className="mt-4 grid gap-3">
-            <label className="grid gap-1 text-xs font-bold text-pet-muted">
-              Scan source
-              <select
-                className="min-h-11 rounded-xl border border-pet-border bg-white px-3 text-sm font-semibold text-pet-ink"
-                onChange={(event) => {
-                  setScanSource(event.target.value as TagScanSource | "");
-                  setScanHistoryLoading(true);
-                  setScanHistoryError("");
-                }}
-                value={scanSource}
-              >
-                {tagScanSourceOptions
-                  .filter((option) => tag.hasNfc || option.value !== "Nfc")
-                  .map((option) => (
-                  <option key={option.value || "all"} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {scanHistory ? (
-              <div className={`grid gap-2 text-center text-xs font-bold text-pet-muted ${tag.hasNfc ? "grid-cols-3" : "grid-cols-2"}`}>
-                <span className="rounded-xl bg-pet-cream p-2">
-                  QR {scanHistory.qrScans}
-                </span>
-                {tag.hasNfc ? (
-                  <span className="rounded-xl bg-pet-cream p-2">
-                    NFC {scanHistory.nfcTaps}
-                  </span>
-                ) : null}
-                <span className="rounded-xl bg-pet-cream p-2">
-                  Legacy {scanHistory.legacyOrUnknown}
-                </span>
-              </div>
-            ) : null}
-            {scanHistoryLoading ? (
-              <p className="text-sm font-semibold text-pet-muted">
-                Loading scan history…
-              </p>
-            ) : scanHistoryError ? (
-              <p className="text-sm font-semibold text-[#a63c2e]" role="alert">
-                {scanHistoryError}
-              </p>
-            ) : !scanHistory?.items.length ? (
-              <p className="text-sm font-semibold text-pet-muted">
-                No scans match this source.
-              </p>
-            ) : (
-              <ol className="grid gap-2">
-                {scanHistory.items.map((scan) => (
-                  <li
-                    className="rounded-xl bg-pet-cream px-3 py-2 text-sm"
-                    key={scan.id}
-                  >
-                    <div className="flex flex-wrap justify-between gap-2">
-                      <span className="font-black text-pet-ink">
-                        {tagScanSourceLabel(scan.scanSource)}
-                      </span>
-                      <time
-                        className="font-semibold text-pet-muted"
-                        dateTime={scan.scannedAt}
-                      >
-                        {formatTagScanDateTime(scan.scannedAt)}
-                      </time>
-                    </div>
-                    {scan.city || scan.country || scan.deviceType ? (
-                      <p className="mt-1 text-xs font-semibold text-pet-muted">
-                        {[scan.city, scan.country, scan.deviceType]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </p>
-                    ) : null}
-                  </li>
-                ))}
-              </ol>
-            )}
+        ) : (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <p className="max-w-md text-xs font-semibold leading-5 text-pet-muted">
+              Full scan history and activity insights are available with
+              MyPetLink Premium. Premium is coming soon.
+            </p>
+            <button
+              aria-label="View Scan History — Premium coming soon"
+              className="min-h-11 cursor-not-allowed rounded-full border border-pet-border bg-pet-cream px-4 text-sm font-bold text-pet-muted"
+              disabled
+              type="button"
+            >
+              View Scan History · Premium
+            </button>
           </div>
-        ) : null}
+        )}
       </section>
+
+      {hasFullScanHistory ? (
+        <TagScanHistoryDialog
+          hasNfc={tag.hasNfc}
+          onRequestClose={() => setShowScanHistory(false)}
+          open={showScanHistory}
+          tagCode={tag.tagCode}
+          tagId={tag.id}
+        />
+      ) : null}
 
       {linkedToInactivePet && isMemorialPet(linkedPet) ? (
         <p className="mt-4 rounded-[1rem] bg-pet-cream px-4 py-3 text-xs font-bold leading-5 text-pet-muted">

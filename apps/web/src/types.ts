@@ -429,6 +429,9 @@ export type PetTag = {
   /** Set only when the owner's own MyPetLink order was marked delivered. */
   deliveredDate?: string;
   lastScannedAt?: string;
+  lastScanSource?: TagScanSource;
+  qrScansLast30Days?: number;
+  nfcTapsLast30Days?: number;
   activatedAt?: string;
   replacementForTagId?: string;
   isArchived?: boolean;
@@ -453,6 +456,9 @@ export type TagScanHistory = {
   qrScans: number;
   nfcTaps: number;
   legacyOrUnknown: number;
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
 };
 
 export type DeliveryDetails = {

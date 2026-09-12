@@ -77,6 +77,7 @@ public sealed class SmartTagsController : ApiControllerBase
     [HttpGet("tags/{tagId:guid}/scans")]
     public async Task<IActionResult> ListScans(
         Guid tagId,
+        [FromQuery] PagedQuery query,
         [FromQuery] string? source,
         CancellationToken cancellationToken)
     {
@@ -84,10 +85,19 @@ public sealed class SmartTagsController : ApiControllerBase
             _currentUserService.Current.UserId,
             tagId,
             source,
+            query.Page,
+            query.PageSize,
             cancellationToken);
 
         return Ok(ApiEnvelope.Ok(response, HttpContext));
     }
+
+    [NonAction]
+    public Task<IActionResult> ListScans(
+        Guid tagId,
+        string? source,
+        CancellationToken cancellationToken) =>
+        ListScans(tagId, new PagedQuery(), source, cancellationToken);
 
     [HttpPost("tags/{tagCode}/activate")]
     [EnableRateLimiting(SmartTagRateLimitPolicies.TagActivation)]

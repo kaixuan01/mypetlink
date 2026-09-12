@@ -10,11 +10,16 @@ public sealed class SmartTagService : SkeletonService, ISmartTagService
 {
     private readonly MyPetLinkDbContext _dbContext;
     private readonly IAuditLogService _auditLogService;
+    private readonly TimeProvider _timeProvider;
 
-    public SmartTagService(MyPetLinkDbContext dbContext, IAuditLogService auditLogService)
+    public SmartTagService(
+        MyPetLinkDbContext dbContext,
+        IAuditLogService auditLogService,
+        TimeProvider? timeProvider = null)
     {
         _dbContext = dbContext;
         _auditLogService = auditLogService;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public async Task<(IReadOnlyCollection<SmartTagResponse> Items, int Total)> ListAsync(
@@ -48,8 +53,11 @@ public sealed class SmartTagService : SkeletonService, ISmartTagService
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken);
+        var activity = await LoadTagActivityAsync(tags.Select(tag => tag.Id), cancellationToken);
 
-        return (tags.Select(TagDtoMapper.ToOwnerSmartTagResponse).ToArray(), total);
+        return (
+            tags.Select(tag => ToOwnerResponse(tag, activity.GetValueOrDefault(tag.Id))).ToArray(),
+            total);
     }
 
     public async Task<(IReadOnlyCollection<SmartTagResponse> Items, int Total)> ListForPetAsync(
@@ -77,18 +85,39 @@ public sealed class SmartTagService : SkeletonService, ISmartTagService
         CancellationToken cancellationToken = default)
     {
         var tag = await LoadOwnedTagAsync(currentUserId, tagId, trackChanges: false, cancellationToken);
-        return TagDtoMapper.ToOwnerSmartTagResponse(tag);
+        var activity = await LoadTagActivityAsync([tag.Id], cancellationToken);
+        return ToOwnerResponse(tag, activity.GetValueOrDefault(tag.Id));
     }
 
     public async Task<SmartTagScanHistoryResponse> ListScansAsync(
         Guid? currentUserId,
         Guid tagId,
         string? source,
+        int page = 1,
+        int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
-        await LoadOwnedTagAsync(currentUserId, tagId, trackChanges: false, cancellationToken);
+        var userId = RequireUserId(currentUserId);
+        await LoadOwnedTagAsync(userId, tagId, trackChanges: false, cancellationToken);
+        var scanHistoryDays = await _dbContext.OwnerProfiles
+            .AsNoTracking()
+            .Where(profile => profile.UserId == userId && profile.ArchivedAt == null)
+            .Select(profile => profile.Plan.Limit == null
+                ? 0
+                : profile.Plan.Limit.ScanHistoryDays)
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (scanHistoryDays <= 0)
+        {
+            throw new ApiException(
+                StatusCodes.Status403Forbidden,
+                "premium_feature_required",
+                "Full Smart Tag scan history is available with MyPetLink Premium.");
+        }
+
+        var historyCutoff = _timeProvider.GetUtcNow().AddDays(-scanHistoryDays);
         var allScans = _dbContext.TagScans.AsNoTracking()
-            .Where(scan => scan.SmartTagId == tagId);
+            .Where(scan => scan.SmartTagId == tagId && scan.ScanTime >= historyCutoff);
         var sourceFilter = ParseScanSource(source);
         var filtered = sourceFilter switch
         {
@@ -112,27 +141,37 @@ public sealed class SmartTagService : SkeletonService, ISmartTagService
                     && scan.Source != TagScanSource.Nfc)
             })
             .SingleOrDefaultAsync(cancellationToken);
+        var filteredTotal = await filtered.CountAsync(cancellationToken);
+        var offset = (long)(page - 1) * pageSize;
 
-        var items = await filtered
-            .OrderByDescending(scan => scan.ScanTime)
-            .ThenByDescending(scan => scan.Id)
-            .Take(50)
-            .Select(scan => new SmartTagScanResponse(
-                scan.Id,
-                scan.Source,
-                scan.ResolvedState,
-                scan.ScanTime,
-                scan.City,
-                scan.Country,
-                scan.DeviceType))
-            .ToArrayAsync(cancellationToken);
+        SmartTagScanResponse[] items = offset >= filteredTotal
+            ? []
+            : await filtered
+                .OrderByDescending(scan => scan.ScanTime)
+                .ThenByDescending(scan => scan.Id)
+                .Skip((int)offset)
+                .Take(pageSize)
+                .Select(scan => new SmartTagScanResponse(
+                    scan.Id,
+                    scan.Source,
+                    scan.ResolvedState,
+                    scan.ScanTime,
+                    // Finder-location reporting is a separate consented capability.
+                    // Full scan history deliberately exposes no location or device data.
+                    null,
+                    null,
+                    null))
+                .ToArrayAsync(cancellationToken);
 
         return new SmartTagScanHistoryResponse(
             items,
-            counts?.Total ?? 0,
+            filteredTotal,
             counts?.Qr ?? 0,
             counts?.Nfc ?? 0,
-            counts?.LegacyOrUnknown ?? 0);
+            counts?.LegacyOrUnknown ?? 0,
+            page,
+            pageSize,
+            offset + items.Length < filteredTotal);
     }
 
     public async Task<SmartTagResponse> ActivateAsync(
@@ -324,6 +363,72 @@ public sealed class SmartTagService : SkeletonService, ISmartTagService
             tag.DeletedAt == null
             && (tag.OwnerUserId == userId || (tag.Pet != null && tag.Pet.OwnerUserId == userId)));
     }
+
+    private async Task<IReadOnlyDictionary<Guid, OwnerTagActivity>> LoadTagActivityAsync(
+        IEnumerable<Guid> tagIds,
+        CancellationToken cancellationToken)
+    {
+        var ids = tagIds.Distinct().ToArray();
+        if (ids.Length == 0)
+        {
+            return new Dictionary<Guid, OwnerTagActivity>();
+        }
+
+        var latest = await _dbContext.TagScans
+            .AsNoTracking()
+            .Where(scan => scan.SmartTagId.HasValue && ids.Contains(scan.SmartTagId.Value))
+            .GroupBy(scan => scan.SmartTagId!.Value)
+            .Select(group => group
+                .OrderByDescending(scan => scan.ScanTime)
+                .ThenByDescending(scan => scan.Id)
+                .Select(scan => new { TagId = scan.SmartTagId!.Value, scan.Source })
+                .First())
+            .ToArrayAsync(cancellationToken);
+
+        var recentCutoff = _timeProvider.GetUtcNow().AddDays(-30);
+        var recentCounts = await _dbContext.TagScans
+            .AsNoTracking()
+            .Where(scan => scan.SmartTagId.HasValue
+                && ids.Contains(scan.SmartTagId.Value)
+                && scan.ScanTime >= recentCutoff
+                && (scan.Source == TagScanSource.Qr || scan.Source == TagScanSource.Nfc))
+            .GroupBy(scan => new { TagId = scan.SmartTagId!.Value, scan.Source })
+            .Select(group => new
+            {
+                group.Key.TagId,
+                group.Key.Source,
+                Count = group.Count()
+            })
+            .ToArrayAsync(cancellationToken);
+
+        return ids.ToDictionary(
+            tagId => tagId,
+            tagId =>
+            {
+                var latestSource = latest.FirstOrDefault(item => item.TagId == tagId)?.Source;
+                return new OwnerTagActivity(
+                    latestSource is TagScanSource.Qr or TagScanSource.Nfc ? latestSource : null,
+                    recentCounts.FirstOrDefault(item =>
+                        item.TagId == tagId && item.Source == TagScanSource.Qr)?.Count ?? 0,
+                    recentCounts.FirstOrDefault(item =>
+                        item.TagId == tagId && item.Source == TagScanSource.Nfc)?.Count ?? 0);
+            });
+    }
+
+    private static SmartTagResponse ToOwnerResponse(SmartTag tag, OwnerTagActivity? activity)
+    {
+        return TagDtoMapper.ToOwnerSmartTagResponse(tag) with
+        {
+            LastScanSource = activity?.LastScanSource,
+            QrScansLast30Days = activity?.QrScansLast30Days ?? 0,
+            NfcTapsLast30Days = activity?.NfcTapsLast30Days ?? 0
+        };
+    }
+
+    private sealed record OwnerTagActivity(
+        TagScanSource? LastScanSource,
+        int QrScansLast30Days,
+        int NfcTapsLast30Days);
 
     private static IQueryable<SmartTag> IncludeTagResponseGraph(IQueryable<SmartTag> query)
     {

@@ -67,9 +67,10 @@ export type BackendOwnerProfile = {
     name: string;
     status: string;
     maxPets: number;
-    maxMemoriesPerPet: number;
-    maxMediaPerMemory: number;
-    maxCareRecords: number;
+      maxMemoriesPerPet: number;
+      maxMediaPerMemory: number;
+      maxCareRecords: number;
+      scanHistoryDays?: number;
   } | null;
   createdAt: string;
   updatedAt: string;
@@ -405,7 +406,10 @@ export type BackendSmartTag = {
   updatedAt: string;
   activatedAt?: string | null;
   deliveredAt?: string | null;
-  lastScannedAt?: string | null;
+    lastScannedAt?: string | null;
+    lastScanSource?: "Qr" | "Nfc" | "Legacy" | "Unknown" | null;
+    qrScansLast30Days?: number;
+    nfcTapsLast30Days?: number;
   replacementForTagId?: string | null;
   archivedAt?: string | null;
 };

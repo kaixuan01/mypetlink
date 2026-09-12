@@ -96,6 +96,7 @@ export type OwnerPlanSummary = {
   planStatus: string;
   maxPets: number;
   maxMemoriesPerPet: number;
+  scanHistoryDays: number;
 };
 
 // The owner's current plan and enforced limits — the same values the service
@@ -113,6 +114,7 @@ export async function getOwnerPlanSummary(): Promise<OwnerPlanSummary> {
         planStatus: response.data?.plan?.status ?? "Available",
         maxPets: limits.maxPets,
         maxMemoriesPerPet: limits.maxMemoriesPerPet,
+        scanHistoryDays: response.data?.plan?.scanHistoryDays ?? 0,
       };
     } catch {
       // Fall through to the last adopted (or baseline) limits below.
@@ -125,6 +127,7 @@ export async function getOwnerPlanSummary(): Promise<OwnerPlanSummary> {
     planStatus: "Available",
     maxPets: limits.maxPets,
     maxMemoriesPerPet: limits.maxMemoriesPerPet,
+    scanHistoryDays: 0,
   };
 }
 

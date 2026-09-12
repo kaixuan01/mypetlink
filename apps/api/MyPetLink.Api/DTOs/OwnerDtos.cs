@@ -19,7 +19,8 @@ public sealed record OwnerPlanSummaryResponse(
     int MaxPets,
     int MaxMemoriesPerPet,
     int MaxMediaPerMemory,
-    int MaxCareRecords);
+    int MaxCareRecords,
+    int ScanHistoryDays);
 
 public sealed record OwnerProfileResponse(
     Guid UserId,

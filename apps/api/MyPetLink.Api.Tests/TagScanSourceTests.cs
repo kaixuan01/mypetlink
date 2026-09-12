@@ -254,6 +254,7 @@ public sealed class TagScanSourceTests
             DisplayName = "History Owner",
             Status = UserStatus.Active,
         };
+        var premiumPlan = OwnerPlan(owner, "Premium", 365);
         var tag = new SmartTag
         {
             TagCode = "MPL-HISTORY-01",
@@ -263,7 +264,7 @@ public sealed class TagScanSourceTests
             OwnerUser = owner,
             OwnerUserId = owner.Id,
         };
-        db.AddRange(owner, tag);
+        db.AddRange(premiumPlan, owner, tag);
         db.TagScans.AddRange(
             Scan(tag, TagScanSource.Qr),
             Scan(tag, TagScanSource.Nfc),
@@ -278,7 +279,7 @@ public sealed class TagScanSourceTests
 
         Assert.Single(nfc.Items);
         Assert.Equal(TagScanSource.Nfc, nfc.Items.Single().ScanSource);
-        Assert.Equal(4, nfc.Total);
+        Assert.Equal(1, nfc.Total);
         Assert.Equal(1, nfc.QrScans);
         Assert.Equal(1, nfc.NfcTaps);
         Assert.Equal(2, nfc.LegacyOrUnknown);
@@ -306,6 +307,25 @@ public sealed class TagScanSourceTests
             ResolvedState = TagScanResolvedState.Active,
             ScanTime = DateTimeOffset.UtcNow,
         };
+
+    private static Plan OwnerPlan(User owner, string code, int scanHistoryDays)
+    {
+        var plan = new Plan
+        {
+            Code = code,
+            Name = $"{code} Plan",
+            Limit = new PlanLimit { ScanHistoryDays = scanHistoryDays }
+        };
+        owner.OwnerProfile = new OwnerProfile
+        {
+            User = owner,
+            UserId = owner.Id,
+            Plan = plan,
+            PlanId = plan.Id,
+            OwnerDisplayName = owner.DisplayName
+        };
+        return plan;
+    }
 
     private static SmartTag BoundTag(
         string code,

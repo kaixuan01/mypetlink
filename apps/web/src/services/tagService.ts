@@ -78,6 +78,9 @@ type BackendTagScanHistory = {
   qrScans: number;
   nfcTaps: number;
   legacyOrUnknown: number;
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
 };
 
 type BackendListEnvelope<T> = {
@@ -154,6 +157,11 @@ export function mapBackendTag(tag: BackendSmartTag): PetTag {
     generatedDate: formatDisplayDate(tag.createdAt),
     deliveredDate: formatDisplayDate(tag.deliveredAt),
     lastScannedAt: formatDisplayDateTime(tag.lastScannedAt),
+    lastScanSource: tag.lastScanSource
+      ? normalizeTagScanSource(tag.lastScanSource)
+      : undefined,
+    qrScansLast30Days: tag.qrScansLast30Days ?? 0,
+    nfcTapsLast30Days: tag.nfcTapsLast30Days ?? 0,
     activatedAt: formatDisplayDate(tag.activatedAt),
     replacementForTagId: tag.replacementForTagId ?? undefined,
     isArchived: Boolean(tag.archivedAt || tag.status === "Archived"),
@@ -1055,12 +1063,18 @@ async function resolveFinderState(
 
 export async function getTagScanHistory(
   tagId: string,
-  source?: TagScanSource
+  source?: TagScanSource,
+  page = 1,
+  pageSize = 20
 ): Promise<TagScanHistory> {
   if (canUseOwnerTagApi()) {
-    const query = source ? `?source=${encodeURIComponent(source)}` : "";
+    const query = new URLSearchParams({
+      page: String(page),
+      pageSize: String(pageSize),
+    });
+    if (source) query.set("source", source);
     const response = await apiRequest<BackendTagScanHistory>(
-      `/api/v1/tags/${encodeURIComponent(tagId)}/scans${query}`
+      `/api/v1/tags/${encodeURIComponent(tagId)}/scans?${query.toString()}`
     );
     const data = response.data;
 
@@ -1078,13 +1092,16 @@ export async function getTagScanHistory(
       qrScans: data?.qrScans ?? 0,
       nfcTaps: data?.nfcTaps ?? 0,
       legacyOrUnknown: data?.legacyOrUnknown ?? 0,
+      page: data?.page ?? page,
+      pageSize: data?.pageSize ?? pageSize,
+      hasMore: data?.hasMore ?? false,
     };
   }
 
   await mockDelay();
   const tag = getTagCollection().find((item) => item.id === tagId);
   const items =
-    tag?.lastScannedAt && (!source || source === "Legacy")
+    tag?.lastScannedAt && page === 1 && (!source || source === "Legacy")
       ? [
           {
             id: `${tag.id}-latest`,
@@ -1101,6 +1118,9 @@ export async function getTagScanHistory(
     qrScans: 0,
     nfcTaps: 0,
     legacyOrUnknown: tag?.lastScannedAt ? 1 : 0,
+    page,
+    pageSize,
+    hasMore: false,
   };
 }
 
