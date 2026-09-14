@@ -124,7 +124,10 @@ the portal showed:
 
 Optimistic concurrency (`RowVersion` on `AdminUsers` and `AdminRoles`) means two
 administrators editing the same person or role cannot silently overwrite each
-other.
+other. User-access mutations also take a SQL Server application lock while the
+last-Super-Admin invariant is checked and saved. That cross-row lock prevents
+two concurrent changes to different Super Admin accounts from each observing
+the other account as the remaining recovery operator.
 
 ## Audit
 
@@ -137,7 +140,7 @@ Every access-management change appends an `AuditLogs` row in the same
 | `admin-access.user.activated` | actor, target admin user, status before and after |
 | `admin-access.user.deactivated` | actor, target admin user, status before and after |
 | `admin-access.role.created` | actor, role, name and capabilities |
-| `admin-access.role.updated` | actor, role, name and capabilities before and after |
+| `admin-access.role.updated` | actor, role, name, description and capabilities before and after |
 | `admin-access.role.deleted` | actor, role, its name and capabilities |
 
 **Access Management → Activity History** reads these back, defaulting to

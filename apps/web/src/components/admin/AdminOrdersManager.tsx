@@ -38,6 +38,8 @@ import {
   type ShippingCourierOption,
 } from "@/services/adminShippingFulfilmentService";
 import { isAbortError } from "@/services/apiClient";
+import { adminCapabilities, hasCapability } from "@/lib/adminCapabilities";
+import { getAdminCapabilities } from "@/services/authService";
 import {
   adminAssignInventoryTag,
   adminCancelOrder,
@@ -188,6 +190,12 @@ const shortcuts: { value: string; label: string; count: keyof AdminOrderCounts }
 type PendingAction = { action: Exclude<AdminOrderAction, "assign-tag" | "change-tag" | "replace-tag">; detail: AdminOrderDetail };
 
 export function AdminOrdersManager() {
+  const access = getAdminCapabilities();
+  const canExport = hasCapability(access, adminCapabilities.ordersExport);
+  const canReviewPayment = hasCapability(access, adminCapabilities.paymentProofsReview);
+  const canManageOrder = hasCapability(access, adminCapabilities.ordersManage);
+  const canManageShipping = hasCapability(access, adminCapabilities.ordersShippingManage);
+  const canAssignTags = hasCapability(access, adminCapabilities.ordersTagsAssign);
   const { refresh: refreshOperationalData } = useAdminOperationalData();
   const { query, actions, hasActiveFilters } = useAdminTableQuery({
     filterKeys,
@@ -604,7 +612,7 @@ export function AdminOrdersManager() {
       </div>
 
       <AdminFilterBar
-        endSlot={<AdminExportMenu busy={exportBusy} formats={getAdminOrderExportFormats()} onExport={(format, scope) => void runExport(format, scope)} selectedCount={selectedIds.size} />}
+        endSlot={canExport ? <AdminExportMenu busy={exportBusy} formats={getAdminOrderExportFormats()} onExport={(format, scope) => void runExport(format, scope)} selectedCount={selectedIds.size} /> : undefined}
         filters={filterDefs}
         hasActiveFilters={hasActiveFilters}
         onClearAll={actions.clearAllFilters}
@@ -633,7 +641,7 @@ export function AdminOrdersManager() {
         rowKey={(order) => order.id}
         rowOpenLabel="View"
         rows={items}
-        selectable
+        selectable={canExport}
         selectedIds={selectedIds}
         sortBy={query.sortBy}
         sortDir={query.sortDir}
@@ -641,12 +649,12 @@ export function AdminOrdersManager() {
         total={total}
       />
 
-      <AdminBulkActionBar
+      {canExport ? <AdminBulkActionBar
         actions={[{ id: "export-selected", label: "Export selected CSV", onClick: () => void runExport("csv", "selected"), tone: "primary" }]}
         busy={exportBusy}
         onClearSelection={() => setSelectedIds(new Set())}
         selectedCount={selectedIds.size}
-      />
+      /> : null}
 
       {openOrder ? (
         <AdminOrderDetailDrawer
@@ -655,6 +663,10 @@ export function AdminOrdersManager() {
           onClose={() => actions.setExtraParam("order", null)}
           refreshKey={reloadKey}
           summary={openOrder}
+          canAssignTags={canAssignTags}
+          canManageOrder={canManageOrder}
+          canManageShipping={canManageShipping}
+          canReviewPayment={canReviewPayment}
         />
       ) : null}
 

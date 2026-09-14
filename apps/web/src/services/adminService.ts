@@ -115,18 +115,18 @@ type BackendAdminOwnerListItem = {
 
 type BackendAdminDashboard = {
   summary: {
-    totalOwners: number;
-    totalPets: number;
-    activePets: number;
-    memorialPets: number;
-    lostModePets: number;
-    pendingPaymentProofs: number;
-    ordersPendingPayment: number;
-    ordersPreparing: number;
-    ordersShipped: number;
-    activeTags: number;
-    lostOrDisabledTags: number;
-    unclaimedTags: number;
+    totalOwners: number | null;
+    totalPets: number | null;
+    activePets: number | null;
+    memorialPets: number | null;
+    lostModePets: number | null;
+    pendingPaymentProofs: number | null;
+    ordersPendingPayment: number | null;
+    ordersPreparing: number | null;
+    ordersShipped: number | null;
+    activeTags: number | null;
+    lostOrDisabledTags: number | null;
+    unclaimedTags: number | null;
   };
   recentOrders: BackendAdminTagOrder[];
   recentPaymentProofs: {
@@ -346,14 +346,14 @@ export function buildOwnerSummaries(
 }
 
 export type AdminDashboardSummary = {
-  totalOwners: number;
-  totalPets: number;
-  pendingPaymentProofs: number;
-  ordersPreparing: number;
-  activeTags: number;
-  lostOrDisabledTags: number;
-  unclaimedRetailTags: number;
-  lostModePets: number;
+  totalOwners: number | null;
+  totalPets: number | null;
+  pendingPaymentProofs: number | null;
+  ordersPreparing: number | null;
+  activeTags: number | null;
+  lostOrDisabledTags: number | null;
+  unclaimedRetailTags: number | null;
+  lostModePets: number | null;
 };
 
 export function buildDashboardSummary(data: AdminData): AdminDashboardSummary {

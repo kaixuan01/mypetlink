@@ -473,31 +473,6 @@ app.UseAuthentication();
 app.UseRateLimiter();
 app.UseAuthorization();
 
-// Access Management: make sure the built-in roles exist and that no existing
-// administrator is left without one. Idempotent, and the access-management
-// migration has already done the same work on a deployed database — this is the
-// safety net for local databases and for admins created after that migration.
-await using (var accessScope = app.Services.CreateAsyncScope())
-{
-    try
-    {
-        await accessScope.ServiceProvider
-            .GetRequiredService<IAdminAccessSeeder>()
-            .EnsureSeededAsync();
-    }
-    catch (Exception exception)
-    {
-        // A database that is still waking up must not stop the app from
-        // starting; the next start converges. Access itself fails closed
-        // meanwhile, because an admin with no roles has no capabilities.
-        app.Services.GetRequiredService<ILoggerFactory>()
-            .CreateLogger("AdminAccessSeeder")
-            .LogWarning(
-                exception,
-                "Admin access roles could not be prepared at startup. They will be retried on the next start.");
-    }
-}
-
 if (app.Environment.IsDevelopment() && devAuth.Enabled)
 {
     // The explicit Development opt-in seeds only the configured .local user.
@@ -537,6 +512,28 @@ if (app.Environment.IsDevelopment() && devAuth.Enabled)
                 return Results.Ok(ApiEnvelope.Ok(response, context));
             })
         .AllowAnonymous();
+}
+
+// Access Management: make sure the built-in roles exist and that no existing
+// administrator is left without one. This runs after the optional development
+// account seeder so a first-start local administrator receives its role in the
+// same process. The operation is idempotent and fails closed if unavailable.
+await using (var accessScope = app.Services.CreateAsyncScope())
+{
+    try
+    {
+        await accessScope.ServiceProvider
+            .GetRequiredService<IAdminAccessSeeder>()
+            .EnsureSeededAsync();
+    }
+    catch (Exception exception)
+    {
+        app.Services.GetRequiredService<ILoggerFactory>()
+            .CreateLogger("AdminAccessSeeder")
+            .LogWarning(
+                exception,
+                "Admin access roles could not be prepared at startup. They will be retried on the next start.");
+    }
 }
 
 if (app.Environment.IsDevelopment())

@@ -151,6 +151,7 @@ public sealed class AdminSalesCommissionsController : ApiControllerBase
     }
 
     [HttpGet("export")]
+    [Authorize(Policy = AdminCapabilities.SalesCommissionsExport)]
     public async Task<IActionResult> Export(
         [FromQuery] CommissionLedgerQuery query,
         CancellationToken cancellationToken)
@@ -231,7 +232,7 @@ public sealed class AdminSalesReportingController : ApiControllerBase
     }
 
     [HttpGet("salespersons/{salespersonId:guid}/reseller-portfolio/export")]
-    [Authorize(Policy = AdminCapabilities.SalesCommissionsView)]
+    [Authorize(Policy = AdminCapabilities.SalesCommissionsExport)]
     public async Task<IActionResult> PortfolioExport(Guid salespersonId, [FromQuery] ResellerPortfolioQuery query, CancellationToken token)
     {
         var export = await _service.ExportPortfolioAsync(_currentUser.Current.UserId, salespersonId, query, token);

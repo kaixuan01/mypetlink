@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using System.Data;
 using MyPetLink.Api.Auth;
 using MyPetLink.Api.Common;
 using MyPetLink.Api.Data;
@@ -160,10 +161,18 @@ public sealed class AdminAccessManagementService : IAdminAccessManagementService
         return await BuildUserDetailAsync(adminUserId, access, cancellationToken);
     }
 
-    public async Task<AdminAccessUserDetailResponse> UpdateUserRolesAsync(
+    public Task<AdminAccessUserDetailResponse> UpdateUserRolesAsync(
         Guid adminUserId,
         UpdateAdminUserRolesRequest request,
         CancellationToken cancellationToken = default)
+        => WithUserAccessMutationLockAsync(
+            () => UpdateUserRolesCoreAsync(adminUserId, request, cancellationToken),
+            cancellationToken);
+
+    private async Task<AdminAccessUserDetailResponse> UpdateUserRolesCoreAsync(
+        Guid adminUserId,
+        UpdateAdminUserRolesRequest request,
+        CancellationToken cancellationToken)
     {
         var access = await RequireAsync(AdminCapabilities.AdminUsersManage, cancellationToken);
         var target = await LoadAdminForUpdateAsync(adminUserId, cancellationToken);
@@ -247,11 +256,20 @@ public sealed class AdminAccessManagementService : IAdminAccessManagementService
         return await BuildUserDetailAsync(adminUserId, access, cancellationToken);
     }
 
-    public async Task<AdminAccessUserDetailResponse> SetUserActiveAsync(
+    public Task<AdminAccessUserDetailResponse> SetUserActiveAsync(
         Guid adminUserId,
         bool isActive,
         SetAdminUserActiveRequest request,
         CancellationToken cancellationToken = default)
+        => WithUserAccessMutationLockAsync(
+            () => SetUserActiveCoreAsync(adminUserId, isActive, request, cancellationToken),
+            cancellationToken);
+
+    private async Task<AdminAccessUserDetailResponse> SetUserActiveCoreAsync(
+        Guid adminUserId,
+        bool isActive,
+        SetAdminUserActiveRequest request,
+        CancellationToken cancellationToken)
     {
         var access = await RequireAsync(AdminCapabilities.AdminUsersManage, cancellationToken);
         var target = await LoadAdminForUpdateAsync(adminUserId, cancellationToken);
@@ -434,6 +452,7 @@ public sealed class AdminAccessManagementService : IAdminAccessManagementService
 
         var now = _timeProvider.GetUtcNow();
         var previousName = role.Name;
+        var previousDescription = role.Description;
         role.Name = name;
         role.Description = (request.Description ?? "").Trim();
         role.UpdatedAt = now;
@@ -467,8 +486,8 @@ public sealed class AdminAccessManagementService : IAdminAccessManagementService
             "admin-access.role.updated",
             nameof(AdminRoleDefinition),
             role.Id,
-            new { Name = previousName, Capabilities = previous },
-            new { role.Name, Capabilities = requested });
+            new { Name = previousName, Description = previousDescription, Capabilities = previous },
+            new { role.Name, role.Description, Capabilities = requested });
 
         ApplyConcurrency(role, request.RowVersion);
         await SaveAsync(cancellationToken);
@@ -944,6 +963,75 @@ public sealed class AdminAccessManagementService : IAdminAccessManagementService
         throw Validation("name", "Choose a different name for this role.");
     }
 
+    /// <summary>
+    /// Serializes changes to administrator membership across every API process.
+    /// Row versions protect one administrator row; this lock protects the
+    /// cross-row invariant that at least one active all-access administrator
+    /// must remain after two different accounts are changed concurrently.
+    /// </summary>
+    private async Task<T> WithUserAccessMutationLockAsync<T>(
+        Func<Task<T>> action,
+        CancellationToken cancellationToken)
+    {
+        if (!_dbContext.Database.IsSqlServer())
+        {
+            return await action();
+        }
+
+        var connection = _dbContext.Database.GetDbConnection();
+        var openedHere = connection.State != ConnectionState.Open;
+        if (openedHere)
+        {
+            await _dbContext.Database.OpenConnectionAsync(cancellationToken);
+        }
+
+        try
+        {
+            await using (var acquire = connection.CreateCommand())
+            {
+                acquire.CommandText = """
+                    DECLARE @result int;
+                    EXEC @result = sys.sp_getapplock
+                        @Resource = N'MyPetLink.AdminAccess.UserMutation',
+                        @LockMode = N'Exclusive',
+                        @LockOwner = N'Session',
+                        @LockTimeout = 15000;
+                    SELECT @result;
+                    """;
+
+                var result = Convert.ToInt32(
+                    await acquire.ExecuteScalarAsync(cancellationToken),
+                    System.Globalization.CultureInfo.InvariantCulture);
+                if (result < 0)
+                {
+                    throw ConcurrencyConflict();
+                }
+            }
+
+            try
+            {
+                return await action();
+            }
+            finally
+            {
+                await using var release = connection.CreateCommand();
+                release.CommandText = """
+                    EXEC sys.sp_releaseapplock
+                        @Resource = N'MyPetLink.AdminAccess.UserMutation',
+                        @LockOwner = N'Session';
+                    """;
+                await release.ExecuteNonQueryAsync(CancellationToken.None);
+            }
+        }
+        finally
+        {
+            if (openedHere)
+            {
+                await _dbContext.Database.CloseConnectionAsync();
+            }
+        }
+    }
+
     private void ApplyConcurrency<T>(T entity, string? rowVersion) where T : class
     {
         if (string.IsNullOrWhiteSpace(rowVersion))
@@ -953,8 +1041,19 @@ public sealed class AdminAccessManagementService : IAdminAccessManagementService
 
         try
         {
-            _dbContext.Entry(entity).Property("RowVersion").OriginalValue =
-                Convert.FromBase64String(rowVersion);
+            var supplied = Convert.FromBase64String(rowVersion);
+            var property = _dbContext.Entry(entity).Property("RowVersion");
+            var current = property.CurrentValue as byte[] ?? [];
+
+            // Compare before an early no-op return as well as relying on the
+            // database concurrency predicate during a real update. Otherwise
+            // an unchanged stale form can be reported as saved successfully.
+            if (!supplied.SequenceEqual(current))
+            {
+                throw ConcurrencyConflict();
+            }
+
+            property.OriginalValue = supplied;
         }
         catch (FormatException)
         {
@@ -970,13 +1069,16 @@ public sealed class AdminAccessManagementService : IAdminAccessManagementService
         }
         catch (DbUpdateConcurrencyException)
         {
-            throw new ApiException(
-                StatusCodes.Status409Conflict,
-                "concurrency_conflict",
-                "This was changed by another administrator while you were editing. "
-                + "Reload the page and try again.");
+            throw ConcurrencyConflict();
         }
     }
+
+    private static ApiException ConcurrencyConflict() =>
+        new(
+            StatusCodes.Status409Conflict,
+            "concurrency_conflict",
+            "This was changed by another administrator while you were editing. "
+            + "Reload the page and try again.");
 
     private static ApiException Forbidden(string message) =>
         new(StatusCodes.Status403Forbidden, "forbidden", message);

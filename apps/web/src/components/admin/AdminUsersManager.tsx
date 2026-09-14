@@ -14,6 +14,8 @@ import { AdminSearchInput } from "@/components/admin/table/AdminSearchInput";
 import { useAdminTableQuery } from "@/components/admin/table/useAdminTableQuery";
 import { Badge } from "@/components/ui/Badge";
 import { adminRoutes } from "@/lib/routes";
+import { adminCapabilities, hasCapability } from "@/lib/adminCapabilities";
+import { getAdminCapabilities } from "@/services/authService";
 import { isAbortError } from "@/services/apiClient";
 import {
   countAdminOwners,
@@ -87,6 +89,9 @@ const filters: AdminFilterDef[] = [
 const zeroCounts: AdminOwnerCounts = { all: 0, active: 0, suspended: 0, missingContact: 0, noPets: 0 };
 
 export function AdminUsersManager() {
+  const access = getAdminCapabilities();
+  const canExport = hasCapability(access, adminCapabilities.ownersExport);
+  const canManage = hasCapability(access, adminCapabilities.ownersManage);
   const { query, actions, hasActiveFilters } = useAdminTableQuery({
     filterKeys,
     defaultSortBy: "joinedAt",
@@ -237,7 +242,7 @@ export function AdminUsersManager() {
       <AdminNotice>Owner information is shown for support use only. Account details and contact preferences remain owner-controlled.</AdminNotice>
       <AdminSection title="Owners" description="Investigate owner accounts, finder contact readiness, pet profiles, orders, and Smart Tags.">
         <AdminFilterBar
-          endSlot={<AdminExportMenu busy={exportBusy} formats={getAdminOwnerExportFormats()} onExport={(format, scope) => void exportRows(format, scope)} selectedCount={selectedIds.size} />}
+          endSlot={canExport ? <AdminExportMenu busy={exportBusy} formats={getAdminOwnerExportFormats()} onExport={(format, scope) => void exportRows(format, scope)} selectedCount={selectedIds.size} /> : undefined}
           filters={filters}
           hasActiveFilters={hasActiveFilters}
           onClearAll={actions.clearAllFilters}
@@ -271,20 +276,21 @@ export function AdminUsersManager() {
           rowKey={(owner) => owner.ownerUserId}
           rowOpenLabel="View Owner"
           rows={items}
-          selectable
+          selectable={canExport}
           selectedIds={selectedIds}
           sortBy={query.sortBy}
           sortDir={query.sortDir}
           stickyFirstColumn
           total={current?.total ?? 0}
         />
-        <AdminBulkActionBar actions={bulkActions} busy={exportBusy} onClearSelection={() => setSelectedIds(new Set())} selectedCount={selectedIds.size} />
+        {canExport ? <AdminBulkActionBar actions={bulkActions} busy={exportBusy} onClearSelection={() => setSelectedIds(new Set())} selectedCount={selectedIds.size} /> : null}
         {openOwner ? (
           <AdminOwnerDetailDrawer
             initialDetail={detachedDetail?.owner.ownerUserId === openOwner.ownerUserId ? detachedDetail : undefined}
             key={openOwner.ownerUserId}
             onClose={() => actions.setExtraParam("owner", null)}
             summary={openOwner}
+            canManage={canManage}
           />
         ) : null}
       </AdminSection>

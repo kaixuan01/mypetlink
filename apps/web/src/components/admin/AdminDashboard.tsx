@@ -30,18 +30,27 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
     {
       id: "payment-proofs",
       label: "Payment proofs awaiting review",
-      count: summary.pendingPaymentProofs,
+      count: summary.pendingPaymentProofs ?? 0,
       detail: "Receipts and references waiting for a manual decision.",
       href: adminRoutes.paymentProofsAwaitingReview,
     },
     {
       id: "orders",
       label: "Orders requiring preparation or action",
-      count: summary.ordersPreparing,
+      count: summary.ordersPreparing ?? 0,
       detail: "Paid orders moving through preparation and dispatch.",
       href: adminRoutes.orders,
     },
-  ];
+  ].filter((item) =>
+    item.id === "payment-proofs"
+      ? summary.pendingPaymentProofs !== null
+      : summary.ordersPreparing !== null
+  );
+  const showCustomers = summary.totalOwners !== null || summary.totalPets !== null;
+  const showTags = summary.activeTags !== null || summary.unclaimedRetailTags !== null;
+  const showRecentOrders = summary.ordersPreparing !== null;
+  const showRecentProofs = summary.pendingPaymentProofs !== null;
+  const showRecentTags = summary.activeTags !== null;
 
   return (
     <div className="grid gap-4 sm:gap-5" data-testid="admin-dashboard">
@@ -51,45 +60,45 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
         </p>
       ) : null}
 
-      <AdminSection compact title="Needs attention">
+      {attention.length > 0 ? <AdminSection compact title="Needs attention">
         <AttentionQueue
           emptyDescription="Current payment review and order preparation work is clear."
           items={attention}
         />
-      </AdminSection>
+      </AdminSection> : null}
 
-      <AdminSection compact title="At a glance">
+      {showCustomers || showTags ? <AdminSection compact title="At a glance">
         <div className="grid md:grid-cols-2">
-          <SummaryGroup title="Owners and pets">
-            <AdminStatusRow label="Owners" value={summary.totalOwners} isZero={summary.totalOwners === 0} />
-            <AdminStatusRow label="Pet profiles" value={summary.totalPets} isZero={summary.totalPets === 0} />
-            <AdminStatusRow
+          {showCustomers ? <SummaryGroup title="Owners and pets">
+            {summary.totalOwners !== null ? <AdminStatusRow label="Owners" value={summary.totalOwners} isZero={summary.totalOwners === 0} /> : null}
+            {summary.totalPets !== null ? <AdminStatusRow label="Pet profiles" value={summary.totalPets} isZero={summary.totalPets === 0} /> : null}
+            {summary.lostModePets !== null ? <AdminStatusRow
               isZero={summary.lostModePets === 0}
               label="Lost Mode pets"
               tone={summary.lostModePets > 0 ? "warning" : "neutral"}
               value={summary.lostModePets}
-            />
-          </SummaryGroup>
-          <SummaryGroup divided title="Smart tags">
-            <AdminStatusRow label="Active" value={summary.activeTags} isZero={summary.activeTags === 0} />
-            <AdminStatusRow label="Unclaimed retail stock" value={summary.unclaimedRetailTags} isZero={summary.unclaimedRetailTags === 0} />
-            <AdminStatusRow
+            /> : null}
+          </SummaryGroup> : null}
+          {showTags ? <SummaryGroup divided={showCustomers} title="Smart tags">
+            {summary.activeTags !== null ? <AdminStatusRow label="Active" value={summary.activeTags} isZero={summary.activeTags === 0} /> : null}
+            {summary.unclaimedRetailTags !== null ? <AdminStatusRow label="Unclaimed retail stock" value={summary.unclaimedRetailTags} isZero={summary.unclaimedRetailTags === 0} /> : null}
+            {summary.lostOrDisabledTags !== null ? <AdminStatusRow
               isZero={summary.lostOrDisabledTags === 0}
               label="Lost or disabled"
               tone={summary.lostOrDisabledTags > 0 ? "warning" : "neutral"}
               value={summary.lostOrDisabledTags}
-            />
-          </SummaryGroup>
+            /> : null}
+          </SummaryGroup> : null}
         </div>
-      </AdminSection>
+      </AdminSection> : null}
 
-      <AdminSection compact title="Recent activity">
+      {showRecentOrders || showRecentProofs || showRecentTags ? <AdminSection compact title="Recent activity">
         <div className="grid lg:grid-cols-3">
-          <ActivityList emptyText="No orders yet." items={activity.latestOrders} title="Recent orders" />
-          <ActivityList divided emptyText="No payment proof submissions yet." items={activity.latestPaymentProofs} title="Recent payment proofs" />
-          <ActivityList divided emptyText="No tag activity yet." items={activity.recentTags} title="Recent tag activity" />
+          {showRecentOrders ? <ActivityList emptyText="No orders yet." items={activity.latestOrders} title="Recent orders" /> : null}
+          {showRecentProofs ? <ActivityList divided={showRecentOrders} emptyText="No payment proof submissions yet." items={activity.latestPaymentProofs} title="Recent payment proofs" /> : null}
+          {showRecentTags ? <ActivityList divided={showRecentOrders || showRecentProofs} emptyText="No tag activity yet." items={activity.recentTags} title="Recent tag activity" /> : null}
         </div>
-      </AdminSection>
+      </AdminSection> : null}
     </div>
   );
 }

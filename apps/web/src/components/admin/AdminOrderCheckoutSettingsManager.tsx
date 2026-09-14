@@ -7,6 +7,8 @@ import {
   AdminStatusCard,
 } from "@/components/admin/AdminStatus";
 import { formatAdminDateTime } from "@/components/admin/adminDisplay";
+import { adminCapabilities, hasCapability } from "@/lib/adminCapabilities";
+import { getAdminCapabilities } from "@/services/authService";
 import {
   getOrderCheckoutSettings,
   getOrderCheckoutSettingsError,
@@ -16,6 +18,7 @@ import {
 import { isApiClientError } from "@/services/apiClient";
 
 export function AdminOrderCheckoutSettingsManager() {
+  const canManage = hasCapability(getAdminCapabilities(), adminCapabilities.settingsManage);
   const [settings, setSettings] = useState<AdminOrderCheckoutSettings | null>(null);
   const [minutes, setMinutes] = useState(120);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
@@ -86,6 +89,7 @@ export function AdminOrderCheckoutSettingsManager() {
 
   const changed = minutes !== settings.paymentReservationMinutes;
   return (
+    <fieldset className="contents" disabled={!canManage}>
     <div className="space-y-5 sm:space-y-6">
       <div className="grid gap-3 sm:gap-4 lg:grid-cols-3">
         <AdminStatusCard
@@ -158,6 +162,7 @@ export function AdminOrderCheckoutSettingsManager() {
         </dl>
       </AdminSection>
     </div>
+    </fieldset>
   );
 }
 

@@ -65,6 +65,7 @@ export const adminCapabilities = {
   merchantInvoicesManage: "merchant_invoices.manage",
   merchantInvoicesRecordPayment: "merchant_invoices.record_payment",
   salesCommissionsView: "sales_commissions.view",
+  salesCommissionsExport: "sales_commissions.export",
   salesCommissionsReverse: "sales_commissions.reverse",
   salesCommissionRulesManage: "sales_commissions.rules.manage",
   payoutsView: "payouts.view",

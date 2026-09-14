@@ -189,9 +189,19 @@ describe("opening a URL directly", () => {
   it("reports the permissions a destination needs", () => {
     expect(requiredCapabilitiesForPath("/admin/tag-inventory")).toEqual([
       adminCapabilities.inventoryView,
+      adminCapabilities.inventoryCostsView,
     ]);
     expect(requiredCapabilitiesForPath("/admin/access/users")).toEqual([
       adminCapabilities.adminUsersView,
+    ]);
+  });
+
+  it("uses the capability for the selected catalog section", () => {
+    expect(requiredCapabilitiesForPath("/admin/tag-products", "?tab=products")).toEqual([
+      adminCapabilities.catalogView,
+    ]);
+    expect(requiredCapabilitiesForPath("/admin/tag-products", "?tab=promotions")).toEqual([
+      adminCapabilities.marketingView,
     ]);
   });
 

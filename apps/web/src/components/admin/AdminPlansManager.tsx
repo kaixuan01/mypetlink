@@ -15,6 +15,8 @@ import { AdminSearchInput } from "@/components/admin/table/AdminSearchInput";
 import { useAdminTableQuery } from "@/components/admin/table/useAdminTableQuery";
 import { Badge } from "@/components/ui/Badge";
 import { adminRoutes } from "@/lib/routes";
+import { adminCapabilities, hasCapability } from "@/lib/adminCapabilities";
+import { getAdminCapabilities } from "@/services/authService";
 import { isAbortError } from "@/services/apiClient";
 import {
   countAdminOwnerPlans,
@@ -67,6 +69,7 @@ const usageTone: Record<AdminUsageState, "mint" | "warm" | "danger"> = {
 
 
 export function AdminPlansManager() {
+  const canExport = hasCapability(getAdminCapabilities(), adminCapabilities.ownersExport);
   const { query, actions, hasActiveFilters } = useAdminTableQuery({
     filterKeys,
     defaultSortBy: "updatedAt",
@@ -157,6 +160,7 @@ export function AdminPlansManager() {
       ) : (
         <OwnerPlansSection
           actions={actions}
+          canExport={canExport}
           definitions={definitionsState.definitions}
           hasActiveFilters={hasActiveFilters}
           query={query}
@@ -337,11 +341,13 @@ function OwnerPlansSection({
   actions,
   hasActiveFilters,
   definitions,
+  canExport,
 }: {
   query: QueryShape["query"];
   actions: QueryShape["actions"];
   hasActiveFilters: boolean;
   definitions: AdminPlanDefinition[];
+  canExport: boolean;
 }) {
   const filters = useMemo<AdminFilterDef[]>(
     () => [
@@ -628,13 +634,13 @@ function OwnerPlansSection({
       title="Owner plans"
     >
       <AdminFilterBar
-        endSlot={
+        endSlot={canExport ?
           <AdminExportMenu
             busy={exportBusy}
             formats={getAdminOwnerPlanExportFormats()}
             onExport={(format, scope) => void exportRows(format, scope)}
             selectedCount={selectedIds.size}
-          />
+          /> : undefined
         }
         filters={filters}
         hasActiveFilters={hasActiveFilters}
@@ -688,19 +694,19 @@ function OwnerPlansSection({
         rowKey={(item) => item.ownerUserId}
         rowOpenLabel="View Plan Details"
         rows={items}
-        selectable
+        selectable={canExport}
         selectedIds={selectedIds}
         sortBy={query.sortBy}
         sortDir={query.sortDir}
         stickyFirstColumn
         total={current?.total ?? 0}
       />
-      <AdminBulkActionBar
+      {canExport ? <AdminBulkActionBar
         actions={bulkActions}
         busy={exportBusy}
         onClearSelection={() => setSelectedIds(new Set())}
         selectedCount={selectedIds.size}
-      />
+      /> : null}
       {openOwner ? (
         <AdminOwnerPlanDetailDrawer
           key={openOwner.ownerUserId}

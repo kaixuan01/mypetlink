@@ -14,6 +14,10 @@ import type { TagScanSource } from "@/types";
 
 type DrawerProps = {
   busy: boolean;
+  canAssign?: boolean;
+  canExport?: boolean;
+  canManage?: boolean;
+  canTransfer?: boolean;
   onClose: () => void;
   onAction: (action: AdminSmartTagAction) => void;
   onAssignmentAction: (action: AdminSmartTagAssignmentAction) => void;
@@ -35,6 +39,10 @@ function OpenSmartTagDrawer({
   onClose,
   onAction,
   onAssignmentAction,
+  canAssign = true,
+  canExport = true,
+  canManage = true,
+  canTransfer = true,
 }: DrawerProps & { tag: AdminSmartTag }) {
   const dialogRef = useRef<HTMLElement | null>(null);
   const closeRef = useRef<HTMLButtonElement | null>(null);
@@ -94,10 +102,12 @@ function OpenSmartTagDrawer({
     { id: "return-to-unclaimed", label: "Return to Unclaimed" },
     { id: "archive", label: "Archive Tag" },
   ];
-  const actions: { id: AdminSmartTagAction; label: string; danger?: boolean }[] = tag.isArchived
+  const actions: { id: AdminSmartTagAction; label: string; danger?: boolean }[] = !canManage ? [] : tag.isArchived
     ? [{ id: "restore", label: "Restore Tag" }]
     : availableActions.filter((action) => canRunSmartTagAction(tag, action.id));
-  const assignmentActions = getSmartTagAssignmentActions(tag);
+  const assignmentActions = getSmartTagAssignmentActions(tag).filter((action) =>
+    action === "transfer" ? canTransfer : canAssign
+  );
 
   return (
     <div className="fixed inset-0 z-40 flex justify-end" role="presentation">
@@ -160,8 +170,8 @@ function OpenSmartTagDrawer({
                       ))}
                     </select>
                   </label>
-                  <button className="min-h-10 self-end rounded-full border border-slate-200 px-4 text-xs font-extrabold text-slate-700 disabled:opacity-50" disabled={scanExporting} onClick={() => void exportScanHistory("csv")} type="button">Export CSV</button>
-                  <button className="min-h-10 self-end rounded-full border border-slate-200 px-4 text-xs font-extrabold text-slate-700 disabled:opacity-50" disabled={scanExporting} onClick={() => void exportScanHistory("xlsx")} type="button">Export Excel</button>
+                  {canExport ? <button className="min-h-10 self-end rounded-full border border-slate-200 px-4 text-xs font-extrabold text-slate-700 disabled:opacity-50" disabled={scanExporting} onClick={() => void exportScanHistory("csv")} type="button">Export CSV</button> : null}
+                  {canExport ? <button className="min-h-10 self-end rounded-full border border-slate-200 px-4 text-xs font-extrabold text-slate-700 disabled:opacity-50" disabled={scanExporting} onClick={() => void exportScanHistory("xlsx")} type="button">Export Excel</button> : null}
                 </div>
                 {scanExportError ? <p className="text-sm font-semibold text-red-700" role="alert">{scanExportError}</p> : null}
                 {scans === undefined ? (

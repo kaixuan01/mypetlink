@@ -16,6 +16,8 @@ import { useAdminTableQuery } from "@/components/admin/table/useAdminTableQuery"
 import { Badge } from "@/components/ui/Badge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { isSellableTagCapability, tagCapabilityLabel } from "@/lib/tagCapabilities";
+import { adminCapabilities, hasCapability } from "@/lib/adminCapabilities";
+import { getAdminCapabilities } from "@/services/authService";
 import { isAbortError, isApiClientError } from "@/services/apiClient";
 import { uploadMediaFile } from "@/services/mediaService";
 import {
@@ -211,6 +213,11 @@ const blankPreset: AdminTagVariantPresetInput = {
 // the same screen. On narrow screens only one context renders at a time:
 // product list -> product detail -> SKU editor.
 export function AdminTagProductsManager() {
+  const access = getAdminCapabilities();
+  const canViewCatalog = hasCapability(access, adminCapabilities.catalogView);
+  const canManageCatalog = hasCapability(access, adminCapabilities.catalogManage);
+  const canViewMarketing = hasCapability(access, adminCapabilities.marketingView);
+  const canManageMarketing = hasCapability(access, adminCapabilities.marketingManage);
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
@@ -310,7 +317,7 @@ export function AdminTagProductsManager() {
       return;
     }
     setPendingNavigation(() => action);
-  }, [productDirty, variantDirty]);
+  }, [productDirty, setPendingNavigation, variantDirty]);
 
   const focusDetailPanel = useCallback(() => {
     const panel = detailPanelRef.current;
@@ -869,6 +876,7 @@ export function AdminTagProductsManager() {
       items: catalogTabs.map((item) => ({
         ...item,
         href: catalogTabHref(pathname, searchParams, item.id),
+        visible: item.id === "promotions" ? canViewMarketing : canViewCatalog,
       })),
     },
   ];
@@ -909,13 +917,13 @@ export function AdminTagProductsManager() {
             <AdminSection
               title="Products"
               description="A product is the customer-facing item shown in the Owner Portal. Sizes, capabilities, materials, and prices live on its SKUs."
-              action={
+              action={canManageCatalog ?
                 <AdminActionButton
                   onClick={openNewProduct}
                   tone="primary"
                 >
                   New Product
-                </AdminActionButton>
+                </AdminActionButton> : undefined
               }
             >
               <div className="grid gap-3 border-b border-slate-100 p-4">
@@ -1027,6 +1035,7 @@ export function AdminTagProductsManager() {
                     onImageUpload={(file) => void uploadProductImage(file)}
                     onSave={() => void submitProduct()}
                     product={null}
+                    canManage={canManageCatalog}
                   />
                 ) : currentProductDetailError ? (
                   <LoadFailure message={currentProductDetailError} onRetry={retryProductDetail} />
@@ -1048,8 +1057,10 @@ export function AdminTagProductsManager() {
                       onImageUpload={(file) => void uploadProductImage(file)}
                       onSave={() => void submitProduct()}
                       product={selectedProduct}
+                      canManage={canManageCatalog}
                     />
                     <SkuListSection
+                      canManage={canManageCatalog}
                       onAddSku={() => {
                         requestNavigation(() => navigate({ sku: "new" }));
                       }}
@@ -1088,6 +1099,7 @@ export function AdminTagProductsManager() {
                   presets={presets}
                   product={selectedProduct}
                   settingsHref={catalogTabHref(pathname, searchParams, "settings")}
+                  canManage={canManageCatalog}
                 />
               </>
             ) : showingSkuEditor && currentProductDetailError ? (
@@ -1141,6 +1153,7 @@ export function AdminTagProductsManager() {
           statusFilter={query.filters.promoStatus ?? "all"}
           total={promotionsTotal}
           variants={promotionVariants}
+          canManage={canManageMarketing}
         />
       ) : null}
 
@@ -1167,6 +1180,7 @@ export function AdminTagProductsManager() {
           onSave={() => void submitPreset()}
           presets={presets}
           selectedId={selectedPresetId}
+          canManage={canManageCatalog}
         />
       ) : null}
 
@@ -1228,7 +1242,7 @@ function BackBar({ label, onBack }: { label: string; onBack: () => void }) {
   );
 }
 
-function ProductEditor({ product, form, isNew, busy, imageUploading, errors, formError, onChange, onImageUpload, onSave, onArchive }: {
+function ProductEditor({ product, form, isNew, busy, imageUploading, errors, formError, canManage, onChange, onImageUpload, onSave, onArchive }: {
   product: AdminTagProduct | null;
   form: AdminProductInput;
   isNew: boolean;
@@ -1236,6 +1250,7 @@ function ProductEditor({ product, form, isNew, busy, imageUploading, errors, for
   imageUploading: boolean;
   errors: FieldErrors;
   formError: string;
+  canManage: boolean;
   onChange: (value: AdminProductInput) => void;
   onImageUpload: (file: File) => void;
   onSave: () => void;
@@ -1264,6 +1279,7 @@ function ProductEditor({ product, form, isNew, busy, imageUploading, errors, for
         title={isNew ? "Create product" : `Edit ${product?.name ?? "product"}`}
         description="A product is the customer-facing item shown in the Owner Portal. Each of its SKUs is one exact sellable and manufacturable configuration."
       >
+        <fieldset className="contents" disabled={!canManage}>
         <div className="grid gap-5 p-4 sm:p-5">
         {form.isPublished && form.media.length === 0 ? (
           <AdminNotice>
@@ -1374,6 +1390,7 @@ function ProductEditor({ product, form, isNew, busy, imageUploading, errors, for
             <AdminActionButton disabled={busy || imageUploading || product?.isArchived} onClick={onSave} tone="primary">{busy ? "Saving..." : "Save Product"}</AdminActionButton>
           </div>
         </div>
+        </fieldset>
       </AdminSection>
       {preview ? (
         <AdminImagePreviewDialog
@@ -1387,8 +1404,9 @@ function ProductEditor({ product, form, isNew, busy, imageUploading, errors, for
   );
 }
 
-function SkuListSection({ product, onAddSku, onOpenSku }: {
+function SkuListSection({ product, canManage, onAddSku, onOpenSku }: {
   product: AdminTagProduct;
+  canManage: boolean;
   onAddSku: () => void;
   onOpenSku: (variantId: string) => void;
 }) {
@@ -1396,7 +1414,7 @@ function SkuListSection({ product, onAddSku, onOpenSku }: {
     <AdminSection
       title="SKUs"
       description="Each SKU is one exact sellable and manufacturable configuration, including capabilities, physical specifications, price, and production settings."
-      action={<AdminActionButton onClick={onAddSku} tone="primary">New SKU</AdminActionButton>}
+      action={canManage ? <AdminActionButton onClick={onAddSku} tone="primary">New SKU</AdminActionButton> : undefined}
     >
       <div className="grid gap-3 p-4 md:grid-cols-2">
         {product.variants.length === 0 ? (
@@ -1460,7 +1478,7 @@ function missingSkuFields(variant: Pick<AdminTagProductVariant, "supportsQr" | "
   ].filter((value): value is string => value !== null);
 }
 
-function VariantEditor({ product, editing, form, isNew, busy, formError, presets, settingsHref, onChange, onSave, onArchive }: {
+function VariantEditor({ product, editing, form, isNew, busy, formError, presets, settingsHref, canManage, onChange, onSave, onArchive }: {
   product: AdminTagProduct;
   editing?: AdminTagProductVariant;
   form: AdminVariantInput;
@@ -1469,6 +1487,7 @@ function VariantEditor({ product, editing, form, isNew, busy, formError, presets
   formError: string;
   presets: AdminTagVariantPreset[];
   settingsHref: string;
+  canManage: boolean;
   onChange: (value: AdminVariantInput) => void;
   onSave: () => void;
   onArchive: () => void;
@@ -1485,6 +1504,7 @@ function VariantEditor({ product, editing, form, isNew, busy, formError, presets
       title={isNew ? `New SKU for ${product.name}` : `Edit SKU ${editing?.sku ?? ""}`}
       description="Each SKU is one exact sellable and manufacturable configuration, including capabilities, physical specifications, price, and production settings."
     >
+      <fieldset className="contents" disabled={!canManage}>
       <div className="grid gap-4 p-4 sm:p-5">
         {locked ? <AdminNotice>Production specifications are locked because this SKU has inventory or order history. Create a new versioned SKU to change them.</AdminNotice> : null}
 
@@ -1585,16 +1605,18 @@ function VariantEditor({ product, editing, form, isNew, busy, formError, presets
           <AdminActionButton disabled={busy || editing?.isArchived || product.isArchived} onClick={onSave} tone="primary">{busy ? "Saving..." : isNew ? "Create SKU" : "Save SKU"}</AdminActionButton>
         </div>
       </div>
+      </fieldset>
     </AdminSection>
   );
 }
 
-function VariantPresetsSettings({ presets, form, selectedId, busy, formError, onChange, onEdit, onNew, onSave }: {
+function VariantPresetsSettings({ presets, form, selectedId, busy, formError, canManage, onChange, onEdit, onNew, onSave }: {
   presets: AdminTagVariantPreset[];
   form: AdminTagVariantPresetInput;
   selectedId?: string;
   busy: boolean;
   formError: string;
+  canManage: boolean;
   onChange: (value: AdminTagVariantPresetInput) => void;
   onEdit: (preset: AdminTagVariantPreset) => void;
   onNew: () => void;
@@ -1605,7 +1627,7 @@ function VariantPresetsSettings({ presets, form, selectedId, busy, formError, on
       <AdminSection
         title="Tag Types"
         description="Reusable classifications only, such as Lightweight or Standard. They organise similar SKUs but never set price, capabilities, specifications, or inventory. New values (for example Collar Slide or Silicone) can be added here without a release."
-        action={<AdminActionButton onClick={onNew} tone="primary">New Tag Type</AdminActionButton>}
+        action={canManage ? <AdminActionButton onClick={onNew} tone="primary">New Tag Type</AdminActionButton> : undefined}
       >
         <div className="p-2">
           {presets.length === 0 ? <StatusLine>No Tag Types yet.</StatusLine> : null}
@@ -1631,6 +1653,7 @@ function VariantPresetsSettings({ presets, form, selectedId, busy, formError, on
         title={selectedId ? "Edit Tag Type" : "Create Tag Type"}
         description="A Tag Type is only a classification label. Physical specifications, capabilities, prices, and production settings stay on each SKU. Tag Types used by SKUs can be deactivated but not deleted, and renaming one never changes saved SKUs or past orders."
       >
+        <fieldset className="contents" disabled={!canManage}>
         <div className="grid gap-5 p-4 sm:p-5">
           <FormGroup title="Tag Type details">
             <Field helper="Stable internal code, e.g. COLLAR-SLIDE." label="Code">
@@ -1652,12 +1675,13 @@ function VariantPresetsSettings({ presets, form, selectedId, busy, formError, on
             <AdminActionButton disabled={busy} onClick={onSave} tone="primary">{busy ? "Saving..." : selectedId ? "Save Tag Type" : "Create Tag Type"}</AdminActionButton>
           </div>
         </div>
+        </fieldset>
       </AdminSection>
     </div>
   );
 }
 
-function PromotionsEditor({ promotions, variants, form, selectedId, loading, busy, loadError, errors, formError, search, statusFilter, page, pageSize, total, onChange, onEdit, onNew, onRetry, onSave, onSearch, onStatusFilterChange, onPageChange, onPageSizeChange }: {
+function PromotionsEditor({ promotions, variants, form, selectedId, loading, busy, loadError, errors, formError, search, statusFilter, page, pageSize, total, canManage, onChange, onEdit, onNew, onRetry, onSave, onSearch, onStatusFilterChange, onPageChange, onPageSizeChange }: {
   promotions: AdminPromotion[];
   variants: (AdminCatalogOptionVariant & { productName: string; productPublished: boolean })[];
   form: AdminPromotionInput;
@@ -1672,6 +1696,7 @@ function PromotionsEditor({ promotions, variants, form, selectedId, loading, bus
   page: number;
   pageSize: number;
   total: number;
+  canManage: boolean;
   onChange: (value: AdminPromotionInput) => void;
   onEdit: (promotion: AdminPromotion) => void;
   onNew: () => void;
@@ -1696,7 +1721,7 @@ function PromotionsEditor({ promotions, variants, form, selectedId, loading, bus
     : 0;
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(280px,0.75fr)_minmax(0,1.6fr)]">
-      <AdminSection title="Promotions" description="One automatic promotion applies per SKU; priority wins, then the greatest discount." action={<AdminActionButton disabled={noEligibleVariants} onClick={onNew} tone="primary">New Promotion</AdminActionButton>}>
+      <AdminSection title="Promotions" description="One automatic promotion applies per SKU; priority wins, then the greatest discount." action={canManage ? <AdminActionButton disabled={noEligibleVariants} onClick={onNew} tone="primary">New Promotion</AdminActionButton> : undefined}>
         <div className="grid gap-3 border-b border-slate-100 p-4">
           <label className="grid gap-1 text-xs font-extrabold uppercase text-slate-500">
             Search promotions
@@ -1725,6 +1750,7 @@ function PromotionsEditor({ promotions, variants, form, selectedId, loading, bus
         />
       </AdminSection>
       <AdminSection title={selectedId ? "Edit promotion" : "Create promotion"} description="Promotions change effective prices without overwriting the SKU base price.">
+        <fieldset className="contents" disabled={!canManage}>
         <div className="grid gap-5 p-4 sm:p-5">
           {noEligibleVariants ? <AdminNotice>Create and publish an eligible product variant before adding a promotion.</AdminNotice> : null}
           <FormGroup title="Promotion details">
@@ -1756,6 +1782,7 @@ function PromotionsEditor({ promotions, variants, form, selectedId, loading, bus
           {formError ? <InlineFormError>{formError}</InlineFormError> : null}
           <div className="flex justify-end"><AdminActionButton disabled={busy || noEligibleVariants} onClick={onSave} tone="primary">{busy ? "Saving..." : "Save Promotion"}</AdminActionButton></div>
         </div>
+        </fieldset>
       </AdminSection>
     </div>
   );

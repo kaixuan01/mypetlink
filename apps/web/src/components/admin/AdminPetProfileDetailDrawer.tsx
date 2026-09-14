@@ -25,9 +25,11 @@ const historyLabels: Record<string, string> = {
 export function AdminPetProfileDetailDrawer({
   summary,
   onClose,
+  canManage = true,
 }: {
   summary: AdminPetProfile;
   onClose: () => void;
+  canManage?: boolean;
 }) {
   const dialogRef = useRef<HTMLElement | null>(null);
   const closeRef = useRef<HTMLButtonElement | null>(null);
@@ -213,7 +215,7 @@ export function AdminPetProfileDetailDrawer({
                 </div>
                 {eligibilityError ? <p className="mt-3 rounded-xl bg-red-50 p-3 text-sm font-bold text-red-700" role="alert">{eligibilityError} <Link className="underline" href={adminRoutes.sampleExperience}>Open Sample Experience settings</Link></p> : null}
                 {!pet.isSampleEligible && (!pet.publicProfileAccessible || !pet.qrSafetyAccessible || pet.lifecycle !== "Active") ? <p className="mt-3 rounded-xl bg-amber-50 p-3 text-sm font-bold text-amber-900">Approval requires an active pet with both its Public Share Profile and Safety Profile available.</p> : null}
-                <button className="mt-3 min-h-10 rounded-full border border-slate-200 px-4 text-xs font-extrabold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50" disabled={eligibilityBusy || (!pet.isSampleEligible && (!pet.publicProfileAccessible || !pet.qrSafetyAccessible || pet.lifecycle !== "Active"))} onClick={changeSampleEligibility} type="button">{eligibilityBusy ? "Saving…" : pet.isSampleEligible ? "Remove approval" : "Approve for Sample Experience"}</button>
+                {canManage ? <button className="mt-3 min-h-10 rounded-full border border-slate-200 px-4 text-xs font-extrabold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50" disabled={eligibilityBusy || (!pet.isSampleEligible && (!pet.publicProfileAccessible || !pet.qrSafetyAccessible || pet.lifecycle !== "Active"))} onClick={changeSampleEligibility} type="button">{eligibilityBusy ? "Saving…" : pet.isSampleEligible ? "Remove approval" : "Approve for Sample Experience"}</button> : null}
               </section>
 
               <section aria-labelledby="pet-lost-heading">

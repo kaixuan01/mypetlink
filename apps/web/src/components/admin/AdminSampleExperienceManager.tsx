@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
+import { adminCapabilities, hasCapability } from "@/lib/adminCapabilities";
+import { getAdminCapabilities } from "@/services/authService";
 import { publicProfilePath, qrSafetyPath } from "@/lib/routes";
 import { toAbsoluteUrl } from "@/lib/siteUrl";
 import {
@@ -12,6 +14,7 @@ import {
 } from "@/services/sampleExperienceService";
 
 export function AdminSampleExperienceManager() {
+  const canManage = hasCapability(getAdminCapabilities(), adminCapabilities.sampleExperienceManage);
   const [settings, setSettings] = useState<AdminSampleExperience | null>(null);
   const [selectedId, setSelectedId] = useState("");
   const [error, setError] = useState("");
@@ -69,6 +72,7 @@ export function AdminSampleExperienceManager() {
     ?? (settings?.selectedPet?.petId === selectedId ? settings.selectedPet : null);
 
   return (
+    <fieldset className="contents" disabled={!canManage}>
     <section className="grid min-w-0 gap-5 rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-6" aria-labelledby="featured-sample-heading">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -100,6 +104,7 @@ export function AdminSampleExperienceManager() {
         {settings?.updatedBy ? <span className="text-xs font-semibold text-slate-500">Last updated by {settings.updatedBy}</span> : null}
       </div>
     </section>
+    </fieldset>
   );
 }
 

@@ -9049,6 +9049,18 @@ BEGIN
         INSERT INTO AdminRoleCapabilities (Id, AdminRoleId, Capability, CreatedAt)
         VALUES ('b2625547-819e-4de9-8992-919e614651a5', 'b2d0a0e4-9f1e-4c58-9c1b-2b6f2f2a7d09', N'operational_status.view', SYSDATETIMEOFFSET());
 
+    IF NOT EXISTS (SELECT 1 FROM AdminRoleCapabilities WHERE AdminRoleId = 'b2d0a0e4-9f1e-4c58-9c1b-2b6f2f2a7d02' AND Capability = N'sales_commissions.export')
+        INSERT INTO AdminRoleCapabilities (Id, AdminRoleId, Capability, CreatedAt)
+        VALUES ('645219df-448c-4103-8800-1e50d3c13bf2', 'b2d0a0e4-9f1e-4c58-9c1b-2b6f2f2a7d02', N'sales_commissions.export', SYSDATETIMEOFFSET());
+
+    IF NOT EXISTS (SELECT 1 FROM AdminRoleCapabilities WHERE AdminRoleId = 'b2d0a0e4-9f1e-4c58-9c1b-2b6f2f2a7d05' AND Capability = N'sales_commissions.export')
+        INSERT INTO AdminRoleCapabilities (Id, AdminRoleId, Capability, CreatedAt)
+        VALUES ('40114451-6cdc-457e-959a-537f61daa29e', 'b2d0a0e4-9f1e-4c58-9c1b-2b6f2f2a7d05', N'sales_commissions.export', SYSDATETIMEOFFSET());
+
+    IF NOT EXISTS (SELECT 1 FROM AdminRoleCapabilities WHERE AdminRoleId = 'b2d0a0e4-9f1e-4c58-9c1b-2b6f2f2a7d07' AND Capability = N'sales_commissions.export')
+        INSERT INTO AdminRoleCapabilities (Id, AdminRoleId, Capability, CreatedAt)
+        VALUES ('b34cd402-bcef-4b32-8e3b-8d81d0961d6c', 'b2d0a0e4-9f1e-4c58-9c1b-2b6f2f2a7d07', N'sales_commissions.export', SYSDATETIMEOFFSET());
+
 
 
     -- Move every existing administrator onto the built-in role that matches the

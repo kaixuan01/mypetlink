@@ -100,7 +100,7 @@ public sealed class AdminOrdersController : ApiControllerBase
     }
 
     [HttpPost("{orderId:guid}/confirm-payment")]
-    [Authorize(Policy = AdminCapabilities.OrdersManage)]
+    [Authorize(Policy = AdminCapabilities.PaymentProofsReview)]
     public async Task<IActionResult> ConfirmPayment(Guid orderId, CancellationToken cancellationToken)
     {
         var response = await _adminService.ConfirmPaymentAsync(
@@ -126,7 +126,7 @@ public sealed class AdminOrdersController : ApiControllerBase
     }
 
     [HttpPost("{orderId:guid}/reject-payment-proof")]
-    [Authorize(Policy = AdminCapabilities.OrdersManage)]
+    [Authorize(Policy = AdminCapabilities.PaymentProofsReview)]
     public async Task<IActionResult> RejectPaymentProof(
         Guid orderId,
         [FromBody] RejectPaymentProofRequest? request,
@@ -280,7 +280,7 @@ public sealed class AdminOrdersController : ApiControllerBase
     // Compatibility route matching the documented V1 contract; dispatches to the
     // same transition logic as the explicit mark-* routes.
     [HttpPost("{orderId:guid}/status")]
-    [Authorize(Policy = AdminCapabilities.OrdersManage)]
+    [Authorize(Policy = AdminCapabilities.OrdersShippingManage)]
     public async Task<IActionResult> UpdateStatus(
         Guid orderId,
         [FromBody] UpdateOrderStatusRequest request,

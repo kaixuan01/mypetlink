@@ -60,12 +60,20 @@ export function AdminOrderDetailDrawer({
   busy,
   onClose,
   onAction,
+  canAssignTags = true,
+  canManageOrder = true,
+  canManageShipping = true,
+  canReviewPayment = true,
 }: {
   summary: AdminOrder;
   refreshKey: number;
   busy: boolean;
   onClose: () => void;
   onAction: (action: AdminOrderAction, detail: AdminOrderDetail) => void;
+  canAssignTags?: boolean;
+  canManageOrder?: boolean;
+  canManageShipping?: boolean;
+  canReviewPayment?: boolean;
 }) {
   const dialogRef = useRef<HTMLElement | null>(null);
   const [detailState, setDetailState] = useState<{
@@ -109,8 +117,13 @@ export function AdminOrderDetailDrawer({
   const error = detailState?.key === key ? detailState.error : "";
   const history = historyState?.key === key ? historyState.entries : undefined;
   const actions = useMemo(
-    () => (detail ? getDetailActions(summary, detail) : []),
-    [detail, summary]
+    () => (detail ? getDetailActions(summary, detail).filter((action) => {
+      if (action === "confirm-payment" || action === "reject-payment") return canReviewPayment;
+      if (action === "assign-tag" || action === "change-tag" || action === "replace-tag") return canAssignTags;
+      if (action === "cancel-order") return canManageOrder;
+      return canManageShipping;
+    }) : []),
+    [canAssignTags, canManageOrder, canManageShipping, canReviewPayment, detail, summary]
   );
   const proof = detail ? latestProof(detail) : undefined;
 
@@ -272,7 +285,7 @@ export function AdminOrderDetailDrawer({
                       value={detail.paymentConfirmationEmail.lastError ?? ""}
                     />
                   </div>
-                  {detail.paymentConfirmationEmail.canRetry ? (
+                  {detail.paymentConfirmationEmail.canRetry && canManageOrder ? (
                     <AdminActionButton
                       disabled={emailRetryBusy}
                       onClick={() => void retryEmail()}

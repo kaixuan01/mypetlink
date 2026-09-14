@@ -373,6 +373,8 @@ public sealed class AdminAccessManagementServiceTests
 
         var permissionChange = await db.AuditLogs
             .SingleAsync(log => log.Action == "admin-access.role.updated");
+        Assert.Contains("Counts stock.", permissionChange.NewValue!, StringComparison.Ordinal);
+        Assert.DoesNotContain("Counts stock.", permissionChange.OldValue!, StringComparison.Ordinal);
         Assert.Contains(AdminCapabilities.InventoryManage, permissionChange.NewValue!, StringComparison.Ordinal);
         Assert.DoesNotContain(AdminCapabilities.InventoryManage, permissionChange.OldValue!, StringComparison.Ordinal);
     }
@@ -464,12 +466,54 @@ public sealed class AdminAccessManagementServiceTests
         var target = await AddAsync(db, "target@example.test");
         var service = AdminAccessTestHarness.ManagementFor(db, founder.UserId);
 
-        var error = await Assert.ThrowsAsync<ApiException>(() =>
-            service.UpdateUserRolesAsync(
-                target.Id,
-                new UpdateAdminUserRolesRequest([], RowVersion: "   ")));
+        var before = await db.AdminUserRoles
+            .Where(item => item.AdminUserId == target.Id)
+            .Select(item => item.AdminRoleId)
+            .ToArrayAsync();
+        var stale = Convert.ToBase64String(Guid.NewGuid().ToByteArray().Take(8).ToArray());
 
-        Assert.Equal(StatusCodes.Status400BadRequest, error.StatusCode);
+        var error = await Assert.ThrowsAsync<ApiException>(() => service.UpdateUserRolesAsync(
+            target.Id,
+            new UpdateAdminUserRolesRequest([], stale)));
+
+        Assert.Equal(StatusCodes.Status409Conflict, error.StatusCode);
+        Assert.Equal("concurrency_conflict", error.Code);
+        Assert.Equal(
+            before,
+            await db.AdminUserRoles
+                .Where(item => item.AdminUserId == target.Id)
+                .Select(item => item.AdminRoleId)
+                .ToArrayAsync());
+    }
+
+    [Fact]
+    public async Task AStaleRoleRowVersionCannotOverwriteCapabilities()
+    {
+        await using var db = await SeededDbAsync();
+        var founder = await AddAsync(db, "founder@example.test", AdminRoleTemplates.SuperAdminCode);
+        var service = AdminAccessTestHarness.ManagementFor(db, founder.UserId);
+        var created = await service.CreateRoleAsync(new CreateAdminRoleRequest(
+            "Warehouse Reader", "Reads stock.", [AdminCapabilities.InventoryView]));
+        var stale = Convert.ToBase64String(Guid.NewGuid().ToByteArray().Take(8).ToArray());
+
+        var error = await Assert.ThrowsAsync<ApiException>(() => service.UpdateRoleAsync(
+            created.Role.Id,
+            new UpdateAdminRoleRequest(
+                "Warehouse Reader",
+                "Changed",
+                [AdminCapabilities.InventoryView, AdminCapabilities.InventoryManage],
+                stale)));
+
+        Assert.Equal(StatusCodes.Status409Conflict, error.StatusCode);
+        Assert.Equal("concurrency_conflict", error.Code);
+        var persisted = await db.AdminRoles
+            .AsNoTracking()
+            .Include(item => item.Capabilities)
+            .SingleAsync(item => item.Id == created.Role.Id);
+        Assert.Equal("Reads stock.", persisted.Description);
+        Assert.DoesNotContain(
+            persisted.Capabilities,
+            item => item.Capability == AdminCapabilities.InventoryManage);
     }
 
     // --- Helpers --------------------------------------------------------------

@@ -73,6 +73,7 @@ public static class AdminCapabilities
     public const string MerchantInvoicesManage = "merchant_invoices.manage";
     public const string MerchantInvoicesRecordPayment = "merchant_invoices.record_payment";
     public const string SalesCommissionsView = "sales_commissions.view";
+    public const string SalesCommissionsExport = "sales_commissions.export";
     public const string SalesCommissionsReverse = "sales_commissions.reverse";
     public const string SalesCommissionRulesManage = "sales_commissions.rules.manage";
     public const string PayoutsView = "payouts.view";

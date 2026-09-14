@@ -95,59 +95,81 @@ public sealed class AdminService : SkeletonService, IAdminService
 
     public async Task<AdminDashboardResponse> GetDashboardAsync(CancellationToken cancellationToken = default)
     {
-        var summary = new AdminDashboardSummaryResponse(
-            TotalOwners: await _dbContext.OwnerProfiles
-                .CountAsync(profile => profile.ArchivedAt == null, cancellationToken),
-            TotalPets: await ActivePetsBase().CountAsync(cancellationToken),
-            ActivePets: await ActivePetsBase()
-                .CountAsync(pet => pet.LifecycleStatus == PetLifecycleStatus.Active, cancellationToken),
-            MemorialPets: await ActivePetsBase()
-                .CountAsync(pet => pet.LifecycleStatus == PetLifecycleStatus.Memorial, cancellationToken),
-            LostModePets: await ActivePetsBase()
-                .CountAsync(pet => pet.LifecycleStatus == PetLifecycleStatus.Active && pet.LostModeEnabled, cancellationToken),
-            PendingPaymentProofs: await _dbContext.PaymentProofs
-                .CountAsync(proof => proof.Status == PaymentProofStatus.PendingReview, cancellationToken),
-            OrdersPendingPayment: await _dbContext.TagOrders
-                .CountAsync(order => order.Status == OrderStatus.PendingPayment, cancellationToken),
-            OrdersPreparing: await _dbContext.TagOrders
-                .CountAsync(order =>
-                    order.Status == OrderStatus.PaymentConfirmed
-                    || order.Status == OrderStatus.PreparingTag
-                    || order.Status == OrderStatus.ReadyToShip, cancellationToken),
-            OrdersShipped: await _dbContext.TagOrders
-                .CountAsync(order => order.Status == OrderStatus.Shipped, cancellationToken),
-            ActiveTags: await VisibleTagsBase()
-                .CountAsync(tag =>
-                    tag.Status == SmartTagStatus.Active
-                    && tag.ArchivedAt == null
-                    && tag.Pet != null
-                    && tag.Pet.LifecycleStatus == PetLifecycleStatus.Active, cancellationToken),
-            LostOrDisabledTags: await VisibleTagsBase()
-                .CountAsync(tag =>
-                    tag.ArchivedAt == null
-                    && (tag.Status == SmartTagStatus.Lost || tag.Status == SmartTagStatus.Disabled), cancellationToken),
-            UnclaimedTags: await VisibleTagsBase()
-                .CountAsync(tag =>
-                    tag.Status == SmartTagStatus.Unclaimed
-                    && tag.PetId == null
-                    && tag.ArchivedAt == null, cancellationToken));
-
-        // The counts above are aggregates every operator needs to orient
-        // themselves. The detailed lists below carry customer and activity
-        // detail, so each one is shown only to someone allowed to open that
-        // module in the first place.
         var access = _accessResolver is null
             ? null
             : await _accessResolver.ResolveCurrentAsync(cancellationToken);
+        bool Can(string capability) => access is null || access.Has(capability);
 
-        var recentOrders = access is null || access.Has(AdminCapabilities.OrdersView)
+        var canOwners = Can(AdminCapabilities.OwnersView);
+        var canPets = Can(AdminCapabilities.PetsView);
+        var canProofs = Can(AdminCapabilities.PaymentProofsView);
+        var canOrders = Can(AdminCapabilities.OrdersView);
+        var canTags = Can(AdminCapabilities.SmartTagsView);
+        var canInventory = Can(AdminCapabilities.InventoryView);
+
+        var summary = new AdminDashboardSummaryResponse(
+            TotalOwners: canOwners
+                ? await _dbContext.OwnerProfiles.CountAsync(profile => profile.ArchivedAt == null, cancellationToken)
+                : null,
+            TotalPets: canPets ? await ActivePetsBase().CountAsync(cancellationToken) : null,
+            ActivePets: canPets
+                ? await ActivePetsBase().CountAsync(pet => pet.LifecycleStatus == PetLifecycleStatus.Active, cancellationToken)
+                : null,
+            MemorialPets: canPets
+                ? await ActivePetsBase().CountAsync(pet => pet.LifecycleStatus == PetLifecycleStatus.Memorial, cancellationToken)
+                : null,
+            LostModePets: canPets
+                ? await ActivePetsBase().CountAsync(
+                    pet => pet.LifecycleStatus == PetLifecycleStatus.Active && pet.LostModeEnabled,
+                    cancellationToken)
+                : null,
+            PendingPaymentProofs: canProofs
+                ? await _dbContext.PaymentProofs.CountAsync(
+                    proof => proof.Status == PaymentProofStatus.PendingReview,
+                    cancellationToken)
+                : null,
+            OrdersPendingPayment: canOrders
+                ? await _dbContext.TagOrders.CountAsync(order => order.Status == OrderStatus.PendingPayment, cancellationToken)
+                : null,
+            OrdersPreparing: canOrders
+                ? await _dbContext.TagOrders.CountAsync(order =>
+                    order.Status == OrderStatus.PaymentConfirmed
+                    || order.Status == OrderStatus.PreparingTag
+                    || order.Status == OrderStatus.ReadyToShip, cancellationToken)
+                : null,
+            OrdersShipped: canOrders
+                ? await _dbContext.TagOrders.CountAsync(order => order.Status == OrderStatus.Shipped, cancellationToken)
+                : null,
+            ActiveTags: canTags
+                ? await VisibleTagsBase().CountAsync(tag =>
+                    tag.Status == SmartTagStatus.Active
+                    && tag.ArchivedAt == null
+                    && tag.Pet != null
+                    && tag.Pet.LifecycleStatus == PetLifecycleStatus.Active, cancellationToken)
+                : null,
+            LostOrDisabledTags: canTags
+                ? await VisibleTagsBase().CountAsync(tag =>
+                    tag.ArchivedAt == null
+                    && (tag.Status == SmartTagStatus.Lost || tag.Status == SmartTagStatus.Disabled), cancellationToken)
+                : null,
+            UnclaimedTags: canInventory
+                ? await VisibleTagsBase().CountAsync(tag =>
+                    tag.Status == SmartTagStatus.Unclaimed
+                    && tag.PetId == null
+                    && tag.ArchivedAt == null, cancellationToken)
+                : null);
+
+        // Both aggregates and recent records are limited to modules the
+        // current operator can open. A broad dashboard route must not become
+        // an indirect way to inspect protected operational data.
+        var recentOrders = canOrders
             ? await IncludeOrderGraph(_dbContext.TagOrders.AsNoTracking())
                 .OrderByDescending(order => order.CreatedAt)
                 .Take(5)
                 .ToListAsync(cancellationToken)
             : [];
 
-        var recentProofs = access is null || access.Has(AdminCapabilities.PaymentProofsView)
+        var recentProofs = canProofs
             ? await IncludeProofGraph(_dbContext.PaymentProofs.AsNoTracking())
                 .OrderByDescending(proof => proof.UploadedAt)
                 .Take(5)

@@ -32,6 +32,8 @@ import {
   type AdminPaymentProofListParams,
 } from "@/services/adminPaymentProofService";
 import { isAbortError } from "@/services/apiClient";
+import { adminCapabilities, hasCapability } from "@/lib/adminCapabilities";
+import { getAdminCapabilities } from "@/services/authService";
 import { getFriendlyTagErrorMessage } from "@/services/tagService";
 
 const filterKeys = [
@@ -83,6 +85,9 @@ const QUEUE_SORT = "queue";
 type PendingReview = { decision: "approve" | "reject"; proof: AdminPaymentProof };
 
 export function AdminPaymentProofsManager() {
+  const access = getAdminCapabilities();
+  const canExport = hasCapability(access, adminCapabilities.paymentProofsExport);
+  const canReview = hasCapability(access, adminCapabilities.paymentProofsReview);
   const { refresh: refreshOperationalData } = useAdminOperationalData();
   const { query, actions, hasActiveFilters } = useAdminTableQuery({
     filterKeys,
@@ -246,12 +251,12 @@ export function AdminPaymentProofsManager() {
     { id: "reviewedAt", header: "Reviewed", sortId: "reviewedAt", cell: (proof) => <span className="whitespace-nowrap text-slate-600">{formatAdminDateTime(proof.reviewedAt)}</span>, hideable: true, defaultHidden: true },
   ];
 
-  const bulkActions: AdminBulkAction[] = [
+  const bulkActions: AdminBulkAction[] = canExport ? [
     { id: "export-selected-csv", label: "Export selected CSV", onClick: () => void exportRows("csv", "selected"), disabled: exportBusy },
     ...(getAdminPaymentProofExportFormats().includes("xlsx")
       ? [{ id: "export-selected-xlsx", label: "Export selected Excel", onClick: () => void exportRows("xlsx", "selected"), disabled: exportBusy } satisfies AdminBulkAction]
       : []),
-  ];
+  ] : [];
 
   return (
     <div className="grid gap-4">
@@ -278,7 +283,7 @@ export function AdminPaymentProofsManager() {
           ))}
         </nav>
         <AdminFilterBar
-          endSlot={<AdminExportMenu busy={exportBusy} formats={getAdminPaymentProofExportFormats()} onExport={(format, scope) => void exportRows(format, scope)} selectedCount={selectedIds.size} />}
+          endSlot={canExport ? <AdminExportMenu busy={exportBusy} formats={getAdminPaymentProofExportFormats()} onExport={(format, scope) => void exportRows(format, scope)} selectedCount={selectedIds.size} /> : undefined}
           filters={filters}
           hasActiveFilters={hasActiveFilters}
           onClearAll={actions.clearAllFilters}
@@ -305,14 +310,14 @@ export function AdminPaymentProofsManager() {
           rowKey={(proof) => proof.id}
           rowOpenLabel="Review"
           rows={items}
-          selectable
+          selectable={canExport}
           selectedIds={selectedIds}
           sortBy={query.sortBy}
           sortDir={query.sortDir}
           stickyFirstColumn
           total={current?.total ?? 0}
         />
-        <AdminBulkActionBar actions={bulkActions} busy={exportBusy} onClearSelection={() => setSelectedIds(new Set())} selectedCount={selectedIds.size} />
+        {canExport ? <AdminBulkActionBar actions={bulkActions} busy={exportBusy} onClearSelection={() => setSelectedIds(new Set())} selectedCount={selectedIds.size} /> : null}
         {openProof ? (
           <AdminPaymentProofDetailDrawer
             busy={busy}
@@ -321,6 +326,7 @@ export function AdminPaymentProofsManager() {
             onReview={(decision, proof) => beginReview(decision, proof)}
             refreshKey={reloadKey}
             summary={openProof}
+            canReview={canReview}
           />
         ) : null}
       </AdminSection>

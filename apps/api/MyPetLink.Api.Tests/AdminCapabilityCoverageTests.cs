@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Routing;
 using MyPetLink.Api.Auth;
+using MyPetLink.Api.Controllers.Admin;
 
 namespace MyPetLink.Api.Tests;
 
@@ -136,6 +137,16 @@ public sealed class AdminCapabilityCoverageTests
         }
     }
 
+    [Fact]
+    public void SensitiveWorkflowsUseTheirDedicatedCapabilities()
+    {
+        AssertPolicy<AdminOrdersController>("ConfirmPayment", AdminCapabilities.PaymentProofsReview);
+        AssertPolicy<AdminOrdersController>("RejectPaymentProof", AdminCapabilities.PaymentProofsReview);
+        AssertPolicy<AdminOrdersController>("UpdateStatus", AdminCapabilities.OrdersShippingManage);
+        AssertPolicy<AdminSalesCommissionsController>("Export", AdminCapabilities.SalesCommissionsExport);
+        AssertPolicy<AdminSalesReportingController>("PortfolioExport", AdminCapabilities.SalesCommissionsExport);
+    }
+
     private static IEnumerable<MethodInfo> Actions(Type controller) =>
         controller
             .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
@@ -148,4 +159,11 @@ public sealed class AdminCapabilityCoverageTests
             .Where(policy => !string.IsNullOrWhiteSpace(policy))
             .Select(policy => policy!)
             .ToArray();
+
+    private static void AssertPolicy<TController>(string actionName, string capability)
+    {
+        var action = typeof(TController).GetMethod(actionName);
+        Assert.NotNull(action);
+        Assert.Contains(capability, Policies(action!));
+    }
 }

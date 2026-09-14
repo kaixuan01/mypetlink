@@ -24,7 +24,7 @@ const nextDay = (value: string) => {
   return date.toISOString();
 };
 
-export function AdminInventoryCostingPanel() {
+export function AdminInventoryCostingPanel({ canManageReceipts }: { canManageReceipts: boolean }) {
   const connected = canUseAdminApi();
   const [options, setOptions] = useState<InventoryReceiptSkuOption[]>([]);
   const [receipts, setReceipts] = useState<InventoryReceipt[]>([]);
@@ -110,7 +110,7 @@ export function AdminInventoryCostingPanel() {
 
   return <>
     <AdminSection title="Stock receipts" description="Record physical stock received and its landed cost. Generating tag codes does not create a stock receipt.">
-      <div className="grid gap-3 p-4 md:grid-cols-2 lg:grid-cols-4">
+      {canManageReceipts ? <><div className="grid gap-3 p-4 md:grid-cols-2 lg:grid-cols-4">
         <Field label="SKU"><select className={fieldClass} value={variantId} onChange={(e) => { setVariantId(e.target.value); setBatchId(""); }}>
           {options.map((option) => <option key={option.id} value={option.id}>{option.sku} · {option.variantName}</option>)}
         </select></Field>
@@ -137,6 +137,7 @@ export function AdminInventoryCostingPanel() {
         <p className="text-sm font-bold text-slate-700">Calculated: {money(previewTotal)} total · {money(previewUnit)} per tag</p>
         <AdminActionButton tone="primary" disabled={busy || !variantId || quantity < 1 || previewTotal <= 0} onClick={() => void save()}>Save Stock Receipt</AdminActionButton>
       </div>
+      </> : null}
       {message ? <p className="px-4 pb-4 text-sm font-bold text-[#1b4f9c]" role="status">{message}</p> : null}
       <div className="overflow-x-auto border-t border-slate-100">
         <table className="min-w-full text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="p-3">Receipt</th><th className="p-3">SKU / batch</th><th className="p-3">Received</th><th className="p-3">Quantity</th><th className="p-3">Landed cost</th></tr></thead>

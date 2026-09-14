@@ -84,7 +84,10 @@ export const adminNavGroups: AdminNavGroup[] = [
         href: adminRoutes.productCatalog,
         label: "Tag Catalog",
         icon: "plans",
-        requiredAnyCapabilities: [adminCapabilities.catalogView],
+        requiredAnyCapabilities: [
+          adminCapabilities.catalogView,
+          adminCapabilities.marketingView,
+        ],
       },
     ],
   },
@@ -96,7 +99,10 @@ export const adminNavGroups: AdminNavGroup[] = [
         href: "/admin/tag-inventory",
         label: "Tag Inventory",
         icon: "copy",
-        requiredAnyCapabilities: [adminCapabilities.inventoryView],
+        requiredAnyCapabilities: [
+          adminCapabilities.inventoryView,
+          adminCapabilities.inventoryCostsView,
+        ],
       },
       {
         href: "/admin/tags",
@@ -288,6 +294,13 @@ export function requiredCapabilitiesForPath(
   search = "",
   groups: AdminNavGroup[] = adminNavGroups
 ): AdminCapabilityKey[] | null {
+  if (pathname === adminRoutes.productCatalog) {
+    const tab = new URLSearchParams(search).get("tab") ?? "products";
+    return tab === "promotions"
+      ? [adminCapabilities.marketingView]
+      : [adminCapabilities.catalogView];
+  }
+
   for (const group of groups) {
     for (const item of group.items) {
       if (isAdminNavItemActive(item, pathname, search)) {

@@ -8,7 +8,6 @@ using MyPetLink.Api.Services;
 
 namespace MyPetLink.Api.Controllers.Admin;
 
-[Authorize(Policy = AdminCapabilities.InventoryView)]
 [Route("api/v1/admin/tag-inventory")]
 public sealed class AdminTagInventoryController : ApiControllerBase
 {
@@ -39,6 +38,7 @@ public sealed class AdminTagInventoryController : ApiControllerBase
     }
 
     [HttpGet("receipt-options")]
+    [Authorize(Policy = AdminCapabilities.InventoryCostsView)]
     public async Task<IActionResult> ReceiptOptions(CancellationToken cancellationToken)
     {
         var response = await _receiptService.GetOptionsAsync(cancellationToken);
@@ -67,6 +67,7 @@ public sealed class AdminTagInventoryController : ApiControllerBase
     }
 
     [HttpGet]
+    [Authorize(Policy = AdminCapabilities.InventoryView)]
     public async Task<IActionResult> List(
         [FromQuery] AdminTagInventoryQuery query,
         CancellationToken cancellationToken)

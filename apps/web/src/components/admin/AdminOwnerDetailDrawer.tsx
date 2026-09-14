@@ -18,10 +18,12 @@ export function AdminOwnerDetailDrawer({
   summary,
   initialDetail,
   onClose,
+  canManage = true,
 }: {
   summary: AdminOwner;
   initialDetail?: AdminOwnerDetail;
   onClose: () => void;
+  canManage?: boolean;
 }) {
   const dialogRef = useRef<HTMLElement | null>(null);
   const closeRef = useRef<HTMLButtonElement | null>(null);
@@ -172,7 +174,7 @@ export function AdminOwnerDetailDrawer({
                       />
                       <AdminDetailItem label="Delivery note" value={detail.welcomeEmail.lastError || "Not set"} />
                     </div>
-                    {detail.welcomeEmail.canRetry ? (
+                    {detail.welcomeEmail.canRetry && canManage ? (
                       <button
                         className={actionClass}
                         disabled={emailAction.retrying}

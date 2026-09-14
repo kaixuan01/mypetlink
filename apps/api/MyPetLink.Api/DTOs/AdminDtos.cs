@@ -9,18 +9,18 @@ public sealed record AdminOwnerRefResponse(
     string DisplayName);
 
 public sealed record AdminDashboardSummaryResponse(
-    int TotalOwners,
-    int TotalPets,
-    int ActivePets,
-    int MemorialPets,
-    int LostModePets,
-    int PendingPaymentProofs,
-    int OrdersPendingPayment,
-    int OrdersPreparing,
-    int OrdersShipped,
-    int ActiveTags,
-    int LostOrDisabledTags,
-    int UnclaimedTags);
+    int? TotalOwners,
+    int? TotalPets,
+    int? ActivePets,
+    int? MemorialPets,
+    int? LostModePets,
+    int? PendingPaymentProofs,
+    int? OrdersPendingPayment,
+    int? OrdersPreparing,
+    int? OrdersShipped,
+    int? ActiveTags,
+    int? LostOrDisabledTags,
+    int? UnclaimedTags);
 
 public sealed record AdminDashboardResponse(
     AdminDashboardSummaryResponse Summary,
