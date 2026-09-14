@@ -8,7 +8,7 @@ using MyPetLink.Api.Validation;
 
 namespace MyPetLink.Api.Controllers.Admin;
 
-[Authorize(Policy = AuthorizationPolicies.ManageCommissionRules)]
+[Authorize(Policy = AdminCapabilities.SalesCommissionRulesManage)]
 [Route("api/v1/admin/commission-rules")]
 public sealed class AdminCommissionRulesController : ApiControllerBase
 {

@@ -7,7 +7,7 @@ using MyPetLink.Api.Services;
 
 namespace MyPetLink.Api.Controllers.Admin;
 
-[Authorize(Policy = AuthorizationPolicies.CommissionFinancial)]
+[Authorize(Policy = AdminCapabilities.PayoutsView)]
 [Route("api/v1/admin/merchant-sales/commission-payouts")]
 public sealed class AdminCommissionPayoutsController : ApiControllerBase
 {
@@ -38,7 +38,7 @@ public sealed class AdminCommissionPayoutsController : ApiControllerBase
         Ok(ApiEnvelope.Ok(await _service.GetAsync(id, cancellationToken), HttpContext));
 
     [HttpGet("{id:guid}/statement")]
-    [Authorize(Policy = AuthorizationPolicies.CommissionFinancial)]
+    [Authorize(Policy = AdminCapabilities.PayoutsView)]
     public async Task<IActionResult> Statement(Guid id, CancellationToken cancellationToken)
     {
         var document = await _statements.GetStatementAsync(id, cancellationToken);
@@ -46,21 +46,21 @@ public sealed class AdminCommissionPayoutsController : ApiControllerBase
     }
 
     [HttpPost]
-    [Authorize(Policy = AuthorizationPolicies.PrepareCommissionPayout)]
+    [Authorize(Policy = AdminCapabilities.PayoutsManage)]
     public async Task<IActionResult> Prepare(
         [FromBody] PrepareCommissionPayoutRequest request, CancellationToken cancellationToken) =>
         Ok(ApiEnvelope.Ok(await _service.PrepareAsync(
             _currentUser.Current.UserId, request, cancellationToken), HttpContext));
 
     [HttpPost("{id:guid}/mark-paid")]
-    [Authorize(Policy = AuthorizationPolicies.MarkCommissionPaid)]
+    [Authorize(Policy = AdminCapabilities.PayoutsSettle)]
     public async Task<IActionResult> MarkPaid(Guid id,
         [FromBody] MarkCommissionPayoutPaidRequest request, CancellationToken cancellationToken) =>
         Ok(ApiEnvelope.Ok(await _service.MarkPaidAsync(
             _currentUser.Current.UserId, id, request, cancellationToken), HttpContext));
 
     [HttpPost("{id:guid}/cancel")]
-    [Authorize(Policy = AuthorizationPolicies.PrepareCommissionPayout)]
+    [Authorize(Policy = AdminCapabilities.PayoutsManage)]
     public async Task<IActionResult> Cancel(Guid id,
         [FromBody] CancelCommissionPayoutRequest request, CancellationToken cancellationToken) =>
         Ok(ApiEnvelope.Ok(await _service.CancelAsync(

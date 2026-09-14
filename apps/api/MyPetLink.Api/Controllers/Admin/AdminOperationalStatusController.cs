@@ -11,7 +11,7 @@ namespace MyPetLink.Api.Controllers.Admin;
 /// Read-only operational status. There is no write endpoint by design:
 /// infrastructure configuration is owned by deployment, not by Admin Portal.
 /// </summary>
-[Authorize(Policy = AuthorizationPolicies.Admin)]
+[Authorize(Policy = AdminCapabilities.OperationalStatusView)]
 [Route("api/v1/admin/operational-status")]
 public sealed class AdminOperationalStatusController : ApiControllerBase
 {

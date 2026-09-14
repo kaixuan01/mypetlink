@@ -8,7 +8,7 @@ using MyPetLink.Api.Services;
 
 namespace MyPetLink.Api.Controllers.Admin;
 
-[Authorize(Policy = AuthorizationPolicies.Admin)]
+[Authorize(Policy = AdminCapabilities.SmartTagsView)]
 [Route("api/v1/admin/tags")]
 public sealed class AdminSmartTagsController : ApiControllerBase
 {
@@ -46,6 +46,7 @@ public sealed class AdminSmartTagsController : ApiControllerBase
             _currentUserService.Current.UserId, tagId, source, cancellationToken), HttpContext));
 
     [HttpGet("{tagId:guid}/scans/export")]
+    [Authorize(Policy = AdminCapabilities.SmartTagsExport)]
     public async Task<IActionResult> ExportScans(
         Guid tagId,
         [FromQuery] string? source,
@@ -62,55 +63,67 @@ public sealed class AdminSmartTagsController : ApiControllerBase
     }
 
     [HttpPost("{tagId:guid}/disable")]
+    [Authorize(Policy = AdminCapabilities.SmartTagsManage)]
     public Task<IActionResult> Disable(Guid tagId, [FromBody] AdminSmartTagActionRequest? request, CancellationToken cancellationToken)
         => RunAction(tagId, "disable", request?.Reason, cancellationToken);
 
     [HttpPost("{tagId:guid}/mark-lost")]
+    [Authorize(Policy = AdminCapabilities.SmartTagsManage)]
     public Task<IActionResult> MarkLost(Guid tagId, [FromBody] AdminSmartTagActionRequest? request, CancellationToken cancellationToken)
         => RunAction(tagId, "mark-lost", request?.Reason, cancellationToken);
 
     [HttpPost("{tagId:guid}/archive")]
+    [Authorize(Policy = AdminCapabilities.SmartTagsManage)]
     public Task<IActionResult> Archive(Guid tagId, [FromBody] AdminSmartTagActionRequest? request, CancellationToken cancellationToken)
         => RunAction(tagId, "archive", request?.Reason, cancellationToken);
 
     [HttpPost("{tagId:guid}/restore")]
+    [Authorize(Policy = AdminCapabilities.SmartTagsManage)]
     public Task<IActionResult> Restore(Guid tagId, [FromBody] AdminSmartTagActionRequest? request, CancellationToken cancellationToken)
         => RunAction(tagId, "restore", request?.Reason, cancellationToken);
 
     [HttpPost("{tagId:guid}/reactivate")]
+    [Authorize(Policy = AdminCapabilities.SmartTagsManage)]
     public Task<IActionResult> Reactivate(Guid tagId, [FromBody] AdminSmartTagActionRequest? request, CancellationToken cancellationToken)
         => RunAction(tagId, "reactivate", request?.Reason, cancellationToken);
 
     [HttpPost("{tagId:guid}/return-to-unclaimed")]
+    [Authorize(Policy = AdminCapabilities.SmartTagsManage)]
     public Task<IActionResult> ReturnToUnclaimed(Guid tagId, [FromBody] AdminSmartTagActionRequest? request, CancellationToken cancellationToken)
         => RunAction(tagId, "return-to-unclaimed", request?.Reason, cancellationToken);
 
     [HttpPost("{tagId:guid}/assignment/claim")]
+    [Authorize(Policy = AdminCapabilities.SmartTagsAssign)]
     public async Task<IActionResult> Claim(Guid tagId, [FromBody] AdminSmartTagClaimRequest request, CancellationToken cancellationToken)
         => Ok(ApiEnvelope.Ok(await _smartTagService.ClaimAsync(
             _currentUserService.Current.UserId, tagId, request, cancellationToken), HttpContext));
 
     [HttpPost("{tagId:guid}/assignment/pet")]
+    [Authorize(Policy = AdminCapabilities.SmartTagsAssign)]
     public async Task<IActionResult> AssignPet(Guid tagId, [FromBody] AdminSmartTagAssignPetRequest request, CancellationToken cancellationToken)
         => Ok(ApiEnvelope.Ok(await _smartTagService.AssignPetAsync(
             _currentUserService.Current.UserId, tagId, request, cancellationToken), HttpContext));
 
     [HttpPost("{tagId:guid}/assignment/unassign-pet")]
+    [Authorize(Policy = AdminCapabilities.SmartTagsAssign)]
     public async Task<IActionResult> UnassignPet(Guid tagId, [FromBody] AdminSmartTagUnassignPetRequest request, CancellationToken cancellationToken)
         => Ok(ApiEnvelope.Ok(await _smartTagService.UnassignPetAsync(
             _currentUserService.Current.UserId, tagId, request, cancellationToken), HttpContext));
 
     [HttpPost("{tagId:guid}/assignment/transfer")]
+    [Authorize(Policy = AdminCapabilities.SmartTagsTransfer)]
     public async Task<IActionResult> TransferOwnership(Guid tagId, [FromBody] AdminSmartTagTransferRequest request, CancellationToken cancellationToken)
         => Ok(ApiEnvelope.Ok(await _smartTagService.TransferOwnershipAsync(
             _currentUserService.Current.UserId, tagId, request, cancellationToken), HttpContext));
 
     [HttpPost("bulk-status")]
+    [Authorize(Policy = AdminCapabilities.SmartTagsManage)]
     public async Task<IActionResult> BulkStatus([FromBody] AdminSmartTagBulkActionRequest request, CancellationToken cancellationToken)
         => Ok(ApiEnvelope.Ok(await _smartTagService.BulkUpdateAsync(
             _currentUserService.Current.UserId, request, cancellationToken), HttpContext));
 
     [HttpGet("export")]
+    [Authorize(Policy = AdminCapabilities.SmartTagsExport)]
     public async Task<IActionResult> Export(
         [FromQuery] AdminSmartTagQuery query,
         [FromQuery] string? format,

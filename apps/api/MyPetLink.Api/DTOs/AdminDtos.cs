@@ -190,6 +190,10 @@ public sealed record AdminPetDetailResponse(
 public sealed record AdminAuditLogResponse(
     Guid Id,
     Guid? ActorId,
+    // Who did it, in words. An id alone cannot be read by the person reviewing
+    // the history, and the account may have been deactivated since.
+    string? ActorName,
+    string? ActorEmail,
     ActorType ActorType,
     string Action,
     string Entity,

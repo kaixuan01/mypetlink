@@ -42,6 +42,7 @@ public interface IAuthService : ISkeletonService
 
     Task<AdminAuthCheckResponse> GetAdminAuthCheckAsync(
         Guid? currentUserId,
+        AdminAccessSummaryResponse access,
         CancellationToken cancellationToken = default);
 }
 

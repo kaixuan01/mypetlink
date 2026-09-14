@@ -7,7 +7,7 @@ using MyPetLink.Api.Services;
 
 namespace MyPetLink.Api.Controllers.Admin;
 
-[Authorize(Policy = AuthorizationPolicies.Admin)]
+[Authorize(Policy = AdminCapabilities.SettingsView)]
 [Route("api/v1/admin/shipping-fulfilment")]
 public sealed class AdminShippingFulfilmentController : ApiControllerBase
 {
@@ -27,6 +27,7 @@ public sealed class AdminShippingFulfilmentController : ApiControllerBase
         Ok(ApiEnvelope.Ok(await _service.GetAdminAsync(cancellationToken), HttpContext));
 
     [HttpPut("settings")]
+    [Authorize(Policy = AdminCapabilities.SettingsManage)]
     public async Task<IActionResult> UpdateSettings(
         [FromBody] UpdateShippingSettingsRequest request,
         CancellationToken cancellationToken) =>
@@ -41,6 +42,7 @@ public sealed class AdminShippingFulfilmentController : ApiControllerBase
             HttpContext));
 
     [HttpPost("couriers")]
+    [Authorize(Policy = AdminCapabilities.SettingsManage)]
     public async Task<IActionResult> CreateCourier(
         [FromBody] CreateShippingCourierRequest request,
         CancellationToken cancellationToken) =>
@@ -49,6 +51,7 @@ public sealed class AdminShippingFulfilmentController : ApiControllerBase
             HttpContext));
 
     [HttpPut("couriers/{courierId:guid}")]
+    [Authorize(Policy = AdminCapabilities.SettingsManage)]
     public async Task<IActionResult> UpdateCourier(
         Guid courierId,
         [FromBody] UpdateShippingCourierRequest request,
@@ -58,6 +61,7 @@ public sealed class AdminShippingFulfilmentController : ApiControllerBase
             HttpContext));
 
     [HttpPost("couriers/{courierId:guid}/active")]
+    [Authorize(Policy = AdminCapabilities.SettingsManage)]
     public async Task<IActionResult> SetCourierActive(
         Guid courierId,
         [FromBody] SetShippingCourierActiveRequest request,
@@ -67,6 +71,7 @@ public sealed class AdminShippingFulfilmentController : ApiControllerBase
             HttpContext));
 
     [HttpPost("couriers/{courierId:guid}/default")]
+    [Authorize(Policy = AdminCapabilities.SettingsManage)]
     public async Task<IActionResult> SetDefaultCourier(
         Guid courierId,
         [FromBody] SetDefaultShippingCourierRequest request,

@@ -10,7 +10,7 @@ namespace MyPetLink.Api.Controllers.Admin;
 
 // Read-only Plans endpoints. Plan definitions are seeded configuration and
 // cannot be edited through the API; owner-plan rows are usage projections.
-[Authorize(Policy = AuthorizationPolicies.Admin)]
+[Authorize(Policy = AdminCapabilities.PlansView)]
 [Route("api/v1/admin/plans")]
 public sealed class AdminPlansController : ApiControllerBase
 {
@@ -51,6 +51,7 @@ public sealed class AdminPlansController : ApiControllerBase
             _currentUserService.Current.UserId, ownerId, cancellationToken), HttpContext));
 
     [HttpGet("owners/export")]
+    [Authorize(Policy = AdminCapabilities.OwnersExport)]
     public async Task<IActionResult> Export(
         [FromQuery] AdminOwnerPlanQuery query,
         [FromQuery] string? format,

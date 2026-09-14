@@ -1,6 +1,11 @@
 import type { IconName } from "@/components/ui/Icon";
+import {
+  adminCapabilities,
+  hasAnyCapability,
+  type AdminAccessCapabilities,
+  type AdminCapabilityKey,
+} from "@/lib/adminCapabilities";
 import { adminRoutes } from "@/lib/routes";
-import type { AdminCapabilities } from "@/services/authService";
 
 // Single source of truth for Admin Portal navigation. The desktop sidebar and
 // the mobile navigation drawer both render from this structure — never
@@ -11,10 +16,11 @@ export type AdminNavItem = {
   label: string;
   icon: IconName;
   /**
-   * Optional API-aligned capability gate. This only controls discovery; every
-   * destination remains protected by its controller policy.
+   * The permissions that make this destination worth showing — holding any one
+   * of them is enough. This controls discovery only. The destination itself is
+   * protected by the API, which refuses the request whatever the menu did.
    */
-  requiredAnyCapabilities?: AdminCapabilityName[];
+  requiredAnyCapabilities?: AdminCapabilityKey[];
 };
 
 export type AdminNavGroup = {
@@ -24,15 +30,15 @@ export type AdminNavGroup = {
   // null = ungrouped items rendered without a section heading (Overview).
   label: string | null;
   items: AdminNavItem[];
-  requiredAnyCapabilities?: AdminCapabilityName[];
+  requiredAnyCapabilities?: AdminCapabilityKey[];
 };
-
-export type AdminCapabilityName = Exclude<keyof AdminCapabilities, "role">;
 
 export const adminNavGroups: AdminNavGroup[] = [
   {
     id: "overview",
     label: null,
+    // Everyone lands here. The sections inside the page are themselves filtered
+    // by what the operator can open.
     items: [{ href: "/admin", label: "Overview", icon: "home" }],
   },
   {
@@ -41,54 +47,165 @@ export const adminNavGroups: AdminNavGroup[] = [
     items: [
       // "Retail" distinguishes owner purchases from Merchant Sales. The Owner
       // Portal keeps its plain "Orders" — this clarification is Admin-only.
-      { href: "/admin/orders", label: "Retail Orders", icon: "record" },
-      { href: "/admin/payment-proofs", label: "Payment Proofs", icon: "shield" },
+      {
+        href: "/admin/orders",
+        label: "Retail Orders",
+        icon: "record",
+        requiredAnyCapabilities: [adminCapabilities.ordersView],
+      },
+      {
+        href: "/admin/payment-proofs",
+        label: "Payment Proofs",
+        icon: "shield",
+        requiredAnyCapabilities: [adminCapabilities.paymentProofsView],
+      },
       // Bulk sales to business customers. One entry: merchants, quotations,
-      // orders and invoices are sections inside the workspace.
-      { href: adminRoutes.merchantSales, label: "Merchant Sales", icon: "users" },
+      // orders and invoices are sections inside the workspace, and each of
+      // those is filtered again by the permission that section needs.
+      {
+        href: adminRoutes.merchantSales,
+        label: "Merchant Sales",
+        icon: "users",
+        requiredAnyCapabilities: [
+          adminCapabilities.salesView,
+          adminCapabilities.merchantOrdersView,
+          adminCapabilities.merchantInvoicesView,
+          adminCapabilities.salesCommissionsView,
+          adminCapabilities.payoutsView,
+        ],
+      },
     ],
   },
   {
     id: "catalog",
     label: "Catalog",
     items: [
-      { href: adminRoutes.productCatalog, label: "Tag Catalog", icon: "plans" },
+      {
+        href: adminRoutes.productCatalog,
+        label: "Tag Catalog",
+        icon: "plans",
+        requiredAnyCapabilities: [adminCapabilities.catalogView],
+      },
     ],
   },
   {
     id: "tag-operations",
     label: "Tag Operations",
     items: [
-      { href: "/admin/tag-inventory", label: "Tag Inventory", icon: "copy" },
-      { href: "/admin/tags", label: "Smart Tags", icon: "tag" },
+      {
+        href: "/admin/tag-inventory",
+        label: "Tag Inventory",
+        icon: "copy",
+        requiredAnyCapabilities: [adminCapabilities.inventoryView],
+      },
+      {
+        href: "/admin/tags",
+        label: "Smart Tags",
+        icon: "tag",
+        requiredAnyCapabilities: [adminCapabilities.smartTagsView],
+      },
     ],
   },
   {
     id: "customers",
     label: "Customers",
     items: [
-      { href: "/admin/pets", label: "Pets", icon: "pets" },
-      { href: "/admin/users", label: "Owners", icon: "users" },
+      {
+        href: "/admin/pets",
+        label: "Pets",
+        icon: "pets",
+        requiredAnyCapabilities: [adminCapabilities.petsView],
+      },
+      {
+        href: "/admin/users",
+        label: "Owners",
+        icon: "users",
+        requiredAnyCapabilities: [adminCapabilities.ownersView],
+      },
     ],
   },
   {
     id: "configuration",
     label: "Configuration",
     items: [
-      { href: "/admin/plans", label: "Plans", icon: "plans" },
-      { href: adminRoutes.businessIdentity, label: "Business Identity", icon: "shield" },
-      { href: adminRoutes.deliveryRates, label: "Delivery Rates", icon: "record" },
-      { href: adminRoutes.shippingFulfilment, label: "Shipping & Fulfilment", icon: "tag" },
-      { href: adminRoutes.orderCheckout, label: "Order Checkout", icon: "settings" },
-      { href: adminRoutes.sampleExperience, label: "Sample Experience", icon: "pets" },
-      { href: adminRoutes.emailTemplates, label: "Email Templates", icon: "settings" },
+      {
+        href: "/admin/plans",
+        label: "Plans",
+        icon: "plans",
+        requiredAnyCapabilities: [adminCapabilities.plansView],
+      },
+      {
+        href: adminRoutes.businessIdentity,
+        label: "Business Identity",
+        icon: "shield",
+        requiredAnyCapabilities: [adminCapabilities.settingsView],
+      },
+      {
+        href: adminRoutes.deliveryRates,
+        label: "Delivery Rates",
+        icon: "record",
+        requiredAnyCapabilities: [adminCapabilities.settingsView],
+      },
+      {
+        href: adminRoutes.shippingFulfilment,
+        label: "Shipping & Fulfilment",
+        icon: "tag",
+        requiredAnyCapabilities: [adminCapabilities.settingsView],
+      },
+      {
+        href: adminRoutes.orderCheckout,
+        label: "Order Checkout",
+        icon: "settings",
+        requiredAnyCapabilities: [adminCapabilities.settingsView],
+      },
+      {
+        href: adminRoutes.sampleExperience,
+        label: "Sample Experience",
+        icon: "pets",
+        requiredAnyCapabilities: [adminCapabilities.sampleExperienceView],
+      },
+      {
+        href: adminRoutes.emailTemplates,
+        label: "Email Templates",
+        icon: "settings",
+        requiredAnyCapabilities: [adminCapabilities.emailTemplatesView],
+      },
+    ],
+  },
+  {
+    id: "access",
+    label: "Access Management",
+    items: [
+      {
+        href: adminRoutes.accessUsers,
+        label: "Users",
+        icon: "users",
+        requiredAnyCapabilities: [adminCapabilities.adminUsersView],
+      },
+      {
+        href: adminRoutes.accessRoles,
+        label: "Roles",
+        icon: "shield",
+        requiredAnyCapabilities: [adminCapabilities.adminRolesView],
+      },
+      {
+        href: adminRoutes.accessAuditLog,
+        label: "Activity History",
+        icon: "record",
+        requiredAnyCapabilities: [adminCapabilities.auditLogView],
+      },
     ],
   },
   {
     id: "system",
     label: "System",
     items: [
-      { href: adminRoutes.operationalStatus, label: "Operational Status", icon: "settings" },
+      {
+        href: adminRoutes.operationalStatus,
+        label: "Operational Status",
+        icon: "settings",
+        requiredAnyCapabilities: [adminCapabilities.operationalStatusView],
+      },
     ],
   },
 ];
@@ -132,30 +249,54 @@ export function isAdminNavItemActive(
 }
 
 function hasRequiredCapability(
-  required: AdminCapabilityName[] | undefined,
-  capabilities: AdminCapabilities
+  required: AdminCapabilityKey[] | undefined,
+  access: AdminAccessCapabilities
 ): boolean {
-  return !required?.length || required.some((capability) => capabilities[capability]);
+  return hasAnyCapability(access, required ?? []);
 }
 
-// All current non-financial sidebar destinations use the API's shared active-
-// admin policy. Merchant Sales remains visible to every role because even
-// Owner Support has meaningful access to its quotations/orders/invoices tabs;
-// narrower tabs are filtered inside that workspace. The optional gates keep
-// future policy-backed destinations from appearing to unauthorised roles.
+/**
+ * The sections and destinations this operator can actually open.
+ *
+ * A section left with nothing in it disappears entirely, so somebody who only
+ * handles payments sees a short, honest menu instead of a long one full of
+ * pages that would turn them away.
+ */
 export function visibleAdminNavGroups(
-  capabilities: AdminCapabilities,
+  access: AdminAccessCapabilities,
   groups: AdminNavGroup[] = adminNavGroups
 ): AdminNavGroup[] {
   return groups
-    .filter((group) => hasRequiredCapability(group.requiredAnyCapabilities, capabilities))
+    .filter((group) => hasRequiredCapability(group.requiredAnyCapabilities, access))
     .map((group) => ({
       ...group,
       items: group.items.filter((item) =>
-        hasRequiredCapability(item.requiredAnyCapabilities, capabilities)
+        hasRequiredCapability(item.requiredAnyCapabilities, access)
       ),
     }))
     .filter((group) => group.items.length > 0);
+}
+
+/**
+ * The capabilities that make a destination reachable, by path.
+ *
+ * Used by the page guard so opening a URL directly is held to the same standard
+ * as clicking the menu item.
+ */
+export function requiredCapabilitiesForPath(
+  pathname: string,
+  search = "",
+  groups: AdminNavGroup[] = adminNavGroups
+): AdminCapabilityKey[] | null {
+  for (const group of groups) {
+    for (const item of group.items) {
+      if (isAdminNavItemActive(item, pathname, search)) {
+        return item.requiredAnyCapabilities ?? [];
+      }
+    }
+  }
+
+  return null;
 }
 
 /**

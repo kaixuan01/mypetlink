@@ -13,7 +13,7 @@ namespace MyPetLink.Api.Controllers.Admin;
 // there is no merchant-facing counterpart to any of these routes — invoices and
 // receipts reach them as email attachments, never as a link they can open.
 
-[Authorize(Policy = AuthorizationPolicies.Admin)]
+[Authorize(Policy = AdminCapabilities.MerchantInvoicesView)]
 [Route("api/v1/admin/merchant-sales/invoices")]
 public sealed class AdminMerchantInvoicesController : ApiControllerBase
 {
@@ -50,6 +50,7 @@ public sealed class AdminMerchantInvoicesController : ApiControllerBase
         Ok(ApiEnvelope.Ok(await _service.GetInvoiceAsync(id, cancellationToken), HttpContext));
 
     [HttpPost("{id:guid}/cancel")]
+    [Authorize(Policy = AdminCapabilities.MerchantInvoicesManage)]
     public async Task<IActionResult> Cancel(
         Guid id, [FromBody] ConcurrencyTokenRequest? request, CancellationToken cancellationToken) =>
         Ok(ApiEnvelope.Ok(
@@ -58,7 +59,7 @@ public sealed class AdminMerchantInvoicesController : ApiControllerBase
             HttpContext));
 
     [HttpPost("{id:guid}/payments")]
-    [Authorize(Policy = AuthorizationPolicies.CommissionFinancial)]
+    [Authorize(Policy = AdminCapabilities.MerchantInvoicesRecordPayment)]
     public async Task<IActionResult> RecordPayment(
         Guid id, [FromBody] RecordMerchantPaymentRequest request, CancellationToken cancellationToken) =>
         Ok(ApiEnvelope.Ok(
@@ -88,7 +89,7 @@ public sealed class AdminMerchantInvoicesController : ApiControllerBase
                 .ToArray();
 }
 
-[Authorize(Policy = AuthorizationPolicies.Admin)]
+[Authorize(Policy = AdminCapabilities.MerchantInvoicesView)]
 [Route("api/v1/admin/merchant-sales/orders/{merchantOrderId:guid}/invoice")]
 public sealed class AdminMerchantOrderInvoiceController : ApiControllerBase
 {
@@ -107,6 +108,7 @@ public sealed class AdminMerchantOrderInvoiceController : ApiControllerBase
     /// already exists rather than billing the merchant twice.
     /// </summary>
     [HttpPost]
+    [Authorize(Policy = AdminCapabilities.MerchantInvoicesManage)]
     public async Task<IActionResult> Issue(
         Guid merchantOrderId,
         [FromBody] IssueMerchantInvoiceRequest? request,
@@ -120,7 +122,7 @@ public sealed class AdminMerchantOrderInvoiceController : ApiControllerBase
             HttpContext));
 }
 
-[Authorize(Policy = AuthorizationPolicies.CommissionFinancial)]
+[Authorize(Policy = AdminCapabilities.SalesCommissionsView)]
 [Route("api/v1/admin/merchant-sales/commissions")]
 public sealed class AdminSalesCommissionsController : ApiControllerBase
 {
@@ -159,7 +161,7 @@ public sealed class AdminSalesCommissionsController : ApiControllerBase
     }
 
     [HttpPost("{id:guid}/mark-paid")]
-    [Authorize(Policy = AuthorizationPolicies.MarkCommissionPaid)]
+    [Authorize(Policy = AdminCapabilities.PayoutsSettle)]
     public async Task<IActionResult> MarkPaid(
         Guid id, [FromBody] ConcurrencyTokenRequest? request, CancellationToken cancellationToken) =>
         Ok(ApiEnvelope.Ok(
@@ -168,7 +170,7 @@ public sealed class AdminSalesCommissionsController : ApiControllerBase
             HttpContext));
 
     [HttpPost("{id:guid}/reverse")]
-    [Authorize(Policy = AuthorizationPolicies.ReverseCommission)]
+    [Authorize(Policy = AdminCapabilities.SalesCommissionsReverse)]
     public async Task<IActionResult> Reverse(
         Guid id, [FromBody] ReverseSalesCommissionRequest request,
         CancellationToken cancellationToken) =>
@@ -179,6 +181,7 @@ public sealed class AdminSalesCommissionsController : ApiControllerBase
 
 }
 
+[Authorize(Policy = AdminCapabilities.SalesView)]
 [Route("api/v1/admin/merchant-sales/reports")]
 public sealed class AdminSalesReportingController : ApiControllerBase
 {
@@ -192,27 +195,27 @@ public sealed class AdminSalesReportingController : ApiControllerBase
     }
 
     [HttpGet("performance")]
-    [Authorize(Policy = AuthorizationPolicies.SalesPerformance)]
+    [Authorize(Policy = AdminCapabilities.SalesView)]
     public async Task<IActionResult> Performance([FromQuery] SalesReportQuery query, CancellationToken token) =>
         Ok(ApiEnvelope.Ok(await _service.GetPerformanceAsync(query, token), HttpContext));
 
     [HttpGet("financial")]
-    [Authorize(Policy = AuthorizationPolicies.CommissionFinancial)]
+    [Authorize(Policy = AdminCapabilities.SalesCommissionsView)]
     public async Task<IActionResult> Financial([FromQuery] SalesReportQuery query, CancellationToken token) =>
         Ok(ApiEnvelope.Ok(await _service.GetFinancialAsync(query, token), HttpContext));
 
     [HttpGet("salespersons/{salespersonId:guid}/performance")]
-    [Authorize(Policy = AuthorizationPolicies.SalesPerformance)]
+    [Authorize(Policy = AdminCapabilities.SalesView)]
     public async Task<IActionResult> SalespersonPerformance(Guid salespersonId, [FromQuery] SalesReportQuery query, CancellationToken token) =>
         Ok(ApiEnvelope.Ok(await _service.GetSalespersonPerformanceAsync(salespersonId, query, token), HttpContext));
 
     [HttpGet("salespersons/{salespersonId:guid}/financial")]
-    [Authorize(Policy = AuthorizationPolicies.CommissionFinancial)]
+    [Authorize(Policy = AdminCapabilities.SalesCommissionsView)]
     public async Task<IActionResult> SalespersonFinancial(Guid salespersonId, [FromQuery] SalesReportQuery query, CancellationToken token) =>
         Ok(ApiEnvelope.Ok(await _service.GetSalespersonFinancialAsync(salespersonId, query, token), HttpContext));
 
     [HttpGet("salespersons/{salespersonId:guid}/reseller-portfolio")]
-    [Authorize(Policy = AuthorizationPolicies.SalesPerformance)]
+    [Authorize(Policy = AdminCapabilities.SalesView)]
     public async Task<IActionResult> Portfolio(Guid salespersonId, [FromQuery] ResellerPortfolioQuery query, CancellationToken token)
     {
         var (items, total) = await _service.ListPortfolioAsync(salespersonId, query, token);
@@ -220,7 +223,7 @@ public sealed class AdminSalesReportingController : ApiControllerBase
     }
 
     [HttpGet("salespersons/{salespersonId:guid}/reseller-portfolio-financial")]
-    [Authorize(Policy = AuthorizationPolicies.CommissionFinancial)]
+    [Authorize(Policy = AdminCapabilities.SalesCommissionsView)]
     public async Task<IActionResult> PortfolioFinancial(Guid salespersonId, [FromQuery] ResellerPortfolioQuery query, CancellationToken token)
     {
         var (items, total) = await _service.ListPortfolioFinancialAsync(salespersonId, query, token);
@@ -228,7 +231,7 @@ public sealed class AdminSalesReportingController : ApiControllerBase
     }
 
     [HttpGet("salespersons/{salespersonId:guid}/reseller-portfolio/export")]
-    [Authorize(Policy = AuthorizationPolicies.CommissionFinancial)]
+    [Authorize(Policy = AdminCapabilities.SalesCommissionsView)]
     public async Task<IActionResult> PortfolioExport(Guid salespersonId, [FromQuery] ResellerPortfolioQuery query, CancellationToken token)
     {
         var export = await _service.ExportPortfolioAsync(_currentUser.Current.UserId, salespersonId, query, token);
@@ -240,7 +243,7 @@ public sealed class AdminSalesReportingController : ApiControllerBase
 /// Read-only projections for the Merchant Sales workspace: the overview
 /// counters, and the email state of a page of documents in one request.
 /// </summary>
-[Authorize(Policy = AuthorizationPolicies.Admin)]
+[Authorize(Policy = AdminCapabilities.MerchantOrdersView)]
 [Route("api/v1/admin/merchant-sales")]
 public sealed class AdminMerchantSalesOverviewController : ApiControllerBase
 {
@@ -252,11 +255,12 @@ public sealed class AdminMerchantSalesOverviewController : ApiControllerBase
     }
 
     [HttpGet("overview")]
-    [Authorize(Policy = AuthorizationPolicies.CommissionFinancial)]
+    [Authorize(Policy = AdminCapabilities.SalesCommissionsView)]
     public async Task<IActionResult> Overview(CancellationToken cancellationToken) =>
         Ok(ApiEnvelope.Ok(await _service.GetOverviewAsync(cancellationToken), HttpContext));
 
     [HttpGet("email-status")]
+    [Authorize(Policy = AdminCapabilities.MerchantOrdersView)]
     public async Task<IActionResult> EmailStatus(
         [FromQuery] string? quotationIds,
         [FromQuery] string? invoiceIds,

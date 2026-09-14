@@ -22,6 +22,85 @@ namespace MyPetLink.Api.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("MyPetLink.Api.Entities.AdminRoleCapability", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AdminRoleId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Capability")
+                        .IsRequired()
+                        .HasMaxLength(96)
+                        .HasColumnType("nvarchar(96)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Capability");
+
+                    b.HasIndex("AdminRoleId", "Capability")
+                        .IsUnique();
+
+                    b.ToTable("AdminRoleCapabilities", (string)null);
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.AdminRoleDefinition", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(600)
+                        .HasColumnType("nvarchar(600)");
+
+                    b.Property<bool>("GrantsAllCapabilities")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsSystemRole")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.HasIndex("SortOrder");
+
+                    b.ToTable("AdminRoles", (string)null);
+                });
+
             modelBuilder.Entity("MyPetLink.Api.Entities.AdminUser", b =>
                 {
                     b.Property<Guid>("Id")
@@ -37,6 +116,9 @@ namespace MyPetLink.Api.Migrations
                     b.Property<DateTimeOffset?>("DisabledAt")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<Guid?>("DisabledByAdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
@@ -44,6 +126,12 @@ namespace MyPetLink.Api.Migrations
                         .IsRequired()
                         .HasMaxLength(32)
                         .HasColumnType("nvarchar(32)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("datetimeoffset");
@@ -55,6 +143,8 @@ namespace MyPetLink.Api.Migrations
 
                     b.HasIndex("CreatedByAdminUserId");
 
+                    b.HasIndex("DisabledByAdminUserId");
+
                     b.HasIndex("IsActive");
 
                     b.HasIndex("Role");
@@ -63,6 +153,36 @@ namespace MyPetLink.Api.Migrations
                         .IsUnique();
 
                     b.ToTable("AdminUsers", (string)null);
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.AdminUserRoleAssignment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AdminRoleId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("AssignedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("AssignedByAdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AdminRoleId");
+
+                    b.HasIndex("AssignedByAdminUserId");
+
+                    b.HasIndex("AdminUserId", "AdminRoleId")
+                        .IsUnique();
+
+                    b.ToTable("AdminUserRoles", (string)null);
                 });
 
             modelBuilder.Entity("MyPetLink.Api.Entities.AppSetting", b =>
@@ -5778,11 +5898,27 @@ namespace MyPetLink.Api.Migrations
                     b.ToTable("Users", (string)null);
                 });
 
+            modelBuilder.Entity("MyPetLink.Api.Entities.AdminRoleCapability", b =>
+                {
+                    b.HasOne("MyPetLink.Api.Entities.AdminRoleDefinition", "AdminRole")
+                        .WithMany("Capabilities")
+                        .HasForeignKey("AdminRoleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AdminRole");
+                });
+
             modelBuilder.Entity("MyPetLink.Api.Entities.AdminUser", b =>
                 {
                     b.HasOne("MyPetLink.Api.Entities.AdminUser", "CreatedByAdminUser")
                         .WithMany()
                         .HasForeignKey("CreatedByAdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", "DisabledByAdminUser")
+                        .WithMany()
+                        .HasForeignKey("DisabledByAdminUserId")
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("MyPetLink.Api.Entities.User", "User")
@@ -5793,7 +5929,35 @@ namespace MyPetLink.Api.Migrations
 
                     b.Navigation("CreatedByAdminUser");
 
+                    b.Navigation("DisabledByAdminUser");
+
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.AdminUserRoleAssignment", b =>
+                {
+                    b.HasOne("MyPetLink.Api.Entities.AdminRoleDefinition", "AdminRole")
+                        .WithMany("Assignments")
+                        .HasForeignKey("AdminRoleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", "AdminUser")
+                        .WithMany("RoleAssignments")
+                        .HasForeignKey("AdminUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MyPetLink.Api.Entities.AdminUser", "AssignedByAdminUser")
+                        .WithMany()
+                        .HasForeignKey("AssignedByAdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("AdminRole");
+
+                    b.Navigation("AdminUser");
+
+                    b.Navigation("AssignedByAdminUser");
                 });
 
             modelBuilder.Entity("MyPetLink.Api.Entities.AppSetting", b =>
@@ -7434,6 +7598,18 @@ namespace MyPetLink.Api.Migrations
                     b.Navigation("Pet");
 
                     b.Navigation("SmartTag");
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.AdminRoleDefinition", b =>
+                {
+                    b.Navigation("Assignments");
+
+                    b.Navigation("Capabilities");
+                });
+
+            modelBuilder.Entity("MyPetLink.Api.Entities.AdminUser", b =>
+                {
+                    b.Navigation("RoleAssignments");
                 });
 
             modelBuilder.Entity("MyPetLink.Api.Entities.CommissionPayout", b =>

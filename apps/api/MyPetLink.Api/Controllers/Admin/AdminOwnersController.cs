@@ -9,7 +9,7 @@ using MyPetLink.Api.Validation;
 
 namespace MyPetLink.Api.Controllers.Admin;
 
-[Authorize(Policy = AuthorizationPolicies.Admin)]
+[Authorize(Policy = AdminCapabilities.OwnersView)]
 [Route("api/v1/admin/owners")]
 public sealed class AdminOwnersController : ApiControllerBase
 {
@@ -50,6 +50,7 @@ public sealed class AdminOwnersController : ApiControllerBase
             cancellationToken), HttpContext));
 
     [HttpGet("export")]
+    [Authorize(Policy = AdminCapabilities.OwnersExport)]
     public async Task<IActionResult> Export(
         [FromQuery] AdminOwnerQuery query,
         [FromQuery] string? format,
@@ -92,6 +93,7 @@ public sealed class AdminOwnersController : ApiControllerBase
     }
 
     [HttpPost("{ownerId:guid}/welcome-email/retry")]
+    [Authorize(Policy = AdminCapabilities.OwnersManage)]
     public async Task<IActionResult> RetryWelcomeEmail(
         Guid ownerId,
         CancellationToken cancellationToken)

@@ -89,11 +89,25 @@ public sealed class OwnerProfile : AuditableEntity
 public sealed class AdminUser : AuditableEntity
 {
     public Guid UserId { get; set; }
+
+    /// <summary>
+    /// LEGACY single-role value. Authorization is resolved from
+    /// <see cref="RoleAssignments"/> and the capabilities those roles grant;
+    /// nothing in the current codebase authorizes on this column. It is kept
+    /// populated so a rollback to the previous API still finds the value it
+    /// expects, and so historical deployment scripts stay readable.
+    /// </summary>
     public AdminRole Role { get; set; } = AdminRole.Admin;
+
     public bool IsActive { get; set; } = true;
     public Guid? CreatedByAdminUserId { get; set; }
     public DateTimeOffset? DisabledAt { get; set; }
+    public Guid? DisabledByAdminUserId { get; set; }
+    public byte[] RowVersion { get; set; } = [];
 
     public User User { get; set; } = null!;
     public AdminUser? CreatedByAdminUser { get; set; }
+    public AdminUser? DisabledByAdminUser { get; set; }
+    public ICollection<AdminUserRoleAssignment> RoleAssignments { get; set; } =
+        new List<AdminUserRoleAssignment>();
 }

@@ -13,6 +13,12 @@ import type {
   BackendCurrentUser,
 } from "@/services/apiDtos";
 import {
+  allAdminCapabilities,
+  toAdminAccessCapabilities,
+  type AdminAccessCapabilities,
+  type AdminAssignedRole,
+} from "@/lib/adminCapabilities";
+import {
   clearStoredReferral,
   readStoredReferral,
 } from "@/lib/referralAttribution";
@@ -149,6 +155,14 @@ export type AdminAccessCheck = {
     role: string;
     isActive: boolean;
   };
+  // Roles and permissions as the API resolved them. The Admin Portal renders
+  // from this instead of working out for itself what a role name implies, so
+  // there is one place that decides and one place that reports.
+  access: {
+    isSuperAdmin: boolean;
+    roles: AdminAssignedRole[];
+    capabilities: string[];
+  };
 };
 
 // Verified Admin access for the current session, kept in memory so navigating
@@ -158,18 +172,7 @@ export type AdminAccessCheck = {
 // every protected Admin endpoint is still enforced server-side on each call.
 export type AdminAccessSnapshot = { access: AdminAccessCheck | null };
 
-export type AdminOperationalRole = "OwnerSupport" | "Operations" | "Admin" | "SuperAdmin";
-
-export type AdminCapabilities = {
-  role: AdminOperationalRole;
-  canViewSalesPerformance: boolean;
-  canManageSales: boolean;
-  canViewCommissionFinancials: boolean;
-  canPreparePayout: boolean;
-  canMarkCommissionPaid: boolean;
-  canReverseCommission: boolean;
-  canManageCommissionRules: boolean;
-};
+export type AdminCapabilities = AdminAccessCapabilities;
 
 let cachedAdminAccess: AdminAccessSnapshot | null = null;
 
@@ -177,22 +180,20 @@ export function getCachedAdminAccess() {
   return cachedAdminAccess;
 }
 
+/**
+ * What this operator may do, from the API.
+ *
+ * Deny by default: until the access check has returned, nothing is granted, so
+ * the portal never flashes actions the operator turns out not to have. Local
+ * preview mode has no API to ask and grants everything, which is why it is
+ * only ever used when no API is configured.
+ */
 export function getAdminCapabilities(): AdminCapabilities {
-  const value = canUseApi() ? cachedAdminAccess?.access?.admin.role : "SuperAdmin";
-  const role: AdminOperationalRole =
-    value === "OwnerSupport" || value === "Operations" || value === "Admin" || value === "SuperAdmin"
-      ? value
-      : "OwnerSupport";
-  return {
-    role,
-    canViewSalesPerformance: role !== "OwnerSupport",
-    canManageSales: role === "Admin" || role === "SuperAdmin",
-    canViewCommissionFinancials: role === "Admin" || role === "SuperAdmin",
-    canPreparePayout: role === "Admin" || role === "SuperAdmin",
-    canMarkCommissionPaid: role === "SuperAdmin",
-    canReverseCommission: role === "SuperAdmin",
-    canManageCommissionRules: role === "SuperAdmin",
-  };
+  if (!canUseApi()) {
+    return allAdminCapabilities();
+  }
+
+  return toAdminAccessCapabilities(cachedAdminAccess?.access?.access);
 }
 
 export function clearCachedAdminAccess() {

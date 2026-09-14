@@ -7,7 +7,7 @@ using MyPetLink.Api.Services;
 
 namespace MyPetLink.Api.Controllers.Admin;
 
-[Authorize(Policy = AuthorizationPolicies.Admin)]
+[Authorize(Policy = AdminCapabilities.SettingsView)]
 [Route("api/v1/admin/delivery-rates")]
 public sealed class AdminDeliveryRatesController : ApiControllerBase
 {
@@ -24,10 +24,12 @@ public sealed class AdminDeliveryRatesController : ApiControllerBase
         Ok(ApiEnvelope.Ok(await _service.ListRatesAsync(cancellationToken), HttpContext));
 
     [HttpPost]
+    [Authorize(Policy = AdminCapabilities.SettingsManage)]
     public async Task<IActionResult> Create([FromBody] UpsertDeliveryRateRequest request, CancellationToken cancellationToken) =>
         StatusCode(201, ApiEnvelope.Ok(await _service.CreateRateAsync(_currentUser.Current.UserId, request, cancellationToken), HttpContext));
 
     [HttpPut("{id:guid}")]
+    [Authorize(Policy = AdminCapabilities.SettingsManage)]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpsertDeliveryRateRequest request, CancellationToken cancellationToken) =>
         Ok(ApiEnvelope.Ok(await _service.UpdateRateAsync(_currentUser.Current.UserId, id, request, cancellationToken), HttpContext));
 
@@ -40,6 +42,7 @@ public sealed class AdminDeliveryRatesController : ApiControllerBase
         Ok(ApiEnvelope.Ok(await _service.ListStateRatesAsync(zoneCode, cancellationToken), HttpContext));
 
     [HttpPut("{zoneCode}/state-overrides")]
+    [Authorize(Policy = AdminCapabilities.SettingsManage)]
     public async Task<IActionResult> SaveStateOverride(
         string zoneCode,
         [FromBody] UpsertDeliveryStateOverrideRequest request,
@@ -49,6 +52,7 @@ public sealed class AdminDeliveryRatesController : ApiControllerBase
             HttpContext));
 
     [HttpDelete("{zoneCode}/state-overrides/{stateCode}")]
+    [Authorize(Policy = AdminCapabilities.SettingsManage)]
     public async Task<IActionResult> RemoveStateOverride(
         string zoneCode,
         string stateCode,

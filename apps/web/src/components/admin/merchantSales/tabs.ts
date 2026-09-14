@@ -1,18 +1,32 @@
 // The Merchant Sales workspace keeps its section in the URL, like the Tag
 // Products workspace does, so refresh and Back both restore where you were.
 
+import {
+  adminCapabilities,
+  hasAnyCapability,
+  type AdminAccessCapabilities,
+  type AdminCapabilityKey,
+} from "@/lib/adminCapabilities";
+
+// Each section names the permission that makes it worth showing. The API
+// enforces the same permission on the data behind it, so a hidden section is a
+// convenience, not the control.
 export const merchantSalesTabs = [
-  { id: "overview", label: "Overview" },
-  { id: "reports", label: "Reports" },
-  { id: "quotations", label: "Quotations" },
-  { id: "orders", label: "Orders" },
-  { id: "invoices", label: "Invoices & Receipts" },
-  { id: "merchants", label: "Merchants" },
-  { id: "salespersons", label: "Salespersons" },
-  { id: "referrals", label: "Owner Referrals" },
-  { id: "commissions", label: "Commissions" },
-  { id: "payouts", label: "Payouts" },
-] as const;
+  { id: "overview", label: "Overview", capability: adminCapabilities.salesCommissionsView },
+  { id: "reports", label: "Reports", capability: adminCapabilities.salesView },
+  { id: "quotations", label: "Quotations", capability: adminCapabilities.merchantOrdersView },
+  { id: "orders", label: "Orders", capability: adminCapabilities.merchantOrdersView },
+  { id: "invoices", label: "Invoices & Receipts", capability: adminCapabilities.merchantInvoicesView },
+  { id: "merchants", label: "Merchants", capability: adminCapabilities.salesView },
+  { id: "salespersons", label: "Salespersons", capability: adminCapabilities.salesView },
+  { id: "referrals", label: "Owner Referrals", capability: adminCapabilities.salesView },
+  { id: "commissions", label: "Commissions", capability: adminCapabilities.salesCommissionsView },
+  { id: "payouts", label: "Payouts", capability: adminCapabilities.payoutsView },
+] as const satisfies readonly {
+  id: string;
+  label: string;
+  capability: AdminCapabilityKey;
+}[];
 
 export type MerchantSalesTab = (typeof merchantSalesTabs)[number]["id"];
 
@@ -27,16 +41,9 @@ export const merchantSalesWorkspaceGroups: {
   { id: "finance", label: "Finance", tabIds: ["commissions", "payouts"] },
 ];
 
-export function merchantSalesTabsForRole(role: string) {
-  if (role === "SuperAdmin" || role === "Admin") return merchantSalesTabs;
-  if (role === "Operations") {
-    return merchantSalesTabs.filter((tab) =>
-      tab.id !== "overview" && tab.id !== "commissions" && tab.id !== "payouts"
-    );
-  }
-  return merchantSalesTabs.filter((tab) =>
-    tab.id === "quotations" || tab.id === "orders" || tab.id === "invoices"
-  );
+/** The sections this operator can actually open. May be empty. */
+export function merchantSalesTabsFor(access: AdminAccessCapabilities) {
+  return merchantSalesTabs.filter((tab) => hasAnyCapability(access, [tab.capability]));
 }
 
 export function isMerchantSalesTab(value: string | null): value is MerchantSalesTab {

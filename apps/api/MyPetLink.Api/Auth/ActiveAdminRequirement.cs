@@ -1,87 +1,83 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.EntityFrameworkCore;
-using MyPetLink.Api.Data;
-using MyPetLink.Api.Entities;
 
 namespace MyPetLink.Api.Auth;
 
+/// <summary>
+/// The baseline gate: the caller is an admin whose access is switched on. It
+/// says nothing about what they may do — that is a capability requirement.
+/// </summary>
 public sealed class ActiveAdminRequirement : IAuthorizationRequirement;
 
 /// <summary>
-/// Purpose-specific Admin authorization. The allowed role is deliberately
-/// resolved from AdminUsers for every request; a role claim or a UI cache can
-/// never preserve access after an operator's role is changed or disabled.
+/// Requires one named capability from the Admin Portal capability catalogue.
+///
+/// Access is deliberately resolved from the database on every request, so a
+/// role change or a switched-off account takes effect immediately; a token
+/// claim or a portal cache can never preserve access that has been withdrawn.
 /// </summary>
-public sealed class ActiveAdminRoleRequirement(params AdminRole[] allowedRoles) : IAuthorizationRequirement
+public sealed class AdminCapabilityRequirement : IAuthorizationRequirement
 {
-    public IReadOnlySet<AdminRole> AllowedRoles { get; } = allowedRoles.ToHashSet();
+    public AdminCapabilityRequirement(string capability)
+    {
+        if (!AdminCapabilityCatalog.IsKnown(capability))
+        {
+            throw new ArgumentException(
+                $"'{capability}' is not in the Admin capability catalogue.",
+                nameof(capability));
+        }
+
+        Capability = capability;
+    }
+
+    public string Capability { get; }
 }
 
 public sealed class ActiveAdminRequirementHandler : AuthorizationHandler<ActiveAdminRequirement>
 {
-    private readonly MyPetLinkDbContext _dbContext;
+    private readonly IAdminAccessResolver _accessResolver;
 
-    public ActiveAdminRequirementHandler(MyPetLinkDbContext dbContext)
+    public ActiveAdminRequirementHandler(IAdminAccessResolver accessResolver)
     {
-        _dbContext = dbContext;
+        _accessResolver = accessResolver;
     }
 
     protected override async Task HandleRequirementAsync(
         AuthorizationHandlerContext context,
         ActiveAdminRequirement requirement)
     {
-        var userIdValue = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (!Guid.TryParse(userIdValue, out var userId))
-        {
-            return;
-        }
+        var access = await _accessResolver.ResolveAsync(ReadUserId(context.User));
 
-        var isActiveAdmin = await _dbContext.AdminUsers
-            .AsNoTracking()
-            .AnyAsync(admin =>
-                admin.UserId == userId
-                && admin.IsActive
-                && admin.DisabledAt == null
-                && admin.User.Status == UserStatus.Active
-                && admin.User.DeletedAt == null);
-
-        if (isActiveAdmin)
+        if (access.IsActiveAdmin)
         {
             context.Succeed(requirement);
         }
     }
+
+    internal static Guid? ReadUserId(ClaimsPrincipal principal) =>
+        Guid.TryParse(principal.FindFirstValue(ClaimTypes.NameIdentifier), out var userId)
+            ? userId
+            : null;
 }
 
-public sealed class ActiveAdminRoleRequirementHandler
-    : AuthorizationHandler<ActiveAdminRoleRequirement>
+public sealed class AdminCapabilityRequirementHandler
+    : AuthorizationHandler<AdminCapabilityRequirement>
 {
-    private readonly MyPetLinkDbContext _dbContext;
+    private readonly IAdminAccessResolver _accessResolver;
 
-    public ActiveAdminRoleRequirementHandler(MyPetLinkDbContext dbContext)
+    public AdminCapabilityRequirementHandler(IAdminAccessResolver accessResolver)
     {
-        _dbContext = dbContext;
+        _accessResolver = accessResolver;
     }
 
     protected override async Task HandleRequirementAsync(
         AuthorizationHandlerContext context,
-        ActiveAdminRoleRequirement requirement)
+        AdminCapabilityRequirement requirement)
     {
-        var userIdValue = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (!Guid.TryParse(userIdValue, out var userId)) return;
+        var access = await _accessResolver.ResolveAsync(
+            ActiveAdminRequirementHandler.ReadUserId(context.User));
 
-        var role = await _dbContext.AdminUsers
-            .AsNoTracking()
-            .Where(admin =>
-                admin.UserId == userId
-                && admin.IsActive
-                && admin.DisabledAt == null
-                && admin.User.Status == UserStatus.Active
-                && admin.User.DeletedAt == null)
-            .Select(admin => (AdminRole?)admin.Role)
-            .SingleOrDefaultAsync();
-
-        if (role.HasValue && requirement.AllowedRoles.Contains(role.Value))
+        if (access.Has(requirement.Capability))
         {
             context.Succeed(requirement);
         }

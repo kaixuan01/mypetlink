@@ -1,6 +1,8 @@
 # First Admin User Setup (Production)
 
-MyPetLink admin access is **data-driven, not code-driven**. The admin policy (`ActiveAdminRequirement`) authorizes a request only when the signed-in user has an **active `AdminUsers` row** — never from a role claim or a hardcoded email. So the first admin is created by promoting a normal user account once, directly in the production database.
+MyPetLink admin access is **data-driven, not code-driven**. A request is authorized only when the signed-in user has an **active `AdminUsers` row** — never from a role claim or a hardcoded email. So the first admin is created by promoting a normal user account once, directly in the production database.
+
+> **After the first admin exists, do not repeat this by hand.** Everyone else is added and given roles from **Access Management → Users** in the Admin Portal, which validates the change, protects against privilege escalation, and records who did it. Direct SQL does none of those things. See [`docs/architecture/admin-access-management.md`](../architecture/admin-access-management.md).
 
 No admin email is hardcoded in code, and there is **no auto-running admin seed in production**. The `InitialCreate` migration seeds plans, plan limits, and app settings only — it does **not** create any `AdminUsers` row. Nothing admin-related runs automatically in production; the step below is deliberate and manual.
 
@@ -35,18 +37,31 @@ Notes on which email to use:
    DECLARE @AdminEmail NVARCHAR(320) = N'admin@mypetlink.com.my';
    SELECT Id, Email, DisplayName FROM Users WHERE Email = @AdminEmail;
    ```
-3. **Insert an active `AdminUsers` row** for that user (idempotent guard so re-running is safe). The first production operator must be `SuperAdmin`; Phase 3D-A reserves payout completion, commission reversal, and commission-rule management for that role:
+3. **Insert an active `AdminUsers` row** for that user (idempotent guard so re-running is safe), then give it the Super Admin role. The first production operator must be Super Admin: it is the only role that can grant Admin Portal access to anyone else, and payout settlement, commission reversal and commission-rule management are reserved for it out of the box.
+
    ```sql
    INSERT INTO AdminUsers (Id, UserId, Role, IsActive, CreatedAt, UpdatedAt)
    SELECT NEWID(), u.Id, 'SuperAdmin', 1, SYSDATETIMEOFFSET(), SYSDATETIMEOFFSET()
    FROM Users u
    WHERE u.Email = @AdminEmail
      AND NOT EXISTS (SELECT 1 FROM AdminUsers a WHERE a.UserId = u.Id);
+
+   -- The Role column above is legacy and no longer authorizes anything. This
+   -- assignment is what actually grants access.
+   INSERT INTO AdminUserRoles (Id, AdminUserId, AdminRoleId, AssignedAt, AssignedByAdminUserId)
+   SELECT NEWID(), a.Id, r.Id, SYSDATETIMEOFFSET(), NULL
+   FROM AdminUsers a
+   INNER JOIN Users u ON u.Id = a.UserId
+   CROSS JOIN AdminRoles r
+   WHERE u.Email = @AdminEmail
+     AND r.Code = 'super-admin'
+     AND NOT EXISTS (SELECT 1 FROM AdminUserRoles x WHERE x.AdminUserId = a.Id);
    ```
-   Do not downgrade or disable the last active `SuperAdmin`. Run `docs/deployment/sql/diagnose-phase3d-financial-authorization.sql` before deployment and confirm its first result set contains at least one active account.
+
+   Do not downgrade or disable the last active Super Admin; the application refuses both, and doing it by hand can leave the business unable to restore anyone's access. Run `docs/deployment/sql/diagnose-admin-access-management.sql` and confirm at least one active Super Admin.
 4. **Verify admin access.** With that account's bearer token:
    ```txt
-   GET https://api.mypetlink.com.my/api/v1/admin/auth/check   → 200, returns { admin: { role, isActive: true } }
+   GET https://api.mypetlink.com.my/api/v1/admin/auth/check   → 200, returns { admin: { isActive: true }, access: { isSuperAdmin: true, ... } }
    ```
 5. **Verify a non-admin is rejected.** With any other signed-in owner's token:
    ```txt
@@ -59,5 +74,5 @@ Notes on which email to use:
 
 - **Do not hardcode** an admin email or auto-grant admin in code. Keep it a manual DB action so admin membership is auditable and environment-specific.
 - Run the insert against the **production** database only when intended; the same snippet is used against `MyPetLinkDev` for local testing (see `apps/api/README.md`), so double-check which database your connection points at.
-- To revoke admin access, set `IsActive = 0` (or `DisabledAt = SYSDATETIMEOFFSET()`) on the `AdminUsers` row — the policy checks `IsActive AND DisabledAt IS NULL AND the user is active`.
+- To revoke admin access, use **Access Management → Users** so the change is validated and recorded. As a break-glass measure it can be done in SQL by setting `IsActive = 0` (or `DisabledAt = SYSDATETIMEOFFSET()`) on the `AdminUsers` row — access is refused when `IsActive` is false, `DisabledAt` is set, or the underlying user is not active.
 - Admin mutations are audited; the operator's `AdminUsers`/user id will appear as the actor in `AuditLogs`.

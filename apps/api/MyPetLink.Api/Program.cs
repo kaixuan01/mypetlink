@@ -321,20 +321,18 @@ builder.Services.AddAuthorization(options =>
         policy.Requirements.Add(new ActiveAdminRequirement());
     });
 
-    AddAdminRolePolicy(options, AuthorizationPolicies.SalesPerformance,
-        AdminRole.Operations, AdminRole.Admin, AdminRole.SuperAdmin);
-    AddAdminRolePolicy(options, AuthorizationPolicies.SalesAdministration,
-        AdminRole.Admin, AdminRole.SuperAdmin);
-    AddAdminRolePolicy(options, AuthorizationPolicies.CommissionFinancial,
-        AdminRole.Admin, AdminRole.SuperAdmin);
-    AddAdminRolePolicy(options, AuthorizationPolicies.PrepareCommissionPayout,
-        AdminRole.Admin, AdminRole.SuperAdmin);
-    AddAdminRolePolicy(options, AuthorizationPolicies.MarkCommissionPaid,
-        AdminRole.SuperAdmin);
-    AddAdminRolePolicy(options, AuthorizationPolicies.ReverseCommission,
-        AdminRole.SuperAdmin);
-    AddAdminRolePolicy(options, AuthorizationPolicies.ManageCommissionRules,
-        AdminRole.SuperAdmin);
+    // One policy per capability in the catalogue. Registering them from the
+    // catalogue itself is what keeps a controller attribute, a role's stored
+    // grants and the permissions picker talking about the same thing: a key
+    // that is not in the catalogue has no policy and the request is refused.
+    foreach (var capability in AdminCapabilityCatalog.AllKeys)
+    {
+        options.AddPolicy(capability, policy =>
+        {
+            policy.RequireAuthenticatedUser();
+            policy.Requirements.Add(new AdminCapabilityRequirement(capability));
+        });
+    }
 });
 
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
@@ -344,8 +342,11 @@ builder.Services.AddSingleton<IDevelopmentAuthRequestGuard, DevelopmentAuthReque
 builder.Services.AddScoped<IOwnerProfileService, OwnerProfileService>();
 builder.Services.AddScoped<IExternalAuthService, ExternalAuthService>();
 builder.Services.AddScoped<IExternalTokenValidator, GoogleTokenValidator>();
+builder.Services.AddScoped<IAdminAccessResolver, AdminAccessResolver>();
 builder.Services.AddScoped<IAuthorizationHandler, ActiveAdminRequirementHandler>();
-builder.Services.AddScoped<IAuthorizationHandler, ActiveAdminRoleRequirementHandler>();
+builder.Services.AddScoped<IAuthorizationHandler, AdminCapabilityRequirementHandler>();
+builder.Services.AddScoped<IAdminAccessManagementService, AdminAccessManagementService>();
+builder.Services.AddScoped<IAdminAccessSeeder, AdminAccessSeeder>();
 builder.Services.AddScoped<IPetService, PetService>();
 builder.Services.AddScoped<IPublicProfileService, PublicProfileService>();
 builder.Services.AddScoped<IPublicSampleExperienceService, PublicSampleExperienceService>();
@@ -471,6 +472,31 @@ app.UseCors(FrontendCorsPolicy);
 app.UseAuthentication();
 app.UseRateLimiter();
 app.UseAuthorization();
+
+// Access Management: make sure the built-in roles exist and that no existing
+// administrator is left without one. Idempotent, and the access-management
+// migration has already done the same work on a deployed database — this is the
+// safety net for local databases and for admins created after that migration.
+await using (var accessScope = app.Services.CreateAsyncScope())
+{
+    try
+    {
+        await accessScope.ServiceProvider
+            .GetRequiredService<IAdminAccessSeeder>()
+            .EnsureSeededAsync();
+    }
+    catch (Exception exception)
+    {
+        // A database that is still waking up must not stop the app from
+        // starting; the next start converges. Access itself fails closed
+        // meanwhile, because an admin with no roles has no capabilities.
+        app.Services.GetRequiredService<ILoggerFactory>()
+            .CreateLogger("AdminAccessSeeder")
+            .LogWarning(
+                exception,
+                "Admin access roles could not be prepared at startup. They will be retried on the next start.");
+    }
+}
 
 if (app.Environment.IsDevelopment() && devAuth.Enabled)
 {
@@ -697,18 +723,6 @@ static RateLimitPartition<string> FixedWindowPartition(
             QueueLimit = queueLimit,
             QueueProcessingOrder = QueueProcessingOrder.OldestFirst
         });
-}
-
-static void AddAdminRolePolicy(
-    AuthorizationOptions options,
-    string name,
-    params AdminRole[] roles)
-{
-    options.AddPolicy(name, policy =>
-    {
-        policy.RequireAuthenticatedUser();
-        policy.Requirements.Add(new ActiveAdminRoleRequirement(roles));
-    });
 }
 
 public partial class Program;

@@ -8,7 +8,7 @@ using MyPetLink.Api.Validation;
 
 namespace MyPetLink.Api.Controllers.Admin;
 
-[Authorize(Policy = AuthorizationPolicies.Admin)]
+[Authorize(Policy = AdminCapabilities.SalesView)]
 [Route("api/v1/admin/referral-attributions")]
 public sealed class AdminOwnerReferralAttributionsController : ApiControllerBase
 {
@@ -23,7 +23,7 @@ public sealed class AdminOwnerReferralAttributionsController : ApiControllerBase
     }
 
     [HttpGet]
-    [Authorize(Policy = AuthorizationPolicies.SalesPerformance)]
+    [Authorize(Policy = AdminCapabilities.SalesView)]
     public async Task<IActionResult> List(
         [FromQuery] PagedQuery query,
         [FromQuery] string? search,
@@ -35,12 +35,12 @@ public sealed class AdminOwnerReferralAttributionsController : ApiControllerBase
     }
 
     [HttpGet("{userId:guid}")]
-    [Authorize(Policy = AuthorizationPolicies.SalesPerformance)]
+    [Authorize(Policy = AdminCapabilities.SalesView)]
     public async Task<IActionResult> Get(Guid userId, CancellationToken cancellationToken) =>
         Ok(ApiEnvelope.Ok(await _service.GetAsync(userId, cancellationToken), HttpContext));
 
     [HttpPut("{userId:guid}")]
-    [Authorize(Policy = AuthorizationPolicies.SalesAdministration)]
+    [Authorize(Policy = AdminCapabilities.SalesManage)]
     public async Task<IActionResult> Correct(
         Guid userId,
         [FromBody] CorrectOwnerReferralAttributionRequest request,

@@ -17,8 +17,11 @@ import {
   activeAdminNavLabel,
   isAdminNavGroupOpen,
   isAdminNavItemActive,
+  requiredCapabilitiesForPath,
   visibleAdminNavGroups,
 } from "@/lib/adminNavigation";
+import { hasAnyCapability } from "@/lib/adminCapabilities";
+import { AdminNoAccessNotice } from "@/components/admin/AdminNoAccessNotice";
 import {
   getAdminNavSections,
   getAdminSidebarCollapsed,
@@ -55,12 +58,39 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
           </Suspense>
           <main className="min-w-0 flex-1 px-4 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8">
             <AdminLaunchBanner />
-            {children}
+            <Suspense fallback={null}>
+              <AdminPageAccess>{children}</AdminPageAccess>
+            </Suspense>
           </main>
         </div>
       </AdminOperationalProvider>
     </AdminGuard>
   );
+}
+
+/**
+ * Holds a directly opened URL to the same standard as clicking the menu item.
+ *
+ * Typing an address is the obvious way past a hidden menu entry, so the page
+ * itself checks. The API refuses the underlying request either way; this is
+ * what turns that refusal into a clear explanation instead of a broken screen.
+ */
+function AdminPageAccess({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const access = getAdminCapabilities();
+  const required = requiredCapabilitiesForPath(
+    pathname,
+    searchParams.toString() ? `?${searchParams.toString()}` : ""
+  );
+
+  // A path with no navigation entry (a detail route, say) is left to the page
+  // and to the API, which is the authority in every case.
+  if (required === null || hasAnyCapability(access, required)) {
+    return <>{children}</>;
+  }
+
+  return <AdminNoAccessNotice title="You do not have access to this page" />;
 }
 
 // Static placeholder so the page keeps its shape while useSearchParams

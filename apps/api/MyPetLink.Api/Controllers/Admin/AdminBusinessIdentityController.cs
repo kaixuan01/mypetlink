@@ -11,7 +11,7 @@ namespace MyPetLink.Api.Controllers.Admin;
 /// The seller identity printed on every document. Admin-only: it carries the
 /// bank account customers pay into.
 /// </summary>
-[Authorize(Policy = AuthorizationPolicies.Admin)]
+[Authorize(Policy = AdminCapabilities.SettingsView)]
 [Route("api/v1/admin/business-identity")]
 public sealed class AdminBusinessIdentityController : ApiControllerBase
 {
@@ -30,6 +30,7 @@ public sealed class AdminBusinessIdentityController : ApiControllerBase
         Ok(ApiEnvelope.Ok(await _service.GetAsync(cancellationToken), HttpContext));
 
     [HttpPut]
+    [Authorize(Policy = AdminCapabilities.SettingsManage)]
     public async Task<IActionResult> Update(
         [FromBody] UpdateBusinessIdentityRequest request, CancellationToken cancellationToken) =>
         Ok(ApiEnvelope.Ok(

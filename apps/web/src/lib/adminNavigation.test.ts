@@ -5,38 +5,33 @@ import {
   adminNavGroups,
   isAdminNavGroupOpen,
   isAdminNavItemActive,
+  requiredCapabilitiesForPath,
   visibleAdminNavGroups,
 } from "./adminNavigation";
-import type {
-  AdminCapabilities,
-  AdminOperationalRole,
-} from "@/services/authService";
+import {
+  adminCapabilities,
+  allAdminCapabilities,
+  noAdminAccess,
+  type AdminAccessCapabilities,
+  type AdminCapabilityKey,
+} from "./adminCapabilities";
 
-function capabilitiesFor(role: AdminOperationalRole): AdminCapabilities {
-  return {
-    role,
-    canViewSalesPerformance: role !== "OwnerSupport",
-    canManageSales: role === "Admin" || role === "SuperAdmin",
-    canViewCommissionFinancials: role === "Admin" || role === "SuperAdmin",
-    canPreparePayout: role === "Admin" || role === "SuperAdmin",
-    canMarkCommissionPaid: role === "SuperAdmin",
-    canReverseCommission: role === "SuperAdmin",
-    canManageCommissionRules: role === "SuperAdmin",
-  };
+function accessWith(...capabilities: AdminCapabilityKey[]): AdminAccessCapabilities {
+  return { isSuperAdmin: false, roles: [], granted: new Set(capabilities) };
 }
 
-const superAdminCapabilities = capabilitiesFor("SuperAdmin");
+const superAdmin = allAdminCapabilities();
 
 describe("adminNavigation", () => {
   it("defines the approved groups in order", () => {
-    const labels = adminNavGroups.map((group) => group.label);
-    expect(labels).toEqual([
+    expect(adminNavGroups.map((group) => group.label)).toEqual([
       null,
       "Commerce",
       "Catalog",
       "Tag Operations",
       "Customers",
       "Configuration",
+      "Access Management",
       "System",
     ]);
   });
@@ -45,13 +40,9 @@ describe("adminNavigation", () => {
     const catalog = adminNavGroups.find((group) => group.label === "Catalog")!;
     expect(catalog.items.map((item) => item.label)).toEqual(["Tag Catalog"]);
     expect(catalog.items[0].href).toBe("/admin/tag-products");
-    expect(adminNavGroups.flatMap((group) => group.items).filter((item) =>
-      ["Tag Products", "Promotions", "Catalog Settings"].includes(item.label)
-    )).toHaveLength(0);
   });
 
   it("keeps configuration modules under Configuration", () => {
-
     const configuration = adminNavGroups.find((group) => group.label === "Configuration")!;
     expect(configuration.items.map((item) => item.label)).toEqual([
       "Plans",
@@ -68,40 +59,98 @@ describe("adminNavigation", () => {
     expect(system.items.map((item) => item.label)).toEqual(["Operational Status"]);
   });
 
-  it("never renders empty groups", () => {
-    expect(
-      visibleAdminNavGroups(superAdminCapabilities).every((group) => group.items.length > 0)
-    ).toBe(true);
+  it("groups Users, Roles and Activity History under Access Management", () => {
+    const group = adminNavGroups.find((item) => item.label === "Access Management")!;
+    expect(group.items.map((item) => item.label)).toEqual([
+      "Users",
+      "Roles",
+      "Activity History",
+    ]);
   });
 
-  it.each<AdminOperationalRole>(["OwnerSupport", "Operations", "Admin", "SuperAdmin"])(
-    "reflects the API-backed %s capabilities without hiding meaningful mixed workspaces",
-    (role) => {
-      const groups = visibleAdminNavGroups(capabilitiesFor(role));
-      const labels = groups.flatMap((group) => group.items.map((item) => item.label));
+  it("gives every destination except Overview a permission to require", () => {
+    const ungated = adminNavGroups
+      .flatMap((group) => group.items)
+      .filter((item) => item.href !== "/admin" && !item.requiredAnyCapabilities?.length);
 
-      expect(groups.every((group) => group.items.length > 0)).toBe(true);
-      expect(labels.filter((label) => label === "Tag Catalog")).toHaveLength(1);
-      expect(labels).toContain("Merchant Sales");
+    expect(ungated.map((item) => item.label)).toEqual([]);
+  });
+
+  it("shows nothing but Overview to somebody with no permissions", () => {
+    const groups = visibleAdminNavGroups(noAdminAccess);
+    expect(groups.flatMap((group) => group.items.map((item) => item.label))).toEqual([
+      "Overview",
+    ]);
+  });
+
+  it("shows every destination to a Super Admin", () => {
+    const groups = visibleAdminNavGroups(superAdmin);
+    expect(groups).toHaveLength(adminNavGroups.length);
+    expect(groups.every((group) => group.items.length > 0)).toBe(true);
+  });
+
+  it("shows a payments-only operator only what they can open", () => {
+    const groups = visibleAdminNavGroups(
+      accessWith(adminCapabilities.paymentProofsView, adminCapabilities.ordersView)
+    );
+
+    const labels = groups.flatMap((group) => group.items.map((item) => item.label));
+    expect(labels).toEqual(["Overview", "Retail Orders", "Payment Proofs"]);
+    expect(labels).not.toContain("Tag Inventory");
+    expect(labels).not.toContain("Users");
+  });
+
+  it("hides Merchant Sales unless at least one of its sections is reachable", () => {
+    const withoutSales = visibleAdminNavGroups(accessWith(adminCapabilities.ordersView));
+    expect(
+      withoutSales.flatMap((group) => group.items.map((item) => item.label))
+    ).not.toContain("Merchant Sales");
+
+    const withInvoicesOnly = visibleAdminNavGroups(
+      accessWith(adminCapabilities.merchantInvoicesView)
+    );
+    expect(
+      withInvoicesOnly.flatMap((group) => group.items.map((item) => item.label))
+    ).toContain("Merchant Sales");
+  });
+
+  it("hides Access Management from somebody who cannot see it", () => {
+    const groups = visibleAdminNavGroups(accessWith(adminCapabilities.ordersView));
+    expect(groups.map((group) => group.label)).not.toContain("Access Management");
+  });
+
+  it("shows Roles but not Users to somebody who can only see roles", () => {
+    const groups = visibleAdminNavGroups(accessWith(adminCapabilities.adminRolesView));
+    const access = groups.find((group) => group.label === "Access Management")!;
+    expect(access.items.map((item) => item.label)).toEqual(["Roles"]);
+  });
+
+  it("never renders empty groups", () => {
+    for (const access of [superAdmin, noAdminAccess, accessWith(adminCapabilities.petsView)]) {
+      expect(visibleAdminNavGroups(access).every((group) => group.items.length > 0)).toBe(true);
     }
-  );
+  });
 
   it("removes capability-hidden items and the empty groups they leave behind", () => {
     const gatedGroups = [
       {
         id: "finance-only",
         label: "Finance only",
-        items: [{
-          href: "/admin/finance-only",
-          label: "Finance only",
-          icon: "record" as const,
-          requiredAnyCapabilities: ["canViewCommissionFinancials" as const],
-        }],
+        items: [
+          {
+            href: "/admin/finance-only",
+            label: "Finance only",
+            icon: "record" as const,
+            requiredAnyCapabilities: [adminCapabilities.salesCommissionsView],
+          },
+        ],
       },
     ];
 
-    expect(visibleAdminNavGroups(capabilitiesFor("OwnerSupport"), gatedGroups)).toEqual([]);
-    expect(visibleAdminNavGroups(capabilitiesFor("Admin"), gatedGroups)).toHaveLength(1);
+    expect(visibleAdminNavGroups(accessWith(adminCapabilities.ordersView), gatedGroups)).toEqual([]);
+    expect(
+      visibleAdminNavGroups(accessWith(adminCapabilities.salesCommissionsView), gatedGroups)
+    ).toHaveLength(1);
   });
 
   it("matches plain routes including nested paths", () => {
@@ -120,7 +169,6 @@ describe("adminNavigation", () => {
     expect(isAdminNavItemActive(catalog, "/admin/tag-products", "")).toBe(true);
     expect(isAdminNavItemActive(catalog, "/admin/tag-products", "?tab=products")).toBe(true);
     expect(isAdminNavItemActive(catalog, "/admin/tag-products", "?tab=promotions")).toBe(true);
-    expect(isAdminNavItemActive(catalog, "/admin/tag-products", "?tab=settings")).toBe(true);
   });
 
   it("keeps Overview exact-match so it does not swallow every admin route", () => {
@@ -132,8 +180,33 @@ describe("adminNavigation", () => {
   it("labels the mobile header from the active route", () => {
     expect(activeAdminNavLabel("/admin/tag-products", "?tab=promotions")).toBe("Tag Catalog");
     expect(activeAdminNavLabel("/admin/tag-inventory", "")).toBe("Tag Inventory");
-    expect(activeAdminNavLabel("/admin/order-checkout", "")).toBe("Order Checkout");
+    expect(activeAdminNavLabel("/admin/access/roles", "")).toBe("Roles");
     expect(activeAdminNavLabel("/somewhere-else", "")).toBe("Admin");
+  });
+});
+
+describe("opening a URL directly", () => {
+  it("reports the permissions a destination needs", () => {
+    expect(requiredCapabilitiesForPath("/admin/tag-inventory")).toEqual([
+      adminCapabilities.inventoryView,
+    ]);
+    expect(requiredCapabilitiesForPath("/admin/access/users")).toEqual([
+      adminCapabilities.adminUsersView,
+    ]);
+  });
+
+  it("holds a nested route to the permissions of the destination it belongs to", () => {
+    expect(requiredCapabilitiesForPath("/admin/orders/abc-123")).toEqual([
+      adminCapabilities.ordersView,
+    ]);
+  });
+
+  it("requires nothing for Overview, which everyone can open", () => {
+    expect(requiredCapabilitiesForPath("/admin")).toEqual([]);
+  });
+
+  it("returns null for a path with no navigation entry, leaving it to the API", () => {
+    expect(requiredCapabilitiesForPath("/admin/something-new")).toBeNull();
   });
 });
 
@@ -142,13 +215,13 @@ describe("section expansion", () => {
     const ids = adminNavGroups.map((group) => group.id);
     expect(new Set(ids).size).toBe(ids.length);
     expect(ids).toContain("commerce");
-    expect(ids).toContain("catalog");
+    expect(ids).toContain("access");
   });
 
   it("finds the section holding the active route", () => {
     expect(activeAdminNavGroupId("/admin/orders", "")).toBe("commerce");
     expect(activeAdminNavGroupId("/admin/tag-inventory", "")).toBe("tag-operations");
-    expect(activeAdminNavGroupId("/admin/tag-products", "?tab=promotions")).toBe("catalog");
+    expect(activeAdminNavGroupId("/admin/access/users", "")).toBe("access");
     expect(activeAdminNavGroupId("/admin/nowhere", "")).toBeNull();
   });
 

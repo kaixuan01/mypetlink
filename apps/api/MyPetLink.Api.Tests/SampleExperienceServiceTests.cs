@@ -23,7 +23,7 @@ public sealed class SampleExperienceServiceTests
         var adminPolicy = Assert.Single(typeof(AdminSampleExperienceController)
             .GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true)
             .Cast<AuthorizeAttribute>());
-        Assert.Equal(AuthorizationPolicies.Admin, adminPolicy.Policy);
+        Assert.Equal(AdminCapabilities.SampleExperienceView, adminPolicy.Policy);
         Assert.NotNull(typeof(SampleExperienceController)
             .GetCustomAttributes(typeof(AllowAnonymousAttribute), inherit: true)
             .SingleOrDefault());

@@ -13,7 +13,7 @@ namespace MyPetLink.Api.Controllers.Admin;
 /// the response but is owned by application configuration and cannot be
 /// changed here.
 /// </summary>
-[Authorize(Policy = AuthorizationPolicies.Admin)]
+[Authorize(Policy = AdminCapabilities.EmailTemplatesView)]
 [Route("api/v1/admin/email-templates")]
 public sealed class AdminEmailTemplatesController : ApiControllerBase
 {
@@ -36,6 +36,7 @@ public sealed class AdminEmailTemplatesController : ApiControllerBase
     }
 
     [HttpPut("{messageType}")]
+    [Authorize(Policy = AdminCapabilities.EmailTemplatesManage)]
     public async Task<IActionResult> Update(
         string messageType,
         [FromBody] UpdateEmailTemplateRequest request,
@@ -55,6 +56,7 @@ public sealed class AdminEmailTemplatesController : ApiControllerBase
     }
 
     [HttpPost("AdminPaymentProofSubmitted/recover-operations-recipient")]
+    [Authorize(Policy = AdminCapabilities.EmailTemplatesManage)]
     public async Task<IActionResult> RecoverOperationsRecipient(
         CancellationToken cancellationToken)
     {

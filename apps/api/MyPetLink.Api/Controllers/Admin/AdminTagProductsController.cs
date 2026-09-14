@@ -7,7 +7,7 @@ using MyPetLink.Api.Services;
 
 namespace MyPetLink.Api.Controllers.Admin;
 
-[Authorize(Policy = AuthorizationPolicies.Admin)]
+[Authorize(Policy = AdminCapabilities.CatalogView)]
 [Route("api/v1/admin/tag-products")]
 public sealed class AdminTagProductsController : ApiControllerBase
 {
@@ -32,31 +32,37 @@ public sealed class AdminTagProductsController : ApiControllerBase
         Ok(ApiEnvelope.Ok(await _catalogService.GetAdminAsync(productId, cancellationToken), HttpContext));
 
     [HttpPost]
+    [Authorize(Policy = AdminCapabilities.CatalogManage)]
     public async Task<IActionResult> Create([FromBody] UpsertTagProductRequest request, CancellationToken cancellationToken) =>
         StatusCode(StatusCodes.Status201Created, ApiEnvelope.Ok(await _catalogService.CreateProductAsync(
             _currentUserService.Current.UserId, request, cancellationToken), HttpContext));
 
     [HttpPut("{productId:guid}")]
+    [Authorize(Policy = AdminCapabilities.CatalogManage)]
     public async Task<IActionResult> Update(Guid productId, [FromBody] UpsertTagProductRequest request, CancellationToken cancellationToken) =>
         Ok(ApiEnvelope.Ok(await _catalogService.UpdateProductAsync(
             _currentUserService.Current.UserId, productId, request, cancellationToken), HttpContext));
 
     [HttpPost("{productId:guid}/archive")]
+    [Authorize(Policy = AdminCapabilities.CatalogManage)]
     public async Task<IActionResult> Archive(Guid productId, [FromBody] ArchiveCatalogRecordRequest request, CancellationToken cancellationToken) =>
         Ok(ApiEnvelope.Ok(await _catalogService.ArchiveProductAsync(
             _currentUserService.Current.UserId, productId, request.ConcurrencyToken, cancellationToken), HttpContext));
 
     [HttpPost("{productId:guid}/variants")]
+    [Authorize(Policy = AdminCapabilities.CatalogManage)]
     public async Task<IActionResult> CreateVariant(Guid productId, [FromBody] UpsertTagProductVariantRequest request, CancellationToken cancellationToken) =>
         StatusCode(StatusCodes.Status201Created, ApiEnvelope.Ok(await _catalogService.CreateVariantAsync(
             _currentUserService.Current.UserId, productId, request, cancellationToken), HttpContext));
 
     [HttpPut("variants/{variantId:guid}")]
+    [Authorize(Policy = AdminCapabilities.CatalogManage)]
     public async Task<IActionResult> UpdateVariant(Guid variantId, [FromBody] UpsertTagProductVariantRequest request, CancellationToken cancellationToken) =>
         Ok(ApiEnvelope.Ok(await _catalogService.UpdateVariantAsync(
             _currentUserService.Current.UserId, variantId, request, cancellationToken), HttpContext));
 
     [HttpPost("variants/{variantId:guid}/archive")]
+    [Authorize(Policy = AdminCapabilities.CatalogManage)]
     public async Task<IActionResult> ArchiveVariant(Guid variantId, [FromBody] ArchiveCatalogRecordRequest request, CancellationToken cancellationToken) =>
         Ok(ApiEnvelope.Ok(await _catalogService.ArchiveVariantAsync(
             _currentUserService.Current.UserId, variantId, request.ConcurrencyToken, cancellationToken), HttpContext));
@@ -74,11 +80,13 @@ public sealed class AdminTagProductsController : ApiControllerBase
         Ok(ApiEnvelope.Ok(await _catalogService.ListVariantPresetsAsync(cancellationToken), HttpContext));
 
     [HttpPost("variant-presets")]
+    [Authorize(Policy = AdminCapabilities.CatalogManage)]
     public async Task<IActionResult> CreateVariantPreset([FromBody] UpsertTagVariantPresetRequest request, CancellationToken cancellationToken) =>
         StatusCode(StatusCodes.Status201Created, ApiEnvelope.Ok(await _catalogService.SaveVariantPresetAsync(
             _currentUserService.Current.UserId, null, request, cancellationToken), HttpContext));
 
     [HttpPut("variant-presets/{presetId:guid}")]
+    [Authorize(Policy = AdminCapabilities.CatalogManage)]
     public async Task<IActionResult> UpdateVariantPreset(Guid presetId, [FromBody] UpsertTagVariantPresetRequest request, CancellationToken cancellationToken) =>
         Ok(ApiEnvelope.Ok(await _catalogService.SaveVariantPresetAsync(
             _currentUserService.Current.UserId, presetId, request, cancellationToken), HttpContext));

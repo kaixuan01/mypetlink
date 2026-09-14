@@ -45,4 +45,8 @@ public sealed record AdminProfileSummaryResponse(string Role, bool IsActive);
 
 public sealed record AdminAuthCheckResponse(
     CurrentUserSummaryResponse User,
-    AdminProfileSummaryResponse Admin);
+    AdminProfileSummaryResponse Admin,
+    // What this operator may actually do, resolved by the API. The Admin
+    // Portal renders its navigation and actions from this rather than deciding
+    // for itself what a role implies.
+    AdminAccessSummaryResponse Access);
