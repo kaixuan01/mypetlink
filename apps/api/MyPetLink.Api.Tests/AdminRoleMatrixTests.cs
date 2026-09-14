@@ -65,7 +65,7 @@ public sealed class AdminRoleMatrixTests
     }
 
     [Fact]
-    public async Task Marketing_CannotApprovePaymentsOrTouchPayoutsAndCosts()
+    public async Task Marketing_CanUseMarketingFeatures_ButCannotAccessBroadSalesOrFinanceData()
     {
         await using var db = await SeededDbAsync();
         var admin = await AddWithRolesAsync(db, "marketing@example.test", AdminRoleTemplates.MarketingCode);
@@ -81,19 +81,22 @@ public sealed class AdminRoleMatrixTests
             AdminCapabilities.AdminUsersManage,
             AdminCapabilities.AdminRolesManage,
             AdminCapabilities.OwnersExport,
+            AdminCapabilities.SalesView,
             AdminCapabilities.SalesManage,
         ]);
 
         await AssertGrantedAsync(db, admin, [
             AdminCapabilities.MarketingView,
             AdminCapabilities.MarketingManage,
+            AdminCapabilities.SampleExperienceView,
             AdminCapabilities.SampleExperienceManage,
-            AdminCapabilities.SalesView,
+            AdminCapabilities.CatalogView,
+            AdminCapabilities.PlansView,
         ]);
     }
 
     [Fact]
-    public async Task Finance_CannotManageAdminUsersOrRoles()
+    public async Task Finance_CanReviewAndPrepare_ButCannotExecuteHighRiskFinancialActions()
     {
         await using var db = await SeededDbAsync();
         var admin = await AddWithRolesAsync(db, "finance@example.test", AdminRoleTemplates.FinanceCode);
@@ -104,14 +107,39 @@ public sealed class AdminRoleMatrixTests
             AdminCapabilities.InventoryGenerate,
             AdminCapabilities.SmartTagsTransfer,
             AdminCapabilities.SettingsManage,
+            AdminCapabilities.PayoutsSettle,
+            AdminCapabilities.SalesCommissionsReverse,
+            AdminCapabilities.SalesCommissionRulesManage,
         ]);
 
         await AssertGrantedAsync(db, admin, [
+            AdminCapabilities.PaymentProofsView,
+            AdminCapabilities.PaymentProofsExport,
             AdminCapabilities.PaymentProofsReview,
+            AdminCapabilities.MerchantInvoicesView,
+            AdminCapabilities.MerchantInvoicesManage,
             AdminCapabilities.MerchantInvoicesRecordPayment,
+            AdminCapabilities.SalesCommissionsView,
+            AdminCapabilities.SalesCommissionsExport,
+            AdminCapabilities.PayoutsView,
+            AdminCapabilities.PayoutsManage,
+            AdminCapabilities.SalesView,
+            AdminCapabilities.InventoryCostsView,
+            AdminCapabilities.AuditLogView,
+        ]);
+    }
+
+    [Fact]
+    public async Task SuperAdmin_RetainsBroadSalesAndHighRiskFinancialCapabilities()
+    {
+        await using var db = await SeededDbAsync();
+        var admin = await AddWithRolesAsync(db, "super@example.test", AdminRoleTemplates.SuperAdminCode);
+
+        await AssertGrantedAsync(db, admin, [
+            AdminCapabilities.SalesView,
             AdminCapabilities.PayoutsSettle,
             AdminCapabilities.SalesCommissionsReverse,
-            AdminCapabilities.InventoryCostsView,
+            AdminCapabilities.SalesCommissionRulesManage,
         ]);
     }
 
@@ -205,7 +233,8 @@ public sealed class AdminRoleMatrixTests
             db, "both@example.test",
             AdminRoleTemplates.FinanceCode, AdminRoleTemplates.SupportCode);
 
-        Assert.True(await AuthorizeAsync(db, admin.UserId, AdminCapabilities.PayoutsSettle));
+        Assert.True(await AuthorizeAsync(db, admin.UserId, AdminCapabilities.PayoutsManage));
+        Assert.False(await AuthorizeAsync(db, admin.UserId, AdminCapabilities.PayoutsSettle));
         Assert.True(await AuthorizeAsync(db, admin.UserId, AdminCapabilities.SmartTagsAssign));
         Assert.False(await AuthorizeAsync(db, admin.UserId, AdminCapabilities.AdminUsersManage));
     }

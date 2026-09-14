@@ -64,6 +64,40 @@ public sealed class DeploymentScriptTests
     }
 
     [Fact]
+    public void CorrectBuiltInRoleDefaults_RemovesOnlyOriginalSeedGrants()
+    {
+        var migration = new CorrectBuiltInRoleCapabilityDefaults();
+        var migrationBuilder = new MigrationBuilder("Microsoft.EntityFrameworkCore.SqlServer");
+        var up = typeof(CorrectBuiltInRoleCapabilityDefaults).GetMethod(
+            "Up",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        Assert.NotNull(up);
+        up!.Invoke(migration, [migrationBuilder]);
+
+        var sql = Assert.Single(migrationBuilder.Operations.OfType<SqlOperation>()).Sql;
+        var grants = new Dictionary<string, string>
+        {
+            ["7b73dbaf-eaf0-2ea7-007b-322079cb2360"] = "sales.view",
+            ["28864159-d7a0-f7bc-80cc-71f0e427d7ff"] = "sales_commissions.reverse",
+            ["d89192fb-cc99-fa51-35e2-5a92cff5bfc1"] = "sales_commissions.rules.manage",
+            ["62cce0f6-214a-107f-de3c-a2e84e287687"] = "payouts.settle",
+        };
+
+        Assert.Equal(4, Regex.Matches(sql, @"DELETE FROM \[AdminRoleCapabilities\]").Count);
+        foreach (var (id, capability) in grants)
+        {
+            Assert.Contains($"[Id] = '{id}'", sql, StringComparison.Ordinal);
+            Assert.Contains($"[Capability] = N'{capability}'", sql, StringComparison.Ordinal);
+        }
+
+        Assert.DoesNotContain(
+            "DELETE FROM [AdminRoleCapabilities]\n                WHERE [AdminRoleId]",
+            sql,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void EveryTransactionIsClosedExactlyOnce()
     {
         var depth = 0;

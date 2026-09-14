@@ -33,6 +33,10 @@ target database and confirm:
 ## Deploying
 
 1. Apply the root `migration.sql` as usual.
+   `CorrectBuiltInRoleCapabilityDefaults` removes only the four original seed
+   grants narrowed by the final policy decision. It identifies the exact seeded
+   capability rows, so a grant deliberately removed and later re-added through
+   Access Management is not overwritten.
 2. Re-run the diagnostic script. After the migration, all of these must hold:
    - Nine rows in `AdminRoles`, all with `IsSystemRole = 1`.
    - Exactly one role with `GrantsAllCapabilities = 1` (`super-admin`).

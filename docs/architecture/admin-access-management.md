@@ -74,8 +74,8 @@ routes, both reachable by everyone by design:
 | **Operations** | Orders, shipping, inventory, Smart Tags, customer support information, business configuration, and sales performance visibility. |
 | **Owner Support** | Customer-facing operational work. No sales, commission, payout or access management. |
 | **Sales** | Resellers, salespeople, referral credit, quotations, merchant orders, and commission visibility. No stock creation, payment approval or payouts. |
-| **Marketing** | Promotions, the sample experience, and campaign and referral reporting. No payment proofs, payouts, stock costs or access management. |
-| **Finance** | Payment approval, invoices and receipts, commission accounting, payouts, financial reporting. No stock creation, Smart Tag operations or access management. |
+| **Marketing** | Promotions, product and plan visibility, and the sample experience. No broad sales data, payment proofs, payouts, stock costs or access management. |
+| **Finance** | Payment approval, invoices and receipts, commission accounting, payout preparation and financial reporting. No payout settlement, commission reversal, commission-rule changes, stock creation, Smart Tag operations or access management. |
 | **Support** | Owners, pets, Smart Tags and order visibility. No financial approval, no stock creation, no customer data downloads. |
 | **Read Only / Auditor** | Can open every module and read it, including the activity history. Cannot change, approve or download anything. |
 
@@ -198,6 +198,13 @@ from overwriting decisions:
   code does not reach an existing installation. Grant it explicitly, or rely on
   Super Admin's all-access flag.
 - An administrator is given a role **only when they hold none at all**.
+
+`CorrectBuiltInRoleCapabilityDefaults` removes the original seeded Finance
+grants for payout settlement, commission reversal and commission-rule changes,
+and the original seeded Marketing grant for broad sales visibility. It matches
+the deterministic ids of those original seed rows, rather than deleting by role
+and capability alone, so a capability deliberately removed and later re-added
+by an administrator is preserved.
 
 See [`docs/deployment/admin-access-management-rollout.md`](../deployment/admin-access-management-rollout.md)
 for the deployment steps.

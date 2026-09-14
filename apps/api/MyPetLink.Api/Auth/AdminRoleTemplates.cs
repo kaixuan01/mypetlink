@@ -163,14 +163,13 @@ public static class AdminRoleTemplates
                 Guid.Parse("b2d0a0e4-9f1e-4c58-9c1b-2b6f2f2a7d06"),
                 MarketingCode,
                 "Marketing",
-                "Promotions, the sample pet experience, and campaign and referral reporting. "
-                + "No payment proofs, payouts, stock costs or access management.",
+                "Promotions, product and plan visibility, and the sample pet experience. "
+                + "No broad sales data, payment proofs, payouts, stock costs or access management.",
                 GrantsAllCapabilities: false,
                 SortOrder: 60,
                 [
                     C.MarketingView, C.MarketingManage,
                     C.SampleExperienceView, C.SampleExperienceManage,
-                    C.SalesView,
                     C.CatalogView,
                     C.PlansView,
                 ]),
@@ -179,8 +178,8 @@ public static class AdminRoleTemplates
                 Guid.Parse("b2d0a0e4-9f1e-4c58-9c1b-2b6f2f2a7d07"),
                 FinanceCode,
                 "Finance",
-                "Payment approval, invoices and receipts, commission accounting, payouts and "
-                + "financial reporting. No stock creation, Smart Tag operations or access management.",
+                "Payment approval, invoices and receipts, commission accounting, payout preparation "
+                + "and financial reporting. No payout settlement, commission reversal or rule changes.",
                 GrantsAllCapabilities: false,
                 SortOrder: 70,
                 [
@@ -190,8 +189,7 @@ public static class AdminRoleTemplates
                     C.MerchantInvoicesView, C.MerchantInvoicesManage, C.MerchantInvoicesRecordPayment,
                     C.MerchantDocumentsSend,
                     C.SalesCommissionsView, C.SalesCommissionsExport,
-                    C.SalesCommissionsReverse, C.SalesCommissionRulesManage,
-                    C.PayoutsView, C.PayoutsManage, C.PayoutsSettle,
+                    C.PayoutsView, C.PayoutsManage,
                     C.SalesView,
                     C.InventoryCostsView,
                     C.AuditLogView,

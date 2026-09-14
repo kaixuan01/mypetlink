@@ -14,7 +14,8 @@ actually permits.
 | --- | --- |
 | `sales.view` | Sales performance, resellers, salespeople and referral attribution |
 | `sales.manage` | Changing seller and reseller attribution. Holding `sales.view` alone lets you inspect those relationships but not rewrite them |
-| `sales_commissions.view` | Commission reports, the ledger and its CSV exports |
+| `sales_commissions.view` | Commission reports and the ledger |
+| `sales_commissions.export` | Commission-ledger and reseller-portfolio CSV exports |
 | `merchant_invoices.record_payment` | Recording money received against an invoice, which is what makes commission payable |
 | `payouts.view` | Payout batches and their statements |
 | `payouts.manage` | Preparing a future payout, and cancelling one not yet paid |

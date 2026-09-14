@@ -25,13 +25,13 @@ public sealed class AdminAccessManagementServiceTests
         var founder = await AddAsync(db, "founder@example.test", AdminRoleTemplates.SuperAdminCode);
         var target = await AddAsync(db, "new@example.test");
 
-        Assert.False(await CanAsync(db, target, AdminCapabilities.PayoutsSettle));
+        Assert.False(await CanAsync(db, target, AdminCapabilities.PayoutsManage));
 
         var service = AdminAccessTestHarness.ManagementFor(db, founder.UserId);
         var finance = await RoleIdAsync(db, AdminRoleTemplates.FinanceCode);
         await service.UpdateUserRolesAsync(target.Id, Roles(await RowVersionAsync(db, target), finance));
 
-        Assert.True(await CanAsync(db, target, AdminCapabilities.PayoutsSettle));
+        Assert.True(await CanAsync(db, target, AdminCapabilities.PayoutsManage));
     }
 
     [Fact]
@@ -41,12 +41,12 @@ public sealed class AdminAccessManagementServiceTests
         var founder = await AddAsync(db, "founder@example.test", AdminRoleTemplates.SuperAdminCode);
         var target = await AddAsync(db, "finance@example.test", AdminRoleTemplates.FinanceCode);
 
-        Assert.True(await CanAsync(db, target, AdminCapabilities.PayoutsSettle));
+        Assert.True(await CanAsync(db, target, AdminCapabilities.PayoutsManage));
 
         var service = AdminAccessTestHarness.ManagementFor(db, founder.UserId);
         await service.UpdateUserRolesAsync(target.Id, Roles(await RowVersionAsync(db, target)));
 
-        Assert.False(await CanAsync(db, target, AdminCapabilities.PayoutsSettle));
+        Assert.False(await CanAsync(db, target, AdminCapabilities.PayoutsManage));
         Assert.False(await CanAsync(db, target, AdminCapabilities.MerchantInvoicesView));
     }
 
