@@ -52,9 +52,10 @@ public sealed class SocialMomentProjection
         string? cursor,
         int? pageSize,
         Guid? viewerId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        int? defaultPageSize = null)
     {
-        var take = SocialCursor.ClampPageSize(pageSize);
+        var take = SocialCursor.ClampPageSize(pageSize, defaultPageSize);
         var position = SocialCursor.TryDecode(cursor);
 
         if (position is not null)

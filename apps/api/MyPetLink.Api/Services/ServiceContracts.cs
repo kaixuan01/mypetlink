@@ -121,6 +121,17 @@ public interface IMomentLikeService : ISkeletonService
 }
 
 /// <summary>
+/// The chronological home feed: Moments from households the caller follows,
+/// plus their own. Authenticated only — there is no feed without a graph.
+/// </summary>
+public interface ISocialFeedService : ISkeletonService
+{
+    Task<PublicMomentPageResponse> GetFeedAsync(
+        Guid? currentUserId, string? cursor, int? pageSize,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>
 /// Explore and search. Everything here adds discoverability on top of the
 /// shared social visibility rules; nothing here may override it.
 /// </summary>

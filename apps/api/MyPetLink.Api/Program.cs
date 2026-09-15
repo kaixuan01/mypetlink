@@ -396,6 +396,7 @@ builder.Services.AddScoped<SocialMomentProjection>();
 builder.Services.AddScoped<IPublicSocialProfileService, PublicSocialProfileService>();
 builder.Services.AddScoped<ISocialGraphService, SocialGraphService>();
 builder.Services.AddScoped<IMomentLikeService, MomentLikeService>();
+builder.Services.AddScoped<ISocialFeedService, SocialFeedService>();
 builder.Services.AddScoped<ISocialDiscoveryService, SocialDiscoveryService>();
 builder.Services.AddScoped<IOwnerHandleService, OwnerHandleService>();
 builder.Services.AddSingleton<IImageDerivativeGenerator, ImageDerivativeGenerator>();

@@ -25,16 +25,23 @@ public sealed record SocialCursor(DateTimeOffset PublishedAt, Guid Id)
     public const int DefaultPageSize = 12;
 
     /// <summary>
+    /// The feed's default. Larger than a grid page because feed cards are read
+    /// one after another rather than scanned, so a page is consumed faster.
+    /// Still bounded by <see cref="MaxPageSize"/> like every other listing.
+    /// </summary>
+    public const int FeedPageSize = 15;
+
+    /// <summary>
     /// Upper bound on what a caller may request. Without it, `limit=100000`
     /// turns a paginated endpoint back into an unbounded one.
     /// </summary>
     public const int MaxPageSize = 30;
 
-    public static int ClampPageSize(int? requested)
+    public static int ClampPageSize(int? requested, int? fallback = null)
     {
         if (!requested.HasValue || requested.Value <= 0)
         {
-            return DefaultPageSize;
+            return fallback ?? DefaultPageSize;
         }
 
         return Math.Min(requested.Value, MaxPageSize);

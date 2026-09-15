@@ -43,12 +43,15 @@ internal sealed class SocialSurfaceHarness : IDisposable
         var r2 = Options.Create(new CloudflareR2Options());
         var cards = new SocialMomentProjection(db, r2);
 
+        Feed = new SocialFeedService(db, cards);
         Discovery = new SocialDiscoveryService(db, r2, cards);
         Graph = new SocialGraphService(db, r2);
         Likes = new MomentLikeService(db);
     }
 
     public MyPetLinkDbContext Db { get; }
+
+    public SocialFeedService Feed { get; }
 
     public SocialDiscoveryService Discovery { get; }
 
