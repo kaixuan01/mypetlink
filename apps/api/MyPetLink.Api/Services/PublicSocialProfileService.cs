@@ -185,6 +185,7 @@ public sealed class PublicSocialProfileService : SkeletonService, IPublicSocialP
         string handle,
         string? cursor,
         int? pageSize,
+        Guid? viewerId = null,
         CancellationToken cancellationToken = default)
     {
         var normalized = OwnerHandleRules.Normalize(handle);
@@ -214,7 +215,7 @@ public sealed class PublicSocialProfileService : SkeletonService, IPublicSocialP
         var query = SociallyVisibleMoments()
             .Where(moment => moment.AuthorUserId == ownerUserId.Value);
 
-        return await PageMomentsAsync(query, cursor, pageSize, cancellationToken);
+        return await PageMomentsAsync(query, cursor, pageSize, viewerId, cancellationToken);
     }
 
     /// <summary>
@@ -229,6 +230,7 @@ public sealed class PublicSocialProfileService : SkeletonService, IPublicSocialP
         string publicSlug,
         string? cursor,
         int? pageSize,
+        Guid? viewerId = null,
         CancellationToken cancellationToken = default)
     {
         var publicCode = PetDtoMapper.ExtractPublicCode(publicSlug ?? "");
@@ -257,46 +259,20 @@ public sealed class PublicSocialProfileService : SkeletonService, IPublicSocialP
                     || moment.MomentPets.Any(subject => subject.PetId == pet.Id))
                 && (showMoments || (showTimeline && moment.ShowInLifeTimeline)));
 
-        return await PageMomentsAsync(query, cursor, pageSize, cancellationToken);
+        return await PageMomentsAsync(query, cursor, pageSize, viewerId, cancellationToken);
     }
 
-    /// <summary>
-    /// Pets that may be shown socially at all: alive, not archived, share
-    /// profile on, pet social on, and owner social on. Every layer is a
-    /// separate, deliberate consent.
-    /// </summary>
+    // Both predicates live in SocialVisibility so the like endpoints ask exactly
+    // the same question these listings do. Kept as local wrappers only to leave
+    // the call sites in this file reading as they did.
     private static IQueryable<Pet> SociallyVisiblePets(IQueryable<Pet> pets)
     {
-        return pets
-            .AsNoTracking()
-            .Where(pet =>
-                pet.DeletedAt == null
-                && pet.LifecycleStatus == PetLifecycleStatus.Active
-                && pet.PublicProfile != null
-                && pet.PublicProfile.IsPublicProfileEnabled
-                && pet.SocialProfile != null
-                && pet.SocialProfile.IsSocialEnabled
-                && pet.OwnerUser.SocialProfile != null
-                && pet.OwnerUser.SocialProfile.IsSocialEnabled
-                && pet.OwnerUser.DeletedAt == null);
+        return pets.SociallyVisible();
     }
 
-    /// <summary>
-    /// Moments that may appear in a social listing: public, alive, published,
-    /// and authored by an account that is still social.
-    /// </summary>
     private IQueryable<PetMemory> SociallyVisibleMoments()
     {
-        return _dbContext.PetMemories
-            .AsNoTracking()
-            .Where(moment =>
-                moment.Visibility == MemoryVisibility.Public
-                && moment.DeletedAt == null
-                && moment.ArchivedAt == null
-                && moment.PublishedAt != null
-                && moment.AuthorUser.SocialProfile != null
-                && moment.AuthorUser.SocialProfile.IsSocialEnabled
-                && moment.AuthorUser.DeletedAt == null);
+        return _dbContext.PetMemories.SociallyVisible();
     }
 
     /// <summary>
@@ -307,6 +283,7 @@ public sealed class PublicSocialProfileService : SkeletonService, IPublicSocialP
         IQueryable<PetMemory> query,
         string? cursor,
         int? pageSize,
+        Guid? viewerId,
         CancellationToken cancellationToken)
     {
         var take = SocialCursor.ClampPageSize(pageSize);
@@ -343,6 +320,8 @@ public sealed class PublicSocialProfileService : SkeletonService, IPublicSocialP
 
         var subjects = await LoadSubjectsAsync(momentIds, cancellationToken);
         var media = await LoadMediaAsync(momentIds, cancellationToken);
+        var likeCounts = await LoadLikeCountsAsync(momentIds, cancellationToken);
+        var viewerLikes = await LoadViewerLikesAsync(momentIds, viewerId, cancellationToken);
 
         var items = page
             .Select(row => new PublicMomentListItemResponse(
@@ -357,7 +336,9 @@ public sealed class PublicSocialProfileService : SkeletonService, IPublicSocialP
                     : Array.Empty<PublicMomentSubjectResponse>(),
                 media.TryGetValue(row.Id, out var items)
                     ? items
-                    : Array.Empty<MemoryMediaResponse>()))
+                    : Array.Empty<MemoryMediaResponse>(),
+                likeCounts.TryGetValue(row.Id, out var likeCount) ? likeCount : 0,
+                viewerLikes.Contains(row.Id)))
             .ToArray();
 
         var last = page.Count > 0 ? page[^1] : null;
@@ -417,6 +398,52 @@ public sealed class PublicSocialProfileService : SkeletonService, IPublicSocialP
                         row.Slug,
                         MediaDerivatives.ResolveThumbnailUrl(row.Photo, _r2Options.PublicBaseUrl)))
                     .ToArray());
+    }
+
+    /// <summary>
+    /// Like counts for the page, in one grouped query rather than one per
+    /// Moment. Counted from the rows: no counter column exists to drift.
+    /// </summary>
+    private async Task<Dictionary<Guid, int>> LoadLikeCountsAsync(
+        IReadOnlyCollection<Guid> momentIds,
+        CancellationToken cancellationToken)
+    {
+        if (momentIds.Count == 0)
+        {
+            return new Dictionary<Guid, int>();
+        }
+
+        var rows = await _dbContext.MomentLikes
+            .AsNoTracking()
+            .Where(like => momentIds.Contains(like.MomentId))
+            .GroupBy(like => like.MomentId)
+            .Select(group => new { MomentId = group.Key, Count = group.Count() })
+            .ToListAsync(cancellationToken);
+
+        return rows.ToDictionary(row => row.MomentId, row => row.Count);
+    }
+
+    /// <summary>
+    /// Which of the page's Moments this caller has already liked. An anonymous
+    /// visitor has liked nothing, and is not asked about.
+    /// </summary>
+    private async Task<HashSet<Guid>> LoadViewerLikesAsync(
+        IReadOnlyCollection<Guid> momentIds,
+        Guid? viewerId,
+        CancellationToken cancellationToken)
+    {
+        if (momentIds.Count == 0 || !viewerId.HasValue)
+        {
+            return new HashSet<Guid>();
+        }
+
+        var liked = await _dbContext.MomentLikes
+            .AsNoTracking()
+            .Where(like => like.UserId == viewerId.Value && momentIds.Contains(like.MomentId))
+            .Select(like => like.MomentId)
+            .ToListAsync(cancellationToken);
+
+        return liked.ToHashSet();
     }
 
     private async Task<Dictionary<Guid, MemoryMediaResponse[]>> LoadMediaAsync(

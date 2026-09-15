@@ -19,10 +19,14 @@ namespace MyPetLink.Api.Controllers;
 public sealed class PublicSocialProfilesController : ApiControllerBase
 {
     private readonly IPublicSocialProfileService _socialProfiles;
+    private readonly ICurrentUserService _currentUserService;
 
-    public PublicSocialProfilesController(IPublicSocialProfileService socialProfiles)
+    public PublicSocialProfilesController(
+        IPublicSocialProfileService socialProfiles,
+        ICurrentUserService currentUserService)
     {
         _socialProfiles = socialProfiles;
+        _currentUserService = currentUserService;
     }
 
     [HttpGet("owners/{handle}")]
@@ -62,10 +66,14 @@ public sealed class PublicSocialProfilesController : ApiControllerBase
     {
         Response.Headers.CacheControl = "no-store";
 
+        // The caller, when there is one, is used for a single thing: reporting
+        // which Moments they have already liked. It never widens what a listing
+        // returns — a signed-in visitor sees exactly what a stranger sees.
         var response = await _socialProfiles.GetOwnerMomentsAsync(
             handle,
             cursor,
             limit,
+            _currentUserService.Current.UserId,
             cancellationToken);
 
         return Ok(ApiEnvelope.Ok(response, HttpContext));
@@ -84,6 +92,7 @@ public sealed class PublicSocialProfilesController : ApiControllerBase
             publicSlug,
             cursor,
             limit,
+            _currentUserService.Current.UserId,
             cancellationToken);
 
         return Ok(ApiEnvelope.Ok(response, HttpContext));

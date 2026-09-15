@@ -313,6 +313,120 @@ public sealed class SocialFoundationRelationalTests
         Assert.Empty(await context.MomentPets.ToListAsync());
     }
 
+    [RelationalFact]
+    public async Task TheSameAccountCannotLikeOneMomentTwice()
+    {
+        await using var scope = await RelationalDatabase.CreateAsync();
+        Guid momentId;
+
+        await using (var seed = scope.NewContext())
+        {
+            SeedUsers(seed);
+            SeedPet(seed);
+            var moment = SeedMoment(seed);
+            await seed.SaveChangesAsync();
+            momentId = moment.Id;
+
+            seed.MomentLikes.Add(new MomentLike { MomentId = momentId, UserId = BobId });
+            await seed.SaveChangesAsync();
+        }
+
+        await using var context = scope.NewContext();
+        context.MomentLikes.Add(new MomentLike { MomentId = momentId, UserId = BobId });
+
+        // The unique index is the authority on "already liked". Application
+        // checks are an optimisation in front of it, never the rule itself.
+        await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync());
+    }
+
+    [RelationalFact]
+    public async Task TwoSimultaneousLikes_LeaveOneRowAndNoError()
+    {
+        await using var scope = await RelationalDatabase.CreateAsync();
+        Guid momentId;
+
+        await using (var seed = scope.NewContext())
+        {
+            SeedUsers(seed);
+            SeedSocialProfiles(seed);
+            SeedPet(seed);
+            var moment = SeedMoment(seed);
+            await seed.SaveChangesAsync();
+            momentId = moment.Id;
+        }
+
+        // Both callers pass the "already liked?" check, then race on insert. The
+        // loser must see a liked Moment, not a failure: it asked for a state and
+        // that state is what it got.
+        await Task.WhenAll(
+            LikeAsync(scope, BobId, momentId),
+            LikeAsync(scope, BobId, momentId));
+
+        await using var verify = scope.NewContext();
+        Assert.Single(await verify.MomentLikes.Where(like => like.MomentId == momentId).ToListAsync());
+    }
+
+    [RelationalFact]
+    public async Task LikeCountsComeFromTheRows_WithNoCounterToDrift()
+    {
+        await using var scope = await RelationalDatabase.CreateAsync();
+        Guid momentId;
+
+        await using (var seed = scope.NewContext())
+        {
+            SeedUsers(seed);
+            SeedSocialProfiles(seed);
+            SeedPet(seed);
+            var moment = SeedMoment(seed);
+            await seed.SaveChangesAsync();
+            momentId = moment.Id;
+
+            seed.MomentLikes.Add(new MomentLike { MomentId = momentId, UserId = BobId });
+            seed.MomentLikes.Add(new MomentLike { MomentId = momentId, UserId = CarolId });
+            await seed.SaveChangesAsync();
+        }
+
+        await using var context = scope.NewContext();
+        var likes = new MomentLikeService(context);
+
+        var afterOneLeaves = await likes.UnlikeAsync(BobId, momentId);
+
+        Assert.Equal(1, afterOneLeaves.LikeCount);
+        Assert.Equal(
+            1,
+            await context.MomentLikes.CountAsync(like => like.MomentId == momentId));
+    }
+
+    private static async Task LikeAsync(RelationalScope scope, Guid userId, Guid momentId)
+    {
+        await using var context = scope.NewContext();
+        var likes = new MomentLikeService(context);
+        await likes.LikeAsync(userId, momentId);
+    }
+
+    /// <summary>Social profiles for the seeded accounts, which social reads require.</summary>
+    private static void SeedSocialProfiles(MyPetLinkDbContext context)
+    {
+        foreach (var (id, handle) in new[]
+        {
+            (AliceId, "alicefamily"),
+            (BobId, "bobfamily"),
+            (CarolId, "carolfamily")
+        })
+        {
+            context.OwnerSocialProfiles.Add(new OwnerSocialProfile
+            {
+                UserId = id,
+                Handle = handle,
+                NormalizedHandle = handle,
+                DisplayName = handle,
+                NormalizedDisplayName = handle,
+                IsSocialEnabled = true,
+                AllowFollowers = true
+            });
+        }
+    }
+
     private static async Task<bool> ClaimAsync(RelationalScope scope, Guid userId, string handle)
     {
         await using var context = scope.NewContext();

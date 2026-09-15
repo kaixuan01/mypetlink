@@ -132,6 +132,20 @@ export function OwnerSocialProfileView({ handle }: OwnerSocialProfileViewProps) 
     }
   }, [handle, loadingMore, nextCursor]);
 
+  const onLikeChange = useCallback(
+    (
+      momentId: string,
+      state: { likeCount: number; viewerHasLiked: boolean }
+    ) => {
+      setMoments((current) =>
+        current.map((moment) =>
+          moment.id === momentId ? { ...moment, ...state } : moment
+        )
+      );
+    },
+    []
+  );
+
   if (state === "loading") {
     return (
       <div
@@ -321,7 +335,9 @@ export function OwnerSocialProfileView({ handle }: OwnerSocialProfileViewProps) 
           hasMore={Boolean(nextCursor)}
           loadingMore={loadingMore}
           moments={moments}
+          onLikeChange={onLikeChange}
           onLoadMore={loadMore}
+          signedIn={signedIn}
         />
       </section>
 

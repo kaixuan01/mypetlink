@@ -12,7 +12,18 @@ const mocks = vi.hoisted(() => ({
   getPublicOwnerMoments: vi.fn(),
   getOwnerRelationship: vi.fn(),
   followOwner: vi.fn(),
+  likeMoment: vi.fn(),
+  unlikeMoment: vi.fn(),
   smartTagsEnabled: true,
+}));
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/u/tanfamily",
+}));
+
+vi.mock("@/services/momentLikeService", () => ({
+  likeMoment: (...args: unknown[]) => mocks.likeMoment(...args),
+  unlikeMoment: (...args: unknown[]) => mocks.unlikeMoment(...args),
 }));
 
 vi.mock("@/services/socialGraphService", async () => {
@@ -124,6 +135,8 @@ function page(count: number, nextCursor: string | null): PublicMomentPage {
       caption: null,
       subjects: [{ name: "Mochi", publicSlug: "mochi-pubmochi", photoUrl: null }],
       media: [],
+      likeCount: 0,
+      viewerHasLiked: false,
     })),
     nextCursor,
   };
@@ -346,6 +359,35 @@ describe("OwnerSocialProfileView", () => {
 
     await waitFor(() => expect(screen.getByText("The Tan Family")).toBeTruthy());
     expect(screen.getByTestId("owner-profile-counts")).toBeTruthy();
+  });
+
+  it("likes one Moment from the grid without disturbing the others", async () => {
+    signIn();
+    mocks.likeMoment.mockResolvedValue({
+      momentId: "mlast0",
+      likeCount: 1,
+      viewerHasLiked: true,
+    });
+
+    render(<OwnerSocialProfileView handle="tanfamily" />);
+
+    const hearts = await screen.findAllByTestId("like-button");
+    fireEvent.click(hearts[0]);
+
+    await waitFor(() => expect(mocks.likeMoment).toHaveBeenCalledWith("mlast0"));
+
+    const counts = screen.getAllByTestId("like-count");
+    await waitFor(() => expect(counts[0].textContent).toBe("1"));
+    expect(counts[1].textContent).toBe("0");
+  });
+
+  it("shows a signed-out visitor the count and a way to sign in", async () => {
+    render(<OwnerSocialProfileView handle="tanfamily" />);
+
+    const hearts = await screen.findAllByTestId("like-button-signin");
+
+    expect(hearts[0].getAttribute("href")).toBe("/login?redirect=%2Fu%2Ftanfamily");
+    expect(screen.queryByTestId("like-button")).toBeNull();
   });
 
   it("distinguishes a transport failure from an absent profile", async () => {

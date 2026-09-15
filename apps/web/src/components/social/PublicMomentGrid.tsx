@@ -1,6 +1,7 @@
 "use client";
 
 import { LinkoMascot } from "@/components/brand/LinkoMascot";
+import { LikeButton } from "@/components/social/LikeButton";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { formatMomentSubjects } from "@/lib/momentSubjects";
 import type { PublicMomentListItem } from "@/services/publicSocialService";
@@ -11,6 +12,13 @@ type PublicMomentGridProps = {
   loadingMore: boolean;
   onLoadMore: () => void;
   emptyMessage: string;
+  /** Null until the signed-in check has run; the heart stays inert until then. */
+  signedIn: boolean | null;
+  /** Applied to the one Moment that changed, after the server confirms. */
+  onLikeChange: (
+    momentId: string,
+    state: { likeCount: number; viewerHasLiked: boolean }
+  ) => void;
 };
 
 /**
@@ -32,6 +40,8 @@ export function PublicMomentGrid({
   loadingMore,
   onLoadMore,
   emptyMessage,
+  signedIn,
+  onLikeChange,
 }: PublicMomentGridProps) {
   if (moments.length === 0) {
     return (
@@ -84,6 +94,16 @@ export function PublicMomentGrid({
                       {subjectLabel}
                     </span>
                   ) : null}
+                  <div className="mt-1 -ml-2">
+                    <LikeButton
+                      likeCount={moment.likeCount}
+                      momentId={moment.id}
+                      momentTitle={moment.title}
+                      onChange={(state) => onLikeChange(moment.id, state)}
+                      signedIn={signedIn}
+                      viewerHasLiked={moment.viewerHasLiked}
+                    />
+                  </div>
                 </figcaption>
               </figure>
             </li>

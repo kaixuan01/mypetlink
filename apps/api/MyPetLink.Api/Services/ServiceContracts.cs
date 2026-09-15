@@ -50,16 +50,22 @@ public interface IPublicSocialProfileService : ISkeletonService
         string handle,
         CancellationToken cancellationToken = default);
 
+    /// <param name="viewerId">
+    /// The caller, when there is one. Used only to report which Moments they
+    /// have already liked; it widens nothing and hides nothing.
+    /// </param>
     Task<PublicMomentPageResponse> GetOwnerMomentsAsync(
         string handle,
         string? cursor,
         int? pageSize,
+        Guid? viewerId = null,
         CancellationToken cancellationToken = default);
 
     Task<PublicMomentPageResponse> GetPetMomentsAsync(
         string publicSlug,
         string? cursor,
         int? pageSize,
+        Guid? viewerId = null,
         CancellationToken cancellationToken = default);
 }
 
@@ -91,6 +97,22 @@ public interface ISocialGraphService : ISkeletonService
     Task<SocialAccountPageResponse> GetFollowingAsync(
         Guid? currentUserId, string handle, string? cursor, int? pageSize,
         CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// Likes on Moments. The actor is always the JWT subject; the route names the
+/// Moment, never the person doing the liking.
+/// </summary>
+public interface IMomentLikeService : ISkeletonService
+{
+    Task<MomentLikeResponse> LikeAsync(
+        Guid? currentUserId, Guid momentId, CancellationToken cancellationToken = default);
+
+    Task<MomentLikeResponse> UnlikeAsync(
+        Guid? currentUserId, Guid momentId, CancellationToken cancellationToken = default);
+
+    Task<MomentLikeResponse> GetAsync(
+        Guid? currentUserId, Guid momentId, CancellationToken cancellationToken = default);
 }
 
 /// <summary>Handle claiming, renaming, reservations and the release hold.</summary>

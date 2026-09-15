@@ -61,7 +61,16 @@ public sealed record PublicMomentListItemResponse(
     string? Type,
     string? Caption,
     IReadOnlyCollection<PublicMomentSubjectResponse> Subjects,
-    IReadOnlyCollection<MemoryMediaResponse> Media);
+    IReadOnlyCollection<MemoryMediaResponse> Media,
+
+    /// <summary>Counted from the like rows, never stored on the Moment.</summary>
+    int LikeCount,
+
+    /// <summary>
+    /// Whether the caller has liked this Moment. Always false for a visitor with
+    /// no session — there is nobody for a like to belong to.
+    /// </summary>
+    bool ViewerHasLiked);
 
 /// <summary>
 /// A page of public Moments.

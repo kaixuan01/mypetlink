@@ -38,3 +38,14 @@ public sealed record SocialAccountPageResponse(
 
 /// <summary>Optional private note when blocking. Never shown to the blocked account.</summary>
 public sealed record BlockOwnerRequest(string? Reason);
+
+/// <summary>
+/// The like state of one Moment, as the caller now stands.
+///
+/// Returned by both like and unlike so a control can settle on the server's own
+/// answer rather than on its optimistic guess.
+/// </summary>
+public sealed record MomentLikeResponse(
+    Guid MomentId,
+    int LikeCount,
+    bool ViewerHasLiked);

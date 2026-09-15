@@ -33,6 +33,10 @@ export type PublicMomentListItem = {
   caption: string | null;
   subjects: PublicMomentSubject[];
   media: PublicMomentMedia[];
+  /** Counted from the like rows; never stored on the Moment. */
+  likeCount: number;
+  /** Always false for a visitor with no session. */
+  viewerHasLiked: boolean;
 };
 
 export type PublicMomentPage = {
@@ -133,6 +137,8 @@ function normalizePage(page?: PublicMomentPage): PublicMomentPage {
       ...item,
       subjects: item.subjects ?? [],
       media: item.media ?? [],
+      likeCount: item.likeCount ?? 0,
+      viewerHasLiked: item.viewerHasLiked ?? false,
     })),
     nextCursor: page?.nextCursor ?? null,
   };
