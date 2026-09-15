@@ -111,9 +111,41 @@ These are protected. Nothing in this roadmap moves them behind a paywall.
 | P6 | Recurring Care Schedules | **PREMIUM**, later | Belongs *after* reminders, not inside them. |
 | P7 | Weight / Health Trends | **PREMIUM**, later | Requires a new measurement domain that does not exist. |
 | P8 | Premium Profile Customisation | **PREMIUM**, cheap support benefit | `PlanLimit.AllowsAdvancedThemes` already exists. Never the headline. |
-| — | Custom profile URL | **DO NOT BUILD YET** | Collides with `publicCode` uniqueness, slug parsing (`parsePublicProfileParam`), edge slug validation, and the social-card cache key. High blast radius, low value. |
-| — | Explore feed, likes, comments, following, chat | **DO NOT BUILD YET** | Already ruled out in `SOFT_LAUNCH_READINESS.md` P3. Unchanged. |
+| — | Custom **pet** profile URL | **DO NOT BUILD YET** — unchanged | Collides with `publicCode` uniqueness, slug parsing (`parsePublicProfileParam`), edge slug validation, and the social-card cache key. High blast radius, low value. **Note:** the *owner* handle shipped in 2026-09 does not have this problem — it lives at `/u/{handle}`, a new namespace that touches none of those four. See "Superseded" below. |
+| — | Explore feed, likes, comments, following, chat | **SUPERSEDED 2026-09** | MyPetLink Social was approved. See "Superseded: social is now approved" below. Comments and chat remain out of Phase 1. |
 | — | GPS / BLE tracking | **COMING LATER** | Existing product rule. Unchanged. |
+
+### Superseded: social is now approved (2026-09)
+
+This roadmap previously recorded Explore / feed / likes / following as **DO NOT
+BUILD YET**, on the reasoning in `SOFT_LAUNCH_READINESS.md` §P3. That call has
+been **superseded by an explicit product decision**: MyPetLink Social was
+approved and its foundation (Phase 1A–1D) is implemented.
+
+The original reasoning is kept above rather than deleted, because it was correct
+*at the time* — there was no retention loop to hang a social product on, and the
+cheapest retention work was elsewhere. What changed is the product direction, not
+the analysis.
+
+**What was approved, and the shape it took:**
+
+- The social actor is the **owner/account**, seen through a **separate public
+  social identity** (handle, display name, bio, avatar). It is never the account
+  name, the email, or the finder-facing owner name.
+- The **pet** remains the content subject and the safety identity.
+- **Smart Tag scanning still opens the Safety Profile.** Unchanged, and covered
+  by regression tests.
+- **Comments, reporting and moderation are Phase 2**, not Phase 1.
+- **Pet-level follow** was evaluated and deferred; revisit only with real
+  engagement data.
+- **Owner handles at `/u/{handle}` are approved and built.** Pet custom URLs
+  remain deferred for the reasons in the table above, which are properties of
+  the `/p/` namespace and do not apply to `/u/`.
+
+Architecture and the decisions behind it:
+[`docs/architecture/social-foundation.md`](../architecture/social-foundation.md).
+
+---
 
 ### The two ambiguous calls, explained
 

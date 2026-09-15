@@ -342,3 +342,90 @@ describe("RuntimeRouteFallback shared /q resolution", () => {
     expect(screen.queryByText("Page not found")).toBeNull();
   });
 });
+
+// ---- Social routes through the 404 shell ----------------------------------
+//
+// In production, /u/{handle} has no exported asset: the build only emits the
+// placeholder handle, so a real one reaches the Pages Function, which calls
+// context.next(), gets the 404 asset back, and serves it. This component is the
+// only thing that can tell that page apart from a genuinely wrong URL. Without
+// these cases, every owner profile renders "PAGE NOT FOUND" in production while
+// passing every other test — which is exactly what happened.
+
+vi.mock("@/components/social/OwnerSocialProfileView", () => ({
+  OwnerSocialProfileView: ({ handle }: { handle: string }) => (
+    <div data-testid="social-profile-view">{handle}</div>
+  ),
+}));
+
+vi.mock("@/components/social/OwnerConnectionsView", () => ({
+  OwnerConnectionsView: ({
+    handle,
+    relation,
+  }: {
+    handle: string;
+    relation: string;
+  }) => (
+    <div data-testid="social-connections-view">
+      {handle}:{relation}
+    </div>
+  ),
+}));
+
+describe("social routes served through the 404 shell", () => {
+  function at(path: string) {
+    window.history.replaceState({}, "", path);
+  }
+
+  it("renders an owner social profile for a handle with no exported page", async () => {
+    at("/u/tanfamily");
+
+    render(<RuntimeRouteFallback>{null}</RuntimeRouteFallback>);
+
+    expect((await screen.findByTestId("social-profile-view")).textContent).toBe(
+      "tanfamily"
+    );
+  });
+
+  it("normalises the handle so one profile has one address", async () => {
+    cleanup();
+    at("/u/TanFamily");
+
+    render(<RuntimeRouteFallback>{null}</RuntimeRouteFallback>);
+
+    expect((await screen.findByTestId("social-profile-view")).textContent).toBe(
+      "tanfamily"
+    );
+  });
+
+  it("renders the followers and following lists too", async () => {
+    at("/u/tanfamily/followers");
+
+    const view = render(<RuntimeRouteFallback>{null}</RuntimeRouteFallback>);
+
+    expect(
+      (await screen.findByTestId("social-connections-view")).textContent
+    ).toBe("tanfamily:followers");
+
+    view.unmount();
+    at("/u/tanfamily/following");
+
+    render(<RuntimeRouteFallback>{null}</RuntimeRouteFallback>);
+
+    expect(
+      (await screen.findByTestId("social-connections-view")).textContent
+    ).toBe("tanfamily:following");
+  });
+
+  it("still refuses a path that is not a social route", async () => {
+    at("/u/tanfamily/something-else");
+
+    render(
+      <RuntimeRouteFallback>
+        <div data-testid="default-not-found">Not found</div>
+      </RuntimeRouteFallback>
+    );
+
+    expect(await screen.findByTestId("default-not-found")).toBeTruthy();
+  });
+});

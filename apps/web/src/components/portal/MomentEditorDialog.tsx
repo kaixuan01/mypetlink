@@ -10,10 +10,12 @@ import {
 import { MomentMediaField } from "@/components/portal/MomentMediaField";
 import { DateInput } from "@/components/ui/DateInput";
 import { FormDialog } from "@/components/ui/FormDialog";
+import { MomentPetSelector } from "@/components/portal/MomentPetSelector";
 import type {
   MomentMedia,
   MomentType,
   MomentVisibility,
+  PetListItem,
   PetMoment,
   PetMomentPayload,
 } from "@/types";
@@ -62,6 +64,8 @@ type MomentEditorValues = {
   visibility: OwnerMomentVisibility;
   showInLifeTimeline: boolean;
   timelineNote: string;
+  /** Additional owned pets. The primary pet is never in this list. */
+  additionalPetIds: string[];
 };
 
 type FormErrors = Partial<Record<keyof MomentEditorValues, string>>;
@@ -69,6 +73,13 @@ type FormErrors = Partial<Record<keyof MomentEditorValues, string>>;
 type MomentEditorDialogProps = {
   mode: "create" | "edit";
   petName: string;
+  /**
+   * The pet this Moment belongs to, plus the owner's other pets. Supplied only
+   * where the caller knows them; without it the subject selector is simply not
+   * offered and the Moment is about its primary pet alone.
+   */
+  primaryPet?: PetListItem;
+  otherPets?: PetListItem[];
   initialMoment?: PetMoment;
   submitting: boolean;
   error?: string;
@@ -87,11 +98,14 @@ const emptyValues: MomentEditorValues = {
   visibility: "Private",
   showInLifeTimeline: false,
   timelineNote: "",
+  additionalPetIds: [],
 };
 
 export function MomentEditorDialog({
   mode,
   petName,
+  primaryPet,
+  otherPets = [],
   initialMoment,
   submitting,
   error,
@@ -163,6 +177,12 @@ export function MomentEditorDialog({
       visibility: form.visibility,
       showInLifeTimeline: form.showInLifeTimeline,
       timelineNote: form.timelineNote.trim(),
+      // Sent only when a choice was actually offered. Omitting it leaves the
+      // server's existing subjects alone; sending [] would clear them, which is
+      // not what "this editor had no pet selector" means.
+      ...(primaryPet && otherPets.length > 0
+        ? { additionalPetIds: form.additionalPetIds }
+        : {}),
     });
   }
 
@@ -228,6 +248,16 @@ export function MomentEditorDialog({
                   </select>
                 </Field>
               </div>
+
+              {primaryPet ? (
+                <MomentPetSelector
+                  disabled={submitting}
+                  onChange={(petIds) => updateField("additionalPetIds", petIds)}
+                  otherPets={otherPets}
+                  primaryPet={primaryPet}
+                  selectedPetIds={form.additionalPetIds}
+                />
+              ) : null}
 
               <fieldset className="grid gap-3">
                 <legend className="text-sm font-bold text-pet-ink">
@@ -358,6 +388,7 @@ function valuesFromMoment(moment: PetMoment): MomentEditorValues {
     visibility: normalizeOwnerVisibility(moment.visibility),
     showInLifeTimeline: moment.showInLifeTimeline,
     timelineNote: moment.timelineNote ?? "",
+    additionalPetIds: [...(moment.additionalPetIds ?? [])],
   };
 }
 

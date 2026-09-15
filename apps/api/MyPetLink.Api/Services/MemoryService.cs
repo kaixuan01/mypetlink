@@ -82,27 +82,49 @@ public sealed class MemoryService : SkeletonService, IMemoryService
         }
 
         ValidateCreateRequest(request);
-        await EnsureCanCreateMemoryAsync(user, petId, cancellationToken);
 
         var visibility = MemoryVisibilityPolicy.Normalize(
             request.Visibility ?? MemoryVisibility.Private);
+
+        // The plan allowance protects the PRIVATE archive only. A public Moment
+        // is a social contribution and does not consume it; abuse is bounded by
+        // the Moment-creation rate limit, the per-Moment media cap and upload
+        // size limits instead.
+        //
+        // The allowance is counted against the primary pet only. Additional
+        // subjects are recorded in MomentPets and never cost an allowance, so a
+        // multi-pet household is not penalised for using the feature.
+        if (!MemoryVisibilityPolicy.IsPublic(visibility))
+        {
+            await EnsurePrivateMemoryAllowanceAsync(user, petId, cancellationToken);
+        }
+
+        var additionalPetIds = await ResolveAdditionalPetIdsAsync(
+            user.Id,
+            pet.Id,
+            request.AdditionalPetIds,
+            cancellationToken);
         var memory = new PetMemory
         {
             PetId = pet.Id,
             Pet = pet,
+            // Authorship comes from the authenticated session and from nowhere
+            // else. There is no request field a client could use to claim it.
+            AuthorUserId = user.Id,
+            PublishedAt = MemoryVisibilityPolicy.IsPublic(visibility)
+                ? DateTimeOffset.UtcNow
+                : null,
             Title = request.Title.Trim(),
             MomentDate = request.Date,
             Type = NormalizeOptional(request.Type),
             Caption = NormalizeOptional(request.Caption),
             Visibility = visibility,
-            // Kept in storage for compatibility until a later schema cleanup.
-            // Visibility is the authority, so the redundant value is derived.
-            ShowOnPublicProfile = MemoryVisibilityPolicy.IsPublic(visibility),
             ShowInLifeTimeline = request.ShowInLifeTimeline ?? false,
             TimelineNote = NormalizeOptional(request.TimelineNote)
         };
 
         _dbContext.PetMemories.Add(memory);
+        SyncMomentPets(memory, additionalPetIds);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         await AttachMediaToMemoryAsync(user.Id, memory, request.MediaFileIds, cancellationToken);
@@ -157,7 +179,35 @@ public sealed class MemoryService : SkeletonService, IMemoryService
 
         if (request.Visibility.HasValue)
         {
-            memory.Visibility = MemoryVisibilityPolicy.Normalize(request.Visibility.Value);
+            var requestedVisibility = MemoryVisibilityPolicy.Normalize(request.Visibility.Value);
+            var wasPublic = MemoryVisibilityPolicy.IsPublic(memory.Visibility);
+
+            // Turning a public Moment private moves it into the archive the
+            // plan allowance protects, so it must be charged now. Without this
+            // an owner could post publicly without limit and then make every
+            // one of them private, arriving at an unlimited private archive by
+            // another route.
+            if (wasPublic && !MemoryVisibilityPolicy.IsPublic(requestedVisibility))
+            {
+                var owner = await LoadOwnerUserAsync(currentUserId, cancellationToken);
+                await EnsurePrivateMemoryAllowanceAsync(owner, memory.PetId, cancellationToken);
+            }
+
+            memory.Visibility = requestedVisibility;
+        }
+
+        // Publication time is set once, the first time a Moment becomes public,
+        // and is never moved afterwards.
+        //
+        // Ordinary edits must not bump it, or fixing a typo would push an old
+        // Moment back to the top of every feed. The same reasoning settles
+        // public -> private -> public: the original publication time is kept,
+        // because re-publishing is not a new Moment and using it to resurface
+        // old content would be the same trick by another route. A Moment that
+        // has genuinely changed is a new Moment.
+        if (MemoryVisibilityPolicy.IsPublic(memory.Visibility))
+        {
+            memory.PublishedAt ??= DateTimeOffset.UtcNow;
         }
 
         if (request.ShowInLifeTimeline.HasValue)
@@ -165,10 +215,11 @@ public sealed class MemoryService : SkeletonService, IMemoryService
             memory.ShowInLifeTimeline = request.ShowInLifeTimeline.Value;
         }
 
-        // Normalize legacy rows whenever they are written and keep the
-        // compatibility column aligned without clamping Timeline placement.
+        // Normalize legacy rows whenever they are written, without clamping
+        // Timeline placement. The compatibility flag is no longer set here: the
+        // DbContext derives it from Visibility on every save, so there is one
+        // place that does it rather than every service remembering to.
         memory.Visibility = MemoryVisibilityPolicy.Normalize(memory.Visibility);
-        memory.ShowOnPublicProfile = MemoryVisibilityPolicy.IsPublic(memory.Visibility);
 
         if (request.TimelineNote is not null)
         {
@@ -177,8 +228,20 @@ public sealed class MemoryService : SkeletonService, IMemoryService
 
         if (request.MediaFileIds is not null)
         {
-            var userId = RequireUserId(currentUserId);
-            await ReplaceMemoryMediaAsync(userId, memory, request.MediaFileIds, cancellationToken);
+            var mediaUserId = RequireUserId(currentUserId);
+            await ReplaceMemoryMediaAsync(mediaUserId, memory, request.MediaFileIds, cancellationToken);
+        }
+
+        if (request.AdditionalPetIds is not null)
+        {
+            var subjectUserId = RequireUserId(currentUserId);
+            var additionalPetIds = await ResolveAdditionalPetIdsAsync(
+                subjectUserId,
+                memory.PetId,
+                request.AdditionalPetIds,
+                cancellationToken);
+
+            await ReplaceMomentPetsAsync(memory, additionalPetIds, cancellationToken);
         }
 
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -260,27 +323,165 @@ public sealed class MemoryService : SkeletonService, IMemoryService
         return memory ?? throw NotFound("Memory was not found.");
     }
 
-    private async Task EnsureCanCreateMemoryAsync(
+    /// <summary>
+    /// Validates the extra subject pets and returns them without the primary
+    /// pet or any duplicates.
+    ///
+    /// Phase 1 permits only the caller's own pets. Tagging someone else's pet
+    /// puts their animal on a page they do not control, which needs their
+    /// consent rather than a notification afterwards.
+    /// </summary>
+    private async Task<IReadOnlyCollection<Guid>> ResolveAdditionalPetIdsAsync(
+        Guid userId,
+        Guid primaryPetId,
+        IReadOnlyCollection<Guid>? requestedPetIds,
+        CancellationToken cancellationToken)
+    {
+        if (requestedPetIds is null || requestedPetIds.Count == 0)
+        {
+            return Array.Empty<Guid>();
+        }
+
+        var candidateIds = requestedPetIds
+            .Where(petId => petId != Guid.Empty && petId != primaryPetId)
+            .Distinct()
+            .ToArray();
+
+        if (candidateIds.Length == 0)
+        {
+            return Array.Empty<Guid>();
+        }
+
+        var ownedPetIds = await _dbContext.Pets
+            .AsNoTracking()
+            .Where(pet =>
+                candidateIds.Contains(pet.Id)
+                && pet.OwnerUserId == userId
+                && pet.DeletedAt == null)
+            .Select(pet => pet.Id)
+            .ToListAsync(cancellationToken);
+
+        if (ownedPetIds.Count != candidateIds.Length)
+        {
+            throw new ApiException(
+                StatusCodes.Status403Forbidden,
+                "pet_not_owned",
+                "You can only add your own pets to a moment.");
+        }
+
+        return ownedPetIds;
+    }
+
+    /// <summary>
+    /// Writes the membership rows for a new Moment, including one for the
+    /// primary pet, so "which pets are in this Moment" is one query with no
+    /// special case.
+    ///
+    /// The primary row is not marked in any way. It is identifiable because its
+    /// PetId equals PetMemory.PetId, which is the only place the primary
+    /// subject is recorded.
+    /// </summary>
+    private void SyncMomentPets(PetMemory memory, IReadOnlyCollection<Guid> additionalPetIds)
+    {
+        _dbContext.MomentPets.Add(new MomentPet
+        {
+            MomentId = memory.Id,
+            PetId = memory.PetId
+        });
+
+        foreach (var petId in additionalPetIds)
+        {
+            _dbContext.MomentPets.Add(new MomentPet
+            {
+                MomentId = memory.Id,
+                PetId = petId
+            });
+        }
+    }
+
+    /// <summary>
+    /// Replaces the additional subjects of an existing Moment.
+    ///
+    /// The primary pet's membership row is never removed. The primary pet is
+    /// fixed for the life of the Moment because it owns the Moment's place in
+    /// that pet's timeline and its plan allowance, and a caller editing the
+    /// "who else is in this" list must not be able to drop it.
+    /// </summary>
+    private async Task ReplaceMomentPetsAsync(
+        PetMemory memory,
+        IReadOnlyCollection<Guid> additionalPetIds,
+        CancellationToken cancellationToken)
+    {
+        var existing = await _dbContext.MomentPets
+            .Where(item => item.MomentId == memory.Id)
+            .ToListAsync(cancellationToken);
+
+        // Membership rows can only ever be missing, never contradictory, so
+        // repairing one here is safe and needs no reconciliation job. A Moment
+        // written before this table existed reaches this path with none.
+        if (existing.All(item => item.PetId != memory.PetId))
+        {
+            _dbContext.MomentPets.Add(new MomentPet
+            {
+                MomentId = memory.Id,
+                PetId = memory.PetId
+            });
+        }
+
+        foreach (var row in existing.Where(item => item.PetId != memory.PetId))
+        {
+            if (!additionalPetIds.Contains(row.PetId))
+            {
+                _dbContext.MomentPets.Remove(row);
+            }
+        }
+
+        var keptPetIds = existing
+            .Where(item => item.PetId != memory.PetId)
+            .Select(item => item.PetId)
+            .ToHashSet();
+
+        foreach (var petId in additionalPetIds.Where(petId => !keptPetIds.Contains(petId)))
+        {
+            _dbContext.MomentPets.Add(new MomentPet
+            {
+                MomentId = memory.Id,
+                PetId = petId
+            });
+        }
+    }
+
+
+    /// <summary>
+    /// Enforces the private-archive allowance for one pet.
+    ///
+    /// Only PRIVATE Moments are counted. Public Moments are social content and
+    /// are not capped by a plan; counting them here is what made a free account
+    /// able to post ten times in its life.
+    /// </summary>
+    private async Task EnsurePrivateMemoryAllowanceAsync(
         User user,
         Guid petId,
         CancellationToken cancellationToken)
     {
-        var maxMemories = user.OwnerProfile?.Plan.Limit?.MaxMemoriesPerPet
+        var maxPrivateMemories = user.OwnerProfile?.Plan.Limit?.MaxPrivateMemoriesPerPet
             ?? throw ServerConfig("plan_limit_not_configured", "The memory plan limit is not configured.");
 
-        var activeMemoryCount = await _dbContext.PetMemories.CountAsync(
+        var privateMemoryCount = await _dbContext.PetMemories.CountAsync(
             memory =>
                 memory.PetId == petId
                 && memory.DeletedAt == null
-                && memory.ArchivedAt == null,
+                && memory.ArchivedAt == null
+                && memory.Visibility != MemoryVisibility.Public,
             cancellationToken);
 
-        if (activeMemoryCount >= maxMemories)
+        if (privateMemoryCount >= maxPrivateMemories)
         {
             throw new ApiException(
                 StatusCodes.Status422UnprocessableEntity,
                 "plan_limit_reached",
-                $"Your current plan allows up to {maxMemories} memories per pet.");
+                $"Your current plan keeps up to {maxPrivateMemories} private memories per pet. "
+                + "Sharing a moment publicly does not use this allowance.");
         }
     }
 
@@ -354,21 +555,26 @@ public sealed class MemoryService : SkeletonService, IMemoryService
         IReadOnlyCollection<PetMemory> memories,
         CancellationToken cancellationToken)
     {
-        var mediaByMemory = await LoadMemoryMediaAsync(memories.Select(memory => memory.Id).ToArray(), cancellationToken);
+        var memoryIds = memories.Select(memory => memory.Id).ToArray();
+        var mediaByMemory = await LoadMemoryMediaAsync(memoryIds, cancellationToken);
+        var petsByMemory = await LoadAdditionalPetIdsAsync(memoryIds, cancellationToken);
 
         return memories
             .Select(memory => ToResponse(
                 memory,
-                mediaByMemory.TryGetValue(memory.Id, out var media) ? media : Array.Empty<MemoryMediaResponse>()))
+                mediaByMemory.TryGetValue(memory.Id, out var media) ? media : Array.Empty<MemoryMediaResponse>(),
+                petsByMemory.TryGetValue(memory.Id, out var pets) ? pets : Array.Empty<Guid>()))
             .ToArray();
     }
 
     private async Task<MemoryResponse> ToResponseAsync(PetMemory memory, CancellationToken cancellationToken)
     {
         var mediaByMemory = await LoadMemoryMediaAsync([memory.Id], cancellationToken);
+        var petsByMemory = await LoadAdditionalPetIdsAsync([memory.Id], cancellationToken);
         return ToResponse(
             memory,
-            mediaByMemory.TryGetValue(memory.Id, out var media) ? media : Array.Empty<MemoryMediaResponse>());
+            mediaByMemory.TryGetValue(memory.Id, out var media) ? media : Array.Empty<MemoryMediaResponse>(),
+            petsByMemory.TryGetValue(memory.Id, out var pets) ? pets : Array.Empty<Guid>());
     }
 
     private async Task<Dictionary<Guid, MemoryMediaResponse[]>> LoadMemoryMediaAsync(
@@ -492,7 +698,10 @@ public sealed class MemoryService : SkeletonService, IMemoryService
         memory.CoverMediaFileId = distinctIds.FirstOrDefault() == Guid.Empty ? null : distinctIds.First();
     }
 
-    private static MemoryResponse ToResponse(PetMemory memory, IReadOnlyCollection<MemoryMediaResponse> media)
+    private static MemoryResponse ToResponse(
+        PetMemory memory,
+        IReadOnlyCollection<MemoryMediaResponse> media,
+        IReadOnlyCollection<Guid> additionalPetIds)
     {
         var visibility = MemoryVisibilityPolicy.Normalize(memory.Visibility);
 
@@ -511,7 +720,35 @@ public sealed class MemoryService : SkeletonService, IMemoryService
             memory.CoverMediaFileId,
             memory.CreatedAt,
             memory.UpdatedAt,
-            memory.ArchivedAt);
+            memory.ArchivedAt,
+            additionalPetIds,
+            memory.PublishedAt);
+    }
+
+    /// <summary>
+    /// Additional subject pets for a set of Moments, in one query rather than
+    /// one per Moment.
+    /// </summary>
+    private async Task<Dictionary<Guid, Guid[]>> LoadAdditionalPetIdsAsync(
+        IReadOnlyCollection<Guid> momentIds,
+        CancellationToken cancellationToken)
+    {
+        if (momentIds.Count == 0)
+        {
+            return new Dictionary<Guid, Guid[]>();
+        }
+
+        var rows = await _dbContext.MomentPets
+            .AsNoTracking()
+            .Where(item => momentIds.Contains(item.MomentId) && item.PetId != item.Moment.PetId)
+            .Select(item => new { item.MomentId, item.PetId })
+            .ToListAsync(cancellationToken);
+
+        return rows
+            .GroupBy(row => row.MomentId)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Select(row => row.PetId).ToArray());
     }
 
     private static void ValidateRequired(

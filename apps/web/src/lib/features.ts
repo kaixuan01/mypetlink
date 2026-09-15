@@ -56,6 +56,18 @@ export const tagOrdersEnabled =
   readPublicBoolean(process.env.NEXT_PUBLIC_TAG_ORDERS_ENABLED, false);
 
 /**
+ * MyPetLink Social: the feed, Explore, search, activity and the social entries
+ * in navigation. Off by default while it is being built — the routes and the
+ * API stay reachable either way, so an owner who already has a handle keeps
+ * their /u/ link working; this only decides whether the product puts Social in
+ * front of people.
+ */
+export const socialEnabled = readPublicBoolean(
+  process.env.NEXT_PUBLIC_SOCIAL_ENABLED,
+  false
+);
+
+/**
  * Shared owner-product availability used by navigation and tests. All values
  * are resolved once at build time, which keeps the static export and client
  * hydration consistent.
@@ -65,6 +77,7 @@ export const ownerProductFeatures = Object.freeze({
   safetyProfilesOwnerUiEnabled,
   smartTagsEnabled,
   tagOrdersEnabled,
+  socialEnabled,
 });
 
 export type OwnerProductFeatures = typeof ownerProductFeatures;

@@ -172,7 +172,7 @@ public sealed class AdminOwnerQueryService : SkeletonService, IAdminOwnerQuerySe
             .Take(50)
             .ToArray();
 
-        var maxMemories = profile.Plan.Limit?.MaxMemoriesPerPet ?? 0;
+        var maxMemories = profile.Plan.Limit?.MaxPrivateMemoriesPerPet ?? 0;
         var response = new AdminOwnerDetailResponseV2(
             owner,
             PhoneNumberRules.IsUsableE164(profile.User.PhoneE164) ? profile.User.PhoneE164 : null,
@@ -345,9 +345,9 @@ public sealed class AdminOwnerQueryService : SkeletonService, IAdminOwnerQuerySe
         if (query.MemoryUsageNearLimit.HasValue)
         {
             owners = FilterAny(owners, query.MemoryUsageNearLimit.Value, profile =>
-                profile.Plan.Limit != null && profile.Plan.Limit.MaxMemoriesPerPet > 0
+                profile.Plan.Limit != null && profile.Plan.Limit.MaxPrivateMemoriesPerPet > 0
                 && petCounts.Any(pet => pet.OwnerUserId == profile.UserId
-                    && pet.Memories.Count(memory => memory.ArchivedAt == null) * 10 >= profile.Plan.Limit.MaxMemoriesPerPet * 8));
+                    && pet.Memories.Count(memory => memory.ArchivedAt == null && memory.Visibility != MemoryVisibility.Public) * 10 >= profile.Plan.Limit.MaxPrivateMemoriesPerPet * 8));
         }
 
         if (query.JoinedFrom.HasValue) owners = owners.Where(profile => profile.User.CreatedAt >= query.JoinedFrom.Value);
@@ -427,7 +427,7 @@ public sealed class AdminOwnerQueryService : SkeletonService, IAdminOwnerQuerySe
             TotalSmartTagCount = _dbContext.SmartTags.Count(tag => tag.OwnerUserId == profile.UserId && tag.DeletedAt == null),
             MemoryCount = _dbContext.PetMemories.Count(memory => memory.Pet.OwnerUserId == profile.UserId && memory.ArchivedAt == null),
             MaxPets = profile.Plan.Limit == null ? 0 : profile.Plan.Limit.MaxPets,
-            MaxMemoriesPerPet = profile.Plan.Limit == null ? 0 : profile.Plan.Limit.MaxMemoriesPerPet,
+            MaxPrivateMemoriesPerPet = profile.Plan.Limit == null ? 0 : profile.Plan.Limit.MaxPrivateMemoriesPerPet,
             HighestMemoriesOnPet = _dbContext.PetMemories
                 .Where(memory => memory.Pet.OwnerUserId == profile.UserId
                     && memory.Pet.DeletedAt == null
@@ -493,9 +493,9 @@ public sealed class AdminOwnerQueryService : SkeletonService, IAdminOwnerQuerySe
             row.OrderCount, row.PendingPaymentOrderCount, row.PendingProofCount,
             row.ActiveFulfilmentOrderCount, row.DeliveredOrderCount,
             row.ActiveSmartTagCount, row.TotalSmartTagCount, row.MemoryCount,
-            row.MaxPets, row.MaxMemoriesPerPet,
+            row.MaxPets, row.MaxPrivateMemoriesPerPet,
             row.MaxPets > 0 && row.ActivePetCount * 10 >= row.MaxPets * 8,
-            row.MaxMemoriesPerPet > 0 && row.HighestMemoriesOnPet * 10 >= row.MaxMemoriesPerPet * 8,
+            row.MaxPrivateMemoriesPerPet > 0 && row.HighestMemoriesOnPet * 10 >= row.MaxPrivateMemoriesPerPet * 8,
             row.JoinedAt, row.UpdatedAt, row.LastLoginAt);
     }
 
@@ -611,7 +611,7 @@ public sealed class AdminOwnerQueryService : SkeletonService, IAdminOwnerQuerySe
         public int TotalSmartTagCount { get; init; }
         public int MemoryCount { get; init; }
         public int MaxPets { get; init; }
-        public int MaxMemoriesPerPet { get; init; }
+        public int MaxPrivateMemoriesPerPet { get; init; }
         public int HighestMemoriesOnPet { get; init; }
         public DateTimeOffset JoinedAt { get; init; }
         public DateTimeOffset UpdatedAt { get; init; }

@@ -18,17 +18,23 @@ public sealed class MediaService : SkeletonService, IMediaService
     private readonly MyPetLinkDbContext _dbContext;
     private readonly IObjectStorageService _objectStorage;
     private readonly CloudflareR2Options _r2Options;
+    private readonly SocialOptions _socialOptions;
+    private readonly IImageDerivativeGenerator _derivativeGenerator;
     private readonly ILogger<MediaService> _logger;
 
     public MediaService(
         MyPetLinkDbContext dbContext,
         IObjectStorageService objectStorage,
         IOptions<CloudflareR2Options> r2Options,
+        IOptions<SocialOptions> socialOptions,
+        IImageDerivativeGenerator derivativeGenerator,
         ILogger<MediaService> logger)
     {
         _dbContext = dbContext;
         _objectStorage = objectStorage;
         _r2Options = r2Options.Value;
+        _socialOptions = socialOptions.Value;
+        _derivativeGenerator = derivativeGenerator;
         _logger = logger;
     }
 
@@ -46,7 +52,7 @@ public sealed class MediaService : SkeletonService, IMediaService
         var extension = ValidateFileShape(category, fileName, request.ContentType, request.FileSizeBytes);
 
         var target = await ResolveTargetAsync(userId, category, request, cancellationToken);
-        var objectKey = BuildObjectKey(category, target.PetId, target.OwnerId, extension);
+        var objectKey = BuildObjectKey(category, userId, target.PetId, target.OwnerId, extension);
         var isPublic = IsPublicCategory(category);
         var bucketName = isPublic ? _r2Options.PublicBucketName : _r2Options.PrivateBucketName;
         var mediaType = ResolveMediaType(category, request.ContentType);
@@ -68,6 +74,9 @@ public sealed class MediaService : SkeletonService, IMediaService
             Category = category,
             IsPublic = isPublic,
             UploadStatus = MediaUploadStatus.Pending,
+            DerivativeStatus = ExpectsDerivative(category, mediaType)
+                ? MediaDerivativeStatus.Pending
+                : MediaDerivativeStatus.NotApplicable,
             Width = request.Width,
             Height = request.Height,
             DurationSeconds = request.DurationSeconds,
@@ -183,6 +192,11 @@ public sealed class MediaService : SkeletonService, IMediaService
         {
             await TryDeleteObjectAsync(oldMedia, cancellationToken);
         }
+
+        // The upload is already committed above. Derivative generation runs
+        // after that commit and can never fail this request: a file without a
+        // thumbnail is fully usable and every reader falls back to the original.
+        await TryGenerateDerivativeAsync(media, cancellationToken);
 
         _logger.LogInformation(
             "Completed media upload {MediaId} for category {Category} and user {UserId}.",
@@ -367,6 +381,22 @@ public sealed class MediaService : SkeletonService, IMediaService
                     ?? throw NotFound("Memory was not found.");
                 return new UploadTarget(memory.PetId, MediaOwnerType.PetMemory, memory.Id);
 
+            case MediaUploadCategory.OwnerAvatar:
+                // The social profile row is created on demand and starts fully
+                // switched off. Uploading a picture is not joining a network:
+                // nothing here sets IsSocialEnabled.
+                var socialProfile = await _dbContext.OwnerSocialProfiles
+                    .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
+
+                if (socialProfile is null)
+                {
+                    socialProfile = OwnerSocialProfileFactory.CreateDisabled(userId);
+                    _dbContext.OwnerSocialProfiles.Add(socialProfile);
+                    await _dbContext.SaveChangesAsync(cancellationToken);
+                }
+
+                return new UploadTarget(null, MediaOwnerType.OwnerSocialProfile, socialProfile.Id);
+
             case MediaUploadCategory.VaccinationDocument:
             case MediaUploadCategory.MedicalDocument:
                 var documentPetId = RequireGuid(request.PetId, "petId", "Pet is required.");
@@ -433,6 +463,36 @@ public sealed class MediaService : SkeletonService, IMediaService
             case MediaUploadCategory.MomentVideo:
                 await SetMemoryCoverIfNeededAsync(userId, media, cancellationToken);
                 break;
+
+            case MediaUploadCategory.OwnerAvatar:
+                await ReplaceOwnerAvatarAsync(userId, media, mediaToDelete, cancellationToken);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Points the owner's social profile at the new picture and marks the
+    /// previous one for deletion, so replacing an avatar never leaves an orphan
+    /// object paying for storage.
+    /// </summary>
+    private async Task ReplaceOwnerAvatarAsync(
+        Guid userId,
+        MediaFile media,
+        ICollection<MediaFile> mediaToDelete,
+        CancellationToken cancellationToken)
+    {
+        var profile = await _dbContext.OwnerSocialProfiles
+            .Include(item => item.AvatarMediaFile)
+            .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken)
+            ?? throw NotFound("Social profile was not found.");
+
+        var oldMedia = profile.AvatarMediaFile;
+        profile.AvatarMediaFileId = media.Id;
+
+        if (oldMedia is not null && oldMedia.Id != media.Id)
+        {
+            MarkDeleted(oldMedia);
+            mediaToDelete.Add(oldMedia);
         }
     }
 
@@ -521,6 +581,15 @@ public sealed class MediaService : SkeletonService, IMediaService
             {
                 pet.CoverMediaFileId = null;
             }
+        }
+
+        var socialProfiles = await _dbContext.OwnerSocialProfiles
+            .Where(item => item.UserId == userId && item.AvatarMediaFileId == media.Id)
+            .ToListAsync(cancellationToken);
+
+        foreach (var profile in socialProfiles)
+        {
+            profile.AvatarMediaFileId = null;
         }
 
         var links = await _dbContext.MediaFileLinks
@@ -635,9 +704,132 @@ public sealed class MediaService : SkeletonService, IMediaService
                 "Could not delete media object for media {MediaId}.",
                 media.Id);
         }
+
+        // The derivative is a second object under the same key prefix. Deleting
+        // the original without it would leave a thumbnail of deleted content in
+        // the public bucket.
+        if (string.IsNullOrWhiteSpace(media.ThumbnailObjectKey))
+        {
+            return;
+        }
+
+        try
+        {
+            await _objectStorage.DeleteObjectAsync(
+                media.BucketName,
+                media.ThumbnailObjectKey,
+                cancellationToken);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            _logger.LogWarning(
+                exception,
+                "Could not delete derivative object for media {MediaId}.",
+                media.Id);
+        }
     }
 
-    private static string BuildObjectKey(MediaUploadCategory category, Guid? petId, Guid? ownerId, string extension)
+    /// <summary>
+    /// Produces the resized copy that grids and cards load instead of the
+    /// original, and records the outcome.
+    ///
+    /// Runs after the upload has already been committed and swallows every
+    /// failure on purpose. A missing thumbnail is a fully handled state — media
+    /// uploaded before this pipeline existed has none either — so an image
+    /// problem must degrade to "serves the original", never to "the upload
+    /// failed".
+    /// </summary>
+    private async Task TryGenerateDerivativeAsync(MediaFile media, CancellationToken cancellationToken)
+    {
+        if (!_socialOptions.ThumbnailGenerationEnabled
+            || media.DerivativeStatus != MediaDerivativeStatus.Pending
+            || !ExpectsDerivative(media.Category, media.MediaType))
+        {
+            return;
+        }
+
+        try
+        {
+            var sourceBytes = await _objectStorage.GetObjectBytesAsync(
+                media.BucketName,
+                media.ObjectKey,
+                ImageMaxBytes,
+                cancellationToken);
+
+            var derivative = sourceBytes is null
+                ? null
+                : _derivativeGenerator.CreateThumbnail(
+                    sourceBytes,
+                    _socialOptions.ThumbnailMaxEdgePixels,
+                    _socialOptions.ThumbnailJpegQuality);
+
+            if (derivative is null)
+            {
+                // An image already smaller than the target needs no derivative
+                // and that is not a failure: the original is the right thing to
+                // serve, so record that none is expected.
+                media.DerivativeStatus = sourceBytes is null
+                    ? MediaDerivativeStatus.Failed
+                    : MediaDerivativeStatus.NotApplicable;
+                await _dbContext.SaveChangesAsync(cancellationToken);
+                return;
+            }
+
+            var thumbnailObjectKey = MediaDerivatives.BuildThumbnailObjectKey(media.ObjectKey);
+            await _objectStorage.PutObjectAsync(
+                media.BucketName,
+                thumbnailObjectKey,
+                derivative.Bytes,
+                derivative.ContentType,
+                cancellationToken);
+
+            media.ThumbnailObjectKey = thumbnailObjectKey;
+            media.DerivativeStatus = MediaDerivativeStatus.Ready;
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            _logger.LogWarning(
+                exception,
+                "Could not generate an image derivative for media {MediaId}. The original will be served.",
+                media.Id);
+
+            try
+            {
+                media.ThumbnailObjectKey = null;
+                media.DerivativeStatus = MediaDerivativeStatus.Failed;
+                await _dbContext.SaveChangesAsync(cancellationToken);
+            }
+            catch (Exception saveException) when (saveException is not OperationCanceledException)
+            {
+                _logger.LogWarning(
+                    saveException,
+                    "Could not record the derivative failure for media {MediaId}.",
+                    media.Id);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Derivatives are for public images only. Videos, documents and anything in
+    /// the private bucket are left alone: a private object is never served from
+    /// a public URL, so a public derivative of one would be a way to leak it.
+    /// </summary>
+    private static bool ExpectsDerivative(MediaUploadCategory category, MediaFileType mediaType)
+    {
+        return mediaType == MediaFileType.Image
+            && IsPublicCategory(category)
+            && category is not MediaUploadCategory.MomentVideo;
+    }
+
+
+
+    private static string BuildObjectKey(
+        MediaUploadCategory category,
+        Guid userId,
+        Guid? petId,
+        Guid? ownerId,
+        string extension)
     {
         var randomName = $"{Guid.NewGuid():N}{extension}";
 
@@ -646,6 +838,10 @@ public sealed class MediaService : SkeletonService, IMediaService
             MediaUploadCategory.PetProfilePhoto => $"pets/{petId}/profile/{randomName}",
             MediaUploadCategory.PetCoverPhoto => $"pets/{petId}/covers/{randomName}",
             MediaUploadCategory.MomentImage or MediaUploadCategory.MomentVideo => $"pets/{petId}/moments/{ownerId}/{randomName}",
+            // Deliberately carries no account identifier. The owner may share
+            // this URL, and the path should not disclose an internal user id
+            // when a random name alone is already unguessable.
+            MediaUploadCategory.OwnerAvatar => $"owner-avatars/{randomName}",
             MediaUploadCategory.VaccinationDocument or MediaUploadCategory.MedicalDocument => $"pet-documents/{randomName}",
             MediaUploadCategory.OrderReceipt => $"order-receipts/{randomName}",
             MediaUploadCategory.TagProductImage => $"tag-products/{randomName}",
@@ -701,6 +897,7 @@ public sealed class MediaService : SkeletonService, IMediaService
             MediaUploadCategory.PetProfilePhoto
                 or MediaUploadCategory.PetCoverPhoto
                 or MediaUploadCategory.MomentImage
+                or MediaUploadCategory.OwnerAvatar
                 or MediaUploadCategory.TagProductImage => UploadRules.Images,
             MediaUploadCategory.MomentVideo => UploadRules.Video,
             MediaUploadCategory.VaccinationDocument
@@ -728,6 +925,7 @@ public sealed class MediaService : SkeletonService, IMediaService
         return category is MediaUploadCategory.PetProfilePhoto
             or MediaUploadCategory.PetCoverPhoto
             or MediaUploadCategory.MomentImage
+            or MediaUploadCategory.OwnerAvatar
             or MediaUploadCategory.TagProductImage
                 ? MediaFileType.Image
                 : MediaFileType.Document;
@@ -739,6 +937,7 @@ public sealed class MediaService : SkeletonService, IMediaService
             or MediaUploadCategory.PetCoverPhoto
             or MediaUploadCategory.MomentImage
             or MediaUploadCategory.MomentVideo
+            or MediaUploadCategory.OwnerAvatar
             or MediaUploadCategory.TagProductImage;
     }
 

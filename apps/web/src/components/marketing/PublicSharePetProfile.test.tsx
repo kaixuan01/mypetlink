@@ -17,6 +17,7 @@ const publicProfileMocks = vi.hoisted(() => ({
   moments: [] as PetMoment[],
   records: [] as PublicCareRecord[],
   getProfile: vi.fn(),
+  socialMoments: vi.fn(),
   authenticated: false,
   ownedPet: null as unknown,
   push: vi.fn(),
@@ -28,6 +29,7 @@ vi.mock("@/services/apiConfig", () => ({
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: publicProfileMocks.push }),
+  usePathname: () => "/p/milo-k7q2",
 }));
 
 vi.mock("@/services/authService", () => ({
@@ -45,6 +47,22 @@ vi.mock("@/services/petService", () => ({
 vi.mock("@/services/momentService", () => ({
   getPublicPetMoments: async () => ({ data: publicProfileMocks.moments }),
 }));
+
+// The Moments tab reads the social listing, not the Moment array embedded in
+// the public profile payload. Server-side visibility for that listing belongs
+// to PublicSocialProfileTests; what matters here is that this tab asks for this
+// pet's social Moments and renders what comes back.
+vi.mock("@/services/publicSocialService", async () => {
+  const actual = await vi.importActual<
+    typeof import("@/services/publicSocialService")
+  >("@/services/publicSocialService");
+
+  return {
+    ...actual,
+    getPublicPetMoments: (...args: unknown[]) =>
+      publicProfileMocks.socialMoments(...args),
+  };
+});
 
 vi.mock("@/services/recordService", () => ({
   getPublicPetRecords: async () => ({ data: publicProfileMocks.records }),
@@ -73,6 +91,24 @@ beforeEach(() => {
   publicProfileMocks.getProfile.mockImplementation(async () => ({
     data: publicProfileMocks.profile,
   }));
+  publicProfileMocks.socialMoments.mockResolvedValue({
+    items: [
+      {
+        id: "public-gallery",
+        title: "Public gallery-only Moment",
+        momentDate: null,
+        publishedAt: "2026-07-12T00:00:00Z",
+        type: "Memory",
+        caption: "Eligible only for the gallery.",
+        author: null,
+        subjects: [],
+        media: [],
+        likeCount: 0,
+        viewerHasLiked: false,
+      },
+    ],
+    nextCursor: null,
+  });
 });
 
 afterEach(() => {
@@ -175,8 +211,18 @@ it.each([
 
     if (momentsTab) {
       fireEvent.click(momentsTab);
-      expect(screen.getByText("Public timeline Moment")).toBeTruthy();
-      expect(screen.getByText("Public gallery-only Moment")).toBeTruthy();
+
+      // Asked for THIS pet, through the social listing.
+      await waitFor(() =>
+        expect(publicProfileMocks.socialMoments).toHaveBeenCalledWith(
+          profile.publicCode,
+          undefined
+        )
+      );
+      expect(await screen.findByText("Public gallery-only Moment")).toBeTruthy();
+
+      // Private Moments never reach the client: the listing does not return
+      // them, and nothing on this page can put them back.
       expect(screen.queryByText("Private timeline Moment")).toBeNull();
       expect(screen.queryByText("Family timeline Moment")).toBeNull();
     }
@@ -1120,4 +1166,33 @@ it("keeps the invitation off an unavailable profile", async () => {
 
   await screen.findByText("Pet profile not found");
   expect(screen.queryByRole("heading", { name: createCtaName })).toBeNull();
+});
+
+it("shows one household identity, not the social one and the real one together", async () => {
+  publicProfileMocks.profile = {
+    ...mockPets[0],
+    visibility: { ...mockPets[0].visibility, showOwnerName: true },
+    owner: { ...mockPets[0].owner, name: "Aina" },
+    sharedBy: {
+      handle: "ainafamily",
+      displayName: "The Aina Family",
+      avatarUrl: null,
+      avatarThumbnailUrl: null,
+    },
+  } as unknown as (typeof mockPets)[number];
+
+  render(
+    <PublicSharePetProfile
+      initialMoments={[]}
+      initialProfile={publicProfileMocks.profile!}
+      initialRecords={[]}
+    />
+  );
+
+  await screen.findByTestId("pet-social-attribution");
+
+  // The chosen identity is shown; the finder-facing real name is not repeated
+  // beneath it. ShowOwnerName still governs the Safety Profile.
+  expect(screen.getByText("@ainafamily")).toBeTruthy();
+  expect(screen.queryByText(/Cared for by/)).toBeNull();
 });

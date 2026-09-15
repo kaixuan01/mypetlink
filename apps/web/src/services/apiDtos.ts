@@ -227,6 +227,14 @@ export type BackendPublicPetProfile = {
   memorialMessage?: string | null;
   memories: BackendPublicMemory[];
   careRecords: BackendPublicCareRecord[];
+  sharedBy?: {
+    handle: string;
+    displayName: string;
+    avatarUrl?: string | null;
+    avatarThumbnailUrl?: string | null;
+  } | null;
+  hasSmartTagProtection?: boolean | null;
+  isSocialEnabled?: boolean | null;
 };
 
 export type BackendMemoryVisibility = "Public" | "Private" | "FamilyOnly";
@@ -251,6 +259,8 @@ export type BackendMemory = {
   caption?: string | null;
   visibility: BackendMemoryVisibility;
   showOnPublicProfile: boolean;
+  additionalPetIds?: string[] | null;
+  publishedAt?: string | null;
   showInLifeTimeline: boolean;
   timelineNote?: string | null;
   media: BackendMemoryMedia[];
@@ -352,6 +362,12 @@ export type BackendPublicSafetyPage = {
     whatsappE164?: string | null;
     emergencyContactE164?: string | null;
   } | null;
+  /**
+   * The pet's Public Share Profile, when the owner opted into sharing it AND
+   * into social. Null otherwise — which is the whole gate for the link the
+   * Safety Profile offers at the very bottom of the page.
+   */
+  publicProfileSlug?: string | null;
 };
 
 export type BackendSmartTagStatus =
@@ -565,6 +581,7 @@ export type BackendMediaUploadCategory =
   | "PetCoverPhoto"
   | "MomentImage"
   | "MomentVideo"
+  | "OwnerAvatar"
   | "VaccinationDocument"
   | "MedicalDocument"
   | "OrderReceipt"

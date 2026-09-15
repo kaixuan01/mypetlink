@@ -227,6 +227,21 @@ There is no email OTP, password, or Apple option. Any user without a usable Goog
 
 ## P3 — Do Not Build Yet
 
+> **⚠ Partly superseded, 2026-09.** The social items in this section were
+> reconsidered and **MyPetLink Social was approved**; its foundation (Phase
+> 1A–1D) is implemented. This section is kept for history — the assessment was
+> correct for the soft launch it was written for — but it is no longer the
+> current direction for feed, likes and following.
+>
+> **Still not built, and still correct:** comments, chat/community, social
+> email, moderation tooling (all Phase 2 or later), pet-level follow
+> (evaluated and deferred), BLE and GPS (unchanged product rule).
+>
+> **Unchanged and non-negotiable:** scanning a Smart Tag still opens the Safety
+> Profile. Social never precedes finder actions.
+>
+> See [`docs/architecture/social-foundation.md`](../architecture/social-foundation.md).
+
 Explore/social feed, likes, comments, following pets, chat/community, complex social notifications, BLE, and GPS. **No partial implementations of any of these exist in the codebase** — there is nothing to hide or remove. GPS is already positioned as "Coming Later" in marketing copy, which is consistent.
 
 **Also do not build: a separate "Milestones" feature.** It already exists in substance — `MomentType` includes Birthday, Adoption Day, First Day Home and Achievement, and `showInLifeTimeline` / `timelineNote` with a dedicated `/pets/[id]/timeline` page already deliver "from camera roll to life story". Building a parallel Milestone concept would duplicate it. Surface what exists instead.

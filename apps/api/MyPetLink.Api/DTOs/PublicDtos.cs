@@ -42,7 +42,26 @@ public sealed record PublicPetProfileResponse(
     IReadOnlyList<string> Allergies,
     string? MemorialMessage,
     IReadOnlyCollection<PublicMemorySummaryResponse> Memories,
-    IReadOnlyCollection<PublicCareSummaryResponse> CareRecords);
+    IReadOnlyCollection<PublicCareSummaryResponse> CareRecords,
+
+    /// <summary>
+    /// Who shared this pet, when both the owner and the pet participate in
+    /// social. Null otherwise — a shareable link is not social participation.
+    /// </summary>
+    PublicOwnerAttributionResponse? SharedBy = null,
+
+    /// <summary>
+    /// Derived from the pet's Smart Tags: true when at least one is active.
+    /// A signal only — it carries no tag code, order or inventory detail, and
+    /// nothing stores it.
+    /// </summary>
+    bool HasSmartTagProtection = false,
+
+    /// <summary>
+    /// Whether this pet participates in social at all. Independent of
+    /// <c>IsPublicProfileEnabled</c>: the share page works either way.
+    /// </summary>
+    bool IsSocialEnabled = false);
 
 public sealed record PublicProfileSocialResponse(
     string PublicCode,
@@ -62,6 +81,26 @@ public sealed record PublicProfileSocialResponse(
     // Bounded presentation key only, so the Share Card can match the profile a
     // reader will land on. Never any owner, contact, safety, or tag data.
     string ProfileTheme);
+
+/// <summary>One pet a public Moment is about, as a visitor may see it.</summary>
+public sealed record PublicMomentSubjectResponse(
+    string Name,
+    string? PublicSlug,
+    string? PhotoUrl,
+
+    /// <summary>
+    /// Whether this is the Moment's own pet — the one that owns its Moments tab,
+    /// its Life Timeline and its plan allowance. Derived from
+    /// <c>PetMemories.PetId</c>, never stored on the membership row.
+    /// </summary>
+    bool IsPrimarySubject = false,
+
+    /// <summary>
+    /// Whether this pet is currently marked missing. Carried so a card can show
+    /// a quiet status, never to broadcast or amplify: Lost Mode changes a pet's
+    /// safety state and does not create or boost social content.
+    /// </summary>
+    bool LostModeEnabled = false);
 
 public sealed record PublicMemorySummaryResponse(
     string Title,
@@ -126,7 +165,18 @@ public sealed record PublicSafetyPageResponse(
     string ProfileTheme,
     IReadOnlyList<string> Allergies,
     bool ShowFoundLocationAction,
-    PublicSafetyContactResponse? Contact);
+    PublicSafetyContactResponse? Contact,
+
+    /// <summary>
+    /// The pet's Public Share Profile, when the owner has opted into sharing it
+    /// AND into social. Null otherwise, which is how the finder page decides
+    /// whether to offer the link at all.
+    ///
+    /// A slug and nothing else. It is the PET's page, never the owner's social
+    /// identity: somebody scanned an animal, and routing them straight into a
+    /// person's social profile is not what they came for.
+    /// </summary>
+    string? PublicProfileSlug = null);
 
 public sealed record QrSafetyPageResponse(
     string SafetyCode,

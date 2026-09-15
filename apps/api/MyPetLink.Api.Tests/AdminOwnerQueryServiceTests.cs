@@ -216,7 +216,7 @@ public sealed class AdminOwnerQueryServiceTests
             {
                 Code = "Free",
                 Name = "Free Plan",
-                Limit = new PlanLimit { MaxPets = 2, MaxMemoriesPerPet = 2 }
+                Limit = new PlanLimit { MaxPets = 2, MaxPrivateMemoriesPerPet = 2 }
             };
             var admin = new User
             {

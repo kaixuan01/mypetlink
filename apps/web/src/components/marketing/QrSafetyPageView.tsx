@@ -22,6 +22,7 @@ import {
   isValidE164,
   normalizeStoredPhone,
 } from "@/lib/phone";
+import { trackEvent } from "@/lib/analytics";
 import { sendFoundLocationViaWhatsApp } from "@/lib/foundLocation";
 import type { Pet, PublicPetProfile } from "@/types";
 
@@ -320,6 +321,43 @@ export function QrSafetyPageView({ pet }: QrSafetyPageViewProps) {
         >
           {locationStatus}
         </p>
+      ) : null}
+
+      {pet.publicProfilePath ? (
+        <section
+          aria-labelledby="safety-public-profile-bridge"
+          className="mt-5 rounded-[1.5rem] border border-pet-border bg-white p-4"
+          data-testid="safety-public-profile-bridge"
+          style={{ borderColor: theme.colors.border }}
+        >
+          <h2
+            className="text-sm font-black text-pet-ink"
+            id="safety-public-profile-bridge"
+            style={{ color: theme.colors.text }}
+          >
+            About {pet.name}
+          </h2>
+          <p
+            className="mt-1 text-sm leading-6 text-pet-muted"
+            style={{ color: theme.colors.mutedText }}
+          >
+            Want to know more about {pet.name}?
+          </p>
+          <CTAButton
+            className="mt-3 min-h-12"
+            fullWidth
+            href={pet.publicProfilePath}
+            onClick={() =>
+              trackEvent("safety_to_public_profile_clicked", {
+                source: "safety",
+                lost_mode: pet.lostModeEnabled ? "on" : "off",
+              })
+            }
+            variant="secondary"
+          >
+            View Public Profile
+          </CTAButton>
+        </section>
       ) : null}
 
       <p className="mt-5 rounded-[1.25rem] bg-pet-cream p-4 text-center text-xs font-semibold leading-5 text-pet-muted">

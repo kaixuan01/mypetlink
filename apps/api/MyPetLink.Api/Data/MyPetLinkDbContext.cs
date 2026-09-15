@@ -53,6 +53,15 @@ public sealed class MyPetLinkDbContext : DbContext
     public DbSet<MediaFile> MediaFiles => Set<MediaFile>();
     public DbSet<MediaFileLink> MediaFileLinks => Set<MediaFileLink>();
     public DbSet<PetMemory> PetMemories => Set<PetMemory>();
+    public DbSet<OwnerSocialProfile> OwnerSocialProfiles => Set<OwnerSocialProfile>();
+    public DbSet<OwnerHandleReservation> OwnerHandleReservations => Set<OwnerHandleReservation>();
+    public DbSet<OwnerHandleHistory> OwnerHandleHistories => Set<OwnerHandleHistory>();
+    public DbSet<OwnerFollow> OwnerFollows => Set<OwnerFollow>();
+    public DbSet<OwnerBlock> OwnerBlocks => Set<OwnerBlock>();
+    public DbSet<OwnerNotification> OwnerNotifications => Set<OwnerNotification>();
+    public DbSet<PetSocialProfile> PetSocialProfiles => Set<PetSocialProfile>();
+    public DbSet<MomentPet> MomentPets => Set<MomentPet>();
+    public DbSet<MomentLike> MomentLikes => Set<MomentLike>();
     public DbSet<CareRecord> CareRecords => Set<CareRecord>();
     public DbSet<TagVariantPreset> TagVariantPresets => Set<TagVariantPreset>();
     public DbSet<TagProduct> TagProducts => Set<TagProduct>();
@@ -113,6 +122,7 @@ public sealed class MyPetLinkDbContext : DbContext
     {
         StampAuditableEntities();
         AdvanceSmartTagAssignmentVersions();
+        DeriveMemoryVisibilityCompatibilityFlag();
         return base.SaveChangesAsync(cancellationToken);
     }
 
@@ -120,6 +130,7 @@ public sealed class MyPetLinkDbContext : DbContext
     {
         StampAuditableEntities();
         AdvanceSmartTagAssignmentVersions();
+        DeriveMemoryVisibilityCompatibilityFlag();
         return base.SaveChanges();
     }
 
@@ -130,6 +141,8 @@ public sealed class MyPetLinkDbContext : DbContext
         ConfigurePets(modelBuilder);
         ConfigurePublicSite(modelBuilder);
         ConfigureCareMedia(modelBuilder);
+        ConfigureOwnerSocialIdentity(modelBuilder);
+        ConfigureSocialGraph(modelBuilder);
         ConfigureTagCatalog(modelBuilder);
         ConfigureDelivery(modelBuilder);
         ConfigureShipping(modelBuilder);
@@ -1213,6 +1226,42 @@ public sealed class MyPetLinkDbContext : DbContext
         }
     }
 
+    /// <summary>
+    /// Keeps <c>PetMemory.ShowOnPublicProfile</c> in step with
+    /// <c>PetMemory.Visibility</c> on every single write.
+    ///
+    /// <b>Visibility is the authoritative field.</b> ShowOnPublicProfile is a
+    /// compatibility column retained for previously deployed clients; nothing in
+    /// this codebase reads it to decide whether something is public, and no
+    /// social query may ever start doing so.
+    ///
+    /// Deriving it here rather than in a service is deliberate. Two services
+    /// already had to remember to do it by hand, and the feed will add more
+    /// write paths; putting it on the SaveChanges boundary means the state
+    ///
+    ///     Visibility = Private, ShowOnPublicProfile = true
+    ///
+    /// cannot be persisted by any code path at all, including tests and future
+    /// admin tooling.
+    /// </summary>
+    private void DeriveMemoryVisibilityCompatibilityFlag()
+    {
+        foreach (var entry in ChangeTracker.Entries<PetMemory>())
+        {
+            if (entry.State is not (EntityState.Added or EntityState.Modified))
+            {
+                continue;
+            }
+
+            var isPublic = MemoryVisibilityPolicy.IsPublic(entry.Entity.Visibility);
+
+            if (entry.Entity.ShowOnPublicProfile != isPublic)
+            {
+                entry.Entity.ShowOnPublicProfile = isPublic;
+            }
+        }
+    }
+
     private void StampAuditableEntities()
     {
         var now = _timeProvider.GetUtcNow();
@@ -1447,6 +1496,12 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasIndex(item => item.LifecycleStatus);
             entity.HasIndex(item => item.LostModeEnabled);
             entity.HasIndex(item => item.Species);
+            // Social search matches pet names by PREFIX (LIKE 'moch%'), which
+            // this index can seek. It exists for that one query; a contains
+            // search would read the whole table and no index would save it.
+            // Case-insensitivity comes from the database collation, not from
+            // lowering the column, which would make the index unusable.
+            entity.HasIndex(item => item.Name);
             entity.HasIndex(item => item.CreatedAt);
             entity.HasIndex(item => item.UpdatedAt);
             entity.HasIndex(item => item.IsSampleEligible);
@@ -1530,6 +1585,274 @@ public sealed class MyPetLinkDbContext : DbContext
         });
     }
 
+    /// <summary>
+    /// The owner's public social identity, and the two tables that keep handles
+    /// safe to hand out: what may never be claimed, and what an account used to
+    /// be called.
+    /// </summary>
+    /// <summary>
+    /// A stable identifier derived from a namespace and a value, so seeded rows
+    /// keep the same primary key across machines and repeated migrations. Not a
+    /// security primitive — MD5 is used only because it is a fast, fixed-width,
+    /// deterministic digest and the input is a known constant.
+    /// </summary>
+    private static Guid DeterministicSeedId(string seedNamespace, string value)
+    {
+        var bytes = System.Security.Cryptography.MD5.HashData(
+            System.Text.Encoding.UTF8.GetBytes($"{seedNamespace}:{value}"));
+
+        return new Guid(bytes);
+    }
+
+    private static void ConfigureOwnerSocialIdentity(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<OwnerSocialProfile>(entity =>
+        {
+            entity.ToTable("OwnerSocialProfiles");
+            entity.Property(item => item.Handle).HasMaxLength(OwnerHandleRules.MaxLength);
+            entity.Property(item => item.NormalizedHandle).HasMaxLength(OwnerHandleRules.MaxLength);
+            entity.Property(item => item.DisplayName).HasMaxLength(OwnerSocialDisplayNameRules.MaxLength);
+            entity.Property(item => item.NormalizedDisplayName)
+                .HasMaxLength(OwnerSocialDisplayNameRules.MaxLength);
+            entity.Property(item => item.Bio).HasMaxLength(OwnerSocialBioRules.MaxLength);
+            entity.Property(item => item.GeneralArea).HasMaxLength(GeneralAreaRules.MaxLength);
+            entity.Property(item => item.IsSocialEnabled).HasDefaultValue(false);
+            entity.Property(item => item.IsDiscoverable).HasDefaultValue(false);
+            entity.Property(item => item.AllowFollowers).HasDefaultValue(true);
+            entity.Property(item => item.RowVersion).IsRowVersion();
+
+            entity.HasIndex(item => item.UserId).IsUnique();
+
+            // Filtered so the many accounts that have not chosen a handle do not
+            // all collide on NULL. This index is what makes two handles
+            // differing only in case impossible.
+            entity.HasIndex(item => item.NormalizedHandle)
+                .IsUnique()
+                .HasFilter("[NormalizedHandle] IS NOT NULL");
+
+            entity.HasIndex(item => new { item.IsSocialEnabled, item.IsDiscoverable, item.UpdatedAt });
+            entity.HasIndex(item => item.NormalizedDisplayName);
+
+            entity.HasOne(item => item.User)
+                .WithOne(user => user.SocialProfile)
+                .HasForeignKey<OwnerSocialProfile>(item => item.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.AvatarMediaFile)
+                .WithMany()
+                .HasForeignKey(item => item.AvatarMediaFileId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<OwnerHandleReservation>(entity =>
+        {
+            entity.ToTable("OwnerHandleReservations");
+            entity.Property(item => item.NormalizedHandle)
+                .HasMaxLength(OwnerHandleRules.MaxLength);
+            entity.Property(item => item.Reason).HasConversion<string>().HasMaxLength(32);
+            entity.HasIndex(item => item.NormalizedHandle).IsUnique();
+            entity.HasIndex(item => item.HeldUntil).HasFilter("[HeldUntil] IS NOT NULL");
+            entity.HasOne(item => item.PreviousUser)
+                .WithMany()
+                .HasForeignKey(item => item.PreviousUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // Seeded permanently. These are the names that would let an account sit
+        // where one of our own routes sits, or present itself as MyPetLink or as
+        // someone acting for us. Ids are derived from the handle so the seed is
+        // identical on every machine and every migration run.
+        modelBuilder.Entity<OwnerHandleReservation>().HasData(
+            OwnerHandleRules.SystemReservations.Select(handle => new
+            {
+                Id = DeterministicSeedId("owner-handle-reservation", handle),
+                NormalizedHandle = handle,
+                Reason = OwnerHandleReservationReason.System,
+                HeldUntil = (DateTimeOffset?)null,
+                PreviousUserId = (Guid?)null,
+                CreatedAt = SeededAt,
+                UpdatedAt = SeededAt
+            }).ToArray());
+
+        modelBuilder.Entity<OwnerHandleHistory>(entity =>
+        {
+            entity.ToTable("OwnerHandleHistories");
+            entity.Property(item => item.Handle).HasMaxLength(OwnerHandleRules.MaxLength);
+            entity.Property(item => item.NormalizedHandle).HasMaxLength(OwnerHandleRules.MaxLength);
+            entity.HasIndex(item => item.NormalizedHandle);
+            entity.HasIndex(item => new { item.UserId, item.ChangedAt });
+            entity.HasOne(item => item.User)
+                .WithMany()
+                .HasForeignKey(item => item.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+    }
+
+    /// <summary>
+    /// The social graph and the content structures the later phases read.
+    ///
+    /// Every relationship here is Restrict rather than Cascade. SQL Server
+    /// refuses multiple cascade paths into one table, and more importantly a
+    /// cascade would let one delete silently erase a graph. The single exception
+    /// is <see cref="MomentPet"/>, whose rows have no meaning at all without the
+    /// Moment they belong to.
+    /// </summary>
+    private static void ConfigureSocialGraph(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<OwnerFollow>(entity =>
+        {
+            entity.ToTable(
+                "OwnerFollows",
+                table => table.HasCheckConstraint(
+                    "CK_OwnerFollows_NoSelfFollow",
+                    "[FollowerUserId] <> [FollowedUserId]"));
+
+            // The uniqueness guarantee, and the duplicate-follow protection:
+            // concurrent requests resolve here rather than in a read-then-write.
+            entity.HasIndex(item => new { item.FollowerUserId, item.FollowedUserId }).IsUnique();
+
+            // Followers list, and the driving index for a later feed.
+            entity.HasIndex(item => new { item.FollowedUserId, item.CreatedAt });
+            entity.HasIndex(item => new { item.FollowerUserId, item.CreatedAt });
+
+            entity.HasOne(item => item.FollowerUser)
+                .WithMany()
+                .HasForeignKey(item => item.FollowerUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.FollowedUser)
+                .WithMany()
+                .HasForeignKey(item => item.FollowedUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<OwnerBlock>(entity =>
+        {
+            entity.ToTable(
+                "OwnerBlocks",
+                table => table.HasCheckConstraint(
+                    "CK_OwnerBlocks_NoSelfBlock",
+                    "[BlockerUserId] <> [BlockedUserId]"));
+
+            entity.Property(item => item.Reason).HasMaxLength(280);
+            entity.HasIndex(item => new { item.BlockerUserId, item.BlockedUserId }).IsUnique();
+
+            // Feed and discovery filters read the blocked direction.
+            entity.HasIndex(item => item.BlockedUserId);
+
+            entity.HasOne(item => item.BlockerUser)
+                .WithMany()
+                .HasForeignKey(item => item.BlockerUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.BlockedUser)
+                .WithMany()
+                .HasForeignKey(item => item.BlockedUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<PetSocialProfile>(entity =>
+        {
+            entity.ToTable("PetSocialProfiles");
+            entity.Property(item => item.IsSocialEnabled).HasDefaultValue(false);
+            entity.Property(item => item.IsDiscoverable).HasDefaultValue(false);
+            entity.Property(item => item.RowVersion).IsRowVersion();
+            entity.HasIndex(item => item.PetId).IsUnique();
+            entity.HasIndex(item => new { item.IsSocialEnabled, item.IsDiscoverable, item.UpdatedAt });
+            entity.HasOne(item => item.Pet)
+                .WithOne(pet => pet.SocialProfile)
+                .HasForeignKey<PetSocialProfile>(item => item.PetId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Deliberately no foreign key to Users and no index. This column is
+            // read only as an equality test against Pets.OwnerUserId, which the
+            // pet row already carries, so nothing joins or filters on it alone.
+            // Leaving the account deletable without dragging pet consent into
+            // its delete behaviour is the point: a departed owner's stamp should
+            // simply stop matching, not block the delete or cascade.
+            entity.Property(item => item.ConsentedByUserId);
+        });
+
+        modelBuilder.Entity<MomentPet>(entity =>
+        {
+            entity.ToTable("MomentPets");
+            entity.HasIndex(item => new { item.MomentId, item.PetId }).IsUnique();
+
+            // "Moments this pet appears in", which is how a pet profile finds
+            // the Moments where it is a secondary subject.
+            entity.HasIndex(item => new { item.PetId, item.MomentId });
+
+            // There is deliberately no "primary" index here. The primary pet is
+            // PetMemory.PetId; a second stored marker would be a duplicate truth
+            // the database could not keep consistent with it.
+
+            entity.HasOne(item => item.Moment)
+                .WithMany(moment => moment.MomentPets)
+                .HasForeignKey(item => item.MomentId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(item => item.Pet)
+                .WithMany(pet => pet.MomentAppearances)
+                .HasForeignKey(item => item.PetId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<MomentLike>(entity =>
+        {
+            entity.ToTable("MomentLikes");
+
+            // One like per account per Moment, decided by the database so a
+            // double-tap or a retry cannot produce two rows.
+            entity.HasIndex(item => new { item.MomentId, item.UserId }).IsUnique();
+            entity.HasIndex(item => new { item.UserId, item.CreatedAt });
+
+            entity.HasOne(item => item.Moment)
+                .WithMany(moment => moment.Likes)
+                .HasForeignKey(item => item.MomentId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.User)
+                .WithMany()
+                .HasForeignKey(item => item.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<OwnerNotification>(entity =>
+        {
+            entity.ToTable("OwnerNotifications");
+            entity.Property(item => item.Type)
+                .HasConversion(new SafeNamedEnumStringConverter<OwnerNotificationType>(
+                    OwnerNotificationType.Unknown))
+                .HasMaxLength(48);
+
+            entity.HasIndex(item => new { item.RecipientUserId, item.CreatedAt });
+
+            // The unread badge count, which is read on every page load.
+            entity.HasIndex(item => new { item.RecipientUserId, item.ReadAt })
+                .HasFilter("[ReadAt] IS NULL");
+
+            // Deliberately NOT a unique constraint. A follow can legitimately
+            // happen again after an unfollow, and a Moment can be liked again
+            // after an unlike, so uniqueness here would permanently silence a
+            // real later event. Suppressing repeats is a decision for the
+            // service that writes the row, where the intended lifecycle is
+            // known, rather than a schema rule that cannot be relaxed.
+            entity.HasIndex(item => new { item.RecipientUserId, item.Type, item.ActorUserId, item.MomentId });
+
+            entity.HasOne(item => item.RecipientUser)
+                .WithMany()
+                .HasForeignKey(item => item.RecipientUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.ActorUser)
+                .WithMany()
+                .HasForeignKey(item => item.ActorUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.SubjectPet)
+                .WithMany()
+                .HasForeignKey(item => item.SubjectPetId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.Moment)
+                .WithMany()
+                .HasForeignKey(item => item.MomentId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+    }
+
     private static void ConfigureCareMedia(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<PetMemory>(entity =>
@@ -1539,12 +1862,23 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.Property(item => item.Type).HasMaxLength(80);
             entity.Property(item => item.Visibility).HasConversion<string>().HasMaxLength(32);
             entity.HasIndex(item => new { item.PetId, item.CreatedAt });
+
+            // Authorship, and the key a later feed joins the follow graph on.
+            entity.HasIndex(item => new { item.AuthorUserId, item.PublishedAt });
             entity.HasIndex(item => new { item.PetId, item.Visibility });
             entity.HasIndex(item => new { item.PetId, item.ShowOnPublicProfile });
             entity.HasIndex(item => new { item.PetId, item.ShowInLifeTimeline });
             entity.HasOne(item => item.Pet)
                 .WithMany(pet => pet.Memories)
                 .HasForeignKey(item => item.PetId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Immutable authorship. Restrict, so an account cannot be removed
+            // while Moments it wrote still exist and would otherwise be left
+            // attributed to nobody.
+            entity.HasOne(item => item.AuthorUser)
+                .WithMany()
+                .HasForeignKey(item => item.AuthorUserId)
                 .OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(item => item.CoverMediaFile)
                 .WithMany()
@@ -1597,6 +1931,11 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.Property(item => item.UploadStatus)
                 .HasConversion<string>()
                 .HasMaxLength(32);
+            entity.Property(item => item.DerivativeStatus)
+                .HasConversion(new SafeNamedEnumStringConverter<MediaDerivativeStatus>(
+                    MediaDerivativeStatus.NotApplicable))
+                .HasMaxLength(32)
+                .HasDefaultValue(MediaDerivativeStatus.NotApplicable);
             entity.Property(item => item.Sha256).HasMaxLength(128);
             entity.HasIndex(item => item.OwnerUserId);
             entity.HasIndex(item => item.PetId);
@@ -2396,7 +2735,7 @@ public sealed class MyPetLinkDbContext : DbContext
                 Id = FreePlanLimitId,
                 PlanId = FreePlanId,
                 MaxPets = 3,
-                MaxMemoriesPerPet = 10,
+                MaxPrivateMemoriesPerPet = 10,
                 MaxMediaPerMemory = 5,
                 MaxFamilyMembers = 0,
                 MaxCareRecords = 100,
@@ -2412,7 +2751,7 @@ public sealed class MyPetLinkDbContext : DbContext
                 Id = PremiumPlanLimitId,
                 PlanId = PremiumPlanId,
                 MaxPets = 10,
-                MaxMemoriesPerPet = 100,
+                MaxPrivateMemoriesPerPet = 100,
                 MaxMediaPerMemory = 20,
                 MaxFamilyMembers = 5,
                 MaxCareRecords = 500,

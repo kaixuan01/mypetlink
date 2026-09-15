@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import {
@@ -13,12 +13,15 @@ import {
   PublicProfileOwnerControls,
 } from "@/components/marketing/PublicProfileOwnerControls";
 import { PublicProfileCreateCTA } from "@/components/marketing/PublicProfileCreateCTA";
+import { OwnerFollowAction } from "@/components/social/OwnerFollowAction";
+import { PetProfileMomentsTab } from "@/components/social/PetProfileMomentsTab";
+import { PetSocialAttribution } from "@/components/social/PetSocialAttribution";
+import { SmartTagProtectedBadge } from "@/components/social/SmartTagProtectedBadge";
 import { useOwnedPublicProfilePet } from "@/components/marketing/useOwnedPublicProfilePet";
 import { LostModeContactActions } from "@/components/marketing/LostModeContactActions";
 import { LostModeFinderDetails } from "@/components/marketing/LostModeFinderDetails";
 import { SafetyAllergies } from "@/components/marketing/SafetyAllergies";
 import { MomentMediaCarousel } from "@/components/moments/MomentMediaCarousel";
-import { PetMomentCard } from "@/components/portal/PetMomentCard";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { CoverPhoto } from "@/components/ui/CoverPhoto";
 import { Icon } from "@/components/ui/Icon";
@@ -48,6 +51,7 @@ import {
 import { isActivePet, isArchivedPet, isMemorialPet } from "@/lib/petLifecycle";
 import { mergeConservativePetVisibility } from "@/lib/petVisibility";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
+import { socialEnabled } from "@/lib/features";
 import { getPublicProfileMoments } from "@/lib/momentMedia";
 import { getQrSafetyPath } from "@/lib/routes";
 import {
@@ -442,6 +446,31 @@ export function PublicSharePetProfile({
               </p>
             ) : null}
 
+            {profile.hasSmartTagProtection ? (
+              <div className="mt-3 flex justify-center">
+                <SmartTagProtectedBadge />
+              </div>
+            ) : null}
+
+            {profile.sharedBy ? (
+              <div className="mx-auto mt-4 max-w-sm text-left">
+                <PetSocialAttribution
+                  action={
+                    // The byline itself is part of the public page and stays;
+                    // Follow is a social entry point, so it waits for the flag
+                    // like every other one.
+                    socialEnabled ? (
+                      <OwnerFollowAction
+                        displayName={profile.sharedBy.displayName}
+                        handle={profile.sharedBy.handle}
+                      />
+                    ) : undefined
+                  }
+                  sharedBy={profile.sharedBy}
+                />
+              </div>
+            ) : null}
+
             {profile.personalityTags.length ? (
               <div className="mt-4 flex flex-wrap justify-center gap-2">
                 {profile.personalityTags.map((tag) => (
@@ -452,7 +481,14 @@ export function PublicSharePetProfile({
               </div>
             ) : null}
 
-            {publicOwnerName ? (
+            {/* One household identity on this page, not two. When a social
+                profile exists it is already named above as "Shared by", and
+                printing the finder-facing name underneath it would show a
+                visitor both the chosen identity and the real one side by side
+                — which is the exact collapse the three identities exist to
+                prevent. ShowOwnerName still governs the Safety Profile, where
+                a finder needs a human name to ask for. */}
+            {publicOwnerName && !profile.sharedBy ? (
               <p
                 className="mt-4 text-sm font-bold text-pet-ink"
                 style={{ color: theme.colors.text }}
@@ -639,10 +675,14 @@ export function PublicSharePetProfile({
             />
           ) : null}
           {currentTab === "moments" ? (
-            <MomentsTab
+            // The social listing, not the Moment array embedded in this
+            // profile payload: a Moment must look and behave the same here as
+            // on the household's profile, in the feed and in Explore. The
+            // embedded array still decides whether the tab is offered at all,
+            // which costs no extra request.
+            <PetProfileMomentsTab
               petName={profile.name}
-              publicMoments={publicMoments}
-              theme={theme}
+              publicSlug={profile.publicCode}
             />
           ) : null}
           {currentTab === "timeline" ? (
@@ -894,44 +934,6 @@ function AboutTab({
         </div>
       ) : null}
     </section>
-  );
-}
-
-function MomentsTab({
-  petName,
-  publicMoments,
-  theme,
-}: {
-  petName: string;
-  publicMoments: PetMoment[];
-  theme: PetProfileTheme;
-}) {
-  if (!publicMoments.length) {
-    return (
-      <div
-        className="rounded-[1.5rem] border border-dashed border-pet-border bg-pet-cream p-8 text-center text-sm text-pet-muted"
-        style={{
-          background: theme.colors.surfaceAlt,
-          borderColor: theme.colors.border,
-          color: theme.colors.mutedText,
-        }}
-      >
-        {petName}&apos;s public memories will appear here.
-      </div>
-    );
-  }
-
-  return (
-    <div className="grid gap-5">
-      {publicMoments.map((moment) => (
-        <PetMomentCard
-          key={moment.id}
-          moment={moment}
-          publicView
-          theme={theme}
-        />
-      ))}
-    </div>
   );
 }
 

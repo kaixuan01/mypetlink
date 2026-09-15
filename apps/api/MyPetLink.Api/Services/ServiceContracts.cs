@@ -10,6 +10,219 @@ public interface ICurrentUserService
     CurrentUser Current { get; }
 }
 
+/// <summary>
+/// The owner's PUBLIC social identity. Every method resolves the subject from
+/// the authenticated session; none accepts a user id from a caller.
+/// </summary>
+public interface IOwnerSocialProfileService : ISkeletonService
+{
+    Task<OwnerSocialProfileResponse> GetAsync(
+        Guid? currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<OwnerSocialProfileResponse> UpdateAsync(
+        Guid? currentUserId,
+        UpdateOwnerSocialProfileRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<OwnerSocialProfileResponse> ClaimHandleAsync(
+        Guid? currentUserId,
+        ClaimOwnerHandleRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<OwnerHandleAvailabilityResponse> CheckHandleAvailabilityAsync(
+        Guid? currentUserId,
+        string handle,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// The owner's per-pet Social consent — the only production write path to
+/// <see cref="MyPetLink.Api.Entities.PetSocialProfile"/>.
+/// </summary>
+public interface IPetSocialSettingsService : ISkeletonService
+{
+    Task<PetSocialSettingsListResponse> ListAsync(
+        Guid? currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<PetSocialSettingsResponse> UpdateAsync(
+        Guid? currentUserId,
+        Guid petId,
+        UpdatePetSocialSettingsRequest request,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// The anonymous social read surface: owner profiles and paginated Moment
+/// listings. Every method gates on the owner's AND the pet's social switches.
+/// </summary>
+public interface IPublicSocialProfileService : ISkeletonService
+{
+    Task<PublicOwnerProfileResponse> GetOwnerProfileAsync(
+        string handle,
+        CancellationToken cancellationToken = default);
+
+    Task<OwnerHandleResolutionResponse> ResolveHandleAsync(
+        string handle,
+        CancellationToken cancellationToken = default);
+
+    /// <param name="viewerId">
+    /// The caller, when there is one. Used only to report which Moments they
+    /// have already liked; it widens nothing and hides nothing.
+    /// </param>
+    Task<PublicMomentPageResponse> GetOwnerMomentsAsync(
+        string handle,
+        string? cursor,
+        int? pageSize,
+        Guid? viewerId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<PublicMomentPageResponse> GetPetMomentsAsync(
+        string publicSlug,
+        string? cursor,
+        int? pageSize,
+        Guid? viewerId = null,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// Following and blocking between accounts. The actor is always the JWT
+/// subject; a handle names a target, never a grant.
+/// </summary>
+public interface ISocialGraphService : ISkeletonService
+{
+    Task<OwnerRelationshipResponse> FollowAsync(
+        Guid? currentUserId, string handle, CancellationToken cancellationToken = default);
+
+    Task<OwnerRelationshipResponse> UnfollowAsync(
+        Guid? currentUserId, string handle, CancellationToken cancellationToken = default);
+
+    Task<OwnerRelationshipResponse> BlockAsync(
+        Guid? currentUserId, string handle, string? reason, CancellationToken cancellationToken = default);
+
+    Task<OwnerRelationshipResponse> UnblockAsync(
+        Guid? currentUserId, string handle, CancellationToken cancellationToken = default);
+
+    Task<OwnerRelationshipResponse> GetRelationshipAsync(
+        Guid? currentUserId, string handle, CancellationToken cancellationToken = default);
+
+    Task<SocialAccountPageResponse> GetFollowersAsync(
+        Guid? currentUserId, string handle, string? cursor, int? pageSize,
+        CancellationToken cancellationToken = default);
+
+    Task<SocialAccountPageResponse> GetFollowingAsync(
+        Guid? currentUserId, string handle, string? cursor, int? pageSize,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>The caller's own blocks. Never readable in the other direction.</summary>
+    Task<SocialAccountPageResponse> GetBlockedAccountsAsync(
+        Guid? currentUserId, string? cursor, int? pageSize,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// Likes on Moments. The actor is always the JWT subject; the route names the
+/// Moment, never the person doing the liking.
+/// </summary>
+public interface IMomentLikeService : ISkeletonService
+{
+    Task<MomentLikeResponse> LikeAsync(
+        Guid? currentUserId, Guid momentId, CancellationToken cancellationToken = default);
+
+    Task<MomentLikeResponse> UnlikeAsync(
+        Guid? currentUserId, Guid momentId, CancellationToken cancellationToken = default);
+
+    Task<MomentLikeResponse> GetAsync(
+        Guid? currentUserId, Guid momentId, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// The chronological home feed: Moments from households the caller follows,
+/// plus their own. Authenticated only — there is no feed without a graph.
+/// </summary>
+public interface ISocialFeedService : ISkeletonService
+{
+    Task<PublicMomentPageResponse> GetFeedAsync(
+        Guid? currentUserId, string? cursor, int? pageSize,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// Explore and search. Everything here adds discoverability on top of the
+/// shared social visibility rules; nothing here may override it.
+/// </summary>
+public interface ISocialDiscoveryService : ISkeletonService
+{
+    Task<SocialPetPageResponse> GetSuggestedPetsAsync(
+        Guid? viewerId, string? species, int? limit,
+        CancellationToken cancellationToken = default);
+
+    Task<PublicMomentPageResponse> GetLatestMomentsAsync(
+        Guid? viewerId, string? species, string? cursor, int? pageSize,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyCollection<SocialSpeciesOptionResponse>> GetSpeciesAsync(
+        Guid? viewerId, CancellationToken cancellationToken = default);
+
+    Task<SocialSearchResponse> SearchAsync(
+        Guid? viewerId, string? query, string? type, string? species, int? limit,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// In-app activity. The recipient is always the JWT subject; no route accepts a
+/// recipient id, and nothing here sends email.
+/// </summary>
+public interface IOwnerNotificationService : ISkeletonService
+{
+    Task<OwnerNotificationPageResponse> GetAsync(
+        Guid? currentUserId, string? cursor, int? pageSize,
+        CancellationToken cancellationToken = default);
+
+    Task<OwnerNotificationSummaryResponse> GetUnreadSummaryAsync(
+        Guid? currentUserId, CancellationToken cancellationToken = default);
+
+    Task<OwnerNotificationSummaryResponse> MarkReadAsync(
+        Guid? currentUserId, MarkNotificationsReadRequest? request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Staged onto the caller's unit of work, never saved here: the follow and
+    /// its notification commit in one SaveChanges or not at all.
+    /// </summary>
+    Task StageFollowNotification(
+        Guid actorId, Guid recipientId, CancellationToken cancellationToken = default);
+
+    Task StageFollowNotificationWithdrawal(
+        Guid actorId, Guid recipientId, CancellationToken cancellationToken = default);
+
+    Task StageLikeNotification(
+        Guid actorId, Guid recipientId, Guid momentId, Guid? subjectPetId,
+        CancellationToken cancellationToken = default);
+
+    Task StageLikeNotificationWithdrawal(
+        Guid actorId, Guid momentId, CancellationToken cancellationToken = default);
+}
+
+/// <summary>Handle claiming, renaming, reservations and the release hold.</summary>
+public interface IOwnerHandleService : ISkeletonService
+{
+    Task<bool> IsClaimableAsync(
+        string normalizedHandle,
+        Guid userId,
+        CancellationToken cancellationToken = default);
+
+    Task<DateTimeOffset?> GetChangeAvailableAtAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default);
+
+    Task ClaimAsync(
+        OwnerSocialProfile profile,
+        string requestedHandle,
+        CancellationToken cancellationToken = default);
+}
+
 public interface ISkeletonService
 {
     Task<PlaceholderResponse> NotImplementedAsync(string operation, CancellationToken cancellationToken = default);

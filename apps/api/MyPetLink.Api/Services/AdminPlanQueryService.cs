@@ -64,7 +64,7 @@ public sealed class AdminPlanQueryService : SkeletonService, IAdminPlanQueryServ
                 plan.BillingNote,
                 plan.Description,
                 plan.Limit == null ? 0 : plan.Limit.MaxPets,
-                plan.Limit == null ? 0 : plan.Limit.MaxMemoriesPerPet,
+                plan.Limit == null ? 0 : plan.Limit.MaxPrivateMemoriesPerPet,
                 plan.Limit == null ? 0 : plan.Limit.MaxMediaPerMemory,
                 plan.Limit == null ? 0 : plan.Limit.MaxFamilyMembers,
                 plan.Limit == null ? 0 : plan.Limit.MaxCareRecords,
@@ -255,7 +255,7 @@ public sealed class AdminPlanQueryService : SkeletonService, IAdminPlanQueryServ
             item.DisplayName, item.Email, item.PlanName, item.PlanCode, PlanStatusLabel(item.PlanStatus),
             "Assigned",
             item.ActivePetCount.ToString(), item.MaxPets.ToString(), UsageLabel(item.PetUsageState),
-            item.HighestMemoriesOnPet.ToString(), item.MaxMemoriesPerPet.ToString(),
+            item.HighestMemoriesOnPet.ToString(), item.MaxPrivateMemoriesPerPet.ToString(),
             UsageLabel(item.MemoryUsageState), item.TotalMemoryCount.ToString(),
             item.CareRecordCount.ToString(), item.MaxCareRecords.ToString(),
             item.HasOverride || item.Grandfathered ? "Yes" : "No",
@@ -349,7 +349,7 @@ public sealed class AdminPlanQueryService : SkeletonService, IAdminPlanQueryServ
         };
     }
 
-    // Busiest-pet memory count vs MaxMemoriesPerPet, matching MemoryService
+    // Busiest-pet memory count vs MaxPrivateMemoriesPerPet, matching MemoryService
     // enforcement (per pet, non-deleted, non-archived). The "busiest pet"
     // decides the state; the per-pet predicate keeps the whole check
     // translatable to SQL without loading owners into memory.
@@ -359,22 +359,22 @@ public sealed class AdminPlanQueryService : SkeletonService, IAdminPlanQueryServ
 
         return state switch
         {
-            UsageWithin => owners.Where(profile => profile.Plan.Limit != null && profile.Plan.Limit.MaxMemoriesPerPet > 0
+            UsageWithin => owners.Where(profile => profile.Plan.Limit != null && profile.Plan.Limit.MaxPrivateMemoriesPerPet > 0
                 && !activePets.Any(pet => pet.OwnerUserId == profile.UserId
-                    && pet.Memories.Count(memory => memory.DeletedAt == null && memory.ArchivedAt == null) * 10 >= profile.Plan.Limit.MaxMemoriesPerPet * 8)),
-            UsageNear => owners.Where(profile => profile.Plan.Limit != null && profile.Plan.Limit.MaxMemoriesPerPet > 0
+                    && pet.Memories.Count(memory => memory.DeletedAt == null && memory.ArchivedAt == null && memory.Visibility != MemoryVisibility.Public) * 10 >= profile.Plan.Limit.MaxPrivateMemoriesPerPet * 8)),
+            UsageNear => owners.Where(profile => profile.Plan.Limit != null && profile.Plan.Limit.MaxPrivateMemoriesPerPet > 0
                 && activePets.Any(pet => pet.OwnerUserId == profile.UserId
-                    && pet.Memories.Count(memory => memory.DeletedAt == null && memory.ArchivedAt == null) * 10 >= profile.Plan.Limit.MaxMemoriesPerPet * 8)
+                    && pet.Memories.Count(memory => memory.DeletedAt == null && memory.ArchivedAt == null && memory.Visibility != MemoryVisibility.Public) * 10 >= profile.Plan.Limit.MaxPrivateMemoriesPerPet * 8)
                 && !activePets.Any(pet => pet.OwnerUserId == profile.UserId
-                    && pet.Memories.Count(memory => memory.DeletedAt == null && memory.ArchivedAt == null) >= profile.Plan.Limit.MaxMemoriesPerPet)),
-            UsageAt => owners.Where(profile => profile.Plan.Limit != null && profile.Plan.Limit.MaxMemoriesPerPet > 0
+                    && pet.Memories.Count(memory => memory.DeletedAt == null && memory.ArchivedAt == null && memory.Visibility != MemoryVisibility.Public) >= profile.Plan.Limit.MaxPrivateMemoriesPerPet)),
+            UsageAt => owners.Where(profile => profile.Plan.Limit != null && profile.Plan.Limit.MaxPrivateMemoriesPerPet > 0
                 && activePets.Any(pet => pet.OwnerUserId == profile.UserId
-                    && pet.Memories.Count(memory => memory.DeletedAt == null && memory.ArchivedAt == null) == profile.Plan.Limit.MaxMemoriesPerPet)
+                    && pet.Memories.Count(memory => memory.DeletedAt == null && memory.ArchivedAt == null && memory.Visibility != MemoryVisibility.Public) == profile.Plan.Limit.MaxPrivateMemoriesPerPet)
                 && !activePets.Any(pet => pet.OwnerUserId == profile.UserId
-                    && pet.Memories.Count(memory => memory.DeletedAt == null && memory.ArchivedAt == null) > profile.Plan.Limit.MaxMemoriesPerPet)),
-            _ => owners.Where(profile => profile.Plan.Limit != null && profile.Plan.Limit.MaxMemoriesPerPet > 0
+                    && pet.Memories.Count(memory => memory.DeletedAt == null && memory.ArchivedAt == null && memory.Visibility != MemoryVisibility.Public) > profile.Plan.Limit.MaxPrivateMemoriesPerPet)),
+            _ => owners.Where(profile => profile.Plan.Limit != null && profile.Plan.Limit.MaxPrivateMemoriesPerPet > 0
                 && activePets.Any(pet => pet.OwnerUserId == profile.UserId
-                    && pet.Memories.Count(memory => memory.DeletedAt == null && memory.ArchivedAt == null) > profile.Plan.Limit.MaxMemoriesPerPet))
+                    && pet.Memories.Count(memory => memory.DeletedAt == null && memory.ArchivedAt == null && memory.Visibility != MemoryVisibility.Public) > profile.Plan.Limit.MaxPrivateMemoriesPerPet))
         };
     }
 
@@ -400,7 +400,7 @@ public sealed class AdminPlanQueryService : SkeletonService, IAdminPlanQueryServ
                 .GroupBy(memory => memory.PetId)
                 .Select(group => (int?)group.Count())
                 .Max() ?? 0,
-            MaxMemoriesPerPet = profile.Plan.Limit == null ? 0 : profile.Plan.Limit.MaxMemoriesPerPet,
+            MaxPrivateMemoriesPerPet = profile.Plan.Limit == null ? 0 : profile.Plan.Limit.MaxPrivateMemoriesPerPet,
             CareRecordCount = _dbContext.CareRecords.Count(record => record.Pet.OwnerUserId == profile.UserId
                 && record.Pet.DeletedAt == null && record.DeletedAt == null && record.ArchivedAt == null),
             MaxCareRecords = profile.Plan.Limit == null ? 0 : profile.Plan.Limit.MaxCareRecords,
@@ -466,8 +466,8 @@ public sealed class AdminPlanQueryService : SkeletonService, IAdminPlanQueryServ
             DeriveUsageState(row.ActivePetCount, row.MaxPets),
             row.TotalMemoryCount,
             row.HighestMemoriesOnPet,
-            row.MaxMemoriesPerPet,
-            DeriveUsageState(row.HighestMemoriesOnPet, row.MaxMemoriesPerPet),
+            row.MaxPrivateMemoriesPerPet,
+            DeriveUsageState(row.HighestMemoriesOnPet, row.MaxPrivateMemoriesPerPet),
             row.CareRecordCount,
             row.MaxCareRecords,
             row.HasOverride,
@@ -616,7 +616,7 @@ public sealed class AdminPlanQueryService : SkeletonService, IAdminPlanQueryServ
         public int MaxPets { get; init; }
         public int TotalMemoryCount { get; init; }
         public int HighestMemoriesOnPet { get; init; }
-        public int MaxMemoriesPerPet { get; init; }
+        public int MaxPrivateMemoriesPerPet { get; init; }
         public int CareRecordCount { get; init; }
         public int MaxCareRecords { get; init; }
         public bool HasOverride { get; init; }

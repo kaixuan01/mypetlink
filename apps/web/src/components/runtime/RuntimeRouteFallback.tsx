@@ -6,6 +6,8 @@ import { BrandLogo } from "@/components/brand/BrandLogo";
 import { AppLayout } from "@/components/layouts/AppLayout";
 import { PublicSharePetProfile } from "@/components/marketing/PublicSharePetProfile";
 import { QrSafetyRouteView } from "@/components/marketing/QrSafetyRouteView";
+import { OwnerConnectionsView } from "@/components/social/OwnerConnectionsView";
+import { OwnerSocialProfileView } from "@/components/social/OwnerSocialProfileView";
 import { PetDetailHeader } from "@/components/portal/PetDetailHeader";
 import { PetManagementTabs } from "@/components/portal/PetManagementTabs";
 import { PetMomentsManager } from "@/components/portal/PetMomentsManager";
@@ -107,10 +109,18 @@ type RuntimeRoute =
   | { kind: "tag"; source: TagEntrySource; tagCode: string }
   | { kind: "order"; orderKey: string }
   | { kind: "owner"; petId: string; section: OwnerSection }
+  | { kind: "social-profile"; handle: string }
+  | { kind: "social-connections"; handle: string; relation: "followers" | "following" }
   | { kind: "none" };
 
 type RuntimeState =
   | { status: "loading" }
+  | { status: "social-profile"; handle: string }
+  | {
+      status: "social-connections";
+      handle: string;
+      relation: "followers" | "following";
+    }
   | { status: "owner-feature-unavailable" }
   | { status: "unavailable"; message: string; title: string }
   | { status: "not-found"; title: string; owner?: boolean }
@@ -201,6 +211,13 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
       return;
     }
 
+    if (state.status === "social-profile" || state.status === "social-connections") {
+      // The view sets the real title once it knows whose profile this is; the
+      // edge has already rewritten it for anything that reads the HTML.
+      setPageTitle("Profile");
+      return;
+    }
+
     setPageTitle(state.title);
   }, [state]);
 
@@ -215,6 +232,26 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
     async function resolveRoute() {
       if (route.kind === "none") {
         setState({ status: "not-found", title: genericNotFoundTitle });
+        return;
+      }
+
+      // The social profile routes need no data fetched here: their own views
+      // load from the handle. What they need is to be RECOGNISED — the
+      // exported shell for /u/{handle} only exists for the build-time
+      // placeholder, so in production every real handle arrives through the
+      // 404 asset and this is the only thing that can tell it apart from a
+      // genuinely wrong URL.
+      if (route.kind === "social-profile") {
+        setState({ status: "social-profile", handle: route.handle });
+        return;
+      }
+
+      if (route.kind === "social-connections") {
+        setState({
+          status: "social-connections",
+          handle: route.handle,
+          relation: route.relation,
+        });
         return;
       }
 
@@ -474,6 +511,22 @@ export function RuntimeRouteFallback({ children }: { children: ReactNode }) {
         <PageHeader {...smartTagsUnavailablePageCopy} />
         <SmartTagsComingSoon />
       </AppLayout>
+    );
+  }
+
+  if (state.status === "social-profile") {
+    return (
+      <main className="min-h-screen bg-pet-cream">
+        <OwnerSocialProfileView handle={state.handle} />
+      </main>
+    );
+  }
+
+  if (state.status === "social-connections") {
+    return (
+      <main className="min-h-screen bg-pet-cream">
+        <OwnerConnectionsView handle={state.handle} relation={state.relation} />
+      </main>
     );
   }
 
@@ -753,6 +806,23 @@ function parseRuntimeRoute(pathname: string, search = ""): RuntimeRoute {
 
   if (parts[0] === "n" && parts.length === 2) {
     return { kind: "tag", source: "nfc", tagCode: parts[1] };
+  }
+
+  if (parts[0] === "u" && parts.length === 2 && parts[1]) {
+    return { kind: "social-profile", handle: parts[1].toLowerCase() };
+  }
+
+  if (
+    parts[0] === "u"
+    && parts.length === 3
+    && parts[1]
+    && (parts[2] === "followers" || parts[2] === "following")
+  ) {
+    return {
+      kind: "social-connections",
+      handle: parts[1].toLowerCase(),
+      relation: parts[2],
+    };
   }
 
   if (parts[0] === "orders" && parts.length === 2) {

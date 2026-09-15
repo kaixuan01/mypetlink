@@ -110,6 +110,59 @@ the following are true:
 3. no supported deployed version reads the table,
 4. a production backup has been taken and its restore verified.
 
+## Rate limiting is per application instance
+
+The social rate-limit policies (`SocialRateLimitPolicies`, configured under
+`RateLimiting:Social`) use the in-process fixed-window limiter that ASP.NET Core
+provides. **Its counters live in the memory of one process.**
+
+Consequences:
+
+- Two application instances behind a load balancer allow **twice** every
+  configured limit.
+- A restart or a deploy **resets every window**.
+- A caller whose requests land on different instances is effectively
+  unlimited across them.
+
+This is an accepted trade for a single-instance soft launch. It is a brake on
+casual abuse, not a guarantee.
+
+**Move to a distributed store (or to Cloudflare, in front of the origin) before
+any of the following:**
+
+1. a second application instance runs — scale-out, autoscaling, or a
+   rolling/blue-green deploy where two instances overlap;
+2. a limit stops being an abuse brake and becomes a commercial or safety control;
+3. a specific endpoint is observed being abused past its configured limit.
+
+Configurable values (all optional; defaults in `SocialRateLimitingOptions`):
+
+| Config key | Default | Guards |
+| --- | --- | --- |
+| `RateLimiting:Social:Follow:PermitLimit` / `:WindowSeconds` | 30 / 3600 | Following someone |
+| `RateLimiting:Social:Like:*` | 120 / 3600 | Liking a Moment |
+| `RateLimiting:Social:Withdraw:*` | 200 / 3600 | Taking something back: unfollow, unlike, unblock. Deliberately a separate, more generous budget — a shared one would let the limit stop the recovery instead of the abuse. |
+| `RateLimiting:Social:MomentCreate:*` | 20 / 3600 | Creating a Moment; also bounds upload volume |
+| `RateLimiting:Social:Search:*` | 30 / 60 | Public pet and profile search |
+| `RateLimiting:Social:HandleAvailability:*` | 20 / 60 | Handle availability — the enumeration-sensitive one |
+| `RateLimiting:Social:ProfileMutation:*` | 20 / 3600 | Writing the social profile, claiming a handle |
+
+The two existing Smart Tag policies (`RateLimiting:PublicTagScan`,
+`RateLimiting:TagActivation`) are unchanged and carry the same caveat.
+
+## Social identity settings
+
+| Config key | Default | Purpose |
+| --- | --- | --- |
+| `Social:HandleRenameCooldownDays` | 30 | How long an owner waits between handle changes. Stops an account cycling through names faster than anyone can report it. |
+| `Social:ReleasedHandleHoldDays` | 90 | How long a released handle is held before anyone else may claim it, so a shared link does not start resolving to a stranger. |
+| `Social:ThumbnailMaxEdgePixels` | 640 | Longest edge of the generated image derivative. |
+| `Social:ThumbnailJpegQuality` | 80 | JPEG quality of the derivative. |
+| `Social:ThumbnailGenerationEnabled` | `true` | Kill switch. Turning it off changes no read path: readers already fall back to the original whenever a thumbnail is absent. |
+
+These are deployment-owned values, not admin-editable business settings: they
+protect links and slow abuse rather than express a business decision.
+
 ## Applying migration.sql
 
 Apply with `sqlcmd -I`. Filtered indexes require `QUOTED_IDENTIFIER ON`, which

@@ -746,6 +746,12 @@ export function mapBackendPublicProfile(
     qrSafetyEnabled: Boolean(safetyCode),
     qrSafetyPath: safetyPath,
     finderProfileUrl: safetyPath,
+    // Social attribution and the Smart Tag signal, when the API returned them.
+    // Absent means "not social", never "unknown": the server omits them unless
+    // both the owner and the pet participate.
+    sharedBy: profile.sharedBy ?? null,
+    hasSmartTagProtection: profile.hasSmartTagProtection ?? false,
+    isSocialEnabled: profile.isSocialEnabled ?? false,
   };
 }
 
@@ -803,7 +809,12 @@ export function mapBackendSafetyPage(page: BackendPublicSafetyPage): PublicPetPr
       publicProfileEnabled: true,
       qrSafetyPath: safetyPath,
       finderProfileUrl: safetyPath,
-      publicProfilePath: "",
+      // Empty unless the API said this pet's Public Share Profile may be
+      // offered to a finder. The gate lives on the server; this only carries
+      // the answer.
+      publicProfilePath: page.publicProfileSlug
+        ? `/p/${page.publicProfileSlug}`
+        : "",
       bio: "",
       personalityTags: [],
       favoriteFoods: [],

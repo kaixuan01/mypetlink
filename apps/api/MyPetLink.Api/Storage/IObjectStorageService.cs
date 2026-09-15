@@ -38,6 +38,34 @@ public interface IObjectStorageService
         string objectKey,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Reads an object back into memory, or returns <c>null</c> when it is not
+    /// there. Used by derivative generation, which must read the original the
+    /// browser uploaded directly to storage.
+    /// </summary>
+    /// <param name="maxBytes">
+    /// Hard ceiling on what will be buffered. A response larger than this is
+    /// abandoned and <c>null</c> is returned, so a wrong or tampered object can
+    /// never be read into unbounded memory.
+    /// </param>
+    Task<byte[]?> GetObjectBytesAsync(
+        string bucketName,
+        string objectKey,
+        long maxBytes,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Writes an object from the server. Only used for content the server
+    /// generated itself — derivatives — never for content a client supplied,
+    /// which continues to go through a presigned upload.
+    /// </summary>
+    Task PutObjectAsync(
+        string bucketName,
+        string objectKey,
+        byte[] content,
+        string contentType,
+        CancellationToken cancellationToken = default);
+
     string GetPublicUrl(string objectKey);
 }
 

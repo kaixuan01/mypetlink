@@ -18,7 +18,20 @@ public sealed class PlanLimit : AuditableEntity
 {
     public Guid PlanId { get; set; }
     public int MaxPets { get; set; }
-    public int MaxMemoriesPerPet { get; set; }
+    /// <summary>
+    /// How large a PRIVATE archive a plan allows, per pet.
+    ///
+    /// Renamed from <c>MaxMemoriesPerPet</c>, which was misleading: it now
+    /// governs only the private personal archive. Public Moments are social
+    /// contributions and are deliberately NOT capped by it — a social product
+    /// in which a free account can post ten times ever does not work.
+    ///
+    /// Public Moments remain bounded by the controls that actually protect the
+    /// system rather than the wallet: the Moment-creation rate limit, the
+    /// per-Moment media cap (<see cref="MaxMediaPerMemory"/>), upload size
+    /// limits, and ordinary authorization.
+    /// </summary>
+    public int MaxPrivateMemoriesPerPet { get; set; }
     public int MaxMediaPerMemory { get; set; }
     public int MaxFamilyMembers { get; set; }
     public int MaxCareRecords { get; set; }

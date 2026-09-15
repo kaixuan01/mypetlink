@@ -248,7 +248,25 @@ export type PublicPetProfile = Pick<
   | "owner"
   | "contactOverride"
   | "visibility"
->;
+> & {
+  /**
+   * Who shared this pet, when both the owner and the pet participate in social.
+   * Absent otherwise — a shareable link is not social participation.
+   *
+   * This is the owner's SOCIAL identity only. It never carries the account name,
+   * the email, or the finder-facing owner name.
+   */
+  sharedBy?: {
+    handle: string;
+    displayName: string;
+    avatarUrl?: string | null;
+    avatarThumbnailUrl?: string | null;
+  } | null;
+  /** Derived from the pet's Smart Tags. A signal only; nothing stores it. */
+  hasSmartTagProtection?: boolean;
+  /** Whether this pet participates in social. Independent of the share link. */
+  isSocialEnabled?: boolean;
+};
 
 export type RecordType =
   | "Vaccine"
@@ -369,6 +387,14 @@ export type PetMoment = {
   showOnPublicProfile: boolean;
   showInLifeTimeline: boolean;
   timelineNote?: string;
+  /**
+   * Other owned pets this Moment is also about, besides `petId`.
+   *
+   * `petId` stays the authoritative primary subject: it owns the Moment's place
+   * in that pet's timeline and its plan allowance. These are additional
+   * subjects only.
+   */
+  additionalPetIds?: string[];
 };
 
 // Product name shown on an order. "MyPetLink QR Pet Tag" is retained for
@@ -685,6 +711,7 @@ export type PetMomentPayload = Partial<
     | "showOnPublicProfile"
     | "showInLifeTimeline"
     | "timelineNote"
+    | "additionalPetIds"
   >
 >;
 

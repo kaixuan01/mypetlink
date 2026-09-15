@@ -2,11 +2,18 @@ import { MomentMediaCarousel } from "@/components/moments/MomentMediaCarousel";
 import { Badge } from "@/components/ui/Badge";
 import { mediaCountLabel } from "@/lib/momentMedia";
 import { normalizeMomentVisibility } from "@/lib/momentVisibility";
+import { formatMomentSubjects } from "@/lib/momentSubjects";
 import type { PetProfileTheme } from "@/lib/petProfileThemes";
 import type { PetMoment } from "@/types";
 
 type PetMomentCardProps = {
   moment: PetMoment;
+  /**
+   * Every pet this Moment is about, primary first. Omitted where the caller has
+   * only one pet in hand, in which case no subject line is shown — a Moment
+   * about a single pet on that pet's own page needs no caption saying so.
+   */
+  subjectNames?: string[];
   onDelete?: () => void;
   onEdit?: () => void;
   publicView?: boolean;
@@ -15,6 +22,7 @@ type PetMomentCardProps = {
 
 export function PetMomentCard({
   moment,
+  subjectNames,
   onDelete,
   onEdit,
   publicView = false,
@@ -25,6 +33,11 @@ export function PetMomentCard({
     : undefined;
   const countLabel = mediaCountLabel(moment.media);
   const audience = normalizeMomentVisibility(moment.visibility);
+  // Only worth saying when more than one pet is in it.
+  const subjectLabel =
+    subjectNames && subjectNames.length > 1
+      ? formatMomentSubjects(subjectNames)
+      : "";
 
   return (
     <article className="brand-card flex h-full min-w-0 flex-col overflow-hidden rounded-[1.75rem] p-0" style={themedStyle}>
@@ -46,6 +59,15 @@ export function PetMomentCard({
             <p className="mt-1 text-sm font-semibold text-pet-muted" style={theme ? { color: theme.colors.mutedText } : undefined}>
               {moment.date}
             </p>
+            {subjectLabel ? (
+              <p
+                className="mt-1 text-sm font-bold text-pet-ink"
+                data-moment-subjects
+                style={theme ? { color: theme.colors.text } : undefined}
+              >
+                {subjectLabel}
+              </p>
+            ) : null}
             <p className="mt-2 text-xs font-bold text-pet-muted" style={theme ? { color: theme.colors.mutedText } : undefined}>
               {[moment.type, countLabel].filter(Boolean).join(" · ")}
             </p>

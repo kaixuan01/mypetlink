@@ -23,6 +23,42 @@ This is the **MyPetLink monorepo**. Read this file before making changes anywher
    - QR-only rows produced before this decision stay readable so existing tags, inventory, orders, invoices, and receipts remain correct. Do not delete the `TagType.QrPetTag` enum value, the legacy display fallbacks, or the admin filters that find that history.
 7. **Assigned inventory tags are not final.** Before an order ships, an admin can change the assigned tag (the old tag returns to unclaimed stock). After shipping/delivery/activation, use Replace Tag (the old tag becomes `Replaced` and its `/t` scan page stops showing owner contact). Both are admin-only, validate tag type/variant, and are audited. Inventory stock is consumed at assignment, not at order creation.
 
+## Social identity boundaries
+
+MyPetLink Social is under construction. Only the foundation exists — read
+[`docs/architecture/social-foundation.md`](docs/architecture/social-foundation.md)
+before touching anything social.
+
+1. **Three owner identities exist and must never be collapsed.**
+   - *Account*: `Users.Email` / `Users.DisplayName`. Never public.
+   - *Finder*: `OwnerProfiles.OwnerDisplayName` (and the per-pet override).
+     Shown to someone who found a lost pet, gated by `ShowOwnerName`.
+   - *Social*: `OwnerSocialProfiles`. Typed by the owner, never derived.
+
+   Never seed a social name or handle from an account name, a Google profile,
+   an email local part, or the finder-facing name. Handle suggestions may come
+   from pet names only.
+2. **Social is opt-in and starts off** — for owners and for pets, existing rows
+   and new ones. `PetPublicProfiles.IsPublicProfileEnabled` means "I will share
+   this link"; it never implies social participation. That is why
+   `PetSocialProfiles` is a separate table.
+3. **`PetMemories.AuthorUserId` is immutable.** It records who wrote the Moment.
+   Pet ownership transfer never rewrites it.
+4. **A multi-pet Moment consumes one allowance**, against the primary
+   `PetMemories.PetId`. `MomentPets` rows never count against a plan limit.
+   Phase 1 permits tagging only the authenticated user's own pets.
+5. **Filtered SQL indexes are a performance optimisation, never a privacy
+   control.** A wrong predicate still reads the base table. Enforce privacy
+   explicitly in the query, the authorization, the projection and the
+   visibility checks.
+6. **The actor is always the JWT subject.** No social endpoint accepts a user
+   id, owner id or actor id from a client.
+7. **Smart Tag scanning stays Safety Profile first.** `/q`, `/n` and `/t` must
+   never route to a social surface.
+8. **A general area is never an address.** Every surface that accepts one uses
+   `GeneralAreaRules`. Do not add a second validation path, and do not
+   introduce any automatic or precise location.
+
 ## Configuration ownership
 
 Every configurable value has exactly one authoritative owner. Before adding or

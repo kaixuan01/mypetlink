@@ -65,6 +65,7 @@ public sealed class PetService : SkeletonService, IPetService
         var age = ValidateCreateRequest(request);
         ValidateContact(request.Contact);
         ValidateCoverPosition(request.CoverPositionX, request.CoverPositionY);
+        var generalArea = ValidateGeneralArea(request.GeneralArea, "generalArea");
         await EnsureCanCreateActivePetAsync(user, cancellationToken);
 
         var publicCode = await GenerateUniquePublicCodeAsync(cancellationToken);
@@ -91,7 +92,7 @@ public sealed class PetService : SkeletonService, IPetService
             // Keep the pet-specific value null when the owner did not enter an
             // override. ResolveGeneralArea can still use the live owner default
             // at read time without copying it into the pet row.
-            GeneralArea = PetDtoMapper.NormalizeOptional(request.GeneralArea),
+            GeneralArea = generalArea,
             Bio = PetDtoMapper.NormalizeOptional(request.Bio),
             PersonalityTagsJson = PetDtoMapper.SerializePersonalityTags(request.PersonalityTags),
             FavoriteFoodsJson = PetDtoMapper.SerializeFavoriteList(
@@ -129,6 +130,15 @@ public sealed class PetService : SkeletonService, IPetService
                 ShowWhatsapp = visibility.ShowWhatsapp,
                 ShowEmergencyNote = visibility.ShowEmergencyNote,
                 ShowFoundLocationAction = true
+            },
+            // A new pet has a shareable public profile but is NOT in the social
+            // network. IsPublicProfileEnabled above means "I will hand this link
+            // to people"; being browsable by strangers is a separate decision,
+            // so both social switches start off and the owner turns them on.
+            SocialProfile = new PetSocialProfile
+            {
+                IsSocialEnabled = false,
+                IsDiscoverable = false
             }
         };
 
@@ -228,7 +238,7 @@ public sealed class PetService : SkeletonService, IPetService
 
         if (isFullProfileUpdate || request.GeneralArea is not null)
         {
-            pet.GeneralArea = PetDtoMapper.NormalizeOptional(request.GeneralArea);
+            pet.GeneralArea = ValidateGeneralArea(request.GeneralArea, "generalArea");
         }
 
         if (isFullProfileUpdate || request.Bio is not null)
@@ -602,7 +612,9 @@ public sealed class PetService : SkeletonService, IPetService
             PhoneE164 = useOwnerDefaults ? null : PetDtoMapper.NormalizeOptional(request.PhoneE164),
             WhatsappE164 = useOwnerDefaults ? null : PetDtoMapper.NormalizeOptional(request.WhatsappE164),
             EmergencyContactE164 = useOwnerDefaults ? null : PetDtoMapper.NormalizeOptional(request.EmergencyContactE164),
-            GeneralAreaOverride = useOwnerDefaults ? null : PetDtoMapper.NormalizeOptional(request.GeneralAreaOverride)
+            GeneralAreaOverride = useOwnerDefaults
+                ? null
+                : ValidateGeneralArea(request.GeneralAreaOverride, "contact.generalAreaOverride")
         };
     }
 
@@ -616,7 +628,9 @@ public sealed class PetService : SkeletonService, IPetService
         pet.Contact.EmergencyContactE164 = request.UseOwnerDefaults
             ? null
             : PetDtoMapper.NormalizeOptional(request.EmergencyContactE164);
-        pet.Contact.GeneralAreaOverride = request.UseOwnerDefaults ? null : PetDtoMapper.NormalizeOptional(request.GeneralAreaOverride);
+        pet.Contact.GeneralAreaOverride = request.UseOwnerDefaults
+            ? null
+            : ValidateGeneralArea(request.GeneralAreaOverride, "contact.generalAreaOverride");
     }
 
     private static void ApplyVisibility(Pet pet, PetVisibilityRequest visibility)
@@ -975,6 +989,32 @@ public sealed class PetService : SkeletonService, IPetService
         {
             errors[fieldName] = ["Use E.164 format, for example +60123456789."];
         }
+    }
+
+    /// <summary>
+    /// Cleans a general area and refuses one that is really a street address.
+    ///
+    /// This field is published — a finder sees it on the Safety Profile and a
+    /// visitor sees it on the Public Share Profile when the owner allows it — so
+    /// the difference between "Bangsar, Kuala Lumpur" and a house number is the
+    /// difference between helpful and unsafe. The rules live in
+    /// <see cref="GeneralAreaRules"/> so every surface that accepts one applies
+    /// exactly the same check.
+    /// </summary>
+    private static string? ValidateGeneralArea(string? value, string fieldName)
+    {
+        var normalized = GeneralAreaRules.Normalize(value);
+        var error = GeneralAreaRules.Validate(normalized);
+
+        if (error is not null)
+        {
+            throw ValidationFailed(new Dictionary<string, string[]>
+            {
+                [fieldName] = [error]
+            });
+        }
+
+        return normalized;
     }
 
     private async Task<string> GenerateUniquePublicCodeAsync(CancellationToken cancellationToken)

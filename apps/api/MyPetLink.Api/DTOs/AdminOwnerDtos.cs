@@ -62,7 +62,7 @@ public sealed record AdminOwnerSupportItemResponse(
     int TotalSmartTagCount,
     int MemoryCount,
     int MaxPets,
-    int MaxMemoriesPerPet,
+    int MaxPrivateMemoriesPerPet,
     bool PetUsageNearLimit,
     bool MemoryUsageNearLimit,
     DateTimeOffset JoinedAt,

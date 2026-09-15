@@ -54,8 +54,16 @@ public sealed class Pet : AuditableEntity
     public PetContact? Contact { get; set; }
     public PetPublicProfile? PublicProfile { get; set; }
     public PetSafetySetting? SafetySetting { get; set; }
+    /// <summary>
+    /// Social-network participation. Deliberately separate from
+    /// <see cref="PublicProfile"/>: sharing a link and being browsable by
+    /// strangers are different consents.
+    /// </summary>
+    public PetSocialProfile? SocialProfile { get; set; }
     public ICollection<MediaFile> MediaFiles { get; set; } = new List<MediaFile>();
     public ICollection<PetMemory> Memories { get; set; } = new List<PetMemory>();
+    /// <summary>Moments this pet appears in, including the ones it is the primary subject of.</summary>
+    public ICollection<MomentPet> MomentAppearances { get; set; } = new List<MomentPet>();
     public ICollection<CareRecord> CareRecords { get; set; } = new List<CareRecord>();
     public ICollection<SmartTag> SmartTags { get; set; } = new List<SmartTag>();
     public AdminUser? SampleEligibilityUpdatedByAdminUser { get; set; }

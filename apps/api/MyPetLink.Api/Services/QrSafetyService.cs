@@ -127,7 +127,46 @@ public sealed class QrSafetyService : SkeletonService, IQrSafetyService
             pet.ProfileTheme,
             PetDtoMapper.ParseAllergies(pet.AllergiesJson),
             safetySetting.ShowFoundLocationAction,
-            contact);
+            contact,
+            await ResolveSocialBridgeSlugAsync(pet, cancellationToken));
+    }
+
+    /// <summary>
+    /// Whether this finder may be offered the pet's Public Share Profile, and
+    /// where it is.
+    ///
+    /// Four separate consents, all required: the pet is shareable, the pet
+    /// participates socially, its household participates socially, and the pet
+    /// is neither archived nor memorial. Discoverability is deliberately NOT
+    /// among them — this is a direct link to a page the finder already reached
+    /// by scanning the animal in front of them, which is the opposite of
+    /// discovery, and treating it as discovery would quietly turn
+    /// IsDiscoverable into a private-profile switch.
+    ///
+    /// One scalar query, not an owner profile: the finder page needs a boolean,
+    /// and a finder page is the last place to load things it does not need.
+    /// </summary>
+    private async Task<string?> ResolveSocialBridgeSlugAsync(
+        Pet pet,
+        CancellationToken cancellationToken)
+    {
+        if (pet.PublicProfile is not { IsPublicProfileEnabled: true }
+            || pet.LifecycleStatus != PetLifecycleStatus.Active)
+        {
+            return null;
+        }
+
+        var socialParticipates = await _dbContext.Pets
+            .AsNoTracking()
+            .AnyAsync(
+                item => item.Id == pet.Id
+                    && item.SocialProfile != null
+                    && item.SocialProfile.IsSocialEnabled
+                    && item.OwnerUser.SocialProfile != null
+                    && item.OwnerUser.SocialProfile.IsSocialEnabled,
+                cancellationToken);
+
+        return socialParticipates ? PetDtoMapper.ResolvePublicSlug(pet) : null;
     }
 
     public async Task<PublicFinderSocialResponse> GetSocialBySafetyCodeAsync(
