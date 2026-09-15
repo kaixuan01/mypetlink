@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using MyPetLink.Api.Common;
 using MyPetLink.Api.Data;
+using MyPetLink.Api.DTOs;
 using MyPetLink.Api.Entities;
 
 namespace MyPetLink.Api.Services;
@@ -199,6 +200,192 @@ public sealed class OwnerHandleService : SkeletonService, IOwnerHandleService
             // else would be told.
             throw HandleUnavailable();
         }
+    }
+
+    /// <summary>
+    /// An owner's current handle and whether it is a protected name, for the
+    /// admin screen. Reads one profile row and carries no account or finder
+    /// identity.
+    /// </summary>
+    public async Task<AdminOwnerSocialHandleResponse> GetOwnerHandleAsync(
+        Guid targetUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var profile = await _dbContext.OwnerSocialProfiles
+            .AsNoTracking()
+            .Where(item => item.UserId == targetUserId)
+            .Select(item => new
+            {
+                item.Handle,
+                item.NormalizedHandle,
+                item.IsSocialEnabled
+            })
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (profile is null)
+        {
+            // Every account gets a row on first read of its own settings, so an
+            // owner who has never opened the social screen has none yet. That is
+            // a real state, not an error: report it as "no handle".
+            return new AdminOwnerSocialHandleResponse(targetUserId, null, false, false);
+        }
+
+        return new AdminOwnerSocialHandleResponse(
+            targetUserId,
+            profile.Handle,
+            OwnerHandleRules.IsSystemReserved(profile.NormalizedHandle),
+            profile.IsSocialEnabled);
+    }
+
+    /// <summary>
+    /// Gives a reserved handle to a social profile, on an administrator's
+    /// authority.
+    ///
+    /// This is the only way <c>@mypetlink</c> can ever be held, and it is
+    /// deliberately a different door from <see cref="ClaimAsync"/> rather than a
+    /// flag on it: the self-service path must have no parameter, header or body
+    /// field that could widen what it is allowed to do. Authorization is the
+    /// caller's problem and is enforced at the controller by an admin
+    /// capability; this method assumes it has already been established.
+    ///
+    /// What it will not do:
+    /// <list type="bullet">
+    /// <item>assign a name that is <b>not</b> reserved — ordinary handles go
+    /// through the owner's own screen, so this cannot become a way to hand
+    /// somebody a name another person was about to take;</item>
+    /// <item>take a reserved handle off a profile that currently holds it
+    /// unless the caller explicitly asked to reassign it;</item>
+    /// <item>enable Social, or change any other part of the profile.</item>
+    /// </list>
+    ///
+    /// The reservation row is left exactly as it is. A System reservation is
+    /// what keeps the name unclaimable, and it has to outlive the assignment —
+    /// otherwise the day this profile gives the handle up, the brand name would
+    /// fall into the public pool.
+    /// </summary>
+    public async Task<OwnerSocialProfile> AssignReservedHandleAsync(
+        Guid adminUserId,
+        Guid targetUserId,
+        string requestedHandle,
+        bool confirmReassign,
+        CancellationToken cancellationToken = default)
+    {
+        var normalized = OwnerHandleRules.Normalize(requestedHandle);
+        var shapeError = OwnerHandleRules.ValidateShape(normalized);
+
+        if (shapeError is not null)
+        {
+            throw ValidationFailed("handle", shapeError);
+        }
+
+        if (!OwnerHandleRules.IsSystemReserved(normalized))
+        {
+            // Not a brand or route name. An owner can take this themselves, and
+            // an administrator handing out ordinary names would be a way around
+            // the cooldown and the release hold.
+            throw ValidationFailed(
+                "handle",
+                "This is not a reserved handle. Only protected names are assigned here.");
+        }
+
+        var profile = await _dbContext.OwnerSocialProfiles
+            .SingleOrDefaultAsync(item => item.UserId == targetUserId, cancellationToken)
+            ?? throw new ApiException(
+                StatusCodes.Status404NotFound,
+                "not_found",
+                "This owner does not have a social profile yet.");
+
+        var currentHolder = await _dbContext.OwnerSocialProfiles
+            .Where(item => item.NormalizedHandle == normalized)
+            .Select(item => new { item.UserId })
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (currentHolder is not null && currentHolder.UserId == targetUserId)
+        {
+            // Already theirs. Nothing to do, and nothing to record.
+            return profile;
+        }
+
+        if (currentHolder is not null && !confirmReassign)
+        {
+            throw new ApiException(
+                StatusCodes.Status409Conflict,
+                "reserved_handle_assigned",
+                "Another social profile already holds this reserved handle. "
+                + "Reassign it explicitly if that is what you intend.");
+        }
+
+        var display = OwnerHandleRules.NormalizeForDisplay(requestedHandle)!;
+        var previousHandle = profile.Handle;
+        var previousNormalizedHandle = profile.NormalizedHandle;
+        var isRename = !string.IsNullOrEmpty(previousNormalizedHandle);
+
+        // The owner's 30-day rename cooldown is deliberately NOT applied. It
+        // exists to stop an account cycling through names faster than anyone can
+        // report it; an administrator acting under an audited capability is not
+        // that, and letting a stale cooldown block the brand identity would make
+        // the recovery path unusable exactly when it is needed.
+        if (currentHolder is not null)
+        {
+            var previousHolderProfile = await _dbContext.OwnerSocialProfiles
+                .SingleAsync(item => item.NormalizedHandle == normalized, cancellationToken);
+
+            _dbContext.OwnerHandleHistories.Add(new OwnerHandleHistory
+            {
+                UserId = previousHolderProfile.UserId,
+                Handle = previousHolderProfile.Handle ?? normalized!,
+                NormalizedHandle = normalized!,
+                ChangedAt = _timeProvider.GetUtcNow()
+            });
+
+            previousHolderProfile.Handle = null;
+            previousHolderProfile.NormalizedHandle = null;
+        }
+
+        profile.Handle = display;
+        profile.NormalizedHandle = normalized;
+
+        if (isRename)
+        {
+            _dbContext.OwnerHandleHistories.Add(new OwnerHandleHistory
+            {
+                UserId = profile.UserId,
+                Handle = previousHandle ?? previousNormalizedHandle!,
+                NormalizedHandle = previousNormalizedHandle!,
+                ChangedAt = _timeProvider.GetUtcNow()
+            });
+
+            // The name they gave up follows the ordinary hold, so a link shared
+            // last week does not start resolving to somebody else.
+            await HoldReleasedHandleAsync(previousNormalizedHandle!, profile.UserId, cancellationToken);
+        }
+
+        _auditLog.Append(
+            adminUserId,
+            ActorType.Admin,
+            "OwnerSocialReservedHandleAssigned",
+            nameof(OwnerSocialProfile),
+            profile.Id,
+            new { TargetUserId = targetUserId, Handle = previousHandle },
+            new { TargetUserId = targetUserId, Handle = display, Reassigned = currentHolder is not null });
+
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception) when (
+            UniqueConstraintViolation.IsFor(exception, HandleUniqueIndexName))
+        {
+            // Two administrators aimed the same reserved handle at two profiles
+            // at the same moment. The unique index decides; this one lost.
+            throw new ApiException(
+                StatusCodes.Status409Conflict,
+                "reserved_handle_assigned",
+                "Another social profile already holds this reserved handle. "
+                + "Reload and try again.");
+        }
+
+        return profile;
     }
 
     /// <summary>

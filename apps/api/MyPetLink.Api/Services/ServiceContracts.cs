@@ -221,6 +221,23 @@ public interface IOwnerHandleService : ISkeletonService
         OwnerSocialProfile profile,
         string requestedHandle,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Administrator-only. Gives a reserved handle to a social profile — the
+    /// only path by which a protected name such as the official MyPetLink
+    /// account can ever be held. Authorization is enforced at the controller.
+    /// </summary>
+    /// <summary>The owner's current handle and whether it is protected.</summary>
+    Task<AdminOwnerSocialHandleResponse> GetOwnerHandleAsync(
+        Guid targetUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<OwnerSocialProfile> AssignReservedHandleAsync(
+        Guid adminUserId,
+        Guid targetUserId,
+        string requestedHandle,
+        bool confirmReassign,
+        CancellationToken cancellationToken = default);
 }
 
 public interface ISkeletonService

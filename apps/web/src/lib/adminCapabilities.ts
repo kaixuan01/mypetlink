@@ -51,6 +51,7 @@ export const adminCapabilities = {
   petsView: "pets.view",
   petsManage: "pets.manage",
   petsExport: "pets.export",
+  ownerSocialHandleAssign: "owners.social_handle.assign",
 
   // Merchant sales
   salesView: "sales.view",

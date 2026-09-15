@@ -148,3 +148,38 @@ public sealed record UpdatePetSocialSettingsRequest(
     /// consent the owner has just withdrawn somewhere else.
     /// </summary>
     string? RowVersion);
+
+/// <summary>
+/// An administrator giving a reserved handle to an owner's social profile.
+///
+/// The target is named by owner id in the route, not here, and there is no
+/// field that widens what the operation may do — reassigning a handle somebody
+/// already holds is a separate, explicit acknowledgement rather than a quiet
+/// default.
+/// </summary>
+public sealed record AssignReservedHandleRequest(
+    [Required, MaxLength(OwnerHandleRules.MaxLength)]
+    string Handle,
+
+    /// <summary>
+    /// Required only when another social profile currently holds the handle.
+    /// Without it that case is refused, so a mistyped owner id cannot quietly
+    /// take the brand identity off the account that has it.
+    /// </summary>
+    bool ConfirmReassign = false);
+
+/// <summary>
+/// What an administrator sees about an owner's social handle, and whether it is
+/// a protected name. Carries no account or finder identity.
+/// </summary>
+public sealed record AdminOwnerSocialHandleResponse(
+    Guid UserId,
+    string? Handle,
+    bool IsReservedHandle,
+
+    /// <summary>
+    /// Whether the profile is switched on. Assigning a handle deliberately does
+    /// not change this — the admin screen says so rather than publishing a
+    /// profile the owner has not turned on.
+    /// </summary>
+    bool IsSocialEnabled);

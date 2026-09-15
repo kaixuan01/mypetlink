@@ -15,15 +15,18 @@ public sealed class AdminOwnersController : ApiControllerBase
 {
     private readonly IAdminService _adminService;
     private readonly IAdminOwnerQueryService _ownerQueryService;
+    private readonly IOwnerHandleService _ownerHandleService;
     private readonly ICurrentUserService _currentUserService;
 
     public AdminOwnersController(
         IAdminService adminService,
         IAdminOwnerQueryService ownerQueryService,
+        IOwnerHandleService ownerHandleService,
         ICurrentUserService currentUserService)
     {
         _adminService = adminService;
         _ownerQueryService = ownerQueryService;
+        _ownerHandleService = ownerHandleService;
         _currentUserService = currentUserService;
     }
 
@@ -102,6 +105,51 @@ public sealed class AdminOwnersController : ApiControllerBase
             _currentUserService.Current.UserId,
             ownerId,
             cancellationToken);
+        return Ok(ApiEnvelope.Ok(response, HttpContext));
+    }
+
+    /// <summary>
+    /// The owner's social handle, and whether it is a protected name.
+    /// </summary>
+    [HttpGet("{ownerId:guid}/social-handle")]
+    public async Task<IActionResult> GetSocialHandle(
+        Guid ownerId,
+        CancellationToken cancellationToken)
+    {
+        Response.Headers.CacheControl = "no-store";
+
+        var response = await _ownerHandleService.GetOwnerHandleAsync(ownerId, cancellationToken);
+        return Ok(ApiEnvelope.Ok(response, HttpContext));
+    }
+
+    /// <summary>
+    /// Assigns a reserved handle — a brand or route name no owner can claim — to
+    /// this owner's social profile.
+    ///
+    /// Behind its own capability rather than <c>owners.manage</c>: helping an
+    /// owner with their account and handing out the MyPetLink identity itself
+    /// are different powers, and no built-in role template is granted this one,
+    /// so it starts as Super Admin only.
+    ///
+    /// This is a separate route from the owner's own handle endpoint on purpose.
+    /// The self-service path has no parameter that could widen it, so there is
+    /// nothing a normal client could send to reach this behaviour.
+    /// </summary>
+    [HttpPost("{ownerId:guid}/social-handle")]
+    [Authorize(Policy = AdminCapabilities.OwnerSocialHandleAssign)]
+    public async Task<IActionResult> AssignSocialHandle(
+        Guid ownerId,
+        [FromBody] AssignReservedHandleRequest request,
+        CancellationToken cancellationToken)
+    {
+        await _ownerHandleService.AssignReservedHandleAsync(
+            _currentUserService.Current.UserId!.Value,
+            ownerId,
+            request.Handle,
+            request.ConfirmReassign,
+            cancellationToken);
+
+        var response = await _ownerHandleService.GetOwnerHandleAsync(ownerId, cancellationToken);
         return Ok(ApiEnvelope.Ok(response, HttpContext));
     }
 

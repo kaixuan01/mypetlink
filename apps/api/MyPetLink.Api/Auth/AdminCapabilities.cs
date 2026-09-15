@@ -58,6 +58,18 @@ public static class AdminCapabilities
     public const string PetsManage = "pets.manage";
     public const string PetsExport = "pets.export";
 
+    /// <summary>
+    /// Assigning a reserved social handle — a brand or route name that no owner
+    /// can claim — to an owner's social profile.
+    ///
+    /// Narrow on purpose, and deliberately not part of <c>owners.manage</c>:
+    /// helping an owner with their account and handing out the MyPetLink
+    /// identity itself are different powers. Granted to no built-in role
+    /// template, so only Super Admin holds it until somebody is given it
+    /// explicitly.
+    /// </summary>
+    public const string OwnerSocialHandleAssign = "owners.social_handle.assign";
+
     // --- Merchant sales -------------------------------------------------------
     // "Reseller" and "merchant" are the same record in this system, so sales.*
     // deliberately governs both rather than adding a parallel resellers.* key.

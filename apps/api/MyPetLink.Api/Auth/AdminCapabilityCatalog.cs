@@ -177,6 +177,10 @@ public static class AdminCapabilityCatalog
                     "Open the pet list and an individual pet profile."),
                 Write(C.PetsManage, "customers", "Owners and Pets", "Manage pet profiles",
                     "Change pet settings that support staff can adjust on an owner's behalf."),
+                Sensitive(C.OwnerSocialHandleAssign, "customers", "Owners and Pets",
+                    "Assign a reserved social handle",
+                    "Give an owner's social profile a protected name such as the official "
+                    + "MyPetLink account. Reserved names can never be claimed by owners themselves."),
                 Sensitive(C.PetsExport, "customers", "Owners and Pets", "Download pet records",
                     "Download pet data as a spreadsheet."),
             ]),

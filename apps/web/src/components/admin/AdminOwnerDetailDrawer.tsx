@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AdminDetailItem } from "@/components/admin/AdminPanels";
+import { AdminOwnerSocialHandleSection } from "@/components/admin/AdminOwnerSocialHandleSection";
 import { formatAdminDateTime, lifecycleTone, tagStatusTone } from "@/components/admin/adminDisplay";
 import { Badge } from "@/components/ui/Badge";
 import { adminRoutes } from "@/lib/routes";
@@ -194,6 +195,8 @@ export function AdminOwnerDetailDrawer({
                   <EmptyLine>No welcome email has been queued for this owner.</EmptyLine>
                 )}
               </section>
+
+              <AdminOwnerSocialHandleSection ownerUserId={owner.ownerUserId} />
 
               <section aria-labelledby="owner-usage-heading">
                 <h3 className="text-sm font-black text-slate-900" id="owner-usage-heading">Plan and usage</h3>

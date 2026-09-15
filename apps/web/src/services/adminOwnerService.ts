@@ -241,6 +241,53 @@ export async function retryAdminOwnerWelcomeEmail(ownerId: string) {
   return response.data;
 }
 
+/**
+ * An owner's social handle, and whether it is a protected name.
+ *
+ * Reserved handles — brand and route names such as `mypetlink` — can never be
+ * claimed by an owner. This is the only surface that can put one on an account,
+ * and it is behind its own admin capability.
+ */
+export type AdminOwnerSocialHandle = {
+  userId: string;
+  handle: string;
+  isReservedHandle: boolean;
+  isSocialEnabled: boolean;
+};
+
+function mapSocialHandle(payload: {
+  userId?: string | null;
+  handle?: string | null;
+  isReservedHandle?: boolean | null;
+  isSocialEnabled?: boolean | null;
+}): AdminOwnerSocialHandle {
+  return {
+    userId: payload.userId ?? "",
+    handle: payload.handle ?? "",
+    isReservedHandle: payload.isReservedHandle ?? false,
+    isSocialEnabled: payload.isSocialEnabled ?? false,
+  };
+}
+
+export async function getAdminOwnerSocialHandle(ownerId: string) {
+  const response = await apiRequest<Parameters<typeof mapSocialHandle>[0]>(
+    `/api/v1/admin/owners/${encodeURIComponent(ownerId)}/social-handle`
+  );
+  return mapSocialHandle(response.data ?? {});
+}
+
+export async function assignAdminOwnerSocialHandle(
+  ownerId: string,
+  handle: string,
+  confirmReassign = false
+) {
+  const response = await apiRequest<Parameters<typeof mapSocialHandle>[0]>(
+    `/api/v1/admin/owners/${encodeURIComponent(ownerId)}/social-handle`,
+    { method: "POST", body: { handle, confirmReassign } }
+  );
+  return mapSocialHandle(response.data ?? {});
+}
+
 export function getAdminOwnerExportFormats(): ("csv" | "xlsx")[] {
   return canUseAdminApi() ? ["csv", "xlsx"] : ["csv"];
 }
