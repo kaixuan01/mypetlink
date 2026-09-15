@@ -8,6 +8,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:social-off": "node scripts/build-release.mjs off",
+    "build:social-on": "node scripts/build-release.mjs on",
+    "verify:social-flag": "node scripts/verify-social-flag.mjs",
     "build:functions": "wrangler pages functions build functions --outdir .wrangler/functions-build --project-directory . --build-output-directory out --compatibility-date 2026-07-13",
     "verify:seo": "node scripts/verify-seo-output.mjs",
     "start": "next start",

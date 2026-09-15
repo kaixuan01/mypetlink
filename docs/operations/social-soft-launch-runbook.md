@@ -54,10 +54,22 @@ Each step is reversible. Do them in this order.
    `publicProfileSlug` field, which stays null for everybody until a household
    enables Social.
 
-3. **Deploy the web app with Social still off.** Verify the site is unchanged:
-   no Community group in the sidebar, no Social section in Owner Settings, no
-   Follow button on a pet's public page, and the mobile bar is the management
-   one.
+3. **Deploy the web app with Social still off.** Build it with the command
+   that states the flag rather than inheriting it:
+
+   ```bash
+   npm --workspace apps/web run build:social-off
+   ```
+
+   `next build` reads `.env.local`, which is gitignored and differs on every
+   machine, so a build command that simply omits `NEXT_PUBLIC_SOCIAL_ENABLED`
+   gets whatever that file happens to say. This script sets the value in the
+   build's environment, where it beats any `.env` file, and then checks the
+   artifact it produced instead of trusting the request.
+
+   Then verify the site is unchanged: no Community group in the sidebar, no
+   Social section in Owner Settings, no Follow button on a pet's public page,
+   and the mobile bar is the management one.
 
 4. **Smoke-test the finder routes before enabling anything.** This is the
    check that matters most, and it must pass with Social off:
@@ -70,11 +82,22 @@ Each step is reversible. Do them in this order.
    a pet page and a Safety Profile. None of them may issue a social request or
    fail if one would have.
 
-6. **Enable Social for the cohort.** Set `NEXT_PUBLIC_SOCIAL_ENABLED=true` and
-   redeploy the web app. This is a build-time value, so it is a web deploy, not
-   a runtime toggle — that is the trade for a static export. There is no API
-   flag to change: the endpoints were already live and simply had no entry
-   points.
+6. **Enable Social for the cohort.** Build and deploy the other artifact:
+
+   ```bash
+   npm --workspace apps/web run build:social-on
+   ```
+
+   This is a build-time value, so enabling Social is a web deploy, not a runtime
+   toggle — that is the trade for a static export. There is no API flag to
+   change: the endpoints were already live and simply had no entry points.
+
+   **What the flag does and does not do.** It decides what the owner portal
+   renders. It does not remove Social code from the JavaScript bundle, and it
+   does not close the routes: `/feed`, `/explore`, `/search` and `/u/{handle}`
+   stay reachable in both artifacts, exactly as `/p/` does under its own flag.
+   Nobody participates until they opt in, so an artifact with Social off and one
+   with Social on differ in what is *offered*, never in what exists.
 
 7. **Walk the manual smoke test below** as a real owner account.
 

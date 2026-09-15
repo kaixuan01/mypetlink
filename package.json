@@ -10,6 +10,8 @@
   "scripts": {
     "dev:web": "npm --workspace apps/web run dev",
     "build:web": "npm --workspace apps/web run build",
+    "build:web-social-off": "npm --workspace apps/web run build:social-off",
+    "build:web-social-on": "npm --workspace apps/web run build:social-on",
     "build:web-functions": "npm --workspace apps/web run build:functions",
     "start:web": "npm --workspace apps/web run start",
     "lint:web": "npm --workspace apps/web run lint",

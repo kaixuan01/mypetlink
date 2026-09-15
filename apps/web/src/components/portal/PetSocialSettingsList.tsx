@@ -175,11 +175,18 @@ export function PetSocialSettingsList({
 
         return (
           <div
-            className="grid gap-2 rounded-2xl border border-pet-border p-4"
+            className="grid min-w-0 gap-2 rounded-2xl border border-pet-border p-4"
             data-testid="pet-social-row"
             key={pet.petId}
           >
-            <div className="flex items-center gap-3">
+            {/*
+              min-w-0 on the row: `truncate` sets white-space: nowrap, which
+              makes the name's min-content the whole unwrapped string. Without
+              a shrinkable chain above it that width becomes the card's floor,
+              and a pet with a long name pushes the settings card off screen
+              rather than getting an ellipsis.
+            */}
+            <div className="flex min-w-0 items-center gap-3">
               {pet.photoThumbnailUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img

@@ -307,9 +307,18 @@ export function SocialProfileSettings({ petNames = [] }: SocialProfileSettingsPr
           </p>
         ) : null}
 
-        <div className="grid gap-2">
+        <div className="grid min-w-0 gap-2">
           <span className="text-sm font-bold text-pet-ink">Profile picture</span>
-          <div className="flex items-center gap-4">
+          {/*
+            A visible native file input asserts a user-agent intrinsic width —
+            wide enough for "Choose file / No file chosen" plus the file: button
+            padding — and a flex item's default min-width:auto will not shrink
+            below it. Left unchecked that floor propagates up the whole card.
+            min-w-0 on both levels lets the chain shrink, w-full makes the input
+            take the room it is given instead of the room it wants, and wrapping
+            moves the control under the avatar before either has to be clipped.
+          */}
+          <div className="flex min-w-0 flex-wrap items-center gap-4">
             <span className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-full border border-pet-border bg-pet-cream">
               {profile.avatarThumbnailUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -322,10 +331,10 @@ export function SocialProfileSettings({ petNames = [] }: SocialProfileSettingsPr
                 <Icon name="pets" className="h-6 w-6 text-pet-muted" />
               )}
             </span>
-            <div className="grid gap-1">
+            <div className="grid min-w-0 flex-1 basis-56 gap-1">
               <input
                 accept="image/jpeg,image/png,image/webp"
-                className="text-sm font-semibold text-pet-muted file:mr-3 file:rounded-full file:border-0 file:bg-pet-teal file:px-4 file:py-2 file:text-sm file:font-bold file:text-white"
+                className="w-full min-w-0 text-sm font-semibold text-pet-muted file:mr-3 file:rounded-full file:border-0 file:bg-pet-teal file:px-4 file:py-2 file:text-sm file:font-bold file:text-white"
                 disabled={avatarBusy}
                 id="social-avatar-input"
                 onChange={(event) => {
