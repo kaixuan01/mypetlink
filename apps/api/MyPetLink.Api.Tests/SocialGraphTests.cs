@@ -106,6 +106,54 @@ public sealed class SocialGraphTests
         Assert.Equal("followers_not_allowed", error.Code);
     }
 
+    /// <summary>
+    /// The settings screen keeps a stored "let other owners follow me" while the
+    /// social profile itself is off, so the owner gets their choice back when
+    /// they switch it on again. That preserved preference must never be mistaken
+    /// for permission: with the profile off there is nothing to follow, whatever
+    /// the stored value says.
+    /// </summary>
+    [Fact]
+    public async Task SocialOff_PreservesAllowFollowersPreferenceButDoesNotAllowNewFollows()
+    {
+        using var harness = await Harness.CreateAsync();
+
+        await harness.SetAllowFollowersAsync(AliceId, allow: true);
+        await harness.SetSocialAsync(AliceId, enabled: false);
+
+        var error = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Graph.FollowAsync(BobId, "tanfamily"));
+
+        // Refused because the profile is unavailable, not because followers are
+        // disallowed — the preference is still sitting there, untouched.
+        Assert.Equal(StatusCodes.Status404NotFound, error.StatusCode);
+
+        var stored = await harness.Db.OwnerSocialProfiles
+            .AsNoTracking()
+            .SingleAsync(profile => profile.UserId == AliceId);
+
+        Assert.True(stored.AllowFollowers);
+        Assert.False(stored.IsSocialEnabled);
+        Assert.Empty(await harness.Db.OwnerFollows.ToListAsync());
+    }
+
+    [Fact]
+    public async Task SocialOff_ThenOnAgain_RestoresTheStoredFollowerPreference()
+    {
+        using var harness = await Harness.CreateAsync();
+
+        await harness.SetAllowFollowersAsync(AliceId, allow: false);
+        await harness.SetSocialAsync(AliceId, enabled: false);
+        await harness.SetSocialAsync(AliceId, enabled: true);
+
+        // The choice they made survives the round trip rather than resetting to
+        // the permissive default.
+        var error = await Assert.ThrowsAsync<ApiException>(() =>
+            harness.Graph.FollowAsync(BobId, "tanfamily"));
+
+        Assert.Equal("followers_not_allowed", error.Code);
+    }
+
     [Fact]
     public async Task Blocking_RemovesFollowsInBothDirections()
     {

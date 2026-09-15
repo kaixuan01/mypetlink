@@ -34,6 +34,13 @@ import {
 
 type HandleState = "idle" | "checking" | "available" | "unavailable" | "invalid";
 
+/** Which input a server-side field error belongs to, so focus can land on it. */
+const fieldInputIds: Record<string, string> = {
+  displayName: "social-display-name-input",
+  bio: "social-bio-input",
+  generalArea: "social-general-area-input",
+};
+
 type SocialProfileSettingsProps = {
   /** Used only to suggest a friendly handle and display name. */
   petNames?: string[];
@@ -108,6 +115,39 @@ export function SocialProfileSettings({ petNames = [] }: SocialProfileSettingsPr
 
   const handleSuggestions = suggestHandlesFromPetNames(petNames);
   const displayNameSuggestion = suggestSocialDisplayName(petNames);
+
+  /**
+   * What actually stands between this owner and a live social profile.
+   *
+   * The server reports `canEnableSocial` from the profile it has STORED, which
+   * is the right answer to "may this be enabled right now" and the wrong thing
+   * to disable a switch with: the display name is usually the very field being
+   * filled in when somebody first sets Social up, so the switch sat dead while
+   * a perfectly good name was on screen, under helper text telling them to do
+   * the thing they had just done.
+   *
+   * So the prerequisite is read from what the screen is about to save. The
+   * handle is the exception and is deliberately read from stored state — it has
+   * its own uniqueness, reservation, history and cooldown rules, so it is
+   * claimed by its own button and never carried along by this one.
+   */
+  const persistedHandle = profile.handle.trim();
+  const draftDisplayNameError = getSocialDisplayNameError(displayName);
+  const missingPrerequisite: "handle" | "displayName" | null = !persistedHandle
+    ? "handle"
+    : draftDisplayNameError
+      ? "displayName"
+      : null;
+
+  // Turning it OFF is a withdrawal and must never be gated on anything.
+  const canToggleSocial = profile.isSocialEnabled || missingPrerequisite === null;
+
+  const socialEnableHelperText =
+    missingPrerequisite === "handle"
+      ? "Choose and save a handle before turning on your social profile."
+      : missingPrerequisite === "displayName"
+        ? "Add a display name before turning on your social profile."
+        : "Other owners can see your profile and the Moments you share publicly.";
   const cooldownUntil = profile.handleChangeAvailableAt
     ? new Date(profile.handleChangeAvailableAt)
     : null;
@@ -227,12 +267,49 @@ export function SocialProfileSettings({ petNames = [] }: SocialProfileSettingsPr
       applyProfile(response.data);
       setSaveMessage("Saved.");
     } catch (error) {
+      // The switches render from `profile`, which is only ever replaced by a
+      // server response. Nothing below moves them, so a refused change cannot
+      // leave a toggle claiming something the server did not accept.
+      if (isApiClientError(error) && error.status === 409) {
+        // Changed in another tab or on another device. Take the server's
+        // version so the screen stops disagreeing with it; the typed draft is
+        // replaced because it was written against a profile that no longer
+        // exists.
+        try {
+          const current = await getOwnerSocialProfile();
+          applyProfile(current.data);
+        } catch {
+          // Leave what is on screen; the message below still explains it.
+        }
+
+        setFieldErrors({});
+        setSaveMessage(
+          "Your social profile was changed somewhere else, so we've reloaded it. "
+            + "Check it over and try again."
+        );
+        return;
+      }
+
+      if (isApiClientError(error) && error.status === 429) {
+        setSaveMessage("That's a lot of changes at once. Please try again shortly.");
+        return;
+      }
+
       if (isApiClientError(error) && error.details) {
         const details: Record<string, string> = {};
         for (const [field, messages] of Object.entries(error.details)) {
           if (messages?.[0]) details[field] = messages[0];
         }
         setFieldErrors(details);
+
+        // We know which field is wrong, so say that rather than a generic
+        // failure, and put the cursor where the fix has to happen.
+        const [firstField, firstMessage] = Object.entries(details)[0] ?? [];
+        if (firstField && firstMessage) {
+          setSaveMessage(firstMessage);
+          document.getElementById(fieldInputIds[firstField] ?? "")?.focus();
+          return;
+        }
       }
 
       setSaveMessage(
@@ -472,12 +549,8 @@ export function SocialProfileSettings({ petNames = [] }: SocialProfileSettingsPr
           <SettingRow
             checked={profile.isSocialEnabled}
             control="switch"
-            disabled={!loaded || saving || (!profile.isSocialEnabled && !profile.canEnableSocial)}
-            helperText={
-              profile.canEnableSocial || profile.isSocialEnabled
-                ? "Other owners can see your profile and the Moments you share publicly."
-                : "Choose a handle and a display name first."
-            }
+            disabled={!loaded || saving || !canToggleSocial}
+            helperText={socialEnableHelperText}
             id="social-enabled-switch"
             label="Turn on my social profile"
             onChange={(checked) => void saveProfile({ isSocialEnabled: checked })}
@@ -487,7 +560,14 @@ export function SocialProfileSettings({ petNames = [] }: SocialProfileSettingsPr
             checked={profile.isDiscoverable}
             control="switch"
             disabled={!loaded || saving || !profile.isSocialEnabled}
-            helperText="Let people who don't have your link find you when they browse or search."
+            helperText={
+              profile.isSocialEnabled
+                ? "Let people who don't have your link find you when they browse or search."
+                : // Kept, not erased — but nothing is discoverable while the
+                  // profile itself is off, and a switch showing blue with no
+                  // explanation would claim otherwise.
+                  "This preference will apply when your social profile is turned on."
+            }
             id="social-discoverable-switch"
             label="Show me in search and browsing"
             onChange={(checked) => void saveProfile({ isDiscoverable: checked })}
@@ -497,7 +577,11 @@ export function SocialProfileSettings({ petNames = [] }: SocialProfileSettingsPr
             checked={profile.allowFollowers}
             control="switch"
             disabled={!loaded || saving || !profile.isSocialEnabled}
-            helperText="Turn this off and nobody new can follow you."
+            helperText={
+              profile.isSocialEnabled
+                ? "Turn this off and nobody new can follow you."
+                : "This preference will apply when your social profile is turned on."
+            }
             id="social-allow-followers-switch"
             label="Let other owners follow me"
             onChange={(checked) => void saveProfile({ allowFollowers: checked })}
