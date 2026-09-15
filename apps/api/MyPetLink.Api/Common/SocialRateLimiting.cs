@@ -14,8 +14,20 @@ public static class SocialRateLimitPolicies
     /// <summary>Follow and unfollow. Per account.</summary>
     public const string Follow = "social-follow";
 
-    /// <summary>Like and unlike. Per account.</summary>
+    /// <summary>Liking. Per account. Unliking uses <see cref="Withdraw"/>.</summary>
     public const string Like = "social-like";
+
+    /// <summary>
+    /// Taking something back: unfollow, unlike, unblock.
+    ///
+    /// Deliberately NOT the same bucket as the action it undoes. Sharing one
+    /// allowance means somebody who follows thirty accounts in an hour then
+    /// cannot unfollow any of them for the rest of it — the limit stops the
+    /// recovery rather than the abuse. Nothing is opened up by being generous
+    /// here, because the doing side is already bounded: follow-unfollow churn
+    /// is capped by the follow limit whatever this one says.
+    /// </summary>
+    public const string Withdraw = "social-withdraw";
 
     /// <summary>Creating a Moment. Per account. Also bounds media upload volume.</summary>
     public const string MomentCreate = "social-moment-create";
@@ -100,6 +112,17 @@ public sealed class SocialRateLimitingOptions
     public RequestRateLimitOptions ProfileMutation { get; init; } = new()
     {
         PermitLimit = 20,
+        WindowSeconds = 3600,
+        QueueLimit = 0
+    };
+
+    /// <summary>
+    /// ~200 per hour. Generous on purpose: undoing is the recovery path, and a
+    /// limit that blocks recovery is worse than the churn it prevents.
+    /// </summary>
+    public RequestRateLimitOptions Withdraw { get; init; } = new()
+    {
+        PermitLimit = 200,
         WindowSeconds = 3600,
         QueueLimit = 0
     };

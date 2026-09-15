@@ -66,7 +66,7 @@ public sealed class SocialGraphController : ApiControllerBase
 
     [Authorize]
     [HttpDelete("follow")]
-    [EnableRateLimiting(SocialRateLimitPolicies.Follow)]
+    [EnableRateLimiting(SocialRateLimitPolicies.Withdraw)]
     public async Task<IActionResult> Unfollow(string handle, CancellationToken cancellationToken)
     {
         var response = await _socialGraph.UnfollowAsync(
@@ -96,7 +96,7 @@ public sealed class SocialGraphController : ApiControllerBase
 
     [Authorize]
     [HttpDelete("block")]
-    [EnableRateLimiting(SocialRateLimitPolicies.ProfileMutation)]
+    [EnableRateLimiting(SocialRateLimitPolicies.Withdraw)]
     public async Task<IActionResult> Unblock(string handle, CancellationToken cancellationToken)
     {
         var response = await _socialGraph.UnblockAsync(

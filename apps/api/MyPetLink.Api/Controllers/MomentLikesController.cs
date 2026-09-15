@@ -42,7 +42,7 @@ public sealed class MomentLikesController : ApiControllerBase
     }
 
     [HttpDelete("like")]
-    [EnableRateLimiting(SocialRateLimitPolicies.Like)]
+    [EnableRateLimiting(SocialRateLimitPolicies.Withdraw)]
     public async Task<IActionResult> Unlike(Guid momentId, CancellationToken cancellationToken)
     {
         var response = await _likes.UnlikeAsync(

@@ -148,6 +148,10 @@ builder.Services.AddRateLimiter(options =>
         options,
         SocialRateLimitPolicies.ProfileMutation,
         social => social.ProfileMutation);
+    AddSocialPolicy(
+        options,
+        SocialRateLimitPolicies.Withdraw,
+        social => social.Withdraw);
 
     options.OnRejected = async (context, cancellationToken) =>
     {
@@ -376,6 +380,7 @@ builder.Services.AddAuthorization(options =>
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IDevelopmentAdminSeeder, DevelopmentAdminSeeder>();
+builder.Services.AddScoped<IDevelopmentSocialSeeder, DevelopmentSocialSeeder>();
 builder.Services.AddSingleton<IDevelopmentAuthRequestGuard, DevelopmentAuthRequestGuard>();
 builder.Services.AddScoped<IOwnerProfileService, OwnerProfileService>();
 builder.Services.AddScoped<IExternalAuthService, ExternalAuthService>();
@@ -530,6 +535,13 @@ if (app.Environment.IsDevelopment() && devAuth.Enabled)
     {
         await scope.ServiceProvider
             .GetRequiredService<IDevelopmentAdminSeeder>()
+            .EnsureSeededAsync();
+
+        // A realistic social world to walk through locally. Same gate, same
+        // .local addresses, and idempotent: it does nothing on a database that
+        // already has it.
+        await scope.ServiceProvider
+            .GetRequiredService<IDevelopmentSocialSeeder>()
             .EnsureSeededAsync();
     }
 
