@@ -76,6 +76,22 @@ public sealed class PetSocialProfile : AuditableEntity
     /// </summary>
     public bool IsDiscoverable { get; set; }
 
+    /// <summary>
+    /// The owner who turned participation on, stamped at the moment they did.
+    ///
+    /// Consent is given by a person, not attached to a pet. Without this
+    /// column, a pet that changes hands arrives at its new household already
+    /// socially enabled, and the new owner has published an animal they never
+    /// agreed to publish. <c>SocialVisibility</c> therefore requires this to
+    /// still equal the pet's current owner, which makes a change of ownership
+    /// withdraw the consent by itself rather than relying on a future transfer
+    /// feature to remember.
+    ///
+    /// Null means nobody has consented — the state every pet starts in, and the
+    /// state the migration backfill leaves existing pets in.
+    /// </summary>
+    public Guid? ConsentedByUserId { get; set; }
+
     // No PublicMomentCount here yet. Nothing maintains it, and a count that is
     // never written reads zero forever — which the first screen to bind to it
     // would display as fact. It arrives with the surface that needs it.

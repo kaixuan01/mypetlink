@@ -21,7 +21,8 @@ public static class SocialVisibility
 {
     /// <summary>
     /// Pets that may be shown socially at all: alive, not archived, share
-    /// profile on, pet social on, and owner social on.
+    /// profile on, pet social on, consented by the current owner, and owner
+    /// social on.
     /// </summary>
     public static IQueryable<Pet> SociallyVisible(this IQueryable<Pet> pets)
     {
@@ -34,6 +35,10 @@ public static class SocialVisibility
                 && pet.PublicProfile.IsPublicProfileEnabled
                 && pet.SocialProfile != null
                 && pet.SocialProfile.IsSocialEnabled
+                // Consent belongs to the person who gave it. If the pet has
+                // changed hands since, the stamp no longer matches and the pet
+                // is out of Social until its new owner opts in themselves.
+                && pet.SocialProfile.ConsentedByUserId == pet.OwnerUserId
                 && pet.OwnerUser.SocialProfile != null
                 && pet.OwnerUser.SocialProfile.IsSocialEnabled
                 && pet.OwnerUser.DeletedAt == null);

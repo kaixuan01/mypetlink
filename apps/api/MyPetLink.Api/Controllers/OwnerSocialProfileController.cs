@@ -96,6 +96,82 @@ public sealed class OwnerSocialProfileController : ApiControllerBase
 }
 
 /// <summary>
+/// The signed-in owner's pets, and whether each one is in Social.
+///
+/// Separate from the "me" profile routes above because it addresses a pet, and
+/// separate from <c>PetsController</c> because Social consent should not travel
+/// inside a general pet edit: a request that renames a pet must not be able to
+/// publish it as a side effect, and an ordinary pet edit must not consume a
+/// Social rate-limit budget.
+///
+/// A pet id in the route is an address, never a grant. The subject is still the
+/// JWT subject, and the service resolves every pet through the caller's own
+/// ownership before it reads or writes anything.
+/// </summary>
+[Authorize]
+[Route("api/v1/social/me/pets")]
+public sealed class OwnerPetSocialSettingsController : ApiControllerBase
+{
+    private readonly IPetSocialSettingsService _petSocialSettings;
+    private readonly ICurrentUserService _currentUserService;
+
+    public OwnerPetSocialSettingsController(
+        IPetSocialSettingsService petSocialSettings,
+        ICurrentUserService currentUserService)
+    {
+        _petSocialSettings = petSocialSettings;
+        _currentUserService = currentUserService;
+    }
+
+    /// <summary>
+    /// Every pet the caller manages, with its Social settings and the reason it
+    /// cannot join yet when it cannot. One call, because the settings screen
+    /// shows the whole list at once.
+    /// </summary>
+    [HttpGet]
+    public async Task<IActionResult> List(CancellationToken cancellationToken)
+    {
+        // A privacy state that a stale cache could show as "off" after the
+        // owner turned it on is worse than a refetch.
+        Response.Headers.CacheControl = "no-store";
+
+        var response = await _petSocialSettings.ListAsync(
+            _currentUserService.Current.UserId,
+            cancellationToken);
+
+        return Ok(ApiEnvelope.Ok(response, HttpContext));
+    }
+
+    /// <summary>
+    /// Sets one pet's Social consent.
+    ///
+    /// Rate-limited under <see cref="SocialRateLimitPolicies.Withdraw"/> rather
+    /// than the tighter profile-mutation budget, on purpose. One route carries
+    /// both directions, and the generous budget is the only one that cannot
+    /// trap a withdrawal behind an exhausted enable budget — the exact failure
+    /// the withdraw policy exists to prevent. Nothing is opened up by it: this
+    /// route only ever moves two switches on the caller's own pets, so it is
+    /// neither an enumeration surface nor a spam vector, and the number of pets
+    /// an owner has is itself bounded by their plan.
+    /// </summary>
+    [HttpPut("{petId:guid}")]
+    [EnableRateLimiting(SocialRateLimitPolicies.Withdraw)]
+    public async Task<IActionResult> Update(
+        Guid petId,
+        [FromBody] UpdatePetSocialSettingsRequest request,
+        CancellationToken cancellationToken)
+    {
+        var response = await _petSocialSettings.UpdateAsync(
+            _currentUserService.Current.UserId,
+            petId,
+            request,
+            cancellationToken);
+
+        return Ok(ApiEnvelope.Ok(response, HttpContext));
+    }
+}
+
+/// <summary>
 /// Handle availability.
 ///
 /// Separate from the "me" routes above because it asks about a name rather than

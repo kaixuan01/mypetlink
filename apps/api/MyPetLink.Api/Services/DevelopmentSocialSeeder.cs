@@ -277,7 +277,14 @@ public sealed class DevelopmentSocialSeeder : IDevelopmentSocialSeeder
             {
                 PetId = id,
                 IsSocialEnabled = social,
-                IsDiscoverable = discoverable
+                IsDiscoverable = discoverable,
+
+                // The same stamp the owner-facing settings route writes. A
+                // seeder that set the switches without it would build a world
+                // where every pet is silently invisible, which is exactly the
+                // kind of divergence between seeded and real state that let the
+                // missing owner path go unnoticed in the first place.
+                ConsentedByUserId = social ? ownerId : null
             },
             SafetySetting = new PetSafetySetting
             {

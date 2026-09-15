@@ -1760,6 +1760,14 @@ public sealed class MyPetLinkDbContext : DbContext
                 .WithOne(pet => pet.SocialProfile)
                 .HasForeignKey<PetSocialProfile>(item => item.PetId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // Deliberately no foreign key to Users and no index. This column is
+            // read only as an equality test against Pets.OwnerUserId, which the
+            // pet row already carries, so nothing joins or filters on it alone.
+            // Leaving the account deletable without dragging pet consent into
+            // its delete behaviour is the point: a departed owner's stamp should
+            // simply stop matching, not block the delete or cascade.
+            entity.Property(item => item.ConsentedByUserId);
         });
 
         modelBuilder.Entity<MomentPet>(entity =>

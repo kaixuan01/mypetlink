@@ -560,7 +560,12 @@ public sealed class SocialGraphTests
                     IsPublicProfileEnabled = true,
                     ShowOwnerName = true
                 },
-                SocialProfile = new PetSocialProfile { PetId = MochiId, IsSocialEnabled = true },
+                SocialProfile = new PetSocialProfile
+                {
+                    PetId = MochiId,
+                    IsSocialEnabled = true,
+                    ConsentedByUserId = AliceId
+                },
                 SafetySetting = new PetSafetySetting
                 {
                     PetId = MochiId,

@@ -49,6 +49,10 @@ internal sealed class SocialSurfaceHarness : IDisposable
         Notifications = new OwnerNotificationService(db, r2);
         Graph = new SocialGraphService(db, r2, Notifications);
         Likes = new MomentLikeService(db, Notifications);
+        PetSettings = new PetSocialSettingsService(
+            db,
+            r2,
+            new AuditLogService(db, new Microsoft.AspNetCore.Http.HttpContextAccessor()));
     }
 
     public MyPetLinkDbContext Db { get; }
@@ -64,6 +68,13 @@ internal sealed class SocialSurfaceHarness : IDisposable
     public MomentLikeService Likes { get; }
 
     public OwnerNotificationService Notifications { get; }
+
+    /// <summary>
+    /// The real owner-facing consent path. Tests that need a pet in or out of
+    /// Social should go through this rather than writing the switches, so the
+    /// route an actual owner uses is the one under test.
+    /// </summary>
+    public PetSocialSettingsService PetSettings { get; }
 
     public static async Task<SocialSurfaceHarness> CreateAsync()
     {
@@ -149,18 +160,37 @@ internal sealed class SocialSurfaceHarness : IDisposable
         await Db.SaveChangesAsync();
     }
 
+    /// <summary>
+    /// Moves a pet's discoverability the way its owner would.
+    ///
+    /// Routed through the real service rather than writing the column, so that
+    /// a test arranging a pet into Social is exercising the path a person uses.
+    /// Setting these switches directly is how a missing owner-facing route went
+    /// unnoticed through an entire phase.
+    /// </summary>
     public async Task SetPetDiscoverableAsync(Guid petId, bool discoverable)
     {
-        var profile = await Db.PetSocialProfiles.SingleAsync(item => item.PetId == petId);
-        profile.IsDiscoverable = discoverable;
-        await Db.SaveChangesAsync();
+        await UpdatePetSocialAsync(petId, null, discoverable);
     }
 
+    /// <summary>Moves a pet in or out of Social the way its owner would.</summary>
     public async Task SetPetSocialAsync(Guid petId, bool enabled)
     {
-        var profile = await Db.PetSocialProfiles.SingleAsync(item => item.PetId == petId);
-        profile.IsSocialEnabled = enabled;
-        await Db.SaveChangesAsync();
+        await UpdatePetSocialAsync(petId, enabled, null);
+    }
+
+    private async Task UpdatePetSocialAsync(Guid petId, bool? social, bool? discoverable)
+    {
+        var ownerId = await Db.Pets
+            .AsNoTracking()
+            .Where(pet => pet.Id == petId)
+            .Select(pet => pet.OwnerUserId)
+            .SingleAsync();
+
+        await PetSettings.UpdateAsync(
+            ownerId,
+            petId,
+            new DTOs.UpdatePetSocialSettingsRequest(social, discoverable, null));
     }
 
     private static void AddOwner(
@@ -250,7 +280,12 @@ internal sealed class SocialSurfaceHarness : IDisposable
             {
                 PetId = id,
                 IsSocialEnabled = social,
-                IsDiscoverable = discoverable
+                IsDiscoverable = discoverable,
+
+                // Mirrors what the owner-facing settings route stamps. Without
+                // it a seeded pet is socially invisible, because consent is
+                // only consent while it still belongs to the current owner.
+                ConsentedByUserId = social ? ownerId : null
             },
             SafetySetting = new PetSafetySetting
             {

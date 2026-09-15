@@ -37,6 +37,23 @@ public interface IOwnerSocialProfileService : ISkeletonService
 }
 
 /// <summary>
+/// The owner's per-pet Social consent — the only production write path to
+/// <see cref="MyPetLink.Api.Entities.PetSocialProfile"/>.
+/// </summary>
+public interface IPetSocialSettingsService : ISkeletonService
+{
+    Task<PetSocialSettingsListResponse> ListAsync(
+        Guid? currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<PetSocialSettingsResponse> UpdateAsync(
+        Guid? currentUserId,
+        Guid petId,
+        UpdatePetSocialSettingsRequest request,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>
 /// The anonymous social read surface: owner profiles and paginated Moment
 /// listings. Every method gates on the owner's AND the pet's social switches.
 /// </summary>

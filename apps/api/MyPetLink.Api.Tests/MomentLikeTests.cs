@@ -320,7 +320,12 @@ public sealed class MomentLikeTests
                     IsPublicProfileEnabled = true,
                     ShowMoments = true
                 },
-                SocialProfile = new PetSocialProfile { PetId = MochiId, IsSocialEnabled = true },
+                SocialProfile = new PetSocialProfile
+                {
+                    PetId = MochiId,
+                    IsSocialEnabled = true,
+                    ConsentedByUserId = AliceId
+                },
                 SafetySetting = new PetSafetySetting
                 {
                     PetId = MochiId,

@@ -9883,3 +9883,42 @@ GO
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915165424_AddPetSocialConsentOwner'
+)
+BEGIN
+    ALTER TABLE [PetSocialProfiles] ADD [ConsentedByUserId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915165424_AddPetSocialConsentOwner'
+)
+BEGIN
+    UPDATE s
+    SET s.[ConsentedByUserId] = p.[OwnerUserId]
+    FROM [PetSocialProfiles] AS s
+    INNER JOIN [Pets] AS p ON p.[Id] = s.[PetId]
+    WHERE s.[IsSocialEnabled] = 1
+      AND s.[ConsentedByUserId] IS NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915165424_AddPetSocialConsentOwner'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260915165424_AddPetSocialConsentOwner', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+

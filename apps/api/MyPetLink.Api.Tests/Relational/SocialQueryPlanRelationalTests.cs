@@ -361,7 +361,8 @@ public sealed class SocialQueryPlanRelationalTests
                 {
                     PetId = petId,
                     IsSocialEnabled = true,
-                    IsDiscoverable = true
+                    IsDiscoverable = true,
+                    ConsentedByUserId = ownerId
                 }
             });
 

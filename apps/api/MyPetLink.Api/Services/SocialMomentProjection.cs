@@ -183,7 +183,11 @@ public sealed class SocialMomentProjection
                 && subject.Pet.PublicProfile != null
                 && subject.Pet.PublicProfile.IsPublicProfileEnabled
                 && subject.Pet.SocialProfile != null
-                && subject.Pet.SocialProfile.IsSocialEnabled)
+                && subject.Pet.SocialProfile.IsSocialEnabled
+                // Same consent rule as SocialVisibility.SociallyVisible: a pet
+                // that has changed hands is not named on anybody's card until
+                // its new owner opts in.
+                && subject.Pet.SocialProfile.ConsentedByUserId == subject.Pet.OwnerUserId)
             .Where(subject =>
                 !discoveryOnly
                 || (subject.Pet.SocialProfile!.IsDiscoverable

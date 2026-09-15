@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { PetSocialSettingsList } from "@/components/portal/PetSocialSettingsList";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Field } from "@/components/ui/Field";
 import { FormSection } from "@/components/ui/FormSection";
@@ -493,6 +494,8 @@ export function SocialProfileSettings({ petNames = [] }: SocialProfileSettingsPr
             onChange={(checked) => void saveProfile({ allowFollowers: checked })}
           />
         </div>
+
+        <PetSocialSettingsList ownerSocialEnabled={profile.isSocialEnabled} />
 
         <div className="flex flex-wrap items-center gap-3">
           <CTAButton
