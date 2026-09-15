@@ -141,11 +141,9 @@ public sealed class MomentLikeService : SkeletonService, IMomentLikeService
             return;
         }
 
-        var blocked = await _dbContext.OwnerBlocks.AnyAsync(
-            block =>
-                (block.BlockerUserId == actorId && block.BlockedUserId == authorUserId.Value)
-                || (block.BlockerUserId == authorUserId.Value && block.BlockedUserId == actorId),
-            cancellationToken);
+        var blocked = await SocialBlocks
+            .BlockedAccountIds(_dbContext, actorId)
+            .AnyAsync(id => id == authorUserId.Value, cancellationToken);
 
         if (blocked)
         {

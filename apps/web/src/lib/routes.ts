@@ -140,6 +140,19 @@ export function getPublicProfilePath(pet: Pick<Pet, "slug" | "publicCode">) {
 }
 
 /**
+ * The three social surfaces that are not somebody's profile.
+ *
+ * Plain routes for now. Phase 1L owns how they are reached from the global
+ * navigation; these only have to exist and be linkable.
+ */
+export const socialRoutes = {
+  feed: "/feed",
+  explore: "/explore",
+  search: "/search",
+  searchFor: (query: string) => `/search?q=${encodeURIComponent(query)}`,
+} as const;
+
+/**
  * An owner's public social profile.
  *
  * Handles are stored case-insensitively and served lowercase, so one household

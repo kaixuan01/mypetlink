@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using MyPetLink.Api.Data;
 using MyPetLink.Api.Entities;
 
 namespace MyPetLink.Api.Common;
@@ -54,5 +55,39 @@ public static class SocialVisibility
                 && moment.AuthorUser.SocialProfile != null
                 && moment.AuthorUser.SocialProfile.IsSocialEnabled
                 && moment.AuthorUser.DeletedAt == null);
+    }
+}
+
+/// <summary>
+/// The one interpretation of blocking.
+///
+/// A block is stored in one direction and enforced in both. Every surface that
+/// has to exclude somebody — the feed, Explore, search, follower lists, likes —
+/// asks this the same way, because two readings of "blocked" is how content
+/// disappears from one screen and not another.
+/// </summary>
+public static class SocialBlocks
+{
+    /// <summary>
+    /// Every account on either side of a block with this viewer, as a subquery.
+    ///
+    /// Composable into a larger query rather than materialised: a caller writes
+    /// <c>!BlockedAccountIds(db, viewer).Contains(x.AuthorUserId)</c> and the
+    /// database evaluates it as a NOT EXISTS against
+    /// <c>IX_OwnerBlocks_BlockerUserId_BlockedUserId</c> and
+    /// <c>IX_OwnerBlocks_BlockedUserId</c>.
+    /// </summary>
+    public static IQueryable<Guid> BlockedAccountIds(
+        MyPetLinkDbContext dbContext,
+        Guid viewerId)
+    {
+        return dbContext.OwnerBlocks
+            .AsNoTracking()
+            .Where(block =>
+                block.BlockerUserId == viewerId || block.BlockedUserId == viewerId)
+            .Select(block =>
+                block.BlockerUserId == viewerId
+                    ? block.BlockedUserId
+                    : block.BlockerUserId);
     }
 }

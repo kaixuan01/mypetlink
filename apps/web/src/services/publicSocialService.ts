@@ -126,7 +126,7 @@ export async function getPublicOwnerMoments(
     { auth: false }
   );
 
-  return normalizePage(response.data);
+  return normalizeMomentPage(response.data);
 }
 
 export async function getPublicPetMoments(
@@ -141,10 +141,16 @@ export async function getPublicPetMoments(
     { auth: false }
   );
 
-  return normalizePage(response.data);
+  return normalizeMomentPage(response.data);
 }
 
-function normalizePage(page?: PublicMomentPage): PublicMomentPage {
+/**
+ * Fills in anything an older or partial response left out.
+ *
+ * Shared by every listing — profile, pet, feed, Explore — so one contract gap
+ * cannot show up as a crash on one surface and a blank on another.
+ */
+export function normalizeMomentPage(page?: PublicMomentPage): PublicMomentPage {
   return {
     items: (page?.items ?? []).map((item) => ({
       ...item,

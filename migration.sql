@@ -9858,3 +9858,28 @@ GO
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915093918_AddPetNameSearchIndex'
+)
+BEGIN
+    CREATE INDEX [IX_Pets_Name] ON [Pets] ([Name]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915093918_AddPetNameSearchIndex'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260915093918_AddPetNameSearchIndex', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+

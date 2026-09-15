@@ -120,6 +120,28 @@ public interface IMomentLikeService : ISkeletonService
         Guid? currentUserId, Guid momentId, CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+/// Explore and search. Everything here adds discoverability on top of the
+/// shared social visibility rules; nothing here may override it.
+/// </summary>
+public interface ISocialDiscoveryService : ISkeletonService
+{
+    Task<SocialPetPageResponse> GetSuggestedPetsAsync(
+        Guid? viewerId, string? species, int? limit,
+        CancellationToken cancellationToken = default);
+
+    Task<PublicMomentPageResponse> GetLatestMomentsAsync(
+        Guid? viewerId, string? species, string? cursor, int? pageSize,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyCollection<SocialSpeciesOptionResponse>> GetSpeciesAsync(
+        Guid? viewerId, CancellationToken cancellationToken = default);
+
+    Task<SocialSearchResponse> SearchAsync(
+        Guid? viewerId, string? query, string? type, string? species, int? limit,
+        CancellationToken cancellationToken = default);
+}
+
 /// <summary>Handle claiming, renaming, reservations and the release hold.</summary>
 public interface IOwnerHandleService : ISkeletonService
 {

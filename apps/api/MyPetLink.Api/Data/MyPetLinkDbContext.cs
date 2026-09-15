@@ -1496,6 +1496,12 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasIndex(item => item.LifecycleStatus);
             entity.HasIndex(item => item.LostModeEnabled);
             entity.HasIndex(item => item.Species);
+            // Social search matches pet names by PREFIX (LIKE 'moch%'), which
+            // this index can seek. It exists for that one query; a contains
+            // search would read the whole table and no index would save it.
+            // Case-insensitivity comes from the database collation, not from
+            // lowering the column, which would make the index unusable.
+            entity.HasIndex(item => item.Name);
             entity.HasIndex(item => item.CreatedAt);
             entity.HasIndex(item => item.UpdatedAt);
             entity.HasIndex(item => item.IsSampleEligible);

@@ -344,9 +344,9 @@ public sealed class SocialGraphService : SkeletonService, ISocialGraphService
                 // Both directions of a block: neither party appears in the
                 // other's lists, from either side.
                 && (viewerId == null
-                    || !_dbContext.OwnerBlocks.Any(block =>
-                        (block.BlockerUserId == viewerId && block.BlockedUserId == row.Account.Id)
-                        || (block.BlockerUserId == row.Account.Id && block.BlockedUserId == viewerId))))
+                    || !SocialBlocks
+                        .BlockedAccountIds(_dbContext, viewerId.Value)
+                        .Contains(row.Account.Id)))
             .Take(take + 1)
             .Select(row => new
             {
@@ -470,11 +470,9 @@ public sealed class SocialGraphService : SkeletonService, ISocialGraphService
         Guid second,
         CancellationToken cancellationToken)
     {
-        return _dbContext.OwnerBlocks.AnyAsync(
-            block =>
-                (block.BlockerUserId == first && block.BlockedUserId == second)
-                || (block.BlockerUserId == second && block.BlockedUserId == first),
-            cancellationToken);
+        return SocialBlocks
+            .BlockedAccountIds(_dbContext, first)
+            .AnyAsync(blocked => blocked == second, cancellationToken);
     }
 
     private async Task<FollowTarget> LoadFollowTargetAsync(
