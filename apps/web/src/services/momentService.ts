@@ -202,6 +202,7 @@ export async function createPetMoment(
     showOnPublicProfile: visibility === "Public",
     showInLifeTimeline: payload.showInLifeTimeline ?? false,
     timelineNote: payload.timelineNote ?? "",
+    additionalPetIds: payload.additionalPetIds ?? [],
   };
 
   writeStoredCollection(MOMENT_STORAGE_KEY, [moment, ...moments]);
@@ -347,6 +348,12 @@ export function buildBackendMomentPayload(payload: PetMomentPayload) {
     showInLifeTimeline: Boolean(payload.showInLifeTimeline),
     timelineNote: payload.timelineNote,
     mediaFileIds: mediaIdsInSortOrder(payload.media),
+    // Omitted rather than sent as null when the caller did not touch the
+    // subject list: the API treats an absent value as "leave unchanged" and an
+    // empty array as "clear the extras".
+    ...(payload.additionalPetIds
+      ? { additionalPetIds: payload.additionalPetIds }
+      : {}),
   };
 }
 
@@ -354,6 +361,7 @@ function mapBackendMoment(moment: BackendMemory): PetMoment {
   return {
     id: moment.id,
     petId: moment.petId,
+    additionalPetIds: moment.additionalPetIds ?? [],
     title: moment.title,
     date: toDisplayDate(moment.date),
     type: fromBackendMomentType(moment.type),

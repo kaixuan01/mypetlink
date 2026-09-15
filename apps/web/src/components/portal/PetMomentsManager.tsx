@@ -15,10 +15,12 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { AnalyticsEvent, trackEvent } from "@/lib/analytics";
 import { getMemoryLimitState } from "@/lib/planLimits";
-import { isArchivedPet } from "@/lib/petLifecycle";
+import { isActivePet, isArchivedPet } from "@/lib/petLifecycle";
 import { normalizeMomentVisibility } from "@/lib/momentVisibility";
+import { resolveMomentSubjects } from "@/lib/momentSubjects";
 import { ownerRoutes } from "@/lib/routes";
 import { isApiConfigured } from "@/services/apiConfig";
+import { getPets } from "@/services/petService";
 import {
   createPetMoment,
   deletePetMoment,
@@ -36,6 +38,44 @@ type PetMomentsManagerProps = {
   pet: PetListItem;
   initialMoments: PetMoment[];
 };
+
+/**
+ * The owner's other pets, for the "who's in this Moment?" selector.
+ *
+ * Fetched here rather than threaded through every caller because the selector
+ * is the only thing that needs them, and an owner has at most a handful. A
+ * failure is silent: the Moment is then simply about its own pet, which is the
+ * behaviour that existed before multi-pet Moments.
+ */
+function useOwnerOtherPets(currentPetId: string) {
+  const [otherPets, setOtherPets] = useState<PetListItem[]>([]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function load() {
+      try {
+        const response = await getPets();
+        if (!active) return;
+        setOtherPets(
+          response.data.filter(
+            (candidate) =>
+              candidate.id !== currentPetId && isActivePet(candidate)
+          )
+        );
+      } catch {
+        if (active) setOtherPets([]);
+      }
+    }
+
+    void load();
+    return () => {
+      active = false;
+    };
+  }, [currentPetId]);
+
+  return otherPets;
+}
 
 type MomentEditorState =
   | { key: "new"; mode: "create" }
@@ -120,6 +160,7 @@ export function PetMomentsManager({
 }: PetMomentsManagerProps) {
   const apiMode = isApiConfigured();
   const archivedPet = isArchivedPet(pet);
+  const otherPets = useOwnerOtherPets(pet.id);
   const [moments, setMoments] = useState<PetMoment[]>(
     apiMode ? [] : initialMoments
   );
@@ -536,6 +577,11 @@ export function PetMomentsManager({
                 moment={moment}
                 onDelete={() => setDeleteTarget(moment)}
                 onEdit={() => openEditForm(moment)}
+                subjectNames={resolveMomentSubjects(
+                  moment.petId,
+                  moment.additionalPetIds,
+                  [pet, ...otherPets]
+                ).map((subject) => subject.name)}
               />
             ))}
           </div>
@@ -559,7 +605,9 @@ export function PetMomentsManager({
           onDirtyChange={setEditorDirty}
           onRequestClose={requestEditorClose}
           onSubmit={handleEditorSubmit}
+          otherPets={otherPets}
           petName={pet.name}
+          primaryPet={pet}
           submitting={isSubmitting}
         />
       ) : null}

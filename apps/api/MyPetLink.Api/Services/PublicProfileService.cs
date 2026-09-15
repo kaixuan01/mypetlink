@@ -238,11 +238,14 @@ public sealed class PublicProfileService : SkeletonService, IPublicProfileServic
     /// compatibility-private and is excluded by the query itself, so a private
     /// Moment is never read on a public request.
     ///
-    /// Note this is deliberately still UNPAGINATED, matching the behaviour the
-    /// Public Share Profile has today — removing content silently would be
-    /// worse than returning it. Now that the ten-Moment ceiling is gone, a
-    /// cursor-paginated Moments endpoint is required before the Social profile
-    /// ships; see docs/architecture/social-foundation.md.
+    /// The pet's Moments are those it is a SUBJECT of, through
+    /// <c>MomentPets</c> — a Moment about Mochi and Coco appears on both
+    /// profiles, exactly once each.
+    ///
+    /// Note this list is deliberately still unpaginated on the legacy profile
+    /// payload, matching what the Public Share Profile returns today. The
+    /// cursor-paginated endpoint that supersedes it is
+    /// <c>GET /public/pets/{slug}/moments</c>.
     /// </summary>
     private async Task<PublicMemorySummaryResponse[]> LoadPublicMemoriesAsync(
         PublicProfileProjection source,
@@ -259,7 +262,17 @@ public sealed class PublicProfileService : SkeletonService, IPublicProfileServic
         var memories = await _dbContext.PetMemories
             .AsNoTracking()
             .Where(memory =>
-                memory.PetId == source.PetId
+                // Subject membership: a Moment about Mochi and Coco belongs on
+                // both pets' profiles.
+                //
+                // The primary pet is matched on PetId directly rather than
+                // through MomentPets. Every Moment should have a membership row
+                // for its own pet, but a profile must not depend on that being
+                // true — a missing join row would otherwise make a Moment vanish
+                // from its own pet's page, silently. PetId is the authoritative
+                // primary subject, so it is read as such here.
+                (memory.PetId == source.PetId
+                    || memory.MomentPets.Any(subject => subject.PetId == source.PetId))
                 && memory.DeletedAt == null
                 && memory.ArchivedAt == null
                 && memory.Visibility == MemoryVisibility.Public

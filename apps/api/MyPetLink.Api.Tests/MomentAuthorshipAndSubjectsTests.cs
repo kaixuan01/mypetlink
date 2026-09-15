@@ -580,6 +580,83 @@ public sealed class MomentAuthorshipAndSubjectsTests
         Assert.False(saved.ShowOnPublicProfile);
     }
 
+    [Fact]
+    public async Task APublicMultiPetMoment_AppearsOnEverySubjectProfileExactlyOnce()
+    {
+        using var harness = await Harness.CreateAsync();
+        await harness.EnablePublicProfilesAsync();
+
+        await harness.Memories.CreateAsync(
+            AliceId,
+            MochiId,
+            Request(visibility: MemoryVisibility.Public, additionalPetIds: [CocoId]));
+
+        var mochiProfile = await harness.PublicProfiles.GetByPublicSlugAsync("mochi-pubmochi");
+        var cocoProfile = await harness.PublicProfiles.GetByPublicSlugAsync("coco-pubcoco");
+        var luckyProfile = await harness.PublicProfiles.GetByPublicSlugAsync("lucky-publucky");
+
+        // One Moment, on both subjects' profiles, once each.
+        Assert.Single(mochiProfile.Memories);
+        Assert.Single(cocoProfile.Memories);
+        Assert.Empty(luckyProfile.Memories);
+    }
+
+    [Fact]
+    public async Task APrivateMultiPetMoment_AppearsOnNoPublicProfile()
+    {
+        using var harness = await Harness.CreateAsync();
+        await harness.EnablePublicProfilesAsync();
+
+        await harness.Memories.CreateAsync(
+            AliceId,
+            MochiId,
+            Request(additionalPetIds: [CocoId]));
+
+        // Multi-pet support must not become an accidental publishing route.
+        Assert.Empty((await harness.PublicProfiles.GetByPublicSlugAsync("mochi-pubmochi")).Memories);
+        Assert.Empty((await harness.PublicProfiles.GetByPublicSlugAsync("coco-pubcoco")).Memories);
+    }
+
+    [Fact]
+    public async Task RemovingAPetFromAMoment_RemovesItFromThatPetProfileOnly()
+    {
+        using var harness = await Harness.CreateAsync();
+        await harness.EnablePublicProfilesAsync();
+        var created = await harness.Memories.CreateAsync(
+            AliceId,
+            MochiId,
+            Request(visibility: MemoryVisibility.Public, additionalPetIds: [CocoId]));
+
+        await harness.Memories.UpdateAsync(
+            AliceId,
+            created.Id,
+            UpdateRequest(additionalPetIds: []));
+
+        Assert.Single((await harness.PublicProfiles.GetByPublicSlugAsync("mochi-pubmochi")).Memories);
+        Assert.Empty((await harness.PublicProfiles.GetByPublicSlugAsync("coco-pubcoco")).Memories);
+    }
+
+    [Fact]
+    public async Task ChangingTheSubjectPets_LeavesAuthorshipAndPublicationAlone()
+    {
+        using var harness = await Harness.CreateAsync();
+        var created = await harness.Memories.CreateAsync(
+            AliceId,
+            MochiId,
+            Request(visibility: MemoryVisibility.Public));
+        var publishedAt = created.PublishedAt;
+        harness.Clock.Advance(TimeSpan.FromDays(10));
+
+        var updated = await harness.Memories.UpdateAsync(
+            AliceId,
+            created.Id,
+            UpdateRequest(additionalPetIds: [CocoId, LuckyId]));
+
+        var saved = await harness.Db.PetMemories.SingleAsync(item => item.Id == created.Id);
+        Assert.Equal(AliceId, saved.AuthorUserId);
+        Assert.Equal(publishedAt, updated.PublishedAt);
+    }
+
     private static CreateMemoryRequest Request(
         MemoryVisibility visibility = MemoryVisibility.Private,
         IReadOnlyCollection<Guid>? additionalPetIds = null)
@@ -631,6 +708,10 @@ public sealed class MomentAuthorshipAndSubjectsTests
             Db = db;
             Clock = clock;
             Memories = new MemoryService(db, Options.Create(new CloudflareR2Options()));
+            PublicProfiles = new PublicProfileService(
+                db,
+                Options.Create(new CloudflareR2Options()),
+                clock);
         }
 
         public MyPetLinkDbContext Db { get; }
@@ -638,6 +719,37 @@ public sealed class MomentAuthorshipAndSubjectsTests
         public TestClock Clock { get; }
 
         public MemoryService Memories { get; }
+
+        public PublicProfileService PublicProfiles { get; }
+
+        /// <summary>
+        /// Gives Alice's pets shareable public profiles so the profile read path
+        /// can be exercised. Deliberately separate from social participation.
+        /// </summary>
+        public async Task EnablePublicProfilesAsync()
+        {
+            foreach (var (petId, code, slug) in new[]
+            {
+                (MochiId, "pubmochi", "mochi-pubmochi"),
+                (CocoId, "pubcoco", "coco-pubcoco"),
+                (LuckyId, "publucky", "lucky-publucky")
+            })
+            {
+                var pet = await Db.Pets.SingleAsync(item => item.Id == petId);
+                pet.Slug = slug;
+                Db.PetPublicProfiles.Add(new PetPublicProfile
+                {
+                    PetId = petId,
+                    PublicCode = code,
+                    SlugSnapshot = slug,
+                    IsPublicProfileEnabled = true,
+                    ShowMoments = true,
+                    ShowTimeline = true
+                });
+            }
+
+            await Db.SaveChangesAsync();
+        }
 
         public static async Task<Harness> CreateAsync(int maxPrivateMemoriesPerPet = 20)
         {

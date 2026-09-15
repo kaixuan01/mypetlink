@@ -63,6 +63,12 @@ public sealed record PublicProfileSocialResponse(
     // reader will land on. Never any owner, contact, safety, or tag data.
     string ProfileTheme);
 
+/// <summary>One pet a public Moment is about, as a visitor may see it.</summary>
+public sealed record PublicMomentSubjectResponse(
+    string Name,
+    string? PublicSlug,
+    string? PhotoUrl);
+
 public sealed record PublicMemorySummaryResponse(
     string Title,
     DateOnly? MomentDate,

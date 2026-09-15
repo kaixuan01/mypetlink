@@ -251,6 +251,8 @@ export type BackendMemory = {
   caption?: string | null;
   visibility: BackendMemoryVisibility;
   showOnPublicProfile: boolean;
+  additionalPetIds?: string[] | null;
+  publishedAt?: string | null;
   showInLifeTimeline: boolean;
   timelineNote?: string | null;
   media: BackendMemoryMedia[];

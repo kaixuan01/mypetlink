@@ -369,6 +369,14 @@ export type PetMoment = {
   showOnPublicProfile: boolean;
   showInLifeTimeline: boolean;
   timelineNote?: string;
+  /**
+   * Other owned pets this Moment is also about, besides `petId`.
+   *
+   * `petId` stays the authoritative primary subject: it owns the Moment's place
+   * in that pet's timeline and its plan allowance. These are additional
+   * subjects only.
+   */
+  additionalPetIds?: string[];
 };
 
 // Product name shown on an order. "MyPetLink QR Pet Tag" is retained for
@@ -685,6 +693,7 @@ export type PetMomentPayload = Partial<
     | "showOnPublicProfile"
     | "showInLifeTimeline"
     | "timelineNote"
+    | "additionalPetIds"
   >
 >;
 
