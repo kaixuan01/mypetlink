@@ -38,6 +38,12 @@ Each step is reversible. Do them in this order.
    idempotent — every statement is guarded by its `__EFMigrationsHistory` row —
    so a re-run is safe.
 
+   Run it with `sqlcmd -b -I`. `-I` turns on `QUOTED_IDENTIFIER`, which sqlcmd
+   leaves off by default and which the script's filtered indexes require; `-b`
+   makes the run stop on the first error instead of reporting success after
+   one. This is not new to Social — the earliest filtered index predates it —
+   but it is easy to omit and the failure looks like a Social failure.
+
 2. **Deploy the API.** Social endpoints go live but nothing links to them. The
    only behaviour change visible to an existing owner is the Safety Profile's
    `publicProfileSlug` field, which stays null for everybody until a household
@@ -88,6 +94,35 @@ Each step is reversible. Do them in this order.
   remain. Re-enabling restores the same world.
 - **Do not roll back the migration** to disable Social. It is unnecessary and
   it would destroy owner-created content.
+
+### The API cannot be rolled back past the migration
+
+This is the one step in the rollout that is not reversible, and it is worth
+knowing before step 1 rather than during an incident.
+
+The Social migrations do not only add tables. They also change `PetMemories`:
+`AuthorUserId` is added, backfilled from each pet's owner, and then made **NOT
+NULL** with a foreign key to `Users`. A pre-Social build of the API does not
+know that column exists, so every Moment it tries to create is an insert with
+no author — and the database refuses it.
+
+So, once `migration.sql` has been applied:
+
+- Rolling the **web** app back is safe, and is the rollback (the flag).
+- Rolling the **API** back to the *previous* Social-capable build is safe.
+- Rolling the API back to a **pre-Social** build breaks Moment creation for
+  every owner, Social or not. Do not do it. If the API must go back that far,
+  the schema has to go with it, which means the restore point from the
+  pre-deploy checklist — not a partial undo.
+
+The other two existing-table changes are safe in both directions:
+`MediaFiles.DerivativeStatus` is NOT NULL but carries a default, and
+`PetMemories.PublishedAt` stays nullable.
+
+The backfills themselves keep the opt-in posture: every `OwnerSocialProfiles`
+and `PetSocialProfiles` row the migration creates has social participation and
+discoverability set to off, and no name, handle or bio is copied from any
+existing identity.
 
 ---
 

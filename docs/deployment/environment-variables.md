@@ -139,8 +139,9 @@ Configurable values (all optional; defaults in `SocialRateLimitingOptions`):
 
 | Config key | Default | Guards |
 | --- | --- | --- |
-| `RateLimiting:Social:Follow:PermitLimit` / `:WindowSeconds` | 30 / 3600 | Follow and unfollow |
-| `RateLimiting:Social:Like:*` | 120 / 3600 | Like and unlike |
+| `RateLimiting:Social:Follow:PermitLimit` / `:WindowSeconds` | 30 / 3600 | Following someone |
+| `RateLimiting:Social:Like:*` | 120 / 3600 | Liking a Moment |
+| `RateLimiting:Social:Withdraw:*` | 200 / 3600 | Taking something back: unfollow, unlike, unblock. Deliberately a separate, more generous budget — a shared one would let the limit stop the recovery instead of the abuse. |
 | `RateLimiting:Social:MomentCreate:*` | 20 / 3600 | Creating a Moment; also bounds upload volume |
 | `RateLimiting:Social:Search:*` | 30 / 60 | Public pet and profile search |
 | `RateLimiting:Social:HandleAvailability:*` | 20 / 60 | Handle availability — the enumeration-sensitive one |
