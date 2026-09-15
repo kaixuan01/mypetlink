@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Icon } from "@/components/ui/Icon";
+import { ownerSocialProfilePath } from "@/lib/routes";
 import type { PublicPetProfile } from "@/types";
 
 type PetSocialAttributionProps = {
@@ -33,7 +34,7 @@ export function PetSocialAttribution({
     >
       <Link
         className="flex min-w-0 flex-1 items-center gap-3"
-        href={`/u/${sharedBy.handle.toLowerCase()}`}
+        href={ownerSocialProfilePath(sharedBy.handle)}
       >
         <span className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full border border-pet-border bg-pet-cream">
           {sharedBy.avatarThumbnailUrl ? (

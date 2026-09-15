@@ -407,12 +407,29 @@ select {
   animation: session-fade-in 220ms ease-out both;
 }
 
+/* A short confirmation pulse the moment a follow lands, so the state change is
+   felt as well as read. Suppressed entirely under reduced motion below. */
+@keyframes follow-confirm {
+  from {
+    transform: scale(0.94);
+  }
+
+  to {
+    transform: scale(1);
+  }
+}
+
+.follow-button[data-following="true"] {
+  animation: follow-confirm 180ms ease-out both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .owner-action-panel,
   .owner-sticky-action-bar,
   .paw-step,
   .wake-paw,
-  .session-fade-in {
+  .session-fade-in,
+  .follow-button[data-following="true"] {
     animation: none;
   }
 

@@ -4,10 +4,19 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { LinkoMascot } from "@/components/brand/LinkoMascot";
+import { FollowButton } from "@/components/social/FollowButton";
+import { OwnerProfileMenu } from "@/components/social/OwnerProfileMenu";
 import { PublicMomentGrid } from "@/components/social/PublicMomentGrid";
 import { SmartTagProtectedBadge } from "@/components/social/SmartTagProtectedBadge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon } from "@/components/ui/Icon";
+import { ownerFollowersPath, ownerFollowingPath } from "@/lib/routes";
+import { useSignedIn } from "@/lib/useSignedIn";
+import {
+  getOwnerRelationship,
+  noRelationship,
+  type OwnerRelationship,
+} from "@/services/socialGraphService";
 import {
   getPublicOwnerMoments,
   getPublicOwnerProfile,
@@ -39,6 +48,9 @@ export function OwnerSocialProfileView({ handle }: OwnerSocialProfileViewProps) 
   const [moments, setMoments] = useState<PublicMomentListItem[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [relationship, setRelationship] =
+    useState<OwnerRelationship>(noRelationship);
+  const signedIn = useSignedIn();
 
   useEffect(() => {
     let active = true;
@@ -78,6 +90,27 @@ export function OwnerSocialProfileView({ handle }: OwnerSocialProfileViewProps) 
       active = false;
     };
   }, [handle]);
+
+  // Kept separate from the profile load on purpose. The relationship is the
+  // only part of this page that depends on who is looking, and a profile that
+  // renders must not be held back — or lost — because that one read failed.
+  // Re-runs once the signed-in check settles, so an owner arriving with a
+  // session sees their real state rather than a visitor's.
+  useEffect(() => {
+    let active = true;
+
+    getOwnerRelationship(handle)
+      .then((loaded) => {
+        if (active) setRelationship(loaded);
+      })
+      .catch(() => {
+        if (active) setRelationship(noRelationship);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [handle, signedIn]);
 
   const loadMore = useCallback(async () => {
     if (!nextCursor || loadingMore) {
@@ -165,7 +198,49 @@ export function OwnerSocialProfileView({ handle }: OwnerSocialProfileViewProps) 
             </p>
           ) : null}
         </div>
+
+        <div className="flex shrink-0 items-center gap-2">
+          <FollowButton
+            displayName={profile.displayName}
+            handle={profile.handle}
+            onChange={setRelationship}
+            relationship={relationship}
+            signedIn={signedIn}
+          />
+          <OwnerProfileMenu
+            displayName={profile.displayName}
+            handle={profile.handle}
+            onChange={setRelationship}
+            relationship={relationship}
+            signedIn={signedIn}
+          />
+        </div>
       </header>
+
+      <nav
+        aria-label="Followers and following"
+        className="mt-4 flex flex-wrap gap-x-5 gap-y-1"
+        data-testid="owner-profile-counts"
+      >
+        <Link
+          className="text-sm font-semibold text-pet-muted transition hover:text-pet-ink"
+          href={ownerFollowersPath(profile.handle)}
+        >
+          <span className="font-black tabular-nums text-pet-ink">
+            {relationship.followerCount}
+          </span>{" "}
+          {relationship.followerCount === 1 ? "follower" : "followers"}
+        </Link>
+        <Link
+          className="text-sm font-semibold text-pet-muted transition hover:text-pet-ink"
+          href={ownerFollowingPath(profile.handle)}
+        >
+          <span className="font-black tabular-nums text-pet-ink">
+            {relationship.followingCount}
+          </span>{" "}
+          following
+        </Link>
+      </nav>
 
       {profile.bio ? (
         <p className="mt-4 whitespace-pre-line text-sm font-semibold leading-6 text-pet-ink">

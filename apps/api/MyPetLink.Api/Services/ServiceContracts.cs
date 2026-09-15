@@ -63,6 +63,36 @@ public interface IPublicSocialProfileService : ISkeletonService
         CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+/// Following and blocking between accounts. The actor is always the JWT
+/// subject; a handle names a target, never a grant.
+/// </summary>
+public interface ISocialGraphService : ISkeletonService
+{
+    Task<OwnerRelationshipResponse> FollowAsync(
+        Guid? currentUserId, string handle, CancellationToken cancellationToken = default);
+
+    Task<OwnerRelationshipResponse> UnfollowAsync(
+        Guid? currentUserId, string handle, CancellationToken cancellationToken = default);
+
+    Task<OwnerRelationshipResponse> BlockAsync(
+        Guid? currentUserId, string handle, string? reason, CancellationToken cancellationToken = default);
+
+    Task<OwnerRelationshipResponse> UnblockAsync(
+        Guid? currentUserId, string handle, CancellationToken cancellationToken = default);
+
+    Task<OwnerRelationshipResponse> GetRelationshipAsync(
+        Guid? currentUserId, string handle, CancellationToken cancellationToken = default);
+
+    Task<SocialAccountPageResponse> GetFollowersAsync(
+        Guid? currentUserId, string handle, string? cursor, int? pageSize,
+        CancellationToken cancellationToken = default);
+
+    Task<SocialAccountPageResponse> GetFollowingAsync(
+        Guid? currentUserId, string handle, string? cursor, int? pageSize,
+        CancellationToken cancellationToken = default);
+}
+
 /// <summary>Handle claiming, renaming, reservations and the release hold.</summary>
 public interface IOwnerHandleService : ISkeletonService
 {

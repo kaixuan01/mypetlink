@@ -139,6 +139,24 @@ export function getPublicProfilePath(pet: Pick<Pet, "slug" | "publicCode">) {
   return publicProfilePath(pet.slug, pet.publicCode);
 }
 
+/**
+ * An owner's public social profile.
+ *
+ * Handles are stored case-insensitively and served lowercase, so one household
+ * has exactly one URL. The edge redirects any other casing here.
+ */
+export function ownerSocialProfilePath(handle: string) {
+  return `/u/${handle.trim().replace(/^@+/, "").toLowerCase()}`;
+}
+
+export function ownerFollowersPath(handle: string) {
+  return `${ownerSocialProfilePath(handle)}/followers`;
+}
+
+export function ownerFollowingPath(handle: string) {
+  return `${ownerSocialProfilePath(handle)}/following`;
+}
+
 // Canonical helper for the pet-level Safety Profile.
 // Always /q/{safetyCode}; never a physical tagCode.
 export function getQrSafetyPath(pet: Pick<Pet, "safetyCode">) {
@@ -156,6 +174,9 @@ export const publicRoutes = {
     getPublicProfilePath(pet),
   qrSafetyPage: (pet: Pick<Pet, "safetyCode">) => getQrSafetyPath(pet),
   physicalTag: (tag: Pick<PetTag, "tagCode">) => getTagScanPath(tag),
+  ownerSocialProfile: (handle: string) => ownerSocialProfilePath(handle),
+  ownerFollowers: (handle: string) => ownerFollowersPath(handle),
+  ownerFollowing: (handle: string) => ownerFollowingPath(handle),
 };
 
 export const authRoutes = {

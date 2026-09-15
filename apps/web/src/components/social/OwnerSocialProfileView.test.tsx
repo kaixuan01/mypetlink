@@ -10,8 +10,23 @@ import type {
 const mocks = vi.hoisted(() => ({
   getPublicOwnerProfile: vi.fn(),
   getPublicOwnerMoments: vi.fn(),
+  getOwnerRelationship: vi.fn(),
+  followOwner: vi.fn(),
   smartTagsEnabled: true,
 }));
+
+vi.mock("@/services/socialGraphService", async () => {
+  const actual = await vi.importActual<
+    typeof import("@/services/socialGraphService")
+  >("@/services/socialGraphService");
+
+  return {
+    ...actual,
+    getOwnerRelationship: (...args: unknown[]) =>
+      mocks.getOwnerRelationship(...args),
+    followOwner: (...args: unknown[]) => mocks.followOwner(...args),
+  };
+});
 
 vi.mock("@/services/publicSocialService", async () => {
   const actual = await vi.importActual<
@@ -38,6 +53,31 @@ vi.mock("@/lib/features", () => ({
 
 import { OwnerSocialProfileView } from "@/components/social/OwnerSocialProfileView";
 import { PublicProfileUnavailableError } from "@/services/publicSocialService";
+import type { OwnerRelationship } from "@/services/socialGraphService";
+
+const relationship: OwnerRelationship = {
+  isSelf: false,
+  isFollowing: false,
+  isFollowedBy: false,
+  hasBlocked: false,
+  canFollow: true,
+  allowsFollowers: true,
+  followerCount: 27,
+  followingCount: 8,
+};
+
+/** A signed-in browser: acting controls appear only for someone who can act. */
+function signIn() {
+  window.localStorage.setItem(
+    "mypetlink_api_auth_session",
+    JSON.stringify({
+      accessToken: "access",
+      refreshToken: "refresh",
+      expiresAt: Date.now() + 60_000,
+      user: { id: "viewer", email: "viewer@example.com" },
+    })
+  );
+}
 
 const profile: PublicOwnerProfile = {
   handle: "tanfamily",
@@ -95,9 +135,13 @@ describe("OwnerSocialProfileView", () => {
     mocks.smartTagsEnabled = true;
     mocks.getPublicOwnerProfile.mockResolvedValue(profile);
     mocks.getPublicOwnerMoments.mockResolvedValue(page(2, null));
+    mocks.getOwnerRelationship.mockResolvedValue(relationship);
   });
 
-  afterEach(cleanup);
+  afterEach(() => {
+    cleanup();
+    window.localStorage.clear();
+  });
 
   it("shows the social identity, not an account identity", async () => {
     render(<OwnerSocialProfileView handle="tanfamily" />);
@@ -225,6 +269,83 @@ describe("OwnerSocialProfileView", () => {
     await waitFor(() =>
       expect(screen.getByText(/this profile isn't available/i)).toBeTruthy()
     );
+  });
+
+  it("links the follower and following counts to their lists", async () => {
+    render(<OwnerSocialProfileView handle="tanfamily" />);
+
+    const counts = within(await screen.findByTestId("owner-profile-counts"));
+
+    await waitFor(() => expect(counts.getByText("27")).toBeTruthy());
+    expect(
+      counts.getByRole("link", { name: /followers/i }).getAttribute("href")
+    ).toBe("/u/tanfamily/followers");
+    expect(
+      counts.getByRole("link", { name: /following/i }).getAttribute("href")
+    ).toBe("/u/tanfamily/following");
+  });
+
+  it("counts followers for the household and never for a pet", async () => {
+    render(<OwnerSocialProfileView handle="tanfamily" />);
+
+    await waitFor(() => expect(screen.getByTestId("owner-pets-list")).toBeTruthy());
+
+    // Following is a household relationship. A per-pet follower count would
+    // invite exactly the model we decided against.
+    const pets = within(screen.getByTestId("owner-pets-list"));
+    expect(pets.queryByText(/follower/i)).toBeNull();
+  });
+
+  it("offers Follow to a signed-in visitor and moves the count with it", async () => {
+    signIn();
+    mocks.followOwner.mockResolvedValue({
+      ...relationship,
+      isFollowing: true,
+      followerCount: 28,
+    });
+
+    render(<OwnerSocialProfileView handle="tanfamily" />);
+
+    fireEvent.click(await screen.findByTestId("follow-button"));
+
+    const counts = within(screen.getByTestId("owner-profile-counts"));
+    await waitFor(() => expect(counts.getByText("28")).toBeTruthy());
+    expect(screen.getByTestId("follow-button").textContent).toBe("Following");
+  });
+
+  it("keeps blocking behind the overflow menu, never beside Follow", async () => {
+    signIn();
+
+    render(<OwnerSocialProfileView handle="tanfamily" />);
+
+    await screen.findByTestId("owner-profile-menu-trigger");
+
+    expect(screen.queryByRole("button", { name: /^block/i })).toBeNull();
+  });
+
+  it("offers no follow or block controls on your own profile", async () => {
+    signIn();
+    mocks.getOwnerRelationship.mockResolvedValue({
+      ...relationship,
+      isSelf: true,
+      canFollow: false,
+    });
+
+    render(<OwnerSocialProfileView handle="tanfamily" />);
+
+    await waitFor(() => expect(screen.getByText("The Tan Family")).toBeTruthy());
+
+    expect(screen.queryByTestId("follow-button")).toBeNull();
+    expect(screen.queryByTestId("owner-profile-menu-trigger")).toBeNull();
+  });
+
+  it("still renders the profile when the relationship cannot be read", async () => {
+    mocks.getOwnerRelationship.mockRejectedValue(new Error("network"));
+
+    render(<OwnerSocialProfileView handle="tanfamily" />);
+
+    await waitFor(() => expect(screen.getByText("The Tan Family")).toBeTruthy());
+    expect(screen.getByTestId("owner-profile-counts")).toBeTruthy();
   });
 
   it("distinguishes a transport failure from an absent profile", async () => {

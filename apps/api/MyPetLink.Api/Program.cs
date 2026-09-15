@@ -393,6 +393,7 @@ builder.Services.AddSingleton<IPublicProfileSocialCardRenderer, PublicProfileSoc
 builder.Services.AddScoped<IMemoryService, MemoryService>();
 builder.Services.AddScoped<IOwnerSocialProfileService, OwnerSocialProfileService>();
 builder.Services.AddScoped<IPublicSocialProfileService, PublicSocialProfileService>();
+builder.Services.AddScoped<ISocialGraphService, SocialGraphService>();
 builder.Services.AddScoped<IOwnerHandleService, OwnerHandleService>();
 builder.Services.AddSingleton<IImageDerivativeGenerator, ImageDerivativeGenerator>();
 builder.Services.AddScoped<ICareRecordService, CareRecordService>();

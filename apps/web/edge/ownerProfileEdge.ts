@@ -266,7 +266,7 @@ export function buildOwnerProfileHead(profile: EdgeOwnerProfile) {
   return tags.join("\n");
 }
 
-function ownerHtmlHeaders(source?: Headers) {
+export function ownerHtmlHeaders(source?: Headers) {
   const headers = new Headers(source);
   headers.set("content-type", "text/html; charset=utf-8");
   // A profile can be switched off at any moment; never let an intermediary hold
@@ -277,7 +277,7 @@ function ownerHtmlHeaders(source?: Headers) {
   return headers;
 }
 
-function unavailableOwnerResponse(state: "not-found" | "error") {
+export function unavailableOwnerResponse(state: "not-found" | "error") {
   const status = state === "not-found" ? 404 : 503;
   const body = `<!doctype html><html lang="en"><head><meta charset="utf-8">`
     + `<meta name="viewport" content="width=device-width, initial-scale=1">`

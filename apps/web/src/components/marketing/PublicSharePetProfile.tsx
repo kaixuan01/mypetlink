@@ -13,6 +13,7 @@ import {
   PublicProfileOwnerControls,
 } from "@/components/marketing/PublicProfileOwnerControls";
 import { PublicProfileCreateCTA } from "@/components/marketing/PublicProfileCreateCTA";
+import { OwnerFollowAction } from "@/components/social/OwnerFollowAction";
 import { PetSocialAttribution } from "@/components/social/PetSocialAttribution";
 import { SmartTagProtectedBadge } from "@/components/social/SmartTagProtectedBadge";
 import { useOwnedPublicProfilePet } from "@/components/marketing/useOwnedPublicProfilePet";
@@ -452,7 +453,15 @@ export function PublicSharePetProfile({
 
             {profile.sharedBy ? (
               <div className="mx-auto mt-4 max-w-sm text-left">
-                <PetSocialAttribution sharedBy={profile.sharedBy} />
+                <PetSocialAttribution
+                  action={
+                    <OwnerFollowAction
+                      displayName={profile.sharedBy.displayName}
+                      handle={profile.sharedBy.handle}
+                    />
+                  }
+                  sharedBy={profile.sharedBy}
+                />
               </div>
             ) : null}
 
