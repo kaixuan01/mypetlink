@@ -1167,3 +1167,32 @@ it("keeps the invitation off an unavailable profile", async () => {
   await screen.findByText("Pet profile not found");
   expect(screen.queryByRole("heading", { name: createCtaName })).toBeNull();
 });
+
+it("shows one household identity, not the social one and the real one together", async () => {
+  publicProfileMocks.profile = {
+    ...mockPets[0],
+    visibility: { ...mockPets[0].visibility, showOwnerName: true },
+    owner: { ...mockPets[0].owner, name: "Aina" },
+    sharedBy: {
+      handle: "ainafamily",
+      displayName: "The Aina Family",
+      avatarUrl: null,
+      avatarThumbnailUrl: null,
+    },
+  } as unknown as (typeof mockPets)[number];
+
+  render(
+    <PublicSharePetProfile
+      initialMoments={[]}
+      initialProfile={publicProfileMocks.profile!}
+      initialRecords={[]}
+    />
+  );
+
+  await screen.findByTestId("pet-social-attribution");
+
+  // The chosen identity is shown; the finder-facing real name is not repeated
+  // beneath it. ShowOwnerName still governs the Safety Profile.
+  expect(screen.getByText("@ainafamily")).toBeTruthy();
+  expect(screen.queryByText(/Cared for by/)).toBeNull();
+});

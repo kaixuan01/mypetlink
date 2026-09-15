@@ -90,15 +90,55 @@ describe("SocialNotificationsView", () => {
     ).toBeTruthy();
   });
 
-  it("marks everything read on arrival without blanking the screen", async () => {
+  it("marks only the rows it actually delivered", async () => {
     render(<SocialNotificationsView />);
 
     await screen.findByTestId("activity-list");
-    await waitFor(() => expect(mocks.markActivityRead).toHaveBeenCalledTimes(1));
+
+    // Never a blanket "mark everything": activity three pages down, which this
+    // client was never sent, is not something the user has seen.
+    await waitFor(() =>
+      expect(mocks.markActivityRead).toHaveBeenCalledWith([
+        "follow-limfamily",
+        "like-raofamily",
+      ])
+    );
 
     // The rows keep their unread treatment for this visit; a list that blanks
     // itself the instant you arrive is a list you cannot read.
     expect(screen.getAllByTestId("activity-unread-marker").length).toBe(2);
+  });
+
+  it("marks each further page as that page arrives", async () => {
+    mocks.getSocialNotifications
+      .mockResolvedValueOnce(page([follow("limfamily")], 3, "cursor-2"))
+      .mockResolvedValueOnce(page([follow("raofamily")], 2));
+
+    render(<SocialNotificationsView />);
+
+    await waitFor(() =>
+      expect(mocks.markActivityRead).toHaveBeenCalledWith(["follow-limfamily"])
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: /show more/i }));
+
+    await waitFor(() =>
+      expect(mocks.markActivityRead).toHaveBeenLastCalledWith(["follow-raofamily"])
+    );
+  });
+
+  it("leaves already-read rows alone rather than marking them again", async () => {
+    mocks.getSocialNotifications.mockResolvedValue(
+      page([follow("limfamily", true), follow("raofamily")], 1)
+    );
+
+    render(<SocialNotificationsView />);
+
+    await screen.findByTestId("activity-list");
+
+    await waitFor(() =>
+      expect(mocks.markActivityRead).toHaveBeenCalledWith(["follow-raofamily"])
+    );
   });
 
   it("does not mark anything read when there was nothing unread", async () => {

@@ -139,7 +139,7 @@ public sealed class SocialDiscoveryService : SkeletonService, ISocialDiscoverySe
             cancellationToken);
 
         return new SocialPetPageResponse(
-            rows
+            SpreadHouseholds(rows, row => row.OwnerUserId)
                 .Select(row => new SocialPetCardResponse(
                     row.Name,
                     row.Species,
@@ -157,6 +157,42 @@ public sealed class SocialDiscoveryService : SkeletonService, ISocialDiscoverySe
                 .ToArray(),
             // A shelf, not a listing. There is deliberately nothing after it.
             NextCursor: null);
+    }
+
+    /// <summary>
+    /// Deals the page out one household at a time.
+    ///
+    /// A young network is a handful of households with several pets each, and
+    /// ordering purely by activity puts three of one family's pets in a row at
+    /// the top of Explore. That reads as "this is everybody there is" on the
+    /// one screen whose job is the opposite. Round-robin fixes the clustering
+    /// without dropping anybody and without becoming a ranking system: the
+    /// selection is unchanged, only the order within the page it already chose,
+    /// and the result is still deterministic.
+    /// </summary>
+    private static List<T> SpreadHouseholds<T>(
+        IReadOnlyList<T> rows,
+        Func<T, Guid> household)
+    {
+        var queues = rows
+            .GroupBy(household)
+            .Select(group => new Queue<T>(group))
+            .ToList();
+
+        var spread = new List<T>(rows.Count);
+
+        while (spread.Count < rows.Count)
+        {
+            foreach (var queue in queues)
+            {
+                if (queue.Count > 0)
+                {
+                    spread.Add(queue.Dequeue());
+                }
+            }
+        }
+
+        return spread;
     }
 
     /// <summary>

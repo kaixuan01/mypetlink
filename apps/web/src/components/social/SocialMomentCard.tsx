@@ -133,7 +133,7 @@ export function SocialMomentTile({
 
         {showAuthor && moment.author ? (
           <div className="mt-1.5">
-            <MomentByline author={moment.author} publishedAt={null} />
+            <MomentByline author={moment.author} compact publishedAt={null} />
           </div>
         ) : null}
 

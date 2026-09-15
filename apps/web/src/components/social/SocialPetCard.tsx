@@ -91,16 +91,24 @@ export function SocialPetCard({
           </span>
         </Link>
 
-        <p className="mt-2 truncate text-xs font-bold text-pet-muted">
+        {/* Wraps rather than truncates: the handle is what the Follow button
+            acts on, and two cards to a row on a 320px phone is narrower than
+            most handles. The link carries vertical padding so its hit area
+            clears the 24px minimum without changing how it looks. */}
+        <p className="mt-2 break-words text-xs font-bold text-pet-muted">
           Shared by{" "}
           <Link
-            className="transition hover:text-pet-ink"
+            className="inline-block py-1 transition hover:text-pet-ink"
             href={`/u/${pet.owner.handle.toLowerCase()}`}
           >
             @{pet.owner.handle}
           </Link>
         </p>
 
+        {/* The button reads "Follow" rather than "Follow @handle": the handle
+            is stated in full directly above it, and two cards to a row on a
+            320px phone is narrower than a long handle on a button. The pairing
+            is what makes the target unambiguous, not the label alone. */}
         <div className="mt-2">
           <FollowButton
             analyticsSource={analyticsSource}
@@ -111,7 +119,6 @@ export function SocialPetCard({
             }
             relationship={relationship}
             signedIn={signedIn}
-            surface="attribution"
           />
         </div>
       </div>

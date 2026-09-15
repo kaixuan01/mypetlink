@@ -115,7 +115,9 @@ export function FollowButton({
     return relationship.allowsFollowers ? (
       <Link
         aria-label={`Sign in to follow ${displayName}`}
-        className={`${baseClass} ${followClass} ${className}`}
+        className={`${baseClass} ${
+          attribution ? "max-w-full whitespace-normal text-center leading-tight [overflow-wrap:anywhere]" : "max-w-[12rem]"
+        } ${followClass} ${className}`}
         data-testid="follow-button-signin"
         href={ownerLoginPath(ownerSocialProfilePath(handle))}
       >
@@ -131,6 +133,13 @@ export function FollowButton({
   }
 
   const error = failure?.handle === handle ? failure.message : null;
+  // On a pet card the button carries the household's handle, and a card two to
+  // a row on a 320px phone is narrower than "Follow @omarhousehold". Truncating
+  // it would hide the one thing the control exists to make unambiguous, so it
+  // wraps to a second line instead.
+  const wrapClass = attribution
+    ? "max-w-full whitespace-normal leading-tight [overflow-wrap:anywhere]"
+    : "max-w-[12rem]";
   const following = relationship.isFollowing;
   const label = following
     ? "Following"
@@ -147,14 +156,14 @@ export function FollowButton({
             : `Follow ${displayName} (@${handle})`
         }
         aria-pressed={following}
-        className={`${baseClass} ${following ? followingClass : followClass} follow-button`}
+        className={`${baseClass} ${wrapClass} ${following ? followingClass : followClass} follow-button`}
         data-following={following ? "true" : "false"}
         data-testid="follow-button"
         disabled={pending || signedIn === null}
         onClick={submit}
         type="button"
       >
-        <span className="truncate">{label}</span>
+        <span className={attribution ? "text-center" : "truncate"}>{label}</span>
       </button>
 
       {error ? (
@@ -171,7 +180,7 @@ export function FollowButton({
 }
 
 const baseClass =
-  "inline-flex min-h-10 max-w-[12rem] items-center justify-center rounded-full border px-4 py-2 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-60";
+  "inline-flex min-h-10 items-center justify-center rounded-full border px-4 py-2 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-60";
 const followClass = "border-pet-teal bg-pet-teal text-white hover:bg-[#1f7fa8]";
 const followingClass =
   "border-pet-border bg-white text-pet-ink hover:bg-pet-cream";

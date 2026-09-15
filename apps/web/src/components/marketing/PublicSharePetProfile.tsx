@@ -51,6 +51,7 @@ import {
 import { isActivePet, isArchivedPet, isMemorialPet } from "@/lib/petLifecycle";
 import { mergeConservativePetVisibility } from "@/lib/petVisibility";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
+import { socialEnabled } from "@/lib/features";
 import { getPublicProfileMoments } from "@/lib/momentMedia";
 import { getQrSafetyPath } from "@/lib/routes";
 import {
@@ -455,10 +456,15 @@ export function PublicSharePetProfile({
               <div className="mx-auto mt-4 max-w-sm text-left">
                 <PetSocialAttribution
                   action={
-                    <OwnerFollowAction
-                      displayName={profile.sharedBy.displayName}
-                      handle={profile.sharedBy.handle}
-                    />
+                    // The byline itself is part of the public page and stays;
+                    // Follow is a social entry point, so it waits for the flag
+                    // like every other one.
+                    socialEnabled ? (
+                      <OwnerFollowAction
+                        displayName={profile.sharedBy.displayName}
+                        handle={profile.sharedBy.handle}
+                      />
+                    ) : undefined
                   }
                   sharedBy={profile.sharedBy}
                 />
@@ -475,7 +481,14 @@ export function PublicSharePetProfile({
               </div>
             ) : null}
 
-            {publicOwnerName ? (
+            {/* One household identity on this page, not two. When a social
+                profile exists it is already named above as "Shared by", and
+                printing the finder-facing name underneath it would show a
+                visitor both the chosen identity and the real one side by side
+                — which is the exact collapse the three identities exist to
+                prevent. ShowOwnerName still governs the Safety Profile, where
+                a finder needs a human name to ask for. */}
+            {publicOwnerName && !profile.sharedBy ? (
               <p
                 className="mt-4 text-sm font-bold text-pet-ink"
                 style={{ color: theme.colors.text }}

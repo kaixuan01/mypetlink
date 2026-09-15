@@ -139,7 +139,7 @@ describe("SocialExploreView", () => {
     expect(within(pets).getByText("Buddy")).toBeTruthy();
   });
 
-  it("says whose handle the Follow button acts on", async () => {
+  it("names the household the Follow button acts on, right above it", async () => {
     signIn();
 
     render(<SocialExploreView />);
@@ -147,9 +147,13 @@ describe("SocialExploreView", () => {
     const cards = await screen.findAllByTestId("social-pet-card");
     const follow = within(cards[0]).getByTestId("follow-button");
 
-    // Nobody should be able to read this card and think they followed the pet.
-    expect(follow.textContent).toBe("Follow @tanfamily");
+    // Two cards to a row on a small phone is narrower than a long handle on a
+    // button, so the handle is stated in full on its own line and the button
+    // sits directly beneath it. The pairing is what makes the target
+    // unambiguous — nobody should read this card and think they followed Mochi.
+    expect(follow.textContent).toBe("Follow");
     expect(within(cards[0]).getByText("@tanfamily")).toBeTruthy();
+    expect(within(cards[0]).getByText(/Shared by/)).toBeTruthy();
   });
 
   it("shows no follower count on a pet", async () => {
@@ -213,7 +217,7 @@ describe("SocialExploreView", () => {
 
     await waitFor(() => expect(mocks.followOwner).toHaveBeenCalledWith("tanfamily"));
     await waitFor(() => expect(buttons[0].textContent).toBe("Following"));
-    expect(buttons[1].textContent).toBe("Follow @limfamily");
+    expect(buttons[1].textContent).toBe("Follow");
   });
 
   it("shows the newest Moments with their household named", async () => {
@@ -221,9 +225,10 @@ describe("SocialExploreView", () => {
 
     const tile = (await screen.findAllByTestId("social-moment-tile"))[0];
 
-    // Explore mixes households, so each tile has to say whose it is.
+    // Explore mixes households, so each tile has to say whose it is — by
+    // handle, which is the one identifier that fits on a tile.
     expect(within(tile).getByTestId("moment-byline").textContent).toContain(
-      "The Tan Family"
+      "@tanfamily"
     );
   });
 

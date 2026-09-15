@@ -72,13 +72,14 @@ export function MomentSubjects({
           {label}
         </span>
         {missing.length > 0 ? (
+          // One quiet word. The pet's name is already on the line above, and
+          // "BISCUIT IS MISSING" shouted on every tile is amplification —
+          // which is precisely what Lost Mode is not allowed to become here.
           <span
             className="block text-[11px] font-black uppercase tracking-wide text-pet-coral"
             data-testid="moment-subject-missing"
           >
-            {missing.length === 1
-              ? `${missing[0].name} is missing`
-              : "Missing right now"}
+            Missing
           </span>
         ) : null}
       </span>
@@ -91,9 +92,16 @@ export function MomentByline({
   author,
   publishedAt,
   now,
+  compact = false,
 }: {
   author: PublicOwnerAttribution;
   publishedAt: string | null;
+  /**
+   * On a grid tile there is room for one identifier, not two. The handle wins:
+   * it is shorter, it is unique, and it is what a Follow acts on. Showing both
+   * on a 180px tile truncated each of them.
+   */
+  compact?: boolean;
   /**
    * The moment the list was loaded, captured once by the caller. Reading the
    * clock during render is impure, and a card that silently re-times itself on
@@ -121,8 +129,12 @@ export function MomentByline({
             <Icon className="h-3 w-3 text-pet-muted" name="users" />
           )}
         </span>
-        <span className="truncate">{author.displayName}</span>
-        <span className="truncate opacity-70">@{author.handle}</span>
+        {compact ? null : (
+          <span className="truncate">{author.displayName}</span>
+        )}
+        <span className={compact ? "truncate" : "truncate opacity-70"}>
+          @{author.handle}
+        </span>
       </Link>
 
       {publishedAt && now !== undefined ? (

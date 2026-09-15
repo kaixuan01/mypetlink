@@ -18,9 +18,12 @@ import { useSignedIn } from "@/lib/useSignedIn";
  * visitor gets a brand header and a way in, and no owner route is ever
  * mentioned to somebody who cannot use it.
  *
- * The public shell renders while the signed-in check settles. It is the safe
- * default: showing a visitor owner navigation for one frame would be a bug,
- * whereas an owner seeing the plain header for one frame is not.
+ * While the signed-in check is still settling, neither shell is shown. A third,
+ * neutral header holds the same space with nothing but the brand in it: showing
+ * a visitor owner navigation for a frame would be a bug, and flashing "Sign in"
+ * at somebody who is already signed in is the kind of small wrongness that
+ * makes an app feel unfinished. The PAGE itself renders immediately in every
+ * case — the content is public, so there is nothing to wait for.
  */
 export function SocialLayout({ children }: { children: React.ReactNode }) {
   const signedIn = useSignedIn();
@@ -31,11 +34,34 @@ export function SocialLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-pet-cream">
-      <PublicSocialHeader />
+      {signedIn === false ? <PublicSocialHeader /> : <NeutralSocialHeader />}
       <main className="mx-auto w-full max-w-7xl px-0 pb-16 pt-2 sm:px-6">
         {children}
       </main>
     </div>
+  );
+}
+
+/**
+ * The header that commits to nothing.
+ *
+ * Same height and same brand position as the public one, so the swap when the
+ * session resolves moves nothing on the page. It carries no sign-in prompt and
+ * no owner route, because at this instant we do not know which would be wrong.
+ */
+function NeutralSocialHeader() {
+  return (
+    <header
+      className="border-b border-pet-border bg-white/92 backdrop-blur"
+      data-testid="social-header-resolving"
+    >
+      <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+        <Link aria-label="MyPetLink home" className="flex items-center" href="/">
+          <BrandLogo />
+        </Link>
+        <span aria-hidden="true" className="h-10 w-28 rounded-full bg-pet-cream" />
+      </div>
+    </header>
   );
 }
 
@@ -48,7 +74,10 @@ function PublicSocialHeader() {
   const pathname = usePathname();
 
   return (
-    <header className="border-b border-pet-border bg-white/92 backdrop-blur">
+    <header
+      className="border-b border-pet-border bg-white/92 backdrop-blur"
+      data-testid="social-header-public"
+    >
       <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
         <Link aria-label="MyPetLink home" className="flex items-center" href="/">
           <BrandLogo />

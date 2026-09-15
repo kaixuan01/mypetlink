@@ -20,13 +20,38 @@ type LoadState = "loading" | "ready" | "error";
 /**
  * Activity: who followed you, and who liked a Moment.
  *
- * Opening this screen is what "read" means, so everything unread is marked on
- * arrival — but the rows keep their unread treatment for this visit, because a
- * list that blanks itself the instant you arrive is a list you cannot read.
+ * Reading is per page, not per visit. Opening this screen marks the rows it
+ * actually delivered — and each further page marks its own — rather than
+ * marking everything unread in the account. Marking away activity from three
+ * pages down, which the client was never even sent, is the version of this that
+ * loses things: somebody who taps Activity by accident should consume the
+ * newest page and nothing else. The badge then shows what genuinely remains.
+ *
+ * The rows keep their unread treatment for this visit, because a list that
+ * blanks itself the instant you arrive is a list you cannot read.
  *
  * Unread is never signalled by colour alone: an unread row carries a dot, a
  * word, and a heavier ground.
  */
+/**
+ * Marks exactly the rows this client received, and syncs every badge on screen
+ * to what is genuinely left. A failure here is silent: a badge is the last
+ * thing that should produce an error message.
+ */
+async function consume(delivered: SocialNotification[]) {
+  const unread = delivered.filter((item) => !item.isRead).map((item) => item.id);
+
+  if (unread.length === 0) {
+    return;
+  }
+
+  const remaining = await markActivityRead(unread).catch(() => null);
+
+  if (remaining !== null) {
+    setUnreadActivityCount(remaining);
+  }
+}
+
 export function SocialNotificationsView() {
   const [state, setState] = useState<LoadState>("loading");
   const [items, setItems] = useState<SocialNotification[]>([]);
@@ -47,17 +72,7 @@ export function SocialNotificationsView() {
         setLoadedAt(Date.now());
         setState("ready");
 
-        if (page.unreadCount > 0) {
-          // Opening this screen is what "read" means. The rows keep their
-          // unread treatment for this visit — a list that blanks itself the
-          // instant you arrive is a list you cannot read — but every badge on
-          // screen drops now.
-          const remaining = await markActivityRead().catch(() => null);
-
-          if (remaining !== null) {
-            setUnreadActivityCount(remaining);
-          }
-        }
+        await consume(page.items);
       })
       .catch(() => {
         if (active) setState("error");
@@ -79,6 +94,7 @@ export function SocialNotificationsView() {
       const page = await getSocialNotifications(nextCursor);
       setItems((current) => [...current, ...page.items]);
       setNextCursor(page.nextCursor);
+      await consume(page.items);
     } catch {
       setNextCursor(nextCursor);
     } finally {
