@@ -22,7 +22,8 @@ import {
   type OwnerHeaderPageContext,
 } from "@/lib/ownerHeaderActions";
 import { getPetLimitStateFromPets } from "@/lib/planLimits";
-import { marketingRoutes, ownerRoutes } from "@/lib/routes";
+import { marketingRoutes, ownerRoutes, socialRoutes } from "@/lib/routes";
+import { isSocialPath, socialNavItems } from "@/lib/socialNavigation";
 import { getPets } from "@/services/petService";
 import type { PetListItem } from "@/types";
 
@@ -182,6 +183,7 @@ export function OwnerPortalHeader() {
             MyPetLink
           </span>
         </Link>
+        <SocialModeSwitch pathname={pathname} />
         {action && ownerHeader ? (
           <PagePrimaryAction
             key={pathname}
@@ -407,3 +409,35 @@ function OwnerHeaderActionView({
 
 const headerActionClassName =
   "inline-flex min-h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border border-pet-coral bg-pet-coral px-3 py-2 text-sm font-extrabold text-white shadow-sm transition hover:bg-[#f26155] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pet-teal min-[360px]:px-4";
+
+/**
+ * The compact way between the product's two halves, on a phone.
+ *
+ * One control, and it always names where it goes rather than where you are —
+ * "My pets" while you are in the community, "Community" while you are looking
+ * after your pets. No mode names, no "portal": the words are the destinations
+ * themselves. On a wide screen the sidebar's two labelled groups already do
+ * this job, so it stays out of the way there.
+ */
+function SocialModeSwitch({ pathname }: { pathname: string }) {
+  if (socialNavItems.length === 0) {
+    return null;
+  }
+
+  const inSocial = isSocialPath(pathname);
+
+  return (
+    <Link
+      className="inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-full border border-pet-border bg-white px-3 text-sm font-bold text-pet-ink transition hover:bg-pet-cream lg:hidden"
+      data-testid="social-mode-switch"
+      href={inSocial ? ownerRoutes.dashboard : socialRoutes.feed}
+    >
+      <Icon
+        aria-hidden="true"
+        className="h-4 w-4"
+        name={inSocial ? "pets" : "users"}
+      />
+      {inSocial ? "My pets" : "Community"}
+    </Link>
+  );
+}

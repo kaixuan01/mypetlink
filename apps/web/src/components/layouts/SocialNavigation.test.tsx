@@ -216,6 +216,38 @@ describe("social actions", () => {
   });
 });
 
+describe("switching between the two halves", () => {
+  it("offers one control that names where it goes, from the social side", async () => {
+    const { OwnerPortalHeader } = await import(
+      "@/components/portal/OwnerHeaderActions"
+    );
+    mocks.pathname = "/feed";
+
+    render(<OwnerPortalHeader />);
+
+    const link = screen.getByTestId("social-mode-switch");
+
+    // Names the destination, not the mode you are in. No "portal", no
+    // "management mode".
+    expect(link.textContent).toBe("My pets");
+    expect(link.getAttribute("href")).toBe("/dashboard");
+  });
+
+  it("points the other way from the management side", async () => {
+    const { OwnerPortalHeader } = await import(
+      "@/components/portal/OwnerHeaderActions"
+    );
+    mocks.pathname = "/pets";
+
+    render(<OwnerPortalHeader />);
+
+    const link = screen.getByTestId("social-mode-switch");
+
+    expect(link.textContent).toBe("Community");
+    expect(link.getAttribute("href")).toBe("/feed");
+  });
+});
+
 describe("the public social shell", () => {
   it("gives a visitor a way in and no owner navigation at all", async () => {
     mocks.pathname = "/explore";
