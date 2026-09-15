@@ -14,6 +14,8 @@ import { AdminExportMenu, type AdminExportFormat } from "@/components/admin/tabl
 import { useAdminTableQuery } from "@/components/admin/table/useAdminTableQuery";
 import { Badge } from "@/components/ui/Badge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { adminCapabilities, hasCapability } from "@/lib/adminCapabilities";
+import { getAdminCapabilities } from "@/services/authService";
 import { isAbortError, isApiClientError } from "@/services/apiClient";
 import {
   bulkUpdateAdminSmartTags,
@@ -94,6 +96,11 @@ type PendingAction = { scope: "row"; tag: AdminSmartTag; action: AdminSmartTagAc
 
 
 export function AdminTagsManager() {
+  const access = getAdminCapabilities();
+  const canExport = hasCapability(access, adminCapabilities.smartTagsExport);
+  const canManage = hasCapability(access, adminCapabilities.smartTagsManage);
+  const canAssign = hasCapability(access, adminCapabilities.smartTagsAssign);
+  const canTransfer = hasCapability(access, adminCapabilities.smartTagsTransfer);
   const { query, actions, hasActiveFilters } = useAdminTableQuery({
     filterKeys,
     defaultSortBy: "updatedAt",
@@ -245,7 +252,7 @@ export function AdminTagsManager() {
     setPending(action);
   }
 
-  const bulkActions: AdminBulkAction[] = selectedRows.length === selectedIds.size
+  const bulkActions: AdminBulkAction[] = canManage && selectedRows.length === selectedIds.size
     ? getAvailableSmartTagBulkActions(selectedRows).map((action) => ({
       id: action,
       label: bulkActionLabel(action),
@@ -261,14 +268,14 @@ export function AdminTagsManager() {
       <nav aria-label="Tag lifecycle shortcuts" className="flex gap-1 overflow-x-auto border-b border-slate-200 px-4 pt-3">
         {shortcuts.map((shortcut) => <button aria-current={(query.filters.status ?? "") === shortcut.value ? "page" : undefined} className={`min-h-10 shrink-0 rounded-t-xl px-3 text-xs font-extrabold ${(query.filters.status ?? "") === shortcut.value ? "bg-slate-950 text-white" : "text-slate-500 hover:bg-slate-50"}`} key={shortcut.label} onClick={() => actions.setFilter("status", shortcut.value || null)} type="button">{shortcut.label} <span className="opacity-70">{current ? current.counts[shortcut.count] : "…"}</span></button>)}
       </nav>
-      <AdminFilterBar endSlot={<AdminExportMenu busy={exportBusy} formats={getAdminSmartTagExportFormats()} onExport={(format, scope) => void exportRows(format, scope)} selectedCount={selectedIds.size} />} filters={filters} hasActiveFilters={hasActiveFilters} onClearAll={actions.clearAllFilters} onFilterChange={actions.setFilter} onFiltersChange={actions.setFilters} searchSlot={<AdminSearchInput onChange={actions.setSearch} placeholder="Search code, pet, owner, email, order…" value={query.search} />} values={query.filters} />
+      <AdminFilterBar endSlot={canExport ? <AdminExportMenu busy={exportBusy} formats={getAdminSmartTagExportFormats()} onExport={(format, scope) => void exportRows(format, scope)} selectedCount={selectedIds.size} /> : undefined} filters={filters} hasActiveFilters={hasActiveFilters} onClearAll={actions.clearAllFilters} onFilterChange={actions.setFilter} onFiltersChange={actions.setFilters} searchSlot={<AdminSearchInput onChange={actions.setSearch} placeholder="Search code, pet, owner, email, order…" value={query.search} />} values={query.filters} />
       {message ? <div className="px-4 pt-3"><AdminNotice>{message}</AdminNotice>{failureDetails.length ? <ul className="mt-2 grid gap-1 text-xs font-semibold text-red-700">{failureDetails.map((failure) => <li key={failure}>{failure}</li>)}</ul> : null}</div> : null}
-      <AdminDataTable columns={columns} emptyDescription={hasActiveFilters ? "Try changing or clearing the active filters." : "Tags appear here after they are generated in Tag Inventory."} emptyTitle={hasActiveFilters ? "No Smart Tags match these filters." : "No Smart Tags yet."} error={current?.error || undefined} loading={!current} onPageChange={actions.setPage} onPageSizeChange={actions.setPageSize} onRetry={refresh} onRowOpen={(tag) => actions.setExtraParam("tag", tag.id)} onSelectedIdsChange={setSelectedIds} onSortChange={actions.setSort} page={query.page} pageSize={query.pageSize} rowKey={(tag) => tag.id} rowOpenLabel="View" rows={items} selectable selectedIds={selectedIds} sortBy={query.sortBy} sortDir={query.sortDir} total={current?.total ?? 0} />
-      <AdminBulkActionBar actions={bulkActions} busy={busy} onClearSelection={() => setSelectedIds(new Set())} selectedCount={selectedIds.size} />
-      <ConfirmDialog confirmLabel={pendingLabel} destructive={!isRecoveryAction(pending?.action)} message={actionConfirmationMessage(pending?.action, pendingCount)} onCancel={() => setPending(null)} onConfirm={() => void confirmAction()} open={pending !== null} title={`${pendingLabel} tag${pendingCount === 1 ? "" : "s"}?`}>
+      <AdminDataTable columns={columns} emptyDescription={hasActiveFilters ? "Try changing or clearing the active filters." : "Tags appear here after they are generated in Tag Inventory."} emptyTitle={hasActiveFilters ? "No Smart Tags match these filters." : "No Smart Tags yet."} error={current?.error || undefined} loading={!current} onPageChange={actions.setPage} onPageSizeChange={actions.setPageSize} onRetry={refresh} onRowOpen={(tag) => actions.setExtraParam("tag", tag.id)} onSelectedIdsChange={setSelectedIds} onSortChange={actions.setSort} page={query.page} pageSize={query.pageSize} rowKey={(tag) => tag.id} rowOpenLabel="View" rows={items} selectable={canManage || canExport} selectedIds={selectedIds} sortBy={query.sortBy} sortDir={query.sortDir} total={current?.total ?? 0} />
+      {canManage ? <AdminBulkActionBar actions={bulkActions} busy={busy} onClearSelection={() => setSelectedIds(new Set())} selectedCount={selectedIds.size} /> : null}
+      {canManage ? <ConfirmDialog confirmLabel={pendingLabel} destructive={!isRecoveryAction(pending?.action)} message={actionConfirmationMessage(pending?.action, pendingCount)} onCancel={() => setPending(null)} onConfirm={() => void confirmAction()} open={pending !== null} title={`${pendingLabel} tag${pendingCount === 1 ? "" : "s"}?`}>
         <label className="grid gap-1.5 text-sm font-bold text-pet-ink">Reason (optional)<textarea className="min-h-20 rounded-xl border border-pet-border px-3 py-2 text-sm font-medium outline-none focus:border-pet-teal" maxLength={600} onChange={(event) => setReason(event.target.value)} placeholder="Add context for the audit history" value={reason} /></label>
-      </ConfirmDialog>
-      <AdminSmartTagDetailDrawer busy={busy} onAction={(action) => { if (openTag) beginAction({ scope: "row", tag: openTag, action }); }} onAssignmentAction={(action) => { if (openTag) { setAssignmentError(""); setAssignment({ tag: openTag, action }); } }} onClose={() => { setDetachedTag(null); actions.setExtraParam("tag", null); }} tag={openTag} />
+      </ConfirmDialog> : null}
+      <AdminSmartTagDetailDrawer busy={busy} canAssign={canAssign} canExport={canExport} canManage={canManage} canTransfer={canTransfer} onAction={(action) => { if (openTag) beginAction({ scope: "row", tag: openTag, action }); }} onAssignmentAction={(action) => { if (openTag) { setAssignmentError(""); setAssignment({ tag: openTag, action }); } }} onClose={() => { setDetachedTag(null); actions.setExtraParam("tag", null); }} tag={openTag} />
       {assignment ? <AdminSmartTagAssignmentDialog action={assignment.action} busy={busy} error={assignmentError} onCancel={() => { if (!busy) setAssignment(null); }} onSubmit={(input) => void submitAssignment(input)} tag={assignment.tag} /> : null}
     </AdminSection>
   );

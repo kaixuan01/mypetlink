@@ -7,7 +7,7 @@ using MyPetLink.Api.Services;
 
 namespace MyPetLink.Api.Controllers.Admin;
 
-[Authorize(Policy = AuthorizationPolicies.Admin)]
+[Authorize(Policy = AdminCapabilities.SampleExperienceView)]
 [Route("api/v1/admin/sample-experience")]
 public sealed class AdminSampleExperienceController : ApiControllerBase
 {
@@ -27,6 +27,7 @@ public sealed class AdminSampleExperienceController : ApiControllerBase
         Ok(ApiEnvelope.Ok(await _service.GetAsync(cancellationToken), HttpContext));
 
     [HttpPut]
+    [Authorize(Policy = AdminCapabilities.SampleExperienceManage)]
     public async Task<IActionResult> Update(
         [FromBody] UpdateSampleExperienceRequest request,
         CancellationToken cancellationToken) =>

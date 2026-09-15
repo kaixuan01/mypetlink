@@ -8,6 +8,7 @@ using UglyToad.PdfPig;
 
 namespace MyPetLink.Api.Tests;
 
+[Collection("PDF document rendering")]
 public sealed class CommissionPayoutStatementServiceTests
 {
     private static readonly DateTimeOffset Now = DateTimeOffset.Parse("2026-09-09T08:30:00Z");

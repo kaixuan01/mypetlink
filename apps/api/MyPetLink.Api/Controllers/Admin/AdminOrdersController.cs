@@ -10,7 +10,7 @@ using MyPetLink.Api.Validation;
 
 namespace MyPetLink.Api.Controllers.Admin;
 
-[Authorize(Policy = AuthorizationPolicies.Admin)]
+[Authorize(Policy = AdminCapabilities.OrdersView)]
 [Route("api/v1/admin/orders")]
 public sealed class AdminOrdersController : ApiControllerBase
 {
@@ -51,6 +51,7 @@ public sealed class AdminOrdersController : ApiControllerBase
     }
 
     [HttpGet("export")]
+    [Authorize(Policy = AdminCapabilities.OrdersExport)]
     public async Task<IActionResult> Export(
         [FromQuery] AdminOrderQuery query,
         [FromQuery] string? format,
@@ -99,6 +100,7 @@ public sealed class AdminOrdersController : ApiControllerBase
     }
 
     [HttpPost("{orderId:guid}/confirm-payment")]
+    [Authorize(Policy = AdminCapabilities.PaymentProofsReview)]
     public async Task<IActionResult> ConfirmPayment(Guid orderId, CancellationToken cancellationToken)
     {
         var response = await _adminService.ConfirmPaymentAsync(
@@ -110,6 +112,7 @@ public sealed class AdminOrdersController : ApiControllerBase
     }
 
     [HttpPost("{orderId:guid}/payment-confirmation-email/retry")]
+    [Authorize(Policy = AdminCapabilities.OrdersManage)]
     public async Task<IActionResult> RetryPaymentConfirmationEmail(
         Guid orderId,
         CancellationToken cancellationToken)
@@ -123,6 +126,7 @@ public sealed class AdminOrdersController : ApiControllerBase
     }
 
     [HttpPost("{orderId:guid}/reject-payment-proof")]
+    [Authorize(Policy = AdminCapabilities.PaymentProofsReview)]
     public async Task<IActionResult> RejectPaymentProof(
         Guid orderId,
         [FromBody] RejectPaymentProofRequest? request,
@@ -138,6 +142,7 @@ public sealed class AdminOrdersController : ApiControllerBase
     }
 
     [HttpPost("{orderId:guid}/assign-tag")]
+    [Authorize(Policy = AdminCapabilities.OrdersTagsAssign)]
     public async Task<IActionResult> AssignTag(
         Guid orderId,
         [FromBody] AssignInventoryTagRequest request,
@@ -155,6 +160,7 @@ public sealed class AdminOrdersController : ApiControllerBase
 
     // Swap the assigned tag before shipping (old tag returns to inventory).
     [HttpPost("{orderId:guid}/change-assigned-tag")]
+    [Authorize(Policy = AdminCapabilities.OrdersTagsAssign)]
     public async Task<IActionResult> ChangeAssignedTag(
         Guid orderId,
         [FromBody] ChangeAssignedTagRequest request,
@@ -173,6 +179,7 @@ public sealed class AdminOrdersController : ApiControllerBase
 
     // Replace the tag after shipping/delivery/activation (old tag is retired).
     [HttpPost("{orderId:guid}/replace-tag")]
+    [Authorize(Policy = AdminCapabilities.OrdersTagsAssign)]
     public async Task<IActionResult> ReplaceTag(
         Guid orderId,
         [FromBody] ReplaceTagRequest request,
@@ -191,6 +198,7 @@ public sealed class AdminOrdersController : ApiControllerBase
     }
 
     [HttpPost("{orderId:guid}/mark-preparing")]
+    [Authorize(Policy = AdminCapabilities.OrdersShippingManage)]
     public async Task<IActionResult> MarkPreparing(
         Guid orderId,
         [FromBody] OrderTransitionRequest request,
@@ -206,6 +214,7 @@ public sealed class AdminOrdersController : ApiControllerBase
     }
 
     [HttpPost("{orderId:guid}/mark-ready-to-ship")]
+    [Authorize(Policy = AdminCapabilities.OrdersShippingManage)]
     public async Task<IActionResult> MarkReadyToShip(
         Guid orderId,
         [FromBody] OrderTransitionRequest request,
@@ -221,6 +230,7 @@ public sealed class AdminOrdersController : ApiControllerBase
     }
 
     [HttpPut("{orderId:guid}/shipment")]
+    [Authorize(Policy = AdminCapabilities.OrdersShippingManage)]
     public async Task<IActionResult> UpdateShipment(
         Guid orderId,
         [FromBody] UpdateShipmentDetailsRequest request,
@@ -236,6 +246,7 @@ public sealed class AdminOrdersController : ApiControllerBase
     }
 
     [HttpPost("{orderId:guid}/mark-shipped")]
+    [Authorize(Policy = AdminCapabilities.OrdersShippingManage)]
     public async Task<IActionResult> MarkShipped(
         Guid orderId,
         [FromBody] MarkOrderShippedRequest request,
@@ -251,6 +262,7 @@ public sealed class AdminOrdersController : ApiControllerBase
     }
 
     [HttpPost("{orderId:guid}/mark-delivered")]
+    [Authorize(Policy = AdminCapabilities.OrdersShippingManage)]
     public async Task<IActionResult> MarkDelivered(
         Guid orderId,
         [FromBody] OrderTransitionRequest request,
@@ -268,6 +280,7 @@ public sealed class AdminOrdersController : ApiControllerBase
     // Compatibility route matching the documented V1 contract; dispatches to the
     // same transition logic as the explicit mark-* routes.
     [HttpPost("{orderId:guid}/status")]
+    [Authorize(Policy = AdminCapabilities.OrdersShippingManage)]
     public async Task<IActionResult> UpdateStatus(
         Guid orderId,
         [FromBody] UpdateOrderStatusRequest request,
@@ -305,6 +318,7 @@ public sealed class AdminOrdersController : ApiControllerBase
     }
 
     [HttpPost("{orderId:guid}/cancel")]
+    [Authorize(Policy = AdminCapabilities.OrdersManage)]
     public async Task<IActionResult> Cancel(
         Guid orderId,
         [FromBody] CancelOrderRequest request,

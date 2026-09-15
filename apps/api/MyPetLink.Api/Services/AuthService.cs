@@ -176,6 +176,7 @@ public sealed class AuthService : SkeletonService, IAuthService
 
     public async Task<AdminAuthCheckResponse> GetAdminAuthCheckAsync(
         Guid? currentUserId,
+        AdminAccessSummaryResponse access,
         CancellationToken cancellationToken = default)
     {
         var user = await LoadCurrentUserAsync(currentUserId, cancellationToken);
@@ -189,7 +190,7 @@ public sealed class AuthService : SkeletonService, IAuthService
                 "Admin access is required.");
         }
 
-        return new AdminAuthCheckResponse(BuildUserSummary(user), admin);
+        return new AdminAuthCheckResponse(BuildUserSummary(user), admin, access);
     }
 
     public async Task<AuthTokenResponse> SignInWithDevelopmentAdminAsync(

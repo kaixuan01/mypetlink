@@ -7,7 +7,7 @@ using MyPetLink.Api.Services;
 
 namespace MyPetLink.Api.Controllers.Admin;
 
-[Authorize(Policy = AuthorizationPolicies.Admin)]
+[Authorize(Policy = AdminCapabilities.SettingsView)]
 [Route("api/v1/admin/order-checkout-settings")]
 public sealed class AdminOrderCheckoutSettingsController : ApiControllerBase
 {
@@ -27,6 +27,7 @@ public sealed class AdminOrderCheckoutSettingsController : ApiControllerBase
         Ok(ApiEnvelope.Ok(await _service.GetAsync(cancellationToken), HttpContext));
 
     [HttpPut]
+    [Authorize(Policy = AdminCapabilities.SettingsManage)]
     public async Task<IActionResult> Update(
         [FromBody] UpdateOrderCheckoutSettingsRequest request,
         CancellationToken cancellationToken) =>

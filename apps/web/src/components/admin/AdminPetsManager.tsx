@@ -15,6 +15,8 @@ import { AdminSearchInput } from "@/components/admin/table/AdminSearchInput";
 import { useAdminTableQuery } from "@/components/admin/table/useAdminTableQuery";
 import { Badge } from "@/components/ui/Badge";
 import { PET_TYPE_OPTIONS } from "@/lib/petDisplay";
+import { adminCapabilities, hasCapability } from "@/lib/adminCapabilities";
+import { getAdminCapabilities } from "@/services/authService";
 import { adminRoutes, publicProfilePath, qrSafetyPath } from "@/lib/routes";
 import { toAbsoluteUrl } from "@/lib/siteUrl";
 import { isAbortError } from "@/services/apiClient";
@@ -114,6 +116,9 @@ const shortcuts: { value: string; label: string; count: keyof AdminPetProfileCou
 const zeroCounts: AdminPetProfileCounts = { all: 0, active: 0, lostMode: 0, memorial: 0, archived: 0 };
 
 export function AdminPetsManager() {
+  const access = getAdminCapabilities();
+  const canExport = hasCapability(access, adminCapabilities.petsExport);
+  const canManage = hasCapability(access, adminCapabilities.petsManage);
   const { query, actions, hasActiveFilters } = useAdminTableQuery({
     filterKeys,
     defaultSortBy: "updatedAt",
@@ -325,7 +330,7 @@ export function AdminPetsManager() {
           ))}
         </nav>
         <AdminFilterBar
-          endSlot={<AdminExportMenu busy={exportBusy} formats={getAdminPetProfileExportFormats()} onExport={(format, scope) => void exportRows(format, scope)} selectedCount={selectedIds.size} />}
+          endSlot={canExport ? <AdminExportMenu busy={exportBusy} formats={getAdminPetProfileExportFormats()} onExport={(format, scope) => void exportRows(format, scope)} selectedCount={selectedIds.size} /> : undefined}
           filters={filters}
           hasActiveFilters={hasActiveFilters}
           onClearAll={actions.clearAllFilters}
@@ -352,15 +357,15 @@ export function AdminPetsManager() {
           rowKey={(pet) => pet.id}
           rowOpenLabel="View Pet"
           rows={items}
-          selectable
+          selectable={canExport}
           selectedIds={selectedIds}
           sortBy={query.sortBy}
           sortDir={query.sortDir}
           stickyFirstColumn
           total={current?.total ?? 0}
         />
-        <AdminBulkActionBar actions={bulkActions} busy={exportBusy} onClearSelection={() => setSelectedIds(new Set())} selectedCount={selectedIds.size} />
-        {openPet ? <AdminPetProfileDetailDrawer onClose={() => actions.setExtraParam("petProfile", null)} summary={openPet} /> : null}
+        {canExport ? <AdminBulkActionBar actions={bulkActions} busy={exportBusy} onClearSelection={() => setSelectedIds(new Set())} selectedCount={selectedIds.size} /> : null}
+        {openPet ? <AdminPetProfileDetailDrawer canManage={canManage} onClose={() => actions.setExtraParam("petProfile", null)} summary={openPet} /> : null}
       </AdminSection>
     </div>
   );
@@ -369,5 +374,4 @@ export function AdminPetsManager() {
 function RouteBadge({ accessible, issue }: { accessible: boolean; issue: boolean }) {
   return <Badge tone={issue ? "danger" : accessible ? "mint" : "soft"}>{issue ? "Setup issue" : accessible ? "Accessible" : "Unavailable"}</Badge>;
 }
-
 

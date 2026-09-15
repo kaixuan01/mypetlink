@@ -190,6 +190,12 @@ export const adminRoutes = {
   orderCheckout: "/admin/order-checkout",
   sampleExperience: "/admin/sample-experience",
   operationalStatus: "/admin/operational-status",
+  accessUsers: "/admin/access/users",
+  accessUser: (adminUserId: string) =>
+    `/admin/access/users?user=${encodeURIComponent(adminUserId)}`,
+  accessRoles: "/admin/access/roles",
+  accessRole: (roleId: string) => `/admin/access/roles?role=${encodeURIComponent(roleId)}`,
+  accessAuditLog: "/admin/access/activity",
   ownerPlans: "/admin/plans?view=owners",
   ownerPlansForPlan: (planCode: string) =>
     `/admin/plans?view=owners&plan=${encodeURIComponent(planCode)}`,

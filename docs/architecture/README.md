@@ -8,3 +8,6 @@ System architecture documentation will grow as the platform moves beyond the fro
   [`communication-preferences.md`](communication-preferences.md).
 - The owner sharing surfaces and the Share Center are described in
   [`owner-sharing-experience.md`](owner-sharing-experience.md).
+- Admin Portal access control — roles, capabilities and the rules that stop
+  privilege escalation — is in
+  [`admin-access-management.md`](admin-access-management.md).

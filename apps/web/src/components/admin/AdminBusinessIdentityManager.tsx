@@ -10,6 +10,8 @@ import {
 import { AdminNotice, AdminSection } from "@/components/admin/AdminPanels";
 import { formatAdminDateTime } from "@/components/admin/adminDisplay";
 import { Badge } from "@/components/ui/Badge";
+import { adminCapabilities, hasCapability } from "@/lib/adminCapabilities";
+import { getAdminCapabilities } from "@/services/authService";
 import {
   getBusinessIdentity,
   getBusinessIdentityError,
@@ -71,6 +73,7 @@ function toDraft(identity: AdminBusinessIdentity): Draft {
 }
 
 export function AdminBusinessIdentityManager() {
+  const canManage = hasCapability(getAdminCapabilities(), adminCapabilities.settingsManage);
   const [identity, setIdentity] = useState<AdminBusinessIdentity | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [states, setStates] = useState<Array<{ code: string; name: string }>>([]);
@@ -187,6 +190,7 @@ export function AdminBusinessIdentityManager() {
   const missing = identity.completeness.missingForMerchantInvoice;
 
   return (
+    <fieldset className="contents" disabled={!canManage}>
     <div className="space-y-5 sm:space-y-6" data-testid="business-identity">
       <div
         className="rounded-2xl border border-slate-200 bg-white p-5"
@@ -423,6 +427,7 @@ export function AdminBusinessIdentityManager() {
         </button>
       </div>
     </div>
+    </fieldset>
   );
 }
 

@@ -8,7 +8,6 @@ using MyPetLink.Api.Services;
 
 namespace MyPetLink.Api.Controllers.Admin;
 
-[Authorize(Policy = AuthorizationPolicies.Admin)]
 [Route("api/v1/admin/tag-inventory")]
 public sealed class AdminTagInventoryController : ApiControllerBase
 {
@@ -29,6 +28,7 @@ public sealed class AdminTagInventoryController : ApiControllerBase
     }
 
     [HttpGet("receipts")]
+    [Authorize(Policy = AdminCapabilities.InventoryCostsView)]
     public async Task<IActionResult> ListReceipts(
         [FromQuery] InventoryReceiptQuery query,
         CancellationToken cancellationToken)
@@ -38,6 +38,7 @@ public sealed class AdminTagInventoryController : ApiControllerBase
     }
 
     [HttpGet("receipt-options")]
+    [Authorize(Policy = AdminCapabilities.InventoryCostsView)]
     public async Task<IActionResult> ReceiptOptions(CancellationToken cancellationToken)
     {
         var response = await _receiptService.GetOptionsAsync(cancellationToken);
@@ -45,6 +46,7 @@ public sealed class AdminTagInventoryController : ApiControllerBase
     }
 
     [HttpPost("receipts")]
+    [Authorize(Policy = AdminCapabilities.InventoryReceiptsManage)]
     public async Task<IActionResult> CreateReceipt(
         [FromBody] CreateInventoryReceiptRequest request,
         CancellationToken cancellationToken)
@@ -55,6 +57,7 @@ public sealed class AdminTagInventoryController : ApiControllerBase
     }
 
     [HttpGet("profitability")]
+    [Authorize(Policy = AdminCapabilities.InventoryCostsView)]
     public async Task<IActionResult> Profitability(
         [FromQuery] ProfitabilityReportQuery query,
         CancellationToken cancellationToken)
@@ -64,6 +67,7 @@ public sealed class AdminTagInventoryController : ApiControllerBase
     }
 
     [HttpGet]
+    [Authorize(Policy = AdminCapabilities.InventoryView)]
     public async Task<IActionResult> List(
         [FromQuery] AdminTagInventoryQuery query,
         CancellationToken cancellationToken)
@@ -74,6 +78,7 @@ public sealed class AdminTagInventoryController : ApiControllerBase
     }
 
     [HttpPost("generate")]
+    [Authorize(Policy = AdminCapabilities.InventoryGenerate)]
     public async Task<IActionResult> Generate(
         [FromBody] AdminGenerateTagsRequest request,
         CancellationToken cancellationToken)
@@ -87,6 +92,7 @@ public sealed class AdminTagInventoryController : ApiControllerBase
     }
 
     [HttpPost("bulk-status")]
+    [Authorize(Policy = AdminCapabilities.InventoryManage)]
     public async Task<IActionResult> BulkStatus(
         [FromBody] AdminTagInventoryBulkActionRequest request,
         CancellationToken cancellationToken)
@@ -102,6 +108,7 @@ public sealed class AdminTagInventoryController : ApiControllerBase
     // Exports the rows matching the current filters (or, when `ids` is
     // provided, only the selected rows) as CSV or Excel.
     [HttpGet("export")]
+    [Authorize(Policy = AdminCapabilities.InventoryExport)]
     public async Task<IActionResult> Export(
         [FromQuery] AdminTagInventoryQuery query,
         [FromQuery] string? format,
@@ -122,6 +129,7 @@ public sealed class AdminTagInventoryController : ApiControllerBase
     // required for QR printing and NFC encoding. Owner, pet, order, and
     // internal operational data never appear in this file.
     [HttpGet("manufacturer-export")]
+    [Authorize(Policy = AdminCapabilities.InventoryExport)]
     public async Task<IActionResult> ManufacturerExport(
         [FromQuery] AdminTagInventoryQuery query,
         [FromQuery] string? ids,

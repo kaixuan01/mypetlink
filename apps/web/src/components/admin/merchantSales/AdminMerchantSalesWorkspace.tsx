@@ -12,13 +12,15 @@ import { ReferralAttributionsPanel } from "./ReferralAttributionsPanel";
 import { CommissionsPanel } from "./CommissionsPanel";
 import { SalesReportsPanel } from "./SalesReportsPanel";
 import { PayoutsPanel } from "./PayoutsPanel";
+import { adminCapabilities, hasCapability } from "@/lib/adminCapabilities";
 import { getAdminCapabilities } from "@/services/authService";
+import { AdminNoAccessNotice } from "@/components/admin/AdminNoAccessNotice";
 import {
   MERCHANT_SALES_LIST_KEYS,
   isMerchantSalesTab,
   merchantSalesTabHref,
   merchantSalesTabs,
-  merchantSalesTabsForRole,
+  merchantSalesTabsFor,
   merchantSalesWorkspaceGroups,
   type MerchantSalesTab,
 } from "./tabs";
@@ -33,15 +35,20 @@ import {
 export function AdminMerchantSalesWorkspace() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const capabilities = getAdminCapabilities();
-  const availableTabs = merchantSalesTabsForRole(capabilities.role);
-  const availableIds = new Set(availableTabs.map((item) => item.id));
+  const access = getAdminCapabilities();
+  const can = (capability: Parameters<typeof hasCapability>[1]) =>
+    hasCapability(access, capability);
+  const availableTabs = merchantSalesTabsFor(access);
+  const availableIds = new Set<string>(availableTabs.map((item) => item.id));
 
   const tabParam = searchParams.get("tab");
   const requestedTab = isMerchantSalesTab(tabParam) ? tabParam : null;
-  const tab: MerchantSalesTab = requestedTab && availableTabs.some((item) => item.id === requestedTab)
-    ? requestedTab
-    : availableTabs[0].id;
+  // Asking for a section you cannot open lands on the first one you can, rather
+  // than on an empty page or a request the API would refuse.
+  const tab: MerchantSalesTab | null =
+    requestedTab && availableIds.has(requestedTab)
+      ? requestedTab
+      : (availableTabs[0]?.id ?? null);
   const openId = searchParams.get("open");
   const editParam = searchParams.get("edit");
 
@@ -77,6 +84,15 @@ export function AdminMerchantSalesWorkspace() {
 
   const closeEditor = () => setParam({ edit: null });
 
+  if (tab === null) {
+    return (
+      <AdminNoAccessNotice
+        title="Merchant Sales"
+        description="You do not have permission to open any part of Merchant Sales. Ask an administrator who manages access if you need it."
+      />
+    );
+  }
+
   const workspaceGroups: WorkspaceNavGroup<MerchantSalesTab>[] =
     merchantSalesWorkspaceGroups.map((group) => ({
       id: group.id,
@@ -110,8 +126,8 @@ export function AdminMerchantSalesWorkspace() {
 
       {tab === "merchants" ? (
         <MerchantsPanel
-          canManage={capabilities.canManageSales}
-          editing={capabilities.canManageSales && editParam !== null}
+          canManage={can(adminCapabilities.salesManage)}
+          editing={can(adminCapabilities.salesManage) && editParam !== null}
           onCloseEditor={closeEditor}
           onEdit={editRecord}
           onOpen={openRecord}
@@ -121,9 +137,9 @@ export function AdminMerchantSalesWorkspace() {
 
       {tab === "salespersons" ? (
         <SalespersonsPanel
-          canManage={capabilities.canManageSales}
-          canViewFinancial={capabilities.canViewCommissionFinancials}
-          editing={capabilities.canManageSales && editParam !== null}
+          canManage={can(adminCapabilities.salesManage)}
+          canViewFinancial={can(adminCapabilities.salesCommissionsView)}
+          editing={can(adminCapabilities.salesManage) && editParam !== null}
           onCloseEditor={closeEditor}
           onEdit={editRecord}
           onOpen={openRecord}
@@ -132,14 +148,14 @@ export function AdminMerchantSalesWorkspace() {
       ) : null}
 
       {tab === "reports" ? (
-        <SalesReportsPanel canViewFinancial={capabilities.canViewCommissionFinancials} />
+        <SalesReportsPanel canViewFinancial={can(adminCapabilities.salesCommissionsView)} />
       ) : null}
 
-      {tab === "referrals" ? <ReferralAttributionsPanel canManage={capabilities.canManageSales} /> : null}
+      {tab === "referrals" ? <ReferralAttributionsPanel canManage={can(adminCapabilities.salesManage)} /> : null}
 
       {tab === "quotations" ? (
         <QuotationsPanel
-          editing={editParam !== null}
+          editing={can(adminCapabilities.merchantOrdersManage) && editParam !== null}
           onCloseEditor={closeEditor}
           onEdit={editRecord}
           onOpen={openRecord}
@@ -161,8 +177,8 @@ export function AdminMerchantSalesWorkspace() {
 
       {tab === "invoices" ? (
         <InvoicesPanel
-          canRecordPayment={capabilities.canViewCommissionFinancials}
-          canViewFinancial={capabilities.canViewCommissionFinancials}
+          canRecordPayment={can(adminCapabilities.merchantInvoicesRecordPayment)}
+          canViewFinancial={can(adminCapabilities.salesCommissionsView)}
           onOpen={openRecord}
           onOpenOrder={(orderId) => goToTab("orders", { open: orderId })}
           openId={openId}
@@ -172,16 +188,16 @@ export function AdminMerchantSalesWorkspace() {
 
       {tab === "commissions" ? (
         <CommissionsPanel
-          canManageRules={capabilities.canManageCommissionRules}
-          canReverse={capabilities.canReverseCommission}
+          canManageRules={can(adminCapabilities.salesCommissionRulesManage)}
+          canReverse={can(adminCapabilities.salesCommissionsReverse)}
           onOpenPayout={(payoutId) => goToTab("payouts", { open: payoutId })}
         />
       ) : null}
 
       {tab === "payouts" ? (
         <PayoutsPanel
-          canMarkPaid={capabilities.canMarkCommissionPaid}
-          canPrepare={capabilities.canPreparePayout}
+          canMarkPaid={can(adminCapabilities.payoutsSettle)}
+          canPrepare={can(adminCapabilities.payoutsManage)}
           onOpen={openRecord}
           openId={openId}
         />

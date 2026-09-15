@@ -146,7 +146,8 @@ public sealed class DevelopmentAdminAuthTests
         Assert.Single(await db.AdminUsers.ToListAsync());
         Assert.Single(await db.RefreshTokens.ToListAsync());
 
-        var policyHandler = new ActiveAdminRequirementHandler(db);
+        var policyHandler = new ActiveAdminRequirementHandler(
+            new AdminAccessResolver(db, new StubCurrentUserService(login.User.Id)));
         var requirement = new ActiveAdminRequirement();
         var principal = new ClaimsPrincipal(new ClaimsIdentity(
             [new Claim(ClaimTypes.NameIdentifier, login.User.Id.ToString())],
@@ -155,7 +156,9 @@ public sealed class DevelopmentAdminAuthTests
         await policyHandler.HandleAsync(authorization);
         Assert.True(authorization.HasSucceeded);
 
-        var access = await service.GetAdminAuthCheckAsync(login.User.Id);
+        var access = await service.GetAdminAuthCheckAsync(
+            login.User.Id,
+            new AdminAccessSummaryResponse(false, [], []));
         Assert.True(access.Admin.IsActive);
 
         var refreshed = await service.RefreshAsync(

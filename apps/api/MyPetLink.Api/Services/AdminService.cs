@@ -1,6 +1,7 @@
 using System.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using MyPetLink.Api.Auth;
 using MyPetLink.Api.Common;
 using MyPetLink.Api.Data;
 using MyPetLink.Api.DTOs;
@@ -23,6 +24,11 @@ public sealed class AdminService : SkeletonService, IAdminService
     private readonly FeatureOptions _features;
     private readonly IBusinessReferenceGenerator _businessReferences;
     private readonly TimeProvider _timeProvider;
+
+    // Optional so the existing test constructors keep working: when it is not
+    // supplied the dashboard is unfiltered, which only happens off the request
+    // pipeline where there is no operator to filter for.
+    private readonly IAdminAccessResolver? _accessResolver;
 
     public AdminService(
         MyPetLinkDbContext dbContext,
@@ -68,8 +74,10 @@ public sealed class AdminService : SkeletonService, IAdminService
         TimeProvider timeProvider,
         IShippingFulfilmentService? shippingFulfilmentService = null,
         IOrderCheckoutSettingsService? checkoutSettings = null,
-        IInventoryCostingService? inventoryCosting = null)
+        IInventoryCostingService? inventoryCosting = null,
+        IAdminAccessResolver? accessResolver = null)
     {
+        _accessResolver = accessResolver;
         _dbContext = dbContext;
         _auditLogService = auditLogService;
         _features = features.Value;
@@ -87,64 +95,102 @@ public sealed class AdminService : SkeletonService, IAdminService
 
     public async Task<AdminDashboardResponse> GetDashboardAsync(CancellationToken cancellationToken = default)
     {
+        var access = _accessResolver is null
+            ? null
+            : await _accessResolver.ResolveCurrentAsync(cancellationToken);
+        bool Can(string capability) => access is null || access.Has(capability);
+
+        var canOwners = Can(AdminCapabilities.OwnersView);
+        var canPets = Can(AdminCapabilities.PetsView);
+        var canProofs = Can(AdminCapabilities.PaymentProofsView);
+        var canOrders = Can(AdminCapabilities.OrdersView);
+        var canTags = Can(AdminCapabilities.SmartTagsView);
+        var canInventory = Can(AdminCapabilities.InventoryView);
+
         var summary = new AdminDashboardSummaryResponse(
-            TotalOwners: await _dbContext.OwnerProfiles
-                .CountAsync(profile => profile.ArchivedAt == null, cancellationToken),
-            TotalPets: await ActivePetsBase().CountAsync(cancellationToken),
-            ActivePets: await ActivePetsBase()
-                .CountAsync(pet => pet.LifecycleStatus == PetLifecycleStatus.Active, cancellationToken),
-            MemorialPets: await ActivePetsBase()
-                .CountAsync(pet => pet.LifecycleStatus == PetLifecycleStatus.Memorial, cancellationToken),
-            LostModePets: await ActivePetsBase()
-                .CountAsync(pet => pet.LifecycleStatus == PetLifecycleStatus.Active && pet.LostModeEnabled, cancellationToken),
-            PendingPaymentProofs: await _dbContext.PaymentProofs
-                .CountAsync(proof => proof.Status == PaymentProofStatus.PendingReview, cancellationToken),
-            OrdersPendingPayment: await _dbContext.TagOrders
-                .CountAsync(order => order.Status == OrderStatus.PendingPayment, cancellationToken),
-            OrdersPreparing: await _dbContext.TagOrders
-                .CountAsync(order =>
+            TotalOwners: canOwners
+                ? await _dbContext.OwnerProfiles.CountAsync(profile => profile.ArchivedAt == null, cancellationToken)
+                : null,
+            TotalPets: canPets ? await ActivePetsBase().CountAsync(cancellationToken) : null,
+            ActivePets: canPets
+                ? await ActivePetsBase().CountAsync(pet => pet.LifecycleStatus == PetLifecycleStatus.Active, cancellationToken)
+                : null,
+            MemorialPets: canPets
+                ? await ActivePetsBase().CountAsync(pet => pet.LifecycleStatus == PetLifecycleStatus.Memorial, cancellationToken)
+                : null,
+            LostModePets: canPets
+                ? await ActivePetsBase().CountAsync(
+                    pet => pet.LifecycleStatus == PetLifecycleStatus.Active && pet.LostModeEnabled,
+                    cancellationToken)
+                : null,
+            PendingPaymentProofs: canProofs
+                ? await _dbContext.PaymentProofs.CountAsync(
+                    proof => proof.Status == PaymentProofStatus.PendingReview,
+                    cancellationToken)
+                : null,
+            OrdersPendingPayment: canOrders
+                ? await _dbContext.TagOrders.CountAsync(order => order.Status == OrderStatus.PendingPayment, cancellationToken)
+                : null,
+            OrdersPreparing: canOrders
+                ? await _dbContext.TagOrders.CountAsync(order =>
                     order.Status == OrderStatus.PaymentConfirmed
                     || order.Status == OrderStatus.PreparingTag
-                    || order.Status == OrderStatus.ReadyToShip, cancellationToken),
-            OrdersShipped: await _dbContext.TagOrders
-                .CountAsync(order => order.Status == OrderStatus.Shipped, cancellationToken),
-            ActiveTags: await VisibleTagsBase()
-                .CountAsync(tag =>
+                    || order.Status == OrderStatus.ReadyToShip, cancellationToken)
+                : null,
+            OrdersShipped: canOrders
+                ? await _dbContext.TagOrders.CountAsync(order => order.Status == OrderStatus.Shipped, cancellationToken)
+                : null,
+            ActiveTags: canTags
+                ? await VisibleTagsBase().CountAsync(tag =>
                     tag.Status == SmartTagStatus.Active
                     && tag.ArchivedAt == null
                     && tag.Pet != null
-                    && tag.Pet.LifecycleStatus == PetLifecycleStatus.Active, cancellationToken),
-            LostOrDisabledTags: await VisibleTagsBase()
-                .CountAsync(tag =>
+                    && tag.Pet.LifecycleStatus == PetLifecycleStatus.Active, cancellationToken)
+                : null,
+            LostOrDisabledTags: canTags
+                ? await VisibleTagsBase().CountAsync(tag =>
                     tag.ArchivedAt == null
-                    && (tag.Status == SmartTagStatus.Lost || tag.Status == SmartTagStatus.Disabled), cancellationToken),
-            UnclaimedTags: await VisibleTagsBase()
-                .CountAsync(tag =>
+                    && (tag.Status == SmartTagStatus.Lost || tag.Status == SmartTagStatus.Disabled), cancellationToken)
+                : null,
+            UnclaimedTags: canInventory
+                ? await VisibleTagsBase().CountAsync(tag =>
                     tag.Status == SmartTagStatus.Unclaimed
                     && tag.PetId == null
-                    && tag.ArchivedAt == null, cancellationToken));
+                    && tag.ArchivedAt == null, cancellationToken)
+                : null);
 
-        var recentOrders = await IncludeOrderGraph(_dbContext.TagOrders.AsNoTracking())
-            .OrderByDescending(order => order.CreatedAt)
-            .Take(5)
-            .ToListAsync(cancellationToken);
+        // Both aggregates and recent records are limited to modules the
+        // current operator can open. A broad dashboard route must not become
+        // an indirect way to inspect protected operational data.
+        var recentOrders = canOrders
+            ? await IncludeOrderGraph(_dbContext.TagOrders.AsNoTracking())
+                .OrderByDescending(order => order.CreatedAt)
+                .Take(5)
+                .ToListAsync(cancellationToken)
+            : [];
 
-        var recentProofs = await IncludeProofGraph(_dbContext.PaymentProofs.AsNoTracking())
-            .OrderByDescending(proof => proof.UploadedAt)
-            .Take(5)
-            .ToListAsync(cancellationToken);
+        var recentProofs = canProofs
+            ? await IncludeProofGraph(_dbContext.PaymentProofs.AsNoTracking())
+                .OrderByDescending(proof => proof.UploadedAt)
+                .Take(5)
+                .ToListAsync(cancellationToken)
+            : [];
 
-        var recentActivity = await _dbContext.AuditLogs
-            .AsNoTracking()
-            .OrderByDescending(log => log.CreatedAt)
-            .Take(8)
-            .ToListAsync(cancellationToken);
+        var recentActivity = access is null || access.Has(AdminCapabilities.AuditLogView)
+            ? await _dbContext.AuditLogs
+                .AsNoTracking()
+                .OrderByDescending(log => log.CreatedAt)
+                .Take(8)
+                .ToListAsync(cancellationToken)
+            : [];
+
+        var activityActors = await LoadAuditActorsAsync(recentActivity, cancellationToken);
 
         return new AdminDashboardResponse(
             summary,
             recentOrders.Select(ToAdminOrderResponse).ToArray(),
             recentProofs.Select(ToAdminProofResponse).ToArray(),
-            recentActivity.Select(ToAuditLogResponse).ToArray());
+            recentActivity.Select(log => ToAuditLogResponse(log, activityActors)).ToArray());
     }
 
     // --- Orders ----------------------------------------------------------------
@@ -1408,7 +1454,8 @@ public sealed class AdminService : SkeletonService, IAdminService
             .Take(pageSize)
             .ToListAsync(cancellationToken);
 
-        return (logs.Select(ToAuditLogResponse).ToArray(), total);
+        var actors = await LoadAuditActorsAsync(logs, cancellationToken);
+        return (logs.Select(log => ToAuditLogResponse(log, actors)).ToArray(), total);
     }
 
     // --- Shared helpers ------------------------------------------------------------
@@ -2017,11 +2064,20 @@ public sealed class AdminService : SkeletonService, IAdminService
             tag.Pet?.LifecycleStatus);
     }
 
-    private static AdminAuditLogResponse ToAuditLogResponse(AuditLog log)
+    private static AdminAuditLogResponse ToAuditLogResponse(
+        AuditLog log,
+        IReadOnlyDictionary<Guid, (string Name, string Email)>? actors = null)
     {
+        var actor = log.ActorId.HasValue && actors is not null
+            && actors.TryGetValue(log.ActorId.Value, out var found)
+                ? found
+                : default;
+
         return new AdminAuditLogResponse(
             log.Id,
             log.ActorId,
+            actor.Name,
+            actor.Email,
             log.ActorType,
             log.Action,
             log.Entity,
@@ -2029,6 +2085,43 @@ public sealed class AdminService : SkeletonService, IAdminService
             log.OldValue,
             log.NewValue,
             log.CreatedAt);
+    }
+
+    /// <summary>
+    /// Names for the administrators who appear as actors in these entries, in
+    /// one lookup rather than one per row.
+    /// </summary>
+    private async Task<Dictionary<Guid, (string Name, string Email)>> LoadAuditActorsAsync(
+        IReadOnlyCollection<AuditLog> logs,
+        CancellationToken cancellationToken)
+    {
+        var actorIds = logs
+            .Where(log => log.ActorId.HasValue)
+            .Select(log => log.ActorId!.Value)
+            .Distinct()
+            .ToArray();
+
+        if (actorIds.Length == 0)
+        {
+            return [];
+        }
+
+        // Projected in the query so the name and email come back with the row;
+        // an actor id that is not an administrator simply has no entry.
+        var actors = await _dbContext.AdminUsers
+            .AsNoTracking()
+            .Where(admin => actorIds.Contains(admin.Id))
+            .Select(admin => new
+            {
+                admin.Id,
+                admin.User.DisplayName,
+                admin.User.Email,
+            })
+            .ToListAsync(cancellationToken);
+
+        return actors.ToDictionary(
+            actor => actor.Id,
+            actor => (actor.DisplayName, actor.Email));
     }
 
     private static AdminOwnerRefResponse ToOwnerRef(User user)

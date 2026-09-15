@@ -14,7 +14,7 @@ namespace MyPetLink.Api.Controllers.Admin;
 // record, so repeated downloads are free and always reproduce the same
 // document from the same stored snapshot.
 
-[Authorize(Policy = AuthorizationPolicies.Admin)]
+[Authorize(Policy = AdminCapabilities.MerchantOrdersView)]
 [Route("api/v1/admin/merchant-sales")]
 public sealed class AdminMerchantDocumentsController : ApiControllerBase
 {
@@ -34,6 +34,7 @@ public sealed class AdminMerchantDocumentsController : ApiControllerBase
     }
 
     [HttpGet("invoices/{invoiceId:guid}/invoice.pdf")]
+    [Authorize(Policy = AdminCapabilities.MerchantInvoicesView)]
     public async Task<IActionResult> InvoicePdf(Guid invoiceId, CancellationToken cancellationToken)
     {
         var document = await _documents.GetInvoiceAsync(invoiceId, cancellationToken);
@@ -41,6 +42,7 @@ public sealed class AdminMerchantDocumentsController : ApiControllerBase
     }
 
     [HttpGet("invoices/{invoiceId:guid}/receipt.pdf")]
+    [Authorize(Policy = AdminCapabilities.MerchantInvoicesView)]
     public async Task<IActionResult> ReceiptPdf(Guid invoiceId, CancellationToken cancellationToken)
     {
         var document = await _documents.GetReceiptForInvoiceAsync(invoiceId, cancellationToken);
@@ -48,6 +50,7 @@ public sealed class AdminMerchantDocumentsController : ApiControllerBase
     }
 
     [HttpGet("receipts/{receiptId:guid}/receipt.pdf")]
+    [Authorize(Policy = AdminCapabilities.MerchantInvoicesView)]
     public async Task<IActionResult> ReceiptByIdPdf(
         Guid receiptId, CancellationToken cancellationToken)
     {
@@ -68,7 +71,7 @@ public sealed class AdminMerchantDocumentsController : ApiControllerBase
 /// Sending is always an explicit decision. Nothing reaches a merchant because
 /// a status changed.
 /// </summary>
-[Authorize(Policy = AuthorizationPolicies.Admin)]
+[Authorize(Policy = AdminCapabilities.MerchantDocumentsSend)]
 [Route("api/v1/admin/merchant-sales")]
 public sealed class AdminMerchantEmailsController : ApiControllerBase
 {

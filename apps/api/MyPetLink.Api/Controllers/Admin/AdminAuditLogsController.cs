@@ -8,7 +8,7 @@ using MyPetLink.Api.Validation;
 
 namespace MyPetLink.Api.Controllers.Admin;
 
-[Authorize(Policy = AuthorizationPolicies.Admin)]
+[Authorize(Policy = AdminCapabilities.AuditLogView)]
 [Route("api/v1/admin/audit-logs")]
 public sealed class AdminAuditLogsController : ApiControllerBase
 {

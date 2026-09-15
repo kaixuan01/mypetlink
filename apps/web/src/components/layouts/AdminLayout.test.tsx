@@ -3,19 +3,15 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AdminLayout } from "./AdminLayout";
+import { adminCapabilities, allAdminCapabilities } from "@/lib/adminCapabilities";
 
 const navState = vi.hoisted(() => ({ pathname: "/admin/orders", search: "" }));
 const serviceMocks = vi.hoisted(() => ({ dashboard: vi.fn() }));
 const authState = vi.hoisted(() => ({
   capabilities: {
-    role: "SuperAdmin" as "OwnerSupport" | "Operations" | "Admin" | "SuperAdmin",
-    canViewSalesPerformance: true,
-    canManageSales: true,
-    canViewCommissionFinancials: true,
-    canPreparePayout: true,
-    canMarkCommissionPaid: true,
-    canReverseCommission: true,
-    canManageCommissionRules: true,
+    isSuperAdmin: true,
+    roles: [] as unknown[],
+    granted: new Set<string>(),
   },
 }));
 
@@ -42,19 +38,22 @@ vi.mock("@/services/adminService", async (importOriginal) => {
   return { ...actual, getAdminDashboardData: serviceMocks.dashboard };
 });
 
+function grant(...capabilities: string[]) {
+  Object.assign(authState.capabilities, {
+    isSuperAdmin: false,
+    roles: [],
+    granted: new Set(capabilities),
+  });
+}
+
+function grantEverything() {
+  Object.assign(authState.capabilities, allAdminCapabilities());
+}
+
 beforeEach(() => {
   navState.pathname = "/admin/orders";
   navState.search = "";
-  Object.assign(authState.capabilities, {
-    role: "SuperAdmin",
-    canViewSalesPerformance: true,
-    canManageSales: true,
-    canViewCommissionFinancials: true,
-    canPreparePayout: true,
-    canMarkCommissionPaid: true,
-    canReverseCommission: true,
-    canManageCommissionRules: true,
-  });
+  grantEverything();
   serviceMocks.dashboard.mockResolvedValue({
     summary: {
       totalOwners: 10,
@@ -177,30 +176,42 @@ describe("AdminLayout navigation", () => {
     expect(document.body.style.overflow).toBe("");
   });
 
-  it("renders the capability-filtered Owner Support navigation in the mobile drawer", () => {
+  it("renders only what a support operator can open, in the mobile drawer", () => {
     window.localStorage.clear();
-    Object.assign(authState.capabilities, {
-      role: "OwnerSupport",
-      canViewSalesPerformance: false,
-      canManageSales: false,
-      canViewCommissionFinancials: false,
-      canPreparePayout: false,
-      canMarkCommissionPaid: false,
-      canReverseCommission: false,
-      canManageCommissionRules: false,
-    });
+    grant(
+      adminCapabilities.ordersView,
+      adminCapabilities.ownersView,
+      adminCapabilities.petsView,
+      adminCapabilities.smartTagsView,
+      adminCapabilities.catalogView
+    );
     render(<AdminLayout>content</AdminLayout>);
 
     fireEvent.click(screen.getByRole("button", { name: "Open admin navigation" }));
     const drawer = screen.getByRole("dialog", { name: "Admin navigation" });
 
-    // Merchant Sales remains meaningful for support (its own workspace hides
-    // restricted tabs), while Catalog is represented exactly once.
-    expect(within(drawer).getByRole("link", { name: "Merchant Sales" })).toBeDefined();
+    expect(within(drawer).getByRole("link", { name: "Retail Orders" })).toBeDefined();
+    // Nothing they cannot open is offered.
+    expect(within(drawer).queryByRole("link", { name: "Merchant Sales" })).toBeNull();
+    expect(within(drawer).queryByRole("link", { name: "Payment Proofs" })).toBeNull();
+    expect(within(drawer).queryByRole("link", { name: "Tag Inventory" })).toBeNull();
+    expect(within(drawer).queryByRole("button", { name: /Access Management/ })).toBeNull();
+    // Catalog is still represented exactly once.
     fireEvent.click(within(drawer).getByRole("button", { name: /Catalog/ }));
     expect(within(drawer).getAllByRole("link", { name: "Tag Catalog" })).toHaveLength(1);
-    expect(within(drawer).queryByRole("link", { name: "Promotions" })).toBeNull();
     expect(drawer.querySelectorAll("ul:empty")).toHaveLength(0);
+  });
+
+  it("shows Access Management only to somebody allowed to see it", () => {
+    window.localStorage.clear();
+    grant(adminCapabilities.ordersView);
+    render(<AdminLayout>content</AdminLayout>);
+    expect(screen.queryAllByRole("button", { name: /Access Management/ })).toHaveLength(0);
+
+    cleanup();
+    grant(adminCapabilities.ordersView, adminCapabilities.adminUsersView);
+    render(<AdminLayout>content</AdminLayout>);
+    expect(screen.getAllByRole("button", { name: /Access Management/ }).length).toBeGreaterThan(0);
   });
 
   it("shows the current page title in the compact mobile header", () => {
@@ -210,6 +221,46 @@ describe("AdminLayout navigation", () => {
     // Appears both as the sidebar link and as the mobile header's current
     // page label.
     expect(screen.getAllByText("Tag Inventory").length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("opening a page directly", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  it("renders the page when the operator has the permission it needs", () => {
+    navState.pathname = "/admin/tag-inventory";
+    grant(adminCapabilities.inventoryView);
+    render(<AdminLayout>inventory content</AdminLayout>);
+
+    expect(screen.getByText("inventory content")).toBeDefined();
+  });
+
+  it("refuses the page when they do not, even though the menu never offered it", () => {
+    navState.pathname = "/admin/tag-inventory";
+    grant(adminCapabilities.ordersView);
+    render(<AdminLayout>inventory content</AdminLayout>);
+
+    expect(screen.queryByText("inventory content")).toBeNull();
+    expect(screen.getByText("You do not have access to this page")).toBeDefined();
+  });
+
+  it("refuses Access Management to somebody without it", () => {
+    navState.pathname = "/admin/access/users";
+    grant(adminCapabilities.ordersView);
+    render(<AdminLayout>users content</AdminLayout>);
+
+    expect(screen.queryByText("users content")).toBeNull();
+    expect(screen.getByText("You do not have access to this page")).toBeDefined();
+  });
+
+  it("still renders Overview for somebody with no permissions at all", () => {
+    navState.pathname = "/admin";
+    grant();
+    render(<AdminLayout>overview content</AdminLayout>);
+
+    expect(screen.getByText("overview content")).toBeDefined();
   });
 });
 

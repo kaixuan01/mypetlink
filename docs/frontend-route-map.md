@@ -60,6 +60,9 @@ Owner routes always use the `petId`, never the slug.
 | `/admin/settings` | Operations settings overview (read-only in this phase) |
 | `/admin/qr-profiles` | QR profile status list (earlier admin page, kept) |
 | `/admin/plans` | Plan catalogue view (earlier admin page, kept) |
+| `/admin/access/users` | Access Management — who can use the Admin Portal, and the roles they hold |
+| `/admin/access/roles` | Access Management — roles and the permissions each one grants |
+| `/admin/access/activity` | Access Management — a record of who changed what, and when |
 
 ## Static export rules
 

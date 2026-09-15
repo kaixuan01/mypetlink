@@ -9,7 +9,7 @@ using MyPetLink.Api.Validation;
 
 namespace MyPetLink.Api.Controllers.Admin;
 
-[Authorize(Policy = AuthorizationPolicies.Admin)]
+[Authorize(Policy = AdminCapabilities.PetsView)]
 [Route("api/v1/admin/pets")]
 public sealed class AdminPetsController : ApiControllerBase
 {
@@ -49,6 +49,7 @@ public sealed class AdminPetsController : ApiControllerBase
         => Ok(ApiEnvelope.Ok(await _petProfileQueryService.GetAsync(petId, cancellationToken), HttpContext));
 
     [HttpGet("export")]
+    [Authorize(Policy = AdminCapabilities.PetsExport)]
     public async Task<IActionResult> Export(
         [FromQuery] AdminPetProfileQuery query,
         [FromQuery] string? format,
@@ -93,6 +94,7 @@ public sealed class AdminPetsController : ApiControllerBase
     }
 
     [HttpPut("{petId:guid}/sample-eligibility")]
+    [Authorize(Policy = AdminCapabilities.PetsManage)]
     public async Task<IActionResult> UpdateSampleEligibility(
         Guid petId,
         [FromBody] UpdateSamplePetEligibilityRequest request,

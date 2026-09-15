@@ -12,7 +12,7 @@ namespace MyPetLink.Api.Controllers.Admin;
 // Merchant Sales is Admin-only. There is no merchant-facing surface: a merchant
 // never signs in, so none of these routes have an owner or public counterpart.
 
-[Authorize(Policy = AuthorizationPolicies.Admin)]
+[Authorize(Policy = AdminCapabilities.SalesView)]
 [Route("api/v1/admin/merchant-sales/merchants")]
 public sealed class AdminMerchantsController : ApiControllerBase
 {
@@ -26,7 +26,7 @@ public sealed class AdminMerchantsController : ApiControllerBase
     }
 
     [HttpGet]
-    [Authorize(Policy = AuthorizationPolicies.SalesPerformance)]
+    [Authorize(Policy = AdminCapabilities.SalesView)]
     public async Task<IActionResult> List(
         [FromQuery] PagedQuery query,
         [FromQuery] string? search,
@@ -42,12 +42,12 @@ public sealed class AdminMerchantsController : ApiControllerBase
     }
 
     [HttpGet("{id:guid}")]
-    [Authorize(Policy = AuthorizationPolicies.SalesPerformance)]
+    [Authorize(Policy = AdminCapabilities.SalesView)]
     public async Task<IActionResult> Get(Guid id, CancellationToken cancellationToken) =>
         Ok(ApiEnvelope.Ok(await _service.GetMerchantAsync(id, cancellationToken), HttpContext));
 
     [HttpPost]
-    [Authorize(Policy = AuthorizationPolicies.SalesAdministration)]
+    [Authorize(Policy = AdminCapabilities.SalesManage)]
     public async Task<IActionResult> Create(
         [FromBody] UpsertMerchantRequest request, CancellationToken cancellationToken) =>
         Ok(ApiEnvelope.Ok(
@@ -55,7 +55,7 @@ public sealed class AdminMerchantsController : ApiControllerBase
             HttpContext));
 
     [HttpPut("{id:guid}")]
-    [Authorize(Policy = AuthorizationPolicies.SalesAdministration)]
+    [Authorize(Policy = AdminCapabilities.SalesManage)]
     public async Task<IActionResult> Update(
         Guid id, [FromBody] UpsertMerchantRequest request, CancellationToken cancellationToken) =>
         Ok(ApiEnvelope.Ok(
@@ -63,7 +63,7 @@ public sealed class AdminMerchantsController : ApiControllerBase
             HttpContext));
 
     [HttpPost("{id:guid}/activate")]
-    [Authorize(Policy = AuthorizationPolicies.SalesAdministration)]
+    [Authorize(Policy = AdminCapabilities.SalesManage)]
     public async Task<IActionResult> Activate(
         Guid id, [FromBody] ConcurrencyTokenRequest? request, CancellationToken cancellationToken) =>
         Ok(ApiEnvelope.Ok(
@@ -72,7 +72,7 @@ public sealed class AdminMerchantsController : ApiControllerBase
             HttpContext));
 
     [HttpPost("{id:guid}/deactivate")]
-    [Authorize(Policy = AuthorizationPolicies.SalesAdministration)]
+    [Authorize(Policy = AdminCapabilities.SalesManage)]
     public async Task<IActionResult> Deactivate(
         Guid id, [FromBody] ConcurrencyTokenRequest? request, CancellationToken cancellationToken) =>
         Ok(ApiEnvelope.Ok(
@@ -81,7 +81,7 @@ public sealed class AdminMerchantsController : ApiControllerBase
             HttpContext));
 
     [HttpPut("{id:guid}/acquisition-attribution")]
-    [Authorize(Policy = AuthorizationPolicies.SalesAdministration)]
+    [Authorize(Policy = AdminCapabilities.SalesManage)]
     public async Task<IActionResult> CorrectAcquisitionAttribution(
         Guid id,
         [FromBody] CorrectMerchantAcquisitionAttributionRequest request,
@@ -92,7 +92,7 @@ public sealed class AdminMerchantsController : ApiControllerBase
             HttpContext));
 }
 
-[Authorize(Policy = AuthorizationPolicies.Admin)]
+[Authorize(Policy = AdminCapabilities.SalesView)]
 [Route("api/v1/admin/merchant-sales/salespersons")]
 public sealed class AdminSalespersonsController : ApiControllerBase
 {
@@ -106,7 +106,7 @@ public sealed class AdminSalespersonsController : ApiControllerBase
     }
 
     [HttpGet]
-    [Authorize(Policy = AuthorizationPolicies.SalesPerformance)]
+    [Authorize(Policy = AdminCapabilities.SalesView)]
     public async Task<IActionResult> List(
         [FromQuery] PagedQuery query,
         [FromQuery] string? search,
@@ -120,18 +120,18 @@ public sealed class AdminSalespersonsController : ApiControllerBase
     }
 
     [HttpGet("{id:guid}")]
-    [Authorize(Policy = AuthorizationPolicies.SalesPerformance)]
+    [Authorize(Policy = AdminCapabilities.SalesView)]
     public async Task<IActionResult> Get(Guid id, CancellationToken cancellationToken) =>
         Ok(ApiEnvelope.Ok(await _service.GetSalespersonAsync(id, cancellationToken), HttpContext));
 
     [HttpGet("{id:guid}/commission-summary")]
-    [Authorize(Policy = AuthorizationPolicies.CommissionFinancial)]
+    [Authorize(Policy = AdminCapabilities.SalesCommissionsView)]
     public async Task<IActionResult> CommissionSummary(Guid id, CancellationToken cancellationToken) =>
         Ok(ApiEnvelope.Ok(
             await _service.GetSalespersonCommissionSummaryAsync(id, cancellationToken), HttpContext));
 
     [HttpPost]
-    [Authorize(Policy = AuthorizationPolicies.SalesAdministration)]
+    [Authorize(Policy = AdminCapabilities.SalesManage)]
     public async Task<IActionResult> Create(
         [FromBody] UpsertSalespersonRequest request, CancellationToken cancellationToken) =>
         Ok(ApiEnvelope.Ok(
@@ -139,7 +139,7 @@ public sealed class AdminSalespersonsController : ApiControllerBase
             HttpContext));
 
     [HttpPut("{id:guid}")]
-    [Authorize(Policy = AuthorizationPolicies.SalesAdministration)]
+    [Authorize(Policy = AdminCapabilities.SalesManage)]
     public async Task<IActionResult> Update(
         Guid id, [FromBody] UpsertSalespersonRequest request, CancellationToken cancellationToken) =>
         Ok(ApiEnvelope.Ok(
@@ -147,7 +147,7 @@ public sealed class AdminSalespersonsController : ApiControllerBase
             HttpContext));
 
     [HttpPost("{id:guid}/activate")]
-    [Authorize(Policy = AuthorizationPolicies.SalesAdministration)]
+    [Authorize(Policy = AdminCapabilities.SalesManage)]
     public async Task<IActionResult> Activate(
         Guid id, [FromBody] ConcurrencyTokenRequest? request, CancellationToken cancellationToken) =>
         Ok(ApiEnvelope.Ok(
@@ -156,7 +156,7 @@ public sealed class AdminSalespersonsController : ApiControllerBase
             HttpContext));
 
     [HttpPost("{id:guid}/deactivate")]
-    [Authorize(Policy = AuthorizationPolicies.SalesAdministration)]
+    [Authorize(Policy = AdminCapabilities.SalesManage)]
     public async Task<IActionResult> Deactivate(
         Guid id, [FromBody] ConcurrencyTokenRequest? request, CancellationToken cancellationToken) =>
         Ok(ApiEnvelope.Ok(
@@ -165,7 +165,7 @@ public sealed class AdminSalespersonsController : ApiControllerBase
             HttpContext));
 }
 
-[Authorize(Policy = AuthorizationPolicies.Admin)]
+[Authorize(Policy = AdminCapabilities.MerchantOrdersView)]
 [Route("api/v1/admin/merchant-sales/quotations")]
 public sealed class AdminMerchantQuotationsController : ApiControllerBase
 {
@@ -203,6 +203,7 @@ public sealed class AdminMerchantQuotationsController : ApiControllerBase
         Ok(ApiEnvelope.Ok(await _service.GetQuotationAsync(id, cancellationToken), HttpContext));
 
     [HttpPost]
+    [Authorize(Policy = AdminCapabilities.MerchantOrdersManage)]
     public async Task<IActionResult> Create(
         [FromBody] UpsertQuotationRequest request, CancellationToken cancellationToken) =>
         Ok(ApiEnvelope.Ok(
@@ -210,6 +211,7 @@ public sealed class AdminMerchantQuotationsController : ApiControllerBase
             HttpContext));
 
     [HttpPut("{id:guid}")]
+    [Authorize(Policy = AdminCapabilities.MerchantOrdersManage)]
     public async Task<IActionResult> Update(
         Guid id, [FromBody] UpsertQuotationRequest request, CancellationToken cancellationToken) =>
         Ok(ApiEnvelope.Ok(
@@ -217,26 +219,32 @@ public sealed class AdminMerchantQuotationsController : ApiControllerBase
             HttpContext));
 
     [HttpPost("{id:guid}/send")]
+    [Authorize(Policy = AdminCapabilities.MerchantOrdersManage)]
     public Task<IActionResult> Send(Guid id, [FromBody] ConcurrencyTokenRequest? request, CancellationToken cancellationToken) =>
         TransitionAsync(id, MerchantQuotationStatus.Sent, request, cancellationToken);
 
     [HttpPost("{id:guid}/accept")]
+    [Authorize(Policy = AdminCapabilities.MerchantOrdersManage)]
     public Task<IActionResult> Accept(Guid id, [FromBody] ConcurrencyTokenRequest? request, CancellationToken cancellationToken) =>
         TransitionAsync(id, MerchantQuotationStatus.Accepted, request, cancellationToken);
 
     [HttpPost("{id:guid}/reject")]
+    [Authorize(Policy = AdminCapabilities.MerchantOrdersManage)]
     public Task<IActionResult> Reject(Guid id, [FromBody] ConcurrencyTokenRequest? request, CancellationToken cancellationToken) =>
         TransitionAsync(id, MerchantQuotationStatus.Rejected, request, cancellationToken);
 
     [HttpPost("{id:guid}/expire")]
+    [Authorize(Policy = AdminCapabilities.MerchantOrdersManage)]
     public Task<IActionResult> Expire(Guid id, [FromBody] ConcurrencyTokenRequest? request, CancellationToken cancellationToken) =>
         TransitionAsync(id, MerchantQuotationStatus.Expired, request, cancellationToken);
 
     [HttpPost("{id:guid}/cancel")]
+    [Authorize(Policy = AdminCapabilities.MerchantOrdersManage)]
     public Task<IActionResult> Cancel(Guid id, [FromBody] ConcurrencyTokenRequest? request, CancellationToken cancellationToken) =>
         TransitionAsync(id, MerchantQuotationStatus.Cancelled, request, cancellationToken);
 
     [HttpPost("{id:guid}/convert")]
+    [Authorize(Policy = AdminCapabilities.MerchantOrdersManage)]
     public async Task<IActionResult> Convert(
         Guid id, [FromBody] ConcurrencyTokenRequest? request, CancellationToken cancellationToken) =>
         Ok(ApiEnvelope.Ok(
@@ -255,7 +263,7 @@ public sealed class AdminMerchantQuotationsController : ApiControllerBase
             HttpContext));
 }
 
-[Authorize(Policy = AuthorizationPolicies.Admin)]
+[Authorize(Policy = AdminCapabilities.MerchantOrdersView)]
 [Route("api/v1/admin/merchant-sales/orders")]
 public sealed class AdminMerchantOrdersController : ApiControllerBase
 {
@@ -296,7 +304,7 @@ public sealed class AdminMerchantOrdersController : ApiControllerBase
         Ok(ApiEnvelope.Ok(await _service.GetMerchantOrderAsync(id, cancellationToken), HttpContext));
 
     [HttpPut("{id:guid}/commission-attribution")]
-    [Authorize(Policy = AuthorizationPolicies.SalesAdministration)]
+    [Authorize(Policy = AdminCapabilities.SalesManage)]
     public async Task<IActionResult> CorrectCommissionAttribution(
         Guid id,
         [FromBody] CorrectMerchantOrderCommissionAttributionRequest request,
@@ -316,6 +324,7 @@ public sealed class AdminMerchantOrdersController : ApiControllerBase
             await _service.GetMerchantOrderTimelineAsync(id, cancellationToken), HttpContext));
 
     [HttpPost("{id:guid}/cancel")]
+    [Authorize(Policy = AdminCapabilities.MerchantOrdersManage)]
     public async Task<IActionResult> Cancel(
         Guid id, [FromBody] ConcurrencyTokenRequest? request, CancellationToken cancellationToken) =>
         Ok(ApiEnvelope.Ok(

@@ -1,22 +1,34 @@
 # Sales reporting and financial authorization
 
 Phase 3D-A separates operational sales visibility from commission accounting.
-Authorization is enforced by the API with a fresh `AdminUsers` lookup on every
+Authorization is enforced by the API with a fresh database lookup on every
 request; role claims and the Admin Portal's display cache are never sufficient.
 
-| Capability | OwnerSupport | Operations | Admin | SuperAdmin |
-| --- | --- | --- | --- | --- |
-| Sales performance and reseller relationships | No | Yes | Yes | Yes |
-| Commission reports, ledger and CSV exports | No | No | Yes | Yes |
-| Prepare a future payout | No | No | Yes | Yes |
-| View payouts and download payout statements | No | No | Yes | Yes |
-| Mark commission paid | No | No | No | Yes |
-| Reverse commission | No | No | No | Yes |
-| Manage commission rules | No | No | No | Yes |
+These separations are now expressed as capabilities in the Admin Portal's
+capability catalogue. See
+[`docs/architecture/admin-access-management.md`](../architecture/admin-access-management.md)
+for the model; this page describes what each of these financial capabilities
+actually permits.
 
-`SalesAdministration` is a separate Admin/SuperAdmin policy for seller and
-reseller attribution changes. Operations can inspect those relationships but
-cannot rewrite them.
+| Capability | Permits |
+| --- | --- |
+| `sales.view` | Sales performance, resellers, salespeople and referral attribution |
+| `sales.manage` | Changing seller and reseller attribution. Holding `sales.view` alone lets you inspect those relationships but not rewrite them |
+| `sales_commissions.view` | Commission reports and the ledger |
+| `sales_commissions.export` | Commission-ledger and reseller-portfolio CSV exports |
+| `merchant_invoices.record_payment` | Recording money received against an invoice, which is what makes commission payable |
+| `payouts.view` | Payout batches and their statements |
+| `payouts.manage` | Preparing a future payout, and cancelling one not yet paid |
+| `payouts.settle` | Recording a payout or an individual commission as paid |
+| `sales_commissions.reverse` | Reversing a commission |
+| `sales_commissions.rules.manage` | Changing the rates and rules that decide future commission |
+
+The built-in roles that existing administrators were migrated onto reproduce
+the previous matrix exactly: Operations holds `sales.view`; Administrator adds
+`sales.manage`, `sales_commissions.view`, `merchant_invoices.record_payment`,
+`payouts.view` and `payouts.manage`; only Super Admin holds `payouts.settle`,
+`sales_commissions.reverse` and `sales_commissions.rules.manage`.
+`FinancialAuthorizationPolicyTests` asserts this has not drifted.
 
 ## Date semantics
 
@@ -54,16 +66,18 @@ must not erase the historical cash-payment event. Paid-payout reversals expose
 recovery-required state and the original payout number without changing the
 historical Paid payout.
 
-The Admin Portal hides the Payouts section from OwnerSupport and Operations.
-Admin and SuperAdmin can prepare or cancel a batch and download its server-made
-statement; only SuperAdmin can record it as paid. The API policies remain the
-authority if a client attempts to bypass those controls. Payout statements are
-generated from immutable payout snapshots and fail closed when the complete item
-set, currency, and prepared total do not reconcile.
+The Admin Portal hides the Payouts section from anyone without `payouts.view`,
+and offers preparing, cancelling and recording-as-paid only to whoever holds the
+matching capability. The API policies remain the authority if a client attempts
+to bypass those controls. Payout statements are generated from immutable payout
+snapshots and fail closed when the complete item set, currency, and prepared
+total do not reconcile.
 
 Run `docs/deployment/sql/diagnose-phase3d-financial-authorization.sql` before
-deployment. At least one active SuperAdmin is a release blocker because payout,
-reversal and rule-management actions are SuperAdmin-only.
+deployment. At least one active Super Admin is a release blocker because payout
+settlement, commission reversal and rule management are granted only by that
+role out of the box — and because only a Super Admin can grant them to anyone
+else.
 
 After applying the Phase 3D-B migration and before enabling payout endpoints,
 run `docs/deployment/sql/diagnose-phase3d-b-commission-payouts.sql`. All anomaly

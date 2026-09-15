@@ -33,12 +33,14 @@ export function AdminPaymentProofDetailDrawer({
   busy,
   onClose,
   onReview,
+  canReview = true,
 }: {
   summary: AdminPaymentProof;
   refreshKey: number;
   busy: boolean;
   onClose: () => void;
   onReview: (decision: "approve" | "reject", proof: AdminPaymentProof) => void;
+  canReview?: boolean;
 }) {
   const dialogRef = useRef<HTMLElement | null>(null);
   const closeRef = useRef<HTMLButtonElement | null>(null);
@@ -133,7 +135,7 @@ export function AdminPaymentProofDetailDrawer({
 
           {detail ? (
             <>
-              {reviewable ? (
+              {reviewable && canReview ? (
                 <section aria-labelledby="proof-review-actions">
                   <h3 className="text-sm font-black text-slate-900" id="proof-review-actions">Review decision</h3>
                   <div className="mt-2 flex flex-wrap gap-2">

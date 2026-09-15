@@ -15,13 +15,22 @@ namespace MyPetLink.Api.Tests;
 public sealed class ShippingFulfilmentSettingsTests
 {
     [Fact]
-    public void AdminController_RequiresAdminAuthorization()
+    public void AdminController_RequiresTheBusinessSettingsCapability()
     {
         var attribute = Assert.Single(
             typeof(AdminShippingFulfilmentController)
                 .GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true)
                 .Cast<AuthorizeAttribute>());
-        Assert.Equal(AuthorizationPolicies.Admin, attribute.Policy);
+        Assert.Equal(AdminCapabilities.SettingsView, attribute.Policy);
+
+        // Changing courier and sender settings is a separate decision from
+        // being able to look at them.
+        Assert.Equal(
+            AdminCapabilities.SettingsManage,
+            Assert.Single(typeof(AdminShippingFulfilmentController)
+                .GetMethod("UpdateSettings")!
+                .GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true)
+                .Cast<AuthorizeAttribute>()).Policy);
     }
 
     [Fact]

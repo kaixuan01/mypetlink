@@ -54,6 +54,34 @@ the current inventory is
 12. Do not build generic key/value setting editors. Every setting needs typed
     validation and a purpose-built UI.
 
+## Admin Portal access control
+
+Admin Portal authorization is **capability based**, not role based. Read
+[`docs/architecture/admin-access-management.md`](docs/architecture/admin-access-management.md)
+before touching it.
+
+1. Every protected Admin endpoint must name a capability from
+   `apps/api/MyPetLink.Api/Auth/AdminCapabilities.cs`:
+   `[Authorize(Policy = AdminCapabilities.InventoryGenerate)]`. A new Admin
+   endpoint behind nothing but the shared active-admin policy fails
+   `AdminCapabilityCoverageTests`.
+2. **Never write a role-name check** — no `role == "Sales"`, in C# or in
+   TypeScript. Ask for a capability.
+3. Add a capability by adding the constant, describing it in
+   `AdminCapabilityCatalog.cs`, mirroring it in
+   `apps/web/src/lib/adminCapabilities.ts`, and granting it to the built-in
+   roles that should have it. There is no other way to create one: a key that
+   is not in the catalogue grants nothing and is refused on save.
+4. A module with a high-risk action needs separate capabilities for viewing,
+   changing and that action — never one broad `module.access`.
+5. **Frontend visibility is not authorization.** Hiding a menu item or a button
+   is a courtesy; the API must refuse the request with `403` on its own.
+6. Access is resolved from the database on every request, never from a token
+   claim. Do not cache it across requests or reintroduce a role claim as an
+   authorization input.
+7. Access-management changes must be audited through `IAuditLogService`, with
+   the actor, the target, and both sides of the change.
+
 ## Production UI copy rules
 
 All user-facing **and** admin-facing UI text must read as production-ready copy for non-developers.
@@ -95,7 +123,7 @@ Safety Profile status labels are: **Safety Profile Active**, **Contact Update Ne
 - Physical Tag Scan Link and tag activation entry point: `/t/:tagCode`
 - Public Share Profile: `/p/:petSlug` (slug ends with the pet's public code)
 - Owner Portal routes currently live in the same Next.js app (`/dashboard`, `/pets`, `/tags`, `/orders`, `/settings`, ...).
-- The Admin Portal UI will also be added later under `/admin` in `apps/web`, unless the project is split later.
+- The Admin Portal UI lives under `/admin` in `apps/web`, unless the project is split later.
 
 Route strings are centralized in `apps/web/src/lib/routes.ts` — never hardcode route strings in pages or components.
 

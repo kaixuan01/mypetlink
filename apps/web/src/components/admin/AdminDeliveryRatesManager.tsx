@@ -10,6 +10,8 @@ import {
 } from "@/components/admin/AdminStatus";
 import { AdminDeliveryStateOverrides } from "@/components/admin/AdminDeliveryStateOverrides";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { adminCapabilities, hasCapability } from "@/lib/adminCapabilities";
+import { getAdminCapabilities } from "@/services/authService";
 import { isApiClientError } from "@/services/apiClient";
 import {
   listAdminDeliveryRates,
@@ -37,6 +39,7 @@ const blank: DeliveryRateInput = {
 };
 
 export function AdminDeliveryRatesManager() {
+  const canManage = hasCapability(getAdminCapabilities(), adminCapabilities.settingsManage);
   const [rates, setRates] = useState<AdminDeliveryRate[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<DeliveryRateInput>(blank);
@@ -138,6 +141,7 @@ export function AdminDeliveryRatesManager() {
     zones.find(([code]) => code === form.zoneCode)?.[1] ?? form.zoneCode;
 
   return (
+    <fieldset className="contents" disabled={!canManage}>
     <div className="space-y-5 sm:space-y-6">
       <AdminStatStrip>
         <AdminStat
@@ -437,6 +441,7 @@ export function AdminDeliveryRatesManager() {
         title="Switch off this delivery zone?"
       />
     </div>
+    </fieldset>
   );
 }
 

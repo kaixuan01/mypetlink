@@ -7,7 +7,7 @@ using MyPetLink.Api.Services;
 
 namespace MyPetLink.Api.Controllers.Admin;
 
-[Authorize(Policy = AuthorizationPolicies.Admin)]
+[Authorize(Policy = AdminCapabilities.MarketingView)]
 [Route("api/v1/admin/promotions")]
 public sealed class AdminPromotionsController : ApiControllerBase
 {
@@ -28,11 +28,13 @@ public sealed class AdminPromotionsController : ApiControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = AdminCapabilities.MarketingManage)]
     public async Task<IActionResult> Create([FromBody] UpsertPromotionRequest request, CancellationToken cancellationToken) =>
         StatusCode(StatusCodes.Status201Created, ApiEnvelope.Ok(await _catalogService.CreatePromotionAsync(
             _currentUserService.Current.UserId, request, cancellationToken), HttpContext));
 
     [HttpPut("{promotionId:guid}")]
+    [Authorize(Policy = AdminCapabilities.MarketingManage)]
     public async Task<IActionResult> Update(Guid promotionId, [FromBody] UpsertPromotionRequest request, CancellationToken cancellationToken) =>
         Ok(ApiEnvelope.Ok(await _catalogService.UpdatePromotionAsync(
             _currentUserService.Current.UserId, promotionId, request, cancellationToken), HttpContext));

@@ -9,7 +9,7 @@ using MyPetLink.Api.Validation;
 
 namespace MyPetLink.Api.Controllers.Admin;
 
-[Authorize(Policy = AuthorizationPolicies.Admin)]
+[Authorize(Policy = AdminCapabilities.PaymentProofsView)]
 [Route("api/v1/admin/payment-proofs")]
 public sealed class AdminPaymentProofsController : ApiControllerBase
 {
@@ -50,6 +50,7 @@ public sealed class AdminPaymentProofsController : ApiControllerBase
     }
 
     [HttpGet("export")]
+    [Authorize(Policy = AdminCapabilities.PaymentProofsExport)]
     public async Task<IActionResult> Export(
         [FromQuery] AdminPaymentProofQuery query,
         [FromQuery] string? format,
@@ -113,6 +114,7 @@ public sealed class AdminPaymentProofsController : ApiControllerBase
     }
 
     [HttpPost("{paymentProofId:guid}/approve")]
+    [Authorize(Policy = AdminCapabilities.PaymentProofsReview)]
     public async Task<IActionResult> Approve(Guid paymentProofId, CancellationToken cancellationToken)
     {
         var response = await _adminService.ApprovePaymentProofAsync(
@@ -124,6 +126,7 @@ public sealed class AdminPaymentProofsController : ApiControllerBase
     }
 
     [HttpPost("{paymentProofId:guid}/reject")]
+    [Authorize(Policy = AdminCapabilities.PaymentProofsReview)]
     public async Task<IActionResult> Reject(
         Guid paymentProofId,
         [FromBody] RejectPaymentProofRequest? request,

@@ -12,7 +12,7 @@ namespace MyPetLink.Api.Controllers.Admin;
 // carton against the system; nothing here has a merchant-facing counterpart,
 // and no public route reaches inventory allocation.
 
-[Authorize(Policy = AuthorizationPolicies.Admin)]
+[Authorize(Policy = AdminCapabilities.MerchantOrdersView)]
 [Route("api/v1/admin/merchant-sales/orders/{merchantOrderId:guid}")]
 public sealed class AdminMerchantFulfilmentController : ApiControllerBase
 {
@@ -88,6 +88,7 @@ public sealed class AdminMerchantFulfilmentController : ApiControllerBase
     // --- Allocation --------------------------------------------------------
 
     [HttpPost("allocation")]
+    [Authorize(Policy = AdminCapabilities.MerchantOrdersFulfil)]
     public async Task<IActionResult> Allocate(
         Guid merchantOrderId,
         [FromBody] AllocateMerchantInventoryRequest request,
@@ -98,6 +99,7 @@ public sealed class AdminMerchantFulfilmentController : ApiControllerBase
             HttpContext));
 
     [HttpPost("allocation/auto")]
+    [Authorize(Policy = AdminCapabilities.MerchantOrdersFulfil)]
     public async Task<IActionResult> AutoAllocate(
         Guid merchantOrderId,
         [FromBody] AutoAllocateMerchantInventoryRequest request,
@@ -108,6 +110,7 @@ public sealed class AdminMerchantFulfilmentController : ApiControllerBase
             HttpContext));
 
     [HttpPost("allocation/release")]
+    [Authorize(Policy = AdminCapabilities.MerchantOrdersFulfil)]
     public async Task<IActionResult> Release(
         Guid merchantOrderId,
         [FromBody] ReleaseMerchantInventoryRequest request,
@@ -120,6 +123,7 @@ public sealed class AdminMerchantFulfilmentController : ApiControllerBase
     // --- Fulfilment --------------------------------------------------------
 
     [HttpPost("fulfilment/preparing")]
+    [Authorize(Policy = AdminCapabilities.MerchantOrdersFulfil)]
     public async Task<IActionResult> MarkPreparing(
         Guid merchantOrderId,
         [FromBody] MerchantFulfilmentTransitionRequest? request,
@@ -131,6 +135,7 @@ public sealed class AdminMerchantFulfilmentController : ApiControllerBase
             HttpContext));
 
     [HttpPost("fulfilment/ready-to-ship")]
+    [Authorize(Policy = AdminCapabilities.MerchantOrdersFulfil)]
     public async Task<IActionResult> MarkReadyToShip(
         Guid merchantOrderId,
         [FromBody] MerchantFulfilmentTransitionRequest? request,
@@ -142,6 +147,7 @@ public sealed class AdminMerchantFulfilmentController : ApiControllerBase
             HttpContext));
 
     [HttpPost("delivery-order")]
+    [Authorize(Policy = AdminCapabilities.MerchantOrdersFulfil)]
     public async Task<IActionResult> IssueDeliveryOrder(
         Guid merchantOrderId, CancellationToken cancellationToken) =>
         Ok(ApiEnvelope.Ok(
@@ -150,6 +156,7 @@ public sealed class AdminMerchantFulfilmentController : ApiControllerBase
             HttpContext));
 
     [HttpPost("fulfilment/shipped")]
+    [Authorize(Policy = AdminCapabilities.MerchantOrdersFulfil)]
     public async Task<IActionResult> MarkShipped(
         Guid merchantOrderId,
         [FromBody] MarkMerchantOrderShippedRequest request,
@@ -160,6 +167,7 @@ public sealed class AdminMerchantFulfilmentController : ApiControllerBase
             HttpContext));
 
     [HttpPost("fulfilment/delivered")]
+    [Authorize(Policy = AdminCapabilities.MerchantOrdersFulfil)]
     public async Task<IActionResult> MarkDelivered(
         Guid merchantOrderId,
         [FromBody] MerchantFulfilmentTransitionRequest? request,

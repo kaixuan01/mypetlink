@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState, type InputHTMLAttributes } from "react";
 import { Badge } from "@/components/ui/Badge";
+import { adminCapabilities, hasCapability } from "@/lib/adminCapabilities";
+import { getAdminCapabilities } from "@/services/authService";
 import {
   createShippingCourier,
   getShippingFulfilmentConfiguration,
@@ -29,6 +31,7 @@ const emptyCourier: CourierForm = {
 };
 
 export function AdminShippingFulfilmentManager() {
+  const canManage = hasCapability(getAdminCapabilities(), adminCapabilities.settingsManage);
   const [configuration, setConfiguration] =
     useState<ShippingFulfilmentConfiguration | null>(null);
   const [settings, setSettings] = useState<ShippingSettings | null>(null);
@@ -183,6 +186,7 @@ export function AdminShippingFulfilmentManager() {
   }
 
   return (
+    <fieldset className="contents" disabled={!canManage}>
     <div className="grid gap-6">
       {error ? <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-4 font-bold text-red-800">{error}</div> : null}
       {message ? <div role="status" className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 font-bold text-emerald-800">{message}</div> : null}
@@ -307,6 +311,7 @@ export function AdminShippingFulfilmentManager() {
         </section>
       ) : null}
     </div>
+    </fieldset>
   );
 }
 

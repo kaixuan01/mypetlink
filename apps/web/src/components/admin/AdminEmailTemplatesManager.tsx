@@ -11,6 +11,8 @@ import {
 } from "@/components/admin/AdminStatus";
 import { formatAdminDateTime } from "@/components/admin/adminDisplay";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { adminCapabilities, hasCapability } from "@/lib/adminCapabilities";
+import { getAdminCapabilities } from "@/services/authService";
 import { isApiClientError } from "@/services/apiClient";
 import {
   getEmailTemplateErrorMessage,
@@ -26,6 +28,7 @@ const ENABLE_CONFIRMATION =
   "Only new eligible events will be sent automatically. Historical emails will remain blocked until reviewed.";
 
 export function AdminEmailTemplatesManager() {
+  const canManage = hasCapability(getAdminCapabilities(), adminCapabilities.emailTemplatesManage);
   const [data, setData] = useState<AdminEmailTemplateList | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [pending, setPending] = useState<string | null>(null);
@@ -170,6 +173,7 @@ export function AdminEmailTemplatesManager() {
   const smtpReady = data.global.smtpConfigured;
 
   return (
+    <fieldset className="contents" disabled={!canManage}>
     <div className="space-y-5 sm:space-y-6">
       <div className="grid gap-3 sm:gap-4 lg:grid-cols-2">
         <AdminStatusCard
@@ -404,6 +408,7 @@ export function AdminEmailTemplatesManager() {
         title="Recover held-back payment-proof alerts?"
       />
     </div>
+    </fieldset>
   );
 }
 

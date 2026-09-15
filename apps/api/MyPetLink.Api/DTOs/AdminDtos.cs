@@ -9,18 +9,18 @@ public sealed record AdminOwnerRefResponse(
     string DisplayName);
 
 public sealed record AdminDashboardSummaryResponse(
-    int TotalOwners,
-    int TotalPets,
-    int ActivePets,
-    int MemorialPets,
-    int LostModePets,
-    int PendingPaymentProofs,
-    int OrdersPendingPayment,
-    int OrdersPreparing,
-    int OrdersShipped,
-    int ActiveTags,
-    int LostOrDisabledTags,
-    int UnclaimedTags);
+    int? TotalOwners,
+    int? TotalPets,
+    int? ActivePets,
+    int? MemorialPets,
+    int? LostModePets,
+    int? PendingPaymentProofs,
+    int? OrdersPendingPayment,
+    int? OrdersPreparing,
+    int? OrdersShipped,
+    int? ActiveTags,
+    int? LostOrDisabledTags,
+    int? UnclaimedTags);
 
 public sealed record AdminDashboardResponse(
     AdminDashboardSummaryResponse Summary,
@@ -190,6 +190,10 @@ public sealed record AdminPetDetailResponse(
 public sealed record AdminAuditLogResponse(
     Guid Id,
     Guid? ActorId,
+    // Who did it, in words. An id alone cannot be read by the person reviewing
+    // the history, and the account may have been deactivated since.
+    string? ActorName,
+    string? ActorEmail,
     ActorType ActorType,
     string Action,
     string Entity,

@@ -40,6 +40,9 @@ public sealed class MyPetLinkDbContext : DbContext
     public DbSet<OwnerReferralAttribution> OwnerReferralAttributions =>
         Set<OwnerReferralAttribution>();
     public DbSet<AdminUser> AdminUsers => Set<AdminUser>();
+    public DbSet<AdminRoleDefinition> AdminRoles => Set<AdminRoleDefinition>();
+    public DbSet<AdminRoleCapability> AdminRoleCapabilities => Set<AdminRoleCapability>();
+    public DbSet<AdminUserRoleAssignment> AdminUserRoles => Set<AdminUserRoleAssignment>();
     public DbSet<Plan> Plans => Set<Plan>();
     public DbSet<PlanLimit> PlanLimits => Set<PlanLimit>();
     public DbSet<Pet> Pets => Set<Pet>();
@@ -1327,6 +1330,7 @@ public sealed class MyPetLinkDbContext : DbContext
         {
             entity.ToTable("AdminUsers");
             entity.Property(item => item.Role).HasConversion<string>().HasMaxLength(32);
+            entity.Property(item => item.RowVersion).IsRowVersion();
             entity.HasIndex(item => item.UserId).IsUnique();
             entity.HasIndex(item => item.Role);
             entity.HasIndex(item => item.IsActive);
@@ -1337,6 +1341,54 @@ public sealed class MyPetLinkDbContext : DbContext
             entity.HasOne(item => item.CreatedByAdminUser)
                 .WithMany()
                 .HasForeignKey(item => item.CreatedByAdminUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.DisabledByAdminUser)
+                .WithMany()
+                .HasForeignKey(item => item.DisabledByAdminUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<AdminRoleDefinition>(entity =>
+        {
+            entity.ToTable("AdminRoles");
+            entity.Property(item => item.Code).HasMaxLength(64).IsRequired();
+            entity.Property(item => item.Name).HasMaxLength(120).IsRequired();
+            entity.Property(item => item.Description).HasMaxLength(600);
+            entity.Property(item => item.RowVersion).IsRowVersion();
+            entity.HasIndex(item => item.Code).IsUnique();
+            entity.HasIndex(item => item.SortOrder);
+        });
+
+        modelBuilder.Entity<AdminRoleCapability>(entity =>
+        {
+            entity.ToTable("AdminRoleCapabilities");
+            entity.Property(item => item.Capability).HasMaxLength(96).IsRequired();
+            entity.HasIndex(item => new { item.AdminRoleId, item.Capability }).IsUnique();
+            entity.HasIndex(item => item.Capability);
+            entity.HasOne(item => item.AdminRole)
+                .WithMany(role => role.Capabilities)
+                .HasForeignKey(item => item.AdminRoleId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<AdminUserRoleAssignment>(entity =>
+        {
+            entity.ToTable("AdminUserRoles");
+            entity.HasIndex(item => new { item.AdminUserId, item.AdminRoleId }).IsUnique();
+            entity.HasIndex(item => item.AdminRoleId);
+            entity.HasOne(item => item.AdminUser)
+                .WithMany(admin => admin.RoleAssignments)
+                .HasForeignKey(item => item.AdminUserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            // Restrict, not Cascade: a role that is still assigned must be
+            // unassigned deliberately rather than silently stripping access.
+            entity.HasOne(item => item.AdminRole)
+                .WithMany(role => role.Assignments)
+                .HasForeignKey(item => item.AdminRoleId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.AssignedByAdminUser)
+                .WithMany()
+                .HasForeignKey(item => item.AssignedByAdminUserId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
     }

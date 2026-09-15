@@ -67,7 +67,10 @@ public sealed class PaymentReservationExpiryWorkerTests
             NullLogger<PaymentReservationExpiryWorker>.Instance);
 
         await worker.StartAsync(default);
-        var completed = await Task.WhenAny(fake.SecondCall.Task, Task.Delay(TimeSpan.FromSeconds(8)));
+        // The retry is scheduled after five seconds. Leave enough headroom for
+        // a loaded full-suite run so the timeout cannot win just before the
+        // expected call completes during shutdown.
+        var completed = await Task.WhenAny(fake.SecondCall.Task, Task.Delay(TimeSpan.FromSeconds(15)));
         await worker.StopAsync(default);
 
         Assert.Same(fake.SecondCall.Task, completed);

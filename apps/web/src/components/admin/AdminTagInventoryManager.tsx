@@ -32,6 +32,8 @@ import { useAdminTableQuery } from "@/components/admin/table/useAdminTableQuery"
 import { Badge } from "@/components/ui/Badge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { isSellableTagCapability } from "@/lib/tagCapabilities";
+import { adminCapabilities, hasCapability } from "@/lib/adminCapabilities";
+import { getAdminCapabilities } from "@/services/authService";
 import {
   bulkActionRules,
   bulkUpdateTagInventory,
@@ -168,6 +170,13 @@ function formatDate(value?: string) {
 }
 
 export function AdminTagInventoryManager() {
+  const access = getAdminCapabilities();
+  const canViewInventory = hasCapability(access, adminCapabilities.inventoryView);
+  const canGenerate = hasCapability(access, adminCapabilities.inventoryGenerate);
+  const canManage = hasCapability(access, adminCapabilities.inventoryManage);
+  const canExport = hasCapability(access, adminCapabilities.inventoryExport);
+  const canViewCosts = hasCapability(access, adminCapabilities.inventoryCostsView);
+  const canManageReceipts = hasCapability(access, adminCapabilities.inventoryReceiptsManage);
   const { query, actions, hasActiveFilters } = useAdminTableQuery({
     filterKeys,
     defaultSortBy: "generatedAt",
@@ -233,6 +242,7 @@ export function AdminTagInventoryManager() {
   const [variantPresets, setVariantPresets] = useState<TagVariant[]>([]);
 
   useEffect(() => {
+    if (!canGenerate) return;
     let active = true;
     // One request for all product/SKU options (archived products/variants are
     // already excluded server-side); no per-product detail fan-out.
@@ -257,7 +267,7 @@ export function AdminTagInventoryManager() {
         // The filter quietly keeps its fallback options when presets cannot load.
       });
     return () => { active = false; };
-  }, []);
+  }, [canGenerate]);
 
   const filterDefs = useMemo(
     () =>
@@ -268,6 +278,7 @@ export function AdminTagInventoryManager() {
   );
 
   useEffect(() => {
+    if (!canViewInventory) return;
     const controller = new AbortController();
     const key = `${paramsKey}#${reloadKey}`;
     const params = JSON.parse(paramsKey) as AdminInventoryListParams;
@@ -294,7 +305,7 @@ export function AdminTagInventoryManager() {
       });
 
     return () => controller.abort();
-  }, [paramsKey, reloadKey]);
+  }, [canViewInventory, paramsKey, reloadKey]);
 
   const loading = listState?.key !== fetchKey;
   const items = useMemo(
@@ -572,7 +583,7 @@ export function AdminTagInventoryManager() {
     },
   ];
 
-  const bulkActions: AdminBulkAction[] = (
+  const bulkActions: AdminBulkAction[] = canManage ? (
     Object.keys(bulkActionRules) as AdminInventoryBulkAction[]
   ).map((action) => {
     const rule = bulkActionRules[action];
@@ -590,21 +601,21 @@ export function AdminTagInventoryManager() {
       ].toLowerCase()} stock.`,
       onClick: () => setPendingBulkAction(action),
     };
-  });
+  }) : [];
 
   const pendingRule = pendingBulkAction ? bulkActionRules[pendingBulkAction] : null;
 
   return (
     <div className="grid gap-4">
-      <AdminNotice>
+      {canViewInventory ? <AdminNotice>
         Retail tags start as Unclaimed stock: they have a tag code but no pet
         and no owner. A customer scans the tag, signs in or creates an account,
         links it to a pet, and the tag becomes Active. The fulfilment column
         tracks the physical journey separately: printing, reseller delivery,
         and shipments to owners.
-      </AdminNotice>
+      </AdminNotice> : null}
 
-      <AdminSection
+      {canGenerate ? <AdminSection
         title="Generate tag codes"
         description="Create unclaimed retail stock from an approved SKU. Product capabilities and production specifications are applied automatically."
       >
@@ -678,16 +689,16 @@ export function AdminTagInventoryManager() {
         {generateMessage ? (
           <p className="px-4 pb-4 text-sm font-bold text-[#1b4f9c]">{generateMessage}</p>
         ) : null}
-      </AdminSection>
+      </AdminSection> : null}
 
-      <AdminInventoryCostingPanel />
+      {canViewCosts ? <AdminInventoryCostingPanel canManageReceipts={canManageReceipts} /> : null}
 
-      <AdminSection
+      {canViewInventory ? <AdminSection
         title="Tag inventory"
         description="Search, filter, and manage the physical journey of every generated tag."
       >
         <AdminFilterBar
-          endSlot={
+          endSlot={canExport ?
             <AdminExportMenu
               busy={exportBusy}
               formats={getSupportedExportFormats()}
@@ -702,7 +713,7 @@ export function AdminTagInventoryManager() {
                   : undefined
               }
               selectedCount={selectedIds.size}
-            />
+            /> : undefined
           }
           filters={filterDefs}
           hasActiveFilters={hasActiveFilters}
@@ -755,7 +766,7 @@ export function AdminTagInventoryManager() {
           rowKey={(row) => row.id}
           rowOpenLabel="Details"
           rows={items}
-          selectable
+          selectable={canManage || canExport}
           selectedIds={selectedIds}
           sortBy={query.sortBy}
           sortDir={query.sortDir}
@@ -763,15 +774,15 @@ export function AdminTagInventoryManager() {
           total={total}
         />
 
-        <AdminBulkActionBar
+        {canManage ? <AdminBulkActionBar
           actions={bulkActions}
           busy={bulkBusy}
           onClearSelection={() => setSelectedIds(new Set())}
           selectedCount={selectedIds.size}
-        />
-      </AdminSection>
+        /> : null}
+      </AdminSection> : null}
 
-      <ConfirmDialog
+      {canManage ? <ConfirmDialog
         confirmLabel={pendingRule ? pendingRule.label : "Confirm"}
         message={
           pendingRule
@@ -788,7 +799,7 @@ export function AdminTagInventoryManager() {
         }}
         open={pendingBulkAction !== null}
         title={pendingRule ? `${pendingRule.label}?` : ""}
-      />
+      /> : null}
 
       {openTag ? (
         <AdminTagInventoryDetailDrawer
