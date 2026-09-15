@@ -56,6 +56,10 @@ builder.Services.Configure<DatabaseResilienceOptions>(
     builder.Configuration.GetSection(DatabaseResilienceOptions.SectionName));
 builder.Services.Configure<SmartTagRateLimitingOptions>(
     builder.Configuration.GetSection(SmartTagRateLimitingOptions.SectionName));
+builder.Services.Configure<SocialRateLimitingOptions>(
+    builder.Configuration.GetSection(SocialRateLimitingOptions.SectionName));
+builder.Services.Configure<SocialOptions>(
+    builder.Configuration.GetSection(SocialOptions.SectionName));
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders =
@@ -111,6 +115,40 @@ builder.Services.AddRateLimiter(options =>
                 .GetRequiredService<IOptions<SmartTagRateLimitingOptions>>()
                 .Value
                 .TagActivation));
+    // Social policies. Every one of these partitions by USER, not by IP: a
+    // household behind one carrier NAT must not share an allowance, and an
+    // attacker rotating IP addresses must not be handed a fresh one.
+    //
+    // These counters live in this process. Two application instances therefore
+    // allow twice these numbers, and a restart clears every window. That is an
+    // accepted trade for a single-instance soft launch and is recorded in
+    // docs/deployment/environment-variables.md together with the conditions
+    // that require moving to a shared store or to the edge.
+    AddSocialPolicy(
+        options,
+        SocialRateLimitPolicies.Follow,
+        social => social.Follow);
+    AddSocialPolicy(
+        options,
+        SocialRateLimitPolicies.Like,
+        social => social.Like);
+    AddSocialPolicy(
+        options,
+        SocialRateLimitPolicies.MomentCreate,
+        social => social.MomentCreate);
+    AddSocialPolicy(
+        options,
+        SocialRateLimitPolicies.Search,
+        social => social.Search);
+    AddSocialPolicy(
+        options,
+        SocialRateLimitPolicies.HandleAvailability,
+        social => social.HandleAvailability);
+    AddSocialPolicy(
+        options,
+        SocialRateLimitPolicies.ProfileMutation,
+        social => social.ProfileMutation);
+
     options.OnRejected = async (context, cancellationToken) =>
     {
         var retryAfterSeconds = context.Lease.TryGetMetadata(
@@ -353,6 +391,9 @@ builder.Services.AddScoped<IPublicSampleExperienceService, PublicSampleExperienc
 builder.Services.AddScoped<IAdminSampleExperienceService, AdminSampleExperienceService>();
 builder.Services.AddSingleton<IPublicProfileSocialCardRenderer, PublicProfileSocialCardRenderer>();
 builder.Services.AddScoped<IMemoryService, MemoryService>();
+builder.Services.AddScoped<IOwnerSocialProfileService, OwnerSocialProfileService>();
+builder.Services.AddScoped<IOwnerHandleService, OwnerHandleService>();
+builder.Services.AddSingleton<IImageDerivativeGenerator, ImageDerivativeGenerator>();
 builder.Services.AddScoped<ICareRecordService, CareRecordService>();
 builder.Services.AddScoped<IMediaService, MediaService>();
 builder.Services.AddScoped<IQrSafetyService, QrSafetyService>();
@@ -701,6 +742,22 @@ app.MapGet("/health/ready", ReadinessResult).AllowAnonymous();
 app.MapGet("/api/v1/health/ready", ReadinessResult).AllowAnonymous();
 
 app.Run();
+
+// One place that turns a named social policy into a per-user fixed window, so
+// no controller ever carries a literal number and no limit is defined twice.
+static void AddSocialPolicy(
+    RateLimiterOptions options,
+    string policyName,
+    Func<SocialRateLimitingOptions, RequestRateLimitOptions> selector)
+{
+    options.AddPolicy(
+        policyName,
+        context => FixedWindowPartition(
+            $"{policyName}:{SocialRateLimitPartitions.PerUser(context)}",
+            selector(context.RequestServices
+                .GetRequiredService<IOptions<SocialRateLimitingOptions>>()
+                .Value)));
+}
 
 static RateLimitPartition<string> FixedWindowPartition(
     string partitionKey,

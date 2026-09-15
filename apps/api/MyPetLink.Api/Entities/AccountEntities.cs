@@ -12,6 +12,11 @@ public sealed class User : AuditableEntity
     public DateTimeOffset? DeletedAt { get; set; }
 
     public OwnerProfile? OwnerProfile { get; set; }
+    /// <summary>
+    /// The account's PUBLIC social identity. Separate from <see cref="DisplayName"/>
+    /// (account) and from <c>OwnerProfile.OwnerDisplayName</c> (finder-facing).
+    /// </summary>
+    public OwnerSocialProfile? SocialProfile { get; set; }
     public OwnerReferralAttribution? ReferralAttribution { get; set; }
     public AdminUser? AdminUser { get; set; }
     public ICollection<ExternalLogin> ExternalLogins { get; set; } = new List<ExternalLogin>();

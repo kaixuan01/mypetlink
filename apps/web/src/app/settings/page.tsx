@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { AppLayout } from "@/components/layouts/AppLayout";
 import { SettingsPanel } from "@/components/portal/SettingsPanel";
+import { SocialProfileSettingsSection } from "@/components/portal/SocialProfileSettingsSection";
 import { PageHeader } from "@/components/ui/PageHeader";
 
 export const metadata: Metadata = {
@@ -16,6 +17,9 @@ export default function SettingsPage() {
         description="Manage your contact details, privacy, communication preferences, and account settings."
       />
       <SettingsPanel />
+      <div className="mt-5">
+        <SocialProfileSettingsSection />
+      </div>
     </AppLayout>
   );
 }

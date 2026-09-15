@@ -193,6 +193,7 @@ public enum MediaOwnerType
 {
     Pet,
     PetMemory,
+    OwnerSocialProfile,
     CareRecord,
     TagOrder,
     PaymentProof,
@@ -216,6 +217,7 @@ public enum MediaUploadCategory
     PetCoverPhoto,
     MomentImage,
     MomentVideo,
+    OwnerAvatar,
     VaccinationDocument,
     MedicalDocument,
     OrderReceipt,
@@ -384,4 +386,55 @@ public enum MerchantAllocationStatus
 {
     Allocated,
     SentToMerchant
+}
+
+/// <summary>
+/// Progress of the resized image derivative (the thumbnail) for one media file.
+///
+/// Derivative generation must never fail an upload: a file whose derivative
+/// could not be produced stays fully usable and is served from its original.
+/// The status exists so a later retry or backfill can find the files that still
+/// need one, without a reader ever having to care.
+/// </summary>
+public enum MediaDerivativeStatus
+{
+    /// <summary>No derivative is expected for this file (video, document, private upload).</summary>
+    NotApplicable,
+
+    /// <summary>A derivative is expected but has not been produced yet.</summary>
+    Pending,
+
+    /// <summary>A derivative exists at <c>ThumbnailObjectKey</c>.</summary>
+    Ready,
+
+    /// <summary>Generation was attempted and did not succeed. The original still serves.</summary>
+    Failed
+}
+
+/// <summary>
+/// Why a social handle cannot be claimed. Stored as text so appending values
+/// never disturbs rows already written.
+/// </summary>
+public enum OwnerHandleReservationReason
+{
+    /// <summary>An application route, brand term, or support identity. Permanent.</summary>
+    System,
+
+    /// <summary>Recently released by an account. Held so old links cannot resolve to a stranger.</summary>
+    Released,
+
+    /// <summary>Withheld by an administrator.</summary>
+    Moderation
+}
+
+/// <summary>
+/// In-app owner notification kinds. Social email is deliberately not modelled
+/// here: every existing <see cref="EmailMessageType"/> is transactional or
+/// commercial, and social email is a separate consent category.
+/// </summary>
+public enum OwnerNotificationType
+{
+    Unknown,
+    NewFollower,
+    MomentLiked
 }

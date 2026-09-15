@@ -80,7 +80,25 @@ public sealed class OwnerProfileService : SkeletonService, IOwnerProfileService
 
         if (request.DefaultGeneralArea is not null)
         {
-            ownerProfile.DefaultGeneralArea = NormalizeOptional(request.DefaultGeneralArea);
+            // Every pet that follows owner defaults publishes this value, so it
+            // is held to the same rule as a pet's own area: a neighbourhood and
+            // city, never a street address.
+            var defaultGeneralArea = GeneralAreaRules.Normalize(request.DefaultGeneralArea);
+            var generalAreaError = GeneralAreaRules.Validate(defaultGeneralArea);
+
+            if (generalAreaError is not null)
+            {
+                throw new ApiException(
+                    StatusCodes.Status400BadRequest,
+                    "validation_failed",
+                    "Please check the submitted fields.",
+                    new Dictionary<string, string[]>
+                    {
+                        ["defaultGeneralArea"] = [generalAreaError]
+                    });
+            }
+
+            ownerProfile.DefaultGeneralArea = defaultGeneralArea;
         }
 
         if (request.PrivacyDefaults is not null)
@@ -199,7 +217,7 @@ public sealed class OwnerProfileService : SkeletonService, IOwnerProfileService
                 ownerProfile.Plan.Name,
                 ownerProfile.Plan.Status.ToString(),
                 ownerProfile.Plan.Limit?.MaxPets ?? 0,
-                ownerProfile.Plan.Limit?.MaxMemoriesPerPet ?? 0,
+                ownerProfile.Plan.Limit?.MaxPrivateMemoriesPerPet ?? 0,
                 ownerProfile.Plan.Limit?.MaxMediaPerMemory ?? 0,
                 ownerProfile.Plan.Limit?.MaxCareRecords ?? 0,
                 ownerProfile.Plan.Limit?.ScanHistoryDays ?? 0),

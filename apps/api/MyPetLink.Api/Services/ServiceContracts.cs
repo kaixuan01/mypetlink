@@ -10,6 +10,50 @@ public interface ICurrentUserService
     CurrentUser Current { get; }
 }
 
+/// <summary>
+/// The owner's PUBLIC social identity. Every method resolves the subject from
+/// the authenticated session; none accepts a user id from a caller.
+/// </summary>
+public interface IOwnerSocialProfileService : ISkeletonService
+{
+    Task<OwnerSocialProfileResponse> GetAsync(
+        Guid? currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<OwnerSocialProfileResponse> UpdateAsync(
+        Guid? currentUserId,
+        UpdateOwnerSocialProfileRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<OwnerSocialProfileResponse> ClaimHandleAsync(
+        Guid? currentUserId,
+        ClaimOwnerHandleRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<OwnerHandleAvailabilityResponse> CheckHandleAvailabilityAsync(
+        Guid? currentUserId,
+        string handle,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>Handle claiming, renaming, reservations and the release hold.</summary>
+public interface IOwnerHandleService : ISkeletonService
+{
+    Task<bool> IsClaimableAsync(
+        string normalizedHandle,
+        Guid userId,
+        CancellationToken cancellationToken = default);
+
+    Task<DateTimeOffset?> GetChangeAvailableAtAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default);
+
+    Task ClaimAsync(
+        OwnerSocialProfile profile,
+        string requestedHandle,
+        CancellationToken cancellationToken = default);
+}
+
 public interface ISkeletonService
 {
     Task<PlaceholderResponse> NotImplementedAsync(string operation, CancellationToken cancellationToken = default);

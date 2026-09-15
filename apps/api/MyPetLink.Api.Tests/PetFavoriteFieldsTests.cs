@@ -348,7 +348,7 @@ public sealed class PetFavoriteFieldsTests
                         Limit = new PlanLimit
                         {
                             MaxPets = 3,
-                            MaxMemoriesPerPet = 10,
+                            MaxPrivateMemoriesPerPet = 10,
                             MaxMediaPerMemory = 4,
                             MaxFamilyMembers = 1,
                             MaxCareRecords = 100,

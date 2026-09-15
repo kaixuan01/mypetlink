@@ -565,6 +565,7 @@ export type BackendMediaUploadCategory =
   | "PetCoverPhoto"
   | "MomentImage"
   | "MomentVideo"
+  | "OwnerAvatar"
   | "VaccinationDocument"
   | "MedicalDocument"
   | "OrderReceipt"

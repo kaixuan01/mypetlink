@@ -9148,3 +9148,713 @@ GO
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055149_AddOwnerSocialIdentity'
+)
+BEGIN
+    EXEC sp_rename N'[PlanLimits].[MaxMemoriesPerPet]', N'MaxPrivateMemoriesPerPet', N'COLUMN';
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055149_AddOwnerSocialIdentity'
+)
+BEGIN
+    ALTER TABLE [MediaFiles] ADD [DerivativeStatus] nvarchar(32) NOT NULL DEFAULT N'NotApplicable';
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055149_AddOwnerSocialIdentity'
+)
+BEGIN
+    CREATE TABLE [OwnerHandleHistories] (
+        [Id] uniqueidentifier NOT NULL,
+        [UserId] uniqueidentifier NOT NULL,
+        [Handle] nvarchar(30) NOT NULL,
+        [NormalizedHandle] nvarchar(30) NOT NULL,
+        [ChangedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_OwnerHandleHistories] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_OwnerHandleHistories_Users_UserId] FOREIGN KEY ([UserId]) REFERENCES [Users] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055149_AddOwnerSocialIdentity'
+)
+BEGIN
+    CREATE TABLE [OwnerHandleReservations] (
+        [Id] uniqueidentifier NOT NULL,
+        [NormalizedHandle] nvarchar(30) NOT NULL,
+        [Reason] nvarchar(32) NOT NULL,
+        [HeldUntil] datetimeoffset NULL,
+        [PreviousUserId] uniqueidentifier NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_OwnerHandleReservations] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_OwnerHandleReservations_Users_PreviousUserId] FOREIGN KEY ([PreviousUserId]) REFERENCES [Users] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055149_AddOwnerSocialIdentity'
+)
+BEGIN
+    CREATE TABLE [OwnerSocialProfiles] (
+        [Id] uniqueidentifier NOT NULL,
+        [UserId] uniqueidentifier NOT NULL,
+        [Handle] nvarchar(30) NULL,
+        [NormalizedHandle] nvarchar(30) NULL,
+        [DisplayName] nvarchar(60) NULL,
+        [NormalizedDisplayName] nvarchar(60) NULL,
+        [Bio] nvarchar(300) NULL,
+        [AvatarMediaFileId] uniqueidentifier NULL,
+        [GeneralArea] nvarchar(80) NULL,
+        [IsSocialEnabled] bit NOT NULL DEFAULT CAST(0 AS bit),
+        [IsDiscoverable] bit NOT NULL DEFAULT CAST(0 AS bit),
+        [AllowFollowers] bit NOT NULL DEFAULT CAST(1 AS bit),
+        [RowVersion] rowversion NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_OwnerSocialProfiles] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_OwnerSocialProfiles_MediaFiles_AvatarMediaFileId] FOREIGN KEY ([AvatarMediaFileId]) REFERENCES [MediaFiles] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_OwnerSocialProfiles_Users_UserId] FOREIGN KEY ([UserId]) REFERENCES [Users] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055149_AddOwnerSocialIdentity'
+)
+BEGIN
+    IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Id', N'CreatedAt', N'HeldUntil', N'NormalizedHandle', N'PreviousUserId', N'Reason', N'UpdatedAt') AND [object_id] = OBJECT_ID(N'[OwnerHandleReservations]'))
+        SET IDENTITY_INSERT [OwnerHandleReservations] ON;
+    EXEC(N'INSERT INTO [OwnerHandleReservations] ([Id], [CreatedAt], [HeldUntil], [NormalizedHandle], [PreviousUserId], [Reason], [UpdatedAt])
+    VALUES (''0271589d-5338-00a4-39e8-061ee3358513'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''mod'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''0512c195-6fea-07ea-4277-c0a1fe0002c3'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''lostpet'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''09b8c4f4-f6be-da69-dc7b-f1ee55fcf88f'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''activate'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''0e5e6a7e-82b2-a4e9-8746-b3d91b4260d8'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''terms'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''109f5c4b-346e-747c-c431-a69ecb511772'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''sitemap'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''10b995ec-e8a9-da7e-2b2c-3dd02270f9fb'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''sales'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''10cb1ee8-a12b-437d-2d8d-95d8cf154433'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''assets'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''1726a5ea-4133-fb82-a758-739a99799f26'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''well-known'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''209daa4e-5476-53ca-cd74-41ac43fe2dba'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''payments'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''2295da6e-5182-c511-c499-d51329b4ed48'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''customercare'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''238fdbf5-6cbd-9a8e-aee5-22bede225714'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''records'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''23c14044-0d9b-ca5d-8919-9d771ef2d5ff'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''pet'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''284cd0f3-fe6d-0d6d-9fbd-5e23f3fb3a9a'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''how-it-works'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''2c6f5ca4-e167-0b7c-c3a8-39d3abd149a6'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''pets'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''2e808712-a647-2d47-d88b-88bb53907037'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''pricing'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''30bcdc25-1c2d-66ed-2ccf-b37172438b90'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''no-reply'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''326e34ff-140a-20cc-fc96-a6f96ac931b1'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''help'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''34b304a1-dea5-2f81-72e3-9c833f80c9b6'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''safety'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''34ccac4b-435b-f04e-3732-02259dc3ee51'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''orders'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''36242f60-af9e-6f56-ec7d-30ff91adfa7d'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''postmaster'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''3a2b1d90-3e11-9051-d026-72f4c7741b7b'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''linko'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''41d1e309-6019-0485-1ce4-53035a6d1f00'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''pet-profile'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''489a2f3e-37db-48d5-0a12-f86cf4faf252'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''administrator'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''48d7cbfb-defd-1758-2afb-47067e1d9b3f'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''js'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''4fe52dbe-160f-654c-017a-3289afa049bb'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''noreply'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''50311f6d-e447-a604-ac00-9d7463406212'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''privacy'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''503faeb3-1b07-f197-ae00-6930700fb5e2'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''root'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''5132407d-b24f-2f10-dca4-855f3452d2fb'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''static'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''519f1400-ee83-d2d6-bad4-9378c39b2591'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''smarttag'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''545cb3ad-3a1b-7bd3-fb79-afd29fa856a7'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''admin'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''58ca49ec-94ae-9c51-d133-2e90b77691ec'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''support'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''58de5bd4-2c5f-6660-8ed7-8cd3e1b46f5c'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''finance'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''641b6b2d-4856-889a-caff-ac2b1f5e3aa5'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''logout'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''69338807-e51b-b86c-2985-131208ddc29e'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''mypetlinksupport'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''6a00f6e3-cba5-a9d7-5a91-5dd277ad7002'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''p'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''6cd6999a-b3fc-d6c7-f6e7-9df4c60e8372'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''q'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''7580fb1c-e3ea-c9cb-5a72-3a200ba46637'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''team'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''7a405efb-a121-0847-3202-c9215a8c81e3'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''login'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''7b01b92b-8606-6079-def6-c9942c1b76c2'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''security'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''7e349a4c-33e7-2b34-45f2-267c1e58c162'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''moments'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''814bbd17-61a9-ee50-fe78-864a61e110e1'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''lost-pet'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''81be9a12-d469-7369-3367-1574cd9fc2ac'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''n'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00'');
+    INSERT INTO [OwnerHandleReservations] ([Id], [CreatedAt], [HeldUntil], [NormalizedHandle], [PreviousUserId], [Reason], [UpdatedAt])
+    VALUES (''86b9a96d-c959-eb5c-046f-baee3a244792'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''auth'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''93be8719-1902-ba1d-81b6-aec2f157d71f'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''images'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''979aff23-c835-e788-894e-b1accc077d34'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''helpdesk'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''9cd694e3-9165-fca4-72f2-ca22045e5cb3'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''order'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''9d06752d-ca9a-3599-425c-6cec347aca35'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''u'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''9e2ea183-66b9-dd66-b10f-472f55471ef9'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''tags'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''a29ae0da-cb3a-0d6b-d577-c5c558ce4fae'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''where-to-buy'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''ac6cc967-9887-ac14-7726-2c1e3b555df9'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''img'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''add271f3-7d10-33c0-fe8d-cd60074c7556'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''mypetlinkofficial'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''af6c1e55-4312-b5c6-b43d-1bfe8447da25'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''sample'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''b16d45f8-a67d-a46d-98ff-300b6ea4658d'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''info'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''b258e716-975a-e86e-6b25-285c2395b218'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''moderator'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''b42d4c29-eb66-658f-99eb-8ce3ca66791f'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''favicon'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''b4e5c218-3834-c8f2-0d98-d5f660a553d4'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''my-pet-link'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''b519de8e-76d7-2e59-37bd-1581813d3145'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''webmaster'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''b873b8d2-720e-fdaa-6e8a-25575dfdd78c'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''mypetlinkhelp'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''b913682c-6fa4-11a3-6a22-14be78ba4af0'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''register'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''bfbaff0e-5316-e937-8803-7e81bfacbd44'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''media'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''c1de1034-b882-54a9-bc7c-3bce07fe77ad'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''fonts'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''c350890a-a3ff-0007-7fd1-4d664e56d61a'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''robots'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''c6a4ca80-272d-3489-cb98-149a53bd0b01'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''mypetlink'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''d1e8ad92-a5f6-ee53-ae50-467a66da7174'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''staff'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''d2e2adaa-07ef-1018-ceca-d42858ac768e'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''dashboard'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''d3671d27-0ec3-8b4e-b8fc-0d0b40b9917b'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''payment'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''d64f5ced-4c90-31e4-37a9-4384dd3b5a7b'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''smart-tag'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''d72016ff-d1e6-31c5-a552-44d14246c23d'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''settings'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''e0c5b4c3-e599-b0c6-653c-9faf15c3334a'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''mypetlink_official'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''e1df28ce-b835-e42f-fe11-870bc90419b8'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''billing'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''e4318ad6-a6e5-cd7e-3789-5f64dfa3436f'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''customer_care'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''e63d838d-da6a-ef83-a044-f1c318b4b344'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''public'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''e7b3ae89-e3a0-c311-c9d5-f9e17fc2c4e4'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''official'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''eb76721f-1100-3ac3-e4e6-f510d111c476'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''smart-pet-tags'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''ed77c313-c32a-4f5b-7857-82984aae99d6'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''contact'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''f1de7946-b851-68ad-9104-a6203c5528e9'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''t'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''f63c84d7-8945-fbea-57f1-6814ab6ec679'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''css'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''fa33fe08-d7e3-43ec-6bfb-92522dd06a50'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''api'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''fc3ea36b-8433-bc73-7220-868f16d21c2f'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''system'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00''),
+    (''fc589361-a595-c5ef-28ab-71ca5cce6a63'', ''2026-01-01T00:00:00.0000000+00:00'', NULL, N''signup'', NULL, N''System'', ''2026-01-01T00:00:00.0000000+00:00'')');
+    IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Id', N'CreatedAt', N'HeldUntil', N'NormalizedHandle', N'PreviousUserId', N'Reason', N'UpdatedAt') AND [object_id] = OBJECT_ID(N'[OwnerHandleReservations]'))
+        SET IDENTITY_INSERT [OwnerHandleReservations] OFF;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055149_AddOwnerSocialIdentity'
+)
+BEGIN
+    CREATE INDEX [IX_OwnerHandleHistories_NormalizedHandle] ON [OwnerHandleHistories] ([NormalizedHandle]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055149_AddOwnerSocialIdentity'
+)
+BEGIN
+    CREATE INDEX [IX_OwnerHandleHistories_UserId_ChangedAt] ON [OwnerHandleHistories] ([UserId], [ChangedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055149_AddOwnerSocialIdentity'
+)
+BEGIN
+    EXEC(N'CREATE INDEX [IX_OwnerHandleReservations_HeldUntil] ON [OwnerHandleReservations] ([HeldUntil]) WHERE [HeldUntil] IS NOT NULL');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055149_AddOwnerSocialIdentity'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_OwnerHandleReservations_NormalizedHandle] ON [OwnerHandleReservations] ([NormalizedHandle]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055149_AddOwnerSocialIdentity'
+)
+BEGIN
+    CREATE INDEX [IX_OwnerHandleReservations_PreviousUserId] ON [OwnerHandleReservations] ([PreviousUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055149_AddOwnerSocialIdentity'
+)
+BEGIN
+    CREATE INDEX [IX_OwnerSocialProfiles_AvatarMediaFileId] ON [OwnerSocialProfiles] ([AvatarMediaFileId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055149_AddOwnerSocialIdentity'
+)
+BEGIN
+    CREATE INDEX [IX_OwnerSocialProfiles_IsSocialEnabled_IsDiscoverable_UpdatedAt] ON [OwnerSocialProfiles] ([IsSocialEnabled], [IsDiscoverable], [UpdatedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055149_AddOwnerSocialIdentity'
+)
+BEGIN
+    CREATE INDEX [IX_OwnerSocialProfiles_NormalizedDisplayName] ON [OwnerSocialProfiles] ([NormalizedDisplayName]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055149_AddOwnerSocialIdentity'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [IX_OwnerSocialProfiles_NormalizedHandle] ON [OwnerSocialProfiles] ([NormalizedHandle]) WHERE [NormalizedHandle] IS NOT NULL');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055149_AddOwnerSocialIdentity'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_OwnerSocialProfiles_UserId] ON [OwnerSocialProfiles] ([UserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055149_AddOwnerSocialIdentity'
+)
+BEGIN
+
+                    INSERT INTO [OwnerSocialProfiles]
+                        ([Id], [UserId], [Handle], [NormalizedHandle], [DisplayName],
+                         [NormalizedDisplayName], [Bio], [AvatarMediaFileId], [GeneralArea],
+                         [IsSocialEnabled], [IsDiscoverable], [AllowFollowers],
+                         [CreatedAt], [UpdatedAt])
+                    SELECT
+                        NEWID(), u.[Id], NULL, NULL, NULL,
+                        NULL, NULL, NULL, NULL,
+                        0, 0, 1,
+                        SYSDATETIMEOFFSET(), SYSDATETIMEOFFSET()
+                    FROM [Users] AS u
+                    WHERE u.[DeletedAt] IS NULL
+                      AND NOT EXISTS (
+                          SELECT 1 FROM [OwnerSocialProfiles] AS p WHERE p.[UserId] = u.[Id]);
+                
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055149_AddOwnerSocialIdentity'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260915055149_AddOwnerSocialIdentity', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055222_AddSocialGraph'
+)
+BEGIN
+    CREATE TABLE [OwnerBlocks] (
+        [Id] uniqueidentifier NOT NULL,
+        [BlockerUserId] uniqueidentifier NOT NULL,
+        [BlockedUserId] uniqueidentifier NOT NULL,
+        [Reason] nvarchar(280) NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_OwnerBlocks] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_OwnerBlocks_NoSelfBlock] CHECK ([BlockerUserId] <> [BlockedUserId]),
+        CONSTRAINT [FK_OwnerBlocks_Users_BlockedUserId] FOREIGN KEY ([BlockedUserId]) REFERENCES [Users] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_OwnerBlocks_Users_BlockerUserId] FOREIGN KEY ([BlockerUserId]) REFERENCES [Users] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055222_AddSocialGraph'
+)
+BEGIN
+    CREATE TABLE [OwnerFollows] (
+        [Id] uniqueidentifier NOT NULL,
+        [FollowerUserId] uniqueidentifier NOT NULL,
+        [FollowedUserId] uniqueidentifier NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_OwnerFollows] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_OwnerFollows_NoSelfFollow] CHECK ([FollowerUserId] <> [FollowedUserId]),
+        CONSTRAINT [FK_OwnerFollows_Users_FollowedUserId] FOREIGN KEY ([FollowedUserId]) REFERENCES [Users] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_OwnerFollows_Users_FollowerUserId] FOREIGN KEY ([FollowerUserId]) REFERENCES [Users] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055222_AddSocialGraph'
+)
+BEGIN
+    CREATE TABLE [OwnerNotifications] (
+        [Id] uniqueidentifier NOT NULL,
+        [RecipientUserId] uniqueidentifier NOT NULL,
+        [ActorUserId] uniqueidentifier NULL,
+        [SubjectPetId] uniqueidentifier NULL,
+        [MomentId] uniqueidentifier NULL,
+        [Type] nvarchar(48) NOT NULL,
+        [ReadAt] datetimeoffset NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_OwnerNotifications] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_OwnerNotifications_PetMemories_MomentId] FOREIGN KEY ([MomentId]) REFERENCES [PetMemories] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_OwnerNotifications_Pets_SubjectPetId] FOREIGN KEY ([SubjectPetId]) REFERENCES [Pets] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_OwnerNotifications_Users_ActorUserId] FOREIGN KEY ([ActorUserId]) REFERENCES [Users] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_OwnerNotifications_Users_RecipientUserId] FOREIGN KEY ([RecipientUserId]) REFERENCES [Users] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055222_AddSocialGraph'
+)
+BEGIN
+    CREATE INDEX [IX_OwnerBlocks_BlockedUserId] ON [OwnerBlocks] ([BlockedUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055222_AddSocialGraph'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_OwnerBlocks_BlockerUserId_BlockedUserId] ON [OwnerBlocks] ([BlockerUserId], [BlockedUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055222_AddSocialGraph'
+)
+BEGIN
+    CREATE INDEX [IX_OwnerFollows_FollowedUserId_CreatedAt] ON [OwnerFollows] ([FollowedUserId], [CreatedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055222_AddSocialGraph'
+)
+BEGIN
+    CREATE INDEX [IX_OwnerFollows_FollowerUserId_CreatedAt] ON [OwnerFollows] ([FollowerUserId], [CreatedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055222_AddSocialGraph'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_OwnerFollows_FollowerUserId_FollowedUserId] ON [OwnerFollows] ([FollowerUserId], [FollowedUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055222_AddSocialGraph'
+)
+BEGIN
+    CREATE INDEX [IX_OwnerNotifications_ActorUserId] ON [OwnerNotifications] ([ActorUserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055222_AddSocialGraph'
+)
+BEGIN
+    CREATE INDEX [IX_OwnerNotifications_MomentId] ON [OwnerNotifications] ([MomentId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055222_AddSocialGraph'
+)
+BEGIN
+    CREATE INDEX [IX_OwnerNotifications_RecipientUserId_CreatedAt] ON [OwnerNotifications] ([RecipientUserId], [CreatedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055222_AddSocialGraph'
+)
+BEGIN
+    EXEC(N'CREATE INDEX [IX_OwnerNotifications_RecipientUserId_ReadAt] ON [OwnerNotifications] ([RecipientUserId], [ReadAt]) WHERE [ReadAt] IS NULL');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055222_AddSocialGraph'
+)
+BEGIN
+    CREATE INDEX [IX_OwnerNotifications_RecipientUserId_Type_ActorUserId_MomentId] ON [OwnerNotifications] ([RecipientUserId], [Type], [ActorUserId], [MomentId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055222_AddSocialGraph'
+)
+BEGIN
+    CREATE INDEX [IX_OwnerNotifications_SubjectPetId] ON [OwnerNotifications] ([SubjectPetId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055222_AddSocialGraph'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260915055222_AddSocialGraph', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055237_AddMomentSocialContent'
+)
+BEGIN
+    ALTER TABLE [PetMemories] ADD [AuthorUserId] uniqueidentifier NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055237_AddMomentSocialContent'
+)
+BEGIN
+
+                    UPDATE m
+                    SET m.[AuthorUserId] = p.[OwnerUserId]
+                    FROM [PetMemories] AS m
+                    INNER JOIN [Pets] AS p ON p.[Id] = m.[PetId]
+                    WHERE m.[AuthorUserId] IS NULL;
+                
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055237_AddMomentSocialContent'
+)
+BEGIN
+    ALTER TABLE [PetMemories] ALTER COLUMN [AuthorUserId] uniqueidentifier NOT NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055237_AddMomentSocialContent'
+)
+BEGIN
+    ALTER TABLE [PetMemories] ADD [PublishedAt] datetimeoffset NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055237_AddMomentSocialContent'
+)
+BEGIN
+
+                    UPDATE [PetMemories]
+                    SET [PublishedAt] = [CreatedAt]
+                    WHERE [Visibility] = 'Public' AND [PublishedAt] IS NULL;
+                
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055237_AddMomentSocialContent'
+)
+BEGIN
+    CREATE TABLE [MomentLikes] (
+        [Id] uniqueidentifier NOT NULL,
+        [MomentId] uniqueidentifier NOT NULL,
+        [UserId] uniqueidentifier NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_MomentLikes] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_MomentLikes_PetMemories_MomentId] FOREIGN KEY ([MomentId]) REFERENCES [PetMemories] ([Id]) ON DELETE NO ACTION,
+        CONSTRAINT [FK_MomentLikes_Users_UserId] FOREIGN KEY ([UserId]) REFERENCES [Users] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055237_AddMomentSocialContent'
+)
+BEGIN
+    CREATE TABLE [MomentPets] (
+        [Id] uniqueidentifier NOT NULL,
+        [MomentId] uniqueidentifier NOT NULL,
+        [PetId] uniqueidentifier NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_MomentPets] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_MomentPets_PetMemories_MomentId] FOREIGN KEY ([MomentId]) REFERENCES [PetMemories] ([Id]) ON DELETE CASCADE,
+        CONSTRAINT [FK_MomentPets_Pets_PetId] FOREIGN KEY ([PetId]) REFERENCES [Pets] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055237_AddMomentSocialContent'
+)
+BEGIN
+    CREATE TABLE [PetSocialProfiles] (
+        [Id] uniqueidentifier NOT NULL,
+        [PetId] uniqueidentifier NOT NULL,
+        [IsSocialEnabled] bit NOT NULL DEFAULT CAST(0 AS bit),
+        [IsDiscoverable] bit NOT NULL DEFAULT CAST(0 AS bit),
+        [RowVersion] rowversion NOT NULL,
+        [CreatedAt] datetimeoffset NOT NULL,
+        [UpdatedAt] datetimeoffset NOT NULL,
+        CONSTRAINT [PK_PetSocialProfiles] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_PetSocialProfiles_Pets_PetId] FOREIGN KEY ([PetId]) REFERENCES [Pets] ([Id]) ON DELETE NO ACTION
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055237_AddMomentSocialContent'
+)
+BEGIN
+    CREATE INDEX [IX_PetMemories_AuthorUserId_PublishedAt] ON [PetMemories] ([AuthorUserId], [PublishedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055237_AddMomentSocialContent'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_MomentLikes_MomentId_UserId] ON [MomentLikes] ([MomentId], [UserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055237_AddMomentSocialContent'
+)
+BEGIN
+    CREATE INDEX [IX_MomentLikes_UserId_CreatedAt] ON [MomentLikes] ([UserId], [CreatedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055237_AddMomentSocialContent'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_MomentPets_MomentId_PetId] ON [MomentPets] ([MomentId], [PetId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055237_AddMomentSocialContent'
+)
+BEGIN
+    CREATE INDEX [IX_MomentPets_PetId_MomentId] ON [MomentPets] ([PetId], [MomentId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055237_AddMomentSocialContent'
+)
+BEGIN
+    CREATE INDEX [IX_PetSocialProfiles_IsSocialEnabled_IsDiscoverable_UpdatedAt] ON [PetSocialProfiles] ([IsSocialEnabled], [IsDiscoverable], [UpdatedAt]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055237_AddMomentSocialContent'
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_PetSocialProfiles_PetId] ON [PetSocialProfiles] ([PetId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055237_AddMomentSocialContent'
+)
+BEGIN
+
+                    INSERT INTO [MomentPets] ([Id], [MomentId], [PetId], [CreatedAt])
+                    SELECT NEWID(), m.[Id], m.[PetId], m.[CreatedAt]
+                    FROM [PetMemories] AS m
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM [MomentPets] AS mp WHERE mp.[MomentId] = m.[Id]);
+                
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055237_AddMomentSocialContent'
+)
+BEGIN
+
+                    INSERT INTO [PetSocialProfiles]
+                        ([Id], [PetId], [IsSocialEnabled], [IsDiscoverable],
+                         [CreatedAt], [UpdatedAt])
+                    SELECT NEWID(), p.[Id], 0, 0, SYSDATETIMEOFFSET(), SYSDATETIMEOFFSET()
+                    FROM [Pets] AS p
+                    WHERE p.[DeletedAt] IS NULL
+                      AND NOT EXISTS (
+                          SELECT 1 FROM [PetSocialProfiles] AS s WHERE s.[PetId] = p.[Id]);
+                
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055237_AddMomentSocialContent'
+)
+BEGIN
+    ALTER TABLE [PetMemories] ADD CONSTRAINT [FK_PetMemories_Users_AuthorUserId] FOREIGN KEY ([AuthorUserId]) REFERENCES [Users] ([Id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260915055237_AddMomentSocialContent'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260915055237_AddMomentSocialContent', N'8.0.26');
+END;
+GO
+
+COMMIT;
+GO
+

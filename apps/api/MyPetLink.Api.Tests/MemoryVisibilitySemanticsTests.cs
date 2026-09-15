@@ -240,7 +240,7 @@ public sealed class MemoryVisibilitySemanticsTests
                 Limit = new PlanLimit
                 {
                     MaxPets = 10,
-                    MaxMemoriesPerPet = 20,
+                    MaxPrivateMemoriesPerPet = 20,
                     MaxMediaPerMemory = 5,
                     MaxFamilyMembers = 1,
                     MaxCareRecords = 100,

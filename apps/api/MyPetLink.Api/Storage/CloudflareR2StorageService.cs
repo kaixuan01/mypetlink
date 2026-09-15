@@ -104,6 +104,77 @@ public sealed class CloudflareR2StorageService : IObjectStorageService
             cancellationToken);
     }
 
+    public async Task<byte[]?> GetObjectBytesAsync(
+        string bucketName,
+        string objectKey,
+        long maxBytes,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureSafeObjectRequest(bucketName, objectKey);
+
+        try
+        {
+            using var response = await _client.Value.GetObjectAsync(
+                new GetObjectRequest
+                {
+                    BucketName = bucketName,
+                    Key = objectKey
+                },
+                cancellationToken);
+
+            // Trust the declared length only as an early reject; the copy below
+            // is what actually bounds memory, because a declared length can be
+            // absent or wrong.
+            if (response.ContentLength > maxBytes)
+            {
+                return null;
+            }
+
+            await using var content = response.ResponseStream;
+            using var buffer = new MemoryStream();
+            var chunk = new byte[81920];
+            int read;
+
+            while ((read = await content.ReadAsync(chunk, cancellationToken)) > 0)
+            {
+                if (buffer.Length + read > maxBytes)
+                {
+                    return null;
+                }
+
+                buffer.Write(chunk, 0, read);
+            }
+
+            return buffer.ToArray();
+        }
+        catch (AmazonS3Exception exception) when (exception.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+    }
+
+    public async Task PutObjectAsync(
+        string bucketName,
+        string objectKey,
+        byte[] content,
+        string contentType,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureSafeObjectRequest(bucketName, objectKey);
+
+        using var stream = new MemoryStream(content, writable: false);
+        await _client.Value.PutObjectAsync(
+            new PutObjectRequest
+            {
+                BucketName = bucketName,
+                Key = objectKey,
+                InputStream = stream,
+                ContentType = contentType,
+                DisablePayloadSigning = true
+            },
+            cancellationToken);
+    }
+
     public string GetPublicUrl(string objectKey)
     {
         return MediaUrlBuilder.BuildPublicUrl(_options.PublicBaseUrl, objectKey);

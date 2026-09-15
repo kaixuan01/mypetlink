@@ -28,7 +28,7 @@ public sealed class AdminPlanQueryServiceTests
         var premium = definitions.Single(plan => plan.Code == "Premium");
 
         Assert.Equal(3, free.MaxPets);
-        Assert.Equal(10, free.MaxMemoriesPerPet);
+        Assert.Equal(10, free.MaxPrivateMemoriesPerPet);
         Assert.Equal(100, free.MaxCareRecords);
         Assert.True(free.AllowsSmartTagAddOns);
         Assert.False(free.AllowsAdvancedThemes);
@@ -390,7 +390,7 @@ public sealed class AdminPlanQueryServiceTests
                     {
                         PlanId = freePlanId,
                         MaxPets = 3,
-                        MaxMemoriesPerPet = 10,
+                        MaxPrivateMemoriesPerPet = 10,
                         MaxMediaPerMemory = 5,
                         MaxCareRecords = 100,
                         AllowsSmartTagAddOns = true,
@@ -408,7 +408,7 @@ public sealed class AdminPlanQueryServiceTests
                     {
                         PlanId = premiumPlanId,
                         MaxPets = 10,
-                        MaxMemoriesPerPet = 100,
+                        MaxPrivateMemoriesPerPet = 100,
                         MaxMediaPerMemory = 20,
                         MaxCareRecords = 500,
                         AllowsSmartTagAddOns = true,

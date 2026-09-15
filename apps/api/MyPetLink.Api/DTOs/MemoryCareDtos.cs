@@ -16,7 +16,14 @@ public sealed record CreateMemoryRequest(
     bool? ShowInLifeTimeline,
     [MaxLength(500)]
     string? TimelineNote,
-    IReadOnlyCollection<Guid>? MediaFileIds);
+    IReadOnlyCollection<Guid>? MediaFileIds,
+    /// <summary>
+    /// Other pets this Moment is also about. Every id must belong to the
+    /// authenticated user; tagging another household's pet needs their consent
+    /// and is not supported yet. These never consume a Moment allowance — a
+    /// Moment about three pets is one Moment.
+    /// </summary>
+    IReadOnlyCollection<Guid>? AdditionalPetIds = null);
 
 public sealed record UpdateMemoryRequest(
     [MaxLength(160)]
@@ -31,7 +38,12 @@ public sealed record UpdateMemoryRequest(
     bool? ShowInLifeTimeline,
     [MaxLength(500)]
     string? TimelineNote,
-    IReadOnlyCollection<Guid>? MediaFileIds);
+    IReadOnlyCollection<Guid>? MediaFileIds,
+    /// <summary>
+    /// Replaces the additional subject pets when supplied. Omit to leave them
+    /// unchanged; send an empty collection to clear them.
+    /// </summary>
+    IReadOnlyCollection<Guid>? AdditionalPetIds = null);
 
 public sealed record MemoryResponse(
     Guid Id,
@@ -48,7 +60,11 @@ public sealed record MemoryResponse(
     Guid? CoverMediaId,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
-    DateTimeOffset? ArchivedAt);
+    DateTimeOffset? ArchivedAt,
+    /// <summary>Other pets this Moment is about, besides the primary one.</summary>
+    IReadOnlyCollection<Guid> AdditionalPetIds,
+    /// <summary>When this Moment first became public. Null while it is private.</summary>
+    DateTimeOffset? PublishedAt);
 
 public sealed record MemoryMediaResponse(
     Guid Id,

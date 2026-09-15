@@ -226,7 +226,7 @@ public sealed class PetAllergyFieldsTests
                 Limit = new PlanLimit
                 {
                     MaxPets = 10,
-                    MaxMemoriesPerPet = 10,
+                    MaxPrivateMemoriesPerPet = 10,
                     MaxMediaPerMemory = 4,
                     MaxFamilyMembers = 1,
                     MaxCareRecords = 100,

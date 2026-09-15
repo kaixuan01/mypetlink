@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using MyPetLink.Api.Common;
 using MyPetLink.Api.DTOs;
 using MyPetLink.Api.Entities;
 using MyPetLink.Api.Storage;
@@ -29,6 +30,16 @@ internal static class PetDtoMapper
         ShowAllergiesOnPublicProfile: false);
 
     public static readonly PetVisibilityResponse DefaultVisibility = ToVisibilityResponse(DefaultVisibilityRequest);
+
+    /// <summary>
+    /// The URL a grid or card should load. Delegates to
+    /// <see cref="MediaDerivatives"/>, which is the single definition of how a
+    /// derivative is found and when it is safe to serve.
+    /// </summary>
+    public static string? ResolvePublicThumbnailUrl(MediaFile? mediaFile, string? publicBaseUrl)
+    {
+        return MediaDerivatives.ResolveThumbnailUrl(mediaFile, publicBaseUrl);
+    }
 
     public static string BuildPublicSlug(string petName, string publicCode)
     {
@@ -476,16 +487,7 @@ internal static class PetDtoMapper
 
     public static string? ResolvePublicMediaUrl(MediaFile? media, string? publicBaseUrl)
     {
-        if (media is null
-            || !media.IsPublic
-            || media.UploadStatus != MediaUploadStatus.Ready
-            || media.DeletedAt.HasValue)
-        {
-            return null;
-        }
-
-        var url = MediaUrlBuilder.BuildPublicUrl(publicBaseUrl, media.ObjectKey);
-        return string.IsNullOrWhiteSpace(url) ? null : url;
+        return MediaDerivatives.ResolveOriginalUrl(media, publicBaseUrl);
     }
 
     private static string Slugify(string value)

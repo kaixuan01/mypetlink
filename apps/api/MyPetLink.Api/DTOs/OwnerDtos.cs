@@ -17,7 +17,7 @@ public sealed record OwnerPlanSummaryResponse(
     string Name,
     string Status,
     int MaxPets,
-    int MaxMemoriesPerPet,
+    int MaxPrivateMemoriesPerPet,
     int MaxMediaPerMemory,
     int MaxCareRecords,
     int ScanHistoryDays);

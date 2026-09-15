@@ -11,6 +11,7 @@ const IMAGE_CATEGORIES = new Set<BackendMediaUploadCategory>([
   "PetProfilePhoto",
   "PetCoverPhoto",
   "MomentImage",
+  "OwnerAvatar",
   "TagProductImage",
 ]);
 const VIDEO_CATEGORIES = new Set<BackendMediaUploadCategory>(["MomentVideo"]);

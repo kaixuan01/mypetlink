@@ -466,6 +466,163 @@ public sealed class MediaServiceTests
         return new CompletedMedia(initialized.MediaId, media.BucketName, media.ObjectKey);
     }
 
+    [Fact]
+    public async Task CompleteUploadAsync_ForALargeImage_WritesAThumbnailBesideTheOriginal()
+    {
+        using var harness = await MediaHarness.CreateAsync();
+        var source = EncodePng(2000, 1500);
+        var initialized = await harness.Service.InitializeUploadAsync(
+            UserId,
+            ProfileImageRequest(fileSizeBytes: source.LongLength));
+        var media = await harness.Db.MediaFiles.SingleAsync(item => item.Id == initialized.MediaId);
+        harness.Storage.AddObjectContent(
+            media.BucketName,
+            media.ObjectKey,
+            source,
+            media.ContentType);
+
+        await harness.Service.CompleteUploadAsync(UserId, initialized.MediaId);
+
+        var saved = await harness.Db.MediaFiles.SingleAsync(item => item.Id == initialized.MediaId);
+        Assert.Equal(MediaDerivativeStatus.Ready, saved.DerivativeStatus);
+        Assert.Equal(
+            MediaDerivatives.BuildThumbnailObjectKey(media.ObjectKey),
+            saved.ThumbnailObjectKey);
+        Assert.Contains(
+            harness.Storage.PutObjects,
+            item => item.ObjectKey == saved.ThumbnailObjectKey && item.ContentType == "image/jpeg");
+    }
+
+    [Fact]
+    public async Task CompleteUploadAsync_WhenTheImageCannotBeResized_StillCompletesTheUpload()
+    {
+        using var harness = await MediaHarness.CreateAsync();
+
+        // Bytes that pass the declared content-type check but are not a decodable
+        // image. Derivative generation must degrade to "serves the original",
+        // never to "the upload failed".
+        var corrupt = new byte[2048];
+        var initialized = await harness.Service.InitializeUploadAsync(
+            UserId,
+            ProfileImageRequest(fileSizeBytes: corrupt.LongLength));
+        var media = await harness.Db.MediaFiles.SingleAsync(item => item.Id == initialized.MediaId);
+        harness.Storage.AddObjectContent(
+            media.BucketName,
+            media.ObjectKey,
+            corrupt,
+            media.ContentType);
+
+        var response = await harness.Service.CompleteUploadAsync(UserId, initialized.MediaId);
+
+        Assert.Equal(MediaUploadStatus.Ready, response.Status);
+
+        var saved = await harness.Db.MediaFiles.SingleAsync(item => item.Id == initialized.MediaId);
+        Assert.Null(saved.ThumbnailObjectKey);
+        Assert.NotEqual(MediaDerivativeStatus.Ready, saved.DerivativeStatus);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_AlsoRemovesTheThumbnailObject()
+    {
+        using var harness = await MediaHarness.CreateAsync();
+        var source = EncodePng(2000, 1500);
+        var initialized = await harness.Service.InitializeUploadAsync(
+            UserId,
+            ProfileImageRequest(fileSizeBytes: source.LongLength));
+        var media = await harness.Db.MediaFiles.SingleAsync(item => item.Id == initialized.MediaId);
+        harness.Storage.AddObjectContent(media.BucketName, media.ObjectKey, source, media.ContentType);
+        await harness.Service.CompleteUploadAsync(UserId, initialized.MediaId);
+
+        var thumbnailKey = (await harness.Db.MediaFiles
+            .SingleAsync(item => item.Id == initialized.MediaId)).ThumbnailObjectKey;
+
+        await harness.Service.DeleteAsync(UserId, initialized.MediaId);
+
+        // Otherwise a thumbnail of deleted content stays in the public bucket.
+        Assert.Contains(harness.Storage.DeletedObjects, item => item.ObjectKey == thumbnailKey);
+    }
+
+    [Fact]
+    public async Task InitializeUploadAsync_ForAnOwnerAvatar_UsesAnAnonymousKeyAndCreatesADisabledProfile()
+    {
+        using var harness = await MediaHarness.CreateAsync();
+
+        var response = await harness.Service.InitializeUploadAsync(UserId, OwnerAvatarRequest());
+
+        var media = await harness.Db.MediaFiles.SingleAsync(item => item.Id == response.MediaId);
+        Assert.True(response.IsPublic);
+        Assert.StartsWith("owner-avatars/", media.ObjectKey);
+
+        // The key carries no account identifier. An owner may share this image
+        // URL, and it must not disclose an internal user id when a random
+        // filename alone is already unguessable.
+        Assert.DoesNotContain(UserId.ToString("N"), media.ObjectKey, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(UserId.ToString("D"), media.ObjectKey, StringComparison.OrdinalIgnoreCase);
+
+        // Uploading a picture is not joining a network.
+        var profile = await harness.Db.OwnerSocialProfiles.SingleAsync(item => item.UserId == UserId);
+        Assert.False(profile.IsSocialEnabled);
+        Assert.False(profile.IsDiscoverable);
+    }
+
+    [Fact]
+    public async Task CompleteUploadAsync_ForAnOwnerAvatar_ReplacesThePreviousPicture()
+    {
+        using var harness = await MediaHarness.CreateAsync();
+        var first = await UploadAvatarAsync(harness);
+        var second = await UploadAvatarAsync(harness);
+
+        var profile = await harness.Db.OwnerSocialProfiles.SingleAsync(item => item.UserId == UserId);
+        Assert.Equal(second, profile.AvatarMediaFileId);
+
+        var replaced = await harness.Db.MediaFiles.SingleAsync(item => item.Id == first);
+        Assert.Equal(MediaUploadStatus.Deleted, replaced.UploadStatus);
+    }
+
+    private static async Task<Guid> UploadAvatarAsync(MediaHarness harness)
+    {
+        var source = EncodePng(1200, 1200);
+        var initialized = await harness.Service.InitializeUploadAsync(
+            UserId,
+            OwnerAvatarRequest(fileSizeBytes: source.LongLength));
+        var media = await harness.Db.MediaFiles.SingleAsync(item => item.Id == initialized.MediaId);
+        harness.Storage.AddObjectContent(media.BucketName, media.ObjectKey, source, media.ContentType);
+        await harness.Service.CompleteUploadAsync(UserId, initialized.MediaId);
+        return initialized.MediaId;
+    }
+
+    private static InitializeMediaUploadRequest OwnerAvatarRequest(
+        string fileName = "avatar.jpg",
+        string contentType = "image/jpeg",
+        long fileSizeBytes = 1024)
+    {
+        return new InitializeMediaUploadRequest(
+            null,
+            null,
+            null,
+            null,
+            MediaUploadCategory.OwnerAvatar,
+            fileName,
+            contentType,
+            fileSizeBytes,
+            512,
+            512,
+            null);
+    }
+
+    private static byte[] EncodePng(int width, int height)
+    {
+        using var bitmap = new SkiaSharp.SKBitmap(width, height);
+        using (var canvas = new SkiaSharp.SKCanvas(bitmap))
+        {
+            canvas.Clear(new SkiaSharp.SKColor(120, 180, 220));
+        }
+
+        using var image = SkiaSharp.SKImage.FromBitmap(bitmap);
+        using var data = image.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
+        return data.ToArray();
+    }
+
     private static InitializeMediaUploadRequest ProfileImageRequest(
         Guid? petId = null,
         string fileName = "profile.jpg",
@@ -508,6 +665,8 @@ public sealed class MediaServiceTests
                     PresignedUploadExpiryMinutes = 5,
                     PresignedDownloadExpiryMinutes = 5
                 }),
+                Options.Create(new SocialOptions()),
+                new ImageDerivativeGenerator(),
                 NullLogger<MediaService>.Instance);
         }
 
@@ -587,8 +746,11 @@ public sealed class MediaServiceTests
     private sealed class FakeObjectStorage : IObjectStorageService
     {
         private readonly Dictionary<(string BucketName, string ObjectKey), StoredObjectMetadata> _objects = new();
+        private readonly Dictionary<(string BucketName, string ObjectKey), byte[]> _contents = new();
 
         public List<(string BucketName, string ObjectKey)> DeletedObjects { get; } = [];
+
+        public List<(string BucketName, string ObjectKey, string ContentType)> PutObjects { get; } = [];
 
         public PresignedUrlResult CreatePresignedUploadUrl(CreatePresignedUploadUrlRequest request)
         {
@@ -623,6 +785,38 @@ public sealed class MediaServiceTests
             return Task.CompletedTask;
         }
 
+        public Task<byte[]?> GetObjectBytesAsync(
+            string bucketName,
+            string objectKey,
+            long maxBytes,
+            CancellationToken cancellationToken = default)
+        {
+            _contents.TryGetValue((bucketName, objectKey), out var bytes);
+
+            if (bytes is not null && bytes.LongLength > maxBytes)
+            {
+                return Task.FromResult<byte[]?>(null);
+            }
+
+            return Task.FromResult(bytes);
+        }
+
+        public Task PutObjectAsync(
+            string bucketName,
+            string objectKey,
+            byte[] content,
+            string contentType,
+            CancellationToken cancellationToken = default)
+        {
+            PutObjects.Add((bucketName, objectKey, contentType));
+            _contents[(bucketName, objectKey)] = content;
+            _objects[(bucketName, objectKey)] = new StoredObjectMetadata(
+                content.LongLength,
+                contentType,
+                "etag");
+            return Task.CompletedTask;
+        }
+
         public string GetPublicUrl(string objectKey)
         {
             return MediaUrlBuilder.BuildPublicUrl("https://media.mypetlink.com.my", objectKey);
@@ -631,6 +825,13 @@ public sealed class MediaServiceTests
         public void AddObject(string bucketName, string objectKey, long contentLength, string contentType)
         {
             _objects[(bucketName, objectKey)] = new StoredObjectMetadata(contentLength, contentType, "etag");
+        }
+
+        /// <summary>Stores real bytes so derivative generation can be exercised.</summary>
+        public void AddObjectContent(string bucketName, string objectKey, byte[] content, string contentType)
+        {
+            _contents[(bucketName, objectKey)] = content;
+            AddObject(bucketName, objectKey, content.LongLength, contentType);
         }
     }
 }
