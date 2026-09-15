@@ -31,13 +31,16 @@ public sealed class SocialGraphService : SkeletonService, ISocialGraphService
 
     private readonly MyPetLinkDbContext _dbContext;
     private readonly CloudflareR2Options _r2Options;
+    private readonly IOwnerNotificationService _notifications;
 
     public SocialGraphService(
         MyPetLinkDbContext dbContext,
-        IOptions<CloudflareR2Options> r2Options)
+        IOptions<CloudflareR2Options> r2Options,
+        IOwnerNotificationService notifications)
     {
         _dbContext = dbContext;
         _r2Options = r2Options.Value;
+        _notifications = notifications;
     }
 
     public async Task<OwnerRelationshipResponse> FollowAsync(
@@ -84,6 +87,12 @@ public sealed class SocialGraphService : SkeletonService, ISocialGraphService
                 FollowedUserId = target.UserId
             });
 
+            // Staged onto the same unit of work: the follow and "X started
+            // following you" commit together, so a failed follow cannot leave
+            // activity behind describing something that did not happen.
+            await _notifications.StageFollowNotification(
+                actorId, target.UserId, cancellationToken);
+
             try
             {
                 await _dbContext.SaveChangesAsync(cancellationToken);
@@ -117,6 +126,12 @@ public sealed class SocialGraphService : SkeletonService, ISocialGraphService
         if (existing is not null)
         {
             _dbContext.OwnerFollows.Remove(existing);
+
+            // An activity list that still says somebody started following you,
+            // when they no longer do, is simply wrong.
+            await _notifications.StageFollowNotificationWithdrawal(
+                actorId, targetId, cancellationToken);
+
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
 

@@ -149,6 +149,7 @@ export const socialRoutes = {
   feed: "/feed",
   explore: "/explore",
   search: "/search",
+  notifications: "/notifications",
   searchFor: (query: string) => `/search?q=${encodeURIComponent(query)}`,
 } as const;
 

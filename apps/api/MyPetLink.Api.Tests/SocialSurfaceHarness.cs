@@ -46,8 +46,9 @@ internal sealed class SocialSurfaceHarness : IDisposable
         Feed = new SocialFeedService(db, cards);
         Discovery = new SocialDiscoveryService(db, r2, cards);
         PublicProfiles = new PublicSocialProfileService(db, r2, cards);
-        Graph = new SocialGraphService(db, r2);
-        Likes = new MomentLikeService(db);
+        Notifications = new OwnerNotificationService(db, r2);
+        Graph = new SocialGraphService(db, r2, Notifications);
+        Likes = new MomentLikeService(db, Notifications);
     }
 
     public MyPetLinkDbContext Db { get; }
@@ -61,6 +62,8 @@ internal sealed class SocialSurfaceHarness : IDisposable
     public SocialGraphService Graph { get; }
 
     public MomentLikeService Likes { get; }
+
+    public OwnerNotificationService Notifications { get; }
 
     public static async Task<SocialSurfaceHarness> CreateAsync()
     {

@@ -415,7 +415,10 @@ public sealed class SocialGraphTests
         private Harness(MyPetLinkDbContext db)
         {
             Db = db;
-            Graph = new SocialGraphService(db, Options.Create(new CloudflareR2Options()));
+            Notifications = new OwnerNotificationService(
+                db, Options.Create(new CloudflareR2Options()));
+            Graph = new SocialGraphService(
+                db, Options.Create(new CloudflareR2Options()), Notifications);
             PublicProfiles = new PublicSocialProfileService(
                 db,
                 Options.Create(new CloudflareR2Options()),
@@ -426,6 +429,8 @@ public sealed class SocialGraphTests
         public MyPetLinkDbContext Db { get; }
 
         public SocialGraphService Graph { get; }
+
+        public OwnerNotificationService Notifications { get; }
 
         public PublicSocialProfileService PublicProfiles { get; }
 
@@ -526,6 +531,31 @@ public sealed class SocialGraphTests
                     AllowFollowers = true
                 }
             });
+        }
+
+        public async Task SetPetSocialAsync(
+            Guid petId,
+            bool enabled,
+            bool discoverable = true)
+        {
+            var profile = await Db.PetSocialProfiles.SingleAsync(item => item.PetId == petId);
+            profile.IsSocialEnabled = enabled;
+            profile.IsDiscoverable = discoverable;
+            await Db.SaveChangesAsync();
+        }
+
+        public async Task SetPublicProfileAsync(Guid petId, bool enabled)
+        {
+            var profile = await Db.PetPublicProfiles.SingleAsync(item => item.PetId == petId);
+            profile.IsPublicProfileEnabled = enabled;
+            await Db.SaveChangesAsync();
+        }
+
+        public async Task SetLostModeAsync(Guid petId, bool lost)
+        {
+            var pet = await Db.Pets.SingleAsync(item => item.Id == petId);
+            pet.LostModeEnabled = lost;
+            await Db.SaveChangesAsync();
         }
 
         public async Task SetSocialAsync(Guid userId, bool enabled)

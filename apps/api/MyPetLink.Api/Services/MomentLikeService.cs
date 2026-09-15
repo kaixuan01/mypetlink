@@ -30,10 +30,14 @@ public sealed class MomentLikeService : SkeletonService, IMomentLikeService
     private const string LikeUniqueIndexName = "IX_MomentLikes_MomentId_UserId";
 
     private readonly MyPetLinkDbContext _dbContext;
+    private readonly IOwnerNotificationService _notifications;
 
-    public MomentLikeService(MyPetLinkDbContext dbContext)
+    public MomentLikeService(
+        MyPetLinkDbContext dbContext,
+        IOwnerNotificationService notifications)
     {
         _dbContext = dbContext;
+        _notifications = notifications;
     }
 
     public async Task<MomentLikeResponse> LikeAsync(
@@ -42,7 +46,7 @@ public sealed class MomentLikeService : SkeletonService, IMomentLikeService
         CancellationToken cancellationToken = default)
     {
         var actorId = RequireUserId(currentUserId);
-        await RequireLikeableMomentAsync(actorId, momentId, cancellationToken);
+        var moment = await RequireLikeableMomentAsync(actorId, momentId, cancellationToken);
 
         var alreadyLiked = await _dbContext.MomentLikes.AnyAsync(
             like => like.MomentId == momentId && like.UserId == actorId,
@@ -55,6 +59,16 @@ public sealed class MomentLikeService : SkeletonService, IMomentLikeService
                 MomentId = momentId,
                 UserId = actorId
             });
+
+            // Same unit of work as the like itself. A like that fails the
+            // unique index leaves no notification either, because the whole
+            // save is discarded together.
+            await _notifications.StageLikeNotification(
+                actorId,
+                moment.AuthorUserId,
+                momentId,
+                moment.PetId,
+                cancellationToken);
 
             try
             {
@@ -90,6 +104,11 @@ public sealed class MomentLikeService : SkeletonService, IMomentLikeService
         if (existing is not null)
         {
             _dbContext.MomentLikes.Remove(existing);
+
+            // Taking a like back takes its unread notification with it.
+            await _notifications.StageLikeNotificationWithdrawal(
+                actorId, momentId, cancellationToken);
+
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
 
@@ -120,36 +139,41 @@ public sealed class MomentLikeService : SkeletonService, IMomentLikeService
     /// identical answer a Moment that does not exist gives: an account that has
     /// been blocked must not be able to discover that by probing a like.
     /// </summary>
-    private async Task RequireLikeableMomentAsync(
+    private async Task<LikeableMoment> RequireLikeableMomentAsync(
         Guid actorId,
         Guid momentId,
         CancellationToken cancellationToken)
     {
-        var authorUserId = await _dbContext.PetMemories
+        var moment = await _dbContext.PetMemories
             .SociallyVisible()
-            .Where(moment => moment.Id == momentId)
-            .Select(moment => (Guid?)moment.AuthorUserId)
+            .Where(item => item.Id == momentId)
+            .Select(item => new LikeableMoment(item.AuthorUserId, item.PetId))
             .SingleOrDefaultAsync(cancellationToken);
 
-        if (!authorUserId.HasValue)
+        if (moment is null)
         {
             throw MomentUnavailable();
         }
 
-        if (authorUserId.Value == actorId)
+        if (moment.AuthorUserId == actorId)
         {
-            return;
+            return moment;
         }
 
         var blocked = await SocialBlocks
             .BlockedAccountIds(_dbContext, actorId)
-            .AnyAsync(id => id == authorUserId.Value, cancellationToken);
+            .AnyAsync(id => id == moment.AuthorUserId, cancellationToken);
 
         if (blocked)
         {
             throw MomentUnavailable();
         }
+
+        return moment;
     }
+
+    /// <summary>Who to notify, and which pet the Moment belongs to.</summary>
+    private sealed record LikeableMoment(Guid AuthorUserId, Guid PetId);
 
     private static Guid RequireUserId(Guid? currentUserId)
     {

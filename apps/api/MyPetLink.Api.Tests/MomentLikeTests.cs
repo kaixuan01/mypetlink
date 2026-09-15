@@ -270,8 +270,10 @@ public sealed class MomentLikeTests
         private Harness(MyPetLinkDbContext db)
         {
             Db = db;
-            Likes = new MomentLikeService(db);
-            Graph = new SocialGraphService(db, Options.Create(new CloudflareR2Options()));
+            var r2 = Options.Create(new CloudflareR2Options());
+            Notifications = new OwnerNotificationService(db, r2);
+            Likes = new MomentLikeService(db, Notifications);
+            Graph = new SocialGraphService(db, r2, Notifications);
             PublicProfiles = new PublicSocialProfileService(
                 db,
                 Options.Create(new CloudflareR2Options()),
@@ -282,6 +284,8 @@ public sealed class MomentLikeTests
         public MyPetLinkDbContext Db { get; }
 
         public MomentLikeService Likes { get; }
+
+        public OwnerNotificationService Notifications { get; }
 
         public SocialGraphService Graph { get; }
 

@@ -153,6 +153,41 @@ public interface ISocialDiscoveryService : ISkeletonService
         CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+/// In-app activity. The recipient is always the JWT subject; no route accepts a
+/// recipient id, and nothing here sends email.
+/// </summary>
+public interface IOwnerNotificationService : ISkeletonService
+{
+    Task<OwnerNotificationPageResponse> GetAsync(
+        Guid? currentUserId, string? cursor, int? pageSize,
+        CancellationToken cancellationToken = default);
+
+    Task<OwnerNotificationSummaryResponse> GetUnreadSummaryAsync(
+        Guid? currentUserId, CancellationToken cancellationToken = default);
+
+    Task<OwnerNotificationSummaryResponse> MarkReadAsync(
+        Guid? currentUserId, MarkNotificationsReadRequest? request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Staged onto the caller's unit of work, never saved here: the follow and
+    /// its notification commit in one SaveChanges or not at all.
+    /// </summary>
+    Task StageFollowNotification(
+        Guid actorId, Guid recipientId, CancellationToken cancellationToken = default);
+
+    Task StageFollowNotificationWithdrawal(
+        Guid actorId, Guid recipientId, CancellationToken cancellationToken = default);
+
+    Task StageLikeNotification(
+        Guid actorId, Guid recipientId, Guid momentId, Guid? subjectPetId,
+        CancellationToken cancellationToken = default);
+
+    Task StageLikeNotificationWithdrawal(
+        Guid actorId, Guid momentId, CancellationToken cancellationToken = default);
+}
+
 /// <summary>Handle claiming, renaming, reservations and the release hold.</summary>
 public interface IOwnerHandleService : ISkeletonService
 {

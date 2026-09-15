@@ -1,3 +1,4 @@
+using MyPetLink.Api.Storage;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -387,7 +388,7 @@ public sealed class SocialFoundationRelationalTests
         }
 
         await using var context = scope.NewContext();
-        var likes = new MomentLikeService(context);
+        var likes = NewLikeService(context);
 
         var afterOneLeaves = await likes.UnlikeAsync(BobId, momentId);
 
@@ -400,8 +401,91 @@ public sealed class SocialFoundationRelationalTests
     private static async Task LikeAsync(RelationalScope scope, Guid userId, Guid momentId)
     {
         await using var context = scope.NewContext();
-        var likes = new MomentLikeService(context);
+        var likes = NewLikeService(context);
         await likes.LikeAsync(userId, momentId);
+    }
+
+    [RelationalFact]
+    public async Task TwoSimultaneousLikes_LeaveOneLikeAndOneNotification()
+    {
+        await using var scope = await RelationalDatabase.CreateAsync();
+        Guid momentId;
+
+        await using (var seed = scope.NewContext())
+        {
+            SeedUsers(seed);
+            SeedSocialProfiles(seed);
+            SeedPet(seed);
+            var moment = SeedMoment(seed);
+            await seed.SaveChangesAsync();
+            momentId = moment.Id;
+            seed.MomentPets.Add(new MomentPet { MomentId = momentId, PetId = MochiId });
+            await seed.SaveChangesAsync();
+        }
+
+        // Both callers pass the "already liked?" check and race on insert. The
+        // loser's whole save is discarded — including the notification it had
+        // staged — so the author is told once, not twice.
+        await Task.WhenAll(
+            LikeAsync(scope, BobId, momentId),
+            LikeAsync(scope, BobId, momentId));
+
+        await using var verify = scope.NewContext();
+
+        Assert.Single(await verify.MomentLikes.Where(like => like.MomentId == momentId).ToListAsync());
+        Assert.Single(await verify.OwnerNotifications
+            .Where(item => item.MomentId == momentId)
+            .ToListAsync());
+    }
+
+    [RelationalFact]
+    public async Task ALikeAndItsNotification_CommitTogetherOrNotAtAll()
+    {
+        await using var scope = await RelationalDatabase.CreateAsync();
+        Guid momentId;
+
+        await using (var seed = scope.NewContext())
+        {
+            SeedUsers(seed);
+            SeedSocialProfiles(seed);
+            SeedPet(seed);
+            var moment = SeedMoment(seed);
+            await seed.SaveChangesAsync();
+            momentId = moment.Id;
+            seed.MomentPets.Add(new MomentPet { MomentId = momentId, PetId = MochiId });
+            await seed.SaveChangesAsync();
+        }
+
+        await using (var context = scope.NewContext())
+        {
+            await NewLikeService(context).LikeAsync(BobId, momentId);
+        }
+
+        await using (var verify = scope.NewContext())
+        {
+            Assert.Single(await verify.MomentLikes.ToListAsync());
+            Assert.Single(await verify.OwnerNotifications.ToListAsync());
+        }
+
+        await using (var context = scope.NewContext())
+        {
+            await NewLikeService(context).UnlikeAsync(BobId, momentId);
+        }
+
+        await using (var verify = scope.NewContext())
+        {
+            // Taking the like back takes the unread notification with it, in the
+            // same save.
+            Assert.Empty(await verify.MomentLikes.ToListAsync());
+            Assert.Empty(await verify.OwnerNotifications.ToListAsync());
+        }
+    }
+
+    private static MomentLikeService NewLikeService(MyPetLinkDbContext context)
+    {
+        return new MomentLikeService(
+            context,
+            new OwnerNotificationService(context, Options.Create(new CloudflareR2Options())));
     }
 
     /// <summary>Social profiles for the seeded accounts, which social reads require.</summary>
