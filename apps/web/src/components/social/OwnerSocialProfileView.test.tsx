@@ -133,7 +133,21 @@ function page(count: number, nextCursor: string | null): PublicMomentPage {
       publishedAt: "2026-01-01T00:00:00Z",
       type: "Memory",
       caption: null,
-      subjects: [{ name: "Mochi", publicSlug: "mochi-pubmochi", photoUrl: null }],
+      author: {
+        handle: "tanfamily",
+        displayName: "The Tan Family",
+        avatarUrl: null,
+        avatarThumbnailUrl: null,
+      },
+      subjects: [
+        {
+          name: "Mochi",
+          publicSlug: "mochi-pubmochi",
+          photoUrl: null,
+          isPrimarySubject: true,
+          lostModeEnabled: false,
+        },
+      ],
       media: [],
       likeCount: 0,
       viewerHasLiked: false,

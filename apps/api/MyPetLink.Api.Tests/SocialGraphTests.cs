@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using MyPetLink.Api.Common;
@@ -301,6 +302,81 @@ public sealed class SocialGraphTests
     }
 
     /// <summary>
+    /// The audit behind the Blocked accounts screen.
+    ///
+    /// Blocking must stay reversible. The blocker can still open the profile
+    /// they blocked — the public profile read is anonymous and carries no block
+    /// filter, which is correct: a block is a relationship control, not DRM over
+    /// a page that is public to the whole internet. So Unblock is reachable
+    /// whenever the blocker still has the link.
+    /// </summary>
+    [Fact]
+    public async Task ABlocker_CanStillOpenTheProfileTheyBlocked_AndSeesUnblock()
+    {
+        using var harness = await Harness.CreateAsync();
+        await harness.Graph.BlockAsync(AliceId, "limfamily", null);
+
+        var profile = await harness.PublicProfiles.GetOwnerProfileAsync("limfamily");
+        var relationship = await harness.Graph.GetRelationshipAsync(AliceId, "limfamily");
+
+        Assert.Equal("The Lim Family", profile.DisplayName);
+        Assert.True(relationship.HasBlocked);
+        Assert.False(relationship.CanFollow);
+    }
+
+    [Fact]
+    public async Task TheBlockedAccountsList_IsHowABlockStaysReversible()
+    {
+        using var harness = await Harness.CreateAsync();
+        await harness.Graph.BlockAsync(AliceId, "limfamily", "social dispute");
+
+        var blocked = await harness.Graph.GetBlockedAccountsAsync(AliceId, null, null);
+
+        var entry = Assert.Single(blocked.Items);
+        Assert.Equal("LimFamily", entry.Handle);
+        Assert.Equal("The Lim Family", entry.DisplayName);
+        Assert.Null(blocked.NextCursor);
+    }
+
+    [Fact]
+    public async Task TheBlockedAccountsList_NeverAnswersWhoBlockedYou()
+    {
+        using var harness = await Harness.CreateAsync();
+        await harness.Graph.BlockAsync(AliceId, "limfamily", null);
+
+        var fromTheBlockedSide = await harness.Graph.GetBlockedAccountsAsync(BobId, null, null);
+
+        // Bob learns nothing. There is no route in the product that answers
+        // "who has blocked me" — that is the question a block exists not to
+        // answer.
+        Assert.Empty(fromTheBlockedSide.Items);
+    }
+
+    [Fact]
+    public async Task ABlockedAccountThatLeftSocial_IsStillListedSoItCanBeUnblocked()
+    {
+        using var harness = await Harness.CreateAsync();
+        await harness.Graph.BlockAsync(AliceId, "limfamily", null);
+        await harness.SetSocialAsync(BobId, enabled: false);
+
+        var blocked = await harness.Graph.GetBlockedAccountsAsync(AliceId, null, null);
+
+        // Filtering this row out would make the block permanent by accident.
+        Assert.Single(blocked.Items);
+    }
+
+    [Fact]
+    public async Task ReadingYourOwnBlocks_RequiresASession()
+    {
+        using var harness = await Harness.CreateAsync();
+
+        var error = await Assert.ThrowsAsync<ApiException>(
+            () => harness.Graph.GetBlockedAccountsAsync(null, null, null));
+
+        Assert.Equal(StatusCodes.Status401Unauthorized, error.StatusCode);
+    }
+
+    /// <summary>
     /// The one that matters.
     ///
     /// Bob and Alice have blocked each other socially. Bob then finds Alice's
@@ -340,12 +416,18 @@ public sealed class SocialGraphTests
         {
             Db = db;
             Graph = new SocialGraphService(db, Options.Create(new CloudflareR2Options()));
+            PublicProfiles = new PublicSocialProfileService(
+                db,
+                Options.Create(new CloudflareR2Options()),
+                new SocialMomentProjection(db, Options.Create(new CloudflareR2Options())));
             Safety = new QrSafetyService(db, Options.Create(new CloudflareR2Options()));
         }
 
         public MyPetLinkDbContext Db { get; }
 
         public SocialGraphService Graph { get; }
+
+        public PublicSocialProfileService PublicProfiles { get; }
 
         public QrSafetyService Safety { get; }
 

@@ -60,6 +60,14 @@ public sealed record PublicMomentListItemResponse(
     DateTimeOffset? PublishedAt,
     string? Type,
     string? Caption,
+
+    /// <summary>
+    /// The household that shared it, as its SOCIAL identity. Null only when the
+    /// author's social profile has since been switched off, which the selection
+    /// predicates already exclude — a card that reaches a client always has one.
+    /// </summary>
+    PublicOwnerAttributionResponse? Author,
+
     IReadOnlyCollection<PublicMomentSubjectResponse> Subjects,
     IReadOnlyCollection<MemoryMediaResponse> Media,
 

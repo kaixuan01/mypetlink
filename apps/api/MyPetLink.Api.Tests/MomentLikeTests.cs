@@ -273,7 +273,9 @@ public sealed class MomentLikeTests
             Likes = new MomentLikeService(db);
             Graph = new SocialGraphService(db, Options.Create(new CloudflareR2Options()));
             PublicProfiles = new PublicSocialProfileService(
-                db, Options.Create(new CloudflareR2Options()));
+                db,
+                Options.Create(new CloudflareR2Options()),
+                new SocialMomentProjection(db, Options.Create(new CloudflareR2Options())));
             Safety = new QrSafetyService(db, Options.Create(new CloudflareR2Options()));
         }
 

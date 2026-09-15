@@ -86,7 +86,21 @@ public sealed record PublicProfileSocialResponse(
 public sealed record PublicMomentSubjectResponse(
     string Name,
     string? PublicSlug,
-    string? PhotoUrl);
+    string? PhotoUrl,
+
+    /// <summary>
+    /// Whether this is the Moment's own pet — the one that owns its Moments tab,
+    /// its Life Timeline and its plan allowance. Derived from
+    /// <c>PetMemories.PetId</c>, never stored on the membership row.
+    /// </summary>
+    bool IsPrimarySubject = false,
+
+    /// <summary>
+    /// Whether this pet is currently marked missing. Carried so a card can show
+    /// a quiet status, never to broadcast or amplify: Lost Mode changes a pet's
+    /// safety state and does not create or boost social content.
+    /// </summary>
+    bool LostModeEnabled = false);
 
 public sealed record PublicMemorySummaryResponse(
     string Title,

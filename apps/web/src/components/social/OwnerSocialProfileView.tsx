@@ -11,6 +11,7 @@ import { SmartTagProtectedBadge } from "@/components/social/SmartTagProtectedBad
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon } from "@/components/ui/Icon";
 import { ownerFollowersPath, ownerFollowingPath } from "@/lib/routes";
+import { useMomentPages } from "@/lib/useMomentPages";
 import { useSignedIn } from "@/lib/useSignedIn";
 import {
   getOwnerRelationship,
@@ -21,7 +22,6 @@ import {
   getPublicOwnerMoments,
   getPublicOwnerProfile,
   PublicProfileUnavailableError,
-  type PublicMomentListItem,
   type PublicOwnerProfile,
 } from "@/services/publicSocialService";
 
@@ -45,12 +45,24 @@ type LoadState = "loading" | "ready" | "unavailable" | "error";
 export function OwnerSocialProfileView({ handle }: OwnerSocialProfileViewProps) {
   const [state, setState] = useState<LoadState>("loading");
   const [profile, setProfile] = useState<PublicOwnerProfile | null>(null);
-  const [moments, setMoments] = useState<PublicMomentListItem[]>([]);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [relationship, setRelationship] =
     useState<OwnerRelationship>(noRelationship);
   const signedIn = useSignedIn();
+
+  // Moments page through the shared listing hook, the same one the pet profile,
+  // the feed and Explore use. The profile itself is loaded separately below:
+  // a household's identity must still render when its Moments do not.
+  const loadMoments = useCallback(
+    (cursor?: string) => getPublicOwnerMoments(handle, cursor),
+    [handle]
+  );
+  const {
+    moments,
+    hasMore,
+    loadingMore,
+    loadMore,
+    onLikeChange,
+  } = useMomentPages(loadMoments);
 
   useEffect(() => {
     let active = true;
@@ -59,19 +71,11 @@ export function OwnerSocialProfileView({ handle }: OwnerSocialProfileViewProps) 
       setState("loading");
 
       try {
-        const [loadedProfile, firstPage] = await Promise.all([
-          getPublicOwnerProfile(handle),
-          getPublicOwnerMoments(handle).catch(() => ({
-            items: [],
-            nextCursor: null,
-          })),
-        ]);
+        const loadedProfile = await getPublicOwnerProfile(handle);
 
         if (!active) return;
 
         setProfile(loadedProfile);
-        setMoments(firstPage.items);
-        setNextCursor(firstPage.nextCursor);
         setState("ready");
       } catch (error) {
         if (!active) return;
@@ -111,40 +115,6 @@ export function OwnerSocialProfileView({ handle }: OwnerSocialProfileViewProps) 
       active = false;
     };
   }, [handle, signedIn]);
-
-  const loadMore = useCallback(async () => {
-    if (!nextCursor || loadingMore) {
-      return;
-    }
-
-    setLoadingMore(true);
-
-    try {
-      const page = await getPublicOwnerMoments(handle, nextCursor);
-      setMoments((current) => [...current, ...page.items]);
-      setNextCursor(page.nextCursor);
-    } catch {
-      // Leave what is already on screen and let the visitor try again; a failed
-      // page must not clear the ones that loaded.
-      setNextCursor(nextCursor);
-    } finally {
-      setLoadingMore(false);
-    }
-  }, [handle, loadingMore, nextCursor]);
-
-  const onLikeChange = useCallback(
-    (
-      momentId: string,
-      state: { likeCount: number; viewerHasLiked: boolean }
-    ) => {
-      setMoments((current) =>
-        current.map((moment) =>
-          moment.id === momentId ? { ...moment, ...state } : moment
-        )
-      );
-    },
-    []
-  );
 
   if (state === "loading") {
     return (
@@ -332,7 +302,7 @@ export function OwnerSocialProfileView({ handle }: OwnerSocialProfileViewProps) 
 
         <PublicMomentGrid
           emptyMessage={`${profile.displayName} hasn't shared a Moment yet.`}
-          hasMore={Boolean(nextCursor)}
+          hasMore={hasMore}
           loadingMore={loadingMore}
           moments={moments}
           onLikeChange={onLikeChange}

@@ -13,6 +13,18 @@ export type PublicMomentSubject = {
   name: string;
   publicSlug: string | null;
   photoUrl: string | null;
+  /** The Moment's own pet — derived from the Moment, never stored on the join. */
+  isPrimarySubject: boolean;
+  /** A quiet status only. Lost Mode never creates or boosts social content. */
+  lostModeEnabled: boolean;
+};
+
+/** A household's social identity. Never an account or finder-facing name. */
+export type PublicOwnerAttribution = {
+  handle: string;
+  displayName: string;
+  avatarUrl: string | null;
+  avatarThumbnailUrl: string | null;
 };
 
 export type PublicMomentMedia = {
@@ -31,6 +43,7 @@ export type PublicMomentListItem = {
   publishedAt: string | null;
   type: string | null;
   caption: string | null;
+  author: PublicOwnerAttribution | null;
   subjects: PublicMomentSubject[];
   media: PublicMomentMedia[];
   /** Counted from the like rows; never stored on the Moment. */
@@ -135,7 +148,12 @@ function normalizePage(page?: PublicMomentPage): PublicMomentPage {
   return {
     items: (page?.items ?? []).map((item) => ({
       ...item,
-      subjects: item.subjects ?? [],
+      author: item.author ?? null,
+      subjects: (item.subjects ?? []).map((subject) => ({
+        ...subject,
+        isPrimarySubject: subject.isPrimarySubject ?? false,
+        lostModeEnabled: subject.lostModeEnabled ?? false,
+      })),
       media: item.media ?? [],
       likeCount: item.likeCount ?? 0,
       viewerHasLiked: item.viewerHasLiked ?? false,

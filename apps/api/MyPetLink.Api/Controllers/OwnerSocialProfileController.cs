@@ -20,14 +20,40 @@ namespace MyPetLink.Api.Controllers;
 public sealed class OwnerSocialProfileController : ApiControllerBase
 {
     private readonly IOwnerSocialProfileService _socialProfileService;
+    private readonly ISocialGraphService _socialGraph;
     private readonly ICurrentUserService _currentUserService;
 
     public OwnerSocialProfileController(
         IOwnerSocialProfileService socialProfileService,
+        ISocialGraphService socialGraph,
         ICurrentUserService currentUserService)
     {
         _socialProfileService = socialProfileService;
+        _socialGraph = socialGraph;
         _currentUserService = currentUserService;
+    }
+
+    /// <summary>
+    /// The accounts the caller has blocked, so a block stays reversible.
+    ///
+    /// "Me" in both directions: it answers who I have blocked, never who has
+    /// blocked me. There is no route anywhere that answers the second question.
+    /// </summary>
+    [HttpGet("blocks")]
+    public async Task<IActionResult> GetBlockedAccounts(
+        [FromQuery] string? cursor,
+        [FromQuery] int? limit,
+        CancellationToken cancellationToken)
+    {
+        Response.Headers.CacheControl = "no-store";
+
+        var response = await _socialGraph.GetBlockedAccountsAsync(
+            _currentUserService.Current.UserId,
+            cursor,
+            limit,
+            cancellationToken);
+
+        return Ok(ApiEnvelope.Ok(response, HttpContext));
     }
 
     [HttpGet("profile")]

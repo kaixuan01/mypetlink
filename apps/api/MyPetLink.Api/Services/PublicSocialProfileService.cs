@@ -29,13 +29,16 @@ public sealed class PublicSocialProfileService : SkeletonService, IPublicSocialP
 {
     private readonly MyPetLinkDbContext _dbContext;
     private readonly CloudflareR2Options _r2Options;
+    private readonly SocialMomentProjection _momentCards;
 
     public PublicSocialProfileService(
         MyPetLinkDbContext dbContext,
-        IOptions<CloudflareR2Options> r2Options)
+        IOptions<CloudflareR2Options> r2Options,
+        SocialMomentProjection momentCards)
     {
         _dbContext = dbContext;
         _r2Options = r2Options.Value;
+        _momentCards = momentCards;
     }
 
     public async Task<PublicOwnerProfileResponse> GetOwnerProfileAsync(
@@ -276,222 +279,18 @@ public sealed class PublicSocialProfileService : SkeletonService, IPublicSocialP
     }
 
     /// <summary>
-    /// Applies the cursor, takes one extra row to learn whether more exist, and
-    /// loads subjects and media in two batched queries rather than per Moment.
+    /// Hands an already-narrowed query to the shared card projection.
+    ///
+    /// The selection above is this class's job; describing a Moment is not.
     /// </summary>
-    private async Task<PublicMomentPageResponse> PageMomentsAsync(
+    private Task<PublicMomentPageResponse> PageMomentsAsync(
         IQueryable<PetMemory> query,
         string? cursor,
         int? pageSize,
         Guid? viewerId,
         CancellationToken cancellationToken)
     {
-        var take = SocialCursor.ClampPageSize(pageSize);
-        var position = SocialCursor.TryDecode(cursor);
-
-        if (position is not null)
-        {
-            // Strictly after the cursor in (PublishedAt DESC, Id DESC) order.
-            query = query.Where(moment =>
-                moment.PublishedAt < position.PublishedAt
-                || (moment.PublishedAt == position.PublishedAt
-                    && moment.Id.CompareTo(position.Id) < 0));
-        }
-
-        var rows = await query
-            .OrderByDescending(moment => moment.PublishedAt)
-            .ThenByDescending(moment => moment.Id)
-            // One extra row answers "is there another page?" without a count.
-            .Take(take + 1)
-            .Select(moment => new
-            {
-                moment.Id,
-                moment.Title,
-                moment.MomentDate,
-                moment.PublishedAt,
-                moment.Type,
-                moment.Caption
-            })
-            .ToListAsync(cancellationToken);
-
-        var hasMore = rows.Count > take;
-        var page = hasMore ? rows.Take(take).ToList() : rows;
-        var momentIds = page.Select(row => row.Id).ToArray();
-
-        var subjects = await LoadSubjectsAsync(momentIds, cancellationToken);
-        var media = await LoadMediaAsync(momentIds, cancellationToken);
-        var likeCounts = await LoadLikeCountsAsync(momentIds, cancellationToken);
-        var viewerLikes = await LoadViewerLikesAsync(momentIds, viewerId, cancellationToken);
-
-        var items = page
-            .Select(row => new PublicMomentListItemResponse(
-                row.Id,
-                row.Title,
-                row.MomentDate,
-                row.PublishedAt,
-                row.Type,
-                row.Caption,
-                subjects.TryGetValue(row.Id, out var petSubjects)
-                    ? petSubjects
-                    : Array.Empty<PublicMomentSubjectResponse>(),
-                media.TryGetValue(row.Id, out var items)
-                    ? items
-                    : Array.Empty<MemoryMediaResponse>(),
-                likeCounts.TryGetValue(row.Id, out var likeCount) ? likeCount : 0,
-                viewerLikes.Contains(row.Id)))
-            .ToArray();
-
-        var last = page.Count > 0 ? page[^1] : null;
-        var nextCursor = hasMore && last?.PublishedAt is { } publishedAt
-            ? new SocialCursor(publishedAt, last.Id).Encode()
-            : null;
-
-        return new PublicMomentPageResponse(items, nextCursor);
-    }
-
-    /// <summary>
-    /// The pets each Moment is about, batched. A subject is listed only when it
-    /// is itself socially visible — a Moment may feature a pet the owner has
-    /// since taken out of social, and that pet's name should not appear.
-    /// </summary>
-    private async Task<Dictionary<Guid, PublicMomentSubjectResponse[]>> LoadSubjectsAsync(
-        IReadOnlyCollection<Guid> momentIds,
-        CancellationToken cancellationToken)
-    {
-        if (momentIds.Count == 0)
-        {
-            return new Dictionary<Guid, PublicMomentSubjectResponse[]>();
-        }
-
-        var rows = await _dbContext.MomentPets
-            .AsNoTracking()
-            .Where(subject => momentIds.Contains(subject.MomentId))
-            .Where(subject =>
-                subject.Pet.DeletedAt == null
-                && subject.Pet.LifecycleStatus == PetLifecycleStatus.Active
-                && subject.Pet.PublicProfile != null
-                && subject.Pet.PublicProfile.IsPublicProfileEnabled
-                && subject.Pet.SocialProfile != null
-                && subject.Pet.SocialProfile.IsSocialEnabled)
-            .OrderBy(subject => subject.CreatedAt)
-            .Select(subject => new
-            {
-                subject.MomentId,
-                subject.PetId,
-                subject.Pet.Name,
-                subject.Pet.Slug,
-                Photo = subject.Pet.ProfileMediaFile,
-                IsPrimarySubject = subject.Pet.Id == subject.Moment.PetId
-            })
-            .ToListAsync(cancellationToken);
-
-        return rows
-            .GroupBy(row => row.MomentId)
-            .ToDictionary(
-                group => group.Key,
-                group => group
-                    // The Moment's own pet reads first; the rest keep the order
-                    // they were added in.
-                    .OrderByDescending(row => row.IsPrimarySubject)
-                    .Select(row => new PublicMomentSubjectResponse(
-                        row.Name,
-                        row.Slug,
-                        MediaDerivatives.ResolveThumbnailUrl(row.Photo, _r2Options.PublicBaseUrl)))
-                    .ToArray());
-    }
-
-    /// <summary>
-    /// Like counts for the page, in one grouped query rather than one per
-    /// Moment. Counted from the rows: no counter column exists to drift.
-    /// </summary>
-    private async Task<Dictionary<Guid, int>> LoadLikeCountsAsync(
-        IReadOnlyCollection<Guid> momentIds,
-        CancellationToken cancellationToken)
-    {
-        if (momentIds.Count == 0)
-        {
-            return new Dictionary<Guid, int>();
-        }
-
-        var rows = await _dbContext.MomentLikes
-            .AsNoTracking()
-            .Where(like => momentIds.Contains(like.MomentId))
-            .GroupBy(like => like.MomentId)
-            .Select(group => new { MomentId = group.Key, Count = group.Count() })
-            .ToListAsync(cancellationToken);
-
-        return rows.ToDictionary(row => row.MomentId, row => row.Count);
-    }
-
-    /// <summary>
-    /// Which of the page's Moments this caller has already liked. An anonymous
-    /// visitor has liked nothing, and is not asked about.
-    /// </summary>
-    private async Task<HashSet<Guid>> LoadViewerLikesAsync(
-        IReadOnlyCollection<Guid> momentIds,
-        Guid? viewerId,
-        CancellationToken cancellationToken)
-    {
-        if (momentIds.Count == 0 || !viewerId.HasValue)
-        {
-            return new HashSet<Guid>();
-        }
-
-        var liked = await _dbContext.MomentLikes
-            .AsNoTracking()
-            .Where(like => like.UserId == viewerId.Value && momentIds.Contains(like.MomentId))
-            .Select(like => like.MomentId)
-            .ToListAsync(cancellationToken);
-
-        return liked.ToHashSet();
-    }
-
-    private async Task<Dictionary<Guid, MemoryMediaResponse[]>> LoadMediaAsync(
-        IReadOnlyCollection<Guid> momentIds,
-        CancellationToken cancellationToken)
-    {
-        if (momentIds.Count == 0)
-        {
-            return new Dictionary<Guid, MemoryMediaResponse[]>();
-        }
-
-        var links = await _dbContext.MediaFileLinks
-            .AsNoTracking()
-            .Where(link =>
-                momentIds.Contains(link.OwnerId)
-                && link.OwnerType == MediaOwnerType.PetMemory
-                && link.ArchivedAt == null
-                && link.MediaFile.UploadStatus == MediaUploadStatus.Ready
-                && link.MediaFile.IsPublic
-                && link.MediaFile.DeletedAt == null)
-            .OrderBy(link => link.SortOrder)
-            .Select(link => new
-            {
-                link.OwnerId,
-                link.MediaFileId,
-                link.Caption,
-                link.AltText,
-                link.SortOrder,
-                MediaFile = link.MediaFile
-            })
-            .ToListAsync(cancellationToken);
-
-        return links
-            .GroupBy(link => link.OwnerId)
-            .ToDictionary(
-                group => group.Key,
-                group => group
-                    .Select(link => new MemoryMediaResponse(
-                        link.MediaFileId,
-                        link.MediaFile.MediaType == MediaFileType.Video ? "video" : "image",
-                        // Grids and cards load the derivative, not the original.
-                        MediaDerivatives.ResolveThumbnailUrl(
-                            link.MediaFile,
-                            _r2Options.PublicBaseUrl),
-                        link.Caption,
-                        link.AltText,
-                        link.SortOrder))
-                    .ToArray());
+        return _momentCards.PageAsync(query, cursor, pageSize, viewerId, cancellationToken);
     }
 
     private static ApiException NotFound()

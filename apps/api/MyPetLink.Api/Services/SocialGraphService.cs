@@ -390,6 +390,78 @@ public sealed class SocialGraphService : SkeletonService, ISocialGraphService
     }
 
     /// <summary>
+    /// The accounts this caller has blocked.
+    ///
+    /// The only list in the product that a block puts somebody ON rather than
+    /// takes them off. It exists so a block stays reversible: without it the
+    /// single route back to Unblock is a remembered handle, and search
+    /// deliberately hides blocked accounts from the person who blocked them.
+    ///
+    /// Readable only by the blocker, about their own blocks. Nobody can ask who
+    /// has blocked them — that question is the one a block exists not to answer.
+    /// </summary>
+    public async Task<SocialAccountPageResponse> GetBlockedAccountsAsync(
+        Guid? currentUserId,
+        string? cursor,
+        int? pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var actorId = RequireUserId(currentUserId);
+        var take = SocialCursor.ClampPageSize(pageSize);
+        var position = SocialCursor.TryDecode(cursor);
+
+        var query = _dbContext.OwnerBlocks
+            .AsNoTracking()
+            .Where(block => block.BlockerUserId == actorId);
+
+        if (position is not null)
+        {
+            query = query.Where(block =>
+                block.CreatedAt < position.PublishedAt
+                || (block.CreatedAt == position.PublishedAt
+                    && block.Id.CompareTo(position.Id) < 0));
+        }
+
+        var rows = await query
+            .OrderByDescending(block => block.CreatedAt)
+            .ThenByDescending(block => block.Id)
+            // Deliberately NOT filtered on the blocked account still being
+            // social. Somebody who switched social off while blocked must still
+            // be reachable here, or the block becomes permanent by accident.
+            .Where(block => block.BlockedUser.DeletedAt == null)
+            .Take(take + 1)
+            .Select(block => new
+            {
+                block.Id,
+                block.CreatedAt,
+                AccountId = block.BlockedUserId,
+                Handle = block.BlockedUser.SocialProfile!.Handle,
+                DisplayName = block.BlockedUser.SocialProfile.DisplayName,
+                Avatar = block.BlockedUser.SocialProfile.AvatarMediaFile
+            })
+            .ToListAsync(cancellationToken);
+
+        var hasMore = rows.Count > take;
+        var page = hasMore ? rows.Take(take).ToList() : rows;
+        var last = page.Count > 0 ? page[^1] : null;
+
+        return new SocialAccountPageResponse(
+            page
+                .Select(row => new SocialAccountSummaryResponse(
+                    row.Handle ?? "",
+                    // An account with no social identity left still has to be
+                    // nameable here, or its row becomes an unlabelled button.
+                    row.DisplayName ?? "This account",
+                    MediaDerivatives.ResolveThumbnailUrl(row.Avatar, _r2Options.PublicBaseUrl),
+                    IsFollowing: false,
+                    IsSelf: false))
+                .ToArray(),
+            hasMore && last is not null
+                ? new SocialCursor(last.CreatedAt, last.Id).Encode()
+                : null);
+    }
+
+    /// <summary>
     /// True when either account blocks the other. Blocking is stored
     /// one-directional and enforced symmetrically.
     /// </summary>

@@ -14,6 +14,7 @@ import {
 } from "@/components/marketing/PublicProfileOwnerControls";
 import { PublicProfileCreateCTA } from "@/components/marketing/PublicProfileCreateCTA";
 import { OwnerFollowAction } from "@/components/social/OwnerFollowAction";
+import { PetProfileMomentsTab } from "@/components/social/PetProfileMomentsTab";
 import { PetSocialAttribution } from "@/components/social/PetSocialAttribution";
 import { SmartTagProtectedBadge } from "@/components/social/SmartTagProtectedBadge";
 import { useOwnedPublicProfilePet } from "@/components/marketing/useOwnedPublicProfilePet";
@@ -21,7 +22,6 @@ import { LostModeContactActions } from "@/components/marketing/LostModeContactAc
 import { LostModeFinderDetails } from "@/components/marketing/LostModeFinderDetails";
 import { SafetyAllergies } from "@/components/marketing/SafetyAllergies";
 import { MomentMediaCarousel } from "@/components/moments/MomentMediaCarousel";
-import { PetMomentCard } from "@/components/portal/PetMomentCard";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { CoverPhoto } from "@/components/ui/CoverPhoto";
 import { Icon } from "@/components/ui/Icon";
@@ -662,10 +662,14 @@ export function PublicSharePetProfile({
             />
           ) : null}
           {currentTab === "moments" ? (
-            <MomentsTab
+            // The social listing, not the Moment array embedded in this
+            // profile payload: a Moment must look and behave the same here as
+            // on the household's profile, in the feed and in Explore. The
+            // embedded array still decides whether the tab is offered at all,
+            // which costs no extra request.
+            <PetProfileMomentsTab
               petName={profile.name}
-              publicMoments={publicMoments}
-              theme={theme}
+              publicSlug={profile.publicCode}
             />
           ) : null}
           {currentTab === "timeline" ? (
@@ -917,44 +921,6 @@ function AboutTab({
         </div>
       ) : null}
     </section>
-  );
-}
-
-function MomentsTab({
-  petName,
-  publicMoments,
-  theme,
-}: {
-  petName: string;
-  publicMoments: PetMoment[];
-  theme: PetProfileTheme;
-}) {
-  if (!publicMoments.length) {
-    return (
-      <div
-        className="rounded-[1.5rem] border border-dashed border-pet-border bg-pet-cream p-8 text-center text-sm text-pet-muted"
-        style={{
-          background: theme.colors.surfaceAlt,
-          borderColor: theme.colors.border,
-          color: theme.colors.mutedText,
-        }}
-      >
-        {petName}&apos;s public memories will appear here.
-      </div>
-    );
-  }
-
-  return (
-    <div className="grid gap-5">
-      {publicMoments.map((moment) => (
-        <PetMomentCard
-          key={moment.id}
-          moment={moment}
-          publicView
-          theme={theme}
-        />
-      ))}
-    </div>
   );
 }
 

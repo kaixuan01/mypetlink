@@ -322,7 +322,8 @@ public sealed class PublicSocialProfileTests
             Db = db;
             Social = new PublicSocialProfileService(
                 db,
-                Options.Create(new CloudflareR2Options()));
+                Options.Create(new CloudflareR2Options()),
+                new SocialMomentProjection(db, Options.Create(new CloudflareR2Options())));
             PublicProfiles = new PublicProfileService(
                 db,
                 Options.Create(new CloudflareR2Options()));

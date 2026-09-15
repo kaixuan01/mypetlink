@@ -97,6 +97,11 @@ public interface ISocialGraphService : ISkeletonService
     Task<SocialAccountPageResponse> GetFollowingAsync(
         Guid? currentUserId, string handle, string? cursor, int? pageSize,
         CancellationToken cancellationToken = default);
+
+    /// <summary>The caller's own blocks. Never readable in the other direction.</summary>
+    Task<SocialAccountPageResponse> GetBlockedAccountsAsync(
+        Guid? currentUserId, string? cursor, int? pageSize,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>

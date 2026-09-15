@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { AppLayout } from "@/components/layouts/AppLayout";
+import { BlockedAccountsSettings } from "@/components/portal/BlockedAccountsSettings";
 import { SettingsPanel } from "@/components/portal/SettingsPanel";
 import { SocialProfileSettingsSection } from "@/components/portal/SocialProfileSettingsSection";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -19,6 +20,9 @@ export default function SettingsPage() {
       <SettingsPanel />
       <div className="mt-5">
         <SocialProfileSettingsSection />
+      </div>
+      <div className="mt-5">
+        <BlockedAccountsSettings />
       </div>
     </AppLayout>
   );

@@ -392,6 +392,7 @@ builder.Services.AddScoped<IAdminSampleExperienceService, AdminSampleExperienceS
 builder.Services.AddSingleton<IPublicProfileSocialCardRenderer, PublicProfileSocialCardRenderer>();
 builder.Services.AddScoped<IMemoryService, MemoryService>();
 builder.Services.AddScoped<IOwnerSocialProfileService, OwnerSocialProfileService>();
+builder.Services.AddScoped<SocialMomentProjection>();
 builder.Services.AddScoped<IPublicSocialProfileService, PublicSocialProfileService>();
 builder.Services.AddScoped<ISocialGraphService, SocialGraphService>();
 builder.Services.AddScoped<IMomentLikeService, MomentLikeService>();

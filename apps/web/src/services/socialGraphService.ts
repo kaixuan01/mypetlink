@@ -126,6 +126,19 @@ export async function getOwnerFollowing(
   return getAccountPage(`${ownerPath(handle)}/following`, cursor, signal);
 }
 
+/**
+ * The accounts this owner has blocked.
+ *
+ * "Me" in both directions: it answers who I have blocked, never who has blocked
+ * me. There is no route in the product that answers the second question.
+ */
+export async function getBlockedAccounts(
+  cursor?: string,
+  signal?: AbortSignal
+): Promise<SocialAccountPage> {
+  return getAccountPage("/api/v1/social/me/blocks", cursor, signal);
+}
+
 async function getAccountPage(
   path: string,
   cursor?: string,

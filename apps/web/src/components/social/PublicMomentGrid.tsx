@@ -1,9 +1,11 @@
 "use client";
 
 import { LinkoMascot } from "@/components/brand/LinkoMascot";
-import { LikeButton } from "@/components/social/LikeButton";
+import {
+  SocialMomentTile,
+  type MomentLikeChange,
+} from "@/components/social/SocialMomentCard";
 import { CTAButton } from "@/components/ui/CTAButton";
-import { formatMomentSubjects } from "@/lib/momentSubjects";
 import type { PublicMomentListItem } from "@/services/publicSocialService";
 
 type PublicMomentGridProps = {
@@ -15,10 +17,9 @@ type PublicMomentGridProps = {
   /** Null until the signed-in check has run; the heart stays inert until then. */
   signedIn: boolean | null;
   /** Applied to the one Moment that changed, after the server confirms. */
-  onLikeChange: (
-    momentId: string,
-    state: { likeCount: number; viewerHasLiked: boolean }
-  ) => void;
+  onLikeChange: (momentId: string, state: MomentLikeChange) => void;
+  /** True where the grid mixes households — Explore — and false on one's own profile. */
+  showAuthor?: boolean;
 };
 
 /**
@@ -42,6 +43,7 @@ export function PublicMomentGrid({
   emptyMessage,
   signedIn,
   onLikeChange,
+  showAuthor = false,
 }: PublicMomentGridProps) {
   if (moments.length === 0) {
     return (
@@ -55,60 +57,16 @@ export function PublicMomentGrid({
   return (
     <>
       <ul className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
-        {moments.map((moment) => {
-          const cover = moment.media[0];
-          const subjectLabel = formatMomentSubjects(
-            moment.subjects.map((subject) => subject.name)
-          );
-
-          return (
-            <li key={moment.id}>
-              <figure className="brand-card m-0 overflow-hidden rounded-[1.25rem] p-0">
-                <div className="relative aspect-[4/5] w-full max-w-full bg-pet-apricot">
-                  {cover?.url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      alt={cover.altText || moment.title}
-                      className="h-full w-full object-cover"
-                      loading="lazy"
-                      src={cover.url}
-                    />
-                  ) : (
-                    <span className="grid h-full w-full place-items-center px-3 text-center text-sm font-black text-pet-ink">
-                      {moment.title}
-                    </span>
-                  )}
-                </div>
-                <figcaption className="p-3">
-                  <span
-                    className="line-clamp-2 block text-sm font-black text-pet-ink"
-                    data-testid="moment-title"
-                  >
-                    {moment.title}
-                  </span>
-                  {subjectLabel ? (
-                    <span
-                      className="mt-1 block truncate text-xs font-bold text-pet-muted"
-                      data-testid="moment-subjects"
-                    >
-                      {subjectLabel}
-                    </span>
-                  ) : null}
-                  <div className="mt-1 -ml-2">
-                    <LikeButton
-                      likeCount={moment.likeCount}
-                      momentId={moment.id}
-                      momentTitle={moment.title}
-                      onChange={(state) => onLikeChange(moment.id, state)}
-                      signedIn={signedIn}
-                      viewerHasLiked={moment.viewerHasLiked}
-                    />
-                  </div>
-                </figcaption>
-              </figure>
-            </li>
-          );
-        })}
+        {moments.map((moment) => (
+          <li key={moment.id}>
+            <SocialMomentTile
+              moment={moment}
+              onLikeChange={onLikeChange}
+              showAuthor={showAuthor}
+              signedIn={signedIn}
+            />
+          </li>
+        ))}
       </ul>
 
       {hasMore ? (

@@ -1,0 +1,114 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import type {
+  PublicMomentListItem,
+  PublicMomentPage,
+} from "@/services/publicSocialService";
+
+export type MomentPagesState = "loading" | "ready" | "error";
+
+/**
+ * Loads one page. Must be stable — wrap it in `useCallback` with whatever the
+ * selection actually depends on (a handle, a slug, a species filter), because a
+ * new identity here restarts the listing from its first page.
+ */
+export type MomentPageLoader = (cursor?: string) => Promise<PublicMomentPage>;
+
+/**
+ * Cursor-paged Moments, shared by every social listing.
+ *
+ * Each surface differs only in which Moments it asks for, so the paging, the
+ * like bookkeeping and the failure behaviour live here once. Three rules the
+ * callers all depend on:
+ *
+ * - A failed *further* page never clears what is already on screen. Somebody
+ *   scrolling a feed on a train must not lose it to one dropped request.
+ * - The cursor is whatever the server last said. Nothing here constructs one,
+ *   and a short page is never read as the end — only a null cursor is.
+ * - `loadedAt` is captured once per load so relative ages ("2h") are computed
+ *   from a fixed point rather than from the clock during render.
+ */
+export function useMomentPages(load: MomentPageLoader) {
+  const [state, setState] = useState<MomentPagesState>("loading");
+  const [moments, setMoments] = useState<PublicMomentListItem[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadedAt, setLoadedAt] = useState<number | undefined>(undefined);
+  const [reloadToken, setReloadToken] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+
+    load()
+      .then((page) => {
+        if (!active) return;
+
+        setMoments(page.items);
+        setNextCursor(page.nextCursor);
+        setLoadedAt(Date.now());
+        setState("ready");
+      })
+      .catch(() => {
+        if (!active) return;
+
+        setMoments([]);
+        setNextCursor(null);
+        setState("error");
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [load, reloadToken]);
+
+  const loadMore = useCallback(async () => {
+    if (!nextCursor || loadingMore) {
+      return;
+    }
+
+    setLoadingMore(true);
+
+    try {
+      const page = await load(nextCursor);
+      setMoments((current) => [...current, ...page.items]);
+      setNextCursor(page.nextCursor);
+    } catch {
+      // Keep the cursor so the same page can be retried, and keep every item
+      // already rendered.
+      setNextCursor(nextCursor);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [load, loadingMore, nextCursor]);
+
+  const onLikeChange = useCallback(
+    (
+      momentId: string,
+      change: { likeCount: number; viewerHasLiked: boolean }
+    ) => {
+      setMoments((current) =>
+        current.map((moment) =>
+          moment.id === momentId ? { ...moment, ...change } : moment
+        )
+      );
+    },
+    []
+  );
+
+  const reload = useCallback(() => {
+    setState("loading");
+    setReloadToken((token) => token + 1);
+  }, []);
+
+  return {
+    state,
+    moments,
+    hasMore: Boolean(nextCursor),
+    loadingMore,
+    loadedAt,
+    loadMore,
+    onLikeChange,
+    reload,
+  };
+}
