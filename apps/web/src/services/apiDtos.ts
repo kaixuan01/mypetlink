@@ -227,6 +227,14 @@ export type BackendPublicPetProfile = {
   memorialMessage?: string | null;
   memories: BackendPublicMemory[];
   careRecords: BackendPublicCareRecord[];
+  sharedBy?: {
+    handle: string;
+    displayName: string;
+    avatarUrl?: string | null;
+    avatarThumbnailUrl?: string | null;
+  } | null;
+  hasSmartTagProtection?: boolean | null;
+  isSocialEnabled?: boolean | null;
 };
 
 export type BackendMemoryVisibility = "Public" | "Private" | "FamilyOnly";

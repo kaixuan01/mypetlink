@@ -124,6 +124,39 @@ public sealed class PublicProfileService : SkeletonService, IPublicProfileServic
                     ? null
                     : item.Pet.OwnerUser.OwnerProfile.DefaultGeneralArea,
 
+                // Social participation is a separate consent from having a
+                // shareable link, so it is read as its own flag.
+                IsPetSocialEnabled = item.Pet.SocialProfile != null
+                    && item.Pet.SocialProfile.IsSocialEnabled,
+                IsOwnerSocialEnabled = item.Pet.OwnerUser.SocialProfile != null
+                    && item.Pet.OwnerUser.SocialProfile.IsSocialEnabled,
+                OwnerSocialHandle = item.Pet.OwnerUser.SocialProfile == null
+                    ? null
+                    : item.Pet.OwnerUser.SocialProfile.Handle,
+                OwnerSocialDisplayName = item.Pet.OwnerUser.SocialProfile == null
+                    ? null
+                    : item.Pet.OwnerUser.SocialProfile.DisplayName,
+                OwnerSocialAvatar = item.Pet.OwnerUser.SocialProfile == null
+                    ? null
+                    : item.Pet.OwnerUser.SocialProfile.AvatarMediaFile == null
+                        ? null
+                        : new PublicMediaProjection
+                        {
+                            ObjectKey = item.Pet.OwnerUser.SocialProfile.AvatarMediaFile.ObjectKey,
+                            IsPublic = item.Pet.OwnerUser.SocialProfile.AvatarMediaFile.IsPublic,
+                            UploadStatus = item.Pet.OwnerUser.SocialProfile.AvatarMediaFile.UploadStatus,
+                            DeletedAt = item.Pet.OwnerUser.SocialProfile.AvatarMediaFile.DeletedAt,
+                            ThumbnailObjectKey = item.Pet.OwnerUser.SocialProfile.AvatarMediaFile.ThumbnailObjectKey,
+                            DerivativeStatus = item.Pet.OwnerUser.SocialProfile.AvatarMediaFile.DerivativeStatus
+                        },
+
+                // Derived, never stored. A signal that this pet is protected —
+                // it carries no tag code, order or inventory detail.
+                HasSmartTagProtection = item.Pet.SmartTags.Any(tag =>
+                    tag.Status == SmartTagStatus.Active
+                    && tag.DeletedAt == null
+                    && tag.ArchivedAt == null),
+
                 QrSafetyEnabled = item.Pet.SafetySetting != null
                     && item.Pet.SafetySetting.QrSafetyEnabled,
                 SafetyCode = item.Pet.SafetySetting == null
@@ -227,7 +260,19 @@ public sealed class PublicProfileService : SkeletonService, IPublicProfileServic
                 : Array.Empty<string>(),
             source.LifecycleStatus == PetLifecycleStatus.Memorial ? source.MemorialMessage : null,
             memories,
-            careRecords);
+            careRecords,
+            source.ShowsSocialAttribution
+                ? new PublicOwnerAttributionResponse(
+                    source.OwnerSocialHandle!,
+                    source.OwnerSocialDisplayName!,
+                    // Gated on the same switch as the attribution itself:
+                    // disabling social must remove the avatar from every social
+                    // projection, not merely hide the name.
+                    source.OwnerSocialAvatar?.ResolveUrl(_r2Options.PublicBaseUrl),
+                    source.OwnerSocialAvatar?.ResolveThumbnailUrl(_r2Options.PublicBaseUrl))
+                : null,
+            source.HasSmartTagProtection,
+            source.IsPetSocialEnabled);
     }
 
     /// <summary>
@@ -557,8 +602,29 @@ public sealed class PublicProfileService : SkeletonService, IPublicProfileServic
         public string? OwnerProfileDisplayName { get; init; }
         public string? OwnerDefaultGeneralArea { get; init; }
 
+        public required bool IsPetSocialEnabled { get; init; }
+        public required bool IsOwnerSocialEnabled { get; init; }
+        public string? OwnerSocialHandle { get; init; }
+        public string? OwnerSocialDisplayName { get; init; }
+        public PublicMediaProjection? OwnerSocialAvatar { get; init; }
+        public required bool HasSmartTagProtection { get; init; }
+
         public required bool QrSafetyEnabled { get; init; }
         public string? SafetyCode { get; init; }
+
+        /// <summary>
+        /// Whether this pet may show social enhancements: attribution, and later
+        /// the follow control.
+        ///
+        /// Requires BOTH switches. A pet whose owner left social should not keep
+        /// crediting them, and an owner who is social should not have a pet
+        /// published socially just because that pet has a share link.
+        /// </summary>
+        public bool ShowsSocialAttribution =>
+            IsPetSocialEnabled
+            && IsOwnerSocialEnabled
+            && !string.IsNullOrWhiteSpace(OwnerSocialHandle)
+            && !string.IsNullOrWhiteSpace(OwnerSocialDisplayName);
 
         public PublicMediaProjection? ProfileMedia { get; init; }
         public PublicMediaProjection? CoverMedia { get; init; }
@@ -635,6 +701,23 @@ public sealed class PublicProfileService : SkeletonService, IPublicProfileServic
             }
 
             var url = MediaUrlBuilder.BuildPublicUrl(publicBaseUrl, ObjectKey);
+            return string.IsNullOrWhiteSpace(url) ? null : url;
+        }
+
+        /// <summary>
+        /// The derivative when one is ready, otherwise the original — the same
+        /// rule <see cref="MediaDerivatives"/> applies to an entity.
+        /// </summary>
+        public string? ResolveThumbnailUrl(string? publicBaseUrl)
+        {
+            if (!IsPublic
+                || DerivativeStatus != MediaDerivativeStatus.Ready
+                || string.IsNullOrWhiteSpace(ThumbnailObjectKey))
+            {
+                return ResolveUrl(publicBaseUrl);
+            }
+
+            var url = MediaUrlBuilder.BuildPublicUrl(publicBaseUrl, ThumbnailObjectKey);
             return string.IsNullOrWhiteSpace(url) ? null : url;
         }
     }

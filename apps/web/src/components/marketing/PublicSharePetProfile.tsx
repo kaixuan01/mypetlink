@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import {
@@ -13,6 +13,8 @@ import {
   PublicProfileOwnerControls,
 } from "@/components/marketing/PublicProfileOwnerControls";
 import { PublicProfileCreateCTA } from "@/components/marketing/PublicProfileCreateCTA";
+import { PetSocialAttribution } from "@/components/social/PetSocialAttribution";
+import { SmartTagProtectedBadge } from "@/components/social/SmartTagProtectedBadge";
 import { useOwnedPublicProfilePet } from "@/components/marketing/useOwnedPublicProfilePet";
 import { LostModeContactActions } from "@/components/marketing/LostModeContactActions";
 import { LostModeFinderDetails } from "@/components/marketing/LostModeFinderDetails";
@@ -440,6 +442,18 @@ export function PublicSharePetProfile({
               >
                 {profile.bio}
               </p>
+            ) : null}
+
+            {profile.hasSmartTagProtection ? (
+              <div className="mt-3 flex justify-center">
+                <SmartTagProtectedBadge />
+              </div>
+            ) : null}
+
+            {profile.sharedBy ? (
+              <div className="mx-auto mt-4 max-w-sm text-left">
+                <PetSocialAttribution sharedBy={profile.sharedBy} />
+              </div>
             ) : null}
 
             {profile.personalityTags.length ? (

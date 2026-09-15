@@ -746,6 +746,12 @@ export function mapBackendPublicProfile(
     qrSafetyEnabled: Boolean(safetyCode),
     qrSafetyPath: safetyPath,
     finderProfileUrl: safetyPath,
+    // Social attribution and the Smart Tag signal, when the API returned them.
+    // Absent means "not social", never "unknown": the server omits them unless
+    // both the owner and the pet participate.
+    sharedBy: profile.sharedBy ?? null,
+    hasSmartTagProtection: profile.hasSmartTagProtection ?? false,
+    isSocialEnabled: profile.isSocialEnabled ?? false,
   };
 }
 

@@ -248,7 +248,25 @@ export type PublicPetProfile = Pick<
   | "owner"
   | "contactOverride"
   | "visibility"
->;
+> & {
+  /**
+   * Who shared this pet, when both the owner and the pet participate in social.
+   * Absent otherwise — a shareable link is not social participation.
+   *
+   * This is the owner's SOCIAL identity only. It never carries the account name,
+   * the email, or the finder-facing owner name.
+   */
+  sharedBy?: {
+    handle: string;
+    displayName: string;
+    avatarUrl?: string | null;
+    avatarThumbnailUrl?: string | null;
+  } | null;
+  /** Derived from the pet's Smart Tags. A signal only; nothing stores it. */
+  hasSmartTagProtection?: boolean;
+  /** Whether this pet participates in social. Independent of the share link. */
+  isSocialEnabled?: boolean;
+};
 
 export type RecordType =
   | "Vaccine"

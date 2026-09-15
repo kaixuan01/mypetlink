@@ -36,6 +36,33 @@ public interface IOwnerSocialProfileService : ISkeletonService
         CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+/// The anonymous social read surface: owner profiles and paginated Moment
+/// listings. Every method gates on the owner's AND the pet's social switches.
+/// </summary>
+public interface IPublicSocialProfileService : ISkeletonService
+{
+    Task<PublicOwnerProfileResponse> GetOwnerProfileAsync(
+        string handle,
+        CancellationToken cancellationToken = default);
+
+    Task<OwnerHandleResolutionResponse> ResolveHandleAsync(
+        string handle,
+        CancellationToken cancellationToken = default);
+
+    Task<PublicMomentPageResponse> GetOwnerMomentsAsync(
+        string handle,
+        string? cursor,
+        int? pageSize,
+        CancellationToken cancellationToken = default);
+
+    Task<PublicMomentPageResponse> GetPetMomentsAsync(
+        string publicSlug,
+        string? cursor,
+        int? pageSize,
+        CancellationToken cancellationToken = default);
+}
+
 /// <summary>Handle claiming, renaming, reservations and the release hold.</summary>
 public interface IOwnerHandleService : ISkeletonService
 {

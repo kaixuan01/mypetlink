@@ -42,7 +42,26 @@ public sealed record PublicPetProfileResponse(
     IReadOnlyList<string> Allergies,
     string? MemorialMessage,
     IReadOnlyCollection<PublicMemorySummaryResponse> Memories,
-    IReadOnlyCollection<PublicCareSummaryResponse> CareRecords);
+    IReadOnlyCollection<PublicCareSummaryResponse> CareRecords,
+
+    /// <summary>
+    /// Who shared this pet, when both the owner and the pet participate in
+    /// social. Null otherwise — a shareable link is not social participation.
+    /// </summary>
+    PublicOwnerAttributionResponse? SharedBy = null,
+
+    /// <summary>
+    /// Derived from the pet's Smart Tags: true when at least one is active.
+    /// A signal only — it carries no tag code, order or inventory detail, and
+    /// nothing stores it.
+    /// </summary>
+    bool HasSmartTagProtection = false,
+
+    /// <summary>
+    /// Whether this pet participates in social at all. Independent of
+    /// <c>IsPublicProfileEnabled</c>: the share page works either way.
+    /// </summary>
+    bool IsSocialEnabled = false);
 
 public sealed record PublicProfileSocialResponse(
     string PublicCode,

@@ -22,6 +22,18 @@ export function staticPublicPetParams() {
   }));
 }
 
+/**
+ * Build-time handles for the exported /u/{handle} shell.
+ *
+ * Real profiles are served by the Pages Function, which rewrites this shell's
+ * head for whichever handle was requested. This list therefore only needs to
+ * produce a page to serve — it is not the set of live handles, and must never be
+ * treated as one.
+ */
+export function staticOwnerHandleParams() {
+  return [{ handle: "mypetlink-profile" }];
+}
+
 export function staticTagCodeParams() {
   return mockTags.flatMap((tag) =>
     getStaticTagCodeParamVariants(tag.tagCode).map((tagCode) => ({ tagCode }))
