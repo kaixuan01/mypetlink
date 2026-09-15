@@ -9,6 +9,27 @@ using MyPetLink.Api.Storage;
 namespace MyPetLink.Api.Services;
 
 /// <summary>
+/// Who a Moment card is being built for, which decides which of its subject
+/// pets may be named on it.
+/// </summary>
+public enum MomentSubjectAudience
+{
+    /// <summary>
+    /// Somebody who arrived at this content deliberately: a pet's page, a
+    /// household's page, or a feed built from a follow they chose. Every
+    /// socially-enabled subject is named, because discoverability is a
+    /// discovery control and this is not discovery.
+    /// </summary>
+    Direct = 0,
+
+    /// <summary>
+    /// A stranger being shown content they did not go looking for — Explore.
+    /// Only subjects that are themselves discoverable may be named.
+    /// </summary>
+    Discovery = 1
+}
+
+/// <summary>
 /// The one way a Moment becomes a social card.
 ///
 /// An owner's profile, a pet's profile, the home feed and Explore all select
@@ -53,7 +74,8 @@ public sealed class SocialMomentProjection
         int? pageSize,
         Guid? viewerId,
         CancellationToken cancellationToken = default,
-        int? defaultPageSize = null)
+        int? defaultPageSize = null,
+        MomentSubjectAudience audience = MomentSubjectAudience.Direct)
     {
         var take = SocialCursor.ClampPageSize(pageSize, defaultPageSize);
         var position = SocialCursor.TryDecode(cursor);
@@ -88,7 +110,7 @@ public sealed class SocialMomentProjection
         var page = hasMore ? rows.Take(take).ToList() : rows;
         var momentIds = page.Select(row => row.Id).ToArray();
 
-        var subjects = await LoadSubjectsAsync(momentIds, cancellationToken);
+        var subjects = await LoadSubjectsAsync(momentIds, audience, cancellationToken);
         var media = await LoadMediaAsync(momentIds, cancellationToken);
         var authors = await LoadAuthorsAsync(
             page.Select(row => row.AuthorUserId).Distinct().ToArray(),
@@ -128,18 +150,29 @@ public sealed class SocialMomentProjection
     /// is itself socially visible — a Moment may feature a pet the owner has
     /// since taken out of social, and that pet's name should not appear.
     ///
+    /// <b>In discovery, a subject must also be discoverable in its own right.</b>
+    /// A Moment about two pets reaches Explore as soon as ONE of them is
+    /// discoverable, and naming the other one on that card would put a pet in
+    /// front of strangers whose owner said not to. Selecting the right Moment is
+    /// not enough; this is the projection that would have leaked it. Hidden
+    /// subjects are dropped from the list entirely rather than hinted at — a
+    /// "+1 more pet" still tells a stranger the pet exists.
+    ///
     /// The primary subject is the one whose pet matches the Moment's own
     /// <c>PetId</c>. It is derived, never stored: <c>MomentPets</c> has no
     /// primary flag precisely so the two can never disagree.
     /// </summary>
     private async Task<Dictionary<Guid, PublicMomentSubjectResponse[]>> LoadSubjectsAsync(
         IReadOnlyCollection<Guid> momentIds,
+        MomentSubjectAudience audience,
         CancellationToken cancellationToken)
     {
         if (momentIds.Count == 0)
         {
             return new Dictionary<Guid, PublicMomentSubjectResponse[]>();
         }
+
+        var discoveryOnly = audience == MomentSubjectAudience.Discovery;
 
         var rows = await _dbContext.MomentPets
             .AsNoTracking()
@@ -151,6 +184,11 @@ public sealed class SocialMomentProjection
                 && subject.Pet.PublicProfile.IsPublicProfileEnabled
                 && subject.Pet.SocialProfile != null
                 && subject.Pet.SocialProfile.IsSocialEnabled)
+            .Where(subject =>
+                !discoveryOnly
+                || (subject.Pet.SocialProfile!.IsDiscoverable
+                    && subject.Pet.OwnerUser.SocialProfile != null
+                    && subject.Pet.OwnerUser.SocialProfile.IsDiscoverable))
             .OrderBy(subject => subject.CreatedAt)
             .Select(subject => new
             {

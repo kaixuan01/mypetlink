@@ -192,7 +192,15 @@ public sealed class SocialDiscoveryService : SkeletonService, ISocialDiscoverySe
             query = query.Where(moment => !blocked.Contains(moment.AuthorUserId));
         }
 
-        return _momentCards.PageAsync(query, cursor, pageSize, viewerId, cancellationToken);
+        // Discovery audience: a Moment reaches Explore as soon as ONE of its pets
+        // is discoverable, and the others must not be named on the way in.
+        return _momentCards.PageAsync(
+            query,
+            cursor,
+            pageSize,
+            viewerId,
+            cancellationToken,
+            audience: MomentSubjectAudience.Discovery);
     }
 
     /// <summary>

@@ -359,6 +359,47 @@ public sealed class SocialFeedTests
         Assert.True(buddyCard.Subjects.Single().LostModeEnabled);
     }
 
+    /// <summary>
+    /// The other half of the discovery audit.
+    ///
+    /// Discoverability is a DISCOVERY control, not a secrecy control. Somebody
+    /// who already follows this household chose to see their pets, so a
+    /// socially-enabled pet still appears in their feed even with discovery off
+    /// — the same pet Explore refuses to name to a stranger.
+    /// </summary>
+    [Fact]
+    public async Task Feed_FollowedOwner_MayStillShowSocialEnabledNonDiscoverablePet_WhenPolicyAllows()
+    {
+        using var harness = await SocialSurfaceHarness.CreateAsync();
+        await harness.SetPetDiscoverableAsync(Coco, discoverable: false);
+        await harness.FollowAsync(Bob, "tanfamily");
+        await harness.AddMomentAsync(
+            Alice, Mochi, "Beach day", 10, alsoAbout: new[] { Coco });
+
+        var feed = await harness.Feed.GetFeedAsync(Bob, null, null);
+
+        var item = Assert.Single(feed.Items);
+        Assert.Equal(2, item.Subjects.Count);
+        Assert.Contains(item.Subjects, subject => subject.Name == "Coco");
+    }
+
+    [Fact]
+    public async Task Feed_StillHidesAPetTakenOutOfSocialEntirely()
+    {
+        using var harness = await SocialSurfaceHarness.CreateAsync();
+        await harness.SetPetSocialAsync(Coco, enabled: false);
+        await harness.FollowAsync(Bob, "tanfamily");
+        await harness.AddMomentAsync(
+            Alice, Mochi, "Beach day", 10, alsoAbout: new[] { Coco });
+
+        var feed = await harness.Feed.GetFeedAsync(Bob, null, null);
+
+        // Social OFF is the switch that means "not a social subject at all",
+        // and it still applies everywhere.
+        var item = Assert.Single(feed.Items);
+        Assert.Equal("Mochi", Assert.Single(item.Subjects).Name);
+    }
+
     [Fact]
     public async Task TheFeedCarriesNoOwnerContactOrSafetyField()
     {

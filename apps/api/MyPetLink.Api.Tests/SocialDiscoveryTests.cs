@@ -323,6 +323,138 @@ public sealed class SocialDiscoveryTests
         Assert.False(forAnyone.Items.Single().ViewerHasLiked);
     }
 
+    // ---- Multi-pet discovery privacy ------------------------------------
+
+    /// <summary>
+    /// The audit case.
+    ///
+    /// Mochi is discoverable, Coco is not, and one Moment is about both. Explore
+    /// may legitimately select that Moment through Mochi — but the card must not
+    /// then name Coco, whose owner asked not to have her put in front of
+    /// strangers. Selecting the right Moment is not enough; the projection is
+    /// where this leaks.
+    /// </summary>
+    [Fact]
+    public async Task Explore_MultiPetMoment_DoesNotRevealNonDiscoverableSecondaryPet()
+    {
+        using var harness = await SocialSurfaceHarness.CreateAsync();
+        await harness.SetPetDiscoverableAsync(Coco, false);
+        await harness.AddMomentAsync(
+            Alice, Mochi, "Beach day", 10, alsoAbout: new[] { Coco });
+
+        var page = await harness.Discovery.GetLatestMomentsAsync(null, null, null, null);
+
+        var item = Assert.Single(page.Items);
+        var subject = Assert.Single(item.Subjects);
+
+        Assert.Equal("Mochi", subject.Name);
+        Assert.DoesNotContain(item.Subjects, entry => entry.Name == "Coco");
+    }
+
+    [Fact]
+    public async Task Explore_LeaksNoNameSlugOrPhotoOfAHiddenPet_InTheSerializedResponse()
+    {
+        using var harness = await SocialSurfaceHarness.CreateAsync();
+        await harness.SetPetDiscoverableAsync(Coco, false);
+        await harness.AddMomentAsync(
+            Alice, Mochi, "Beach day", 10, alsoAbout: new[] { Coco });
+
+        var page = await harness.Discovery.GetLatestMomentsAsync(null, null, null, null);
+        var serialized = System.Text.Json.JsonSerializer.Serialize(page);
+
+        // Inspecting the wire, not just the object graph: a DTO can carry a pet
+        // the query was right to select around.
+        Assert.DoesNotContain("Coco", serialized, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("pubcoco", serialized, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Explore_ShowsTheDiscoverablePet_EvenWhenItIsNotThePrimarySubject()
+    {
+        using var harness = await SocialSurfaceHarness.CreateAsync();
+        await harness.SetPetDiscoverableAsync(Mochi, false);
+        await harness.AddMomentAsync(
+            Alice, Mochi, "Beach day", 10, alsoAbout: new[] { Coco });
+
+        var page = await harness.Discovery.GetLatestMomentsAsync(null, null, null, null);
+
+        // Reached Explore through Coco. Mochi owns the Moment but is hidden, so
+        // the card names the pet a stranger is allowed to meet and no other.
+        var item = Assert.Single(page.Items);
+        var subject = Assert.Single(item.Subjects);
+        Assert.Equal("Coco", subject.Name);
+    }
+
+    [Fact]
+    public async Task Search_DoesNotRevealNonDiscoverablePetThroughOwnerOrMomentProjection()
+    {
+        using var harness = await SocialSurfaceHarness.CreateAsync();
+        await harness.SetPetDiscoverableAsync(Coco, false);
+        await harness.AddMomentAsync(
+            Alice, Mochi, "Beach day", 10, alsoAbout: new[] { Coco });
+
+        var byPetName = await harness.Discovery.SearchAsync(null, "coco", null, null, null);
+        var byOwner = await harness.Discovery.SearchAsync(null, "tanfam", null, null, null);
+
+        Assert.Empty(byPetName.Pets);
+        Assert.DoesNotContain(
+            "Coco",
+            System.Text.Json.JsonSerializer.Serialize(byOwner),
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Explore_SuggestedPets_NeverIncludesAHiddenPet()
+    {
+        using var harness = await SocialSurfaceHarness.CreateAsync();
+        await harness.SetPetDiscoverableAsync(Coco, false);
+
+        var suggestions = await harness.Discovery.GetSuggestedPetsAsync(null, null, null);
+
+        Assert.DoesNotContain(suggestions.Items, item => item.Name == "Coco");
+        Assert.Contains(suggestions.Items, item => item.Name == "Mochi");
+    }
+
+    /// <summary>
+    /// The direct surfaces are unchanged, and deliberately so.
+    ///
+    /// Somebody with a pet's link went looking for that pet. Discoverability
+    /// governs whether we put a pet in front of people who did not, so it must
+    /// not quietly become a private-profile switch on the pet's own page.
+    /// </summary>
+    [Fact]
+    public async Task DirectPetProfile_FollowsExistingSocialEnabledSemantics()
+    {
+        using var harness = await SocialSurfaceHarness.CreateAsync();
+        await harness.SetPetDiscoverableAsync(Coco, false);
+        await harness.AddMomentAsync(
+            Alice, Mochi, "Beach day", 10, alsoAbout: new[] { Coco });
+
+        var cocoPage = await harness.PublicProfiles.GetPetMomentsAsync(
+            "coco-pubcoco", null, null);
+        var mochiPage = await harness.PublicProfiles.GetPetMomentsAsync(
+            "mochi-pubmochi", null, null);
+
+        // Coco's own page still works, and both pets are still named on the
+        // Moment they share.
+        Assert.Single(cocoPage.Items);
+        Assert.Equal(2, Assert.Single(mochiPage.Items).Subjects.Count);
+    }
+
+    [Fact]
+    public async Task DirectOwnerProfile_NamesEveryPetOnAMomentItShares()
+    {
+        using var harness = await SocialSurfaceHarness.CreateAsync();
+        await harness.SetPetDiscoverableAsync(Coco, false);
+        await harness.AddMomentAsync(
+            Alice, Mochi, "Beach day", 10, alsoAbout: new[] { Coco });
+
+        var page = await harness.PublicProfiles.GetOwnerMomentsAsync(
+            "tanfamily", null, null);
+
+        Assert.Equal(2, Assert.Single(page.Items).Subjects.Count);
+    }
+
     // ---- Search ---------------------------------------------------------
 
     [Fact]

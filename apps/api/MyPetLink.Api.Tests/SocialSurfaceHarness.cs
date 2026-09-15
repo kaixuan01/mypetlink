@@ -45,6 +45,7 @@ internal sealed class SocialSurfaceHarness : IDisposable
 
         Feed = new SocialFeedService(db, cards);
         Discovery = new SocialDiscoveryService(db, r2, cards);
+        PublicProfiles = new PublicSocialProfileService(db, r2, cards);
         Graph = new SocialGraphService(db, r2);
         Likes = new MomentLikeService(db);
     }
@@ -54,6 +55,8 @@ internal sealed class SocialSurfaceHarness : IDisposable
     public SocialFeedService Feed { get; }
 
     public SocialDiscoveryService Discovery { get; }
+
+    public PublicSocialProfileService PublicProfiles { get; }
 
     public SocialGraphService Graph { get; }
 
