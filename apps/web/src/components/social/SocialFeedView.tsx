@@ -6,6 +6,7 @@ import { LinkoMascot } from "@/components/brand/LinkoMascot";
 import { SocialMomentCard } from "@/components/social/SocialMomentCard";
 import { SocialPetCard } from "@/components/social/SocialPetCard";
 import { CTAButton } from "@/components/ui/CTAButton";
+import { trackEvent } from "@/lib/analytics";
 import { socialRoutes } from "@/lib/routes";
 import { useMomentPages } from "@/lib/useMomentPages";
 import { useSignedIn } from "@/lib/useSignedIn";
@@ -29,7 +30,23 @@ import { getSocialFeed } from "@/services/socialFeedService";
  */
 export function SocialFeedView() {
   const signedIn = useSignedIn();
-  const load = useCallback((cursor?: string) => getSocialFeed(cursor), []);
+
+  // Two events, two meanings. "Viewed" is one screen opening; "page loaded" is
+  // each further page fetched with a cursor. The first page is counted once,
+  // by "viewed", and never twice.
+  const load = useCallback(async (cursor?: string) => {
+    const page = await getSocialFeed(cursor);
+
+    if (cursor) {
+      trackEvent("social_feed_page_loaded", { source: "feed" });
+    }
+
+    return page;
+  }, []);
+
+  useEffect(() => {
+    trackEvent("social_feed_viewed", { source: "feed" });
+  }, []);
   const {
     state,
     moments,
@@ -88,6 +105,7 @@ export function SocialFeedView() {
         <div className="mt-5 grid gap-4" data-testid="feed-list">
           {moments.map((moment) => (
             <SocialMomentCard
+              analyticsSource="feed"
               key={moment.id}
               moment={moment}
               now={loadedAt}
@@ -217,7 +235,11 @@ function MeetMorePets() {
       <ul className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
         {pets.map((pet) => (
           <li key={pet.publicSlug}>
-            <SocialPetCard onFollowChange={onFollowChange} pet={pet} />
+            <SocialPetCard
+              analyticsSource="feed"
+              onFollowChange={onFollowChange}
+              pet={pet}
+            />
           </li>
         ))}
       </ul>

@@ -7,6 +7,11 @@ import { BrandLogo } from "@/components/brand/BrandLogo";
 import { FollowButton } from "@/components/social/FollowButton";
 import { SocialPetCard } from "@/components/social/SocialPetCard";
 import { Icon } from "@/components/ui/Icon";
+import {
+  toAnalyticsCountBucket,
+  toAnalyticsQueryLengthBucket,
+  trackEvent,
+} from "@/lib/analytics";
 import { ownerSocialProfilePath, socialRoutes } from "@/lib/routes";
 import { useSignedIn } from "@/lib/useSignedIn";
 import {
@@ -75,6 +80,19 @@ export function SocialSearchView() {
           setPets(results.pets);
           setOwners(results.owners);
           setPhase("done");
+
+          // Buckets only. There is no key on this event through which the
+          // query itself could travel — not truncated, not hashed.
+          trackEvent("social_search_performed", {
+            source: "search",
+            result_tab: results.pets.length >= results.owners.length
+              ? "pets"
+              : "pet_parents",
+            result_count_bucket: toAnalyticsCountBucket(
+              results.pets.length + results.owners.length
+            ),
+            query_length_bucket: toAnalyticsQueryLengthBucket(trimmed.length),
+          });
         })
         .catch(() => {
           if (requestRef.current !== request) return;
@@ -182,7 +200,11 @@ export function SocialSearchView() {
             >
               {pets.map((pet) => (
                 <li key={pet.publicSlug}>
-                  <SocialPetCard onFollowChange={onPetFollowChange} pet={pet} />
+                  <SocialPetCard
+                    analyticsSource="search"
+                    onFollowChange={onPetFollowChange}
+                    pet={pet}
+                  />
                 </li>
               ))}
             </ul>
@@ -234,6 +256,7 @@ export function SocialSearchView() {
 
                   <div className="shrink-0">
                     <FollowButton
+                      analyticsSource="search"
                       displayName={owner.displayName}
                       handle={owner.handle}
                       onChange={(next) =>

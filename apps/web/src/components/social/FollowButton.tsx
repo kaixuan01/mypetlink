@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useState } from "react";
+import { trackEvent, type AnalyticsSocialSource } from "@/lib/analytics";
 import { ownerLoginPath } from "@/lib/authRedirect";
 import { ownerSocialProfilePath } from "@/lib/routes";
 import { isApiClientError } from "@/services/apiClient";
@@ -24,6 +25,8 @@ type FollowButtonProps = {
    * loud that it follows the household and not the pet.
    */
   surface?: "profile" | "attribution";
+  /** Which screen this control is on. Categorical; never which household. */
+  analyticsSource?: AnalyticsSocialSource;
   className?: string;
 };
 
@@ -46,6 +49,7 @@ export function FollowButton({
   onChange,
   signedIn,
   surface = "profile",
+  analyticsSource = "direct",
   className = "",
 }: FollowButtonProps) {
   const [pending, setPending] = useState(false);
@@ -79,6 +83,12 @@ export function FollowButton({
         ? await unfollowOwner(handle)
         : await followOwner(handle);
       onChange(confirmed);
+
+      // Only after the server agreed: a rolled-back optimistic update is not a
+      // follow, and counting it as one would overstate every funnel.
+      trackEvent(following ? "pet_unfollowed" : "pet_followed", {
+        source: analyticsSource,
+      });
     } catch (caught) {
       onChange(previous);
       setFailure({
@@ -90,7 +100,7 @@ export function FollowButton({
     } finally {
       setPending(false);
     }
-  }, [handle, onChange, pending, relationship]);
+  }, [analyticsSource, handle, onChange, pending, relationship]);
 
   if (relationship.isSelf) {
     return null;

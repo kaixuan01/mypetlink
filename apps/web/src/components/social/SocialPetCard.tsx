@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FollowButton } from "@/components/social/FollowButton";
 import { Icon } from "@/components/ui/Icon";
+import type { AnalyticsSocialSource } from "@/lib/analytics";
 import { useSignedIn } from "@/lib/useSignedIn";
 import { formatPetSummaryLabel } from "@/lib/petDisplay";
 import {
@@ -14,6 +15,7 @@ import type { SocialPetCard as SocialPetCardModel } from "@/services/socialDisco
 type SocialPetCardProps = {
   pet: SocialPetCardModel;
   onFollowChange: (handle: string, isFollowing: boolean) => void;
+  analyticsSource?: AnalyticsSocialSource;
 };
 
 /**
@@ -26,7 +28,11 @@ type SocialPetCardProps = {
  *
  * No follower count. Pets are the subject of content, not actors in the graph.
  */
-export function SocialPetCard({ pet, onFollowChange }: SocialPetCardProps) {
+export function SocialPetCard({
+  pet,
+  onFollowChange,
+  analyticsSource = "explore",
+}: SocialPetCardProps) {
   const signedIn = useSignedIn();
   const relationship: OwnerRelationship = {
     ...noRelationship,
@@ -97,6 +103,7 @@ export function SocialPetCard({ pet, onFollowChange }: SocialPetCardProps) {
 
         <div className="mt-2">
           <FollowButton
+            analyticsSource={analyticsSource}
             displayName={pet.owner.displayName}
             handle={pet.owner.handle}
             onChange={(next) =>

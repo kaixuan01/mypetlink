@@ -7,6 +7,7 @@ import { LinkoMascot } from "@/components/brand/LinkoMascot";
 import { PublicMomentGrid } from "@/components/social/PublicMomentGrid";
 import { SocialPetCard } from "@/components/social/SocialPetCard";
 import { CTAButton } from "@/components/ui/CTAButton";
+import { trackEvent } from "@/lib/analytics";
 import { socialRoutes } from "@/lib/routes";
 import { useMomentPages } from "@/lib/useMomentPages";
 import { useSignedIn } from "@/lib/useSignedIn";
@@ -35,6 +36,10 @@ export function SocialExploreView() {
   const [options, setOptions] = useState<SocialSpeciesOption[]>([]);
   const [pets, setPets] = useState<SocialPetCardModel[]>([]);
   const [petsLoaded, setPetsLoaded] = useState(false);
+
+  useEffect(() => {
+    trackEvent("social_explore_viewed", { source: "explore" });
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -148,7 +153,11 @@ export function SocialExploreView() {
           >
             {pets.map((pet) => (
               <li key={pet.publicSlug}>
-                <SocialPetCard onFollowChange={onFollowChange} pet={pet} />
+                <SocialPetCard
+                  analyticsSource="explore"
+                  onFollowChange={onFollowChange}
+                  pet={pet}
+                />
               </li>
             ))}
           </ul>
@@ -203,6 +212,7 @@ export function SocialExploreView() {
           </div>
         ) : (
           <PublicMomentGrid
+            analyticsSource="explore"
             emptyMessage="New Moments from MyPetLink families will appear here."
             hasMore={hasMore}
             loadingMore={loadingMore}

@@ -10,6 +10,7 @@ import { PublicMomentGrid } from "@/components/social/PublicMomentGrid";
 import { SmartTagProtectedBadge } from "@/components/social/SmartTagProtectedBadge";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon } from "@/components/ui/Icon";
+import { trackEvent } from "@/lib/analytics";
 import { ownerFollowersPath, ownerFollowingPath } from "@/lib/routes";
 import { useMomentPages } from "@/lib/useMomentPages";
 import { useSignedIn } from "@/lib/useSignedIn";
@@ -63,6 +64,15 @@ export function OwnerSocialProfileView({ handle }: OwnerSocialProfileViewProps) 
     loadMore,
     onLikeChange,
   } = useMomentPages(loadMoments);
+
+  useEffect(() => {
+    // The pet page keeps its own public_profile_viewed; this covers the
+    // household side of the funnel without counting the same view twice.
+    trackEvent("social_profile_viewed", {
+      source: "direct",
+      profile_type: "owner",
+    });
+  }, [handle]);
 
   useEffect(() => {
     let active = true;

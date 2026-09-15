@@ -6,6 +6,7 @@ import {
   type MomentLikeChange,
 } from "@/components/social/SocialMomentCard";
 import { CTAButton } from "@/components/ui/CTAButton";
+import type { AnalyticsSocialSource } from "@/lib/analytics";
 import type { PublicMomentListItem } from "@/services/publicSocialService";
 
 type PublicMomentGridProps = {
@@ -20,6 +21,7 @@ type PublicMomentGridProps = {
   onLikeChange: (momentId: string, state: MomentLikeChange) => void;
   /** True where the grid mixes households — Explore — and false on one's own profile. */
   showAuthor?: boolean;
+  analyticsSource?: AnalyticsSocialSource;
 };
 
 /**
@@ -44,6 +46,7 @@ export function PublicMomentGrid({
   signedIn,
   onLikeChange,
   showAuthor = false,
+  analyticsSource = "direct",
 }: PublicMomentGridProps) {
   if (moments.length === 0) {
     return (
@@ -60,6 +63,7 @@ export function PublicMomentGrid({
         {moments.map((moment) => (
           <li key={moment.id}>
             <SocialMomentTile
+              analyticsSource={analyticsSource}
               moment={moment}
               onLikeChange={onLikeChange}
               showAuthor={showAuthor}

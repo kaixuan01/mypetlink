@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useState } from "react";
 import { Icon } from "@/components/ui/Icon";
+import { trackEvent, type AnalyticsSocialSource } from "@/lib/analytics";
 import { ownerLoginPath } from "@/lib/authRedirect";
 import { isApiClientError } from "@/services/apiClient";
 import { likeMoment, unlikeMoment } from "@/services/momentLikeService";
@@ -17,6 +18,8 @@ type LikeButtonProps = {
   /** Null until the signed-in check has run. */
   signedIn: boolean | null;
   onChange: (state: { likeCount: number; viewerHasLiked: boolean }) => void;
+  /** Which screen this heart is on. Categorical; never which Moment. */
+  analyticsSource?: AnalyticsSocialSource;
   className?: string;
 };
 
@@ -37,6 +40,7 @@ export function LikeButton({
   viewerHasLiked,
   signedIn,
   onChange,
+  analyticsSource = "direct",
   className = "",
 }: LikeButtonProps) {
   const pathname = usePathname();
@@ -71,6 +75,10 @@ export function LikeButton({
         likeCount: confirmed.likeCount,
         viewerHasLiked: confirmed.viewerHasLiked,
       });
+
+      trackEvent(viewerHasLiked ? "moment_unliked" : "moment_liked", {
+        source: analyticsSource,
+      });
     } catch (caught) {
       onChange(previous);
       setFailure({
@@ -82,7 +90,7 @@ export function LikeButton({
     } finally {
       setPending(false);
     }
-  }, [likeCount, momentId, onChange, pending, viewerHasLiked]);
+  }, [analyticsSource, likeCount, momentId, onChange, pending, viewerHasLiked]);
 
   const countLabel = likeCount === 1 ? "1 like" : `${likeCount} likes`;
 

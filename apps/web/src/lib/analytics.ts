@@ -16,7 +16,63 @@ export const AnalyticsEvent = {
   ShareCardShared: "share_card_shared",
   ShareCardAction: "share_card_action",
   CreateProfileCtaClicked: "create_profile_cta_clicked",
+  SocialFeedViewed: "social_feed_viewed",
+  SocialFeedPageLoaded: "social_feed_page_loaded",
+  SocialExploreViewed: "social_explore_viewed",
+  SocialSearchPerformed: "social_search_performed",
+  SocialProfileViewed: "social_profile_viewed",
+  PetFollowed: "pet_followed",
+  PetUnfollowed: "pet_unfollowed",
+  MomentLiked: "moment_liked",
+  MomentUnliked: "moment_unliked",
+  SafetyToPublicProfileClicked: "safety_to_public_profile_clicked",
 } as const;
+
+/**
+ * Where a social action happened. Categorical on purpose — this is how the
+ * Explore-to-follow and feed-to-like funnels are read, and it is the only
+ * thing about the content that ever leaves the browser.
+ */
+export type AnalyticsSocialSource =
+  | "feed"
+  | "explore"
+  | "search"
+  | "direct"
+  | "safety";
+
+/** Which kind of profile was opened. Never which one. */
+export type AnalyticsProfileType = "pet" | "owner";
+
+/** The two search tabs, named as the UI names them. */
+export type AnalyticsSearchTab = "pets" | "pet_parents";
+
+/**
+ * How many results came back, in buckets.
+ *
+ * A bucket answers "did search work" without recording what anybody looked
+ * for. An exact count plus a timestamp is most of the way to a query log.
+ */
+export type AnalyticsCountBucket = "0" | "1_5" | "6_plus";
+
+/**
+ * How long the query was, in buckets. Never the query itself — not truncated,
+ * not hashed, not "just the first letters".
+ */
+export type AnalyticsQueryLengthBucket = "2_3" | "4_8" | "9_plus";
+
+export type AnalyticsLostModeState = "on" | "off";
+
+export function toAnalyticsCountBucket(count: number): AnalyticsCountBucket {
+  if (count <= 0) return "0";
+  return count <= 5 ? "1_5" : "6_plus";
+}
+
+export function toAnalyticsQueryLengthBucket(
+  length: number
+): AnalyticsQueryLengthBucket {
+  if (length <= 3) return "2_3";
+  return length <= 8 ? "4_8" : "9_plus";
+}
 
 export type AnalyticsSurface =
   | "public_profile"
@@ -83,6 +139,39 @@ type AnalyticsPayloads = {
     card_action: AnalyticsCardAction;
   };
   create_profile_cta_clicked: { surface: "public_profile" };
+
+  /** Once, when the feed screen opens. */
+  social_feed_viewed: { source: "feed" };
+
+  /**
+   * Each successful page fetched WITH a cursor — so the first page is counted
+   * once, by social_feed_viewed, and never twice.
+   */
+  social_feed_page_loaded: { source: "feed" };
+
+  social_explore_viewed: { source: "explore" };
+
+  social_search_performed: {
+    source: "search";
+    result_tab: AnalyticsSearchTab;
+    result_count_bucket: AnalyticsCountBucket;
+    query_length_bucket: AnalyticsQueryLengthBucket;
+  };
+
+  social_profile_viewed: {
+    source: AnalyticsSocialSource;
+    profile_type: AnalyticsProfileType;
+  };
+
+  pet_followed: { source: AnalyticsSocialSource };
+  pet_unfollowed: { source: AnalyticsSocialSource };
+  moment_liked: { source: AnalyticsSocialSource };
+  moment_unliked: { source: AnalyticsSocialSource };
+
+  safety_to_public_profile_clicked: {
+    source: "safety";
+    lost_mode: AnalyticsLostModeState;
+  };
 };
 
 type AnalyticsEventName = keyof AnalyticsPayloads;
@@ -99,7 +188,19 @@ declare global {
 
 const measurementIdPattern = /^G-[A-Z0-9]{6,20}$/i;
 const allowedValues = {
-  source: new Set(["owner_portal"]),
+  source: new Set([
+    "owner_portal",
+    "feed",
+    "explore",
+    "search",
+    "direct",
+    "safety",
+  ]),
+  profile_type: new Set(["pet", "owner"]),
+  result_tab: new Set(["pets", "pet_parents"]),
+  result_count_bucket: new Set(["0", "1_5", "6_plus"]),
+  query_length_bucket: new Set(["2_3", "4_8", "9_plus"]),
+  lost_mode: new Set(["on", "off"]),
   surface: new Set(["public_profile", "owner_portal", "owner_tags", "pet_tags"]),
   record_type: new Set([
     "vaccine",
@@ -144,6 +245,23 @@ const allowedKeys: Record<AnalyticsEventName, readonly string[]> = {
   share_card_shared: ["card_variant"],
   share_card_action: ["card_variant", "card_action"],
   create_profile_cta_clicked: ["surface"],
+  social_feed_viewed: ["source"],
+  social_feed_page_loaded: ["source"],
+  social_explore_viewed: ["source"],
+  // Deliberately no "q", no "query", no "term". There is no key here through
+  // which raw search text could travel, so it cannot be added by accident.
+  social_search_performed: [
+    "source",
+    "result_tab",
+    "result_count_bucket",
+    "query_length_bucket",
+  ],
+  social_profile_viewed: ["source", "profile_type"],
+  pet_followed: ["source"],
+  pet_unfollowed: ["source"],
+  moment_liked: ["source"],
+  moment_unliked: ["source"],
+  safety_to_public_profile_clicked: ["source", "lost_mode"],
 };
 
 export function getAnalyticsMeasurementId(

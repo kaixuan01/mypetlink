@@ -1,6 +1,7 @@
 "use client";
 
 import { LikeButton } from "@/components/social/LikeButton";
+import type { AnalyticsSocialSource } from "@/lib/analytics";
 import {
   MomentByline,
   MomentMedia,
@@ -21,6 +22,8 @@ type SocialMomentCardProps = {
   now?: number;
   /** False on a household's own profile, where the byline would repeat the page. */
   showAuthor?: boolean;
+  /** Which screen this card is on, for engagement measurement. */
+  analyticsSource?: AnalyticsSocialSource;
   className?: string;
 };
 
@@ -41,6 +44,7 @@ export function SocialMomentCard({
   onLikeChange,
   now,
   showAuthor = true,
+  analyticsSource = "direct",
   className = "",
 }: SocialMomentCardProps) {
   return (
@@ -64,6 +68,7 @@ export function SocialMomentCard({
       <div className="p-3">
         <div className="-ml-2">
           <LikeButton
+            analyticsSource={analyticsSource}
             likeCount={moment.likeCount}
             momentId={moment.id}
             momentTitle={moment.title}
@@ -105,6 +110,7 @@ export function SocialMomentTile({
   signedIn,
   onLikeChange,
   showAuthor = false,
+  analyticsSource = "direct",
 }: SocialMomentTileProps) {
   return (
     <figure
@@ -133,6 +139,7 @@ export function SocialMomentTile({
 
         <div className="mt-1 -ml-2">
           <LikeButton
+            analyticsSource={analyticsSource}
             likeCount={moment.likeCount}
             momentId={moment.id}
             momentTitle={moment.title}
