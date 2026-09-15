@@ -28,6 +28,11 @@ These are dependencies, not preferences. Do not start until every line is true.
 - [ ] **`NEXT_PUBLIC_SOCIAL_ENABLED` is absent or `false`** in the web
       deployment. It defaults to false; make sure nothing has set it.
 
+**Nothing is published by deploying.** Social is three separate opt-ins — the
+household's own profile, then each pet, then each pet's discoverability — and
+every one of them starts off for existing rows and new ones. Turning the flag on
+puts the entry points in front of people; it enrols nobody.
+
 ---
 
 ## Rollout
@@ -122,7 +127,9 @@ The other two existing-table changes are safe in both directions:
 The backfills themselves keep the opt-in posture: every `OwnerSocialProfiles`
 and `PetSocialProfiles` row the migration creates has social participation and
 discoverability set to off, and no name, handle or bio is copied from any
-existing identity.
+existing identity. The later `AddPetSocialConsentOwner` migration only adds one
+nullable column to `PetSocialProfiles` and backfills nothing, so it is safe in
+both directions on its own.
 
 ---
 
@@ -134,22 +141,23 @@ Run as a real owner account on a phone, after step 6.
 |---|---|---|
 | 1 | Sign in | Owner portal loads; Community group visible in navigation |
 | 2 | Settings → Social profile | Claim a handle and a display name; it is NOT pre-filled from your account name |
-| 3 | Enable Social for one pet | Pet's social participation on |
-| 4 | Create a public Moment | Appears on the pet's Moments tab |
-| 5 | Explore | The pet appears under Suggested pets |
-| 6 | Search its name, then the handle | Found under Pets, and under Pet Parents |
-| 7 | Follow from a second account | Button becomes Following; follower count moves |
-| 8 | Feed on the second account | The Moment is there |
-| 9 | Like it | Count moves; refresh keeps it |
-| 10 | Activity on the first account | "started following you" and "liked your Moment of …" |
-| 11 | Block, then check search | The blocked account is gone from search |
-| 12 | Settings → Blocked accounts → Unblock | They reappear; they are NOT following you again |
-| 13 | **Scan a tag** | `/t` or `/n` opens the **Safety Profile**, not Social |
-| 14 | **Safety contact** | WhatsApp and Call work |
-| 15 | Safety Profile, bottom | "View Public Profile" leads to `/p/{slug}` — below the contact actions |
-| 16 | Manage: edit a pet, add a care record | Unchanged |
+| 3 | Same screen → **Your pets** → switch on **Show {pet} on MyPetLink Social** | The pet's row shows it on. If the switch is unavailable, the helper text says why — usually that the pet's Public Profile is off, which is turned on from the pet's own profile page and never from here |
+| 4 | Same row → switch on **Let people find {pet} when browsing** | Only selectable once the row above is on |
+| 5 | Create a public Moment | Appears on the pet's Moments tab |
+| 6 | Explore | The pet appears under Suggested pets |
+| 7 | Search its name, then the handle | Found under Pets, and under Pet Parents |
+| 8 | Follow from a second account | Button becomes Following; follower count moves |
+| 9 | Feed on the second account | The Moment is there |
+| 10 | Like it | Count moves; refresh keeps it |
+| 11 | Activity on the first account | "started following you" and "liked your Moment of …" |
+| 12 | Block, then check search | The blocked account is gone from search |
+| 13 | Settings → Blocked accounts → Unblock | They reappear; they are NOT following you again |
+| 14 | **Scan a tag** | `/t` or `/n` opens the **Safety Profile**, not Social |
+| 15 | **Safety contact** | WhatsApp and Call work |
+| 16 | Safety Profile, bottom | "View Public Profile" leads to `/p/{slug}` — below the contact actions |
+| 17 | Manage: edit a pet, add a care record | Unchanged |
 
-**Rollback-sensitive checks.** Steps 13, 14 and 16 must pass identically with
+**Rollback-sensitive checks.** Steps 14, 15 and 17 must pass identically with
 Social on and with Social off. If any of them behaves differently, Social has
 stopped being additive and the rollout stops.
 

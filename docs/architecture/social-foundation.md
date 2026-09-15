@@ -174,7 +174,43 @@ Everything is **off**, for existing rows and new ones alike.
 | `PetSocialProfiles.IsSocialEnabled` | `false` | This pet appears as a social subject |
 | `PetSocialProfiles.IsDiscoverable` | `false` | This pet may surface in discovery |
 
-Two deliberate design points:
+### Three controls, not one
+
+An owner passes through three separate gates before a stranger can meet a pet,
+and each is given independently:
+
+| Control | Where the owner sets it | What it decides |
+| --- | --- | --- |
+| **Owner Social** — `OwnerSocialProfiles.IsSocialEnabled` | Settings → Social profile, "Turn on my social profile" | Whether the household participates at all. A master switch: with it off, no pet of theirs is visible however its own switches are set. |
+| **Pet Social** — `PetSocialProfiles.IsSocialEnabled` | Settings → Social profile → Your pets, "Show {pet} on MyPetLink Social" | Whether this particular pet appears on the owner's Social profile, in Social Moments, and in their followers' feeds. |
+| **Pet discoverability** — `PetSocialProfiles.IsDiscoverable` | Settings → Social profile → Your pets, "Let people find {pet} when browsing" | Whether somebody who was *not* given a link may meet this pet through Explore and Search. |
+
+A fourth, older control sits underneath and belongs to a different screen:
+**`PetPublicProfiles.IsPublicProfileEnabled`**, on the pet's own profile page,
+which decides whether the pet has a shareable link at all. Social requires it,
+and never switches it on: the API reports `publicProfile` as a missing
+requirement and the settings screen asks the owner to turn it on themselves.
+Handing somebody a link and joining a browsable network are different decisions
+with different audiences.
+
+The write path for the two pet switches is `PUT /api/v1/social/me/pets/{petId}`
+(`PetSocialSettingsService`). It is the **only** production write path to
+`PetSocialProfiles`; the switches were readable by every social surface and
+writable by nothing until it existed.
+
+### Consent belongs to a person
+
+`PetSocialProfiles.ConsentedByUserId` records *who* turned participation on, and
+`SocialVisibility` requires it to still equal the pet's current owner.
+
+Pet ownership transfer is not implemented anywhere in the product — `OwnerUserId`
+is written once, at creation — so there is no transfer path to reset. Storing
+the stamp makes the reset structural instead: whenever transfer does ship, a pet
+that changes hands leaves Social by itself and stays out until its new owner
+opts in, without the transfer code having to remember. It is null for every row
+the migrations created, which is the honest record that nobody has consented.
+
+Three more deliberate design points:
 
 1. **`PetSocialProfile` is separate from `PetPublicProfile`.**
    `IsPublicProfileEnabled` means *"I am happy to hand this link to friends"*.
@@ -402,8 +438,17 @@ Six social policies are now registered in `Program.cs` from
 | `social-search` | 30 / min | Phase 1J |
 | `social-handle-availability` | 20 / min | **`GET /social/handles/{handle}/available`** |
 | `social-profile-mutation` | 20 / hour | **`PUT /social/me/profile`, `POST /social/me/handle`** |
+| `social-withdraw` | 200 / hour | unfollow, unlike, unblock, **`PUT /social/me/pets/{petId}`** |
 
-All six partition by **user id**, not by IP: a household behind one carrier NAT
+`PUT /social/me/pets/{petId}` sits under the withdraw budget rather than the
+profile-mutation one deliberately. One route carries both joining and leaving,
+and the generous budget is the only one that cannot trap a withdrawal behind an
+exhausted enable budget — the failure the withdraw policy exists to prevent.
+Nothing is opened up by it: the route only ever moves two switches on the
+caller's own pets, so it is neither an enumeration surface nor a spam vector,
+and the number of pets an owner has is bounded by their plan.
+
+All of them partition by **user id**, not by IP: a household behind one carrier NAT
 must not share an allowance, and an attacker rotating addresses must not be
 handed a fresh one.
 
@@ -504,6 +549,7 @@ as of the end of Phase 1L.
 
 | Surface | Route | Audience |
 |---|---|---|
+| Per-pet Social consent | Settings → Social profile → Your pets | signed in only |
 | Owner social profile | `/u/{handle}` | public |
 | Followers / Following | `/u/{handle}/followers`, `/following` | public, `noindex` |
 | Home feed | `/feed` | signed in only |
