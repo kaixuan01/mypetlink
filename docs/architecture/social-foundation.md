@@ -497,6 +497,66 @@ deciding.
 
 Retention: 90 days, pruned by a job implemented in Phase 2.
 
+## 12b. What Phase 1 actually shipped
+
+The sections above describe the foundation. This is the surface built on it,
+as of the end of Phase 1L.
+
+| Surface | Route | Audience |
+|---|---|---|
+| Owner social profile | `/u/{handle}` | public |
+| Followers / Following | `/u/{handle}/followers`, `/following` | public, `noindex` |
+| Home feed | `/feed` | signed in only |
+| Explore | `/explore` | public |
+| Search | `/search` | public, `noindex` |
+| Activity | `/notifications` | signed in only |
+| Pet Moments | `/p/{slug}` Moments tab | public |
+| Safety → Public Profile bridge | bottom of `/q/{code}` | finder |
+
+**One card projection.** `SocialMomentProjection` turns an already-narrowed
+query into Moment cards for every surface. Selection is each caller's job — it
+is their only real difference — and the card is built once, so no surface can
+quietly start showing a field the others decided not to.
+
+**One visibility policy.** `SocialVisibility` answers "may this appear
+socially"; `SocialBlocks.BlockedAccountIds` answers "is either side blocked".
+Explore and search add discoverability on top of the first; nothing overrides
+it. Cards are built for a named audience — `Discovery` names only subjects that
+are themselves discoverable, `Direct` names every socially-enabled subject.
+
+**Discoverability is a discovery control, not a secrecy switch.** A pet or
+household with social on and discovery off is still on its own page, still in
+the feed of anybody who already follows it, and still refused to Explore,
+search, and the subject list of a discovery card. The Safety → Public Profile
+bridge is a direct link and so does not require discoverability either.
+
+**Counts are computed, never stored.** Followers, following and likes are
+indexed `COUNT`s. There is still no counter column anywhere in Social (see
+§12), and the revisit thresholds are recorded in the services that would need
+it first.
+
+**Activity is in-app only.** `OwnerNotification` rows carry ids and never
+identity; the actor's handle, name and avatar resolve at read time from their
+current public profile, which is what stops a blocked or departed account
+keeping an identity alive in somebody else's list. No social email exists and
+none is planned for Phase 1.
+
+### Known limits at soft launch
+
+- Rate-limit counters are per application instance (§10). Two instances allow
+  twice the documented numbers.
+- `OwnerNotifications` has a documented 90-day retention and no pruning worker.
+  Reads are cursor-paged and bounded; pruning is post-soft-launch ops work.
+- Explore's suggestion ordering runs a correlated `MAX` per candidate pet.
+  Measured at 10,000 households on a developer machine: ~166 ms. Revisit with a
+  maintained `LastPublicMomentAt` when discoverable pets pass roughly 25,000 or
+  the query exceeds ~250 ms at p95 in production.
+- The single image derivative (640px longest edge) serves both grid tiles and
+  the full-width feed card. It is generous for tiles and below 1× density for a
+  feed card at DPR 2. Raising the single size costs bytes on every tile for a
+  partial fix on one surface; the real answer is a second, larger derivative,
+  which is a schema and backfill change deliberately not made before launch.
+
 ## 13. What Phase 1A–1D did NOT build
 
 Deliberately absent, to be added in later phases:
