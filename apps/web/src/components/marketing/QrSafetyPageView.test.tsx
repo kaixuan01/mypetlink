@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { mockPets } from "@/data/mockPets";
 import { QrSafetyPageView } from "@/components/marketing/QrSafetyPageView";
@@ -320,4 +320,80 @@ it("adds labeled finder details and removes the urgent state when found", async 
   render(<QrSafetyPageView pet={{ ...lostPet, lostModeEnabled: false }} />);
   expect(await screen.findByText(`Found ${lostPet.name}?`)).toBeTruthy();
   expect(screen.queryByText("Lost Mode Active")).toBeNull();
+});
+
+// ---- Safety Profile → Public Profile bridge -------------------------------
+//
+// The finder flow is the product's reason for existing. These hold the line
+// that the social link is an extra at the bottom of the page, never something
+// that competes with reaching the owner.
+
+function withPublicProfileBridge(overrides: Record<string, unknown> = {}) {
+  return {
+    ...withFinderContact({ phone: "+60123456789", whatsapp: "+60123456789" }),
+    publicProfilePath: "/p/milo-k7q2",
+    ...overrides,
+  };
+}
+
+it("offers the pet's Public Profile when the owner has opted in", async () => {
+  render(<QrSafetyPageView pet={withPublicProfileBridge()} />);
+
+  const bridge = await screen.findByTestId("safety-public-profile-bridge");
+
+  expect(bridge.textContent).toContain("About");
+  expect(
+    within(bridge).getByRole("link", { name: "View Public Profile" }).getAttribute("href")
+  ).toBe("/p/milo-k7q2");
+});
+
+it("leads to the PET's page, never to the owner's social identity", async () => {
+  render(<QrSafetyPageView pet={withPublicProfileBridge()} />);
+
+  const bridge = await screen.findByTestId("safety-public-profile-bridge");
+  const href = within(bridge)
+    .getByRole("link", { name: "View Public Profile" })
+    .getAttribute("href");
+
+  // Somebody scanned an animal. Routing them into a person's social profile is
+  // not what they came for.
+  expect(href?.startsWith("/p/")).toBe(true);
+  expect(href).not.toContain("/u/");
+});
+
+it("offers no bridge when the API did not say it was allowed", async () => {
+  render(<QrSafetyPageView pet={withPublicProfileBridge({ publicProfilePath: "" })} />);
+
+  await screen.findAllByRole("link", { name: /whatsapp/i });
+
+  // The gate lives on the server; the page only carries the answer.
+  expect(screen.queryByTestId("safety-public-profile-bridge")).toBeNull();
+});
+
+it("keeps the bridge below every finder-critical action", async () => {
+  render(<QrSafetyPageView pet={withPublicProfileBridge()} />);
+
+  const bridge = await screen.findByTestId("safety-public-profile-bridge");
+  const whatsapp = screen.getAllByRole("link", { name: /whatsapp/i })[0];
+
+  expect(
+    whatsapp.compareDocumentPosition(bridge) & Node.DOCUMENT_POSITION_FOLLOWING
+  ).toBeTruthy();
+});
+
+it("keeps contact first even while Lost Mode is on", async () => {
+  render(
+    <QrSafetyPageView
+      pet={withPublicProfileBridge({ lostModeEnabled: true })}
+    />
+  );
+
+  const bridge = await screen.findByTestId("safety-public-profile-bridge");
+  const lostBanner = screen.getByText("Lost Mode Active");
+
+  // The bridge survives Lost Mode — a finder confirming they have the right
+  // animal is exactly who it helps — but it stays underneath everything urgent.
+  expect(
+    lostBanner.compareDocumentPosition(bridge) & Node.DOCUMENT_POSITION_FOLLOWING
+  ).toBeTruthy();
 });

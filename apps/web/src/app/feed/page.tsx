@@ -8,12 +8,11 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-// Signed-in only. AppLayout carries the owner guard and the existing portal
-// chrome; how this route is reached from the global navigation is Phase 1L's
-// decision, not this one's.
+// Signed-in only. AppLayout carries the owner guard and the shared shell; the
+// social phone bar replaces the management one while you are on this side.
 export default function FeedPage() {
   return (
-    <AppLayout>
+    <AppLayout mobileNav="social">
       <SocialFeedView />
     </AppLayout>
   );

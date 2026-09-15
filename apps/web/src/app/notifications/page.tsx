@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 
 export default function NotificationsPage() {
   return (
-    <AppLayout>
+    <AppLayout mobileNav="social">
       <SocialNotificationsView />
     </AppLayout>
   );

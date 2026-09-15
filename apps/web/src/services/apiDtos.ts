@@ -362,6 +362,12 @@ export type BackendPublicSafetyPage = {
     whatsappE164?: string | null;
     emergencyContactE164?: string | null;
   } | null;
+  /**
+   * The pet's Public Share Profile, when the owner opted into sharing it AND
+   * into social. Null otherwise — which is the whole gate for the link the
+   * Safety Profile offers at the very bottom of the page.
+   */
+  publicProfileSlug?: string | null;
 };
 
 export type BackendSmartTagStatus =

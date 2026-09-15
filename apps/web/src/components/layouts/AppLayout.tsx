@@ -6,17 +6,24 @@ import { useSyncExternalStore } from "react";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { MobileBottomNav } from "@/components/layouts/MobileBottomNav";
+import { SocialBottomNav } from "@/components/layouts/SocialBottomNav";
 import { OwnerKeyboardViewport } from "@/components/layouts/OwnerKeyboardViewport";
 import {
   OwnerHeaderActionsProvider,
   OwnerPortalHeader,
 } from "@/components/portal/OwnerHeaderActions";
-import { Icon } from "@/components/ui/Icon";
+import { Icon, type IconName } from "@/components/ui/Icon";
 import {
   isOwnerNavItemActive,
   ownerNavItems,
   type OwnerNavItem,
 } from "@/lib/ownerNavigation";
+import {
+  getActiveSocialNavItemId,
+  socialNavItems,
+} from "@/lib/socialNavigation";
+import { useSocialActions } from "@/lib/useSocialActions";
+import { useUnreadActivity } from "@/lib/useUnreadActivity";
 import {
   defaultOwnerSettings,
   getOwnerDisplayName,
@@ -34,11 +41,21 @@ import { logoutOwner } from "@/services/authService";
 export function AppLayout({
   children,
   allowViewportStickyContent = false,
+  mobileNav = "manage",
 }: {
   children: React.ReactNode;
   allowViewportStickyContent?: boolean;
+  /**
+   * Which phone bar this page belongs under. One product, two jobs: cramming
+   * eleven destinations into five slots would serve neither, so a social page
+   * gets the social five and everything else keeps the management five.
+   */
+  mobileNav?: "manage" | "social";
 }) {
   const pathname = usePathname();
+  const socialActions = useSocialActions();
+  const socialActiveId = getActiveSocialNavItemId(pathname);
+  const unreadActivity = useUnreadActivity(socialNavItems.length > 0);
   const router = useRouter();
   const collapsed = useSyncExternalStore(
     subscribeSidebarCollapsed,
@@ -134,7 +151,43 @@ export function AppLayout({
             </div>
             )}
 
-            <nav className="mt-6 grid gap-1.5 pb-4">
+            {socialNavItems.length > 0 ? (
+              <nav aria-label="Social" className="mt-6 grid gap-1.5">
+                {collapsed ? null : (
+                  <p className="px-3 pb-1 text-[11px] font-black uppercase tracking-wide text-pet-muted">
+                    Community
+                  </p>
+                )}
+                {socialNavItems.map((item) => (
+                  <SidebarSocialItem
+                    active={socialActiveId === item.id}
+                    collapsed={collapsed}
+                    icon={item.icon}
+                    key={item.id}
+                    label={item.label}
+                    onSelect={
+                      item.id === "create"
+                        ? socialActions.openCreate
+                        : item.id === "profile"
+                          ? socialActions.openOwnProfile
+                          : undefined
+                    }
+                    href={item.href}
+                    unread={item.id === "activity" ? unreadActivity : 0}
+                  />
+                ))}
+              </nav>
+            ) : null}
+
+            <nav
+              aria-label="My pets"
+              className={socialNavItems.length > 0 ? "mt-6 grid gap-1.5 pb-4" : "mt-6 grid gap-1.5 pb-4"}
+            >
+              {socialNavItems.length > 0 && !collapsed ? (
+                <p className="px-3 pb-1 text-[11px] font-black uppercase tracking-wide text-pet-muted">
+                  My pets
+                </p>
+              ) : null}
               {ownerNavItems.map((item) => (
                 <SidebarNavItem
                   active={isOwnerNavItemActive(item, pathname)}
@@ -182,7 +235,14 @@ export function AppLayout({
           </main>
         </div>
 
-        <MobileBottomNav />
+        {mobileNav === "social" && socialNavItems.length > 0 ? (
+          <SocialBottomNav
+            onCreate={socialActions.openCreate}
+            onProfile={socialActions.openOwnProfile}
+          />
+        ) : (
+          <MobileBottomNav />
+        )}
         </div>
       </OwnerHeaderActionsProvider>
     </AuthGuard>
@@ -293,5 +353,77 @@ function SidebarTooltipWrap({
         {label}
       </span>
     </div>
+  );
+}
+
+/**
+ * A sidebar row for the social group.
+ *
+ * Two of these five are not destinations — Share a Moment and My profile both
+ * depend on something only the server knows — so this renders either a link or
+ * a button rather than pretending everything is an href.
+ */
+function SidebarSocialItem({
+  active,
+  collapsed,
+  href,
+  icon,
+  label,
+  onSelect,
+  unread,
+}: {
+  active: boolean;
+  collapsed: boolean;
+  href: string | null;
+  icon: IconName;
+  label: string;
+  onSelect?: () => void;
+  unread: number;
+}) {
+  const className = `flex min-h-11 items-center rounded-full text-sm font-bold transition ${
+    collapsed ? "justify-center px-0" : "gap-3 px-3"
+  } ${
+    active
+      ? "bg-pet-ink text-white"
+      : "text-pet-ink hover:bg-pet-cream"
+  }`;
+
+  const body = (
+    <>
+      <span className="relative grid place-items-center">
+        <Icon aria-hidden="true" className="h-5 w-5" name={icon} />
+        {unread > 0 ? (
+          <span
+            className="absolute -right-2 -top-1.5 grid min-w-4 place-items-center rounded-full bg-pet-coral px-1 text-[10px] font-black leading-4 text-white"
+            data-testid="sidebar-activity-badge"
+          >
+            {unread > 9 ? "9+" : unread}
+          </span>
+        ) : null}
+      </span>
+      {collapsed ? null : <span className="truncate">{label}</span>}
+    </>
+  );
+
+  const accessibleLabel = unread > 0 ? `${label}, ${unread} unread` : label;
+
+  return href ? (
+    <Link
+      aria-current={active ? "page" : undefined}
+      aria-label={accessibleLabel}
+      className={className}
+      href={href}
+    >
+      {body}
+    </Link>
+  ) : (
+    <button
+      aria-label={accessibleLabel}
+      className={className}
+      onClick={onSelect}
+      type="button"
+    >
+      {body}
+    </button>
   );
 }

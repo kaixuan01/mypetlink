@@ -376,6 +376,103 @@ public sealed class SocialGraphTests
         Assert.Equal(StatusCodes.Status401Unauthorized, error.StatusCode);
     }
 
+    // ---- Safety Profile to Public Profile bridge ------------------------
+
+    [Fact]
+    public async Task AnEligiblePet_OffersItsPublicProfileFromTheSafetyPage()
+    {
+        using var harness = await Harness.CreateAsync();
+        await harness.SetPetSocialAsync(MochiId, enabled: true);
+
+        var page = await harness.Safety.GetBySafetyCodeAsync("s-pubmochi");
+
+        Assert.Equal("mochi-pubmochi", page.PublicProfileSlug);
+    }
+
+    [Fact]
+    public async Task APetWhoseHouseholdIsNotSocial_OffersNoBridge()
+    {
+        using var harness = await Harness.CreateAsync();
+        await harness.SetPetSocialAsync(MochiId, enabled: true);
+        await harness.SetSocialAsync(AliceId, enabled: false);
+
+        var page = await harness.Safety.GetBySafetyCodeAsync("s-pubmochi");
+
+        Assert.Null(page.PublicProfileSlug);
+
+        // And the finder page itself is untouched.
+        Assert.Equal("Mochi", page.Name);
+        Assert.NotNull(page.Contact);
+    }
+
+    [Fact]
+    public async Task APetThatIsNotSocial_OffersNoBridge()
+    {
+        using var harness = await Harness.CreateAsync();
+        await harness.SetPetSocialAsync(MochiId, enabled: false);
+
+        Assert.Null((await harness.Safety.GetBySafetyCodeAsync("s-pubmochi")).PublicProfileSlug);
+    }
+
+    [Fact]
+    public async Task APetWithSharingSwitchedOff_OffersNoBridge()
+    {
+        using var harness = await Harness.CreateAsync();
+        await harness.SetPetSocialAsync(MochiId, enabled: true);
+        await harness.SetPublicProfileAsync(MochiId, enabled: false);
+
+        Assert.Null((await harness.Safety.GetBySafetyCodeAsync("s-pubmochi")).PublicProfileSlug);
+    }
+
+    /// <summary>
+    /// The direct-link semantics, stated where somebody will find them.
+    ///
+    /// A finder scanned the animal in front of them. That is the opposite of
+    /// discovery, so discoverability does not gate this link — treating it as
+    /// discovery would quietly turn IsDiscoverable into a private-profile
+    /// switch, which it is not.
+    /// </summary>
+    [Fact]
+    public async Task ANonDiscoverablePet_StillOffersTheBridge()
+    {
+        using var harness = await Harness.CreateAsync();
+        await harness.SetPetSocialAsync(MochiId, enabled: true, discoverable: false);
+
+        Assert.Equal(
+            "mochi-pubmochi",
+            (await harness.Safety.GetBySafetyCodeAsync("s-pubmochi")).PublicProfileSlug);
+    }
+
+    [Fact]
+    public async Task TheBridgeNeverAppearsForAPetInLostMode_UnlessItsOwnerShares()
+    {
+        using var harness = await Harness.CreateAsync();
+        await harness.SetPetSocialAsync(MochiId, enabled: true);
+        await harness.SetLostModeAsync(MochiId, lost: true);
+
+        var page = await harness.Safety.GetBySafetyCodeAsync("s-pubmochi");
+
+        // Lost Mode does not remove the bridge — a finder confirming they have
+        // the right animal is exactly who it helps — but everything
+        // finder-critical stays above it on the page.
+        Assert.Equal("mochi-pubmochi", page.PublicProfileSlug);
+        Assert.Equal("LostMode", page.State);
+        Assert.NotNull(page.Contact);
+    }
+
+    [Fact]
+    public async Task ASocialBlock_NeverRemovesTheBridgeOrTheContact()
+    {
+        using var harness = await Harness.CreateAsync();
+        await harness.SetPetSocialAsync(MochiId, enabled: true);
+        await harness.Graph.BlockAsync(AliceId, "limfamily", "social dispute");
+
+        var page = await harness.Safety.GetBySafetyCodeAsync("s-pubmochi");
+
+        Assert.Equal("mochi-pubmochi", page.PublicProfileSlug);
+        Assert.Equal("+60123456789", page.Contact!.WhatsappE164);
+    }
+
     /// <summary>
     /// The one that matters.
     ///

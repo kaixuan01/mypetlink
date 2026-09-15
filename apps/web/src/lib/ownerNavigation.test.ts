@@ -9,6 +9,7 @@ const currentRelease = {
   safetyProfilesOwnerUiEnabled: false,
   smartTagsEnabled: false,
   tagOrdersEnabled: false,
+  socialEnabled: false,
 } as const;
 
 describe("owner navigation availability", () => {

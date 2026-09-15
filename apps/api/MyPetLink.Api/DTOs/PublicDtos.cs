@@ -165,7 +165,18 @@ public sealed record PublicSafetyPageResponse(
     string ProfileTheme,
     IReadOnlyList<string> Allergies,
     bool ShowFoundLocationAction,
-    PublicSafetyContactResponse? Contact);
+    PublicSafetyContactResponse? Contact,
+
+    /// <summary>
+    /// The pet's Public Share Profile, when the owner has opted into sharing it
+    /// AND into social. Null otherwise, which is how the finder page decides
+    /// whether to offer the link at all.
+    ///
+    /// A slug and nothing else. It is the PET's page, never the owner's social
+    /// identity: somebody scanned an animal, and routing them straight into a
+    /// person's social profile is not what they came for.
+    /// </summary>
+    string? PublicProfileSlug = null);
 
 public sealed record QrSafetyPageResponse(
     string SafetyCode,

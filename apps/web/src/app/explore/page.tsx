@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { SocialLayout } from "@/components/layouts/SocialLayout";
 import { SocialExploreView } from "@/components/social/SocialExploreView";
 
 export const metadata: Metadata = {
@@ -7,12 +8,12 @@ export const metadata: Metadata = {
     "Meet pets shared by MyPetLink families and follow the families behind them.",
 };
 
-// Deliberately outside the owner portal shell: somebody who followed a shared
-// link should be able to look around before deciding whether to join.
+// Public, and part of the product: a visitor gets a brand header and a way in,
+// a signed-in owner gets the same page inside the shell they already use.
 export default function ExplorePage() {
   return (
-    <main className="min-h-screen bg-pet-cream">
+    <SocialLayout>
       <SocialExploreView />
-    </main>
+    </SocialLayout>
   );
 }

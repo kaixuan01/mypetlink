@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { SocialLayout } from "@/components/layouts/SocialLayout";
 import { SocialSearchView } from "@/components/social/SocialSearchView";
 
 export const metadata: Metadata = {
@@ -11,10 +12,10 @@ export const metadata: Metadata = {
 // exported page read its own query string on the client.
 export default function SearchPage() {
   return (
-    <main className="min-h-screen bg-pet-cream">
+    <SocialLayout>
       <Suspense fallback={null}>
         <SocialSearchView />
       </Suspense>
-    </main>
+    </SocialLayout>
   );
 }
