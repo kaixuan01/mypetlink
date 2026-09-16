@@ -11,7 +11,11 @@ import { SmartTagProtectedBadge } from "@/components/social/SmartTagProtectedBad
 import { CTAButton } from "@/components/ui/CTAButton";
 import { Icon } from "@/components/ui/Icon";
 import { trackEvent } from "@/lib/analytics";
-import { ownerFollowersPath, ownerFollowingPath } from "@/lib/routes";
+import {
+  ownerFollowersPath,
+  ownerFollowingPath,
+  ownerRoutes,
+} from "@/lib/routes";
 import { useMomentPages } from "@/lib/useMomentPages";
 import { useSignedIn } from "@/lib/useSignedIn";
 import {
@@ -194,6 +198,20 @@ export function OwnerSocialProfileView({ handle }: OwnerSocialProfileViewProps) 
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
+          {relationship.isSelf ? (
+            // Your own profile is where you would look to change it. Owner
+            // Settings still links here, but nobody should have to leave
+            // Community and go through pet management to edit how they appear
+            // in Community.
+            <Link
+              className="inline-flex min-h-11 items-center gap-2 rounded-full border border-pet-border bg-white px-4 text-sm font-bold text-pet-ink transition hover:bg-pet-cream"
+              data-testid="edit-community-profile"
+              href={ownerRoutes.socialProfileEdit}
+            >
+              <Icon aria-hidden="true" className="h-4 w-4" name="settings" />
+              Edit profile
+            </Link>
+          ) : null}
           <FollowButton
             displayName={profile.displayName}
             handle={profile.handle}

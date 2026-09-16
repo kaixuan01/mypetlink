@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { AppLayout } from "@/components/layouts/AppLayout";
 import { BlockedAccountsSettings } from "@/components/portal/BlockedAccountsSettings";
 import { SettingsPanel } from "@/components/portal/SettingsPanel";
-import { SocialProfileSettingsSection } from "@/components/portal/SocialProfileSettingsSection";
+import { CommunityProfileSettingsLink } from "@/components/portal/CommunityProfileSettingsLink";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { socialEnabled } from "@/lib/features";
 
@@ -22,7 +22,7 @@ export default function SettingsPage() {
       {socialEnabled ? (
         <>
           <div className="mt-5">
-            <SocialProfileSettingsSection />
+            <CommunityProfileSettingsLink />
           </div>
           <div className="mt-5">
             <BlockedAccountsSettings />

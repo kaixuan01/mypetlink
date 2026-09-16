@@ -63,6 +63,8 @@ export function SocialProfileSettings({ petNames = [] }: SocialProfileSettingsPr
   const [handleState, setHandleState] = useState<HandleState>("idle");
   const [handleMessage, setHandleMessage] = useState("");
   const [claiming, setClaiming] = useState(false);
+  /** True while the owner is deliberately changing a handle they already hold. */
+  const [handleEditing, setHandleEditing] = useState(false);
 
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
@@ -212,6 +214,7 @@ export function SocialProfileSettings({ petNames = [] }: SocialProfileSettingsPr
       const response = await claimOwnerHandle(normalizeHandleForDisplay(handleInput));
       applyProfile(response.data);
       setHandleState("idle");
+      setHandleEditing(false);
       setHandleMessage("Handle saved.");
     } catch (error) {
       setHandleState("unavailable");
@@ -409,74 +412,155 @@ export function SocialProfileSettings({ petNames = [] }: SocialProfileSettingsPr
               )}
             </span>
             <div className="grid min-w-0 flex-1 basis-56 gap-1">
+              {/*
+                The native control is kept — it is what actually opens the file
+                picker, and it is what assistive technology operates — but it is
+                taken out of the visual layer. "Choose File / No file chosen" is
+                a browser's wording in a browser's typeface, and it was the one
+                thing on this screen that looked like an admin form rather than
+                somebody's profile.
+              */}
               <input
                 accept="image/jpeg,image/png,image/webp"
-                className="w-full min-w-0 text-sm font-semibold text-pet-muted file:mr-3 file:rounded-full file:border-0 file:bg-pet-teal file:px-4 file:py-2 file:text-sm file:font-bold file:text-white"
+                className="sr-only"
                 disabled={avatarBusy}
                 id="social-avatar-input"
                 onChange={(event) => {
                   const file = event.target.files?.[0];
                   if (file) void uploadAvatar(file);
+                  // Clear it so choosing the same file twice still fires.
+                  event.target.value = "";
                 }}
                 ref={avatarInputRef}
                 type="file"
               />
-              <span className="text-xs font-semibold text-pet-muted">
+              <button
+                className="inline-flex min-h-11 w-fit min-w-0 items-center gap-2 rounded-full border border-pet-border bg-white px-4 text-sm font-bold text-pet-ink transition hover:bg-pet-cream disabled:opacity-60"
+                disabled={avatarBusy}
+                data-testid="social-avatar-button"
+                onClick={() => avatarInputRef.current?.click()}
+                type="button"
+              >
+                <Icon aria-hidden="true" className="h-4 w-4" name="plus" />
                 {avatarBusy
                   ? "Uploading…"
-                  : "JPG, PNG or WebP, up to 10 MB. We never use your Google picture unless you upload it here."}
+                  : profile.avatarThumbnailUrl
+                    ? "Change photo"
+                    : "Add a photo"}
+              </button>
+              <span className="text-xs font-semibold text-pet-muted">
+                JPG, PNG or WebP, up to 10 MB. We never use your Google picture
+                unless you upload it here.
               </span>
             </div>
           </div>
         </div>
 
-        <Field
-          errorText={
-            handleState === "invalid" || handleState === "unavailable"
-              ? handleMessage
-              : undefined
-          }
-          helperText={
-            cooldownActive && cooldownUntil
-              ? `You can change your handle again after ${cooldownUntil.toLocaleDateString()}.`
-              : handleState === "available"
+        {/*
+          A handle somebody already owns is settled, not a form field waiting to
+          be filled in. Leaving it as a permanently editable textbox made an
+          established identity look unsaved every time the screen opened — and
+          invited a rename nobody meant to start, which costs a 30-day cooldown.
+          So it reads as a value until the owner asks to change it.
+
+          Nothing about the rules changes here: uniqueness, reservations, the
+          cooldown, the release hold and the protected names are all the
+          server's, and claiming is still its own explicit action.
+        */}
+        {profile.handle && !handleEditing ? (
+          <Field
+            helperText={
+              cooldownActive && cooldownUntil
+                ? `You can change this again after ${cooldownUntil.toLocaleDateString()}.`
+                : "People find you by this."
+            }
+            label="Handle"
+          >
+            <div className="flex min-w-0 flex-wrap items-center gap-3">
+              <span
+                className="min-w-0 truncate text-base font-black text-pet-ink"
+                data-testid="social-handle-value"
+              >
+                @{profile.handle}
+              </span>
+              <button
+                className="inline-flex min-h-11 items-center rounded-full border border-pet-border bg-white px-4 text-sm font-bold text-pet-ink transition hover:bg-pet-cream disabled:opacity-60"
+                data-testid="social-handle-change"
+                disabled={cooldownActive}
+                onClick={() => {
+                  setHandleEditing(true);
+                  setHandleState("idle");
+                  setHandleMessage("");
+                }}
+                type="button"
+              >
+                Change handle
+              </button>
+            </div>
+          </Field>
+        ) : (
+          <Field
+            errorText={
+              handleState === "invalid" || handleState === "unavailable"
                 ? handleMessage
-                : "Letters, numbers, underscores and dots. People find you by this."
-          }
-          label="Handle"
-        >
-          <div className="flex min-w-0 items-center gap-2">
-            <span
-              aria-hidden="true"
-              className="text-sm font-black text-pet-muted"
-            >
-              @
-            </span>
-            <input
-              className="min-h-12 w-full min-w-0 rounded-2xl border border-pet-border bg-white px-4 text-sm font-semibold text-pet-ink"
-              disabled={cooldownActive || claiming}
-              id="social-handle-input"
-              maxLength={handleMaxLength}
-              onBlur={(event) => void checkAvailability(event.target.value)}
-              onChange={(event) => {
-                setHandleInput(event.target.value);
-                setHandleState("idle");
-                setHandleMessage("");
-              }}
-              placeholder={handleSuggestions[0] ?? "mochiandcoco"}
-              type="text"
-              value={handleInput}
-            />
-            <CTAButton
-              disabled={cooldownActive || claiming || !handleInput.trim()}
-              onClick={() => void saveHandle()}
-              type="button"
-              variant="secondary"
-            >
-              {claiming ? "Saving…" : "Save handle"}
-            </CTAButton>
-          </div>
-        </Field>
+                : undefined
+            }
+            helperText={
+              cooldownActive && cooldownUntil
+                ? `You can change your handle again after ${cooldownUntil.toLocaleDateString()}.`
+                : handleState === "available"
+                  ? handleMessage
+                  : "Letters, numbers, underscores and dots. People find you by this."
+            }
+            label={profile.handle ? "Change handle" : "Choose your handle"}
+          >
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <span
+                aria-hidden="true"
+                className="text-sm font-black text-pet-muted"
+              >
+                @
+              </span>
+              <input
+                className="min-h-12 w-full min-w-0 flex-1 basis-40 rounded-2xl border border-pet-border bg-white px-4 text-sm font-semibold text-pet-ink"
+                disabled={cooldownActive || claiming}
+                id="social-handle-input"
+                maxLength={handleMaxLength}
+                onBlur={(event) => void checkAvailability(event.target.value)}
+                onChange={(event) => {
+                  setHandleInput(event.target.value);
+                  setHandleState("idle");
+                  setHandleMessage("");
+                }}
+                placeholder={handleSuggestions[0] ?? "mochiandcoco"}
+                type="text"
+                value={handleInput}
+              />
+              <CTAButton
+                disabled={cooldownActive || claiming || !handleInput.trim()}
+                onClick={() => void saveHandle()}
+                type="button"
+                variant="secondary"
+              >
+                {claiming ? "Saving…" : profile.handle ? "Save handle" : "Claim handle"}
+              </CTAButton>
+              {profile.handle ? (
+                <button
+                  className="min-h-11 text-sm font-bold text-pet-muted underline"
+                  onClick={() => {
+                    setHandleEditing(false);
+                    setHandleInput(profile.handle);
+                    setHandleState("idle");
+                    setHandleMessage("");
+                  }}
+                  type="button"
+                >
+                  Cancel
+                </button>
+              ) : null}
+            </div>
+          </Field>
+        )}
 
         {handleSuggestions.length > 0 && !profile.handle ? (
           <div className="flex flex-wrap items-center gap-2">

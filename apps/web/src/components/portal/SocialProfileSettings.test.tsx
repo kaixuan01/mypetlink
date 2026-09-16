@@ -57,6 +57,10 @@ const emptyProfile: OwnerSocialProfile = {
 };
 
 function handleInput() {
+  // A settled handle reads as a value, so the field has to be opened first.
+  const change = screen.queryByTestId("social-handle-change");
+  if (change) fireEvent.click(change);
+
   const input = document.querySelector<HTMLInputElement>("#social-handle-input");
   if (!input) throw new Error("handle input not rendered");
   return input;
@@ -368,7 +372,7 @@ describe("SocialProfileSettings", () => {
     await waitFor(() => expect(mocks.getOwnerSocialProfile).toHaveBeenCalled());
 
     fireEvent.change(handleInput(), { target: { value: "ab" } });
-    fireEvent.click(screen.getByRole("button", { name: /save handle/i }));
+    fireEvent.click(screen.getByRole("button", { name: /(claim|save) handle/i }));
 
     await waitFor(() =>
       expect(screen.getByText(/handles are 3 to 30 characters/i)).toBeTruthy()
@@ -403,7 +407,7 @@ describe("SocialProfileSettings", () => {
     await waitFor(() => expect(mocks.getOwnerSocialProfile).toHaveBeenCalled());
 
     fireEvent.change(handleInput(), { target: { value: "mochiandcoco" } });
-    fireEvent.click(screen.getByRole("button", { name: /save handle/i }));
+    fireEvent.click(screen.getByRole("button", { name: /(claim|save) handle/i }));
 
     await waitFor(() =>
       expect(mocks.claimOwnerHandle).toHaveBeenCalledWith("mochiandcoco")
@@ -419,8 +423,13 @@ describe("SocialProfileSettings", () => {
     render(<SocialProfileSettings />);
     await waitFor(() => expect(mocks.getOwnerSocialProfile).toHaveBeenCalled());
 
-    expect(handleInput().disabled).toBe(true);
-    expect(screen.getByText(/you can change your handle again after/i)).toBeTruthy();
+    // A settled handle reads as a value, and a running cooldown now stops the
+    // editor being opened at all rather than offering a textbox that refuses to
+    // save. The handle itself stays plainly visible either way.
+    const change = screen.getByTestId("social-handle-change") as HTMLButtonElement;
+    expect(change.disabled).toBe(true);
+    expect(screen.getByTestId("social-handle-value").textContent).toBe("@mochiandcoco");
+    expect(screen.getByText(/you can change this again after/i)).toBeTruthy();
   });
 
   it("refuses a general area that is really a street address", async () => {

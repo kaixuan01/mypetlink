@@ -6,7 +6,6 @@ import {
   SocialMomentTile,
   type MomentLikeChange,
 } from "@/components/social/SocialMomentCard";
-import { CTAButton } from "@/components/ui/CTAButton";
 import type { AnalyticsSocialSource } from "@/lib/analytics";
 import type { PublicMomentListItem } from "@/services/publicSocialService";
 

@@ -174,13 +174,22 @@ describe("Settings cards can shrink to a phone", () => {
     const card = document.querySelector("section") as HTMLElement;
     expect(card).toBeTruthy();
 
-    // The input itself must take the width it is given, not the width a
-    // user-agent thinks a file picker deserves.
+    // Two ways to stop a file input asserting its user-agent intrinsic width.
+    // Either it takes the width it is given, or it is out of the visual layer
+    // entirely behind a styled button — which is what it does now, and which
+    // also removes the browser-chrome look from a profile screen.
     const inputClass = fileInput!.className;
-    expect(inputClass).toMatch(/(^|\s)w-full(\s|$)/);
-    expect(inputClass).toMatch(/(^|\s)min-w-0(\s|$)/);
+    const isVisuallyHidden = /(^|\s)sr-only(\s|$)/.test(inputClass);
 
-    expect(unshrinkableAncestors(fileInput!, card)).toEqual([]);
+    if (!isVisuallyHidden) {
+      expect(inputClass).toMatch(/(^|\s)w-full(\s|$)/);
+      expect(inputClass).toMatch(/(^|\s)min-w-0(\s|$)/);
+    }
+
+    // The visible control that replaced it still has to sit on a chain that
+    // can shrink.
+    const button = screen.getByTestId("social-avatar-button");
+    expect(unshrinkableAncestors(button, card)).toEqual([]);
   });
 
   it("keeps every truncating label on a shrinkable chain", async () => {
